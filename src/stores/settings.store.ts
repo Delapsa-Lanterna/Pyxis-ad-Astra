@@ -27,7 +27,9 @@ export function initializeSettingsStore(settings: AppSettings): void {
 
 export const useSettingsStore = defineStore('settings', () => {
   if (!initialSettings) throw new Error('Settings store used before initialization');
-  const theme = ref<AppTheme>(readTheme(initialSettings.theme));
+  const themePreference = ref(readTheme(initialSettings.theme));
+  const systemTheme = ref<AppTheme>('light');
+  const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
   const customAccent = ref(readCustomAccent(initialSettings.customAccent));
   const historyLimit = ref(readHistoryLimit(initialSettings.historyLimit));
@@ -51,7 +53,11 @@ export const useSettingsStore = defineStore('settings', () => {
   const themeColors = computed(() => createThemeColors(activeAccentHex.value, theme.value));
 
   function setTheme(nextTheme: AppTheme) {
-    theme.value = nextTheme;
+    themePreference.value = nextTheme;
+  }
+
+  function setSystemTheme(nextTheme: AppTheme) {
+    systemTheme.value = nextTheme;
   }
 
   function toggleTheme() {
@@ -100,7 +106,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function settingsSnapshot() {
     return {
-      theme: theme.value,
+      theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
       historyLimit: historyLimit.value,
@@ -114,7 +120,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function replaceSettings(settings: AppSettings) {
-    theme.value = readTheme(settings.theme);
+    themePreference.value = readTheme(settings.theme);
     accent.value = readAccent(settings.accent);
     customAccent.value = readCustomAccent(settings.customAccent);
     historyLimit.value = readHistoryLimit(settings.historyLimit);
@@ -159,6 +165,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setLogLevel,
     setStarsectorRoot,
     setTheme,
+    setSystemTheme,
     toggleTheme,
     replaceSettings,
     settingsSnapshot,

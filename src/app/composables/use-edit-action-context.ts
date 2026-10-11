@@ -6,7 +6,7 @@ export function useEditActionContext(context: Readonly<Ref<EditContext | null>>)
   watch(
     context,
     (next) => {
-      if (!next || next.handoff !== 'save') generation++;
+      if (!next || (next.handoff !== 'save' && next.handoff !== 'identity')) generation++;
     },
     { flush: 'sync' },
   );

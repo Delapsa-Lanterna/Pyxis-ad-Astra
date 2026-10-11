@@ -1,26 +1,40 @@
 import { computed, onScopeDispose } from 'vue';
-import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
+import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { completeSavedWrite } from '@/orchestrators/file-history-write.orchestrator';
-import { jointWriteTargets } from '@/domain/joint-edit';
+import { jointWriteTargets, rebaseJointDraft, type JointIdentitySnapshot } from '@/domain/joint-edit';
 import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryJointEdit } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { listenProjectSessionInvalidated } from '@/orchestrators/project-session-refresh.orchestrator';
+import { normalizeFsPath } from '@/shared/lib/paths';
 
-export function useJointEditSession() {
+export function useJointEditSession(
+  options: {
+    editableRecords?: (snapshot: JointEditSnapshot) => string[];
+    afterBaseline?: (snapshot: JointEditSnapshot, receipt: JointEditWriteResult, previous: JointIdentitySnapshot) => Promise<void>;
+  } = {},
+) {
   const actions = useJointEditActions();
   const commands = useSaveCommandStore();
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
   let releaseHandoff: (() => Promise<void>) | null = null;
-  const session = useEditTargetDraftSession<
+  let overrideIntent: string[] = [];
+  const editableKeys = (snapshot: JointEditSnapshot) => options.editableRecords?.(snapshot) ?? snapshot.records.map((record) => record.key);
+  const valuesOf = (snapshot: JointEditSnapshot) =>
+    Object.fromEntries(
+      snapshot.records.filter((record) => editableKeys(snapshot).includes(record.key)).map((record) => [record.key, record.value]),
+    );
+  type Meta = { snapshot: JointEditSnapshot; receipt: JointEditWriteResult | null; previous: JointIdentitySnapshot | null };
+  const session: EditTargetDraftSession<Record<string, JointValue>, JointEditRoot, Meta> = useEditTargetDraftSession<
     Record<string, JointValue>,
     JointEditRoot,
-    { snapshot: JointEditSnapshot; receipt: JointEditWriteResult | null }
+    Meta
   >({
     emptyValue: {},
     targetKey: (root) => JSON.stringify(root),
@@ -28,9 +42,9 @@ export function useJointEditSession() {
       const snapshot = cloneQuerySnapshot<JointEditSnapshot>(await queryJointEdit(root, signal));
       return {
         target: snapshot.root,
-        value: Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])),
+        value: valuesOf(snapshot),
         baseVersions: snapshot.baseVersions,
-        meta: { snapshot, receipt: null },
+        meta: { snapshot, receipt: null, previous: null },
       };
     },
     save: async (root, values) => {
@@ -39,18 +53,37 @@ export function useJointEditSession() {
         { baseline: baseline.meta.snapshot, values },
         JSON.stringify(root),
         (release) => (releaseHandoff = release),
+        overrideIntent,
       );
       if (!result) return;
       const snapshot = result.refreshedEntity;
       return {
         target: snapshot.root,
-        value: Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])),
+        value: valuesOf(snapshot),
         baseVersions: result.baseVersions,
-        meta: { snapshot, receipt: result },
+        meta: {
+          snapshot,
+          receipt: result,
+          previous: {
+            bindings: baseline.meta.snapshot.bindings,
+            records: baseline.meta.snapshot.records.map(({ key, target }) => ({ key, target })),
+          },
+        },
         commitId: result.commitId,
       };
     },
+    mapSavedDraft: (draft, before, after, submitted) =>
+      rebaseJointDraft(
+        draft,
+        before.meta.snapshot,
+        after.meta.snapshot,
+        after.meta.receipt?.identityChanges ?? [],
+        after.meta.receipt?.keyMap ?? [],
+        submitted,
+      ),
     afterSaved: async (snapshot) => {
+      if (snapshot.meta.receipt && snapshot.meta.previous)
+        await options.afterBaseline?.(snapshot.meta.snapshot, snapshot.meta.receipt, snapshot.meta.previous);
       await releaseHandoff?.();
       releaseHandoff = null;
       if (snapshot.meta.receipt)
@@ -70,7 +103,11 @@ export function useJointEditSession() {
     waitForSave: session.waitForSave,
     editing: {
       label: '联合编辑器',
-      targets: computed(() => (session.baselineSnapshot.value ? jointWriteTargets(session.baselineSnapshot.value.meta.snapshot) : [])),
+      targets: computed(() =>
+        session.baselineSnapshot.value
+          ? jointWriteTargets(session.baselineSnapshot.value.meta.snapshot, editableKeys(session.baselineSnapshot.value.meta.snapshot))
+          : [],
+      ),
       dirty: session.dirty,
       commitInputs: () => session.inputs.commit(),
       save: async () => {
@@ -81,9 +118,21 @@ export function useJointEditSession() {
   });
   const stopInvalidation = subscribeQueryInvalidations((event) => {
     const root = session.currentTarget.value;
-    if (!root || event.sessionId !== root.sessionId || event.scope === 'session') return;
-    if (event.invalidation?.paths.length) void session.refreshTarget(root).catch((error) => feedback.error(error, '刷新联合编辑失败'));
+    if (root && event.sessionId === root.sessionId && event.scope === 'session') session.clearTarget();
   });
+  let released = false;
+  let stopProjection: (() => void) | null = null;
+  void listenProjectSessionInvalidated(async (event) => {
+    const root = session.currentTarget.value;
+    if (!root || event.manifest.sessionId !== root.sessionId || normalizeFsPath(event.manifest.modRoot) !== normalizeFsPath(root.modRoot))
+      return;
+    if (event.invalidation.paths.length) await session.refreshTarget(root);
+  })
+    .then((stop) => {
+      if (released) stop();
+      else stopProjection = stop;
+    })
+    .catch((error) => feedback.error(error, '监听联合编辑更新失败'));
   async function open(root: JointEditRoot) {
     let opened = false;
     await reads.consume('open', root, (signal) => actions.open(root, signal), {
@@ -91,9 +140,9 @@ export function useJointEditSession() {
         if (!snapshot) return;
         session.loadBaseForTarget({
           target: snapshot.root,
-          value: Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])),
+          value: valuesOf(snapshot),
           baseVersions: snapshot.baseVersions,
-          meta: { snapshot, receipt: null },
+          meta: { snapshot, receipt: null, previous: null },
         });
         opened = true;
       },
@@ -101,11 +150,20 @@ export function useJointEditSession() {
     return opened;
   }
   onScopeDispose(() => {
+    released = true;
+    stopProjection?.();
     stopInvalidation();
     unregister();
     session.dispose();
     void releaseHandoff?.().catch((error) => feedback.error(error, '释放联合编辑交接失败'));
     releaseHandoff = null;
   });
-  return { ...session, open, handoffLocked: computed(() => commands.isEditTargetLocked(session.currentTargetKey.value)) };
+  function createOverrides(keys: string[]) {
+    if (session.saving.value) return session.saveDraft();
+    overrideIntent = [...keys];
+    return session.saveDraft().finally(() => {
+      overrideIntent = [];
+    });
+  }
+  return { ...session, open, createOverrides, handoffLocked: computed(() => commands.isEditTargetLocked(session.currentTargetKey.value)) };
 }

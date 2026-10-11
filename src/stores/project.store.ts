@@ -27,7 +27,7 @@ export const useProjectStore = defineStore('project', () => {
     activeModRoot.value ? (manifests.value.get(activeModRoot.value) ?? null) : null,
   );
   const activeSessionId = computed<ProjectSessionId | null>(() => activeManifest.value?.sessionId ?? null);
-  const projectName = computed(() => cell(activeManifest.value?.modInfo?.name) || 'Circinus ad Astra');
+  const projectName = computed(() => cell(activeManifest.value?.modInfo?.name) || '星界罗盘 [Circinus ad Astra]');
 
   function getManifest(modRoot: string): ProjectManifest | null {
     return manifests.value.get(modRoot) ?? null;

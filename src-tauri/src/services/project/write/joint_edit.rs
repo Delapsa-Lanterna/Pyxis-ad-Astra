@@ -14,7 +14,12 @@ use std::{collections::BTreeMap, path::Path};
 
 pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
     let current = query_joint_edit(&payload.snapshot.root)?;
-    for required in &current.base_versions {
+    for required in current
+        .records
+        .iter()
+        .filter(|record| payload.values.contains_key(&record.key))
+        .flat_map(|record| &record.base_versions)
+    {
         if !payload
             .base_versions
             .iter()
@@ -46,6 +51,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     let mut json = JsonWriteBatch::new(payload.json_write.clone());
     let mut tables: BTreeMap<CsvTableKey, (Vec<String>, Vec<SessionCsvRow>, u64)> = BTreeMap::new();
     let mut identities = Vec::new();
+    let mut description_renames = Vec::new();
     let mut key_map = Vec::new();
     let mut saved = current.clone();
     let mut records = current.records.iter().collect::<Vec<_>>();
@@ -72,11 +78,44 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 "联合保存来源内容已变化",
             ));
         }
-        if value == &record.value {
+        let create_override = payload.create_overrides.contains(&record.key);
+        if create_override
+            && record
+                .source
+                .as_ref()
+                .is_none_or(|source| source.source != ResourceSource::Core)
+        {
+            return Err(AppError::message(
+                "joint.override_changed",
+                "覆盖创建来源已变化",
+            ));
+        }
+        if value == &record.value && !create_override {
             continue;
         }
         match (&record.target, value) {
             (JointRecordTarget::Spec { target }, JointValue::Present(data)) => {
+                let constructed = if matches!(record.value, JointValue::Missing)
+                    && target.kind == EntityKind::Ship
+                {
+                    let mut content = crate::domain::spec_construction::create_associated_spec(
+                        &AssociatedSpecCreateParams::Ship {
+                            id: target.id.clone(),
+                            hull_name: target.id.clone(),
+                        },
+                    );
+                    let edited = data.as_object().ok_or_else(|| {
+                        AppError::message("joint.value_shape", "规格内容必须为对象")
+                    })?;
+                    content
+                        .as_object_mut()
+                        .expect("associated ship template is an object")
+                        .extend(edited.clone());
+                    content
+                } else {
+                    data.clone()
+                };
+                let data = &constructed;
                 let definition =
                     crate::domain::editor_config_definitions::entity_spec_definition(target.kind)
                         .expect("joint spec has format");
@@ -112,6 +151,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     None,
                     None,
                 )?;
+                if let Some(rename) = staged.default_description_rename {
+                    description_renames.push(rename);
+                }
                 if let Some(csv) = staged.saved_csv {
                     if let Some((_, pending, _)) = tables.get_mut(&csv.table) {
                         if let Some(EntityLinkedRecord::Csv { row_key, .. }) =
@@ -205,6 +247,27 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     }
                     JointValue::Present(Value::Object(data)) => {
                         let mut data = data.clone();
+                        let added = data
+                            .keys()
+                            .filter(|field| !header.contains(field))
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        if !added.is_empty() {
+                            let standard = if let Some(root) = &session.manifest.starsector_root {
+                                let core = super::super::cache::core::core_dir(root)?
+                                    .join(csv_table_spec(*table).rel_path);
+                                if core.exists() {
+                                    read_csv_data(&core)?.header
+                                } else {
+                                    crate::domain::csv_column_order::standard_csv_columns(*table)
+                                }
+                            } else {
+                                crate::domain::csv_column_order::standard_csv_columns(*table)
+                            };
+                            crate::domain::csv_column_order::add_ordered_csv_columns(
+                                header, &added, &standard,
+                            );
+                        }
                         for identity_change in &identities {
                             if let Some(EntityLinkedRecord::Csv {
                                 table: linked,
@@ -217,14 +280,6 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                             }
                         }
                         if let Some(index) = index {
-                            if let Some(first) = header.first()
-                                && rows[index].data.get(first) != data.get(first)
-                            {
-                                rows[index].is_comment = data
-                                    .get(first)
-                                    .and_then(Value::as_str)
-                                    .is_some_and(|value| value.starts_with('#'));
-                            }
                             rows[index].data = data;
                         } else {
                             let next_key = format!("{}:row:{next_seq}", table.as_str());
@@ -282,7 +337,34 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 .value = value.clone();
         }
     }
-    for (table, (header, rows, _)) in &tables {
+    if !description_renames.is_empty() {
+        if let Some(table) = tables.get_mut(&CsvTableKey::Descriptions) {
+            for (previous, next) in &description_renames {
+                super::ship_description::rename_description_row(&session, table, previous, next)?;
+            }
+        } else if let Some(csv) =
+            super::ship_description::stage_description_renames(&session, &description_renames)?
+        {
+            tables.insert(
+                CsvTableKey::Descriptions,
+                (csv.header, csv.rows, csv.next_seq),
+            );
+        }
+    }
+    for (table, (header, rows, _)) in &mut tables {
+        if let Some(first) = header.first() {
+            for row in rows
+                .iter_mut()
+                .filter(|row| row.is_comment && !row.data.is_empty())
+            {
+                let value =
+                    crate::parsers::value_to_cell(row.data.get(first).unwrap_or(&Value::Null))?;
+                if !value.starts_with('#') {
+                    row.data
+                        .insert(first.clone(), Value::String(format!("#{value}")));
+                }
+            }
+        }
         let text = crate::parsers::render_csv_text(
             header,
             &rows
@@ -293,7 +375,31 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         builder.text_file(csv_table_spec(*table).rel_path, Some(text))?;
     }
     json.finish()?;
+    for identity in &mut identities {
+        if let Some(table) =
+            crate::domain::editor_config_definitions::entity_spec_definition(identity.after.kind)
+                .and_then(|definition| definition.csv_table)
+            && let Some((_, rows, _)) = tables.get(&table)
+            && let Some(row) = rows.iter().find(|row| {
+                !row.is_comment
+                    && row.data.get("id").and_then(Value::as_str)
+                        == Some(identity.after.id.as_str())
+            })
+        {
+            identity.after.linked_record = Some(EntityLinkedRecord::Csv {
+                table,
+                row_key: row.row_key.clone(),
+            });
+        }
+    }
     for record in &mut saved.records {
+        if let JointRecordTarget::Spec { target } = &mut record.target
+            && let Some(identity) = identities.iter().find(|identity| {
+                identity.after.kind == target.kind && identity.after.id == target.id
+            })
+        {
+            *target = identity.after.clone();
+        }
         if let JointRecordTarget::Csv {
             table,
             row_key,
@@ -307,11 +413,41 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 .find(|mapping| mapping.previous_key == *row_key)
                 .map(|mapping| mapping.next_key.as_str())
                 .unwrap_or(row_key);
-            let row = rows.iter().find(|row| row.row_key == next_key);
+            let renamed = (*table == CsvTableKey::Descriptions)
+                .then(|| {
+                    description_renames.iter().find(|(previous, _)| {
+                        identity.get("id") == Some(previous)
+                            && identity.get("type").map(String::as_str) == Some("SHIP")
+                    })
+                })
+                .flatten();
+            let row = rows.iter().find(|row| row.row_key == next_key).or_else(|| {
+                renamed.and_then(|(_, next)| {
+                    rows.iter().find(|row| {
+                        !row.is_comment
+                            && row.data.get("id").and_then(Value::as_str) == Some(next)
+                            && row.data.get("type").and_then(Value::as_str) == Some("SHIP")
+                    })
+                })
+            });
             record.value = row
                 .map(|row| JointValue::Present(Value::Object(row.data.clone())))
                 .unwrap_or(JointValue::Missing);
             if let Some(row) = row {
+                if *row_key != row.row_key
+                    && !key_map
+                        .iter()
+                        .any(|mapping| mapping.previous_key == *row_key)
+                {
+                    key_map.push(CsvRowKeyMapping {
+                        previous_key: row_key.clone(),
+                        next_key: row.row_key.clone(),
+                        row_index: rows
+                            .iter()
+                            .position(|entry| entry.row_key == row.row_key)
+                            .expect("saved row belongs to table"),
+                    });
+                }
                 *row_key = row.row_key.clone();
                 for (field, id) in identity {
                     if let Some(value) = row.data.get(field).and_then(Value::as_str) {
@@ -393,6 +529,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 })
                 .or(record.source_version.clone());
         }
+        let old_key = record.key.clone();
         record.key = match &record.target {
             JointRecordTarget::Spec { target } => {
                 serde_json::to_string(&("spec", target.kind, &target.id))?
@@ -402,6 +539,11 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             } => serde_json::to_string(&("csv", table, identity))?,
             JointRecordTarget::Text { write } => serde_json::to_string(&("text", &write.path))?,
         };
+        for key in saved.bindings.values_mut() {
+            if *key == old_key {
+                *key = record.key.clone();
+            }
+        }
     }
     saved.base_versions = saved
         .records

@@ -1,12 +1,12 @@
 # Contributing
 
-感谢你帮助改进 Circinus ad Astra。本项目是 Windows 桌面 Mod 编辑器；任何贡献都应保持 Mod 数据隔离、文件写入边界和可回放的保存历史。
+感谢你帮助改进 星界罗盘 [Circinus ad Astra]。本项目是 Windows 桌面 Mod 编辑器；任何贡献都应保持 Mod 数据隔离、文件写入边界和可回放的保存历史。
 
 ## 提交 Issue
 
 请先搜索现有 Issue。新问题应尽量提供：
 
-- Circinus ad Astra 版本、Windows 版本，以及从 Release 运行还是从源码运行；
+- 星界罗盘 [Circinus ad Astra] 版本、Windows 版本，以及从 Release 运行还是从源码运行；
 - Starsector 目录还是独立 Mod 目录、相关游戏版本，以及是否配置了游戏目录；
 - 最小复现步骤、预期结果、实际结果和截图；
 - 可脱敏的报错文本或日志上下文。
@@ -37,6 +37,11 @@ npm.cmd run tauri -- build --no-bundle
 - 保存、删除、导入和撤销重做必须通过所属 changeset 链路；不要用临时写盘或兼容分支绕开它。
 - 行为、边界或架构变化需要同步更新对应 Markdown 契约。维护细则见 [AGENTS.md](./AGENTS.md) 与 [.zcode/](./.zcode/)。
 - 保留与当前 Pull Request 无关的用户修改；不要提交 `dist/`、`src-tauri/target/`、日志或本机游戏数据。
+
+## 借助 AI 进行开发？
+
+- 为确保提交质量，如需使用 AI 进行辅助编码，请使用能力达到或超过 `GPT-6.1 Sol`、`Claude Opus 5.5` 之中任一程度的模型。
+- 这能显著减轻复核负担，并降低发生意外的概率。感谢配合。
 
 ## 提交前验证
 

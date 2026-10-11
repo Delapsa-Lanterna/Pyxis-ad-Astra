@@ -7,6 +7,7 @@
 ## 参考
 
 `src-tauri/src/domain/spec_construction.rs`：关联规格创建构造与武器类型约束 owner。
+`src-tauri/src/domain/csv_column_order.rs`：CSV 标准列资产与补列排序 owner，供联合 write 消费。
 `src-tauri/src/services/project/write/`：后端写入 owner，合成 CSV 与关联目标并构建 changeset。
 `src/domain/tables/associated-spec-candidates.ts`：关联 spec 候选与动作快照 owner。
 `src/domain/tables/associated-spec-creation.ts`：CSV 到创建参数与武器评分 owner。
@@ -55,9 +56,12 @@
 
 ## 规范
 
+- 联合字段补列必须消费 Core 权威表头或正式列资产；全部标准列必须按来源排序，自定义列必须保留内容与相对顺序。
+- 首列变化必须按正式注释身份装配标记；文字值以 # 开头的业务行必须保留字面内容和必要引号。
+
 - 后台 CSV 交接必须消费捕获 manifest 与 table 的正式保存动作；联合规格装配必须复用身份规则并在实际 changeset 完成后发布行状态。
 - CSV patch 必须携带读取基线与 isComment，恢复行必须携带 insertAt；正式 rowKey 删除必须命中实际行，未知键必须返回冲突。
-- CSV 保存必须原样保留文件自身的表头、列集、行序与注释行，严禁注入、改写或丢弃任何列；每一种 CSV 的保存都必须附带保存测试，以真实文件格式作为夹具断言结构不变。
+- CSV patch 保存必须原样保留文件自身表头与列集；联合字段补列必须消费明确提交意图及标准列顺序，全部 CSV 保存必须保留行序、注释身份、未知列与业务内容，并以真实格式测试验收。
 - CSV 解析对齐游戏 CSVParser（列数容忍：短行缺失键不写入行 Map、长行多余单元格丢弃；`#` 行与裸空行保留，空 Map 行与全空单元格行可区分），保存渲染按最小引号规则输出 LF 行。
 - upsert patch 必须构造提交时的独立行快照，业务内容只允许从行记录 data 独立克隆，恢复位置必须从 insertAt 装配。
 - upsert 的注释标记必须与业务快照共同固定并更新实际基线；关联规格候选必须消费原始行及当前行的正式注释身份。
@@ -67,6 +71,7 @@
 - 再次保存必须先重试所属待同步 receipt；恢复成功后必须提交当前输入并捕获新快照，空闲保存必须保持即时捕获顺序。
 - 保存请求期间的新编辑必须保留，original 必须以实际提交 patches 更新，dirty 必须按该基线重算。
 - 关联 spec 动作必须与 CSV 变更构成同一次原子 changeset，严禁分次写入。
+- 舰船关联改名必须依据原规格的 descriptionId 声明决定默认描述行交接；默认描述 ID 更新必须共同进入 CSV 与规格事务、历史及结构化失效。
 - 关联目标与版本必须在确认前捕获；正式提交必须携带 AssociatedSpecWrite 的动作与实际 EntityEditTarget。
 - 已有来源的保存、删除与改名必须消费实际已加载路径；改名必须保留原目录，来源缺失必须消费所属默认创建构造。
 - 保存入口必须显式接收 manifest 与 table，结果必须共同表达 status 与已写盘 receipt；关联表准备必须复用该动作。

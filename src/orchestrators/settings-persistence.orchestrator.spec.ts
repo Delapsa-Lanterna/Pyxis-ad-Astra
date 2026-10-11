@@ -68,6 +68,26 @@ describe('settings persistence orchestration', () => {
     );
   });
 
+  it('persists system-following preferences when other settings change', async () => {
+    const { nextTick } = await import('vue');
+    const settings = useSettingsStore();
+    settings.replaceSettings({ ...BASE_SETTINGS, theme: null });
+    await nextTick();
+    await vi.waitFor(() => expect(mocks.emitWindowEvent).toHaveBeenCalled());
+    mocks.saveSettings.mockClear();
+    mocks.emitWindowEvent.mockClear();
+    settings.setSystemTheme('dark');
+    await nextTick();
+    expect(mocks.saveSettings).toHaveBeenCalledTimes(0);
+    expect(mocks.emitWindowEvent).toHaveBeenCalledTimes(0);
+    settings.setAccent('orange');
+    await nextTick();
+    await vi.waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ theme: null, accent: 'orange' })));
+    await vi.waitFor(() =>
+      expect(mocks.emitWindowEvent).toHaveBeenCalledWith('app-settings-changed', expect.objectContaining({ theme: null })),
+    );
+  });
+
   it('persists the JSON preservation switch and mirrors it', async () => {
     const { nextTick } = await import('vue');
     const settings = useSettingsStore();

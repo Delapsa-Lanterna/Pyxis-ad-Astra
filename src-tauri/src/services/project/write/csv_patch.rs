@@ -96,6 +96,7 @@ pub fn save_csv_patch_snapshot(
     let mut builder = FileChangeSetBuilder::new_with_lock(Path::new(&mod_root), write_lock)?;
     let mut json = JsonWriteBatch::new(options);
     builder.text_file(&rel_path, Some(csv_text.clone()))?;
+    let mut description_renames = Vec::new();
     for spec in &associated_specs {
         let current = super::super::query::entity_targets::describe_entity_target(
             &mut session,
@@ -108,10 +109,29 @@ pub fn save_csv_patch_snapshot(
                 "关联规格目标已变化",
             ));
         }
-        add_associated_spec_change(&mut builder, table, &spec.change, &spec.target, &mut json)?;
+        if let Some(rename) =
+            add_associated_spec_change(&mut builder, table, &spec.change, &spec.target, &mut json)?
+        {
+            description_renames.push(rename);
+        }
+    }
+    let description =
+        super::ship_description::stage_description_renames(&session, &description_renames)?;
+    if let Some(csv) = &description {
+        builder.text_file("data/strings/descriptions.csv", Some(csv.text.clone()))?;
     }
     json.finish()?;
     let changes = builder.apply()?;
+    if let Some(csv) = description {
+        let state = session
+            .csv_tables
+            .get_mut(csv.table.as_str())
+            .expect("registered descriptions");
+        state.rows = Some(csv.rows);
+        state.header = csv.header;
+        state.next_row_seq = csv.next_seq;
+        state.saved_text = Some(csv.text);
+    }
     {
         let table_data = registered_session_table_mut(&mut session, table)?;
         table_data.rows = Some(rows);
@@ -254,7 +274,7 @@ fn add_associated_spec_change(
     change: &AssociatedSpecChange,
     target: &crate::models::EntityEditTarget,
     json: &mut JsonWriteBatch,
-) -> AppResult<()> {
+) -> AppResult<Option<(String, String)>> {
     let definition = associated_spec_definition(table).ok_or_else(|| {
         AppError::message(
             "table.no_associated_spec",
@@ -281,6 +301,7 @@ fn add_associated_spec_change(
     } else {
         target.write.rel_path.clone()
     };
+    let mut description_rename = None;
     match change {
         AssociatedSpecChange::Create { create } => {
             if target.id != id || target.state != crate::models::EntityTargetState::Create {
@@ -325,15 +346,23 @@ fn add_associated_spec_change(
             let previous_rel_path = target.write.rel_path.clone();
             let previous_full = builder.root().join(&previous_rel_path);
             let content = if previous_full.exists() {
-                rewrite_associated_spec_id(
+                let (text, rename) = rewrite_associated_spec_id(
                     table,
                     definition.id_field,
                     &previous_full,
                     previous_id,
                     id,
                     json,
-                )?
+                )?;
+                description_rename = rename;
+                text
             } else {
+                description_rename = super::ship_description::default_description_rename(
+                    target.kind,
+                    previous_id,
+                    id,
+                    &create_associated_spec(create),
+                );
                 default_associated_spec_text(table, create)?
             };
             if previous_full.exists() {
@@ -343,7 +372,7 @@ fn add_associated_spec_change(
             }
         }
     }
-    Ok(())
+    Ok(description_rename)
 }
 
 fn default_associated_spec_text(
@@ -366,8 +395,16 @@ fn rewrite_associated_spec_id(
     previous_id: &str,
     new_id: &str,
     json: &mut JsonWriteBatch,
-) -> AppResult<String> {
+) -> AppResult<(String, Option<(String, String)>)> {
     let mut value = read_json_file(path)?;
+    let description_rename = super::ship_description::default_description_rename(
+        associated_spec_definition(table)
+            .expect("associated format")
+            .entity_kind,
+        previous_id,
+        new_id,
+        &value,
+    );
     if value.get(id_field).and_then(Value::as_str) != Some(previous_id) {
         return Err(AppError::message(
             "spec.path_id_mismatch",
@@ -384,7 +421,7 @@ fn rewrite_associated_spec_id(
     if table == CsvTableKey::Weapons {
         validate_weapon_spec_class(&value, path)?;
     }
-    json.render(path, &value, None)
+    Ok((json.render(path, &value, None)?, description_rename))
 }
 
 #[cfg(test)]

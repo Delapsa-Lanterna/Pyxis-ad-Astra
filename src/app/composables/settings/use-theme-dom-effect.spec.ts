@@ -1,12 +1,13 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { useThemeDomEffect } from './use-theme-dom-effect';
+import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 
 function mountEffect() {
-  mount({
+  return mount({
     setup() {
       useThemeDomEffect();
       return () => null;
@@ -26,13 +27,106 @@ const LIGHT_SETTINGS = {
 } as const;
 
 describe('useThemeDomEffect', () => {
+  let systemTheme: EventTarget & { matches: boolean };
+  it('keeps a fixed window appearance while the mirrored application theme changes', async () => {
+    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: 'light' });
+    const wrapper = mount({
+      setup() {
+        useThemeDomEffect(() => ({ colors: IMMERSIVE_COLORS, theme: 'dark' }));
+        return () => null;
+      },
+    });
+    const settings = useSettingsStore();
+    settings.setTheme('dark');
+    await nextTick();
+    settings.setTheme('light');
+    await nextTick();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(document.documentElement.style.getPropertyValue('--color-bg')).toBe(IMMERSIVE_COLORS.background);
+    wrapper.unmount();
+  });
   beforeEach(() => {
+    systemTheme = Object.assign(new EventTarget(), { matches: false });
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => systemTheme),
+    );
     setActivePinia(createPinia());
     document.documentElement.dataset.theme = '';
     document.documentElement.style.removeProperty('--color-bg');
     document.documentElement.style.removeProperty('--color-primary');
     document.documentElement.style.removeProperty('--color-overlay');
     document.documentElement.style.removeProperty('--scrollbar-track');
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([false, true])('follows the system on startup and when it changes (dark: %s)', async (dark) => {
+    systemTheme.matches = dark;
+    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: null });
+    const wrapper = mountEffect();
+    const settings = useSettingsStore();
+    expect(settings.theme).toBe(dark ? 'dark' : 'light');
+    expect(document.documentElement.dataset.theme).toBe(settings.theme);
+    expect(settings.settingsSnapshot().theme).toBeNull();
+    systemTheme.matches = !dark;
+    systemTheme.dispatchEvent(new Event('change'));
+    await nextTick();
+    expect(settings.theme).toBe(dark ? 'light' : 'dark');
+    expect(document.documentElement.dataset.theme).toBe(settings.theme);
+    expect(document.documentElement.style.getPropertyValue('--color-bg')).toBe(settings.themeColors.background);
+    settings.setAccent('orange');
+    expect(settings.settingsSnapshot().theme).toBeNull();
+    wrapper.unmount();
+  });
+
+  it.each([false, true])('preserves a manual selection across system changes and reloads (dark: %s)', async (dark) => {
+    systemTheme.matches = dark;
+    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: null });
+    const wrapper = mountEffect();
+    const settings = useSettingsStore();
+    settings.toggleTheme();
+    const chosen = dark ? 'light' : 'dark';
+    expect(settings.settingsSnapshot().theme).toBe(chosen);
+    systemTheme.matches = !dark;
+    systemTheme.dispatchEvent(new Event('change'));
+    systemTheme.matches = dark;
+    systemTheme.dispatchEvent(new Event('change'));
+    await nextTick();
+    expect(document.documentElement.dataset.theme).toBe(chosen);
+    const snapshot = settings.settingsSnapshot();
+    wrapper.unmount();
+    setActivePinia(createPinia());
+    initializeSettingsStore(snapshot);
+    const restored = mountEffect();
+    expect(useSettingsStore().theme).toBe(chosen);
+    expect(document.documentElement.dataset.theme).toBe(chosen);
+    restored.unmount();
+  });
+
+  it('resolves mirrored preferences using the current system theme', async () => {
+    systemTheme.matches = true;
+    initializeSettingsStore(LIGHT_SETTINGS);
+    const wrapper = mountEffect();
+    const settings = useSettingsStore();
+    settings.replaceSettings({ ...LIGHT_SETTINGS, theme: null });
+    await nextTick();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    settings.replaceSettings(LIGHT_SETTINGS);
+    await nextTick();
+    expect(document.documentElement.dataset.theme).toBe('light');
+    wrapper.unmount();
+  });
+
+  it('releases the system preference listener when the window unmounts', () => {
+    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: null });
+    const removeListener = vi.spyOn(systemTheme, 'removeEventListener');
+    const wrapper = mountEffect();
+    wrapper.unmount();
+    expect(removeListener).toHaveBeenCalledWith('change', expect.any(Function));
+    systemTheme.matches = true;
+    systemTheme.dispatchEvent(new Event('change'));
+    expect(useSettingsStore().theme).toBe('light');
   });
 
   it('applies the current theme and color tokens immediately', () => {

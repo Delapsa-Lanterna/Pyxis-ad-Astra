@@ -1,8 +1,72 @@
 import { describe, expect, it } from 'vitest';
-import { editTargetsOverlap, applyJointConflictChoices, conflictValueText, jointWriteTargets } from './joint-edit';
+import { editTargetsOverlap, applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft } from './joint-edit';
+import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
 import type { JointEditPrepared, JointValue, JointEditSnapshot } from '@/shared/types';
 const present = (value: import('@/shared/types').JsonValue): JointValue => ({ state: 'present', value });
 describe('joint edit field and physical target projection', () => {
+  it('uses the authoritative root binding when a row read has advanced beyond the identity event', () => {
+    const before = shipJointFixture();
+    const after = structuredClone(before);
+    const record = before.records[0]!;
+    if (record.target.kind !== 'spec') throw new Error('spec fixture');
+    after.root.id = 'latest';
+    after.records[0]!.target = { kind: 'spec', target: { ...record.target.target, id: 'latest' } };
+    after.records[0]!.value = present({ hullId: 'latest', hullSize: 'FRIGATE' });
+    const result = rebaseJointDraft(
+      jointFixtureValues(before),
+      before,
+      after,
+      [{ before: record.target.target, after: { ...record.target.target, id: 'intermediate' } }],
+      [],
+    );
+    expect(result.spec).toMatchObject({ state: 'present', value: { hullId: 'latest' } });
+  });
+  it('keeps only post-submit changes while accepting actual merged fields and constructed content', () => {
+    const before = shipJointFixture();
+    const submitted = jointFixtureValues(before);
+    const later = structuredClone(submitted);
+    const after = structuredClone(before);
+    if (later.csv!.state !== 'present') throw new Error('csv fixture');
+    const data = later.csv!.value as Record<string, import('@/shared/types').JsonValue>;
+    data.name = 'Later name';
+    delete data.cargo;
+    const record = after.records.find((record) => record.key === 'csv')!;
+    record.value = present({ ...data, name: 'Submitted name', cargo: '40', hitpoints: '1900', newColumn: 'disk' });
+    const result = rebaseJointDraft(later, before, after, [], [], submitted);
+    expect(result.csv).toMatchObject({ state: 'present', value: { name: 'Later name', hitpoints: '1900', newColumn: 'disk' } });
+    if (result.csv!.state === 'present') expect(result.csv!.value).not.toHaveProperty('cargo');
+    expect(result.csv).not.toBe(record.value);
+  });
+  it('adopts the authoritative fields for an unchanged identity-follow draft', () => {
+    const before = shipJointFixture();
+    const after = structuredClone(before);
+    after.root.id = 'renamed';
+    const original = before.records[0]!;
+    if (original.target.kind !== 'spec') throw new Error('spec fixture');
+    const target = { ...original.target.target, id: 'renamed' };
+    after.records[0]!.target = { kind: 'spec', target };
+    after.records[0]!.value = present({ hullId: 'renamed', hullSize: 'DESTROYER', external: 'current' });
+    const result = rebaseJointDraft(jointFixtureValues(before), before, after, [{ before: original.target.target, after: target }], []);
+    expect(result.spec).toEqual(after.records[0]!.value);
+  });
+  it('maps a changed root description binding and preserves only its edited content', () => {
+    const before = shipJointFixture();
+    const after = structuredClone(before);
+    const next = after.records.find((record) => record.key === 'description')!;
+    next.key = 'new-description';
+    after.bindings.description = next.key;
+    if (next.target.kind !== 'csv') throw new Error('CSV fixture');
+    next.target = { ...next.target, rowKey: 'new-row', identity: { id: 'renamed', type: 'SHIP' } };
+    next.value = { state: 'missing' };
+    const values = jointFixtureValues(before);
+    const clean = rebaseJointDraft(values, before, after, [], []);
+    expect(clean['new-description']).toEqual({ state: 'missing' });
+    expect(clean).not.toHaveProperty('description');
+    if (values.description!.state === 'present') values.description!.value = { id: 'lasher', type: 'SHIP', text1: 'My edited description' };
+    const dirty = rebaseJointDraft(values, before, after, [], []);
+    expect(dirty['new-description']).toEqual(present({ id: 'renamed', type: 'SHIP', text1: 'My edited description' }));
+    expect(dirty).not.toHaveProperty('description');
+  });
   it('matches physical scope using session, normalized roots and directory boundaries', () => {
     const target = { sessionId: 's', modRoot: 'M:/mod', path: 'M:/mod/data/ships.csv' };
     expect(editTargetsOverlap(target, { ...target, path: 'm:\\MOD\\data' })).toBe(true);
@@ -12,6 +76,8 @@ describe('joint edit field and physical target projection', () => {
   it('applies independent field choices while preserving raw text, arrays, absent and null values', () => {
     const snapshot = {
       root: { sessionId: 's', modRoot: 'M:/mod', kind: 'ship', id: 'a' },
+      bindings: {},
+      referenceSettings: { values: {}, versions: [] },
       records: [],
       baseVersions: [],
     } as JointEditSnapshot;
@@ -41,6 +107,8 @@ describe('joint edit field and physical target projection', () => {
   it('deduplicates versions and records into complete write scopes', () => {
     const snapshot: JointEditSnapshot = {
       root: { sessionId: 's', modRoot: 'M:/mod', kind: 'wing', id: 'wing' },
+      bindings: {},
+      referenceSettings: { values: {}, versions: [] },
       baseVersions: [{ path: 'M:/mod/wings.csv', fingerprint: 'v' }],
       records: [
         {

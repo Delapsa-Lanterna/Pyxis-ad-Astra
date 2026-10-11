@@ -1,9 +1,9 @@
 <template>
   <header class="titlebar" @pointerdown="startDrag" @dblclick="toggleMaximize">
     <div class="titlebar-brand">
-      <img class="titlebar-mark" :src="appIcon" alt="Circinus ad Astra" draggable="false" />
+      <img class="titlebar-mark" :src="appIcon" alt="星界罗盘 [Circinus ad Astra]" draggable="false" />
       <div class="titlebar-text">
-        <strong>Circinus ad Astra</strong>
+        <strong>星界罗盘 [Circinus ad Astra]</strong>
         <span :title="project.activeManifest?.modRoot ?? ''">{{ workspace.activeMod?.displayName || '尚未打开项目' }}</span>
       </div>
     </div>

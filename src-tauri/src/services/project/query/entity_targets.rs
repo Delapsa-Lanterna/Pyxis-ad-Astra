@@ -174,6 +174,8 @@ pub(in crate::services::project) struct EntityTargetProjection {
     sources: std::collections::BTreeMap<String, EntityFileLocation>,
     linked: std::collections::BTreeMap<String, EntityLinkedRecord>,
     index_version: Option<crate::models::FileVersion>,
+    default_description_ids: std::collections::BTreeSet<String>,
+    description_version: Option<crate::models::FileVersion>,
 }
 
 pub(in crate::services::project) fn prepare_entity_targets(
@@ -283,11 +285,33 @@ pub(in crate::services::project) fn prepare_entity_targets(
     } else {
         None
     };
+    let default_description_ids = if kind == EntityKind::Ship {
+        sources
+            .keys()
+            .chain(linked.keys())
+            .filter(|id| {
+                session
+                    .ship_files
+                    .get(*id)
+                    .is_none_or(|record| record.data.get("descriptionId").is_none())
+            })
+            .cloned()
+            .collect()
+    } else {
+        std::collections::BTreeSet::new()
+    };
+    let description_version = (kind == EntityKind::Ship
+        && Path::new(&session.manifest.mod_root)
+            .join("data/strings/descriptions.csv")
+            .is_file())
+    .then(|| version_for_path(session, "data/strings/descriptions.csv"));
     Ok(EntityTargetProjection {
         kind,
         sources,
         linked,
         index_version,
+        default_description_ids,
+        description_version,
     })
 }
 
@@ -331,6 +355,9 @@ impl EntityTargetProjection {
         };
         let mut versions = vec![version_for_path(session, &write.rel_path)];
         versions.extend(self.index_version.iter().cloned());
+        if self.default_description_ids.contains(id) {
+            versions.extend(self.description_version.iter().cloned());
+        }
         versions.sort_by(|left, right| left.path.cmp(&right.path));
         versions.dedup_by(|left, right| left.path.eq_ignore_ascii_case(&right.path));
         EntityEditInfo {

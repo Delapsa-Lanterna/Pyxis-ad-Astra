@@ -11,6 +11,11 @@ export interface JointEditRoot {
   kind: JointEditKind;
   id: string;
 }
+export interface JointEditQuery {
+  root: JointEditRoot;
+  rowKey: string | null;
+  values: Record<string, JointValue> | null;
+}
 export interface EditWriteTarget {
   sessionId: string;
   modRoot: string;
@@ -33,6 +38,8 @@ export interface JointEditRecord {
 }
 export interface JointEditSnapshot {
   root: JointEditRoot;
+  bindings: Record<string, string>;
+  referenceSettings: { values: Record<string, JsonValue>; versions: FileVersion[] };
   records: JointEditRecord[];
   baseVersions: FileVersion[];
 }
@@ -62,6 +69,7 @@ export interface SaveJointEditPayload {
   values: Record<string, JointValue>;
   baseVersions: FileVersion[];
   jsonWrite: JsonWriteOptions;
+  createOverrides: string[];
 }
 export type JointEditWriteResult = Omit<WriteResult, 'refreshedEntity'> & { refreshedEntity: JointEditSnapshot };
 

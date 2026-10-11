@@ -1,10 +1,11 @@
 import { rowSpecId } from '@/shared/lib/starsector';
-import type { EditorWindowKind, EntityKind, CsvRow, TableKey } from '@/shared/types';
+import type { EditorWindowKind, EntityKind, CsvRowRecord, TableKey } from '@/shared/types';
 import { isCsvCommentRow } from '@/domain/tables/csv-comment-row';
 import { associatedSpecEditorKinds, associatedSpecKind } from '@/domain/tables/associated-specs';
 import { editorWindowLabel } from '@/domain/editors/editor-definitions';
 
 export type TableDetailAction =
+  | { type: 'immersive-editor'; kind: 'ship'; modRoot: string; sessionId: string; id: string; rowKey: string }
   | { type: 'file-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
   | {
       type: 'editor-window';
@@ -24,7 +25,7 @@ export interface TableDetailActionContext {
 export function detailActionsForRow(
   context: TableDetailActionContext,
   table: TableKey,
-  row: CsvRow | null | undefined,
+  row: CsvRowRecord | null | undefined,
 ): TableDetailAction[] {
   if (!row) return [];
   if (isCsvCommentRow(row)) return [];
@@ -39,11 +40,16 @@ export function detailActionsForRow(
     starsectorRoot: context.starsectorRoot,
     id,
   }));
-  return specKind ? [...editorActions, specFileAction(context, specKind, id)] : editorActions;
+  const immersive: TableDetailAction[] =
+    table === 'ships'
+      ? [{ type: 'immersive-editor', kind: 'ship', modRoot: context.modRoot, sessionId: context.sessionId, id, rowKey: row.rowKey }]
+      : [];
+  return specKind ? [...editorActions, ...immersive, specFileAction(context, specKind, id)] : editorActions;
 }
 
 export function detailActionLabel(action: TableDetailAction): string {
   if (action.type === 'file-editor') return '文件编辑器';
+  if (action.type === 'immersive-editor') return '沉浸式编辑器';
   return editorWindowLabel(action.kind);
 }
 

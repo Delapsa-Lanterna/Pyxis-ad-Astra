@@ -45,7 +45,8 @@ export function readAllowCoreEditing(value: boolean | undefined): boolean {
   return value;
 }
 
-export function readTheme(value: AppTheme): AppTheme {
+export function readTheme(value: AppTheme | null): AppTheme | null {
+  if (value === null) return null;
   if (!isSharedSettingValue(APP_THEMES, value)) throw new Error(`Invalid app theme: ${value}`);
   return value;
 }

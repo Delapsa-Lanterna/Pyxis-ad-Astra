@@ -1,5 +1,8 @@
 mod csv_patch;
 mod entity_identity;
+mod ship_description;
+#[cfg(test)]
+mod ship_description_tests;
 pub(in crate::services::project) use entity_identity::stage_entity_content;
 mod faction_identity;
 pub use entity_identity::save_entity_spec;

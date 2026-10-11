@@ -16,7 +16,8 @@ export type DeepReadonly<T> = [JsonValue] extends [T]
     : T;
 
 export interface QueryParameters {
-  'joint-edit': import('./joint-edit.types').JointEditRoot;
+  'joint-edit': import('./joint-edit.types').JointEditQuery;
+  'joint-edit-projection': import('./joint-edit.types').JointEditQuery;
   'joint-edit-prepare': import('./joint-edit.types').JointEditDraft;
   'csv-table-window': { table: TableKey; start: number; count: number; search: string | null; searchField: CsvSearchField };
   'csv-source-options': { source: string };
@@ -32,6 +33,7 @@ export interface QueryParameters {
 
 export interface QueryResults {
   'joint-edit': import('./joint-edit.types').JointEditSnapshot;
+  'joint-edit-projection': import('./joint-edit.types').JointEditSnapshot;
   'joint-edit-prepare': import('./joint-edit.types').JointEditPrepared;
   'csv-table-window': CsvTableWindow;
   'csv-source-options': SourceOptionGroup[];
@@ -48,7 +50,13 @@ export interface QueryResults {
 export type QueryKind = keyof QueryParameters;
 export type QueryCacheKind = Exclude<
   QueryKind,
-  'entity-edit-target' | 'entity-identity-intent' | 'editor-draft-resources' | 'resource-reference' | 'joint-edit' | 'joint-edit-prepare'
+  | 'entity-edit-target'
+  | 'entity-identity-intent'
+  | 'editor-draft-resources'
+  | 'resource-reference'
+  | 'joint-edit'
+  | 'joint-edit-prepare'
+  | 'joint-edit-projection'
 >;
 export type QueryIdentity<K extends QueryKind = QueryKind> = K extends QueryKind
   ? { sessionId: string; queryKind: K; parameters: QueryParameters[K] }

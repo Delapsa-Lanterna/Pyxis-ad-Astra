@@ -5,8 +5,9 @@ import type {
   JointConflictChoice,
   JointEditWriteResult,
   AppFeedback,
+  EditWriteTarget,
 } from '@/shared/types';
-import { queryJointEdit, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
+import { queryJointEdit, queryJointEditRow, prepareJointEdit, saveJointEdit } from '@/services/joint-edit.service';
 import { withEditTargetHandoff } from '@/orchestrators/edit-target-handoff.orchestrator';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { jointWriteTargets, applyJointConflictChoices } from '@/domain/joint-edit';
@@ -16,10 +17,11 @@ export async function openJointEditSnapshot(
   root: JointEditRoot,
   feedback: AppFeedback,
   signal?: AbortSignal,
+  editableRecords?: (snapshot: JointEditSnapshot) => string[],
 ): Promise<JointEditSnapshot | null> {
   const captured = cloneQuerySnapshot<JointEditSnapshot>(await queryJointEdit(root, signal));
   return withEditTargetHandoff(
-    jointWriteTargets(captured),
+    jointWriteTargets(captured, editableRecords?.(captured)),
     feedback,
     async (receipts) => {
       const identity = receipts
@@ -33,15 +35,28 @@ export async function openJointEditSnapshot(
   );
 }
 
+export function openJointEditRowSnapshot(
+  root: Omit<JointEditRoot, 'id'>,
+  rowKey: string,
+  target: EditWriteTarget,
+  feedback: AppFeedback,
+): Promise<JointEditSnapshot | null> {
+  return withEditTargetHandoff([target], feedback, async (receipts) => {
+    const mapped = receipts.flatMap((receipt) => receipt.keyMap).findLast((mapping) => mapping.previousKey === rowKey)?.nextKey ?? rowKey;
+    return cloneQuerySnapshot<JointEditSnapshot>(await queryJointEditRow(root, mapped));
+  });
+}
+
 export async function submitJointEdit(
   draft: JointEditDraft,
   feedback: AppFeedback,
   chooseConflicts: (prepared: import('@/shared/types').JointEditPrepared) => Promise<JointConflictChoice[] | null>,
   excludeTargetKey?: string,
   deferRelease?: (release: () => Promise<void>) => void,
+  createOverrides: string[] = [],
 ): Promise<JointEditWriteResult | null> {
   return withEditTargetHandoff(
-    jointWriteTargets(draft.baseline),
+    jointWriteTargets(draft.baseline, Object.keys(draft.values)),
     feedback,
     async () => {
       const prepared = cloneQuerySnapshot<import('@/shared/types').JointEditPrepared>(await prepareJointEdit(draft));
@@ -49,10 +64,16 @@ export async function submitJointEdit(
       if (choices === null) return null;
       const values = applyJointConflictChoices(prepared, choices);
       const overrides = prepared.snapshot.records.filter(
-        (record) => record.source?.source === 'core' && JSON.stringify(values[record.key]) !== JSON.stringify(record.value),
+        (record) =>
+          Object.hasOwn(values, record.key) &&
+          record.source?.source === 'core' &&
+          (createOverrides.includes(record.key) || JSON.stringify(values[record.key]) !== JSON.stringify(record.value)),
       );
       const shared = prepared.snapshot.records.filter(
-        (record) => record.referencedBy.length > 1 && JSON.stringify(values[record.key]) !== JSON.stringify(record.value),
+        (record) =>
+          Object.hasOwn(values, record.key) &&
+          record.referencedBy.length > 1 &&
+          JSON.stringify(values[record.key]) !== JSON.stringify(record.value),
       );
       if (overrides.length + shared.length > 0) {
         const confirmed = await feedback.choose({
@@ -65,7 +86,13 @@ export async function submitJointEdit(
         if (confirmed !== 'save') return null;
       }
       const result = await runConfirmedJsonWrite(feedback, (jsonWrite) =>
-        saveJointEdit({ snapshot: prepared.snapshot, values, baseVersions: prepared.snapshot.baseVersions, jsonWrite }),
+        saveJointEdit({
+          snapshot: prepared.snapshot,
+          values,
+          baseVersions: prepared.snapshot.baseVersions,
+          jsonWrite,
+          createOverrides,
+        }),
       );
       if (!result) return null;
       return result;

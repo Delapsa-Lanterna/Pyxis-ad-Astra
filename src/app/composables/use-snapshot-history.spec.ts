@@ -11,6 +11,15 @@ function harness<T>(limit = 2) {
 }
 
 describe('snapshot history context', () => {
+  it('rebases both directions during an identity handoff', () => {
+    const { history, scope, context } = harness<{ id: string; value: number }>();
+    history.push({ id: 'old', value: 1 }, { id: 'old', value: 2 });
+    context.value = { targetKey: 'new', baselineGeneration: 2, handoff: 'identity' };
+    history.rebase((value) => ({ ...value, id: 'new' }));
+    expect(history.undo()).toEqual({ id: 'new', value: 1 });
+    expect(history.redo()).toEqual({ id: 'new', value: 2 });
+    scope.stop();
+  });
   it('records text before and after, ignores equal actions and clears redo on a new edit', () => {
     const { history, scope } = harness<string>();
     history.push('a', 'a');

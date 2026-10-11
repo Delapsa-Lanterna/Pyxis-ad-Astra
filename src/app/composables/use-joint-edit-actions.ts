@@ -24,7 +24,11 @@ export function useJointEditActions() {
   }
   return {
     open: (root: JointEditRoot, signal?: AbortSignal) => openJointEditSnapshot(root, feedback, signal),
-    save: (draft: JointEditDraft, excludeTargetKey?: string, deferRelease?: (release: () => Promise<void>) => void) =>
-      submitJointEdit(draft, feedback, chooseConflicts, excludeTargetKey, deferRelease),
+    save: (
+      draft: JointEditDraft,
+      excludeTargetKey?: string,
+      deferRelease?: (release: () => Promise<void>) => void,
+      createOverrides: string[] = [],
+    ) => submitJointEdit(draft, feedback, chooseConflicts, excludeTargetKey, deferRelease, createOverrides),
   };
 }

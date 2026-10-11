@@ -24,6 +24,7 @@
 - settings 只写 app data，禁止 browser storage、workspace 或 Mod 目标；子窗口不读写文件、不补默认值。
 - 主窗口拥有设置持久化权威；子窗口只能从 URL snapshot 初始化并监听完整 snapshot 事件镜像。
 - 主题 DOM 副作用唯一归主题 effect，由唯一窗口壳挂载；主窗口与子窗口都经该 effect 生效。
+- 沉浸式窗口必须由 WindowShell 的 appearance 选择固定游戏令牌；Naive provider 与唯一主题 effect 必须消费同一配色，设置镜像必须继续提供编辑权限与历史上限。
 - 主题令牌计算归 domain 纯函数，输入校验归 domain 校验规则，store 只持状态；store 内严禁写 DOM。
 - CSS 自定义属性只能由 `THEME_TOKEN_MAP` 与主题 effect 共同接纳；明暗主题必须覆盖正式共享 token。
 - 应用私有数据目录必须由 Tauri 标识 `com.caopancake.circinus-ad-astra` 解析。
@@ -57,9 +58,10 @@
 
 ### 主题生效
 
-1. 主题或 accent 变化触发派生主题令牌重算。
-2. 主题 effect 把 root dataset 主题名与全部 CSS 变量写入 document。
-3. 唯一窗口壳的 Naive provider 消费同一份令牌派生的覆盖对象。
+1. 主题 effect 读取系统明暗偏好并监听变化，将系统主题写入 store 运行态。
+2. store 按手动主题选择或系统主题派生显示主题，主题或 accent 变化触发主题令牌重算。
+3. 主题 effect 把 root dataset 主题名与全部 CSS 变量写入 document。
+4. 唯一窗口壳的 Naive provider 消费同一份令牌派生的覆盖对象。
 
 ## 规范
 
@@ -68,7 +70,8 @@
 - `logLevel` 只允许 `info`（默认档，丢弃 debug 条目）或 `debug`（详细档，全量保留）；缺省视为 info。
 - `preserveOriginalJson` 必须是布尔值；缺省视为 true。该设置必须随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作必须在开始时捕获本次使用的值。
 - `starsectorRoot` 仅作默认目录提示，不构成路径授权。
-- `theme/accent/editMode` 必须是正式枚举；非法值在初始化与替换时抛出。
+- `theme` 必须以 `null` 表示默认跟随系统，以 `light` 或 `dark` 表示手动选择；手动切换必须持久化明确选择，显示主题必须由选择与系统运行态派生，系统运行态严禁写入 settings snapshot。
+- `accent/editMode` 必须是正式枚举；非法值在初始化与替换时必须抛出。
 - 保存失败不得静默：必须记录错误日志且不广播。
 - 同一输入面的子控件必须消费同一实际模式；不同输入集合必须分别拥有模式交接，模式确认必须绑定目标与生命周期。
 - 子窗口不得发送设置广播，镜像监听是单向接收。

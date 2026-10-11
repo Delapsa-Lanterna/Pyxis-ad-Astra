@@ -12,11 +12,12 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'joint-edit',
-    names: ['queryJointEdit', 'prepareJointEdit'],
+    names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'prepareJointEdit'],
     capability: 'joint-edit-read',
     owners: [
       { layer: 'orchestrators', domain: 'joint-edit' },
       { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+      { layer: 'app', role: 'composable', domain: 'immersive-editor-view-model' },
     ],
   },
   {
@@ -197,7 +198,10 @@ export const frontendCapabilities = [
     domain: 'window',
     names: ['focusNativeManagedWindow'],
     capability: 'window-target-focus',
-    owners: [{ layer: 'orchestrators', domain: 'window-target-focus' }],
+    owners: [
+      { layer: 'orchestrators', domain: 'window-target-focus' },
+      { layer: 'orchestrators', domain: 'immersive-editor' },
+    ],
   },
   {
     role: 'service',
@@ -237,7 +241,10 @@ export const frontendCapabilities = [
     domain: 'window',
     names: ['retargetNativeWindow'],
     capability: 'window-identity-handoff',
-    owners: [{ layer: 'orchestrators', domain: 'entity-identity' }],
+    owners: [
+      { layer: 'orchestrators', domain: 'entity-identity' },
+      { layer: 'orchestrators', domain: 'immersive-editor' },
+    ],
   },
   {
     layer: 'app',

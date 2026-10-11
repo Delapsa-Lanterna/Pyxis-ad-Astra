@@ -11,7 +11,7 @@
 
 ## 文件 ownership
 
-- `src/styles/index.css` 必须按 `base`、`titlebar`、`app-shell`、`workspace`、`overview`、`settings`、`config`、`file-history`、`schema-forms`、`tables`、`detail-pane`、`editors`、`file-editor` 的顺序导入。
+- `src/styles/index.css` 必须按 `base`、`titlebar`、`app-shell`、`workspace`、`overview`、`settings`、`config`、`file-history`、`schema-forms`、`tables`、`detail-pane`、`editors`、`file-editor`、`immersive-editors` 的顺序导入。
 - `src/main.ts` 必须在全局入口只导入 `index.css` 这一个样式入口，子窗口样式由同一聚合文件覆盖。
 - `base.css` 必须拥有主题 token、全视口基础、Naive UI 覆盖和跨模块共享控件；业务布局必须位于对应业务 CSS。
 - scoped CSS 只允许保存单组件且不会复用的局部规则；第二处复用时必须迁入对应业务 CSS 或 `base.css`。
@@ -22,6 +22,7 @@
 - 间距必须复用 `--space-{1..4}`，当前对应 4、8、12、16 px。
 - 普通圆角必须复用 `--radius-{sm,md,lg}`，当前对应 5、8、10 px；圆形只允许用于点、handle 和滚动条 thumb。
 - 页面和组件颜色必须使用现有 `--color-*`、`--scrollbar-*` 与 `--color-canvas-bg`；共享阴影必须使用 `--shadow-floating` 或 `--shadow-subtle`。
+- 沉浸式窗口必须由正式 appearance 提供固定游戏暗色令牌，并由唯一主题 effect 注入；业务面板、浮层和确认框必须共同消费该令牌。
 - 新增共享视觉语义必须由 `base.css` 在明暗主题中同时定义；业务 CSS 严禁用硬编码颜色替代现有语义 token。
 - 可见边框必须使用 1 px；只有既定 active 指示条和控件 handle 允许使用更粗边界。
 

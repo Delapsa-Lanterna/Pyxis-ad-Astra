@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub enum JointEditKind {
     Ship,
@@ -22,6 +22,14 @@ pub struct JointEditRoot {
     pub mod_root: String,
     pub kind: JointEditKind,
     pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointEditQuery {
+    pub root: JointEditRoot,
+    pub row_key: Option<String>,
+    pub values: Option<BTreeMap<String, JointValue>>,
 }
 
 impl SessionModScope for JointEditRoot {
@@ -87,8 +95,17 @@ pub struct JointEditRecord {
 #[serde(rename_all = "camelCase")]
 pub struct JointEditSnapshot {
     pub root: JointEditRoot,
+    pub bindings: BTreeMap<String, String>,
+    pub reference_settings: JointReferenceSettings,
     pub records: Vec<JointEditRecord>,
     pub base_versions: Vec<FileVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointReferenceSettings {
+    pub values: BTreeMap<String, Value>,
+    pub versions: Vec<FileVersion>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,6 +140,7 @@ pub struct JointEditSubmission {
     pub values: BTreeMap<String, JointValue>,
     pub base_versions: Vec<FileVersion>,
     pub json_write: JsonWriteOptions,
+    pub create_overrides: Vec<String>,
 }
 
 impl SessionModScope for JointEditSubmission {

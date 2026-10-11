@@ -16,14 +16,18 @@ export function handoffTableVersions(baseline: FileVersion[], info: EntityEditIn
 }
 
 export function entityContentId(kind: EntityKind, content: RowData): string {
-  const field = kind === 'ship' ? 'hullId' : kind === 'variant' ? variantFamily.idField : kind === 'skin' ? skinFamily.idField : 'id';
+  const field = entityContentIdField(kind);
   const id = content[field];
   if (typeof id !== 'string') throw new AppError(`${field} 必须是字符串`, { action: 'prepare-entity-identity' });
   return id;
 }
 
+export function entityContentIdField(kind: EntityKind): string {
+  return kind === 'ship' ? 'hullId' : kind === 'variant' ? variantFamily.idField : kind === 'skin' ? skinFamily.idField : 'id';
+}
+
 export function windowIdentityKey(identity: WindowIdentity): string {
-  if (identity.type === 'spec')
+  if (identity.type === 'spec' || identity.type === 'immersive')
     return JSON.stringify([identity.type, identity.sessionId, identity.kind, normalizeFsPath(identity.modRoot), identity.id]);
   if (identity.type === 'file')
     return JSON.stringify([identity.type, identity.sessionId, normalizeFsPath(identity.modRoot), normalizeFsPath(identity.path)]);

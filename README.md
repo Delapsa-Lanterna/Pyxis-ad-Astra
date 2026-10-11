@@ -1,5 +1,7 @@
 # Circinus ad Astra
 
+<img src="showcase/icon.ico" />
+
 Windows 桌面版 Starsector Mod 配置工具，使用 Tauri 2 + Vue 3 + TypeScript + Rust 构建。
 
 > 项目处于 `0.1.0` 的早期公开阶段。请在修改 Mod 前自行备份，并通过 Issue 提供可复现步骤反馈问题。
@@ -100,7 +102,7 @@ cargo test --manifest-path src-tauri\Cargo.toml
 
 - [CHANGELOG.md](./CHANGELOG.md)：已发布版本的用户可见变更
 - [CONTRIBUTING.md](./CONTRIBUTING.md)：问题反馈、开发与 Pull Request 约定
-- [AGENTS.md](./AGENTS.md) 与 [.zcode/](./.zcode/)：维护者和自动化协作约定
+- [AGENTS.md](./AGENTS.md) 与 [.zcode/](./.zcode/)：自动化协作约定
 
 ## 许可
 

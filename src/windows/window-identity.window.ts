@@ -3,7 +3,7 @@ import type { WindowIdentity } from '@/shared/types';
 
 export function publishCurrentWindowIdentity(identity: WindowIdentity): void {
   const url = new URL(window.location.href);
-  if (identity.type === 'spec') {
+  if (identity.type === 'spec' || identity.type === 'immersive') {
     url.searchParams.set('sessionId', identity.sessionId);
     url.searchParams.set('modRoot', identity.modRoot);
     url.searchParams.set('kind', identity.kind);

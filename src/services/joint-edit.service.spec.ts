@@ -1,25 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { queryJointEdit, prepareJointEdit, saveJointEdit } from './joint-edit.service';
+import { queryJointEdit, queryJointEditRow, queryJointEditProjection, prepareJointEdit, saveJointEdit } from './joint-edit.service';
 import { invalidateQueryCacheForSession } from './query-cache.service';
 import type { JointEditSnapshot } from '@/shared/types';
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 const root = { sessionId: 'joint-service', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
-const snapshot: JointEditSnapshot = { root, records: [], baseVersions: [] };
+const snapshot: JointEditSnapshot = { root, bindings: {}, referenceSettings: { values: {}, versions: [] }, records: [], baseVersions: [] };
 beforeEach(() => {
   invoke.mockReset();
   invalidateQueryCacheForSession(root.sessionId);
 });
 describe('joint edit capability protocols', () => {
+  it('carries persisted row identity and independent draft projection inputs', async () => {
+    invoke.mockResolvedValue(snapshot);
+    await queryJointEditRow(root, 'ships:row:2');
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', {
+      payload: { root: { ...root, id: '' }, rowKey: 'ships:row:2', values: null },
+    });
+    const values = { csv: { state: 'present' as const, value: { 'system id': 'next' } } };
+    await queryJointEditProjection({ baseline: snapshot, values });
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values } });
+  });
   it('maps query, preparation and submission to their formal payloads', async () => {
     invoke.mockResolvedValue(snapshot);
     await expect(queryJointEdit(root)).resolves.toEqual(snapshot);
-    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: root });
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values: null } });
     const draft = { baseline: snapshot, values: {} };
     invoke.mockResolvedValue({ snapshot, values: {}, conflicts: [] });
     await prepareJointEdit(draft);
     expect(invoke).toHaveBeenLastCalledWith('prepare_joint_edit', { payload: draft });
-    const payload = { snapshot, values: {}, baseVersions: [], jsonWrite: { preserveOriginalJson: false, confirmedSources: [] } };
+    const payload = {
+      snapshot,
+      values: {},
+      baseVersions: [],
+      jsonWrite: { preserveOriginalJson: false, confirmedSources: [] },
+      createOverrides: [],
+    };
     invoke.mockResolvedValue({ refreshedEntity: snapshot });
     await saveJointEdit(payload);
     expect(invoke).toHaveBeenLastCalledWith('save_joint_edit', { payload });

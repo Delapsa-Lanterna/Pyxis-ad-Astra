@@ -12,11 +12,12 @@ export function useRawFieldInput<T>(options: {
   focus: () => void | Promise<void>;
   canonicalize?: boolean;
   onCancel?: () => void;
+  forceCommit?: () => boolean;
 }) {
   const raw = ref(options.text());
   const baseline = ref(raw.value);
   const invalid = ref(false);
-  const dirty = computed(() => raw.value !== baseline.value);
+  const dirty = computed(() => raw.value !== baseline.value || Boolean(options.forceCommit?.()));
 
   function update(text: string) {
     raw.value = text;

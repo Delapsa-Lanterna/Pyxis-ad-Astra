@@ -23,6 +23,12 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
   load: (target: TTarget, signal?: AbortSignal) => MaybePromise<EditTargetSnapshot<TValue, TTarget, TMeta>>;
   save?: (target: TTarget, draft: TValue, baseVersions: FileVersion[]) => MaybePromise<EditTargetSnapshot<TValue, TTarget, TMeta> | void>;
   targetKey: (target: TTarget) => string;
+  mapSavedDraft?: (
+    draft: TValue,
+    before: EditTargetSnapshot<TValue, TTarget, TMeta>,
+    after: EditTargetSnapshot<TValue, TTarget, TMeta>,
+    submitted: TValue,
+  ) => TValue;
   afterSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
   withSavePreparation?: (
     target: TTarget,
@@ -52,7 +58,7 @@ export interface EditTargetDraftSession<TValue, TTarget, TMeta = unknown> {
     expected: TTarget,
     snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>,
     mapDraft: (draft: TValue) => TValue,
-    handoff?: 'external' | 'save',
+    handoff?: 'external' | 'save' | 'identity',
   ) => boolean;
   loadBaseForTarget: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
   clearTarget: () => void;
@@ -65,6 +71,7 @@ export interface EditTargetDraftSession<TValue, TTarget, TMeta = unknown> {
   waitForSave: () => Promise<boolean>;
   setDraft: (value: TValue) => void;
   isTargetCurrent: (target: TTarget) => boolean;
+  isTargetCommitCurrent: (target: TTarget, commitId: number) => boolean;
 }
 
 export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
@@ -144,9 +151,9 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     expected: TTarget,
     snapshot: Snapshot,
     mapDraft: (draft: TValue) => TValue,
-    handoff: 'external' | 'save' = 'external',
+    handoff: 'external' | 'save' | 'identity' = 'external',
   ): boolean {
-    if (disposed || !sameTarget(expected)) return false;
+    if (disposed || !sameTarget(expected) || (snapshot.commitId !== undefined && snapshot.commitId <= lastCommitId)) return false;
     const draft = mapDraft(clone(draftValue.value));
     revokeReads();
     lastCommitId = Math.max(lastCommitId, snapshot.commitId ?? -1);
@@ -275,7 +282,12 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     if (!disposed && life === lifetime && key === currentTargetKey.value) {
       lastCommitId = Math.max(lastCommitId, result.commitId ?? -1);
       const preserve = !equals(draftValue.value, submitted) || inputs.dirty.value;
-      if (preserve) session.commitSavedBaseline(result);
+      if (preserve && options.mapSavedDraft)
+        session.commitSaved(result, {
+          ...result,
+          value: options.mapSavedDraft(draftValue.value, baselineSnapshot.value!, result, submitted),
+        });
+      else if (preserve) session.commitSavedBaseline(result);
       else session.commitSaved(result);
       currentTarget.value = result.target;
       currentTargetKey.value = options.targetKey(result.target);
@@ -376,6 +388,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     saveDraft,
     setDraft,
     isTargetCurrent: sameTarget,
+    isTargetCommitCurrent: (target, commitId) => !disposed && sameTarget(target) && commitId > lastCommitId,
     waitForSave: () =>
       pendingSave || pendingSynchronization.value
         ? retrySynchronization().then(

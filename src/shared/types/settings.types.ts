@@ -11,7 +11,7 @@ export const LOG_LEVELS = ['info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export interface AppSettings {
-  theme: AppTheme;
+  theme: AppTheme | null;
   accent: AccentPreset;
   customAccent: string;
   historyLimit: number;

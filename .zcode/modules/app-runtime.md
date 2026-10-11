@@ -42,7 +42,7 @@
 
 ### 子窗口启动
 
-1. `main.ts` 解析 `window` 参数得到编辑器或文件编辑器类型。
+1. `main.ts` 解析 `window` 参数得到编辑器、文件编辑器或沉浸式编辑器类型。
 2. 从 URL 解析主窗口传入的 settings snapshot；缺失时抛出启动错误。
 3. 显式装配性能日志 sink，并行异步加载对应子窗口根组件并解析 settings。
 4. `initializeSettingsStore(snapshot)` 写入初始快照。

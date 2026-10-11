@@ -1,14 +1,20 @@
-import { watch } from 'vue';
+import { onUnmounted, watch } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { THEME_TOKEN_MAP, type ThemeColorTokens } from '@/domain/settings/theme';
+import type { AppTheme } from '@/shared/types';
 
 // Sole owner of the theme DOM side effect: the store only holds state, this effect
 // writes theme tokens to the document. Mounted by the single WindowShell so the main
 // window and child windows all pick it up.
-export function useThemeDomEffect() {
+export function useThemeDomEffect(source?: () => { colors: ThemeColorTokens; theme: AppTheme }) {
   const settings = useSettingsStore();
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+  const updateSystemTheme = () => settings.setSystemTheme(systemTheme.matches ? 'dark' : 'light');
+  updateSystemTheme();
+  systemTheme.addEventListener('change', updateSystemTheme);
+  onUnmounted(() => systemTheme.removeEventListener('change', updateSystemTheme));
   watch(
-    () => ({ colors: settings.themeColors, theme: settings.theme }),
+    () => source?.() ?? { colors: settings.themeColors, theme: settings.theme },
     ({ colors, theme }) => {
       if (typeof document === 'undefined') return;
       document.documentElement.dataset.theme = theme;

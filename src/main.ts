@@ -27,6 +27,8 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
       return (await import('@/app/FileEditorApp.vue')).default;
     case 'editor':
       return (await import('@/app/EditorWindowApp.vue')).default;
+    case 'immersive-editor':
+      return (await import('@/app/ImmersiveEditorApp.vue')).default;
     default:
       return (await import('@/app/App.vue')).default;
   }

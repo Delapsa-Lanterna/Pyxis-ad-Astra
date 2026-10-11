@@ -28,7 +28,7 @@ export function useSnapshotHistory<T>(
   watch(
     context,
     (next) => {
-      if (!next || next.handoff !== 'save') clear();
+      if (!next || (next.handoff !== 'save' && next.handoff !== 'identity')) clear();
     },
     { flush: 'sync' },
   );
@@ -47,5 +47,11 @@ export function useSnapshotHistory<T>(
     pushUndoEntry(stack, entry, { clearRedo: false });
     return clone(entry.after);
   }
-  return { canUndo, canRedo, push, undo, redo, clear };
+  function rebase(map: (value: T) => T) {
+    for (const entry of [...stack.undoStack, ...stack.redoStack]) {
+      entry.before = clone(map(entry.before));
+      entry.after = clone(map(entry.after));
+    }
+  }
+  return { canUndo, canRedo, push, undo, redo, clear, rebase };
 }

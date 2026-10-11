@@ -91,6 +91,17 @@ fn save_entity_content(
         ordered_json,
         raw_text,
     )?;
+    let description = super::ship_description::stage_description_renames(
+        &session,
+        &staged
+            .default_description_rename
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )?;
+    if let Some(csv) = &description {
+        builder.text_file("data/strings/descriptions.csv", Some(csv.text.clone()))?;
+    }
     if let Some(csv) = &staged.saved_csv {
         builder.text_file(
             &session.csv_tables[csv.table.as_str()].path,
@@ -99,6 +110,16 @@ fn save_entity_content(
     }
     json.finish()?;
     let changes = builder.apply()?;
+    if let Some(csv) = description {
+        let state = session
+            .csv_tables
+            .get_mut(csv.table.as_str())
+            .expect("registered descriptions");
+        state.rows = Some(csv.rows);
+        state.header = csv.header;
+        state.next_row_seq = csv.next_seq;
+        state.saved_text = Some(csv.text);
+    }
     if let Some(csv) = staged.saved_csv {
         let state = session
             .csv_tables
@@ -118,6 +139,7 @@ pub(in crate::services::project) struct StagedEntityWrite {
     pub data: Value,
     pub identity: EntityIdentityChange,
     pub saved_csv: Option<StagedIdentityCsv>,
+    pub(super) default_description_rename: Option<(String, String)>,
 }
 
 pub(in crate::services::project) struct StagedIdentityCsv {
@@ -154,8 +176,15 @@ pub(in crate::services::project) fn stage_entity_content(
         .map(|source| Path::new(&source.path))
         .unwrap_or_else(|| Path::new(&target.write.path));
     let source = boundary.resolve_relative(&target.write.rel_path, "entity source")?;
+    let original = target
+        .source
+        .as_ref()
+        .map(|location| read_json_file(Path::new(&location.path)))
+        .transpose()?;
     if target.state == EntityTargetState::Existing
-        && read_json_file(&source)?
+        && original
+            .as_ref()
+            .expect("existing target has source")
             .get(definition.id_field)
             .and_then(Value::as_str)
             != Some(&target.id)
@@ -165,6 +194,12 @@ pub(in crate::services::project) fn stage_entity_content(
             "实体源文件 ID 与加载身份不一致",
         ));
     }
+    let default_description_rename = super::ship_description::default_description_rename(
+        target.kind,
+        &target.id,
+        &next_id,
+        original.as_ref().unwrap_or(&data),
+    );
     let next_rel = if target.state == EntityTargetState::Create {
         definition.default_rel_path(&next_id)
     } else if next_id != target.id {
@@ -312,6 +347,7 @@ pub(in crate::services::project) fn stage_entity_content(
             after: next,
         },
         saved_csv,
+        default_description_rename,
     })
 }
 

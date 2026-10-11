@@ -7,6 +7,7 @@
 ## 参考
 
 `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则 owner。
+`src-tauri/src/services/project/write/ship_description.rs`：默认舰船描述键的同事务行身份更新 owner。
 `src/app/components/editors/ShipEditor.vue`：编辑器组件 owner，注入画布 hooks 并拥有实体语义、检查器表单与贴图。
 `src/app/composables/canvas/use-canvas-editor.ts` 同族：画布交互骨架（见画布骨架模块）。
 `src/app/composables/editors/use-editor-window-view-model.ts`：消费共享窗口 ViewModel 的目标 Draft Session 与 bundle。
@@ -24,6 +25,7 @@
 - 画布命中检测、选区同步、镜像轴与提交引擎全部注入自画布骨架；编辑器只提供目标、命中表、镜像规则、预览与场景绘制。
 - 窗口 ViewModel query 舰船 bundle、资源与引用并维护目标 Draft Session；组件拥有画布交互与检查器 UI；窗口服务拥有单例身份。
 - 组件只允许提交 `.ship` 草稿；hullId 交接必须由所属身份事务更新实际规格及唯一关联 CSV 行，几何与集合必须消费正式规格规则。
+- 画布窗口必须按规格身份登记；舰船沉浸式窗口必须消费联合交接协调相同规格的保存范围，并由其领域投影拥有 CSV 与描述编辑。
 - 缺失目标的导入内容必须进入待保存草稿，目标只允许在写盘成功后转为已有文件。
 
 ## 链路
@@ -59,6 +61,8 @@
 
 - builtInWeapons 必须以对象形状的 JSON 输入提交，原始输入必须登记到所属目标会话并参与保存、关闭与外部版本保护。
 - 同 ID 保存必须使用实际已加载路径；修改 hullId 必须保留原目录并同步所属 CSV 的 ID 字段与文件历史。
+- 原规格未声明 descriptionId 时，hullId 改名必须在同一 changeset 中将旧 ID 的 SHIP 描述记录改为新 ID；显式 descriptionId 必须保持所属引用语义。
+- 默认描述改名必须保留描述文本、未知列、行序与注释身份；目标 SHIP 描述 ID 占用必须拒绝整次提交，描述文件版本必须归所属保存凭据与协调范围。
 - 编辑器内部显示和编辑 `.ship` 的 `hullName`；编辑器外的舰船显示名称必须优先使用 `ship_data.csv` 的 `name`，仅在该名称缺失时才允许 `hullName`。
 - 舰体引用、资源引用必须以后端 ResourceRef 或后端校验的相对路径表达。
 - 舰船新建与关联创建必须消费共享模板构造；ID 与 hullName 必须由明确创建参数装配，builtInWeapons 必须保留全部原始槽位键。

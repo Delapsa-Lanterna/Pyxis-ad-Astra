@@ -155,10 +155,17 @@ pub fn open_managed_window(
         session_id,
         mod_root,
         ..
+    }
+    | WindowIdentity::Immersive {
+        session_id,
+        mod_root,
+        ..
     } = &request.identity
     {
         super::project::ensure_project_session_mod_root(session_id, mod_root)?;
     }
+    let native_theme =
+        matches!(&request.identity, WindowIdentity::Immersive { .. }).then_some(tauri::Theme::Dark);
     let key = request.identity.comparison_key();
     let label = {
         let mut state = registry()?;
@@ -201,6 +208,7 @@ pub fn open_managed_window(
     let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(request.url.into()))
         .title(request.title)
         .visible(false)
+        .theme(native_theme)
         .inner_size(request.width, request.height)
         .min_inner_size(request.min_width, request.min_height)
         .build();
@@ -571,6 +579,11 @@ pub fn focus_managed_window(
         session_id,
         mod_root,
         ..
+    }
+    | WindowIdentity::Immersive {
+        session_id,
+        mod_root,
+        ..
     } = identity
     {
         super::project::ensure_project_session_mod_root(session_id, mod_root)?;
@@ -626,6 +639,32 @@ mod tests {
             mod_root: root.into(),
             id: id.into(),
         }
+    }
+    #[test]
+    fn immersive_keeps_instance_scope() {
+        let mut state = WindowRegistry::default();
+        let target = WindowIdentity::Immersive {
+            session_id: "s".into(),
+            kind: crate::models::JointEditKind::Ship,
+            mod_root: "D:/Mod".into(),
+            id: "Alpha".into(),
+        };
+        let label = state.register(target.clone());
+        assert_eq!(target.session_id(), Some("s"));
+        assert_eq!(state.focus_target("main", &target), Some(label.clone()));
+        assert_ne!(
+            target.comparison_key(),
+            identity("Alpha", "D:/Mod", "s").comparison_key()
+        );
+        let normalized = WindowIdentity::Immersive {
+            session_id: "s".into(),
+            kind: crate::models::JointEditKind::Ship,
+            mod_root: r"\\?\d:\mod\".into(),
+            id: "Alpha".into(),
+        };
+        assert_eq!(state.focus_target("main", &normalized), Some(label.clone()));
+        state.release(&label);
+        assert_eq!(state.focus_target("main", &target), None);
     }
     #[test]
     fn focus_uses_complete_identity_and_retains_dirty_target_occupancy() {

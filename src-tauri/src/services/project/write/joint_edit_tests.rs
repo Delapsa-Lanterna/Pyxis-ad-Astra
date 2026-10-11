@@ -70,6 +70,7 @@ fn payload(snapshot: JointEditSnapshot) -> JointEditSubmission {
         base_versions: snapshot.base_versions.clone(),
         snapshot,
         json_write: Default::default(),
+        create_overrides: Vec::new(),
     }
 }
 fn submit(
@@ -234,6 +235,10 @@ fn rename_keeps_csv_field_edits() {
         .rows;
     assert_eq!(rows[1].data["id"], "A");
     assert_eq!(rows[1].data["name"], "Renamed");
+    let descriptions = read_csv_data(&dir.join("data/strings/descriptions.csv")).unwrap();
+    assert_eq!(descriptions.rows[0].data["id"], "A");
+    assert_eq!(descriptions.rows[0].data["text1"], "Original");
+    assert_eq!(descriptions.rows[0].data["notes"], "007");
     assert!(dir.join("data/hulls/A.ship").exists());
     cleanup(dir, &root);
 }
@@ -320,6 +325,26 @@ fn core_override_keeps_original() {
             .filter(|record| matches!(record.value, JointValue::Present(_)))
             .all(|record| record.source.as_ref().unwrap().source == ResourceSource::Core)
     );
+    input.create_overrides = input
+        .snapshot
+        .records
+        .iter()
+        .filter(|record| {
+            record
+                .source
+                .as_ref()
+                .is_some_and(|source| source.source == ResourceSource::Core)
+        })
+        .map(|record| record.key.clone())
+        .collect();
+    let copied = submit(&input).unwrap();
+    assert_eq!(copied.changes.len(), 3);
+    assert_eq!(copied.key_map.len(), 2);
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/hulls/base.ship")).unwrap()["hullName"],
+        "Core"
+    );
+    input = payload(copied.refreshed_entity.unwrap());
     for record in &input.snapshot.records {
         if let JointValue::Present(mut value) = record.value.clone() {
             match &record.target {
@@ -343,7 +368,7 @@ fn core_override_keeps_original() {
     }
     let result = submit(&input).unwrap();
     assert_eq!(result.changes.len(), 3);
-    assert_eq!(result.key_map.len(), 2);
+    assert_eq!(result.key_map.len(), 0);
     assert_eq!(
         crate::io::read_json_file(&core.join("data/hulls/base.ship")).unwrap()["hullName"],
         "Core"
@@ -453,6 +478,11 @@ fn core_system_uses_actual_source() {
         r#"{"hullId":"a","shipSystemId":"drive"}"#,
     )
     .unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/hulls/ship_data.csv"),
+        "id,name,system id\na,Ship,drive\n",
+    )
+    .unwrap();
     project::close_project_session(root.session_id.clone()).unwrap();
     let mut trace = project::PerformanceTrace::new("joint.system");
     let manifest = project::open_project_session_traced(&dir, Some(&game), &mut trace).unwrap();
@@ -480,6 +510,221 @@ fn core_system_uses_actual_source() {
         crate::io::read_json_file(&core.join("data/shipsystems/nested/actual.system")).unwrap()["name"],
         "Core drive"
     );
+    cleanup(dir, &root);
+    std::fs::remove_dir_all(game).unwrap();
+}
+
+#[test]
+fn missing_columns_keep_comments() {
+    let (dir, root) = fixture();
+    write_utf8_no_bom(
+        &dir.join("data/hulls/ship_data.csv"),
+        "id,name,custom,custom2\n#disabled,Disabled,keep,007\na,Ship,a,b\nb,Other,c,d\n",
+    )
+    .unwrap();
+    let mut input = payload(query_joint_edit(&root).unwrap());
+    let record = input
+        .snapshot
+        .records
+        .iter()
+        .find(|record| {
+            matches!(
+                &record.target,
+                JointRecordTarget::Csv {
+                    table: CsvTableKey::Ships,
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let key = record.key.clone();
+    input.values.retain(|entry, _| *entry == key);
+    if let JointValue::Present(value) = input.values.get_mut(&key).unwrap() {
+        value["hitpoints"] = json!("999");
+        value["name"] = json!("#Literal");
+    }
+    let result = submit(&input).unwrap();
+    let csv = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
+    assert_eq!(csv.header, ["name", "id", "hitpoints", "custom", "custom2"]);
+    assert!(csv.rows[0].is_comment);
+    assert_eq!(csv.rows[0].data["custom2"], "007");
+    assert_eq!(csv.rows[1].data["hitpoints"], "999");
+    assert!(!csv.rows[1].is_comment);
+    assert_eq!(csv.rows[1].data["name"], "#Literal");
+    assert_eq!(csv.rows[2].data["name"], "Other");
+    write_transactions::replay(
+        &root.session_id,
+        &root.mod_root,
+        FileChangeReplayDirection::Undo,
+        result.history.undo_stack[0].id,
+        result.history.revision,
+    )
+    .unwrap();
+    assert_eq!(
+        read_csv_data(&dir.join("data/hulls/ship_data.csv"))
+            .unwrap()
+            .header,
+        ["id", "name", "custom", "custom2"]
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn csv_identity_and_draft_system() {
+    let (dir, root) = fixture();
+    std::fs::create_dir_all(dir.join("data/shipsystems")).unwrap();
+    for id in ["one", "two"] {
+        write_utf8_no_bom(
+            &dir.join(format!("data/shipsystems/{id}.system")),
+            &json!({"id":id,"type":"STATS"}).to_string(),
+        )
+        .unwrap();
+    }
+    write_utf8_no_bom(
+        &dir.join("data/hulls/ship_data.csv"),
+        "id,name,system id\na,Ship,one\n",
+    )
+    .unwrap();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("joint.projection");
+    let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
+    let root = JointEditRoot {
+        session_id: manifest.session_id,
+        ..root
+    };
+    let baseline = query_joint_edit(&root).unwrap();
+    let row = baseline
+        .records
+        .iter()
+        .find(|record| {
+            matches!(
+                &record.target,
+                JointRecordTarget::Csv {
+                    table: CsvTableKey::Ships,
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let JointRecordTarget::Csv { row_key, .. } = &row.target else {
+        unreachable!()
+    };
+    let mut query = JointEditQuery {
+        root: JointEditRoot {
+            id: "unsaved-id".into(),
+            ..root.clone()
+        },
+        row_key: Some(row_key.clone()),
+        values: None,
+    };
+    assert_eq!(
+        project::query_joint_edit_request(&query).unwrap().root.id,
+        "a"
+    );
+    let JointValue::Present(mut edited) = row.value.clone() else {
+        unreachable!()
+    };
+    edited["system id"] = json!("two");
+    query.values = Some(BTreeMap::from([(
+        row.key.clone(),
+        JointValue::Present(edited),
+    )]));
+    let projection = project::query_joint_edit_request(&query).unwrap();
+    assert!(projection.records.iter().any(|record| matches!(&record.target, JointRecordTarget::Spec{target} if target.kind==EntityKind::System && target.id=="two")));
+    assert!(!projection.records.iter().any(|record| matches!(&record.target, JointRecordTarget::Spec{target} if target.kind==EntityKind::System && target.id=="one")));
+    assert_eq!(
+        read_csv_data(&dir.join("data/hulls/ship_data.csv"))
+            .unwrap()
+            .rows[0]
+            .data["system id"],
+        "one"
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn missing_ship_uses_construction() {
+    let (dir, root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    std::fs::remove_file(dir.join("data/hulls/a.ship")).unwrap();
+    let mut trace = project::PerformanceTrace::new("joint.missing");
+    let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
+    let root = JointEditRoot {
+        session_id: manifest.session_id,
+        ..root
+    };
+    let snapshot = query_joint_edit(&root).unwrap();
+    let key = snapshot.bindings["spec"].clone();
+    assert_eq!(
+        snapshot
+            .records
+            .iter()
+            .find(|record| record.key == key)
+            .unwrap()
+            .value,
+        JointValue::Missing
+    );
+    let mut input = payload(snapshot);
+    input.values = BTreeMap::from([(
+        key,
+        JointValue::Present(json!({"hullId":"a","hullSize":"DESTROYER"})),
+    )]);
+    let result = submit(&input).unwrap();
+    let data = crate::io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap();
+    assert_eq!(data["hullSize"], "DESTROYER");
+    assert!(data["weaponSlots"].is_array());
+    assert_eq!(result.changes.len(), 1);
+    cleanup(dir, &root);
+}
+
+#[test]
+fn core_header_and_sensor_sources() {
+    let (dir, root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let game = temp_dir("joint_reference_core");
+    let core = game.join("starsector-core");
+    std::fs::create_dir_all(core.join("data/config")).unwrap();
+    std::fs::create_dir_all(core.join("data/hulls")).unwrap();
+    std::fs::create_dir_all(dir.join("data/config")).unwrap();
+    write_utf8_no_bom(
+        &core.join("data/config/settings.json"),
+        r#"{"baseSensorFrigate":30,"baseSensorDestroyer":60,"unrelated":99}"#,
+    )
+    .unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/config/settings.json"),
+        r#"{"baseSensorFrigate":42}"#,
+    )
+    .unwrap();
+    write_utf8_no_bom(
+        &core.join("data/hulls/ship_data.csv"),
+        "id,hitpoints,name,tags\ncore,100,Core,\n",
+    )
+    .unwrap();
+    let mut trace = project::PerformanceTrace::new("joint.reference");
+    let manifest = project::open_project_session_traced(&dir, Some(&game), &mut trace).unwrap();
+    let root = JointEditRoot {
+        session_id: manifest.session_id,
+        ..root
+    };
+    let snapshot = query_joint_edit(&root).unwrap();
+    assert_eq!(snapshot.reference_settings.values["baseSensorFrigate"], 42);
+    assert_eq!(
+        snapshot.reference_settings.values["baseSensorDestroyer"],
+        60
+    );
+    assert!(!snapshot.reference_settings.values.contains_key("unrelated"));
+    assert_eq!(snapshot.reference_settings.versions.len(), 2);
+    let key = snapshot.bindings["csv"].clone();
+    let mut input = payload(snapshot);
+    input.values.retain(|entry, _| entry == &key);
+    if let JointValue::Present(data) = input.values.get_mut(&key).unwrap() {
+        data["hitpoints"] = json!("200");
+    }
+    submit(&input).unwrap();
+    let csv = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
+    assert_eq!(csv.header, ["id", "hitpoints", "name", "tags", "custom"]);
+    assert_eq!(csv.rows[1].data["custom"], "007");
     cleanup(dir, &root);
     std::fs::remove_dir_all(game).unwrap();
 }

@@ -1,0 +1,259 @@
+.immersive-editor-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  min-height: 0;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+.immersive-window-header {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-primary);
+}
+.immersive-window-header strong {
+  flex: 1;
+  min-width: 0;
+}
+.immersive-editor-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+.immersive-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.immersive-editor-actions small {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-muted);
+}
+.immersive-editor-actions > div,
+.immersive-field-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.immersive-status {
+  padding: var(--space-4);
+  white-space: pre-wrap;
+}
+.ship-immersive-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.immersive-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.immersive-title-row .immersive-stat-row {
+  display: block;
+}
+.immersive-title-row .immersive-stat-row > span {
+  display: none;
+}
+.immersive-title-row .immersive-stat-value {
+  color: var(--color-primary);
+  font-size: 22px;
+}
+.ship-immersive-sprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  color: var(--color-muted);
+}
+.ship-immersive-header > div > .immersive-stat-row {
+  display: flex;
+  justify-content: flex-start;
+}
+.ship-immersive-sprite img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.ship-immersive-description .immersive-stat-row {
+  display: block;
+  margin-top: var(--space-3);
+}
+.ship-immersive-description .immersive-stat-row > span {
+  display: none;
+}
+.ship-immersive-description .immersive-stat-value {
+  color: var(--color-text);
+  font-weight: 400;
+  text-align: left;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.ship-immersive-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.ship-immersive-logistics-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.ship-immersive-stats section,
+.ship-immersive-logistics-columns > div {
+  min-width: 0;
+  min-height: 0;
+}
+.immersive-group-title {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--color-primary);
+  background: var(--color-panel-muted);
+}
+.immersive-stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) 0;
+  font-size: 13px;
+}
+.immersive-stat-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.immersive-stat-value {
+  max-width: 100%;
+  padding: 0;
+  color: var(--color-warning);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  overflow-wrap: anywhere;
+}
+button.immersive-stat-value {
+  cursor: pointer;
+}
+button.immersive-stat-value:hover,
+button.immersive-stat-value:focus-visible {
+  color: var(--color-primary);
+  text-decoration: underline;
+  outline: 1px solid var(--color-primary-border);
+  outline-offset: 2px;
+}
+.immersive-stat-row.normal .immersive-stat-value {
+  color: var(--color-text);
+}
+.immersive-stat-row.crew .immersive-stat-value {
+  color: var(--color-success);
+}
+.immersive-field-popover {
+  display: grid;
+  gap: var(--space-3);
+  width: min(400px, 75vw);
+  max-height: 70vh;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.immersive-field-input {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.immersive-source-note {
+  margin: 0;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.immersive-field-actions {
+  justify-content: flex-end;
+}
+.immersive-source-notice {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+}
+.immersive-source-notice > div {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+.ship-immersive-related {
+  margin-top: var(--space-4);
+}
+.ship-immersive-related > .immersive-stat-row {
+  grid-template-columns: 90px minmax(0, 1fr);
+}
+.ship-immersive-related > .immersive-stat-row .immersive-stat-value {
+  justify-self: start;
+  text-align: left;
+}
+.ship-immersive-related > p {
+  margin: var(--space-1) 0 var(--space-3);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+.immersive-related-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: 13px;
+}
+.immersive-related-row strong {
+  font-weight: 400;
+  color: var(--color-warning);
+}
+.immersive-hullmod {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.immersive-hullmod small {
+  color: var(--color-text-soft);
+  line-height: 1.5;
+}
+@media (max-width: 980px) {
+  .ship-immersive-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ship-immersive-header {
+    grid-template-columns: minmax(0, 1fr) 160px;
+  }
+}
+@media (max-width: 640px) {
+  .ship-immersive-header,
+  .ship-immersive-logistics-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .immersive-editor-actions {
+    flex-wrap: wrap;
+  }
+}

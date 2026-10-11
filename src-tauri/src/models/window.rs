@@ -15,6 +15,12 @@ pub struct EditWriteTarget {
     rename_all_fields = "camelCase"
 )]
 pub enum WindowIdentity {
+    Immersive {
+        session_id: String,
+        kind: super::JointEditKind,
+        mod_root: String,
+        id: String,
+    },
     Spec {
         session_id: String,
         kind: String,
@@ -35,6 +41,17 @@ pub enum WindowIdentity {
 impl WindowIdentity {
     pub fn comparison_key(&self) -> Self {
         match self {
+            Self::Immersive {
+                session_id,
+                kind,
+                mod_root,
+                id,
+            } => Self::Immersive {
+                session_id: session_id.clone(),
+                kind: *kind,
+                mod_root: windows_path_key(mod_root),
+                id: id.clone(),
+            },
             Self::Spec {
                 session_id,
                 kind,
@@ -63,7 +80,9 @@ impl WindowIdentity {
     }
     pub fn session_id(&self) -> Option<&str> {
         match self {
-            Self::Spec { session_id, .. } | Self::File { session_id, .. } => Some(session_id),
+            Self::Spec { session_id, .. }
+            | Self::File { session_id, .. }
+            | Self::Immersive { session_id, .. } => Some(session_id),
             Self::Recovery { .. } => None,
         }
     }

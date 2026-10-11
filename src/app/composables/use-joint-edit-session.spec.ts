@@ -3,7 +3,11 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { savedWriteFixture } from '@/test/write-result';
 import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
-const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn(), error: vi.fn() }));
+import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
+import { sessionUpdateFixture } from '@/test/write-result';
+import type { ProjectSessionInvalidatedEvent } from '@/windows/window.events';
+const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn(), error: vi.fn(), projection: vi.fn() }));
+vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ listenProjectSessionInvalidated: mocks.projection }));
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.open, save: mocks.save }) }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointEdit: (root: unknown) => mocks.open(root) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
@@ -12,6 +16,8 @@ import { useJointEditSession } from './use-joint-edit-session';
 const root = { sessionId: 's', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
 const snapshot: JointEditSnapshot = {
   root,
+  bindings: {},
+  referenceSettings: { values: {}, versions: [] },
   records: [
     {
       key: 'ship',
@@ -31,8 +37,64 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.open.mockResolvedValue(snapshot);
   mocks.complete.mockResolvedValue(undefined);
+  mocks.projection.mockResolvedValue(() => {});
 });
 describe('joint snapshot session acceptance', () => {
+  it('waits for the projection notification after identity acceptance before rereading the root', async () => {
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession();
+        return () => null;
+      },
+    });
+    await session.loadTarget(root);
+    const update = sessionUpdateFixture('s', 'M:/mod');
+    if (update.status !== 'ready') throw new Error('ready fixture');
+    update.projection.invalidation.paths = ['a.txt'];
+    invalidateQueryCacheByProject('s', update.projection.invalidation);
+    await flushPromises();
+    expect(mocks.open).toHaveBeenCalledTimes(1);
+    const next = { ...root, id: 'renamed' };
+    session.adoptIdentity(
+      root,
+      {
+        target: next,
+        value: session.draftValue.value,
+        baseVersions: [],
+        meta: { snapshot: { ...snapshot, root: next }, receipt: null, previous: null },
+        commitId: 1,
+      },
+      (value) => value,
+      'identity',
+    );
+    mocks.open.mockResolvedValue({ ...snapshot, root: next });
+    const notify = mocks.projection.mock.calls[0]![0] as (event: ProjectSessionInvalidatedEvent) => Promise<void>;
+    await notify(update.projection);
+    expect(mocks.open).toHaveBeenLastCalledWith(next);
+    wrapper.unmount();
+  });
+  it('limits draft and save scopes to declared editable records and passes explicit override intent', async () => {
+    const associated = { ...snapshot.records[0]!, key: 'associated' };
+    mocks.open.mockResolvedValue({ ...snapshot, records: [...snapshot.records, associated] });
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession({ editableRecords: () => ['ship'] });
+        return () => null;
+      },
+    });
+    await session.loadTarget(root);
+    expect(Object.keys(session.draftValue.value)).toEqual(['ship']);
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: snapshot });
+    await session.createOverrides(['ship']);
+    expect(mocks.save.mock.calls[0]![0].values).toEqual({ ship: snapshot.records[0]!.value });
+    expect(mocks.save.mock.calls[0]![3]).toEqual(['ship']);
+    session.setDraft({ ship: { state: 'present', value: 'changed' } });
+    await session.saveDraft();
+    expect(mocks.save.mock.calls[1]![3]).toEqual([]);
+    wrapper.unmount();
+  });
   it('ends opening on unmount and ignores the late snapshot', async () => {
     let session!: ReturnType<typeof useJointEditSession>;
     const wrapper = mount({

@@ -4,7 +4,29 @@ import type { JointEditRoot, JointEditDraft, SaveJointEditPayload, JointEditWrit
 
 export function queryJointEdit(root: JointEditRoot, signal?: AbortSignal): Promise<QueryValue<'joint-edit'>> {
   return queryLive(
-    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: root },
+    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: { root, rowKey: null, values: null } },
+    (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
+    signal,
+  );
+}
+export function queryJointEditRow(
+  root: Omit<JointEditRoot, 'id'>,
+  rowKey: string,
+  signal?: AbortSignal,
+): Promise<QueryValue<'joint-edit'>> {
+  return queryLive(
+    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: { root: { ...root, id: '' }, rowKey, values: null } },
+    (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
+    signal,
+  );
+}
+export function queryJointEditProjection(draft: JointEditDraft, signal?: AbortSignal): Promise<QueryValue<'joint-edit-projection'>> {
+  return queryLive(
+    {
+      sessionId: draft.baseline.root.sessionId,
+      queryKind: 'joint-edit-projection',
+      parameters: { root: draft.baseline.root, rowKey: null, values: draft.values },
+    },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
     signal,
   );

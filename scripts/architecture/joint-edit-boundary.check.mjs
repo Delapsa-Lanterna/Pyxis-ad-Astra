@@ -16,6 +16,28 @@ test('joint edit submission is owned by its orchestrator and registration by its
   assert.deepEqual(writeBoundaryRule.check(files), []);
 });
 
+test('immersive projections and window identity capabilities retain their declared owners', () => {
+  const files = architectureFixtures({
+    'src/app/composables/use-immersive-editor-view-model.ts':
+      "import {queryJointEditProjection} from '@/services/joint-edit.service'; queryJointEditProjection(draft);",
+    'src/orchestrators/immersive-editor.orchestrator.ts':
+      "import {focusNativeManagedWindow,retargetNativeWindow} from '@/services/window.service'; focusNativeManagedWindow(identity); retargetNativeWindow(identity,title);",
+    'src/services/joint-edit.service.ts': 'export const queryJointEditProjection=(draft)=>draft;',
+    'src/services/window.service.ts':
+      'export const focusNativeManagedWindow=(identity)=>identity; export const retargetNativeWindow=(identity,title)=>({identity,title});',
+  });
+  assert.deepEqual(writeBoundaryRule.check(files), []);
+});
+
+test('immersive presentation consumes window and query capabilities through its owners', () => {
+  const files = architectureFixtures({
+    'src/app/components/immersive/ImmersiveStatRow.vue':
+      "<script setup>import {retargetNativeWindow} from '@/services/window.service'; retargetNativeWindow(identity,title);</script>",
+    'src/services/window.service.ts': 'export const retargetNativeWindow=(identity,title)=>({identity,title});',
+  });
+  assert.ok(frontendLayerBoundaryRule.check(files).some((failure) => failure.includes('components must consume')));
+});
+
 test('component submission and unrelated native target registration are rejected', () => {
   const files = architectureFixtures({
     'src/app/components/Sample.vue':

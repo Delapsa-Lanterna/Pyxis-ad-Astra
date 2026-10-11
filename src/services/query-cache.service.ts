@@ -267,6 +267,7 @@ function shouldInvalidateQuery(entry: QueryIdentity, invalidation: ProjectInvali
     case 'resource-reference':
       return false;
     case 'joint-edit':
+    case 'joint-edit-projection':
     case 'joint-edit-prepare':
       return invalidation.paths.length > 0;
   }

@@ -31,8 +31,8 @@ pub enum EditMode {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    #[serde(default = "default_theme")]
-    pub theme: AppTheme,
+    #[serde(default)]
+    pub theme: Option<AppTheme>,
     #[serde(default = "default_accent")]
     pub accent: AccentPreset,
     #[serde(default = "default_custom_accent")]
@@ -56,7 +56,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            theme: default_theme(),
+            theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),
             history_limit: default_history_limit(),
@@ -68,10 +68,6 @@ impl Default for AppSettings {
             log_level: default_log_level(),
         }
     }
-}
-
-fn default_theme() -> AppTheme {
-    AppTheme::Light
 }
 
 fn default_accent() -> AccentPreset {
@@ -100,8 +96,26 @@ fn default_log_level() -> AppLogLevel {
 
 #[cfg(test)]
 mod tests {
-    use super::AppSettings;
+    use super::{AppSettings, AppTheme};
     use serde_json::json;
+
+    #[test]
+    fn theme_defaults_to_system_and_preserves_explicit_choices() {
+        assert_eq!(AppSettings::default().theme, None);
+        for (value, expected) in [
+            (json!({}), None),
+            (json!({"theme": null}), None),
+            (json!({"theme": "light"}), Some(AppTheme::Light)),
+            (json!({"theme": "dark"}), Some(AppTheme::Dark)),
+        ] {
+            let settings: AppSettings = serde_json::from_value(value).unwrap();
+            assert_eq!(settings.theme, expected);
+            let snapshot = serde_json::to_value(&settings).unwrap();
+            let restored: AppSettings = serde_json::from_value(snapshot).unwrap();
+            assert_eq!(restored.theme, expected);
+        }
+        assert!(serde_json::from_value::<AppSettings>(json!({"theme": "invalid"})).is_err());
+    }
 
     #[test]
     fn app_settings_uses_nullable_starsector_root() {

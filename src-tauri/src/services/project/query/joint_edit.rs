@@ -4,7 +4,7 @@ use super::super::{
     query::entity_targets::{EntityTargetProjection, prepare_entity_targets},
 };
 use crate::{
-    errors::AppResult,
+    errors::{AppError, AppResult},
     io::{FsRootBoundary, file_version, read_csv_data, read_json_file},
     models::*,
 };
@@ -15,6 +15,47 @@ use std::{
 };
 
 pub fn query_joint_edit(root: &JointEditRoot) -> AppResult<JointEditSnapshot> {
+    query_joint_edit_values(root, None)
+}
+
+pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSnapshot> {
+    let _lease = crate::io::acquire_root_write_lock(Path::new(&query.root.mod_root))?;
+    let mut root = query.root.clone();
+    if let Some(row_key) = &query.row_key {
+        super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
+        let table = match root.kind {
+            JointEditKind::Ship => CsvTableKey::Ships,
+            JointEditKind::Weapon => CsvTableKey::Weapons,
+            JointEditKind::Wing => CsvTableKey::Wings,
+            JointEditKind::Variant => {
+                return Err(AppError::message(
+                    "joint.row_kind",
+                    "装配目标没有 CSV 行身份",
+                ));
+            }
+        };
+        let handle = cache::session_handle(&root.session_id)?;
+        let mut session = cache::lock_ready_session(&handle)?;
+        cache::ensure_registered_table_rows(&mut session, table)?;
+        let (_, rows, _) = cache::csv::read_table_snapshot(&session, table)?;
+        let row = rows
+            .iter()
+            .find(|row| row.row_key == *row_key && !row.is_comment)
+            .ok_or_else(|| AppError::message("joint.row_changed", "舰船来源行已变化"))?;
+        root.id = row
+            .data
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::message("joint.id_missing", "来源行缺少 ID"))?
+            .into();
+    }
+    query_joint_edit_values(&root, query.values.as_ref())
+}
+
+fn query_joint_edit_values(
+    root: &JointEditRoot,
+    values: Option<&BTreeMap<String, JointValue>>,
+) -> AppResult<JointEditSnapshot> {
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root.mod_root))?;
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
     let handle = cache::session_handle(&root.session_id)?;
@@ -26,12 +67,22 @@ pub fn query_joint_edit(root: &JointEditRoot) -> AppResult<JointEditSnapshot> {
         tables: BTreeMap::new(),
         targets: BTreeMap::new(),
         core_systems: None,
+        draft_values: values,
+        bindings: BTreeMap::new(),
     };
     match root.kind {
         JointEditKind::Ship => graph.spec(EntityKind::Ship, &root.id, "root")?,
         JointEditKind::Weapon => graph.spec(EntityKind::Weapon, &root.id, "root")?,
         JointEditKind::Variant => graph.spec(EntityKind::Variant, &root.id, "root")?,
         JointEditKind::Wing => {
+            graph.bindings.insert(
+                "csv".into(),
+                serde_json::to_string(&(
+                    "csv",
+                    CsvTableKey::Wings,
+                    BTreeMap::from([("id", root.id.as_str())]),
+                ))?,
+            );
             let row = graph.csv(
                 CsvTableKey::Wings,
                 BTreeMap::from([("id".into(), root.id.clone())]),
@@ -42,6 +93,7 @@ pub fn query_joint_edit(root: &JointEditRoot) -> AppResult<JointEditSnapshot> {
             }
         }
     }
+    let bindings = graph.bindings;
     let mut records = graph.records.into_values().collect::<Vec<_>>();
     cache::ensure_registered_table_rows(&mut session, CsvTableKey::Wings)?;
     let references = reference_catalog(&session)?;
@@ -58,9 +110,42 @@ pub fn query_joint_edit(root: &JointEditRoot) -> AppResult<JointEditSnapshot> {
     }
     Ok(JointEditSnapshot {
         root: root.clone(),
+        bindings,
+        reference_settings: reference_settings(&session)?,
         records,
         base_versions: versions.into_values().collect(),
     })
+}
+
+fn reference_settings(session: &ProjectSession) -> AppResult<JointReferenceSettings> {
+    let mut result = JointReferenceSettings {
+        values: BTreeMap::new(),
+        versions: Vec::new(),
+    };
+    let mut roots = Vec::new();
+    if let Some(game) = &session.manifest.starsector_root {
+        roots.push(cache::core::core_dir(game)?);
+    }
+    roots.push(Path::new(&session.manifest.mod_root).to_path_buf());
+    for root in roots {
+        let boundary = FsRootBoundary::new(&root, "joint reference settings")?;
+        let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
+        if path.exists() {
+            let data = read_json_file(&path)?;
+            for key in [
+                "baseSensorFrigate",
+                "baseSensorDestroyer",
+                "baseSensorCruiser",
+                "baseSensorCapital",
+            ] {
+                if let Some(value) = data.get(key) {
+                    result.values.insert(key.into(), value.clone());
+                }
+            }
+            result.versions.push(file_version(&path)?);
+        }
+    }
+    Ok(result)
 }
 
 pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared> {
@@ -72,7 +157,12 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
         .collect::<BTreeMap<_, _>>();
     let mut values = BTreeMap::new();
     let mut conflicts = Vec::new();
-    for base in &draft.baseline.records {
+    for base in draft
+        .baseline
+        .records
+        .iter()
+        .filter(|record| draft.values.contains_key(&record.key))
+    {
         let disk = current
             .get(&base.key)
             .map(|record| record.value.clone())
@@ -89,11 +179,6 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
                 &mut conflicts,
             ),
         );
-    }
-    for record in &snapshot.records {
-        values
-            .entry(record.key.clone())
-            .or_insert_with(|| record.value.clone());
     }
     for record in &snapshot.records {
         if let (JointRecordTarget::Spec { target }, Some(JointValue::Present(data))) =
@@ -143,6 +228,8 @@ struct JointGraph<'a> {
     tables: BTreeMap<CsvTableKey, JointCsvCatalog>,
     targets: BTreeMap<EntityKind, EntityTargetProjection>,
     core_systems: Option<BTreeMap<String, LoadedSpecRecord>>,
+    draft_values: Option<&'a BTreeMap<String, JointValue>>,
+    bindings: BTreeMap<String, String>,
 }
 
 impl JointGraph<'_> {
@@ -170,7 +257,7 @@ impl JointGraph<'_> {
         let catalog = &self.tables[&table];
         let identity_key = serde_json::to_string(&identity)?;
         let found = catalog.rows.get(&identity_key);
-        let value = found.map(|row| Value::Object(row.data.clone()));
+        let value = self.projected_value(&key, found.map(|row| Value::Object(row.data.clone())));
         let source = found.map(|row| row.source.clone());
         let source_version = found.map(|row| row.version.clone());
         let row_key = found
@@ -201,6 +288,9 @@ impl JointGraph<'_> {
 
     fn spec(&mut self, kind: EntityKind, id: &str, parent: &str) -> AppResult<()> {
         let key = serde_json::to_string(&("spec", kind, id))?;
+        if parent == "root" {
+            self.bindings.insert("spec".into(), key.clone());
+        }
         if let Some(record) = self.records.get_mut(&key)
             && !record.referenced_by.iter().any(|entry| entry == parent)
         {
@@ -224,6 +314,7 @@ impl JointGraph<'_> {
             .filter(|source| Path::new(&source.path).exists())
             .map(|source| read_json_file(Path::new(&source.path)))
             .transpose()?;
+        let value = self.projected_value(&key, value);
         let source = target.source.clone();
         let mut versions = vec![file_version(Path::new(&target.write.path))?];
         for version in info.base_versions {
@@ -278,8 +369,16 @@ impl JointGraph<'_> {
             EntityKind::System => Some(CsvTableKey::ShipSystems),
             _ => None,
         };
-        if let Some(table) = csv_table {
-            self.csv(table, BTreeMap::from([("id".into(), id.into())]), id)?;
+        let csv = csv_table
+            .map(|table| self.csv(table, BTreeMap::from([("id".into(), id.into())]), id))
+            .transpose()?;
+        if parent == "root"
+            && let Some(table) = csv_table
+        {
+            self.bindings.insert(
+                "csv".into(),
+                serde_json::to_string(&("csv", table, BTreeMap::from([("id", id)])))?,
+            );
         }
         let description_type = match kind {
             EntityKind::Ship | EntityKind::Skin => Some("SHIP"),
@@ -292,20 +391,49 @@ impl JointGraph<'_> {
                 .as_ref()
                 .and_then(|data| string_field(data, "descriptionId"))
                 .unwrap_or_else(|| id.into());
+            if parent == "root" {
+                self.bindings.insert(
+                    "description".into(),
+                    serde_json::to_string(&(
+                        "csv",
+                        CsvTableKey::Descriptions,
+                        BTreeMap::from([("id", description_id.as_str()), ("type", typ)]),
+                    ))?,
+                );
+            }
             self.csv(
                 CsvTableKey::Descriptions,
                 BTreeMap::from([("id".into(), description_id), ("type".into(), typ.into())]),
                 id,
             )?;
         }
+        let system = if kind == EntityKind::Ship {
+            csv.as_ref().and_then(|row| {
+                if string_field(row, "shield type").as_deref() == Some("PHASE")
+                    && string_field(row, "defense id").is_none()
+                {
+                    Some("phasecloak".into())
+                } else {
+                    string_field(row, "system id")
+                }
+            })
+        } else {
+            value.as_ref().and_then(|data| {
+                string_field(data, "shipSystemId").or_else(|| string_field(data, "systemId"))
+            })
+        };
+        if let Some(system) = system {
+            if parent == "root" {
+                self.bindings.insert(
+                    "system".into(),
+                    serde_json::to_string(&("spec", EntityKind::System, &system))?,
+                );
+            }
+            self.spec(EntityKind::System, &system, id)?;
+        }
         let Some(data) = value else {
             return Ok(());
         };
-        if let Some(system) =
-            string_field(&data, "shipSystemId").or_else(|| string_field(&data, "systemId"))
-        {
-            self.spec(EntityKind::System, &system, id)?;
-        }
         for field in ["builtInMods", "hullMods", "permaMods", "sMods"] {
             if let Some(mods) = data.get(field).and_then(Value::as_array) {
                 for module in mods.iter().filter_map(Value::as_str) {
@@ -384,6 +512,14 @@ impl JointGraph<'_> {
             self.spec(EntityKind::Projectile, &projectile, id)?;
         }
         Ok(())
+    }
+
+    fn projected_value(&self, key: &str, current: Option<Value>) -> Option<Value> {
+        match self.draft_values.and_then(|values| values.get(key)) {
+            Some(JointValue::Present(value)) => Some(value.clone()),
+            Some(JointValue::Missing) => None,
+            None => current,
+        }
     }
 
     fn has_skin(&self, id: &str) -> AppResult<bool> {
