@@ -3,10 +3,22 @@ import { computed, ref } from 'vue';
 import type { ProjectManifest, ProjectSessionId } from '@/shared/types';
 import { cell } from '@/shared/lib/starsector';
 import { useWorkspaceStore } from '@/stores/workspace.store';
+import { TABLE_KEYS } from '@/shared/types';
+import { joinRootRelativePath } from '@/shared/lib/paths';
 
 export const useProjectStore = defineStore('project', () => {
   const manifests = ref<Map<string, ProjectManifest>>(new Map());
   const projectionRevisions = new Map<string, number>();
+  const tableWriteTargets = computed(() =>
+    [...manifests.value.values()].flatMap((manifest) =>
+      TABLE_KEYS.map((table) => ({
+        sessionId: manifest.sessionId,
+        modRoot: manifest.modRoot,
+        table,
+        path: joinRootRelativePath(manifest.modRoot, manifest.tableSummaries[table].path),
+      })),
+    ),
+  );
 
   // Active mod identity is owned by the workspace store; project projects it
   // onto its manifests instead of keeping its own copy in sync.
@@ -44,6 +56,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   return {
+    tableWriteTargets,
     activeManifest,
     activeModRoot,
     activeSessionId,

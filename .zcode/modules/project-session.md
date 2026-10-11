@@ -77,6 +77,7 @@
 
 ## 规范
 
+- 联合查询必须共同返回实际来源、授权目标与内容版本；联合 write 必须将同一次 changeset 的身份、行键与投影共同交给 receipt。
 - CSV 写后 refresh 必须保留当前缓存与 changeset after 文本一致的行身份和键分配序列；重新读取的外部版本必须按正式加载入口建立行身份。
 - CSV 查询必须显式投影 isComment 与 sourceRowIndex；搜索必须消费 CsvSearchField，ID 必须归表注册的 entity_id_field，名称与标签必须分别归 name 与 tags。
 - Core 弹体必须保留 Core 实际来源，同时必须声明当前 Mod 的覆盖创建目标；失效重建必须消费相同来源组合。

@@ -1,4 +1,4 @@
-import { onScopeDispose, type Ref } from 'vue';
+import { computed, onScopeDispose, type Ref } from 'vue';
 import {
   useEditTargetDraftSession,
   type EditTargetDraftSession,
@@ -10,11 +10,12 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 
 type ConfigEditorDraftSessionOptions<TValue, TTarget, TMeta> = EditTargetDraftSessionOptions<TValue, TTarget, TMeta> & {
   modRoot: Readonly<Ref<string | null>>;
+  receiptOf: (meta: TMeta) => import('@/shared/types').WriteResult<unknown> | null;
 };
 
-export function useConfigEditorDraftSession<TValue, TTarget, TMeta = unknown>(
+export function useConfigEditorDraftSession<TValue, TTarget extends { sessionId: string; modRoot: string }, TMeta = unknown>(
   options: ConfigEditorDraftSessionOptions<TValue, TTarget, TMeta>,
-): EditTargetDraftSession<TValue, TTarget, TMeta> {
+): EditTargetDraftSession<TValue, TTarget, TMeta> & { handoffLocked: Readonly<Ref<boolean>> } {
   const draftSession = useEditTargetDraftSession(options);
   const draftSessions = useDraftSessionsStore();
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
@@ -27,11 +28,31 @@ export function useConfigEditorDraftSession<TValue, TTarget, TMeta = unknown>(
       saving: draftSession.saving,
       pendingSynchronization: draftSession.hasPendingSynchronization,
       waitForSave: draftSession.waitForSave,
+      editing: {
+        targets: computed(() => {
+          const snapshot = draftSession.baselineSnapshot.value;
+          return snapshot
+            ? snapshot.baseVersions.map((version) => ({
+                sessionId: snapshot.target.sessionId,
+                modRoot: snapshot.target.modRoot,
+                path: version.path,
+              }))
+            : [];
+        }),
+        label: '配置编辑器',
+        dirty: draftSession.dirty,
+        commitInputs: () => draftSession.inputs.commit(),
+        save: async () => {
+          const snapshot = await draftSession.saveDraft();
+          return { saved: Boolean(snapshot), receipt: snapshot ? options.receiptOf(snapshot.meta) : null };
+        },
+      },
     }),
   );
   onScopeDispose(draftSession.dispose);
   return {
     ...draftSession,
+    handoffLocked: computed(() => commands.isEditTargetLocked(draftSession.currentTargetKey.value)),
     loadPendingExternal: () => {
       const key = draftSession.currentTargetKey.value;
       const adopt = () => {

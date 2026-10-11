@@ -11,7 +11,8 @@
 `src/app/EditorWindowContent.vue`：编辑器窗口内容，消费窗口参数并触发保存同步。
 `src/app/composables/editors/use-editor-window-view-model.ts`：共享编辑窗口生命周期主归属，拥有读取票据、外部保存与身份事件接纳。
 `src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫 owner，在关闭请求上确认放弃并销毁。
-`src/orchestrators/entity-identity.orchestrator.ts`：跨窗口目标准备、占用、身份交接和释放主归属。
+`src/orchestrators/edit-target-handoff.orchestrator.ts`：消费原生登记、预约与释放能力，协调联合目标准备。
+`src/orchestrators/entity-identity.orchestrator.ts`：规格身份占用与原生窗口身份交接 owner。
 `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作 owner。
 `src/services/editor.service.ts`：共享编辑窗口 bundle、领域依赖与资源装配主归属。
 `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配主归属。
@@ -66,12 +67,13 @@
 
 ## 规范
 
+- 原生实例必须按 label 登记完整 EditWriteTarget 集合；目标查询必须核对 session、Mod 和物理路径范围，销毁及会话释放必须移除所属登记。
 - sessionId、kind 与实体 ID 必须按原值比较；Mod 与文件路径必须统一处理分隔符、大小写、尾部分隔符及扩展路径前缀。
 - 会话关闭必须阻止新窗口登记；创建期间的关闭意图必须在实例构造完成后继续执行。
 - 保存与回放通知必须共用 committedWriteApplied，事件必须携带 originWindowLabel、modRoot、nullable sessionId、reason 与完整 WriteResult。
 - 关闭、创建失败与动作取消必须释放所属登记及占用；生命周期等待必须按请求身份接纳完成或取消。
 - 关闭守卫遇到 dirty 必须先拦截再确认，取消或失败时必须保持窗口。
-- 写入前必须登记下一规格身份与文本路径占用；待保存目标窗口必须拒绝交接并取得焦点，干净实例必须经所属关闭守卫释放。
+- 身份改名必须登记下一规格身份与文本路径占用；联合编辑的物理预约必须由保存准备完成后的目标集合提供，并保留已协调窗口。
 - 打开或身份交接遇到已登记的 dirty、saving 或 creating 目标时，窗口能力必须先显示并聚焦占用实例，再返回稳定冲突错误。
 - 原生 label 必须由应用内登记序号产生，并且必须在业务身份交接时保持稳定。
 - 子窗口只能消费 URL snapshot 初始化设置，严禁在子窗口内读取设置文件。

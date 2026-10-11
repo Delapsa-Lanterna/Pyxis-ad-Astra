@@ -10,6 +10,7 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Default)]
 struct WindowRegistry {
+    edit_targets: BTreeMap<String, Vec<crate::models::EditWriteTarget>>,
     sequence: u64,
     identities: BTreeMap<WindowIdentity, String>,
     instances: BTreeMap<String, WindowInstance>,
@@ -32,6 +33,19 @@ struct WindowInstance {
 }
 
 impl WindowRegistry {
+    fn edit_target_owners(&self, targets: &[crate::models::EditWriteTarget]) -> Vec<String> {
+        self.edit_targets
+            .iter()
+            .filter(|(_, registered)| {
+                registered.iter().any(|own| {
+                    targets
+                        .iter()
+                        .any(|target| edit_targets_overlap(own, target))
+                })
+            })
+            .map(|(label, _)| label.clone())
+            .collect()
+    }
     fn focus_target(&self, caller: &str, identity: &WindowIdentity) -> Option<String> {
         self.identities
             .get(&identity.comparison_key())
@@ -55,6 +69,7 @@ impl WindowRegistry {
         label
     }
     fn release(&mut self, label: &str) {
+        self.edit_targets.remove(label);
         if let Some(instance) = self.instances.remove(label) {
             self.identities.remove(&instance.identity.comparison_key());
         }
@@ -241,6 +256,98 @@ pub fn update_status(label: &str, status: ManagedWindowStatus) -> AppResult<()> 
     Ok(())
 }
 
+pub fn update_edit_targets(
+    label: &str,
+    targets: Vec<crate::models::EditWriteTarget>,
+) -> AppResult<()> {
+    for target in &targets {
+        super::project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
+        crate::io::FsRootBoundary::new(std::path::Path::new(&target.mod_root), "edit target root")?
+            .resolve_absolute(std::path::Path::new(&target.path), "edit target")?;
+    }
+    let mut state = registry()?;
+    if label != "main" && !state.instances.contains_key(label) {
+        return Err(AppError::message("window.released", "编辑窗口已释放"));
+    }
+    if targets
+        .iter()
+        .any(|target| state.closing_sessions.contains(&target.session_id))
+    {
+        return Err(AppError::message(
+            "window.session_closing",
+            "编辑会话正在关闭",
+        ));
+    }
+    if targets.is_empty() {
+        state.edit_targets.remove(label);
+    } else {
+        state.edit_targets.insert(label.into(), targets);
+    }
+    Ok(())
+}
+
+pub fn query_edit_target_owners(
+    targets: &[crate::models::EditWriteTarget],
+) -> AppResult<Vec<String>> {
+    for target in targets {
+        super::project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
+    }
+    let state = registry()?;
+    Ok(state.edit_target_owners(targets))
+}
+
+fn edit_targets_overlap(
+    left: &crate::models::EditWriteTarget,
+    right: &crate::models::EditWriteTarget,
+) -> bool {
+    if left.session_id != right.session_id
+        || crate::models::windows_path_key(&left.mod_root)
+            != crate::models::windows_path_key(&right.mod_root)
+    {
+        return false;
+    }
+    let left = crate::models::windows_path_key(&left.path);
+    let right = crate::models::windows_path_key(&right.path);
+    left == right
+        || left.starts_with(&format!("{right}/"))
+        || right.starts_with(&format!("{left}/"))
+}
+
+pub fn reserve_edit_targets(
+    app: &tauri::AppHandle,
+    label: &str,
+    targets: &[crate::models::EditWriteTarget],
+) -> AppResult<()> {
+    for target in targets {
+        super::project::ensure_project_session_mod_root(&target.session_id, &target.mod_root)?;
+    }
+    let identities = targets
+        .iter()
+        .map(|target| WindowIdentity::File {
+            session_id: target.session_id.clone(),
+            mod_root: target.mod_root.clone(),
+            path: target.path.clone(),
+        })
+        .collect::<Vec<_>>();
+    let conflict = registry()?.reserve(label, &identities).err();
+    if let Some(conflict) = conflict {
+        focus_window(app, &conflict)?;
+        return Err(AppError::message(
+            "window.target_unsaved",
+            "编辑目标正在交接",
+        ));
+    }
+    Ok(())
+}
+
+pub fn focus_edit_target_owner(app: &tauri::AppHandle, label: &str) -> AppResult<bool> {
+    if !registry()?.edit_targets.contains_key(label) {
+        return Ok(false);
+    }
+    focus_window(app, label)?;
+    Ok(true)
+}
+
 pub fn reserve_targets(
     app: &tauri::AppHandle,
     label: &str,
@@ -367,6 +474,11 @@ pub fn release_session(session_id: &str) -> AppResult<()> {
     let mut state = registry()?;
     state.closing_sessions.remove(session_id);
     state
+        .edit_targets
+        .values_mut()
+        .for_each(|targets| targets.retain(|target| target.session_id != session_id));
+    state.edit_targets.retain(|_, targets| !targets.is_empty());
+    state
         .reservations
         .retain(|identity, _| identity.session_id() != Some(session_id));
     Ok(())
@@ -473,6 +585,39 @@ pub fn focus_managed_window(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn edit_target_registration_respects_complete_scope_and_window_release() {
+        let mut state = super::WindowRegistry::default();
+        let target = crate::models::EditWriteTarget {
+            session_id: "s".into(),
+            mod_root: "D:/Mod".into(),
+            path: "D:/Mod/data/ships.csv".into(),
+        };
+        state
+            .edit_targets
+            .insert("main".into(), vec![target.clone()]);
+        state.edit_targets.insert(
+            "managed-1".into(),
+            vec![crate::models::EditWriteTarget {
+                path: "d:\\MOD\\data".into(),
+                ..target.clone()
+            }],
+        );
+        assert_eq!(
+            state.edit_target_owners(std::slice::from_ref(&target)),
+            vec!["main", "managed-1"]
+        );
+        assert!(
+            state
+                .edit_target_owners(&[crate::models::EditWriteTarget {
+                    session_id: "other".into(),
+                    ..target.clone()
+                }])
+                .is_empty()
+        );
+        state.release("managed-1");
+        assert_eq!(state.edit_target_owners(&[target]), vec!["main"]);
+    }
     use super::*;
     fn identity(id: &str, root: &str, session: &str) -> WindowIdentity {
         WindowIdentity::Spec {

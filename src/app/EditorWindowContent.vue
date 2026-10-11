@@ -1,5 +1,5 @@
 <template>
-  <div class="app-frame editor-window-app" :data-theme="settings.theme">
+  <div class="app-frame editor-window-app" :data-theme="settings.theme" :inert="handoffLocked">
     <div v-if="loading" class="editor-window-status">
       <strong>正在加载</strong>
       <span>{{ target?.id ?? '缺少目标 id' }}</span>
@@ -133,6 +133,7 @@ const {
   draftDirty,
   editContext,
   draftSaving,
+  handoffLocked,
   canSaveSpec,
   externalUpdateNotice,
   missingEditorText,

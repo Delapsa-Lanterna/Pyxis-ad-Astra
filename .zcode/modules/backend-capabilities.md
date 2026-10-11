@@ -39,6 +39,7 @@
 
 ## 规范
 
+- 联合读取、准备及提交必须唯一归 joint-edit 能力；编辑目标登记、查询、预约与聚焦必须归窗口能力。
 - AppError.command 必须表达底层 command；formatError 必须透过该包装消费原始用户文案投影。
 - command 必须由可静态判定的字面量表达；别名、namespace、转导出和动态模块导入必须保留来源。
 - errorContextOf 必须分别表达领域 action 和 command，日志必须按所属字段记录。

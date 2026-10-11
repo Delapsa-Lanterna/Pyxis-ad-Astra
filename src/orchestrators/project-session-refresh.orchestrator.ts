@@ -25,7 +25,7 @@ export function applyProjectSessionCacheInvalid(event: ProjectSessionInvalidated
   acceptedProjections.get(sync)!.add(key);
 }
 
-export function applyCommittedWriteCacheInvalid(sessionId: string, result: WriteResult) {
+export function applyCommittedWriteCacheInvalid(sessionId: string, result: WriteResult<unknown>) {
   const update = result.sessionUpdates.find((update) => update.sessionId === sessionId);
   if (update?.status === 'ready') {
     markProjectionReady(sessionId, update.commitId);
@@ -53,7 +53,7 @@ function acceptCommittedWrite(event: CommittedWriteEvent) {
 
 export async function publishCommittedWrite(
   modRoot: string,
-  result: WriteResult,
+  result: WriteResult<unknown>,
   sessionId: string | null,
   reason: CommittedWriteEvent['reason'] = 'save',
 ) {

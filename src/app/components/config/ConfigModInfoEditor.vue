@@ -1,5 +1,5 @@
 <template>
-  <div class="config-page">
+  <div class="config-page" :inert="handoffLocked">
     <header class="config-page-header">
       <h1>Mod 信息</h1>
     </header>
@@ -32,6 +32,7 @@ const {
   hasPendingExternalData,
   loadPendingExternalData,
   saving,
+  handoffLocked,
   schemaRuntimeContext,
   saveModInfo,
 } = useConfigModInfoViewModel();

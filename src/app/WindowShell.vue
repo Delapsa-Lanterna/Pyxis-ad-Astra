@@ -2,7 +2,7 @@
   <n-config-provider :theme="settings.naiveTheme" :theme-overrides="themeOverrides">
     <n-message-provider :duration="10000" closable keep-alive-on-hover>
       <n-dialog-provider>
-        <slot />
+        <EditTargetHandoffLifecycle><slot /></EditTargetHandoffLifecycle>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -10,6 +10,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import EditTargetHandoffLifecycle from '@/app/EditTargetHandoffLifecycle.vue';
 import { useCoreAssetsLifecycle } from '@/app/composables/use-core-assets';
 import { useSettingsStore } from '@/stores/settings.store';
 import { buildThemeOverrides } from '@/app/theme-overrides';

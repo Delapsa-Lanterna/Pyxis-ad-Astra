@@ -5,7 +5,6 @@ import { useWorkspaceShellLifecycle } from './use-workspace-shell-lifecycle';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import type { AppFeedback } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ identity: vi.fn(), events: vi.fn(), restore: vi.fn(), stopPersistence: vi.fn() }));
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({ listenEntityTablePreparation: mocks.identity }));
 vi.mock('@/orchestrators/window-save.orchestrator', () => ({ listenWindowSaveEvents: mocks.events }));
 vi.mock('@/orchestrators/workspace-persistence.orchestrator', () => ({
   restorePersistedWorkspace: mocks.restore,
@@ -28,12 +27,12 @@ beforeEach(() => {
   });
 });
 describe('workspace shell listener lifecycle', () => {
-  it.each(['identity', 'events'] as const)('releases late %s registration and ends startup', async (phase) => {
+  it('releases late event registration and ends startup', async () => {
     let finish!: (stop: () => void) => void;
     const stopIdentity = vi.fn();
     mocks.identity.mockResolvedValue(stopIdentity);
     mocks.events.mockResolvedValue(vi.fn());
-    mocks[phase].mockImplementationOnce(
+    mocks.events.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;
@@ -61,6 +60,6 @@ describe('workspace shell listener lifecycle', () => {
     await flushPromises();
     expect(lateStop).toHaveBeenCalledOnce();
     expect(mocks.restore).not.toHaveBeenCalled();
-    if (phase === 'events') expect(mocks.stopPersistence).toHaveBeenCalledOnce();
+    expect(mocks.stopPersistence).toHaveBeenCalledOnce();
   });
 });

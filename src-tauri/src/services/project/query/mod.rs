@@ -15,3 +15,4 @@ pub use entity_targets::require_entity_version_scope;
 pub use hull_references::query_hull_references;
 pub use resources::query_resource_data_urls;
 pub use source_options::query_csv_source_options;
+pub(in crate::services::project) mod joint_edit;

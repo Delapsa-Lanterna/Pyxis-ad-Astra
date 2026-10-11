@@ -1,6 +1,8 @@
 mod cache;
 mod definitions;
 mod invalidation;
+pub use query::joint_edit::{prepare_joint_edit, query_joint_edit};
+pub use write::joint_edit::save_joint_edit;
 mod model;
 mod performance;
 mod query;

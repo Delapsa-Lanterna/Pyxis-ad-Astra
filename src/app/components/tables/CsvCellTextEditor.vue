@@ -11,7 +11,7 @@
     ></textarea>
     <div class="csv-cell-text-actions">
       <span class="csv-cell-text-hint">Ctrl+Enter 提交，Esc 取消</span>
-      <button type="button" class="csv-cell-text-commit" @click="commit">保存</button>
+      <button type="button" class="csv-cell-text-commit" @click="commit">提交</button>
     </div>
   </div>
 </template>

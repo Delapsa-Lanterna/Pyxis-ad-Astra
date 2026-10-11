@@ -83,6 +83,7 @@
 - [表格草稿历史](modules/csv-edit-history.md)：说明按 Mod/表隔离的内存 operation、CSV undo/redo、rowKey 映射和 history limit。
 - [表格保存与变更集](modules/table-save-changeset.md)：说明 dirty patches、关联 spec 动作、原子 changeset、rowKey map 与保存后提交。
 - [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、保存等待、EditContext、快照历史与未保存注册表。
+- [联合编辑与目标交接](modules/joint-editing.md)：说明联合来源快照、物理写入范围、跨编辑面保存准备、三方冲突选择、原子提交及释放。
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。
 - [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、CSV 草稿优先级与文件 history 分派。
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布命中检测、选区同步、镜像轴、光标绘制、undo 集成与显式 draft 提交引擎。

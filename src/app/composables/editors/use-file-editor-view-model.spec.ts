@@ -41,12 +41,14 @@ vi.mock('@/services/files.service', () => ({
   loadEditableFileData: mocks.loadEditableFileData,
   writeEditableFileText: mocks.writeEditableFileText,
 }));
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
+vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
   createEntitySavePreparation: async () => ({
     withPreparation: (_session: string, _root: string, _source: unknown, submit: (info: null) => Promise<unknown>) => submit(null),
     finish: vi.fn(async () => {}),
     dispose: vi.fn(),
   }),
+}));
+vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
   releaseCommittedIdentityTargets: vi.fn(async () => {}),
   retargetFileWindow: vi.fn(async () => {}),

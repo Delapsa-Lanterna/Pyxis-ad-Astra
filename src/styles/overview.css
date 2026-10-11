@@ -28,9 +28,14 @@
 
 .overview-page-content {
   display: grid;
+  align-content: start;
   gap: var(--space-4);
   min-width: 0;
   min-height: 0;
+}
+
+.overview-page-empty .overview-page-content {
+  align-content: stretch;
 }
 
 .overview-header {
@@ -54,12 +59,15 @@
 
 .overview-grid {
   display: grid;
+  align-content: start;
+  align-items: start;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-4);
 }
 
 .game-overview {
   display: grid;
+  align-content: start;
   gap: var(--space-4);
 }
 

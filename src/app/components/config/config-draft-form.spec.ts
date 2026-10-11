@@ -59,13 +59,15 @@ afterEach(() => {
   wrapper = null;
 });
 
+const target = { sessionId: 'session', modRoot: 'M:/mod', id: 'target' };
+
 async function mountDraftForm(fixture: (typeof cases)[number]) {
-  let resolveSave!: (snapshot: { target: string; value: RowData; baseVersions: []; meta: null }) => void;
-  const save = vi.fn((...args: [string, RowData]) => {
+  let resolveSave!: (snapshot: { target: typeof target; value: RowData; baseVersions: []; meta: null }) => void;
+  const save = vi.fn((...args: [typeof target, RowData]) => {
     void args;
-    return new Promise<{ target: string; value: RowData; baseVersions: []; meta: null }>((resolve) => (resolveSave = resolve));
+    return new Promise<{ target: typeof target; value: RowData; baseVersions: []; meta: null }>((resolve) => (resolveSave = resolve));
   });
-  let session!: ReturnType<typeof useConfigEditorDraftSession<RowData, string>>;
+  let session!: ReturnType<typeof useConfigEditorDraftSession<RowData, typeof target>>;
   const schema: FileSchema = {
     $schema: 'circinus-ad-astra/field-schema/v1',
     id: fixture.name,
@@ -75,11 +77,12 @@ async function mountDraftForm(fixture: (typeof cases)[number]) {
     {
       components: { SchemaFormRenderer },
       setup() {
-        session = useConfigEditorDraftSession<RowData, string>({
+        session = useConfigEditorDraftSession<RowData, typeof target>({
           emptyValue: {},
+          receiptOf: () => null,
           modRoot: ref('M:/mod'),
-          targetKey: (id) => id,
-          load: () => ({ target: 'target', value: deepClone(fixture.initial), baseVersions: [], meta: null }),
+          targetKey: (target) => target.id,
+          load: () => ({ target, value: deepClone(fixture.initial), baseVersions: [], meta: null }),
           save,
         });
         return { draftData: session.draftValue, schema };
@@ -88,11 +91,11 @@ async function mountDraftForm(fixture: (typeof cases)[number]) {
     },
     { global: { stubs: editorUiStubs } },
   );
-  await session.loadTarget('target');
+  await session.loadTarget(target);
   return {
     session,
     save,
-    resolveSave: (snapshot: { target: string; value: RowData; baseVersions: []; meta: null }) => resolveSave(snapshot),
+    resolveSave: (snapshot: { target: typeof target; value: RowData; baseVersions: []; meta: null }) => resolveSave(snapshot),
     form: wrapper,
   };
 }
@@ -105,7 +108,7 @@ describe('config draft form integration', () => {
     expect(useDraftSessionsStore().hasUnsavedWorkForMod('M:/mod')).toBe(true);
     const local = deepClone(session.draftValue.value);
     session.applyExternalForTarget({
-      target: 'target',
+      target,
       value: fixture.initial,
       baseVersions: [{ path: 'target', fingerprint: 'new' }],
       meta: null,
@@ -123,7 +126,7 @@ describe('config draft form integration', () => {
     const pending = session.saveDraft();
     const submitted = save.mock.calls[0]![1] as RowData;
     await form.get('input').setValue('later');
-    resolveSave({ target: 'target', value: submitted, baseVersions: [], meta: null });
+    resolveSave({ target, value: submitted, baseVersions: [], meta: null });
     await pending;
     expect((form.get('input').element as HTMLInputElement).value).toBe('later');
     expect(session.dirty.value).toBe(true);

@@ -14,7 +14,7 @@
 `src/orchestrators/file-history-write.orchestrator.ts`：保存完成登记 owner。
 `src/orchestrators/table-save.orchestrator.spec.ts`：保存编排行为测试。
 `src/orchestrators/table-save.orchestrator.ts`：保存编排 owner，以 `saveTableChanges` 拥有明确 Mod/表的输入提交、快照捕获、关联选择、写入与 receipt 接纳。
-`src/orchestrators/entity-identity.orchestrator.ts`：跨窗口关联表准备、短暂表锁与写结果交接 owner。
+`src/orchestrators/edit-target-handoff.orchestrator.ts`：消费所属 CSV 保存参与者、短暂表锁与写结果。
 `src/services/csv-table.service.ts`：CSV 查询与保存能力包装，提交 patches、版本凭据与关联动作。
 
 ## 边界
@@ -55,6 +55,7 @@
 
 ## 规范
 
+- 后台 CSV 交接必须消费捕获 manifest 与 table 的正式保存动作；联合规格装配必须复用身份规则并在实际 changeset 完成后发布行状态。
 - CSV patch 必须携带读取基线与 isComment，恢复行必须携带 insertAt；正式 rowKey 删除必须命中实际行，未知键必须返回冲突。
 - CSV 保存必须原样保留文件自身的表头、列集、行序与注释行，严禁注入、改写或丢弃任何列；每一种 CSV 的保存都必须附带保存测试，以真实文件格式作为夹具断言结构不变。
 - CSV 解析对齐游戏 CSVParser（列数容忍：短行缺失键不写入行 Map、长行多余单元格丢弃；`#` 行与裸空行保留，空 Map 行与全空单元格行可区分），保存渲染按最小引号规则输出 LF 行。

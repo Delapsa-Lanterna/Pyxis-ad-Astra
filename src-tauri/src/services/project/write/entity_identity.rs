@@ -63,7 +63,7 @@ pub fn save_entity_text(
 fn save_entity_content(
     session_id: &str,
     target: &EntityEditTarget,
-    mut data: Value,
+    data: Value,
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
     raw_text: Option<&str>,
@@ -80,6 +80,63 @@ fn save_entity_content(
             "实体目标已变化，请载入外部版本",
         ));
     }
+    let mut json = JsonWriteBatch::new(options);
+    let mut builder = FileChangeSetBuilder::new(Path::new(&root))?;
+    let staged = stage_entity_content(
+        &mut session,
+        &mut builder,
+        &mut json,
+        target,
+        data,
+        ordered_json,
+        raw_text,
+    )?;
+    if let Some(csv) = &staged.saved_csv {
+        builder.text_file(
+            &session.csv_tables[csv.table.as_str()].path,
+            Some(csv.text.clone()),
+        )?;
+    }
+    json.finish()?;
+    let changes = builder.apply()?;
+    if let Some(csv) = staged.saved_csv {
+        let state = session
+            .csv_tables
+            .get_mut(csv.table.as_str())
+            .expect("linked table exists");
+        state.rows = Some(csv.rows);
+        state.header = csv.header;
+        state.next_row_seq = csv.next_seq;
+        state.saved_text = Some(csv.text);
+    }
+    let mut result = WriteResult::from_refreshed_entity(changes, staged.data);
+    result.identity_changes.push(staged.identity);
+    Ok(result)
+}
+
+pub(in crate::services::project) struct StagedEntityWrite {
+    pub data: Value,
+    pub identity: EntityIdentityChange,
+    pub saved_csv: Option<StagedIdentityCsv>,
+}
+
+pub(in crate::services::project) struct StagedIdentityCsv {
+    pub table: crate::models::CsvTableKey,
+    pub header: Vec<String>,
+    pub rows: Vec<super::super::model::SessionCsvRow>,
+    pub text: String,
+    pub next_seq: u64,
+}
+
+pub(in crate::services::project) fn stage_entity_content(
+    session: &mut super::super::model::ProjectSession,
+    builder: &mut FileChangeSetBuilder,
+    json: &mut JsonWriteBatch,
+    target: &EntityEditTarget,
+    mut data: Value,
+    ordered_json: Option<&str>,
+    raw_text: Option<&str>,
+) -> AppResult<StagedEntityWrite> {
     let definition = entity_spec_definition(target.kind)
         .ok_or_else(|| AppError::message("spec.kind_unknown", "实体规格格式不存在"))?;
     let next_id = data
@@ -91,6 +148,11 @@ fn save_entity_content(
     let next_id = validate_config_id(next_id, definition.invalid_id_message)?.to_string();
     data[definition.id_field] = Value::String(next_id.clone());
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "entity write root")?;
+    let render_source = target
+        .source
+        .as_ref()
+        .map(|source| Path::new(&source.path))
+        .unwrap_or_else(|| Path::new(&target.write.path));
     let source = boundary.resolve_relative(&target.write.rel_path, "entity source")?;
     if target.state == EntityTargetState::Existing
         && read_json_file(&source)?
@@ -131,7 +193,7 @@ fn save_entity_content(
                 format!("实体目标已存在: {next_rel}"),
             ));
         }
-        let next_target = describe_entity_target(&mut session, target.kind, &next_id)?.target;
+        let next_target = describe_entity_target(session, target.kind, &next_id)?.target;
         if next_id != target.id && next_target.state == EntityTargetState::Existing {
             return Err(AppError::message(
                 "spec.target_exists",
@@ -142,14 +204,11 @@ fn save_entity_content(
     if target.kind == EntityKind::Weapon {
         crate::domain::spec_construction::validate_weapon_spec_class(&data, &destination)?;
     }
-    let mut json = JsonWriteBatch::new(options);
     let text = if let Some(text) = raw_text {
         text.to_string()
     } else {
-        json.render(&source, &data, ordered_json)?
+        json.render(render_source, &data, ordered_json)?
     };
-    json.finish()?;
-    let mut builder = FileChangeSetBuilder::new(boundary.root())?;
     if target.state == EntityTargetState::Existing && next_rel != target.write.rel_path {
         builder.rename_text_file(&target.write.rel_path, &next_rel, text)?;
     } else if !source.exists() || crate::io::read_utf8_no_bom(&source)? != text {
@@ -159,22 +218,27 @@ fn save_entity_content(
     if next_id != target.id
         && let Some(EntityLinkedRecord::Csv { table, row_key }) = &target.linked_record
     {
-        let state = &session.csv_tables[table.as_str()];
-        let mut rows = state.rows.clone().expect("linked table is loaded");
+        let (header, mut rows, next_seq) =
+            super::super::cache::csv::read_table_snapshot(session, *table)?;
         let row = rows
             .iter_mut()
             .find(|row| row.row_key == *row_key)
             .ok_or_else(|| AppError::message("table.row_key_unknown", "关联 CSV 行已变化"))?;
         row.data.insert("id".into(), Value::String(next_id.clone()));
         let text = render_csv_text(
-            &state.header,
+            &header,
             &rows
                 .iter()
                 .map(|row| (&row.data, row.is_comment))
                 .collect::<Vec<_>>(),
         )?;
-        builder.text_file(&state.path, Some(text.clone()))?;
-        saved_csv = Some((*table, rows, text));
+        saved_csv = Some(StagedIdentityCsv {
+            table: *table,
+            header,
+            rows,
+            text,
+            next_seq,
+        });
     }
     if target.kind == EntityKind::Faction {
         let index_rel = "data/world/factions/factions.csv";
@@ -235,27 +299,20 @@ fn save_entity_content(
         )?;
         builder.text_file(index_rel, Some(text))?;
     }
-    let changes = builder.apply()?;
-    if let Some((table, rows, text)) = saved_csv {
-        let state = session
-            .csv_tables
-            .get_mut(table.as_str())
-            .expect("linked table exists");
-        state.rows = Some(rows);
-        state.saved_text = Some(text);
-    }
     let mut next = target.clone();
     next.id = next_id;
     next.write.rel_path = next_rel;
     next.write.path = destination.to_string_lossy().to_string();
     next.source = Some(next.write.clone());
     next.state = EntityTargetState::Existing;
-    let mut result = WriteResult::from_refreshed_entity(changes, data);
-    result.identity_changes.push(EntityIdentityChange {
-        before: target.clone(),
-        after: next,
-    });
-    Ok(result)
+    Ok(StagedEntityWrite {
+        data,
+        identity: EntityIdentityChange {
+            before: target.clone(),
+            after: next,
+        },
+        saved_csv,
+    })
 }
 
 #[cfg(test)]

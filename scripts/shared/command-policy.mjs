@@ -15,6 +15,10 @@ export const commandOwners = {
     'synchronize_committed_write',
   ],
   'src/services/window.service.ts': [
+    'update_edit_target_registration',
+    'query_edit_target_owners',
+    'reserve_edit_targets',
+    'focus_edit_target_owner',
     'open_managed_window',
     'focus_managed_window',
     'update_managed_window_status',
@@ -25,6 +29,7 @@ export const commandOwners = {
     'cancel_window_close_request',
   ],
   'src/services/source-options.service.ts': ['query_csv_source_options'],
+  'src/services/joint-edit.service.ts': ['query_joint_edit', 'prepare_joint_edit', 'save_joint_edit'],
   'src/services/hull-reference.service.ts': ['query_hull_references'],
   'src/services/resource-cache.service.ts': ['query_resource_data_urls'],
   'src/services/resource-reference.service.ts': ['resolve_mod_relative_path'],

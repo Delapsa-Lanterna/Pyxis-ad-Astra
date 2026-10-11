@@ -6,7 +6,7 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 export interface SavedWriteCompletion {
   label: string;
   modRoot: string;
-  result: WriteResult;
+  result: WriteResult<unknown>;
   sessionId: string;
 }
 export async function completeSavedWrite(completion: SavedWriteCompletion): Promise<void> {

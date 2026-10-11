@@ -10,6 +10,38 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 /** @type {CapabilityRule[]} */
 export const frontendCapabilities = [
   {
+    role: 'service',
+    domain: 'joint-edit',
+    names: ['queryJointEdit', 'prepareJointEdit'],
+    capability: 'joint-edit-read',
+    owners: [
+      { layer: 'orchestrators', domain: 'joint-edit' },
+      { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+    ],
+  },
+  {
+    role: 'service',
+    domain: 'joint-edit',
+    names: ['saveJointEdit'],
+    capability: 'joint-edit-write',
+    owners: [{ layer: 'orchestrators', domain: 'joint-edit' }],
+  },
+  {
+    role: 'service',
+    domain: 'window',
+    names: ['updateEditTargetRegistration'],
+    capability: 'edit-target-registration',
+    owners: [{ layer: 'app', role: 'composable', domain: 'edit-target-handoff' }],
+  },
+  {
+    role: 'service',
+    domain: 'window',
+    names: ['queryEditTargetOwners', 'reserveEditTargets', 'focusEditTargetOwner'],
+    capability: 'edit-target-coordination',
+    owners: [{ layer: 'orchestrators', domain: 'edit-target-handoff' }],
+  },
+
+  {
     path: 'src/shared/runtime/command.runtime.ts',
     layer: 'shared',
     role: 'shared',
@@ -132,6 +164,7 @@ export const frontendCapabilities = [
       { layer: 'orchestrators', domain: 'file-history-replay' },
       { layer: 'orchestrators', domain: 'workspace-lifecycle' },
       { layer: 'app', role: 'composable', domain: 'workspace-shell-actions' },
+      { layer: 'app', role: 'composable', domain: 'table-save-participants' },
       { layer: 'app', role: 'composable', domain: 'config-list-selection' },
     ],
   },
@@ -154,7 +187,10 @@ export const frontendCapabilities = [
     domain: 'project-session-refresh',
     names: ['applyCommittedWriteCacheInvalid'],
     capability: 'commit-accept',
-    owners: [{ layer: 'orchestrators', domain: 'entity-identity' }],
+    owners: [
+      { layer: 'orchestrators', domain: 'edit-target-handoff' },
+      { layer: 'orchestrators', domain: 'entity-identity' },
+    ],
   },
   {
     role: 'service',
@@ -190,6 +226,7 @@ export const frontendCapabilities = [
     names: ['reserveNativeWindowTargets', 'releaseNativeWindowTargets'],
     capability: 'entity-window-identity',
     owners: [
+      { layer: 'orchestrators', domain: 'edit-target-handoff' },
       { layer: 'orchestrators', domain: 'entity-identity' },
       { layer: 'orchestrators', domain: 'table-save' },
       { layer: 'orchestrators', domain: 'config-save' },
@@ -237,6 +274,7 @@ export const frontendCapabilities = [
     names: ['querySessionEntityEditTarget'],
     capability: 'entity-target-read',
     owners: [
+      { layer: 'orchestrators', domain: 'edit-target-handoff' },
       { layer: 'services' },
       { layer: 'orchestrators', domain: 'entity-identity' },
       { layer: 'app', role: 'composable', domain: 'workspace-shell-actions' },
@@ -381,7 +419,7 @@ export const frontendCapabilities = [
     domain: 'query-cache',
     names: ['queryCached', 'queryLive'],
     capability: 'query-cache-load',
-    owners: ['entity-query', 'csv-table', 'source-options', 'hull-reference', 'resource-reference'].map((domain) => ({
+    owners: ['entity-query', 'csv-table', 'source-options', 'hull-reference', 'resource-reference', 'joint-edit'].map((domain) => ({
       layer: 'services',
       domain,
     })),
@@ -551,6 +589,7 @@ function matchesOwner(current, owner) {
 const serviceEdges = new Set([
   'entity-query -> query-cache',
   'csv-table -> query-cache',
+  'joint-edit -> query-cache',
   'source-options -> query-cache',
   'hull-reference -> query-cache',
   'resource-reference -> query-cache',

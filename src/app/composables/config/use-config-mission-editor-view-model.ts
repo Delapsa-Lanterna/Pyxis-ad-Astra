@@ -46,6 +46,7 @@ export function useConfigMissionEditorViewModel(params: {
   const draftSession = useConfigEditorDraftSession<RowData, ConfigEditTarget, { id: string; iconSrc: string; receipt: WriteResult | null }>(
     {
       emptyValue: {},
+      receiptOf: (meta) => meta.receipt,
       modRoot: params.modRoot,
       load: async (target, signal) => {
         const missionId = target.id;
@@ -226,5 +227,6 @@ export function useConfigMissionEditorViewModel(params: {
     loadedMissionId,
     save,
     saving: draftSession.saving,
+    handoffLocked: draftSession.handoffLocked,
   };
 }

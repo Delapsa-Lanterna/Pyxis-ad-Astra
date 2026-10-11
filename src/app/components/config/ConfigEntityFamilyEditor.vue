@@ -1,5 +1,5 @@
 <template>
-  <main v-if="selectedFile && schema" class="config-family-editor" :inert="actionsLocked">
+  <main v-if="selectedFile && schema" class="config-family-editor" :inert="actionsLocked || handoffLocked">
     <ConfigTargetNotice
       :label="family.displayName"
       :deleted-target="deletedTarget"
@@ -65,6 +65,7 @@ const {
   loadPendingExternalData,
   save,
   saving,
+  handoffLocked,
   selectedFile,
   schemaRuntimeContext,
 } = useConfigFamilyEditorViewModel({

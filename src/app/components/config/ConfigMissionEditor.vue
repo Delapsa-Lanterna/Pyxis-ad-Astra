@@ -1,5 +1,5 @@
 <template>
-  <main v-if="schema" class="mission-editor" :inert="actionsLocked">
+  <main v-if="schema" class="mission-editor" :inert="actionsLocked || handoffLocked">
     <ConfigTargetNotice
       label="战役"
       :deleted-target="deletedTarget"
@@ -80,6 +80,7 @@ const {
   loadedMissionId,
   save,
   saving,
+  handoffLocked,
 } = useConfigMissionEditorViewModel({
   editorReloadToken: toRef(props, 'editorReloadToken'),
   iconRefreshToken: toRef(props, 'iconRefreshToken'),

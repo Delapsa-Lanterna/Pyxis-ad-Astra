@@ -142,3 +142,4 @@ export type {
   WorkspaceView,
 } from '@/shared/types/workspace.types';
 export type { AppFeedback, ChooseOptions, ConfirmOptions } from '@/shared/types/feedback.types';
+export type * from '@/shared/types/joint-edit.types';

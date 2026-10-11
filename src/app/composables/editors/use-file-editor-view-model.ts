@@ -14,7 +14,6 @@ import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import {
-  createEntitySavePreparation,
   reserveFileIdentityIntent,
   retargetFileWindow,
   releaseCommittedIdentityTargets,
@@ -140,7 +139,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       const target = snapshot.target;
       if (target.sessionId) {
         if (!completedLocalWrites.has(snapshot.meta.receipt!.commitId)) {
-          await identityPreparation?.finish(snapshot.meta.receipt!);
+          await identityPreparation?.finish();
           if (snapshot.meta.entity) await retargetFileWindow(target.sessionId, target.modRoot, target.filePath, title.value);
           await releaseCommittedIdentityTargets();
           completedLocalWrites.add(snapshot.meta.receipt!.commitId);
@@ -174,6 +173,25 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     saving: draftSession.saving,
     pendingSynchronization: draftSession.hasPendingSynchronization,
     waitForSave: draftSession.waitForSave,
+    editing: {
+      targets: computed(() => {
+        const snapshot = draftSession.baselineSnapshot.value;
+        return snapshot?.target.sessionId
+          ? snapshot.baseVersions.map((version) => ({
+              sessionId: snapshot.target.sessionId!,
+              modRoot: snapshot.target.modRoot,
+              path: version.path,
+            }))
+          : [];
+      }),
+      label: '文件编辑器',
+      dirty: draftSession.dirty,
+      commitInputs: () => draftSession.inputs.commit(),
+      save: async () => {
+        const snapshot = await draftSession.saveDraft();
+        return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
+      },
+    },
   });
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
   let unlistenFocusLine: UnlistenFn | null = null;
@@ -196,7 +214,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   async function initialize() {
     disposed = false;
-    identityPreparation = await createEntitySavePreparation();
+    identityPreparation = await createEntitySavePreparation(feedback, () => draftSession.currentTargetKey.value);
     if (disposed) {
       identityPreparation.dispose();
       return;
@@ -458,6 +476,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     saving: draftSession.saving,
     waitForSave: draftSession.waitForSave,
     dirty,
+    handoffLocked: computed(() => useSaveCommandStore().isEditTargetLocked(draftSession.currentTargetKey.value)),
     canSave: computed(() => draftSession.ready.value && (dirty.value || draftSession.hasPendingSynchronization.value)),
     hasPendingExternalText,
     externalTextNotice,
@@ -506,3 +525,5 @@ function normalizeLine(value: string | null): number | undefined {
 function normalizeEventLine(value: number | null): number | undefined {
   return value !== null && Number.isFinite(value) && value > 0 ? value : undefined;
 }
+
+import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';

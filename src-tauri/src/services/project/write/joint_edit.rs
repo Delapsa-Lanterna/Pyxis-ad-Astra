@@ -1,0 +1,420 @@
+use super::super::query::joint_edit::query_joint_edit;
+use super::super::{
+    cache,
+    model::{SessionCsvRow, csv_table_spec},
+    write::stage_entity_content,
+};
+use crate::{
+    errors::{AppError, AppResult},
+    io::{FileChangeSetBuilder, JsonWriteBatch, read_csv_data},
+    models::*,
+};
+use serde_json::Value;
+use std::{collections::BTreeMap, path::Path};
+
+pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
+    let current = query_joint_edit(&payload.snapshot.root)?;
+    for required in &current.base_versions {
+        if !payload
+            .base_versions
+            .iter()
+            .any(|version| windows_path_key(&version.path) == windows_path_key(&required.path))
+        {
+            return Err(AppError::message(
+                "write.version_scope_missing",
+                format!("联合保存缺少版本凭据: {}", required.path),
+            ));
+        }
+    }
+    let supplied = payload
+        .snapshot
+        .records
+        .iter()
+        .map(|record| (&record.key, record))
+        .collect::<BTreeMap<_, _>>();
+    for key in payload.values.keys() {
+        if !current.records.iter().any(|record| &record.key == key) {
+            return Err(AppError::message(
+                "joint.target_changed",
+                "联合保存记录已不属于当前目标",
+            ));
+        }
+    }
+    let handle = cache::session_handle(&current.root.session_id)?;
+    let mut session = cache::lock_ready_session(&handle)?;
+    let mut builder = FileChangeSetBuilder::new(Path::new(&current.root.mod_root))?;
+    let mut json = JsonWriteBatch::new(payload.json_write.clone());
+    let mut tables: BTreeMap<CsvTableKey, (Vec<String>, Vec<SessionCsvRow>, u64)> = BTreeMap::new();
+    let mut identities = Vec::new();
+    let mut key_map = Vec::new();
+    let mut saved = current.clone();
+    let mut records = current.records.iter().collect::<Vec<_>>();
+    records.sort_by_key(|record| !matches!(record.target, JointRecordTarget::Spec { .. }));
+    for record in records {
+        let Some(value) = payload.values.get(&record.key) else {
+            continue;
+        };
+        let Some(before) = supplied.get(&record.key) else {
+            return Err(AppError::message(
+                "joint.target_changed",
+                "联合保存目标集合已变化",
+            ));
+        };
+        if record.target != before.target {
+            return Err(AppError::message(
+                "joint.target_changed",
+                "联合保存目标已变化",
+            ));
+        }
+        if record.source_version != before.source_version {
+            return Err(AppError::message(
+                "write.version_conflict",
+                "联合保存来源内容已变化",
+            ));
+        }
+        if value == &record.value {
+            continue;
+        }
+        match (&record.target, value) {
+            (JointRecordTarget::Spec { target }, JointValue::Present(data)) => {
+                let definition =
+                    crate::domain::editor_config_definitions::entity_spec_definition(target.kind)
+                        .expect("joint spec has format");
+                if let Some(id) = data
+                    .get(definition.id_field)
+                    .and_then(Value::as_str)
+                    .filter(|id| *id != target.id)
+                {
+                    let relative = if target.state == EntityTargetState::Create {
+                        definition.default_rel_path(id)
+                    } else {
+                        crate::io::forward_slash_path(
+                            &Path::new(&target.write.rel_path)
+                                .with_file_name(format!("{id}{}", definition.extension)),
+                        )
+                    };
+                    let path = Path::new(&current.root.mod_root).join(relative);
+                    if !payload.base_versions.iter().any(|version| {
+                        windows_path_key(&version.path) == windows_path_key(&path.to_string_lossy())
+                    }) {
+                        return Err(AppError::message(
+                            "write.version_scope_missing",
+                            "联合改名缺少目标版本凭据",
+                        ));
+                    }
+                }
+                let staged = stage_entity_content(
+                    &mut session,
+                    &mut builder,
+                    &mut json,
+                    target,
+                    data.clone(),
+                    None,
+                    None,
+                )?;
+                if let Some(csv) = staged.saved_csv {
+                    if let Some((_, pending, _)) = tables.get_mut(&csv.table) {
+                        if let Some(EntityLinkedRecord::Csv { row_key, .. }) =
+                            &staged.identity.before.linked_record
+                            && let Some(row) =
+                                pending.iter_mut().find(|row| row.row_key == *row_key)
+                        {
+                            row.data
+                                .insert("id".into(), staged.identity.after.id.clone().into());
+                        }
+                    } else {
+                        tables.insert(csv.table, (csv.header, csv.rows, csv.next_seq));
+                    }
+                }
+                let next = saved
+                    .records
+                    .iter_mut()
+                    .find(|entry| entry.key == record.key)
+                    .expect("saved record belongs to current graph");
+                next.target = JointRecordTarget::Spec {
+                    target: staged.identity.after.clone(),
+                };
+                next.source = Some(staged.identity.after.write.clone());
+                next.value = JointValue::Present(staged.data);
+                if let JointValue::Present(data) = &next.value {
+                    next.resource_refs = match staged.identity.after.kind {
+                        EntityKind::Ship => {
+                            super::super::definitions::entity_resources::ship_resource_refs(
+                                &staged.identity.after.id,
+                                data,
+                            )
+                        }
+                        EntityKind::Weapon => {
+                            super::super::definitions::entity_resources::weapon_resource_refs(
+                                &staged.identity.after.id,
+                                data,
+                            )
+                        }
+                        _ => next.resource_refs.clone(),
+                    };
+                }
+                if staged.identity.before.id == current.root.id
+                    && matches!(
+                        (current.root.kind, staged.identity.before.kind),
+                        (JointEditKind::Ship, EntityKind::Ship)
+                            | (JointEditKind::Weapon, EntityKind::Weapon)
+                            | (JointEditKind::Variant, EntityKind::Variant)
+                    )
+                {
+                    saved.root.id = staged.identity.after.id.clone();
+                }
+                identities.push(staged.identity);
+            }
+            (JointRecordTarget::Spec { target }, JointValue::Missing) => {
+                builder.text_file(&target.write.rel_path, None)?;
+            }
+            (
+                JointRecordTarget::Csv {
+                    table,
+                    row_key,
+                    identity,
+                    ..
+                },
+                value,
+            ) => {
+                if !tables.contains_key(table) {
+                    tables.insert(*table, cache::csv::read_table_snapshot(&session, *table)?);
+                }
+                let (header, rows, next_seq) = tables.get_mut(table).expect("joint table staged");
+                if header.is_empty()
+                    && let Some(source) = &record.source
+                {
+                    *header = read_csv_data(Path::new(&source.path))?.header;
+                }
+                let index = rows
+                    .iter()
+                    .position(|row| row.row_key == *row_key)
+                    .or_else(|| {
+                        rows.iter().position(|row| {
+                            !row.is_comment
+                                && identity.iter().all(|(field, id)| {
+                                    row.data.get(field).and_then(Value::as_str) == Some(id)
+                                })
+                        })
+                    });
+                match value {
+                    JointValue::Missing => {
+                        if let Some(index) = index {
+                            rows.remove(index);
+                        }
+                    }
+                    JointValue::Present(Value::Object(data)) => {
+                        let mut data = data.clone();
+                        for identity_change in &identities {
+                            if let Some(EntityLinkedRecord::Csv {
+                                table: linked,
+                                row_key: linked_key,
+                            }) = &identity_change.before.linked_record
+                                && linked == table
+                                && linked_key == row_key
+                            {
+                                data.insert("id".into(), identity_change.after.id.clone().into());
+                            }
+                        }
+                        if let Some(index) = index {
+                            if let Some(first) = header.first()
+                                && rows[index].data.get(first) != data.get(first)
+                            {
+                                rows[index].is_comment = data
+                                    .get(first)
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|value| value.starts_with('#'));
+                            }
+                            rows[index].data = data;
+                        } else {
+                            let next_key = format!("{}:row:{next_seq}", table.as_str());
+                            *next_seq += 1;
+                            key_map.push(CsvRowKeyMapping {
+                                previous_key: row_key.clone(),
+                                next_key: next_key.clone(),
+                                row_index: rows.len(),
+                            });
+                            rows.push(SessionCsvRow {
+                                row_key: next_key,
+                                data,
+                                is_comment: false,
+                            });
+                        }
+                    }
+                    _ => {
+                        return Err(AppError::message(
+                            "joint.csv_shape",
+                            "联合 CSV 记录必须为对象",
+                        ));
+                    }
+                }
+                if current.root.kind == JointEditKind::Wing
+                    && *table == CsvTableKey::Wings
+                    && identity.get("id") == Some(&current.root.id)
+                    && let JointValue::Present(data) = value
+                {
+                    saved.root.id = data
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| AppError::message("joint.id_missing", "联队缺少 ID"))?
+                        .into();
+                }
+            }
+            (JointRecordTarget::Text { write }, JointValue::Present(Value::String(text))) => {
+                builder.text_file(&write.rel_path, Some(text.clone()))?;
+            }
+            (JointRecordTarget::Text { write }, JointValue::Missing) => {
+                builder.text_file(&write.rel_path, None)?;
+            }
+            _ => {
+                return Err(AppError::message(
+                    "joint.value_shape",
+                    "联合编辑内容形状无效",
+                ));
+            }
+        }
+        if !matches!(record.target, JointRecordTarget::Spec { .. }) {
+            saved
+                .records
+                .iter_mut()
+                .find(|entry| entry.key == record.key)
+                .expect("saved record belongs to current graph")
+                .value = value.clone();
+        }
+    }
+    for (table, (header, rows, _)) in &tables {
+        let text = crate::parsers::render_csv_text(
+            header,
+            &rows
+                .iter()
+                .map(|row| (&row.data, row.is_comment))
+                .collect::<Vec<_>>(),
+        )?;
+        builder.text_file(csv_table_spec(*table).rel_path, Some(text))?;
+    }
+    json.finish()?;
+    for record in &mut saved.records {
+        if let JointRecordTarget::Csv {
+            table,
+            row_key,
+            identity,
+            ..
+        } = &mut record.target
+            && let Some((_, rows, _)) = tables.get(table)
+        {
+            let next_key = key_map
+                .iter()
+                .find(|mapping| mapping.previous_key == *row_key)
+                .map(|mapping| mapping.next_key.as_str())
+                .unwrap_or(row_key);
+            let row = rows.iter().find(|row| row.row_key == next_key);
+            record.value = row
+                .map(|row| JointValue::Present(Value::Object(row.data.clone())))
+                .unwrap_or(JointValue::Missing);
+            if let Some(row) = row {
+                *row_key = row.row_key.clone();
+                for (field, id) in identity {
+                    if let Some(value) = row.data.get(field).and_then(Value::as_str) {
+                        *id = value.into();
+                    }
+                }
+            }
+        }
+    }
+    let changes = builder.apply()?;
+    for (table, (header, rows, next_seq)) in tables {
+        let state = session
+            .csv_tables
+            .get_mut(table.as_str())
+            .expect("registered table");
+        state.saved_text = changes
+            .iter()
+            .find(|change| {
+                Path::new(&change.after_path) == Path::new(&current.root.mod_root).join(&state.path)
+            })
+            .and_then(|change| change.after_text.clone());
+        state.header = header;
+        state.rows = Some(rows);
+        state.next_row_seq = next_seq;
+    }
+    let changed_versions = changes
+        .iter()
+        .map(crate::io::version_after_change)
+        .collect::<AppResult<Vec<_>>>()?;
+    let versions = changed_versions
+        .iter()
+        .map(|version| (windows_path_key(&version.path), version))
+        .collect::<BTreeMap<_, _>>();
+    for record in &mut saved.records {
+        let previous = current
+            .records
+            .iter()
+            .find(|entry| entry.key == record.key)
+            .expect("saved record belongs to current graph");
+        if record.value != previous.value || record.target != previous.target {
+            record.source = if matches!(record.value, JointValue::Missing) {
+                None
+            } else {
+                Some(record.target.write().clone())
+            };
+        }
+        for identity in &identities {
+            record.base_versions.retain(|version| {
+                windows_path_key(&version.path) != windows_path_key(&identity.before.write.path)
+                    || identity.before.write.path == identity.after.write.path
+            });
+        }
+        if let Some(version) = versions.get(&windows_path_key(&record.target.write().path)) {
+            record.base_versions.push((*version).clone());
+        }
+        for version in &mut record.base_versions {
+            if let Some(changed) = versions.get(&windows_path_key(&version.path)) {
+                *version = (*changed).clone();
+            }
+        }
+        record
+            .base_versions
+            .sort_by_key(|version| windows_path_key(&version.path));
+        record
+            .base_versions
+            .dedup_by(|left, right| windows_path_key(&left.path) == windows_path_key(&right.path));
+        if record
+            .source
+            .as_ref()
+            .is_some_and(|source| source.source == ResourceSource::Mod)
+        {
+            record.source_version = record
+                .source
+                .as_ref()
+                .and_then(|source| {
+                    versions
+                        .get(&windows_path_key(&source.path))
+                        .map(|version| (*version).clone())
+                })
+                .or(record.source_version.clone());
+        }
+        record.key = match &record.target {
+            JointRecordTarget::Spec { target } => {
+                serde_json::to_string(&("spec", target.kind, &target.id))?
+            }
+            JointRecordTarget::Csv {
+                table, identity, ..
+            } => serde_json::to_string(&("csv", table, identity))?,
+            JointRecordTarget::Text { write } => serde_json::to_string(&("text", &write.path))?,
+        };
+    }
+    saved.base_versions = saved
+        .records
+        .iter()
+        .flat_map(|record| record.base_versions.iter().cloned())
+        .map(|version| (windows_path_key(&version.path), version))
+        .collect::<BTreeMap<_, _>>()
+        .into_values()
+        .collect();
+    let mut result = WriteResult::new(changes, key_map, Some(saved));
+    result.identity_changes = identities;
+    Ok(result)
+}
+#[cfg(test)]
+#[path = "joint_edit_tests.rs"]
+mod tests;

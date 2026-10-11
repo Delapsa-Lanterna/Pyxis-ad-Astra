@@ -1,5 +1,5 @@
 <template>
-  <div class="faction-editor-page" :inert="actionsLocked">
+  <div class="faction-editor-page" :inert="actionsLocked || handoffLocked">
     <ConfigTargetNotice
       label="势力"
       :deleted-target="deletedTarget"
@@ -78,22 +78,32 @@ loadCoreFields();
 
 const schema = computed(() => getMergedSchema('faction'));
 const feedback = useAppFeedback();
-const { crestSrc, displayName, draftData, externalUpdateNotice, hasPendingExternalData, loadPendingExternalData, logoSrc, save, saving } =
-  useConfigFactionEditorViewModel({
-    dataRevision: toRef(props, 'dataRevision'),
-    factionId: toRef(props, 'factionId'),
-    factions: toRef(props, 'factions'),
-    factionVersions: toRef(props, 'factionVersions'),
-    identityHandoff: toRef(props, 'identityHandoff'),
-    modRoot: toRef(props, 'modRoot'),
-    onSaved: (factionId, saved) => emit('saved', factionId, saved),
-    previewRevision: toRef(props, 'previewRevision'),
-    queryPreviewImages: props.queryPreviewImages,
-    saveFaction: props.saveFaction,
-    schema,
-    sessionId: toRef(props, 'sessionId'),
-    actionsLocked: toRef(props, 'actionsLocked'),
-  });
+const {
+  crestSrc,
+  displayName,
+  draftData,
+  externalUpdateNotice,
+  hasPendingExternalData,
+  loadPendingExternalData,
+  logoSrc,
+  save,
+  saving,
+  handoffLocked,
+} = useConfigFactionEditorViewModel({
+  dataRevision: toRef(props, 'dataRevision'),
+  factionId: toRef(props, 'factionId'),
+  factions: toRef(props, 'factions'),
+  factionVersions: toRef(props, 'factionVersions'),
+  identityHandoff: toRef(props, 'identityHandoff'),
+  modRoot: toRef(props, 'modRoot'),
+  onSaved: (factionId, saved) => emit('saved', factionId, saved),
+  previewRevision: toRef(props, 'previewRevision'),
+  queryPreviewImages: props.queryPreviewImages,
+  saveFaction: props.saveFaction,
+  schema,
+  sessionId: toRef(props, 'sessionId'),
+  actionsLocked: toRef(props, 'actionsLocked'),
+});
 
 function confirmDeleteFaction() {
   const deleteModRoot = props.modRoot;

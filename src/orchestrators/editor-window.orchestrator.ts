@@ -2,6 +2,7 @@ import { WINDOW_EVENTS, type EditorPreviewDraftUpdatedEvent, type EditorSpecSave
 import { listenWindowEvent, type WindowEventHandler } from '@/windows/tauri.events';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 import { publishCommittedWrite, listenCommittedWrites } from '@/orchestrators/project-session-refresh.orchestrator';
+import { isRowData } from '@/shared/lib/row-data';
 
 export function emitEditorSpecSaved(event: EditorSpecSavedEvent) {
   return publishCommittedWrite(event.modRoot, event.writeResult, event.sessionId);
@@ -14,7 +15,7 @@ export function listenEditorSpecSaved(handler: WindowEventHandler<EditorSpecSave
       const kind = change.after.kind;
       if (kind !== 'ship' && kind !== 'weapon' && kind !== 'projectile' && kind !== 'system') continue;
       const content = event.result.refreshedEntity;
-      if (!content || typeof content[kind === 'ship' ? 'hullId' : 'id'] !== 'string') continue;
+      if (!isRowData(content) || typeof content[kind === 'ship' ? 'hullId' : 'id'] !== 'string') continue;
       await handler({
         kind,
         sessionId: event.sessionId,

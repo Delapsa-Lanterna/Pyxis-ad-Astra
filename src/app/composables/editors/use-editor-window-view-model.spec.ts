@@ -45,12 +45,14 @@ vi.mock('@/services/editor.service', () => ({
   queryDraftEditorImages: mocks.queryDraftEditorImages,
   saveEditorSpecByKind: mocks.saveEditorSpecByKind,
 }));
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
+vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
   createEntitySavePreparation: async () => ({
     withPreparation: (_session: string, _root: string, _source: unknown, submit: (info: null) => Promise<unknown>) => submit(null),
     finish: vi.fn(async () => {}),
     dispose: vi.fn(),
   }),
+}));
+vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
   reserveEntityIntent: async (_session: string, _root: string, source: import('@/shared/types').EntityEditTarget, draft: RowData) => ({
     source,
     nextId: draft.hullId ?? draft.id,

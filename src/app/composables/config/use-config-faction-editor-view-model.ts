@@ -47,6 +47,7 @@ export function useConfigFactionEditorViewModel(params: {
 
   const draftSession = useConfigEditorDraftSession<RowData, ConfigEditTarget, { id: string; receipt: WriteResult | null }>({
     emptyValue: {},
+    receiptOf: (meta) => meta.receipt,
     modRoot: params.modRoot,
     load: (target) => ({
       target,
@@ -198,5 +199,6 @@ export function useConfigFactionEditorViewModel(params: {
     logoSrc,
     save,
     saving: draftSession.saving,
+    handoffLocked: draftSession.handoffLocked,
   };
 }

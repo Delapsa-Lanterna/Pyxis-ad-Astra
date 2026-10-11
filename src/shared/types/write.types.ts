@@ -14,13 +14,13 @@ export interface CsvRowKeyMapping {
   rowIndex: number;
 }
 
-export interface WriteResult {
+export interface WriteResult<T = RowData> {
   sessionUpdates: CommittedSessionUpdate[];
   identityChanges: import('@/shared/types/entity-target.types').EntityIdentityChange[];
   changes: FileChangeRecord[];
   invalidation: ProjectInvalidation;
   keyMap: CsvRowKeyMapping[];
-  refreshedEntity: RowData | null;
+  refreshedEntity: T | null;
   commitId: number;
   baseVersions: FileVersion[];
   history: FileHistorySnapshot;
@@ -36,7 +36,7 @@ export interface CommittedWriteEvent {
   modRoot: string;
   sessionId: string | null;
   reason: 'save' | 'undo' | 'redo';
-  result: WriteResult;
+  result: WriteResult<unknown>;
 }
 
 export interface JsonSourceConfirmation {

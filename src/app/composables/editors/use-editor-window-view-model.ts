@@ -18,12 +18,7 @@ import { captureIdentityVersions, handoffTableVersions } from '@/domain/editors/
 import { emitEditorSpecSaved, listenEditorPreviewDraftUpdated, listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 import { applyProjectSessionCacheInvalid, listenProjectSessionInvalidated } from '@/orchestrators/project-session-refresh.orchestrator';
 import { saveEditorSpecByKind } from '@/services/editor.service';
-import {
-  createEntitySavePreparation,
-  reserveEntityIntent,
-  retargetEntityWindow,
-  releaseCommittedIdentityTargets,
-} from '@/orchestrators/entity-identity.orchestrator';
+import { reserveEntityIntent, retargetEntityWindow, releaseCommittedIdentityTargets } from '@/orchestrators/entity-identity.orchestrator';
 import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
@@ -65,104 +60,126 @@ export function useEditorWindowViewModel(params: {
   const reads = createReadTicketOwner();
   let missingSpecIntent: object | null = null;
   let identityPreparation: Awaited<ReturnType<typeof createEntitySavePreparation>> | null = null;
-  const draftSession: EditTargetDraftSession<RowData, EditorWindowTarget, { bundle: EditorEntityBundle; receipt: WriteResult | null }> =
-    useEditTargetDraftSession<RowData, EditorWindowTarget, { bundle: EditorEntityBundle; receipt: WriteResult | null }>({
-      emptyValue: {},
-      load: async (target, signal) => {
-        const data = await queryEditorEntityBundle(target.sessionId, target.kind, target.id, previewDraftSnapshot ?? undefined, signal);
-        return {
-          target,
-          meta: { bundle: data, receipt: null },
-          baseVersions: data.baseVersions,
-          value: isEditableWindowKind(target.kind) ? primarySpecForBundle(data, target.kind) : {},
-        };
-      },
-      save: async (target, draft, baseVersions) => {
-        if (!isEditableWindowKind(target.kind)) return;
-        const kind = target.kind as EditorSpecKind;
-        const submittedBundle = deepClone(editorData.value!);
-        const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedBundle.target, draft);
-        const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
-        const result = await runConfirmedJsonWrite(feedback, (options) =>
-          saveEditorSpecByKind(target.sessionId, target.modRoot, submittedBundle.target, draft, options, versions),
-        );
-        if (!result) return;
-        const value = result.refreshedEntity!;
-        const savedTarget = result.identityChanges[0]!.after;
-        return {
-          target: { ...target, id: savedTarget.id },
-          value,
-          baseVersions: result.baseVersions,
-          commitId: result.commitId,
-          meta: {
-            bundle: {
-              ...applySavedSpecToBundle(submittedBundle, kind, savedTarget.id, value),
-              target: savedTarget,
-              isNew: false,
-              baseVersions: result.baseVersions,
-            },
-            receipt: result,
+  const draftSession: EditTargetDraftSession<
+    RowData,
+    EditorWindowTarget,
+    { bundle: EditorEntityBundle; receipt: WriteResult<unknown> | null }
+  > = useEditTargetDraftSession<RowData, EditorWindowTarget, { bundle: EditorEntityBundle; receipt: WriteResult<unknown> | null }>({
+    emptyValue: {},
+    load: async (target, signal) => {
+      const data = await queryEditorEntityBundle(target.sessionId, target.kind, target.id, previewDraftSnapshot ?? undefined, signal);
+      return {
+        target,
+        meta: { bundle: data, receipt: null },
+        baseVersions: data.baseVersions,
+        value: isEditableWindowKind(target.kind) ? primarySpecForBundle(data, target.kind) : {},
+      };
+    },
+    save: async (target, draft, baseVersions) => {
+      if (!isEditableWindowKind(target.kind)) return;
+      const kind = target.kind as EditorSpecKind;
+      const submittedBundle = deepClone(editorData.value!);
+      const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedBundle.target, draft);
+      const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
+      const result = await runConfirmedJsonWrite(feedback, (options) =>
+        saveEditorSpecByKind(target.sessionId, target.modRoot, submittedBundle.target, draft, options, versions),
+      );
+      if (!result) return;
+      const value = result.refreshedEntity!;
+      const savedTarget = result.identityChanges[0]!.after;
+      return {
+        target: { ...target, id: savedTarget.id },
+        value,
+        baseVersions: result.baseVersions,
+        commitId: result.commitId,
+        meta: {
+          bundle: {
+            ...applySavedSpecToBundle(submittedBundle, kind, savedTarget.id, value),
+            target: savedTarget,
+            isNew: false,
+            baseVersions: result.baseVersions,
           },
-        };
-      },
-      targetKey: editorWindowTargetKey,
-      withSavePreparation: async (target, submit) =>
-        identityPreparation!.withPreparation(target.sessionId, target.modRoot, editorData.value!.target, async (info) => {
-          if (info) {
-            const nextTarget = { ...target, id: info.target.id };
-            const previousId = target.id;
-            const baseline = draftSession.baselineSnapshot.value!;
-            const renamed = previousId !== nextTarget.id;
-            const fresh = renamed ? await queryEditorEntityBundle(target.sessionId, target.kind, nextTarget.id) : editorData.value!;
-            const value = renamed ? primarySpecForBundle(fresh, target.kind as EditableEditorKind) : baseline.value;
-            const versions = renamed ? fresh.baseVersions : handoffTableVersions(baseline.baseVersions, info);
-            draftSession.adoptIdentity(
-              target,
-              {
-                target: nextTarget,
-                value,
-                baseVersions: versions,
-                meta: { bundle: { ...fresh, target: info.target, baseVersions: versions }, receipt: null },
-              },
-              (draft) =>
-                previousId !== nextTarget.id && draft[params.kind === 'ship' ? 'hullId' : 'id'] === previousId
-                  ? { ...draft, [params.kind === 'ship' ? 'hullId' : 'id']: nextTarget.id }
-                  : draft,
-              previousId === nextTarget.id ? 'save' : 'external',
-            );
-            return submit(nextTarget);
-          }
-          return submit(target);
-        }),
-      afterSaved: async (snapshot) => {
-        const result = snapshot.meta.receipt!;
-        if (!completedLocalWrites.has(result.commitId)) {
-          await identityPreparation!.finish(result);
-          await retargetEntityWindow(
-            snapshot.target.sessionId,
-            snapshot.target.modRoot,
-            snapshot.target.kind as EditorSpecKind,
-            snapshot.target.id,
+          receipt: result,
+        },
+      };
+    },
+    targetKey: editorWindowTargetKey,
+    withSavePreparation: async (target, submit) =>
+      identityPreparation!.withPreparation(target.sessionId, target.modRoot, editorData.value!.target, async (info) => {
+        if (info) {
+          const nextTarget = { ...target, id: info.target.id };
+          const previousId = target.id;
+          const baseline = draftSession.baselineSnapshot.value!;
+          const renamed = previousId !== nextTarget.id;
+          const fresh = renamed ? await queryEditorEntityBundle(target.sessionId, target.kind, nextTarget.id) : editorData.value!;
+          const value = renamed ? primarySpecForBundle(fresh, target.kind as EditableEditorKind) : baseline.value;
+          const versions = renamed ? fresh.baseVersions : handoffTableVersions(baseline.baseVersions, info);
+          draftSession.adoptIdentity(
+            target,
+            {
+              target: nextTarget,
+              value,
+              baseVersions: versions,
+              meta: { bundle: { ...fresh, target: info.target, baseVersions: versions }, receipt: null },
+            },
+            (draft) =>
+              previousId !== nextTarget.id && draft[params.kind === 'ship' ? 'hullId' : 'id'] === previousId
+                ? { ...draft, [params.kind === 'ship' ? 'hullId' : 'id']: nextTarget.id }
+                : draft,
+            previousId === nextTarget.id ? 'save' : 'external',
           );
-          await releaseCommittedIdentityTargets();
-          completedLocalWrites.add(result.commitId);
+          return submit(nextTarget);
         }
-        await emitEditorSpecSaved({
-          kind: snapshot.target.kind as EditorSpecKind,
-          sessionId: snapshot.target.sessionId,
-          modRoot: snapshot.target.modRoot,
-          id: snapshot.target.id,
-          spec: snapshot.value,
-          writeResult: result,
-        });
-      },
-    });
+        return submit(target);
+      }),
+    afterSaved: async (snapshot) => {
+      const result = snapshot.meta.receipt!;
+      if (!completedLocalWrites.has(result.commitId)) {
+        await identityPreparation!.finish();
+        await retargetEntityWindow(
+          snapshot.target.sessionId,
+          snapshot.target.modRoot,
+          snapshot.target.kind as EditorSpecKind,
+          snapshot.target.id,
+        );
+        await releaseCommittedIdentityTargets();
+        completedLocalWrites.add(result.commitId);
+      }
+      await emitEditorSpecSaved({
+        kind: snapshot.target.kind as EditorSpecKind,
+        sessionId: snapshot.target.sessionId,
+        modRoot: snapshot.target.modRoot,
+        id: snapshot.target.id,
+        spec: snapshot.value,
+        writeResult: result,
+      });
+    },
+  });
   const unregisterSave = useSaveCommandStore().registerSaveSession({
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
     saving: draftSession.saving,
     pendingSynchronization: draftSession.hasPendingSynchronization,
     waitForSave: draftSession.waitForSave,
+    editing: {
+      targets: computed(() => {
+        const snapshot = draftSession.baselineSnapshot.value;
+        return snapshot
+          ? snapshot.baseVersions.map((version) => ({
+              sessionId: snapshot.target.sessionId,
+              modRoot: snapshot.target.modRoot,
+              path: version.path,
+            }))
+          : [];
+      }),
+      label: '专项编辑器',
+      dirty: draftSession.dirty,
+      commitInputs: () => draftSession.inputs.commit(),
+      save: async () => {
+        const snapshot = await draftSession.saveDraft();
+        return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
+      },
+    },
   });
   const previewLoading = ref(false);
   const loading = computed(() => draftSession.loading.value || previewLoading.value);
@@ -391,7 +408,7 @@ export function useEditorWindowViewModel(params: {
   }
 
   async function initializeEditorWindow() {
-    identityPreparation = await createEntitySavePreparation();
+    identityPreparation = await createEntitySavePreparation(feedback, () => draftSession.currentTargetKey.value);
     if (disposed) {
       identityPreparation.dispose();
       return;
@@ -684,6 +701,7 @@ export function useEditorWindowViewModel(params: {
     waitForSave: draftSession.waitForSave,
     saving: draftSession.saving,
     draftSaving,
+    handoffLocked: computed(() => useSaveCommandStore().isEditTargetLocked(draftSession.currentTargetKey.value)),
     canSaveSpec,
     externalUpdateNotice,
     missingEditorText,
@@ -710,7 +728,7 @@ export function useEditorWindowViewModel(params: {
     refreshDraftProjectiles();
   }
 
-  function receiveExternalPrimarySpec(kind: EditorSpecKind, id: string, data: RowData, result: WriteResult): void {
+  function receiveExternalPrimarySpec(kind: EditorSpecKind, id: string, data: RowData, result: WriteResult<unknown>): void {
     if (!editorData.value) return;
     const spec = deepClone(data);
     const target = editorWindowTarget();
@@ -824,3 +842,5 @@ function editorResourceInvalidated(event: ResourceCacheInvalidationEvent, bundle
 function editorWindowEntityKind(windowKind: EditorWindowKind): EntityKind {
   return windowKind === 'weapon-preview' ? 'weapon' : windowKind;
 }
+
+import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';

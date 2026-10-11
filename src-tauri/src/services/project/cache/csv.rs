@@ -11,6 +11,68 @@ use super::super::model::{
 };
 use super::core::load_core_csv_table;
 
+pub(in crate::services::project) fn read_table_snapshot(
+    session: &ProjectSession,
+    table: CsvTableKey,
+) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
+    let state = registered_session_table(session, table)?;
+    let path = Path::new(&session.manifest.mod_root).join(&state.path);
+    let csv = if path.exists() {
+        read_csv_data(&path)?
+    } else {
+        CsvTable {
+            header: state.header.clone(),
+            rows: Vec::new(),
+            path: state.path.clone(),
+        }
+    };
+    let identity = super::super::model::csv_table_spec(table).entity_id_field;
+    let key = |data: &serde_json::Map<String, serde_json::Value>, comment: bool| {
+        serde_json::to_string(&(
+            comment,
+            data.get(identity),
+            if table == CsvTableKey::Descriptions {
+                data.get("type")
+            } else {
+                None
+            },
+            if comment || !data.contains_key(identity) {
+                Some(data)
+            } else {
+                None
+            },
+        ))
+    };
+    let mut known = std::collections::BTreeMap::<String, std::collections::VecDeque<String>>::new();
+    for row in state.rows.as_deref().unwrap_or(&[]) {
+        known
+            .entry(key(&row.data, row.is_comment)?)
+            .or_default()
+            .push_back(row.row_key.clone());
+    }
+    let mut next_seq = state.next_row_seq;
+    let rows = csv
+        .rows
+        .into_iter()
+        .map(|row| {
+            let matched = known
+                .get_mut(&key(&row.data, row.is_comment)?)
+                .and_then(std::collections::VecDeque::pop_front);
+            let row_key = matched.unwrap_or_else(|| {
+                let key = format!("{}:row:{next_seq}", table.as_str());
+                next_seq += 1;
+                key
+            });
+            Ok(SessionCsvRow {
+                row_key,
+                data: row.data,
+                is_comment: row.is_comment,
+            })
+        })
+        .collect::<AppResult<Vec<_>>>()?;
+    Ok((csv.header, rows, next_seq))
+}
+
 pub(crate) fn session_table<'a>(
     session: &'a ProjectSession,
     table: &str,

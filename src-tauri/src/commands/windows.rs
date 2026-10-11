@@ -67,3 +67,31 @@ pub fn retarget_managed_window(
 ) -> Result<(), AppError> {
     services::windows::retarget_window(&app, window.label(), identity, &title)
 }
+#[tauri::command(async)]
+pub fn update_edit_target_registration(
+    window: tauri::WebviewWindow,
+    targets: Vec<crate::models::EditWriteTarget>,
+) -> Result<(), crate::errors::AppError> {
+    crate::services::windows::update_edit_targets(window.label(), targets)
+}
+#[tauri::command(async)]
+pub fn query_edit_target_owners(
+    targets: Vec<crate::models::EditWriteTarget>,
+) -> Result<Vec<String>, crate::errors::AppError> {
+    crate::services::windows::query_edit_target_owners(&targets)
+}
+#[tauri::command(async)]
+pub fn reserve_edit_targets(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    targets: Vec<crate::models::EditWriteTarget>,
+) -> Result<(), crate::errors::AppError> {
+    crate::services::windows::reserve_edit_targets(&app, window.label(), &targets)
+}
+#[tauri::command(async)]
+pub fn focus_edit_target_owner(
+    app: tauri::AppHandle,
+    label: String,
+) -> Result<bool, crate::errors::AppError> {
+    crate::services::windows::focus_edit_target_owner(&app, &label)
+}

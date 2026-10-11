@@ -1,0 +1,38 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { queryJointEdit, prepareJointEdit, saveJointEdit } from './joint-edit.service';
+import { invalidateQueryCacheForSession } from './query-cache.service';
+import type { JointEditSnapshot } from '@/shared/types';
+const invoke = vi.hoisted(() => vi.fn());
+vi.mock('@tauri-apps/api/core', () => ({ invoke }));
+const root = { sessionId: 'joint-service', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
+const snapshot: JointEditSnapshot = { root, records: [], baseVersions: [] };
+beforeEach(() => {
+  invoke.mockReset();
+  invalidateQueryCacheForSession(root.sessionId);
+});
+describe('joint edit capability protocols', () => {
+  it('maps query, preparation and submission to their formal payloads', async () => {
+    invoke.mockResolvedValue(snapshot);
+    await expect(queryJointEdit(root)).resolves.toEqual(snapshot);
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: root });
+    const draft = { baseline: snapshot, values: {} };
+    invoke.mockResolvedValue({ snapshot, values: {}, conflicts: [] });
+    await prepareJointEdit(draft);
+    expect(invoke).toHaveBeenLastCalledWith('prepare_joint_edit', { payload: draft });
+    const payload = { snapshot, values: {}, baseVersions: [], jsonWrite: { preserveOriginalJson: false, confirmedSources: [] } };
+    invoke.mockResolvedValue({ refreshedEntity: snapshot });
+    await saveJointEdit(payload);
+    expect(invoke).toHaveBeenLastCalledWith('save_joint_edit', { payload });
+  });
+  it('immediately ends invalidated live reads and retains the command error cause', async () => {
+    let finish!: (value: JointEditSnapshot) => void;
+    invoke.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const read = queryJointEdit(root);
+    invalidateQueryCacheForSession(root.sessionId);
+    await expect(read).rejects.toMatchObject({ code: 'query.invalidated' });
+    finish(snapshot);
+    const diagnostic = { code: 'joint.target_changed', message: 'source changed', location: null };
+    invoke.mockRejectedValueOnce(diagnostic);
+    await expect(queryJointEdit(root)).rejects.toMatchObject({ command: 'query_joint_edit', cause: diagnostic });
+  });
+});

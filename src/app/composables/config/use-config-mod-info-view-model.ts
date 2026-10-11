@@ -7,6 +7,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { configModInfoEditorModel, configModInfoSaveData } from '@/domain/config/config-entities';
 import { useConfigEditorDraftSession } from '@/app/composables/config/use-config-editor-draft-session';
+import { useCoreSchema } from '@/app/composables/use-core-assets';
 import type { ProjectManifest, RowData } from '@/shared/types';
 
 type ModInfoTarget = Pick<ProjectManifest, 'modRoot' | 'sessionId'>;
@@ -14,9 +15,11 @@ type ModInfoTarget = Pick<ProjectManifest, 'modRoot' | 'sessionId'>;
 export function useConfigModInfoViewModel() {
   const project = useProjectStore();
   const feedback = useAppFeedback();
+  const { getMergedSchema } = useCoreSchema();
   const schemaRuntimeContext = useSchemaRuntimeContext(() => project.activeManifest);
   const draftSession = useConfigEditorDraftSession<RowData, ModInfoTarget, import('@/shared/types').WriteResult | null>({
     emptyValue: {},
+    receiptOf: (meta) => meta,
     modRoot: computed(() => project.activeManifest?.modRoot ?? null),
     load: (target) => {
       const manifest = project.getManifest(target.modRoot)!;
@@ -28,7 +31,7 @@ export function useConfigModInfoViewModel() {
       };
     },
     save: async (target, data, baseVersions) => {
-      const schema = pendingSaveSchema;
+      const schema = pendingSaveSchema ?? getMergedSchema('mod-info');
       if (!schema) return;
       const file = configModInfoSaveData(data, schema);
       const saved = await saveModInfoAction(target.sessionId, target.modRoot, file, feedback, baseVersions);
@@ -87,6 +90,7 @@ export function useConfigModInfoViewModel() {
     hasPendingExternalData: draftSession.hasPendingExternalValue,
     loadPendingExternalData: draftSession.loadPendingExternal,
     saving: draftSession.saving,
+    handoffLocked: draftSession.handoffLocked,
     schemaRuntimeContext,
     saveModInfo,
   };

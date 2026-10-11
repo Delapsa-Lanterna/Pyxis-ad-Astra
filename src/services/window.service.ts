@@ -1,6 +1,20 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { withCause } from '@/shared/lib/errors';
 import type { ManagedWindowOpened, ManagedWindowStatus, NativeWindowRequest, WindowIdentity } from '@/shared/types';
+import type { EditWriteTarget } from '@/shared/types';
+
+export function updateEditTargetRegistration(targets: EditWriteTarget[]): Promise<void> {
+  return invokeCommand('update_edit_target_registration', { targets });
+}
+export function queryEditTargetOwners(targets: EditWriteTarget[]): Promise<string[]> {
+  return invokeCommand('query_edit_target_owners', { targets });
+}
+export function reserveEditTargets(targets: EditWriteTarget[]): Promise<void> {
+  return invokeCommand('reserve_edit_targets', { targets });
+}
+export function focusEditTargetOwner(label: string): Promise<boolean> {
+  return invokeCommand('focus_edit_target_owner', { label });
+}
 
 export async function openNativeManagedWindow(request: NativeWindowRequest) {
   try {

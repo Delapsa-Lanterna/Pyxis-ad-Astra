@@ -1,5 +1,5 @@
 <template>
-  <main class="file-editor-page" :data-theme="settings.theme">
+  <main class="file-editor-page" :data-theme="settings.theme" :inert="handoffLocked">
     <header class="file-editor-header">
       <div class="file-editor-heading">
         <div class="file-editor-title-row">
@@ -90,6 +90,7 @@ const {
   text,
   loading,
   saving,
+  handoffLocked,
   dirty,
   canSave,
   hasPendingExternalText,

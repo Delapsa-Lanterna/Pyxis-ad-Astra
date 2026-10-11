@@ -44,6 +44,7 @@ export function useConfigFamilyEditorViewModel(params: {
     { file: ConfigFamilyFile | null; receipt: WriteResult | null }
   >({
     emptyValue: {},
+    receiptOf: (meta) => meta.receipt,
     modRoot: params.modRoot,
     load: (target) => {
       const id = target.id;
@@ -166,6 +167,7 @@ export function useConfigFamilyEditorViewModel(params: {
     loadPendingExternalData: draftSession.loadPendingExternal,
     save,
     saving: draftSession.saving,
+    handoffLocked: draftSession.handoffLocked,
     selectedFile,
     schemaRuntimeContext,
   };
