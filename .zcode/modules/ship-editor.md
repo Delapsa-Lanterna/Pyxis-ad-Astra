@@ -7,7 +7,7 @@
 ## 参考
 
 `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则 owner。
-`src-tauri/src/services/project/write/ship_description.rs`：默认舰船描述键的同事务行身份更新 owner。
+`src-tauri/src/services/project/write/entity_description.rs`：默认舰船描述键的同事务行身份更新 owner。
 `src/app/components/editors/ShipEditor.vue`：编辑器组件 owner，注入画布 hooks 并拥有实体语义、检查器表单与贴图。
 `src/app/composables/canvas/use-canvas-editor.ts` 同族：画布交互骨架（见画布骨架模块）。
 `src/app/composables/editors/use-editor-window-view-model.ts`：消费共享窗口 ViewModel 的目标 Draft Session 与 bundle。

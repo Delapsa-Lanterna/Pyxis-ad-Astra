@@ -285,22 +285,23 @@ pub(in crate::services::project) fn prepare_entity_targets(
     } else {
         None
     };
-    let default_description_ids = if kind == EntityKind::Ship {
+    let default_description_ids = if kind == EntityKind::Ship || kind == EntityKind::Weapon {
         sources
             .keys()
             .chain(linked.keys())
             .filter(|id| {
-                session
-                    .ship_files
-                    .get(*id)
-                    .is_none_or(|record| record.data.get("descriptionId").is_none())
+                kind == EntityKind::Weapon
+                    || session
+                        .ship_files
+                        .get(*id)
+                        .is_none_or(|record| record.data.get("descriptionId").is_none())
             })
             .cloned()
             .collect()
     } else {
         std::collections::BTreeSet::new()
     };
-    let description_version = (kind == EntityKind::Ship
+    let description_version = ((kind == EntityKind::Ship || kind == EntityKind::Weapon)
         && Path::new(&session.manifest.mod_root)
             .join("data/strings/descriptions.csv")
             .is_file())

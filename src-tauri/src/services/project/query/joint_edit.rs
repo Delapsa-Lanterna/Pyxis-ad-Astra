@@ -60,6 +60,7 @@ fn query_joint_edit_values(
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
     let handle = cache::session_handle(&root.session_id)?;
     let mut session = cache::lock_ready_session(&handle)?;
+    let (reference_settings, damage_icons) = reference_settings(&session)?;
     let mut graph = JointGraph {
         session: &mut session,
         records: BTreeMap::new(),
@@ -69,6 +70,7 @@ fn query_joint_edit_values(
         core_systems: None,
         draft_values: values,
         bindings: BTreeMap::new(),
+        damage_icons,
     };
     match root.kind {
         JointEditKind::Ship => graph.spec(EntityKind::Ship, &root.id, "root")?,
@@ -111,23 +113,29 @@ fn query_joint_edit_values(
     Ok(JointEditSnapshot {
         root: root.clone(),
         bindings,
-        reference_settings: reference_settings(&session)?,
+        reference_settings,
         records,
         base_versions: versions.into_values().collect(),
     })
 }
 
-fn reference_settings(session: &ProjectSession) -> AppResult<JointReferenceSettings> {
+fn reference_settings(
+    session: &ProjectSession,
+) -> AppResult<(JointReferenceSettings, BTreeMap<String, ResourceRef>)> {
     let mut result = JointReferenceSettings {
         values: BTreeMap::new(),
         versions: Vec::new(),
     };
     let mut roots = Vec::new();
+    let mut icons = BTreeMap::new();
     if let Some(game) = &session.manifest.starsector_root {
-        roots.push(cache::core::core_dir(game)?);
+        roots.push((cache::core::core_dir(game)?, ResourceSource::Core));
     }
-    roots.push(Path::new(&session.manifest.mod_root).to_path_buf());
-    for root in roots {
+    roots.push((
+        Path::new(&session.manifest.mod_root).to_path_buf(),
+        ResourceSource::Mod,
+    ));
+    for (root, source) in roots {
         let boundary = FsRootBoundary::new(&root, "joint reference settings")?;
         let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
         if path.exists() {
@@ -142,10 +150,45 @@ fn reference_settings(session: &ProjectSession) -> AppResult<JointReferenceSetti
                     result.values.insert(key.into(), value.clone());
                 }
             }
+            if let Some(colors) = data.get("designTypeColors").and_then(Value::as_object) {
+                let value = result
+                    .values
+                    .entry("designTypeColors".into())
+                    .or_insert_with(|| Value::Object(Default::default()));
+                value
+                    .as_object_mut()
+                    .expect("design colors are an object")
+                    .extend(colors.clone());
+            }
+            for (damage, key) in [
+                ("KINETIC", "icon_kinetic"),
+                ("HIGH_EXPLOSIVE", "icon_high_explosive"),
+                ("FRAGMENTATION", "icon_fragmentation"),
+                ("ENERGY", "icon_energy"),
+                ("OTHER", "icon_other"),
+            ] {
+                if let Some(path) = data
+                    .get("graphics")
+                    .and_then(|value| value.get("ui"))
+                    .and_then(|value| value.get(key))
+                    .and_then(Value::as_str)
+                {
+                    icons.insert(
+                        damage.into(),
+                        super::super::resources::resource_ref(
+                            source,
+                            path,
+                            ResourceOwnerKind::Weapon,
+                            "damage-type",
+                            key,
+                        ),
+                    );
+                }
+            }
             result.versions.push(file_version(&path)?);
         }
     }
-    Ok(result)
+    Ok((result, icons))
 }
 
 pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared> {
@@ -230,6 +273,7 @@ struct JointGraph<'a> {
     core_systems: Option<BTreeMap<String, LoadedSpecRecord>>,
     draft_values: Option<&'a BTreeMap<String, JointValue>>,
     bindings: BTreeMap<String, String>,
+    damage_icons: BTreeMap<String, ResourceRef>,
 }
 
 impl JointGraph<'_> {
@@ -264,6 +308,16 @@ impl JointGraph<'_> {
             .filter(|row| row.source.source == ResourceSource::Mod)
             .map(|row| row.row_key.clone())
             .unwrap_or_else(|| format!("{}:new:joint-{}", table.as_str(), self.records.len()));
+        let resource_refs = if table == CsvTableKey::Weapons {
+            value
+                .as_ref()
+                .map(|data| string_field(data, "type").unwrap_or_else(|| "OTHER".into()))
+                .and_then(|damage| self.damage_icons.get(&damage))
+                .map(|resource| BTreeMap::from([("damageIcon".into(), resource.clone())]))
+                .unwrap_or_default()
+        } else {
+            BTreeMap::new()
+        };
         let record = JointEditRecord {
             key: key.clone(),
             target: JointRecordTarget::Csv {
@@ -279,7 +333,7 @@ impl JointGraph<'_> {
                 .map(JointValue::Present)
                 .unwrap_or(JointValue::Missing),
             base_versions: vec![catalog.version.clone()],
-            resource_refs: BTreeMap::new(),
+            resource_refs,
             referenced_by: vec![parent.into()],
         };
         self.records.insert(key, record);
@@ -331,6 +385,9 @@ impl JointGraph<'_> {
             }
             (Some(data), EntityKind::Weapon) => {
                 super::super::definitions::entity_resources::weapon_resource_refs(id, data)
+            }
+            (Some(data), EntityKind::Projectile) => {
+                super::super::definitions::entity_resources::projectile_resource_refs(id, data)
             }
             _ => BTreeMap::new(),
         };
@@ -387,10 +444,14 @@ impl JointGraph<'_> {
             _ => None,
         };
         if let Some(typ) = description_type {
-            let description_id = value
-                .as_ref()
-                .and_then(|data| string_field(data, "descriptionId"))
-                .unwrap_or_else(|| id.into());
+            let description_id = if kind == EntityKind::Weapon {
+                id.into()
+            } else {
+                value
+                    .as_ref()
+                    .and_then(|data| string_field(data, "descriptionId"))
+                    .unwrap_or_else(|| id.into())
+            };
             if parent == "root" {
                 self.bindings.insert(
                     "description".into(),
@@ -509,6 +570,12 @@ impl JointGraph<'_> {
         if kind == EntityKind::Weapon
             && let Some(projectile) = string_field(&data, "projectileSpecId")
         {
+            if parent == "root" {
+                self.bindings.insert(
+                    "projectile".into(),
+                    serde_json::to_string(&("spec", EntityKind::Projectile, &projectile))?,
+                );
+            }
             self.spec(EntityKind::Projectile, &projectile, id)?;
         }
         Ok(())
@@ -638,7 +705,11 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
             _ => None,
         };
         if let Some(typ) = description_type {
-            let description_id = string_field(data, "descriptionId").unwrap_or_else(|| id.into());
+            let description_id = if kind == EntityKind::Weapon {
+                id.into()
+            } else {
+                string_field(data, "descriptionId").unwrap_or_else(|| id.into())
+            };
             add(
                 serde_json::to_string(&(
                     "csv",

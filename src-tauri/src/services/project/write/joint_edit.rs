@@ -96,20 +96,34 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         match (&record.target, value) {
             (JointRecordTarget::Spec { target }, JointValue::Present(data)) => {
                 let constructed = if matches!(record.value, JointValue::Missing)
-                    && target.kind == EntityKind::Ship
+                    && matches!(target.kind, EntityKind::Ship | EntityKind::Weapon)
                 {
-                    let mut content = crate::domain::spec_construction::create_associated_spec(
-                        &AssociatedSpecCreateParams::Ship {
+                    let params = if target.kind == EntityKind::Ship {
+                        AssociatedSpecCreateParams::Ship {
                             id: target.id.clone(),
                             hull_name: target.id.clone(),
-                        },
-                    );
+                        }
+                    } else {
+                        AssociatedSpecCreateParams::Weapon {
+                            id: target.id.clone(),
+                            spec_class: serde_json::from_value(
+                                data.get("specClass").cloned().ok_or_else(|| {
+                                    AppError::message(
+                                        "spec.weapon_class_unsupported",
+                                        "请选择 projectile 或 beam 规格分支",
+                                    )
+                                })?,
+                            )?,
+                        }
+                    };
+                    let mut content =
+                        crate::domain::spec_construction::create_associated_spec(&params);
                     let edited = data.as_object().ok_or_else(|| {
                         AppError::message("joint.value_shape", "规格内容必须为对象")
                     })?;
                     content
                         .as_object_mut()
-                        .expect("associated ship template is an object")
+                        .expect("associated spec template is an object")
                         .extend(edited.clone());
                     content
                 } else {
@@ -151,7 +165,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     None,
                     None,
                 )?;
-                if let Some(rename) = staged.default_description_rename {
+                if let Some(rename) = staged.description_rename {
                     description_renames.push(rename);
                 }
                 if let Some(csv) = staged.saved_csv {
@@ -339,11 +353,17 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     }
     if !description_renames.is_empty() {
         if let Some(table) = tables.get_mut(&CsvTableKey::Descriptions) {
-            for (previous, next) in &description_renames {
-                super::ship_description::rename_description_row(&session, table, previous, next)?;
+            for rename in &description_renames {
+                super::entity_description::rename_description_row(
+                    &session,
+                    table,
+                    &rename.previous,
+                    &rename.next,
+                    rename.typ,
+                )?;
             }
         } else if let Some(csv) =
-            super::ship_description::stage_description_renames(&session, &description_renames)?
+            super::entity_description::stage_description_renames(&session, &description_renames)?
         {
             tables.insert(
                 CsvTableKey::Descriptions,
@@ -415,18 +435,18 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 .unwrap_or(row_key);
             let renamed = (*table == CsvTableKey::Descriptions)
                 .then(|| {
-                    description_renames.iter().find(|(previous, _)| {
-                        identity.get("id") == Some(previous)
-                            && identity.get("type").map(String::as_str) == Some("SHIP")
+                    description_renames.iter().find(|rename| {
+                        identity.get("id") == Some(&rename.previous)
+                            && identity.get("type").map(String::as_str) == Some(rename.typ)
                     })
                 })
                 .flatten();
             let row = rows.iter().find(|row| row.row_key == next_key).or_else(|| {
-                renamed.and_then(|(_, next)| {
+                renamed.and_then(|rename| {
                     rows.iter().find(|row| {
                         !row.is_comment
-                            && row.data.get("id").and_then(Value::as_str) == Some(next)
-                            && row.data.get("type").and_then(Value::as_str) == Some("SHIP")
+                            && row.data.get("id").and_then(Value::as_str) == Some(&rename.next)
+                            && row.data.get("type").and_then(Value::as_str) == Some(rename.typ)
                     })
                 })
             });

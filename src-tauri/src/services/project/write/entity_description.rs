@@ -10,14 +10,29 @@ use serde_json::Value;
 
 pub(super) type DescriptionTable = (Vec<String>, Vec<SessionCsvRow>, u64);
 
-pub(super) fn default_description_rename(
+#[derive(Clone)]
+pub(super) struct DescriptionRename {
+    pub previous: String,
+    pub next: String,
+    pub typ: &'static str,
+}
+
+pub(super) fn description_rename(
     kind: EntityKind,
     previous: &str,
     next: &str,
     source: &Value,
-) -> Option<(String, String)> {
-    (kind == EntityKind::Ship && previous != next && source.get("descriptionId").is_none())
-        .then(|| (previous.into(), next.into()))
+) -> Option<DescriptionRename> {
+    let typ = match kind {
+        EntityKind::Ship if source.get("descriptionId").is_none() => "SHIP",
+        EntityKind::Weapon => "WEAPON",
+        _ => return None,
+    };
+    (previous != next).then(|| DescriptionRename {
+        previous: previous.into(),
+        next: next.into(),
+        typ,
+    })
 }
 
 pub(super) fn rename_description_row(
@@ -25,12 +40,13 @@ pub(super) fn rename_description_row(
     table: &mut DescriptionTable,
     previous: &str,
     next: &str,
+    typ: &str,
 ) -> AppResult<bool> {
     let (header, rows, sequence) = table;
     let matches = |row: &SessionCsvRow, id: &str| {
         !row.is_comment
             && row.data.get("id").and_then(Value::as_str) == Some(id)
-            && row.data.get("type").and_then(Value::as_str) == Some("SHIP")
+            && row.data.get("type").and_then(Value::as_str) == Some(typ)
     };
     let source = rows.iter().position(|row| matches(row, previous));
     let core = if source.is_none() {
@@ -66,8 +82,12 @@ pub(super) fn rename_description_row(
         });
     if rows.iter().any(|row| matches(row, next)) || core_collision {
         return Err(AppError::message(
-            "ship.description_target_exists",
-            format!("舰船描述 ID 已存在: {next} / SHIP"),
+            if typ == "SHIP" {
+                "ship.description_target_exists"
+            } else {
+                "weapon.description_target_exists"
+            },
+            format!("描述 ID 已存在: {next} / {typ}"),
         ));
     }
     if let Some(index) = source {
@@ -102,15 +122,21 @@ pub(super) fn rename_description_row(
 
 pub(super) fn stage_description_renames(
     session: &ProjectSession,
-    renames: &[(String, String)],
+    renames: &[DescriptionRename],
 ) -> AppResult<Option<super::entity_identity::StagedIdentityCsv>> {
     if renames.is_empty() {
         return Ok(None);
     }
     let mut table = cache::csv::read_table_snapshot(session, CsvTableKey::Descriptions)?;
     let mut changed = false;
-    for (previous, next) in renames {
-        changed |= rename_description_row(session, &mut table, previous, next)?;
+    for rename in renames {
+        changed |= rename_description_row(
+            session,
+            &mut table,
+            &rename.previous,
+            &rename.next,
+            rename.typ,
+        )?;
     }
     if !changed {
         return Ok(None);

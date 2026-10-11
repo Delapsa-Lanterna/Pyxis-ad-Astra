@@ -25,6 +25,7 @@ export function useJointEditSession(
   const reads = useQueryReadOwner();
   let releaseHandoff: (() => Promise<void>) | null = null;
   let overrideIntent: string[] = [];
+  let overrideValues: Record<string, JointValue> | undefined;
   const editableKeys = (snapshot: JointEditSnapshot) => options.editableRecords?.(snapshot) ?? snapshot.records.map((record) => record.key);
   const valuesOf = (snapshot: JointEditSnapshot) =>
     Object.fromEntries(
@@ -50,7 +51,7 @@ export function useJointEditSession(
     save: async (root, values) => {
       const baseline = session.baselineSnapshot.value!;
       const result = await actions.save(
-        { baseline: baseline.meta.snapshot, values },
+        { baseline: baseline.meta.snapshot, values: overrideValues ? { ...values, ...overrideValues } : values },
         JSON.stringify(root),
         (release) => (releaseHandoff = release),
         overrideIntent,
@@ -158,11 +159,13 @@ export function useJointEditSession(
     void releaseHandoff?.().catch((error) => feedback.error(error, '释放联合编辑交接失败'));
     releaseHandoff = null;
   });
-  function createOverrides(keys: string[]) {
+  function createOverrides(keys: string[], values?: Record<string, JointValue>) {
     if (session.saving.value) return session.saveDraft();
     overrideIntent = [...keys];
+    overrideValues = values;
     return session.saveDraft().finally(() => {
       overrideIntent = [];
+      overrideValues = undefined;
     });
   }
   return { ...session, open, createOverrides, handoffLocked: computed(() => commands.isEditTargetLocked(session.currentTargetKey.value)) };

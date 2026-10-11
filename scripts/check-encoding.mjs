@@ -3,7 +3,7 @@ import { TextDecoder } from 'node:util';
 import { collectRepoPaths } from './shared/files.mjs';
 
 const root = process.cwd();
-const textExtensions = new Set(['.bat', '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.rs', '.toml', '.ts', '.vue']);
+const textExtensions = new Set(['.bat', '.css', '.fnt', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.rs', '.toml', '.ts', '.vue']);
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
 const failures = [];

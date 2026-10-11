@@ -25,6 +25,7 @@
 - 主窗口拥有设置持久化权威；子窗口只能从 URL snapshot 初始化并监听完整 snapshot 事件镜像。
 - 主题 DOM 副作用唯一归主题 effect，由唯一窗口壳挂载；主窗口与子窗口都经该 effect 生效。
 - 沉浸式窗口必须由 WindowShell 的 appearance 选择固定游戏令牌；Naive provider 与唯一主题 effect 必须消费同一配色，设置镜像必须继续提供编辑权限与历史上限。
+- 沉浸式文本、标题条、船员与燃料必须消费appearance提供的原版颜色角色；设计类型与槽位颜色必须由所属领域投影装配，业务DOM必须继续由唯一主题effect接纳共享令牌。
 - 主题令牌计算归 domain 纯函数，输入校验归 domain 校验规则，store 只持状态；store 内严禁写 DOM。
 - CSS 自定义属性只能由 `THEME_TOKEN_MAP` 与主题 effect 共同接纳；明暗主题必须覆盖正式共享 token。
 - 应用私有数据目录必须由 Tauri 标识 `com.caopancake.circinus-ad-astra` 解析。

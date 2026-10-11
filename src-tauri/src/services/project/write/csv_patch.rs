@@ -116,7 +116,7 @@ pub fn save_csv_patch_snapshot(
         }
     }
     let description =
-        super::ship_description::stage_description_renames(&session, &description_renames)?;
+        super::entity_description::stage_description_renames(&session, &description_renames)?;
     if let Some(csv) = &description {
         builder.text_file("data/strings/descriptions.csv", Some(csv.text.clone()))?;
     }
@@ -274,7 +274,7 @@ fn add_associated_spec_change(
     change: &AssociatedSpecChange,
     target: &crate::models::EntityEditTarget,
     json: &mut JsonWriteBatch,
-) -> AppResult<Option<(String, String)>> {
+) -> AppResult<Option<super::entity_description::DescriptionRename>> {
     let definition = associated_spec_definition(table).ok_or_else(|| {
         AppError::message(
             "table.no_associated_spec",
@@ -357,7 +357,7 @@ fn add_associated_spec_change(
                 description_rename = rename;
                 text
             } else {
-                description_rename = super::ship_description::default_description_rename(
+                description_rename = super::entity_description::description_rename(
                     target.kind,
                     previous_id,
                     id,
@@ -395,9 +395,9 @@ fn rewrite_associated_spec_id(
     previous_id: &str,
     new_id: &str,
     json: &mut JsonWriteBatch,
-) -> AppResult<(String, Option<(String, String)>)> {
+) -> AppResult<(String, Option<super::entity_description::DescriptionRename>)> {
     let mut value = read_json_file(path)?;
-    let description_rename = super::ship_description::default_description_rename(
+    let description_rename = super::entity_description::description_rename(
         associated_spec_definition(table)
             .expect("associated format")
             .entity_kind,

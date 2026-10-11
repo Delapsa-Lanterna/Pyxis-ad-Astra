@@ -11,6 +11,9 @@ export function openImmersiveEditorWindow(root: JointEditRoot, settings: AppSett
     identity: { type: 'immersive', ...root },
     title: immersiveWindowTitle(root),
     urlParams: { window: 'immersive-editor', ...root, settings: JSON.stringify(settings) },
-    size: { width: 1160, height: 760, minWidth: 860, minHeight: 560 },
+    size:
+      root.kind === 'weapon'
+        ? { width: 430, height: 700, minWidth: 340, minHeight: 480 }
+        : { width: 830, height: 700, minWidth: 430, minHeight: 480 },
   });
 }

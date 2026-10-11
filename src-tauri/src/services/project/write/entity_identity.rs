@@ -91,10 +91,10 @@ fn save_entity_content(
         ordered_json,
         raw_text,
     )?;
-    let description = super::ship_description::stage_description_renames(
+    let description = super::entity_description::stage_description_renames(
         &session,
         &staged
-            .default_description_rename
+            .description_rename
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
@@ -139,7 +139,7 @@ pub(in crate::services::project) struct StagedEntityWrite {
     pub data: Value,
     pub identity: EntityIdentityChange,
     pub saved_csv: Option<StagedIdentityCsv>,
-    pub(super) default_description_rename: Option<(String, String)>,
+    pub(super) description_rename: Option<super::entity_description::DescriptionRename>,
 }
 
 pub(in crate::services::project) struct StagedIdentityCsv {
@@ -194,7 +194,7 @@ pub(in crate::services::project) fn stage_entity_content(
             "实体源文件 ID 与加载身份不一致",
         ));
     }
-    let default_description_rename = super::ship_description::default_description_rename(
+    let description_rename = super::entity_description::description_rename(
         target.kind,
         &target.id,
         &next_id,
@@ -347,7 +347,7 @@ pub(in crate::services::project) fn stage_entity_content(
             after: next,
         },
         saved_csv,
-        default_description_rename,
+        description_rename,
     })
 }
 

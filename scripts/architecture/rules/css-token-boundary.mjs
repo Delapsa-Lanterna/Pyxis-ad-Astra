@@ -1,5 +1,11 @@
 import * as csstree from 'css-tree';
-import { CSS_TOKEN_OWNER, THIRD_PARTY_PROPERTIES, DOM_PROPERTIES, SPECIAL_VALUES } from '../../shared/css-policy.mjs';
+import {
+  CSS_TOKEN_OWNER,
+  ORIGINAL_SPACING_OWNER,
+  THIRD_PARTY_PROPERTIES,
+  DOM_PROPERTIES,
+  SPECIAL_VALUES,
+} from '../../shared/css-policy.mjs';
 
 const REQUIRED_TOKENS = [
   '--color-bg',
@@ -161,13 +167,20 @@ export const cssTokenBoundaryRule = {
         failures.push(diagnostic(file, node, selectors, 'border-radius must use a shared radius token'));
       if (isSpacingProperty(node.property)) {
         let hardcoded = false;
+        let originalSpacing = false;
         csstree.walk(node.value, {
           visit: 'Dimension',
           enter(dimension) {
             if (dimension.unit === 'px' && [4, 8, 12, 16].includes(Number(dimension.value))) hardcoded = true;
+            if (file.rel === ORIGINAL_SPACING_OWNER && dimension.unit === 'px' && [3, 9, 10, 17, 18, 21].includes(Number(dimension.value)))
+              originalSpacing = true;
           },
         });
         if (hardcoded) failures.push(diagnostic(file, node, selectors, 'shared spacing must use a --space token'));
+        if (originalSpacing)
+          failures.push(
+            diagnostic(file, node, selectors, 'original immersive spacing requires exact selector/property/value authorization'),
+          );
       }
     }
     return failures;

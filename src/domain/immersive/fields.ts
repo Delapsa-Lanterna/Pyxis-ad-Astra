@@ -3,11 +3,17 @@ import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.type
 import { applySchemaFieldUpdate, getNestedValue, schemaStringValue } from '@/domain/schema/schema-values';
 import { entityContentIdField } from '@/domain/editors/entity-identity';
 import { jointObject } from '@/domain/joint-edit';
+import type { BitmapTextRun, ImmersiveFontRole } from './bitmap-font';
 
 export interface ImmersiveField {
   id: string;
   recordKey: string;
   schema: FieldSchema;
+  optionLabels?: Record<string, string>;
+}
+export interface ImmersiveFieldChange {
+  field: ImmersiveField;
+  update: SchemaFieldUpdate;
 }
 export interface ImmersiveStat {
   id: string;
@@ -15,7 +21,11 @@ export interface ImmersiveStat {
   display: string;
   fields: ImmersiveField[];
   formula?: string;
-  tone?: 'normal' | 'highlight' | 'crew';
+  tone?: 'normal' | 'highlight' | 'crew' | 'fuel';
+  displayRuns?: BitmapTextRun[];
+  font?: ImmersiveFontRole;
+  inline?: boolean;
+  gapBefore?: boolean;
   diagnostic?: string;
 }
 

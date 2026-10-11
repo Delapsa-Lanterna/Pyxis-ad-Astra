@@ -74,6 +74,18 @@ test('CSS checker reports hardcoded shared spacing values', () => {
   const failures = cssTokenBoundaryRule.check([{ rel: 'src/styles/base.css', text: `${base}.bad { gap: 8px; padding: 4px 6px; }` }]);
   assert.equal(failures.filter((failure) => failure.includes('shared spacing')).length, 2);
 });
+test('original immersive spacing is authorized at its exact presentation consumer', () => {
+  const files = [
+    { rel: 'src/styles/base.css', text: base },
+    {
+      rel: 'src/styles/immersive-editors.css',
+      text: '.weapon-immersive-data {gap:10px;} .ship-immersive-stats {gap:9px;} .immersive-section-action {margin-right:3px;}',
+    },
+  ];
+  assert.equal(cssTokenBoundaryRule.check(files).filter((failure) => failure.includes('original immersive spacing')).length, 0);
+  files[1].text = '.weapon-immersive-data {padding:10px;} .unrelated {gap:3px;} .immersive-section-action {margin-left:3px;}';
+  assert.equal(cssTokenBoundaryRule.check(files).filter((failure) => failure.includes('original immersive spacing')).length, 3);
+});
 
 test('local variables follow their selector scope across descendants', () => {
   const failures = cssTokenBoundaryRule.check([

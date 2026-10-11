@@ -40,6 +40,27 @@ beforeEach(() => {
   mocks.projection.mockResolvedValue(() => {});
 });
 describe('joint snapshot session acceptance', () => {
+  it('passes corrected override content once and accepts it as the actual baseline', async () => {
+    let session!: ReturnType<typeof useJointEditSession>;
+    const wrapper = mount({
+      setup() {
+        session = useJointEditSession();
+        return () => null;
+      },
+    });
+    await session.loadTarget(root);
+    const actual = { ...snapshot, records: [{ ...snapshot.records[0]!, value: { state: 'present' as const, value: 'corrected' } }] };
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: actual });
+    await session.createOverrides(['ship'], { ship: { state: 'present', value: 'corrected' } });
+    expect(mocks.save.mock.calls[0]![0].values.ship).toEqual({ state: 'present', value: 'corrected' });
+    expect(session.draftValue.value.ship).toEqual({ state: 'present', value: 'corrected' });
+    expect(session.dirty.value).toBe(false);
+    session.setDraft({ ship: { state: 'present', value: 'next' } });
+    await session.saveDraft();
+    expect(mocks.save.mock.calls[1]![0].values.ship).toEqual({ state: 'present', value: 'next' });
+    expect(mocks.save.mock.calls[1]![3]).toEqual([]);
+    wrapper.unmount();
+  });
   it('waits for the projection notification after identity acceptance before rereading the root', async () => {
     let session!: ReturnType<typeof useJointEditSession>;
     const wrapper = mount({

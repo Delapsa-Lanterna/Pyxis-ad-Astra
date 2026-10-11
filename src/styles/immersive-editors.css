@@ -24,7 +24,8 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-4);
+  padding: 10px;
+  scrollbar-gutter: stable;
 }
 .immersive-editor-actions {
   display: flex;
@@ -33,15 +34,13 @@
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--color-border);
 }
-.immersive-editor-actions small {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-muted);
-}
 .immersive-editor-actions > div,
 .immersive-field-actions {
   display: flex;
   gap: var(--space-2);
+}
+.immersive-editor-actions > div {
+  margin-left: auto;
 }
 .immersive-status {
   padding: var(--space-4);
@@ -49,15 +48,15 @@
 }
 .ship-immersive-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 .immersive-title-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  gap: 3px;
+  margin-bottom: 10px;
 }
 .immersive-title-row .immersive-stat-row {
   display: block;
@@ -67,7 +66,7 @@
 }
 .immersive-title-row .immersive-stat-value {
   color: var(--color-primary);
-  font-size: 22px;
+  font-size: 20px;
 }
 .ship-immersive-sprite {
   display: flex;
@@ -76,6 +75,8 @@
   min-width: 0;
   min-height: 0;
   color: var(--color-muted);
+  width: 200px;
+  height: 200px;
 }
 .ship-immersive-header > div > .immersive-stat-row {
   display: flex;
@@ -89,7 +90,7 @@
 }
 .ship-immersive-description .immersive-stat-row {
   display: block;
-  margin-top: var(--space-3);
+  margin-top: 10px;
 }
 .ship-immersive-description .immersive-stat-row > span {
   display: none;
@@ -99,17 +100,17 @@
   font-weight: 400;
   text-align: left;
   white-space: pre-wrap;
-  line-height: 1.6;
+  line-height: 0;
 }
 .ship-immersive-stats {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: var(--space-3);
+  gap: 9px;
 }
 .ship-immersive-logistics-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: 9px;
 }
 .ship-immersive-stats section,
 .ship-immersive-logistics-columns > div {
@@ -117,10 +118,11 @@
   min-height: 0;
 }
 .immersive-group-title {
-  margin: 0 0 var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  font-size: 14px;
-  font-weight: 500;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 0;
   text-align: center;
   color: var(--color-primary);
   background: var(--color-panel-muted);
@@ -128,11 +130,13 @@
 .immersive-stat-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: var(--space-2);
+  align-items: start;
+  gap: 3px;
   min-width: 0;
-  padding: var(--space-1) 0;
-  font-size: 13px;
+  padding: 0;
+  margin-bottom: 3px;
+  font-size: 15px;
+  line-height: 0;
 }
 .immersive-stat-row > span {
   min-width: 0;
@@ -144,7 +148,8 @@
   color: var(--color-warning);
   font-family: inherit;
   font-size: inherit;
-  font-weight: 500;
+  font-weight: 400;
+  line-height: 0;
   text-align: right;
   background: transparent;
   border: 0;
@@ -155,7 +160,6 @@ button.immersive-stat-value {
 }
 button.immersive-stat-value:hover,
 button.immersive-stat-value:focus-visible {
-  color: var(--color-primary);
   text-decoration: underline;
   outline: 1px solid var(--color-primary-border);
   outline-offset: 2px;
@@ -166,11 +170,51 @@ button.immersive-stat-value:focus-visible {
 .immersive-stat-row.crew .immersive-stat-value {
   color: var(--color-success);
 }
+.immersive-stat-row.fuel .immersive-stat-value {
+  color: var(--color-danger-highlight);
+}
+.immersive-stat-row.inline {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0;
+  margin-bottom: 10px;
+}
+.immersive-stat-row.group-gap {
+  margin-top: 18px;
+}
+.ship-immersive-stats .immersive-stat-row.group-gap {
+  margin-top: 17px;
+}
+.immersive-bitmap-text {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  min-width: 0;
+}
+.immersive-bitmap-text.block {
+  display: block;
+}
+.immersive-bitmap-text canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.immersive-accessible-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: pre;
+}
 .immersive-field-popover {
   display: grid;
   gap: var(--space-3);
   width: min(400px, 75vw);
-  max-height: 70vh;
+  max-height: calc(50vh - 60px);
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -205,7 +249,7 @@ button.immersive-stat-value:focus-visible {
   overflow-wrap: anywhere;
 }
 .ship-immersive-related {
-  margin-top: var(--space-4);
+  margin-top: 10px;
 }
 .ship-immersive-related > .immersive-stat-row {
   grid-template-columns: 90px minmax(0, 1fr);
@@ -215,7 +259,7 @@ button.immersive-stat-value:focus-visible {
   text-align: left;
 }
 .ship-immersive-related > p {
-  margin: var(--space-1) 0 var(--space-3);
+  margin: 3px 0 10px;
   white-space: pre-wrap;
   line-height: 1.5;
   color: var(--color-text-soft);
@@ -229,31 +273,110 @@ button.immersive-stat-value:focus-visible {
 }
 .immersive-related-row strong {
   font-weight: 400;
+  color: var(--color-text);
+}
+.weapon-immersive-panel {
+  width: 100%;
+  min-width: 0;
+}
+.weapon-immersive-panel section {
+  min-width: 0;
+}
+.immersive-section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  min-height: 19px;
+  background: var(--color-panel-muted);
+  position: relative;
+  margin: 10px 0 10px;
+}
+.immersive-section-heading h2 {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.immersive-section-action {
+  grid-area: 1 / 1;
+  justify-self: end;
+  margin-right: 3px;
+}
+.immersive-section-action .immersive-stat-row {
+  display: block;
+  margin: 0;
+}
+.immersive-section-action .immersive-stat-row > span {
+  display: none;
+}
+.immersive-section-action .immersive-stat-value {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--color-primary);
+}
+.weapon-immersive-data {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.weapon-immersive-data > div {
+  min-width: 0;
+}
+.weapon-immersive-data .immersive-stat-row > span,
+.weapon-immersive-data .immersive-stat-value {
+  margin-bottom: -2px;
+}
+.weapon-immersive-data .immersive-bitmap-text {
+  transform: translateY(-1px);
+}
+.weapon-immersive-data .immersive-stat-row.group-gap {
+  margin-top: 21px;
+}
+.weapon-immersive-data .immersive-stat-row:last-child {
+  margin-bottom: 0;
+}
+.immersive-weapon-icon,
+.immersive-damage-icon {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.immersive-damage-description {
+  margin: 0;
+  text-align: right;
+  color: var(--color-warning);
+  font-size: 12px;
+  line-height: 0;
+}
+.immersive-damage-description .immersive-bitmap-text {
+  margin-bottom: -2px;
+}
+.immersive-custom-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+.immersive-custom-text strong {
   color: var(--color-warning);
 }
-.immersive-hullmod {
-  display: grid;
-  gap: var(--space-1);
-  margin-bottom: var(--space-2);
+.immersive-editor-scroll {
+  container-type: inline-size;
 }
-.immersive-hullmod small {
-  color: var(--color-text-soft);
-  line-height: 1.5;
-}
-@media (max-width: 980px) {
-  .ship-immersive-stats {
+@container (max-width:689px) {
+  .ship-immersive-stats,
+  .ship-immersive-header {
     grid-template-columns: minmax(0, 1fr);
   }
-  .ship-immersive-header {
-    grid-template-columns: minmax(0, 1fr) 160px;
-  }
 }
-@media (max-width: 640px) {
-  .ship-immersive-header,
+@container (max-width:429px) {
   .ship-immersive-logistics-columns {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+@media (max-width: 640px) {
   .immersive-editor-actions {
     flex-wrap: wrap;
+    gap: 3px;
   }
 }

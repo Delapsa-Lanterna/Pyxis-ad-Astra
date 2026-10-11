@@ -1,21 +1,21 @@
 <template>
   <label class="immersive-field-input">
-    <span>{{ field.schema.label }}</span>
+    <span><ImmersiveText :text="field.schema.label" /></span>
     <n-select
       v-if="mode === 'smart' && (field.schema.options || field.schema.source)"
       ref="input"
       :value="raw"
       :options="selectOptions"
       :status="invalid ? 'error' : undefined"
-      clearable
+      :clearable="!field.schema.required"
       @update:value="update($event ?? '')"
     />
     <n-input
       v-else
       ref="input"
       :value="raw"
-      :type="field.schema.type === 'text' ? 'textarea' : 'text'"
-      :autosize="field.schema.type === 'text' ? { minRows: 2, maxRows: 8 } : undefined"
+      :type="field.schema.type === 'text' || jsonShape ? 'textarea' : 'text'"
+      :autosize="field.schema.type === 'text' || jsonShape ? { minRows: 2, maxRows: 8 } : undefined"
       :status="invalid ? 'error' : undefined"
       @update:value="update"
     />
@@ -31,6 +31,8 @@ import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-sou
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
 import { includeCurrentSelectOptions } from '@/domain/schema/schema-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { parseJsonInput, formatJsonInput } from '@/shared/lib/json-input';
+import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{
   field: ImmersiveField;
   value: unknown;
@@ -42,16 +44,18 @@ const props = defineProps<{
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const input = ref<{ focus: () => void } | null>(null);
 const mode = useInputEditMode();
+const jsonShape = computed(() => (props.field.schema.type === 'array' ? 'array' : props.field.schema.type === 'object' ? 'object' : null));
 watch(input, (control) => {
   if (props.active && props.autofocus) control?.focus();
 });
 const { raw, invalid, update } = useRawFieldInput<unknown>({
   key: props.inputKey,
   label: props.field.schema.label,
-  text: () => schemaStringValue(props.value),
+  text: () => (jsonShape.value ? formatJsonInput(props.value, jsonShape.value) : schemaStringValue(props.value)),
   forceCommit: () => props.active && props.value === undefined,
   convert: (text) => {
     const schema = props.field.schema;
+    if (jsonShape.value) return parseJsonInput(text, jsonShape.value);
     if (schema.type === 'integer' || schema.type === 'float' || schema.type === 'boolean') {
       const converted = convertSchemaScalarInput(text, schema);
       return converted.kind === 'set' ? { kind: 'value', value: converted.value } : converted;
@@ -70,6 +74,6 @@ const source = useSchemaSourceOptions({
 const selectOptions = computed(() =>
   props.field.schema.source
     ? includeCurrentSelectOptions(source.sourceOptions.value, [raw.value])
-    : props.field.schema.options?.map((value) => ({ label: value, value })),
+    : props.field.schema.options?.map((value) => ({ label: props.field.optionLabels?.[value] ?? value, value })),
 );
 </script>

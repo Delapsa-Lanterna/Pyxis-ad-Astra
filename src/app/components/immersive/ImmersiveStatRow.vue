@@ -1,7 +1,8 @@
 <template>
-  <div class="immersive-stat-row" :class="stat.tone ?? 'highlight'">
-    <span>{{ stat.label }}</span>
+  <div class="immersive-stat-row" :class="[stat.tone ?? 'highlight', { inline: stat.inline, 'group-gap': stat.gapBefore }]">
+    <span><ImmersiveText :text="stat.label + (stat.inline ? '：' : '')" /></span>
     <n-popover
+      ref="popover"
       v-if="editable && stat.fields.length"
       trigger="click"
       placement="bottom-end"
@@ -11,30 +12,32 @@
       :show-arrow="false"
     >
       <template #trigger
-        ><button type="button" class="immersive-stat-value" :title="stat.diagnostic || stat.formula || '点击编辑来源参数'">
-          {{ stat.display }}
-        </button></template
-      >
+        ><button ref="trigger" type="button" class="immersive-stat-value" :title="stat.diagnostic || stat.formula || '点击编辑来源参数'">
+          <ImmersiveText :text="stat.display" :runs="stat.displayRuns" :font="stat.font" /></button
+      ></template>
       <ImmersiveFieldPopover
         :stat="stat"
         :values="values"
         :snapshot="snapshot"
         :runtime-context="runtimeContext"
         :active="active"
-        @update="(field, update) => $emit('update', field, update)"
+        @update="$emit('update', $event)"
         @close="$emit('dismiss')"
       />
     </n-popover>
-    <strong v-else class="immersive-stat-value" :title="stat.diagnostic || stat.formula">{{ stat.display }}</strong>
+    <strong v-else class="immersive-stat-value" :title="stat.diagnostic || stat.formula"
+      ><ImmersiveText :text="stat.display" :runs="stat.displayRuns" :font="stat.font"
+    /></strong>
   </div>
 </template>
 <script setup lang="ts">
-import type { ImmersiveStat, ImmersiveField } from '@/domain/immersive/fields';
+import { ref, watch, onScopeDispose } from 'vue';
+import type { ImmersiveStat, ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { JointEditSnapshot, JointValue } from '@/shared/types';
-import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import ImmersiveFieldPopover from './ImmersiveFieldPopover.vue';
-defineProps<{
+import ImmersiveText from './ImmersiveText.vue';
+const props = defineProps<{
   stat: ImmersiveStat;
   editable: boolean;
   active: boolean;
@@ -42,5 +45,33 @@ defineProps<{
   snapshot: JointEditSnapshot;
   runtimeContext: SchemaRuntimeContext;
 }>();
-defineEmits<{ toggle: [show: boolean]; dismiss: []; update: [field: ImmersiveField, update: SchemaFieldUpdate] }>();
+const trigger = ref<HTMLButtonElement | null>(null),
+  popover = ref<{ syncPosition: () => void } | null>(null);
+let positionFrame: number | null = null;
+function resize() {
+  if (positionFrame !== null) window.cancelAnimationFrame(positionFrame);
+  positionFrame = window.requestAnimationFrame(() => {
+    positionFrame = null;
+    if (!props.active || !props.editable || props.stat.fields.length === 0) return;
+    trigger.value!.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    popover.value!.syncPosition();
+  });
+}
+watch(
+  () => props.active,
+  (active) => {
+    window.removeEventListener('resize', resize);
+    if (active) window.addEventListener('resize', resize);
+    else if (positionFrame !== null) {
+      window.cancelAnimationFrame(positionFrame);
+      positionFrame = null;
+    }
+  },
+  { immediate: true },
+);
+onScopeDispose(() => {
+  window.removeEventListener('resize', resize);
+  if (positionFrame !== null) window.cancelAnimationFrame(positionFrame);
+});
+defineEmits<{ toggle: [show: boolean]; dismiss: []; update: [changes: ImmersiveFieldChange[]] }>();
 </script>

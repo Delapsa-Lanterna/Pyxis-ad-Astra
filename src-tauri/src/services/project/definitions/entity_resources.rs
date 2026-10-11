@@ -48,10 +48,23 @@ pub(in crate::services::project) fn weapon_resource_refs(
 }
 
 pub(in crate::services::project) fn projectile_resource_refs(
-    _id: &str,
-    _data: &Value,
+    id: &str,
+    data: &Value,
 ) -> BTreeMap<String, ResourceRef> {
-    BTreeMap::new()
+    string_field(data, "sprite")
+        .map(|sprite| {
+            BTreeMap::from([(
+                "sprite".into(),
+                resource_ref(
+                    ResourceSource::Mod,
+                    &sprite,
+                    crate::models::EntityKind::Projectile.into(),
+                    id,
+                    "sprite",
+                ),
+            )])
+        })
+        .unwrap_or_default()
 }
 
 pub(in crate::services::project) fn system_resource_refs(

@@ -70,6 +70,7 @@
 - 原生实例必须按 label 登记完整 EditWriteTarget 集合；目标查询必须核对 session、Mod 和物理路径范围，销毁及会话释放必须移除所属登记。
 - 沉浸式身份必须包含 session、Mod、JointEditKind 与 ID，并按正式 Windows 路径键比较；同实体的规格、文本与沉浸式窗口必须保留各自实例身份及共同物理协调范围。
 - 沉浸式窗口必须消费固定暗色原生主题；保存与外部改名必须共同更新登记、URL、标题、联合记录键和历史身份。
+- 沉浸式窗口尺寸必须由种类装配：舰船830×700px、最小430×480px，武器430×700px、最小340×480px；重排必须由现有窗口内容消费实际容器尺寸。
 - sessionId、kind 与实体 ID 必须按原值比较；Mod 与文件路径必须统一处理分隔符、大小写、尾部分隔符及扩展路径前缀。
 - 会话关闭必须阻止新窗口登记；创建期间的关闭意图必须在实例构造完成后继续执行。
 - 保存与回放通知必须共用 committedWriteApplied，事件必须携带 originWindowLabel、modRoot、nullable sessionId、reason 与完整 WriteResult。

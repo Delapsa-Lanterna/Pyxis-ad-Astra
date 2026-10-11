@@ -6,16 +6,17 @@ import { useQueryReadOwner } from './use-query-read-owner';
 import { useAppFeedback } from './use-app-feedback';
 import { useResourceMediaRegistry } from './use-resource-media-registry';
 import { useSettingsStore } from '@/stores/settings.store';
-import { shipEditableRecords, shipSourceRecords } from '@/domain/immersive/ship-sources';
-import { projectShipPanel } from '@/domain/immersive/ship-panel';
-import { updateImmersiveField, type ImmersiveField } from '@/domain/immersive/fields';
+import { immersiveSourceRecords } from '@/domain/immersive/source-records';
+import { immersiveDefinition } from '@/domain/immersive/editor-definition';
+import { changeWeaponSpecClass } from '@/domain/editors/spec-construction';
+import { updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { jointObject, mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
 import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import { subscribeQueryInvalidations, hasSourceInvalidation } from '@/services/query-cache.service';
-import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
+import { retargetImmersiveWindow, openImmersiveProjectile } from '@/orchestrators/immersive-editor.orchestrator';
 import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { deepClone } from '@/shared/lib/starsector';
@@ -23,7 +24,8 @@ import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 
-export function useImmersiveEditorViewModel(root: JointEditRoot) {
+export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship' | 'weapon' }) {
+  const definition = immersiveDefinition(root.kind);
   const feedback = useAppFeedback();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
@@ -35,7 +37,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
   const errorText = ref('');
   const projection = shallowRef<JointEditSnapshot | null>(null);
   const joint = useJointEditSession({
-    editableRecords: shipEditableRecords,
+    editableRecords: definition.editableRecords,
     afterBaseline: async (snapshot, receipt, previous) => {
       if (receipt.commitId <= windowCommit) return;
       await retargetImmersiveWindow(snapshot);
@@ -45,10 +47,10 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
   });
   const history = useSnapshotHistory<Record<string, JointValue>>(joint.context, settings.historyLimit);
   const snapshot = computed(() => joint.baselineSnapshot.value?.meta.snapshot ?? null);
-  const panel = computed(() => (snapshot.value ? projectShipPanel(snapshot.value, joint.draftValue.value, projection.value) : null));
+  const panel = computed(() => (snapshot.value ? definition.project(snapshot.value, joint.draftValue.value, projection.value) : null));
   const notices = computed(() =>
     snapshot.value
-      ? Object.values(shipSourceRecords(snapshot.value)).filter(
+      ? Object.values(immersiveSourceRecords(snapshot.value)).filter(
           (record) => record.source?.source === 'core' || record.value.state === 'missing',
         )
       : [],
@@ -75,18 +77,17 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
         ),
       ),
   });
-  const sprite = computed(() => media.dataUrl(root.sessionId, panel.value?.sprite) ?? '');
+  const mediaUrl = (resource: import('@/shared/types').ResourceRef | null | undefined) => media.dataUrl(root.sessionId, resource) ?? '';
+  const sprite = computed(() => (panel.value?.kind === 'ship' ? mediaUrl(panel.value.sprite) : ''));
   watch(
-    () => panel.value?.sprite,
-    (resource) => {
-      void media.replaceCollection(root.sessionId, 'ship-preview', resource ? [resource] : []);
+    () => (panel.value ? definition.media(panel.value) : []),
+    (resources) => {
+      void media.replaceCollection(root.sessionId, 'immersive-preview', resources);
     },
   );
   function referenceKey() {
     if (!snapshot.value) return '';
-    const record = shipSourceRecords(snapshot.value).csv;
-    const csv = jointObject(joint.draftValue.value[record.key]);
-    return JSON.stringify([joint.currentTargetKey.value, csv['system id'], csv['shield type'], csv['defense id']]);
+    return JSON.stringify([joint.currentTargetKey.value, ...definition.references(snapshot.value, joint.draftValue.value)]);
   }
   const referenceSelection = computed(referenceKey);
   watch([referenceSelection, snapshot], () => {
@@ -98,10 +99,8 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
   async function refreshProjection(force = false) {
     const baseline = snapshot.value;
     if (!baseline) return;
-    const csv = shipSourceRecords(baseline).csv;
-    const current = jointObject(joint.draftValue.value[csv.key]);
-    const original = jointObject(csv.value);
-    if (!force && ['system id', 'shield type', 'defense id'].every((key) => stableDeepEqual(current[key], original[key]))) {
+    const original = Object.fromEntries(baseline.records.map((record) => [record.key, record.value]));
+    if (!force && stableDeepEqual(definition.references(baseline, joint.draftValue.value), definition.references(baseline, original))) {
       projection.value = baseline;
       return;
     }
@@ -145,9 +144,27 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
     return snapshot.value?.records.find((record) => record.key === field.recordKey)?.source?.source !== 'core';
   }
   function updateField(field: ImmersiveField, update: SchemaFieldUpdate) {
-    const record = snapshot.value!.records.find((record) => record.key === field.recordKey)!;
+    updateFields([{ field, update }]);
+  }
+  function updateFields(changes: ImmersiveFieldChange[]) {
     const before = deepClone(joint.draftValue.value);
-    const after = updateImmersiveField(before, record, field, update);
+    let after = before;
+    for (const { field, update } of changes) {
+      const record = snapshot.value!.records.find((record) => record.key === field.recordKey)!;
+      after = updateImmersiveField(after, record, field, update);
+      if (
+        root.kind === 'weapon' &&
+        record.key === snapshot.value!.bindings.spec &&
+        field.schema.key === 'specClass' &&
+        update.kind === 'set' &&
+        (update.value === 'projectile' || update.value === 'beam')
+      ) {
+        after = {
+          ...after,
+          [record.key]: { state: 'present', value: changeWeaponSpecClass(jointObject(after[record.key]), update.value) },
+        };
+      }
+    }
     joint.setDraft(after);
     history.push(before, after);
   }
@@ -172,17 +189,47 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
   async function save() {
     try {
       const result = await joint.saveDraft();
-      if (result) feedback.success('舰船联合保存完成');
+      if (result) feedback.success(`${definition.label}联合保存完成`);
     } catch (error) {
       feedback.error(error);
     }
   }
   async function createOverrides() {
+    const target = joint.currentTarget.value;
+    const admitted = joint.inputs.captureContext();
     const keys = notices.value.filter((record) => record.source?.source === 'core').map((record) => record.key);
     try {
-      await joint.createOverrides(keys);
+      const records = snapshot.value!;
+      const spec = immersiveSourceRecords(records).spec;
+      let corrected: Record<string, JointValue> | undefined;
+      if (root.kind === 'weapon' && jointObject(spec.value).specClass === 'pulse' && keys.includes(spec.key)) {
+        const choice = await feedback.choose({
+          title: '选择覆盖的武器分支',
+          content: 'pulse 在原版中无法正常处理，选择合法分支并补齐必读字段后建立当前 Mod 覆盖。',
+          choices: [
+            { label: '弹丸 projectile', value: 'projectile', type: 'primary' },
+            { label: '光束 beam', value: 'beam' },
+          ],
+        });
+        if (choice !== 'projectile' && choice !== 'beam') return;
+        if (!active || !admitted() || joint.currentTarget.value !== target) return;
+        corrected = { [spec.key]: { state: 'present', value: changeWeaponSpecClass(jointObject(spec.value), choice) } };
+      }
+      if (!active || !admitted() || joint.currentTarget.value !== target) return;
+      await joint.createOverrides(keys, corrected);
     } catch (error) {
       feedback.error(error);
+    }
+  }
+  async function openProjectile() {
+    const target = joint.currentTarget.value;
+    const admitted = joint.inputs.captureContext();
+    try {
+      if ((await joint.inputs.commit()) === false) return;
+      if (!active || !admitted() || joint.currentTarget.value !== target) return;
+      await openImmersiveProjectile(snapshot.value!, joint.draftValue.value, settings.settingsSnapshot());
+    } catch (error) {
+      feedback.error(error, '打开弹体编辑器失败');
     }
   }
   async function undo() {
@@ -220,14 +267,14 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
       )
         return;
       const change = event.result.identityChanges.find(
-        (change) => change.before.kind === 'ship' && change.before.id === target.id && change.after.id !== target.id,
+        (change) => change.before.kind === root.kind && change.before.id === target.id && change.after.id !== target.id,
       );
       if (!change) return;
       if (joint.saving.value && !(await joint.waitForSave())) return;
       if (!joint.isTargetCommitCurrent(target, event.result.commitId)) return;
       if (joint.dirty.value) {
         const choice = await feedback.choose({
-          title: '跟随舰船重命名？',
+          title: `跟随${definition.label}重命名？`,
           content: '保留当前草稿、活动输入和历史，并接纳新的正式身份。',
           choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
         });
@@ -252,7 +299,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
       await retargetImmersiveWindow(next);
       const previous = snapshot.value;
       const nextValues = Object.fromEntries(
-        next.records.filter((record) => shipEditableRecords(next).includes(record.key)).map((record) => [record.key, record.value]),
+        next.records.filter((record) => definition.editableRecords(next).includes(record.key)).map((record) => [record.key, record.value]),
       );
       const map = previous
         ? (values: Record<string, JointValue>) =>
@@ -314,15 +361,18 @@ export function useImmersiveEditorViewModel(root: JointEditRoot) {
     notices,
     runtimeContext,
     sprite,
+    mediaUrl,
     errorText,
     selectedStatId,
     history,
     editable,
     updateField,
+    updateFields,
     toggleStat,
     dismissStat,
     save,
     createOverrides,
+    openProjectile,
     undo,
     redo,
     initialize,

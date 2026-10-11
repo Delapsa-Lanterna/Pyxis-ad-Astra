@@ -20,7 +20,11 @@ describe('immersive native request', () => {
       identity: { type: 'immersive', ...root },
       title: '舰船沉浸式编辑器 - lasher',
       urlParams: { window: 'immersive-editor', ...root, settings: JSON.stringify(settings) },
-      size: { width: 1160, height: 760, minWidth: 860, minHeight: 560 },
+      size: { width: 830, height: 700, minWidth: 430, minHeight: 480 },
     });
+    await openImmersiveEditorWindow({ ...root, kind: 'weapon', id: 'chaingun' }, settings);
+    expect(mocks.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({ size: { width: 430, height: 700, minWidth: 340, minHeight: 480 } }),
+    );
   });
 });

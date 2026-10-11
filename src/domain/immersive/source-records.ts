@@ -1,6 +1,6 @@
 import type { JointEditSnapshot, JointEditRecord } from '@/shared/types';
 
-export function shipSourceRecords(snapshot: JointEditSnapshot): {
+export function immersiveSourceRecords(snapshot: JointEditSnapshot): {
   spec: JointEditRecord;
   csv: JointEditRecord;
   description: JointEditRecord;
@@ -13,6 +13,6 @@ export function shipSourceRecords(snapshot: JointEditSnapshot): {
   };
 }
 
-export function shipEditableRecords(snapshot: JointEditSnapshot): string[] {
-  return Object.values(shipSourceRecords(snapshot)).map((record) => record.key);
+export function immersiveEditableRecords(snapshot: JointEditSnapshot): string[] {
+  return Object.values(immersiveSourceRecords(snapshot)).map((record) => record.key);
 }

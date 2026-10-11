@@ -1,7 +1,7 @@
 <template>
   <div class="immersive-field-popover" @keydown.esc.stop.prevent="cancel" @keydown.enter="enter">
-    <strong>{{ stat.label }}</strong>
-    <p v-if="stat.formula" class="immersive-source-note">{{ stat.formula }}</p>
+    <strong><ImmersiveText :text="stat.label" font="heading" /></strong>
+    <p v-if="stat.formula" class="immersive-source-note"><ImmersiveText :text="stat.formula" block /></p>
     <div v-for="(field, index) in stat.fields" :key="field.id">
       <ImmersiveFieldInput
         :field="field"
@@ -10,9 +10,9 @@
         :runtime-context="runtimeContext"
         :active="active"
         :autofocus="index === 0"
-        @update="$emit('update', field, $event)"
+        @update="pending.set(field.id, $event)"
       />
-      <small class="immersive-source-note">{{ sourcePath(field.recordKey) }} · {{ field.schema.key }}</small>
+      <small class="immersive-source-note"><ImmersiveText :text="sourcePath(field.recordKey) + ' · ' + field.schema.key" block /></small>
     </div>
     <div class="immersive-field-actions">
       <n-button @mousedown.prevent @click="cancel">取消</n-button><n-button type="primary" @click="submit">提交</n-button>
@@ -20,7 +20,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import type { ImmersiveField, ImmersiveStat } from '@/domain/immersive/fields';
+import { computed, onScopeDispose, shallowReactive } from 'vue';
+import type { ImmersiveField, ImmersiveStat, ImmersiveFieldChange } from '@/domain/immersive/fields';
 import { immersiveFieldValue } from '@/domain/immersive/fields';
 import type { JointValue, JointEditSnapshot } from '@/shared/types';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
@@ -28,6 +29,7 @@ import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import ImmersiveFieldInput from './ImmersiveFieldInput.vue';
+import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{
   stat: ImmersiveStat;
   values: Record<string, JointValue>;
@@ -35,10 +37,31 @@ const props = defineProps<{
   runtimeContext: SchemaRuntimeContext;
   active: boolean;
 }>();
-const emit = defineEmits<{ update: [field: ImmersiveField, update: SchemaFieldUpdate]; close: [] }>();
+const emit = defineEmits<{ update: [changes: ImmersiveFieldChange[]]; close: [] }>();
 const inputs = useFieldInputs()!;
 const feedback = useAppFeedback();
 const prefix = JSON.stringify(['immersive', props.stat.id]);
+const pending = shallowReactive(new Map<string, SchemaFieldUpdate>());
+onScopeDispose(
+  inputs.register({
+    key: prefix + '/submission',
+    label: props.stat.label,
+    dirty: computed(() => pending.size > 0),
+    commit: () => null,
+    focus: () => {},
+    cancel: () => pending.clear(),
+  }),
+);
+onScopeDispose(
+  inputs.registerFinalizer(() => {
+    const changes = props.stat.fields.flatMap((field) => {
+      const update = pending.get(field.id);
+      return update ? [{ field, update }] : [];
+    });
+    pending.clear();
+    if (changes.length) emit('update', changes);
+  }, prefix),
+);
 const fieldKey = (field: ImmersiveField) => prefix + '/' + field.id;
 function sourcePath(key: string) {
   const record = props.snapshot.records.find((record) => record.key === key)!;

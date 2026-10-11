@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shipJointFixture } from '@/test/joint-edit';
+import { weaponJointFixture } from '@/test/weapon-joint-edit';
 import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { savedWriteFixture } from '@/test/write-result';
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   retarget: vi.fn(),
   media: vi.fn(),
+  choose: vi.fn(),
   invalidations: [] as Array<(event: unknown) => void>,
 }));
 vi.mock('@/services/joint-edit.service', () => ({
@@ -25,7 +27,7 @@ vi.mock('@/services/joint-edit.service', () => ({
 }));
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.query, save: mocks.save }) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({
-  useAppFeedback: () => ({ error: mocks.error, success: vi.fn(), choose: async () => 'follow' }),
+  useAppFeedback: () => ({ error: mocks.error, success: vi.fn(), choose: mocks.choose }),
 }));
 vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: mocks.listen }));
 vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
@@ -48,15 +50,22 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
 }));
 import { useImmersiveEditorViewModel } from './use-immersive-editor-view-model';
 
-function editor() {
+function editor(kind: 'ship' | 'weapon' = 'ship') {
   let vm!: ReturnType<typeof useImmersiveEditorViewModel>;
   const wrapper = mount({
     setup() {
-      vm = useImmersiveEditorViewModel(shipJointFixture().root);
+      vm = useImmersiveEditorViewModel(
+        kind === 'ship' ? { ...shipJointFixture().root, kind: 'ship' } : { ...weaponJointFixture().root, kind: 'weapon' },
+      );
       return () => null;
     },
   });
   return { vm, wrapper };
+}
+function shipPanel(vm: ReturnType<typeof useImmersiveEditorViewModel>) {
+  const panel = vm.panel.value;
+  if (panel?.kind !== 'ship') throw new Error('ship panel fixture');
+  return panel;
 }
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -74,8 +83,75 @@ beforeEach(() => {
   mocks.invalidations.length = 0;
   mocks.query.mockResolvedValue(shipJointFixture());
   mocks.listen.mockResolvedValue(mocks.stop);
+  mocks.choose.mockResolvedValue('follow');
 });
 describe('immersive ship lifecycle and reference channels', () => {
+  it('keeps the Core pulse source unchanged when branch selection is cancelled', async () => {
+    const snapshot = weaponJointFixture();
+    snapshot.records[0]!.source = { ...snapshot.records[0]!.source!, source: 'core' };
+    if (snapshot.records[0]!.value.state === 'present')
+      snapshot.records[0]!.value.value = { id: 'chaingun', specClass: 'pulse', custom: 'retained' };
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.choose.mockResolvedValue(null);
+    const { vm, wrapper } = editor('weapon');
+    await vm.initialize();
+    await vm.createOverrides();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(vm.joint.draftValue.value.spec).toMatchObject({ state: 'present', value: { specClass: 'pulse', custom: 'retained' } });
+    expect(vm.joint.dirty.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('chooses a legal Core pulse branch before the explicit override save and accepts its corrected baseline', async () => {
+    const snapshot = weaponJointFixture();
+    snapshot.records[0]!.source = { ...snapshot.records[0]!.source!, source: 'core' };
+    if (snapshot.records[0]!.value.state === 'present')
+      snapshot.records[0]!.value.value = { id: 'chaingun', specClass: 'pulse', custom: 'retained' };
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.choose.mockResolvedValue('beam');
+    const actual = weaponJointFixture();
+    actual.records[0]!.value = {
+      state: 'present',
+      value: { id: 'chaingun', specClass: 'beam', custom: 'retained', textureType: 'SMOOTH' },
+    };
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: actual });
+    mocks.projection.mockResolvedValue(actual);
+    const { vm, wrapper } = editor('weapon');
+    await vm.initialize();
+    await vm.createOverrides();
+    expect(mocks.save.mock.calls[0]![0].values.spec).toMatchObject({
+      state: 'present',
+      value: { specClass: 'beam', textureType: 'SMOOTH', custom: 'retained' },
+    });
+    expect(mocks.save.mock.calls[0]![3]).toEqual(['spec']);
+    expect(vm.joint.draftValue.value.spec).toEqual(actual.records[0]!.value);
+    expect(vm.joint.dirty.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('submits a weapon parameter batch as one history action and preserves branch fields', async () => {
+    mocks.query.mockResolvedValue(weaponJointFixture());
+    const { vm, wrapper } = editor('weapon');
+    await vm.initialize();
+    await flushPromises();
+    const panel = vm.panel.value;
+    if (panel?.kind !== 'weapon') throw new Error('weapon panel');
+    const fields = panel.primary.find((stat) => stat.id === 'dps')!.fields;
+    vm.updateFields([
+      { field: fields.find((field) => field.schema.key === 'damage/shot')!, update: { kind: 'set', value: 90 } },
+      { field: fields.find((field) => field.schema.key === 'chargedown')!, update: { kind: 'set', value: 0.3 } },
+    ]);
+    expect(vm.joint.draftValue.value.csv).toMatchObject({ state: 'present', value: { 'damage/shot': '90', chargedown: '0.3' } });
+    await vm.undo();
+    expect(vm.joint.draftValue.value.csv).toMatchObject({ state: 'present', value: { 'damage/shot': '75', chargedown: '0.15' } });
+    expect(vm.history.canUndo.value).toBe(false);
+    vm.updateField(panel.branch.fields[0]!, { kind: 'set', value: 'beam' });
+    expect(vm.joint.draftValue.value.spec).toMatchObject({
+      state: 'present',
+      value: { specClass: 'beam', textureType: 'SMOOTH', unknown: { retained: true } },
+    });
+    await vm.undo();
+    expect(vm.joint.draftValue.value.spec).toMatchObject({ state: 'present', value: { specClass: 'projectile' } });
+    wrapper.unmount();
+  });
   it('follows a rename during initial loading through the authoritative CSV row and ignores the old result', async () => {
     const { vm, wrapper } = editor();
     let finish!: (snapshot: JointEditSnapshot) => void;
@@ -124,16 +200,16 @@ describe('immersive ship lifecycle and reference channels', () => {
       value: { id: 'ammofeed', name: 'Selected system' },
     };
     mocks.projection.mockResolvedValue(projection);
-    vm.updateField(vm.panel.value!.system.fields[0]!, { kind: 'set', value: 'next' });
+    vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
     await flushPromises();
-    expect(vm.panel.value!.system.display).toBe('Selected system');
+    expect(shipPanel(vm).system.display).toBe('Selected system');
     const actual = shipJointFixture();
     actual.records[1]!.value = { state: 'present', value: { 'system id': 'next', id: 'lasher', name: 'Lasher' } };
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: actual });
     await vm.save();
     await flushPromises();
     expect(mocks.projection).toHaveBeenCalledTimes(2);
-    expect(vm.panel.value!.system.display).toBe('Selected system');
+    expect(shipPanel(vm).system.display).toBe('Selected system');
     expect(mocks.error).not.toHaveBeenCalled();
     wrapper.unmount();
   });
@@ -182,14 +258,14 @@ describe('immersive ship lifecycle and reference channels', () => {
     await vm.initialize();
     await flushPromises();
     expect(Object.keys(vm.joint.draftValue.value)).toEqual(['spec', 'csv', 'description']);
-    const field = vm.panel.value!.combat.find((stat) => stat.id === 'hitpoints')!.fields[0]!;
+    const field = shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.fields[0]!;
     vm.updateField(field, { kind: 'set', value: 1800 });
     await flushPromises();
-    expect(vm.panel.value!.combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1800');
+    expect(shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1800');
     expect(vm.history.canUndo.value).toBe(true);
     expect(mocks.projection).not.toHaveBeenCalled();
     await vm.undo();
-    expect(vm.panel.value!.combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1750');
+    expect(shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1750');
     wrapper.unmount();
   });
   it('revokes the old reference read and admits only the latest system projection', async () => {
@@ -203,7 +279,7 @@ describe('immersive ship lifecycle and reference channels', () => {
           finish = resolve;
         }),
     );
-    const field = vm.panel.value!.system.fields[0]!;
+    const field = shipPanel(vm).system.fields[0]!;
     vm.updateField(field, { kind: 'set', value: 'first' });
     await flushPromises();
     const firstSignal = mocks.projection.mock.calls[0]![1] as AbortSignal;
@@ -216,10 +292,10 @@ describe('immersive ship lifecycle and reference channels', () => {
     vm.updateField(field, { kind: 'set', value: 'second' });
     await flushPromises();
     expect(firstSignal.aborted).toBe(true);
-    expect(vm.panel.value!.system.display).toBe('Latest system');
+    expect(shipPanel(vm).system.display).toBe('Latest system');
     finish(shipJointFixture());
     await flushPromises();
-    expect(vm.panel.value!.system.display).toBe('Latest system');
+    expect(shipPanel(vm).system.display).toBe('Latest system');
     expect(mocks.error).not.toHaveBeenCalled();
     wrapper.unmount();
   });
@@ -234,7 +310,7 @@ describe('immersive ship lifecycle and reference channels', () => {
           finish = resolve;
         }),
     );
-    vm.updateField(vm.panel.value!.system.fields[0]!, { kind: 'set', value: 'next' });
+    vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
     await flushPromises();
     for (const listener of [...mocks.invalidations]) listener({ sessionId: 's', scope: 'session' });
     expect(vm.joint.currentTarget.value).toBeNull();

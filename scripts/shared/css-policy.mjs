@@ -1,4 +1,5 @@
 export const CSS_TOKEN_OWNER = 'src/styles/base.css';
+export const ORIGINAL_SPACING_OWNER = 'src/styles/immersive-editors.css';
 
 export const THIRD_PARTY_PROPERTIES = new Map([
   [
@@ -43,6 +44,28 @@ export const DOM_PROPERTIES = new Map([
   ['--hue-color', ['.color-picker-sv']],
 ]);
 export const SPECIAL_VALUES = [
+  ...[
+    ['.immersive-editor-scroll', 'padding', '10px'],
+    ['.ship-immersive-header', 'gap', '10px'],
+    ['.ship-immersive-header', 'margin-bottom', '10px'],
+    ['.immersive-title-row', 'gap', '3px'],
+    ['.immersive-title-row', 'margin-bottom', '10px'],
+    ['.ship-immersive-description .immersive-stat-row', 'margin-top', '10px'],
+    ['.ship-immersive-stats', 'gap', '9px'],
+    ['.ship-immersive-logistics-columns', 'gap', '9px'],
+    ['.immersive-stat-row', 'gap', '3px'],
+    ['.immersive-stat-row', 'margin-bottom', '3px'],
+    ['.immersive-stat-row.inline', 'margin-bottom', '10px'],
+    ['.immersive-stat-row.group-gap', 'margin-top', '18px'],
+    ['.ship-immersive-stats .immersive-stat-row.group-gap', 'margin-top', '17px'],
+    ['.ship-immersive-related', 'margin-top', '10px'],
+    ['.ship-immersive-related>p', 'margin', '3px 0 10px'],
+    ['.immersive-section-heading', 'margin', '10px 0 10px'],
+    ['.immersive-section-action', 'margin-right', '3px'],
+    ['.weapon-immersive-data', 'gap', '10px'],
+    ['.weapon-immersive-data .immersive-stat-row.group-gap', 'margin-top', '21px'],
+    ['.immersive-editor-actions', 'gap', '3px'],
+  ].map(([selector, property, value]) => ['src/styles/immersive-editors.css', selector, property, value]),
   ['src/styles/base.css', '.schema-select-option-thumb', 'border-radius', '2px'],
   ['src/styles/base.css', '.color-picker-sv-handle', 'border-radius', '50%'],
   ['src/styles/base.css', '.color-picker-sv-handle', 'box-shadow', '0 0 0 1px rgba(0,0,0,0.72)'],

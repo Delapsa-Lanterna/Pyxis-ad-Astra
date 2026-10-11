@@ -36,7 +36,7 @@ describe('ship original configuration projection', () => {
     expect(panel.logistics[1]!.find((stat) => stat.id === 'sensor-profile')!.fields[0]!.schema.key).toBe('hullSize');
     expect(panel.mounts).toBe('2× 小型导弹，5× 小型实弹');
     expect(panel.armaments).toBe('2× Weapon name');
-    expect(panel.hullmods[0]!.description).toContain('游戏脚本');
+    expect(panel.hullmods).toBe('Ballistic Rangefinder');
     expect(panel.system.display).toBe('Accelerated Ammo Feeder');
     expect(panel.systemDescription).toBe('Brief ballistic boost');
     expect(panel.description.fields.map((field) => field.schema.key)).toEqual(['text1', 'text2', 'text3', 'text4', 'text5']);

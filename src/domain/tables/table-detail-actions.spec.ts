@@ -36,7 +36,13 @@ describe('detailActionsForRow', () => {
 
   it('returns both weapon editors plus the file editor for weapon rows', () => {
     const actions = detailActionsForRow(context, 'weapons', { rowKey: 'weapons:row:0', data: { id: 'railgun' }, isComment: false });
-    expect(actions.map((action) => (action.type === 'editor-window' ? action.kind : 'file'))).toEqual(['weapon', 'weapon-preview', 'file']);
+    expect(actions.map((action) => (action.type === 'editor-window' ? action.kind : action.type))).toEqual([
+      'weapon',
+      'weapon-preview',
+      'immersive-editor',
+      'file-editor',
+    ]);
+    expect(actions[2]).toMatchObject({ kind: 'weapon', id: 'railgun', rowKey: 'weapons:row:0' });
   });
 
   it('returns only the file editor for skills rows without editor windows', () => {

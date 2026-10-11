@@ -1,12 +1,15 @@
 import type { JointEditSnapshot, JointValue, ResourceRef } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from './fields';
 import { jointObject } from '@/domain/joint-edit';
-import { shipSourceRecords } from './ship-sources';
+import { immersiveSourceRecords } from './source-records';
 import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { parseInputNumber } from '@/shared/lib/input-number';
+import { designTypeColor } from './design-type';
+import type { BitmapTextRun } from './bitmap-font';
 
 export interface ShipImmersivePanel {
+  kind: 'ship';
   heading: ImmersiveStat[];
   description: ImmersiveStat;
   logistics: ImmersiveStat[][];
@@ -14,9 +17,12 @@ export interface ShipImmersivePanel {
   system: ImmersiveStat;
   systemDescription: string;
   mounts: string;
+  mountRuns: BitmapTextRun[];
   armaments: string;
-  hullmods: Array<{ id: string; name: string; description: string }>;
+  armamentRuns: BitmapTextRun[];
+  hullmods: string;
   sprite: ResourceRef | null;
+  hullSize: string;
   allStats: ImmersiveStat[];
 }
 
@@ -58,7 +64,7 @@ export function projectShipPanel(
   values: Record<string, JointValue>,
   projection: JointEditSnapshot | null = snapshot,
 ): ShipImmersivePanel {
-  const sources = shipSourceRecords(snapshot);
+  const sources = immersiveSourceRecords(snapshot);
   const csv = jointObject(values[sources.csv.key]);
   const spec = jointObject(values[sources.spec.key]);
   const desc = jointObject(values[sources.description.key]);
@@ -131,7 +137,7 @@ export function projectShipPanel(
   peak.formula = '原版在每秒战备损失小于等于零时显示无限峰值作战时间。';
   const crew: ImmersiveStat = {
     id: 'crew',
-    label: '最少／最多船员',
+    label: '最少/最多船员',
     display: `${format(number('min crew', 1))} / ${format(number('max crew', 1))}`,
     fields: [csvField('min crew'), csvField('max crew')],
     tone: 'crew',
@@ -185,7 +191,7 @@ export function projectShipPanel(
       numeric('cargo', '货仓容量', 0),
       numeric('max crew', '最大船员数', 1, '', 'crew'),
       numeric('min crew', '最低船员需求', 1, '', 'crew'),
-      numeric('fuel', '燃料容量', 0),
+      numeric('fuel', '燃料容量', 0, '', 'fuel'),
       numeric('max burn', '最大航速', 4),
       numeric('fuel/ly', '每光年燃料消耗', 0),
       sensor('sensor-profile', '传感器轮廓'),
@@ -228,7 +234,7 @@ export function projectShipPanel(
               fields: [csvField('shield upkeep'), csvField('flux dissipation')],
               formula: '护盾每秒维持 = shield upkeep × flux dissipation',
             },
-            numeric('shield efficiency', '护盾幅能／伤害', 1),
+            numeric('shield efficiency', '护盾幅能/伤害', 1),
           ];
   const armor = numeric('armor rating', '装甲等级', 0);
   armor.display = format(Math.max(number('armor rating', 0), 1));
@@ -294,15 +300,16 @@ export function projectShipPanel(
       (record) => record.target.kind === 'csv' && record.target.table === 'hullmods' && record.target.identity.id === id,
     );
     const data = jointObject(record?.value);
-    const scripted = schemaStringValue(data.desc).includes('<tooltip');
-    return {
-      id,
-      name: schemaStringValue(data.name) || id,
-      description: scripted ? `${schemaStringValue(data.short)}（详细说明由游戏脚本生成）` : schemaStringValue(data.desc) || '说明未提供',
-    };
+    return schemaStringValue(data.name) || id;
   });
   const allStats = [...heading, description, ...logistics.flat(), ...combat, system];
+  for (const entry of heading.slice(0, 2)) entry.font = 'ship-title';
+  heading[2]!.inline = true;
+  heading[2]!.displayRuns = [{ text: heading[2]!.display, color: designTypeColor(projection ?? snapshot, heading[2]!.display) }];
+  peak.gapBefore = true;
+  hull.gapBefore = true;
   return {
+    kind: 'ship',
     heading,
     description,
     logistics,
@@ -310,9 +317,20 @@ export function projectShipPanel(
     system,
     systemDescription: schemaStringValue(systemText.text3) || schemaStringValue(systemText.text1) || '系统说明未提供',
     mounts: [...mountCounts].map(([name, count]) => `${count}× ${name}`).join('，') || '无',
+    mountRuns: [...mountCounts].flatMap(([name, count], index) => [
+      ...(index ? [{ text: '，', color: '#dcdcdc' }] : []),
+      { text: `${count}× `, color: '#ffd200' },
+      { text: name, color: '#dcdcdc' },
+    ]),
     armaments: [...weaponCounts].map(([id, count]) => `${count}× ${weaponNames.get(id) || id}`).join('，') || '无',
-    hullmods,
+    armamentRuns: [...weaponCounts].flatMap(([id, count], index) => [
+      ...(index ? [{ text: '，', color: '#dcdcdc' }] : []),
+      { text: `${count}× `, color: '#ffd200' },
+      { text: weaponNames.get(id) || id, color: '#dcdcdc' },
+    ]),
+    hullmods: hullmods.join('，') || '无',
     sprite: sources.spec.resourceRefs.sprite ?? null,
+    hullSize: schemaStringValue(spec.hullSize),
     allStats,
   };
 }

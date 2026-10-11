@@ -5,7 +5,7 @@ import type { WeaponSpecClass } from '@/shared/types';
 import { NCheckbox } from 'naive-ui/es/checkbox';
 import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';
-import { openShipImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
+import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { openEditorWindow } from '@/windows/editor.window';
 import { useProjectStore } from '@/stores/project.store';
 import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.service';
@@ -319,9 +319,12 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   function handleDetailAction(action: TableDetailAction) {
     if (action.type === 'immersive-editor') {
       const csvTarget = project.tableWriteTargets.find(
-        (target) => target.sessionId === action.sessionId && target.modRoot === action.modRoot && target.table === 'ships',
+        (target) =>
+          target.sessionId === action.sessionId &&
+          target.modRoot === action.modRoot &&
+          target.table === (action.kind === 'ship' ? 'ships' : 'weapons'),
       )!;
-      void openShipImmersiveEditor(
+      void openEntityImmersiveEditor(
         {
           root: { sessionId: action.sessionId, modRoot: action.modRoot, kind: action.kind, id: action.id },
           rowKey: action.rowKey,

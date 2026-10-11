@@ -71,6 +71,9 @@
 - 目标适配器必须声明可编辑记录集合；草稿、三方比较、共享影响确认与保存协调只允许消费该集合。
 - createOverrides 必须表达明确的 Core 原样创建记录；返回目标必须接纳实际 CSV linkedRecord、rowKey 与身份映射。
 - 默认舰船描述键必须由所属身份规则随 hullId 改名；联合提交必须接纳描述记录的实际 ID、行键、bindings 与版本，显式 descriptionId 只允许由明确字段动作改变。
+- 武器描述必须按武器 ID 与 WEAPON 类型读取；武器 ID 改名必须在同一事务中更新所属描述记录，目标描述占用必须拒绝整次保存。
+- 联合武器关联投影必须按当前草稿的 projectileSpecId 与伤害类型返回弹体来源和配置授权图标；配置版本必须参与关联失效。
+- 缺失舰船与武器规格必须消费所属正式构造器；武器创建必须携带合法 projectile 或 beam 分支，未知业务字段必须保留。
 - JointRecordTarget 必须分别表达规格、CSV 与文本；CSV 必须具有 table、rowKey、业务 identity 和授权 write。
 - JointValue 必须区分 missing 与 present；null、删除、数组和文本原文必须保持各自语义。
 - 三方比较必须按对象字段路径与 CSV 记录内容执行，数组与文本必须整体选择；独立修改必须保留两侧业务内容。

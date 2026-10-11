@@ -9,12 +9,18 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
 import { projectShipPanel } from '@/domain/immersive/ship-panel';
-import { updateImmersiveField, type ImmersiveField } from '@/domain/immersive/fields';
-import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
+import { updateImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import ImmersiveFieldPopover from './ImmersiveFieldPopover.vue';
 const feedback = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => feedback }));
 beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
   setActivePinia(createPinia());
   initializeSettingsStore({
     theme: 'dark',
@@ -46,13 +52,15 @@ function harness(id = 'hitpoints', missing = false) {
             values: values.value,
             active: active.value,
             runtimeContext: { sessionId: 's', modRoot: 'M:/mod' },
-            onUpdate: (field: ImmersiveField, update: SchemaFieldUpdate) => {
-              values.value = updateImmersiveField(
-                values.value,
-                snapshot.records.find((record) => record.key === field.recordKey)!,
-                field,
-                update,
-              );
+            onUpdate: (changes: ImmersiveFieldChange[]) => {
+              for (const { field, update } of changes) {
+                values.value = updateImmersiveField(
+                  values.value,
+                  snapshot.records.find((record) => record.key === field.recordKey)!,
+                  field,
+                  update,
+                );
+              }
             },
             onClose: () => {
               active.value = false;
@@ -65,6 +73,34 @@ function harness(id = 'hitpoints', missing = false) {
   return { wrapper, inputs, values, active };
 }
 describe('immersive raw field popover', () => {
+  it('retains every raw field and applies one complete batch after a later field is corrected', async () => {
+    const own = harness('crew');
+    await flushPromises();
+    const fields = own.wrapper.findAll('input');
+    await fields[0]!.setValue('30');
+    await fields[1]!.setValue('1e');
+    await expect(own.inputs.commit()).rejects.toThrow();
+    expect(own.values.value.csv).toMatchObject({ state: 'present', value: { 'min crew': '25', 'max crew': '50' } });
+    expect(fields[0]!.element.value).toBe('30');
+    expect(own.inputs.dirty.value).toBe(true);
+    await fields[1]!.setValue('60');
+    await own.inputs.commit();
+    expect(own.values.value.csv).toMatchObject({ state: 'present', value: { 'min crew': '30', 'max crew': '60' } });
+    expect(own.inputs.dirty.value).toBe(false);
+    own.wrapper.unmount();
+  });
+  it('cancels the complete pending batch after a validation failure', async () => {
+    const own = harness('crew');
+    await flushPromises();
+    const fields = own.wrapper.findAll('input');
+    await fields[0]!.setValue('30');
+    await fields[1]!.setValue('1e');
+    await expect(own.inputs.commit()).rejects.toThrow();
+    await fields[1]!.trigger('keydown', { key: 'Escape' });
+    expect(own.values.value.csv).toMatchObject({ state: 'present', value: { 'min crew': '25', 'max crew': '50' } });
+    expect(own.inputs.dirty.value).toBe(false);
+    own.wrapper.unmount();
+  });
   it('lets the IME complete a text candidate before Enter submits the field', async () => {
     const own = harness('name');
     await flushPromises();

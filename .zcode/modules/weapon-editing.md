@@ -10,6 +10,7 @@
 `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则 owner。
 `src-tauri/src/services/project/query/entities.rs`：草稿武器资源引用 query owner。
 `src-tauri/src/services/project/write/entity_identity.rs`：武器、弹体及其关联记录的身份保存 owner。
+`src-tauri/src/services/project/write/entity_description.rs`：消费武器身份的 WEAPON 描述同事务更新入口。
 `src/app/components/editors/ProjectileEditor.vue`：弹体编辑器组件 owner，拥有 projectile/missile 分支表单。
 `src/app/components/editors/WeaponEditor.vue`：武器编辑器组件 owner，拥有表单、发射点画布与弹体入口。
 `src/app/components/editors/WeaponFirePreview.vue`：发射预览组件 owner，拥有弹道模拟、光束与播放控制。
@@ -58,6 +59,8 @@
 
 ## 规范
 
+- 武器沉浸式窗口必须声明所属武器 CSV、实际规格与 WEAPON 描述的联合编辑范围；弹体内容必须经所属独立编辑器保存并触发关联重读。
+- 武器 ID 改名必须共同更新规格、关联 CSV 与 ID/type=WEAPON 描述；CSV 关联、规格、文本及联合保存必须消费同一身份规则。
 - Ship 与 Weapon 的草稿贴图必须经统一 query_editor_draft_resources 返回 ResourceRef，再经资源缓存加载；接纳结果必须核对目标和草稿资源代次。
 - missile 分支必须完整表达 engineSpec 的 turnAcc、turnRate、acc 与 dec；beam 新建必须提供正式 textureType。
 - specClass 条件区段替换必须先提交所属活动输入；颜色与 JSON 原文必须共同参与保存、关闭与外部版本保护。
@@ -76,7 +79,7 @@
 - 武器与弹体的 JSON 输入必须共用形状化输入控件，对象字段必须声明对象形状，完整弹体规格必须由弹体归一化入口处理。
 - 武器与弹体的新建必须消费共享模板的独立克隆；引用字段必须由用户继续编辑。
 - 武器创建与结构化保存只允许 projectile 和 beam；pulse 原文必须保持可读并允许修正，违规保存必须返回 spec.weapon_class_unsupported 并标明 specClass。
-- 武器类型入口必须备注“pulse 在原版中无法正常处理，武器类型只允许 projectile 和 beam。”。
+- 武器类型入口必须备注：pulse 在原版中无法正常处理，武器类型只允许 projectile 和 beam。
 - 画布镜像模式按空格开关，仅作用于当前视图的发射点数组；配对只按坐标对称实时计算，检查器数值输入不参与镜像联动。
 - 草稿资源引用必须由后端 query 返回，只允许通过正式资源缓存解析。
 - 规格分支切换必须先交接活动输入，再保留已有业务内容并补入目标分支缺失必读字段；一次切换必须登记为一次编辑动作。

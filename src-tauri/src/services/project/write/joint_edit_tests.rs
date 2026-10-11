@@ -122,6 +122,101 @@ fn four_roots_capture_versions() {
 }
 
 #[test]
+fn weapon_projection_icons_and_source() {
+    let (dir, root) = fixture();
+    std::fs::create_dir_all(dir.join("data/config")).unwrap();
+    write_utf8_no_bom(&dir.join("data/config/settings.json"), r#"{"graphics":{"ui":{"icon_kinetic":"graphics/kinetic.png","icon_energy":"graphics/energy.png"}}}"#).unwrap();
+    let weapon_root = JointEditRoot {
+        kind: JointEditKind::Weapon,
+        id: "weapon".into(),
+        ..root.clone()
+    };
+    let baseline = query_joint_edit(&weapon_root).unwrap();
+    let spec_key = baseline.bindings["spec"].clone();
+    let csv_key = baseline.bindings["csv"].clone();
+    let draft = BTreeMap::from([
+        (
+            spec_key,
+            JointValue::Present(
+                json!({"id":"weapon","specClass":"projectile","projectileSpecId":"missing","descriptionId":"ignored"}),
+            ),
+        ),
+        (
+            csv_key.clone(),
+            JointValue::Present(json!({"id":"weapon","type":"KINETIC"})),
+        ),
+    ]);
+    let projected = project::query_joint_edit_request(&JointEditQuery {
+        root: weapon_root,
+        row_key: None,
+        values: Some(draft),
+    })
+    .unwrap();
+    let csv = projected
+        .records
+        .iter()
+        .find(|record| record.key == csv_key)
+        .unwrap();
+    assert_eq!(
+        csv.resource_refs["damageIcon"].rel_path,
+        "graphics/kinetic.png"
+    );
+    assert_eq!(csv.resource_refs["damageIcon"].source, ResourceSource::Mod);
+    assert!(
+        projected
+            .reference_settings
+            .versions
+            .iter()
+            .any(|version| version.path.ends_with("settings.json"))
+    );
+    let description = projected
+        .records
+        .iter()
+        .find(|record| record.key == projected.bindings["description"])
+        .unwrap();
+    assert!(matches!(&description.value,JointValue::Present(data) if data["text1"]=="Weapon text"));
+    let projectile = projected
+        .records
+        .iter()
+        .find(|record| record.key == projected.bindings["projectile"])
+        .unwrap();
+    assert_eq!(projectile.value, JointValue::Missing);
+    cleanup(dir, &root);
+}
+
+#[test]
+fn loaded_missile_resource_projection() {
+    let (dir, root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    std::fs::create_dir_all(dir.join("data/weapons/proj")).unwrap();
+    write_utf8_no_bom(&dir.join("data/weapons/proj/rocket.proj"),r#"{"id":"rocket","specClass":"missile","sprite":"graphics/rocket.png","size":[12,24],"center":[6,12]}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/weapons/weapon.wpn"),r#"{"id":"weapon","specClass":"projectile","type":"MISSILE","size":"SMALL","projectileSpecId":"rocket","renderHints":["RENDER_LOADED_MISSILES"]}"#).unwrap();
+    let mut trace = project::PerformanceTrace::new("joint.missile.resource");
+    let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
+    let root = JointEditRoot {
+        session_id: manifest.session_id,
+        kind: JointEditKind::Weapon,
+        id: "weapon".into(),
+        ..root
+    };
+    let snapshot = query_joint_edit(&root).unwrap();
+    let record = snapshot
+        .records
+        .iter()
+        .find(|record| record.key == snapshot.bindings["projectile"])
+        .unwrap();
+    assert_eq!(
+        record.resource_refs["sprite"].rel_path,
+        "graphics/rocket.png"
+    );
+    assert_eq!(
+        record.resource_refs["sprite"].owner_kind,
+        ResourceOwnerKind::from(EntityKind::Projectile)
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
 fn one_receipt_saves_and_replays() {
     let (dir, root) = fixture();
     let mut input = payload(query_joint_edit(&root).unwrap());
@@ -675,6 +770,112 @@ fn missing_ship_uses_construction() {
     assert!(data["weaponSlots"].is_array());
     assert_eq!(result.changes.len(), 1);
     cleanup(dir, &root);
+}
+
+#[test]
+fn missing_weapon_uses_construction() {
+    let (dir, root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    std::fs::remove_file(dir.join("data/weapons/weapon.wpn")).unwrap();
+    let mut trace = project::PerformanceTrace::new("joint.weapon.missing");
+    let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
+    let root = JointEditRoot {
+        session_id: manifest.session_id,
+        kind: JointEditKind::Weapon,
+        id: "weapon".into(),
+        ..root
+    };
+    let snapshot = query_joint_edit(&root).unwrap();
+    let key = snapshot.bindings["spec"].clone();
+    let mut input = payload(snapshot);
+    input.values = BTreeMap::from([(
+        key,
+        JointValue::Present(json!({"id":"weapon","specClass":"beam","custom":"kept"})),
+    )]);
+    let result = submit(&input).unwrap();
+    let data = crate::io::read_json_file(&dir.join("data/weapons/weapon.wpn")).unwrap();
+    assert_eq!(data["textureType"], "SMOOTH");
+    assert_eq!(data["custom"], "kept");
+    assert!(data["turretOffsets"].is_array());
+    assert_eq!(result.changes.len(), 1);
+    cleanup(dir, &root);
+}
+
+#[test]
+fn core_pulse_requires_legal_override() {
+    for spec_class in [WeaponSpecClass::Projectile, WeaponSpecClass::Beam] {
+        let dir = temp_dir("joint_pulse_mod");
+        let game = temp_dir("joint_pulse_game");
+        let core = game.join("starsector-core");
+        std::fs::create_dir_all(core.join("data/weapons")).unwrap();
+        std::fs::create_dir_all(core.join("data/strings")).unwrap();
+        let original = r#"{"id":"pulse","specClass":"pulse","custom":{"keep":1}}"#;
+        write_utf8_no_bom(&core.join("data/weapons/pulse.wpn"), original).unwrap();
+        write_utf8_no_bom(
+            &core.join("data/weapons/weapon_data.csv"),
+            "id,name\npulse,Core pulse\n",
+        )
+        .unwrap();
+        write_utf8_no_bom(
+            &core.join("data/strings/descriptions.csv"),
+            "id,type,text1\npulse,WEAPON,Core description\n",
+        )
+        .unwrap();
+        let mut trace = project::PerformanceTrace::new("joint.pulse");
+        let manifest = project::open_project_session_traced(&dir, Some(&game), &mut trace).unwrap();
+        let root = JointEditRoot {
+            session_id: manifest.session_id,
+            mod_root: manifest.mod_root,
+            kind: JointEditKind::Weapon,
+            id: "pulse".into(),
+        };
+        let snapshot = query_joint_edit(&root).unwrap();
+        let mut input = payload(snapshot);
+        input.create_overrides = input
+            .snapshot
+            .records
+            .iter()
+            .filter(|record| {
+                record
+                    .source
+                    .as_ref()
+                    .is_some_and(|source| source.source == ResourceSource::Core)
+            })
+            .map(|record| record.key.clone())
+            .collect();
+        let error = submit(&input).unwrap_err();
+        assert_eq!(error.code(), "spec.weapon_class_unsupported");
+        assert!(!dir.join("data/weapons/pulse.wpn").exists());
+        let key = input.snapshot.bindings["spec"].clone();
+        let JointValue::Present(mut data) = input.values[&key].clone() else {
+            unreachable!()
+        };
+        let template = crate::domain::spec_construction::create_associated_spec(
+            &AssociatedSpecCreateParams::Weapon {
+                id: "pulse".into(),
+                spec_class,
+            },
+        );
+        for (field, value) in template.as_object().unwrap() {
+            data.as_object_mut()
+                .unwrap()
+                .entry(field.clone())
+                .or_insert_with(|| value.clone());
+        }
+        data["specClass"] = template["specClass"].clone();
+        input.values.insert(key, JointValue::Present(data));
+        let receipt = submit(&input).unwrap();
+        assert_eq!(receipt.changes.len(), 3);
+        let saved = crate::io::read_json_file(&dir.join("data/weapons/pulse.wpn")).unwrap();
+        assert_eq!(saved["specClass"], template["specClass"]);
+        assert_eq!(saved["custom"]["keep"], 1);
+        assert_eq!(
+            std::fs::read_to_string(core.join("data/weapons/pulse.wpn")).unwrap(),
+            original
+        );
+        cleanup(dir, &root);
+        std::fs::remove_dir_all(game).unwrap();
+    }
 }
 
 #[test]
