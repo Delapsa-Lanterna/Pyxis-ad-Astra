@@ -114,6 +114,8 @@ export function shipJointFixture(): JointEditSnapshot {
     ),
   ];
   return {
+    hull: null,
+    newSources: [],
     root: { sessionId: 's', modRoot: 'M:/mod', kind: 'ship', id: 'lasher' },
     bindings: { spec: 'spec', csv: 'csv', description: 'description', system: 'system' },
     referenceSettings: {

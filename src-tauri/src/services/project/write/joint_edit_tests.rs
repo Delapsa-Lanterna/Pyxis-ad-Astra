@@ -121,6 +121,243 @@ fn four_roots_capture_versions() {
     cleanup(dir, &root);
 }
 
+fn wing_fixture() -> (PathBuf, JointEditRoot) {
+    let (dir, root) = fixture();
+    project::close_project_session(root.session_id).unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/ship_data.csv"),"name,id,hitpoints,armor rating,min crew,max speed,shield type,custom\nShip,a,750,200,3,140,NONE,007\nOther,b,1000,300,4,90,NONE,008\n").unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/a.ship"),r#"{"hullId":"a","hullSize":"FIGHTER","spriteName":"graphics/a.png","weaponSlots":[{"id":"one"},{"id":"two"}],"builtInWeapons":{"one":"weapon"},"custom":"keep"}"#).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/hulls/b.ship"),
+        r#"{"hullId":"b","hullSize":"FIGHTER","weaponSlots":[],"spriteName":"graphics/b.png"}"#,
+    )
+    .unwrap();
+    write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"a","displayName":"Support Fighter","weaponGroups":[{"weapons":{"one":"weapon","two":"weapon"}}],"custom":"keep"}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/wing_data.csv"),"id,variant,num,op cost,range,refit,role,custom\nwing,var,3,12,0,10,SUPPORT,007\nother_wing,var,2,10,100,8,FIGHTER,008\n").unwrap();
+    let mut trace = project::PerformanceTrace::new("wing.test");
+    let manifest = project::open_project_session_traced(&dir, None, &mut trace).unwrap();
+    (
+        dir,
+        JointEditRoot {
+            session_id: manifest.session_id,
+            mod_root: manifest.mod_root,
+            kind: JointEditKind::Wing,
+            id: "wing".into(),
+        },
+    )
+}
+
+#[test]
+fn wing_sources_and_fitted_weapons() {
+    let (dir, root) = wing_fixture();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let hull = snapshot.hull.as_ref().unwrap();
+    assert_eq!(
+        hull.weapons,
+        BTreeMap::from([
+            ("one".into(), "weapon".into()),
+            ("two".into(), "weapon".into())
+        ])
+    );
+    assert_eq!(hull.fields["min crew"].path, "min crew");
+    assert_eq!(
+        hull.fields["hitpoints"].record_key,
+        snapshot.bindings["hullCsv"]
+    );
+    let csv = snapshot
+        .records
+        .iter()
+        .find(|record| record.key == snapshot.bindings["hullCsv"])
+        .unwrap();
+    assert!(csv.referenced_by.contains(&"Wing:wing".into()));
+    assert!(csv.referenced_by.contains(&"Wing:other_wing".into()));
+    let description = snapshot
+        .records
+        .iter()
+        .find(|record| record.key == snapshot.bindings["description"])
+        .unwrap();
+    assert!(
+        matches!(&description.target,JointRecordTarget::Csv{identity,..} if identity["id"]=="a" && identity["type"]=="SHIP")
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn wing_skin_sources_and_slots() {
+    let (dir, mut root) = wing_fixture();
+    project::close_project_session(root.session_id).unwrap();
+    std::fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/skins/skin.skin"),r#"{"skinHullId":"skin","baseHullId":"a","hullName":"Skin Name","maxSpeed":190,"tech":"Midline","descriptionId":"a","removeWeaponSlots":["one"],"builtInWeapons":{"two":"special"},"spriteName":"graphics/skin.png"}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/variants/var.variant"),r#"{"variantId":"var","hullId":"skin","weaponGroups":[{"weapons":{"one":"weapon","two":"weapon"}}]}"#).unwrap();
+    let mut trace = project::PerformanceTrace::new("wing.skin");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    let snapshot = query_joint_edit(&root).unwrap();
+    let hull = snapshot.hull.as_ref().unwrap();
+    assert_eq!(
+        hull.weapons,
+        BTreeMap::from([("two".into(), "special".into())])
+    );
+    assert_eq!(hull.fields["max speed"].path, "maxSpeed");
+    assert_eq!(hull.fields["name"].path, "hullName");
+    assert_eq!(hull.fields["tech/manufacturer"].path, "tech");
+    assert_eq!(hull.sprite.as_ref().unwrap().rel_path, "graphics/skin.png");
+    assert_eq!(
+        hull.sprite.as_ref().unwrap().owner_kind,
+        ResourceOwnerKind::Skin
+    );
+    let mut payload = payload(snapshot);
+    let source = payload.snapshot.hull.as_ref().unwrap().fields["max speed"]
+        .record_key
+        .clone();
+    let JointValue::Present(data) = payload.values.get_mut(&source).unwrap() else {
+        unreachable!()
+    };
+    data["maxSpeed"] = json!(210);
+    let saved = submit(&payload).unwrap();
+    assert_eq!(saved.changes.len(), 1);
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/hulls/skins/skin.skin")).unwrap()["maxSpeed"],
+        json!(210)
+    );
+    assert_eq!(
+        read_csv_data(&dir.join("data/hulls/ship_data.csv"))
+            .unwrap()
+            .rows[0]
+            .data["max speed"],
+        json!("140")
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn wing_joint_save_and_replay() {
+    let (dir, root) = wing_fixture();
+    let baseline = query_joint_edit(&root).unwrap();
+    let mut payload = payload(baseline);
+    for (binding, field, value) in [
+        ("csv", "op cost", json!("14")),
+        ("hullCsv", "hitpoints", json!("900")),
+        ("variant", "displayName", json!("New Fighter")),
+        ("description", "text1", json!("New description")),
+    ] {
+        let key = payload.snapshot.bindings[binding].clone();
+        let JointValue::Present(data) = payload.values.get_mut(&key).unwrap() else {
+            unreachable!()
+        };
+        data[field] = value;
+    }
+    let saved = submit(&payload).unwrap();
+    assert_eq!(saved.changes.len(), 4);
+    assert_eq!(saved.history.undo_stack.len(), 1);
+    let refreshed = query_joint_edit(&root).unwrap();
+    let csv = refreshed
+        .records
+        .iter()
+        .find(|record| record.key == refreshed.bindings["hullCsv"])
+        .unwrap();
+    assert!(
+        matches!(&csv.value,JointValue::Present(data) if data["hitpoints"]=="900" && data["custom"]=="007")
+    );
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/variants/var.variant")).unwrap()["custom"],
+        json!("keep")
+    );
+    let undo = write_transactions::replay(
+        &root.session_id,
+        &root.mod_root,
+        FileChangeReplayDirection::Undo,
+        saved.history.undo_stack[0].id,
+        saved.history.revision,
+    )
+    .unwrap();
+    assert_eq!(undo.changes.len(), 4);
+    assert_eq!(
+        read_csv_data(&dir.join("data/hulls/ship_data.csv"))
+            .unwrap()
+            .rows[0]
+            .data["hitpoints"],
+        json!("750")
+    );
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/variants/var.variant")).unwrap()["displayName"],
+        json!("Support Fighter")
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn wing_reference_and_graph() {
+    let (dir, root) = wing_fixture();
+    let mut payload = payload(query_joint_edit(&root).unwrap());
+    let key = payload.snapshot.bindings["variant"].clone();
+    let JointValue::Present(data) = payload.values.get_mut(&key).unwrap() else {
+        unreachable!()
+    };
+    data["hullId"] = json!("b");
+    let saved = submit(&payload).unwrap();
+    assert!(saved.refreshed_entity.unwrap().hull.is_none());
+    let next = query_joint_edit(&root).unwrap();
+    let hull = next
+        .records
+        .iter()
+        .find(|record| record.key == next.hull.as_ref().unwrap().hull_key)
+        .unwrap();
+    assert!(matches!(&hull.target,JointRecordTarget::Spec{target} if target.id=="b"));
+    assert_eq!(saved.changes.len(), 1);
+    cleanup(dir, &root);
+}
+
+#[test]
+fn wing_creates_skin_and_versions() {
+    let (dir, mut root) = wing_fixture();
+    project::close_project_session(root.session_id).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/variants/var.variant"),
+        r#"{"variantId":"var","hullId":"new_skin","weaponGroups":[]}"#,
+    )
+    .unwrap();
+    let mut trace = project::PerformanceTrace::new("wing.create");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    let baseline = project::query_joint_edit_request(&JointEditQuery {
+        root: root.clone(),
+        row_key: None,
+        values: None,
+        new_sources: vec![JointSourceCreate {
+            kind: EntityKind::Skin,
+            id: "new_skin".into(),
+        }],
+    })
+    .unwrap();
+    let key = baseline.bindings["hull"].clone();
+    let prepared=prepare_joint_edit(&JointEditDraft{baseline,values:BTreeMap::from([(key,JointValue::Present(json!({"skinHullId":"new_skin","baseHullId":"a","hullName":"New Skin","maxSpeed":180,"descriptionId":"a"})))])}).unwrap();
+    assert!(
+        prepared
+            .snapshot
+            .base_versions
+            .iter()
+            .any(|version| version.path.ends_with("a.ship"))
+    );
+    let payload = JointEditSubmission {
+        base_versions: prepared.snapshot.base_versions.clone(),
+        snapshot: prepared.snapshot,
+        values: prepared.values,
+        json_write: Default::default(),
+        create_overrides: Vec::new(),
+    };
+    let saved = submit(&payload).unwrap();
+    assert_eq!(saved.changes.len(), 1);
+    let next = query_joint_edit(&root).unwrap();
+    assert_eq!(
+        next.hull.as_ref().unwrap().fields["max speed"].path,
+        "maxSpeed"
+    );
+    assert!(dir.join("data/hulls/skins/new_skin.skin").exists());
+    cleanup(dir, &root);
+}
+
 #[test]
 fn weapon_projection_icons_and_source() {
     let (dir, root) = fixture();
@@ -150,6 +387,7 @@ fn weapon_projection_icons_and_source() {
         root: weapon_root,
         row_key: None,
         values: Some(draft),
+        new_sources: Vec::new(),
     })
     .unwrap();
     let csv = projected
@@ -519,7 +757,17 @@ fn skin_modules_and_shared_sources() {
     assert!(snapshot.records.iter().any(|record|matches!(&record.target,JointRecordTarget::Spec {target} if target.kind==EntityKind::Skin && target.id=="skin")));
     assert!(snapshot.records.iter().any(|record|matches!(&record.target,JointRecordTarget::Spec {target} if target.kind==EntityKind::Variant && target.id=="module")));
     let shared=snapshot.records.iter().find(|record|matches!(&record.target,JointRecordTarget::Csv {table:CsvTableKey::Descriptions,identity,..} if identity["id"]=="a")).unwrap();
-    assert_eq!(shared.referenced_by, vec!["Ship:a", "Ship:b"]);
+    assert_eq!(
+        shared.referenced_by,
+        vec![
+            "Ship:a",
+            "Ship:b",
+            "Skin:skin",
+            "Variant:module",
+            "Variant:var",
+            "Wing:wing"
+        ]
+    );
     cleanup(dir, &root);
 }
 
@@ -548,7 +796,10 @@ fn builtin_wings_and_single_user() {
     )));
     assert!(snapshot.records.iter().any(|record| matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant && target.id == "var")));
     let hull = snapshot.records.iter().find(|record| matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Ship)).unwrap();
-    assert_eq!(hull.referenced_by, vec!["Ship:a", "Variant:var"]);
+    assert_eq!(
+        hull.referenced_by,
+        vec!["Ship:a", "Variant:var", "Wing:wing"]
+    );
     cleanup(dir, &root);
 }
 
@@ -711,6 +962,7 @@ fn csv_identity_and_draft_system() {
         },
         row_key: Some(row_key.clone()),
         values: None,
+        new_sources: Vec::new(),
     };
     assert_eq!(
         project::query_joint_edit_request(&query).unwrap().root.id,

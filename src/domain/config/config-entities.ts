@@ -44,8 +44,6 @@ export function createDefaultSkin(baseHullId: string, skinHullId: string): RowDa
     skinHullId,
     baseHullId,
     hullName: skinHullId,
-    descriptionId: '',
-    descriptionPrefix: '',
     tags: [],
     removeHints: [],
     addHints: [],

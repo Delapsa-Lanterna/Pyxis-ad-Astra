@@ -5,7 +5,15 @@ import type { JointEditSnapshot } from '@/shared/types';
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 const root = { sessionId: 'joint-service', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
-const snapshot: JointEditSnapshot = { root, bindings: {}, referenceSettings: { values: {}, versions: [] }, records: [], baseVersions: [] };
+const snapshot: JointEditSnapshot = {
+  root,
+  bindings: {},
+  referenceSettings: { values: {}, versions: [] },
+  records: [],
+  baseVersions: [],
+  hull: null,
+  newSources: [],
+};
 beforeEach(() => {
   invoke.mockReset();
   invalidateQueryCacheForSession(root.sessionId);
@@ -15,16 +23,16 @@ describe('joint edit capability protocols', () => {
     invoke.mockResolvedValue(snapshot);
     await queryJointEditRow(root, 'ships:row:2');
     expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', {
-      payload: { root: { ...root, id: '' }, rowKey: 'ships:row:2', values: null },
+      payload: { root: { ...root, id: '' }, rowKey: 'ships:row:2', values: null, newSources: [] },
     });
     const values = { csv: { state: 'present' as const, value: { 'system id': 'next' } } };
     await queryJointEditProjection({ baseline: snapshot, values });
-    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values } });
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values, newSources: [] } });
   });
   it('maps query, preparation and submission to their formal payloads', async () => {
     invoke.mockResolvedValue(snapshot);
     await expect(queryJointEdit(root)).resolves.toEqual(snapshot);
-    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values: null } });
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values: null, newSources: [] } });
     const draft = { baseline: snapshot, values: {} };
     invoke.mockResolvedValue({ snapshot, values: {}, conflicts: [] });
     await prepareJointEdit(draft);

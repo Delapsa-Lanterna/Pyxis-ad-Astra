@@ -51,9 +51,19 @@ describe('detailActionsForRow', () => {
     expect(actions[0]).toMatchObject({ type: 'file-editor', kind: 'skill', id: 'helmanship' });
   });
 
-  it('returns no actions for tables without associated specs', () => {
+  it('opens a wing through its own row and complete window identity', () => {
     const row: CsvRowRecord = { rowKey: 'wings:row:0', data: { id: 'wing1' }, isComment: false };
-    expect(detailActionsForRow(context, 'wings', row)).toEqual([]);
+    expect(detailActionsForRow(context, 'wings', row)).toEqual([
+      {
+        type: 'immersive-editor',
+        kind: 'wing',
+        modRoot: context.modRoot,
+        sessionId: context.sessionId,
+        id: 'wing1',
+        rowKey: 'wings:row:0',
+      },
+    ]);
+    expect(detailActionsForRow(context, 'industries', row)).toEqual([]);
   });
 });
 

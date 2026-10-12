@@ -15,6 +15,8 @@ vi.mock('@/orchestrators/file-history-write.orchestrator', () => ({ completeSave
 import { useJointEditSession } from './use-joint-edit-session';
 const root = { sessionId: 's', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
 const snapshot: JointEditSnapshot = {
+  hull: null,
+  newSources: [],
   root,
   bindings: {},
   referenceSettings: { values: {}, versions: [] },

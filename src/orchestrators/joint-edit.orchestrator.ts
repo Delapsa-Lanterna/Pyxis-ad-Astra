@@ -24,6 +24,14 @@ export async function openJointEditSnapshot(
     jointWriteTargets(captured, editableRecords?.(captured)),
     feedback,
     async (receipts) => {
+      if (root.kind === 'wing') {
+        const row = captured.records.find((record) => record.key === captured.bindings.csv)!;
+        if (row.target.kind === 'csv') {
+          const key = row.target.rowKey;
+          const mapped = receipts.flatMap((receipt) => receipt.keyMap).findLast((mapping) => mapping.previousKey === key)?.nextKey ?? key;
+          return cloneQuerySnapshot<JointEditSnapshot>(await queryJointEditRow(root, mapped, signal));
+        }
+      }
       const identity = receipts
         .flatMap((receipt) => receipt.identityChanges)
         .findLast((change) => change.before.kind === root.kind && change.before.id === root.id);
@@ -79,7 +87,10 @@ export async function submitJointEdit(
         const confirmed = await feedback.choose({
           title: '确认共享目标与 Mod 覆盖',
           content: [...new Set([...overrides, ...shared])]
-            .map((record) => (record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path))
+            .map(
+              (record) =>
+                `${record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path}\n来源：${record.source?.path ?? '新建记录'}\n关联：${record.referencedBy.join('、')}`,
+            )
             .join('\n'),
           choices: [{ label: '保存到上述目标', value: 'save', type: 'warning' }],
         });

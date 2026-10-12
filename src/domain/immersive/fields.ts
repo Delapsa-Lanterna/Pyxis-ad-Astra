@@ -4,12 +4,14 @@ import { applySchemaFieldUpdate, getNestedValue, schemaStringValue } from '@/dom
 import { entityContentIdField } from '@/domain/editors/entity-identity';
 import { jointObject } from '@/domain/joint-edit';
 import type { BitmapTextRun, ImmersiveFontRole } from './bitmap-font';
+import { createDefaultVariant, createDefaultSkin } from '@/domain/config/config-entities';
 
 export interface ImmersiveField {
   id: string;
   recordKey: string;
   schema: FieldSchema;
   optionLabels?: Record<string, string>;
+  handoff?: boolean;
 }
 export interface ImmersiveFieldChange {
   field: ImmersiveField;
@@ -45,7 +47,11 @@ export function updateImmersiveField(
       record.target.kind === 'csv'
         ? { ...record.target.identity }
         : record.target.kind === 'spec'
-          ? { [entityContentIdField(record.target.target.kind)]: record.target.target.id }
+          ? record.target.target.kind === 'variant'
+            ? createDefaultVariant('', record.target.target.id)
+            : record.target.target.kind === 'skin'
+              ? createDefaultSkin('', record.target.target.id)
+              : { [entityContentIdField(record.target.target.kind)]: record.target.target.id }
           : {};
   }
   const converted: SchemaFieldUpdate =

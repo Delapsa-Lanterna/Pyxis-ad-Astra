@@ -104,6 +104,7 @@ fn rename(
                 },
                 row_key: None,
                 values: None,
+                new_sources: Vec::new(),
             })?;
             let key = baseline.bindings["spec"].clone();
             let description = baseline

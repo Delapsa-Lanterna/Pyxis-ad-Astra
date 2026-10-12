@@ -8,6 +8,7 @@
 
 `src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command owner。
 `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影 owner。
+`src-tauri/src/domain/joint_hull.rs`：有效舰体字段来源、Skin继承与有效武器槽的纯投影 owner。
 `src-tauri/src/models/joint_edit.rs`：联合根、来源记录、缺失值、冲突与提交模型 owner。
 `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配 owner。
 `src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接 owner。
@@ -66,7 +67,13 @@
 ## 规范
 
 - JointEditRoot 必须完整表达 sessionId、modRoot、kind 和 id；四类根必须为 ship、weapon、wing 与 variant。
-- JointEditQuery 必须分别承载正式根、可选 CSV rowKey 与草稿值；rowKey 必须由后端解析已保存 ID，草稿关联投影必须消费独立捕获值。
+- JointEditQuery 必须分别承载正式根、可选 CSV rowKey、草稿值与newSources；rowKey 必须由后端解析已保存 ID，草稿关联投影必须消费独立捕获值。
+- JointHullProjection必须表达装配、基础舰体、Skin链、实际字段绑定、有效武器槽与授权贴图；有效值必须按继承顺序投影，字段提交必须消费所属recordKey与path。
+- newSources只允许声明关联图中的ship、variant与skin创建类型及ID；准备必须捕获新增关联的Mod版本，保存必须核对原目标与不存在凭据。
+- Mod写入版本必须保持所属根范围；Core来源必须消费独立sourceVersion核对，授权Mod覆盖目标必须保留不存在凭据。
+- 共享关系必须沿舰体、Skin与装配反向展开至实际联队；确认必须呈现实际来源、写入文件与关联对象。
+- 联队CSV改名必须以原rowKey解析权威ID，描述身份必须继续消费实际舰体来源；引用提交后必须按实际磁盘重读新的来源与版本。
+- Skin缺少descriptionId时必须消费skinHullId，显式空引用必须呈现缺失状态；恢复默认描述必须通过明确字段移除动作提交。
 - 联合快照必须提供根记录 bindings、只读关联与配置来源版本；舰船系统必须消费 CSV system id，传感器配置必须按 Core 与 Mod 来源装配。
 - 目标适配器必须声明可编辑记录集合；草稿、三方比较、共享影响确认与保存协调只允许消费该集合。
 - createOverrides 必须表达明确的 Core 原样创建记录；返回目标必须接纳实际 CSV linkedRecord、rowKey 与身份映射。

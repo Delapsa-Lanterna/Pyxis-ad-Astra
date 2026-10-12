@@ -322,7 +322,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
         (target) =>
           target.sessionId === action.sessionId &&
           target.modRoot === action.modRoot &&
-          target.table === (action.kind === 'ship' ? 'ships' : 'weapons'),
+          target.table === (action.kind === 'ship' ? 'ships' : action.kind === 'weapon' ? 'weapons' : 'wings'),
       )!;
       void openEntityImmersiveEditor(
         {

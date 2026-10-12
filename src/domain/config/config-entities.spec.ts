@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { configEntityIdInvalidMessage, createDefaultFaction } from '@/domain/config/config-entities';
+import { configEntityIdInvalidMessage, createDefaultFaction, createDefaultSkin } from '@/domain/config/config-entities';
 import { configFactionSaveDraft, configMissionSaveDraft, configModInfoSaveData } from '@/domain/config/config-entities';
 import { getSchema } from '@/domain/schema/schema-registry';
 
 describe('configuration business content boundaries', () => {
+  it('creates a Skin with the game default description identity and independent collection values', () => {
+    const skin = createDefaultSkin('base', 'skin');
+    expect(skin).toMatchObject({ skinHullId: 'skin', baseHullId: 'base', hullName: 'skin' });
+    expect(Object.hasOwn(skin, 'descriptionId')).toBe(false);
+    expect(Object.hasOwn(skin, 'descriptionPrefix')).toBe(false);
+    skin.builtInMods = ['changed'];
+    expect(createDefaultSkin('base', 'next').builtInMods).toEqual([]);
+  });
   it('preserves top-level, dictionary and array object keys through every source split', () => {
     const content = { id: 'demo', _rowKey: 'business', nested: { _slot: 'weapon' }, values: [{ _field: 2 }] };
     expect(configModInfoSaveData({ file: content }, getSchema('mod-info')!)).toEqual(content);

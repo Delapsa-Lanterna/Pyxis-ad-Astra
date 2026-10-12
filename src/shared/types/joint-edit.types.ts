@@ -15,6 +15,11 @@ export interface JointEditQuery {
   root: JointEditRoot;
   rowKey: string | null;
   values: Record<string, JointValue> | null;
+  newSources: JointSourceCreate[];
+}
+export interface JointSourceCreate {
+  kind: 'ship' | 'skin' | 'variant';
+  id: string;
 }
 export interface EditWriteTarget {
   sessionId: string;
@@ -42,6 +47,20 @@ export interface JointEditSnapshot {
   referenceSettings: { values: Record<string, JsonValue>; versions: FileVersion[] };
   records: JointEditRecord[];
   baseVersions: FileVersion[];
+  hull: JointHullProjection | null;
+  newSources: JointSourceCreate[];
+}
+export interface JointFieldBinding {
+  recordKey: string;
+  path: string;
+}
+export interface JointHullProjection {
+  variantKey: string;
+  hullKey: string;
+  skinKeys: string[];
+  fields: Record<string, JointFieldBinding>;
+  weapons: Record<string, string>;
+  sprite: ResourceRef | null;
 }
 export interface JointEditDraft {
   baseline: JointEditSnapshot;

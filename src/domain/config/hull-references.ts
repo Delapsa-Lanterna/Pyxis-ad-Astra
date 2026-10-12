@@ -12,6 +12,13 @@ export function hullReferenceOptions(result: DeepReadonly<HullReferencesResult>)
   );
 }
 
+export function hullReferenceSourceGroups(result: DeepReadonly<HullReferencesResult>): SourceOptionGroup[] {
+  return result.groups.map((group) => ({
+    origin: group.origin,
+    options: group.options.map((option) => ({ ...option, description: null })),
+  }));
+}
+
 export function builtInWeaponSlotOptions(result: DeepReadonly<HullReferencesResult>, hullId: string): SourceOptionGroup[] {
   return (['mod', 'core'] as const)
     .map((origin) => ({

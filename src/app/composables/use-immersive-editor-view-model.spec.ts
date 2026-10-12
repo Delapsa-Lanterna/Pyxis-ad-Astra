@@ -1,11 +1,13 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shipJointFixture } from '@/test/joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
+import { wingJointFixture } from '@/test/wing-joint-edit';
 import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { savedWriteFixture } from '@/test/write-result';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 
 const mocks = vi.hoisted(() => ({
@@ -19,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   media: vi.fn(),
   choose: vi.fn(),
   invalidations: [] as Array<(event: unknown) => void>,
+  projectUpdates: [] as Array<(event: import('@/windows/window.events').ProjectSessionInvalidatedEvent) => Promise<void>>,
 }));
 vi.mock('@/services/joint-edit.service', () => ({
   queryJointEdit: mocks.query,
@@ -31,7 +34,14 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 }));
 vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: mocks.listen }));
 vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
-  listenProjectSessionInvalidated: async () => () => {},
+  listenProjectSessionInvalidated: async (
+    listener: (event: import('@/windows/window.events').ProjectSessionInvalidatedEvent) => Promise<void>,
+  ) => {
+    mocks.projectUpdates.push(listener);
+    return () => {
+      mocks.projectUpdates.splice(mocks.projectUpdates.indexOf(listener), 1);
+    };
+  },
   publishCommittedWrite: async () => {},
 }));
 vi.mock('@/orchestrators/immersive-editor.orchestrator', () => ({ retargetImmersiveWindow: mocks.retarget }));
@@ -50,12 +60,16 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
 }));
 import { useImmersiveEditorViewModel } from './use-immersive-editor-view-model';
 
-function editor(kind: 'ship' | 'weapon' = 'ship') {
+function editor(kind: 'ship' | 'weapon' | 'wing' = 'ship') {
   let vm!: ReturnType<typeof useImmersiveEditorViewModel>;
   const wrapper = mount({
     setup() {
       vm = useImmersiveEditorViewModel(
-        kind === 'ship' ? { ...shipJointFixture().root, kind: 'ship' } : { ...weaponJointFixture().root, kind: 'weapon' },
+        kind === 'ship'
+          ? { ...shipJointFixture().root, kind: 'ship' }
+          : kind === 'weapon'
+            ? { ...weaponJointFixture().root, kind: 'weapon' }
+            : { ...wingJointFixture().root, kind: 'wing', rowKey: 'wing-row' },
       );
       return () => null;
     },
@@ -81,9 +95,127 @@ beforeEach(() => {
   });
   vi.clearAllMocks();
   mocks.invalidations.length = 0;
+  mocks.projectUpdates.length = 0;
   mocks.query.mockResolvedValue(shipJointFixture());
   mocks.listen.mockResolvedValue(mocks.stop);
   mocks.choose.mockResolvedValue('follow');
+});
+
+describe('wing joint source handoff', () => {
+  it('follows the persisted wing row while preserving dirty values, raw input and undo history', async () => {
+    const baseline = prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const panel = vm.panel.value;
+    if (panel?.kind !== 'wing') throw new Error('wing fixture');
+    vm.updateField(panel.technical.find((stat) => stat.id === 'num')!.fields[0]!, { kind: 'set', value: 4 });
+    let raw = '1e';
+    const inputDirty = ref(true);
+    vm.joint.inputs.register({
+      key: 'raw-wing-input',
+      label: '结构',
+      dirty: inputDirty,
+      commit: () => '请输入完整有效数字',
+      focus: () => {},
+      cancel: () => {
+        raw = '';
+        inputDirty.value = false;
+      },
+    });
+    const next = structuredClone(baseline);
+    next.root.id = 'renamed-wing';
+    const row = next.records.find((record) => record.key === 'wing')!;
+    row.key = 'next-wing';
+    if (row.target.kind === 'csv') row.target.identity.id = 'renamed-wing';
+    if (row.value.state === 'present')
+      row.value = {
+        state: 'present',
+        value: { ...(row.value.value as Record<string, import('@/shared/types').JsonValue>), id: 'renamed-wing' },
+      };
+    next.bindings.csv = 'next-wing';
+    mocks.query.mockResolvedValue(next);
+    const update = sessionUpdateFixture('s', 'M:/mod');
+    if (update.status !== 'ready') throw new Error('projection fixture');
+    update.projection.invalidation.paths = ['data/hulls/wing_data.csv'];
+    await mocks.projectUpdates[0]!(update.projection);
+    expect(vm.joint.currentTarget.value!.id).toBe('renamed-wing');
+    expect(vm.joint.draftValue.value['next-wing']).toMatchObject({ state: 'present', value: { id: 'renamed-wing', num: '4' } });
+    expect(raw).toBe('1e');
+    expect(vm.history.canUndo.value).toBe(true);
+    vm.joint.inputs.cancel('raw-wing-input');
+    await vm.undo();
+    expect(vm.joint.draftValue.value['next-wing']).toMatchObject({ state: 'present', value: { id: 'renamed-wing', num: '3' } });
+    wrapper.unmount();
+  });
+  function prepare() {
+    const snapshot = wingJointFixture();
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    return snapshot;
+  }
+  it('edits two title sources as one history action and keeps the wing isolated', async () => {
+    prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const fields = vm.panel.value!.heading[0]!.fields;
+    vm.updateFields(fields.map((field, index) => ({ field, update: { kind: 'set' as const, value: index ? 'New variant' : 'New hull' } })));
+    expect(vm.panel.value!.heading[0]!.display).toBe('New hull New variant');
+    expect(vm.joint.draftValue.value.wing).toMatchObject({ state: 'present', value: { id: 'sarissa_wing' } });
+    await vm.undo();
+    expect(vm.panel.value!.heading[0]!.display).toBe('Sarissa Support Fighter');
+    expect(vm.history.canUndo.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('keeps the old reference and all source drafts when the save handoff is cancelled', async () => {
+    prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const panel = vm.panel.value;
+    if (panel?.kind !== 'wing') throw new Error('wing fixture');
+    vm.updateField(panel.technical.find((stat) => stat.id === 'hitpoints')!.fields[0]!, { kind: 'set', value: 810 });
+    mocks.choose.mockResolvedValue(null);
+    await vm.updateFields([{ field: panel.sources[0]!.fields[0]!, update: { kind: 'set', value: 'other' } }]);
+    expect(vm.joint.draftValue.value.wing).toMatchObject({ state: 'present', value: { variant: 'sarissa_Fighter' } });
+    expect(vm.joint.draftValue.value['hull-csv']).toMatchObject({ state: 'present', value: { hitpoints: '810' } });
+    expect(vm.referenceChanging.value).toBe(false);
+    expect(mocks.save).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+  it('saves the current draft before the reference and then reads the authoritative source graph', async () => {
+    const baseline = prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const panel = vm.panel.value;
+    if (panel?.kind !== 'wing') throw new Error('wing fixture');
+    vm.updateField(panel.technical.find((stat) => stat.id === 'hitpoints')!.fields[0]!, { kind: 'set', value: 810 });
+    mocks.choose.mockResolvedValue('save');
+    let commit = 0;
+    mocks.save.mockImplementation(async (draft) => {
+      const actual = structuredClone(baseline);
+      for (const record of actual.records) if (draft.values[record.key]) record.value = structuredClone(draft.values[record.key]);
+      if (commit === 1) mocks.query.mockResolvedValue(actual);
+      return { ...savedWriteFixture(), commitId: ++commit, refreshedEntity: actual };
+    });
+    await vm.updateFields([{ field: panel.sources[0]!.fields[0]!, update: { kind: 'set', value: 'other' } }]);
+    expect(mocks.save).toHaveBeenCalledTimes(2);
+    expect(mocks.save.mock.calls[0]![0].values.wing.value.variant).toBe('sarissa_Fighter');
+    expect(mocks.save.mock.calls[1]![0].values.wing.value.variant).toBe('other');
+    expect(mocks.query).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'wing' }), 'wing-row', expect.any(AbortSignal), []);
+    expect(vm.referenceChanging.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('restores the original reference on a pre-commit failure', async () => {
+    prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const panel = vm.panel.value;
+    if (panel?.kind !== 'wing') throw new Error('wing fixture');
+    mocks.save.mockRejectedValueOnce(new Error('version conflict'));
+    await vm.updateFields([{ field: panel.sources[0]!.fields[0]!, update: { kind: 'set', value: 'other' } }]);
+    expect(vm.joint.draftValue.value.wing).toMatchObject({ state: 'present', value: { variant: 'sarissa_Fighter' } });
+    expect(mocks.error).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
 });
 describe('immersive ship lifecycle and reference channels', () => {
   it('keeps the Core pulse source unchanged when branch selection is cancelled', async () => {

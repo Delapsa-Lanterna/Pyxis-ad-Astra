@@ -1,3 +1,4 @@
+#[cfg(test)]
 use super::super::query::joint_edit::query_joint_edit;
 use super::super::{
     cache,
@@ -13,7 +14,11 @@ use serde_json::Value;
 use std::{collections::BTreeMap, path::Path};
 
 pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
-    let current = query_joint_edit(&payload.snapshot.root)?;
+    let current = super::super::query::joint_edit::query_joint_edit_values(
+        &payload.snapshot.root,
+        None,
+        &payload.snapshot.new_sources,
+    )?;
     for required in current
         .records
         .iter()
@@ -573,6 +578,27 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         .collect::<BTreeMap<_, _>>()
         .into_values()
         .collect();
+    if let Some(key) = saved.bindings.get("variant") {
+        let referenced = |snapshot: &JointEditSnapshot, record_key: &str, path: &str| {
+            snapshot
+                .records
+                .iter()
+                .find(|record| record.key == record_key)
+                .and_then(|record| match &record.value {
+                    JointValue::Present(data) => data.get(path).cloned(),
+                    JointValue::Missing => None,
+                })
+        };
+        let changed = current.hull.is_none()
+            || referenced(&current, key, "hullId") != referenced(&saved, key, "hullId")
+            || referenced(&current, &current.bindings["csv"], "variant")
+                != referenced(&saved, &saved.bindings["csv"], "variant");
+        saved.hull = if changed {
+            None
+        } else {
+            crate::domain::joint_hull::project_joint_hull(&saved.records, key)?
+        };
+    }
     let mut result = WriteResult::new(changes, key_map, Some(saved));
     result.identity_changes = identities;
     Ok(result)

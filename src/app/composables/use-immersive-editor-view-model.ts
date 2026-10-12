@@ -6,9 +6,8 @@ import { useQueryReadOwner } from './use-query-read-owner';
 import { useAppFeedback } from './use-app-feedback';
 import { useResourceMediaRegistry } from './use-resource-media-registry';
 import { useSettingsStore } from '@/stores/settings.store';
-import { immersiveSourceRecords } from '@/domain/immersive/source-records';
-import { immersiveDefinition } from '@/domain/immersive/editor-definition';
-import { changeWeaponSpecClass } from '@/domain/editors/spec-construction';
+import { immersiveDefinition, type ImmersiveEditorKind } from '@/domain/immersive/editor-definition';
+import { changeWeaponSpecClass, createShipSpec } from '@/domain/editors/spec-construction';
 import { updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
@@ -23,8 +22,10 @@ import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
+import { querySessionHullReferences } from '@/services/hull-reference.service';
+import { hullReferenceSourceGroups } from '@/domain/config/hull-references';
 
-export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship' | 'weapon' }) {
+export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: ImmersiveEditorKind; rowKey?: string }) {
   const definition = immersiveDefinition(root.kind);
   const feedback = useAppFeedback();
   const settings = useSettingsStore();
@@ -36,8 +37,18 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
   const selectedStatId = ref<string | null>(null);
   const errorText = ref('');
   const projection = shallowRef<JointEditSnapshot | null>(null);
+  const referenceChanging = ref(false);
   const joint = useJointEditSession({
     editableRecords: definition.editableRecords,
+    readSnapshot:
+      root.kind === 'wing'
+        ? (target, signal) => {
+            const current = snapshot.value?.records.find((record) => record.key === snapshot.value!.bindings.csv);
+            const rowKey = current?.target.kind === 'csv' ? current.target.rowKey : root.rowKey!;
+            return queryJointEditRow(target, rowKey, signal, snapshot.value?.newSources ?? []);
+          }
+        : undefined,
+    onProjection: root.kind === 'wing' ? refreshWingBaseline : undefined,
     afterBaseline: async (snapshot, receipt, previous) => {
       if (receipt.commitId <= windowCommit) return;
       await retargetImmersiveWindow(snapshot);
@@ -50,8 +61,10 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
   const panel = computed(() => (snapshot.value ? definition.project(snapshot.value, joint.draftValue.value, projection.value) : null));
   const notices = computed(() =>
     snapshot.value
-      ? Object.values(immersiveSourceRecords(snapshot.value)).filter(
-          (record) => record.source?.source === 'core' || record.value.state === 'missing',
+      ? snapshot.value.records.filter(
+          (record) =>
+            definition.editableRecords(snapshot.value!).includes(record.key) &&
+            (record.source?.source === 'core' || record.value.state === 'missing'),
         )
       : [],
   );
@@ -59,10 +72,19 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
     sessionId: joint.currentTarget.value?.sessionId ?? root.sessionId,
     modRoot: root.modRoot,
     sourceContextKey: joint.currentTargetKey.value ?? '',
-    querySourceOptions: (source, signal) => querySourceOptionCatalog(root.sessionId, source, signal),
+    querySourceOptions: async (source, signal) =>
+      source === 'hull:ids'
+        ? hullReferenceSourceGroups(await querySessionHullReferences(root.sessionId, [], signal))
+        : querySourceOptionCatalog(root.sessionId, source, signal),
     subscribeSourceOptionInvalidation: (source, _resources, listener) =>
       subscribeQueryInvalidations((event) => {
-        if (event.sessionId === root.sessionId && hasSourceInvalidation(event, source)) listener();
+        if (
+          event.sessionId === root.sessionId &&
+          (source === 'hull:ids'
+            ? event.invalidation?.queryScopes.some((scope) => scope.kind === 'hull-references')
+            : hasSourceInvalidation(event, source))
+        )
+          listener();
       }),
   }));
   const media = useResourceMediaRegistry({
@@ -147,6 +169,9 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
     updateFields([{ field, update }]);
   }
   function updateFields(changes: ImmersiveFieldChange[]) {
+    if (changes.some((change) => change.field.handoff)) {
+      return switchReference(changes);
+    }
     const before = deepClone(joint.draftValue.value);
     let after = before;
     for (const { field, update } of changes) {
@@ -194,15 +219,15 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
       feedback.error(error);
     }
   }
-  async function createOverrides() {
+  async function createOverrides(selected?: string[]) {
     const target = joint.currentTarget.value;
     const admitted = joint.inputs.captureContext();
-    const keys = notices.value.filter((record) => record.source?.source === 'core').map((record) => record.key);
+    const keys = selected ?? notices.value.filter((record) => record.source?.source === 'core').map((record) => record.key);
     try {
       const records = snapshot.value!;
-      const spec = immersiveSourceRecords(records).spec;
+      const spec = records.records.find((record) => record.key === records.bindings.spec);
       let corrected: Record<string, JointValue> | undefined;
-      if (root.kind === 'weapon' && jointObject(spec.value).specClass === 'pulse' && keys.includes(spec.key)) {
+      if (root.kind === 'weapon' && spec && jointObject(spec.value).specClass === 'pulse' && keys.includes(spec.key)) {
         const choice = await feedback.choose({
           title: '选择覆盖的武器分支',
           content: 'pulse 在原版中无法正常处理，选择合法分支并补齐必读字段后建立当前 Mod 覆盖。',
@@ -220,6 +245,178 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
     } catch (error) {
       feedback.error(error);
     }
+  }
+  async function switchReference(changes: ImmersiveFieldChange[]) {
+    const key = joint.currentTargetKey.value;
+    referenceChanging.value = true;
+    let previous: Record<string, JointValue> | null = null;
+    try {
+      if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false) return;
+      if (!active || joint.currentTargetKey.value !== key) return;
+      if (joint.dirty.value) {
+        const choice = await feedback.choose({
+          title: '保存后切换关联来源？',
+          content: '保存当前联队及关联来源的编辑，再接入所选来源。',
+          choices: [{ label: '保存并切换', value: 'save', type: 'primary' }],
+        });
+        if (choice !== 'save' || !active || joint.currentTargetKey.value !== key) return;
+        if (!(await joint.saveDraft()) || joint.dirty.value || !active || joint.currentTargetKey.value !== key) return;
+      }
+      previous = deepClone(joint.draftValue.value);
+      let next = previous;
+      for (const { field, update } of changes)
+        next = updateImmersiveField(
+          next,
+          snapshot.value!.records.find((record) => record.key === field.recordKey)!,
+          field,
+          update,
+        );
+      joint.setDraft(next);
+      const saved = await joint.saveDraft();
+      if (!saved) {
+        joint.setDraft(previous);
+        return;
+      }
+      previous = null;
+      if (active && joint.currentTargetKey.value === key) {
+        dismissStat();
+        await joint.refreshTarget(joint.currentTarget.value!);
+      }
+    } catch (error) {
+      if (previous && active && joint.currentTargetKey.value === key && !joint.hasPendingSynchronization.value) joint.setDraft(previous);
+      feedback.error(error, '切换关联来源失败');
+    } finally {
+      referenceChanging.value = false;
+    }
+  }
+  async function createMissingSource(key: string) {
+    const record = snapshot.value!.records.find((record) => record.key === key)!;
+    if (record.target.kind !== 'spec') return;
+    if (record.target.target.kind === 'variant') {
+      await toggleStat('hull-reference', true);
+      return;
+    }
+    if (record.target.target.kind === 'ship') {
+      try {
+        const choice = await feedback.choose({
+          title: '补全舰体来源',
+          content: `引用 ID：${record.target.target.id}。选择创建战机舰体或 Skin；Skin 需要选择基础舰体。`,
+          choices: [
+            { label: '创建战机舰体', value: 'ship', type: 'primary' },
+            { label: '创建 Skin', value: 'skin' },
+          ],
+        });
+        if (choice !== 'ship' && choice !== 'skin') return;
+        if (choice === 'skin') {
+          if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false) return;
+          if (joint.dirty.value) {
+            const accepted = await feedback.choose({
+              title: '保存后补全来源？',
+              content: '保存当前相关编辑，再建立 Skin 来源。',
+              choices: [{ label: '保存并继续', value: 'save', type: 'primary' }],
+            });
+            if (accepted !== 'save' || !(await joint.saveDraft()) || joint.dirty.value) return;
+          }
+          const target = joint.currentTarget.value!,
+            key = joint.currentTargetKey.value;
+          const row = snapshot.value!.records.find((entry) => entry.key === snapshot.value!.bindings.csv)!;
+          if (row.target.kind !== 'csv') return;
+          const newSources = [...snapshot.value!.newSources, { kind: 'skin' as const, id: record.target.target.id }];
+          let captured: JointEditSnapshot | null = null;
+          referenceChanging.value = true;
+          try {
+            await reads.consume(
+              'creation',
+              { target, newSources },
+              (signal) => queryJointEditRow(target, row.target.kind === 'csv' ? row.target.rowKey : '', signal, newSources),
+              {
+                ready: (value) => {
+                  captured = cloneQuerySnapshot<JointEditSnapshot>(value);
+                },
+              },
+            );
+            if (!captured || !active || joint.currentTargetKey.value !== key) return;
+            const next: JointEditSnapshot = captured;
+            joint.applyExternalForTarget({
+              target: next.root,
+              value: Object.fromEntries(
+                next.records
+                  .filter((entry) => definition.editableRecords(next).includes(entry.key))
+                  .map((entry) => [entry.key, entry.value]),
+              ),
+              baseVersions: next.baseVersions,
+              meta: { snapshot: next, receipt: null, previous: null },
+            });
+          } finally {
+            referenceChanging.value = false;
+          }
+          await toggleStat('skin-base-reference', true);
+          return;
+        }
+        if ((await joint.inputs.commit()) === false || !active) return;
+        const before = deepClone(joint.draftValue.value);
+        const after = {
+          ...before,
+          [key]: { state: 'present' as const, value: { ...createShipSpec(record.target.target.id), hullSize: 'FIGHTER' } },
+        };
+        joint.setDraft(after);
+        history.push(before, after);
+        await save();
+      } catch (error) {
+        feedback.error(error, '补全舰体失败');
+      }
+    }
+    if (record.target.target.kind === 'skin') await toggleStat('skin-base-reference', true);
+  }
+  async function refreshWingBaseline(target: JointEditRoot) {
+    if (referenceChanging.value || !active || !joint.isTargetCurrent(target)) return;
+    if (joint.saving.value) {
+      void joint
+        .waitForSave()
+        .then((saved) => {
+          if (saved && active && joint.currentTarget.value) return refreshWingBaseline(joint.currentTarget.value);
+        })
+        .catch((error) => feedback.error(error, '等待联队保存失败'));
+      return;
+    }
+    const previous = snapshot.value;
+    if (!previous) return;
+    const row = previous.records.find((record) => record.key === previous.bindings.csv)!;
+    if (row.target.kind !== 'csv') return;
+    const rowKey = row.target.rowKey;
+    let captured: JointEditSnapshot | null = null;
+    await reads.consume('identity', { target, rowKey }, (signal) => queryJointEditRow(target, rowKey, signal), {
+      ready: (value) => {
+        captured = cloneQuerySnapshot<JointEditSnapshot>(value);
+      },
+      error: (error) => feedback.error(error, '重读联队来源失败'),
+    });
+    if (!captured || !active || !joint.isTargetCurrent(target)) return;
+    const next: JointEditSnapshot = captured;
+    const values = Object.fromEntries(
+      next.records.filter((record) => definition.editableRecords(next).includes(record.key)).map((record) => [record.key, record.value]),
+    );
+    const actual = {
+      target: next.root,
+      value: values,
+      baseVersions: next.baseVersions,
+      meta: { snapshot: next, receipt: null, previous: null },
+    };
+    if (next.root.id === target.id) {
+      joint.applyExternalForTarget(actual);
+      return;
+    }
+    if (joint.dirty.value) {
+      const choice = await feedback.choose({
+        title: '跟随联队重命名？',
+        content: '保留当前草稿、活动输入和历史，并接纳新的联队身份。',
+        choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
+      });
+      if (choice !== 'follow' || !active || !joint.isTargetCurrent(target)) return;
+    }
+    await retargetImmersiveWindow(next);
+    const map = (draft: Record<string, JointValue>) => rebaseJointDraft(draft, previous, next, [], []);
+    if (joint.adoptIdentity(target, actual, map, 'identity')) history.rebase(map);
   }
   async function openProjectile() {
     const target = joint.currentTarget.value;
@@ -329,6 +526,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
     errorText.value = '';
     try {
       await joint.loadTarget(root);
+      if (root.kind === 'wing' && snapshot.value && snapshot.value.root.id !== root.id) await retargetImmersiveWindow(snapshot.value);
     } catch (error) {
       errorText.value = formatError(error);
     }
@@ -356,6 +554,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
   }
   return {
     joint,
+    referenceChanging,
     snapshot,
     panel,
     notices,
@@ -372,6 +571,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: 'ship'
     dismissStat,
     save,
     createOverrides,
+    createMissingSource,
     openProjectile,
     undo,
     redo,

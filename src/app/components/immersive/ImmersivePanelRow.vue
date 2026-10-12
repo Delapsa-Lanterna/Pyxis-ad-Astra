@@ -1,7 +1,7 @@
 <template>
   <ImmersiveStatRow
     :stat="stat"
-    :editable="stat.fields.every(vm.editable)"
+    :editable="!vm.referenceChanging.value && stat.fields.every(vm.editable)"
     :active="vm.selectedStatId.value === stat.id"
     :values="vm.joint.draftValue.value"
     :snapshot="vm.snapshot.value!"

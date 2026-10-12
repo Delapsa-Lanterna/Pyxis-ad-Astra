@@ -87,6 +87,13 @@ const cases = [
   ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-options.service.ts', 'querySourceOptionCatalog'],
   ['hull-query', 'src/app/composables/use-sample.ts', 'src/services/hull-reference.service.ts', 'queryHullReferenceOptions'],
   [
+    'wing-hull-query',
+    'src/app/composables/use-immersive-editor-view-model.ts',
+    'src/services/hull-reference.service.ts',
+    'querySessionHullReferences',
+  ],
+  ['wing-joint-query', 'src/app/composables/use-immersive-editor-view-model.ts', 'src/services/joint-edit.service.ts', 'queryJointEditRow'],
+  [
     'resource-reference',
     'src/app/composables/editors/use-resource-reference.ts',
     'src/services/resource-reference.service.ts',

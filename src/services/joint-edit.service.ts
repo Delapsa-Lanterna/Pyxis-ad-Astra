@@ -1,10 +1,21 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { queryLive } from '@/services/query-cache.service';
-import type { JointEditRoot, JointEditDraft, SaveJointEditPayload, JointEditWriteResult, QueryValue } from '@/shared/types';
+import type {
+  JointEditRoot,
+  JointEditDraft,
+  SaveJointEditPayload,
+  JointEditWriteResult,
+  QueryValue,
+  JointSourceCreate,
+} from '@/shared/types';
 
-export function queryJointEdit(root: JointEditRoot, signal?: AbortSignal): Promise<QueryValue<'joint-edit'>> {
+export function queryJointEdit(
+  root: JointEditRoot,
+  signal?: AbortSignal,
+  newSources: readonly JointSourceCreate[] = [],
+): Promise<QueryValue<'joint-edit'>> {
   return queryLive(
-    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: { root, rowKey: null, values: null } },
+    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: { root, rowKey: null, values: null, newSources: [...newSources] } },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
     signal,
   );
@@ -13,9 +24,14 @@ export function queryJointEditRow(
   root: Omit<JointEditRoot, 'id'>,
   rowKey: string,
   signal?: AbortSignal,
+  newSources: readonly JointSourceCreate[] = [],
 ): Promise<QueryValue<'joint-edit'>> {
   return queryLive(
-    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: { root: { ...root, id: '' }, rowKey, values: null } },
+    {
+      sessionId: root.sessionId,
+      queryKind: 'joint-edit',
+      parameters: { root: { ...root, id: '' }, rowKey, values: null, newSources: [...newSources] },
+    },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
     signal,
   );
@@ -25,7 +41,7 @@ export function queryJointEditProjection(draft: JointEditDraft, signal?: AbortSi
     {
       sessionId: draft.baseline.root.sessionId,
       queryKind: 'joint-edit-projection',
-      parameters: { root: draft.baseline.root, rowKey: null, values: draft.values },
+      parameters: { root: draft.baseline.root, rowKey: null, values: draft.values, newSources: draft.baseline.newSources },
     },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
     signal,

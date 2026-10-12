@@ -5,7 +5,7 @@ import { associatedSpecEditorKinds, associatedSpecKind } from '@/domain/tables/a
 import { editorWindowLabel } from '@/domain/editors/editor-definitions';
 
 export type TableDetailAction =
-  | { type: 'immersive-editor'; kind: 'ship' | 'weapon'; modRoot: string; sessionId: string; id: string; rowKey: string }
+  | { type: 'immersive-editor'; kind: 'ship' | 'weapon' | 'wing'; modRoot: string; sessionId: string; id: string; rowKey: string }
   | { type: 'file-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
   | {
       type: 'editor-window';
@@ -41,11 +41,11 @@ export function detailActionsForRow(
     id,
   }));
   const immersive: TableDetailAction[] =
-    table === 'ships' || table === 'weapons'
+    table === 'ships' || table === 'weapons' || table === 'wings'
       ? [
           {
             type: 'immersive-editor',
-            kind: table === 'ships' ? 'ship' : 'weapon',
+            kind: table === 'ships' ? 'ship' : table === 'weapons' ? 'weapon' : 'wing',
             modRoot: context.modRoot,
             sessionId: context.sessionId,
             id,
@@ -53,7 +53,7 @@ export function detailActionsForRow(
           },
         ]
       : [];
-  return specKind ? [...editorActions, ...immersive, specFileAction(context, specKind, id)] : editorActions;
+  return specKind ? [...editorActions, ...immersive, specFileAction(context, specKind, id)] : [...editorActions, ...immersive];
 }
 
 export function detailActionLabel(action: TableDetailAction): string {

@@ -52,7 +52,7 @@ export function useSchemaSourceOptions(args: {
     const sessionId = context?.sessionId ?? null;
     const source = args.field().source ?? null;
     reads.revoke('consumer', 'source');
-    if (!sessionId || !source || (!isCsvSource(source) && source !== 'hull:builtInWeaponSlots')) {
+    if (!sessionId || !source || (!isCsvSource(source) && source !== 'hull:builtInWeaponSlots' && source !== 'hull:ids')) {
       loadedOptions.value = [];
       return;
     }

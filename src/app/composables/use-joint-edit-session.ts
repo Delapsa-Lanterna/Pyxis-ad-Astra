@@ -17,6 +17,8 @@ export function useJointEditSession(
   options: {
     editableRecords?: (snapshot: JointEditSnapshot) => string[];
     afterBaseline?: (snapshot: JointEditSnapshot, receipt: JointEditWriteResult, previous: JointIdentitySnapshot) => Promise<void>;
+    readSnapshot?: (root: JointEditRoot, signal?: AbortSignal) => Promise<import('@/shared/types').DeepReadonly<JointEditSnapshot>>;
+    onProjection?: (root: JointEditRoot) => Promise<void>;
   } = {},
 ) {
   const actions = useJointEditActions();
@@ -40,7 +42,7 @@ export function useJointEditSession(
     emptyValue: {},
     targetKey: (root) => JSON.stringify(root),
     load: async (root, signal) => {
-      const snapshot = cloneQuerySnapshot<JointEditSnapshot>(await queryJointEdit(root, signal));
+      const snapshot = cloneQuerySnapshot<JointEditSnapshot>(await (options.readSnapshot ?? queryJointEdit)(root, signal));
       return {
         target: snapshot.root,
         value: valuesOf(snapshot),
@@ -127,7 +129,10 @@ export function useJointEditSession(
     const root = session.currentTarget.value;
     if (!root || event.manifest.sessionId !== root.sessionId || normalizeFsPath(event.manifest.modRoot) !== normalizeFsPath(root.modRoot))
       return;
-    if (event.invalidation.paths.length) await session.refreshTarget(root);
+    if (event.invalidation.paths.length) {
+      if (options.onProjection) await options.onProjection(root);
+      else await session.refreshTarget(root);
+    }
   })
     .then((stop) => {
       if (released) stop();

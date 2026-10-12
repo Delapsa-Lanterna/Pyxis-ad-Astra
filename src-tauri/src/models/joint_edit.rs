@@ -1,6 +1,6 @@
 use super::{
-    CsvTableKey, EntityEditTarget, EntityFileLocation, FileVersion, JsonWriteOptions, ResourceRef,
-    SessionModScope,
+    CsvTableKey, EntityEditTarget, EntityFileLocation, EntityKind, FileVersion, JsonWriteOptions,
+    ResourceRef, SessionModScope,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,6 +30,14 @@ pub struct JointEditQuery {
     pub root: JointEditRoot,
     pub row_key: Option<String>,
     pub values: Option<BTreeMap<String, JointValue>>,
+    pub new_sources: Vec<JointSourceCreate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointSourceCreate {
+    pub kind: EntityKind,
+    pub id: String,
 }
 
 impl SessionModScope for JointEditRoot {
@@ -99,6 +107,26 @@ pub struct JointEditSnapshot {
     pub reference_settings: JointReferenceSettings,
     pub records: Vec<JointEditRecord>,
     pub base_versions: Vec<FileVersion>,
+    pub hull: Option<JointHullProjection>,
+    pub new_sources: Vec<JointSourceCreate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointFieldBinding {
+    pub record_key: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointHullProjection {
+    pub variant_key: String,
+    pub hull_key: String,
+    pub skin_keys: Vec<String>,
+    pub fields: BTreeMap<String, JointFieldBinding>,
+    pub weapons: BTreeMap<String, String>,
+    pub sprite: Option<ResourceRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
