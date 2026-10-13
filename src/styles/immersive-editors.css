@@ -682,7 +682,12 @@ button.immersive-stat-value:focus-visible {
 .variant-mod-name > span {
   max-width: 100%;
 }
-.variant-mod-row > img {
+.variant-mod-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+}
+.variant-mod-icon > img {
   width: 34px;
   height: 34px;
   object-fit: contain;
@@ -824,6 +829,29 @@ button.immersive-stat-value:focus-visible {
   padding-top: 3px;
   flex: none;
 }
+.immersive-disclosure-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 20px;
+  list-style: none;
+  cursor: pointer;
+}
+.immersive-disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+.immersive-disclosure-summary::before {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+}
+details[open] > .immersive-disclosure-summary::before {
+  transform: rotate(90deg);
+}
 .variant-picker-extra .n-select {
   margin-bottom: 3px;
 }
@@ -835,6 +863,7 @@ button.immersive-stat-value:focus-visible {
   position: fixed;
   z-index: 11;
   display: flex;
+  align-items: flex-start;
   gap: 3px;
   max-height: calc(100vh - 14px);
   overflow: auto;
@@ -863,15 +892,8 @@ button.immersive-stat-value:focus-visible {
   border: 1px solid var(--color-border-strong);
   background: var(--color-panel);
 }
-.immersive-readonly-sources {
-  color: var(--color-muted);
-  margin-top: var(--space-2);
-}
 .variant-ship-content {
   width: 800px;
-}
-.immersive-readonly-sources summary {
-  cursor: pointer;
 }
 .immersive-resource-icon {
   display: inline-block;
@@ -1113,13 +1135,6 @@ button.immersive-stat-value:focus-visible {
 .variant-hullmod-details p,
 .variant-hullmod-details section {
   margin: 10px 0 0;
-}
-.variant-hullmod-details details {
-  margin-top: 10px;
-}
-.variant-hullmod-details summary {
-  cursor: pointer;
-  color: var(--color-muted);
 }
 .immersive-game-frame {
   position: relative;

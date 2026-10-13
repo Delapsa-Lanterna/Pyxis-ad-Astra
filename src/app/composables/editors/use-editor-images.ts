@@ -3,6 +3,7 @@ import { onScopeDispose, ref, watch } from 'vue';
 export function useEditorImages(source: () => Readonly<Record<string, string>>, changed: () => void, failed?: (key: string) => void) {
   const images = new Map<string, HTMLImageElement>();
   const pending = new Map<string, HTMLImageElement>();
+  const sources = new Map<string, string>();
   const tints = new Map<HTMLImageElement, { color: string; canvas: HTMLCanvasElement }>();
   const revision = ref(0);
   let disposed = false;
@@ -18,14 +19,36 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
     }
     pending.clear();
     images.clear();
+    sources.clear();
     tints.clear();
   }
 
   function reload() {
     release();
     revision.value++;
-    for (const [key, data] of Object.entries(source())) {
-      if (!data) continue;
+    synchronize();
+  }
+
+  function synchronize() {
+    const next = source();
+    let removed = false;
+    for (const [key, data] of sources) {
+      if (next[key] === data) continue;
+      const image = pending.get(key) ?? images.get(key);
+      if (image) {
+        image.onload = null;
+        image.onerror = null;
+        tints.delete(image);
+      }
+      sources.delete(key);
+      pending.delete(key);
+      images.delete(key);
+      removed = true;
+    }
+    if (removed) revision.value++;
+    for (const [key, data] of Object.entries(next)) {
+      if (!data || sources.get(key) === data) continue;
+      sources.set(key, data);
       const image = new Image();
       pending.set(key, image);
       image.onload = () => {
@@ -37,6 +60,7 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
       image.onerror = () => {
         if (disposed || pending.get(key) !== image) return;
         pending.delete(key);
+        sources.delete(key);
         failed?.(key);
         revision.value++;
       };
@@ -63,7 +87,7 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
     return canvas;
   }
 
-  watch(source, reload, { immediate: true });
+  watch(source, synchronize, { immediate: true });
   watch(revision, changed, { flush: 'post' });
   onScopeDispose(() => {
     disposed = true;

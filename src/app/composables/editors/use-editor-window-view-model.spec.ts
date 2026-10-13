@@ -11,7 +11,7 @@ import { editorUiStubs } from '@/test/ui-stubs';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceCacheForSession, invalidateResourceCacheByProject } from '@/services/resource-cache.service';
 import type { EditorEntityBundle, ShipEditorEntityBundle } from '@/services/editor.service';
-import { listenEditorPreviewDraftUpdated } from '@/orchestrators/editor-window.orchestrator';
+import { listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 import type { WriteResult } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   refreshBundleResources: vi.fn(),
   queryDraftEditorImages: vi.fn(),
   emitEditorSpecSaved: vi.fn(async () => {}),
-  previewDraftHandler: { current: null as ((event: Record<string, unknown>) => void) | null },
   pickEditorSpecFile: vi.fn(async () => null as string | null),
   closeCurrentWindow: vi.fn(async () => {}),
   feedback: {
@@ -75,10 +74,6 @@ vi.mock('@/orchestrators/editor-window.orchestrator', () => ({
   emitEditorSpecSaved: mocks.emitEditorSpecSaved,
   listenEditorSpecSaved: vi.fn(async (handler: never) => {
     mocks.specSavedHandler.current = handler as never;
-    return async () => {};
-  }),
-  listenEditorPreviewDraftUpdated: vi.fn(async (handler: never) => {
-    mocks.previewDraftHandler.current = handler as never;
     return async () => {};
   }),
 }));
@@ -144,7 +139,10 @@ beforeEach(() => {
     theme: 'light',
     accent: 'blue',
     customAccent: '#2563eb',
-    historyLimit: 20,
+    fileHistoryLimit: 20,
+    editHistoryLimit: 250,
+    logRotationSizeMiB: 5,
+    logBackupCount: 1,
     editMode: 'smart',
     starsectorRoot: null,
     logDirectory: null,
@@ -165,8 +163,8 @@ afterEach(() => {
   for (const vm of viewModels.splice(0)) vm.disposeEditorWindow();
 });
 
-function createViewModel(kind = 'ship', draftSnapshot: RowData | null = null) {
-  const vm = useEditorWindowViewModel({ sessionId: 's1', modRoot: 'M:/mod', id: 'XY', kind: kind as never, draftSnapshot });
+function createViewModel(kind = 'ship') {
+  const vm = useEditorWindowViewModel({ sessionId: 's1', modRoot: 'M:/mod', id: 'XY', kind: kind as never });
   viewModels.push(vm);
   return vm;
 }
@@ -175,7 +173,7 @@ async function initializedViewModel(kind = 'ship', bundle = shipBundleFixture())
   mocks.queryEditorEntityBundle.mockResolvedValue(bundle);
   const viewModel = createViewModel(kind);
   await viewModel.initializeEditorWindow();
-  if (kind !== 'weapon-preview') {
+  {
     await vi.waitFor(() =>
       expect(
         viewModel.shipEditorData.value ??
@@ -204,32 +202,6 @@ describe('useEditorWindowViewModel save gating', () => {
     expect(vm.shipEditorData.value?.ship.hullId).toBe('next');
   });
 
-  it('keeps the preview instance attached to the renamed weapon', async () => {
-    const bundle = {
-      kind: 'weapon-preview' as const,
-      target: entityTargetFixture('weapon', 'XY'),
-      baseVersions: [],
-      weapon: { id: 'XY', specClass: 'beam' },
-      weaponCsvRow: {},
-      projectileSpecs: {},
-      resourceRefs: [],
-      weaponSpriteData: {},
-      isNew: false,
-    };
-    mocks.queryEditorEntityBundle.mockResolvedValueOnce(bundle);
-    const vm = createViewModel('weapon-preview');
-    await vm.initializeEditorWindow();
-    await flushPromises();
-    const next = { ...bundle, target: entityTargetFixture('weapon', 'next'), weapon: { id: 'next', specClass: 'beam' } };
-    mocks.queryEditorEntityBundle.mockResolvedValueOnce(next);
-    const result = writeResultFixture();
-    result.identityChanges = [{ before: bundle.target, after: next.target }];
-    result.commitId = 8;
-    await mocks.identityHandler!({ sessionId: 's1', modRoot: 'M:/mod', result });
-    expect(vm.currentTarget.value?.id).toBe('next');
-    expect(vm.weaponPreviewData.value?.weapon.id).toBe('next');
-    expect(vm.canSaveSpec.value).toBe(false);
-  });
   it('accepts a dirty identity handoff while preserving the draft and raw inputs', async () => {
     const vm = await initializedViewModel();
     vm.updateEditorDraft('ship', { hullId: 'XY', hullName: 'Local' });
@@ -249,7 +221,6 @@ describe('useEditorWindowViewModel save gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.specSavedHandler.current = null;
-    mocks.previewDraftHandler.current = null;
     mocks.feedback.choose.mockResolvedValue(null);
   });
 
@@ -263,57 +234,6 @@ describe('useEditorWindowViewModel save gating', () => {
     expect(viewModel.canSaveSpec.value).toBe(true);
   });
 
-  it('keeps the save disabled for read-only preview windows', async () => {
-    mocks.queryEditorEntityBundle.mockResolvedValue({
-      baseVersions: [],
-      kind: 'weapon-preview',
-      weapon: {},
-      weaponCsvRow: {},
-      projectileSpecs: {},
-      resourceRefs: [],
-      weaponSpriteData: {},
-      isNew: false,
-    });
-    const viewModel = createViewModel('weapon-preview');
-    await viewModel.initializeEditorWindow();
-    expect(viewModel.canSaveSpec.value).toBe(false);
-    viewModel.disposeEditorWindow();
-  });
-
-  it('reloads a reused preview window with the latest draft snapshot', async () => {
-    mocks.queryEditorEntityBundle.mockResolvedValue({
-      baseVersions: [],
-      kind: 'weapon-preview',
-      weapon: { id: 'XY', projectileSpecId: 'proj_a' },
-      weaponCsvRow: {},
-      projectileSpecs: { proj_a: { id: 'proj_a' } },
-      resourceRefs: [],
-      weaponSpriteData: {},
-      isNew: false,
-    });
-    const viewModel = createViewModel('weapon-preview', { id: 'XY', projectileSpecId: 'proj_a' });
-    await viewModel.initializeEditorWindow();
-    await mocks.previewDraftHandler.current!({
-      sessionId: 's1',
-      modRoot: 'M:/mod',
-      id: 'XY',
-      draft: { id: 'XY', projectileSpecId: 'proj_b' },
-    });
-    await vi.waitFor(() =>
-      expect(mocks.queryEditorEntityBundle).toHaveBeenLastCalledWith(
-        's1',
-        'weapon-preview',
-        'XY',
-        {
-          id: 'XY',
-          projectileSpecId: 'proj_b',
-        },
-        expect.any(AbortSignal),
-      ),
-    );
-    viewModel.disposeEditorWindow();
-  });
-
   it('enables the save for new specs even before edits', async () => {
     const viewModel = await initializedViewModel('ship', shipBundleFixture(true));
     expect(viewModel.canSaveSpec.value).toBe(true);
@@ -324,7 +244,6 @@ describe('useEditorWindowViewModel saving', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.specSavedHandler.current = null;
-    mocks.previewDraftHandler.current = null;
     mocks.feedback.choose.mockResolvedValue(null);
   });
 
@@ -492,7 +411,7 @@ describe('useEditorWindowViewModel saving', () => {
   it('releases a listener whose registration completes after disposal', async () => {
     let release!: (stop: () => void) => void;
     const stop = vi.fn();
-    vi.mocked(listenEditorPreviewDraftUpdated).mockImplementationOnce(
+    vi.mocked(listenEditorSpecSaved).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           release = resolve;
@@ -605,7 +524,6 @@ describe('useEditorWindowViewModel missing specs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.specSavedHandler.current = null;
-    mocks.previewDraftHandler.current = null;
   });
 
   it('closes the window when the user cancels the missing-spec prompt', async () => {

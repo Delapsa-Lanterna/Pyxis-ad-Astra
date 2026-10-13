@@ -25,6 +25,13 @@ export type {
   NativeWindowRequest,
   ManagedWindowOpened,
   ManagedWindowStatus,
+  ManagedWindowInput,
+  ManagedWindowContext,
+  WindowContextFor,
+  FileWindowLocation,
+  WindowBootstrap,
+  WindowSettingsSnapshot,
+  WindowRequestReceipt,
 } from '@/shared/types/window.types';
 export type { CreatedMod, CreateModRequest, NewModDestination, NewModTemplate } from '@/shared/types/mod-creation.types';
 export type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel } from '@/shared/types/settings.types';
@@ -143,3 +150,5 @@ export type {
 } from '@/shared/types/workspace.types';
 export type { AppFeedback, ChooseOptions, ConfirmOptions } from '@/shared/types/feedback.types';
 export type * from '@/shared/types/joint-edit.types';
+
+export type { WeaponFirePreviewSource, WeaponFirePreviewData } from '@/shared/types/weapon-fire-preview.types';

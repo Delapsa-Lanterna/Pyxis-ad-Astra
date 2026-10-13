@@ -1,4 +1,13 @@
-import type { JointEditSnapshot, JointValue, JointHullProjection, ResourceRef, RowData, JointVariantEntry } from '@/shared/types';
+import type {
+  JointEditSnapshot,
+  JointValue,
+  JointHullProjection,
+  ResourceRef,
+  RowData,
+  JointVariantEntry,
+  JointPreviewSpec,
+  DeepReadonly,
+} from '@/shared/types';
 import { jointObject } from '@/domain/joint-edit';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
@@ -75,26 +84,34 @@ export interface VariantPanel {
 export interface VariantSceneProjection {
   key: string;
   name: string;
-  spec: Readonly<RowData>;
+  spec: DeepReadonly<RowData>;
   hull: Pick<JointHullProjection, 'sprite' | 'modules'>;
   weapons: Array<MountedWeaponImages & Pick<VariantWeapon, 'id' | 'name' | 'builtin'>>;
-  modules: Array<{ slot: RowData; variant: VariantSceneProjection }>;
+  modules: Array<{ slot: DeepReadonly<RowData>; variant: VariantSceneProjection }>;
   engineStyles: Readonly<RowData>;
   engineResources: Record<string, ResourceRef>;
 }
 export function variantCatalogScene(entry: JointVariantEntry): VariantSceneProjection | null {
   const preview = entry.preview;
   if (!preview || !isRowData(preview.spec)) return null;
+  return variantHullScene(preview.hull, preview.spec, entry.label, preview.specs);
+}
+function variantHullScene(
+  hull: JointHullProjection,
+  spec: DeepReadonly<RowData>,
+  name: string,
+  specs: DeepReadonly<JointPreviewSpec>[],
+): VariantSceneProjection {
   return {
-    key: preview.hull.variantKey,
-    name: entry.label,
-    spec: preview.spec,
-    hull: preview.hull,
-    weapons: preview.hull.slots.filter(isRowData).map((slot) => {
-      const id = preview.hull.weapons[schemaStringValue(slot.id)] ?? '';
-      const weapon = preview.specs.find((spec) => spec.kind === 'weapon' && spec.id === id);
+    key: hull.variantKey,
+    name,
+    spec,
+    hull,
+    weapons: hull.slots.filter(isRowData).map((slot) => {
+      const id = hull.weapons[schemaStringValue(slot.id)] ?? '';
+      const weapon = specs.find((spec) => spec.kind === 'weapon' && spec.id === id);
       const data = weapon && isRowData(weapon.data) ? weapon.data : {};
-      const projectile = preview.specs.find((spec) => spec.kind === 'projectile' && spec.id === schemaStringValue(data.projectileSpecId));
+      const projectile = specs.find((spec) => spec.kind === 'projectile' && spec.id === schemaStringValue(data.projectileSpecId));
       return {
         ...mountedWeaponImages(
           data,
@@ -102,17 +119,52 @@ export function variantCatalogScene(entry: JointVariantEntry): VariantSceneProje
           projectile && isRowData(projectile.data) ? projectile.data : {},
           projectile?.resourceRefs ?? {},
           slot,
-          preview.hull.hints,
+          hull.hints,
         ),
         id,
         name: id,
-        builtin: Object.hasOwn(preview.hull.builtInWeapons, schemaStringValue(slot.id)),
+        builtin: Object.hasOwn(hull.builtInWeapons, schemaStringValue(slot.id)),
       };
     }),
     modules: [],
     engineStyles: {},
     engineResources: {},
   };
+}
+export function variantSnapshotScene(snapshot: JointEditSnapshot, values: Record<string, JointValue>): VariantSceneProjection | null {
+  if (!snapshot.hull) return null;
+  const data = (key: string) => jointObject(values[key] ?? snapshot.records.find((record) => record.key === key)?.value);
+  const specs = snapshot.records.flatMap((record): DeepReadonly<JointPreviewSpec>[] =>
+    record.target.kind === 'spec'
+      ? [
+          {
+            kind: record.target.target.kind,
+            id: record.target.target.id,
+            data: data(record.key),
+            resourceRefs: record.resourceRefs,
+            source: record.source,
+            sourceVersion: record.sourceVersion,
+          },
+        ]
+      : [],
+  );
+  const scenes = Object.values({ ...snapshot.variants, [snapshot.hull.variantKey]: snapshot.hull }).map((hull) => {
+    const binding = hull.fields.name;
+    const name = [
+      binding ? schemaStringValue(data(binding.recordKey)[binding.path]) : '',
+      schemaStringValue(data(hull.variantKey).displayName),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return variantHullScene(hull, data(hull.hullKey), name, specs);
+  });
+  for (const scene of scenes)
+    for (const module of scene.hull.modules) {
+      const child = scenes.find((item) => item.key === module.variantKey),
+        slot = scene.weapons.find((item) => item.slot.id === module.slotId)?.slot;
+      if (child && slot) scene.modules.push({ slot, variant: child });
+    }
+  return scenes.find((scene) => scene.key === snapshot.hull!.variantKey)!;
 }
 export const formatVariantNumber = (value: number) =>
   Number.isFinite(value) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2, useGrouping: false }).format(value) : '来源未确定';

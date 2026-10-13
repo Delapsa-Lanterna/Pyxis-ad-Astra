@@ -1,6 +1,6 @@
 import { h } from 'vue';
 import type { AppFeedback } from '@/shared/types';
-import type { useProjectStore } from '@/stores/project.store';
+import { useProjectStore } from '@/stores/project.store';
 import type { useTablesStore } from '@/stores/tables.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { replayFileChangeSet } from '@/services/file-history.service';
@@ -14,6 +14,23 @@ import { loadFileHistory } from '@/services/file-history.service';
 type ProjectStore = ReturnType<typeof useProjectStore>;
 type TablesStore = ReturnType<typeof useTablesStore>;
 export type FileHistoryReplayDirection = FileChangeReplayDirection;
+
+export async function refreshLoadedFileHistory(accepts: () => boolean): Promise<void> {
+  const project = useProjectStore();
+  const fileHistory = useFileHistoryStore();
+  const results = await Promise.allSettled(
+    [...project.manifests.values()].map(async ({ sessionId, modRoot }) => {
+      try {
+        const snapshot = await loadFileHistory(sessionId, modRoot);
+        if (accepts() && project.getSessionId(modRoot) === sessionId) fileHistory.applySnapshot(modRoot, snapshot);
+      } catch (error) {
+        if (accepts() && project.getSessionId(modRoot) === sessionId) throw error;
+      }
+    }),
+  );
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
+}
 
 export interface FileHistoryReplayPlan {
   actionText: string;

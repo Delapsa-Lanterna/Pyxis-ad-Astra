@@ -75,15 +75,6 @@
       @draft-changed="updateEditorDraft('system', $event)"
       @load-external="loadPendingExternalSpec"
     />
-    <WeaponFirePreview
-      v-else-if="weaponPreviewData && target"
-      :weapon-id="target.id"
-      :weapon-csv-row="weaponPreviewData.weaponCsvRow"
-      :weapon-spec="weaponForEditor"
-      :projectile-specs="weaponPreviewData.projectileSpecs"
-      :sprite-data="weaponPreviewData.weaponSpriteData"
-      @close="closeWindow"
-    />
     <div v-else class="editor-window-status editor-window-error">
       <strong>无法打开编辑器</strong>
       <span>{{ missingEditorText }}</span>
@@ -92,29 +83,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import ShipEditor from '@/app/components/editors/ShipEditor.vue';
 import WeaponEditor from '@/app/components/editors/WeaponEditor.vue';
 import ProjectileEditor from '@/app/components/editors/ProjectileEditor.vue';
-import WeaponFirePreview from '@/app/components/editors/WeaponFirePreview.vue';
 import SystemEditor from '@/app/components/editors/SystemEditor.vue';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
-import { openProjectileEditorWindow, openWeaponPreviewWindow } from '@/windows/editor.window';
+import { openProjectileEditorWindow } from '@/windows/editor.window';
+import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useSettingsStore } from '@/stores/settings.store';
 import { closeCurrentWindow } from '@/windows/current.window';
 import { useEditorWindowViewModel } from '@/app/composables/editors/use-editor-window-view-model';
-import type { EditorSpecKind, EditorWindowKind } from '@/shared/types';
-import { useEditorWindowInput } from '@/app/composables/editors/use-editor-window-input';
+import { useWindowContext } from '@/windows/window-context.window';
+import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 
-const params = new window.URLSearchParams(window.location.search);
-const initialInput = useEditorWindowInput(params);
-const kind = ref<EditorWindowKind>(initialInput.kind);
-const sessionId = params.get('sessionId');
-const modRoot = params.get('modRoot');
-const id = params.get('id');
-const starsectorRoot = params.get('starsectorRoot');
+const context = useWindowContext('editor').value;
+const { sessionId, modRoot, id } = context.identity;
+const kind = context.identity.kind;
+const starsectorRoot = context.input.starsectorRoot;
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
 
@@ -123,13 +111,11 @@ const {
   shipEditorData,
   weaponEditorData,
   projectileEditorData,
-  weaponPreviewData,
   systemEditorData,
   loading,
   contentReady,
   errorText,
   weaponForEditor,
-  draftValue,
   shipSpriteForEditor,
   draftDirty,
   editContext,
@@ -143,7 +129,8 @@ const {
   saveEditorData,
   updateEditorDraft,
   loadPendingExternalSpec,
-} = useEditorWindowViewModel({ sessionId, modRoot, id, kind: kind.value, draftSnapshot: initialInput.draftSnapshot });
+} = useEditorWindowViewModel({ sessionId, modRoot, id, kind });
+useManagedWindowRequests(() => {});
 const closeGuard = useDirtyWindowCloseGuard({
   content: '当前 spec 有未保存修改，关闭后这些修改将丢失。',
   dirty: draftDirty,
@@ -160,34 +147,23 @@ function openProjectile(projectileId: string) {
     modRoot: target.value.modRoot,
     id: projectileId,
     sessionId: target.value.sessionId,
-    settings: settings.settingsSnapshot(),
     starsectorRoot,
   }).catch((error) => feedback.error(error, '打开弹体编辑器失败'));
 }
 
-function openPreview(weaponId: string) {
-  if (!weaponId || !target.value) return;
-  openWeaponPreviewWindow({
+function openPreview(weapon: import('@/shared/types').RowData) {
+  if (!target.value) return;
+  openWeaponFirePreviewWindow({
     modRoot: target.value.modRoot,
-    id: weaponId,
+    id: target.value.id,
     sessionId: target.value.sessionId,
-    settings: settings.settingsSnapshot(),
-    starsectorRoot,
-    draftSnapshot: kind.value === 'weapon' ? draftValue.value : undefined,
+    source: { kind: 'draft', weapon },
   }).catch((error) => feedback.error(error, '打开发射预览失败'));
-}
-
-function resolveEditableKind(): EditorSpecKind | null {
-  if (kind.value === 'weapon-preview') return null;
-  return kind.value as EditorSpecKind;
 }
 
 useShortcutDispatch({
   commands: {
-    save: () => {
-      const editableKind = resolveEditableKind();
-      if (editableKind) void saveEditorData(editableKind);
-    },
+    save: () => void saveEditorData(kind),
   },
 });
 

@@ -2,8 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { savedWriteFixture } from '@/test/write-result';
 import { entityTargetFixture } from '@/test/entity-target';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 
-beforeEach(() => setActivePinia(createPinia()));
+beforeEach(() => {
+  setActivePinia(createPinia());
+  initializeSettingsStore({
+    theme: 'light',
+    accent: 'blue',
+    customAccent: '#2563eb',
+    fileHistoryLimit: 20,
+    editHistoryLimit: 250,
+    logRotationSizeMiB: 5,
+    logBackupCount: 1,
+    editMode: 'smart',
+    starsectorRoot: null,
+    logDirectory: null,
+    logLevel: 'info',
+  });
+});
 
 vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ applyCommittedWriteCacheInvalid: vi.fn() }));
 
@@ -14,10 +30,6 @@ const mocks = vi.hoisted(() => ({
   writeEditableFileText: vi.fn(),
   emitFileEditorSaved: vi.fn(async () => {}),
   listenFileEditorProjectInvalidated: vi.fn(async (...args: unknown[]) => {
-    void args;
-    return async () => {};
-  }),
-  listenFileEditorFocusLine: vi.fn(async (...args: unknown[]) => {
     void args;
     return async () => {};
   }),
@@ -63,7 +75,6 @@ vi.mock('@/orchestrators/entity-events.orchestrator', () => ({
 
 vi.mock('@/orchestrators/file-editor-window.orchestrator', () => ({
   emitFileEditorSaved: mocks.emitFileEditorSaved,
-  listenFileEditorFocusLine: mocks.listenFileEditorFocusLine,
   listenFileEditorTextApplied: mocks.listenFileEditorTextApplied,
   listenFileEditorProjectInvalidated: mocks.listenFileEditorProjectInvalidated,
 }));
@@ -156,6 +167,27 @@ describe('useFileEditorViewModel editing', () => {
     viewModel.redoEdit();
     expect(viewModel.text.value).toBe('changed');
     viewModel.dispose();
+  });
+
+  it('updates the open text history capacity independently of saved file history', async () => {
+    const vm = await loadedViewModel();
+    vm.updateText('one');
+    vm.updateText('two');
+    vm.updateText('three');
+    useSettingsStore().setFileHistoryLimit(1);
+    vm.undoEdit();
+    expect(vm.text.value).toBe('two');
+    useSettingsStore().setEditHistoryLimit(1);
+    vm.undoEdit();
+    expect(vm.text.value).toBe('one');
+    vm.undoEdit();
+    expect(vm.text.value).toBe('one');
+    vm.redoEdit();
+    expect(vm.text.value).toBe('two');
+    vm.dispose();
+    expect(vm.canUndo.value).toBe(false);
+    useSettingsStore().setEditHistoryLimit(2);
+    expect(vm.canRedo.value).toBe(false);
   });
 
   it('saves through the write service and records history only in session mode', async () => {
@@ -374,17 +406,10 @@ describe('useFileEditorViewModel external text', () => {
     viewModel.dispose();
   });
 
-  it('updates the error context from focus line events', async () => {
+  it('updates location and diagnostic context without changing the text draft', async () => {
     mocks.loadEditableFileData.mockResolvedValue({ path: 'x', text: 'base', baseVersions: [] });
-    let focusLine:
-      | ((event: { message?: string; contextLabel?: string; contextSeverity?: string; line: number | null; column: number | null }) => void)
-      | null = null;
-    mocks.listenFileEditorFocusLine.mockImplementation(async (handler?: unknown) => {
-      focusLine = handler as never;
-      return async () => {};
-    });
     const viewModel = await initializeViewModel(paramsFixture());
-    focusLine!({ message: 'parse error', contextLabel: '错误', contextSeverity: 'error', line: 3, column: 2 });
+    viewModel.applyLocation({ message: 'parse error', contextLabel: '错误', contextSeverity: 'error', line: 3, column: 2 });
     expect(viewModel.contextSeverity.value).toBe('error');
     expect(viewModel.isErrorContext.value).toBe(true);
     expect(viewModel.targetLine.value).toBe(3);

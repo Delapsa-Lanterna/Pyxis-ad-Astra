@@ -56,6 +56,15 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::open_managed_window,
+            commands::get_window_bootstrap,
+            commands::get_current_window_context,
+            commands::get_current_window_request,
+            commands::accept_window_request,
+            commands::fail_window_request,
+            commands::fail_window_startup,
+            commands::await_window_request,
+            commands::publish_window_settings,
+            commands::get_window_settings,
             commands::focus_managed_window,
             commands::update_edit_target_registration,
             commands::query_edit_target_owners,

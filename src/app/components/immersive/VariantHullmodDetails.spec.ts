@@ -4,12 +4,17 @@ import VariantHullmodDetails from './VariantHullmodDetails.vue';
 import ImmersiveText from './ImmersiveText.vue';
 import type { JointVariantEntry } from '@/shared/types';
 describe('static original hullmod tooltip', () => {
-  it('consumes heading font, preserved raw text, S description and sequential parameter diagnostics', () => {
+  it('shows heading, ordered static descriptions and gray short text with parameter placeholders', () => {
     const source = { source: 'mod' as const, root: 'M:/mod', path: 'M:/mod/mods.csv', relPath: 'mods.csv' };
     const entry: JointVariantEntry = {
       id: 'mod',
       label: '名称原文',
-      data: { desc: 'Boost %s.\n\nThen %s.', sModDesc: 'S %s', script: 'data.Mod', cost_cruiser: '20', 'tech/manufacturer': 'High Tech' },
+      data: {
+        desc: 'Boost %s.\n\nThen %s.',
+        short: 'Short %s',
+        sModDesc: 'S %s',
+        'tech/manufacturer': 'High Tech',
+      },
       source,
       sourceVersion: { path: source.path, fingerprint: 'v' },
       resourceRefs: {},
@@ -24,8 +29,6 @@ describe('static original hullmod tooltip', () => {
       props: {
         entry,
         reference: { referenceSettings: { resources: {}, values: {}, versions: [] } },
-        hullSize: 'CRUISER',
-        available: 5,
         images: {},
       },
       global: {
@@ -35,11 +38,18 @@ describe('static original hullmod tooltip', () => {
       },
     });
     expect(own.findComponent(ImmersiveText).props('font')).toBe('heading');
-    expect(own.text()).toContain('Then [脚本参数 2]');
-    expect(own.text()).toContain('S强化静态说明');
-    expect(own.find('details').text()).toContain('Boost %s.');
-    expect(own.find('details').text()).toContain('data.Mod');
-    expect(own.text()).toContain('超预算');
+    expect(own.find('header').text()).toBe('名称原文');
+    expect(own.findAll('p').map((paragraph) => paragraph.text())).toEqual([
+      '设计类型：High Tech',
+      'Boost [脚本参数 1].',
+      'Then [脚本参数 2].',
+      'Short [脚本参数 1]',
+      'S [脚本参数 1]',
+    ]);
+    expect(own.find('section').findComponent(ImmersiveText).props('text')).toBe('S强化静态说明');
+    const short = own.findAllComponents(ImmersiveText).find((text) => text.text().startsWith('Short'))!;
+    expect(short.text()).toBe('Short [脚本参数 1]');
+    expect(short.props('runs')!.every((run) => run.color === '#afafaf')).toBe(true);
     own.unmount();
   });
 });

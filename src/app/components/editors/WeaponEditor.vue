@@ -229,7 +229,7 @@
               </div>
               <div class="action-row button-row">
                 <n-button @click="$emit('edit-projectile', view.projectileSpecId)">编辑弹体</n-button>
-                <n-button tertiary @click="$emit('preview', weaponId)">发射预览</n-button>
+                <n-button tertiary @click="actions.preview">发射预览</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item v-if="view.showBeamSection" title="光束" name="beam">
@@ -251,7 +251,7 @@
                 ><n-checkbox :checked="document.convergeOnPoint" @update:checked="actions.setField('convergeOnPoint', $event)" />
                 <label>darkCore</label><n-checkbox :checked="document.darkCore" @update:checked="actions.setField('darkCore', $event)" />
               </div>
-              <n-button tertiary @click="$emit('preview', weaponId)">预览光束</n-button>
+              <n-button tertiary @click="actions.preview">预览光束</n-button>
             </n-collapse-item>
             <n-collapse-item title="音效" name="sound">
               <div class="form-grid">

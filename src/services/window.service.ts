@@ -1,7 +1,15 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { withCause } from '@/shared/lib/errors';
 import type { ManagedWindowOpened, ManagedWindowStatus, NativeWindowRequest, WindowIdentity } from '@/shared/types';
-import type { EditWriteTarget } from '@/shared/types';
+import type {
+  WindowBootstrap,
+  ManagedWindowContext,
+  WindowSettingsSnapshot,
+  WindowRequestReceipt,
+  AppSettings,
+  ErrorDiagnostic,
+} from '@/shared/types';
+import type { EditWriteTarget, ManagedWindowInput } from '@/shared/types';
 
 export function updateEditTargetRegistration(targets: EditWriteTarget[]): Promise<void> {
   return invokeCommand('update_edit_target_registration', { targets });
@@ -35,12 +43,40 @@ export function reserveNativeWindowTargets(identities: WindowIdentity[]) {
 export function releaseNativeWindowTargets() {
   return invokeCommand<void>('release_window_targets');
 }
-export function retargetNativeWindow(identity: WindowIdentity, title: string) {
-  return invokeCommand<void>('retarget_managed_window', { identity, title });
+export function retargetNativeWindow(identity: WindowIdentity, title: string, input: ManagedWindowInput | null = null) {
+  return invokeCommand<ManagedWindowContext>('retarget_managed_window', { identity, title, input });
 }
 export function closeNativeSessionWindows(sessionId: string) {
   return invokeCommand<boolean>('request_session_window_close', { sessionId });
 }
 export function cancelNativeWindowClose(requestId: number) {
   return invokeCommand<void>('cancel_window_close_request', { requestId });
+}
+
+export function getNativeWindowBootstrap() {
+  return invokeCommand<WindowBootstrap>('get_window_bootstrap');
+}
+export function getNativeWindowContext() {
+  return invokeCommand<ManagedWindowContext>('get_current_window_context');
+}
+export function getNativeWindowRequest() {
+  return invokeCommand<ManagedWindowContext | null>('get_current_window_request');
+}
+export function acceptNativeWindowRequest(requestId: number) {
+  return invokeCommand<boolean>('accept_window_request', { requestId });
+}
+export function failNativeWindowRequest(requestId: number, diagnostic: ErrorDiagnostic) {
+  return invokeCommand<void>('fail_window_request', { requestId, diagnostic });
+}
+export function failNativeWindowStartup(diagnostic: ErrorDiagnostic) {
+  return invokeCommand<void>('fail_window_startup', { diagnostic });
+}
+export function awaitNativeWindowRequest(requestId: number) {
+  return invokeCommand<WindowRequestReceipt>('await_window_request', { requestId });
+}
+export function publishNativeWindowSettings(settings: AppSettings) {
+  return invokeCommand<WindowSettingsSnapshot>('publish_window_settings', { settings });
+}
+export function getNativeWindowSettings() {
+  return invokeCommand<WindowSettingsSnapshot>('get_window_settings');
 }

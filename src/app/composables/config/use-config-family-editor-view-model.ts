@@ -9,7 +9,6 @@ import type { RowData, SavedConfig, WriteResult } from '@/shared/types';
 import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { queryBuiltInWeaponSlotOptions } from '@/services/hull-reference.service';
 import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { useSettingsStore } from '@/stores/settings.store';
 import { openVariantImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 
 export function useConfigFamilyEditorViewModel(params: {
@@ -31,7 +30,6 @@ export function useConfigFamilyEditorViewModel(params: {
     try {
       await openVariantImmersiveEditor(
         { sessionId: target.sessionId, modRoot: target.modRoot, kind: family.immersiveKind!, id: target.id },
-        useSettingsStore().settingsSnapshot(),
         feedback,
       );
     } catch (error) {

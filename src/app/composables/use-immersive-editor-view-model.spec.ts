@@ -8,6 +8,7 @@ import { shipJointFixture } from '@/test/joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
 import { wingJointFixture } from '@/test/wing-joint-edit';
 import { variantJointFixture } from '@/test/variant-joint-edit';
+import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant-actions';
 import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
@@ -94,7 +95,10 @@ beforeEach(() => {
     theme: 'dark',
     accent: 'blue',
     customAccent: '#3388cc',
-    historyLimit: 20,
+    fileHistoryLimit: 20,
+    editHistoryLimit: 20,
+    logRotationSizeMiB: 10,
+    logBackupCount: 5,
     editMode: 'smart',
     starsectorRoot: null,
     logDirectory: null,
@@ -109,6 +113,101 @@ beforeEach(() => {
 });
 
 describe('variant joint actions', () => {
+  it('keeps an accepted graph through delayed removal and accepts new equipment in one display update', async () => {
+    const baseline = variantJointFixture();
+    const graph = structuredClone(baseline);
+    const row = structuredClone(graph.records.find((record) => record.key === 'mod')!);
+    row.key = 'expanded';
+    if (row.target.kind !== 'csv') throw new Error('Hullmod fixture');
+    row.target.identity.id = 'expanded';
+    row.value = { state: 'present', value: { id: 'expanded', name: 'Expanded Magazines', cost_cruiser: '7' } };
+    row.resourceRefs.icon = { source: 'core', relPath: 'expanded.png', ownerKind: 'hullmods', ownerId: 'expanded', key: 'icon' };
+    graph.records.push(row);
+    mocks.query.mockResolvedValue(baseline);
+    let finish!: (value: JointEditSnapshot) => void;
+    mocks.projection.mockImplementation(
+      () =>
+        new Promise<JointEditSnapshot>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    await flushPromises();
+    expect(mocks.projection).not.toHaveBeenCalled();
+    const view = () => {
+      if (vm.panel.value?.kind !== 'variant') throw new Error('Variant panel fixture');
+      return vm.panel.value.variants[0]!;
+    };
+    await vm.updateVariant('variant', (data) => setVariantHullmod(data, 'expanded', 'normal'));
+    await flushPromises();
+    expect(jointObject(vm.joint.draftValue.value.variant).hullMods).toContain('expanded');
+    expect(view().mods.map((mod) => mod.id)).toEqual(['rangefinder']);
+    expect(view().opUsed).toBe(71);
+    finish(graph);
+    await flushPromises();
+    expect(view().mods[1]).toMatchObject({ name: 'Expanded Magazines', cost: 7, icon: row.resourceRefs.icon });
+    expect(view().opUsed).toBe(78);
+    await vm.updateVariant('variant', (data) => setVariantHullmod(data, 'rangefinder', null));
+    await flushPromises();
+    expect(view().mods.map((mod) => mod.id)).toEqual(['rangefinder', 'expanded']);
+    expect(view().mods[1]!.cost).toBe(7);
+    finish(graph);
+    await flushPromises();
+    expect(view().mods.map((mod) => mod.id)).toEqual(['expanded']);
+    expect(view().opUsed).toBe(33);
+    const reads = mocks.projection.mock.calls.length;
+    await vm.updateVariant('variant', (data) => setVariantHullmod(data, 'expanded', 's'));
+    await vm.updateVariant('variant', (data) => ({ ...data, fluxCapacitors: 5 }));
+    await flushPromises();
+    expect(view().mods[0]).toMatchObject({ category: 's', cost: 0 });
+    expect(view().capacity).toBe(12000);
+    expect(mocks.projection).toHaveBeenCalledTimes(reads);
+    await vm.undo();
+    expect(view().capacity).toBe(11800);
+    wrapper.unmount();
+  });
+  it('rejects a late equipment graph after a newer draft and keeps the graph on read failure', async () => {
+    const baseline = variantJointFixture();
+    mocks.query.mockResolvedValue(baseline);
+    let first!: (value: JointEditSnapshot) => void, second!: (value: JointEditSnapshot) => void;
+    mocks.projection
+      .mockImplementationOnce(
+        () =>
+          new Promise<JointEditSnapshot>((resolve) => {
+            first = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<JointEditSnapshot>((resolve) => {
+            second = resolve;
+          }),
+      );
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    await vm.updateVariant('variant', (data) => equipVariantWing(data, 0, 'first'));
+    await flushPromises();
+    await vm.updateVariant('variant', (data) => equipVariantWing(data, 0, 'second'));
+    await flushPromises();
+    const latest = structuredClone(baseline);
+    const wing = latest.records.find((record) => record.key === 'wing')!;
+    if (wing.target.kind !== 'csv') throw new Error('Wing fixture');
+    wing.target.identity.id = 'second';
+    second(latest);
+    await flushPromises();
+    expect(vm.panel.value?.kind === 'variant' && vm.panel.value.variants[0]!.wings[0]!.id).toBe('second');
+    first(baseline);
+    await flushPromises();
+    expect(vm.displaySnapshot.value!.records.find((record) => record.key === 'wing')!.target).toEqual(wing.target);
+    mocks.projection.mockRejectedValueOnce(new Error('Source unavailable'));
+    await vm.updateVariant('variant', (data) => equipVariantWing(data, 0, 'third'));
+    await flushPromises();
+    expect(jointObject(vm.joint.draftValue.value.variant).wings).toEqual(['third']);
+    expect(vm.panel.value?.kind === 'variant' && vm.panel.value.variants[0]!.wings[0]!.id).toBe('second');
+    expect(mocks.error).toHaveBeenCalled();
+    wrapper.unmount();
+  });
   function weaponCatalog(spec = { type: 'ENERGY', size: 'LARGE' }) {
     const snapshot = variantJointFixture();
     const source = snapshot.records.find((record) => record.key === 'weapon-spec')!.source!;

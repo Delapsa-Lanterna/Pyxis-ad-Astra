@@ -68,7 +68,7 @@
 
 ### 正式模块
 
-- [应用启动与窗口挂载](modules/app-runtime.md)：说明 URL 窗口类型、settings 初始化、唯一窗口壳、窗口根装配和应用启动失败呈现。
+- [应用启动与窗口挂载](modules/app-runtime.md)：说明原生窗口上下文、settings 初始化、唯一窗口壳、窗口根装配和应用启动失败呈现。
 - [多窗口机制](modules/app-windowing.md)：说明类型化 identity、Rust 原生实例登记、目标占用、跨窗口事件与会话关闭守卫。
 - [应用设置与主题](modules/app-settings.md)：说明 settings store、主题令牌、editMode、日志目录、persistence/mirror 与子窗口 snapshot。
 - [后端能力与 IPC 传输](modules/backend-capabilities.md)：说明最小传输、透明错误、command 归属与公开能力授权。
@@ -97,7 +97,8 @@
 - [字段模式系统](modules/schema.md)：说明 schema 资产加载、runtime、字段渲染、editMode、校验、引用 source、SelectOption 与资源选择。
 - [配置实体族编辑器](modules/family-editors.md)：说明装配与皮肤两族参数化编辑、family 定义、实体 query/write 和单文件保存。
 - [舰船编辑器](modules/ship-editor.md)：说明 `.ship` 画布注入、槽位、引擎、shield、贴图引用选择与独立窗口保存。
-- [武器、弹体与发射预览](modules/weapon-editing.md)：说明 `.wpn` 编辑、`specClass` 分支、弹体窗口、发射预览与武器工作流链路。
+- [武器与弹体编辑器](modules/weapon-editor.md)：说明 `.wpn` 与 `.proj` 编辑、历史、保存、资源及预览快照交付。
+- [武器开火预览](modules/weapon-fire-preview.md)：说明预览来源、只读查询、模拟、播放控制与独立窗口生命周期。
 - [战术系统编辑器](modules/system-editor.md)：说明 `.system` spec、schema 表单、type 条件字段与独立窗口保存。
 - [资源与原版回退](modules/assets-core-fallback.md)：说明 `ResourceRef`、Mod/Core 优先级、批量 data URL、引用选择、媒体预算、可见资源集合及 Core 来源目录缓存。
 - [后端文件读写与变更集](modules/rust-file-io-changeset.md)：说明 UTF-8 IO、canonical 路径、父链校验、文件或目录快照与 replay。

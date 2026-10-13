@@ -6,22 +6,26 @@
 
 ## 参考
 
+`src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值 owner。
+`src-tauri/src/services/app_settings.rs`：设置持久化、容量边界校验及文件历史容量接入 owner。
 `src/app/WindowShell.vue`：唯一窗口壳，main 模式启动设置持久化、child 模式启动设置镜像并挂载主题 effect。
-`src/app/components/SettingsPage.vue`：设置页组件，消费 accent 预设与历史上限常量。
+`src/app/components/SettingsPage.spec.ts`：四项设置的位置、范围、单位及更新行为验证。
+`src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
 `src/app/composables/settings/use-settings-view-model.ts`：设置页 ViewModel，拥有日志目录保存与清空动作。
 `src/app/composables/settings/use-theme-dom-effect.ts`：主题 DOM 副作用 owner，watch 主题令牌并写 root dataset 与 CSS 变量。
 `src/domain/settings/rules.ts`：设置校验 owner，拥有主题/accent/自定义色/历史上限/editMode/原样保存/日志级别/日志目录的读取校验与归一化。
 `src/domain/settings/theme.ts`：主题令牌与色彩数学 owner，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与 CSS 自定义属性映射。
-`src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像 owner，负责保存、广播、接收镜像与 `historyLimit` 同步。
+`src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像 owner，负责保存、广播、接收镜像、编辑历史容量同步与文件历史刷新交接。
 `src/services/app-settings.service.ts`：settings 读写签名与 command 参数装配主归属。
+`src/stores/settings-store.spec.ts`：容量输入、初始化与镜像边界验证。
 `src/stores/settings.store.ts`：settings 运行态 owner，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 
 ## 边界
 
 - `appearance` 提供沉浸式固定颜色；设计类型与槽位语义颜色归所属领域投影。
 - settings 持久化目标是工具 app-data，私有根由 Tauri 标识 `com.caopancake.circinus-ad-astra` 解析。
-- 主窗口拥有 settings 持久化，子窗口以 URL snapshot 初始化并接收完整镜像。
-- 后端设置更新文件历史上限，前端持久化编排同步 CSV 草稿历史上限。
+- 主窗口拥有 settings 持久化，子窗口以 原生 settings snapshot 初始化并接收完整镜像。
+- 后端设置更新文件保存历史容量，前端持久化编排同步 CSV 编辑容量并交接权威文件历史摘要刷新。
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。
@@ -32,17 +36,18 @@
 ### 主窗口设置保存
 
 1. 用户修改任一设置项，store 状态变化。
-2. 持久化编排侦听快照变化，同步 CSV `historyLimit` 并串行提交设置。
+2. 持久化编排侦听快照变化，同步 CSV `editHistoryLimit` 并串行提交设置。
 3. 快照经 settings service 写入后端 `settings.json`，后端同步文件历史上限。
-4. 保存成功后向全部窗口广播同一 snapshot。
-5. 保存失败只记录错误日志，不回滚内存状态。
+4. 保存成功后向原生窗口 owner 发布完整 snapshot，owner 保留最新 revision 并通知各窗口。
+5. 历史编排重新查询已加载 Mod 的文件历史摘要，按会话身份和 revision 接纳。
+6. 保存或刷新失败进入所属日志，当前内存设置保持其编辑值。
 
 ### 子窗口设置镜像
 
-1. 子窗口启动时以 URL snapshot 初始化 store。
-2. 子窗口唯一窗口壳启动设置镜像监听。
-3. 收到广播 snapshot 后经校验规则整体替换 store 状态。
-4. 同步 `historyLimit` 到子窗口的 history store。
+1. 子窗口启动时以 原生 settings snapshot 初始化 store。
+2. 子窗口唯一窗口壳先注册设置镜像通知，再读取最新正式快照。
+3. 快照按递增 revision 接纳，经校验规则整体替换 store 状态。
+4. 同步 `editHistoryLimit` 到子窗口的 CSV 历史，快照历史消费各自响应式容量。
 5. 各输入面按所属输入集合接纳 editMode；确认放弃后替换控件，取消保持当前模式。
 
 ### 日志目录保存
@@ -62,17 +67,20 @@
 ## 规范
 
 - `accent` 与 `editMode` 必须是正式枚举；非法值在初始化与替换时必须抛出。
-- `historyLimit` 取值必须在 1 到上限之间；设置页输入只允许触达统一上限常量。
+- `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值必须分别为 250 与 20，整数范围必须为 1–1000；设置读取和保存必须共同校验范围。
+- `logBackupCount` 默认必须为 1，整数范围必须为 1–20；`logRotationSizeMiB` 默认必须为 5，整数范围必须为 1–1024。
 - `logLevel` 只允许 `info`（默认档，丢弃 debug 条目）或 `debug`（详细档，全量保留）；缺省视为 info。
 - `preserveOriginalJson` 必须是布尔值；缺省视为 `true`。该设置必须随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作必须在开始时捕获本次使用的值。
 - `theme` 必须以 `null` 表示默认跟随系统，以 `light` 或 `dark` 表示手动选择；手动切换必须持久化明确选择，显示主题必须由选择与系统运行态派生，系统运行态严禁写入 settings snapshot。
+- 主窗口初始化及设置保存成功后必须发布完整正式快照；原生窗口 owner 必须保留最新版本，子窗口必须先监听再读取并按 revision 接纳。
 - 主题计算必须由 domain 纯函数执行，DOM 写入只允许由唯一主题 effect 完成；Provider 必须消费具体颜色值。
-- 保存失败严禁静默：必须记录错误日志且不广播。
+- 保存失败必须进入所属日志；设置广播必须在保存成功后执行，文件历史刷新失败必须保留已经保存和广播的设置。
 - 同一输入面的子控件必须消费同一实际模式；不同输入集合必须分别拥有模式交接，模式确认必须绑定目标与生命周期。
 - 子窗口只允许接收完整 settings 镜像，严禁发送设置广播。
 - 日志目录读取必须以 `logDirectory=null` 表达 app-data 默认目录，并拒绝空白字符串。
 - 自定义 accent 必须是 `#rrggbb` 形式；非法输入只拒绝不修正。
 - 设置保存必须消费捕获的所属 store、快照和生命周期；释放后的成功与错误严禁接管新窗口投影或广播。
+- 设置页必须在全局限制中展示文件保存历史步数和编辑撤销步数，在配置文件中展示日志轮转大小与备份份数，并说明每栈范围、裁剪及轮转时机。
 - 路径授权必须消费后端根边界，`starsectorRoot` 只允许作为默认目录提示。
 - 镜像监听与持久化监听释放后必须允许重新装配；迟到的监听注册必须立即解除，严禁接纳已释放窗口的设置。
 

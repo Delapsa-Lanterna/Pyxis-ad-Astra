@@ -1,30 +1,30 @@
 import { computed, onMounted, onUnmounted, reactive, shallowRef, watch, type ShallowRef } from 'vue';
-import type { RowData } from '@/shared/types';
+import type { DeepReadonly, RowData } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
 import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
 import {
-  createWeaponPreviewParams,
-  createWeaponPreviewState,
-  startWeaponPreview,
-  stopWeaponPreview,
-  advanceWeaponPreview,
-  previewBarrels,
-} from '@/domain/editors/weapon-preview';
+  createWeaponFirePreviewParams,
+  createWeaponFirePreviewState,
+  startWeaponFirePreview,
+  stopWeaponFirePreview,
+  advanceWeaponFirePreview,
+  weaponFirePreviewBarrels,
+} from '@/domain/weapon-fire-preview/simulation';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useCanvasSurface, watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
-import { useEditorImages } from './use-editor-images';
-import { useEditorFrameLoop } from './use-editor-frame-loop';
-import { renderWeaponPreviewScene } from '@/app/renderers/editors/weapon-preview-scene';
+import { useEditorImages } from '../editors/use-editor-images';
+import { useEditorFrameLoop } from '../editors/use-editor-frame-loop';
+import { renderWeaponFirePreviewScene } from '@/app/renderers/weapon-fire-preview/scene';
 export interface WeaponFirePreviewProps {
   weaponId: string;
-  weaponCsvRow: RowData;
-  weaponSpec: RowData;
-  projectileSpecs: Record<string, RowData>;
+  weaponCsvRow: DeepReadonly<RowData>;
+  weaponSpec: DeepReadonly<RowData>;
+  projectileSpecs: DeepReadonly<Record<string, RowData>>;
   spriteData?: Record<string, string>;
 }
 export type WeaponFirePreviewEvents = { close: [] };
-export function useWeaponPreviewViewModel(
+export function useWeaponFirePreviewViewModel(
   props: Readonly<WeaponFirePreviewProps>,
   elements: {
     canvasRef: Readonly<ShallowRef<HTMLCanvasElement | null>>;
@@ -33,10 +33,10 @@ export function useWeaponPreviewViewModel(
 ) {
   const { canvasRef, previewStageRef } = elements,
     surface = useCanvasSurface(canvasRef);
-  const state = shallowRef(createWeaponPreviewState(createWeaponPreviewParams(props.weaponCsvRow, props.weaponSpec, {}, 'turret')));
+  const state = shallowRef(createWeaponFirePreviewState(createWeaponFirePreviewParams(props.weaponCsvRow, props.weaponSpec, {}, 'turret')));
   const viewMode = computed(() => state.value.mode);
   const params = computed(() =>
-    createWeaponPreviewParams(
+    createWeaponFirePreviewParams(
       props.weaponCsvRow,
       props.weaponSpec,
       props.projectileSpecs[str(props.weaponSpec.projectileSpecId)] || {},
@@ -57,7 +57,7 @@ export function useWeaponPreviewViewModel(
     frames.start();
   }
   function reset() {
-    state.value = createWeaponPreviewState(params.value, state.value.mode, state.value.speed);
+    state.value = createWeaponFirePreviewState(params.value, state.value.mode, state.value.speed);
     restart();
     draw();
   }
@@ -74,17 +74,17 @@ export function useWeaponPreviewViewModel(
   }
   function startFiring() {
     const paused = !state.value.running;
-    state.value = startWeaponPreview(state.value, params.value);
+    state.value = startWeaponFirePreview(state.value, params.value);
     if (paused) restart();
   }
   function stopFiring() {
-    state.value = stopWeaponPreview(state.value, params.value);
+    state.value = stopWeaponFirePreview(state.value, params.value);
   }
   function frame(time: number) {
     if (!last) last = time;
     const dt = Math.min(((time - last) / 1000) * state.value.speed, 0.1);
     last = time;
-    state.value = advanceWeaponPreview(state.value, params.value, dt, origin(), scale(), Math.random);
+    state.value = advanceWeaponFirePreview(state.value, params.value, dt, origin(), scale(), Math.random);
     draw();
   }
   function draw() {
@@ -92,7 +92,7 @@ export function useWeaponPreviewViewModel(
     if (!c) return;
     const color = arr(props.weaponSpec.glowColor, [255, 255, 255, 255]),
       glow = images.images.get(state.value.mode === 'turret' ? 'turretGlowSprite' : 'hardpointGlowSprite');
-    renderWeaponPreviewScene(c.getContext('2d')!, {
+    renderWeaponFirePreviewScene(c.getContext('2d')!, {
       size: surface.size(),
       palette: palette.value,
       params: params.value,
@@ -109,7 +109,7 @@ export function useWeaponPreviewViewModel(
         glowColor: color,
         glowTint: glow && color[3]! > 0 ? images.tintImage(glow, color) : null,
       },
-      barrels: previewBarrels(params.value, origin(), scale()),
+      barrels: weaponFirePreviewBarrels(params.value, origin(), scale()),
       projectiles: state.value.projectiles,
       beam: state.value.beam,
     });

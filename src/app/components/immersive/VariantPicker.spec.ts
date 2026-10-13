@@ -5,6 +5,10 @@ import { NInput, NSelect, NButton } from 'naive-ui';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { JointVariantEntry } from '@/shared/types';
 import VariantPicker from './VariantPicker.vue';
+import VariantImmersivePanel from './VariantImmersivePanel.vue';
+import { variantJointFixture } from '@/test/variant-joint-edit';
+import { projectVariantPanel } from '@/domain/immersive/variant-panel';
+import type { useImmersiveEditorViewModel } from '@/app/composables/use-immersive-editor-view-model';
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[] }));
 vi.mock('@/app/composables/use-variant-catalog', () => ({
   useVariantCatalog: () => ({
@@ -25,6 +29,7 @@ function harness(
   systemHints = false,
   costs: (number | null)[] = [],
   currentId = 'compatible',
+  inPanel = false,
 ) {
   const source = { source: 'mod' as const, root: 'M:/mod', path: 'M:/mod/table.csv', relPath: 'table.csv' };
   mocks.entries = [
@@ -76,7 +81,18 @@ function harness(
     });
   mocks.entries.push({ ...mocks.entries[0]!, id: '', label: '', data: {} });
   const inputs = createFieldInputs(ref('variant'));
+  const current = ref(currentId);
   const commitManual = vi.fn(async () => true);
+  const snapshot = variantJointFixture();
+  const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
+  const cancelVariantAction = vi.fn();
+  const vm = {
+    joint: { currentTarget: ref(snapshot.root), saving: ref(false) },
+    referenceChanging: ref(false),
+    variantActionPending: ref(false),
+    commitVariantInputs: vi.fn(async () => true),
+    cancelVariantAction,
+  } as unknown as ReturnType<typeof useImmersiveEditorViewModel>;
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -90,14 +106,16 @@ function harness(
       setup() {
         provideFieldInputs(inputs);
         return () =>
-          h(VariantPicker, {
-            root: { sessionId: 's', modRoot: 'M:/mod', kind: 'variant', id: 'variant' },
-            kind,
-            weaponSlot: { type: 'ENERGY', size: 'MEDIUM' },
-            currentId,
-            commitManual,
-            anchor: { x: 400, y: 300 },
-          });
+          inPanel
+            ? h(VariantImmersivePanel, { panel: projectVariantPanel(snapshot, values), vm })
+            : h(VariantPicker, {
+                root: { sessionId: 's', modRoot: 'M:/mod', kind: 'variant', id: 'variant' },
+                kind,
+                weaponSlot: { type: 'ENERGY', size: 'MEDIUM' },
+                currentId: current.value,
+                commitManual,
+                anchor: { x: 400, y: 300 },
+              });
       },
     },
     {
@@ -105,6 +123,14 @@ function harness(
         components: { NInput, NSelect, NButton },
         stubs: {
           ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
+          ImmersivePanelRow: true,
+          VariantWingIcon: true,
+          VariantRefitStats: true,
+          VariantScene: {
+            emits: ['slot', 'blank'],
+            template:
+              '<div><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
+          },
           VariantCandidateDetails: { props: ['id'], template: '<aside>{{id}}</aside>' },
           VariantCandidateCard: {
             props: ['entry'],
@@ -116,9 +142,24 @@ function harness(
       },
     },
   );
-  return { wrapper, inputs, commitManual, picker: wrapper.findComponent(VariantPicker) };
+  return { wrapper, inputs, current, commitManual, cancelVariantAction, picker: wrapper.findComponent(VariantPicker) };
 }
 describe('variant candidate picker', () => {
+  it.each(['weapons', 'wings'] as const)('closes the %s panel from an empty scene hit and cancels its pending action', async (kind) => {
+    const own = harness(kind, 2, false, [], '', true);
+    await flushPromises();
+    await own.wrapper.find(kind === 'weapons' ? '.test-slot' : '.variant-wing-tile').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(true);
+    await own.wrapper.find('footer input').setValue('unfinished');
+    expect(own.inputs.dirty.value).toBe(true);
+    await own.wrapper.find('.test-blank').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    expect(own.inputs.dirty.value).toBe(false);
+    expect(own.cancelVariantAction).toHaveBeenCalled();
+    own.wrapper.unmount();
+  });
   it('shows the six defaults and lets a manually enabled large size expand the result', async () => {
     const own = harness();
     mocks.entries.push({ ...mocks.entries[0]!, id: 'large', label: '大型能量', spec: { type: 'ENERGY', size: 'LARGE' } });
@@ -147,14 +188,17 @@ describe('variant candidate picker', () => {
     own.wrapper.unmount();
   });
   it.each(['weapons', 'wings'] as const)('shows only named candidates when the %s slot is empty', async (kind) => {
-    const own = harness(kind, 2, false, [], '');
+    const own = harness(kind);
     await flushPromises();
-    expect(own.wrapper.find('.variant-current').exists()).toBe(false);
-    expect(own.wrapper.text()).not.toContain('当前装备');
+    expect(own.wrapper.find('.variant-current-title').text()).toContain('当前装备');
+    own.current.value = '';
+    await flushPromises();
+    expect(own.wrapper.find('.variant-current-title').exists()).toBe(false);
     expect(own.wrapper.find('.variant-picker-tooltip').exists()).toBe(false);
     const cards = own.wrapper.findAll('.variant-picker-list [data-entry-id]');
-    expect(cards.length).toBeGreaterThan(0);
-    expect(cards.map((card) => card.attributes('data-entry-id'))).not.toContain('');
+    expect(cards.map((card) => card.attributes('data-entry-id'))).toEqual(
+      kind === 'weapons' ? ['compatible'] : ['compatible', 'incompatible'],
+    );
     await cards[0]!.trigger('mouseenter');
     expect(own.wrapper.find('.variant-picker-tooltip aside').text()).toBe('compatible');
     await cards[0]!.trigger('click');
@@ -239,10 +283,27 @@ describe('variant candidate picker', () => {
     expect(own.commitManual).toHaveBeenCalledWith('missing_id');
     expect(own.inputs.dirty.value).toBe(false);
     await manual.setValue('cancelled');
-    await own.wrapper.find('header button.variant-cut-button').trigger('click');
+    own.picker.vm.cancel();
     expect(own.inputs.dirty.value).toBe(false);
     expect(own.commitManual).toHaveBeenCalledTimes(1);
     own.wrapper.unmount();
+  });
+  it.each(['weapons', 'wings'] as const)('cancels the %s selector and unfinished ID through its blank-area entry', async (kind) => {
+    const own = harness(kind);
+    await flushPromises();
+    expect(own.wrapper.find('header button.variant-cut-button').exists()).toBe(false);
+    await own.wrapper.find('footer input').setValue('cancelled');
+    await own.wrapper.find('input').trigger('click');
+    await own.wrapper.find('.variant-picker-filters').trigger('click');
+    await own.wrapper.find('.variant-picker-list .variant-candidate-card').trigger('mouseenter');
+    await own.wrapper.find('.variant-picker-tooltip').trigger('click');
+    expect(own.picker.emitted('close')).toBeUndefined();
+    own.picker.vm.cancel();
+    expect(own.picker.emitted('close')).toEqual([[]]);
+    expect(own.inputs.dirty.value).toBe(false);
+    expect(own.commitManual).not.toHaveBeenCalled();
+    own.wrapper.unmount();
+    expect(own.inputs.dirty.value).toBe(false);
   });
   it('commits clicked candidates and keeps Ctrl comparison within the picker', async () => {
     const own = harness();

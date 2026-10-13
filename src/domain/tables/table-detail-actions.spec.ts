@@ -38,7 +38,7 @@ describe('detailActionsForRow', () => {
     const actions = detailActionsForRow(context, 'weapons', { rowKey: 'weapons:row:0', data: { id: 'railgun' }, isComment: false });
     expect(actions.map((action) => (action.type === 'editor-window' ? action.kind : action.type))).toEqual([
       'weapon',
-      'weapon-preview',
+      'weapon-fire-preview',
       'immersive-editor',
       'file-editor',
     ]);

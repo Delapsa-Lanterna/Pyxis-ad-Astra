@@ -29,6 +29,8 @@ export function entityContentIdField(kind: EntityKind): string {
 export function windowIdentityKey(identity: WindowIdentity): string {
   if (identity.type === 'spec' || identity.type === 'immersive')
     return JSON.stringify([identity.type, identity.sessionId, identity.kind, normalizeFsPath(identity.modRoot), identity.id]);
+  if (identity.type === 'weapon-fire-preview')
+    return JSON.stringify([identity.type, identity.sessionId, normalizeFsPath(identity.modRoot), identity.id]);
   if (identity.type === 'file')
     return JSON.stringify([identity.type, identity.sessionId, normalizeFsPath(identity.modRoot), normalizeFsPath(identity.path)]);
   return JSON.stringify([

@@ -8,13 +8,11 @@ import {
 import { AppError, withCause } from '@/shared/lib/errors';
 import { queryResourceDataUrls } from '@/services/resource-cache.service';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
-import { createShipSpec, createProjectileSpec, createSystemSpec, createWeaponSpec } from '@/domain/editors/spec-construction';
-import { inferWeaponSpecClass } from '@/domain/tables/associated-spec-creation';
+import { createShipSpec, createProjectileSpec, createSystemSpec } from '@/domain/editors/spec-construction';
+import { queryWeaponData, queryWeaponSprites, queryWeaponProjectiles } from '@/services/weapon-data.service';
 import { entityContentId } from '@/domain/editors/entity-identity';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import type { DeepReadonly } from '@/shared/types';
 import { queryJointCandidate } from '@/services/joint-edit.service';
 import { jointObject } from '@/domain/joint-edit';
 import { shipBuiltInWeaponIds, type ShipWeaponSources, type ShipWeaponSource } from '@/domain/editors/ship-weapons';
@@ -77,7 +75,7 @@ export async function queryShipWeaponSources(root: JointEditRoot, ship: RowData,
 }
 
 export type EditorEntityBundle =
-  ShipEditorEntityBundle | WeaponEditorEntityBundle | ProjectileEditorEntityBundle | SystemEditorEntityBundle | WeaponPreviewEntityBundle;
+  ShipEditorEntityBundle | WeaponEditorEntityBundle | ProjectileEditorEntityBundle | SystemEditorEntityBundle;
 
 export interface ShipEditorEntityBundle extends EntityEditInfo {
   kind: 'ship';
@@ -93,16 +91,6 @@ export interface WeaponEditorEntityBundle extends EntityEditInfo {
   weaponCsvRow: RowData;
   projectileSpecs: Record<string, RowData>;
   projectileOptions: EditorSelectOption[];
-  resourceRefs: ResourceRef[];
-  weaponSpriteData: Record<string, string>;
-  isNew: boolean;
-}
-
-export interface WeaponPreviewEntityBundle extends EntityEditInfo {
-  kind: 'weapon-preview';
-  weapon: RowData;
-  weaponCsvRow: RowData;
-  projectileSpecs: Record<string, RowData>;
   resourceRefs: ResourceRef[];
   weaponSpriteData: Record<string, string>;
   isNew: boolean;
@@ -125,10 +113,9 @@ export async function queryEditorEntityBundle(
   sessionId: ProjectSessionId,
   kind: EditorWindowKind,
   id: string,
-  draftSnapshot?: RowData,
   signal?: AbortSignal,
 ): Promise<EditorEntityBundle> {
-  return BUNDLE_LOADERS[kind](sessionId, id, { draftSnapshot, signal });
+  return BUNDLE_LOADERS[kind](sessionId, id, { signal });
 }
 
 export async function refreshBundleResources(
@@ -142,7 +129,7 @@ export async function refreshBundleResources(
       shipSpriteData: await querySpriteData(sessionId, bundle.resourceRefs.find((resource) => resource.key === 'sprite') ?? null, signal),
     };
   }
-  if (bundle.kind === 'weapon' || bundle.kind === 'weapon-preview') {
+  if (bundle.kind === 'weapon') {
     return { ...bundle, weaponSpriteData: await queryWeaponSprites(sessionId, resourceRefsByKey(bundle.resourceRefs), signal) };
   }
   return bundle;
@@ -169,31 +156,22 @@ export async function refreshBundleProjectiles(
   options: { projectileSpecs: boolean; projectileOptions: boolean },
   signal?: AbortSignal,
 ): Promise<EditorEntityBundle> {
-  if (bundle.kind !== 'weapon' && bundle.kind !== 'weapon-preview') return bundle;
-  const nextProjectileSpecs = options.projectileSpecs ? await queryProjectileSpecs(sessionId, bundle.weapon, signal) : null;
-  if (bundle.kind === 'weapon-preview' && nextProjectileSpecs) requirePreviewProjectile(bundle.weapon, nextProjectileSpecs);
-  if (bundle.kind === 'weapon') {
-    return {
-      ...bundle,
-      projectileSpecs: nextProjectileSpecs ?? bundle.projectileSpecs,
-      projectileOptions: options.projectileOptions ? await queryProjectileOptions(sessionId, signal) : bundle.projectileOptions,
-    };
-  }
+  if (bundle.kind !== 'weapon') return bundle;
   return {
     ...bundle,
-    projectileSpecs: nextProjectileSpecs ?? bundle.projectileSpecs,
+    projectileSpecs: options.projectileSpecs ? await queryWeaponProjectiles(sessionId, bundle.weapon, signal) : bundle.projectileSpecs,
+    projectileOptions: options.projectileOptions ? await queryProjectileOptions(sessionId, signal) : bundle.projectileOptions,
   };
 }
 
 const BUNDLE_LOADERS: Record<
   EditorWindowKind,
-  (sessionId: ProjectSessionId, id: string, options: { draftSnapshot?: RowData; signal?: AbortSignal }) => Promise<EditorEntityBundle>
+  (sessionId: ProjectSessionId, id: string, options: { signal?: AbortSignal }) => Promise<EditorEntityBundle>
 > = {
   ship: (sessionId, id, { signal }) => queryShipEditorBundle(sessionId, id, signal),
   weapon: (sessionId, id, { signal }) => queryWeaponEditorBundle(sessionId, id, signal),
   projectile: (sessionId, id, { signal }) => queryProjectileEditorBundle(sessionId, id, signal),
   system: (sessionId, id, { signal }) => querySystemEditorBundle(sessionId, id, signal),
-  'weapon-preview': (sessionId, id, { draftSnapshot, signal }) => queryWeaponPreviewBundle(sessionId, id, draftSnapshot, signal),
 };
 
 async function queryShipEditorBundle(sessionId: ProjectSessionId, id: string, signal?: AbortSignal): Promise<ShipEditorEntityBundle> {
@@ -213,59 +191,11 @@ async function queryShipEditorBundle(sessionId: ProjectSessionId, id: string, si
 }
 
 async function queryWeaponEditorBundle(sessionId: ProjectSessionId, id: string, signal?: AbortSignal): Promise<WeaponEditorEntityBundle> {
-  const bundle = await queryWeaponLikeBundle(sessionId, id, undefined, signal);
+  const bundle = await queryWeaponData(sessionId, id, undefined, signal);
   return {
     kind: 'weapon',
     ...bundle,
     projectileOptions: await queryProjectileOptions(sessionId, signal),
-  };
-}
-
-async function queryWeaponPreviewBundle(
-  sessionId: ProjectSessionId,
-  id: string,
-  draftSnapshot?: RowData,
-  signal?: AbortSignal,
-): Promise<WeaponPreviewEntityBundle> {
-  const bundle = await queryWeaponLikeBundle(sessionId, id, draftSnapshot, signal);
-  requirePreviewProjectile(bundle.weapon, bundle.projectileSpecs);
-  return {
-    kind: 'weapon-preview',
-    ...bundle,
-  };
-}
-
-function requirePreviewProjectile(weapon: RowData, projectiles: Record<string, RowData>): void {
-  if (weapon.specClass === 'beam') return;
-  const id = typeof weapon.projectileSpecId === 'string' ? weapon.projectileSpecId : '';
-  if (!id || !projectiles[id]) throw new AppError(`找不到预览弹体 ${id}。`, { action: 'query-editor-entity' });
-}
-
-async function queryWeaponLikeBundle(
-  sessionId: ProjectSessionId,
-  id: string,
-  weaponOverride?: RowData,
-  signal?: AbortSignal,
-): Promise<Omit<WeaponEditorEntityBundle, 'kind' | 'projectileOptions'>> {
-  const weapon = requireEditorEntity(await querySessionEntity(sessionId, 'weapon', id, signal), 'weapon', id);
-  const weaponEntity = requireRowData(weapon.data, `武器 ${id} 数据无效`);
-  const savedWeaponSpec = requireRowData(weaponEntity.spec, `武器 ${id} spec 数据无效`);
-  const weaponCsvRow = requireRowData(weaponEntity.csvRow, `武器 ${id} CSV 数据无效`);
-  const isNew = Object.keys(savedWeaponSpec).length === 0;
-  const weaponSpec = weaponOverride ?? (isNew ? createWeaponSpec(id, inferWeaponSpecClass(weaponCsvRow)) : savedWeaponSpec);
-  const resourceRefs = weaponOverride
-    ? await querySessionEditorDraftResources(sessionId, 'weapon', id, weaponOverride, signal)
-    : weapon.resourceRefs;
-  const projectileSpecs = await queryProjectileSpecs(sessionId, weaponSpec, signal);
-  return {
-    weapon: weaponSpec,
-    target: weapon.target,
-    baseVersions: weapon.baseVersions,
-    weaponCsvRow,
-    isNew,
-    projectileSpecs,
-    resourceRefs: Object.values(resourceRefs),
-    weaponSpriteData: await queryWeaponSprites(sessionId, resourceRefs, signal),
   };
 }
 
@@ -347,30 +277,6 @@ export async function loadImportedSpecFile(kind: EditorSpecKind, path: string): 
   return invokeCommand('load_imported_editor_spec_file', { payload: { kind, path } });
 }
 
-async function queryWeaponSprites(
-  sessionId: ProjectSessionId,
-  refs: Record<string, ResourceRef>,
-  signal?: AbortSignal,
-): Promise<Record<string, string>> {
-  const resources: { field: string; resource: ResourceRef }[] = [];
-  for (const field of WEAPON_SPRITE_FIELDS) {
-    const resource = refs[field];
-    if (resource) resources.push({ field, resource });
-  }
-  if (resources.length === 0) return {};
-  const dataUrls = await queryResourceDataUrls(
-    sessionId,
-    resources.map((entry) => entry.resource),
-    signal,
-  );
-  return Object.fromEntries(
-    dataUrls.flatMap((dataUrl, index) => {
-      const entry = resources[index];
-      return dataUrl && entry ? [[entry.field, dataUrl] as const] : [];
-    }),
-  );
-}
-
 async function querySpriteData(sessionId: ProjectSessionId, resource: ResourceRef | null, signal?: AbortSignal): Promise<string> {
   if (!resource) return '';
   return (await queryResourceDataUrls(sessionId, [resource], signal))[0] ?? '';
@@ -383,20 +289,6 @@ function resourceRefsByKey(resources: ResourceRef[]): Record<string, ResourceRef
 async function queryProjectileOptions(sessionId: ProjectSessionId, signal?: AbortSignal): Promise<EditorSelectOption[]> {
   const projectiles = await querySessionEntityList(sessionId, 'projectile', signal);
   return projectiles.map((projectile) => ({ label: projectile.id, value: projectile.id }));
-}
-
-async function queryProjectileSpecs(sessionId: ProjectSessionId, weapon: RowData, signal?: AbortSignal): Promise<Record<string, RowData>> {
-  const id = typeof weapon.projectileSpecId === 'string' ? weapon.projectileSpecId : '';
-  if (!id) return {};
-  const record = await querySessionEntity(sessionId, 'projectile', id, signal);
-  if (!record) return {};
-  const projectile = cloneQuerySnapshot<EntityData>(record);
-  return { [id]: requireRowData(projectile.data, `弹体 ${id} 数据无效`) };
-}
-
-function requireEditorEntity(entity: DeepReadonly<EntityData> | null, kind: EditorSpecKind, id: string): EntityData {
-  if (entity) return cloneQuerySnapshot<EntityData>(entity);
-  throw new AppError(`找不到 ${id} 的 ${kind} 数据。`, { action: 'query-editor-entity' });
 }
 
 function ensureSpecContext(modRoot: string, id: string) {

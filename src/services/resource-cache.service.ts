@@ -147,7 +147,7 @@ export function subscribeResourceInvalidations(listener: ResourceCacheInvalidati
   return () => invalidationListeners.delete(listener);
 }
 
-export function hasResourceInvalidation(event: ResourceCacheInvalidationEvent, resources: ResourceRef[]): boolean {
+export function hasResourceInvalidation(event: ResourceCacheInvalidationEvent, resources: readonly ResourceRef[]): boolean {
   if (resources.length === 0) return false;
   if (event.scope === 'session') return true;
   if (event.invalidation) {

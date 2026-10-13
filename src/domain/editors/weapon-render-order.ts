@@ -1,12 +1,12 @@
-import type { RowData } from '@/shared/types';
+import type { DeepReadonly, RowData } from '@/shared/types';
 import { arr, num, str } from '@/shared/lib/starsector';
 
-export function rendersLoadedMissiles(spec: Readonly<RowData>, hidden: boolean): boolean {
+export function rendersLoadedMissiles(spec: DeepReadonly<RowData>, hidden: boolean): boolean {
   const hints = Array.isArray(spec.renderHints) ? spec.renderHints : [];
   return hints.includes('RENDER_LOADED_MISSILES') || (!hidden && hints.includes('RENDER_LOADED_MISSILES_UNLESS_HIDDEN'));
 }
 
-export function weaponRenderOrder(spec: Readonly<RowData>, slot: Readonly<RowData>, hullHints: readonly string[]): number {
+export function weaponRenderOrder(spec: DeepReadonly<RowData>, slot: DeepReadonly<RowData>, hullHints: readonly string[]): number {
   const f = Math.fround;
   const size = ({ SMALL: 0, MEDIUM: 1, LARGE: 2 } as Record<string, number>)[str(spec.size)] ?? 0;
   const base = size * 2 + (slot.mount === 'HARDPOINT' ? 0 : 20);
@@ -30,7 +30,7 @@ export function weaponRenderOrder(spec: Readonly<RowData>, slot: Readonly<RowDat
   return f(f(base - (missile ? 1 : 0) - position) + modifier);
 }
 
-export function sortMountedWeapons<T extends { slot: Readonly<RowData>; renderOrder: number }>(weapons: readonly T[]): T[] {
+export function sortMountedWeapons<T extends { slot: DeepReadonly<RowData>; renderOrder: number }>(weapons: readonly T[]): T[] {
   // Ship.addFittedModule compares equal float orders with Java String.compareTo (UTF-16).
   return [...weapons].sort((a, b) => {
     if (a.renderOrder !== b.renderOrder) return Math.sign(a.renderOrder - b.renderOrder);

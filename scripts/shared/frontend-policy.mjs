@@ -11,6 +11,23 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 export const frontendCapabilities = [
   {
     role: 'service',
+    domain: 'weapon-data',
+    names: ['queryWeaponData', 'queryWeaponSprites', 'queryWeaponProjectiles'],
+    capability: 'weapon-data-read',
+    owners: [
+      { layer: 'services', domain: 'editor' },
+      { layer: 'services', domain: 'weapon-fire-preview' },
+    ],
+  },
+  {
+    role: 'service',
+    domain: 'weapon-fire-preview',
+    names: ['queryWeaponFirePreviewData'],
+    capability: 'weapon-fire-preview-read',
+    owners: [{ layer: 'app', role: 'composable', domain: 'weapon-fire-preview-window-view-model' }],
+  },
+  {
+    role: 'service',
     domain: 'joint-edit',
     names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'queryJointVariantCatalog', 'prepareJointEdit'],
     capability: 'joint-edit-read',
@@ -86,7 +103,10 @@ export const frontendCapabilities = [
     domain: 'app-log',
     names: ['recordLogBestEffort'],
     capability: 'log-record',
-    owners: readOwners.concat([{ layer: 'app', domain: 'app-feedback' }]),
+    owners: readOwners.concat([
+      { layer: 'app', domain: 'app-feedback' },
+      { path: 'src/main.ts', layer: 'app' },
+    ]),
   },
   {
     role: 'service',
@@ -222,9 +242,25 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'window',
-    names: ['openNativeManagedWindow'],
+    names: ['openNativeManagedWindow', 'awaitNativeWindowRequest'],
     capability: 'window-open',
     owners: [{ layer: 'windows', domain: 'managed' }],
+  },
+  {
+    role: 'service',
+    domain: 'window',
+    names: [
+      'getNativeWindowBootstrap',
+      'getNativeWindowContext',
+      'getNativeWindowRequest',
+      'acceptNativeWindowRequest',
+      'failNativeWindowRequest',
+      'failNativeWindowStartup',
+      'publishNativeWindowSettings',
+      'getNativeWindowSettings',
+    ],
+    capability: 'window-context',
+    owners: [{ layer: 'windows', domain: 'window-context' }],
   },
   {
     role: 'service',
@@ -260,6 +296,7 @@ export const frontendCapabilities = [
     owners: [
       { layer: 'orchestrators', domain: 'entity-identity' },
       { layer: 'orchestrators', domain: 'immersive-editor' },
+      { layer: 'orchestrators', domain: 'weapon-fire-preview' },
     ],
   },
   {
@@ -501,7 +538,7 @@ export const frontendCapabilities = [
     domain: 'resource-cache',
     names: ['queryResourceDataUrls'],
     capability: 'resource-load',
-    owners: ['config-resource', 'csv-table', 'editor', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
+    owners: ['config-resource', 'csv-table', 'editor', 'weapon-data', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
   },
   {
     role: 'service',
@@ -623,6 +660,10 @@ const serviceEdges = new Set([
   'config-resource -> resource-cache',
   'csv-table -> entity-query',
   'csv-table -> resource-cache',
+  'editor -> weapon-data',
+  'weapon-data -> entity-query',
+  'weapon-data -> resource-cache',
+  'weapon-fire-preview -> weapon-data',
   'editor -> files',
   'editor -> entity-query',
   'editor -> joint-edit',

@@ -97,7 +97,7 @@
       <div ref="auxiliary" class="variant-hullmod-auxiliary">
         <n-input v-model:value="search" placeholder="搜索 ID／名称" clearable />
         <details @toggle="measure">
-          <summary><ImmersiveText text="来源与安装选项" font="caption" /></summary>
+          <summary class="immersive-disclosure-summary"><ImmersiveText text="来源与安装选项" font="caption" ink-aligned /></summary>
           <div class="variant-hullmod-extra">
             <n-select v-model:value="origin" :options="origins" /><n-select v-model:value="category" :options="categories" /><n-input
               v-model:value="manualId"
@@ -110,16 +110,7 @@
     </section>
     <slot name="stats" :close="cancel" />
     <div v-if="selected" ref="tooltip" class="variant-hullmod-tooltip" :style="tooltipPosition" @mouseleave="leaveDetails">
-      <VariantHullmodDetails
-        :key="selected.id"
-        :entry="selected"
-        :reference="reference"
-        :installed="installed(selected.id)"
-        :hull-size="String(variant.spec.hullSize)"
-        :available="variant.opTotal - variant.opUsed"
-        :images="uiImages"
-        @resize="positionDetails"
-      />
+      <VariantHullmodDetails :key="selected.id" :entry="selected" :reference="reference" :images="uiImages" />
     </div>
   </div>
 </template>

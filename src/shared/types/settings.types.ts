@@ -14,7 +14,10 @@ export interface AppSettings {
   theme: AppTheme | null;
   accent: AccentPreset;
   customAccent: string;
-  historyLimit: number;
+  fileHistoryLimit: number;
+  editHistoryLimit: number;
+  logRotationSizeMiB: number;
+  logBackupCount: number;
   editMode: EditMode;
   preserveOriginalJson?: boolean;
   allowCoreEditing?: boolean;

@@ -45,7 +45,11 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
   let stopIdentity: (() => void) | null = null;
   const selectedStatId = ref<string | null>(null);
   const errorText = ref('');
-  const projection = shallowRef<JointEditSnapshot | null>(null);
+  const projection = shallowRef<{
+    baseline: JointEditSnapshot;
+    graph: JointEditSnapshot;
+    values: Record<string, JointValue>;
+  } | null>(null);
   const referenceChanging = ref(false);
   const variantActionPending = ref(false);
   const joint = useJointEditSession({
@@ -66,9 +70,20 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
       windowCommit = receipt.commitId;
     },
   });
-  const history = useSnapshotHistory<Record<string, JointValue>>(joint.context, settings.historyLimit);
+  const history = useSnapshotHistory<Record<string, JointValue>>(
+    joint.context,
+    computed(() => settings.editHistoryLimit),
+  );
   const snapshot = computed(() => joint.baselineSnapshot.value?.meta.snapshot ?? null);
-  const panel = computed(() => (snapshot.value ? definition.project(snapshot.value, joint.draftValue.value, projection.value) : null));
+  const displaySnapshot = computed(() => (projection.value?.baseline === snapshot.value ? projection.value.graph : snapshot.value));
+  const displayValues = computed(() => {
+    if (root.kind !== 'variant' || !snapshot.value) return joint.draftValue.value;
+    const accepted = projection.value?.baseline === snapshot.value ? projection.value.values : joint.baselineSnapshot.value!.value;
+    return stableDeepEqual(definition.references(snapshot.value, accepted), definition.references(snapshot.value, joint.draftValue.value))
+      ? joint.draftValue.value
+      : accepted;
+  });
+  const panel = computed(() => (snapshot.value ? definition.project(snapshot.value, displayValues.value, displaySnapshot.value) : null));
   const notices = computed(() =>
     snapshot.value
       ? snapshot.value.records.filter(
@@ -131,28 +146,24 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
   async function refreshProjection(force = false) {
     const baseline = snapshot.value;
     if (!baseline) return;
-    const original = Object.fromEntries(baseline.records.map((record) => [record.key, record.value]));
-    if (!force && stableDeepEqual(definition.references(baseline, joint.draftValue.value), definition.references(baseline, original))) {
-      projection.value = baseline;
+    const values = deepClone(joint.draftValue.value);
+    const original = joint.baselineSnapshot.value!.value;
+    if (!force && stableDeepEqual(definition.references(baseline, values), definition.references(baseline, original))) {
+      projection.value = { baseline, graph: baseline, values };
       return;
     }
-    projection.value = null;
-    await reads.consume(
-      'projection',
-      { root: baseline.root, values: joint.draftValue.value },
-      (signal) => queryJointEditProjection({ baseline, values: joint.draftValue.value }, signal),
-      {
-        ready: (value) => {
-          projection.value = cloneQuerySnapshot<JointEditSnapshot>(value);
-        },
-        error: (error) => feedback.error(error, '关联来源读取失败'),
+    await reads.consume('projection', { root: baseline.root, values }, (signal) => queryJointEditProjection({ baseline, values }, signal), {
+      ready: (value) => {
+        projection.value = { baseline, graph: cloneQuerySnapshot<JointEditSnapshot>(value), values };
       },
-    );
+      error: (error) => feedback.error(error, '关联来源读取失败'),
+    });
   }
   const stopProjection = subscribeQueryInvalidations((event) => {
     if (event.sessionId !== root.sessionId) return;
     if (event.scope === 'session') {
       reads.revoke('session');
+      projection.value = null;
       dismissStat();
       errorText.value = '所属会话已关闭';
       return;
@@ -241,7 +252,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
         )
           return null;
         const captured = snapshot.value!,
-          graph = projection.value ?? captured;
+          graph = displaySnapshot.value!;
         const record = captured.records.find((record) => record.key === key)!;
         if (record.source?.source === 'core') {
           if (inputCommitted && joint.saving.value) return null;
@@ -323,7 +334,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
           joint.currentTargetKey.value !== target
         )
           return null;
-        let graph = projection.value ?? snapshot.value!;
+        let graph = displaySnapshot.value!;
         let keys = variantBranchKeys(graph, joint.draftValue.value, key);
         const core = keys.filter((key) => graph.records.find((record) => record.key === key)!.source?.source === 'core');
         if (core.length) {
@@ -761,6 +772,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
   }
   onScopeDispose(() => {
     active = false;
+    projection.value = null;
     selectionIntent = null;
     stopIdentity?.();
     stopProjection();
@@ -784,7 +796,8 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
     joint,
     referenceChanging,
     snapshot,
-    displaySnapshot: computed(() => projection.value ?? snapshot.value),
+    displaySnapshot,
+    displayValues,
     panel,
     notices,
     runtimeContext,

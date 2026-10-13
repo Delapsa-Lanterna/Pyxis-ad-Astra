@@ -57,13 +57,15 @@ import { useFileEditorViewModel } from '@/app/composables/editors/use-file-edito
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useSettingsStore } from '@/stores/settings.store';
 import { closeCurrentWindow } from '@/windows/current.window';
+import { useWindowContext } from '@/windows/window-context.window';
+import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { pathBasename, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
 
-const params = new window.URLSearchParams(window.location.search);
+const context = useWindowContext('file-editor').value;
 const settings = useSettingsStore();
-const initialFilePath = params.get('file');
-const modRoot = params.get('modRoot');
-const sessionId = params.get('sessionId');
+const initialFilePath = context.identity.path;
+const modRoot = context.identity.modRoot;
+const sessionId = context.identity.type === 'file' ? context.identity.sessionId : null;
 const filePathText = computed(() => filePath.value ?? '缺少文件路径');
 const fileName = computed(() => (filePath.value ? pathBasename(filePath.value) : '缺少文件路径'));
 const displayPath = computed(() => {
@@ -104,19 +106,23 @@ const {
   cancelChanges,
   loadPendingExternalText,
   updateText,
+  applyLocation,
   undoEdit,
   redoEdit,
 } = useFileEditorViewModel({
   filePath: initialFilePath,
-  mode: params.get('mode') === 'recovery' ? 'recovery' : 'session',
+  mode: context.identity.type === 'recovery' ? 'recovery' : 'session',
   modRoot,
   sessionId,
-  title: params.get('title') ?? '文件编辑器',
-  contextLabel: params.get('contextLabel') ?? '信息',
-  contextSeverity: params.get('contextSeverity') ?? 'info',
-  contextMessage: params.get('message') ?? '',
-  line: params.get('line'),
-  column: params.get('column'),
+  title: context.title,
+  contextLabel: context.input.location.contextLabel ?? '信息',
+  contextSeverity: context.input.location.contextSeverity ?? 'info',
+  contextMessage: context.input.location.message ?? '',
+  line: context.input.location.line,
+  column: context.input.location.column,
+});
+useManagedWindowRequests((request) => {
+  if (request.kind === 'file-editor') applyLocation(request.input.location);
 });
 const showContextMessage = computed(() => Boolean(contextMessage.value && (isErrorContext.value || targetLine.value)));
 const closeGuard = useDirtyWindowCloseGuard({

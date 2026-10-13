@@ -19,12 +19,12 @@ export function useEditorDocument(options: {
   publish: (value: RowData) => void;
   draw?: () => void;
   reset?: (reason: EditContext['handoff'] | 'replay') => void;
-  history?: boolean;
+  historyLimit?: Readonly<Ref<number>>;
   contains?: (element: HTMLElement) => boolean;
 }) {
   const value = ref<RowData>(options.normalize(options.source()));
   const inputs = useFieldInputs();
-  const history = options.history ? useSnapshotHistory<RowData>(options.context, 250) : null;
+  const history = options.historyLimit ? useSnapshotHistory<RowData>(options.context, options.historyLimit) : null;
   const { commitBefore: run } = useFieldInputActions(inputs);
   const { captureActionContext } = useEditActionContext(options.context);
   const action = shallowRef<EditorAction | null>(null);

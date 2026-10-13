@@ -1,5 +1,5 @@
 import type { JointEditRoot, JointEditSnapshot, JointEditRecord, JointValue, ResourceRef } from '@/shared/types';
-import type { ImmersiveField, ImmersiveFieldChange } from '@/domain/immersive/fields';
+import type { ImmersiveField, ImmersiveFieldChange, ImmersiveStat } from '@/domain/immersive/fields';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { useImmersiveEditorViewModel } from '@/app/composables/use-immersive-editor-view-model';
 
@@ -25,6 +25,9 @@ interface ImmersiveDisplay {
   mediaUrl(resource: ResourceRef | null | undefined): string;
 }
 export type ImmersiveRenderContext = ImmersiveDisplay & ({ mode: 'readonly' } | { mode: 'editable'; editing: ImmersiveEditing });
+export function descriptionForRender(stat: ImmersiveStat, mode: ImmersiveRenderContext['mode']): ImmersiveStat {
+  return mode === 'editable' ? stat : { ...stat, display: stat.display.trim().split(/\r?\n\s*\r?\n/)[0]! };
+}
 export function editableRenderContext(vm: ReturnType<typeof useImmersiveEditorViewModel>): ImmersiveRenderContext {
   return {
     mode: 'editable',

@@ -9,9 +9,7 @@
     @keyup="compareKey"
   >
     <header>
-      <n-input v-model:value="search" placeholder="搜索 ID／名称" clearable /><button class="variant-cut-button" @click="cancel">
-        <ImmersiveText text="返回" font="heading" ink-aligned />
-      </button>
+      <n-input v-model:value="search" placeholder="搜索 ID／名称" clearable />
     </header>
     <div v-if="currentEntry" class="variant-current-title">
       <ImmersiveText
@@ -68,7 +66,7 @@
       </template>
     </div>
     <details class="variant-picker-extra">
-      <summary><ImmersiveText text="来源与 ID" font="caption" /></summary>
+      <summary class="immersive-disclosure-summary"><ImmersiveText text="来源与 ID" font="caption" ink-aligned /></summary>
       <n-select v-model:value="origin" :options="origins" />
       <footer>
         <n-input v-model:value="manualId" placeholder="手动填写 ID" @keydown.enter.stop.prevent="manual" /><n-button @click="manual"
@@ -320,4 +318,5 @@ onScopeDispose(() => {
   observer.disconnect();
   window.removeEventListener('resize', locate);
 });
+defineExpose({ cancel });
 </script>

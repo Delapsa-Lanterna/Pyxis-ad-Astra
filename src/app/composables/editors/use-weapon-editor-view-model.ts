@@ -2,14 +2,14 @@ import { useEditorFields } from './use-editor-fields';
 import { weaponCanvasPoint, weaponPointFromCanvas } from '@/domain/editors/lib/geometry';
 import { computed, reactive, ref, type EmitFn, type ShallowRef } from 'vue';
 import type { RowData, EditContext, WeaponSpecClass } from '@/shared/types';
-import type { BarrelPreview } from '@/domain/editors/editor-types';
-import { str } from '@/shared/lib/starsector';
+import type { WeaponOperationPreview } from '@/domain/editors/editor-types';
+import { str, deepClone } from '@/shared/lib/starsector';
 import { normalizeWeaponSpec } from '@/domain/editors/lib/normalize';
 import { changeWeaponSpecClass } from '@/domain/editors/spec-construction';
 import {
   projectWeaponBarrels,
   weaponOperationKind,
-  weaponPreview,
+  previewWeaponOperation,
   addWeaponBarrel,
   updateWeaponBarrel,
   deleteWeaponBarrel,
@@ -30,6 +30,7 @@ import { useEditorImages } from './use-editor-images';
 import { useEditorFrameLoop } from './use-editor-frame-loop';
 import { useResourceReference } from './use-resource-reference';
 import { renderWeaponScene } from '@/app/renderers/editors/weapon-scene';
+import { useSettingsStore } from '@/stores/settings.store';
 export interface WeaponEditorProps {
   modRoot: string;
   sessionId: string;
@@ -49,7 +50,7 @@ export type WeaponEditorEvents = {
   'draft-changed': [weapon: RowData];
   'load-external': [];
   'edit-projectile': [id: string];
-  preview: [id: string];
+  preview: [weapon: RowData];
 };
 export function useWeaponEditorViewModel(
   props: Readonly<WeaponEditorProps>,
@@ -61,7 +62,8 @@ export function useWeaponEditorViewModel(
   },
 ) {
   const { editorWindowRef, stageRef, canvasRef } = elements,
-    state = createCanvasState<BarrelPreview>();
+    state = createCanvasState<WeaponOperationPreview>();
+  const settings = useSettingsStore();
   const viewMode = ref<WeaponViewMode>('turret'),
     glowPreviewEnabled = ref(false),
     expandedSections = ref(['basic']),
@@ -71,7 +73,7 @@ export function useWeaponEditorViewModel(
     normalize: normalizeWeaponSpec,
     context: computed(() => props.editContext),
     publish: (value) => emit('draft-changed', value),
-    history: true,
+    historyLimit: computed(() => settings.editHistoryLimit),
     contains: (element) => Boolean(editorWindowRef.value?.contains(element)),
     draw: refreshRendering,
     reset: () => {
@@ -179,7 +181,7 @@ export function useWeaponEditorViewModel(
         };
       },
       preview: (input) =>
-        weaponPreview(localWeapon.value, viewMode.value, state.selected.value, input, fromCanvas(input.point.x, input.point.y)),
+        previewWeaponOperation(localWeapon.value, viewMode.value, state.selected.value, input, fromCanvas(input.point.x, input.point.y)),
       previewTakesOver: (input) => input.shiftKey || input.ctrlKey,
       deleteSelected: () => deleteBarrelFor(viewMode.value),
       shortcuts: { u: () => setView('turret'), h: () => setView('hardpoint') },
@@ -308,6 +310,11 @@ export function useWeaponEditorViewModel(
         }),
       pickWeaponSprite: (field: WeaponSpriteField) => document.run(() => void pickWeaponSprite(field)),
       reloadSprites: () => images.reload(),
+      preview: () =>
+        document.run(() => {
+          document.finish();
+          emit('preview', deepClone(localWeapon.value));
+        }),
       save: () => emit('save-requested'),
     },
     canvas: { ...canvas, beginField: document.beginField, fieldBlur: document.fieldBlur, fieldKey: document.fieldKey },

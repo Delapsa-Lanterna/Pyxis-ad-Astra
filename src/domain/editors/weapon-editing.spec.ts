@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeWeaponSpec } from './lib/normalize';
 import { findMirrorBarrelIndex } from './lib/mirror';
-import { addWeaponBarrel, updateWeaponBarrel, deleteWeaponBarrel, weaponPreview, projectWeaponBarrels } from './weapon-editing';
+import { addWeaponBarrel, updateWeaponBarrel, deleteWeaponBarrel, previewWeaponOperation, projectWeaponBarrels } from './weapon-editing';
 
 describe('weapon barrel geometry', () => {
   it.each(['turret', 'hardpoint'] as const)(
@@ -32,7 +32,7 @@ describe('weapon barrel geometry', () => {
     const weapon = normalizeWeaponSpec({}),
       keys = { shiftKey: true, ctrlKey: true, altKey: true },
       point = { x: 2.24, y: 3.74 };
-    const preview = weaponPreview(weapon, 'turret', null, keys, point);
+    const preview = previewWeaponOperation(weapon, 'turret', null, keys, point);
     expect(preview).toEqual({ kind: 'add', coord: { x: 2, y: 3.5 } });
     addWeaponBarrel(weapon, 'turret', { x: 2, y: 3.5 }, false);
     expect(projectWeaponBarrels(weapon, 'turret').offsets).toEqual([2, 3.5]);

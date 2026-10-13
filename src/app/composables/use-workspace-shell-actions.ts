@@ -7,6 +7,7 @@ import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/t
 import { useSettingsStore } from '@/stores/settings.store';
 import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { openEditorWindow } from '@/windows/editor.window';
+import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useProjectStore } from '@/stores/project.store';
 import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.service';
 import { pendingTableSave, saveTableChanges, type TableSaveResult } from '@/orchestrators/table-save.orchestrator';
@@ -329,10 +330,16 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
           root: { sessionId: action.sessionId, modRoot: action.modRoot, kind: action.kind, id: action.id },
           rowKey: action.rowKey,
           csvTarget,
-          settings: settings.settingsSnapshot(),
         },
         feedback,
       ).catch((error) => feedback.error(error, '打开沉浸式编辑器失败'));
+    } else if (action.type === 'weapon-fire-preview') {
+      void openWeaponFirePreviewWindow({
+        sessionId: action.sessionId,
+        modRoot: action.modRoot,
+        id: action.id,
+        source: { kind: 'saved' },
+      }).catch((error) => feedback.error(error, '打开发射预览失败'));
     } else if (action.type === 'file-editor') {
       void querySessionEntityEditTarget(action.sessionId, action.kind, action.id)
         .then((info) =>
@@ -358,17 +365,15 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       line: request.line ?? null,
       fields: logFields({ modRoot: request.modRoot, sessionId: request.sessionId }),
     });
-    openFileEditorWindow({ ...request, settings: settings.settingsSnapshot() }).catch((error) =>
-      feedback.error(error, '打开文件编辑器失败'),
-    );
+    openFileEditorWindow({ ...request }).catch((error) => feedback.error(error, '打开文件编辑器失败'));
   }
 
   function openGameWarningFile(warning: GameScanWarning) {
-    openGameWarningFileEditor(warning, settings.settingsSnapshot())?.catch((error) => feedback.error(error, '打开警告文件失败'));
+    openGameWarningFileEditor(warning)?.catch((error) => feedback.error(error, '打开警告文件失败'));
   }
 
   function openModOpeningFailureFile(failure: ModOpeningFailure) {
-    openModOpeningFailureFileEditor(failure, settings.settingsSnapshot())?.catch((error) => feedback.error(error, '打开错误文件失败'));
+    openModOpeningFailureFileEditor(failure)?.catch((error) => feedback.error(error, '打开错误文件失败'));
   }
 
   function handleDirectoryOpeningOutcome(outcome: DirectoryOpeningOutcome, path: string | null = null) {
@@ -502,7 +507,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       modRoot: action.modRoot,
       id: action.id,
       sessionId: action.sessionId,
-      settings: settings.settingsSnapshot(),
+
       starsectorRoot: action.starsectorRoot,
     }).catch((error) => feedback.error(error, '打开编辑器窗口失败'));
   }

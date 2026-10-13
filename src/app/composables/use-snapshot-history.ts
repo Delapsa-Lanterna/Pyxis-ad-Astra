@@ -8,6 +8,7 @@ import {
   popUndoEntry,
   pushRedoEntry,
   pushUndoEntry,
+  setUndoStackLimit,
 } from '@/domain/edit-session';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
@@ -15,17 +16,18 @@ import type { EditContext } from '@/shared/types';
 
 export function useSnapshotHistory<T>(
   context: Readonly<Ref<EditContext | null>>,
-  limit: number,
+  limit: Readonly<Ref<number>>,
   clone = deepClone<T>,
   equals = stableDeepEqual,
 ) {
-  const stack = shallowReactive(createUndoStackState<{ before: T; after: T }>(limit));
+  const stack = shallowReactive(createUndoStackState<{ before: T; after: T }>(limit.value));
   stack.undoStack = shallowReactive(stack.undoStack);
   stack.redoStack = shallowReactive(stack.redoStack);
+  const stopLimit = watch(limit, (value) => setUndoStackLimit(stack, value), { flush: 'sync' });
   const canUndo = computed(() => canUndoEntry(stack));
   const canRedo = computed(() => canRedoEntry(stack));
   const clear = () => clearUndoStack(stack);
-  watch(
+  const stopContext = watch(
     context,
     (next) => {
       if (!next || (next.handoff !== 'save' && next.handoff !== 'identity')) clear();
@@ -53,5 +55,10 @@ export function useSnapshotHistory<T>(
       entry.after = clone(map(entry.after));
     }
   }
-  return { canUndo, canRedo, push, undo, redo, clear, rebase };
+  function dispose() {
+    stopLimit();
+    stopContext();
+    clear();
+  }
+  return { canUndo, canRedo, push, undo, redo, clear, rebase, dispose };
 }

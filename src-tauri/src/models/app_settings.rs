@@ -37,8 +37,17 @@ pub struct AppSettings {
     pub accent: AccentPreset,
     #[serde(default = "default_custom_accent")]
     pub custom_accent: String,
-    #[serde(default = "default_history_limit")]
-    pub history_limit: u32,
+    #[serde(default = "default_file_history_limit")]
+    pub file_history_limit: u32,
+    #[serde(default = "default_edit_history_limit")]
+    pub edit_history_limit: u32,
+    #[serde(
+        rename = "logRotationSizeMiB",
+        default = "default_log_rotation_size_mib"
+    )]
+    pub log_rotation_size_mib: u32,
+    #[serde(default = "default_log_backup_count")]
+    pub log_backup_count: u32,
     #[serde(default = "default_edit_mode")]
     pub edit_mode: EditMode,
     #[serde(default = "default_preserve_original_json")]
@@ -59,7 +68,10 @@ impl Default for AppSettings {
             theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),
-            history_limit: default_history_limit(),
+            file_history_limit: default_file_history_limit(),
+            edit_history_limit: default_edit_history_limit(),
+            log_rotation_size_mib: default_log_rotation_size_mib(),
+            log_backup_count: default_log_backup_count(),
             edit_mode: default_edit_mode(),
             preserve_original_json: default_preserve_original_json(),
             allow_core_editing: false,
@@ -78,8 +90,20 @@ fn default_custom_accent() -> String {
     "#2563eb".to_string()
 }
 
-fn default_history_limit() -> u32 {
+fn default_file_history_limit() -> u32 {
     20
+}
+
+fn default_edit_history_limit() -> u32 {
+    250
+}
+
+fn default_log_rotation_size_mib() -> u32 {
+    5
+}
+
+fn default_log_backup_count() -> u32 {
+    1
 }
 
 fn default_edit_mode() -> EditMode {
@@ -98,6 +122,24 @@ fn default_log_level() -> AppLogLevel {
 mod tests {
     use super::{AppSettings, AppTheme};
     use serde_json::json;
+
+    #[test]
+    fn limits_have_backend_defaults_and_exact_wire_names() {
+        let settings: AppSettings = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(settings.file_history_limit, 20);
+        assert_eq!(settings.edit_history_limit, 250);
+        assert_eq!(settings.log_rotation_size_mib, 5);
+        assert_eq!(settings.log_backup_count, 1);
+        let wire = serde_json::to_value(&settings).unwrap();
+        assert_eq!(wire["fileHistoryLimit"], 20);
+        assert_eq!(wire["editHistoryLimit"], 250);
+        assert_eq!(wire["logRotationSizeMiB"], 5);
+        assert_eq!(wire["logBackupCount"], 1);
+        assert_eq!(
+            serde_json::from_value::<AppSettings>(wire).unwrap(),
+            settings
+        );
+    }
 
     #[test]
     fn theme_defaults_to_system_and_preserves_explicit_choices() {
@@ -123,7 +165,10 @@ mod tests {
             "theme": "light",
             "accent": "blue",
             "customAccent": "#2563eb",
-            "historyLimit": 20,
+            "fileHistoryLimit": 20,
+            "editHistoryLimit": 250,
+            "logRotationSizeMiB": 5,
+            "logBackupCount": 1,
             "editMode": "smart",
             "starsectorRoot": null,
             "logDirectory": null
@@ -139,7 +184,10 @@ mod tests {
             "theme": "light",
             "accent": "blue",
             "customAccent": "#2563eb",
-            "historyLimit": 20,
+            "fileHistoryLimit": 20,
+            "editHistoryLimit": 250,
+            "logRotationSizeMiB": 5,
+            "logBackupCount": 1,
             "editMode": "smart",
             "starsectorRoot": "",
             "logDirectory": null

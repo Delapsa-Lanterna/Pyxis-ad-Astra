@@ -6,21 +6,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/windows/managed.window', () => ({
   openManagedWindow: mocks.openManagedWindow,
-  MANAGED_WINDOW_QUERY_MAX_LENGTH: 12000,
-  normalizeWindowKey: (value: string) => value,
-  hashWindowKey: (value: string) => value,
 }));
 
 import { openEditorWindow } from './editor.window';
 import type { EditorWindowRequest } from './editor.window';
-import type { WindowIdentity } from '@/shared/types';
+import type { ManagedWindowInput, WindowIdentity } from '@/shared/types';
 
 interface ManagedWindowCall {
   identity: WindowIdentity;
   title: string;
-  urlParams: Record<string, string | undefined>;
+  input: ManagedWindowInput;
   size: { height: number; minHeight: number; minWidth: number; width: number };
-  focusEvent?: { name: string; data: unknown };
 }
 
 function firstWindowCall(): ManagedWindowCall {
@@ -33,16 +29,6 @@ const baseRequest: EditorWindowRequest = {
   sessionId: 's1',
   modRoot: 'C:/mods/alpha',
   id: 'XY',
-  settings: {
-    theme: 'dark',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    historyLimit: 20,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  },
   starsectorRoot: 'D:/games/starsector',
 };
 
@@ -58,16 +44,7 @@ describe('openEditorWindow', () => {
     expect(request.identity).toEqual({ type: 'spec', sessionId: 's1', kind: 'ship', modRoot: 'C:/mods/alpha', id: 'XY' });
     expect(request.title).toBe('舰船编辑器 - XY');
     expect(request.size).toMatchObject({ width: 1160, height: 760 });
-    expect(request.urlParams).toMatchObject({
-      window: 'editor',
-      kind: 'ship',
-      sessionId: 's1',
-      modRoot: 'C:/mods/alpha',
-      id: 'XY',
-      starsectorRoot: 'D:/games/starsector',
-    });
-    expect(JSON.parse(request.urlParams.settings ?? 'null')).toEqual(baseRequest.settings);
-    expect(request.urlParams.draftSnapshot).toBeUndefined();
+    expect(request.input).toEqual({ kind: 'editor', starsectorRoot: 'D:/games/starsector' });
   });
 
   it('opens a distinct window after the same Mod target gets a new session', async () => {
@@ -75,28 +52,7 @@ describe('openEditorWindow', () => {
     await openEditorWindow({ ...baseRequest, sessionId: 's2' });
     const calls = mocks.openManagedWindow.mock.calls as unknown as Array<[ManagedWindowCall]>;
     expect(calls[0]![0].identity).not.toEqual(calls[1]![0].identity);
-    expect(calls[1]![0].urlParams.sessionId).toBe('s2');
-  });
-
-  it('passes the draft snapshot through the URL when small enough', async () => {
-    await openEditorWindow({ ...baseRequest, kind: 'weapon', draftSnapshot: { id: 'railgun' } });
-    const request = firstWindowCall();
-    expect(JSON.parse(request.urlParams.draftSnapshot ?? 'null')).toEqual({ id: 'railgun' });
-  });
-
-  it('updates an existing preview window with the latest draft snapshot', async () => {
-    const draft = { id: 'railgun', projectileSpecId: 'proj_b' };
-    await openEditorWindow({ ...baseRequest, kind: 'weapon-preview', draftSnapshot: draft });
-    expect(firstWindowCall().focusEvent).toEqual({
-      name: 'editor-preview-draft-updated',
-      data: { sessionId: 's1', modRoot: 'C:/mods/alpha', id: 'XY', draft },
-    });
-  });
-
-  it('drops an oversized draft snapshot instead of failing to open', async () => {
-    await openEditorWindow({ ...baseRequest, kind: 'weapon', draftSnapshot: { blob: 'x'.repeat(9000) } });
-    const request = firstWindowCall();
-    expect(request.urlParams.draftSnapshot).toBeUndefined();
+    expect(calls[1]![0].identity).toMatchObject({ sessionId: 's2' });
   });
 
   it('honors a custom title', async () => {

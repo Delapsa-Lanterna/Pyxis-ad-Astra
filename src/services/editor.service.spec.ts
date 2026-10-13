@@ -159,59 +159,6 @@ describe('queryEditorEntityBundle', () => {
     ]);
   });
 
-  it('loads preview dependencies from the current draft weapon reference', async () => {
-    mocks.querySessionEntity.mockImplementation(async (_sessionId: string, kind: string, id: string) => {
-      if (kind === 'weapon') {
-        return entity(
-          { id, spec: { id, projectileSpecId: 'proj_a', turretSprite: 'graphics/a.png' }, csvRow: { id } },
-          {
-            turretSprite: { source: 'mod', relPath: 'graphics/saved.png', ownerKind: 'weapon', ownerId: id, key: 'turretSprite' },
-          },
-        );
-      }
-      if (kind === 'projectile' && id === 'proj_b') return entity({ id, specClass: 'projectile', length: 42 }, {});
-      if (kind === 'projectile' && id === 'proj_a') return entity({ id, specClass: 'projectile', length: 10 }, {});
-      return null;
-    });
-    mocks.queryResourceDataUrls.mockResolvedValue(['data:image/png;base64,DRAFT']);
-    mocks.querySessionEditorDraftResources.mockResolvedValue({
-      turretSprite: { source: 'mod', relPath: 'graphics/draft.png', ownerKind: 'weapon', ownerId: 'railgun', key: 'turretSprite' },
-    });
-
-    const bundle = await queryEditorEntityBundle('s1', 'weapon-preview', 'railgun', {
-      id: 'railgun',
-      projectileSpecId: 'proj_b',
-      turretSprite: 'graphics/draft.png',
-    });
-
-    expect(bundle.kind).toBe('weapon-preview');
-    if (bundle.kind !== 'weapon-preview') return;
-    expect(bundle.weapon.projectileSpecId).toBe('proj_b');
-    expect(bundle.projectileSpecs).toEqual({ proj_b: { id: 'proj_b', specClass: 'projectile', length: 42 } });
-    expect(bundle.weaponSpriteData).toEqual({ turretSprite: 'data:image/png;base64,DRAFT' });
-    expect(mocks.querySessionEditorDraftResources).toHaveBeenCalledWith(
-      's1',
-      'weapon',
-      'railgun',
-      {
-        id: 'railgun',
-        projectileSpecId: 'proj_b',
-        turretSprite: 'graphics/draft.png',
-      },
-      undefined,
-    );
-    expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(1);
-  });
-
-  it('reports a missing draft projectile as a preview query error', async () => {
-    mocks.querySessionEntity.mockImplementation(async (_sessionId: string, kind: string, id: string) =>
-      kind === 'weapon' ? entity({ id, spec: { id, projectileSpecId: 'saved' }, csvRow: { id } }) : null,
-    );
-    await expect(
-      queryEditorEntityBundle('s1', 'weapon-preview', 'railgun', { id: 'railgun', projectileSpecId: 'missing' }),
-    ).rejects.toThrow('找不到预览弹体 missing');
-  });
-
   it('rejects weapon queries without entity data', async () => {
     mocks.querySessionEntity.mockResolvedValue(null);
     await expect(queryEditorEntityBundle('s1', 'weapon', 'ghost')).rejects.toThrow('找不到 ghost 的 weapon 数据');
@@ -333,11 +280,10 @@ describe('saveEditorSpecByKind and import', () => {
 describe('editor definitions helpers', () => {
   it('recognizes window kinds and reports missing target text', () => {
     expect(isEditorWindowKind('ship')).toBe(true);
-    expect(isEditorWindowKind('weapon-preview')).toBe(true);
+    expect(isEditorWindowKind('weapon')).toBe(true);
     expect(isEditorWindowKind('not-a-kind')).toBe(false);
     expect(isEditorWindowKind(null)).toBe(false);
     expect(editorMissingTargetText('ship', 'XY')).toContain('spec');
-    expect(editorMissingTargetText('weapon-preview', 'XY')).toContain('预览数据');
   });
 
   it('builds a beam weapon default when the csv row declares beam speed', () => {

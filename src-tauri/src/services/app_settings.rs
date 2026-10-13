@@ -24,7 +24,7 @@ pub fn load_app_settings(app_handle: tauri::AppHandle) -> AppResult<AppSettings>
     let app_data = app_paths::app_data_dir(app_handle)?;
     let settings = load_settings(&app_data)?;
     ALLOW_CORE_EDITING.store(settings.allow_core_editing, Ordering::Release);
-    super::file_history::set_history_limit(settings.history_limit as usize)?;
+    super::file_history::set_history_limit(settings.file_history_limit as usize)?;
     Ok(settings)
 }
 
@@ -45,7 +45,7 @@ pub fn save_app_settings(
     prepare_log_directory(&app_data, &mut settings)?;
     save_settings(&app_data, &settings)?;
     ALLOW_CORE_EDITING.store(settings.allow_core_editing, Ordering::Release);
-    super::file_history::set_history_limit(settings.history_limit as usize)?;
+    super::file_history::set_history_limit(settings.file_history_limit as usize)?;
     Ok(settings)
 }
 
@@ -73,12 +73,15 @@ pub fn load_settings(app_data_dir: &Path) -> AppResult<AppSettings> {
         return Ok(AppSettings::default());
     }
     let text = read_utf8_no_bom(&path)?;
-    crate::parsers::parse_persisted_json::<AppSettings>(&text).map_err(|error| {
+    let settings = crate::parsers::parse_persisted_json::<AppSettings>(&text).map_err(|error| {
         AppError::context(format!("解析配置文件失败 ({})", path.display()), error).at_path(&path)
-    })
+    })?;
+    validate_settings_limits(&settings).map_err(|error| error.at_path(&path))?;
+    Ok(settings)
 }
 
 pub fn save_settings(app_data_dir: &Path, settings: &AppSettings) -> AppResult<()> {
+    validate_settings_limits(settings)?;
     fs::create_dir_all(app_data_dir).map_err(|error| {
         AppError::context(
             format!("创建配置目录失败 ({})", app_data_dir.display()),
@@ -89,6 +92,23 @@ pub fn save_settings(app_data_dir: &Path, settings: &AppSettings) -> AppResult<(
     let text = serde_json::to_string_pretty(settings)
         .map_err(|error| AppError::context("序列化配置文件失败".to_string(), error.into()))?;
     write_utf8_no_bom(&path, &text)?;
+    Ok(())
+}
+
+fn validate_settings_limits(settings: &AppSettings) -> AppResult<()> {
+    for (name, value, maximum) in [
+        ("fileHistoryLimit", settings.file_history_limit, 1000),
+        ("editHistoryLimit", settings.edit_history_limit, 1000),
+        ("logRotationSizeMiB", settings.log_rotation_size_mib, 1024),
+        ("logBackupCount", settings.log_backup_count, 20),
+    ] {
+        if !(1..=maximum).contains(&value) {
+            return Err(AppError::message(
+                "settings.limit_invalid",
+                format!("Invalid {name}: {value}; expected 1..={maximum}"),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -208,6 +228,46 @@ mod tests {
     use crate::testutil::temp_dir;
 
     #[test]
+    fn settings_limits_validate_read_and_write_boundaries() {
+        let dir = temp_dir("settings_limit_boundaries");
+        for (field, maximum) in [
+            ("fileHistoryLimit", 1000),
+            ("editHistoryLimit", 1000),
+            ("logRotationSizeMiB", 1024),
+            ("logBackupCount", 20),
+        ] {
+            for value in [1, maximum] {
+                let mut wire = serde_json::to_value(AppSettings::default()).unwrap();
+                wire[field] = serde_json::json!(value);
+                let settings: AppSettings = serde_json::from_value(wire).unwrap();
+                save_settings(&dir, &settings).unwrap();
+                assert_eq!(load_settings(&dir).unwrap(), settings);
+            }
+            for value in [
+                serde_json::json!(0),
+                serde_json::json!(maximum + 1),
+                serde_json::json!(-1),
+                serde_json::json!(1.5),
+            ] {
+                let mut wire = serde_json::to_value(AppSettings::default()).unwrap();
+                wire[field] = value;
+                write_utf8_no_bom(&settings_path(&dir), &wire.to_string()).unwrap();
+                let error = load_settings(&dir).unwrap_err();
+                assert_eq!(
+                    error.location().unwrap().path.as_deref(),
+                    Some(settings_path(&dir).to_str().unwrap())
+                );
+                if let Ok(settings) = serde_json::from_value::<AppSettings>(wire) {
+                    assert_eq!(error.code(), "settings.limit_invalid");
+                    assert!(error.to_string().contains(field));
+                    assert!(save_settings(&dir, &settings).is_err());
+                }
+            }
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn load_settings_returns_default_when_missing() {
         let dir = temp_dir("settings_missing");
         let settings = load_settings(&dir).unwrap();
@@ -223,7 +283,10 @@ mod tests {
   "theme": "dark",
   "accent": "custom",
   "customAccent": "#16a34a",
-  "historyLimit": 42,
+  "fileHistoryLimit": 42,
+  "editHistoryLimit": 350,
+  "logRotationSizeMiB": 12,
+  "logBackupCount": 4,
             "editMode": "plain",
   "starsectorRoot": null,
   "logDirectory": null

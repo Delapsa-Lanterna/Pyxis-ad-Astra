@@ -1,5 +1,5 @@
 <template>
-  <div class="ship-immersive-header">
+  <div v-if="render.mode === 'editable'" class="ship-immersive-header">
     <div>
       <div class="immersive-title-row">
         <ImmersivePanelRow v-for="stat in panel.heading.slice(0, 2)" :key="stat.id" :stat="stat" :render="render" />
@@ -10,7 +10,9 @@
     <ImmersiveShipPreview :url="render.mediaUrl(panel.sprite)" :label="panel.heading[0]!.display" :hull-size="panel.hullSize" />
   </div>
   <ImmersivePanelSources :render="render" />
-  <p v-for="note in panel.notes" :key="note" class="immersive-source-note"><ImmersiveText :text="note" block /></p>
+  <template v-if="render.mode === 'editable'">
+    <p v-for="note in panel.notes" :key="note" class="immersive-source-note"><ImmersiveText :text="note" block /></p>
+  </template>
   <div class="ship-immersive-stats">
     <section class="ship-immersive-logistics">
       <ImmersiveSection title="后勤数据" />

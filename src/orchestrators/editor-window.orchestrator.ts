@@ -1,6 +1,5 @@
-import { WINDOW_EVENTS, type EditorPreviewDraftUpdatedEvent, type EditorSpecSavedEvent } from '@/windows/window.events';
-import { listenWindowEvent, type WindowEventHandler } from '@/windows/tauri.events';
-import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
+import { type EditorSpecSavedEvent } from '@/windows/window.events';
+import { type WindowEventHandler } from '@/windows/tauri.events';
 import { publishCommittedWrite, listenCommittedWrites } from '@/orchestrators/project-session-refresh.orchestrator';
 import { isRowData } from '@/shared/lib/row-data';
 
@@ -26,7 +25,4 @@ export function listenEditorSpecSaved(handler: WindowEventHandler<EditorSpecSave
       });
     }
   });
-}
-export function listenEditorPreviewDraftUpdated(handler: WindowEventHandler<EditorPreviewDraftUpdatedEvent>) {
-  return listenWindowEvent<EditorPreviewDraftUpdatedEvent>(WINDOW_EVENTS.editorPreviewDraftUpdated, handler, recordWindowEventHandlerError);
 }

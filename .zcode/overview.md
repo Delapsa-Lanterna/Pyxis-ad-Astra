@@ -28,7 +28,7 @@
 - `src/services/`：单一后端能力包装、参数装配和结果交接；跨进程能力不得由组件、store 或 domain 直接调用。
 - `src/orchestrators/`：保存、打开、导航、历史、刷新、生命周期和身份交接；拥有确认、等待、恢复和失效顺序。
 - `src/stores/`：内存运行态、manifest、表格、历史、设置、Core 和 workspace 状态；严禁拥有 IO、确认框或跨模块编排。
-- `src/windows/`：窗口 identity、URL、原生实例、事件过滤、关闭请求和销毁生命周期。
+- `src/windows/`：窗口 identity、结构化上下文、请求回执、原生实例、事件过滤、关闭请求和销毁生命周期。
 - `src/shared/`：`command.runtime`、wire 类型、错误、读取票据、缓存、事件和纯工具；原始 `invoke` 只允许由 `command.runtime` 消费。
 - `schemas/`：配置字段、CSV 列和规格默认模板资产，经正式加载 owner 消费。
 - `src/styles/`：全局主题、应用框架和业务样式。
@@ -53,7 +53,7 @@
 - 历史回放：main history dispatch → CSV draft history 优先 → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
 - 资源读取：`ResourceRef` → resource-reference service → Rust root authorization → Mod/Core resource query → resource/media cache → 组件展示
 - Core 生命周期：`WindowShell` → Core orchestrator → fields/graphics command → Rust Core index → root generation → Core store
-- 窗口生命周期：业务 identity → window service → Rust native registry → 原生窗口与目标占用 → identity event → URL、标题、目标和 dirty 接纳 → close guard 与释放
+- 窗口生命周期：业务 identity → window service → Rust native registry → 原生窗口上下文与请求 → 接纳回执 → 标题、目标和 dirty 接纳 → close guard 与释放
 - workspace 生命周期：workspace action → pending/save wait → 子窗口关闭 → cache invalidation → `close_project_session` → tables/project/editor/history/store cleanup → restore 或总览
 
 ## 项目内关键链路
@@ -68,8 +68,8 @@
 - `ResourceRef` 必须由后端授权并绑定 session、source 和规范化相对路径；Core fallback 只读，不能把 Core 内容写入 Mod。
 - resource cache、media cache、visible registry 和超额 data URL 必须共同服从引用生命周期；可见媒体必须增量释放，菜单与已选值资源不得互相覆盖。
 - Core fields 与 graphics 必须由同一 WindowShell 生命周期分别加载；root、generation、A-B-A、根清空和窗口销毁是唯一接纳条件。
-- 窗口 identity 必须包含完整 session、`modRoot`、kind 和业务目标；原生 label、目标占用、URL、标题、事件过滤和 ViewModel 目标必须共同交接。
+- 窗口 identity 必须包含完整 session、`modRoot`、kind 和业务目标；原生 label、目标占用、可重载上下文、标题、事件过滤和 ViewModel 目标必须共同交接。
 - dirty 或 saving 窗口必须先拦截关闭；保存、pending 恢复和最新 dirty 判定完成前不得销毁窗口、移除 Mod 或关闭 session。
 - workspace、settings、日志和派生索引只允许写工具私有目录；Mod、Core 和用户外部目录必须由所属 path owner 授权。
-- 子窗口只允许消费主窗口 settings snapshot；主窗口拥有 settings 持久化，子窗口不得自行读盘、补默认值或广播镜像。
+- 主窗口初始化及设置保存成功后必须发布完整正式 snapshot，原生窗口 owner 必须保留最新版本；子窗口只允许按 revision 消费该 snapshot；主窗口拥有 settings 持久化，子窗口不得自行读盘、补默认值或广播镜像。
 - 结构化错误必须保留稳定码、原始诊断、路径、行列、action、command 和 payload；用户文案、日志诊断和恢复授权不得互相推导。

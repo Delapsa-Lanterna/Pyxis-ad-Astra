@@ -5,44 +5,33 @@ const openManagedWindow = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock('@/windows/managed.window', () => ({ openManagedWindow }));
 
 import { openGameWarningFileEditor, openModOpeningFailureFileEditor } from '@/windows/file-editor.window';
-import type { AppSettings, GameScanWarning, ModOpeningFailure } from '@/shared/types';
-
-const settings: AppSettings = {
-  theme: 'dark',
-  accent: 'blue',
-  customAccent: '#2f6feb',
-  historyLimit: 50,
-  editMode: 'smart',
-  starsectorRoot: 'D:\\game',
-  logDirectory: null,
-  logLevel: 'info',
-};
+import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 describe('workspace warning file editor window', () => {
   it('opens recovery mode with the structured target and parsed position', async () => {
     const warning = editableWarning();
 
-    await openGameWarningFileEditor(warning, settings);
+    await openGameWarningFileEditor(warning);
 
     expect(openManagedWindow).toHaveBeenCalledWith(
       expect.objectContaining({
-        urlParams: expect.objectContaining({
-          column: 44,
-          file: warning.editTarget?.path,
-          line: 5,
-          mode: 'recovery',
-          modRoot: warning.editTarget?.modRoot,
-          sessionId: null,
-        }),
+        identity: { type: 'recovery', modRoot: warning.editTarget?.modRoot, path: warning.editTarget?.path },
+        input: {
+          kind: 'file-editor',
+          location: { contextLabel: '错误', contextSeverity: 'error', message: warning.message, line: 5, column: 44 },
+        },
       }),
     );
   });
 
   it('ignores warnings without a structured edit target', () => {
-    const result = openGameWarningFileEditor(
-      { code: 'scan.mods_missing', location: null, path: 'D:\\game', message: '缺少目录', editTarget: null },
-      settings,
-    );
+    const result = openGameWarningFileEditor({
+      code: 'scan.mods_missing',
+      location: null,
+      path: 'D:\\game',
+      message: '缺少目录',
+      editTarget: null,
+    });
 
     expect(result).toBeNull();
     expect(openManagedWindow).not.toHaveBeenCalled();
@@ -56,17 +45,15 @@ describe('workspace warning file editor window', () => {
       file: { path: 'D:\\game\\mods\\broken\\data.csv', line: 7 },
     };
 
-    await openModOpeningFailureFileEditor(failure, settings);
+    await openModOpeningFailureFileEditor(failure);
 
     expect(openManagedWindow).toHaveBeenCalledWith(
       expect.objectContaining({
-        urlParams: expect.objectContaining({
-          file: failure.file?.path,
-          line: 7,
-          mode: 'recovery',
-          modRoot: failure.modRoot,
-          sessionId: null,
-        }),
+        identity: { type: 'recovery', modRoot: failure.modRoot, path: failure.file?.path },
+        input: {
+          kind: 'file-editor',
+          location: { contextLabel: '错误', contextSeverity: 'error', message: failure.message, line: 7, column: null },
+        },
       }),
     );
   });

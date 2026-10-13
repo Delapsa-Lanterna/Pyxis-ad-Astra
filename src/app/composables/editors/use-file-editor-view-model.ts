@@ -3,7 +3,6 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, queryFileTextIdentityIntent, followFileTextIdentity } from '@/services/files.service';
 import {
   emitFileEditorSaved,
-  listenFileEditorFocusLine,
   listenFileEditorProjectInvalidated,
   listenFileEditorTextApplied,
 } from '@/orchestrators/file-editor-window.orchestrator';
@@ -11,6 +10,7 @@ import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToR
 import type { UnlistenFn } from '@/windows/tauri.events';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
+import { useSettingsStore } from '@/stores/settings.store';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import {
@@ -36,8 +36,8 @@ export interface FileEditorViewModelParams {
   contextLabel: string;
   contextSeverity: string;
   contextMessage: string;
-  line: string | null;
-  column: string | null;
+  line: number | null;
+  column: number | null;
 }
 
 interface FileEditorTarget {
@@ -48,6 +48,7 @@ interface FileEditorTarget {
 }
 
 export function useFileEditorViewModel(params: FileEditorViewModelParams) {
+  const settings = useSettingsStore();
   const completedLocalWrites = new Set<number>();
   const feedback = useAppFeedback();
   const currentPath = ref(params.filePath);
@@ -66,8 +67,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   const contextLabel = ref(params.contextLabel);
   const contextSeverity = ref(params.contextSeverity);
   const contextMessage = ref(params.contextMessage);
-  const targetLine = ref(normalizeLine(params.line));
-  const targetColumn = ref(normalizeLine(params.column));
+  const targetLine = ref(normalizeEventLine(params.line));
+  const targetColumn = ref(normalizeEventLine(params.column));
   const draftSession: EditTargetDraftSession<string, FileEditorTarget, TextMeta> = useEditTargetDraftSession<
     string,
     FileEditorTarget,
@@ -163,7 +164,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   );
   const textHistory = useSnapshotHistory<string>(
     draftSession.context,
-    100,
+    computed(() => settings.editHistoryLimit),
     (text) => text,
     (left, right) => left === right,
   );
@@ -194,7 +195,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     },
   });
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
-  let unlistenFocusLine: UnlistenFn | null = null;
   let unlistenTextApplied: UnlistenFn | null = null;
   let unlistenProjectInvalidated: UnlistenFn | null = null;
   let unlistenIdentity: UnlistenFn | null = null;
@@ -225,19 +225,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     if (disposed) {
       unlistenIdentity();
       unlistenIdentity = null;
-      return;
-    }
-    unlistenFocusLine = await listenFileEditorFocusLine((event) => {
-      if (disposed) return;
-      contextMessage.value = event.message ?? '';
-      contextLabel.value = event.contextLabel ?? '信息';
-      contextSeverity.value = event.contextSeverity ?? 'info';
-      targetLine.value = normalizeEventLine(event.line);
-      targetColumn.value = normalizeEventLine(event.column);
-    });
-    if (disposed) {
-      unlistenFocusLine?.();
-      unlistenFocusLine = null;
       return;
     }
     unlistenTextApplied = await listenFileEditorTextApplied((event) => {
@@ -285,14 +272,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   function dispose() {
     disposed = true;
+    textHistory.dispose();
     unregisterSave();
     identityPreparation?.dispose();
     unlistenIdentity?.();
     identitySequence++;
     pendingIdentity = null;
     draftSession.dispose();
-    unlistenFocusLine?.();
-    unlistenFocusLine = null;
     unlistenTextApplied?.();
     unlistenTextApplied = null;
     unlistenProjectInvalidated?.();
@@ -463,6 +449,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     });
   }
 
+  function applyLocation(location: import('@/shared/types').FileWindowLocation) {
+    contextMessage.value = location.message ?? '';
+    contextLabel.value = location.contextLabel ?? '信息';
+    contextSeverity.value = location.contextSeverity ?? 'info';
+    targetLine.value = normalizeEventLine(location.line);
+    targetColumn.value = normalizeEventLine(location.column);
+  }
   return {
     filePath: currentPath,
     title,
@@ -491,6 +484,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     cancelChanges,
     loadPendingExternalText,
     updateText,
+    applyLocation,
     undoEdit,
     redoEdit,
   };
@@ -514,12 +508,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
 function fileEditorTargetKey(target: FileEditorTarget): string {
   return `${target.mode}\n${target.sessionId ?? ''}\n${normalizeFsPath(target.modRoot)}\n${normalizeFsPath(target.filePath)}`;
-}
-
-function normalizeLine(value: string | null): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function normalizeEventLine(value: number | null): number | undefined {

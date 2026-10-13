@@ -18,8 +18,17 @@ vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
   retryPendingWritesForMod: vi.fn(async () => {}),
 }));
 vi.mock('@/windows/tauri.events', () => ({ emitWindowEvent: mocks.emitWindowEvent }));
-import { createFileReplayPlan, executeFileReplayPlan, replayNextFileRedo, replayNextFileUndo } from './file-history-replay.orchestrator';
+import {
+  createFileReplayPlan,
+  executeFileReplayPlan,
+  replayNextFileRedo,
+  replayNextFileUndo,
+  refreshLoadedFileHistory,
+} from './file-history-replay.orchestrator';
 import { useFileHistoryStore } from '@/stores/file-history.store';
+import { useProjectStore } from '@/stores/project.store';
+import { sessionUpdateFixture } from '@/test/write-result';
+import type { FileHistorySnapshot } from '@/shared/types';
 
 const root = 'C:/mods/alpha';
 function project(session = 's1') {
@@ -80,6 +89,49 @@ describe('authoritative file history replay', () => {
     mocks.publishCommittedWrite.mockResolvedValue([]);
     mocks.emitWindowEvent.mockResolvedValue(undefined);
     mocks.replayFileChangeSet.mockResolvedValue(savedResult());
+  });
+
+  it('refreshes every loaded Mod using authoritative revisions', async () => {
+    const projects = useProjectStore();
+    for (const [session, modRoot] of [
+      ['s1', root],
+      ['s2', 'C:/mods/beta'],
+    ] as const) {
+      const update = sessionUpdateFixture(session, modRoot);
+      if (update.status !== 'ready') throw new Error('ready projection fixture');
+      projects.registerProjectManifest(update.projection.manifest);
+    }
+    mocks.loadFileHistory.mockResolvedValue({ revision: 5, undoStack: [], redoStack: [] });
+    await refreshLoadedFileHistory(() => true);
+    expect(mocks.loadFileHistory).toHaveBeenCalledWith('s1', root);
+    expect(mocks.loadFileHistory).toHaveBeenCalledWith('s2', 'C:/mods/beta');
+    expect(useFileHistoryStore().getHistoryStacks(root).undoStack).toEqual([]);
+    expect(useFileHistoryStore().getHistoryStacks('C:/mods/beta').revision).toBe(5);
+    mocks.loadFileHistory.mockResolvedValue({ revision: 4, undoStack: [entry()], redoStack: [] });
+    await refreshLoadedFileHistory(() => true);
+    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(5);
+  });
+
+  it.each(['closed', 'replaced', 'released'] as const)('rejects history delivery after its target is %s', async (reason) => {
+    const projects = useProjectStore();
+    const update = sessionUpdateFixture('s1', root);
+    if (update.status !== 'ready') throw new Error('ready projection fixture');
+    projects.registerProjectManifest(update.projection.manifest);
+    let finish!: (snapshot: FileHistorySnapshot) => void;
+    mocks.loadFileHistory.mockImplementationOnce(
+      () =>
+        new Promise<FileHistorySnapshot>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let active = true;
+    const refreshing = refreshLoadedFileHistory(() => active);
+    if (reason === 'closed') projects.removeProjectManifest(root);
+    if (reason === 'replaced') projects.registerProjectManifest({ ...update.projection.manifest, sessionId: 's2' });
+    if (reason === 'released') active = false;
+    finish({ revision: 8, undoStack: [], redoStack: [] });
+    await refreshing;
+    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(1);
   });
 
   it('captures the backend history revision and entry identity', () => {

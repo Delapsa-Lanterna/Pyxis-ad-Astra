@@ -37,7 +37,7 @@ import { renderMountedWeapons } from '@/app/renderers/editors/weapon-images';
 import { drawWeaponMount } from '@/domain/immersive/weapon-icon';
 import { variantSlotPoint, type VariantWingLayout } from '@/domain/immersive/variant-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
-import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { useEditorImages } from '@/app/composables/editors/use-editor-images';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { warningNotice } from '@/shared/lib/errors';
@@ -48,11 +48,10 @@ const props = defineProps<{
   iconSize?: number;
   wingLayout?: VariantWingLayout;
 }>();
-const emit = defineEmits<{ slot: [index: number, anchor: { x: number; y: number }]; module: [key: string] }>();
+const emit = defineEmits<{ slot: [index: number, anchor: { x: number; y: number }]; module: [key: string]; blank: [] }>();
 const canvas = shallowRef<HTMLCanvasElement | null>(null),
   stage = ref<HTMLElement | null>(null);
 const viewport = useCanvasViewport(canvas, 1, 4),
-  reads = useQueryReadOwner(),
   feedback = useAppFeedback();
 const state = createCanvasState<null>();
 const hoverWeapon = computed(() => (state.hovered.value ? props.variant.weapons[state.hovered.value.i] : null));
@@ -102,40 +101,19 @@ watch(
   },
   { immediate: true },
 );
-let images = new Map<string, HTMLImageElement>();
 const url = (resource: import('@/shared/types').ResourceRef) => media.dataUrl(props.sessionId, resource) ?? '';
-watch(
-  () => resources().map(url),
-  (urls) => {
-    images = new Map();
-    paint();
-    void reads.consume(
-      'images',
-      { urls },
-      () =>
-        Promise.all(
-          [...new Set(urls.filter(Boolean))].map(
-            (source) =>
-              new Promise<[string, HTMLImageElement]>((resolve, reject) => {
-                const image = new Image();
-                image.onload = () => resolve([source, image]);
-                image.onerror = () => reject(new Error('装配图片解码失败'));
-                image.src = source;
-              }),
-          ),
-        ),
-      {
-        ready: (items) => {
-          images = new Map(items);
-          paint();
-        },
-        error: (error) => feedback.error(error, '读取装配预览失败'),
-      },
-    );
-  },
-  { flush: 'post', immediate: true },
+const { images } = useEditorImages(
+  () =>
+    Object.fromEntries(
+      resources()
+        .map(url)
+        .filter(Boolean)
+        .map((source) => [source, source]),
+    ),
+  paint,
+  () => feedback.error(new Error('装配图片解码失败'), '读取装配预览失败'),
 );
-const point = (slot: import('@/shared/types').RowData) => {
+const point = (slot: import('@/shared/types').DeepReadonly<import('@/shared/types').RowData>) => {
   const location = Array.isArray(slot.locations) ? slot.locations : [0, 0];
   return viewport.toCanvas('ship', -Number(location[1]), Number(location[0]));
 };
@@ -312,8 +290,8 @@ function navigate(event: KeyboardEvent) {
 function down(event: MouseEvent) {
   stage.value!.focus({ preventScroll: true });
   if (navigation.start(event) || event.button !== 0) return;
-  selection.byPointer(event.offsetX, event.offsetY);
-  activateSelected();
+  if (selection.byPointer(event.offsetX, event.offsetY)) activateSelected();
+  else emit('blank');
   paint();
 }
 function move(event: MouseEvent) {
@@ -355,8 +333,6 @@ onMounted(() => {
 onScopeDispose(() => {
   observer?.disconnect();
   stopRatio?.();
-  reads.revoke();
-  images.clear();
   navigation.finish();
 });
 defineExpose({ fit });

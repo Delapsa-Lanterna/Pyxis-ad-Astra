@@ -5,6 +5,8 @@ import { projectWeaponPanel, type WeaponPanel } from './weapon-panel';
 import { jointObject } from '@/domain/joint-edit';
 import { projectWingPanel, type WingPanel } from './wing-panel';
 import { projectVariantPanel, variantEditableRecords, type VariantPanel } from './variant-panel';
+import { variantWeaponGroups } from './variant-actions';
+import { isRowData } from '@/shared/lib/row-data';
 
 export type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel | VariantPanel;
 export type ImmersiveEditorKind = 'ship' | 'weapon' | 'wing' | 'variant';
@@ -23,7 +25,17 @@ const definitions: Record<ImmersiveEditorKind, ImmersiveEditorDefinition> = {
     references: (_snapshot, values) =>
       Object.entries(values).map(([key, value]) => {
         const data = jointObject(value);
-        return [key, ...['hullId', 'modules', 'weaponGroups', 'wings', 'hullMods', 'permaMods', 'sMods'].map((field) => data[field])];
+        const weapons = variantWeaponGroups(data)
+          .flatMap((group) => Object.entries(isRowData(group.weapons) ? group.weapons : {}))
+          .sort(([left], [right]) => left.localeCompare(right));
+        const mods = [
+          ...new Set(
+            ['hullMods', 'permaMods', 'sMods']
+              .flatMap((field) => (Array.isArray(data[field]) ? data[field] : []))
+              .filter((id): id is string => typeof id === 'string'),
+          ),
+        ].sort();
+        return [key, data.hullId, data.modules, weapons, data.wings, mods];
       }),
     media: () => [],
   },

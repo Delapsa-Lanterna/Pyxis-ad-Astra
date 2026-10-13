@@ -15,7 +15,7 @@ import { deepClone } from '@/shared/lib/starsector';
 import { formatError } from '@/shared/lib/errors';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions, handoffTableVersions } from '@/domain/editors/entity-identity';
-import { emitEditorSpecSaved, listenEditorPreviewDraftUpdated, listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
+import { emitEditorSpecSaved, listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 import { applyProjectSessionCacheInvalid, listenProjectSessionInvalidated } from '@/orchestrators/project-session-refresh.orchestrator';
 import { saveEditorSpecByKind } from '@/services/editor.service';
 import { reserveEntityIntent, retargetEntityWindow, releaseCommittedIdentityTargets } from '@/orchestrators/entity-identity.orchestrator';
@@ -33,7 +33,7 @@ import { pickEditorSpecFile } from '@/shared/runtime/dialog.runtime';
 import { closeCurrentWindow } from '@/windows/current.window';
 import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
 import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
-import type { EditorPreviewDraftUpdatedEvent, EditorSpecSavedEvent, ProjectSessionInvalidatedEvent } from '@/windows/window.events';
+import type { EditorSpecSavedEvent, ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 
 interface EditorWindowTarget {
   id: string;
@@ -50,9 +50,7 @@ export function useEditorWindowViewModel(params: {
   modRoot: string | null;
   id: string | null;
   kind: EditorWindowKind;
-  draftSnapshot?: RowData | null;
 }) {
-  let previewDraftSnapshot = params.draftSnapshot ?? null;
   const completedLocalWrites = new Set<number>();
   const currentId = ref(params.id);
   const editorData = ref<EditorEntityBundle | null>(null);
@@ -67,16 +65,15 @@ export function useEditorWindowViewModel(params: {
   > = useEditTargetDraftSession<RowData, EditorWindowTarget, { bundle: EditorEntityBundle; receipt: WriteResult<unknown> | null }>({
     emptyValue: {},
     load: async (target, signal) => {
-      const data = await queryEditorEntityBundle(target.sessionId, target.kind, target.id, previewDraftSnapshot ?? undefined, signal);
+      const data = await queryEditorEntityBundle(target.sessionId, target.kind, target.id, signal);
       return {
         target,
         meta: { bundle: data, receipt: null },
         baseVersions: data.baseVersions,
-        value: isEditableWindowKind(target.kind) ? primarySpecForBundle(data, target.kind) : {},
+        value: primarySpecForBundle(data, target.kind),
       };
     },
     save: async (target, draft, baseVersions) => {
-      if (!isEditableWindowKind(target.kind)) return;
       const kind = target.kind as EditorSpecKind;
       const submittedBundle = deepClone(editorData.value!);
       const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedBundle.target, draft);
@@ -181,12 +178,10 @@ export function useEditorWindowViewModel(params: {
       },
     },
   });
-  const previewLoading = ref(false);
-  const loading = computed(() => draftSession.loading.value || previewLoading.value);
+  const loading = draftSession.loading;
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
   const errorText = ref('');
   let unlistenEditorSpecSaved: UnlistenFn | null = null;
-  let unlistenPreviewDraftUpdated: UnlistenFn | null = null;
   let unlistenIdentity: UnlistenFn | null = null;
   let identityCommitId = -1;
   let stopSessionInvalidated: UnlistenFn | null = null;
@@ -250,11 +245,10 @@ export function useEditorWindowViewModel(params: {
   const shipEditorData = computed(() => (editorData.value?.kind === 'ship' ? editorData.value : null));
   const weaponEditorData = computed(() => (editorData.value?.kind === 'weapon' ? editorData.value : null));
   const projectileEditorData = computed(() => (editorData.value?.kind === 'projectile' ? editorData.value : null));
-  const weaponPreviewData = computed(() => (editorData.value?.kind === 'weapon-preview' ? editorData.value : null));
   const systemEditorData = computed(() => (editorData.value?.kind === 'system' ? editorData.value : null));
   const weaponLikeEditorData = computed(() => {
     const data = editorData.value;
-    return data?.kind === 'weapon' || data?.kind === 'weapon-preview' ? data : null;
+    return data?.kind === 'weapon' ? data : null;
   });
   const weaponForEditor = computed<RowData>(() => {
     const data = weaponLikeEditorData.value;
@@ -269,9 +263,7 @@ export function useEditorWindowViewModel(params: {
   const externalUpdateNotice = draftSession.externalUpdateNotice;
   const canSaveSpec = computed(
     () =>
-      draftSession.ready.value &&
-      isEditableWindowKind(params.kind) &&
-      (draftSession.hasPendingSynchronization.value || draftDirty.value || Boolean(editorData.value?.isNew)),
+      draftSession.ready.value && (draftSession.hasPendingSynchronization.value || draftDirty.value || Boolean(editorData.value?.isNew)),
   );
 
   const missingEditorText = computed(() => {
@@ -287,29 +279,9 @@ export function useEditorWindowViewModel(params: {
     const target = editorWindowTarget();
     if (!target) {
       errorText.value = '缺少 Mod 路径或目标 id。';
-      previewLoading.value = false;
       return;
     }
     errorText.value = '';
-    if (!isEditableWindowKind(params.kind)) {
-      previewLoading.value = options.showLoading;
-      await reads.consume(
-        'preview',
-        target,
-        (signal) => queryEditorEntityBundle(target.sessionId, target.kind, target.id, previewDraftSnapshot ?? undefined, signal),
-        {
-          ready: applyLoadedEditorData,
-          error: (error) => {
-            if (options.showLoading) errorText.value = formatError(error);
-            else feedback.error(error, '刷新编辑器失败');
-          },
-          settled: () => {
-            previewLoading.value = false;
-          },
-        },
-      );
-      return;
-    }
     try {
       const snapshot = options.promptForMissing ? await draftSession.loadTarget(target) : await draftSession.refreshTarget(target);
       if (!snapshot?.meta) return;
@@ -393,7 +365,7 @@ export function useEditorWindowViewModel(params: {
 
   function loadPendingExternalSpec(): void {
     const target = editorWindowTarget();
-    if (!target || !editorData.value || !draftSession.pendingExternalValue.value || !isEditableWindowKind(params.kind)) return;
+    if (!target || !editorData.value || !draftSession.pendingExternalValue.value) return;
     if (draftSession.saving.value) {
       void draftSession.waitForSave().then((saved) => {
         if (saved && !disposed) loadPendingExternalSpec();
@@ -417,12 +389,6 @@ export function useEditorWindowViewModel(params: {
     if (disposed) {
       unlistenIdentity();
       unlistenIdentity = null;
-      return;
-    }
-    unlistenPreviewDraftUpdated = await listenEditorPreviewDraftUpdated(handlePreviewDraftUpdated);
-    if (disposed) {
-      unlistenPreviewDraftUpdated();
-      unlistenPreviewDraftUpdated = null;
       return;
     }
     unlistenEditorSpecSaved = await listenEditorSpecSaved(handleEditorSpecSaved);
@@ -450,8 +416,6 @@ export function useEditorWindowViewModel(params: {
     unlistenIdentity?.();
     unlistenIdentity = null;
     unregisterSave();
-    unlistenPreviewDraftUpdated?.();
-    unlistenPreviewDraftUpdated = null;
     unlistenEditorSpecSaved?.();
     unlistenEditorSpecSaved = null;
     stopSessionInvalidated?.();
@@ -461,20 +425,6 @@ export function useEditorWindowViewModel(params: {
     stopResourceInvalidation?.();
     stopResourceInvalidation = null;
     draftSession.dispose();
-  }
-
-  function handlePreviewDraftUpdated(event: EditorPreviewDraftUpdatedEvent) {
-    const target = editorWindowTarget();
-    if (
-      !target ||
-      params.kind !== 'weapon-preview' ||
-      event.sessionId !== target.sessionId ||
-      normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot) ||
-      event.id !== target.id
-    )
-      return;
-    previewDraftSnapshot = deepClone(event.draft);
-    void queryEditorData({ promptForMissing: false, showLoading: false });
   }
 
   async function handleIdentityApplied(event: EntityIdentityAppliedEvent) {
@@ -493,17 +443,6 @@ export function useEditorWindowViewModel(params: {
     if (!change) return;
     if (draftSession.saving.value && !(await draftSession.waitForSave())) return;
     if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
-    if (target.kind === 'weapon-preview') {
-      const snapshot = previewDraftSnapshot ? { ...previewDraftSnapshot, id: change.after.id } : undefined;
-      const data = await queryEditorEntityBundle(target.sessionId, target.kind, change.after.id, snapshot);
-      if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
-      await retargetEntityWindow(target.sessionId, target.modRoot, target.kind, change.after.id);
-      currentId.value = change.after.id;
-      previewDraftSnapshot = snapshot ?? null;
-      applyLoadedEditorData(data);
-      identityCommitId = event.result.commitId;
-      return;
-    }
     if (draftSession.dirty.value) {
       const choice = await feedback.choose({
         title: '跟随实体重命名？',
@@ -541,10 +480,6 @@ export function useEditorWindowViewModel(params: {
     )
       return;
     if (!shouldApplySavedSpec(editorData.value, target, event)) return;
-    if (params.kind === 'weapon-preview' && event.kind === 'weapon') {
-      if (!previewDraftSnapshot) void queryEditorData({ promptForMissing: false, showLoading: false });
-      return;
-    }
     if (isPrimaryEditableKind(params.kind, event.kind) && event.id === target.id) {
       receiveExternalPrimarySpec(event.kind, event.id, event.spec, event.writeResult);
       return;
@@ -578,7 +513,6 @@ export function useEditorWindowViewModel(params: {
     if (event.scope === 'session') {
       reads.revoke('session');
       missingSpecIntent = null;
-      previewLoading.value = false;
       return;
     }
     if (hasPrimaryDetailInvalidation(event, params.kind, target.id)) {
@@ -636,10 +570,7 @@ export function useEditorWindowViewModel(params: {
           {
             ready: (refreshed) => {
               const current = editorData.value;
-              if (
-                (current?.kind === 'weapon' || current?.kind === 'weapon-preview') &&
-                (refreshed.kind === 'weapon' || refreshed.kind === 'weapon-preview')
-              )
+              if (current?.kind === 'weapon' && refreshed.kind === 'weapon')
                 editorData.value = { ...current, projectileSpecs: refreshed.projectileSpecs };
             },
             error,
@@ -666,10 +597,7 @@ export function useEditorWindowViewModel(params: {
         reads.consume('resources', { ...target, reference }, (signal) => refreshBundleResources(target.sessionId, bundle, signal), {
           ready: (refreshed) => {
             const current = editorData.value;
-            if (
-              (current?.kind === 'weapon' || current?.kind === 'weapon-preview') &&
-              (refreshed.kind === 'weapon' || refreshed.kind === 'weapon-preview')
-            )
+            if (current?.kind === 'weapon' && refreshed.kind === 'weapon')
               editorData.value = { ...current, resourceRefs: refreshed.resourceRefs, weaponSpriteData: refreshed.weaponSpriteData };
           },
           error,
@@ -689,7 +617,6 @@ export function useEditorWindowViewModel(params: {
     shipEditorData,
     weaponEditorData,
     projectileEditorData,
-    weaponPreviewData,
     systemEditorData,
     loading,
     contentReady: computed(() => editorData.value !== null),
@@ -715,7 +642,7 @@ export function useEditorWindowViewModel(params: {
 
   function applyLoadedEditorData(data: EditorEntityBundle, preserveCatalog = false): void {
     const target = editorWindowTarget();
-    if (!target || !isEditableWindowKind(params.kind)) {
+    if (!target) {
       editorData.value = data;
       draftSession.clearTarget();
       return;
@@ -749,9 +676,7 @@ function sameEditorWindowTarget(left: EditorWindowTarget, right: EditorWindowTar
 }
 
 function bundleReferenceKey(bundle: EditorEntityBundle | null): string | null {
-  return bundle?.kind === 'weapon' || bundle?.kind === 'weapon-preview'
-    ? JSON.stringify([bundle.kind, bundle.weapon.projectileSpecId ?? null])
-    : null;
+  return bundle?.kind === 'weapon' ? JSON.stringify([bundle.kind, bundle.weapon.projectileSpecId ?? null]) : null;
 }
 
 function editorWindowTargetKey(target: EditorWindowTarget): string {
@@ -760,11 +685,10 @@ function editorWindowTargetKey(target: EditorWindowTarget): string {
 
 function shouldApplySavedSpec(bundle: EditorEntityBundle, target: EditorWindowTarget, event: EditorSpecSavedEvent): boolean {
   if (event.kind === 'ship') return bundle.kind === 'ship' && event.id === target.id;
-  if (event.kind === 'weapon') return (bundle.kind === 'weapon' || bundle.kind === 'weapon-preview') && event.id === target.id;
+  if (event.kind === 'weapon') return bundle.kind === 'weapon' && event.id === target.id;
   if (event.kind === 'projectile') {
     if (bundle.kind === 'projectile') return event.id === target.id;
-    if (bundle.kind === 'weapon' || bundle.kind === 'weapon-preview')
-      return event.id in bundle.projectileSpecs || bundle.weapon.projectileSpecId === event.id;
+    if (bundle.kind === 'weapon') return event.id in bundle.projectileSpecs || bundle.weapon.projectileSpecId === event.id;
   }
   if (event.kind === 'system') return bundle.kind === 'system' && event.id === target.id;
   return false;
@@ -775,7 +699,7 @@ function applySavedSpecToBundle(bundle: EditorEntityBundle, kind: EditorSpecKind
     const images = bundle.ship.spriteName === spec.spriteName ? {} : { resourceRefs: [], shipSpriteData: '' };
     return { ...bundle, ...images, ship: spec };
   }
-  if (kind === 'weapon' && (bundle.kind === 'weapon' || bundle.kind === 'weapon-preview')) {
+  if (kind === 'weapon' && bundle.kind === 'weapon') {
     const images = WEAPON_SPRITE_FIELDS.every((field) => bundle.weapon[field] === spec[field])
       ? {}
       : { resourceRefs: [], weaponSpriteData: {} };
@@ -784,7 +708,7 @@ function applySavedSpecToBundle(bundle: EditorEntityBundle, kind: EditorSpecKind
   if (kind === 'projectile' && bundle.kind === 'projectile') {
     return { ...bundle, projectile: spec, projectileSpecs: { ...bundle.projectileSpecs, [id]: spec } };
   }
-  if (kind === 'projectile' && (bundle.kind === 'weapon' || bundle.kind === 'weapon-preview')) {
+  if (kind === 'projectile' && bundle.kind === 'weapon') {
     return { ...bundle, projectileSpecs: { ...bundle.projectileSpecs, [id]: spec } };
   }
   if (kind === 'system' && bundle.kind === 'system') return { ...bundle, system: spec };
@@ -797,12 +721,8 @@ function clearBundleImages(bundle: EditorEntityBundle): EditorEntityBundle {
   return bundle;
 }
 
-function isEditableWindowKind(kind: EditorWindowKind): kind is EditableEditorKind {
-  return kind === 'ship' || kind === 'weapon' || kind === 'projectile' || kind === 'system';
-}
-
 function isPrimaryEditableKind(windowKind: EditorWindowKind, specKind: EditorSpecKind): boolean {
-  return isEditableWindowKind(windowKind) && windowKind === specKind;
+  return windowKind === specKind;
 }
 
 function primarySpecForBundle(bundle: EditorEntityBundle, kind: EditableEditorKind): RowData {
@@ -821,7 +741,7 @@ function hasPrimaryDetailInvalidation(event: QueryCacheInvalidationEvent, window
 }
 
 function hasProjectileSpecInvalidation(event: QueryCacheInvalidationEvent, bundle: EditorEntityBundle | null): boolean {
-  if (bundle?.kind !== 'weapon' && bundle?.kind !== 'weapon-preview') return false;
+  if (bundle?.kind !== 'weapon') return false;
   const projectileIds = [
     ...Object.keys(bundle.projectileSpecs),
     ...(typeof bundle.weapon.projectileSpecId === 'string' ? [bundle.weapon.projectileSpecId] : []),
@@ -841,7 +761,7 @@ function editorResourceInvalidated(event: ResourceCacheInvalidationEvent, bundle
 }
 
 function editorWindowEntityKind(windowKind: EditorWindowKind): EntityKind {
-  return windowKind === 'weapon-preview' ? 'weapon' : windowKind;
+  return windowKind;
 }
 
 import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';

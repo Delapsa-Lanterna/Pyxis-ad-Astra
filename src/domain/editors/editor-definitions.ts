@@ -10,7 +10,7 @@ export interface EditorWindowSize {
 export interface EditorWindowDefinition {
   label: string;
   size: EditorWindowSize;
-  specKind: EditorSpecKind | null;
+  specKind: EditorSpecKind;
 }
 
 const EDITOR_WINDOW_DEFINITIONS: Record<EditorWindowKind, EditorWindowDefinition> = {
@@ -33,11 +33,6 @@ const EDITOR_WINDOW_DEFINITIONS: Record<EditorWindowKind, EditorWindowDefinition
     label: '战术系统编辑器',
     specKind: 'system',
     size: { width: 900, height: 760, minWidth: 720, minHeight: 520 },
-  },
-  'weapon-preview': {
-    label: '发射预览',
-    specKind: null,
-    size: { width: 1120, height: 760, minWidth: 760, minHeight: 520 },
   },
 };
 

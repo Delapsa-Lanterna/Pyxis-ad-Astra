@@ -10,7 +10,9 @@ import {
   type LogLevel,
 } from '@/shared/types';
 
-export const MAX_HISTORY_LIMIT = 100;
+export const MAX_HISTORY_LIMIT = 1000;
+export const MAX_LOG_ROTATION_SIZE_MIB = 1024;
+export const MAX_LOG_BACKUP_COUNT = 20;
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -31,7 +33,10 @@ export function assertValidSettings(settings: AppSettings): void {
   readTheme(settings.theme);
   readAccent(settings.accent);
   readCustomAccent(settings.customAccent);
-  readHistoryLimit(settings.historyLimit);
+  readHistoryLimit(settings.fileHistoryLimit);
+  readHistoryLimit(settings.editHistoryLimit);
+  readLogRotationSizeMiB(settings.logRotationSizeMiB);
+  readLogBackupCount(settings.logBackupCount);
   readEditMode(settings.editMode);
   readPreserveOriginalJson(settings.preserveOriginalJson);
   readAllowCoreEditing(settings.allowCoreEditing);
@@ -63,8 +68,20 @@ export function readCustomAccent(value: string): string {
 }
 
 export function readHistoryLimit(value: number): number {
-  if (!Number.isFinite(value) || value < 1 || value > MAX_HISTORY_LIMIT) throw new Error(`Invalid history limit: ${value}`);
-  return Math.round(value);
+  return readIntegerLimit(value, MAX_HISTORY_LIMIT, 'history limit');
+}
+
+export function readLogRotationSizeMiB(value: number): number {
+  return readIntegerLimit(value, MAX_LOG_ROTATION_SIZE_MIB, 'log rotation size');
+}
+
+export function readLogBackupCount(value: number): number {
+  return readIntegerLimit(value, MAX_LOG_BACKUP_COUNT, 'log backup count');
+}
+
+function readIntegerLimit(value: number, maximum: number, label: string): number {
+  if (!Number.isInteger(value) || value < 1 || value > maximum) throw new Error(`Invalid ${label}: ${value}`);
+  return value;
 }
 
 export function readEditMode(value: EditMode): EditMode {

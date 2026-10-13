@@ -1,4 +1,4 @@
-import type { RowData } from '@/shared/types';
+import type { DeepReadonly, RowData } from '@/shared/types';
 
 export type WeaponViewMode = 'turret' | 'hardpoint';
 
@@ -33,7 +33,7 @@ export const WEAPON_SPRITE_DRAW_ORDER: Record<WeaponViewMode, readonly WeaponSpr
   hardpoint: ['hardpointUnderSprite', 'hardpointSprite', 'hardpointGunSprite', 'hardpointGlowSprite'],
 };
 
-export function weaponSpriteDrawOrder(weapon: RowData, mode: WeaponViewMode): WeaponSpriteField[] {
+export function weaponSpriteDrawOrder(weapon: DeepReadonly<RowData>, mode: WeaponViewMode): WeaponSpriteField[] {
   // MissileWeapon renders the gun through its recoil tracker; BeamWeapon/PlasmaWeapon use the body.
   const gun = weapon.specClass === 'projectile' && typeof weapon.visualRecoil === 'number' && weapon.visualRecoil !== 0;
   const layers = WEAPON_SPRITE_DRAW_ORDER[mode].filter((field) => !field.endsWith('GlowSprite') && (gun || !field.endsWith('GunSprite')));
@@ -54,7 +54,7 @@ export function weaponAnglesKey(mode: WeaponViewMode): string {
   return mode === 'turret' ? 'turretAngleOffsets' : 'hardpointAngleOffsets';
 }
 
-export function weaponBarrelOffsetsFor(weapon: RowData, mode: WeaponViewMode): number[] {
+export function weaponBarrelOffsetsFor(weapon: DeepReadonly<RowData>, mode: WeaponViewMode): number[] {
   const values = weapon[weaponOffsetsKey(mode)];
   return Array.isArray(values) && values.length >= 2 ? (values as number[]) : [10, 0];
 }

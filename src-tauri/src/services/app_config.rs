@@ -88,6 +88,7 @@ mod tests {
                 line: None,
                 fields: None,
             },
+            &crate::models::AppSettings::default(),
         )
         .unwrap();
         clear_config_files(&dir).unwrap();

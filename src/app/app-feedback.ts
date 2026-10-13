@@ -14,15 +14,13 @@ import {
   type FileReference,
 } from '@/shared/lib/errors';
 import { resolveFeedbackFileSession, type FeedbackFileSession } from '@/shared/lib/feedback-session';
-import type { AppFeedback, ChooseOptions, ConfirmOptions } from '@/shared/types';
+import type { AppFeedback, ChooseOptions, ConfirmOptions, FileWindowLocation } from '@/shared/types';
 import { emitFileEditorSaved } from '@/orchestrators/file-editor-window.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
-import type { FileEditorContextSeverity } from '@/windows/window.events';
 import { currentWindowSessionIdentity } from '@/windows/window-identity.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorMessageOf } from '@/shared/lib/errors';
-import { useSettingsStore } from '@/stores/settings.store';
 import { useProjectStore } from '@/stores/project.store';
 import { closestRootForPath } from '@/shared/lib/paths';
 import { logFields } from '@/shared/lib/log-fields';
@@ -31,7 +29,7 @@ type ToastLevel = 'success' | 'info' | 'warning' | 'error';
 
 interface ToastContext {
   contextLabel: string;
-  contextSeverity: FileEditorContextSeverity;
+  contextSeverity: NonNullable<FileWindowLocation['contextSeverity']>;
   buttonType: 'default' | 'success' | 'warning' | 'error';
 }
 
@@ -211,15 +209,15 @@ function fileReferenceText(reference: FileReference): string {
   return reference.line ? `${reference.path}（${fileReferenceLocationSuffix(reference.line, reference.column)}）` : reference.path;
 }
 
-function openReferenceInEditor(reference: FileReference, session: FeedbackFileSession, level: ToastLevel): Promise<void> {
+async function openReferenceInEditor(reference: FileReference, session: FeedbackFileSession, level: ToastLevel): Promise<void> {
   const context = TOAST_CONTEXT[level];
-  return openFileEditorWindow({
+  await openFileEditorWindow({
     modRoot: session.modRoot,
     path: reference.path,
     sessionId: session.sessionId,
     line: reference.line,
     column: reference.column,
-    settings: useSettingsStore().settingsSnapshot(),
+
     title: '文件编辑器',
     contextLabel: context.contextLabel,
     contextSeverity: context.contextSeverity,

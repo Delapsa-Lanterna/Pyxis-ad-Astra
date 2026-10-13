@@ -20,8 +20,12 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ 
 vi.mock('@/windows/current.window', () => ({ closeCurrentWindow: vi.fn(async () => {}) }));
 vi.mock('@/windows/editor.window', () => ({
   openProjectileEditorWindow: vi.fn(async () => {}),
-  openWeaponPreviewWindow: vi.fn(async () => {}),
 }));
+vi.mock('@/windows/window-context.window', () => ({
+  useWindowContext: () =>
+    computed(() => ({ identity: { sessionId: 's1', modRoot: 'M:/mod', id: 'XY', kind: 'ship' }, input: { starsectorRoot: null } })),
+}));
+vi.mock('@/app/composables/use-managed-window-requests', () => ({ useManagedWindowRequests: vi.fn() }));
 let wrapper: ReturnType<typeof mount> | null = null;
 beforeEach(() => {
   installCanvas2DStub();
@@ -30,7 +34,10 @@ beforeEach(() => {
     theme: 'light',
     accent: 'blue',
     customAccent: '#2563eb',
-    historyLimit: 20,
+    fileHistoryLimit: 20,
+    editHistoryLimit: 250,
+    logRotationSizeMiB: 5,
+    logBackupCount: 1,
     editMode: 'smart',
     starsectorRoot: null,
     logDirectory: null,
@@ -54,7 +61,6 @@ function setupWindow(initial = true) {
     shipEditorData: data,
     weaponEditorData: ref(null),
     projectileEditorData: ref(null),
-    weaponPreviewData: ref(null),
     systemEditorData: ref(null),
     loading,
     contentReady: computed(() => data.value !== null),

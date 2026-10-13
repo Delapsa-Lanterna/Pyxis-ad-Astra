@@ -2,11 +2,19 @@
   <div class="wing-immersive-panel">
     <div class="immersive-title-row"><ImmersivePanelRow :stat="panel.heading[0]!" :render="render" /></div>
     <ImmersivePanelRow :stat="panel.heading[1]!" :render="render" />
-    <div class="ship-immersive-description"><ImmersivePanelRow :stat="panel.description" :render="render" /></div>
+    <div class="ship-immersive-description"><ImmersivePanelRow :stat="description" :render="render" /></div>
     <section>
       <ImmersiveSection title="技术数据" />
       <div class="weapon-immersive-data">
-        <ImmersiveShipPreview :url="render.mediaUrl(panel.sprite)" :label="panel.heading[0]!.display" hull-size="" :size="80" />
+        <div class="variant-wing-icon" :style="{ width: '80px', height: '80px' }" :title="layout.diagnostic">
+          <VariantScene
+            v-if="panel.preview && !layout.diagnostic"
+            :variant="panel.preview"
+            :session-id="render.root.sessionId"
+            :icon-size="80"
+            :wing-layout="layout"
+          />
+        </div>
         <div><ImmersivePanelRow v-for="stat in panel.technical" :key="stat.id" :stat="stat" :render="render" /></div>
       </div>
     </section>
@@ -34,11 +42,16 @@
 </template>
 <script setup lang="ts">
 import type { WingPanel } from '@/domain/immersive/wing-panel';
+import { computed } from 'vue';
 import type { ImmersiveRenderContext } from './immersive-render-context';
+import { descriptionForRender } from './immersive-render-context';
 import ImmersivePanelRow from './ImmersivePanelRow.vue';
 import ImmersiveSection from './ImmersiveSection.vue';
 import ImmersivePanelSources from './ImmersivePanelSources.vue';
 import ImmersiveText from './ImmersiveText.vue';
-import ImmersiveShipPreview from './ImmersiveShipPreview.vue';
-defineProps<{ panel: WingPanel; render: ImmersiveRenderContext }>();
+import VariantScene from './VariantScene.vue';
+import { variantWingLayout } from '@/domain/immersive/variant-scene';
+const props = defineProps<{ panel: WingPanel; render: ImmersiveRenderContext }>();
+const description = computed(() => descriptionForRender(props.panel.description, props.render.mode));
+const layout = computed(() => variantWingLayout(props.panel.count, props.panel.formation, 80));
 </script>

@@ -13,7 +13,7 @@ import WeaponImmersivePanel from './WeaponImmersivePanel.vue';
 import WingImmersivePanel from './WingImmersivePanel.vue';
 
 describe('shared immersive content renderers', () => {
-  it.each(['ship', 'weapon', 'wing'] as const)('renders the same %s content and media in either mode', async (kind) => {
+  it.each(['ship', 'weapon', 'wing'] as const)('shares %s technical content while applying the readonly summary', async (kind) => {
     const snapshot = kind === 'ship' ? shipJointFixture() : kind === 'weapon' ? weaponJointFixture() : wingJointFixture();
     const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
     const editing: ImmersiveEditing = {
@@ -40,6 +40,9 @@ describe('shared immersive content renderers', () => {
         : kind === 'weapon'
           ? projectWeaponPanel(snapshot, values)
           : projectWingPanel(snapshot, values);
+    panel.description.display = '第一自然段 first line.\r\nContinuation in the same paragraph.\r\n \t\r\n第二自然段。\r\n\r\n第三自然段。';
+    const completeDescription = panel.description.display;
+    if (panel.kind === 'ship') panel.notes = ['顶部说明'];
     const contentRenderer = () =>
       panel.kind === 'ship'
         ? h(ShipImmersivePanel, { panel, render: render.value })
@@ -54,6 +57,7 @@ describe('shared immersive content renderers', () => {
             ImmersiveText: { props: ['text', 'runs'], template: '<span>{{text || runs?.map(run => run.text).join("")}}</span>' },
             ImmersiveHighlightedText: { props: ['text'], template: '<span>{{text}}</span>' },
             ImmersiveShipPreview: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' },
+            VariantScene: { name: 'VariantScene', props: ['variant', 'wingLayout', 'iconSize'], template: '<canvas />' },
             ImmersiveWeaponIcon: { props: ['url', 'label'], template: '<img :src="url(null)" :alt="label" />' },
             ImmersiveFieldPopover: true,
             NPopover: { template: '<div><slot name="trigger" /></div>' },
@@ -65,21 +69,51 @@ describe('shared immersive content renderers', () => {
     const content = () =>
       own
         .findAll('.immersive-stat-row')
-        .filter((row) => !row.text().includes('显示设置'))
+        .filter(
+          (row) =>
+            !row.text().includes('显示设置') &&
+            !row.element.closest('.ship-immersive-description') &&
+            (kind !== 'ship' || !row.element.closest('.ship-immersive-header')),
+        )
         .map((row) => row.text());
     const editableContent = content();
     const images = own.findAll('img').map((image) => image.attributes('src'));
+    const formation = panel.kind === 'wing' ? own.findComponent({ name: 'VariantScene' }) : null;
+    if (formation) {
+      expect(formation.props('wingLayout').points).toHaveLength(3);
+      expect(formation.props('wingLayout').points[0].y).toBeCloseTo(13.2);
+      expect(formation.props('iconSize')).toBe(80);
+      expect(formation.props('variant').spec.hullId).toBe('sarissa');
+    }
     const firstButton = own.find('.immersive-stat-value');
     await firstButton.trigger('click');
     expect(editing.toggle).toHaveBeenCalledWith(panel.heading[0]!.id, true);
+    expect(own.find('.ship-immersive-description').text()).toContain(completeDescription);
+    if (kind === 'ship') {
+      expect(own.find('.ship-immersive-header').exists()).toBe(true);
+      expect(own.find('.immersive-source-note').text()).toBe('顶部说明');
+    }
     render.value = { ...common, mode: 'readonly' };
     await nextTick();
     expect(content()).toEqual(editableContent);
-    expect(own.findAll('img').map((image) => image.attributes('src'))).toEqual(images);
+    if (formation) expect(own.findComponent({ name: 'VariantScene' }).element).toBe(formation.element);
+    if (kind === 'ship') {
+      expect(own.find('.ship-immersive-header').exists()).toBe(false);
+      expect(own.findAll('.immersive-source-note')).toHaveLength(0);
+      expect(own.findAll('img')).toHaveLength(0);
+      expect(own.find('h2').text()).toBe('后勤数据');
+    } else {
+      expect(own.findAll('img').map((image) => image.attributes('src'))).toEqual(images);
+      expect(own.find('.ship-immersive-description .immersive-stat-value').text()).toBe(
+        '第一自然段 first line.\r\nContinuation in the same paragraph.',
+      );
+    }
+    expect(panel.description.display).toBe(completeDescription);
     expect(own.findAll('button')).toHaveLength(0);
-    expect(own.findAll('input')).toHaveLength(0);
     expect(own.findAll('.immersive-stat-value').every((value) => value.element.tagName === 'STRONG')).toBe(true);
-    expect(own.find('.immersive-readonly-sources').exists()).toBe(true);
+    render.value = { ...common, mode: 'editable', editing };
+    await nextTick();
+    expect(own.find('.ship-immersive-description').text()).toContain(completeDescription);
     own.unmount();
   });
 });

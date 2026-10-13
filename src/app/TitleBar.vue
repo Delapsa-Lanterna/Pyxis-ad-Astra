@@ -21,7 +21,6 @@
           </button>
         </template>
         <div class="titlebar-workspace-menu">
-          <button type="button" :class="{ active: workspace.currentView === 'overview' }" @click="showOverview">工作区总览</button>
           <button type="button" :class="{ active: workspace.currentView === 'settings' }" @click="showSettings">设置</button>
           <button type="button" :class="{ active: workspace.currentView === 'about' }" @click="showAbout">关于</button>
         </div>
@@ -92,11 +91,6 @@ async function toggleMaximize() {
 
 async function closeWindow() {
   await closeCurrentWindow();
-}
-
-function showOverview() {
-  workspaceMenuVisible.value = false;
-  navigation.showOverview();
 }
 
 function showSettings() {

@@ -5,6 +5,7 @@ import { associatedSpecEditorKinds, associatedSpecKind } from '@/domain/tables/a
 import { editorWindowLabel } from '@/domain/editors/editor-definitions';
 
 export type TableDetailAction =
+  | { type: 'weapon-fire-preview'; modRoot: string; sessionId: string; id: string }
   | { type: 'immersive-editor'; kind: 'ship' | 'weapon' | 'wing'; modRoot: string; sessionId: string; id: string; rowKey: string }
   | { type: 'file-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
   | {
@@ -40,6 +41,7 @@ export function detailActionsForRow(
     starsectorRoot: context.starsectorRoot,
     id,
   }));
+  if (table === 'weapons') editorActions.push({ type: 'weapon-fire-preview', modRoot: context.modRoot, sessionId: context.sessionId, id });
   const immersive: TableDetailAction[] =
     table === 'ships' || table === 'weapons' || table === 'wings'
       ? [
@@ -57,12 +59,14 @@ export function detailActionsForRow(
 }
 
 export function detailActionLabel(action: TableDetailAction): string {
+  if (action.type === 'weapon-fire-preview') return '发射预览';
   if (action.type === 'file-editor') return '文件编辑器';
   if (action.type === 'immersive-editor') return '沉浸式编辑器';
   return editorWindowLabel(action.kind);
 }
 
 export function detailActionKey(action: TableDetailAction): string {
+  if (action.type === 'weapon-fire-preview') return JSON.stringify([action.type, action.modRoot, action.sessionId, action.id]);
   return action.type === 'file-editor'
     ? JSON.stringify([action.type, action.kind, action.modRoot, action.sessionId, action.id])
     : JSON.stringify([action.type, action.kind, action.modRoot, action.sessionId, action.id]);

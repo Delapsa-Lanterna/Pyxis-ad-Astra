@@ -1,4 +1,4 @@
-import type { RowData, ResourceRef, JsonValue } from '@/shared/types';
+import type { DeepReadonly, RowData, ResourceRef, ReadonlyJsonValue } from '@/shared/types';
 import {
   weaponSpriteDrawOrder,
   WEAPON_SPRITE_ORIGIN_RATIO,
@@ -20,7 +20,7 @@ export interface LoadedWeaponMissile {
   angles: number[];
 }
 export function weaponImageLayers(
-  spec: Readonly<RowData>,
+  spec: DeepReadonly<RowData>,
   resources: Record<string, ResourceRef>,
   mode: WeaponViewMode,
 ): WeaponImageLayer[] {
@@ -31,13 +31,13 @@ export function weaponImageLayers(
   );
 }
 export function weaponLoadedMissile(
-  spec: Readonly<RowData>,
-  projectile: Readonly<RowData>,
+  spec: DeepReadonly<RowData>,
+  projectile: DeepReadonly<RowData>,
   resources: Record<string, ResourceRef>,
   mode: WeaponViewMode | 'hidden',
 ): LoadedWeaponMissile | null {
   const visible = spec.specClass === 'projectile' && rendersLoadedMissiles(spec, mode === 'hidden');
-  const pair = (value: JsonValue | undefined): [number, number] | null =>
+  const pair = (value: ReadonlyJsonValue | undefined): [number, number] | null =>
     Array.isArray(value) && typeof value[0] === 'number' && typeof value[1] === 'number' ? [value[0], value[1]] : null;
   const size = pair(projectile.size),
     center = pair(projectile.center),
@@ -56,23 +56,23 @@ export function weaponLoadedMissile(
 }
 
 export interface MountedWeaponImages {
-  slot: Readonly<RowData>;
+  slot: DeepReadonly<RowData>;
   renderOrder: number;
   layers: WeaponImageLayer[];
   loadedMissile: LoadedWeaponMissile | null;
   additive: boolean;
 }
 
-export function weaponAdditiveBlend(spec: Readonly<RowData>): boolean {
+export function weaponAdditiveBlend(spec: DeepReadonly<RowData>): boolean {
   return spec.specClass !== 'pulse' && Array.isArray(spec.renderHints) && spec.renderHints.includes('RENDER_ADDITIVE');
 }
 
 export function mountedWeaponImages(
-  spec: Readonly<RowData>,
+  spec: DeepReadonly<RowData>,
   resources: Record<string, ResourceRef>,
-  projectile: Readonly<RowData>,
+  projectile: DeepReadonly<RowData>,
   projectileResources: Record<string, ResourceRef>,
-  slot: Readonly<RowData>,
+  slot: DeepReadonly<RowData>,
   hullHints: readonly string[],
 ): MountedWeaponImages {
   const hidden = slot.mount === 'HIDDEN';

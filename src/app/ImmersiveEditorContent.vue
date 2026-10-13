@@ -44,7 +44,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
-import { AppError } from '@/shared/lib/errors';
+import { useWindowContext } from '@/windows/window-context.window';
+import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { useImmersiveEditorViewModel } from '@/app/composables/use-immersive-editor-view-model';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
@@ -58,15 +59,9 @@ import VariantImmersivePanel from '@/app/components/immersive/VariantImmersivePa
 import ImmersiveEditorActions from '@/app/components/immersive/ImmersiveEditorActions.vue';
 import ImmersiveText from '@/app/components/immersive/ImmersiveText.vue';
 import { editableRenderContext } from '@/app/components/immersive/immersive-render-context';
-const params = new URLSearchParams(window.location.search);
-const sessionId = params.get('sessionId'),
-  modRoot = params.get('modRoot'),
-  id = params.get('id'),
-  kind = params.get('kind');
-if (!sessionId || !modRoot || !id || (kind !== 'ship' && kind !== 'weapon' && kind !== 'wing' && kind !== 'variant'))
-  throw new AppError('缺少有效沉浸式窗口身份', { action: 'open-immersive-editor' });
-const rowKey = params.get('rowKey');
-if (kind === 'wing' && !rowKey) throw new AppError('缺少联队行身份', { action: 'open-immersive-editor' });
+const context = useWindowContext('immersive-editor').value;
+const { sessionId, modRoot, id, kind } = context.identity;
+const rowKey = context.input.rowKey;
 const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowKey?: string } = {
   sessionId,
   modRoot,
@@ -74,6 +69,7 @@ const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowK
   kind,
   ...(rowKey ? { rowKey } : {}),
 };
+useManagedWindowRequests(() => {});
 const label = { ship: '舰船', weapon: '武器', wing: '战机', variant: '装配' }[kind];
 const vm = useImmersiveEditorViewModel(root);
 const render = editableRenderContext(vm);

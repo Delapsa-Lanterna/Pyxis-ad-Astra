@@ -1,23 +1,28 @@
 import type { Point } from '@/domain/editors/editor-types';
 import type { CanvasPalette } from '@/domain/editors/lib/canvas-palette';
-import type { WeaponPreviewParams, ProjectilePreviewState, BeamPreviewState, BarrelState } from '@/domain/editors/weapon-preview';
+import type {
+  WeaponFirePreviewParams,
+  WeaponFirePreviewProjectileState,
+  WeaponFirePreviewBeamState,
+  WeaponFirePreviewBarrelState,
+} from '@/domain/weapon-fire-preview/simulation';
 import { rgba } from '@/shared/lib/starsector';
-import { clearCanvas } from './canvas-drawing';
-import { renderWeaponImages, type WeaponImageScene } from './weapon-images';
-export interface WeaponPreviewScene {
+import { clearCanvas } from '../editors/canvas-drawing';
+import { renderWeaponImages, type WeaponImageScene } from '../editors/weapon-images';
+export interface WeaponFirePreviewScene {
   size: { width: number; height: number };
   palette: CanvasPalette;
-  params: WeaponPreviewParams;
+  params: WeaponFirePreviewParams;
   origin: Point;
   range: number;
   scale: number;
   hasWeaponSpec: boolean;
   assets: WeaponImageScene;
-  barrels: BarrelState[];
-  projectiles: ProjectilePreviewState[];
-  beam: BeamPreviewState;
+  barrels: WeaponFirePreviewBarrelState[];
+  projectiles: WeaponFirePreviewProjectileState[];
+  beam: WeaponFirePreviewBeamState;
 }
-function renderPreviewWeapon(ctx: CanvasRenderingContext2D, scene: WeaponPreviewScene) {
+function renderPreviewWeapon(ctx: CanvasRenderingContext2D, scene: WeaponFirePreviewScene) {
   const origin = scene.origin;
   if (!scene.hasWeaponSpec) {
     ctx.fillStyle = '#374151';
@@ -28,7 +33,7 @@ function renderPreviewWeapon(ctx: CanvasRenderingContext2D, scene: WeaponPreview
   }
   renderWeaponImages(ctx, scene.assets);
 }
-export function renderWeaponPreviewScene(ctx: CanvasRenderingContext2D, scene: WeaponPreviewScene): void {
+export function renderWeaponFirePreviewScene(ctx: CanvasRenderingContext2D, scene: WeaponFirePreviewScene): void {
   const dimensions = scene.size;
   const p = scene.params;
   const end = scene.origin.x + scene.range;

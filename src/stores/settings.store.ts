@@ -9,13 +9,14 @@ import {
   readCustomAccent,
   readEditMode,
   readHistoryLimit,
+  readLogRotationSizeMiB,
+  readLogBackupCount,
   readLogLevel,
   readOptionalLogDirectory,
   readPreserveOriginalJson,
   readAllowCoreEditing,
   readTheme,
   normalizeHex,
-  MAX_HISTORY_LIMIT,
 } from '@/domain/settings/rules';
 
 let initialSettings: AppSettings | null = null;
@@ -32,7 +33,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
   const customAccent = ref(readCustomAccent(initialSettings.customAccent));
-  const historyLimit = ref(readHistoryLimit(initialSettings.historyLimit));
+  const fileHistoryLimit = ref(initialSettings.fileHistoryLimit);
+  const editHistoryLimit = ref(initialSettings.editHistoryLimit);
+  const logRotationSizeMiB = ref(initialSettings.logRotationSizeMiB);
+  const logBackupCount = ref(initialSettings.logBackupCount);
   const editMode = ref<EditMode>(readEditMode(initialSettings.editMode));
   const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
@@ -76,8 +80,20 @@ export const useSettingsStore = defineStore('settings', () => {
     return true;
   }
 
-  function setHistoryLimit(limit: number) {
-    historyLimit.value = Math.max(1, Math.min(MAX_HISTORY_LIMIT, Math.round(limit)));
+  function setFileHistoryLimit(limit: number) {
+    fileHistoryLimit.value = readHistoryLimit(limit);
+  }
+
+  function setEditHistoryLimit(limit: number) {
+    editHistoryLimit.value = readHistoryLimit(limit);
+  }
+
+  function setLogRotationSizeMiB(size: number) {
+    logRotationSizeMiB.value = readLogRotationSizeMiB(size);
+  }
+
+  function setLogBackupCount(count: number) {
+    logBackupCount.value = readLogBackupCount(count);
   }
 
   function setEditMode(mode: EditMode) {
@@ -109,7 +125,10 @@ export const useSettingsStore = defineStore('settings', () => {
       theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
-      historyLimit: historyLimit.value,
+      fileHistoryLimit: fileHistoryLimit.value,
+      editHistoryLimit: editHistoryLimit.value,
+      logRotationSizeMiB: logRotationSizeMiB.value,
+      logBackupCount: logBackupCount.value,
       editMode: editMode.value,
       preserveOriginalJson: preserveOriginalJson.value,
       allowCoreEditing: allowCoreEditing.value,
@@ -120,10 +139,17 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function replaceSettings(settings: AppSettings) {
+    const nextFileHistoryLimit = readHistoryLimit(settings.fileHistoryLimit);
+    const nextEditHistoryLimit = readHistoryLimit(settings.editHistoryLimit);
+    const nextLogRotationSizeMiB = readLogRotationSizeMiB(settings.logRotationSizeMiB);
+    const nextLogBackupCount = readLogBackupCount(settings.logBackupCount);
     themePreference.value = readTheme(settings.theme);
     accent.value = readAccent(settings.accent);
     customAccent.value = readCustomAccent(settings.customAccent);
-    historyLimit.value = readHistoryLimit(settings.historyLimit);
+    fileHistoryLimit.value = nextFileHistoryLimit;
+    editHistoryLimit.value = nextEditHistoryLimit;
+    logRotationSizeMiB.value = nextLogRotationSizeMiB;
+    logBackupCount.value = nextLogBackupCount;
     editMode.value = readEditMode(settings.editMode);
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
@@ -146,7 +172,10 @@ export const useSettingsStore = defineStore('settings', () => {
     allowCoreEditing,
     canEditCore,
     confirmSavedSettings,
-    historyLimit,
+    fileHistoryLimit,
+    editHistoryLimit,
+    logRotationSizeMiB,
+    logBackupCount,
     logDirectory,
     logLevel,
     isDark,
@@ -160,7 +189,10 @@ export const useSettingsStore = defineStore('settings', () => {
     setEditMode,
     setPreserveOriginalJson,
     setAllowCoreEditing,
-    setHistoryLimit,
+    setFileHistoryLimit,
+    setEditHistoryLimit,
+    setLogRotationSizeMiB,
+    setLogBackupCount,
     setLogDirectory,
     setLogLevel,
     setStarsectorRoot,

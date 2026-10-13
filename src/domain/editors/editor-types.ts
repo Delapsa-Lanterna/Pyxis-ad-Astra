@@ -18,7 +18,7 @@ export type ShipHoverPreview =
   | { kind: 'engineMove'; coord: number[]; engine: ShipEngineGeometry }
   | { kind: 'engineSize'; length: number; width: number }
   | null;
-export type BarrelPreview = { kind: 'add'; coord: { x: number; y: number } } | { kind: 'angle'; angle: number } | null;
+export type WeaponOperationPreview = { kind: 'add'; coord: { x: number; y: number } } | { kind: 'angle'; angle: number } | null;
 
 export interface EditorTarget {
   kind: string;

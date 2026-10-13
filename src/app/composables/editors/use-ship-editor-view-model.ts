@@ -26,6 +26,7 @@ import { useEditorImages } from './use-editor-images';
 import { useShipWeapons } from './use-ship-weapons';
 import { useResourceReference } from './use-resource-reference';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
+import { useSettingsStore } from '@/stores/settings.store';
 import { renderShipScene } from '@/app/renderers/editors/ship-scene';
 export interface ShipEditorProps {
   modRoot: string;
@@ -50,6 +51,7 @@ export function useShipEditorViewModel(
   },
 ) {
   const { editorWindowRef, stageRef, canvasRef } = elements;
+  const settings = useSettingsStore();
   const state = createCanvasState<ShipHoverPreview>();
   const mode = ref<ShipEditorMode>('overview'),
     expandedSections = ref(['basic']),
@@ -61,7 +63,7 @@ export function useShipEditorViewModel(
     normalize: normalizeShipSpec,
     context: computed(() => props.editContext),
     publish: (value) => emit('draft-changed', value),
-    history: true,
+    historyLimit: computed(() => settings.editHistoryLimit),
     contains: (element) => Boolean(editorWindowRef.value?.contains(element)),
     draw,
     reset: (reason) => {

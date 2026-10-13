@@ -2,20 +2,26 @@ import { createApp, type Component } from 'vue';
 import { createPinia } from 'pinia';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { loadSettings } from '@/services/app-settings.service';
-import { startPerformanceLogSink } from '@/services/app-log.service';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { startPerformanceLogSink, recordLogBestEffort } from '@/services/app-log.service';
+import { errorDiagnosticOf } from '@/shared/lib/errors';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { showCurrentWindow } from '@/windows/current.window';
+import { initializeWindowContext, publishWindowSettings, failWindowStartup } from '@/windows/window-context.window';
 import './styles/index.css';
 
-const params = new window.URLSearchParams(window.location.search);
-const windowKind = params.get('window');
-
 async function bootstrap() {
+  const bootstrap = await initializeWindowContext();
+  const windowKind = bootstrap.kind === 'main' ? 'main' : bootstrap.context.kind;
   const stopLog = startPerformanceLogSink();
   window.addEventListener('pagehide', stopLog, { once: true });
-  const [Root, settings] = await Promise.all([loadWindowRoot(windowKind), initialSettings()]);
+  const [Root, settings] = await Promise.all([
+    loadWindowRoot(windowKind),
+    bootstrap.kind === 'main' ? loadSettings() : Promise.resolve(bootstrap.settings.value),
+  ]);
   initializeSettingsStore(settings);
-  const app = createApp(Root).use(createPinia());
+  const pinia = createPinia();
+  const app = createApp(Root).use(pinia);
+  if (bootstrap.kind === 'main') await publishWindowSettings(useSettingsStore(pinia).settingsSnapshot());
   installNaiveUi(app);
   app.mount('#app');
   await revealCurrentWindow();
@@ -27,6 +33,8 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
       return (await import('@/app/FileEditorApp.vue')).default;
     case 'editor':
       return (await import('@/app/EditorWindowApp.vue')).default;
+    case 'weapon-fire-preview':
+      return (await import('@/app/WeaponFirePreviewApp.vue')).default;
     case 'immersive-editor':
       return (await import('@/app/ImmersiveEditorApp.vue')).default;
     default:
@@ -35,6 +43,17 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
 }
 
 void bootstrap().catch((error) => {
+  void failWindowStartup(error).catch((error) => {
+    const diagnostic = errorDiagnosticOf(error);
+    recordLogBestEffort({
+      level: 'error',
+      code: diagnostic.code,
+      message: diagnostic.message,
+      path: diagnostic.location?.path ?? null,
+      line: diagnostic.location?.line ?? null,
+      fields: { action: 'window-startup-report' },
+    });
+  });
   const target = document.querySelector('#app');
   if (target) {
     const message = error instanceof Error ? error.message : String(error);
@@ -54,13 +73,6 @@ function escapeHtml(value: string): string {
     };
     return entities[char] ?? char;
   });
-}
-
-async function initialSettings() {
-  if (!windowKind) return loadSettings();
-  const settings = params.get('settings');
-  if (!settings) throw new Error('子窗口缺少主窗口 settings snapshot');
-  return JSON.parse(settings);
 }
 
 async function revealCurrentWindow() {

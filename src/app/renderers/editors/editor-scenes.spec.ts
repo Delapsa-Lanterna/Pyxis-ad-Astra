@@ -1,5 +1,5 @@
-import { createWeaponPreviewParams } from '@/domain/editors/weapon-preview';
-import { renderWeaponPreviewScene, type WeaponPreviewScene } from './weapon-preview-scene';
+import { createWeaponFirePreviewParams } from '@/domain/weapon-fire-preview/simulation';
+import { renderWeaponFirePreviewScene, type WeaponFirePreviewScene } from '../weapon-fire-preview/scene';
 import { describe, expect, it, vi } from 'vitest';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
@@ -62,8 +62,8 @@ describe('editor scene rendering', () => {
   it('keeps grid and range strokes at one pixel across frames with missile trails', () => {
     const recording = createCanvasRecorder(),
       base = canvasScene(),
-      params = createWeaponPreviewParams({}, { specClass: 'projectile' }, { specClass: 'missile' }, 'turret');
-    const scene: WeaponPreviewScene = {
+      params = createWeaponFirePreviewParams({}, { specClass: 'projectile' }, { specClass: 'missile' }, 'turret');
+    const scene: WeaponFirePreviewScene = {
       size: { width: 500, height: 500 },
       palette: base.palette,
       params,
@@ -99,8 +99,8 @@ describe('editor scene rendering', () => {
         },
       ],
     };
-    renderWeaponPreviewScene(recording.ctx, scene);
-    renderWeaponPreviewScene(recording.ctx, scene);
+    renderWeaponFirePreviewScene(recording.ctx, scene);
+    renderWeaponFirePreviewScene(recording.ctx, scene);
     expect(
       recording
         .calls('stroke')

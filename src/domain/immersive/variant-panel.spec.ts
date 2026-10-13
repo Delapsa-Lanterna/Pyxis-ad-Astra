@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { variantJointFixture } from '@/test/variant-joint-edit';
-import { projectVariantPanel, variantEditableRecords, variantOpSegments } from './variant-panel';
+import { projectVariantPanel, variantEditableRecords, variantOpSegments, variantSnapshotScene } from './variant-panel';
 import { jointObject } from '@/domain/joint-edit';
 import { equipVariantWing, setVariantHullmod } from './variant-actions';
 describe('variant base configuration projection', () => {
+  it('shares effective hull and mounted weapon data with the lightweight scene projection', () => {
+    const snapshot = variantJointFixture();
+    const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
+    values.spec = { state: 'present', value: { ...jointObject(values.spec), center: [98, 176] } };
+    const panel = projectVariantPanel(snapshot, values).variants[0]!;
+    const scene = variantSnapshotScene(snapshot, values)!;
+    expect(scene.key).toBe(panel.key);
+    expect(scene.spec.center).toEqual([98, 176]);
+    expect(scene.hull).toBe(panel.hull);
+    expect(scene.weapons.map((weapon) => [weapon.id, weapon.builtin, weapon.layers, weapon.loadedMissile])).toEqual(
+      panel.weapons.map((weapon) => [weapon.id, weapon.builtin, weapon.layers, weapon.loadedMissile]),
+    );
+    expect(jointObject(snapshot.records.find((record) => record.key === 'spec')!.value).center).toEqual([100, 180]);
+  });
   it.each([
     [0, 165, 0, 0],
     [65, 165, 65 / 165, 0],

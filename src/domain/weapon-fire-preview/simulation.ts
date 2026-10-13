@@ -1,9 +1,14 @@
-import { weaponCanvasPoint } from './lib/geometry';
-import type { Point } from './editor-types';
-import type { RowData } from '@/shared/types';
+import { weaponCanvasPoint } from '../editors/lib/geometry';
+import type { Point } from '../editors/editor-types';
+import type { DeepReadonly, RowData } from '@/shared/types';
 import { num, str } from '@/shared/lib/starsector';
-import { weaponBarrelOffsetsFor, weaponAnglesKey, type WeaponViewMode } from './lib/weapon-sprite-fields';
-export function createWeaponPreviewParams(csv: RowData, wpn: RowData, proj: RowData, mode: WeaponViewMode) {
+import { weaponBarrelOffsetsFor, weaponAnglesKey, type WeaponViewMode } from '../editors/lib/weapon-sprite-fields';
+export function createWeaponFirePreviewParams(
+  csv: DeepReadonly<RowData>,
+  wpn: DeepReadonly<RowData>,
+  proj: DeepReadonly<RowData>,
+  mode: WeaponViewMode,
+) {
   return {
     specClass: str(wpn.specClass, 'projectile'),
     range: num(csv.range, 600),
@@ -37,43 +42,39 @@ export function createWeaponPreviewParams(csv: RowData, wpn: RowData, proj: RowD
     explosionColor: proj.explosionColor || [255, 200, 50, 255],
   };
 }
-export type WeaponPreviewParams = ReturnType<typeof createWeaponPreviewParams>;
-export interface TrailPoint {
-  x: number;
-  y: number;
-}
-export interface ProjectilePreviewState {
+export type WeaponFirePreviewParams = ReturnType<typeof createWeaponFirePreviewParams>;
+export interface WeaponFirePreviewProjectileState {
   x: number;
   y: number;
   angle: number;
   speed: number;
   age: number;
-  trail: TrailPoint[];
+  trail: Point[];
   exploding: boolean;
   explosionAge: number;
   missile: boolean;
 }
-export interface BeamPreviewState {
+export interface WeaponFirePreviewBeamState {
   alpha: number;
   phase: 'idle' | 'chargeup' | 'burst' | 'chargedown' | 'cooldown';
   length: number;
   offset: number;
   timer: number;
 }
-export interface BarrelState {
+export interface WeaponFirePreviewBarrelState {
   x: number;
   y: number;
   angle: number;
 }
 
-export function advancePreviewProjectiles(
-  source: readonly ProjectilePreviewState[],
-  p: WeaponPreviewParams,
+export function advanceWeaponFirePreviewProjectiles(
+  source: readonly WeaponFirePreviewProjectileState[],
+  p: WeaponFirePreviewParams,
   dt: number,
   s: number,
   originX: number,
   range: number,
-): ProjectilePreviewState[] {
+): WeaponFirePreviewProjectileState[] {
   const max = p.missileMaxSpeed * s;
   const acc = p.missileAcc * s;
   const projectiles = source.map((item) => ({ ...item, trail: [...item.trail] }));
@@ -92,17 +93,25 @@ export function advancePreviewProjectiles(
   return projectiles.filter((o) => o.age < 8 && (!o.exploding || o.explosionAge < 0.5));
 }
 
-export function beginPreviewBeamCharge(source: BeamPreviewState, p: WeaponPreviewParams): BeamPreviewState {
+export function beginWeaponFirePreviewBeamCharge(
+  source: WeaponFirePreviewBeamState,
+  p: WeaponFirePreviewParams,
+): WeaponFirePreviewBeamState {
   const beam = { ...source };
   beam.phase = 'chargeup';
   beam.timer = Math.max(p.chargeup, 0.01) * (1 - beam.alpha);
   beam.length = 0;
   return beam;
 }
-function advancePreviewBeamLength(beam: BeamPreviewState, p: WeaponPreviewParams, dt: number) {
+function advanceBeamLength(beam: WeaponFirePreviewBeamState, p: WeaponFirePreviewParams, dt: number) {
   beam.length = p.beamSpeed > 0 ? Math.min(p.range, beam.length + p.beamSpeed * dt) : p.range;
 }
-export function advancePreviewBeam(source: BeamPreviewState, p: WeaponPreviewParams, dt: number, firing: boolean): BeamPreviewState {
+export function advanceWeaponFirePreviewBeam(
+  source: WeaponFirePreviewBeamState,
+  p: WeaponFirePreviewParams,
+  dt: number,
+  firing: boolean,
+): WeaponFirePreviewBeamState {
   let beam = { ...source };
   const isBurst = p.specClass === 'beam' && p.hasBurstSize && p.hasBurstDelay && p.burstDelay > 0;
   beam.offset += p.textureScrollSpeed * dt;
@@ -115,12 +124,12 @@ export function advancePreviewBeam(source: BeamPreviewState, p: WeaponPreviewPar
       return beam;
     }
   }
-  if (firing && beam.phase === 'idle') beam = beginPreviewBeamCharge(beam, p);
+  if (firing && beam.phase === 'idle') beam = beginWeaponFirePreviewBeamCharge(beam, p);
   if (beam.phase === 'chargeup') {
     const duration = Math.max(p.chargeup, 0.01);
     beam.timer = Math.max(0, beam.timer - dt);
     beam.alpha = Math.min(1, 1 - beam.timer / duration);
-    advancePreviewBeamLength(beam, p, dt);
+    advanceBeamLength(beam, p, dt);
     if (beam.timer <= 0) {
       beam.alpha = 1;
       beam.phase = 'burst';
@@ -130,7 +139,7 @@ export function advancePreviewBeam(source: BeamPreviewState, p: WeaponPreviewPar
   }
   if (beam.phase === 'burst') {
     beam.alpha = 1;
-    advancePreviewBeamLength(beam, p, dt);
+    advanceBeamLength(beam, p, dt);
     if (isBurst) {
       beam.timer = Math.max(0, beam.timer - dt);
       if (beam.timer <= 0) {
@@ -153,12 +162,12 @@ export function advancePreviewBeam(source: BeamPreviewState, p: WeaponPreviewPar
   }
   if (beam.phase === 'cooldown') {
     beam.timer = Math.max(0, beam.timer - dt);
-    if (beam.timer <= 0 && firing) beam = beginPreviewBeamCharge(beam, p);
+    if (beam.timer <= 0 && firing) beam = beginWeaponFirePreviewBeamCharge(beam, p);
   }
   return beam;
 }
 
-export interface WeaponPreviewState {
+export interface WeaponFirePreviewState {
   running: boolean;
   firing: boolean;
   speed: number;
@@ -166,10 +175,14 @@ export interface WeaponPreviewState {
   fireTimer: number;
   burst: number;
   barrelIndex: number;
-  projectiles: ProjectilePreviewState[];
-  beam: BeamPreviewState;
+  projectiles: WeaponFirePreviewProjectileState[];
+  beam: WeaponFirePreviewBeamState;
 }
-export function createWeaponPreviewState(p: WeaponPreviewParams, mode: WeaponViewMode = 'turret', speed = 1): WeaponPreviewState {
+export function createWeaponFirePreviewState(
+  p: WeaponFirePreviewParams,
+  mode: WeaponViewMode = 'turret',
+  speed = 1,
+): WeaponFirePreviewState {
   return {
     running: true,
     firing: false,
@@ -182,44 +195,44 @@ export function createWeaponPreviewState(p: WeaponPreviewParams, mode: WeaponVie
     beam: { alpha: 0, length: 0, offset: 0, phase: 'idle', timer: 0 },
   };
 }
-export function previewBarrels(p: WeaponPreviewParams, origin: Point, scale: number): BarrelState[] {
+export function weaponFirePreviewBarrels(p: WeaponFirePreviewParams, origin: Point, scale: number): WeaponFirePreviewBarrelState[] {
   return Array.from({ length: Math.max(1, Math.floor(p.offsets.length / 2)) }, (_, i) => ({
     ...weaponCanvasPoint({ x: p.offsets[i * 2] || 0, y: p.offsets[i * 2 + 1] || 0 }, origin, scale),
     angle: p.angles[i] || 0,
   }));
 }
-export function startWeaponPreview(state: WeaponPreviewState, p: WeaponPreviewParams): WeaponPreviewState {
+export function startWeaponFirePreview(state: WeaponFirePreviewState, p: WeaponFirePreviewParams): WeaponFirePreviewState {
   return {
     ...state,
     running: true,
     firing: true,
     fireTimer: 0,
-    beam: p.specClass === 'beam' ? beginPreviewBeamCharge(state.beam, p) : state.beam,
+    beam: p.specClass === 'beam' ? beginWeaponFirePreviewBeamCharge(state.beam, p) : state.beam,
   };
 }
-export function stopWeaponPreview(state: WeaponPreviewState, p: WeaponPreviewParams): WeaponPreviewState {
+export function stopWeaponFirePreview(state: WeaponFirePreviewState, p: WeaponFirePreviewParams): WeaponFirePreviewState {
   const beam =
     p.specClass === 'beam' && state.beam.alpha > 0
       ? { ...state.beam, phase: 'chargedown' as const, timer: Math.max(p.chargedown, 0.01) * state.beam.alpha }
       : state.beam;
   return { ...state, firing: false, beam };
 }
-export function advanceWeaponPreview(
-  source: WeaponPreviewState,
-  p: WeaponPreviewParams,
+export function advanceWeaponFirePreview(
+  source: WeaponFirePreviewState,
+  p: WeaponFirePreviewParams,
   dt: number,
   origin: Point,
   scale: number,
   random: () => number,
-): WeaponPreviewState {
+): WeaponFirePreviewState {
   if (!source.running) return source;
   const state = { ...source };
-  if (p.specClass === 'beam') return { ...state, beam: advancePreviewBeam(state.beam, p, dt, state.firing) };
-  const spawned: ProjectilePreviewState[] = [];
+  if (p.specClass === 'beam') return { ...state, beam: advanceWeaponFirePreviewBeam(state.beam, p, dt, state.firing) };
+  const spawned: WeaponFirePreviewProjectileState[] = [];
   if (state.firing) {
     state.fireTimer -= dt;
     if (state.fireTimer <= 0) {
-      const barrels = previewBarrels(p, origin, scale);
+      const barrels = weaponFirePreviewBarrels(p, origin, scale);
       const indices = p.barrelMode === 'LINKED' ? barrels.map((_, i) => i) : [state.barrelIndex];
       for (const i of indices) {
         const barrel = barrels[i];
@@ -245,5 +258,8 @@ export function advanceWeaponPreview(
       } else state.fireTimer = p.burstDelay;
     }
   }
-  return { ...state, projectiles: advancePreviewProjectiles([...state.projectiles, ...spawned], p, dt, scale, origin.x, p.range * scale) };
+  return {
+    ...state,
+    projectiles: advanceWeaponFirePreviewProjectiles([...state.projectiles, ...spawned], p, dt, scale, origin.x, p.range * scale),
+  };
 }

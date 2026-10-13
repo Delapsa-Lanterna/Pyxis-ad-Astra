@@ -1,4 +1,4 @@
-import type { JsonValue } from '@/shared/types';
+import type { JsonValue, ReadonlyJsonValue } from '@/shared/types';
 
 export function deepClone<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -36,16 +36,16 @@ export function formatModVersion(value: JsonValue | undefined): string {
   return cell(value);
 }
 
-export function num(value: JsonValue | undefined, defaultValue = 0): number {
+export function num(value: ReadonlyJsonValue | undefined, defaultValue = 0): number {
   const n = typeof value === 'number' ? value : parseFloat(cell(value));
   return Number.isFinite(n) ? n : defaultValue;
 }
 
-export function str(value: JsonValue | undefined, defaultValue = ''): string {
+export function str(value: ReadonlyJsonValue | undefined, defaultValue = ''): string {
   const s = cell(value);
   return s || defaultValue;
 }
 
-export function arr(value: JsonValue | undefined, defaultValue: number[] = []): number[] {
+export function arr(value: ReadonlyJsonValue | undefined, defaultValue: number[] = []): number[] {
   return Array.isArray(value) ? value.map((v) => num(v)) : [...defaultValue];
 }

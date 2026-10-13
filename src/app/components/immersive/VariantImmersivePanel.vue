@@ -6,6 +6,7 @@
       :session-id="vm.joint.currentTarget.value!.sessionId"
       @slot="openWeaponPicker"
       @module="selectModule"
+      @blank="candidatePicker?.cancel()"
     />
     <header class="variant-refit-header">
       <ImmersivePanelRow :stat="current.fields[0]!" :render="render" />
@@ -62,6 +63,7 @@
     />
     <VariantPicker
       v-if="picker && picker.kind !== 'hullmods'"
+      ref="candidatePicker"
       :root="vm.joint.currentTarget.value!"
       :kind="picker.kind"
       :weapon-slot="picker.kind === 'weapons' ? current.weapons[picker.index]!.slot : undefined"
@@ -138,6 +140,7 @@ const selectedKey = ref(''),
   groupsButton = ref<HTMLButtonElement | null>(null),
   refitStats = ref<{ focusPicker: () => void } | null>(null),
   scene = ref<{ fit: () => void } | null>(null),
+  candidatePicker = ref<InstanceType<typeof VariantPicker> | null>(null),
   picker = ref<{ kind: JointVariantCatalogKind; index: number; key: string; anchor: { x: number; y: number } } | null>(null),
   groupsOpen = ref(false);
 const current = computed(

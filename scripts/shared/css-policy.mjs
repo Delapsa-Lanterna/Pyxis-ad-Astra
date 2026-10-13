@@ -109,7 +109,6 @@ export const SPECIAL_VALUES = [
     ['.immersive-tooltip-frame', 'padding', '7px'],
     ['.variant-hullmod-details p', 'margin', '10px 0 0'],
     ['.variant-hullmod-details section', 'margin', '10px 0 0'],
-    ['.variant-hullmod-details details', 'margin-top', '10px'],
     ['.immersive-game-frame', 'padding', '7px'],
     ['.variant-group-content', 'padding', '10px'],
     ['.variant-group-content>header', 'margin-bottom', '7px'],

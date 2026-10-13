@@ -1,5 +1,5 @@
 import type { RowData } from '@/shared/types';
-import type { Point, CanvasModifiers, BarrelPreview } from './editor-types';
+import type { Point, CanvasModifiers, WeaponOperationPreview } from './editor-types';
 import { pointAngleScreen } from './lib/geometry';
 import { snapToStep } from './lib/editor-constants';
 import { findMirrorBarrelIndex, mirrorLateral, mirrorAngleDeg, MIRROR_EPSILON } from './lib/mirror';
@@ -12,13 +12,13 @@ export type WeaponOperationKind = 'add' | 'offset' | 'angle';
 export function weaponOperationKind(m: CanvasModifiers, selected: number | null): WeaponOperationKind {
   return m.shiftKey ? 'add' : m.ctrlKey && selected !== null ? 'angle' : 'offset';
 }
-export function weaponPreview(
+export function previewWeaponOperation(
   weapon: RowData,
   mode: WeaponViewMode,
   selected: number | null,
   m: CanvasModifiers,
   point: Point,
-): BarrelPreview {
+): WeaponOperationPreview {
   const kind = weaponOperationKind(m, selected);
   if (kind === 'add') return { kind, coord: { x: snapToStep(point.x), y: snapToStep(point.y) } };
   if (kind === 'angle') return { kind, angle: weaponBarrelAngle(projectWeaponBarrels(weapon, mode).offsets, selected!, point) };

@@ -67,14 +67,14 @@ import EditorFooter from '@/app/components/editors/common/EditorFooter.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import EditorInspector from '@/app/components/editors/common/EditorInspector.vue';
 import {
-  useWeaponPreviewViewModel,
+  useWeaponFirePreviewViewModel,
   type WeaponFirePreviewProps,
   type WeaponFirePreviewEvents,
-} from '@/app/composables/editors/use-weapon-preview-view-model';
+} from '@/app/composables/weapon-fire-preview/use-weapon-fire-preview-view-model';
 
 const props = defineProps<WeaponFirePreviewProps>();
 defineEmits<WeaponFirePreviewEvents>();
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
 const previewStageRef = useTemplateRef<HTMLElement>('previewStageRef');
-const { view, actions } = useWeaponPreviewViewModel(props, { canvasRef, previewStageRef });
+const { view, actions } = useWeaponFirePreviewViewModel(props, { canvasRef, previewStageRef });
 </script>

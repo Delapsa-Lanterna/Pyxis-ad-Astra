@@ -12,7 +12,7 @@
 `src-tauri/src/services/write_transactions.rs`：写入与回放协调 owner，拥有提交顺序和历史推进。
 `src/app/components/config/ConfigFileHistoryView.vue`：历史摘要、确认与回放动作的展示入口。
 `src/app/composables/editors/use-file-history-view-model.ts`：文件历史视图 ViewModel。
-`src/orchestrators/file-history-replay.orchestrator.ts`：回放编排 owner，拥有回放计划、确认交互、执行与确认 UI。
+`src/orchestrators/file-history-replay.orchestrator.ts`：历史编排 owner，拥有已加载会话摘要刷新、回放计划、确认交互、执行与确认 UI。
 `src/orchestrators/file-history-write.orchestrator.ts`：保存 receipt 的同步提交与错误呈现 owner。
 `src/orchestrators/main-history-command.orchestrator.ts`：主窗口历史分派 owner。
 `src/orchestrators/project-session-refresh.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话投影。
@@ -22,7 +22,7 @@
 ## 边界
 
 - dirty 文本窗口消费外部暂存，回放通知由统一窗口事件交付。
-- 主窗口历史命令按 CSV 草稿优先分派，settings 提供历史容量。
+- 主窗口历史命令按 CSV 草稿优先分派，settings 的 `fileHistoryLimit` 提供文件保存历史容量。
 - 保存及回放共用实际 changeset 和提交同步，目录事件逐文件展开失效范围。
 - 前端 store 持有带版本的摘要，回放编排拥有计划、影响确认和执行。
 - 后端文件历史按 canonical Mod 根持有已写盘 changeset、双栈和版本。
@@ -65,7 +65,7 @@
 - 历史只允许记录后端实际写盘 changeset，回放前必须重新核对全部路径与父链。
 - 历史必须保存身份变化与双路径记录；回放必须按实际方向返回身份变化、目标版本及路径范围。
 - 历史读取与通知必须按 session 和历史版本接纳；迟到通知严禁改变较新的历史投影，最后一个同根 session 关闭后必须释放历史。
-- 双栈 limit 必须由后端应用设置输入，历史清空必须经后端队列执行。
+- 双栈 limit 必须由后端应用设置的 `fileHistoryLimit` 输入；设置加载和保存必须立即裁剪最早的 undo，redo 必须保留，历史清空必须经后端队列执行。
 - 回放必须复用首次保存的 before/after 快照，严禁重新计算。
 - 回放确认必须显式展示影响文件集合，严禁静默执行。
 - 失效与文本同步必须共同覆盖源与目标；同一物理文件的大小写改名必须保留实际方向与文件名。
@@ -74,6 +74,7 @@
 - 新回放必须先完成所属待同步结果；通知重试必须继续未完成步骤，严禁再次执行磁盘回放。
 - 登记的变更必须来自后端实际写盘结果，严禁前端拼装。
 - 磁盘回放失败必须向用户呈现错误且保持历史状态不变；磁盘成功后的同步失败必须保留待同步记录并向用户呈现错误。
+- 设置保存后的摘要刷新必须查询所有已加载 Mod；接纳必须共同核对捕获 session、Mod 根、所属设置生命周期及历史 revision。
 
 ## 陷阱
 

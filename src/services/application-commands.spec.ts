@@ -8,6 +8,15 @@ import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from '
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
 import { openProject, closeProject, requestProjectSessionRefresh, synchronizeSessionCommit } from './project-session.service';
 import {
+  getNativeWindowBootstrap,
+  getNativeWindowContext,
+  getNativeWindowRequest,
+  acceptNativeWindowRequest,
+  failNativeWindowRequest,
+  failNativeWindowStartup,
+  awaitNativeWindowRequest,
+  publishNativeWindowSettings,
+  getNativeWindowSettings,
   openNativeManagedWindow,
   focusNativeManagedWindow,
   updateNativeWindowStatus,
@@ -32,7 +41,10 @@ const settings: AppSettings = {
   theme: 'light',
   accent: 'blue',
   customAccent: '#3388cc',
-  historyLimit: 20,
+  fileHistoryLimit: 20,
+  editHistoryLimit: 250,
+  logRotationSizeMiB: 5,
+  logBackupCount: 1,
   editMode: 'smart',
   starsectorRoot: null,
   logDirectory: null,
@@ -44,7 +56,15 @@ const create: CreateModRequest = {
   template: { id: 'demo', name: 'Demo', version: '1', gameVersion: '0.98a' },
 };
 const identity: WindowIdentity = { type: 'file', sessionId: 's1', modRoot: 'M:/mod', path: 'M:/mod/demo.json' };
-const request: NativeWindowRequest = { identity, url: 'index.html', title: 'Demo', width: 860, height: 600, minWidth: 500, minHeight: 400 };
+const request: NativeWindowRequest = {
+  identity,
+  input: { kind: 'file-editor', location: { contextLabel: null, contextSeverity: null, message: null, line: null, column: null } },
+  title: 'Demo',
+  width: 860,
+  height: 600,
+  minWidth: 500,
+  minHeight: 400,
+};
 const status: ManagedWindowStatus = { dirty: false, saving: false };
 const entry = { level: 'warning' as const, code: 'demo', message: 'raw', path: null, line: null, fields: null };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
@@ -72,12 +92,29 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
     () => synchronizeSessionCommit('s1', 'M:/mod', 7),
     { payload: { sessionId: 's1', modRoot: 'M:/mod', commitId: 7 } },
   ],
+  ['get_window_bootstrap', getNativeWindowBootstrap, undefined],
+  ['get_current_window_context', getNativeWindowContext, undefined],
+  ['get_current_window_request', getNativeWindowRequest, undefined],
+  ['accept_window_request', () => acceptNativeWindowRequest(9), { requestId: 9 }],
+  [
+    'fail_window_request',
+    () => failNativeWindowRequest(9, { code: 'window.failed', message: '失败', location: null }),
+    { requestId: 9, diagnostic: { code: 'window.failed', message: '失败', location: null } },
+  ],
+  [
+    'fail_window_startup',
+    () => failNativeWindowStartup({ code: 'window.failed', message: '失败', location: null }),
+    { diagnostic: { code: 'window.failed', message: '失败', location: null } },
+  ],
+  ['await_window_request', () => awaitNativeWindowRequest(9), { requestId: 9 }],
+  ['publish_window_settings', () => publishNativeWindowSettings(settings), { settings }],
+  ['get_window_settings', getNativeWindowSettings, undefined],
   ['open_managed_window', () => openNativeManagedWindow(request), { payload: request }],
   ['focus_managed_window', () => focusNativeManagedWindow(identity), { identity }],
   ['update_managed_window_status', () => updateNativeWindowStatus(status), { payload: status }],
   ['reserve_window_targets', () => reserveNativeWindowTargets([identity]), { identities: [identity] }],
   ['release_window_targets', releaseNativeWindowTargets, undefined],
-  ['retarget_managed_window', () => retargetNativeWindow(identity, 'Demo'), { identity, title: 'Demo' }],
+  ['retarget_managed_window', () => retargetNativeWindow(identity, 'Demo'), { identity, title: 'Demo', input: null }],
   ['request_session_window_close', () => closeNativeSessionWindows('s1'), { sessionId: 's1' }],
   ['cancel_window_close_request', () => cancelNativeWindowClose(7), { requestId: 7 }],
 ];

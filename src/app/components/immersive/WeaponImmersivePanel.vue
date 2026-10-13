@@ -2,7 +2,7 @@
   <div class="weapon-immersive-panel">
     <div class="immersive-title-row"><ImmersivePanelRow :stat="panel.heading[0]!" :render="render" /></div>
     <ImmersivePanelRow :stat="panel.heading[1]!" :render="render" />
-    <div class="ship-immersive-description"><ImmersivePanelRow :stat="panel.description" :render="render" /></div>
+    <div class="ship-immersive-description"><ImmersivePanelRow :stat="description" :render="render" /></div>
     <ImmersivePanelSources :render="render" />
     <p v-if="panel.diagnostic" class="immersive-source-note"><ImmersiveText :text="panel.diagnostic" block /></p>
     <section>
@@ -61,6 +61,7 @@
 <script setup lang="ts">
 import type { WeaponPanel } from '@/domain/immersive/weapon-panel';
 import type { ImmersiveRenderContext } from './immersive-render-context';
+import { descriptionForRender } from './immersive-render-context';
 import ImmersivePanelRow from './ImmersivePanelRow.vue';
 import ImmersivePanelSources from './ImmersivePanelSources.vue';
 import ImmersiveHighlightedText from './ImmersiveHighlightedText.vue';
@@ -71,6 +72,7 @@ import { computed } from 'vue';
 import { jointObject } from '@/domain/joint-edit';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 const props = defineProps<{ panel: WeaponPanel; render: ImmersiveRenderContext }>();
+const description = computed(() => descriptionForRender(props.panel.description, props.render.mode));
 const projectileId = computed(() =>
   props.render.mode === 'editable'
     ? schemaStringValue(jointObject(props.render.editing.values[props.render.editing.snapshot.bindings.spec!]).projectileSpecId)

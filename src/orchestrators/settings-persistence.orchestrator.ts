@@ -3,12 +3,14 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { saveSettings } from '@/services/app-settings.service';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
-import { emitWindowEvent, listenWindowEvent, type UnlistenFn } from '@/windows/tauri.events';
+import { listenWindowEvent, type UnlistenFn } from '@/windows/tauri.events';
 import { WINDOW_EVENTS, type AppSettingsChangedEvent } from '@/windows/window.events';
+import { publishWindowSettings, readWindowSettings, acceptWindowSettings } from '@/windows/window-context.window';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import type { AppSettings } from '@/shared/types';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
+import { refreshLoadedFileHistory } from '@/orchestrators/file-history-replay.orchestrator';
 
 let started = false;
 let mirrorStarted = false;
@@ -24,7 +26,7 @@ export function startSettingsPersistence(): () => void {
   started = true;
   const generation = ++persistenceGeneration;
   const settings = useSettingsStore();
-  syncHistoryLimit(settings.historyLimit);
+  syncHistoryLimit(settings.editHistoryLimit);
   const stopWatch = watch(
     () => settings.settingsSnapshot(),
     (snapshot) => {
@@ -32,7 +34,7 @@ export function startSettingsPersistence(): () => void {
         skipPersistedSnapshot = false;
         return;
       }
-      syncHistoryLimit(snapshot.historyLimit);
+      syncHistoryLimit(snapshot.editHistoryLimit);
       void enqueueSettingsSave(() => persistSettingsSnapshot(settings, snapshot, () => generation === persistenceGeneration));
     },
     { deep: true },
@@ -58,6 +60,7 @@ export async function saveLogDirectory(directory: string | null): Promise<void> 
       settings.setLogDirectory(saved.logDirectory);
     }
     await broadcastSettingsSnapshot(saved);
+    await refreshLoadedFileHistory(() => generation === persistenceGeneration);
   });
 }
 
@@ -72,19 +75,30 @@ export function startSettingsMirror(): () => void {
   mirrorStarted = true;
   let disposed = false;
   const settings = useSettingsStore();
+  syncHistoryLimit(settings.editHistoryLimit);
   const unlisteners: UnlistenFn[] = [];
   void listenWindowEvent<AppSettingsChangedEvent>(
     WINDOW_EVENTS.appSettingsChanged,
     (snapshot) => {
       if (disposed) return;
-      settings.replaceSettings(snapshot);
-      syncHistoryLimit(snapshot.historyLimit);
+      if (!acceptWindowSettings(snapshot)) return;
+      settings.replaceSettings(snapshot.value);
+      syncHistoryLimit(snapshot.value.editHistoryLimit);
     },
     recordWindowEventHandlerError,
   )
     .then((unlisten) => {
       if (disposed) unlisten();
-      else unlisteners.push(unlisten);
+      else {
+        unlisteners.push(unlisten);
+        void readWindowSettings()
+          .then((snapshot) => {
+            if (disposed || !acceptWindowSettings(snapshot)) return;
+            settings.replaceSettings(snapshot.value);
+            syncHistoryLimit(snapshot.value.editHistoryLimit);
+          })
+          .catch((error) => recordWindowEventHandlerError(error, WINDOW_EVENTS.appSettingsChanged));
+      }
     })
     .catch((error: unknown) => {
       if (disposed) return;
@@ -119,6 +133,7 @@ async function persistSettingsSnapshot(
     if (!accepts()) return;
     settings.confirmSavedSettings(saved);
     await broadcastSettingsSnapshot(saved);
+    await refreshLoadedFileHistory(accepts);
   } catch (error) {
     if (!accepts()) return;
     const diagnostic = errorDiagnosticOf(error);
@@ -137,7 +152,7 @@ async function persistSettingsSnapshot(
 
 async function broadcastSettingsSnapshot(snapshot: AppSettings): Promise<void> {
   try {
-    await emitWindowEvent<AppSettingsChangedEvent>(WINDOW_EVENTS.appSettingsChanged, snapshot);
+    await publishWindowSettings(snapshot);
   } catch (error) {
     const diagnostic = errorDiagnosticOf(error);
     recordLogBestEffort({

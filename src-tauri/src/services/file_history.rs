@@ -23,7 +23,8 @@ pub(crate) struct HistoryEntry {
 
 static HISTORIES: LazyLock<Mutex<BTreeMap<String, HistoryState>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
-static HISTORY_LIMIT: Mutex<usize> = Mutex::new(100);
+static HISTORY_LIMIT: LazyLock<Mutex<usize>> =
+    LazyLock::new(|| Mutex::new(crate::models::AppSettings::default().file_history_limit as usize));
 
 pub fn release_history(root: &str) -> AppResult<()> {
     let root = root.to_lowercase();
@@ -75,4 +76,42 @@ pub(crate) fn lock_histories()
 }
 fn history_error() -> AppError {
     AppError::message("history.lock_poisoned", "file history lock poisoned")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(id: u64) -> HistoryEntry {
+        HistoryEntry {
+            identity_changes: vec![],
+            changes: vec![],
+            summary: FileHistorySummary {
+                id,
+                label: format!("save {id}"),
+                timestamp: id as i64,
+                paths: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn shrinking_retains_latest_undo_and_all_redo_per_root() {
+        let mut first = HistoryState {
+            revision: 4,
+            undo: vec![entry(1), entry(2), entry(3)],
+            redo: vec![entry(4)],
+        };
+        let second = HistoryState {
+            revision: 1,
+            undo: vec![entry(1)],
+            redo: vec![],
+        };
+        trim_history(&mut first, 1);
+        assert_eq!(snapshot(&first).undo_stack[0].id, 3);
+        assert_eq!(snapshot(&first).redo_stack[0].id, 4);
+        assert_eq!(snapshot(&second).undo_stack[0].id, 1);
+        trim_history(&mut first, 1000);
+        assert_eq!(first.undo.len(), 1);
+    }
 }

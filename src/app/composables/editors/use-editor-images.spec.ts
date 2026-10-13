@@ -8,6 +8,84 @@ afterEach(() => {
 });
 
 describe('editor image lifecycle', () => {
+  it('keeps unchanged decoded and pending images across additions, removal and repeated source publication', async () => {
+    const created: Array<{ onload: (() => void) | null; onerror: (() => void) | null; src: string }> = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        src = '';
+        constructor() {
+          created.push(this);
+        }
+      },
+    );
+    const source = ref<Record<string, string>>({ hull: 'hull', weapon: 'first' });
+    const changed = vi.fn();
+    const scope = effectScope();
+    const runtime = scope.run(() => useEditorImages(() => source.value, changed))!;
+    const hull = created[0]!,
+      first = created[1]!;
+    hull.onload!();
+    await nextTick();
+    const redraws = changed.mock.calls.length;
+    source.value = { hull: 'hull', weapon: 'first' };
+    await nextTick();
+    expect(created).toHaveLength(2);
+    expect(runtime.images.get('hull')).toBe(hull);
+    expect(first.onload).not.toBeNull();
+    expect(changed).toHaveBeenCalledTimes(redraws);
+    const late = first.onload!;
+    source.value = { hull: 'hull', weapon: 'second', missile: 'missile' };
+    await nextTick();
+    expect(created).toHaveLength(4);
+    expect(runtime.images.get('hull')).toBe(hull);
+    expect(first.onload).toBeNull();
+    late();
+    expect(runtime.images.has('weapon')).toBe(false);
+    const second = created[2]!,
+      missile = created[3]!;
+    second.onload!();
+    missile.onload!();
+    await nextTick();
+    source.value = { hull: 'hull', missile: 'missile' };
+    await nextTick();
+    expect(runtime.images.get('hull')).toBe(hull);
+    expect(runtime.images.get('missile')).toBe(missile);
+    expect(runtime.images.has('weapon')).toBe(false);
+    expect(created).toHaveLength(4);
+    scope.stop();
+    expect(runtime.images.size).toBe(0);
+  });
+  it('reports only the failed image and retries it while preserving successful resources', async () => {
+    const created: Array<{ onload: (() => void) | null; onerror: (() => void) | null; src: string }> = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        src = '';
+        constructor() {
+          created.push(this);
+        }
+      },
+    );
+    const source = ref({ hull: 'hull', weapon: 'weapon' });
+    const failed = vi.fn();
+    const scope = effectScope();
+    const runtime = scope.run(() => useEditorImages(() => source.value, vi.fn(), failed))!;
+    created[0]!.onload!();
+    created[1]!.onerror!();
+    expect(failed).toHaveBeenCalledWith('weapon');
+    source.value = { hull: 'hull', weapon: 'weapon' };
+    await nextTick();
+    expect(created).toHaveLength(3);
+    expect(runtime.images.get('hull')).toBe(created[0]);
+    created[2]!.onload!();
+    expect(runtime.images.get('weapon')).toBe(created[2]);
+    scope.stop();
+  });
   it('replaces resources, redraws empty input and rejects callbacks from released images', async () => {
     const created: Array<{ onload: (() => void) | null; src: string }> = [];
     vi.stubGlobal(

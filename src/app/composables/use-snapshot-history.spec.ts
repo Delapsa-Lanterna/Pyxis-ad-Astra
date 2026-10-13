@@ -6,11 +6,30 @@ import type { EditContext } from '@/shared/types';
 function harness<T>(limit = 2) {
   const scope = effectScope();
   const context = ref<EditContext | null>({ targetKey: 'one', baselineGeneration: 1, handoff: 'load' });
-  const history = scope.run(() => useSnapshotHistory<T>(context, limit))!;
-  return { scope, context, history };
+  const capacity = ref(limit);
+  const history = scope.run(() => useSnapshotHistory<T>(context, capacity))!;
+  return { scope, context, history, capacity };
 }
 
 describe('snapshot history context', () => {
+  it('applies capacity changes immediately, retains redo and releases its watcher', () => {
+    const { history, scope, capacity } = harness<number>(4);
+    for (let value = 0; value < 4; value++) history.push(value, value + 1);
+    expect(history.undo()).toBe(3);
+    capacity.value = 1;
+    expect(history.undo()).toBe(2);
+    expect(history.undo()).toBeNull();
+    expect(history.redo()).toBe(3);
+    expect(history.redo()).toBe(4);
+    capacity.value = 3;
+    history.push(4, 5);
+    history.push(5, 6);
+    expect(history.undo()).toBe(5);
+    expect(history.undo()).toBe(4);
+    scope.stop();
+    capacity.value = 1;
+    expect(history.undo()).toBe(3);
+  });
   it('rebases both directions during an identity handoff', () => {
     const { history, scope, context } = harness<{ id: string; value: number }>();
     history.push({ id: 'old', value: 1 }, { id: 'old', value: 2 });

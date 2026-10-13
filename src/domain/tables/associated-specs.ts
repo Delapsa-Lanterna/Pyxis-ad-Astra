@@ -12,7 +12,7 @@ const ASSOCIATED_SPEC_DEFINITIONS: Partial<Record<TableKey, AssociatedSpecDefini
   },
   weapons: {
     kind: 'weapon',
-    editorKinds: ['weapon', 'weapon-preview'],
+    editorKinds: ['weapon'],
   },
   shipSystems: {
     kind: 'system',

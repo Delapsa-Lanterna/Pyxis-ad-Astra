@@ -9,8 +9,8 @@ describe('associatedSpecEditorKinds', () => {
     expect(associatedSpecEditorKinds('ships')).toEqual(['ship']);
   });
 
-  it('maps weapons to the weapon editor and the fire preview', () => {
-    expect(associatedSpecEditorKinds('weapons')).toEqual(['weapon', 'weapon-preview']);
+  it('maps weapons to the weapon editor', () => {
+    expect(associatedSpecEditorKinds('weapons')).toEqual(['weapon']);
   });
 
   it('maps ship systems to the system editor', () => {
@@ -26,7 +26,7 @@ describe('associatedSpecEditorKinds', () => {
   it('returns copies so callers cannot mutate the definitions', () => {
     const kinds = associatedSpecEditorKinds('weapons');
     kinds.push('ship' as EditorWindowKind);
-    expect(associatedSpecEditorKinds('weapons')).toEqual(['weapon', 'weapon-preview']);
+    expect(associatedSpecEditorKinds('weapons')).toEqual(['weapon']);
   });
 });
 

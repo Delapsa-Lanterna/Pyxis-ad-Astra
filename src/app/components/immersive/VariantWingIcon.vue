@@ -14,7 +14,7 @@
 import { computed } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
 import { useVariantCandidate } from '@/app/composables/use-variant-candidate';
-import { projectVariantPanel } from '@/domain/immersive/variant-panel';
+import { variantSnapshotScene } from '@/domain/immersive/variant-panel';
 import { variantWingLayout } from '@/domain/immersive/variant-scene';
 import { jointObject } from '@/domain/joint-edit';
 import { weaponNumber } from '@/domain/immersive/weapon-statistics';
@@ -27,14 +27,7 @@ const { snapshot, values } = useVariantCandidate(
   () => 'wings',
   () => props.id,
 );
-const variant = computed(() =>
-  snapshot.value?.hull
-    ? projectVariantPanel(
-        { ...snapshot.value, variants: { ...snapshot.value.variants, [snapshot.value.hull.variantKey]: snapshot.value.hull } },
-        values.value,
-      ).variants[0]
-    : null,
-);
+const variant = computed(() => (snapshot.value ? variantSnapshotScene(snapshot.value, values.value) : null));
 const layout = computed(() => {
   const wing = jointObject(snapshot.value ? values.value[snapshot.value.bindings.csv!] : undefined);
   return variantWingLayout(weaponNumber(wing, 'num', NaN), schemaStringValue(wing.formation), props.rendererSize);

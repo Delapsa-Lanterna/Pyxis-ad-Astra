@@ -1,16 +1,16 @@
 import { openManagedWindow } from '@/windows/managed.window';
-import type { JointEditRoot, AppSettings } from '@/shared/types';
+import type { JointEditRoot } from '@/shared/types';
 
 export function immersiveWindowTitle(root: JointEditRoot): string {
   const label = { ship: '舰船', weapon: '武器', wing: '战机', variant: '装配' }[root.kind];
   return `${label}沉浸式编辑器 - ${root.id}`;
 }
 
-export function openImmersiveEditorWindow(root: JointEditRoot, settings: AppSettings, rowKey?: string): Promise<void> {
+export function openImmersiveEditorWindow(root: JointEditRoot, rowKey?: string) {
   return openManagedWindow({
     identity: { type: 'immersive', ...root },
     title: immersiveWindowTitle(root),
-    urlParams: { window: 'immersive-editor', ...root, ...(rowKey ? { rowKey } : {}), settings: JSON.stringify(settings) },
+    input: { kind: 'immersive-editor', rowKey: rowKey ?? null },
     size:
       root.kind === 'variant'
         ? { width: 1280, height: 720, minWidth: 960, minHeight: 640 }

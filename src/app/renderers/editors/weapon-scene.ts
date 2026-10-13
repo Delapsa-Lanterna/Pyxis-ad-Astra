@@ -1,5 +1,5 @@
 import { weaponCanvasPoint } from '@/domain/editors/lib/geometry';
-import type { BarrelPreview } from '@/domain/editors/editor-types';
+import type { WeaponOperationPreview } from '@/domain/editors/editor-types';
 import { centerMarkerStyle, barrelStyle } from './canvas-styles';
 import type { EditorTarget } from '@/domain/editors/editor-types';
 import { findMirrorBarrelIndex, mirrorLateral, MIRROR_EPSILON } from '@/domain/editors/lib/mirror';
@@ -15,12 +15,12 @@ export interface WeaponScene {
   hovered: EditorTarget | null;
   offsets: number[];
   angles: number[];
-  preview: BarrelPreview;
+  preview: WeaponOperationPreview;
 }
 function toWeaponCanvas(scene: WeaponScene, x: number, y: number) {
   return weaponCanvasPoint({ x, y }, scene.base.center, scene.base.scale);
 }
-function renderPreview(ctx: CanvasRenderingContext2D, scene: WeaponScene, preview: NonNullable<BarrelPreview>) {
+function renderPreview(ctx: CanvasRenderingContext2D, scene: WeaponScene, preview: NonNullable<WeaponOperationPreview>) {
   ctx.save();
   if (preview.kind === 'add') {
     drawBarrelVisual(ctx, {

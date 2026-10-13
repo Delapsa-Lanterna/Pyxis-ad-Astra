@@ -7,9 +7,10 @@ use crate::{
 #[tauri::command(async)]
 pub fn open_managed_window(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     payload: ManagedWindowRequest,
 ) -> Result<ManagedWindowOpened, AppError> {
-    services::windows::open_managed_window(&app, payload)
+    services::windows::open_managed_window(&app, window.label(), payload)
 }
 
 #[tauri::command(async)]
@@ -64,8 +65,10 @@ pub fn retarget_managed_window(
     window: tauri::WebviewWindow,
     identity: WindowIdentity,
     title: String,
-) -> Result<(), AppError> {
-    services::windows::retarget_window(&app, window.label(), identity, &title)
+    input: Option<crate::models::ManagedWindowInput>,
+) -> Result<crate::models::ManagedWindowContext, AppError> {
+    services::windows::retarget_window(&app, window.label(), identity, &title, input)?;
+    services::windows::current_window_context(window.label())
 }
 #[tauri::command(async)]
 pub fn update_edit_target_registration(
@@ -94,4 +97,75 @@ pub fn focus_edit_target_owner(
     label: String,
 ) -> Result<bool, crate::errors::AppError> {
     crate::services::windows::focus_edit_target_owner(&app, &label)
+}
+
+#[tauri::command]
+pub fn get_window_bootstrap(
+    window: tauri::WebviewWindow,
+) -> Result<crate::models::WindowBootstrap, AppError> {
+    services::windows::current_window_bootstrap(window.label())
+}
+#[tauri::command]
+pub fn get_current_window_context(
+    window: tauri::WebviewWindow,
+) -> Result<crate::models::ManagedWindowContext, AppError> {
+    services::windows::current_window_context(window.label())
+}
+#[tauri::command]
+pub fn get_current_window_request(
+    window: tauri::WebviewWindow,
+) -> Result<Option<crate::models::ManagedWindowContext>, AppError> {
+    services::windows::current_window_request(window.label())
+}
+#[tauri::command]
+pub fn accept_window_request(
+    window: tauri::WebviewWindow,
+    request_id: u64,
+) -> Result<bool, AppError> {
+    services::windows::accept_window_request(window.label(), request_id)
+}
+#[tauri::command]
+pub fn fail_window_request(
+    window: tauri::WebviewWindow,
+    request_id: u64,
+    diagnostic: crate::errors::ErrorDiagnostic,
+) -> Result<(), AppError> {
+    services::windows::fail_window_request(window.label(), request_id, diagnostic)
+}
+#[tauri::command]
+pub fn fail_window_startup(
+    window: tauri::WebviewWindow,
+    diagnostic: crate::errors::ErrorDiagnostic,
+) -> Result<(), AppError> {
+    if window.label() == "main" {
+        return Ok(());
+    }
+    if let Some(context) = services::windows::current_window_request(window.label())? {
+        services::windows::fail_window_request(window.label(), context.request_id, diagnostic)?;
+    }
+    Ok(())
+}
+#[tauri::command]
+pub async fn await_window_request(
+    window: tauri::WebviewWindow,
+    request_id: u64,
+) -> Result<crate::models::WindowRequestReceipt, crate::errors::ErrorDiagnostic> {
+    let owner = window.label().to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        services::windows::await_window_request(&owner, request_id)
+    })
+    .await
+    .map_err(|error| AppError::message("window.delivery_wait", error.to_string()).diagnostic())?
+}
+#[tauri::command]
+pub fn publish_window_settings(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    settings: crate::models::AppSettings,
+) -> Result<crate::models::WindowSettingsSnapshot, AppError> {
+    services::windows::publish_window_settings(&app, window.label(), settings)
+}
+#[tauri::command]
+pub fn get_window_settings() -> Result<crate::models::WindowSettingsSnapshot, AppError> {
+    services::windows::current_window_settings()
 }

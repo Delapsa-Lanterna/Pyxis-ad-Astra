@@ -1,4 +1,4 @@
-import { publishCurrentWindowIdentity } from '@/windows/window-identity.window';
+import { publishWindowContext } from '@/windows/window-context.window';
 import { queryEditorIdentityIntent } from '@/services/editor.service';
 import { reserveNativeWindowTargets, releaseNativeWindowTargets, retargetNativeWindow } from '@/services/window.service';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
@@ -7,8 +7,7 @@ import type { EntityEditTarget, EditorSpecKind, EditorWindowKind, RowData, Windo
 
 export async function retargetEntityWindow(sessionId: string, modRoot: string, kind: EditorWindowKind, id: string) {
   const identity: WindowIdentity = { type: 'spec', sessionId, modRoot, kind, id };
-  await retargetNativeWindow(identity, editorWindowTitle(kind, id));
-  publishCurrentWindowIdentity(identity);
+  publishWindowContext(await retargetNativeWindow(identity, editorWindowTitle(kind, id)));
 }
 
 export function releaseCommittedIdentityTargets() {
@@ -39,6 +38,5 @@ export async function reserveFileIdentityIntent(sessionId: string, modRoot: stri
 }
 export async function retargetFileWindow(sessionId: string, modRoot: string, path: string, title: string) {
   const identity: WindowIdentity = { type: 'file', sessionId, modRoot, path };
-  await retargetNativeWindow(identity, title);
-  publishCurrentWindowIdentity(identity);
+  publishWindowContext(await retargetNativeWindow(identity, title));
 }

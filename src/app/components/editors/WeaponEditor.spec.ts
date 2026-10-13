@@ -158,7 +158,10 @@ describe('WeaponEditor', () => {
       theme: 'light',
       accent: 'blue',
       customAccent: '#2563eb',
-      historyLimit: 20,
+      fileHistoryLimit: 20,
+      editHistoryLimit: 250,
+      logRotationSizeMiB: 5,
+      logBackupCount: 1,
       editMode: 'smart',
       starsectorRoot: null,
       logDirectory: null,
@@ -360,6 +363,23 @@ describe('WeaponEditor', () => {
     expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('true');
     expect(frames.size).toBe(1);
     expect(editor.emitted('draft-changed')).toBeUndefined();
+  });
+
+  it('delivers a detached fire-preview snapshot after committing active color input', async () => {
+    const editor = mountEditor({ id: 'railgun', specClass: 'projectile', unknown: { value: 7 } }, {}, true);
+    await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 128]');
+    await editor
+      .findAll('button')
+      .find((button) => button.text() === '发射预览')!
+      .trigger('click');
+    await flushPromises();
+    const snapshot = editor.emitted('preview')!.at(-1)![0] as RowData;
+    expect(snapshot).toMatchObject({ glowColor: [100, 200, 50, 128], unknown: { value: 7 } });
+    await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[1, 2, 3, 255]');
+    await editor.get('[aria-pressed]').trigger('click');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ glowColor: [1, 2, 3, 255] });
+    expect(snapshot.glowColor).toEqual([100, 200, 50, 128]);
   });
 
   it('commits pending color input before enabling the preview', async () => {

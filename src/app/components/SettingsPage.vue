@@ -67,18 +67,33 @@
       <div class="settings-hint">纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑；增强控件模式下保持当前实现。</div>
     </section>
     <section class="settings-section">
-      <h3>全局记录</h3>
+      <h3>全局限制</h3>
       <div class="settings-row">
-        <span>文件历史记录</span>
+        <span>文件保存历史步数</span>
         <n-input-number
           class="settings-number-input"
-          :value="settings.historyLimit"
+          :value="settings.fileHistoryLimit"
           :min="1"
           :max="MAX_HISTORY_LIMIT"
           :step="1"
-          @update:value="settings.setHistoryLimit($event ?? settings.historyLimit)"
+          :precision="0"
+          @update:value="settings.setFileHistoryLimit($event ?? settings.fileHistoryLimit)"
         />
       </div>
+      <div class="settings-hint">每个 Mod 独立保留已保存文件的撤销历史；降低步数会立即裁剪较早的 undo 记录。</div>
+      <div class="settings-row">
+        <span>编辑撤销步数</span>
+        <n-input-number
+          class="settings-number-input"
+          :value="settings.editHistoryLimit"
+          :min="1"
+          :max="MAX_HISTORY_LIMIT"
+          :step="1"
+          :precision="0"
+          @update:value="settings.setEditHistoryLimit($event ?? settings.editHistoryLimit)"
+        />
+      </div>
+      <div class="settings-hint">各表格及编辑会话独立保留草稿撤销历史；降低步数会立即裁剪较早的 undo 记录。</div>
     </section>
     <section class="settings-section">
       <h3>JSON 保存</h3>
@@ -113,6 +128,32 @@
         </div>
       </div>
       <div class="settings-row">
+        <span>日志轮转大小（MiB）</span>
+        <n-input-number
+          class="settings-number-input"
+          :value="settings.logRotationSizeMiB"
+          :min="1"
+          :max="MAX_LOG_ROTATION_SIZE_MIB"
+          :step="1"
+          :precision="0"
+          @update:value="settings.setLogRotationSizeMiB($event ?? settings.logRotationSizeMiB)"
+        />
+      </div>
+      <div class="settings-hint">当前日志达到该大小时，在下一次追加前轮转。</div>
+      <div class="settings-row">
+        <span>日志备份份数</span>
+        <n-input-number
+          class="settings-number-input"
+          :value="settings.logBackupCount"
+          :min="1"
+          :max="MAX_LOG_BACKUP_COUNT"
+          :step="1"
+          :precision="0"
+          @update:value="settings.setLogBackupCount($event ?? settings.logBackupCount)"
+        />
+      </div>
+      <div class="settings-hint">保留最近的已轮转日志；降低份数在下次轮转时整理已有备份。</div>
+      <div class="settings-row">
         <span>Log 文件大小</span>
         <strong>{{ formattedLogSize }}</strong>
       </div>
@@ -131,7 +172,7 @@
 import { onMounted, ref, watch } from 'vue';
 import type { JsonValue, LogLevel } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';
-import { MAX_HISTORY_LIMIT } from '@/domain/settings/rules';
+import { MAX_HISTORY_LIMIT, MAX_LOG_ROTATION_SIZE_MIB, MAX_LOG_BACKUP_COUNT } from '@/domain/settings/rules';
 import { ACCENT_PRESETS } from '@/domain/settings/theme';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import { useSettingsViewModel } from '@/app/composables/settings/use-settings-view-model';

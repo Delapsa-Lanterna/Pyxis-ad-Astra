@@ -7,6 +7,7 @@ import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from './design-type';
 import { highlightedTextParts } from './highlighted-text';
 import type { TextRun } from '@/domain/fonts/font.types';
+import { variantSnapshotScene, type VariantSceneProjection } from './variant-panel';
 
 export interface WingPanel {
   kind: 'wing';
@@ -19,6 +20,9 @@ export interface WingPanel {
   armamentRuns: TextRun[];
   sources: ImmersiveStat[];
   sprite: ResourceRef | null;
+  preview: VariantSceneProjection | null;
+  count: number;
+  formation: string;
   allStats: ImmersiveStat[];
   defaultDescription: ImmersiveField | null;
 }
@@ -258,6 +262,9 @@ export function projectWingPanel(
     sources,
     defaultDescription,
     sprite: hull?.sprite ?? null,
+    preview: variantSnapshotScene(graph, values),
+    count: number(wing.num, NaN),
+    formation: schemaStringValue(wing.formation),
     allStats: [name, manufacturer, description, ...technical, system, ...sources],
   };
 }

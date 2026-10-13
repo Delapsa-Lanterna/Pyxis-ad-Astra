@@ -1,12 +1,5 @@
-import {
-  WINDOW_EVENTS,
-  type FileEditorFocusLineEvent,
-  type FileEditorSavedEvent,
-  type FileEditorTextAppliedEvent,
-  type ProjectSessionInvalidatedEvent,
-} from '@/windows/window.events';
-import { listenWindowEvent, type WindowEventHandler } from '@/windows/tauri.events';
-import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
+import { type FileEditorSavedEvent, type FileEditorTextAppliedEvent, type ProjectSessionInvalidatedEvent } from '@/windows/window.events';
+import { type WindowEventHandler } from '@/windows/tauri.events';
 import {
   publishCommittedWrite,
   listenCommittedWrites,
@@ -16,9 +9,6 @@ import { joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shar
 
 export function emitFileEditorSaved(event: FileEditorSavedEvent) {
   return publishCommittedWrite(event.modRoot, event.writeResult, event.sessionId);
-}
-export function listenFileEditorFocusLine(handler: WindowEventHandler<FileEditorFocusLineEvent>) {
-  return listenWindowEvent<FileEditorFocusLineEvent>(WINDOW_EVENTS.fileEditorFocusLine, handler, recordWindowEventHandlerError);
 }
 export function listenFileEditorTextApplied(handler: WindowEventHandler<FileEditorTextAppliedEvent>) {
   return listenCommittedWrites(async (event) => {

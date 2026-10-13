@@ -44,6 +44,7 @@ describe('wing original data and source projection', () => {
     expect(panel.system.display).toBe('Canister Flak');
     expect(panel.systemRuns).toContainEqual({ text: '200 High Explosive', color: '#ffd200' });
     expect(panel.heading[0]!.fields.map((field) => field.recordKey)).toEqual(['hull-csv', 'variant']);
+    expect(panel).toMatchObject({ count: 3, formation: 'CLAW', preview: { key: 'variant', spec: { hullId: 'sarissa' } } });
   });
   it('edits the declared source and keeps query records and unknown variant fields independent', () => {
     const { snapshot, values } = fixture(),
@@ -91,5 +92,15 @@ describe('wing original data and source projection', () => {
     expect(panel.sources[1]!.fields[0]!.schema.required).toBe(true);
     expect(panel.sources[1]!.fields[0]!.handoff).toBe(true);
     expect(panel.technical.find((stat) => stat.id === 'num')!.display).toBe('3');
+    expect(panel.preview).toBeNull();
+  });
+  it('projects the current wing count and formation independently of swarm statistics', () => {
+    const { snapshot, values } = fixture();
+    values.wing = { state: 'present', value: { ...jointObject(values.wing), num: '4', formation: 'BOX', tags: 'swarm_fighter' } };
+    const panel = projectWingPanel(snapshot, values);
+    expect(panel.count).toBe(4);
+    expect(panel.formation).toBe('BOX');
+    expect(panel.technical.some((stat) => stat.id === 'num')).toBe(false);
+    expect(jointObject(snapshot.records.find((record) => record.key === 'wing')!.value).num).toBe('3');
   });
 });

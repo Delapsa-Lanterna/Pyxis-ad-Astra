@@ -1,6 +1,10 @@
 use crate::{
     errors::{AppError, AppResult},
-    models::{ManagedWindowOpened, ManagedWindowRequest, ManagedWindowStatus, WindowIdentity},
+    models::{
+        ManagedWindowContext, ManagedWindowInput, ManagedWindowOpened, ManagedWindowRequest,
+        ManagedWindowStatus, WindowBootstrap, WindowIdentity, WindowRequestReceipt,
+        WindowRequestStatus, WindowSettingsSnapshot,
+    },
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -10,6 +14,9 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Default)]
 struct WindowRegistry {
+    request_sequence: u64,
+    requests: BTreeMap<u64, PendingWindowRequest>,
+    settings: Option<WindowSettingsSnapshot>,
     edit_targets: BTreeMap<String, Vec<crate::models::EditWriteTarget>>,
     sequence: u64,
     identities: BTreeMap<WindowIdentity, String>,
@@ -25,7 +32,18 @@ struct CloseRequest {
     sender: mpsc::Sender<bool>,
 }
 
+struct PendingWindowRequest {
+    owner: Option<String>,
+    label: String,
+    result: Option<Result<WindowRequestReceipt, crate::errors::ErrorDiagnostic>>,
+}
+
 struct WindowInstance {
+    title: String,
+    input: ManagedWindowInput,
+    accepted_input: Option<(u64, ManagedWindowInput)>,
+    revision: u64,
+    request_id: u64,
     identity: WindowIdentity,
     creating: bool,
     guard_ready: bool,
@@ -52,7 +70,12 @@ impl WindowRegistry {
             .filter(|label| label.as_str() != caller)
             .cloned()
     }
-    fn register(&mut self, identity: WindowIdentity) -> String {
+    fn register(
+        &mut self,
+        identity: WindowIdentity,
+        title: String,
+        input: ManagedWindowInput,
+    ) -> String {
         self.sequence += 1;
         let label = format!("managed-{}", self.sequence);
         self.identities
@@ -60,6 +83,11 @@ impl WindowRegistry {
         self.instances.insert(
             label.clone(),
             WindowInstance {
+                title,
+                input,
+                accepted_input: None,
+                revision: 0,
+                request_id: 0,
                 identity,
                 creating: true,
                 guard_ready: false,
@@ -69,6 +97,22 @@ impl WindowRegistry {
         label
     }
     fn release(&mut self, label: &str) {
+        let ended = self
+            .requests
+            .iter()
+            .filter(|(_, request)| request.label == label && request.result.is_none())
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        for id in ended {
+            self.complete(id, WindowRequestStatus::Cancelled);
+        }
+        for request in self.requests.values_mut() {
+            if request.owner.as_deref() == Some(label) {
+                request.owner = None;
+            }
+        }
+        self.requests
+            .retain(|_, request| request.owner.is_some() || request.result.is_none());
         self.edit_targets.remove(label);
         if let Some(instance) = self.instances.remove(label) {
             self.identities.remove(&instance.identity.comparison_key());
@@ -91,6 +135,112 @@ impl WindowRegistry {
                 .send(true);
         }
     }
+
+    fn receive(&mut self, label: &str, owner: &str, input: ManagedWindowInput) -> u64 {
+        let previous = self.instances[label].request_id;
+        self.complete(previous, WindowRequestStatus::Superseded);
+        self.request_sequence += 1;
+        let id = self.request_sequence;
+        let instance = self
+            .instances
+            .get_mut(label)
+            .expect("request window is registered");
+        instance.input = input;
+        instance.revision += 1;
+        instance.request_id = id;
+        self.requests.insert(
+            id,
+            PendingWindowRequest {
+                owner: Some(owner.into()),
+                label: label.into(),
+                result: None,
+            },
+        );
+        id
+    }
+    fn complete(&mut self, id: u64, status: WindowRequestStatus) {
+        if let Some(request) = self.requests.get_mut(&id)
+            && request.result.is_none()
+        {
+            request.result = Some(Ok(WindowRequestReceipt {
+                label: request.label.clone(),
+                request_id: id,
+                status,
+            }));
+        }
+        self.requests
+            .retain(|_, request| request.owner.is_some() || request.result.is_none());
+    }
+    fn context(&self, label: &str, pending: bool) -> AppResult<ManagedWindowContext> {
+        let instance = self
+            .instances
+            .get(label)
+            .ok_or_else(|| AppError::message("window.released", "窗口已释放"))?;
+        Ok(ManagedWindowContext {
+            kind: instance.input.kind(),
+            label: label.into(),
+            revision: instance.revision,
+            request_id: if pending {
+                instance.request_id
+            } else {
+                instance
+                    .accepted_input
+                    .as_ref()
+                    .map_or(instance.request_id, |(id, _)| *id)
+            },
+            identity: instance.identity.clone(),
+            title: instance.title.clone(),
+            input: if pending {
+                instance.input.clone()
+            } else {
+                instance
+                    .accepted_input
+                    .as_ref()
+                    .map(|(_, input)| input)
+                    .unwrap_or(&instance.input)
+                    .clone()
+            },
+        })
+    }
+    fn accept(&mut self, label: &str, id: u64) -> AppResult<bool> {
+        let instance = self
+            .instances
+            .get_mut(label)
+            .ok_or_else(|| AppError::message("window.released", "窗口已释放"))?;
+        if instance.request_id != id {
+            return Ok(false);
+        }
+        if self
+            .requests
+            .get(&id)
+            .is_none_or(|request| request.result.is_some())
+        {
+            return Ok(false);
+        }
+        instance.accepted_input = Some((id, instance.input.clone()));
+        self.complete(id, WindowRequestStatus::Accepted);
+        Ok(true)
+    }
+    fn fail(
+        &mut self,
+        label: &str,
+        id: u64,
+        diagnostic: crate::errors::ErrorDiagnostic,
+    ) -> AppResult<()> {
+        if !self.instances.contains_key(label) {
+            return Err(AppError::message("window.released", "窗口已释放"));
+        }
+        if let Some(request) = self.requests.get_mut(&id)
+            && request.label == label
+            && request.result.is_none()
+        {
+            request.result = Some(Err(diagnostic));
+        }
+        self.requests
+            .retain(|_, request| request.owner.is_some() || request.result.is_none());
+        Ok(())
+    }
+
     fn conflict(&self, label: &str, identities: &[WindowIdentity]) -> Option<String> {
         identities.iter().find_map(|identity| {
             let key = identity.comparison_key();
@@ -128,8 +278,24 @@ impl WindowRegistry {
             .expect("retargeted window is registered");
         self.identities.remove(&instance.identity.comparison_key());
         instance.identity = identity;
+        instance.revision += 1;
+        instance.input.retarget(&instance.identity);
+        if let Some((_, input)) = &mut instance.accepted_input {
+            input.retarget(&instance.identity);
+        }
         self.identities
             .insert(instance.identity.comparison_key(), label.to_string());
+    }
+
+    fn replace_input(&mut self, label: &str, input: ManagedWindowInput) {
+        let instance = self
+            .instances
+            .get_mut(label)
+            .expect("retargeted window is registered");
+        instance.input = input.clone();
+        if let Some((_, accepted)) = &mut instance.accepted_input {
+            *accepted = input;
+        }
     }
 }
 
@@ -144,68 +310,105 @@ fn registry() -> AppResult<std::sync::MutexGuard<'static, WindowRegistry>> {
 
 pub fn open_managed_window(
     app: &tauri::AppHandle,
+    owner: &str,
     request: ManagedWindowRequest,
 ) -> AppResult<ManagedWindowOpened> {
-    if let WindowIdentity::Spec {
-        session_id,
-        mod_root,
-        ..
+    if !request.input.matches(&request.identity) {
+        return Err(AppError::message(
+            "window.input_identity_mismatch",
+            "窗口输入与身份不匹配",
+        ));
     }
-    | WindowIdentity::File {
-        session_id,
-        mod_root,
-        ..
-    }
-    | WindowIdentity::Immersive {
-        session_id,
-        mod_root,
-        ..
-    } = &request.identity
-    {
-        super::project::ensure_project_session_mod_root(session_id, mod_root)?;
+    match &request.identity {
+        WindowIdentity::Spec {
+            session_id,
+            mod_root,
+            ..
+        }
+        | WindowIdentity::File {
+            session_id,
+            mod_root,
+            ..
+        }
+        | WindowIdentity::Immersive {
+            session_id,
+            mod_root,
+            ..
+        }
+        | WindowIdentity::WeaponFirePreview {
+            session_id,
+            mod_root,
+            ..
+        } => super::project::ensure_project_session_mod_root(session_id, mod_root)?,
+        WindowIdentity::Recovery { .. } => {}
     }
     let native_theme =
         matches!(&request.identity, WindowIdentity::Immersive { .. }).then_some(tauri::Theme::Dark);
     let key = request.identity.comparison_key();
-    let label = {
+    let (opened, create, notify) = {
         let mut state = registry()?;
-        loop {
-            if request
-                .identity
-                .session_id()
-                .is_some_and(|session| state.closing_sessions.contains(session))
-            {
-                return Err(AppError::message(
-                    "window.session_closing",
-                    "所属会话正在关闭",
-                ));
-            }
-            if let Some(owner) = state.reservations.get(&key).cloned() {
-                drop(state);
-                focus_window(app, &owner)?;
-                return Err(AppError::message(
-                    "window.identity_reserved",
-                    format!("目标正在保存: {owner}"),
-                ));
-            }
-            if let Some(label) = state.identities.get(&key).cloned() {
-                if state.instances[&label].creating {
-                    state = REGISTRY.1.wait(state).map_err(|_| {
-                        AppError::message("window.registry_poisoned", "窗口登记状态不可用")
-                    })?;
-                    continue;
-                }
-                drop(state);
-                focus_window(app, &label)?;
-                return Ok(ManagedWindowOpened {
-                    label,
-                    reused: true,
-                });
-            }
-            break state.register(request.identity);
+        if request
+            .identity
+            .session_id()
+            .is_some_and(|session| state.closing_sessions.contains(session))
+        {
+            return Err(AppError::message(
+                "window.session_closing",
+                "所属会话正在关闭",
+            ));
         }
+        if let Some(owner) = state.reservations.get(&key).cloned() {
+            drop(state);
+            focus_window(app, &owner)?;
+            return Err(AppError::message(
+                "window.identity_reserved",
+                format!("目标正在保存: {owner}"),
+            ));
+        }
+        let existing = state.identities.get(&key).cloned();
+        let create = existing.is_none();
+        let label = existing.unwrap_or_else(|| {
+            state.register(
+                request.identity,
+                request.title.clone(),
+                request.input.clone(),
+            )
+        });
+        let notify = !state.instances[&label].creating;
+        let request_id = state.receive(&label, owner, request.input);
+        (
+            ManagedWindowOpened {
+                label,
+                request_id,
+                reused: !create,
+            },
+            create,
+            notify,
+        )
     };
-    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(request.url.into()))
+    REGISTRY.1.notify_all();
+    if !create {
+        if notify {
+            if let Err(error) = app.emit_to(
+                &opened.label,
+                "managed-window-request-available",
+                opened.request_id,
+            ) {
+                registry()?.fail(
+                    &opened.label,
+                    opened.request_id,
+                    AppError::Tauri(error).diagnostic(),
+                )?;
+                REGISTRY.1.notify_all();
+            }
+            if let Err(error) = focus_window(app, &opened.label) {
+                registry()?.fail(&opened.label, opened.request_id, error.diagnostic())?;
+                REGISTRY.1.notify_all();
+            }
+        }
+        return Ok(opened);
+    }
+    let built = WebviewWindowBuilder::new(app, &opened.label, WebviewUrl::App("/".into()))
         .title(request.title)
         .visible(false)
         .theme(native_theme)
@@ -213,41 +416,155 @@ pub fn open_managed_window(
         .min_inner_size(request.min_width, request.min_height)
         .build();
     let mut state = registry()?;
-    let close_after_creation = state
+    let close_after = state
         .close_requests
         .values()
-        .any(|request| request.labels.contains(&label));
+        .any(|request| request.labels.contains(&opened.label));
     match built {
         Ok(window) => {
-            if let Some(instance) = state.instances.get_mut(&label) {
+            if let Some(instance) = state.instances.get_mut(&opened.label) {
                 instance.creating = false;
             } else {
-                return Err(AppError::message(
-                    "window.session_closing",
-                    "窗口创建期间所属生命周期已结束",
-                ));
+                return Ok(opened);
             }
             REGISTRY.1.notify_all();
-            if close_after_creation {
+            if close_after {
                 drop(state);
                 window.destroy()?;
-                return Err(AppError::message(
-                    "window.session_closing",
-                    "所属会话正在关闭",
-                ));
+                return Ok(opened);
             }
         }
         Err(error) => {
-            state.release(&label);
+            let diagnostic = AppError::Tauri(error).diagnostic();
+            let pending = state
+                .requests
+                .iter()
+                .filter(|(_, request)| request.label == opened.label && request.result.is_none())
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>();
+            for id in pending {
+                state.fail(&opened.label, id, diagnostic.clone())?;
+            }
+            state.release(&opened.label);
             REGISTRY.1.notify_all();
-            return Err(error.into());
         }
     }
-    REGISTRY.1.notify_all();
-    Ok(ManagedWindowOpened {
-        label,
-        reused: false,
+    Ok(opened)
+}
+
+pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
+    if label == "main" {
+        return Ok(WindowBootstrap::Main);
+    }
+    let state = registry()?;
+    let context = state.context(label, false)?;
+    let settings = state
+        .settings
+        .clone()
+        .ok_or_else(|| AppError::message("window.settings_uninitialized", "窗口设置尚未初始化"))?;
+    Ok(WindowBootstrap::Managed {
+        context: Box::new(context),
+        settings,
     })
+}
+pub fn current_window_context(label: &str) -> AppResult<ManagedWindowContext> {
+    registry()?.context(label, false)
+}
+pub fn current_window_request(label: &str) -> AppResult<Option<ManagedWindowContext>> {
+    let state = registry()?;
+    let context = state.context(label, true)?;
+    Ok(state
+        .requests
+        .get(&context.request_id)
+        .is_some_and(|request| request.result.is_none())
+        .then_some(context))
+}
+pub fn accept_window_request(label: &str, id: u64) -> AppResult<bool> {
+    let accepted = registry()?.accept(label, id)?;
+    REGISTRY.1.notify_all();
+    Ok(accepted)
+}
+pub fn fail_window_request(
+    label: &str,
+    id: u64,
+    diagnostic: crate::errors::ErrorDiagnostic,
+) -> AppResult<()> {
+    registry()?.fail(label, id, diagnostic)?;
+    REGISTRY.1.notify_all();
+    Ok(())
+}
+pub fn await_window_request(
+    owner: &str,
+    id: u64,
+) -> Result<WindowRequestReceipt, crate::errors::ErrorDiagnostic> {
+    let mut state = registry().map_err(|error| error.diagnostic())?;
+    let request = state.requests.get(&id).ok_or_else(|| {
+        AppError::message("window.request_missing", "窗口请求已结束").diagnostic()
+    })?;
+    if request.owner.as_deref() != Some(owner) {
+        return Err(
+            AppError::message("window.request_owner_mismatch", "窗口请求不属于当前调用方")
+                .diagnostic(),
+        );
+    }
+    let label = request.label.clone();
+    loop {
+        match state.requests.get_mut(&id) {
+            Some(request) => {
+                if request.owner.is_none() {
+                    return Ok(WindowRequestReceipt {
+                        label,
+                        request_id: id,
+                        status: WindowRequestStatus::Cancelled,
+                    });
+                }
+                if let Some(result) = request.result.take() {
+                    state.requests.remove(&id);
+                    return result;
+                }
+            }
+            None => {
+                return Ok(WindowRequestReceipt {
+                    label,
+                    request_id: id,
+                    status: WindowRequestStatus::Cancelled,
+                });
+            }
+        }
+        state = REGISTRY.1.wait(state).map_err(|_| {
+            AppError::message("window.registry_poisoned", "窗口登记状态不可用").diagnostic()
+        })?;
+    }
+}
+pub fn publish_window_settings(
+    app: &tauri::AppHandle,
+    label: &str,
+    value: crate::models::AppSettings,
+) -> AppResult<WindowSettingsSnapshot> {
+    if label != "main" {
+        return Err(AppError::message(
+            "window.settings_owner_mismatch",
+            "设置只允许由主窗口发布",
+        ));
+    }
+    let snapshot = {
+        let mut state = registry()?;
+        let revision = state
+            .settings
+            .as_ref()
+            .map_or(1, |snapshot| snapshot.revision + 1);
+        let snapshot = WindowSettingsSnapshot { revision, value };
+        state.settings = Some(snapshot.clone());
+        snapshot
+    };
+    app.emit("app-settings-changed", &snapshot)?;
+    Ok(snapshot)
+}
+pub fn current_window_settings() -> AppResult<WindowSettingsSnapshot> {
+    registry()?
+        .settings
+        .clone()
+        .ok_or_else(|| AppError::message("window.settings_uninitialized", "窗口设置尚未初始化"))
 }
 
 pub fn release_window(label: &str) -> AppResult<()> {
@@ -523,7 +840,17 @@ pub fn retarget_window(
     label: &str,
     identity: WindowIdentity,
     title: &str,
+    input: Option<ManagedWindowInput>,
 ) -> AppResult<()> {
+    if input
+        .as_ref()
+        .is_some_and(|input| !input.matches(&identity))
+    {
+        return Err(AppError::message(
+            "window.input_identity_mismatch",
+            "窗口输入与身份不匹配",
+        ));
+    }
     let displaced = {
         let mut state = registry()?;
         if let Some(conflict) = state.conflict(label, std::slice::from_ref(&identity)) {
@@ -543,8 +870,17 @@ pub fn retarget_window(
             state.release(displaced);
         }
         state.retarget(label, identity);
+        if let Some(input) = input {
+            state.replace_input(label, input);
+        }
+        state
+            .instances
+            .get_mut(label)
+            .expect("retargeted window is registered")
+            .title = title.to_string();
         displaced
     };
+    REGISTRY.1.notify_all();
     if let Some(displaced) = displaced
         && let Some(window) = app.get_webview_window(&displaced)
     {
@@ -581,6 +917,11 @@ pub fn focus_managed_window(
         ..
     }
     | WindowIdentity::Immersive {
+        session_id,
+        mod_root,
+        ..
+    }
+    | WindowIdentity::WeaponFirePreview {
         session_id,
         mod_root,
         ..
@@ -632,10 +973,21 @@ mod tests {
         assert_eq!(state.edit_target_owners(&[target]), vec!["main"]);
     }
     use super::*;
+    fn register(state: &mut WindowRegistry, identity: WindowIdentity) -> String {
+        let input = match &identity {
+            WindowIdentity::Immersive { .. } => {
+                ManagedWindowInput::ImmersiveEditor { row_key: None }
+            }
+            _ => ManagedWindowInput::Editor {
+                starsector_root: None,
+            },
+        };
+        state.register(identity, "test".into(), input)
+    }
     fn identity(id: &str, root: &str, session: &str) -> WindowIdentity {
         WindowIdentity::Spec {
             session_id: session.into(),
-            kind: "weapon".into(),
+            kind: crate::models::EditorSpecKind::Weapon,
             mod_root: root.into(),
             id: id.into(),
         }
@@ -649,7 +1001,7 @@ mod tests {
             mod_root: "D:/Mod".into(),
             id: "Alpha".into(),
         };
-        let label = state.register(target.clone());
+        let label = register(&mut state, target.clone());
         assert_eq!(target.session_id(), Some("s"));
         assert_eq!(state.focus_target("main", &target), Some(label.clone()));
         assert_ne!(
@@ -670,7 +1022,7 @@ mod tests {
     fn focus_uses_complete_identity_and_retains_dirty_target_occupancy() {
         let mut state = WindowRegistry::default();
         let target = identity("Alpha", "D:/Mod", "s");
-        let label = state.register(target.clone());
+        let label = register(&mut state, target.clone());
         state.instances.get_mut(&label).unwrap().status.dirty = true;
         assert_eq!(
             state.focus_target("other", &identity("Alpha", r"\\?\d:\mod\", "s")),
@@ -692,7 +1044,7 @@ mod tests {
     #[test]
     fn lifecycle_cancel_releases_creation_gate_and_destroy_completes_waiting_intent() {
         let mut state = WindowRegistry::default();
-        let label = state.register(identity("creating", "D:/Mod", "s"));
+        let label = register(&mut state, identity("creating", "D:/Mod", "s"));
         state.closing_sessions.insert("s".to_string());
         let (sent, received) = mpsc::channel();
         state.close_requests.insert(
@@ -747,9 +1099,9 @@ mod tests {
     #[test]
     fn reservation_and_retarget_keep_instance_and_release_occupancy() {
         let mut state = WindowRegistry::default();
-        let old = state.register(identity("old", "D:/Mod", "s"));
+        let old = register(&mut state, identity("old", "D:/Mod", "s"));
         state.instances.get_mut(&old).unwrap().creating = false;
-        let occupied = state.register(identity("next", "D:/Mod", "s"));
+        let occupied = register(&mut state, identity("next", "D:/Mod", "s"));
         state.instances.get_mut(&occupied).unwrap().creating = false;
         state.instances.get_mut(&occupied).unwrap().status.dirty = true;
         let next = identity("next", "D:/Mod", "s");
@@ -764,5 +1116,203 @@ mod tests {
         state.release(&old);
         assert!(state.reservations.is_empty());
         assert!(state.identities.is_empty());
+    }
+
+    fn preview_input(value: &str) -> ManagedWindowInput {
+        ManagedWindowInput::WeaponFirePreview {
+            source: crate::models::WeaponFirePreviewSource::Draft {
+                weapon: serde_json::Map::from_iter([
+                    ("id".into(), serde_json::json!("w")),
+                    ("description".into(), serde_json::json!(value)),
+                ]),
+            },
+        }
+    }
+    fn preview_identity(id: &str) -> WindowIdentity {
+        WindowIdentity::WeaponFirePreview {
+            session_id: "s".into(),
+            mod_root: "M:/mod".into(),
+            id: id.into(),
+        }
+    }
+    fn receipt(state: &WindowRegistry, id: u64) -> WindowRequestStatus {
+        state.requests[&id]
+            .result
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .status
+    }
+    #[test]
+    fn latest_request_supersedes_pending_delivery_and_rejects_stale_receipts() {
+        let mut state = WindowRegistry::default();
+        let label = state.register(preview_identity("w"), "预览".into(), preview_input("first"));
+        let first = state.receive(&label, "main", preview_input("first"));
+        let second = state.receive(&label, "main", preview_input("second"));
+        assert_eq!(receipt(&state, first), WindowRequestStatus::Superseded);
+        assert!(!state.accept(&label, first).unwrap());
+        assert!(state.accept(&label, second).unwrap());
+        assert_eq!(receipt(&state, second), WindowRequestStatus::Accepted);
+        assert!(!state.accept(&label, second).unwrap());
+        assert_eq!(
+            serde_json::to_value(state.context(&label, false).unwrap()).unwrap()["input"]["source"]
+                ["weapon"]["description"],
+            "second"
+        );
+    }
+    #[test]
+    fn reload_uses_accepted_source_while_pending_or_failed_input_stays_separate() {
+        let mut state = WindowRegistry::default();
+        let label = state.register(
+            preview_identity("w"),
+            "预览".into(),
+            preview_input("accepted"),
+        );
+        let accepted = state.receive(&label, "main", preview_input("accepted"));
+        state.accept(&label, accepted).unwrap();
+        let failed = state.receive(&label, "main", preview_input("failed"));
+        assert_eq!(state.context(&label, false).unwrap().request_id, accepted);
+        assert_eq!(state.context(&label, true).unwrap().request_id, failed);
+        let diagnostic = AppError::message("window.accept_failed", "交接失败").diagnostic();
+        state.fail(&label, failed, diagnostic).unwrap();
+        assert_eq!(state.context(&label, false).unwrap().request_id, accepted);
+        assert_eq!(
+            state.requests[&failed]
+                .result
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap_err()
+                .code,
+            "window.accept_failed"
+        );
+        state.retarget(&label, preview_identity("renamed"));
+        assert_eq!(
+            serde_json::to_value(state.context(&label, false).unwrap()).unwrap()["input"]["source"]
+                ["weapon"]["id"],
+            "renamed"
+        );
+    }
+    #[test]
+    fn source_close_keeps_pending_input_deliverable_and_receiver_close_cancels_waiting() {
+        let mut state = WindowRegistry::default();
+        let label = state.register(preview_identity("w"), "预览".into(), preview_input("中文"));
+        let id = state.receive(&label, "source", preview_input("中文"));
+        state.release("source");
+        assert!(state.requests[&id].owner.is_none());
+        assert!(state.accept(&label, id).unwrap());
+        assert!(!state.requests.contains_key(&id));
+        assert_eq!(state.context(&label, false).unwrap().request_id, id);
+        let waiting = state.receive(&label, "main", preview_input("pending"));
+        state.release(&label);
+        assert_eq!(receipt(&state, waiting), WindowRequestStatus::Cancelled);
+        assert!(state.context(&label, false).is_err());
+    }
+    #[test]
+    fn creation_failure_settles_current_request_and_preserves_diagnostic() {
+        let mut state = WindowRegistry::default();
+        let label = state.register(preview_identity("w"), "预览".into(), preview_input("draft"));
+        let id = state.receive(&label, "main", preview_input("draft"));
+        state
+            .fail(
+                &label,
+                id,
+                AppError::message("window.create_failed", "原生创建失败").diagnostic(),
+            )
+            .unwrap();
+        state.release(&label);
+        let error = state.requests[&id]
+            .result
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap_err();
+        assert_eq!(error.code, "window.create_failed");
+        assert_eq!(error.message, "原生创建失败");
+    }
+    #[test]
+    fn structured_window_payload_keeps_large_unicode_and_full_diagnostics() {
+        let text = "中文🛰️".repeat(16000);
+        let mut state = WindowRegistry::default();
+        let label = state.register(preview_identity("w"), "预览".into(), preview_input(&text));
+        let id = state.receive(&label, "main", preview_input(&text));
+        state.accept(&label, id).unwrap();
+        assert_eq!(
+            serde_json::to_value(state.context(&label, false).unwrap()).unwrap()["input"]["source"]
+                ["weapon"]["description"],
+            text
+        );
+        let location = crate::models::FileWindowLocation {
+            context_label: Some("诊断".into()),
+            context_severity: Some("error".into()),
+            message: Some(text.clone()),
+            line: Some(42),
+            column: Some(13),
+        };
+        let input = ManagedWindowInput::FileEditor { location };
+        let wire = serde_json::to_value(&input).unwrap();
+        assert_eq!(wire["location"]["message"], text);
+        assert_eq!(wire["location"]["line"], 42);
+        let roundtrip: ManagedWindowInput = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(roundtrip).unwrap(), wire);
+    }
+    #[test]
+    fn wing_input_requires_formal_csv_row_identity_at_transport_boundary() {
+        let identity = WindowIdentity::Immersive {
+            session_id: "s".into(),
+            mod_root: "M:/mod".into(),
+            kind: crate::models::JointEditKind::Wing,
+            id: "wing".into(),
+        };
+        assert!(!ManagedWindowInput::ImmersiveEditor { row_key: None }.matches(&identity));
+        assert!(
+            !ManagedWindowInput::ImmersiveEditor {
+                row_key: Some(String::new())
+            }
+            .matches(&identity)
+        );
+        assert!(
+            ManagedWindowInput::ImmersiveEditor {
+                row_key: Some("wings:row:1".into())
+            }
+            .matches(&identity)
+        );
+    }
+
+    #[test]
+    fn wing_retarget_updates_accepted_and_pending_reload_inputs_together() {
+        let mut state = WindowRegistry::default();
+        let identity = WindowIdentity::Immersive {
+            session_id: "s".into(),
+            mod_root: "M:/mod".into(),
+            kind: crate::models::JointEditKind::Wing,
+            id: "old".into(),
+        };
+        let input = ManagedWindowInput::ImmersiveEditor {
+            row_key: Some("old-row".into()),
+        };
+        let label = state.register(identity.clone(), "联队".into(), input.clone());
+        let accepted = state.receive(&label, "main", input.clone());
+        state.accept(&label, accepted).unwrap();
+        state.receive(&label, "main", input);
+        let next = WindowIdentity::Immersive {
+            session_id: "s".into(),
+            mod_root: "M:/mod".into(),
+            kind: crate::models::JointEditKind::Wing,
+            id: "next".into(),
+        };
+        state.retarget(&label, next);
+        state.replace_input(
+            &label,
+            ManagedWindowInput::ImmersiveEditor {
+                row_key: Some("next-row".into()),
+            },
+        );
+        for pending in [false, true] {
+            let context = serde_json::to_value(state.context(&label, pending).unwrap()).unwrap();
+            assert_eq!(context["identity"]["id"], "next");
+            assert_eq!(context["input"]["rowKey"], "next-row");
+        }
     }
 }

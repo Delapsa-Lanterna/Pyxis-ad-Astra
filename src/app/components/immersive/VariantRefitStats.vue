@@ -4,7 +4,7 @@
       <VariantShipInfo
         :variant="variant"
         :snapshot="vm.displaySnapshot.value!"
-        :values="vm.joint.draftValue.value"
+        :values="vm.displayValues.value"
         :root="vm.joint.currentTarget.value!"
       />
       <div class="variant-op-budget" :style="{ background: VARIANT_COLORS.opTrack }" title="已使用／总装配点 · 基础配置口径">
@@ -81,7 +81,7 @@
         <div v-for="mod in variant.mods" :key="mod.id" :ref="media.mediaRef(mod.id, mod.icon)" class="variant-mod-row">
           <n-popover
             trigger="click"
-            placement="left"
+            placement="bottom-end"
             :disabled="!variant.editable"
             :show-arrow="false"
             :to="surface?.closest<HTMLElement>('[role=dialog]')"
@@ -102,7 +102,6 @@
                 :options="categories"
                 @update:value="$emit('mod', mod.id, $event)"
               />
-              <ImmersiveText :text="variant.source" font="caption" block />
             </div>
           </n-popover>
           <ImmersiveText
@@ -120,7 +119,7 @@
           >
             <ImmersiveText text="−" font="refit-button" />
           </button>
-          <img v-if="media.mediaSrc(mod.icon)" :src="media.mediaSrc(mod.icon)" :alt="mod.name" />
+          <span class="variant-mod-icon"><img v-if="media.mediaSrc(mod.icon)" :src="media.mediaSrc(mod.icon)" :alt="mod.name" /></span>
         </div>
       </div>
       <button ref="pickerButton" class="variant-add-mod" :disabled="!variant.editable" @click="$emit('picker')">
