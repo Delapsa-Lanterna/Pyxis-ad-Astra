@@ -33,6 +33,12 @@ export const WEAPON_SPRITE_DRAW_ORDER: Record<WeaponViewMode, readonly WeaponSpr
   hardpoint: ['hardpointUnderSprite', 'hardpointSprite', 'hardpointGunSprite', 'hardpointGlowSprite'],
 };
 
+export function weaponSpriteDrawOrder(weapon: RowData, mode: WeaponViewMode): WeaponSpriteField[] {
+  const layers = WEAPON_SPRITE_DRAW_ORDER[mode].filter((field) => !field.endsWith('GlowSprite'));
+  const hints = Array.isArray(weapon.renderHints) ? weapon.renderHints : [];
+  return hints.includes('RENDER_BARREL_BELOW') ? [layers[0]!, layers[2]!, layers[1]!] : layers;
+}
+
 export const WEAPON_SPRITE_ORIGIN_RATIO: Record<WeaponViewMode, { x: number; y: number }> = {
   turret: { x: 0.5, y: 0.5 },
   hardpoint: { x: 0.5, y: 0.75 },

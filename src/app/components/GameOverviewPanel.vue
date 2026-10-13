@@ -6,7 +6,7 @@
         <span>{{ overview.coreAvailable ? '原版数据可用' : '原版数据不可用' }}</span>
       </div>
       <div class="game-overview-actions">
-        <n-button size="small" type="primary" @click="$emit('create-mod')">创建新 Mod</n-button>
+        <n-button size="small" @click="$emit('create-mod')">创建新 Mod</n-button>
         <n-button size="small" @click="$emit('refresh-workspace')">刷新工作区</n-button>
         <n-button size="small" secondary type="error" @click="$emit('close-workspace')">关闭工作区</n-button>
       </div>
@@ -30,7 +30,7 @@
       <h2>没有发现可识别 Mod</h2>
       <p>已打开游戏目录，但 `mods` 目录下没有包含 `mod_info.json` 的 Mod。</p>
       <div class="game-overview-actions">
-        <n-button size="small" type="primary" @click="$emit('create-mod')">创建新 Mod</n-button>
+        <n-button size="small" @click="$emit('create-mod')">创建新 Mod</n-button>
         <n-button size="small" @click="$emit('refresh-workspace')">刷新工作区</n-button>
         <n-button size="small" secondary type="error" @click="$emit('close-workspace')">关闭工作区</n-button>
       </div>

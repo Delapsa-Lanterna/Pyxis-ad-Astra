@@ -6,7 +6,7 @@ import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from './design-type';
 import { highlightedTextParts } from './highlighted-text';
-import type { BitmapTextRun } from './bitmap-font';
+import type { TextRun } from '@/domain/fonts/font.types';
 
 export interface WingPanel {
   kind: 'wing';
@@ -14,15 +14,21 @@ export interface WingPanel {
   description: ImmersiveStat;
   technical: ImmersiveStat[];
   system: ImmersiveStat;
-  systemRuns: BitmapTextRun[];
+  systemRuns: TextRun[];
   armaments: string;
-  armamentRuns: BitmapTextRun[];
+  armamentRuns: TextRun[];
   sources: ImmersiveStat[];
   sprite: ResourceRef | null;
   allStats: ImmersiveStat[];
   defaultDescription: ImmersiveField | null;
 }
-const ROLES: Record<string, string> = { FIGHTER: '战斗机', INTERCEPTOR: '截击机', BOMBER: '轰炸机', ASSAULT: '突击机', SUPPORT: '支援机' };
+export const WING_ROLE_LABELS: Record<string, string> = {
+  FIGHTER: '战斗机',
+  INTERCEPTOR: '截击机',
+  BOMBER: '轰炸机',
+  ASSAULT: '突击机',
+  SUPPORT: '支援机',
+};
 
 export function projectWingPanel(
   snapshot: JointEditSnapshot,
@@ -115,8 +121,10 @@ export function projectWingPanel(
   description.tone = 'normal';
   const role = schemaStringValue(wing.role) || 'FIGHTER';
   const roleField = wf('role');
-  roleField.optionLabels = ROLES;
-  const technical = [stat('role', '主要用途', schemaStringValue(wing['role desc']) || ROLES[role] || role, [roleField, wf('role desc')])];
+  roleField.optionLabels = WING_ROLE_LABELS;
+  const technical = [
+    stat('role', '主要用途', schemaStringValue(wing['role desc']) || WING_ROLE_LABELS[role] || role, [roleField, wf('role desc')]),
+  ];
   const swarm = schemaStringValue(wing.tags)
     .split(',')
     .some((tag) => tag.trim() === 'swarm_fighter');

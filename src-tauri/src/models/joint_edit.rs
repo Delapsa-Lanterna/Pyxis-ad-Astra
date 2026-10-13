@@ -31,6 +31,73 @@ pub struct JointEditQuery {
     pub row_key: Option<String>,
     pub values: Option<BTreeMap<String, JointValue>>,
     pub new_sources: Vec<JointSourceCreate>,
+    pub catalog: Option<JointVariantCatalogKind>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JointVariantCatalogKind {
+    Weapons,
+    Wings,
+    Hullmods,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointVariantEntry {
+    pub id: String,
+    pub label: String,
+    pub data: Value,
+    pub spec: Option<Value>,
+    pub spec_source: Option<EntityFileLocation>,
+    pub spec_version: Option<FileVersion>,
+    pub source: EntityFileLocation,
+    pub source_version: FileVersion,
+    pub resource_refs: BTreeMap<String, ResourceRef>,
+    pub preview: Option<JointVariantPreview>,
+    pub projectile: Option<JointPreviewSpec>,
+    pub primary_role: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointPreviewSpec {
+    pub kind: EntityKind,
+    pub id: String,
+    pub data: Value,
+    pub resource_refs: BTreeMap<String, ResourceRef>,
+    pub source: Option<EntityFileLocation>,
+    pub source_version: Option<FileVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointVariantPreview {
+    pub hull: JointHullProjection,
+    pub spec: Value,
+    pub specs: Vec<JointPreviewSpec>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointVariantCatalogRead {
+    pub root: JointEditRoot,
+    pub reference_settings: JointReferenceSettings,
+    pub catalog: JointVariantCatalog,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum JointEditReadResult {
+    Snapshot(Box<JointEditSnapshot>),
+    Catalog(JointVariantCatalogRead),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointVariantCatalog {
+    pub kind: JointVariantCatalogKind,
+    pub entries: Vec<JointVariantEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +176,8 @@ pub struct JointEditSnapshot {
     pub base_versions: Vec<FileVersion>,
     pub hull: Option<JointHullProjection>,
     pub new_sources: Vec<JointSourceCreate>,
+    pub variants: BTreeMap<String, JointHullProjection>,
+    pub catalog: Option<JointVariantCatalog>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,13 +194,27 @@ pub struct JointHullProjection {
     pub hull_key: String,
     pub skin_keys: Vec<String>,
     pub fields: BTreeMap<String, JointFieldBinding>,
+    pub display_bindings: BTreeMap<String, String>,
     pub weapons: BTreeMap<String, String>,
     pub sprite: Option<ResourceRef>,
+    pub slots: Vec<Value>,
+    pub built_in_weapons: BTreeMap<String, String>,
+    pub built_in_mods: Vec<String>,
+    pub built_in_wings: Vec<String>,
+    pub modules: Vec<JointModuleBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JointModuleBinding {
+    pub slot_id: String,
+    pub variant_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointReferenceSettings {
+    pub resources: BTreeMap<String, ResourceRef>,
     pub values: BTreeMap<String, Value>,
     pub versions: Vec<FileVersion>,
 }

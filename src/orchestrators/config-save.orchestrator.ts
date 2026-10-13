@@ -22,6 +22,10 @@ import { reserveFileIdentityIntent } from '@/orchestrators/entity-identity.orche
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { captureIdentityVersions } from '@/domain/editors/entity-identity';
+import { withEditTargetHandoff } from '@/orchestrators/edit-target-handoff.orchestrator';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import { normalizeFsPath } from '@/shared/lib/paths';
+const variantHandoffs = new Map<number, () => Promise<void>>();
 
 async function capturedVersions(
   sessionId: string,
@@ -133,18 +137,39 @@ export async function saveVariantAction(
   feedback?: AppFeedback,
   baseVersions: import('@/shared/types').FileVersion[] = [],
 ): Promise<SavedConfig<ConfigFamilyFile> | null> {
-  baseVersions = await capturedVersions(sessionId, modRoot, 'variant', previousId ?? variantId, variantId, baseVersions);
-  const write = {
-    baseVersions,
-    sessionId,
-    modRoot,
-    previousId,
-    nextId: variantId,
-    data,
-    relPath,
+  const sourceId = previousId ?? variantId;
+  const targetKey = JSON.stringify({ sessionId, modRoot, kind: 'variant', id: sourceId, relPath });
+  let release: (() => Promise<void>) | null = null;
+  const save = async () => {
+    const captured = await captureConfigIdentityIntent(sessionId, 'variant', sourceId, variantId);
+    const parentVersions = captured.info.baseVersions.filter(
+      (version) => normalizeFsPath(version.path) !== normalizeFsPath(captured.info.target.write.path),
+    );
+    const versions = baseVersions.filter(
+      (version) => !parentVersions.some((parent) => normalizeFsPath(parent.path) === normalizeFsPath(version.path)),
+    );
+    baseVersions = await capturedVersions(sessionId, modRoot, 'variant', sourceId, variantId, [...versions, ...parentVersions]);
+    const write = {
+      baseVersions,
+      sessionId,
+      modRoot,
+      previousId,
+      nextId: variantId,
+      data,
+      relPath,
+    };
+    return retainConfigReservation(runConfirmedJsonWrite(feedback, (options) => saveVariantEntity(write, options)));
   };
-  const result = await retainConfigReservation(runConfirmedJsonWrite(feedback, (options) => saveVariantEntity(write, options)));
+  const captured = await captureConfigIdentityIntent(sessionId, 'variant', sourceId, variantId);
+  const targets = captured.info.baseVersions.map((version) => ({ sessionId, modRoot, path: version.path }));
+  const result =
+    feedback && sourceId !== variantId && !useSaveCommandStore().isPreparingParticipant(targetKey)
+      ? await withEditTargetHandoff(targets, feedback, save, targetKey, (cleanup) => {
+          release = cleanup;
+        })
+      : await save();
   if (!result) return null;
+  if (release) variantHandoffs.set(result.commitId, release);
   const variant = configFamilyEntityData(result);
   return { entity: variant, receipt: result };
 }
@@ -242,6 +267,11 @@ export async function deleteSkinAction(
 }
 
 export async function completeConfigSave(modRoot: string, sessionId: string, result: WriteResult, label: string) {
+  const release = variantHandoffs.get(result.commitId);
+  if (release) {
+    variantHandoffs.delete(result.commitId);
+    await release();
+  }
   await releaseNativeWindowTargets();
   await completeSavedWrite({ modRoot, sessionId, result, label });
 }

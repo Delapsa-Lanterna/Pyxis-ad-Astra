@@ -1,38 +1,40 @@
 import type { Point } from '@/domain/editors/editor-types';
-import { SLOT_RADIUS, WEAPON_COLORS } from '@/shared/lib/starsector';
+import { SLOT_RADIUS } from '@/shared/lib/starsector';
+import type { OutlineStyle, PointStyle, MarkerStyle, engineStyle, launchBayPortStyle, barrelStyle, weaponSlotStyle } from './canvas-styles';
+
+export function strokeCanvasOutline(ctx: CanvasRenderingContext2D, style: OutlineStyle) {
+  ctx.strokeStyle = style.outline;
+  ctx.lineWidth = style.outlineWidth;
+  ctx.stroke();
+  ctx.strokeStyle = style.color;
+  ctx.lineWidth = style.width;
+  ctx.stroke();
+}
 
 interface WeaponSlotVisualOptions {
+  style: ReturnType<typeof weaponSlotStyle>;
   angle: number;
   arc: number;
   mount: string;
   point: Point;
-  selected: boolean;
   size: string;
   type: string;
-  hovered?: boolean;
 }
 
 interface EngineVisualOptions {
+  style: ReturnType<typeof engineStyle>;
   angle: number;
   length: number;
   point: Point;
   scale: number;
-  selected: boolean;
   width: number;
-  hovered?: boolean;
 }
 
 interface BarrelVisualOptions {
+  style: ReturnType<typeof barrelStyle>;
   angle: number;
   index: number;
   point: Point;
-  selected: boolean;
-  hovered?: boolean;
-}
-
-function colorFor(type: string): string {
-  const color = WEAPON_COLORS[type as keyof typeof WEAPON_COLORS];
-  return color ?? '#9ca3af';
 }
 
 function radiusFor(size: string): number {
@@ -51,9 +53,9 @@ function layerRadiiFor(type: string, size: string, scale: number) {
   return [SLOT_RADIUS.SMALL * scale];
 }
 
-function withStroke(ctx: CanvasRenderingContext2D, color: string, draw: () => void) {
+function withStroke(ctx: CanvasRenderingContext2D, color: string, width: number, draw: () => void) {
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2.2;
+  ctx.lineWidth = width;
   ctx.lineJoin = 'miter';
   ctx.lineCap = 'butt';
   draw();
@@ -122,49 +124,49 @@ function drawHash(ctx: CanvasRenderingContext2D, radius: number) {
   ctx.lineTo(radius, inner);
 }
 
-function drawOutline(ctx: CanvasRenderingContext2D, type: string, radius: number, color: string) {
-  if (type === 'BALLISTIC') withStroke(ctx, color, () => drawSquare(ctx, radius));
-  else if (type === 'ENERGY') withStroke(ctx, color, () => drawCircle(ctx, radius));
-  else if (type === 'MISSILE') withStroke(ctx, color, () => drawDiamond(ctx, radius));
+function drawOutline(ctx: CanvasRenderingContext2D, type: string, radius: number, color: string, width: number) {
+  if (type === 'BALLISTIC') withStroke(ctx, color, width, () => drawSquare(ctx, radius));
+  else if (type === 'ENERGY') withStroke(ctx, color, width, () => drawCircle(ctx, radius));
+  else if (type === 'MISSILE') withStroke(ctx, color, width, () => drawDiamond(ctx, radius));
   else if (type === 'HYBRID') {
-    withStroke(ctx, color, () => drawCircle(ctx, radius));
-    withStroke(ctx, color, () => drawSquare(ctx, radius / Math.SQRT2));
+    withStroke(ctx, color, width, () => drawCircle(ctx, radius));
+    withStroke(ctx, color, width, () => drawSquare(ctx, radius / Math.SQRT2));
   } else if (type === 'UNIVERSAL') {
-    withStroke(ctx, color, () => drawSquare(ctx, radius));
-    withStroke(ctx, color, () => drawCircle(ctx, radius * 0.88));
-    withStroke(ctx, color, () => drawDiamond(ctx, radius * 0.9));
+    withStroke(ctx, color, width, () => drawSquare(ctx, radius));
+    withStroke(ctx, color, width, () => drawCircle(ctx, radius * 0.88));
+    withStroke(ctx, color, width, () => drawDiamond(ctx, radius * 0.9));
   } else if (type === 'SYNERGY') {
-    withStroke(ctx, color, () => drawCircle(ctx, radius));
-    withStroke(ctx, color, () => drawDiamond(ctx, radius * 0.88));
+    withStroke(ctx, color, width, () => drawCircle(ctx, radius));
+    withStroke(ctx, color, width, () => drawDiamond(ctx, radius * 0.88));
   } else if (type === 'COMPOSITE') {
-    withStroke(ctx, color, () => drawSquare(ctx, radius));
-    withStroke(ctx, color, () => drawDiamond(ctx, radius * 0.9));
+    withStroke(ctx, color, width, () => drawSquare(ctx, radius));
+    withStroke(ctx, color, width, () => drawDiamond(ctx, radius * 0.9));
   } else if (type === 'LAUNCH_BAY') {
-    withStroke(ctx, color, () => drawHash(ctx, radius * 0.8));
+    withStroke(ctx, color, width, () => drawHash(ctx, radius * 0.8));
   } else if (type === 'DECORATIVE') {
-    withStroke(ctx, color, () => drawTriangle(ctx, radius * 1.1));
+    withStroke(ctx, color, width, () => drawTriangle(ctx, radius * 1.1));
   } else if (type === 'STATION_MODULE') {
-    withStroke(ctx, color, () => drawHexagon(ctx, radius * 0.92));
+    withStroke(ctx, color, width, () => drawHexagon(ctx, radius * 0.92));
   } else if (type !== 'SYSTEM') {
-    withStroke(ctx, color, () => drawPentagon(ctx, radius * 0.92));
+    withStroke(ctx, color, width, () => drawPentagon(ctx, radius * 0.92));
   }
 }
 
-function drawSlotCenter(ctx: CanvasRenderingContext2D, color: string) {
+function drawSlotCenter(ctx: CanvasRenderingContext2D, color: string, radius: number) {
   ctx.beginPath();
-  ctx.arc(0, 0, 5, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
 }
 
-function drawArcAndFacing(ctx: CanvasRenderingContext2D, radius: number, arc: number, color: string) {
+function drawArcAndFacing(ctx: CanvasRenderingContext2D, radius: number, arc: number, style: ReturnType<typeof weaponSlotStyle>) {
   const clampedArc = Math.max(0, Math.min(360, arc || 0));
   if (clampedArc > 0) {
     const half = (clampedArc * Math.PI) / 360;
     const start = -half;
     const end = half;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = style.arcWidth;
     ctx.beginPath();
     ctx.arc(0, 0, radius, start, end);
     ctx.stroke();
@@ -175,8 +177,8 @@ function drawArcAndFacing(ctx: CanvasRenderingContext2D, radius: number, arc: nu
     ctx.lineTo(Math.cos(end) * radius * 1.18, Math.sin(end) * radius * 1.18);
     ctx.stroke();
   }
-  ctx.strokeStyle = '#d8d8d8';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = style.facingColor;
+  ctx.lineWidth = style.facingWidth;
   ctx.beginPath();
   ctx.moveTo(radius * 1.2, 0);
   ctx.lineTo(8, 0);
@@ -185,7 +187,7 @@ function drawArcAndFacing(ctx: CanvasRenderingContext2D, radius: number, arc: nu
 
 export function drawWeaponSlotVisual(ctx: CanvasRenderingContext2D, options: WeaponSlotVisualOptions) {
   const type = (options.type || 'SYSTEM').toUpperCase();
-  const color = colorFor(type);
+  const { color } = options.style;
   const size = (options.size || 'MEDIUM').toUpperCase();
   const radiusScale = 1.5;
   const base = radiusFor(size) * radiusScale;
@@ -193,92 +195,81 @@ export function drawWeaponSlotVisual(ctx: CanvasRenderingContext2D, options: Wea
 
   ctx.save();
   ctx.translate(options.point.x, options.point.y);
-  ctx.globalAlpha = options.selected ? 1 : 0.6;
+  ctx.globalAlpha = options.style.alpha;
   if (type !== 'LAUNCH_BAY') {
     ctx.save();
     ctx.rotate((-options.angle * Math.PI) / 180);
-    drawArcAndFacing(ctx, base * 1.85, options.arc, color);
+    drawArcAndFacing(ctx, base * 1.85, options.arc, options.style);
     ctx.restore();
   }
 
   if (type !== 'SYSTEM') {
-    outlineRadii.forEach((radius) => drawOutline(ctx, type, radius, color));
+    outlineRadii.forEach((radius) => drawOutline(ctx, type, radius, color, options.style.outlineWidth));
   }
   if (options.mount === 'HARDPOINT') {
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = options.style.outlineWidth;
     ctx.beginPath();
     ctx.moveTo(-base * 0.9, base * 0.9);
     ctx.lineTo(base * 0.9, -base * 0.9);
     ctx.stroke();
   }
-  drawSlotCenter(ctx, color);
+  drawSlotCenter(ctx, color, options.style.centerRadius);
   ctx.restore();
 }
 
 interface LaunchBayPortVisualOptions {
   point: Point;
-  hovered?: boolean;
-  selected?: boolean;
-  accent?: boolean;
+  style: ReturnType<typeof launchBayPortStyle>;
 }
 
 /// Renders one launch bay port as a small thin ring — the bay itself is never
 /// drawn on the canvas, every port stands in for it.
 export function drawLaunchBayPortVisual(ctx: CanvasRenderingContext2D, options: LaunchBayPortVisualOptions) {
-  const color = colorFor('LAUNCH_BAY');
-  const radius = 10;
-
+  const { point, style } = options;
   ctx.save();
-  ctx.translate(options.point.x, options.point.y);
-  ctx.globalAlpha = options.hovered || options.selected || options.accent ? 1 : 0.65;
-  if (options.accent) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.strokeStyle = color;
-  ctx.lineWidth = options.hovered || options.accent ? 1.8 : 1.1;
+  ctx.translate(point.x, point.y);
+  ctx.globalAlpha = style.alpha;
+  ctx.fillStyle = style.color;
   ctx.beginPath();
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.arc(0, 0, style.centerRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = style.color;
+  ctx.lineWidth = style.width;
+  ctx.beginPath();
+  ctx.arc(0, 0, style.radius, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
 
-export function drawBoundsVisual(
-  ctx: CanvasRenderingContext2D,
-  points: Point[],
-  selectedIndex: number | null,
-  hoveredIndex: number | null,
-) {
+export function drawBoundsVisual(ctx: CanvasRenderingContext2D, points: Point[], line: OutlineStyle, controls: PointStyle[]) {
   if (points.length < 2) return;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 3;
   ctx.lineJoin = 'round';
   ctx.beginPath();
   points.forEach((point, index) => {
     index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y);
   });
   ctx.closePath();
-  ctx.stroke();
-  points.forEach((point, index) => drawControlPoint(ctx, point, index === selectedIndex, index === hoveredIndex, 6));
+  strokeCanvasOutline(ctx, line);
+  points.forEach((point, index) => drawControlPoint(ctx, point, controls[index]!));
 }
 
-export function drawControlPoint(ctx: CanvasRenderingContext2D, point: Point, selected: boolean, hovered = false, radius = 5) {
+export function drawControlPoint(ctx: CanvasRenderingContext2D, point: Point, style: PointStyle) {
   ctx.beginPath();
-  ctx.arc(point.x, point.y, selected ? radius + 2 : hovered ? radius + 1 : radius, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
+  ctx.arc(point.x, point.y, style.radius, 0, Math.PI * 2);
+  ctx.fillStyle = style.color;
   ctx.fill();
-  if (selected || hovered) {
-    ctx.strokeStyle = '#101010';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+  ctx.strokeStyle = style.outline;
+  ctx.lineWidth = style.width;
+  ctx.stroke();
+}
+
+export function drawRadiusFill(ctx: CanvasRenderingContext2D, center: Point, radius: number, fill: string) {
+  if (radius > 0) {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
   }
 }
 
@@ -287,35 +278,26 @@ export function drawRadiusField(
   center: Point,
   radius: number,
   fill: string,
-  selected: boolean,
-  hovered = false,
+  style: MarkerStyle,
   marker: 'cross' | 'x' = 'cross',
 ) {
-  if (radius > 0) {
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = fill;
-    ctx.fill();
-  }
-  if (marker === 'x') drawXMarker(ctx, center, selected, hovered);
-  else drawCrossMarker(ctx, center, selected, hovered);
+  drawRadiusFill(ctx, center, radius, fill);
+  if (marker === 'x') drawXMarker(ctx, center, style);
+  else drawCrossMarker(ctx, center, style);
 }
 
-export function drawCrossMarker(ctx: CanvasRenderingContext2D, point: Point, selected: boolean, hovered = false, label?: string) {
-  const radius = selected || hovered ? 16 : 13;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = selected ? 3 : 2;
+export function drawCrossMarker(ctx: CanvasRenderingContext2D, point: Point, style: MarkerStyle, label?: string) {
   ctx.beginPath();
-  ctx.moveTo(point.x - radius, point.y);
-  ctx.lineTo(point.x + radius, point.y);
-  ctx.moveTo(point.x, point.y - radius);
-  ctx.lineTo(point.x, point.y + radius);
-  ctx.stroke();
+  ctx.moveTo(point.x - style.radius, point.y);
+  ctx.lineTo(point.x + style.radius, point.y);
+  ctx.moveTo(point.x, point.y - style.radius);
+  ctx.lineTo(point.x, point.y + style.radius);
+  strokeCanvasOutline(ctx, style);
   if (label) {
     ctx.font = '18px sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#202020';
-    ctx.lineWidth = 4;
+    ctx.fillStyle = style.color;
+    ctx.strokeStyle = style.outline;
+    ctx.lineWidth = 1;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.strokeText(label, point.x + 10, point.y + 14);
@@ -323,32 +305,29 @@ export function drawCrossMarker(ctx: CanvasRenderingContext2D, point: Point, sel
   }
 }
 
-export function drawXMarker(ctx: CanvasRenderingContext2D, point: Point, selected: boolean, hovered = false) {
-  const radius = selected || hovered ? 16 : 13;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = selected ? 3 : 2;
+export function drawXMarker(ctx: CanvasRenderingContext2D, point: Point, style: MarkerStyle) {
   ctx.beginPath();
-  ctx.moveTo(point.x - radius, point.y - radius);
-  ctx.lineTo(point.x + radius, point.y + radius);
-  ctx.moveTo(point.x + radius, point.y - radius);
-  ctx.lineTo(point.x - radius, point.y + radius);
-  ctx.stroke();
+  ctx.moveTo(point.x - style.radius, point.y - style.radius);
+  ctx.lineTo(point.x + style.radius, point.y + style.radius);
+  ctx.moveTo(point.x + style.radius, point.y - style.radius);
+  ctx.lineTo(point.x - style.radius, point.y + style.radius);
+  strokeCanvasOutline(ctx, style);
 }
 
 export function drawEngineVisual(ctx: CanvasRenderingContext2D, options: EngineVisualOptions) {
   const width = Math.max(4, options.width * options.scale);
   const length = Math.max(8, options.length * options.scale);
-  const selected = options.selected || Boolean(options.hovered);
+
+  ctx.save();
+  ctx.globalAlpha = options.style.alpha;
   ctx.save();
   ctx.translate(options.point.x, options.point.y);
   ctx.rotate((-options.angle * Math.PI) / 180);
-  ctx.fillStyle = 'rgba(220, 230, 220, 0.08)';
+  ctx.fillStyle = options.style.body;
   ctx.fillRect(0, -width / 2, length, width);
 
   const flame = ctx.createLinearGradient(0, 0, length, 0);
-  flame.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-  flame.addColorStop(0.35, 'rgba(255, 174, 91, 0.75)');
-  flame.addColorStop(1, 'rgba(219, 92, 37, 0)');
+  for (const [offset, color] of options.style.flame) flame.addColorStop(offset, color);
   ctx.fillStyle = flame;
   ctx.beginPath();
   ctx.moveTo(0, -width * 0.45);
@@ -357,12 +336,13 @@ export function drawEngineVisual(ctx: CanvasRenderingContext2D, options: EngineV
   ctx.closePath();
   ctx.fill();
   ctx.restore();
-  drawControlPoint(ctx, options.point, options.selected, options.hovered, selected ? 7 : 5);
+  drawControlPoint(ctx, options.point, options.style.control);
+  ctx.restore();
 }
 
 export function drawWeaponSpriteLayer(
   ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement,
+  image: HTMLImageElement | HTMLCanvasElement,
   originRatio: { x: number; y: number },
   scale: number,
   centerX: number,
@@ -379,26 +359,44 @@ export function drawWeaponSpriteLayer(
   ctx.restore();
 }
 
+export function drawWeaponGlow(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  tintedImage: HTMLCanvasElement,
+  options: { tintAlpha: number; coreAlpha: number; origin: Point; center: Point; scale: number },
+  random = Math.random,
+) {
+  ctx.save();
+  for (let i = 0; i < 15; i++) {
+    const core = i >= 12;
+    const step = core ? 0.05 : 0.1;
+    ctx.globalAlpha = core ? options.coreAlpha : options.tintAlpha;
+    ctx.globalCompositeOperation = core ? 'lighter' : 'source-over';
+    const x = options.center.x + (Math.floor(random() * 21) - 10) * step * options.scale;
+    const y = options.center.y + (Math.floor(random() * 21) - 10) * step * options.scale;
+    drawWeaponSpriteLayer(ctx, core ? image : tintedImage, options.origin, options.scale, x, y);
+  }
+  ctx.restore();
+}
+
 export function drawBarrelVisual(ctx: CanvasRenderingContext2D, options: BarrelVisualOptions) {
-  const color = '#f1f5f9';
   const length = 36;
   const angle = (options.angle * Math.PI) / 180;
   ctx.save();
-  ctx.globalAlpha = options.selected ? 1 : 0.6;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
+  ctx.globalAlpha = options.style.alpha;
   ctx.beginPath();
   ctx.moveTo(options.point.x, options.point.y);
   ctx.lineTo(options.point.x + Math.cos(angle) * length, options.point.y - Math.sin(angle) * length);
-  ctx.stroke();
-  drawControlPoint(ctx, options.point, false, false, 5);
+  strokeCanvasOutline(ctx, options.style.line);
+  drawControlPoint(ctx, options.point, options.style.control);
+  ctx.globalAlpha = options.style.label.alpha;
   ctx.font = '11px sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#111111';
-  ctx.lineWidth = 3;
+  ctx.fillStyle = options.style.label.color;
+  ctx.strokeStyle = options.style.label.outline;
+  ctx.lineWidth = options.style.label.width;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.strokeText(String(options.index), options.point.x, options.point.y);
-  ctx.fillText(String(options.index), options.point.x, options.point.y);
+  ctx.strokeText(String(options.index + 1), options.point.x, options.point.y);
+  ctx.fillText(String(options.index + 1), options.point.x, options.point.y);
   ctx.restore();
 }

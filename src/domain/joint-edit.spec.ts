@@ -77,10 +77,12 @@ describe('joint edit field and physical target projection', () => {
     const snapshot = {
       root: { sessionId: 's', modRoot: 'M:/mod', kind: 'ship', id: 'a' },
       bindings: {},
-      referenceSettings: { values: {}, versions: [] },
+      referenceSettings: { values: {}, versions: [], resources: {} },
       records: [],
       baseVersions: [],
       hull: null,
+      variants: {},
+      catalog: null,
       newSources: [],
     } as JointEditSnapshot;
     const values = JSON.parse(
@@ -109,10 +111,12 @@ describe('joint edit field and physical target projection', () => {
   it('deduplicates versions and records into complete write scopes', () => {
     const snapshot: JointEditSnapshot = {
       hull: null,
+      variants: {},
+      catalog: null,
       newSources: [],
       root: { sessionId: 's', modRoot: 'M:/mod', kind: 'wing', id: 'wing' },
       bindings: {},
-      referenceSettings: { values: {}, versions: [] },
+      referenceSettings: { values: {}, versions: [], resources: {} },
       baseVersions: [{ path: 'M:/mod/wings.csv', fingerprint: 'v' }],
       records: [
         {

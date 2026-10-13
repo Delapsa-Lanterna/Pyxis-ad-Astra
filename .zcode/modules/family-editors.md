@@ -2,11 +2,12 @@
 
 ## 定义
 
-配置实体族编辑器系统以参数化定义驱动装配与皮肤两族的列表、新建、删除、草稿编辑与单文件保存。
+配置实体族编辑器模块提供装配与皮肤的参数化列表、表单和保存交接。
 
 ## 参考
 
 `src-tauri/src/services/editor_config/spec_entities.rs`：后端族实体 owner，按实体类型参数化保存、创建、删除与重命名。
+`src-tauri/src/services/project/write/entity_identity.rs`：族保存消费的实体身份事务，协调实际目标与父引用。
 `src/app/components/config/ConfigEntityFamilyEditor.vue`：族编辑组件。
 `src/app/components/config/ConfigEntityFamilyList.vue`：族列表组件。
 `src/app/components/config/ConfigEntityFamilyView.vue`：族视图组合 owner。
@@ -14,17 +15,18 @@
 `src/app/composables/config/use-config-family-view-model.ts`：族列表 ViewModel owner，拥有加载、新建、删除校验与资源引用。
 `src/app/composables/config/use-config-identity-reception.ts`：两族消费配置身份事件的等待、确认与列表接纳。
 `src/domain/config/config-entity-families.ts`：族定义 owner，拥有装配与皮肤的标识字段、伴随字段、文案、图标路径与媒体面。
-`src/domain/config/config-records.ts`：两族消费统一 ConfigFamilyRecord 与 ConfigFamilyFile 的查询、保存投影。
+`src/domain/config/config-records.ts`：两族消费统一 `ConfigFamilyRecord` 与 `ConfigFamilyFile` 的查询、保存投影。
 `src/orchestrators/config-save.orchestrator.ts`：族保存动作归属的保存编排。
 
 ## 边界
 
-- Rust 后端必须拥有文件目标、加载身份、扩展名、重命名、删除与 changeset；前端只允许消费正式记录中的加载身份与授权目标。
-- 两族表单与列表差异必须消费族定义数据；组件与 ViewModel 必须共用参数化实现，保存动作必须分别装配 Variant 与 Skin 的正式能力及所属参数。
-- 列表与编辑 ViewModel 分别拥有选择、资源引用与目标 Draft Session；组件只渲染与触发。
-- 单文件保存只允许写当前族声明的目标文件；dirty 时外部版本只允许暂存。
-- 新建对话框的必填、ID 非法与冲突校验收敛在族 ViewModel，组件只触发。
-- 镜像模式与画布骨架语义不适用于本模块；族编辑是纯表单域。
+- family 定义表达装配与皮肤的身份字段、伴随字段、名称、排序和可选动作。
+- 保存编排装配各族能力，写入范围由当前目标及身份规则声明的父引用确定。
+- 参数化组件呈现列表与表单，列表和编辑 ViewModel 分别拥有选择、资源与目标会话。
+- 后端拥有加载身份、目标路径、扩展名、创建删除和改名规则。
+- 新建校验归族 ViewModel，名称 hydration 消费后端舰体引用元数据。
+- 族表单提供联合交接参与者，沉浸式动作消费现有保存和窗口能力。
+- 身份接纳消费配置交接入口，外部版本由所属会话直接接纳或暂存。
 
 ## 链路
 
@@ -46,7 +48,7 @@
 
 1. 选中实体加载目标草稿与表单。
 2. 编辑经显式提交模型更新草稿。
-3. 保存动作族返回 SavedConfig，承载正式实体与写盘 receipt。
+3. 保存动作族返回 `SavedConfig`，承载正式实体与写盘 receipt。
 4. 编辑会话接纳目标、内容与版本，列表接纳同一正式记录，再执行 receipt 同步。
 5. dirty 时外部更新只暂存并提示。
 
@@ -58,27 +60,29 @@
 
 ## 规范
 
-- Skin构造必须消费正式默认内容；descriptionId与descriptionPrefix必须由明确字段动作建立，默认描述身份必须消费skinHullId。
-- 装配与皮肤表单必须作为联合目标交接参与者提供输入提交及所属保存；短暂交接期间必须保持原草稿并锁定所属编辑面。
 - ID、companion、标题与排序必须消费同一正式记录；字段、标题组合与 Hull 名称 hydration 差异必须归 family 定义。
 - JSON、类型文本与颜色的原始输入必须登记到所属目标会话；外部版本载入必须确认放弃草稿与输入。
-- 两族记录必须共同表达加载 id、target、data、baseVersions、path 与 relPath；列表与选择必须消费加载 id，字段编辑必须消费 data 中的下一 ID。
+- Skin 构造必须消费正式默认内容；`descriptionId` 与 `descriptionPrefix` 必须由明确字段动作建立，默认描述身份必须消费 `skinHullId`。
+- 两族记录必须共同表达加载 id、target、data、`baseVersions`、path 与 relPath；列表与选择必须消费加载 id，字段编辑必须消费 data 中的下一 ID。
 - 保存 receipt 必须与正式实体共同交给编辑会话；同步失败必须保留写盘基线，卸载后的提交只允许完成捕获目标的同步。
 - 保存动作返回正式记录时必须保持当前列表与选择，编辑会话接纳之后必须共同更新列表和选择；同一会话的活动控件必须保持挂载。
 - 保存期间列表刷新必须服从目标交接；重命名后只允许更新正式目标和已写盘基线，必须保留后续草稿与字段交互状态。
-- 同 ID 保存必须保留源文件名与目录；ID 重命名必须在源目录生成新 ID 文件名，创建必须以显式 null relPath 使用默认路径。
+- 可选沉浸式入口必须由族定义声明，装配打开必须经过所属 ViewModel 与保存交接。
+- 同 ID 保存必须保留源文件名与目录；ID 重命名必须在源目录生成新 ID 文件名，创建必须以显式 `null` relPath 使用默认路径。
 - 外部改名期间必须保留当前编辑目标；确认跟随后必须共同接纳新目标、内容与版本，dirty 草稿与活动输入必须保留。
 - 新 session 的族列表必须按所属 companion 与 ID 排序选择首项；列表内容、实际路径或基线版本凭据变化时必须通知编辑器接入，严禁只比较实体内容。
 - 新建动作才允许加载舰体引用目录；目录项严禁预取缩略图。
 - 无法解析舰船名称时必须显示 `hullId`，严禁改变装配引用或持久化数据。
 - 皮肤列表必须从实体列表保留缩略资源引用并按可视区渐进解析。
-- 皮肤编辑器的内置武器移除选项必须由当前草稿 baseHullId 的后端舰体引用结果提供，选项值必须是槽 ID。
+- 皮肤编辑器的内置武器移除选项必须由当前草稿 `baseHullId` 的后端舰体引用结果提供，选项值必须是槽 ID。
 - 编辑保存必须提交选中实体 query 返回的 relPath；command 必须核对会话索引归属，写 service 必须核对源文件内容 ID。
 - 舰船名称与创建引用选项查询必须服从捕获 session 与所属读取票据；切换 session 必须同步清空引用投影，切换 Plain 模式必须撤销创建引用选项的接纳权。
 - 表单双向绑定必须经统一 Draft Session setter 提交；保存期间的新编辑必须保留，base 必须更新为实际保存快照。
-- 装配列表首行必须显示 `ships.name · variant.displayName`，第二行显示 `variantId`；舰船名称必须由后端按当前 Mod `ship_data.csv` 优先、原版补集解析。
+- 装配与皮肤表单必须作为联合目标交接参与者提供输入提交及所属保存；短暂交接期间必须保持原草稿并锁定所属编辑面。
+- 装配改名必须先协调当前 Mod 全部父引用文件的相关编辑并核对实际版本；主文件与父引用必须同根提交，实际基线接纳必须释放所属交接。
+- 装配显示名必须由 `ships.name` 与 `variant.displayName` 组合，加载身份必须保持 `variantId`；舰船名称必须按 Mod CSV 优先和 Core 补集解析。
 - 路径与文件内容 ID 必须由后端验证；前端扫描或推导一律拒绝。
-- 重命名由后端验证并迁移目标文件与文件内容 ID，前端严禁拼接路径。
+- 重命名必须由后端验证并交接目标文件与文件内容 ID，前端严禁拼接路径。
 
 ## 陷阱
 

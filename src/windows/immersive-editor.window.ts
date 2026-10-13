@@ -12,8 +12,10 @@ export function openImmersiveEditorWindow(root: JointEditRoot, settings: AppSett
     title: immersiveWindowTitle(root),
     urlParams: { window: 'immersive-editor', ...root, ...(rowKey ? { rowKey } : {}), settings: JSON.stringify(settings) },
     size:
-      root.kind === 'weapon' || root.kind === 'wing'
-        ? { width: 430, height: 700, minWidth: 340, minHeight: 480 }
-        : { width: 830, height: 700, minWidth: 430, minHeight: 480 },
+      root.kind === 'variant'
+        ? { width: 1280, height: 720, minWidth: 960, minHeight: 640 }
+        : root.kind === 'weapon' || root.kind === 'wing'
+          ? { width: 430, height: 700, minWidth: 340, minHeight: 480 }
+          : { width: 830, height: 700, minWidth: 430, minHeight: 480 },
   });
 }

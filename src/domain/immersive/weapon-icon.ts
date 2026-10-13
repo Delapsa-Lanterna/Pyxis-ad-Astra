@@ -15,9 +15,10 @@ const MOUNT_COLORS: Record<string, string> = {
   COMPOSITE: '#d7ff00',
   BUILT_IN: '#ffffff',
 };
+export const weaponTypeColor = (type: string): string => MOUNT_COLORS[type] ?? '#ffffff';
 export function weaponMountShapes(type: string, size: string): MountShape[] {
   const radius = { SMALL: 20, MEDIUM: 30, LARGE: 40 }[size] ?? 20;
-  const color = MOUNT_COLORS[type] ?? '#ffffff';
+  const color = weaponTypeColor(type);
   if (type === 'BALLISTIC' || type === 'ENERGY' || type === 'MISSILE') {
     const kind: MountShapeKind = type === 'BALLISTIC' ? 'square' : type === 'ENERGY' ? 'circle' : 'diamond';
     const layers =
@@ -47,10 +48,11 @@ export function weaponMountShapes(type: string, size: string): MountShape[] {
   if (type === 'BUILT_IN') return [shape('circle', radius)];
   return [];
 }
-export function drawWeaponMount(context: CanvasRenderingContext2D, type: string, size: string) {
+export function drawWeaponMount(context: CanvasRenderingContext2D, type: string, size: string, opacity = 1) {
+  context.save();
   for (const shape of weaponMountShapes(type, size)) {
     context.fillStyle = shape.color;
-    context.globalAlpha = shape.alpha;
+    context.globalAlpha = shape.alpha * opacity;
     for (let pass = 0; pass < 3; pass++) {
       const radius = shape.radius - pass * 0.25,
         thickness = 3.5 - pass * 0.5;
@@ -74,5 +76,5 @@ export function drawWeaponMount(context: CanvasRenderingContext2D, type: string,
       context.fill('evenodd');
     }
   }
-  context.globalAlpha = 1;
+  context.restore();
 }

@@ -1,15 +1,20 @@
 use crate::{
     errors::AppError,
     models::{
-        JointEditDraft, JointEditPrepared, JointEditQuery, JointEditSnapshot, JointEditSubmission,
-        WriteResult,
+        JointEditDraft, JointEditPrepared, JointEditQuery, JointEditReadResult, JointEditSnapshot,
+        JointEditSubmission, WriteResult,
     },
     services,
 };
 
 #[tauri::command(async)]
-pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditSnapshot, AppError> {
-    services::project::query_joint_edit_request(&payload)
+pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditReadResult, AppError> {
+    match payload.catalog {
+        Some(kind) => services::project::query_variant_catalog(&payload.root, kind)
+            .map(JointEditReadResult::Catalog),
+        None => services::project::query_joint_edit_request(&payload)
+            .map(|value| JointEditReadResult::Snapshot(Box::new(value))),
+    }
 }
 #[tauri::command(async)]
 pub fn prepare_joint_edit(payload: JointEditDraft) -> Result<JointEditPrepared, AppError> {

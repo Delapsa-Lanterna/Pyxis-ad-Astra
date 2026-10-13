@@ -1,10 +1,13 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
+import { jointObject } from '@/domain/joint-edit';
+import { entityTargetFixture } from '@/test/entity-target';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shipJointFixture } from '@/test/joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
 import { wingJointFixture } from '@/test/wing-joint-edit';
+import { variantJointFixture } from '@/test/variant-joint-edit';
 import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
@@ -14,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   save: vi.fn(),
   projection: vi.fn(),
+  catalog: vi.fn(),
   listen: vi.fn(),
   stop: vi.fn(),
   error: vi.fn(),
@@ -27,6 +31,7 @@ vi.mock('@/services/joint-edit.service', () => ({
   queryJointEdit: mocks.query,
   queryJointEditRow: mocks.query,
   queryJointEditProjection: mocks.projection,
+  queryJointVariantCatalog: mocks.catalog,
 }));
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.query, save: mocks.save }) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({
@@ -60,7 +65,7 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
 }));
 import { useImmersiveEditorViewModel } from './use-immersive-editor-view-model';
 
-function editor(kind: 'ship' | 'weapon' | 'wing' = 'ship') {
+function editor(kind: 'ship' | 'weapon' | 'wing' | 'variant' = 'ship') {
   let vm!: ReturnType<typeof useImmersiveEditorViewModel>;
   const wrapper = mount({
     setup() {
@@ -69,7 +74,9 @@ function editor(kind: 'ship' | 'weapon' | 'wing' = 'ship') {
           ? { ...shipJointFixture().root, kind: 'ship' }
           : kind === 'weapon'
             ? { ...weaponJointFixture().root, kind: 'weapon' }
-            : { ...wingJointFixture().root, kind: 'wing', rowKey: 'wing-row' },
+            : kind === 'wing'
+              ? { ...wingJointFixture().root, kind: 'wing', rowKey: 'wing-row' }
+              : { ...variantJointFixture().root, kind: 'variant' },
       );
       return () => null;
     },
@@ -99,6 +106,419 @@ beforeEach(() => {
   mocks.query.mockResolvedValue(shipJointFixture());
   mocks.listen.mockResolvedValue(mocks.stop);
   mocks.choose.mockResolvedValue('follow');
+});
+
+describe('variant joint actions', () => {
+  function weaponCatalog(spec = { type: 'ENERGY', size: 'LARGE' }) {
+    const snapshot = variantJointFixture();
+    const source = snapshot.records.find((record) => record.key === 'weapon-spec')!.source!;
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    const entry = {
+      id: 'test_weapon',
+      label: 'Test Weapon',
+      spec,
+      data: {},
+      source,
+      specSource: source,
+      sourceVersion: { path: source.path, fingerprint: 'v' },
+    };
+    mocks.catalog.mockResolvedValue({ catalog: { entries: [entry] } });
+    return { snapshot, entry };
+  }
+  it('confirms an incompatible weapon then records one action for install, undo and redo', async () => {
+    weaponCatalog();
+    mocks.choose.mockResolvedValue('install');
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.installVariantWeapon('variant', 'WS2', 'test_weapon')).toBe(true);
+    expect(mocks.choose.mock.calls[0]![0].content).toContain('WS2 · BALLISTIC · MEDIUM');
+    expect(mocks.choose.mock.calls[0]![0].content).toContain('武器尺寸超过槽位');
+    expect(jointObject(vm.joint.draftValue.value.variant).weaponGroups).toMatchObject([{ weapons: { WS2: 'test_weapon' } }]);
+    await vm.undo();
+    expect(jointObject(vm.joint.draftValue.value.variant).weaponGroups).toMatchObject([{ weapons: { WS2: 'chaingun' } }]);
+    expect(vm.history.canUndo.value).toBe(false);
+    await vm.redo();
+    expect(jointObject(vm.joint.draftValue.value.variant).weaponGroups).toMatchObject([{ weapons: { WS2: 'test_weapon' } }]);
+    wrapper.unmount();
+  });
+  it.each([null, 'install'])('preserves the latest draft when confirmation returns %s after new editing', async (choice) => {
+    weaponCatalog();
+    let finish!: (value: string | null) => void;
+    mocks.choose.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    const action = vm.installVariantWeapon('variant', 'WS2', 'test_weapon');
+    await flushPromises();
+    await vm.updateVariant('variant', (data) => ({ ...data, displayName: 'Later' }));
+    finish(choice);
+    expect(await action).toBe(false);
+    expect(jointObject(vm.joint.draftValue.value.variant)).toMatchObject({
+      displayName: 'Later',
+      weaponGroups: [{ weapons: { WS2: 'chaingun' } }],
+    });
+    wrapper.unmount();
+  });
+  it('installs a compatible candidate and unloads it without an incompatibility confirmation', async () => {
+    weaponCatalog({ type: 'BALLISTIC', size: 'SMALL' });
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.installVariantWeapon('variant', 'WS2', 'test_weapon')).toBe(true);
+    expect(mocks.choose).not.toHaveBeenCalled();
+    expect(await vm.installVariantWeapon('variant', 'WS2', '')).toBe(true);
+    expect(jointObject(vm.joint.draftValue.value.variant).weaponGroups).toMatchObject([{ weapons: {} }]);
+    wrapper.unmount();
+  });
+  it('rejects newly typed input and releases unmounted confirmation requests', async () => {
+    weaponCatalog();
+    let finish!: (value: string) => void;
+    mocks.choose.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    const action = vm.installVariantWeapon('variant', 'WS2', 'test_weapon');
+    await flushPromises();
+    const dirty = ref(true);
+    vm.joint.inputs.register({ key: 'later', dirty, label: 'Later', commit: () => null, focus: vi.fn(), cancel: vi.fn() });
+    finish('install');
+    expect(await action).toBe(false);
+    dirty.value = false;
+    const closed = vm.installVariantWeapon('variant', 'WS2', 'test_weapon');
+    await flushPromises();
+    wrapper.unmount();
+    finish('install');
+    expect(await closed).toBe(false);
+    expect(vm.history.canUndo.value).toBe(false);
+  });
+  it('rejects a changed candidate source and late confirmation after picker cancellation', async () => {
+    const { entry } = weaponCatalog();
+    mocks.choose.mockResolvedValue('install');
+    mocks.catalog
+      .mockResolvedValueOnce({ catalog: { entries: [entry] } })
+      .mockResolvedValueOnce({ catalog: { entries: [{ ...entry, sourceVersion: { ...entry.sourceVersion, fingerprint: 'next' } }] } });
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.installVariantWeapon('variant', 'WS2', 'test_weapon')).toBe(false);
+    let finish!: (value: string) => void;
+    mocks.choose.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const action = vm.installVariantWeapon('variant', 'WS2', 'test_weapon');
+    await flushPromises();
+    vm.cancelVariantAction();
+    finish('install');
+    expect(await action).toBe(false);
+    expect(vm.history.canUndo.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('waits for manual missing-ID confirmation inside the active save input finalizer', async () => {
+    const { snapshot } = weaponCatalog();
+    mocks.choose.mockResolvedValue('install');
+    mocks.save.mockImplementation(async () => null);
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    let pending = true;
+    vm.joint.inputs.registerFinalizer(async () => {
+      if (!pending) return;
+      pending = false;
+      return vm.installVariantWeapon('variant', 'WS2', 'missing_weapon', true);
+    }, 'manual');
+    await vm.joint.saveDraft();
+    expect(mocks.choose.mock.calls[0]![0].content).toContain('武器目录来源缺失');
+    expect(mocks.save.mock.calls[0]![0].values.variant.value.weaponGroups).toMatchObject([{ weapons: { WS2: 'missing_weapon' } }]);
+    expect(snapshot.root.kind).toBe('variant');
+    wrapper.unmount();
+  });
+  function sharedVariant() {
+    const snapshot = variantJointFixture(),
+      root = snapshot.records.find((record) => record.key === 'variant')!;
+    root.value = { state: 'present', value: { ...jointObject(root.value), modules: { M: 'module', N: 'module' } } };
+    snapshot.variants.variant!.slots.push({ id: 'M', type: 'STATION_MODULE' }, { id: 'N', type: 'STATION_MODULE' });
+    snapshot.variants.variant!.modules = [
+      { slotId: 'M', variantKey: 'module' },
+      { slotId: 'N', variantKey: 'module' },
+    ];
+    const target = entityTargetFixture('variant', 'module');
+    snapshot.records.push({
+      ...structuredClone(root),
+      key: 'module',
+      target: { kind: 'spec', target },
+      source: target.write,
+      value: {
+        state: 'present',
+        value: { variantId: 'module', hullId: 'aurora', fluxVents: 8, fluxCapacitors: 3, hullMods: ['rangefinder'], weaponGroups: [] },
+      },
+    });
+    snapshot.variants.module = { ...structuredClone(snapshot.variants.variant!), variantKey: 'module', modules: [] };
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    return snapshot;
+  }
+  it('confirms the shared branch and records one history action for all records', async () => {
+    sharedVariant();
+    mocks.choose.mockResolvedValue('strip');
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.stripVariantBranch('variant')).toBe(true);
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { fluxCapacitors: 0, fluxVents: 0 } });
+    expect(vm.joint.draftValue.value.module).toMatchObject({ state: 'present', value: { fluxCapacitors: 0, fluxVents: 0, hullMods: [] } });
+    expect(mocks.choose.mock.calls[0]![0].content).toContain('2 个装配');
+    await vm.undo();
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
+    expect(jointObject(vm.joint.draftValue.value.variant).fluxCapacitors).toBe(4);
+    expect(vm.history.canUndo.value).toBe(false);
+    await vm.redo();
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(0);
+    wrapper.unmount();
+  });
+  it('preserves the draft when strip confirmation is cancelled', async () => {
+    sharedVariant();
+    mocks.choose.mockResolvedValue(null);
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.stripVariantBranch('variant')).toBe(false);
+    expect(jointObject(vm.joint.draftValue.value.variant).fluxCapacitors).toBe(4);
+    expect(vm.history.canUndo.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('creates explicit Core overrides before clearing and keeps one clearing history action', async () => {
+    const snapshot = sharedVariant();
+    const core = snapshot.records.find((record) => record.key === 'module')!;
+    core.source = { ...core.source!, source: 'core' };
+    mocks.choose.mockResolvedValue('strip');
+    mocks.save.mockImplementationOnce(async () => {
+      const after = structuredClone(snapshot);
+      after.records.find((record) => record.key === 'module')!.source = { ...core.source!, source: 'mod' };
+      return { ...savedWriteFixture(), refreshedEntity: after };
+    });
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.stripVariantBranch('variant')).toBe(true);
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(mocks.save.mock.calls[0]![3]).toEqual(['module']);
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(0);
+    await vm.undo();
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
+    wrapper.unmount();
+  });
+  it('keeps Core drafts when override creation is cancelled', async () => {
+    const snapshot = sharedVariant();
+    const core = snapshot.records.find((record) => record.key === 'module')!;
+    core.source = { ...core.source!, source: 'core' };
+    mocks.save.mockResolvedValueOnce(null);
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.stripVariantBranch('variant')).toBe(false);
+    expect(mocks.choose).not.toHaveBeenCalled();
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
+    wrapper.unmount();
+  });
+  it('clears a selected module branch and leaves its parent record intact', async () => {
+    sharedVariant();
+    mocks.choose.mockResolvedValue('strip');
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    expect(await vm.stripVariantBranch('module')).toBe(true);
+    expect(jointObject(vm.joint.draftValue.value.variant).fluxCapacitors).toBe(4);
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(0);
+    wrapper.unmount();
+  });
+  it('keeps newly typed raw input when confirmation finishes late', async () => {
+    sharedVariant();
+    let finish!: (value: string) => void;
+    mocks.choose.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    const action = vm.stripVariantBranch('variant');
+    await flushPromises();
+    const raw = ref(true);
+    vm.joint.inputs.register({
+      key: 'late-raw',
+      label: '数值',
+      dirty: raw,
+      commit: () => null,
+      cancel: () => {
+        raw.value = false;
+      },
+      focus: () => {},
+    });
+    finish('strip');
+    expect(await action).toBe(false);
+    expect(raw.value).toBe(true);
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
+    wrapper.unmount();
+  });
+  it('treats a second strip as an equal draft and preserves a single undo step', async () => {
+    sharedVariant();
+    mocks.choose.mockResolvedValue('strip');
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    await vm.stripVariantBranch('variant');
+    await vm.stripVariantBranch('variant');
+    await vm.undo();
+    expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
+    expect(vm.history.canUndo.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('keeps edits made during confirmation and rejects the captured clearing action', async () => {
+    sharedVariant();
+    let finish!: (value: string) => void;
+    mocks.choose.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    const action = vm.stripVariantBranch('variant');
+    await flushPromises();
+    await vm.updateVariant('module', (data) => ({ ...data, displayName: 'Later' }));
+    finish('strip');
+    expect(await action).toBe(false);
+    expect(jointObject(vm.joint.draftValue.value.module)).toMatchObject({ fluxVents: 8, displayName: 'Later' });
+    wrapper.unmount();
+  });
+  it('releases an unmounted strip request and ignores its late confirmation', async () => {
+    sharedVariant();
+    let finish!: (value: string) => void;
+    mocks.choose.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    const action = vm.stripVariantBranch('variant');
+    await flushPromises();
+    wrapper.unmount();
+    expect(await action).toBe(false);
+    finish('strip');
+    await flushPromises();
+    expect(vm.joint.currentTarget.value).toBeNull();
+    expect(vm.joint.draftValue.value).toEqual({});
+  });
+  it('follows module identity with stable fields, dirty data and draft history', async () => {
+    const snapshot = variantJointFixture(),
+      root = snapshot.records.find((record) => record.key === 'variant')!;
+    root.value = { state: 'present', value: { ...jointObject(root.value), modules: [{ M: 'module' }] } };
+    const target = entityTargetFixture('variant', 'module');
+    snapshot.records.push({
+      ...structuredClone(root),
+      key: 'module',
+      target: { kind: 'spec', target },
+      source: target.write,
+      value: { state: 'present', value: { variantId: 'module', hullId: 'aurora', displayName: 'Module', fluxVents: 0 } },
+    });
+    snapshot.variants.variant!.modules = [{ slotId: 'M', variantKey: 'module' }];
+    snapshot.variants.module = { ...structuredClone(snapshot.variants.variant!), variantKey: 'module', modules: [] };
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    await vm.updateVariant('module', (data) => ({ ...data, fluxVents: 7 }));
+    const next = structuredClone(snapshot),
+      record = next.records.find((item) => item.key === 'module')!;
+    record.key = 'next-module';
+    record.target = { kind: 'spec', target: entityTargetFixture('variant', 'module_new') };
+    record.value = { state: 'present', value: { ...jointObject(record.value), variantId: 'module_new' } };
+    next.records.find((item) => item.key === 'variant')!.value = {
+      state: 'present',
+      value: { ...jointObject(root.value), modules: [{ M: 'module_new' }] },
+    };
+    next.variants.variant!.modules = [{ slotId: 'M', variantKey: 'next-module' }];
+    next.variants['next-module'] = { ...next.variants.module!, variantKey: 'next-module' };
+    delete next.variants.module;
+    mocks.query.mockResolvedValue(next);
+    const receipt = { ...savedWriteFixture(), identityChanges: [{ before: target, after: entityTargetFixture('variant', 'module_new') }] };
+    await mocks.listen.mock.calls[0]![0]({ sessionId: 's', modRoot: 'M:/mod', result: receipt });
+    await flushPromises();
+    expect(vm.joint.draftValue.value['next-module']).toMatchObject({ state: 'present', value: { variantId: 'module_new', fluxVents: 7 } });
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { modules: [{ M: 'module_new' }] } });
+    expect(vm.panel.value?.kind === 'variant' && vm.panel.value.variants.find((item) => item.key === 'next-module')?.fields[3]?.id).toBe(
+      'variant/M/fluxVents',
+    );
+    await vm.undo();
+    expect(vm.joint.draftValue.value['next-module']).toMatchObject({ state: 'present', value: { variantId: 'module_new', fluxVents: 0 } });
+    wrapper.unmount();
+  });
+  function prepareVariant() {
+    const snapshot = variantJointFixture();
+    mocks.query.mockResolvedValue(snapshot);
+    mocks.projection.mockImplementation(async (draft) => structuredClone(draft.baseline));
+    return snapshot;
+  }
+  it('commits the active input before one variant action and preserves draft history', async () => {
+    prepareVariant();
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    const inputDirty = ref(true);
+    vm.joint.inputs.register({
+      key: 'pending-variant',
+      label: '名称',
+      dirty: inputDirty,
+      commit: () => {
+        vm.applyVariantAction('variant', (data) => ({ ...data, displayName: 'Submitted' }));
+        inputDirty.value = false;
+        return null;
+      },
+      cancel: () => {},
+      focus: () => {},
+    });
+    await vm.updateVariant('variant', (data) => ({ ...data, fluxCapacitors: 5 }));
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { displayName: 'Submitted', fluxCapacitors: 5 } });
+    await vm.undo();
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { displayName: 'Submitted', fluxCapacitors: 4 } });
+    await vm.redo();
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { fluxCapacitors: 5 } });
+    wrapper.unmount();
+  });
+  it('keeps invalid active raw input and its owner when an action is requested', async () => {
+    prepareVariant();
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    vm.joint.inputs.register({
+      key: 'invalid-variant',
+      label: '幅能容器',
+      dirty: ref(true),
+      commit: () => '请输入完整整数',
+      cancel: () => {},
+      focus: () => {},
+    });
+    expect(await vm.updateVariant('variant', (data) => ({ ...data, fluxCapacitors: 9 }))).toBe(false);
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { fluxCapacitors: 4 } });
+    expect(vm.joint.inputs.dirty.value).toBe(true);
+    expect(mocks.error).toHaveBeenCalled();
+    wrapper.unmount();
+  });
+  it('keeps concurrent post-submit variant fields while accepting the receipt', async () => {
+    const snapshot = prepareVariant();
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    await vm.updateVariant('variant', (data) => ({ ...data, fluxCapacitors: 5 }));
+    let finish!: (value: unknown) => void;
+    mocks.save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saving = vm.save();
+    await flushPromises();
+    await vm.updateVariant('variant', (data) => ({ ...data, displayName: 'Later' }));
+    const after = structuredClone(snapshot);
+    after.records.find((record) => record.key === 'variant')!.value = {
+      state: 'present',
+      value: { ...jointObject(snapshot.records.find((record) => record.key === 'variant')!.value), fluxCapacitors: 5 },
+    };
+    finish({ ...savedWriteFixture(), refreshedEntity: after });
+    await saving;
+    expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { displayName: 'Later', fluxCapacitors: 5 } });
+    expect(vm.joint.dirty.value).toBe(true);
+    wrapper.unmount();
+  });
 });
 
 describe('wing joint source handoff', () => {

@@ -1,19 +1,21 @@
 <template>
   <ImmersiveStatRow
+    v-if="render.mode === 'editable'"
     :stat="stat"
-    :editable="!vm.referenceChanging.value && stat.fields.every(vm.editable)"
-    :active="vm.selectedStatId.value === stat.id"
-    :values="vm.joint.draftValue.value"
-    :snapshot="vm.snapshot.value!"
-    :runtime-context="vm.runtimeContext.value"
-    @toggle="vm.toggleStat(stat.id, $event)"
-    @dismiss="vm.dismissStat"
-    @update="vm.updateFields"
+    :editable="!render.editing.changing && stat.fields.every(render.editing.editable)"
+    :active="render.editing.activeStat === stat.id"
+    :values="render.editing.values"
+    :snapshot="render.editing.snapshot"
+    :runtime-context="render.editing.runtimeContext"
+    @toggle="render.editing.toggle(stat.id, $event)"
+    @dismiss="render.editing.dismiss"
+    @update="render.editing.update"
   />
+  <ImmersiveStatRow v-else :stat="stat" :editable="false" :active="false" />
 </template>
 <script setup lang="ts">
 import type { ImmersiveStat } from '@/domain/immersive/fields';
-import type { useImmersiveEditorViewModel } from '@/app/composables/use-immersive-editor-view-model';
+import type { ImmersiveRenderContext } from './immersive-render-context';
 import ImmersiveStatRow from './ImmersiveStatRow.vue';
-defineProps<{ stat: ImmersiveStat; vm: ReturnType<typeof useImmersiveEditorViewModel> }>();
+defineProps<{ stat: ImmersiveStat; render: ImmersiveRenderContext }>();
 </script>

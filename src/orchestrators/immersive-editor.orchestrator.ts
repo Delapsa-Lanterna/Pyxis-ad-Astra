@@ -49,3 +49,8 @@ export async function retargetImmersiveWindow(snapshot: JointEditSnapshot): Prom
   await retargetNativeWindow(identity, immersiveWindowTitle(snapshot.root));
   publishCurrentWindowIdentity(identity);
 }
+export async function openVariantImmersiveEditor(root: JointEditRoot, settings: AppSettings, feedback: AppFeedback): Promise<void> {
+  if (await focusNativeManagedWindow({ type: 'immersive', ...root })) return;
+  const snapshot = await openJointEditSnapshot(root, feedback, undefined, immersiveEditableRecords);
+  if (snapshot) await openImmersiveEditorWindow(snapshot.root, settings);
+}

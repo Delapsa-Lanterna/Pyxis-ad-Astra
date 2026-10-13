@@ -4,22 +4,29 @@
     <n-popover
       ref="popover"
       v-if="editable && stat.fields.length"
-      trigger="click"
+      trigger="manual"
       placement="bottom-end"
       display-directive="if"
       :show="active"
+      :to="trigger?.closest<HTMLElement>('[role=dialog]')"
       @update:show="$emit('toggle', $event)"
       :show-arrow="false"
     >
       <template #trigger
-        ><button ref="trigger" type="button" class="immersive-stat-value" :title="stat.diagnostic || stat.formula || '点击编辑来源参数'">
+        ><button
+          ref="trigger"
+          type="button"
+          class="immersive-stat-value"
+          :title="stat.diagnostic || stat.formula || '点击编辑来源参数'"
+          @click="$emit('toggle', !active)"
+        >
           <ImmersiveText :text="stat.display" :runs="stat.displayRuns" :font="stat.font" /></button
       ></template>
       <ImmersiveFieldPopover
         :stat="stat"
-        :values="values"
-        :snapshot="snapshot"
-        :runtime-context="runtimeContext"
+        :values="values!"
+        :snapshot="snapshot!"
+        :runtime-context="runtimeContext!"
         :active="active"
         @update="$emit('update', $event)"
         @close="$emit('dismiss')"
@@ -41,9 +48,9 @@ const props = defineProps<{
   stat: ImmersiveStat;
   editable: boolean;
   active: boolean;
-  values: Record<string, JointValue>;
-  snapshot: JointEditSnapshot;
-  runtimeContext: SchemaRuntimeContext;
+  values?: Record<string, JointValue>;
+  snapshot?: JointEditSnapshot;
+  runtimeContext?: SchemaRuntimeContext;
 }>();
 const trigger = ref<HTMLButtonElement | null>(null),
   popover = ref<{ syncPosition: () => void } | null>(null);

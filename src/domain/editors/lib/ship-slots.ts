@@ -1,4 +1,5 @@
-import { num, str } from '@/shared/lib/starsector';
+import { snapToStep } from './editor-constants';
+import { arr, num, str } from '@/shared/lib/starsector';
 import type { RowData } from '@/shared/types';
 
 /// Canonical default fill for a weapon slot copied/created on the canvas;
@@ -92,4 +93,28 @@ export function nextFormattedId(used: ReadonlySet<string>, format: (index: numbe
     if (!used.has(id)) return id;
   }
   return format(scanLimit + 1);
+}
+
+export function shiftRelativePosition(value: RowData[string] | undefined, dxAbsolute: number, dyAbsolute: number) {
+  // Multi-port launch bays keep every coordinate pair in `locations`; only an
+  // odd trailing number is dropped.
+  const source = Array.isArray(value) ? value : [];
+  const shifted: number[] = [];
+  for (let index = 0; index + 1 < source.length; index += 2) {
+    shifted.push(snapToStep((Number(source[index]) || 0) - dyAbsolute), snapToStep((Number(source[index + 1]) || 0) + dxAbsolute));
+  }
+  if (!shifted.length) return [snapToStep(-dyAbsolute), snapToStep(dxAbsolute)];
+  return shifted;
+}
+export function shipEngineSize(point: number[], engine: RowData) {
+  const origin = arr(engine.location, [0, 0]);
+  const angle = (num(engine.angle, 0) * Math.PI) / 180;
+  const dx = (point[0] || 0) - (origin[0] || 0);
+  const dy = (point[1] || 0) - (origin[1] || 0);
+  const along = dx * Math.cos(angle) + dy * Math.sin(angle);
+  const across = -dx * Math.sin(angle) + dy * Math.cos(angle);
+  return {
+    length: Math.max(8, Math.round(Math.abs(along)) || num(engine.length, 20)),
+    width: Math.max(4, Math.round(Math.abs(across) * 2) || num(engine.width, 10)),
+  };
 }

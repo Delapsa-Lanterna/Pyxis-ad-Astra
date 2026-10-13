@@ -9,6 +9,8 @@ import type { RowData, SavedConfig, WriteResult } from '@/shared/types';
 import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { queryBuiltInWeaponSlotOptions } from '@/services/hull-reference.service';
 import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { useSettingsStore } from '@/stores/settings.store';
+import { openVariantImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 
 export function useConfigFamilyEditorViewModel(params: {
   family: ConfigEntityFamilyDefinition;
@@ -24,6 +26,18 @@ export function useConfigFamilyEditorViewModel(params: {
 }) {
   const adoptedCommits = new Set<number>();
   const feedback = useAppFeedback();
+  async function openImmersive() {
+    const target = draftSession.currentTarget.value!;
+    try {
+      await openVariantImmersiveEditor(
+        { sessionId: target.sessionId, modRoot: target.modRoot, kind: family.immersiveKind!, id: target.id },
+        useSettingsStore().settingsSnapshot(),
+        feedback,
+      );
+    } catch (error) {
+      feedback.error(error, '打开装配沉浸式编辑器失败');
+    }
+  }
   function editTarget(id: string): ConfigEditTarget {
     return {
       sessionId: params.sessionId.value!,
@@ -166,6 +180,7 @@ export function useConfigFamilyEditorViewModel(params: {
     hasPendingExternalData: draftSession.hasPendingExternalValue,
     loadPendingExternalData: draftSession.loadPendingExternal,
     save,
+    openImmersive,
     saving: draftSession.saving,
     handoffLocked: draftSession.handoffLocked,
     selectedFile,

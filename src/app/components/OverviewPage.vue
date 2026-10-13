@@ -5,7 +5,7 @@
         <h1>工作区总览</h1>
         <p class="overview-subtitle">{{ subtitle }}</p>
       </div>
-      <n-button v-if="!workspace.gameOverview" size="small" type="primary" @click="beginCreateMod">创建新 Mod</n-button>
+      <n-button v-if="!workspace.gameOverview" size="small" @click="beginCreateMod">创建新 Mod</n-button>
     </header>
 
     <GameOverviewPanel
@@ -27,7 +27,7 @@
         <h1>选择一个 Starsector / Mod 目录</h1>
         <p>可以打开游戏目录，也可以直接打开一个 Mod 目录。</p>
         <div class="overview-empty-actions">
-          <n-button type="primary" size="large" @click="beginCreateMod">创建新 Mod</n-button>
+          <n-button size="large" @click="beginCreateMod">创建新 Mod</n-button>
           <n-button size="large" @click="$emit('import-mod')">打开目录</n-button>
         </div>
       </section>

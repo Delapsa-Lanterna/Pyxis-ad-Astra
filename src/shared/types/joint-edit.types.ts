@@ -16,6 +16,44 @@ export interface JointEditQuery {
   rowKey: string | null;
   values: Record<string, JointValue> | null;
   newSources: JointSourceCreate[];
+  catalog: JointVariantCatalogKind | null;
+}
+export type JointVariantCatalogKind = 'weapons' | 'wings' | 'hullmods';
+export interface JointVariantEntry {
+  id: string;
+  label: string;
+  data: JsonValue;
+  spec: JsonValue | null;
+  specSource: EntityFileLocation | null;
+  specVersion: FileVersion | null;
+  source: EntityFileLocation;
+  sourceVersion: FileVersion;
+  resourceRefs: Record<string, ResourceRef>;
+  preview: JointVariantPreview | null;
+  projectile: JointPreviewSpec | null;
+  primaryRole: string | null;
+}
+export interface JointPreviewSpec {
+  kind: import('./query.types').EntityKind;
+  id: string;
+  data: JsonValue;
+  resourceRefs: Record<string, ResourceRef>;
+  source: EntityFileLocation | null;
+  sourceVersion: FileVersion | null;
+}
+export interface JointVariantPreview {
+  hull: JointHullProjection;
+  spec: JsonValue;
+  specs: JointPreviewSpec[];
+}
+export interface JointVariantCatalogRead {
+  root: JointEditRoot;
+  referenceSettings: JointEditSnapshot['referenceSettings'];
+  catalog: JointVariantCatalog;
+}
+export interface JointVariantCatalog {
+  kind: JointVariantCatalogKind;
+  entries: JointVariantEntry[];
 }
 export interface JointSourceCreate {
   kind: 'ship' | 'skin' | 'variant';
@@ -44,11 +82,13 @@ export interface JointEditRecord {
 export interface JointEditSnapshot {
   root: JointEditRoot;
   bindings: Record<string, string>;
-  referenceSettings: { values: Record<string, JsonValue>; versions: FileVersion[] };
+  referenceSettings: { values: Record<string, JsonValue>; versions: FileVersion[]; resources: Record<string, ResourceRef> };
   records: JointEditRecord[];
   baseVersions: FileVersion[];
   hull: JointHullProjection | null;
   newSources: JointSourceCreate[];
+  variants: Record<string, JointHullProjection>;
+  catalog: JointVariantCatalog | null;
 }
 export interface JointFieldBinding {
   recordKey: string;
@@ -59,8 +99,14 @@ export interface JointHullProjection {
   hullKey: string;
   skinKeys: string[];
   fields: Record<string, JointFieldBinding>;
+  displayBindings: Record<string, string>;
   weapons: Record<string, string>;
   sprite: ResourceRef | null;
+  slots: JsonValue[];
+  builtInWeapons: Record<string, string>;
+  builtInMods: string[];
+  builtInWings: string[];
+  modules: Array<{ slotId: string; variantKey: string }>;
 }
 export interface JointEditDraft {
   baseline: JointEditSnapshot;

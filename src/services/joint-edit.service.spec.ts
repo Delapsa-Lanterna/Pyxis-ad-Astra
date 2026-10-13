@@ -1,6 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { queryJointEdit, queryJointEditRow, queryJointEditProjection, prepareJointEdit, saveJointEdit } from './joint-edit.service';
-import { invalidateQueryCacheForSession } from './query-cache.service';
+import {
+  queryJointEdit,
+  queryJointEditRow,
+  queryJointEditProjection,
+  queryJointCandidate,
+  queryJointVariantCatalog,
+  prepareJointEdit,
+  saveJointEdit,
+} from './joint-edit.service';
+import {
+  invalidateQueryCacheForSession,
+  invalidateQueryCacheByProject,
+  hasQueryInvalidation,
+  subscribeQueryInvalidations,
+} from './query-cache.service';
 import type { JointEditSnapshot } from '@/shared/types';
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
@@ -8,10 +21,12 @@ const root = { sessionId: 'joint-service', modRoot: 'M:/mod', kind: 'ship' as co
 const snapshot: JointEditSnapshot = {
   root,
   bindings: {},
-  referenceSettings: { values: {}, versions: [] },
+  referenceSettings: { values: {}, versions: [], resources: {} },
   records: [],
   baseVersions: [],
   hull: null,
+  variants: {},
+  catalog: null,
   newSources: [],
 };
 beforeEach(() => {
@@ -19,20 +34,47 @@ beforeEach(() => {
   invalidateQueryCacheForSession(root.sessionId);
 });
 describe('joint edit capability protocols', () => {
+  it('reuses catalog reads and refreshes after project changes', async () => {
+    const read = { root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'weapons', entries: [] } };
+    invoke.mockResolvedValue(read);
+    await Promise.all([queryJointVariantCatalog(root, 'weapons'), queryJointVariantCatalog(root, 'weapons')]);
+    await queryJointVariantCatalog(root, 'weapons');
+    expect(invoke).toHaveBeenCalledTimes(1);
+    let refreshed = false;
+    const stop = subscribeQueryInvalidations((event) => {
+      refreshed = hasQueryInvalidation(event, 'joint-edit-catalog');
+    });
+    invalidateQueryCacheByProject(root.sessionId, {
+      paths: ['data/weapons/weapon_data.csv'],
+      tables: [],
+      entities: [],
+      resources: [],
+      queryScopes: [],
+      session: false,
+    });
+    await queryJointVariantCatalog(root, 'weapons');
+    expect(refreshed).toBe(true);
+    stop();
+    expect(invoke).toHaveBeenCalledTimes(2);
+    await queryJointVariantCatalog(root, 'wings');
+    expect(invoke).toHaveBeenCalledTimes(3);
+  });
   it('carries persisted row identity and independent draft projection inputs', async () => {
     invoke.mockResolvedValue(snapshot);
     await queryJointEditRow(root, 'ships:row:2');
     expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', {
-      payload: { root: { ...root, id: '' }, rowKey: 'ships:row:2', values: null, newSources: [] },
+      payload: { root: { ...root, id: '' }, rowKey: 'ships:row:2', values: null, newSources: [], catalog: null },
     });
     const values = { csv: { state: 'present' as const, value: { 'system id': 'next' } } };
     await queryJointEditProjection({ baseline: snapshot, values });
-    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values, newSources: [] } });
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values, newSources: [], catalog: null } });
   });
   it('maps query, preparation and submission to their formal payloads', async () => {
     invoke.mockResolvedValue(snapshot);
     await expect(queryJointEdit(root)).resolves.toEqual(snapshot);
-    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', { payload: { root, rowKey: null, values: null, newSources: [] } });
+    expect(invoke).toHaveBeenLastCalledWith('query_joint_edit', {
+      payload: { root, rowKey: null, values: null, newSources: [], catalog: null },
+    });
     const draft = { baseline: snapshot, values: {} };
     invoke.mockResolvedValue({ snapshot, values: {}, conflicts: [] });
     await prepareJointEdit(draft);
@@ -47,6 +89,15 @@ describe('joint edit capability protocols', () => {
     invoke.mockResolvedValue({ refreshedEntity: snapshot });
     await saveJointEdit(payload);
     expect(invoke).toHaveBeenLastCalledWith('save_joint_edit', { payload });
+  });
+  it('shares read-only candidate snapshots and invalidates them with the session', async () => {
+    invoke.mockResolvedValue(snapshot);
+    await Promise.all([queryJointCandidate(root), queryJointCandidate(root)]);
+    await queryJointCandidate(root);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    invalidateQueryCacheForSession(root.sessionId);
+    await queryJointCandidate(root);
+    expect(invoke).toHaveBeenCalledTimes(2);
   });
   it('immediately ends invalidated live reads and retains the command error cause', async () => {
     let finish!: (value: JointEditSnapshot) => void;

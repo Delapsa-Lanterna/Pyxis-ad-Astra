@@ -93,6 +93,8 @@ const cases = [
     'querySessionHullReferences',
   ],
   ['wing-joint-query', 'src/app/composables/use-immersive-editor-view-model.ts', 'src/services/joint-edit.service.ts', 'queryJointEditRow'],
+  ['variant-catalog-query', 'src/app/composables/use-variant-catalog.ts', 'src/services/joint-edit.service.ts', 'queryJointVariantCatalog'],
+  ['variant-candidate-query', 'src/app/composables/use-variant-candidate.ts', 'src/services/joint-edit.service.ts', 'queryJointEdit'],
   [
     'resource-reference',
     'src/app/composables/editors/use-resource-reference.ts',

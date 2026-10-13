@@ -36,6 +36,41 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             ));
         }
     }
+    let mut values = payload.values.clone();
+    let renames = current
+        .records
+        .iter()
+        .filter_map(|record| match (&record.target, values.get(&record.key)) {
+            (JointRecordTarget::Spec { target }, Some(JointValue::Present(data)))
+                if target.kind == EntityKind::Variant =>
+            {
+                data.get("variantId")
+                    .and_then(Value::as_str)
+                    .filter(|id| *id != target.id)
+                    .map(|id| (target.id.clone(), id.to_string()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for record in &current.records {
+        if !matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant && record.source.as_ref().is_some_and(|source| source.source == ResourceSource::Mod))
+        {
+            continue;
+        }
+        let mut value = values
+            .get(&record.key)
+            .cloned()
+            .unwrap_or_else(|| record.value.clone());
+        if let JointValue::Present(data) = &mut value {
+            let mut changed = false;
+            for (previous, next) in &renames {
+                changed |= crate::domain::joint_hull::rename_module_reference(data, previous, next);
+            }
+            if changed {
+                values.insert(record.key.clone(), value);
+            }
+        }
+    }
     let supplied = payload
         .snapshot
         .records
@@ -62,7 +97,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     let mut records = current.records.iter().collect::<Vec<_>>();
     records.sort_by_key(|record| !matches!(record.target, JointRecordTarget::Spec { .. }));
     for record in records {
-        let Some(value) = payload.values.get(&record.key) else {
+        let Some(value) = values.get(&record.key) else {
             continue;
         };
         let Some(before) = supplied.get(&record.key) else {
@@ -591,13 +626,37 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         };
         let changed = current.hull.is_none()
             || referenced(&current, key, "hullId") != referenced(&saved, key, "hullId")
-            || referenced(&current, &current.bindings["csv"], "variant")
-                != referenced(&saved, &saved.bindings["csv"], "variant");
+            || (current.root.kind == JointEditKind::Wing
+                && referenced(&current, &current.bindings["csv"], "variant")
+                    != referenced(&saved, &saved.bindings["csv"], "variant"));
         saved.hull = if changed {
             None
         } else {
             crate::domain::joint_hull::project_joint_hull(&saved.records, key)?
         };
+    }
+    if saved.root.kind == JointEditKind::Variant {
+        saved.variants.clear();
+        for record in &saved.records {
+            let previous_key = identities.iter().find(|identity| matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == identity.after.kind && target.id == identity.after.id)).map(|identity| serde_json::to_string(&("spec", identity.before.kind, &identity.before.id))).transpose()?.unwrap_or_else(|| record.key.clone());
+            if matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant)
+                && current.variants.contains_key(&previous_key)
+                && current
+                    .records
+                    .iter()
+                    .find(|before| before.key == previous_key)
+                    .is_some_and(|before| match (&before.value, &record.value) {
+                        (JointValue::Present(old), JointValue::Present(next)) => {
+                            old.get("hullId") == next.get("hullId")
+                        }
+                        _ => false,
+                    })
+                && let Some(hull) =
+                    crate::domain::joint_hull::project_joint_hull(&saved.records, &record.key)?
+            {
+                saved.variants.insert(record.key.clone(), hull);
+            }
+        }
     }
     let mut result = WriteResult::new(changes, key_map, Some(saved));
     result.identity_changes = identities;

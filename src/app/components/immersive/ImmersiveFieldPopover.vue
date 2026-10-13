@@ -37,7 +37,7 @@ const props = defineProps<{
   runtimeContext: SchemaRuntimeContext;
   active: boolean;
 }>();
-const emit = defineEmits<{ update: [changes: ImmersiveFieldChange[]]; close: [] }>();
+const emit = defineEmits<{ update: [changes: ImmersiveFieldChange[]]; submitted: []; close: [] }>();
 const inputs = useFieldInputs()!;
 const feedback = useAppFeedback();
 const prefix = JSON.stringify(['immersive', props.stat.id]);
@@ -70,7 +70,10 @@ function sourcePath(key: string) {
 async function submit() {
   try {
     const accepted = await inputs.commit(prefix);
-    if (accepted !== false) emit('close');
+    if (accepted !== false) {
+      emit('submitted');
+      emit('close');
+    }
   } catch (error) {
     feedback.error(error);
   }

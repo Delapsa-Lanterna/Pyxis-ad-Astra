@@ -12,6 +12,7 @@ export function installCanvas2DStub(): void {
       canvas: { width: 300, height: 150 },
       createLinearGradient: () => ({ addColorStop: () => {} }),
       measureText: () => ({ width: 0 }),
+      getImageData: () => ({ data: new Uint8ClampedArray(0) }),
     },
     {
       get(target, property) {

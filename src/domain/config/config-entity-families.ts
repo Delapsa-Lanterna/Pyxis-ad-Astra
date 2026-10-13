@@ -22,6 +22,7 @@ export interface ConfigEntityFamilyDefinition {
   listIconPaths: string[];
   mediaSurface: string;
   usesHullNames: boolean;
+  immersiveKind?: 'variant';
 }
 
 export type { ConfigFamilyFile } from '@/shared/types';
@@ -47,6 +48,7 @@ export function compareFamilyFiles(family: ConfigEntityFamilyDefinition, left: C
 }
 
 export const variantFamily: ConfigEntityFamilyDefinition = {
+  immersiveKind: 'variant',
   id: 'variant',
   displayName: '装配',
   schemaId: 'variant',

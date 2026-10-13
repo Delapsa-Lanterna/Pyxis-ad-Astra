@@ -16,6 +16,8 @@ export type DeepReadonly<T> = [JsonValue] extends [T]
     : T;
 
 export interface QueryParameters {
+  'joint-edit-catalog': import('./joint-edit.types').JointEditQuery;
+  'joint-edit-candidate': import('./joint-edit.types').JointEditQuery;
   'joint-edit': import('./joint-edit.types').JointEditQuery;
   'joint-edit-projection': import('./joint-edit.types').JointEditQuery;
   'joint-edit-prepare': import('./joint-edit.types').JointEditDraft;
@@ -32,6 +34,8 @@ export interface QueryParameters {
 }
 
 export interface QueryResults {
+  'joint-edit-catalog': import('./joint-edit.types').JointVariantCatalogRead;
+  'joint-edit-candidate': import('./joint-edit.types').JointEditSnapshot;
   'joint-edit': import('./joint-edit.types').JointEditSnapshot;
   'joint-edit-projection': import('./joint-edit.types').JointEditSnapshot;
   'joint-edit-prepare': import('./joint-edit.types').JointEditPrepared;

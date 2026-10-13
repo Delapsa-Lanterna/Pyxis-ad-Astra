@@ -8,9 +8,18 @@ import {
   weaponAnglesKey,
   weaponBarrelOffsetsFor,
   weaponOffsetsKey,
+  weaponSpriteDrawOrder,
 } from './weapon-sprite-fields';
 
 describe('weapon sprite field registry', () => {
+  it.each(['turret', 'hardpoint'] as const)('orders %s layers using the barrel rendering hint', (mode) => {
+    expect(weaponSpriteDrawOrder({}, mode)).toEqual([mode + 'UnderSprite', mode + 'Sprite', mode + 'GunSprite']);
+    expect(weaponSpriteDrawOrder({ renderHints: ['RENDER_BARREL_BELOW'] }, mode)).toEqual([
+      mode + 'UnderSprite',
+      mode + 'GunSprite',
+      mode + 'Sprite',
+    ]);
+  });
   it('maps view modes to the canonical offset/angle keys', () => {
     expect(weaponOffsetsKey('turret')).toBe('turretOffsets');
     expect(weaponOffsetsKey('hardpoint')).toBe('hardpointOffsets');

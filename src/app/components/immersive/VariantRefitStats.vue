@@ -1,0 +1,164 @@
+<template>
+  <aside ref="surface" class="variant-refit-stats">
+    <div class="variant-op-display">
+      <VariantShipInfo
+        :variant="variant"
+        :snapshot="vm.displaySnapshot.value!"
+        :values="vm.joint.draftValue.value"
+        :root="vm.joint.currentTarget.value!"
+      />
+      <div class="variant-op-budget" :style="{ background: VARIANT_COLORS.opTrack }" title="已使用／总装配点 · 基础配置口径">
+        <div class="variant-op-fill" aria-hidden="true">
+          <span :style="{ width: opSegments.within * 100 + '%', background: VARIANT_COLORS.opGradient }" />
+          <span :style="{ width: opSegments.overflow * 100 + '%', background: VARIANT_COLORS.opOverflow }" />
+        </div>
+        <ImmersiveText
+          :text="formatVariantNumber(variant.opUsed) + ' / ' + formatVariantNumber(variant.opTotal)"
+          font="ship-title"
+          ink-aligned
+          outlined
+        />
+      </div>
+    </div>
+    <div class="variant-stat-stack">
+      <div class="variant-base-stats">
+        <div v-for="stat in variant.stats.slice(0, 3)" :key="stat.id" class="variant-stat-cell" :title="stat.formula">
+          <ImmersiveText :text="stat.label" font="caption" /><ImmersiveText
+            :text="stat.display"
+            :runs="stat.displayRuns"
+            font="ship-title"
+          />
+        </div>
+      </div>
+      <div v-for="(field, index) in ['fluxCapacitors', 'fluxVents']" :key="field" class="variant-flux-row">
+        <div class="variant-flux-controls">
+          <ImmersiveText :text="index ? '耗散器' : '容器'" font="ship-title" ink-aligned />
+          <button
+            class="variant-step"
+            :disabled="!variant.editable || (index ? variant.vents : variant.capacitors) <= 0"
+            :aria-label="index ? '减少耗散器' : '减少容器'"
+            @click="$emit('step', field, -1)"
+          >
+            <ImmersiveText text="−" font="op" />
+          </button>
+          <ImmersivePanelRow :stat="variant.fields[index + 2]!" :render="render" />
+          <button
+            class="variant-step"
+            :disabled="!variant.editable"
+            :aria-label="index ? '增加耗散器' : '增加容器'"
+            @click="$emit('step', field, 1)"
+          >
+            <ImmersiveText text="+" font="op" />
+          </button>
+        </div>
+        <div class="variant-stat-cell">
+          <ImmersiveText :text="index ? '幅能耗散' : '幅能容量'" font="caption" />
+          <ImmersiveText
+            :text="formatVariantNumber(index ? variant.dissipation : variant.capacity)"
+            :runs="[
+              {
+                text: formatVariantNumber(index ? variant.dissipation : variant.capacity),
+                color: (index ? variant.vents : variant.capacitors) > 0 ? VARIANT_COLORS.positive : VARIANT_COLORS.value,
+              },
+            ]"
+            font="ship-title"
+          />
+        </div>
+      </div>
+      <div class="variant-defense-stats">
+        <div v-for="stat in variant.stats.slice(5)" :key="stat.id" class="variant-stat-cell" :title="stat.formula">
+          <ImmersiveText :text="stat.label" font="caption" /><ImmersiveText
+            :text="stat.display"
+            :runs="stat.displayRuns"
+            font="ship-title"
+          />
+        </div>
+      </div>
+    </div>
+    <section class="variant-mod-widget">
+      <ImmersiveText text="舰体特性与插件" font="ship-title" />
+      <div class="variant-mod-list">
+        <div v-for="mod in variant.mods" :key="mod.id" :ref="media.mediaRef(mod.id, mod.icon)" class="variant-mod-row">
+          <n-popover
+            trigger="click"
+            placement="left"
+            :disabled="!variant.editable"
+            :show-arrow="false"
+            :to="surface?.closest<HTMLElement>('[role=dialog]')"
+          >
+            <template #trigger
+              ><button class="variant-mod-name" :title="categoryLabel(mod.category) + (mod.strengthened ? ' · S强化' : '')">
+                <ImmersiveText
+                  :text="mod.name"
+                  :runs="[{ text: mod.name, color: mod.category === 's' || mod.strengthened ? '#cc99ff' : undefined }]"
+                  ink-aligned
+                /></button
+            ></template>
+            <div class="variant-mod-edit">
+              <ImmersiveText :text="mod.id + ' · ' + categoryLabel(mod.category) + (mod.strengthened ? ' · S强化' : '')" block />
+              <n-select
+                v-if="mod.category !== 'builtin'"
+                :value="mod.category"
+                :options="categories"
+                @update:value="$emit('mod', mod.id, $event)"
+              />
+              <ImmersiveText :text="variant.source" font="caption" block />
+            </div>
+          </n-popover>
+          <ImmersiveText
+            v-if="mod.category === 'normal'"
+            :text="formatVariantNumber(mod.cost)"
+            :runs="[{ text: formatVariantNumber(mod.cost), color: VARIANT_COLORS.value }]"
+            font="ship-title"
+          />
+          <button
+            v-if="mod.category !== 'builtin'"
+            class="variant-step"
+            :disabled="!variant.editable"
+            :aria-label="'卸下 ' + mod.name"
+            @click="$emit('mod', mod.id, null)"
+          >
+            <ImmersiveText text="−" font="refit-button" />
+          </button>
+          <img v-if="media.mediaSrc(mod.icon)" :src="media.mediaSrc(mod.icon)" :alt="mod.name" />
+        </div>
+      </div>
+      <button ref="pickerButton" class="variant-add-mod" :disabled="!variant.editable" @click="$emit('picker')">
+        <ImmersiveText :text="pickerOpen ? '返回' : '添加'" font="picker-title" ink-aligned />
+      </button>
+    </section>
+  </aside>
+</template>
+<script setup lang="ts">
+import { computed, ref, onMounted } from 'vue';
+import type { VariantProjection } from '@/domain/immersive/variant-panel';
+import { formatVariantNumber, variantOpSegments } from '@/domain/immersive/variant-panel';
+import { VARIANT_COLORS } from '@/domain/immersive/appearance';
+import type { HullmodCategory } from '@/domain/immersive/variant-actions';
+import type { useImmersiveEditorViewModel } from '@/app/composables/use-immersive-editor-view-model';
+import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
+import ImmersiveText from './ImmersiveText.vue';
+import ImmersivePanelRow from './ImmersivePanelRow.vue';
+import { editableRenderContext } from './immersive-render-context';
+import VariantShipInfo from './VariantShipInfo.vue';
+const props = defineProps<{ variant: VariantProjection; vm: ReturnType<typeof useImmersiveEditorViewModel>; pickerOpen: boolean }>();
+const render = editableRenderContext(props.vm);
+const pickerButton = ref<HTMLButtonElement | null>(null);
+const surface = ref<HTMLElement | null>(null);
+defineExpose({ focusPicker: () => pickerButton.value!.focus({ preventScroll: true }) });
+const opSegments = computed(() => variantOpSegments(props.variant.opUsed, props.variant.opTotal));
+defineEmits<{ picker: []; step: [field: string, delta: number]; mod: [id: string, category: HullmodCategory | null] }>();
+const media = useVisibleResourceMedia({
+  sessionId: () => props.vm.joint.currentTarget.value?.sessionId,
+  surface: '装配插件',
+  failureLabel: '装配插件图标读取失败',
+});
+onMounted(() => media.setMediaRoot(surface.value));
+const categories = [
+  { label: '普通', value: 'normal' },
+  { label: '永久', value: 'permanent' },
+  { label: 'S 插件', value: 's' },
+];
+const categoryLabel = (category: string) =>
+  ({ normal: '普通', permanent: '永久', s: 'S 插件', builtin: '内置' })[category as HullmodCategory | 'builtin'];
+</script>

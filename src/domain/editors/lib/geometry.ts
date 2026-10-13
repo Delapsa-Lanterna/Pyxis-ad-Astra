@@ -1,6 +1,20 @@
 /// Ship-canvas geometry helpers: angles are degrees with 0° = +X and the
 /// ship coordinate system flipped on Y (screen y grows downward).
 
+import type { Point } from '@/domain/editors/editor-types';
+
+export function shipCanvasPoint(loc: number[], origin: Point, scale: number): Point {
+  return { x: origin.x + (loc[1] || 0) * scale, y: origin.y + (loc[0] || 0) * scale };
+}
+
+export function shipPointFromCanvas(point: Point, origin: Point, scale: number): [number, number] {
+  return [(point.y - origin.y) / scale, (point.x - origin.x) / scale];
+}
+
+export function shipRelativeToAbsolute(loc: number[], center: number[]): [number, number] {
+  return [(center[0] || 0) - (loc[1] || 0), (center[1] || 0) + (loc[0] || 0)];
+}
+
 export function roundDegree(value: number): number {
   return Math.round(value);
 }
@@ -53,4 +67,25 @@ export function distanceToSegment(point: number[], a: number[], b: number[]): nu
   if (lengthSquared === 0) return Math.hypot(px - ax, py - ay);
   const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared));
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+export function shipAbsoluteToRelative(loc: number[], center: number[]): [number, number] {
+  return [(loc[1] || 0) - (center[1] || 0), (center[0] || 0) - (loc[0] || 0)];
+}
+export function nearestBoundsSegment(bounds: readonly number[], point: number[]): number {
+  const count = Math.floor(bounds.length / 2);
+  if (count < 2) return count - 1;
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < count; i++) {
+    const a = [bounds[i * 2] ?? 0, bounds[i * 2 + 1] ?? 0];
+    const next = (i + 1) % count;
+    const b = [bounds[next * 2] ?? 0, bounds[next * 2 + 1] ?? 0];
+    const d = distanceToSegment(point, a, b);
+    if (d < bestDistance) {
+      bestDistance = d;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
 }

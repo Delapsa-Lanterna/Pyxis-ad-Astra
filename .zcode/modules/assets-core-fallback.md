@@ -2,7 +2,7 @@
 
 ## 定义
 
-资源与原版回退系统在 Rust 路径边界内解析 `ResourceRef`、批量提供 data URL，并处理 Mod/Core 资源与引用路径解析。
+资源与原版回退模块解析授权资源引用，并为界面提供 Mod 与 Core 媒体。
 
 ## 参考
 
@@ -22,24 +22,24 @@
 `src/services/resource-cache.service.ts`：前端资源缓存 service owner。
 `src/services/resource-media.service.ts`：通用媒体服务 owner，资源缓存之上的响应式投影视图。
 `src/services/resource-reference.service.ts`：授权引用解析能力主归属。
-`src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 pending 原语。
+`src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
 `src/shared/runtime/media-budget.ts`：共享 WebView 字节预算与逐出回调主归属。
 
 ## 边界
 
-- Core 派生索引只按 canonical 游戏根持久化，只缓存已请求类型，读取前必须以源内容指纹校验，Mod 投射物优先覆盖 Core。
-- Core 类型目录与待持久化标记必须共同归所属根缓存登记；交错加载必须只发布所属类型，根释放后的迟到加载只允许完成原登记。
-- 前端 resource cache 与 media projection 在每个 WebView 共用 64 MiB data URL 预算；两层均按访问顺序逐出，resource cache 与后端资源指纹缓存各自保持 512 项容量。
-- 后端 query 把资源标为 `ResourceRef`；前端通用媒体服务批量 query，组件只消费 ResourceRef 与缓存结果。
-- 舰体引用空请求只返回创建表单所需目录；带 ID 请求只解析名称与引用元数据；目录选项严禁批量转 data URL。
-- 资源查找按 Mod 优先、符合规则时 Core fallback；编辑器贴图为纯引用，后端校验所选路径位于 Mod 根内并返回正斜杠相对路径。
-- 通用媒体服务保持 25ms 合批、single-flight、session 隔离、路径标准化与资源失效；失效或关闭时 pending 与 in-flight 投影请求立即释放，迟到结果不得重新写入。
+- Core 目录缓存按 canonical 游戏根维护已请求类型、源指纹和待持久化标记，快照持久化由正式缓存入口完成。
+- 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
+- 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，各缓存分别拥有访问顺序和容量。
+- 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果。
+- 媒体服务拥有合批、single-flight 与资源失效，registry 拥有集合、引用计数及消费者等待。
+- 舰体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
+- 贴图选择归引用能力，返回后端校验的 Mod 根内正斜杠相对路径。
 
 ## 链路
 
 ### 资源解析
 
-1. 组件或 schema 选项携带 ResourceRef 请求资源。
+1. 组件或 schema 选项携带 `ResourceRef` 请求资源。
 2. 通用媒体服务合并同帧请求并以 single-flight 查询后端。
 3. 后端按 Mod 优先、Core fallback 解析路径并读取字节。
 4. 返回 data URL 进入前端 LRU 缓存并驱动渲染。
@@ -65,29 +65,32 @@
 
 ## 规范
 
-- 沉浸式贴图必须消费后端联合记录的 ResourceRef 与媒体 registry 集合；引用替换、会话释放和窗口卸载必须释放所属等待。
-- 武器伤害图标必须由联合查询消费 Core／Mod settings.json 的 graphics.ui 配置并返回授权 ResourceRef；已装载导弹贴图必须消费实际弹体sprite，静态炮塔图标必须按正式层顺序完整消费首帧图片。
-- 媒体批次的失败资源必须按物理资源键建立一次结果索引，再按键交付可见消费者；错误后的下一次活跃集合请求必须释放已失败票据并重试。
 - Core root 与所有资源路径必须 canonicalize，拒绝 `..` 与已有父链链接或 reparse point。
 - Hull 请求身份必须使用去重排序后的 ID 集合，名称、选项与槽位必须消费所属领域纯投影。
 - Skin 实体贴图必须消费 SkinFile.data.spriteName；内置槽位必须携带最后定义该内置武器的 Mod/Core 来源并据此分组。
 - 列表缩略图只允许解析 observer 预读区内的资源。
-- 前端严禁构造 ResourceRef、拼路径、逐项读图或把 data URL 写入 manifest；缺失 data URL 保持 null。
+- 前端严禁构造 `ResourceRef`、拼路径、逐项读图或把 data URL 写入 manifest；缺失 data URL 保持 `null`。
 - 单个 data URL 超过 64 MiB 时必须返回本次内容并跳过共享缓存；可见消费者必须在隐藏、引用切换、失效和卸载释放暂存结果。
 - 可见元素 ref 再次登记同一 DOM 时必须保持可见身份和当前资源结果。
-- 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行不得扫描全部登记项。
-- 选项媒体 owner 必须按集合登记菜单、已选值、摘要和键值行资源；集合替换只更新受影响资源，引用计数归零后才释放临时结果。
-- 资源读取票据必须归共享媒体 registry；集合释放只结束所属等待，迟到结果不得写入已撤销集合。
+- 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行严禁扫描全部登记项。
+- 各 WebView 的 resource cache 与 media projection 必须共用 64 MiB data URL 预算，resource cache 与后端指纹缓存必须分别保持 512 项容量；合批必须消费共享 single-flight 与所属失效。
+- 媒体批次的失败资源必须按物理资源键建立一次结果索引，再按键交付可见消费者；错误后的下一次活跃集合请求必须释放已失败票据并重试。
+- 媒体消费者必须分别登记场景、列表、详情及控件集合，只有活跃可视集合才允许解析图片；引用替换、模块切换和关闭必须释放所属解码与媒体等待。
 - 屏幕外资源严禁发起 data URL 查询；资源失效后可见资源必须重新解析。
 - 引用解析只接受 Mod 根内安全相对路径；绝对路径、`..` 与链接逃逸必须拒绝。
 - 指纹不一致即丢弃快照并重建；缓存损坏或不可写只降级，严禁读取旧快照。
 - 整批返回必须先核对数量、顺序、完整资源身份与 nullable data URL，再发布所属缓存。
+- 联合配置资源必须消费 Core／Mod 的实际配置和版本，UI 图标必须从 graphics.ui 解析；展示消费者必须使用返回的 `ResourceRef`。
+- 表记录图片必须消费正式 sprite 引用，缺失图片的默认资源必须由后端按格式规则解析并授权。
+- 资源读取票据必须归共享媒体 registry；集合释放只结束所属等待，迟到结果严禁写入已撤销集合。
+- 选项媒体 owner 必须按集合登记菜单、已选值、摘要和键值行资源；集合替换只更新受影响资源，引用计数归零后才释放临时结果。
+- 静态武器及装配绘制必须共用正式层序、原点、发射点与有效 Skin 来源，已装载导弹必须消费实际弹体资源。
 
 ## 陷阱
 
 - Core fallback 允许写盘会让只读边界被突破。
 - resource cache 与 media projection 分别计算预算会让同一 WebView 的 data URL 占用失控。
-- 在前端按路径规则拼出 ResourceRef 会让资源身份脱离后端授权。
+- 在前端按路径规则拼出 `ResourceRef` 会让资源身份脱离后端授权。
 - 指纹校验跳过会让过期派生索引冒充当前 Core 内容。
 - 缓存命中不刷新访问顺序会让 LRU 逐出策略失真。
 - 逐项 IPC 读图会让列表滚动产生请求风暴。

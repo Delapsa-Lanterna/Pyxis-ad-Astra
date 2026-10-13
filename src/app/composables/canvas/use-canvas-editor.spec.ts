@@ -8,11 +8,22 @@ import { createCanvasEditorState, useCanvasEditor, type CanvasEditorHooks } from
 import { useCanvasViewport } from './use-canvas-viewport';
 import type { EditContext, RowData } from '@/shared/types';
 import { installCanvas2DStub } from '@/test/canvas-stub';
+import { initializeSettingsStore } from '@/stores/settings.store';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 
 function mountCanvas() {
   setActivePinia(createPinia());
+  initializeSettingsStore({
+    theme: 'light',
+    accent: 'blue',
+    customAccent: '#2563eb',
+    historyLimit: 20,
+    editMode: 'smart',
+    starsectorRoot: null,
+    logDirectory: null,
+    logLevel: 'info',
+  });
   installCanvas2DStub();
   const value = ref<RowData>({ x: 0 });
   const source = ref<RowData>({ x: 0 });
@@ -46,10 +57,7 @@ function mountCanvas() {
     },
     previewTakesOver: () => false,
     computePreview: () => null,
-    drawPreview: () => {},
-    cursorMarker: () => null,
-    mirrorAxisCanvasY: () => 0,
-    draw: () => {},
+    draw: vi.fn(),
   };
   const surface = defineComponent({
     setup() {
@@ -87,7 +95,7 @@ function mountCanvas() {
     },
     { attachTo: document.body },
   );
-  return { wrapper, onDraftMutated, value, source, context, inputs, state, editor };
+  return { wrapper, onDraftMutated, value, source, context, inputs, state, editor, hooks };
 }
 
 describe('canvas pointer completion', () => {

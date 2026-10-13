@@ -83,10 +83,12 @@ export function weaponJointFixture(): JointEditSnapshot {
   const records = [spec, csv, description, projectile];
   return {
     hull: null,
+    variants: {},
+    catalog: null,
     newSources: [],
     root: { sessionId: 's', modRoot: 'M:/mod', kind: 'weapon', id: 'chaingun' },
     bindings: { spec: 'spec', csv: 'csv', description: 'description', projectile: 'projectile' },
-    referenceSettings: { values: {}, versions: [] },
+    referenceSettings: { values: {}, versions: [], resources: {} },
     records,
     baseVersions: records.flatMap((record) => record.baseVersions),
   };

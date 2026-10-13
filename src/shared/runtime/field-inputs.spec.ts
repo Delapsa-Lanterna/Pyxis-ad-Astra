@@ -7,6 +7,39 @@ function field(key: string, commit: FieldInput['commit']): FieldInput {
 }
 
 describe('target field input lifecycle', () => {
+  it('awaits finalizers and stops the save continuation on explicit rejection', async () => {
+    const inputs = createFieldInputs(ref('one'));
+    let finish!: (value: boolean) => void;
+    const after = vi.fn();
+    inputs.registerFinalizer(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+      'manual',
+    );
+    inputs.registerFinalizer(after);
+    const commit = inputs.commit();
+    expect(after).not.toHaveBeenCalled();
+    finish(false);
+    expect(await commit).toBe(false);
+    expect(after).not.toHaveBeenCalled();
+  });
+  it('revokes a late async finalizer after target changes', async () => {
+    const target = ref('one'),
+      inputs = createFieldInputs(target);
+    let finish!: () => void;
+    inputs.registerFinalizer(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const commit = inputs.commit();
+    target.value = 'two';
+    finish();
+    expect(await commit).toBe(false);
+  });
   it('preserves action acceptance across commit and revokes it on explicit cancellation', async () => {
     const inputs = createFieldInputs();
     const accepts = inputs.captureContext();

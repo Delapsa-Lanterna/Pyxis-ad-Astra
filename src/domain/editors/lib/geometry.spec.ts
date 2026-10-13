@@ -9,6 +9,11 @@ import {
   pointAngleScreen,
   pointArc,
   roundDegree,
+  shipAbsoluteToRelative,
+  shipRelativeToAbsolute,
+  shipCanvasPoint,
+  shipPointFromCanvas,
+  nearestBoundsSegment,
 } from './geometry';
 
 describe('degree helpers', () => {
@@ -40,6 +45,24 @@ describe('degree helpers', () => {
 });
 
 describe('point math', () => {
+  it('keeps the ship coordinate round trip through the viewport and center offset', () => {
+    const center = [80, 60];
+    const relative = [-10, 25];
+    const absolute = shipRelativeToAbsolute(relative, center);
+    const viewport = { x: 300, y: 200 };
+    const canvas = shipCanvasPoint(absolute, viewport, 2);
+    expect(canvas).toEqual({ x: 400, y: 310 });
+    expect(shipPointFromCanvas(canvas, viewport, 2)).toEqual(absolute);
+    expect(shipAbsoluteToRelative(absolute, center)).toEqual(relative);
+  });
+
+  it('selects the nearest closed bounds segment for insertion', () => {
+    const bounds = [0, 0, 20, 0, 20, 20, 0, 20];
+    expect(nearestBoundsSegment(bounds, [10, -2])).toBe(0);
+    expect(nearestBoundsSegment(bounds, [-2, 10])).toBe(3);
+    expect(nearestBoundsSegment([], [0, 0])).toBe(-1);
+  });
+
   it('computes distance treating missing coordinates as zero', () => {
     expect(distance([3, 4], [0, 0])).toBe(5);
     expect(distance([1], [1, 0])).toBe(0);

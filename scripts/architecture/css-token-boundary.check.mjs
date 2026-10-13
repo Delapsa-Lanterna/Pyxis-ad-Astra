@@ -79,12 +79,13 @@ test('original immersive spacing is authorized at its exact presentation consume
     { rel: 'src/styles/base.css', text: base },
     {
       rel: 'src/styles/immersive-editors.css',
-      text: '.weapon-immersive-data {gap:10px;} .ship-immersive-stats {gap:9px;} .immersive-section-action {margin-right:3px;}',
+      text: '.weapon-immersive-data {gap:10px;} .ship-immersive-stats {gap:9px;} .immersive-section-action {margin-right:3px;} .variant-candidate-card {margin-bottom:3px;}',
     },
   ];
   assert.equal(cssTokenBoundaryRule.check(files).filter((failure) => failure.includes('original immersive spacing')).length, 0);
-  files[1].text = '.weapon-immersive-data {padding:10px;} .unrelated {gap:3px;} .immersive-section-action {margin-left:3px;}';
-  assert.equal(cssTokenBoundaryRule.check(files).filter((failure) => failure.includes('original immersive spacing')).length, 3);
+  files[1].text =
+    '.weapon-immersive-data {padding:10px;} .unrelated {gap:3px;} .immersive-section-action {margin-left:3px;} .variant-candidate-card {padding:9px;}';
+  assert.equal(cssTokenBoundaryRule.check(files).filter((failure) => failure.includes('original immersive spacing')).length, 4);
 });
 
 test('local variables follow their selector scope across descendants', () => {
@@ -173,4 +174,68 @@ test('special visual semantics are authorized by exact selector and property', (
   ]);
   assert.equal(failures.filter((failure) => failure.includes('shared radius')).length, 1);
   assert.equal(failures.filter((failure) => failure.includes('shared shadow')).length, 1);
+});
+test('refit spacing authorizes the original consumer selector only', () => {
+  const failures = cssTokenBoundaryRule.check([
+    { rel: 'src/styles/base.css', text: base },
+    { rel: 'src/styles/immersive-editors.css', text: '.variant-wing-bays { gap: 10px; } .other { gap: 10px; }' },
+  ]);
+  assert.equal(failures.filter((failure) => failure.includes('original immersive spacing')).length, 1);
+  assert.ok(failures.some((failure) => failure.includes('.other')));
+});
+
+test('font consumers keep immersive spacing authorization on the business root', () => {
+  const failures = cssTokenBoundaryRule.check([
+    { rel: 'src/styles/base.css', text: base },
+    {
+      rel: 'src/styles/immersive-editors.css',
+      text: '.variant-stat-cell>.immersive-text:first-child {margin-right:3px;} .variant-group-summary-row>.immersive-text:first-child {margin-left:10px;} .variant-card-text>.variant-card-origin {margin-bottom:3px;} .variant-stat-cell>.font-text:first-child {margin-right:3px;} .variant-card-text>.variant-card-origin {padding-bottom:3px;}',
+    },
+  ]);
+  assert.equal(failures.filter((failure) => failure.includes('original immersive spacing')).length, 2);
+  assert.ok(failures.some((failure) => failure.includes('.font-text')));
+});
+test('weapon group geometry authorizes its original frame and matrix spacing only', () => {
+  const failures = cssTokenBoundaryRule.check([
+    { rel: 'src/styles/base.css', text: base },
+    {
+      rel: 'src/styles/immersive-editors.css',
+      text: '.immersive-game-frame { padding: 7px; } .variant-group-autofire { column-gap: 3px; } .variant-group-actions { gap: 11px; } .other { column-gap: 3px; }',
+    },
+  ]);
+  assert.equal(failures.filter((failure) => failure.includes('original immersive spacing')).length, 1);
+  assert.ok(failures.some((failure) => failure.includes('.other')));
+});
+test('cut button shapes accept eight vertices and reject the two-corner shape', () => {
+  const failures = cssTokenBoundaryRule.check([
+    { rel: 'src/styles/base.css', text: base },
+    {
+      rel: 'src/styles/immersive-editors.css',
+      text: '.variant-cut-button { clip-path: polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px); } .old-button { clip-path: polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px); }',
+    },
+  ]);
+  assert.equal(failures.filter((failure) => failure.includes('four cut corners')).length, 1);
+  assert.ok(failures.some((failure) => failure.includes('.old-button')));
+});
+test('hullmod filters and row geometry keep original spacing on the exact consumer', () => {
+  const failures = cssTokenBoundaryRule.check([
+    { rel: 'src/styles/base.css', text: base },
+    {
+      rel: 'src/styles/immersive-editors.css',
+      text: '.immersive-filter-group { gap: 3px; } .variant-hullmod-row>.variant-hullmod-name { gap: 10px; } .unrelated-filter { gap: 3px; }',
+    },
+  ]);
+  assert.equal(failures.filter((failure) => failure.includes('original immersive spacing')).length, 1);
+  assert.ok(failures.some((failure) => failure.includes('.unrelated-filter')));
+});
+test('weapon picker title and card text authorize only their original compact spacing', () => {
+  const failures = cssTokenBoundaryRule.check([
+    { rel: 'src/styles/base.css', text: base },
+    {
+      rel: 'src/styles/immersive-editors.css',
+      text: '.variant-card-text { gap: 3px; } .variant-current-title { margin-top: 3px; } .other-title { margin-top: 3px; }',
+    },
+  ]);
+  assert.equal(failures.filter((failure) => failure.includes('original immersive spacing')).length, 1);
+  assert.ok(failures.some((failure) => failure.includes('.other-title')));
 });

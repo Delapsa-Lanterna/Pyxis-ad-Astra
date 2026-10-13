@@ -14,6 +14,7 @@ import { formatJsonInput } from '@/shared/lib/json-input';
 import { entityContentIdField } from '@/domain/editors/entity-identity';
 import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { renameVariantModules } from '@/domain/immersive/variant-actions';
 
 export function jointObject(value: DeepReadonly<JointValue> | undefined): Readonly<RowData> {
   return value?.state === 'present' && isRowData(value.value) ? value.value : {};
@@ -86,6 +87,13 @@ export function mapJointDraftIdentity(
         for (const [field, id] of Object.entries(next.target.identity)) if (data[field] === target.identity[field]) data[field] = id;
         value = { state: 'present', value: data };
       }
+    }
+    if (target.kind === 'spec' && target.target.kind === 'variant' && value.state === 'present' && isRowData(value.value)) {
+      let data = value.value;
+      for (const change of changes)
+        if (change.before.kind === 'variant' && change.before.id !== change.after.id)
+          data = renameVariantModules(data, change.before.id, change.after.id);
+      value = { state: 'present', value: data };
     }
     mapped[next?.key ?? previous.key] = value;
   }

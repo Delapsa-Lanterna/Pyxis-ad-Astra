@@ -121,6 +121,8 @@ export const cssTokenBoundaryRule = {
       if (!dark.has(token)) failures.push(`src/styles/base.css: missing dark theme token ${token}`);
 
     for (const { file, node, value, selectors } of declarations) {
+      if (node.property === 'clip-path' && value.startsWith('polygon(') && value.split(',').length === 6)
+        failures.push(diagnostic(file, node, selectors, 'cut buttons must use four cut corners'));
       if (node.property.startsWith('--') && global.has(node.property) && file.rel !== CSS_TOKEN_OWNER)
         failures.push(diagnostic(file, node, selectors, 'shared CSS tokens must be defined in base.css'));
       /** @type {string[]} */

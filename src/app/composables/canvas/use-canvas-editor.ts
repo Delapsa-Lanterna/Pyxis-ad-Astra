@@ -1,5 +1,4 @@
 import { computed, nextTick, onMounted, onScopeDispose, onUnmounted, ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
-import type { Point } from '@/domain/editors/editor-types';
 import type { EditContext, RowData } from '@/shared/types';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
@@ -8,16 +7,11 @@ import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { registerFieldInput, useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useCanvasDrawing } from '@/app/composables/canvas/use-canvas-drawing';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import type { CanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
-import {
-  CANVAS_HANDLE_COLOR,
-  CANVAS_HIGHLIGHT_COLOR,
-  CANVAS_HIGHLIGHT_FILL_COLOR,
-  CANVAS_SHADOW_COLOR,
-} from '@/domain/editors/lib/canvas-palette';
+import { useCanvasSelection } from '@/app/composables/canvas/use-canvas-selection';
+import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
 
 export interface CanvasTarget {
   kind: string;
@@ -101,9 +95,6 @@ export interface CanvasEditorHooks<TPreview> {
   applyMirrorDrag(kind: string): void;
   previewTakesOver(e: MouseEvent): boolean;
   computePreview(mx: number, my: number, modifiers: CanvasModifiers): TPreview | null;
-  drawPreview(ctx: CanvasRenderingContext2D, preview: TPreview): void;
-  cursorMarker(mx: number, my: number): { point: Point; label: string } | null;
-  mirrorAxisCanvasY(): number;
   onReady?(): void;
   draw(): void;
 }
@@ -120,8 +111,6 @@ export function useCanvasEditor<TPreview>(options: {
   hooks: CanvasEditorHooks<TPreview>;
 }) {
   const { stageRef, windowRef, expandedSections, viewport, state, hooks } = options;
-  const { scale } = viewport;
-  const drawing = useCanvasDrawing();
   const history = useSnapshotHistory<RowData>(options.context, 250);
   const inputs = useFieldInputs();
   const { commitBefore: runAction } = useFieldInputActions(inputs);
@@ -204,63 +193,12 @@ export function useCanvasEditor<TPreview>(options: {
   );
 
   const pointerInside = ref(false);
-  const panning = ref(false);
+  const navigation = useCanvasNavigation(viewport, hooks.draw);
+  const panning = navigation.panning;
   const revealInProgress = ref(false);
 
-  let last = { x: 0, y: 0 };
+  const last = navigation.last;
   let stopPixelRatio: (() => void) | null = null;
-
-  function drawBase(ctx: CanvasRenderingContext2D) {
-    const dimensions = viewport.size();
-    const center = viewport.center();
-    drawing.clear(ctx, dimensions.width, dimensions.height);
-    drawing.drawGrid(ctx, { center, height: dimensions.height, scale: scale.value, width: dimensions.width });
-  }
-
-  function drawMirrorAxis(ctx: CanvasRenderingContext2D) {
-    const axisY = hooks.mirrorAxisCanvasY();
-    ctx.save();
-    ctx.strokeStyle = CANVAS_HIGHLIGHT_COLOR;
-    ctx.fillStyle = CANVAS_HIGHLIGHT_FILL_COLOR;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    ctx.moveTo(0, axisY);
-    ctx.lineTo(viewport.size().width, axisY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.font = '11px sans-serif';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText('镜像中轴', 8, axisY - 4);
-    ctx.restore();
-  }
-
-  function drawHoverPreview(ctx: CanvasRenderingContext2D) {
-    if (state.hoverPreview.value) hooks.drawPreview(ctx, state.hoverPreview.value);
-  }
-
-  function drawCursorPosition(ctx: CanvasRenderingContext2D) {
-    if (!pointerInside.value) return;
-    const marker = hooks.cursorMarker(last.x, last.y);
-    if (!marker) return;
-    ctx.save();
-    ctx.strokeStyle = CANVAS_HANDLE_COLOR;
-    ctx.fillStyle = CANVAS_HANDLE_COLOR;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(marker.point.x - 6, marker.point.y);
-    ctx.lineTo(marker.point.x + 6, marker.point.y);
-    ctx.moveTo(marker.point.x, marker.point.y - 6);
-    ctx.lineTo(marker.point.x, marker.point.y + 6);
-    ctx.stroke();
-    ctx.font = '11px sans-serif';
-    ctx.textBaseline = 'top';
-    ctx.strokeStyle = CANVAS_SHADOW_COLOR;
-    ctx.lineWidth = 3;
-    ctx.strokeText(marker.label, marker.point.x + 12, marker.point.y + 12);
-    ctx.fillText(marker.label, marker.point.x + 12, marker.point.y + 12);
-    ctx.restore();
-  }
 
   function commitEdit() {
     if (!action.value) {
@@ -317,50 +255,13 @@ export function useCanvasEditor<TPreview>(options: {
     hooks.draw();
   }
 
-  function targetMatches(target: CanvasTarget | null, identity: CanvasTargetIdentity | null) {
-    return Boolean(target && identity && target.kind === identity.kind && target.i === identity.i && target.port === identity.port);
-  }
-
-  function nearestTarget(mx: number, my: number) {
-    const targets = hooks.selectableTargets(mx, my);
-    const locked = targets.find((target) => targetMatches(target, state.inspectorLock.value)) ?? null;
-    const nearby =
-      targets
-        .filter((target) => !targetMatches(target, state.inspectorLock.value) && target.distance <= hooks.hitRadius(target))
-        .sort((a, b) => a.distance - b.distance)[0] ?? null;
-    if (nearby) return nearby;
-    if (locked) return locked;
-    if (!state.inspectorLock.value) return targets.sort((a, b) => a.distance - b.distance)[0] ?? null;
-    return null;
-  }
-
-  function syncSelection(target: CanvasTarget) {
-    state.hovered.value = { kind: target.kind, i: target.i, port: target.port };
-    state.selected.value = target.i;
-    state.activeTarget.value = { kind: target.kind, i: target.i, port: target.port };
-  }
-
-  function clearSelection() {
-    state.hovered.value = null;
-    state.selected.value = null;
-    state.activeTarget.value = null;
-  }
-
+  const selection = useCanvasSelection(state, hooks.selectableTargets, hooks.hitRadius);
+  const nearestTarget = selection.nearest,
+    syncSelection = selection.select,
+    clearSelection = selection.clear,
+    selectForPointer = selection.byPointer;
   function selectIdentityTarget(identity: CanvasTargetIdentity | null) {
-    if (!identity) return null;
-    const target = hooks.selectableTargets(last.x, last.y).find((item) => targetMatches(item, identity)) ?? null;
-    if (target) syncSelection(target);
-    return target;
-  }
-
-  function selectForPointer(mx: number, my: number) {
-    const target = nearestTarget(mx, my);
-    if (target) {
-      syncSelection(target);
-      return target;
-    }
-    clearSelection();
-    return null;
+    return selection.byIdentity(identity, last.x, last.y);
   }
 
   const pick: CanvasPick = {
@@ -402,11 +303,7 @@ export function useCanvasEditor<TPreview>(options: {
   function startPointerAction(e: MouseEvent) {
     const mx = e.offsetX;
     const my = e.offsetY;
-    last = { x: mx, y: my };
-    if (e.button === 2) {
-      panning.value = true;
-      return;
-    }
+    if (navigation.start(e)) return;
     if (e.button !== 0) return;
     endField();
     beginAction('pointer');
@@ -447,14 +344,7 @@ export function useCanvasEditor<TPreview>(options: {
     const mx = e.offsetX;
     const my = e.offsetY;
     pointerInside.value = true;
-    const dx = mx - last.x;
-    const dy = my - last.y;
-    last = { x: mx, y: my };
-    if (panning.value) {
-      viewport.panBy(dx, dy);
-      hooks.draw();
-      return;
-    }
+    if (navigation.move(e)) return;
     if (state.dragKind.value) {
       hooks.applyDrag(state.dragKind.value, mx, my, e);
       hooks.applyMirrorDrag(state.dragKind.value);
@@ -473,7 +363,7 @@ export function useCanvasEditor<TPreview>(options: {
   function finishPointerAction() {
     const wasDragging = state.dragKind.value !== null;
     state.dragKind.value = null;
-    panning.value = false;
+    navigation.finish();
     state.mirrorPair.value = null;
     state.clearPreview();
     if (wasDragging) commitEdit();
@@ -496,8 +386,7 @@ export function useCanvasEditor<TPreview>(options: {
   }
 
   function onWheel(e: WheelEvent) {
-    viewport.zoom(e.deltaY);
-    hooks.draw();
+    navigation.wheel(e);
   }
 
   function onKeyDown(event: KeyboardEvent) {
@@ -570,16 +459,12 @@ export function useCanvasEditor<TPreview>(options: {
   });
 
   return {
+    pointerState: (): Readonly<{ inside: boolean; x: number; y: number }> => ({ inside: pointerInside.value, x: last.x, y: last.y }),
     commitEdit,
     captureActionContext,
     runAction,
     doRedo,
     doUndo,
-    drawBase,
-    drawCursorPosition,
-    drawHoverPreview,
-    drawMirrorAxis,
-    drawPixelImage: drawing.drawPixelImage,
     onDown,
     onExpandedSectionsUpdate,
     onLeave,

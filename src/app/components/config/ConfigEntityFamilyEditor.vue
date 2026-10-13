@@ -15,6 +15,7 @@
         <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
           载入外部版本
         </n-button>
+        <n-button v-if="family.immersiveKind" size="small" secondary @click="openImmersive">沉浸式编辑器</n-button>
         <n-button size="small" secondary type="error" @click="confirmDelete">删除</n-button>
         <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
       </div>
@@ -64,6 +65,7 @@ const {
   hasPendingExternalData,
   loadPendingExternalData,
   save,
+  openImmersive,
   saving,
   handoffLocked,
   selectedFile,

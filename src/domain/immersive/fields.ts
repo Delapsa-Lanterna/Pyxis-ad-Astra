@@ -3,8 +3,10 @@ import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.type
 import { applySchemaFieldUpdate, getNestedValue, schemaStringValue } from '@/domain/schema/schema-values';
 import { entityContentIdField } from '@/domain/editors/entity-identity';
 import { jointObject } from '@/domain/joint-edit';
-import type { BitmapTextRun, ImmersiveFontRole } from './bitmap-font';
+import type { TextRun } from '@/domain/fonts/font.types';
+import type { ImmersiveFontRole } from './font-roles';
 import { createDefaultVariant, createDefaultSkin } from '@/domain/config/config-entities';
+import { variantModuleEntries, setVariantModule } from './variant-actions';
 
 export interface ImmersiveField {
   id: string;
@@ -12,6 +14,7 @@ export interface ImmersiveField {
   schema: FieldSchema;
   optionLabels?: Record<string, string>;
   handoff?: boolean;
+  moduleSlot?: string;
 }
 export interface ImmersiveFieldChange {
   field: ImmersiveField;
@@ -24,7 +27,7 @@ export interface ImmersiveStat {
   fields: ImmersiveField[];
   formula?: string;
   tone?: 'normal' | 'highlight' | 'crew' | 'fuel';
-  displayRuns?: BitmapTextRun[];
+  displayRuns?: TextRun[];
   font?: ImmersiveFontRole;
   inline?: boolean;
   gapBefore?: boolean;
@@ -32,6 +35,8 @@ export interface ImmersiveStat {
 }
 
 export function immersiveFieldValue(values: DeepReadonly<Record<string, JointValue>>, field: ImmersiveField): unknown {
+  if (field.moduleSlot)
+    return variantModuleEntries(jointObject(values[field.recordKey]).modules).find(([slot]) => slot === field.moduleSlot)?.[1] ?? '';
   return getNestedValue(jointObject(values[field.recordKey]), field.schema.key);
 }
 
@@ -56,6 +61,14 @@ export function updateImmersiveField(
   }
   const converted: SchemaFieldUpdate =
     record.target.kind === 'csv' ? { kind: 'set', value: update.kind === 'set' ? schemaStringValue(update.value) : '' } : update;
+  if (field.moduleSlot)
+    return {
+      ...values,
+      [record.key]: {
+        state: 'present',
+        value: setVariantModule(data, field.moduleSlot, update.kind === 'set' ? schemaStringValue(update.value) : ''),
+      },
+    };
   return {
     ...values,
     [record.key]: { state: 'present', value: applySchemaFieldUpdate(data, field.schema.key, converted) as Record<string, JsonValue> },

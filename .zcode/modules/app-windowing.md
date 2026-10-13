@@ -2,7 +2,7 @@
 
 ## 定义
 
-多窗口机制系统集中管理子窗口创建与复用、当前窗口生命周期、跨窗口事件与 dirty 关闭守卫。
+多窗口机制模块管理窗口身份、实例复用、跨窗口交接和关闭生命周期。
 
 ## 参考
 
@@ -14,7 +14,7 @@
 `src/orchestrators/edit-target-handoff.orchestrator.ts`：消费原生登记、预约与释放能力，协调联合目标准备。
 `src/orchestrators/entity-identity.orchestrator.ts`：规格身份占用与原生窗口身份交接 owner。
 `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作 owner。
-`src/services/editor.service.ts`：共享编辑窗口 bundle、领域依赖与资源装配主归属。
+`src/services/editor.service.ts`：共享窗口 ViewModel 消费的 bundle、领域依赖与资源装配。
 `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配主归属。
 `src/windows/current.window.ts`：当前窗口生命周期 owner，提供关闭、销毁、关闭请求监听、最小化、最大化、拖拽、重载与显示。
 `src/windows/editor.window.ts`：编辑器窗口请求 owner，组装类型化身份、尺寸与 URL 参数。
@@ -25,16 +25,14 @@
 
 ## 边界
 
-- URL 序列化只省略 null/undefined 参数，保留空字符串；query 总长度超限必须取消创建并抛出明确错误。
-- dirty 或 saving 窗口必须在关闭请求入口立即 preventDefault；保存成功后必须重新判定最新 dirty，并经正式 destroy 入口完成同一意图。
-- 主窗口保存事件监听在窗口卸载时必须释放；handler 错误必须交给注册的错误记录器。
-- 关闭守卫必须消费正式草稿与活动输入的聚合 dirty；主窗口必须消费响应式未保存注册表，控件挂载与卸载必须更新判定。
-- 创建结果必须由 Rust 窗口能力返回实例 label 与复用状态；创建失败必须释放登记，反馈必须归调用方。
-- 已存在 singleton 时只做显示、聚焦和可选的聚焦事件发送，不重建窗口。
-- 当前窗口关闭、销毁、重载与显示必须经当前窗口生命周期 owner，严禁业务代码直接调用 Tauri API。
-- 窗口身份必须包含完整 session、`modRoot` 和业务目标；字符串拼接或以活动 Mod 补齐身份被禁止。
-- 编辑窗口读取必须把消费者 AbortSignal 传入 bundle、派生数据与草稿贴图能力，窗口释放必须撤销全部读取等待。
-- 重复关闭必须合并为一个等待与确认意图；保存失败、取消或同步失败必须结束当前意图并保持窗口。
+- settings 初始化消费 URL snapshot，后续更新归主窗口镜像。
+- 事件注册表拥有事件名与 payload，监听入口拥有接纳、错误交付和卸载释放。
+- 保存及身份编排消费原生登记、预约、聚焦和释放能力。
+- 共享窗口 ViewModel 拥有 bundle 读取、外部保存与身份接纳，读取取消沿所属能力传递。
+- 关闭守卫消费会话与活动输入的聚合 dirty，并拥有同一关闭意图的等待与确认。
+- 当前窗口 owner 提供关闭、销毁、重载和显示，业务动作消费其入口。
+- 窗口请求层装配尺寸、标题和 URL，managed window 拥有 query 限额与复用聚焦消息。
+- 类型化 identity 归窗口模型，Rust 拥有实例 label、目标占用、创建复用与关闭等待。
 
 ## 链路
 
@@ -67,30 +65,31 @@
 
 ## 规范
 
-- 原生实例必须按 label 登记完整 EditWriteTarget 集合；目标查询必须核对 session、Mod 和物理路径范围，销毁及会话释放必须移除所属登记。
-- 沉浸式身份必须包含 session、Mod、JointEditKind 与 ID，并按正式 Windows 路径键比较；同实体的规格、文本与沉浸式窗口必须保留各自实例身份及共同物理协调范围。
-- 沉浸式窗口必须消费固定暗色原生主题；保存与外部改名必须共同更新登记、URL、标题、联合记录键和历史身份。
-- 沉浸式窗口尺寸必须由种类装配：舰船830×700px、最小430×480px，武器与战机430×700px、最小340×480px；重排必须由现有窗口内容消费实际容器尺寸。
-- 战机窗口URL必须携带所属联队rowKey；改名接纳必须由该行身份解析正式联队ID，原生身份必须继续消费session、Mod、kind与ID。
-- sessionId、kind 与实体 ID 必须按原值比较；Mod 与文件路径必须统一处理分隔符、大小写、尾部分隔符及扩展路径前缀。
+- URL 序列化必须保留空字符串并省略 `null`／`undefined`，query 超限必须拒绝创建；读取取消必须沿 bundle、依赖与资源能力传递。
+- dirty 或 saving 关闭必须立即 preventDefault，并在保存与同步结束后核对最新 dirty；重复关闭必须合并同一意图，取消或失败必须保留窗口。
+- `sessionId`、kind 与实体 ID 必须按原值比较；Mod 与文件路径必须统一处理分隔符、大小写、尾部分隔符及扩展路径前缀。
 - 会话关闭必须阻止新窗口登记；创建期间的关闭意图必须在实例构造完成后继续执行。
-- 保存与回放通知必须共用 committedWriteApplied，事件必须携带 originWindowLabel、modRoot、nullable sessionId、reason 与完整 WriteResult。
+- 保存与回放通知必须共用 `committedWriteApplied`，事件必须携带 `originWindowLabel`、`modRoot`、nullable `sessionId`、reason 与完整 `WriteResult`。
 - 关闭、创建失败与动作取消必须释放所属登记及占用；生命周期等待必须按请求身份接纳完成或取消。
-- 关闭守卫遇到 dirty 必须先拦截再确认，取消或失败时必须保持窗口。
-- 身份改名必须登记下一规格身份与文本路径占用；联合编辑的物理预约必须由保存准备完成后的目标集合提供，并保留已协调窗口。
-- 打开或身份交接遇到已登记的 dirty、saving 或 creating 目标时，窗口能力必须先显示并聚焦占用实例，再返回稳定冲突错误。
 - 原生 label 必须由应用内登记序号产生，并且必须在业务身份交接时保持稳定。
+- 原生实例必须按 label 登记完整 `EditWriteTarget` 集合；目标查询必须核对 session、Mod 和物理路径范围，销毁及会话释放必须移除所属登记。
+- 同一 session、Mod 与提交身份的进行中通知必须复用同一派发 Promise；等待身份接纳后必须核对所属 session 和订阅生命周期。
 - 子窗口只能消费 URL snapshot 初始化设置，严禁在子窗口内读取设置文件。
 - 广播重试必须复用实际 receipt 及完成进度；事件处理失败必须归所属错误 owner，发送成功必须以 Tauri 事件发送结果判定。
 - 当前窗口回声必须按来源 label 过滤，重复提交必须按根和提交序号去重；身份消费者必须先取得接纳意图，依赖投影消费者必须等待该动作。
-- 同一 session、Mod 与提交身份的进行中通知必须复用同一派发 Promise；等待身份接纳后必须核对所属 session 和订阅生命周期。
+- 战机窗口 URL 必须携带所属联队 `rowKey`；改名接纳必须由该行身份解析正式联队 ID，原生身份必须继续消费 session、Mod、kind 与 ID。
+- 打开或身份交接遇到已登记的 dirty、saving 或 creating 目标时，窗口能力必须先显示并聚焦占用实例，再返回稳定冲突错误。
 - 提交接收必须先接纳权威投影并失效资源与查询缓存，再启动身份读取；投影消费者必须等待身份交接完成。
-- 聚焦能力必须按完整 WindowIdentity 查询现有登记、显示窗口、恢复最小化并聚焦；找不到所属实例必须返回 false，调用方必须保留草稿与冲突诊断。
-- 规格、文本、CSV 关联和配置身份准备遇到目标已存在时，必须消费错误中的正式 target 聚焦所属实例，再报告原始冲突；配置列表的同 ID 拒绝必须消费所属已加载目标。
+- 沉浸式窗口必须消费固定暗色原生主题；保存与外部改名必须共同更新登记、URL、标题、联合记录键和历史身份。
+- 沉浸式身份必须包含 session、Mod、`JointEditKind` 与 ID，并按正式 Windows 路径键比较；同实体的规格、文本与沉浸式窗口必须保留各自实例身份及共同物理协调范围。
 - 窗口创建必须以隐藏方式启动，由内容就绪后显式显示。
-- 规格身份必须分别表达 sessionId、kind、modRoot 与 id；文本身份必须分别表达 sessionId、modRoot 与 path；恢复身份必须分别表达 nullable modRoot 与 path。
+- 窗口请求必须按所属种类声明初始和最小尺寸；内容必须消费实际容器完成重排，尺寸装配必须归正式窗口请求层。
+- 聚焦能力必须按完整 `WindowIdentity` 查询现有登记、显示窗口、恢复最小化并聚焦；找不到所属实例必须返回 `false`，调用方必须保留草稿与冲突诊断。
+- 规格、文本、CSV 关联和配置身份准备遇到目标已存在时，必须消费错误中的正式 target 聚焦所属实例，再报告原始冲突；配置列表的同 ID 拒绝必须消费所属已加载目标。
+- 规格身份必须分别表达 `sessionId`、kind、`modRoot` 与 id；文本身份必须分别表达 `sessionId`、`modRoot` 与 path；恢复身份必须分别表达 nullable `modRoot` 与 path。
 - 跨窗口事件必须使用事件名注册表的常量，严禁裸字符串事件名。
 - 身份交接必须共同更新原生登记、URL 参数、ViewModel 目标、标题与事件过滤；再次打开新身份必须复用已交接实例。
+- 身份改名必须登记下一规格身份与文本路径占用；联合编辑的物理预约必须由保存准备完成后的目标集合提供，并保留已协调窗口。
 - 重载当前窗口必须走当前窗口生命周期 owner，与实现保持同一命名。
 
 ## 陷阱

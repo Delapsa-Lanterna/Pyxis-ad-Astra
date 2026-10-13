@@ -185,31 +185,6 @@ button.immersive-stat-value:focus-visible {
 .ship-immersive-stats .immersive-stat-row.group-gap {
   margin-top: 17px;
 }
-.immersive-bitmap-text {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: top;
-  min-width: 0;
-}
-.immersive-bitmap-text.block {
-  display: block;
-}
-.immersive-bitmap-text canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  image-rendering: pixelated;
-}
-.immersive-accessible-text {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: pre;
-}
 .immersive-field-popover {
   display: grid;
   gap: var(--space-3);
@@ -326,7 +301,7 @@ button.immersive-stat-value:focus-visible {
 .weapon-immersive-data .immersive-stat-value {
   margin-bottom: -2px;
 }
-.weapon-immersive-data .immersive-bitmap-text {
+.weapon-immersive-data .immersive-text {
   transform: translateY(-1px);
 }
 .weapon-immersive-data .immersive-stat-row.group-gap {
@@ -349,7 +324,7 @@ button.immersive-stat-value:focus-visible {
   font-size: 12px;
   line-height: 0;
 }
-.immersive-damage-description .immersive-bitmap-text {
+.immersive-damage-description .immersive-text {
   margin-bottom: -2px;
 }
 .immersive-custom-text {
@@ -379,4 +354,1032 @@ button.immersive-stat-value:focus-visible {
     flex-wrap: wrap;
     gap: 3px;
   }
+}
+
+.variant-window-shell {
+  position: relative;
+  display: block;
+}
+.immersive-meta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.variant-window-shell .immersive-editor-scroll {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+.variant-immersive-panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.variant-refit-header {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  z-index: 2;
+  max-width: calc(100% - 400px);
+}
+.variant-refit-header .immersive-stat-row > span {
+  display: none;
+}
+.variant-refit-header .immersive-stat-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0;
+}
+.variant-refit-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin-top: 3px;
+}
+.variant-refit-tools .immersive-meta-actions {
+  flex-wrap: nowrap;
+}
+.variant-refit-tools > .n-select {
+  width: 180px;
+}
+.variant-cut-button,
+.variant-add-mod {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  background: var(--color-panel-muted);
+  border: 0;
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  clip-path: polygon(
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px),
+    0 6px
+  );
+}
+.variant-cut-button:hover,
+.variant-add-mod:hover {
+  background: var(--color-surface-hover);
+}
+.variant-cut-button:disabled,
+.variant-add-mod:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.variant-refit-actions {
+  position: absolute;
+  left: 7px;
+  bottom: 9px;
+  display: flex;
+  gap: 3px;
+  z-index: 3;
+}
+.variant-refit-actions > button {
+  width: 190px;
+  height: 25px;
+  padding: 0;
+}
+.variant-wing-list {
+  position: absolute;
+  left: 7px;
+  top: 207px;
+  z-index: 2;
+  max-height: calc(100% - 250px);
+  overflow: auto;
+  overflow-x: hidden;
+  max-width: 240px;
+}
+.variant-wing-bays {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, 64px);
+  grid-auto-columns: 64px;
+  gap: 10px;
+  margin-top: 10px;
+}
+.variant-wing-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(100, 200, 255, 0.5);
+  padding: 0;
+  color: var(--color-warning);
+  background: #000000;
+  cursor: pointer;
+  overflow: hidden;
+}
+.variant-wing-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid #000000;
+  pointer-events: none;
+}
+.variant-wing-tile:disabled {
+  background: #142833;
+}
+.variant-wing-tile > strong {
+  position: absolute;
+  right: 1px;
+  top: 0;
+}
+.variant-wing-icon {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+  flex: none;
+}
+.variant-wing-icon .variant-scene {
+  position: absolute;
+  inset: 0;
+}
+.variant-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.variant-scene > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.variant-slot-label {
+  position: absolute;
+  pointer-events: none;
+  color: var(--color-text);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.variant-refit-stats {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 390px;
+  max-height: calc(100% - 6px);
+  overflow: auto;
+  overflow-x: hidden;
+  z-index: 2;
+}
+.variant-op-display {
+  display: flex;
+  width: 326px;
+  height: 30px;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+.variant-info-button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-primary);
+  background: var(--color-bg);
+  padding: 0;
+  cursor: pointer;
+}
+.variant-op-budget {
+  position: relative;
+  display: flex;
+  width: 297px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-primary);
+  color: var(--color-warning);
+}
+.variant-op-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+.variant-stat-stack {
+  width: 370px;
+  margin-top: 3px;
+  margin-left: auto;
+}
+.variant-base-stats,
+.variant-defense-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 93px);
+  justify-content: end;
+  gap: 3px;
+}
+.variant-stat-cell {
+  display: flex;
+  height: 30px;
+  width: 93px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  white-space: nowrap;
+}
+.variant-stat-cell > .immersive-text:first-child {
+  color: var(--color-primary);
+  margin-right: 3px;
+}
+.variant-defense-stats > div:last-child {
+  grid-column: 3;
+}
+.variant-flux-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 3px;
+  margin-top: 3px;
+  margin-bottom: 3px;
+}
+.variant-flux-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+.variant-flux-controls .immersive-stat-row {
+  display: flex;
+  margin: 0;
+  width: 36px;
+  justify-content: center;
+}
+.variant-flux-controls .immersive-stat-row > span {
+  display: none;
+}
+.variant-flux-controls .immersive-stat-value {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  color: var(--color-warning);
+}
+.variant-step {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  color: var(--color-primary);
+  background: var(--color-panel-muted);
+  clip-path: polygon(25% 0, 75% 0, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0 75%, 0 25%);
+  cursor: pointer;
+}
+.variant-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.variant-mod-widget {
+  width: 390px;
+  margin-top: 9px;
+  text-align: right;
+}
+.variant-mod-list {
+  max-height: 260px;
+  overflow: auto;
+  margin-top: 3px;
+}
+.variant-mod-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 34px;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+.variant-mod-name {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 34px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  text-align: right;
+  cursor: pointer;
+  overflow: hidden;
+}
+.variant-mod-name > span {
+  max-width: 100%;
+}
+.variant-mod-row > img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.variant-mod-edit {
+  width: 300px;
+}
+.variant-add-mod {
+  width: 150px;
+  height: 25px;
+  margin-top: 3px;
+  padding: 0;
+  color: var(--color-warning);
+}
+.variant-diagnostic {
+  color: var(--color-warning);
+  margin: var(--space-2) 0;
+}
+.variant-source-details {
+  position: absolute;
+  z-index: 8;
+  inset: 50px 400px 50px 7px;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel);
+}
+.variant-source-details > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.variant-picker {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: 397px;
+  max-height: calc(100vh - 14px);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel);
+  padding: 5px;
+}
+.variant-picker > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  flex: none;
+}
+.variant-current-title {
+  flex: none;
+  min-height: 19px;
+  margin-top: 3px;
+  color: var(--color-primary);
+}
+.variant-picker-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 375px;
+  height: 25px;
+  gap: 1px;
+  margin: 3px 0;
+  flex: none;
+}
+.variant-picker-filters.weapon-filter-grid {
+  height: 52px;
+  grid-template-rows: repeat(2, 25px);
+}
+.variant-picker-list {
+  width: 385px;
+  overflow-y: auto;
+  min-height: 75px;
+  max-height: 543px;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  flex: 0 1 auto;
+}
+.variant-candidate-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 69px minmax(0, 1fr) 60px;
+  width: 375px;
+  height: 75px;
+  gap: 10px;
+  border: 1px solid var(--color-border);
+  padding: 3px;
+  margin-bottom: 3px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  cursor: pointer;
+  text-align: left;
+  flex: none;
+}
+.variant-candidate-card > .variant-scene {
+  pointer-events: none;
+  position: relative;
+  width: 69px;
+  height: 69px;
+}
+.variant-candidate-card:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+.variant-card-text {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-self: stretch;
+}
+.variant-card-text > .immersive-text {
+  flex: none;
+  white-space: nowrap;
+}
+.variant-card-text > .variant-card-origin {
+  margin-top: auto;
+  margin-bottom: 3px;
+}
+.variant-candidate-card > strong {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: end;
+  text-align: right;
+  color: var(--color-warning);
+  padding-right: var(--space-2);
+}
+.variant-candidate-card > .immersive-weapon-icon {
+  width: 69px;
+  height: 69px;
+}
+.variant-current {
+  margin-top: 3px;
+}
+.variant-picker-extra {
+  padding-top: 3px;
+  flex: none;
+}
+.variant-picker-extra .n-select {
+  margin-bottom: 3px;
+}
+.variant-picker-extra > footer {
+  display: flex;
+  gap: 3px;
+}
+.variant-picker-tooltip {
+  position: fixed;
+  z-index: 11;
+  display: flex;
+  gap: 3px;
+  max-height: calc(100vh - 14px);
+  overflow: auto;
+}
+.variant-candidate-details {
+  width: 422px;
+  flex: none;
+  padding: 10px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel);
+}
+.variant-candidate-details > .weapon-immersive-panel,
+.variant-candidate-details > .wing-immersive-panel {
+  width: 400px;
+}
+.immersive-display-surface {
+  container-type: inline-size;
+}
+.variant-ship-tooltip {
+  position: fixed;
+  z-index: 12;
+  width: 832px;
+  max-height: calc(100vh - 14px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel);
+}
+.immersive-readonly-sources {
+  color: var(--color-muted);
+  margin-top: var(--space-2);
+}
+.variant-ship-content {
+  width: 800px;
+}
+.immersive-readonly-sources summary {
+  cursor: pointer;
+}
+.immersive-resource-icon {
+  display: inline-block;
+  flex: none;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.immersive-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.immersive-filter-group + .immersive-filter-group {
+  margin-top: 10px;
+}
+.immersive-filter-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 25px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.67);
+  cursor: pointer;
+}
+.immersive-filter-toggle.selected {
+  background: var(--color-panel-muted);
+}
+.immersive-filter-toggle:hover,
+.immersive-filter-toggle:focus-visible {
+  filter: brightness(1.25);
+  outline: 1px solid var(--color-primary);
+}
+.n-modal-container:has(.variant-hullmod-dialog) .n-modal-mask {
+  background: rgba(0, 0, 0, 0.66);
+}
+.variant-hullmod-dialog {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 6px 6px 6px 7px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.5);
+  outline: 1px solid var(--color-border);
+}
+.variant-hullmod-dialog .variant-add-mod {
+  width: 150px;
+  height: 24px;
+  margin-left: auto;
+}
+.variant-hullmod-table {
+  --hullmod-columns: 353px 251px 117px 137px;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 400px);
+  height: 100%;
+  min-height: 0;
+}
+.variant-hullmod-table .variant-hullmod-columns,
+.variant-hullmod-table .variant-hullmod-row {
+  display: grid;
+  grid-template-columns: var(--hullmod-columns);
+  column-gap: 3px;
+  align-items: center;
+}
+.variant-hullmod-columns {
+  flex: none;
+  height: 20px;
+  margin-bottom: 3px;
+}
+.variant-hullmod-columns > button {
+  display: flex;
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.67);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+.variant-hullmod-columns .immersive-resource-icon {
+  position: absolute;
+  right: 3px;
+}
+.variant-hullmod-columns .ascending {
+  transform: rotate(180deg);
+}
+.variant-hullmod-columns > button:hover,
+.variant-hullmod-columns > button:focus-visible {
+  filter: brightness(1.25);
+}
+.variant-hullmod-list {
+  min-height: 36px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: none;
+  border: 1px solid var(--color-border);
+  padding-left: var(--space-1);
+}
+.variant-hullmod-row {
+  width: 100%;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  color: var(--color-primary);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.variant-hullmod-row.installed {
+  background: rgba(0, 0, 0, 0.67);
+}
+.variant-hullmod-row.unavailable {
+  background: color-mix(in srgb, var(--color-panel-muted) 33%, transparent);
+}
+.variant-hullmod-row:hover,
+.variant-hullmod-row:focus-visible {
+  background: var(--color-surface-hover);
+  outline: none;
+}
+.variant-hullmod-row > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  height: 36px;
+}
+.variant-hullmod-row > .variant-hullmod-name {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-left: 2px;
+}
+.variant-hullmod-icon,
+.variant-hullmod-icon > img,
+.variant-hullmod-image-placeholder {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: none;
+  image-rendering: pixelated;
+}
+.variant-hullmod-name > .immersive-text {
+  flex: none;
+}
+.variant-hullmod-design {
+  filter: brightness(0.53);
+}
+.variant-hullmod-filters {
+  flex: none;
+  max-height: 150px;
+  overflow-y: auto;
+  margin-top: 15px;
+  padding-left: var(--space-2);
+}
+.variant-hullmod-auxiliary {
+  flex: none;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.variant-hullmod-extra {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+}
+.variant-hullmod-tooltip {
+  position: fixed;
+  z-index: 3;
+  max-height: calc(100vh - 14px);
+  overflow: auto;
+}
+.immersive-tooltip-frame {
+  position: relative;
+  padding: 7px;
+  background: #000000;
+}
+.immersive-tooltip-frame-content {
+  position: relative;
+  padding: 0 5px;
+}
+.immersive-tooltip-frame > span {
+  position: absolute;
+  pointer-events: none;
+  background-repeat: repeat-y;
+}
+.immersive-tooltip-edge-w,
+.immersive-tooltip-edge-e {
+  width: 16px;
+  top: 8px;
+  bottom: 8px;
+}
+.immersive-tooltip-edge-w {
+  left: 0;
+}
+.immersive-tooltip-edge-e {
+  right: 0;
+}
+.immersive-tooltip-edge-w_top,
+.immersive-tooltip-edge-w_bot,
+.immersive-tooltip-edge-e_top,
+.immersive-tooltip-edge-e_bot {
+  width: 16px;
+  height: 8px;
+}
+.immersive-tooltip-edge-w_top {
+  left: 0;
+  top: 0;
+}
+.immersive-tooltip-edge-e_top {
+  right: 0;
+  top: 0;
+}
+.immersive-tooltip-edge-w_bot {
+  left: 0;
+  bottom: 0;
+}
+.immersive-tooltip-edge-e_bot {
+  right: 0;
+  bottom: 0;
+}
+.variant-hullmod-details {
+  width: 393px;
+  max-width: calc(100vw - 14px);
+  color: var(--color-text);
+}
+.variant-hullmod-details header {
+  color: #cbf5ff;
+}
+.variant-hullmod-details p,
+.variant-hullmod-details section {
+  margin: 10px 0 0;
+}
+.variant-hullmod-details details {
+  margin-top: 10px;
+}
+.variant-hullmod-details summary {
+  cursor: pointer;
+  color: var(--color-muted);
+}
+.immersive-game-frame {
+  position: relative;
+  padding: 7px;
+  background: #000000;
+}
+.immersive-game-frame-content {
+  height: 100%;
+  min-height: 0;
+}
+.immersive-game-frame > span {
+  position: absolute;
+  pointer-events: none;
+  image-rendering: pixelated;
+  background-repeat: repeat;
+  background-size: 8px 8px;
+}
+.immersive-game-frame-top_left,
+.immersive-game-frame-top_right,
+.immersive-game-frame-bot_left,
+.immersive-game-frame-bot_right {
+  width: 8px;
+  height: 8px;
+}
+.immersive-game-frame-top_left {
+  top: 0;
+  left: 0;
+}
+.immersive-game-frame-top_right {
+  top: 0;
+  right: 0;
+}
+.immersive-game-frame-bot_left {
+  bottom: 0;
+  left: 0;
+}
+.immersive-game-frame-bot_right {
+  bottom: 0;
+  right: 0;
+}
+.immersive-game-frame-top,
+.immersive-game-frame-bot {
+  left: 8px;
+  width: calc(100% - 16px);
+  height: 8px;
+}
+.immersive-game-frame-top {
+  top: 0;
+}
+.immersive-game-frame-bot {
+  bottom: 0;
+}
+.immersive-game-frame-left,
+.immersive-game-frame-right {
+  top: 8px;
+  width: 8px;
+  height: calc(100% - 16px);
+}
+.immersive-game-frame-left {
+  left: 0;
+}
+.immersive-game-frame-right {
+  right: 0;
+}
+.immersive-square-toggle {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.immersive-square-toggle img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
+}
+.immersive-square-toggle:hover,
+.immersive-square-toggle:focus-visible {
+  filter: brightness(1.25);
+  outline: 1px solid var(--color-primary);
+  outline-offset: -1px;
+}
+.n-modal-container:has(.variant-weapon-groups) .n-modal-mask {
+  background: rgba(0, 0, 0, 0.66);
+}
+.variant-weapon-groups {
+  width: 842px;
+  max-height: calc(100vh - 20px);
+}
+.variant-group-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px;
+  color: var(--color-text);
+  outline: none;
+}
+.variant-group-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 19px;
+  flex: none;
+  margin-bottom: 7px;
+  color: var(--color-primary);
+  background: var(--color-panel-muted);
+}
+.variant-group-autofire,
+.variant-group-table-header,
+.variant-group-weapon-row {
+  display: grid;
+  grid-template-columns: 330px repeat(7, 20px) 6px;
+  column-gap: 3px;
+  width: 500px;
+  align-items: center;
+}
+.variant-group-autofire {
+  height: 21px;
+  flex: none;
+  margin-bottom: 3px;
+  color: var(--color-primary);
+}
+.variant-group-autofire > .immersive-text {
+  justify-self: end;
+}
+.variant-group-tables {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+}
+.variant-group-matrix {
+  display: flex;
+  flex-direction: column;
+  width: 500px;
+  flex: none;
+  min-height: 0;
+  max-height: 100%;
+}
+.variant-group-table-header,
+.variant-group-summary-header {
+  height: 20px;
+  flex: none;
+  color: var(--color-primary);
+  margin-bottom: 3px;
+}
+.variant-group-table-header > span,
+.variant-group-summary-header > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  height: 20px;
+}
+.variant-group-weapon-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  flex: 1;
+}
+.variant-group-weapon-row {
+  width: 496px;
+  height: 21px;
+  border-bottom: 1px solid #000000;
+}
+.variant-group-weapon-row.highlighted {
+  filter: brightness(1.4);
+}
+.variant-group-weapon-name {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding-right: 3px;
+  overflow: hidden;
+  height: 21px;
+}
+.variant-group-weapon-name > .immersive-text {
+  flex: none;
+}
+.variant-group-weapon-name svg {
+  flex: none;
+}
+.variant-group-summary {
+  width: 297px;
+  flex: none;
+}
+.variant-group-summary-header,
+.variant-group-summary-row {
+  display: grid;
+  grid-template-columns: 130px 100px 61px;
+  column-gap: 3px;
+  align-items: center;
+}
+.variant-group-summary-list {
+  outline: 1px solid var(--color-border);
+  padding-left: var(--space-1);
+}
+.variant-group-summary-row {
+  width: 100%;
+  height: 21px;
+  border: 0;
+  border-bottom: 1px solid #000000;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  grid-template-columns: 126px 100px 61px;
+}
+.variant-group-summary-row > .immersive-text:first-child {
+  margin-left: 10px;
+}
+.variant-group-summary-row > .immersive-text:not(:first-child) {
+  justify-self: center;
+  color: var(--color-warning);
+}
+.variant-group-summary-row.empty,
+.variant-group-summary-row.empty > .immersive-text {
+  color: #808080;
+}
+.variant-group-summary-row:hover,
+.variant-group-summary-row:focus-visible {
+  filter: brightness(1.4);
+}
+.variant-group-budget {
+  margin-top: 20px;
+  margin-left: 20px;
+}
+.variant-group-budget > div {
+  display: flex;
+  justify-content: space-between;
+  height: 18px;
+  align-items: center;
+}
+.variant-group-budget > div > .immersive-text:last-child {
+  color: var(--color-warning);
+}
+.variant-group-actions {
+  display: flex;
+  gap: 11px;
+  justify-content: flex-end;
+  padding-top: 10px;
+  flex: none;
+}
+.variant-group-actions > button {
+  width: 143px;
+  height: 25px;
+  min-width: 143px;
+}
+.variant-group-resource-note {
+  margin-right: auto;
+  align-self: center;
+  color: var(--color-warning);
+}
+.variant-source-creation {
+  width: 400px;
+  padding: var(--space-3);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
 }

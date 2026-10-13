@@ -1,7 +1,7 @@
 <template>
-  <div class="immersive-editor-shell" :inert="locked">
-    <header class="immersive-window-header">
-      <strong><ImmersiveText :text="title" font="heading" /></strong>
+  <div class="immersive-editor-shell" :class="{ 'variant-window-shell': compact }" :inert="locked">
+    <header v-if="!compact" class="immersive-window-header">
+      <strong><ImmersiveText :text="title" :font="compact ? 'caption' : 'heading'" /></strong>
       <span><ImmersiveText :text="saving ? '保存中' : dirty ? '未保存' : '已保存'" /></span>
       <n-button v-if="externalNotice" size="small" @click="$emit('load-external')">载入外部版本</n-button>
     </header>
@@ -14,18 +14,23 @@
       </div>
       <slot v-else />
     </main>
-    <footer class="immersive-editor-actions">
-      <div>
-        <n-button :disabled="!canUndo || saving" @click="$emit('undo')">撤销</n-button
-        ><n-button :disabled="!canRedo || saving" @click="$emit('redo')">重做</n-button
-        ><n-button :loading="saving" :disabled="!ready" type="primary" @click="$emit('save')">保存</n-button
-        ><n-button @click="$emit('close')">关闭</n-button>
-      </div>
+    <footer v-if="!compact" class="immersive-editor-actions">
+      <ImmersiveEditorActions
+        :can-undo="canUndo"
+        :can-redo="canRedo"
+        :saving="saving"
+        :ready="ready"
+        @undo="$emit('undo')"
+        @redo="$emit('redo')"
+        @save="$emit('save')"
+        @close="$emit('close')"
+      />
     </footer>
   </div>
 </template>
 <script setup lang="ts">
 import ImmersiveText from './ImmersiveText.vue';
+import ImmersiveEditorActions from './ImmersiveEditorActions.vue';
 defineProps<{
   title: string;
   dirty: boolean;
@@ -37,6 +42,7 @@ defineProps<{
   externalNotice: string;
   canUndo: boolean;
   canRedo: boolean;
+  compact?: boolean;
 }>();
 defineEmits<{ save: []; close: []; undo: []; redo: []; retry: []; 'load-external': [] }>();
 </script>

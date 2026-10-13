@@ -12,12 +12,21 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'joint-edit',
-    names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'prepareJointEdit'],
+    names: [
+      'queryJointEdit',
+      'queryJointEditRow',
+      'queryJointEditProjection',
+      'queryJointVariantCatalog',
+      'queryJointCandidate',
+      'prepareJointEdit',
+    ],
     capability: 'joint-edit-read',
     owners: [
       { layer: 'orchestrators', domain: 'joint-edit' },
       { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
       { layer: 'app', role: 'composable', domain: 'immersive-editor-view-model' },
+      { layer: 'app', role: 'composable', domain: 'variant-catalog' },
+      { layer: 'app', role: 'composable', domain: 'variant-candidate' },
     ],
   },
   {

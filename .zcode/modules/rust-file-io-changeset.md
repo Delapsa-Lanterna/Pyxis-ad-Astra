@@ -2,28 +2,28 @@
 
 ## 定义
 
-后端文件读写与变更集系统提供 UTF-8 文本 IO、canonical 路径边界与可回放的文件/目录 changeset。
+后端文件读写与变更集模块提供授权磁盘操作及可回放的文件和目录变更。
 
 ## 参考
 
-`src-tauri/src/io/paths.rs`：路径归一化与父链校验 owner。
-`src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放 owner。
-`src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文 owner。
-`src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历 owner。
-`src-tauri/src/io/faction_index.rs`：索引引用的实际根与父链授权 owner。
-`src-tauri/src/io/text.rs`：UTF-8 文本读取 owner，拥有 BOM 剥离与 CP1252 归一化入口。
-`src-tauri/src/models/`：CP1252 归一化映射与 FileChangeRecord 模型 owner。
-`src-tauri/src/services/file_changes.rs`：变更服务实现 owner。
 `src-tauri/src/commands/file_changes.rs`：变更 command 边界。
+`src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文 owner。
+`src-tauri/src/io/faction_index.rs`：索引引用的实际根与父链授权 owner。
+`src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放 owner。
+`src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历 owner。
+`src-tauri/src/io/paths.rs`：路径归一化与父链校验 owner。
+`src-tauri/src/io/text.rs`：UTF-8 文本读取 owner，拥有 BOM 剥离与 CP1252 归一化入口。
+`src-tauri/src/models/`：CP1252 归一化映射与 `FileChangeRecord` 模型 owner。
+`src-tauri/src/services/file_changes.rs`：变更服务实现 owner。
 
 ## 边界
 
-- IO 是磁盘路径、遍历、读取、写入、删除、目录事件与 changeset 回放的唯一权威。
-- 读、遍历、写、删与回放必须复用同一套路径与 walk-entry 校验。
-- 拒绝 `..`、root 外路径与任一已有父链 symlink、junction 或 reparse point。
-- 写入或删除前必须构建快照，成功后返回 `FileChangeRecord` 与展开后的失效路径。
-- 目录变更必须作为正式目录事件记录并逐文件展开精确影响。
-- 失败必须返回带上下文的错误，严禁让前端递归拼路径或提交成功状态。
+- `FileChangeRecord` 表达路径、存在状态与内容快照，目录事件展开实际文件影响。
+- FsRootBoundary 提供 canonical 根、实际目标与已有父链授权，全部磁盘入口共用该边界。
+- IO 拥有磁盘路径、遍历、读取、写入、删除和 changeset 应用。
+- parser 和 renderer 拥有格式语义，IO 按调用方文本写入 UTF-8 字节。
+- 回放消费既有快照并核对当前磁盘授权，错误保留目标与上下文。
+- 根事务提供版本、FIFO 租约与失败恢复，IO 返回实际应用结果。
 
 ## 链路
 
@@ -51,24 +51,24 @@
 
 ## 规范
 
-- 联合业务保存必须在同一根租约中装配全部 changeset，版本与失败恢复必须消费实际目标集合；身份渲染必须在应用前完成。
-- 写入必须携带读取版本凭据并在出队执行时比较；冲突必须返回 `write.version_conflict` 和目标路径，严禁写入或推进历史。
-- 同一 canonical 根的写入必须按 FIFO 执行，嵌套同步写服务必须共享事务租约；不同根必须独立执行，锁序必须为根租约、session 状态、缓存。
-- `write_utf8_no_bom` 必须按调用方提供的文本原样写入 UTF-8 字节；换行、缩进与序列化规则归各格式 renderer。
-- CP1252 归一化（`0x91/92` 至 `'`、`0x93/94` 至 `"`、`0x96` 至 `-`）在读取时执行并随保存写回磁盘，且不可逆。
-- 新建 Mod 的 `mod_info.json` renderer 必须输出 UTF-8 无 BOM 与 CRLF；其它格式遵守各自 parser 或保存模型的输出语义。
-- 目录必须以正式目录事件表达，严禁让前端递归枚举。
-- 每个保存入口只允许写所属模块声明的持久化目标；关联文件操作必须由同一正式保存模型显式声明。
-- FileChangeRecord 必须共同承载 beforePath、afterPath 与前后内容；普通写入必须使用相同路径，文件或目录改名必须使用源与目标路径。
-- 构造、应用、失败恢复、版本校验与回放必须共同消费双路径；撤销必须同时反转路径、存在状态与内容快照。
+- `FileChangeRecord` 必须共同承载 `beforePath`、`afterPath` 与前后内容；普通写入必须使用相同路径，文件或目录改名必须使用源与目标路径。
 - Windows 仅大小写改名必须按同一物理文件检查占用，并且必须由正式文件改名原语交接实际名称。
-- 源记录与目标凭据必须在同一 FIFO 租约中复核；缺少所属目标的读取凭据必须以 write.version_scope_missing 拒绝写入。
+- `write_utf8_no_bom` 必须按调用方提供的文本原样写入 UTF-8 字节；换行、缩进与序列化规则归各格式 renderer。
+- 写入必须携带读取版本凭据并在出队执行时比较；冲突必须返回 `write.version_conflict` 和目标路径，严禁写入或推进历史。
 - 势力索引目标、规格目录与指纹输入必须经 FsRootBoundary 授权之后读取或遍历。
+- 同一 canonical 根的写入必须按 FIFO 执行，嵌套同步写服务必须共享事务租约；不同根必须独立执行，锁序必须为根租约、session 状态、缓存。
+- 文本读取必须消费统一 CP1252 归一化映射，保存必须写回归一结果；映射必须保持独立字节与合法 UTF-8 标量的边界。
+- 新建 Mod 的 `mod_info.json` renderer 必须输出 UTF-8 无 BOM 与 CRLF；其它格式遵守各自 parser 或保存模型的输出语义。
+- 构造、应用、失败恢复、版本校验与回放必须共同消费双路径；撤销必须同时反转路径、存在状态与内容快照。
+- 每个保存入口只允许写所属模块声明的持久化目标；关联文件操作必须由同一正式保存模型显式声明。
+- 源记录与目标凭据必须在同一 FIFO 租约中复核；缺少所属目标的读取凭据必须以 write.version_scope_missing 拒绝写入。
+- 目录必须以正式目录事件表达，严禁让前端递归枚举。
+- 联合业务保存必须在同一根租约中装配全部 changeset，版本与失败恢复必须消费实际目标集合；身份渲染必须在应用前完成。
 
 ## 陷阱
 
-- 跳过已有父链链接校验会让 root 外内容经符号链接进入写入范围。
-- 把 BOM 检测分散到各格式解析器会让行为分叉。
-- 目录变更用文件枚举替代正式事件会让失效推导漏删或多删。
 - 回放前不重校验路径会让历史记录命中已迁移目标。
 - 快照缺失时构造空 before 会让撤销产生破坏性结果。
+- 把 BOM 检测分散到各格式解析器会让行为分叉。
+- 目录变更用文件枚举替代正式事件会让失效推导漏删或多删。
+- 跳过已有父链链接校验会让 root 外内容经符号链接进入写入范围。

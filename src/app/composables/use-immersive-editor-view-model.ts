@@ -12,7 +12,7 @@ import { updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } 
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { jointObject, mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
-import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
+import { queryJointEdit, queryJointEditRow, queryJointEditProjection, queryJointVariantCatalog } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import { subscribeQueryInvalidations, hasSourceInvalidation } from '@/services/query-cache.service';
 import { retargetImmersiveWindow, openImmersiveProjectile } from '@/orchestrators/immersive-editor.orchestrator';
@@ -20,10 +20,19 @@ import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orche
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { formatError, warningNotice } from '@/shared/lib/errors';
+import { AppError, formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/config/hull-references';
+import type { RowData } from '@/shared/types';
+import {
+  variantBranchKeys,
+  stripVariant,
+  equipVariantWeapon,
+  weaponSlotCompatibility,
+  isSystemWeapon,
+} from '@/domain/immersive/variant-actions';
+import { isRowData } from '@/shared/lib/row-data';
 
 export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: ImmersiveEditorKind; rowKey?: string }) {
   const definition = immersiveDefinition(root.kind);
@@ -38,6 +47,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
   const errorText = ref('');
   const projection = shallowRef<JointEditSnapshot | null>(null);
   const referenceChanging = ref(false);
+  const variantActionPending = ref(false);
   const joint = useJointEditSession({
     editableRecords: definition.editableRecords,
     readSnapshot:
@@ -168,6 +178,212 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
   function updateField(field: ImmersiveField, update: SchemaFieldUpdate) {
     updateFields([{ field, update }]);
   }
+  async function commitVariantInputs(): Promise<boolean> {
+    const target = joint.currentTarget.value,
+      admitted = joint.inputs.captureContext();
+    try {
+      return (await joint.inputs.commit()) !== false && active && admitted() && joint.currentTarget.value === target;
+    } catch (error) {
+      feedback.error(error, '提交装配输入失败');
+      return false;
+    }
+  }
+  async function updateVariant(key: string, transform: (data: Readonly<RowData>) => RowData): Promise<boolean> {
+    return updateVariants([{ key, transform }]);
+  }
+  async function updateVariants(changes: readonly { key: string; transform: (data: Readonly<RowData>) => RowData }[]): Promise<boolean> {
+    const target = joint.currentTarget.value;
+    const admitted = joint.inputs.captureContext();
+    try {
+      if (!(await commitVariantInputs()) || !active || !admitted() || joint.currentTarget.value !== target) return false;
+      const core = changes.filter(
+        (change) => snapshot.value!.records.find((record) => record.key === change.key)!.source?.source === 'core',
+      );
+      if (core.length) {
+        await createOverrides(core.map((change) => change.key));
+        return false;
+      }
+      applyVariantActions(changes);
+      return true;
+    } catch (error) {
+      feedback.error(error, '提交装配动作失败');
+      return false;
+    }
+  }
+  function applyVariantAction(key: string, transform: (data: Readonly<RowData>) => RowData) {
+    applyVariantActions([{ key, transform }]);
+  }
+  function applyVariantActions(changes: readonly { key: string; transform: (data: Readonly<RowData>) => RowData }[]) {
+    const before = deepClone(joint.draftValue.value);
+    const after = { ...before };
+    for (const { key, transform } of changes) after[key] = { state: 'present', value: transform(jointObject(before[key])) };
+    joint.setDraft(after);
+    history.push(before, after);
+  }
+  function cancelVariantAction() {
+    reads.revoke('consumer', 'variant-action');
+    variantActionPending.value = false;
+  }
+  async function installVariantWeapon(key: string, slotId: string, id: string, inputCommitted = false): Promise<boolean> {
+    if (variantActionPending.value) return false;
+    const target = joint.currentTarget.value!;
+    variantActionPending.value = true;
+    let applied = false;
+    await reads.consume(
+      'variant-action',
+      { target, key, slotId, id },
+      async (signal) => {
+        if (
+          (!inputCommitted && (!(await joint.waitForSave()) || !(await commitVariantInputs()))) ||
+          signal.aborted ||
+          !active ||
+          joint.currentTarget.value !== target
+        )
+          return null;
+        const captured = snapshot.value!,
+          graph = projection.value ?? captured;
+        const record = captured.records.find((record) => record.key === key)!;
+        if (record.source?.source === 'core') {
+          if (inputCommitted && joint.saving.value) return null;
+          await createOverrides([key]);
+          return null;
+        }
+        const slot = graph.variants[key]!.slots.filter(isRowData).find((slot) => slot.id === slotId)!;
+        const before = deepClone(joint.draftValue.value),
+          admitted = joint.inputs.captureContext();
+        const current = () =>
+          !signal.aborted &&
+          active &&
+          admitted() &&
+          joint.currentTarget.value === target &&
+          snapshot.value === captured &&
+          !joint.inputs.dirty.value &&
+          stableDeepEqual(before, joint.draftValue.value);
+        if (id) {
+          const catalog = await queryJointVariantCatalog(target, 'weapons', signal);
+          if (!current()) return null;
+          const entry = catalog.catalog.entries.find((entry) => entry.id === id);
+          const spec = entry && isRowData(entry.spec) ? entry.spec : null;
+          const reason = !entry
+            ? '武器目录来源缺失'
+            : !spec
+              ? '武器规格来源缺失'
+              : isSystemWeapon(isRowData(entry.data) ? entry.data : {}, spec)
+                ? '武器带有SYSTEM标记'
+                : weaponSlotCompatibility(slot, spec);
+          if (reason) {
+            const choice = await feedback.choose({
+              title: '强制安装武器？',
+              content: `装配：${jointObject(before[key]).variantId}\n槽位：${slotId} · ${slot.type} · ${slot.size}\n武器：${id}\n${reason}\n来源：${entry?.specSource?.path ?? entry?.source.path ?? '来源缺失'}`,
+              choices: [{ label: '强制安装', value: 'install', type: 'warning' }],
+            });
+            if (choice !== 'install' || !current()) return null;
+            const latest = await queryJointVariantCatalog(target, 'weapons', signal);
+            if (
+              !current() ||
+              !stableDeepEqual(
+                entry,
+                latest.catalog.entries.find((entry) => entry.id === id),
+              )
+            )
+              return null;
+          }
+        }
+        return current() ? [{ key, transform: (data: Readonly<RowData>) => equipVariantWeapon(data, slotId, id) }] : null;
+      },
+      {
+        ready: (changes) => {
+          if (changes) {
+            applyVariantActions(changes);
+            applied = true;
+          }
+        },
+        error: (error) => feedback.error(error, '安装武器失败'),
+        settled: () => {
+          variantActionPending.value = false;
+        },
+      },
+    );
+    return applied;
+  }
+  async function stripVariantBranch(key: string): Promise<boolean> {
+    if (variantActionPending.value) return false;
+    const target = joint.currentTargetKey.value;
+    variantActionPending.value = true;
+    let applied = false;
+    await reads.consume(
+      'variant-action',
+      { target, key },
+      async (signal) => {
+        if (
+          !(await joint.waitForSave()) ||
+          !(await commitVariantInputs()) ||
+          signal.aborted ||
+          !active ||
+          joint.currentTargetKey.value !== target
+        )
+          return null;
+        let graph = projection.value ?? snapshot.value!;
+        let keys = variantBranchKeys(graph, joint.draftValue.value, key);
+        const core = keys.filter((key) => graph.records.find((record) => record.key === key)!.source?.source === 'core');
+        if (core.length) {
+          if (!(await joint.createOverrides(core)) || signal.aborted || !active || joint.currentTargetKey.value !== target) return null;
+          graph = snapshot.value!;
+          keys = variantBranchKeys(graph, joint.draftValue.value, key);
+        }
+        const before = deepClone(joint.draftValue.value),
+          admitted = joint.inputs.captureContext(),
+          captured = snapshot.value;
+        const missing = keys.find((key) => !graph.variants[key]);
+        if (missing) throw new AppError('装配缺少有效舰体来源：' + missing, { action: 'strip-variant' });
+        const details = keys
+          .map((key) => {
+            const record = graph.records.find((record) => record.key === key)!;
+            const location = record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path;
+            return (
+              String(jointObject(before[key]).variantId) + '\n' + location + '\n共享引用：' + (record.referencedBy.join('、') || '当前装配')
+            );
+          })
+          .join('\n\n');
+        const choice = await feedback.choose({
+          title: '清空装配？',
+          content:
+            '清空以下 ' +
+            keys.length +
+            ' 个装配的可编辑武器、联队、普通／永久／S插件及幅能分配。确认后登记一次草稿历史，保存后写盘。\n\n' +
+            details,
+          choices: [{ label: '清空草稿', value: 'strip', type: 'warning' }],
+        });
+        if (
+          signal.aborted ||
+          choice !== 'strip' ||
+          !active ||
+          !admitted() ||
+          joint.currentTargetKey.value !== target ||
+          snapshot.value !== captured ||
+          !stableDeepEqual(before, joint.draftValue.value) ||
+          joint.inputs.dirty.value
+        )
+          return null;
+        return keys.map((key) => ({ key, transform: (data: Readonly<RowData>) => stripVariant(data, graph.variants[key]!) }));
+      },
+      {
+        ready: (changes) => {
+          if (changes) {
+            applyVariantActions(changes);
+            dismissStat();
+            applied = true;
+          }
+        },
+        error: (error) => feedback.error(error, '清空装配失败'),
+        settled: () => {
+          variantActionPending.value = false;
+        },
+      },
+    );
+    return applied;
+  }
+  watch(joint.currentTargetKey, cancelVariantAction);
   function updateFields(changes: ImmersiveFieldChange[]) {
     if (changes.some((change) => change.field.handoff)) {
       return switchReference(changes);
@@ -212,6 +428,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
     if (active && selectionIntent === intent) selectedStatId.value = show ? id : null;
   }
   async function save() {
+    if (variantActionPending.value) return;
     try {
       const result = await joint.saveDraft();
       if (result) feedback.success(`${definition.label}联合保存完成`);
@@ -256,7 +473,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
       if (joint.dirty.value) {
         const choice = await feedback.choose({
           title: '保存后切换关联来源？',
-          content: '保存当前联队及关联来源的编辑，再接入所选来源。',
+          content: `保存当前${definition.label}及关联来源的编辑，再接入所选来源。`,
           choices: [{ label: '保存并切换', value: 'save', type: 'primary' }],
         });
         if (choice !== 'save' || !active || joint.currentTargetKey.value !== key) return;
@@ -464,7 +681,18 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
       )
         return;
       const change = event.result.identityChanges.find(
-        (change) => change.before.kind === root.kind && change.before.id === target.id && change.after.id !== target.id,
+        (change) =>
+          change.before.kind === root.kind &&
+          change.before.id !== change.after.id &&
+          (change.before.id === target.id ||
+            (root.kind === 'variant' &&
+              snapshot.value?.records.some(
+                (record) =>
+                  record.target.kind === 'spec' &&
+                  record.target.target.kind === 'variant' &&
+                  record.target.target.id === change.before.id &&
+                  definition.editableRecords(snapshot.value!).includes(record.key),
+              ))),
       );
       if (!change) return;
       if (joint.saving.value && !(await joint.waitForSave())) return;
@@ -484,7 +712,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
         (signal) =>
           change.after.linkedRecord?.kind === 'csv'
             ? queryJointEditRow(target, change.after.linkedRecord.rowKey, signal)
-            : queryJointEdit({ ...target, id: change.after.id }, signal),
+            : queryJointEdit({ ...target, id: change.before.id === target.id ? change.after.id : target.id }, signal),
         {
           ready: (value) => {
             captured = cloneQuerySnapshot<JointEditSnapshot>(value);
@@ -556,6 +784,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
     joint,
     referenceChanging,
     snapshot,
+    displaySnapshot: computed(() => projection.value ?? snapshot.value),
     panel,
     notices,
     runtimeContext,
@@ -567,6 +796,14 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
     editable,
     updateField,
     updateFields,
+    updateVariant,
+    installVariantWeapon,
+    commitVariantInputs,
+    applyVariantAction,
+    updateVariants,
+    stripVariantBranch,
+    cancelVariantAction,
+    variantActionPending,
     toggleStat,
     dismissStat,
     save,

@@ -25,7 +25,7 @@ pub fn query_hull_references(
     build_hull_references(&mut session, reference_ids)
 }
 
-fn build_hull_references(
+pub(super) fn build_hull_references(
     session: &mut ProjectSession,
     requested_reference_ids: &[String],
 ) -> AppResult<HullReferencesResult> {

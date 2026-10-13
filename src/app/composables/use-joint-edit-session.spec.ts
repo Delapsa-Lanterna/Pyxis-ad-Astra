@@ -16,10 +16,12 @@ import { useJointEditSession } from './use-joint-edit-session';
 const root = { sessionId: 's', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
 const snapshot: JointEditSnapshot = {
   hull: null,
+  variants: {},
+  catalog: null,
   newSources: [],
   root,
   bindings: {},
-  referenceSettings: { values: {}, versions: [] },
+  referenceSettings: { values: {}, versions: [], resources: {} },
   records: [
     {
       key: 'ship',

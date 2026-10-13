@@ -4,6 +4,7 @@ export const WEAPON_COLORS = {
   MISSILE: 'rgb(155 255 0)',
   HYBRID: 'rgb(255 165 0)',
   UNIVERSAL: 'rgb(255 255 255)',
+  BUILT_IN: 'rgb(205, 205, 205)',
   LAUNCH_BAY: 'rgb(60 60 194)',
   SYNERGY: 'rgb(0 255 200)',
   COMPOSITE: 'rgb(215 255 0)',

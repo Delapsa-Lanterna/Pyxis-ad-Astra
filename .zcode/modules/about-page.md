@@ -6,18 +6,18 @@
 
 ## 参考
 
-`src/app/components/AboutPage.vue`：页面组件 owner，拥有静态元信息模板与 Markdown 渲染。
 `src/app/AppContent.vue`：挂载入口，按当前视图挂载关于页面。
-`src/stores/workspace.store.ts`：视图状态 owner，只持有 `currentView='about'`。
 `src/app/TitleBar.vue`：标题栏入口，触发 `showAbout` 导航。
+`src/app/components/AboutPage.vue`：页面组件 owner，拥有静态元信息模板与 Markdown 渲染。
+`src/stores/workspace.store.ts`：视图状态 owner，只持有 `currentView='about'`。
 
 ## 边界
 
-- 输入仅构建时内联的 `CHANGELOG.md`；不运行时读取 Markdown、不接收用户、Mod 或后端文本。
-- 页面不保存、不 IPC、不记日志；`v-html` 仅渲染仓库内联 changelog。
-- 静态元信息只归组件模板；样式复用设置页骨架，Markdown 样式限制在 `.about-content`。
-- 启动恢复一律回到 overview，严禁恢复到关于页。
-- 页面不拥有 workspace 状态；`currentView` 的切换权威归 workspace store。
+- 关于页的输入是构建时内联的 `CHANGELOG.md`，Markdown 渲染归页面组件。
+- 启动恢复归工作区编排，恢复完成后的视图为 overview。
+- 视图状态归 workspace store，标题栏和导航编排消费其切换入口。
+- 静态元信息归组件模板，页面骨架复用设置页，内容样式限定在 `.about-content`。
+- 页面提供静态信息展示，`v-html` 的内容来源限定为仓库 changelog。
 
 ## 链路
 
@@ -35,14 +35,14 @@
 
 ## 规范
 
-- 渲染输入仅限仓库内联 changelog，严禁接收运行时字符串进入 `v-html`。
 - Markdown 样式必须限定作用域，严禁污染全局排版。
+- changelog 必须由构建入口内联，版本元信息必须由页面的静态模型提供。
+- 渲染输入仅限仓库内联 changelog，严禁接收运行时字符串进入 `v-html`。
 - 页面必须保持只读：无编辑控件、无保存、无日志与 IPC 调用。
-- changelog 内容更新只随仓库提交发生，页面不维护版本元数据副本。
 - 页面路由必须经 workspace 视图状态，严禁引入独立路由记录。
 
 ## 陷阱
 
-- 让关于页渲染运行时或用户文本会让 `v-html` 成为注入面。
 - 在组件内运行时读取 changelog 文件会让构建产物依赖磁盘布局。
 - 把关于页加入启动恢复会让工具无法回到工作区总览。
+- 让关于页渲染运行时或用户文本会让 `v-html` 成为注入面。

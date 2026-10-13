@@ -167,25 +167,20 @@ pub fn save_variant_entity(payload: VariantEntityPayload) -> Result<WriteResult<
         payload.previous_id.as_deref().unwrap_or(&payload.next_id),
         &payload.base_versions,
     )?;
-    let target_exists = spec_save_context(
+    spec_save_context(
         &payload.session_id,
         EntityKind::Variant,
         payload.previous_id.as_deref(),
         &payload.next_id,
         payload.rel_path.as_deref(),
     )?;
-    let result = services::editor_config::save_spec_entity_with_json_options(
-        &payload.mod_root,
-        EntityKind::Variant,
+    let result = services::project::save_variant_entity(
+        &payload.session_id,
         payload.previous_id.as_deref(),
         &payload.next_id,
-        services::editor_config::SpecSaveInput {
-            source_rel_path: payload.rel_path.as_deref(),
-            target_exists_in_index: target_exists,
-            data: payload.data,
-            json_write: payload.json_write,
-            ordered_json: payload.ordered_json.as_deref(),
-        },
+        payload.data,
+        payload.json_write,
+        payload.ordered_json.as_deref(),
     )?;
     transaction.commit(result, "保存装配")
 }

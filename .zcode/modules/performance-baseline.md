@@ -2,7 +2,7 @@
 
 ## 定义
 
-性能基线系统以正式计时日志和可复现样本记录关键链路性能，不改变业务行为。
+性能基线模块记录正式业务链路的耗时与规模，并提供可复现比较依据。
 
 ## 参考
 
@@ -16,38 +16,41 @@
 
 ## 边界
 
-- 严禁引入临时计时 API、调试分支、样例专用优化或影响保存与 query 语义的观测。
-- 基线只用于比较同一场景的端到端阶段，不是功能 fallback 或优化授权。
-- 性能记录必须包含输入规模、环境、阶段与结果；结论必须由完整样本统计得出。
-- 性能记录必须经可注入 sink 进入应用日志，严禁业务模块自建计时输出。
-- 观测入口、样本格式和日志归性能模块；业务调用点只允许提供正式阶段数据。
+- 各窗口启动装配日志 sink，应用日志能力拥有持久化、级别和脱敏。
+- 后端 ProjectSession 提供打开阶段 trace，前端能力记录调用及展示阶段。
+- 基线数据描述同一环境和操作场景的观测结果，比较方法以完整样本统计为依据。
+- 性能原语拥有计时、记录格式与可注入 sink，业务入口提供阶段和规模。
+- 性能观测消费正式业务入口，其状态与保存结果仍由业务 owner 接纳。
 
 ## 链路
 
-### 前端阶段打点
+### 业务阶段计时
 
-1. Mod 打开记录 `project.openSession` 的后端阶段与前端 invoke。
-2. 新建 Mod 分别记录 `frontend.createModProject` 与 `frontend.openCreatedModProject`。
-3. 持久化索引阶段记录 `hit` 或 `miss`。
-4. source 目录记录 `frontend.query.sourceCatalog`，字段含 `source、groups、options、ms`。
-5. 查询缓存命中记录 `frontend.queryCache`。
-6. 可视区媒体批次记录 `frontend.media.visibleBatch`，字段含 `surface、observed、requested、cacheHits、resolved、failed、ms`。
-7. 配置列表记录 `frontend.config.listFirstFrame`，起点为列表加载开始，终点为实体行挂载后的下一 animation frame。
+1. 业务入口经 hook 或性能原语捕获开始时间。
+2. 正式动作执行后取得结果和规模字段。
+3. 性能原语在动作结束处计算耗时并交付记录。
 
-### 样本与比较
+### 后端打开 trace
 
-1. 性能比较必须使用同一 Mod、同一构建与同一操作脚本。
-2. `Kratogen_TA 0.5.0` 样本包含 5 次冷启动首帧、10 次同 session 实体切换与 3 次完整滚动。
-3. 每组结果报告样本数、最小值、最大值、算术平均值、中位数、nearest-rank P95、前后绝对差与百分比差。
+1. ProjectSession 打开建立阶段 trace。
+2. 根、索引、持久化缓存和 manifest 装配记录各阶段耗时。
+3. service 返回完整 trace，前端打开能力交付后端阶段及 invoke 耗时。
+
+### 日志接纳
+
+1. `recordPerformance` 将名称、毫秒值和阶段字段装配为结构化条目。
+2. 注入 sink 将条目交给应用日志能力。
+3. 后端日志按已保存级别过滤、渲染并写入。
 
 ## 规范
 
-- 打点不得引入布局抖动、额外渲染或阻塞保存与 query 语义。
-- 打点字段名与取值必须与本文档一致，严禁临时增删字段。
+- 性能比较必须固定 Mod、构建、环境与操作脚本，并报告输入规模、样本数、最小值、最大值、平均值、中位数及 nearest-rank P95；差异必须同时表达绝对值与百分比。
+- 打点只允许观测正式入口，严禁改变布局、渲染、保存或 query 语义。
+- 打点必须消费所属入口的稳定名称和结构化字段，阶段、规模和毫秒值必须共同交付日志 sink。
 - 打点日志必须进入应用日志链路并遵守其分级与脱敏约束；性能打点为 DEBUG 级，仅在日志级别切至详细（DEBUG）档时落盘，性能采样前必须先切换详细档。
-- 打点条目统一为稳定码 `perf`、message `PERF <名称>`、`fields` 携带 `ms` 与阶段参数；后端 `project.openSession` trace 同格式，`stage=total` 条目携带 `modRoot`，其余条目 `stage=<阶段名>`。
+- 打点条目必须采用稳定码 `perf`、message `PERF <名称>`、`fields` 携带 `ms` 与阶段参数；后端 `project.openSession` trace 同格式，`stage=total` 条目携带 `modRoot`，其余条目 `stage=<阶段名>`。
 - 日志 sink 未注册时打点必须静默丢弃，严禁报错。
-- 结构验收必须满足：实体切换新增 source 目录 IPC 数为 0，屏幕外图片 data URL IPC 数为 0，每个冷缓存 source 后端查询数为 1。
+- 首帧计时必须从所属列表加载开始，到实体行挂载后的下一 animation frame 结束；媒体记录必须同时提供请求、命中、成功和失败规模。
 
 ## 陷阱
 

@@ -85,6 +85,290 @@ fn cleanup(dir: PathBuf, root: &JointEditRoot) {
 }
 
 #[test]
+fn variant_modules_atomic_history() {
+    let (dir, mut root) = fixture();
+    write_utf8_no_bom(&dir.join("data/hulls/a.ship"), r#"{"hullId":"a","weaponSlots":[{"id":"M1","type":"STATION_MODULE"},{"id":"M2","type":"STATION_MODULE"}]}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/variants/var.variant"), r#"{"variantId":"var","hullId":"a","fluxVents":2,"modules":[{"M2":"module"},{"M1":"module"}],"unknown":"007"}"#).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/variants/module.variant"),
+        r#"{"variantId":"module","hullId":"a","fluxVents":1,"unknown":true}"#,
+    )
+    .unwrap();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("variant.modules");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let main_key = snapshot.bindings["variant"].clone();
+    let main = &snapshot.variants[&main_key];
+    assert_eq!(
+        main.modules
+            .iter()
+            .map(|module| module.slot_id.as_str())
+            .collect::<Vec<_>>(),
+        ["M2", "M1"]
+    );
+    assert_eq!(main.modules[0].variant_key, main.modules[1].variant_key);
+    let module_key = main.modules[0].variant_key.clone();
+    let module = snapshot
+        .records
+        .iter()
+        .find(|record| record.key == module_key)
+        .unwrap();
+    assert!(module.referenced_by.contains(&"Variant:var".into()));
+    let mut write = payload(snapshot);
+    write
+        .values
+        .retain(|key, _| key == &main_key || key == &module_key);
+    for (key, vents) in [(&main_key, 5), (&module_key, 8)] {
+        if let JointValue::Present(data) = write.values.get_mut(key).unwrap() {
+            data["fluxVents"] = json!(vents);
+        }
+    }
+    let result = submit(&write).unwrap();
+    assert_eq!(result.changes.len(), 2);
+    let main = crate::io::read_json_file(&dir.join("data/variants/var.variant")).unwrap();
+    assert_eq!(main["modules"], json!([{"M2":"module"},{"M1":"module"}]));
+    assert_eq!(main["unknown"], "007");
+    let restored = write_transactions::replay(
+        &root.session_id,
+        &root.mod_root,
+        FileChangeReplayDirection::Undo,
+        result.history.undo_stack[0].id,
+        result.history.revision,
+    )
+    .unwrap();
+    assert_eq!(restored.changes.len(), 2);
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/variants/module.variant")).unwrap()["fluxVents"],
+        1
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn variant_rename_all_mod_parents() {
+    let (dir, mut root) = fixture();
+    for (name, modules) in [
+        ("parent_a", json!({"A":"var"})),
+        ("parent_b", json!([{"B":"var"},{"C":"var"}])),
+    ] {
+        write_utf8_no_bom(
+            &dir.join(format!("data/variants/{name}.variant")),
+            &json!({"variantId":name,"hullId":"a","modules":modules,"unknown":"007"}).to_string(),
+        )
+        .unwrap();
+    }
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("variant.rename.parents");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    let info =
+        project::query_entity_edit_target(&root.session_id, EntityKind::Variant, "var").unwrap();
+    assert_eq!(info.base_versions.len(), 3);
+    let mut versions = info.base_versions;
+    versions.push(crate::io::file_version(&dir.join("data/variants/new.variant")).unwrap());
+    let result = crate::commands::save_variant_entity(
+        crate::models::command_payloads::VariantEntityPayload {
+            session_id: root.session_id.clone(),
+            mod_root: root.mod_root.clone(),
+            previous_id: Some("var".into()),
+            next_id: "new".into(),
+            rel_path: Some("data/variants/var.variant".into()),
+            data: json!({"variantId":"new","hullId":"a","fluxVents":3}),
+            json_write: Default::default(),
+            ordered_json: None,
+            base_versions: versions,
+        },
+    )
+    .unwrap();
+    assert_eq!(result.changes.len(), 3);
+    assert_eq!(result.history.undo_stack.len(), 1);
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/variants/parent_a.variant")).unwrap()["modules"],
+        json!({"A":"new"})
+    );
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/variants/parent_b.variant")).unwrap()["modules"],
+        json!([{"B":"new"},{"C":"new"}])
+    );
+    let undo = write_transactions::replay(
+        &root.session_id,
+        &root.mod_root,
+        FileChangeReplayDirection::Undo,
+        result.history.undo_stack[0].id,
+        result.history.revision,
+    )
+    .unwrap();
+    assert_eq!(undo.changes.len(), 3);
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/variants/parent_a.variant")).unwrap()["modules"],
+        json!({"A":"var"})
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn joint_variant_rename_parents() {
+    let (dir, mut root) = fixture();
+    write_utf8_no_bom(
+        &dir.join("data/variants/parent.variant"),
+        r#"{"variantId":"parent","hullId":"a","modules":[{"M":"var"}],"displayName":"keep"}"#,
+    )
+    .unwrap();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("variant.joint.rename");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let mut write = payload(query_joint_edit(&root).unwrap());
+    let key = write.snapshot.bindings["variant"].clone();
+    write.values.retain(|record, _| record == &key);
+    if let JointValue::Present(data) = write.values.get_mut(&key).unwrap() {
+        data["variantId"] = json!("new");
+    }
+    write
+        .base_versions
+        .push(crate::io::file_version(&dir.join("data/variants/new.variant")).unwrap());
+    let result = submit(&write).unwrap();
+    assert_eq!(result.changes.len(), 2);
+    let data = crate::io::read_json_file(&dir.join("data/variants/parent.variant")).unwrap();
+    assert_eq!(data["modules"], json!([{"M":"new"}]));
+    assert_eq!(data["displayName"], "keep");
+    cleanup(dir, &root);
+}
+
+#[test]
+fn variant_skin_slots_and_sources() {
+    let (dir, mut root) = fixture();
+    std::fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/a.ship"), r#"{"hullId":"a","weaponSlots":[{"id":"A","type":"BALLISTIC","size":"SMALL"},{"id":"B","type":"MISSILE","size":"SMALL"}],"builtInWeapons":{"B":"weapon"},"builtInMods":["old"],"builtInWings":["wing"]}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/skins/skin.skin"), r#"{"skinHullId":"skin","baseHullId":"a","ordnancePoints":120,"fighterBays":2,"weaponSlotChanges":{"A":{"size":"LARGE","type":"HYBRID"}},"removeWeaponSlots":["B"],"removeBuiltInMods":["old"],"builtInMods":["new"]}"#).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/variants/var.variant"),
+        r#"{"variantId":"var","hullId":"skin","fluxVents":2}"#,
+    )
+    .unwrap();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("variant.skin");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let hull = &snapshot.variants[&snapshot.bindings["variant"]];
+    assert_eq!(hull.slots.len(), 1);
+    assert_eq!(hull.slots[0]["size"], "LARGE");
+    assert_eq!(hull.built_in_mods, ["new"]);
+    assert!(hull.built_in_weapons.is_empty());
+    assert_eq!(hull.built_in_wings, ["wing"]);
+    assert_eq!(hull.fields["ordnance points"].path, "ordnancePoints");
+    assert_eq!(hull.fields["fighter bays"].path, "fighterBays");
+    assert_eq!(hull.display_bindings["csv"], hull.fields["name"].record_key);
+    let description = snapshot
+        .records
+        .iter()
+        .find(|record| record.key == hull.display_bindings["description"])
+        .unwrap();
+    assert!(
+        matches!(&description.target, JointRecordTarget::Csv { identity, .. } if identity["id"] == "skin" && identity["type"] == "SHIP")
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn variant_weapon_catalog_sources() {
+    let (dir, root) = fixture();
+    let snapshot = project::query_variant_catalog(
+        &JointEditRoot {
+            kind: JointEditKind::Variant,
+            id: "var".into(),
+            ..root.clone()
+        },
+        JointVariantCatalogKind::Weapons,
+    )
+    .unwrap();
+    let catalog = snapshot.catalog;
+    assert_eq!(catalog.entries.len(), 1);
+    assert_eq!(catalog.entries[0].id, "weapon");
+    assert_eq!(catalog.entries[0].spec.as_ref().unwrap()["size"], "SMALL");
+    assert_eq!(catalog.entries[0].source.source, ResourceSource::Mod);
+    assert!(
+        catalog.entries[0]
+            .source_version
+            .path
+            .ends_with("weapon_data.csv")
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn variant_wing_catalog_core_reference() {
+    let (dir, mut root) = fixture();
+    let game = temp_dir("variant_catalog_core");
+    let core = game.join("starsector-core");
+    std::fs::create_dir_all(core.join("data/hulls")).unwrap();
+    std::fs::create_dir_all(core.join("data/variants")).unwrap();
+    write_utf8_no_bom(
+        &core.join("data/hulls/fighter.ship"),
+        r#"{"hullId":"fighter","hullName":"Spec name","spriteName":"graphics/fighter.png"}"#,
+    )
+    .unwrap();
+    write_utf8_no_bom(
+        &core.join("data/hulls/ship_data.csv"),
+        "id,name\nfighter,Authority fighter\n",
+    )
+    .unwrap();
+    write_utf8_no_bom(
+        &core.join("data/variants/fighter_var.variant"),
+        r#"{"variantId":"fighter_var","hullId":"fighter","displayName":"Support Fighter"}"#,
+    )
+    .unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/hulls/wing_data.csv"),
+        "id,variant,num\nwing,fighter_var,3\n",
+    )
+    .unwrap();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("variant.wing.catalog");
+    root.session_id = project::open_project_session_traced(&dir, Some(&game), &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let snapshot = project::query_variant_catalog(&root, JointVariantCatalogKind::Wings).unwrap();
+    let entries = snapshot.catalog.entries;
+    assert!(entries[0].preview.is_some());
+    assert_eq!(entries[0].label, "Authority fighter Support Fighter");
+    assert_eq!(entries[0].source.source, ResourceSource::Mod);
+    assert_eq!(
+        entries[0].spec_source.as_ref().unwrap().source,
+        ResourceSource::Core
+    );
+    assert_eq!(
+        entries[0].resource_refs["icon"].source,
+        ResourceSource::Core
+    );
+    assert!(
+        entries[0]
+            .spec_version
+            .as_ref()
+            .unwrap()
+            .path
+            .ends_with("fighter_var.variant")
+    );
+    cleanup(dir, &root);
+    std::fs::remove_dir_all(game).unwrap();
+}
+
+#[test]
 fn four_roots_capture_versions() {
     let (dir, root) = fixture();
     for (kind, id) in [
@@ -201,6 +485,18 @@ fn wing_skin_sources_and_slots() {
     assert_eq!(hull.fields["max speed"].path, "maxSpeed");
     assert_eq!(hull.fields["name"].path, "hullName");
     assert_eq!(hull.fields["tech/manufacturer"].path, "tech");
+    assert_eq!(
+        hull.display_bindings["csv"],
+        hull.fields["min crew"].record_key
+    );
+    assert_eq!(
+        hull.display_bindings["description"],
+        snapshot.bindings["description"]
+    );
+    assert_eq!(
+        hull.display_bindings.get("system"),
+        snapshot.bindings.get("system")
+    );
     assert_eq!(hull.sprite.as_ref().unwrap().rel_path, "graphics/skin.png");
     assert_eq!(
         hull.sprite.as_ref().unwrap().owner_kind,
@@ -322,6 +618,7 @@ fn wing_creates_skin_and_versions() {
         .unwrap()
         .session_id;
     let baseline = project::query_joint_edit_request(&JointEditQuery {
+        catalog: None,
         root: root.clone(),
         row_key: None,
         values: None,
@@ -384,6 +681,7 @@ fn weapon_projection_icons_and_source() {
         ),
     ]);
     let projected = project::query_joint_edit_request(&JointEditQuery {
+        catalog: None,
         root: weapon_root,
         row_key: None,
         values: Some(draft),
@@ -538,6 +836,115 @@ fn prepare_reports_field_conflicts() {
         "write.version_conflict"
     );
     cleanup(dir, &root);
+}
+#[test]
+fn reference_ui_engine_versions() {
+    let (dir, root) = fixture();
+    std::fs::create_dir_all(dir.join("data/config")).unwrap();
+    write_utf8_no_bom(&dir.join("data/config/settings.json"), r#"{"graphics":{"ui":{"checkmark":"graphics/check.png","checkmark_locked":"graphics/locked.png"}}}"#).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/config/engine_styles.json"),
+        r#"{"HIGH_TECH":{"engineColor":[100,165,255,255]}}"#,
+    )
+    .unwrap();
+    let snapshot = query_joint_edit(&root).unwrap();
+    assert_eq!(
+        snapshot.reference_settings.resources["checkmark"].rel_path,
+        "graphics/check.png"
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["engineGlow"].source,
+        ResourceSource::Mod
+    );
+    assert_eq!(
+        snapshot.reference_settings.values["engineStyles"]["HIGH_TECH"]["engineColor"],
+        json!([100, 165, 255, 255])
+    );
+    assert_eq!(snapshot.reference_settings.versions.len(), 2);
+    cleanup(dir, &root);
+}
+
+#[test]
+fn hullmod_catalog_ui_icons() {
+    let (dir, root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let game = temp_dir("joint_hullmod_catalog");
+    let core = game.join("starsector-core");
+    for path in [
+        core.join("data/config"),
+        core.join("data/hullmods"),
+        dir.join("data/config"),
+        dir.join("data/hullmods"),
+    ] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    write_utf8_no_bom(&core.join("data/config/settings.json"), r#"{"graphics":{"ui":{"sortIcon":"graphics/core-sort.png","ui_border1b_e":"graphics/core-edge.png"}}}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/config/settings.json"), r#"{"graphics":{"ui":{"sortIcon":"graphics/mod-sort.png","ui_border1b_w":"graphics/mod-edge.png"}}}"#).unwrap();
+    write_utf8_no_bom(
+        &core.join("data/hullmods/hull_mods.csv"),
+        "id,name,sprite\nshared,Core shared,graphics/shared.png\ncore,Core generic,\n",
+    )
+    .unwrap();
+    write_utf8_no_bom(&dir.join("data/hullmods/hull_mods.csv"), "id,name,sprite,desc,hidden\nshared,Mod generic,,Params %s,FALSE\nexplicit,Explicit,graphics/explicit.png,Static,TRUE\n").unwrap();
+    let mut trace = project::PerformanceTrace::new("joint.hullmod.resources");
+    let manifest = project::open_project_session_traced(&dir, Some(&game), &mut trace).unwrap();
+    let root = JointEditRoot {
+        session_id: manifest.session_id,
+        ..root
+    };
+    let result = project::query_variant_catalog(&root, JointVariantCatalogKind::Hullmods).unwrap();
+    assert_eq!(result.catalog.entries.len(), 3);
+    let shared = result
+        .catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == "shared")
+        .unwrap();
+    assert_eq!(shared.label, "Mod generic");
+    assert_eq!(shared.resource_refs["icon"].source, ResourceSource::Mod);
+    assert_eq!(
+        shared.resource_refs["icon"].rel_path,
+        "graphics/hullmods/generic_mod.png"
+    );
+    assert_eq!(shared.data["desc"], "Params %s");
+    let generic = result
+        .catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == "core")
+        .unwrap();
+    assert_eq!(generic.resource_refs["icon"].source, ResourceSource::Core);
+    assert_eq!(generic.resource_refs["icon"].owner_id, "core");
+    assert_eq!(
+        generic.resource_refs["icon"].rel_path,
+        "graphics/hullmods/generic_mod.png"
+    );
+    let explicit = result
+        .catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == "explicit")
+        .unwrap();
+    assert_eq!(
+        explicit.resource_refs["icon"].rel_path,
+        "graphics/explicit.png"
+    );
+    assert_eq!(explicit.data["hidden"], "TRUE");
+    assert_eq!(
+        result.reference_settings.resources["sortIcon"].source,
+        ResourceSource::Mod
+    );
+    assert_eq!(
+        result.reference_settings.resources["ui_border1b_e"].source,
+        ResourceSource::Core
+    );
+    assert_eq!(
+        result.reference_settings.resources["ui_border1b_w"].source,
+        ResourceSource::Mod
+    );
+    assert_eq!(result.reference_settings.versions.len(), 2);
+    cleanup(dir, &root);
+    std::fs::remove_dir_all(game).unwrap();
 }
 
 #[test]
@@ -956,6 +1363,7 @@ fn csv_identity_and_draft_system() {
         unreachable!()
     };
     let mut query = JointEditQuery {
+        catalog: None,
         root: JointEditRoot {
             id: "unsaved-id".into(),
             ..root.clone()
@@ -1141,12 +1549,12 @@ fn core_header_and_sensor_sources() {
     std::fs::create_dir_all(dir.join("data/config")).unwrap();
     write_utf8_no_bom(
         &core.join("data/config/settings.json"),
-        r#"{"baseSensorFrigate":30,"baseSensorDestroyer":60,"unrelated":99}"#,
+        r#"{"baseSensorFrigate":30,"baseSensorDestroyer":60,"unrelated":99,"graphics":{"ui":{"toggle20_on":"graphics/core-on.png","toggle20_off":"graphics/core-off.png","ui_border1_top_left":"graphics/core-frame.png"}}}"#,
     )
     .unwrap();
     write_utf8_no_bom(
         &dir.join("data/config/settings.json"),
-        r#"{"baseSensorFrigate":42}"#,
+        r#"{"baseSensorFrigate":42,"graphics":{"ui":{"toggle20_on":"graphics/mod-on.png","ui_border1_top_right":"graphics/mod-frame.png"}}}"#,
     )
     .unwrap();
     write_utf8_no_bom(
@@ -1168,6 +1576,26 @@ fn core_header_and_sensor_sources() {
     );
     assert!(!snapshot.reference_settings.values.contains_key("unrelated"));
     assert_eq!(snapshot.reference_settings.versions.len(), 2);
+    assert_eq!(
+        snapshot.reference_settings.resources["toggle20_on"].source,
+        ResourceSource::Mod
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["toggle20_on"].rel_path,
+        "graphics/mod-on.png"
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["toggle20_off"].source,
+        ResourceSource::Core
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["ui_border1_top_left"].source,
+        ResourceSource::Core
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["ui_border1_top_right"].source,
+        ResourceSource::Mod
+    );
     let key = snapshot.bindings["csv"].clone();
     let mut input = payload(snapshot);
     input.values.retain(|entry, _| entry == &key);
@@ -1180,4 +1608,38 @@ fn core_header_and_sensor_sources() {
     assert_eq!(csv.rows[1].data["custom"], "007");
     cleanup(dir, &root);
     std::fs::remove_dir_all(game).unwrap();
+}
+
+#[test]
+#[ignore = "local Core performance sample"]
+fn native_variant_catalog_timings() {
+    let game = PathBuf::from(
+        std::env::var("CAA_PERF_GAME").expect("game path is supplied for manual measurement"),
+    );
+    let (dir, mut root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let mut trace = project::PerformanceTrace::new("variant.catalog.native");
+    root.session_id = project::open_project_session_traced(&dir, Some(&game), &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    for kind in [
+        JointVariantCatalogKind::Weapons,
+        JointVariantCatalogKind::Wings,
+    ] {
+        for sample in 0..10 {
+            let timer = trace.timer();
+            let read = project::query_variant_catalog(&root, kind).unwrap();
+            println!(
+                "CATALOG {:?} sample={} entries={} ms={} bytes={}",
+                kind,
+                sample,
+                read.catalog.entries.len(),
+                timer.elapsed_ms(),
+                serde_json::to_vec(&read).unwrap().len()
+            );
+        }
+    }
+    cleanup(dir, &root);
 }

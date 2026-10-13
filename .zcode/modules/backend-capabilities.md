@@ -2,7 +2,7 @@
 
 ## 定义
 
-后端能力与 IPC 传输模块提供跨进程调用原语、透明错误上下文和正式 command 归属契约。
+后端能力与 IPC 传输模块提供类型化跨进程调用及能力归属契约。
 
 ## 参考
 
@@ -15,20 +15,20 @@
 
 ## 边界
 
-- command 参数装配必须由能力 service 或正式 wire 实现拥有，传输只允许消费完整参数。
-- 传输错误必须保留原始 cause，领域 action 必须归所属用户动作。
-- 公开能力权限必须由能力矩阵按真实符号来源约束；command 实现必须由 command-policy 按调用事实约束。
-- 共享传输严禁拥有业务状态、确认、日志写入、缓存或保存接纳。
-- 原始 Tauri invoke 必须只由 command.runtime 消费。
+- `AppError` 保留 command 和原始 cause，领域 action 由用户动作提供。
+- `command.runtime` 拥有唯一原始 invoke 调用与透明错误包装。
+- 所属 service 或 wire 实现拥有 command 参数装配，共享传输消费完整参数。
+- 能力矩阵维护公开操作权限，command-policy 维护实际 command 实现归属。
+- 静态检查消费共享符号来源、调用和位置事实，分别验证 command owner 与能力消费者。
 
 ## 链路
 
 ### 跨进程调用
 
 1. 所属能力装配 command 与 payload 或顶层参数。
-2. invokeCommand 调用 Tauri invoke。
+2. `invokeCommand` 调用 Tauri invoke。
 3. 成功结果返回所属能力与正式消费者。
-4. 失败包装为携带 command 和原始 cause 的 AppError。
+4. 失败包装为携带 command 和原始 cause 的 `AppError`。
 
 ### 权限判定
 
@@ -39,16 +39,15 @@
 
 ## 规范
 
-- 联合读取、准备及提交必须唯一归 joint-edit 能力；编辑目标登记、查询、预约与聚焦必须归窗口能力。
-- AppError.command 必须表达底层 command；formatError 必须透过该包装消费原始用户文案投影。
+- `AppError.command` 必须表达底层 command；`formatError` 必须透过该包装消费原始用户文案投影。
 - command 必须由可静态判定的字面量表达；别名、namespace、转导出和动态模块导入必须保留来源。
-- errorContextOf 必须分别表达领域 action 和 command，日志必须按所属字段记录。
-- errorDiagnosticOf 必须保留来源稳定码、原始消息和结构化位置；附加 payload 必须沿 cause 消费。
-- invokeCommand 必须保留完整 args，nullable、无参数及顶层参数必须服从 Rust command 契约。
-- 模块主归属文件必须按本模块的正式职责登记，实际能力与消费者必须在各所属模块表达公开交接。
+- `errorContextOf` 必须分别表达领域 action 和 command，日志必须按所属字段记录。
+- `errorDiagnosticOf` 必须保留来源稳定码、原始消息和结构化位置；附加 payload 必须沿 cause 消费。
+- `invokeCommand` 必须保留完整 args，nullable、无参数及顶层参数必须服从 Rust command 契约。
+- 联合读取、准备及提交必须唯一归 joint-edit 能力；编辑目标登记、查询、预约与聚焦必须归窗口能力。
 
 ## 陷阱
 
-- 严禁在错误包装时丢弃来源附加 payload。
-- 严禁将任意业务字段装配写入共享传输。
-- 严禁把底层 command 名作为用户操作文案。
+- 在传输层组装业务字段会让 wire 参数脱离所属能力定义。
+- 用 command 名替代用户动作会混淆底层诊断与操作文案。
+- 错误包装丢弃 payload 会使冲突聚焦与恢复动作失去正式目标。

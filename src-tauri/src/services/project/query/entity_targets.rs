@@ -176,6 +176,7 @@ pub(in crate::services::project) struct EntityTargetProjection {
     index_version: Option<crate::models::FileVersion>,
     default_description_ids: std::collections::BTreeSet<String>,
     description_version: Option<crate::models::FileVersion>,
+    parent_versions: std::collections::BTreeMap<String, Vec<crate::models::FileVersion>>,
 }
 
 pub(in crate::services::project) fn prepare_entity_targets(
@@ -183,6 +184,19 @@ pub(in crate::services::project) fn prepare_entity_targets(
     kind: EntityKind,
 ) -> AppResult<EntityTargetProjection> {
     let root = &session.manifest.mod_root;
+    let mut parent_versions =
+        std::collections::BTreeMap::<String, Vec<crate::models::FileVersion>>::new();
+    if kind == EntityKind::Variant {
+        for parent in &session.variant_files {
+            let content = crate::io::read_json_file(Path::new(&parent.path))?;
+            for (_, id) in crate::domain::joint_hull::module_entries(content.get("modules")) {
+                parent_versions
+                    .entry(id)
+                    .or_default()
+                    .push(crate::io::file_version(Path::new(&parent.path))?);
+            }
+        }
+    }
     let mut sources = std::collections::BTreeMap::new();
     match kind {
         EntityKind::Variant => {
@@ -307,6 +321,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
             .is_file())
     .then(|| version_for_path(session, "data/strings/descriptions.csv"));
     Ok(EntityTargetProjection {
+        parent_versions,
         kind,
         sources,
         linked,
@@ -358,6 +373,9 @@ impl EntityTargetProjection {
         versions.extend(self.index_version.iter().cloned());
         if self.default_description_ids.contains(id) {
             versions.extend(self.description_version.iter().cloned());
+        }
+        if let Some(parents) = self.parent_versions.get(id) {
+            versions.extend(parents.iter().cloned());
         }
         versions.sort_by(|left, right| left.path.cmp(&right.path));
         versions.dedup_by(|left, right| left.path.eq_ignore_ascii_case(&right.path));

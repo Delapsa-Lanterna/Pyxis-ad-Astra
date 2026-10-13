@@ -28,6 +28,8 @@ export interface QueryCacheInvalidationEvent {
 type QueryCacheInvalidationListener = (event: QueryCacheInvalidationEvent) => void;
 
 const LRU_CAPACITY: Record<QueryCacheKind, number> = {
+  'joint-edit-catalog': 16,
+  'joint-edit-candidate': 128,
   'csv-table-window': 80,
   'csv-source-options': 240,
   'csv-row-preview': 400,
@@ -163,7 +165,11 @@ export function subscribeQueryInvalidations(listener: QueryCacheInvalidationList
 
 export function hasQueryInvalidation(event: QueryCacheInvalidationEvent, queryKind: QueryCacheKind): boolean {
   if (event.scope === 'session') return true;
-  if (event.invalidation) return event.invalidation.queryScopes.some((scope) => scope.kind === queryKind);
+  if (event.invalidation)
+    return (
+      event.queries.some((query) => query.queryKind === queryKind) ||
+      event.invalidation.queryScopes.some((scope) => scope.kind === queryKind)
+    );
   return event.queries.some((query) => query.queryKind === queryKind);
 }
 
@@ -230,6 +236,8 @@ function notifyQueryCacheInvalidated(
 
 function shouldInvalidateQuery(entry: QueryIdentity, invalidation: ProjectInvalidation): boolean {
   if (invalidation.session) return true;
+  if (entry.queryKind === 'joint-edit-candidate') return invalidation.paths.length > 0;
+  if (entry.queryKind === 'joint-edit-catalog') return invalidation.paths.length > 0;
   if (invalidation.queryScopes.length === 0) return false;
   switch (entry.queryKind) {
     case 'csv-table-window':

@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
 });
-function harness() {
+function harness(attachTo?: HTMLElement) {
   const scroll = vi.fn(),
     sync = vi.fn();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -22,11 +22,14 @@ function harness() {
     values = jointFixtureValues(snapshot),
     stat = projectShipPanel(snapshot, values).combat[0]!;
   const own = mount(ImmersiveStatRow, {
+    attachTo,
     props: { stat, snapshot, values, editable: true, active: true, runtimeContext: { sessionId: 's', modRoot: 'M:/mod' } },
     global: {
       stubs: {
         ImmersiveText: true,
         NPopover: defineComponent({
+          name: 'NPopover',
+          props: ['to'],
           setup(_props, { expose }) {
             expose({ syncPosition: sync });
           },
@@ -38,6 +41,22 @@ function harness() {
   return { own, scroll, sync };
 }
 describe('immersive popover anchor resizing', () => {
+  it('keeps field inputs within their active dialog focus boundary', async () => {
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    document.body.append(dialog);
+    const state = harness(dialog);
+    await flushPromises();
+    expect(state.own.findComponent({ name: 'NPopover' }).props('to')).toBe(dialog);
+    state.own.unmount();
+    dialog.remove();
+  });
+  it('submits one explicit trigger intent', async () => {
+    const state = harness();
+    await state.own.find('button').trigger('click');
+    expect(state.own.emitted('toggle')).toEqual([[false]]);
+    state.own.unmount();
+  });
   it('keeps the same trigger node and reveals its anchor before resynchronizing the popover', async () => {
     const state = harness(),
       trigger = state.own.find('button').element;

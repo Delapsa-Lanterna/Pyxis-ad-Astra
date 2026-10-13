@@ -2,7 +2,7 @@
 
 ## 定义
 
-字段模式系统把正式 schema 映射为配置与编辑器字段渲染、校验、引用选择与额外字段编辑。
+字段模式模块将 schema 映射为字段展示、校验和编辑动作。
 
 ## 参考
 
@@ -13,7 +13,7 @@
 `src/app/components/schema/SchemaFormRenderer.vue`：表单渲染 owner。
 `src/app/components/schema/SchemaScalarInput.vue`：类型文本输入 owner，暂存原文并提交正式字段动作。
 `src/domain/schema/schema-core-fields.ts`：原版字段合并 owner。
-`src/domain/schema/schema-options.ts`：source 选项与 SelectOption 规则 owner。
+`src/domain/schema/schema-options.ts`：source 选项与 `SelectOption` 规则 owner。
 `src/domain/schema/schema-registry.ts`：schema 资产唯一加载入口，拥有 5 个 spec 与 14 个 csv 列资产的运行时形状校验。
 `src/domain/schema/schema-runtime.ts`：runtime 上下文 owner。
 `src/domain/schema/schema-sections.ts`：section 投影与折叠标识 owner。
@@ -21,28 +21,21 @@
 `src/domain/schema/schema.types.ts`：schema 输出类型 owner，拥有字段/控件闭合枚举与 FileSchema/FieldSchema/列 schema 形状。
 `src/services/source-options.service.ts`：来源目录协议、查询身份与性能记录主归属。
 `src/shared/lib/input-number.ts`：完整有限浮点与安全整数解析 owner。
-`src/shared/lib/json-input.ts`：JSON 原文解析、形状校验与格式化的共享纯模块。
+`src/shared/lib/json-input.ts`：字段输入消费的共享 JSON 解析、形状校验与格式化。
 `src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑 owner。
 `src/shared/ui/JsonValueInput.vue`：JSON 原始输入 owner，按声明形状解析并提交。
 `src/shared/ui/NumberValueInput.vue`：Smart 数值原文与正式值提交 owner。
 
 ## 边界
 
-- CSV 列 schema 文件命名依据为表注册表 key；游戏原文件名的映射唯一归后端表注册表所有，资产命名严禁复制第二套游戏文件名体系。
-- JSON 对象与数组必须暂存原始输入并在提交边界校验类型；未完成输入必须计入 dirty、保留控件和原字段类型，并阻止保存及定位字段。
-- `csv:` source 目录必须只由 `(sessionId, source)` 标识，并完整返回当前 Mod 非注释唯一值与原版补集，保持 CSV 原始行顺序；实体声明的 source 以实体清单为值域，按 Mod 与原版分组去重，解析归后端实体注册表。
-- `hull:builtInWeaponSlots` 必须以 session 与草稿 baseHullId 标识，经后端舰体引用查询返回继承与覆盖后的内置武器槽 ID；基础舰体变化与舰体引用失效必须重新查询。
-- domain/schema runtime 拥有字段语义、source、归一化与纯转换；组件只渲染与提交字段事件。
-- JSON 原文解析、形状校验与格式化只能经共享纯模块；schema 领域只提供字段形状映射和业务归一化。
-- JSON 输入中的数值必须为有限数值；数值溢出时必须保留原文、定位字段并阻止保存。
-- kv 行与数组条目必须使用结构化稳定 key；严禁按下标 key 后手工重排状态补偿。
-- schema 资产与加载器必须使用 `circinus-ad-astra/` 版本标识前缀。
-- schema 资产只能经唯一加载入口消费，入口处执行逐属性运行时校验；资产外严禁二次强转。
-- well-known 标签资产只允许经后端唯一加载入口编译期内嵌消费，加载时必须校验版本头，严禁在查询逻辑内重建标签表。
-- 前端严禁通过字段名猜语义、构造 ResourceRef、扫描文件或在 schema 组件内写盘。
-- 字段更新必须使用 `SchemaFieldUpdate` 的设置或删除动作；嵌套对象、kv 与数组对象必须沿正式字段路径消费同一动作。
-- 引用 source 必须经统一 query/service 返回选项元数据与 ResourceRef；缩略图只在下拉展开或已选值变化时按需合批解析。
-- 资产正式形态统一带 `$schema` 版本头：spec 资产为 `field-schema/v1` 加 `sections`（可选 `sources`），CSV 列资产为 `csv-columns/v1` 加与表注册表 key 一致的 `table` 与 `columns`。
+- `FieldInputs` 与编辑会话接纳延迟提交和模式交接，组件保留输入、焦点和错误。
+- schema runtime 拥有字段语义、source、转换和归一化，组件渲染并交付字段动作。
+- schema 资产与加载器拥有版本和形状，列资产使用表注册表 key，游戏文件名映射归后端。
+- source 目录由后端按声明解析，CSV 来源保持行序，实体来源消费正式清单。
+- 原始 JSON 和标量输入归共享控件，解析与形状校验归共享纯模块。
+- 嵌套路径、键值和数组身份归字段动作与稳定行原语，额外字段来自业务键集合。
+- 舰体内置槽位目录消费 session 和草稿 `baseHullId`，经有效继承投影返回。
+- 资源选项交付 `SelectOption` 与 `ResourceRef`，媒体 owner 按展开与当前值读取。
 
 ## 链路
 
@@ -69,26 +62,28 @@
 
 ## 规范
 
-- 沉浸式字段浮层必须消费正式 FieldSchema、来源绑定与原始输入协议；多段描述必须各自登记稳定字段身份，提交必须交付所属联合记录更新。
-- 沉浸式复合字段必须由 FieldInputs 终结器在全部原文有效后交付一个字段集合；结构化数组必须消费共享 JSON 输入解析，必填分支必须阻止空值提交。
 - Bundled schema 注册时必须校验每个 `csv:` source 的表名属于正式 CSV 表注册表或实体注册表的 source 声明，无效 source 必须阻止注册。
 - Core 根切换必须立即清空所属字段与图形投影；静态 schema 合并必须消费当前根字段，失败时必须保留静态 schema。
 - Plain 数字、布尔与 Smart 数字必须登记原文；非法输入必须保留正式字段类型并阻止提交，可选具名字段清空必须删除键，必填字段清空必须定位为错误。
-- Smart 下拉的选项菜单与已选标签必须共用同一 SelectOption。
-- plain editMode 只允许文本或 JSON 文本；smart editMode 才允许增强控件；含换行字符串必须使用 textarea。
+- Smart 下拉的选项菜单与已选标签必须共用同一 `SelectOption`。
+- `plain` editMode 只允许文本或 JSON 文本；`smart` editMode 才允许增强控件；含换行字符串必须使用 textarea。
 - schema 组件严禁写盘或直连 IPC。
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
 - 字段挂载严禁触发选项贴图批量读取；批量解析必须 single-flight 去重。
 - 字段默认与数组项默认必须由所属 schema 消费语义决定；完整规格新建必须消费所属格式的共享模板构造。
 - 字符串字段只允许提交字符串；Plain 整数必须按完整十进制和安全整数范围解析，浮点必须按完整有限十进制解析，非法文本必须逐字符保留。
+- 嵌套字段与键值输出必须保留自有业务键；字段路径读取只允许消费自有属性，构造可写字典必须采用无原型对象。
 - 已选值必须按逐字符身份与目录比较，首尾空白完整保留。
 - 数组与 key-value 行必须由编辑会话内的稳定身份维护，增删必须对应更新行身份；深拷贝草稿严禁改变现存行节点、焦点和展开态。
 - 数组元素清理必须消费所属删除项动作；字段删除必须按稳定行身份取消所属输入子树。
 - 未知字段与额外字段必须按正式 JSON 边界保留，严禁丢弃。
-- 嵌套字段与键值输出必须保留自有业务键；字段路径读取只允许消费自有属性，构造可写字典必须采用无原型对象。
-- 来源查询目标变化必须清理旧目录，失败必须经 AppFeedback 呈现一次并允许重试；Core 资源门面必须返回响应式 refs。
 - 来源声明或所属 session 清空必须撤销来源通道票据，选项与错误必须在所属通道的接纳回调内发布。
+- 来源查询目标变化必须清理旧目录，失败必须经 `AppFeedback` 呈现一次并允许重试；Core 资源门面必须返回响应式 refs。
 - 模式替换涉及待提交输入时必须确认放弃；取消必须保留当前输入面，确认必须取消输入并采用最新设置模式。
+- 沉浸式复合字段必须由 `FieldInputs` 终结器在全部原文有效后交付一个字段集合；结构化数组必须消费共享 JSON 输入解析，必填分支必须阻止空值提交。
+- 沉浸式字段浮层必须消费正式 `FieldSchema`、来源绑定与原始输入协议；多段描述必须各自登记稳定字段身份，提交必须交付所属联合记录更新。
+- 装配候选手填 ID 必须登记原始输入并参与 dirty、保存和关闭判定；引用取消必须消费所属输入释放。
+- 装配模块浮层必须以正式 slotId 定位模块引用，并保留对象或有序条目数组形态；字段提交必须交给所属联合草稿。
 - 路径字段必须消费 pathBase；Mod 路径必须相对 Mod 根，Mission icon 必须相对任务目录，候选目录和选择器必须服从同一基准。
 - 颜色文本与面板调整必须登记为同一字段输入；保存必须提交有效颜色，取消必须恢复已提交颜色。
 - 颜色面板数值必须先校验原文，复合字段终结器必须随后提交颜色；显式取消必须恢复正式颜色与控件显示。

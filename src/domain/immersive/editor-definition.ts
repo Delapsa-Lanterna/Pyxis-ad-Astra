@@ -4,9 +4,10 @@ import { projectShipPanel, type ShipImmersivePanel } from './ship-panel';
 import { projectWeaponPanel, type WeaponPanel } from './weapon-panel';
 import { jointObject } from '@/domain/joint-edit';
 import { projectWingPanel, type WingPanel } from './wing-panel';
+import { projectVariantPanel, variantEditableRecords, type VariantPanel } from './variant-panel';
 
-export type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel;
-export type ImmersiveEditorKind = 'ship' | 'weapon' | 'wing';
+export type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel | VariantPanel;
+export type ImmersiveEditorKind = 'ship' | 'weapon' | 'wing' | 'variant';
 export interface ImmersiveEditorDefinition {
   label: string;
   editableRecords: (snapshot: JointEditSnapshot) => string[];
@@ -15,6 +16,17 @@ export interface ImmersiveEditorDefinition {
   media: (panel: ImmersivePanel) => ResourceRef[];
 }
 const definitions: Record<ImmersiveEditorKind, ImmersiveEditorDefinition> = {
+  variant: {
+    label: '装配',
+    editableRecords: variantEditableRecords,
+    project: projectVariantPanel,
+    references: (_snapshot, values) =>
+      Object.entries(values).map(([key, value]) => {
+        const data = jointObject(value);
+        return [key, ...['hullId', 'modules', 'weaponGroups', 'wings', 'hullMods', 'permaMods', 'sMods'].map((field) => data[field])];
+      }),
+    media: () => [],
+  },
   wing: {
     label: '战机',
     editableRecords: immersiveEditableRecords,

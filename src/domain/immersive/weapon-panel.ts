@@ -1,4 +1,4 @@
-import type { JointEditSnapshot, JointValue, ResourceRef, JsonValue } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, ResourceRef } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from './fields';
 import { immersiveSourceRecords } from './source-records';
 import { jointObject } from '@/domain/joint-edit';
@@ -12,10 +12,10 @@ import {
   weaponMissileSpeed,
   weaponMissileTracking,
 } from './weapon-statistics';
-import { WEAPON_SPRITE_DRAW_ORDER, WEAPON_SPRITE_ORIGIN_RATIO } from '@/domain/editors/lib/weapon-sprite-fields';
+import { weaponImageLayers, weaponLoadedMissile } from './weapon-images';
 import { designTypeColor } from './design-type';
 
-const TYPE_LABELS: Record<string, string> = {
+export const WEAPON_TYPE_LABELS: Record<string, string> = {
   BALLISTIC: '实弹',
   ENERGY: '能量',
   MISSILE: '导弹',
@@ -26,7 +26,7 @@ const TYPE_LABELS: Record<string, string> = {
   SYSTEM: '系统',
   DECORATIVE: '装饰',
 };
-const SIZE_LABELS: Record<string, string> = { SMALL: '小型', MEDIUM: '中型', LARGE: '大型' };
+export const WEAPON_SIZE_LABELS: Record<string, string> = { SMALL: '小型', MEDIUM: '中型', LARGE: '大型' };
 const DAMAGE: Record<string, { label: string; armor: number; shield: number }> = {
   KINETIC: { label: '动能', armor: 50, shield: 200 },
   HIGH_EXPLOSIVE: { label: '高爆', armor: 200, shield: 50 },
@@ -34,6 +34,7 @@ const DAMAGE: Record<string, { label: string; armor: number; shield: number }> =
   FRAGMENTATION: { label: '破片', armor: 25, shield: 25 },
   OTHER: { label: '其他', armor: 100, shield: 100 },
 };
+export const weaponDamageLabel = (type: string) => DAMAGE[type]?.label ?? type;
 const format = (value: number) =>
   Number.isFinite(value) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2, useGrouping: false }).format(value) : '来源数值无效';
 export interface WeaponPanel {
@@ -95,8 +96,8 @@ export function projectWeaponPanel(
     recordKey: sources.spec.key,
     schema: { key, label, type: options ? 'enum' : 'string', options },
     optionLabels: {
-      ...TYPE_LABELS,
-      ...SIZE_LABELS,
+      ...WEAPON_TYPE_LABELS,
+      ...WEAPON_SIZE_LABELS,
       projectile: '弹丸 projectile',
       beam: '光束 beam',
       ALTERNATING: '交替',
@@ -157,11 +158,11 @@ export function projectWeaponPanel(
   const mount = stat(
     'mount',
     '挂载类型',
-    `${SIZE_LABELS[schemaStringValue(spec.size)] ?? schemaStringValue(spec.size)}，${TYPE_LABELS[schemaStringValue(spec.mountTypeOverride) || schemaStringValue(spec.type)] ?? schemaStringValue(spec.type)}`,
+    `${WEAPON_SIZE_LABELS[schemaStringValue(spec.size)] ?? schemaStringValue(spec.size)}，${WEAPON_TYPE_LABELS[schemaStringValue(spec.mountTypeOverride) || schemaStringValue(spec.type)] ?? schemaStringValue(spec.type)}`,
     [
-      sf('size', '尺寸', Object.keys(SIZE_LABELS)),
-      sf('type', '武器类型', Object.keys(TYPE_LABELS)),
-      sf('mountTypeOverride', '挂载覆盖类型', Object.keys(TYPE_LABELS)),
+      sf('size', '尺寸', Object.keys(WEAPON_SIZE_LABELS)),
+      sf('type', '武器类型', Object.keys(WEAPON_TYPE_LABELS)),
+      sf('mountTypeOverride', '挂载覆盖类型', Object.keys(WEAPON_TYPE_LABELS)),
     ],
   );
   const cycleFields = [cf('chargeup'), cf('chargedown'), cf('burst size'), cf('burst delay')];
@@ -300,29 +301,16 @@ export function projectWeaponPanel(
     ? null
     : stat('projectile', '弹体来源', schemaStringValue(spec.projectileSpecId) || '引用未提供', [sf('projectileSpecId', '弹体引用')]);
   const hints = Array.isArray(spec.renderHints) ? spec.renderHints : [];
-  const layerOrder = hints.includes('RENDER_BARREL_BELOW')
-    ? ['turretUnderSprite', 'turretGunSprite', 'turretSprite']
-    : WEAPON_SPRITE_DRAW_ORDER.turret.filter((field) => field !== 'turretGlowSprite');
-  const layers = layerOrder.flatMap((field) => {
-    const resource = projection?.records.find((record) => record.key === projection.bindings.spec)?.resourceRefs[field];
-    return resource ? [{ resource, origin: WEAPON_SPRITE_ORIGIN_RATIO.turret }] : [];
-  });
+  const layers = weaponImageLayers(
+    spec,
+    projection?.records.find((record) => record.key === projection.bindings.spec)?.resourceRefs ?? {},
+    'turret',
+  );
   const standardIds = new Set(['range', 'damage', 'dps', 'emp']);
   const visiblePrimary = tags.includes('no_standard_data') ? primary.filter((stat) => !standardIds.has(stat.id)) : primary;
   const visibleAncillary = tags.includes('no_standard_data') ? [] : ancillary;
   const loadedHint = hints.some((hint) => hint === 'RENDER_LOADED_MISSILES' || hint === 'RENDER_LOADED_MISSILES_UNLESS_HIDDEN');
-  const pair = (value: JsonValue | undefined): [number, number] | null =>
-    Array.isArray(value) && typeof value[0] === 'number' && typeof value[1] === 'number' ? [value[0], value[1]] : null;
-  const size = pair(projectile.size),
-    center = pair(projectile.center);
-  const offsets = Array.isArray(spec.turretOffsets) ? spec.turretOffsets.filter((value): value is number => typeof value === 'number') : [];
-  const angles = Array.isArray(spec.turretAngleOffsets)
-    ? spec.turretAngleOffsets.filter((value): value is number => typeof value === 'number')
-    : [];
-  const loadedMissile =
-    loadedHint && association?.resourceRefs.sprite && size && center && offsets.length > 0
-      ? { resource: association.resourceRefs.sprite, size, center, offsets, angles }
-      : null;
+  const loadedMissile = weaponLoadedMissile(spec, projectile, association?.resourceRefs ?? {}, 'turret');
   heading[0]!.font = 'heading';
   primarySettings.font = 'heading';
   ancillarySettings.font = 'heading';

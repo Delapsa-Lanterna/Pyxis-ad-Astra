@@ -6,7 +6,8 @@ import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from './design-type';
-import type { BitmapTextRun } from './bitmap-font';
+import type { TextRun } from '@/domain/fonts/font.types';
+import type { VariantProjection } from './variant-panel';
 
 export interface ShipImmersivePanel {
   kind: 'ship';
@@ -17,13 +18,15 @@ export interface ShipImmersivePanel {
   system: ImmersiveStat;
   systemDescription: string;
   mounts: string;
-  mountRuns: BitmapTextRun[];
+  mountRuns: TextRun[];
   armaments: string;
-  armamentRuns: BitmapTextRun[];
+  armamentRuns: TextRun[];
   hullmods: string;
   sprite: ResourceRef | null;
   hullSize: string;
   allStats: ImmersiveStat[];
+  equipment: Array<{ label: string; text: string; runs?: TextRun[] }>;
+  notes: string[];
 }
 
 const HULL_SIZE_LABELS: Record<string, string> = {
@@ -63,19 +66,33 @@ export function projectShipPanel(
   snapshot: JointEditSnapshot,
   values: Record<string, JointValue>,
   projection: JointEditSnapshot | null = snapshot,
+  variant?: VariantProjection,
 ): ShipImmersivePanel {
-  const sources = immersiveSourceRecords(snapshot);
-  const csv = jointObject(values[sources.csv.key]);
-  const spec = jointObject(values[sources.spec.key]);
-  const desc = jointObject(values[sources.description.key]);
+  const graph = projection ?? snapshot;
+  const find = (key: string | undefined) => graph.records.find((record) => record.key === key);
+  const sources = variant
+    ? {
+        spec: find(variant.hull.hullKey)!,
+        csv: find(variant.hull.displayBindings.csv)!,
+        description: find(variant.hull.displayBindings.description),
+      }
+    : immersiveSourceRecords(snapshot);
+  const data = (key: string | undefined) => jointObject(key ? (values[key] ?? find(key)?.value) : undefined);
+  const csv = data(sources.csv.key);
+  const spec = data(sources.spec.key);
+  const desc = data(sources.description?.key);
+  const value = (key: string) => {
+    const binding = variant?.hull.fields[key];
+    return binding ? data(binding.recordKey)[binding.path] : csv[key];
+  };
   const columns = getCsvColumnSchemas('ships');
   function csvField(key: string, label?: string): ImmersiveField {
     const column = columns.find((column) => column.key === key);
     return {
       id: 'csv/' + key,
-      recordKey: sources.csv.key,
+      recordKey: variant?.hull.fields[key]?.recordKey ?? sources.csv.key,
       schema: {
-        key,
+        key: variant?.hull.fields[key]?.path ?? key,
         label: label ?? column?.label ?? key,
         type: INTEGER_COLUMNS.has(key)
           ? 'integer'
@@ -90,32 +107,44 @@ export function projectShipPanel(
     };
   }
   function numeric(key: string, label: string, fallback: number, unit = '', tone: ImmersiveStat['tone'] = 'highlight'): ImmersiveStat {
-    const raw = schemaStringValue(csv[key]);
-    const value = number(key, fallback);
+    const raw = schemaStringValue(value(key));
+    const amount = number(key, fallback);
     const field = csvField(key, label);
     field.schema.type = INTEGER_COLUMNS.has(key) ? 'integer' : 'float';
     return {
       id: key,
       label,
-      display: Number.isFinite(value) ? format(value) + unit : '无有效值',
+      display: Number.isFinite(amount) ? format(amount) + unit : '无有效值',
       fields: [field],
       tone,
-      diagnostic: raw.trim() ? (Number.isFinite(value) ? undefined : `${key} 不是有效数字`) : `${key} 缺失，显示原版默认值 ${fallback}`,
+      diagnostic: raw.trim() ? (Number.isFinite(amount) ? undefined : `${key} 不是有效数字`) : `${key} 缺失，显示原版默认值 ${fallback}`,
     };
   }
   function number(key: string, fallback: number): number {
-    const raw = schemaStringValue(csv[key]);
+    if (variant && key === 'max flux') return variant.capacity;
+    if (variant && key === 'flux dissipation') return variant.dissipation;
+    const raw = schemaStringValue(value(key));
     if (!raw.trim()) return fallback;
     const parsed = parseInputNumber(raw, INTEGER_COLUMNS.has(key));
     return typeof parsed === 'number' ? parsed : NaN;
   }
   const heading: ImmersiveStat[] = [
-    { id: 'name', label: '舰船名称', display: schemaStringValue(csv.name) || '未命名舰船', fields: [csvField('name')] },
-    { id: 'designation', label: '定位', display: schemaStringValue(csv.designation) || '未提供定位', fields: [csvField('designation')] },
+    {
+      id: 'name',
+      label: '舰船名称',
+      display: variant?.name || schemaStringValue(value('name')) || '未命名舰船',
+      fields: [csvField('name')],
+    },
+    {
+      id: 'designation',
+      label: '定位',
+      display: schemaStringValue(value('designation')) || '未提供定位',
+      fields: [csvField('designation')],
+    },
     {
       id: 'tech/manufacturer',
       label: '设计类型',
-      display: schemaStringValue(csv['tech/manufacturer']) || 'Common',
+      display: schemaStringValue(value('tech/manufacturer')) || 'Common',
       fields: [csvField('tech/manufacturer')],
     },
   ];
@@ -124,11 +153,13 @@ export function projectShipPanel(
     label: '舰船描述',
     display: schemaStringValue(desc.text1) || '描述未提供',
     tone: 'normal',
-    fields: [1, 2, 3, 4, 5].map((index) => ({
-      id: 'description/text' + index,
-      recordKey: sources.description.key,
-      schema: { key: 'text' + index, label: index === 1 ? '主描述 text1' : `描述段落 text${index}`, type: 'text' },
-    })),
+    fields: sources.description
+      ? [1, 2, 3, 4, 5].map((index) => ({
+          id: 'description/text' + index,
+          recordKey: sources.description!.key,
+          schema: { key: 'text' + index, label: index === 1 ? '主描述 text1' : `描述段落 text${index}`, type: 'text' },
+        }))
+      : [],
   };
   const recovery = numeric('supplies/rec', '恢复成本（补给）', 0);
   const peak = numeric('peak CR sec', '峰值作战时间', 9999999, ' 秒');
@@ -198,7 +229,7 @@ export function projectShipPanel(
       sensor('sensor-strength', '传感器强度'),
     ],
   ];
-  const shieldType = schemaStringValue(csv['shield type']) || 'NONE';
+  const shieldType = schemaStringValue(value('shield type')) || 'NONE';
   const defense: ImmersiveStat = {
     id: 'shield type',
     label: '防御',
@@ -230,7 +261,7 @@ export function projectShipPanel(
             {
               id: 'shield upkeep',
               label: '护盾每秒维持',
-              display: format(number('shield upkeep', 0) * number('flux dissipation', 1)),
+              display: format(variant ? variant.shieldFlux : number('shield upkeep', 0) * number('flux dissipation', 1)),
               fields: [csvField('shield upkeep'), csvField('flux dissipation')],
               formula: '护盾每秒维持 = shield upkeep × flux dissipation',
             },
@@ -249,8 +280,8 @@ export function projectShipPanel(
     numeric('max speed', '最高战斗速度', 10),
   ];
   const references = projection?.records ?? [];
-  const systemRecord = references.find((record) => record.key === projection?.bindings.system);
-  const systemId = systemRecord?.target.kind === 'spec' ? systemRecord.target.target.id : schemaStringValue(csv['system id']);
+  const systemRecord = references.find((record) => record.key === (variant?.hull.displayBindings.system ?? projection?.bindings.system));
+  const systemId = systemRecord?.target.kind === 'spec' ? systemRecord.target.target.id : schemaStringValue(value('system id'));
   const systemCsv = references.find(
     (record) => record.target.kind === 'csv' && record.target.table === 'shipSystems' && record.target.identity.id === systemId,
   );
@@ -271,7 +302,7 @@ export function projectShipPanel(
   };
   const systemText = jointObject(systemDesc?.value);
   const mountCounts = new Map<string, number>();
-  const slots = Array.isArray(spec.weaponSlots) ? spec.weaponSlots : [];
+  const slots = variant ? variant.hull.slots : Array.isArray(spec.weaponSlots) ? spec.weaponSlots : [];
   for (const slot of slots) {
     const data = jointObject({ state: 'present', value: slot });
     const type = schemaStringValue(data.type);
@@ -308,7 +339,7 @@ export function projectShipPanel(
   heading[2]!.displayRuns = [{ text: heading[2]!.display, color: designTypeColor(projection ?? snapshot, heading[2]!.display) }];
   peak.gapBefore = true;
   hull.gapBefore = true;
-  return {
+  const panel: ShipImmersivePanel = {
     kind: 'ship',
     heading,
     description,
@@ -329,8 +360,52 @@ export function projectShipPanel(
       { text: weaponNames.get(id) || id, color: '#dcdcdc' },
     ]),
     hullmods: hullmods.join('，') || '无',
-    sprite: sources.spec.resourceRefs.sprite ?? null,
+    sprite: variant ? variant.hull.sprite : (sources.spec.resourceRefs.sprite ?? null),
     hullSize: schemaStringValue(spec.hullSize),
     allStats,
+    equipment: [],
+    notes: variant ? ['基础配置口径 · 插件效果按零效果计算', ...variant.diagnostics] : [],
   };
+  panel.equipment = [
+    { label: '挂载', text: panel.mounts, runs: panel.mountRuns },
+    { label: '内置武装', text: panel.armaments, runs: panel.armamentRuns },
+    { label: '内置插件', text: panel.hullmods },
+  ];
+  if (variant) {
+    const op = logistics[0]!.find((stat) => stat.id === 'ordnance points')!;
+    op.label = '已用/总装配点';
+    op.display = `${format(variant.opUsed)} / ${format(variant.opTotal)}`;
+    for (const stat of combat) {
+      if (stat.id === 'max flux') stat.formula = '有效舰体容量 + 容器 × fluxPerCapacitor';
+      if (stat.id === 'flux dissipation') stat.formula = '有效舰体耗散 + 耗散器 × dissipationPerVent';
+    }
+    const weaponCounts = new Map<string, number>();
+    for (const weapon of variant.weapons.filter((weapon) => weapon.id)) {
+      const name = weapon.name + (weapon.builtin ? '（内置）' : '');
+      weaponCounts.set(name, (weaponCounts.get(name) ?? 0) + 1);
+    }
+    panel.equipment = [
+      panel.equipment[0]!,
+      { label: '武装', text: [...weaponCounts].map(([name, count]) => `${count}× ${name}`).join('，') || '无' },
+      {
+        label: '联队',
+        text:
+          variant.wings
+            .filter((wing) => wing.id)
+            .map((wing) => `${wing.name}（甲板 ${wing.index + 1}${wing.builtin ? '，内置' : ''}）`)
+            .join('，') || '无',
+      },
+      {
+        label: '插件',
+        text:
+          variant.mods
+            .map(
+              (mod) =>
+                `${mod.name}（${{ builtin: '内置', normal: '普通', permanent: '永久', s: 'S 插件' }[mod.category]}${mod.strengthened ? '，内置 S 强化' : ''}）`,
+            )
+            .join('，') || '无',
+      },
+    ];
+  }
+  return panel;
 }

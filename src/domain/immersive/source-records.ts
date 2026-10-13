@@ -1,4 +1,5 @@
 import type { JointEditSnapshot, JointEditRecord } from '@/shared/types';
+import { variantEditableRecords } from './variant-panel';
 
 export function immersiveSourceRecords(snapshot: JointEditSnapshot): {
   spec: JointEditRecord;
@@ -14,6 +15,7 @@ export function immersiveSourceRecords(snapshot: JointEditSnapshot): {
 }
 
 export function immersiveEditableRecords(snapshot: JointEditSnapshot): string[] {
+  if (snapshot.root.kind === 'variant') return variantEditableRecords(snapshot);
   if (snapshot.root.kind === 'wing') {
     return [
       ...new Set([

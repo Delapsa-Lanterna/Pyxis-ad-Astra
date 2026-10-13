@@ -115,10 +115,13 @@ export function shipJointFixture(): JointEditSnapshot {
   ];
   return {
     hull: null,
+    variants: {},
+    catalog: null,
     newSources: [],
     root: { sessionId: 's', modRoot: 'M:/mod', kind: 'ship', id: 'lasher' },
     bindings: { spec: 'spec', csv: 'csv', description: 'description', system: 'system' },
     referenceSettings: {
+      resources: {},
       values: { baseSensorFrigate: 30 },
       versions: [{ path: 'G:/core/data/config/settings.json', fingerprint: 'settings' }],
     },

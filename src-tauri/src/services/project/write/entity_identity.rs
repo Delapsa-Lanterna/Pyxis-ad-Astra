@@ -25,6 +25,43 @@ pub fn save_entity_spec(
 ) -> AppResult<WriteResult<Value>> {
     save_entity_content(session_id, target, data, options, ordered_json, None)
 }
+pub fn save_variant_entity(
+    session_id: &str,
+    previous_id: Option<&str>,
+    next_id: &str,
+    data: Value,
+    options: JsonWriteOptions,
+    ordered_json: Option<&str>,
+) -> AppResult<WriteResult<Value>> {
+    let content_id = data
+        .get("variantId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::message("spec.id_mismatch", "装配数据缺少 variantId"))?;
+    if validate_config_id(content_id, "装配ID无效")? != validate_config_id(next_id, "装配ID无效")?
+    {
+        return Err(AppError::message(
+            "spec.id_mismatch",
+            "装配数据 variantId 与保存目标不一致",
+        ));
+    }
+    let info = super::super::query::query_entity_edit_target(
+        session_id,
+        EntityKind::Variant,
+        previous_id.unwrap_or(next_id),
+    )?;
+    let result = save_entity_spec(session_id, &info.target, data, options, ordered_json)?;
+    let after = &result.identity_changes[0].after;
+    let content = result
+        .refreshed_entity
+        .as_ref()
+        .expect("variant save returns data");
+    let refreshed = crate::domain::config::build_variant_file(
+        Path::new(&after.write.root),
+        &after.write.rel_path,
+        content,
+    )?;
+    Ok(result.with_refreshed_entity(serde_json::to_value(refreshed)?))
+}
 
 pub fn save_entity_text(
     session_id: &str,
@@ -99,6 +136,12 @@ fn save_entity_content(
             .cloned()
             .collect::<Vec<_>>(),
     )?;
+    super::variant_identity::stage_variant_parents(
+        &session,
+        &mut builder,
+        &mut json,
+        &staged.identity,
+    )?;
     if let Some(csv) = &description {
         builder.text_file("data/strings/descriptions.csv", Some(csv.text.clone()))?;
     }
@@ -169,6 +212,9 @@ pub(in crate::services::project) fn stage_entity_content(
         })?;
     let next_id = validate_config_id(next_id, definition.invalid_id_message)?.to_string();
     data[definition.id_field] = Value::String(next_id.clone());
+    if target.kind == EntityKind::Variant {
+        crate::domain::joint_hull::rename_module_reference(&mut data, &target.id, &next_id);
+    }
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "entity write root")?;
     let render_source = target
         .source

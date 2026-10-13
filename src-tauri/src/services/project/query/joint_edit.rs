@@ -4,6 +4,7 @@ use super::super::{
     query::entity_targets::{EntityTargetProjection, prepare_entity_targets},
 };
 use crate::{
+    domain::joint_hull::description_id,
     errors::{AppError, AppResult},
     io::{FsRootBoundary, file_version, read_csv_data, read_json_file},
     models::*,
@@ -53,6 +54,23 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
     query_joint_edit_values(&root, query.values.as_ref(), &query.new_sources)
 }
 
+pub fn query_variant_catalog(
+    root: &JointEditRoot,
+    kind: JointVariantCatalogKind,
+) -> AppResult<JointVariantCatalogRead> {
+    let _lease = crate::io::acquire_root_write_lock(Path::new(&root.mod_root))?;
+    super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
+    let handle = cache::session_handle(&root.session_id)?;
+    let mut session = cache::lock_ready_session(&handle)?;
+    let (reference_settings, damage_icons) = reference_settings(&session)?;
+    let catalog = variant_catalog(&mut session, kind, damage_icons)?;
+    Ok(JointVariantCatalogRead {
+        root: root.clone(),
+        reference_settings,
+        catalog,
+    })
+}
+
 pub(in crate::services::project) fn query_joint_edit_values(
     root: &JointEditRoot,
     values: Option<&BTreeMap<String, JointValue>>,
@@ -79,6 +97,8 @@ pub(in crate::services::project) fn query_joint_edit_values(
         tables: BTreeMap::new(),
         targets: BTreeMap::new(),
         core_systems: None,
+        core_sources: BTreeMap::new(),
+        scope: JointGraphScope::Editing,
         draft_values: values,
         bindings: BTreeMap::new(),
         damage_icons,
@@ -87,7 +107,13 @@ pub(in crate::services::project) fn query_joint_edit_values(
     match root.kind {
         JointEditKind::Ship => graph.spec(EntityKind::Ship, &root.id, "root")?,
         JointEditKind::Weapon => graph.spec(EntityKind::Weapon, &root.id, "root")?,
-        JointEditKind::Variant => graph.spec(EntityKind::Variant, &root.id, "root")?,
+        JointEditKind::Variant => {
+            graph.bindings.insert(
+                "variant".into(),
+                serde_json::to_string(&("spec", EntityKind::Variant, &root.id))?,
+            );
+            graph.spec(EntityKind::Variant, &root.id, "root")?;
+        }
         JointEditKind::Wing => {
             graph.bindings.insert(
                 "csv".into(),
@@ -130,7 +156,9 @@ pub(in crate::services::project) fn query_joint_edit_values(
         None
     };
     if let Some(hull) = &hull {
-        bindings.insert("spec".into(), hull.hull_key.clone());
+        if root.kind == JointEditKind::Wing {
+            bindings.insert("spec".into(), hull.hull_key.clone());
+        }
         bindings.insert(
             "hullCsv".into(),
             hull.fields["hitpoints"].record_key.clone(),
@@ -182,6 +210,61 @@ pub(in crate::services::project) fn query_joint_edit_values(
             );
         }
     }
+    let mut variants = BTreeMap::new();
+    if root.kind == JointEditKind::Variant {
+        let mut pending = records.iter().filter(|record| matches!(&record.target, JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant)).map(|record| record.key.clone()).collect::<Vec<_>>();
+        let mut visited = BTreeSet::new();
+        while let Some(key) = pending.pop() {
+            if !visited.insert(key.clone()) {
+                continue;
+            }
+            if let Some(hull) = crate::domain::joint_hull::project_joint_hull(&records, &key)? {
+                pending.extend(hull.modules.iter().map(|module| module.variant_key.clone()));
+                variants.insert(key, hull);
+            }
+        }
+    }
+    let variant_ids = records
+        .iter()
+        .filter_map(|record| match &record.target {
+            JointRecordTarget::Spec { target } if target.kind == EntityKind::Variant => {
+                Some(target.id.clone())
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let parents = session.variant_files.clone();
+    for parent in parents {
+        let content = read_json_file(Path::new(&parent.path))?;
+        if !crate::domain::joint_hull::module_entries(content.get("modules"))
+            .iter()
+            .any(|(_, id)| variant_ids.contains(id))
+        {
+            continue;
+        }
+        let key = serde_json::to_string(&("spec", EntityKind::Variant, &parent.variant_id))?;
+        if records.iter().any(|record| record.key == key) {
+            continue;
+        }
+        let info = super::entity_targets::describe_entity_target(
+            &mut session,
+            EntityKind::Variant,
+            &parent.variant_id,
+        )?;
+        let source = info.target.source.clone();
+        records.push(JointEditRecord {
+            key,
+            target: JointRecordTarget::Spec {
+                target: info.target,
+            },
+            source,
+            source_version: Some(file_version(Path::new(&parent.path))?),
+            value: JointValue::Present(content),
+            base_versions: info.base_versions,
+            resource_refs: BTreeMap::new(),
+            referenced_by: vec!["module-parent".into()],
+        });
+    }
     cache::ensure_registered_table_rows(&mut session, CsvTableKey::Wings)?;
     let references = reference_catalog(&session)?;
     for record in &mut records {
@@ -203,13 +286,342 @@ pub(in crate::services::project) fn query_joint_edit_values(
         base_versions: versions.into_values().collect(),
         hull,
         new_sources,
+        variants,
+        catalog: None,
     })
+}
+
+fn variant_catalog(
+    session: &mut ProjectSession,
+    kind: JointVariantCatalogKind,
+    damage_icons: BTreeMap<String, ResourceRef>,
+) -> AppResult<JointVariantCatalog> {
+    let table = match kind {
+        JointVariantCatalogKind::Weapons => CsvTableKey::Weapons,
+        JointVariantCatalogKind::Wings => CsvTableKey::Wings,
+        JointVariantCatalogKind::Hullmods => CsvTableKey::Hullmods,
+    };
+    cache::ensure_registered_table_rows(session, table)?;
+    let rows = JointCsvCatalog::load(session, table)?;
+    let core = session
+        .manifest
+        .starsector_root
+        .as_ref()
+        .map(|root| cache::load_core_source_data(root, table))
+        .transpose()?;
+    let wing_variants = if matches!(kind, JointVariantCatalogKind::Wings) {
+        rows.rows
+            .values()
+            .filter_map(|row| row.data.get("variant").and_then(Value::as_str))
+            .filter_map(|id| {
+                session
+                    .variant_files
+                    .iter()
+                    .find(|variant| variant.variant_id == id)
+                    .map(|variant| (id.to_owned(), (variant.clone(), ResourceSource::Mod)))
+                    .or_else(|| {
+                        core.as_ref()
+                            .and_then(|data| {
+                                data.variant_files
+                                    .iter()
+                                    .find(|variant| variant.variant_id == id)
+                            })
+                            .map(|variant| (id.to_owned(), (variant.clone(), ResourceSource::Core)))
+                    })
+            })
+            .collect::<BTreeMap<_, _>>()
+    } else {
+        BTreeMap::new()
+    };
+    let hull_ids = wing_variants
+        .values()
+        .map(|(variant, _)| variant.hull_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let wing_hulls = if hull_ids.is_empty() {
+        None
+    } else {
+        Some(super::hull_references::build_hull_references(
+            session, &hull_ids,
+        )?)
+    };
+    let previews = catalog_wing_previews(
+        session,
+        wing_variants.keys().cloned().collect(),
+        damage_icons,
+    )?;
+    let descriptions = if matches!(kind, JointVariantCatalogKind::Weapons) {
+        cache::ensure_registered_table_rows(session, CsvTableKey::Descriptions)?;
+        Some(JointCsvCatalog::load(session, CsvTableKey::Descriptions)?)
+    } else {
+        None
+    };
+    let mut entries = Vec::new();
+    for row in rows.rows.into_values() {
+        let id = row.data["id"]
+            .as_str()
+            .expect("catalog row has ID")
+            .to_owned();
+        let mut refs = BTreeMap::new();
+        let mut spec_source = None;
+        let mut spec_version = None;
+        let spec = if matches!(kind, JointVariantCatalogKind::Weapons) {
+            let source = session
+                .weapon_specs
+                .get(&id)
+                .or_else(|| core.as_ref().and_then(|data| data.weapon_specs.get(&id)));
+            if let Some(source) = source {
+                spec_source = Some(source.location.clone());
+                spec_version = Some(file_version(Path::new(&source.location.path))?);
+                let content = read_json_file(Path::new(&source.location.path))?;
+                refs = super::super::definitions::entity_resources::weapon_resource_refs(
+                    &id, &content,
+                );
+                for resource in refs.values_mut() {
+                    resource.source = source.location.source;
+                }
+                Some(content)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(resource) =
+            super::super::definitions::table_definitions::csv_table_source_resource_ref(
+                row.source.source,
+                table,
+                &id,
+                &row.data,
+                core.as_ref(),
+                session,
+            )?
+        {
+            refs.insert("icon".into(), resource);
+        }
+        let wing_variant = row
+            .data
+            .get("variant")
+            .and_then(Value::as_str)
+            .and_then(|id| wing_variants.get(id));
+        let projectile = if let Some(data) = &spec
+            && data
+                .get("renderHints")
+                .and_then(Value::as_array)
+                .is_some_and(|hints| {
+                    hints.iter().any(|hint| {
+                        matches!(
+                            hint.as_str(),
+                            Some("RENDER_LOADED_MISSILES" | "RENDER_LOADED_MISSILES_UNLESS_HIDDEN")
+                        )
+                    })
+                })
+            && let Some(id) = string_field(data, "projectileSpecId")
+        {
+            let core_projectiles = session
+                .manifest
+                .starsector_root
+                .as_ref()
+                .map(|root| cache::load_core_projectile_specs(root))
+                .transpose()?;
+            session
+                .projectile_specs
+                .get(&id)
+                .or_else(|| core_projectiles.as_ref().and_then(|specs| specs.get(&id)))
+                .map(|source| -> AppResult<JointPreviewSpec> {
+                    let data = read_json_file(Path::new(&source.location.path))?;
+                    let mut resource_refs =
+                        super::super::definitions::entity_resources::projectile_resource_refs(
+                            &id, &data,
+                        );
+                    for resource in resource_refs.values_mut() {
+                        resource.source = source.location.source;
+                    }
+                    Ok(JointPreviewSpec {
+                        kind: EntityKind::Projectile,
+                        id,
+                        data,
+                        resource_refs,
+                        source: Some(source.location.clone()),
+                        source_version: Some(file_version(Path::new(&source.location.path))?),
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        };
+        if let (Some((variant, source)), Some(hulls)) = (wing_variant, &wing_hulls) {
+            if let Some(resource) = hulls.sprites.get(&variant.hull_id) {
+                refs.insert("icon".into(), resource.clone());
+            }
+            let root = match source {
+                ResourceSource::Mod => Path::new(&session.manifest.mod_root).to_path_buf(),
+                ResourceSource::Core => cache::core::core_dir(
+                    session
+                        .manifest
+                        .starsector_root
+                        .as_ref()
+                        .expect("Core variant has a configured root"),
+                )?,
+            };
+            let location = location(*source, &root, &variant.rel_path);
+            spec_source = Some(location);
+            spec_version = Some(file_version(Path::new(&variant.path))?);
+        }
+        let label = if let (Some((variant, _)), Some(hulls)) = (wing_variant, &wing_hulls) {
+            [
+                hulls
+                    .hull_names
+                    .get(&variant.hull_id)
+                    .cloned()
+                    .unwrap_or_else(|| variant.hull_id.clone()),
+                string_field(&variant.data, "displayName").unwrap_or_default(),
+            ]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+        } else {
+            row.data
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .unwrap_or_else(|| id.clone())
+        };
+        let primary_role = row
+            .data
+            .get("primaryRoleStr")
+            .and_then(Value::as_str)
+            .filter(|role| !role.is_empty())
+            .map(str::to_owned)
+            .or_else(|| {
+                descriptions
+                    .as_ref()
+                    .and_then(|catalog| {
+                        catalog.rows.get(
+                            &serde_json::to_string(&BTreeMap::from([
+                                ("id", id.as_str()),
+                                ("type", "WEAPON"),
+                            ]))
+                            .expect("description identity serializes"),
+                        )
+                    })
+                    .and_then(|row| row.data.get("text2"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            });
+        entries.push(JointVariantEntry {
+            id,
+            label,
+            data: Value::Object(row.data),
+            spec,
+            spec_source,
+            spec_version,
+            source: row.source,
+            source_version: row.version,
+            resource_refs: refs,
+            preview: wing_variant
+                .and_then(|(variant, _)| previews.get(&variant.variant_id))
+                .cloned(),
+            projectile,
+            primary_role,
+        });
+    }
+    Ok(JointVariantCatalog { kind, entries })
+}
+
+fn catalog_wing_previews(
+    session: &mut ProjectSession,
+    ids: Vec<String>,
+    damage_icons: BTreeMap<String, ResourceRef>,
+) -> AppResult<BTreeMap<String, JointVariantPreview>> {
+    let mut graph = JointGraph {
+        session,
+        records: BTreeMap::new(),
+        visiting: BTreeSet::new(),
+        tables: BTreeMap::new(),
+        targets: BTreeMap::new(),
+        core_systems: None,
+        core_sources: BTreeMap::new(),
+        scope: JointGraphScope::Preview,
+        draft_values: None,
+        bindings: BTreeMap::new(),
+        damage_icons,
+        new_sources: &[],
+    };
+    for id in &ids {
+        graph.spec(EntityKind::Variant, id, "catalog")?;
+    }
+    let records = graph.records.into_values().collect::<Vec<_>>();
+    let mut previews = BTreeMap::new();
+    for id in ids {
+        let key = serde_json::to_string(&("spec", EntityKind::Variant, &id))?;
+        let Some(hull) = crate::domain::joint_hull::project_joint_hull(&records, &key)? else {
+            continue;
+        };
+        let hull_record = records
+            .iter()
+            .find(|record| record.key == hull.hull_key)
+            .expect("projected hull belongs to catalog graph");
+        let JointValue::Present(spec) = &hull_record.value else {
+            continue;
+        };
+        let weapons = hull.weapons.values().collect::<BTreeSet<_>>();
+        let projectiles = records
+            .iter()
+            .filter_map(|record| match &record.target {
+                JointRecordTarget::Spec { target }
+                    if target.kind == EntityKind::Weapon && weapons.contains(&target.id) =>
+                {
+                    match &record.value {
+                        JointValue::Present(data) => string_field(data, "projectileSpecId"),
+                        JointValue::Missing => None,
+                    }
+                }
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        let specs = records
+            .iter()
+            .filter_map(|record| {
+                let JointRecordTarget::Spec { target } = &record.target else {
+                    return None;
+                };
+                let relevant = record.key == hull.hull_key
+                    || hull.skin_keys.contains(&record.key)
+                    || (target.kind == EntityKind::Weapon && weapons.contains(&target.id))
+                    || (target.kind == EntityKind::Projectile && projectiles.contains(&target.id));
+                let JointValue::Present(data) = &record.value else {
+                    return None;
+                };
+                relevant.then(|| JointPreviewSpec {
+                    kind: target.kind,
+                    id: target.id.clone(),
+                    data: data.clone(),
+                    resource_refs: record.resource_refs.clone(),
+                    source: record.source.clone(),
+                    source_version: record.source_version.clone(),
+                })
+            })
+            .collect();
+        previews.insert(
+            id,
+            JointVariantPreview {
+                hull,
+                spec: spec.clone(),
+                specs,
+            },
+        );
+    }
+    Ok(previews)
 }
 
 fn reference_settings(
     session: &ProjectSession,
 ) -> AppResult<(JointReferenceSettings, BTreeMap<String, ResourceRef>)> {
     let mut result = JointReferenceSettings {
+        resources: BTreeMap::new(),
         values: BTreeMap::new(),
         versions: Vec::new(),
     };
@@ -224,6 +636,42 @@ fn reference_settings(
     ));
     for (root, source) in roots {
         let boundary = FsRootBoundary::new(&root, "joint reference settings")?;
+        let styles_path = boundary
+            .resolve_relative("data/config/engine_styles.json", "reference engine styles")?;
+        if styles_path.exists() {
+            let styles = read_json_file(&styles_path)?;
+            result
+                .values
+                .entry("engineStyles".into())
+                .or_insert_with(|| Value::Object(Default::default()))
+                .as_object_mut()
+                .expect("engine styles are an object")
+                .extend(
+                    styles
+                        .as_object()
+                        .ok_or_else(|| {
+                            AppError::message("joint.engine_styles", "引擎样式必须为对象")
+                        })?
+                        .clone(),
+                );
+            result.versions.push(file_version(&styles_path)?);
+            for (key, path) in [
+                ("engineGlow", "graphics/fx/engineglow32.png"),
+                ("engineFlame", "graphics/fx/engineflame32.png"),
+                ("engineHitGlow", "graphics/fx/hit_glow.png"),
+            ] {
+                result.resources.insert(
+                    key.into(),
+                    super::super::resources::resource_ref(
+                        source,
+                        path,
+                        ResourceOwnerKind::Ship,
+                        "refit-ui",
+                        key,
+                    ),
+                );
+            }
+        }
         let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
         if path.exists() {
             let data = read_json_file(&path)?;
@@ -232,6 +680,8 @@ fn reference_settings(
                 "baseSensorDestroyer",
                 "baseSensorCruiser",
                 "baseSensorCapital",
+                "fluxPerCapacitor",
+                "dissipationPerVent",
             ] {
                 if let Some(value) = data.get(key) {
                     result.values.insert(key.into(), value.clone());
@@ -273,6 +723,48 @@ fn reference_settings(
                 }
             }
             result.versions.push(file_version(&path)?);
+            for (group, key) in [
+                ("ui", "checkmark"),
+                ("ui", "checkmark_locked"),
+                ("ui", "checkmark_unlocked"),
+                ("ui", "sortIcon"),
+                ("ui", "ui_border1b_e"),
+                ("ui", "ui_border1b_e_bot"),
+                ("ui", "ui_border1b_e_top"),
+                ("ui", "ui_border1b_w"),
+                ("ui", "ui_border1b_w_bot"),
+                ("ui", "ui_border1b_w_top"),
+                ("ui", "toggle20_on"),
+                ("ui", "toggle20_off"),
+                ("ui", "ui_border1_top_left"),
+                ("ui", "ui_border1_top_right"),
+                ("ui", "ui_border1_bot_left"),
+                ("ui", "ui_border1_bot_right"),
+                ("ui", "ui_border1_top"),
+                ("ui", "ui_border1_bot"),
+                ("ui", "ui_border1_left"),
+                ("ui", "ui_border1_right"),
+                ("misc", "fighterButtonBlank"),
+                ("fleetScreen", "icon_more_info"),
+            ] {
+                if let Some(path) = data
+                    .get("graphics")
+                    .and_then(|value| value.get(group))
+                    .and_then(|value| value.get(key))
+                    .and_then(Value::as_str)
+                {
+                    result.resources.insert(
+                        key.into(),
+                        super::super::resources::resource_ref(
+                            source,
+                            path,
+                            ResourceOwnerKind::Ship,
+                            "refit-ui",
+                            key,
+                        ),
+                    );
+                }
+            }
         }
     }
     Ok((result, icons))
@@ -365,6 +857,11 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
     })
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum JointGraphScope {
+    Editing,
+    Preview,
+}
 struct JointGraph<'a> {
     session: &'a mut ProjectSession,
     records: BTreeMap<String, JointEditRecord>,
@@ -372,6 +869,8 @@ struct JointGraph<'a> {
     tables: BTreeMap<CsvTableKey, JointCsvCatalog>,
     targets: BTreeMap<EntityKind, EntityTargetProjection>,
     core_systems: Option<BTreeMap<String, LoadedSpecRecord>>,
+    core_sources: BTreeMap<EntityKind, BTreeMap<String, EntityFileLocation>>,
+    scope: JointGraphScope,
     draft_values: Option<&'a BTreeMap<String, JointValue>>,
     bindings: BTreeMap<String, String>,
     damage_icons: BTreeMap<String, ResourceRef>,
@@ -410,7 +909,7 @@ impl JointGraph<'_> {
             .filter(|row| row.source.source == ResourceSource::Mod)
             .map(|row| row.row_key.clone())
             .unwrap_or_else(|| format!("{}:new:joint-{}", table.as_str(), self.records.len()));
-        let resource_refs = if table == CsvTableKey::Weapons {
+        let mut resource_refs = if table == CsvTableKey::Weapons {
             value
                 .as_ref()
                 .map(|data| string_field(data, "type").unwrap_or_else(|| "OTHER".into()))
@@ -420,6 +919,20 @@ impl JointGraph<'_> {
         } else {
             BTreeMap::new()
         };
+        if table == CsvTableKey::Hullmods
+            && let Some(data) = value.as_ref().and_then(Value::as_object)
+            && let Some(icon) =
+                super::super::definitions::table_definitions::csv_table_icon_resource_ref(
+                    source
+                        .as_ref()
+                        .map(|location| location.source)
+                        .unwrap_or(ResourceSource::Mod),
+                    table,
+                    data,
+                )
+        {
+            resource_refs.insert("icon".into(), icon);
+        }
         let record = JointEditRecord {
             key: key.clone(),
             target: JointRecordTarget::Csv {
@@ -538,7 +1051,9 @@ impl JointGraph<'_> {
         );
         let csv_table = match kind {
             EntityKind::Ship => Some(CsvTableKey::Ships),
-            EntityKind::Weapon => Some(CsvTableKey::Weapons),
+            EntityKind::Weapon if self.scope == JointGraphScope::Editing => {
+                Some(CsvTableKey::Weapons)
+            }
             EntityKind::System => Some(CsvTableKey::ShipSystems),
             _ => None,
         };
@@ -559,7 +1074,8 @@ impl JointGraph<'_> {
             EntityKind::System => Some("SHIP_SYSTEM"),
             _ => None,
         };
-        if let Some(typ) = description_type
+        if self.scope == JointGraphScope::Editing
+            && let Some(typ) = description_type
             && let Some(description_id) = description_id(kind, id, value.as_ref())
         {
             if parent == "root" {
@@ -578,7 +1094,8 @@ impl JointGraph<'_> {
                 id,
             )?;
         }
-        if kind == EntityKind::Ship
+        if self.scope == JointGraphScope::Editing
+            && kind == EntityKind::Ship
             && let Some(row) = &csv
             && string_field(row, "shield type").as_deref() == Some("PHASE")
         {
@@ -598,7 +1115,9 @@ impl JointGraph<'_> {
                 string_field(data, "shipSystemId").or_else(|| string_field(data, "systemId"))
             })
         };
-        if let Some(system) = system {
+        if self.scope == JointGraphScope::Editing
+            && let Some(system) = system
+        {
             if parent == "root" {
                 self.bindings.insert(
                     "system".into(),
@@ -610,14 +1129,16 @@ impl JointGraph<'_> {
         let Some(data) = value else {
             return Ok(());
         };
-        for field in ["builtInMods", "hullMods", "permaMods", "sMods"] {
-            if let Some(mods) = data.get(field).and_then(Value::as_array) {
-                for module in mods.iter().filter_map(Value::as_str) {
-                    self.csv(
-                        CsvTableKey::Hullmods,
-                        BTreeMap::from([("id".into(), module.into())]),
-                        id,
-                    )?;
+        if self.scope == JointGraphScope::Editing {
+            for field in ["builtInMods", "hullMods", "permaMods", "sMods"] {
+                if let Some(mods) = data.get(field).and_then(Value::as_array) {
+                    for module in mods.iter().filter_map(Value::as_str) {
+                        self.csv(
+                            CsvTableKey::Hullmods,
+                            BTreeMap::from([("id".into(), module.into())]),
+                            id,
+                        )?;
+                    }
                 }
             }
         }
@@ -653,9 +1174,9 @@ impl JointGraph<'_> {
             )?;
         }
         if kind == EntityKind::Variant {
-            if let Some(modules) = data.get("modules").and_then(Value::as_object) {
-                for module in modules.values().filter_map(Value::as_str) {
-                    self.spec(EntityKind::Variant, module, id)?;
+            if self.scope == JointGraphScope::Editing {
+                for (_, module) in crate::domain::joint_hull::module_entries(data.get("modules")) {
+                    self.spec(EntityKind::Variant, &module, id)?;
                 }
             }
             if let Some(groups) = data.get("weaponGroups").and_then(Value::as_array) {
@@ -668,20 +1189,22 @@ impl JointGraph<'_> {
                 }
             }
         }
-        for field in ["wings", "builtInWings"] {
-            if let Some(wings) = data.get(field).and_then(Value::as_array) {
-                for wing in wings
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .filter(|id| !id.is_empty())
-                {
-                    let row = self.csv(
-                        CsvTableKey::Wings,
-                        BTreeMap::from([("id".into(), wing.into())]),
-                        id,
-                    )?;
-                    if let Some(variant) = string_field(&row, "variant") {
-                        self.spec(EntityKind::Variant, &variant, wing)?;
+        if self.scope == JointGraphScope::Editing {
+            for field in ["wings", "builtInWings"] {
+                if let Some(wings) = data.get(field).and_then(Value::as_array) {
+                    for wing in wings
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .filter(|id| !id.is_empty())
+                    {
+                        let row = self.csv(
+                            CsvTableKey::Wings,
+                            BTreeMap::from([("id".into(), wing.into())]),
+                            id,
+                        )?;
+                        if let Some(variant) = string_field(&row, "variant") {
+                            self.spec(EntityKind::Variant, &variant, wing)?;
+                        }
                     }
                 }
             }
@@ -692,6 +1215,21 @@ impl JointGraph<'_> {
             }
         }
         if kind == EntityKind::Weapon
+            && (self.scope == JointGraphScope::Editing
+                || data
+                    .get("renderHints")
+                    .and_then(Value::as_array)
+                    .is_some_and(|hints| {
+                        hints.iter().any(|hint| {
+                            matches!(
+                                hint.as_str(),
+                                Some(
+                                    "RENDER_LOADED_MISSILES"
+                                        | "RENDER_LOADED_MISSILES_UNLESS_HIDDEN"
+                                )
+                            )
+                        })
+                    }))
             && let Some(projectile) = string_field(&data, "projectileSpecId")
         {
             if parent == "root" {
@@ -713,23 +1251,14 @@ impl JointGraph<'_> {
         }
     }
 
-    fn has_skin(&self, id: &str) -> AppResult<bool> {
+    fn has_skin(&mut self, id: &str) -> AppResult<bool> {
         if self
             .new_sources
             .iter()
             .any(|source| source.kind == EntityKind::Skin && source.id == id)
         {
             if self.session.ship_files.contains_key(id)
-                || self
-                    .session
-                    .manifest
-                    .starsector_root
-                    .as_ref()
-                    .map(|root| {
-                        cache::load_core_ship_files(root).map(|ships| ships.contains_key(id))
-                    })
-                    .transpose()?
-                    .unwrap_or(false)
+                || self.core_source(EntityKind::Ship, id)?.is_some()
             {
                 return Err(AppError::message(
                     "skin.id_conflict",
@@ -746,16 +1275,7 @@ impl JointGraph<'_> {
         {
             return Ok(true);
         }
-        self.session
-            .manifest
-            .starsector_root
-            .as_ref()
-            .map(|root| {
-                cache::load_core_skin_files(root)
-                    .map(|files| files.iter().any(|skin| skin.skin_hull_id == id))
-            })
-            .transpose()
-            .map(|value| value.unwrap_or(false))
+        Ok(self.core_source(EntityKind::Skin, id)?.is_some())
     }
 
     fn core_source(&mut self, kind: EntityKind, id: &str) -> AppResult<Option<EntityFileLocation>> {
@@ -763,42 +1283,60 @@ impl JointGraph<'_> {
             return Ok(None);
         };
         let core = Path::new(root).join("starsector-core");
-        Ok(match kind {
-            EntityKind::Ship => cache::load_core_ship_files(root)?
-                .get(id)
-                .map(|record| record.location.clone()),
-            EntityKind::Weapon => cache::core::load_core_weapon_specs(root)?
-                .get(id)
-                .map(|record| record.location.clone()),
-            EntityKind::Projectile => cache::load_core_projectile_specs(root)?
-                .get(id)
-                .map(|record| record.location.clone()),
-            EntityKind::Variant => cache::load_core_variant_files(root)?
-                .iter()
-                .find(|file| file.variant_id == id)
-                .map(|file| location(ResourceSource::Core, &core, &file.rel_path)),
-            EntityKind::Skin => cache::load_core_skin_files(root)?
-                .iter()
-                .find(|file| file.skin_hull_id == id)
-                .map(|file| location(ResourceSource::Core, &core, &file.rel_path)),
-            EntityKind::System => {
-                if self.core_systems.is_none() {
-                    self.core_systems = Some(cache::load_spec_records(
-                        &core,
-                        "data/shipsystems",
-                        "system",
-                        "id",
-                        ResourceSource::Core,
-                    )?);
+        if !self.core_sources.contains_key(&kind) {
+            let sources = match kind {
+                EntityKind::Ship => cache::load_core_ship_files(root)?
+                    .iter()
+                    .map(|(id, record)| (id.clone(), record.location.clone()))
+                    .collect(),
+                EntityKind::Weapon => cache::core::load_core_weapon_specs(root)?
+                    .iter()
+                    .map(|(id, record)| (id.clone(), record.location.clone()))
+                    .collect(),
+                EntityKind::Projectile => cache::load_core_projectile_specs(root)?
+                    .iter()
+                    .map(|(id, record)| (id.clone(), record.location.clone()))
+                    .collect(),
+                EntityKind::Variant => cache::load_core_variant_files(root)?
+                    .iter()
+                    .map(|file| {
+                        (
+                            file.variant_id.clone(),
+                            location(ResourceSource::Core, &core, &file.rel_path),
+                        )
+                    })
+                    .collect(),
+                EntityKind::Skin => cache::load_core_skin_files(root)?
+                    .iter()
+                    .map(|file| {
+                        (
+                            file.skin_hull_id.clone(),
+                            location(ResourceSource::Core, &core, &file.rel_path),
+                        )
+                    })
+                    .collect(),
+                EntityKind::System => {
+                    if self.core_systems.is_none() {
+                        self.core_systems = Some(cache::load_spec_records(
+                            &core,
+                            "data/shipsystems",
+                            "system",
+                            "id",
+                            ResourceSource::Core,
+                        )?);
+                    }
+                    self.core_systems
+                        .as_ref()
+                        .expect("core systems loaded")
+                        .iter()
+                        .map(|(id, record)| (id.clone(), record.location.clone()))
+                        .collect()
                 }
-                self.core_systems
-                    .as_ref()
-                    .expect("core systems loaded")
-                    .get(id)
-                    .map(|record| record.location.clone())
-            }
-            _ => None,
-        })
+                _ => BTreeMap::new(),
+            };
+            self.core_sources.insert(kind, sources);
+        }
+        Ok(self.core_sources[&kind].get(id).cloned())
     }
 }
 
@@ -809,21 +1347,6 @@ fn location(source: ResourceSource, root: &Path, rel_path: &str) -> EntityFileLo
         rel_path: rel_path.into(),
         path: root.join(rel_path).to_string_lossy().into(),
     }
-}
-
-fn description_id(kind: EntityKind, id: &str, data: Option<&Value>) -> Option<String> {
-    let description = match kind {
-        EntityKind::Weapon => id.to_string(),
-        EntityKind::Skin => data
-            .and_then(|value| value.get("descriptionId"))
-            .and_then(Value::as_str)
-            .unwrap_or(id)
-            .to_string(),
-        _ => data
-            .and_then(|value| string_field(value, "descriptionId"))
-            .unwrap_or_else(|| id.to_string()),
-    };
-    (!description.is_empty()).then_some(description)
 }
 
 fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTreeSet<String>>> {
@@ -991,13 +1514,11 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
                     }
                 }
             }
-            if let Some(modules) = data.get("modules").and_then(Value::as_object) {
-                for module in modules.values().filter_map(Value::as_str) {
-                    add(
-                        serde_json::to_string(&("spec", EntityKind::Variant, module))?,
-                        owner.clone(),
-                    );
-                }
+            for (_, module) in crate::domain::joint_hull::module_entries(data.get("modules")) {
+                add(
+                    serde_json::to_string(&("spec", EntityKind::Variant, &module))?,
+                    owner.clone(),
+                );
             }
         }
         let wings = JointCsvCatalog::load(session, CsvTableKey::Wings)?;

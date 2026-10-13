@@ -26,6 +26,13 @@ describe('immersive native request', () => {
     expect(mocks.open).toHaveBeenLastCalledWith(
       expect.objectContaining({ size: { width: 430, height: 700, minWidth: 340, minHeight: 480 } }),
     );
+    await openImmersiveEditorWindow({ ...root, kind: 'variant', id: 'aurora_Assault' }, settings);
+    expect(mocks.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        identity: { type: 'immersive', sessionId: 's', modRoot: 'M:/mod', kind: 'variant', id: 'aurora_Assault' },
+        size: { width: 1280, height: 720, minWidth: 960, minHeight: 640 },
+      }),
+    );
     await openImmersiveEditorWindow({ ...root, kind: 'wing', id: 'sarissa_wing' }, settings, 'wings:row:3');
     expect(mocks.open).toHaveBeenLastCalledWith(
       expect.objectContaining({

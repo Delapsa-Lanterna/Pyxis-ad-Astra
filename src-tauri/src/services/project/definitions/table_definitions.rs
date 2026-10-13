@@ -170,7 +170,9 @@ pub(in crate::services::project) fn csv_table_icon_resource_ref(
     let definition = csv_table_definition(table);
     let owner = definition.resource_owner?;
     let id = string_from_row(row, definition.spec.entity_id_field)?;
-    let rel_path = string_from_row(row, definition.icon_field?)?;
+    let rel_path = string_from_row(row, definition.icon_field?).or_else(|| {
+        matches!(table, CsvTableKey::Hullmods).then(|| "graphics/hullmods/generic_mod.png".into())
+    })?;
     Some(resource_ref(source, &rel_path, owner, &id, "icon"))
 }
 

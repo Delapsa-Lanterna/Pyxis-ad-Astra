@@ -26,7 +26,7 @@ const fieldInputsKey: InjectionKey<FieldInputs> = Symbol('field-inputs');
 
 export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(null)) {
   const fields = shallowReactive(new Set<FieldInput>());
-  const finalizers = new Map<() => void, string | undefined>();
+  const finalizers = new Map<() => void | boolean | Promise<void | boolean>, string | undefined>();
   const dirty = computed(() => [...fields].some((field) => field.dirty.value));
   let generation = 0;
 
@@ -46,7 +46,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     return commitPending(pending, finish);
   }
 
-  async function commitPending(pending: FieldInput[], finish: Array<() => void>) {
+  async function commitPending(pending: FieldInput[], finish: Array<() => void | boolean | Promise<void | boolean>>) {
     const key = targetKey.value;
     const started = generation;
     for (const field of pending) {
@@ -61,7 +61,10 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
       await nextTick();
     }
     if (generation !== started || targetKey.value !== key) return false;
-    for (const finalize of finish) finalize();
+    for (const finalize of finish) {
+      if (generation !== started || targetKey.value !== key || (await finalize()) === false) return false;
+    }
+    if (generation !== started || targetKey.value !== key) return false;
     return true;
   }
 
@@ -76,7 +79,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     fields.clear();
     finalizers.clear();
   }
-  function registerFinalizer(finalize: () => void, key?: string) {
+  function registerFinalizer(finalize: () => void | boolean | Promise<void | boolean>, key?: string) {
     finalizers.set(finalize, key);
     return () => finalizers.delete(finalize);
   }

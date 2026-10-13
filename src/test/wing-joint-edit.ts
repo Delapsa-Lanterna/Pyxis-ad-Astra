@@ -107,6 +107,7 @@ export function wingJointFixture(): JointEditSnapshot {
         'op cost': '12',
         range: '0',
         num: '3',
+        formation: 'CLAW',
         refit: '10',
       },
     },
@@ -123,8 +124,14 @@ export function wingJointFixture(): JointEditSnapshot {
   };
   snapshot.records = [...snapshot.records.filter((record) => record.key !== 'mod'), variant, wing];
   snapshot.hull = {
+    slots: [],
+    builtInWeapons: {},
+    builtInMods: [],
+    builtInWings: [],
+    modules: [],
     variantKey: 'variant',
     hullKey: 'spec',
+    displayBindings: { csv: 'hull-csv', description: 'description' },
     skinKeys: [],
     fields: Object.fromEntries(
       [

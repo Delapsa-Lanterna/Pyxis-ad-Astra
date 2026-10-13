@@ -1,5 +1,5 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { queryLive } from '@/services/query-cache.service';
+import { queryLive, queryCached } from '@/services/query-cache.service';
 import type {
   JointEditRoot,
   JointEditDraft,
@@ -7,6 +7,7 @@ import type {
   JointEditWriteResult,
   QueryValue,
   JointSourceCreate,
+  JointVariantCatalogKind,
 } from '@/shared/types';
 
 export function queryJointEdit(
@@ -15,8 +16,20 @@ export function queryJointEdit(
   newSources: readonly JointSourceCreate[] = [],
 ): Promise<QueryValue<'joint-edit'>> {
   return queryLive(
-    { sessionId: root.sessionId, queryKind: 'joint-edit', parameters: { root, rowKey: null, values: null, newSources: [...newSources] } },
+    {
+      sessionId: root.sessionId,
+      queryKind: 'joint-edit',
+      parameters: { root, rowKey: null, values: null, newSources: [...newSources], catalog: null },
+    },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
+    signal,
+  );
+}
+export function queryJointCandidate(root: JointEditRoot, signal?: AbortSignal): Promise<QueryValue<'joint-edit-candidate'>> {
+  const parameters = { root: { ...root }, rowKey: null, values: null, newSources: [], catalog: null };
+  return queryCached(
+    { sessionId: root.sessionId, queryKind: 'joint-edit-candidate', parameters },
+    () => invokeCommand('query_joint_edit', { payload: parameters }),
     signal,
   );
 }
@@ -30,7 +43,7 @@ export function queryJointEditRow(
     {
       sessionId: root.sessionId,
       queryKind: 'joint-edit',
-      parameters: { root: { ...root, id: '' }, rowKey, values: null, newSources: [...newSources] },
+      parameters: { root: { ...root, id: '' }, rowKey, values: null, newSources: [...newSources], catalog: null },
     },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
     signal,
@@ -41,9 +54,21 @@ export function queryJointEditProjection(draft: JointEditDraft, signal?: AbortSi
     {
       sessionId: draft.baseline.root.sessionId,
       queryKind: 'joint-edit-projection',
-      parameters: { root: draft.baseline.root, rowKey: null, values: draft.values, newSources: draft.baseline.newSources },
+      parameters: { root: draft.baseline.root, rowKey: null, values: draft.values, newSources: draft.baseline.newSources, catalog: null },
     },
     (captured) => invokeCommand('query_joint_edit', { payload: captured.parameters }),
+    signal,
+  );
+}
+export function queryJointVariantCatalog(
+  root: JointEditRoot,
+  catalog: JointVariantCatalogKind,
+  signal?: AbortSignal,
+): Promise<QueryValue<'joint-edit-catalog'>> {
+  const parameters = { root: { ...root }, rowKey: null, values: null, newSources: [], catalog };
+  return queryCached(
+    { sessionId: root.sessionId, queryKind: 'joint-edit-catalog', parameters },
+    () => invokeCommand('query_joint_edit', { payload: parameters }),
     signal,
   );
 }
