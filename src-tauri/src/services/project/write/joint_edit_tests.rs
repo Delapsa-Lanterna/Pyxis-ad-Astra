@@ -310,6 +310,53 @@ fn variant_weapon_catalog_sources() {
 }
 
 #[test]
+fn weapon_render_hints_skin_chain() {
+    let (dir, mut root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    std::fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/hulls/ship_data.csv"),
+        "name,id,hints\nShip,a,\"WEAPONS_FRONT_TO_BACK, CIVILIAN\"\n",
+    )
+    .unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/skins/inner.skin"), r#"{"skinHullId":"inner","baseHullId":"a","removeHints":["WEAPONS_FRONT_TO_BACK"],"addHints":["WEAPONS_BACK_TO_FRONT"]}"#).unwrap();
+    write_utf8_no_bom(&dir.join("data/hulls/skins/outer.skin"), r#"{"skinHullId":"outer","baseHullId":"inner","removeHints":["WEAPONS_BACK_TO_FRONT"],"addHints":["WEAPONS_FRONT_TO_BACK","PHASE"]}"#).unwrap();
+    write_utf8_no_bom(
+        &dir.join("data/variants/var.variant"),
+        r#"{"variantId":"var","hullId":"outer"}"#,
+    )
+    .unwrap();
+    let mut trace = project::PerformanceTrace::new("weapon.render.hints");
+    root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
+        .unwrap()
+        .session_id;
+    root.kind = JointEditKind::Variant;
+    root.id = "var".into();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let hull = &snapshot.variants[&snapshot.bindings["variant"]];
+    assert_eq!(hull.hints, ["CIVILIAN", "PHASE", "WEAPONS_FRONT_TO_BACK"]);
+    let outer = hull.skin_keys.last().unwrap();
+    let projected = project::query_joint_edit_request(&JointEditQuery {
+        root: root.clone(),
+        row_key: None,
+        new_sources: Vec::new(),
+        catalog: None,
+        values: Some(BTreeMap::from([(
+            outer.clone(),
+            JointValue::Present(json!({
+                "skinHullId":"outer", "baseHullId":"inner", "addHints":["WEAPONS_FRONT_TO_BACK"]
+            })),
+        )])),
+    })
+    .unwrap();
+    assert_eq!(
+        projected.variants[&projected.bindings["variant"]].hints,
+        ["CIVILIAN", "WEAPONS_BACK_TO_FRONT", "WEAPONS_FRONT_TO_BACK"]
+    );
+    cleanup(dir, &root);
+}
+
+#[test]
 fn variant_wing_catalog_core_reference() {
     let (dir, mut root) = fixture();
     let game = temp_dir("variant_catalog_core");

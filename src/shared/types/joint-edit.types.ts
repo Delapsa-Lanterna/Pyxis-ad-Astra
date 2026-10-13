@@ -103,6 +103,7 @@ export interface JointHullProjection {
   weapons: Record<string, string>;
   sprite: ResourceRef | null;
   slots: JsonValue[];
+  hints: string[];
   builtInWeapons: Record<string, string>;
   builtInMods: string[];
   builtInWings: string[];

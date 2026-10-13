@@ -13,11 +13,21 @@ import {
 
 describe('weapon sprite field registry', () => {
   it.each(['turret', 'hardpoint'] as const)('orders %s layers using the barrel rendering hint', (mode) => {
-    expect(weaponSpriteDrawOrder({}, mode)).toEqual([mode + 'UnderSprite', mode + 'Sprite', mode + 'GunSprite']);
-    expect(weaponSpriteDrawOrder({ renderHints: ['RENDER_BARREL_BELOW'] }, mode)).toEqual([
+    expect(weaponSpriteDrawOrder({ specClass: 'projectile', visualRecoil: 1 }, mode)).toEqual([
+      mode + 'UnderSprite',
+      mode + 'Sprite',
+      mode + 'GunSprite',
+    ]);
+    expect(weaponSpriteDrawOrder({ specClass: 'projectile', visualRecoil: 1, renderHints: ['RENDER_BARREL_BELOW'] }, mode)).toEqual([
       mode + 'UnderSprite',
       mode + 'GunSprite',
       mode + 'Sprite',
+    ]);
+  });
+  it.each(['beam', 'pulse', 'projectile'])('uses the %s body and under layer at zero recoil', (specClass) => {
+    expect(weaponSpriteDrawOrder({ specClass, visualRecoil: 0, renderHints: ['RENDER_BARREL_BELOW'] }, 'turret')).toEqual([
+      'turretUnderSprite',
+      'turretSprite',
     ]);
   });
   it('maps view modes to the canonical offset/angle keys', () => {

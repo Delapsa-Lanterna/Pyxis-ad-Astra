@@ -85,13 +85,11 @@ export function findMirrorBoundIndex(bounds: number[], pointIndex: number, epsil
 }
 
 export function findMirrorBarrelIndex(offsets: number[], barrelIndex: number, epsilon = MIRROR_EPSILON): number | null {
-  const x = offsets[barrelIndex * 2] || 0;
-  const y = offsets[barrelIndex * 2 + 1] || 0;
-  if (Math.abs(x) <= epsilon) return null;
-  const count = Math.floor(offsets.length / 2);
-  for (let index = 0; index < count; index += 1) {
-    if (index === barrelIndex) continue;
-    if (Math.abs((offsets[index * 2] || 0) + x) <= epsilon && Math.abs((offsets[index * 2 + 1] || 0) - y) <= epsilon) return index;
+  const x = offsets[barrelIndex * 2] || 0,
+    y = offsets[barrelIndex * 2 + 1] || 0;
+  if (Math.abs(y) <= epsilon) return null;
+  for (let i = 0; i < Math.floor(offsets.length / 2); i++) {
+    if (i !== barrelIndex && Math.abs((offsets[i * 2] || 0) - x) <= epsilon && Math.abs((offsets[i * 2 + 1] || 0) + y) <= epsilon) return i;
   }
   return null;
 }

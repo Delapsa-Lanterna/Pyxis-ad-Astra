@@ -124,6 +124,7 @@ export function wingJointFixture(): JointEditSnapshot {
   };
   snapshot.records = [...snapshot.records.filter((record) => record.key !== 'mod'), variant, wing];
   snapshot.hull = {
+    hints: [],
     slots: [],
     builtInWeapons: {},
     builtInMods: [],

@@ -34,6 +34,7 @@ export function renderWeaponPreviewScene(ctx: CanvasRenderingContext2D, scene: W
   const end = scene.origin.x + scene.range;
   clearCanvas(ctx, dimensions.width, dimensions.height, scene.palette.background);
   ctx.strokeStyle = scene.palette.grid;
+  ctx.lineWidth = 1;
   for (let x = 80; x < dimensions.width; x += 50) {
     ctx.beginPath();
     ctx.moveTo(x, 0);

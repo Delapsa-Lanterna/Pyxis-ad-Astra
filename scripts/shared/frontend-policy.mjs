@@ -12,14 +12,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'joint-edit',
-    names: [
-      'queryJointEdit',
-      'queryJointEditRow',
-      'queryJointEditProjection',
-      'queryJointVariantCatalog',
-      'queryJointCandidate',
-      'prepareJointEdit',
-    ],
+    names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'queryJointVariantCatalog', 'prepareJointEdit'],
     capability: 'joint-edit-read',
     owners: [
       { layer: 'orchestrators', domain: 'joint-edit' },
@@ -27,6 +20,20 @@ export const frontendCapabilities = [
       { layer: 'app', role: 'composable', domain: 'immersive-editor-view-model' },
       { layer: 'app', role: 'composable', domain: 'variant-catalog' },
       { layer: 'app', role: 'composable', domain: 'variant-candidate' },
+    ],
+  },
+  {
+    role: 'service',
+    domain: 'joint-edit',
+    names: ['queryJointCandidate'],
+    capability: 'joint-candidate-read',
+    owners: [
+      { layer: 'orchestrators', domain: 'joint-edit' },
+      { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+      { layer: 'app', role: 'composable', domain: 'immersive-editor-view-model' },
+      { layer: 'app', role: 'composable', domain: 'variant-catalog' },
+      { layer: 'app', role: 'composable', domain: 'variant-candidate' },
+      { layer: 'services', domain: 'editor' },
     ],
   },
   {
@@ -391,6 +398,7 @@ export const frontendCapabilities = [
       'queryDraftEditorImages',
       'refreshBundleProjectiles',
       'queryEditorIdentityIntent',
+      'queryShipWeaponSources',
     ],
     capability: 'editor-query',
     owners: readOwners,
@@ -617,6 +625,7 @@ const serviceEdges = new Set([
   'csv-table -> resource-cache',
   'editor -> files',
   'editor -> entity-query',
+  'editor -> joint-edit',
   'editor -> resource-cache',
 ]);
 

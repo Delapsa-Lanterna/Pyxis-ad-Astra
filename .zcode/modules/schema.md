@@ -6,7 +6,9 @@
 
 ## 参考
 
-`schemas/*.schema.json`、`schemas/csv/*.schema.json`、`schemas/well-known-labels.json`：schema 资产本体。
+`schemas/`：规格与配置 schema 资产。
+`schemas/csv/`：CSV 列 schema 资产。
+`schemas/well-known-labels.json`：well-known 标签资产。
 `src-tauri/src/commands/source_options.rs`：来源目录 command 主归属。
 `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
 `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染 owner。

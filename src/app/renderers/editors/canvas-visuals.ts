@@ -364,7 +364,7 @@ export function drawWeaponGlow(
   image: HTMLImageElement,
   tintedImage: HTMLCanvasElement,
   options: { tintAlpha: number; coreAlpha: number; origin: Point; center: Point; scale: number },
-  random = Math.random,
+  random: () => number,
 ) {
   ctx.save();
   for (let i = 0; i < 15; i++) {

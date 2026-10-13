@@ -1,6 +1,7 @@
+import { weaponCanvasPoint } from '@/domain/editors/lib/geometry';
 import type { BarrelPreview } from '@/domain/editors/editor-types';
 import { centerMarkerStyle, barrelStyle } from './canvas-styles';
-import type { CanvasTargetIdentity } from '@/app/composables/canvas/use-canvas-editor';
+import type { EditorTarget } from '@/domain/editors/editor-types';
 import { findMirrorBarrelIndex, mirrorLateral, MIRROR_EPSILON } from '@/domain/editors/lib/mirror';
 import { drawBarrelVisual, drawCrossMarker } from './canvas-visuals';
 import { renderCanvasBase, renderCanvasCursor, type CanvasScene } from './canvas-scene';
@@ -11,13 +12,13 @@ export interface WeaponScene {
   assets: WeaponImageScene;
   mirrorMode: boolean;
   selected: number | null;
-  hovered: CanvasTargetIdentity | null;
+  hovered: EditorTarget | null;
   offsets: number[];
   angles: number[];
   preview: BarrelPreview;
 }
 function toWeaponCanvas(scene: WeaponScene, x: number, y: number) {
-  return { x: scene.base.center.x + x * scene.base.scale, y: scene.base.center.y - y * scene.base.scale };
+  return weaponCanvasPoint({ x, y }, scene.base.center, scene.base.scale);
 }
 function renderPreview(ctx: CanvasRenderingContext2D, scene: WeaponScene, preview: NonNullable<BarrelPreview>) {
   ctx.save();
@@ -28,11 +29,11 @@ function renderPreview(ctx: CanvasRenderingContext2D, scene: WeaponScene, previe
       point: toWeaponCanvas(scene, preview.coord.x, preview.coord.y),
       style: barrelStyle(scene.base.palette, true, true, false),
     });
-    if (scene.mirrorMode && Math.abs(preview.coord.x) > MIRROR_EPSILON) {
+    if (scene.mirrorMode && Math.abs(preview.coord.y) > MIRROR_EPSILON) {
       drawBarrelVisual(ctx, {
         angle: 0,
         index: scene.offsets.length / 2 + 1,
-        point: toWeaponCanvas(scene, mirrorLateral(preview.coord.x), preview.coord.y),
+        point: toWeaponCanvas(scene, preview.coord.x, mirrorLateral(preview.coord.y)),
         style: barrelStyle(scene.base.palette, true, true, false),
       });
     }

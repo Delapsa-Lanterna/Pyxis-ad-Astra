@@ -1,12 +1,13 @@
-import { computed, ref, watch, type EmitFn } from 'vue';
-import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
-import { useEditActionContext } from '@/app/composables/use-edit-action-context';
+import { computed, reactive, ref, type EmitFn } from 'vue';
+import { useEditorDocument } from './use-editor-document';
+import { useEditorFields } from './use-editor-fields';
+
 import type { RowData, EditContext, ProjectileSpecClass } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
 import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/editors/spec-construction';
 import { normalizeProjectileSpec } from '@/domain/editors/lib/normalize';
 import { createProjectileEngineSlot } from '@/domain/editors/lib/projectile-fields';
-import { useObjectField } from '@/app/composables/editors/use-object-field';
+
 import { useResourceReference } from '@/app/composables/editors/use-resource-reference';
 
 export interface ProjectileEditorProps {
@@ -28,10 +29,17 @@ export type ProjectileEditorEvents = {
 };
 
 export function useProjectileEditorViewModel(props: Readonly<ProjectileEditorProps>, emit: EmitFn<ProjectileEditorEvents>) {
-  const localProjectile = ref<RowData>(normalizeProjectileSpec(props.projectile || createProjectileSpec(props.projectileId)));
-  const { commitBefore } = useFieldInputActions();
+  const document = useEditorDocument({
+    source: () => props.projectile || createProjectileSpec(props.projectileId),
+    normalize: normalizeProjectileSpec,
+    context: computed(() => props.editContext),
+    publish: (value) => emit('draft-changed', value),
+  });
+  const localProjectile = document.value,
+    fields = useEditorFields(document);
+
   const expandedSections = ref(['basic']);
-  const { bindObjectField } = useObjectField(localProjectile, { onCommit: commitEdit });
+
   const { pickModImageReference } = useResourceReference();
   const specClass = computed(() => str(localProjectile.value.specClass, 'projectile'));
   const showProjectileSections = computed(() => specClass.value === 'projectile');
@@ -41,99 +49,83 @@ export function useProjectileEditorViewModel(props: Readonly<ProjectileEditorPro
   const engineSlots = computed<RowData[]>(() =>
     Array.isArray(localProjectile.value.engineSlots) ? (localProjectile.value.engineSlots as RowData[]) : [],
   );
-  const fringeColor = computed({
-    get: () => arr(localProjectile.value.fringeColor, [255, 255, 255, 255]),
-    set: (v) => setField('fringeColor', v),
-  });
-  const coreColor = computed({
-    get: () => arr(localProjectile.value.coreColor, [255, 255, 255, 255]),
-    set: (v) => setField('coreColor', v),
-  });
-  const explosionColor = computed({
-    get: () => arr(localProjectile.value.explosionColor, [255, 200, 50, 255]),
-    set: (v) => setField('explosionColor', v),
-  });
-  const engineSpec = bindObjectField('engineSpec');
-  const explosionSpec = bindObjectField('explosionSpec');
+  const fringeColor = fields.color('fringeColor', [255, 255, 255, 255]);
+  const coreColor = fields.color('coreColor', [255, 255, 255, 255]);
+  const explosionColor = fields.color('explosionColor', [255, 200, 50, 255]);
+  const engineSpec = fields.object('engineSpec');
+  const explosionSpec = fields.object('explosionSpec');
 
-  function commitEdit() {
-    emit('draft-changed', localProjectile.value);
-  }
   function setField(key: string, value: RowData[string]) {
-    localProjectile.value[key] = value;
-    commitEdit();
+    fields.set(key, value);
   }
-  function onSpecClassChange(specClass: ProjectileSpecClass) {
-    void commitBefore(() => {
-      localProjectile.value = changeProjectileSpecClass(localProjectile.value, specClass);
-      commitEdit();
+  function onSpecClassChange(kind: ProjectileSpecClass) {
+    void document.command(() => {
+      localProjectile.value = changeProjectileSpecClass(localProjectile.value, kind);
     });
   }
-  function setArray(key: string, idx: number, value: number | null) {
-    const v = arr(localProjectile.value[key], [0, 0]);
-    v[idx] = value || 0;
-    localProjectile.value[key] = v;
-    commitEdit();
+  function setArray(key: string, index: number, value: number | null) {
+    fields.array(key, index, value);
   }
   function slotLoc(slot: RowData) {
     return arr(slot.loc, [0, 0]);
   }
   function setSlotLoc(i: number, axis: number, value: number | null) {
-    const slot = engineSlots.value[i];
-    if (!slot) return;
-    const loc = slotLoc(slot);
-    loc[axis] = value || 0;
-    slot.loc = loc;
-    commitEdit();
+    document.change((projectile) => {
+      const slot = (projectile.engineSlots as RowData[])[i]!,
+        loc = arr(slot.loc, [0, 0]);
+      loc[axis] = value || 0;
+      slot.loc = loc;
+    });
   }
   function addEngineSlot() {
-    engineSlots.value.push(createProjectileEngineSlot(engineSlots.value));
-    commitEdit();
+    document.change((projectile) => {
+      const slots = projectile.engineSlots as RowData[];
+      slots.push(createProjectileEngineSlot(slots));
+    });
   }
   function removeEngineSlot(i: number) {
-    engineSlots.value.splice(i, 1);
-    commitEdit();
+    document.change((projectile) => {
+      (projectile.engineSlots as RowData[]).splice(i, 1);
+    });
   }
   function projectileUpdated(value: RowData) {
-    localProjectile.value = value;
-    commitEdit();
+    document.change(() => {
+      localProjectile.value = value;
+    });
   }
   async function pickProjectileSprite(field: 'bulletSprite' | 'sprite') {
-    const accepts = captureActionContext();
+    const accepts = document.captureActionContext();
     const relative = await pickModImageReference({ sessionId: props.sessionId, modRoot: props.modRoot, title: '选择弹体贴图', accepts });
     if (!relative) return;
     setField(field, relative);
   }
-  const { captureActionContext } = useEditActionContext(computed(() => props.editContext));
-  watch(
-    () => props.editContext,
-    () => {
-      if (props.editContext?.handoff === 'save') return;
-      localProjectile.value = normalizeProjectileSpec(props.projectile || { id: props.projectileId, specClass: 'projectile' });
-    },
-  );
+
   return {
-    showProjectileSections,
-    showMissileSections,
-    normalizeProjectile: normalizeProjectileSpec,
-    localProjectile,
-    expandedSections,
-    size,
-    center,
-    engineSlots,
-    fringeColor,
-    coreColor,
-    explosionColor,
-    engineSpec,
-    explosionSpec,
-    setField,
-    onSpecClassChange,
-    setArray,
-    slotLoc,
-    setSlotLoc,
-    addEngineSlot,
-    removeEngineSlot,
-    projectileUpdated,
-    pickProjectileSprite,
+    document: localProjectile,
+    view: reactive({
+      showProjectileSections,
+      showMissileSections,
+      normalizeProjectile: normalizeProjectileSpec,
+      expandedSections,
+      size,
+      center,
+      engineSlots,
+      fringeColor,
+      coreColor,
+      explosionColor,
+      engineSpec,
+      explosionSpec,
+      slotLoc,
+    }),
+    actions: {
+      setField,
+      onSpecClassChange,
+      setArray,
+      setSlotLoc,
+      addEngineSlot,
+      removeEngineSlot,
+      projectileUpdated,
+      pickProjectileSprite,
+    },
   };
 }

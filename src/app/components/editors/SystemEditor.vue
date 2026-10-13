@@ -9,22 +9,22 @@
         @load-external="$emit('load-external')"
       />
       <div class="projectile-body">
-        <n-collapse v-model:expanded-names="expandedSections" :theme-overrides="editorCollapseTheme">
+        <n-collapse v-model:expanded-names="view.expandedSections" :theme-overrides="editorCollapseTheme">
           <n-collapse-item title="基础信息" name="basic">
             <div class="form-grid">
               <label>系统 ID</label><n-input :value="systemId" disabled /> <label>系统类型</label
-              ><n-select :value="systemType" :options="toOptions([...SYSTEM_TYPES])" @update:value="onTypeChange" />
+              ><n-select :value="view.systemType" :options="toOptions([...SYSTEM_TYPES])" @update:value="actions.onTypeChange" />
               <label>AI 行为类型</label
               ><n-select
-                :value="localSystem.aiType"
-                :options="toOptions([...AI_TYPES])"
+                :value="document.aiType"
+                :options="toOptions([...view.AI_TYPES])"
                 filterable
                 tag
-                @update:value="setField('aiType', $event)"
+                @update:value="actions.setField('aiType', $event)"
               />
-              <label>效果脚本</label><n-input :value="localSystem.statsScript" @update:value="setField('statsScript', $event)" />
-              <template v-if="showCustomAi">
-                <label>AI 脚本</label><n-input :value="localSystem.aiScript" @update:value="setField('aiScript', $event)" />
+              <label>效果脚本</label><n-input :value="document.statsScript" @update:value="actions.setField('statsScript', $event)" />
+              <template v-if="view.showCustomAi">
+                <label>AI 脚本</label><n-input :value="document.aiScript" @update:value="actions.setField('aiScript', $event)" />
               </template>
             </div>
           </n-collapse-item>
@@ -32,62 +32,68 @@
           <n-collapse-item title="行为标志" name="behavior">
             <div class="form-grid">
               <label>暂停时运行脚本</label
-              ><n-switch :value="localSystem.runScriptWhilePaused" @update:value="setField('runScriptWhilePaused', $event)" />
+              ><n-switch :value="document.runScriptWhilePaused" @update:value="actions.setField('runScriptWhilePaused', $event)" />
               <label>闲置时运行脚本</label
-              ><n-switch :value="localSystem.runScriptWhileIdle" @update:value="setField('runScriptWhileIdle', $event)" />
+              ><n-switch :value="document.runScriptWhileIdle" @update:value="actions.setField('runScriptWhileIdle', $event)" />
               <label>充能降低时阻止动作</label
               ><n-switch
-                :value="localSystem.blockActionsWhileChargingDown"
-                @update:value="setField('blockActionsWhileChargingDown', $event)"
+                :value="document.blockActionsWhileChargingDown"
+                @update:value="actions.setField('blockActionsWhileChargingDown', $event)"
               />
               <label>不会导致过载</label
-              ><n-switch :value="localSystem.canNotCauseOverload" @update:value="setField('canNotCauseOverload', $event)" />
+              ><n-switch :value="document.canNotCauseOverload" @update:value="actions.setField('canNotCauseOverload', $event)" />
               <label>右键系统开启时可用</label
               ><n-switch
-                :value="localSystem.canUseWhileRightClickSystemOn"
-                @update:value="setField('canUseWhileRightClickSystemOn', $event)"
+                :value="document.canUseWhileRightClickSystemOn"
+                @update:value="actions.setField('canUseWhileRightClickSystemOn', $event)"
               />
               <label>效果后限制转向</label
-              ><n-switch :value="localSystem.clampTurnRateAfter" @update:value="setField('clampTurnRateAfter', $event)" />
+              ><n-switch :value="document.clampTurnRateAfter" @update:value="actions.setField('clampTurnRateAfter', $event)" />
               <label>效果后限制速度</label
-              ><n-switch :value="localSystem.clampMaxSpeedAfter" @update:value="setField('clampMaxSpeedAfter', $event)" />
-              <label>持续加速</label><n-switch :value="localSystem.alwaysAccelerate" @update:value="setField('alwaysAccelerate', $event)" />
+              ><n-switch :value="document.clampMaxSpeedAfter" @update:value="actions.setField('clampMaxSpeedAfter', $event)" />
+              <label>持续加速</label
+              ><n-switch :value="document.alwaysAccelerate" @update:value="actions.setField('alwaysAccelerate', $event)" />
               <label>撞击失控概率</label
               ><NumberValueInput
-                :value="localSystem.flameoutOnImpactChance"
+                :value="document.flameoutOnImpactChance"
                 :step="0.1"
-                @update:value="setField('flameoutOnImpactChance', $event)"
+                @update:value="actions.setField('flameoutOnImpactChance', $event)"
               />
               <label>充能降低时淡出音效</label
               ><n-switch
-                :value="localSystem.fadeActivationSoundOnChargedown"
-                @update:value="setField('fadeActivationSoundOnChargedown', $event)"
+                :value="document.fadeActivationSoundOnChargedown"
+                @update:value="actions.setField('fadeActivationSoundOnChargedown', $event)"
               />
               <label>开盾时取消系统</label
-              ><n-switch :value="localSystem.activatingShieldsCancels" @update:value="setField('activatingShieldsCancels', $event)" />
+              ><n-switch :value="document.activatingShieldsCancels" @update:value="actions.setField('activatingShieldsCancels', $event)" />
             </div>
           </n-collapse-item>
 
           <n-collapse-item title="音效" name="sound">
             <div class="form-grid">
-              <label>激活音效</label><n-input :value="localSystem.useSound" @update:value="setField('useSound', $event)" />
-              <label>循环音效</label><n-input :value="localSystem.loopSound" @update:value="setField('loopSound', $event)" />
-              <label>关闭音效</label><n-input :value="localSystem.deactivateSound" @update:value="setField('deactivateSound', $event)" />
-              <label>用尽音效</label><n-input :value="localSystem.outOfUsesSound" @update:value="setField('outOfUsesSound', $event)" />
+              <label>激活音效</label><n-input :value="document.useSound" @update:value="actions.setField('useSound', $event)" />
+              <label>循环音效</label><n-input :value="document.loopSound" @update:value="actions.setField('loopSound', $event)" />
+              <label>关闭音效</label
+              ><n-input :value="document.deactivateSound" @update:value="actions.setField('deactivateSound', $event)" />
+              <label>用尽音效</label><n-input :value="document.outOfUsesSound" @update:value="actions.setField('outOfUsesSound', $event)" />
               <label>滤波类型</label
               ><n-select
-                :value="localSystem.soundFilterType"
+                :value="document.soundFilterType"
                 :options="toOptions(['LOWPASS'])"
                 clearable
-                @update:value="setField('soundFilterType', $event)"
+                @update:value="actions.setField('soundFilterType', $event)"
               />
               <label>滤波增益</label
-              ><NumberValueInput :value="localSystem.soundFilterGain" :step="0.05" @update:value="setField('soundFilterGain', $event)" />
+              ><NumberValueInput
+                :value="document.soundFilterGain"
+                :step="0.05"
+                @update:value="actions.setField('soundFilterGain', $event)"
+              />
               <label>高频滤波增益</label
               ><NumberValueInput
-                :value="localSystem.soundFilterGainHF"
+                :value="document.soundFilterGainHF"
                 :step="0.05"
-                @update:value="setField('soundFilterGainHF', $event)"
+                @update:value="actions.setField('soundFilterGainHF', $event)"
               />
             </div>
           </n-collapse-item>
@@ -96,150 +102,165 @@
             <div class="form-grid">
               <label>光柱长度倍率</label
               ><NumberValueInput
-                :value="localSystem.engineGlowLengthMult"
+                :value="document.engineGlowLengthMult"
                 :step="0.1"
-                @update:value="setField('engineGlowLengthMult', $event)"
+                @update:value="actions.setField('engineGlowLengthMult', $event)"
               />
               <label>光柱宽度倍率</label
               ><NumberValueInput
-                :value="localSystem.engineGlowWidthMult"
+                :value="document.engineGlowWidthMult"
                 :step="0.1"
-                @update:value="setField('engineGlowWidthMult', $event)"
+                @update:value="actions.setField('engineGlowWidthMult', $event)"
               />
               <label>辉光强度倍率</label
               ><NumberValueInput
-                :value="localSystem.engineGlowGlowMult"
+                :value="document.engineGlowGlowMult"
                 :step="0.1"
-                @update:value="setField('engineGlowGlowMult', $event)"
+                @update:value="actions.setField('engineGlowGlowMult', $event)"
               />
             </div>
-            <ColorPicker label="引擎发光颜色" v-model="engineGlowColor" />
-            <ColorPicker label="引擎尾迹颜色" v-model="engineGlowContrailColor" />
+            <ColorPicker label="引擎发光颜色" v-model="view.engineGlowColor" />
+            <ColorPicker label="引擎尾迹颜色" v-model="view.engineGlowContrailColor" />
           </n-collapse-item>
 
           <n-collapse-item title="武器发光" name="weaponGlow">
-            <ColorPicker label="武器发光颜色" v-model="weaponGlowColor" />
+            <ColorPicker label="武器发光颜色" v-model="view.weaponGlowColor" />
             <div class="form-grid">
               <label>受影响武器类型</label
               ><n-select
-                :value="localSystem.weaponTypes"
+                :value="document.weaponTypes"
                 :options="toOptions(['ENERGY', 'BALLISTIC', 'MISSILE', 'SYSTEM'])"
                 multiple
-                @update:value="setField('weaponTypes', $event)"
+                @update:value="actions.setField('weaponTypes', $event)"
               />
             </div>
           </n-collapse-item>
 
           <n-collapse-item title="抖动效果" name="jitter">
-            <ColorPicker label="抖动颜色" v-model="jitterColor" />
+            <ColorPicker label="抖动颜色" v-model="view.jitterColor" />
             <div class="form-grid">
               <label>抖动副本数</label
-              ><NumberValueInput :value="localSystem.jitterCopies" @update:value="setField('jitterCopies', $event)" />
+              ><NumberValueInput :value="document.jitterCopies" @update:value="actions.setField('jitterCopies', $event)" />
               <label>最小范围</label
-              ><NumberValueInput :value="localSystem.jitterMinRange" @update:value="setField('jitterMinRange', $event)" />
-              <label>抖动范围</label><NumberValueInput :value="localSystem.jitterRange" @update:value="setField('jitterRange', $event)" />
+              ><NumberValueInput :value="document.jitterMinRange" @update:value="actions.setField('jitterMinRange', $event)" />
+              <label>抖动范围</label
+              ><NumberValueInput :value="document.jitterRange" @update:value="actions.setField('jitterRange', $event)" />
               <label>范围半径比例</label
               ><NumberValueInput
-                :value="localSystem.jitterRangeRadiusFraction"
+                :value="document.jitterRangeRadiusFraction"
                 :step="0.1"
-                @update:value="setField('jitterRangeRadiusFraction', $event)"
+                @update:value="actions.setField('jitterRangeRadiusFraction', $event)"
               />
             </div>
-            <ColorPicker label="底层抖动颜色" v-model="jitterUnderColor" />
+            <ColorPicker label="底层抖动颜色" v-model="view.jitterUnderColor" />
             <div class="form-grid">
               <label>底层副本数</label
-              ><NumberValueInput :value="localSystem.jitterUnderCopies" @update:value="setField('jitterUnderCopies', $event)" />
+              ><NumberValueInput :value="document.jitterUnderCopies" @update:value="actions.setField('jitterUnderCopies', $event)" />
               <label>底层最小范围</label
-              ><NumberValueInput :value="localSystem.jitterUnderMinRange" @update:value="setField('jitterUnderMinRange', $event)" />
+              ><NumberValueInput :value="document.jitterUnderMinRange" @update:value="actions.setField('jitterUnderMinRange', $event)" />
               <label>底层抖动范围</label
-              ><NumberValueInput :value="localSystem.jitterUnderRange" @update:value="setField('jitterUnderRange', $event)" />
+              ><NumberValueInput :value="document.jitterUnderRange" @update:value="actions.setField('jitterUnderRange', $event)" />
               <label>底层范围半径比例</label
               ><NumberValueInput
-                :value="localSystem.jitterUnderRangeRadiusFraction"
+                :value="document.jitterUnderRangeRadiusFraction"
                 :step="0.1"
-                @update:value="setField('jitterUnderRangeRadiusFraction', $event)"
+                @update:value="actions.setField('jitterUnderRangeRadiusFraction', $event)"
               />
             </div>
           </n-collapse-item>
 
           <n-collapse-item title="效果与相位视觉" name="phase">
-            <ColorPicker label="效果颜色 1" v-model="effectColor1" />
-            <ColorPicker label="效果颜色 2" v-model="effectColor2" />
+            <ColorPicker label="效果颜色 1" v-model="view.effectColor1" />
+            <ColorPicker label="效果颜色 2" v-model="view.effectColor2" />
             <div class="form-grid">
-              <label>高光贴图后缀</label><n-input :value="localSystem.phaseHighlight" @update:value="setField('phaseHighlight', $event)" />
-              <label>漫射贴图后缀</label><n-input :value="localSystem.phaseDiffuse" @update:value="setField('phaseDiffuse', $event)" />
+              <label>高光贴图后缀</label
+              ><n-input :value="document.phaseHighlight" @update:value="actions.setField('phaseHighlight', $event)" />
+              <label>漫射贴图后缀</label><n-input :value="document.phaseDiffuse" @update:value="actions.setField('phaseDiffuse', $event)" />
               <label>舰船透明度</label
-              ><NumberValueInput :value="localSystem.shipAlpha" :step="0.05" @update:value="setField('shipAlpha', $event)" />
+              ><NumberValueInput :value="document.shipAlpha" :step="0.05" @update:value="actions.setField('shipAlpha', $event)" />
             </div>
           </n-collapse-item>
 
           <n-collapse-item title="护盾视觉" name="shield">
-            <ColorPicker label="护盾环颜色" v-model="shieldRingColor" />
-            <ColorPicker label="护盾内部颜色" v-model="shieldInnerColor" />
+            <ColorPicker label="护盾环颜色" v-model="view.shieldRingColor" />
+            <ColorPicker label="护盾内部颜色" v-model="view.shieldInnerColor" />
             <div class="form-grid">
               <label>护盾厚度倍率</label
               ><NumberValueInput
-                :value="localSystem.shieldThicknessMult"
+                :value="document.shieldThicknessMult"
                 :step="0.1"
-                @update:value="setField('shieldThicknessMult', $event)"
+                @update:value="actions.setField('shieldThicknessMult', $event)"
               />
               <label>护盾波动倍率</label
               ><NumberValueInput
-                :value="localSystem.shieldFluctuationMult"
+                :value="document.shieldFluctuationMult"
                 :step="0.1"
-                @update:value="setField('shieldFluctuationMult', $event)"
+                @update:value="actions.setField('shieldFluctuationMult', $event)"
               />
             </div>
           </n-collapse-item>
 
-          <n-collapse-item v-if="showDisplacerSection" title="位移器参数" name="displacer">
+          <n-collapse-item v-if="view.showDisplacerSection" title="位移器参数" name="displacer">
             <div class="form-grid">
-              <label>位移距离</label><NumberValueInput :value="localSystem.range" @update:value="setField('range', $event)" />
-              <label>随机偏移</label><NumberValueInput :value="localSystem.randomRange" @update:value="setField('randomRange', $event)" />
+              <label>位移距离</label><NumberValueInput :value="document.range" @update:value="actions.setField('range', $event)" />
+              <label>随机偏移</label
+              ><NumberValueInput :value="document.randomRange" @update:value="actions.setField('randomRange', $event)" />
               <label>传送时渲染副本</label
-              ><n-switch :value="localSystem.renderCopyDuringTeleport" @update:value="setField('renderCopyDuringTeleport', $event)" />
+              ><n-switch :value="document.renderCopyDuringTeleport" @update:value="actions.setField('renderCopyDuringTeleport', $event)" />
             </div>
           </n-collapse-item>
 
-          <n-collapse-item v-if="showWeaponSection" title="武器系统" name="weaponSystem">
+          <n-collapse-item v-if="view.showWeaponSection" title="武器系统" name="weaponSystem">
             <div class="form-grid">
-              <label>关联武器 ID</label><n-input :value="localSystem.weaponDataId" @update:value="setField('weaponDataId', $event)" />
+              <label>关联武器 ID</label><n-input :value="document.weaponDataId" @update:value="actions.setField('weaponDataId', $event)" />
             </div>
           </n-collapse-item>
 
-          <n-collapse-item v-if="showDroneSection" title="无人机参数" name="drone">
+          <n-collapse-item v-if="view.showDroneSection" title="无人机参数" name="drone">
             <div class="form-grid">
-              <label>无人机装配 ID</label><n-input :value="localSystem.droneVariant" @update:value="setField('droneVariant', $event)" />
-              <label>允许自由漫游</label><n-switch :value="localSystem.allowFreeRoam" @update:value="setField('allowFreeRoam', $event)" />
-              <label>发射速度</label><NumberValueInput :value="localSystem.launchSpeed" @update:value="setField('launchSpeed', $event)" />
+              <label>无人机装配 ID</label
+              ><n-input :value="document.droneVariant" @update:value="actions.setField('droneVariant', $event)" />
+              <label>允许自由漫游</label
+              ><n-switch :value="document.allowFreeRoam" @update:value="actions.setField('allowFreeRoam', $event)" /> <label>发射速度</label
+              ><NumberValueInput :value="document.launchSpeed" @update:value="actions.setField('launchSpeed', $event)" />
               <label>发射延迟</label
-              ><NumberValueInput :value="localSystem.launchDelay" :step="0.1" @update:value="setField('launchDelay', $event)" />
-              <label>最大无人机数</label><NumberValueInput :value="localSystem.maxDrones" @update:value="setField('maxDrones', $event)" />
+              ><NumberValueInput :value="document.launchDelay" :step="0.1" @update:value="actions.setField('launchDelay', $event)" />
+              <label>最大无人机数</label
+              ><NumberValueInput :value="document.maxDrones" @update:value="actions.setField('maxDrones', $event)" />
             </div>
             <h4 class="system-editor-heading">无人机行为定义</h4>
-            <JsonValueInput :value="localSystem.droneBehavior ?? []" label="droneBehavior" shape="array" @update="droneBehaviorUpdated" />
+            <JsonValueInput
+              :value="document.droneBehavior ?? []"
+              label="droneBehavior"
+              shape="array"
+              @update="actions.droneBehaviorUpdated"
+            />
           </n-collapse-item>
 
           <n-collapse-item title="伤害（AI 理解用）" name="damage">
             <div class="form-grid">
-              <label>EMP 伤害</label><NumberValueInput :value="localSystem.empDamage" @update:value="setField('empDamage', $event)" />
-              <label>伤害值</label><NumberValueInput :value="localSystem.damage" @update:value="setField('damage', $event)" />
+              <label>EMP 伤害</label><NumberValueInput :value="document.empDamage" @update:value="actions.setField('empDamage', $event)" />
+              <label>伤害值</label><NumberValueInput :value="document.damage" @update:value="actions.setField('damage', $event)" />
               <label>伤害类型</label
               ><n-select
-                :value="localSystem.damageType"
+                :value="document.damageType"
                 :options="toOptions(['ENERGY', 'KINETIC', 'HIGH_EXPLOSIVE', 'FRAGMENTATION'])"
                 clearable
-                @update:value="setField('damageType', $event)"
+                @update:value="actions.setField('damageType', $event)"
               />
             </div>
           </n-collapse-item>
 
           <n-collapse-item title="AI 提示" name="aiHints">
-            <JsonValueInput :value="aiHintsJson" label="aiHints" shape="object" @update="aiHintsJson = $event" />
+            <JsonValueInput :value="view.aiHintsJson" label="aiHints" shape="object" @update="view.aiHintsJson = $event" />
           </n-collapse-item>
 
           <n-collapse-item title="额外字段" name="extra">
-            <JsonFieldEditor :model-value="extraFields" :known-keys="structuredKnownKeys" @update:model-value="onExtraUpdate" />
+            <JsonFieldEditor
+              :model-value="view.extraFields"
+              :known-keys="view.structuredKnownKeys"
+              @update:model-value="actions.onExtraUpdate"
+            />
           </n-collapse-item>
         </n-collapse>
       </div>
@@ -271,30 +292,5 @@ import {
 const props = defineProps<SystemEditorProps>();
 const emit = defineEmits<SystemEditorEvents>();
 
-const {
-  showCustomAi,
-  localSystem,
-  expandedSections,
-  AI_TYPES,
-  systemType,
-  showDisplacerSection,
-  showWeaponSection,
-  showDroneSection,
-  engineGlowColor,
-  engineGlowContrailColor,
-  weaponGlowColor,
-  jitterColor,
-  jitterUnderColor,
-  effectColor1,
-  effectColor2,
-  shieldRingColor,
-  shieldInnerColor,
-  aiHintsJson,
-  setField,
-  droneBehaviorUpdated,
-  structuredKnownKeys,
-  extraFields,
-  onExtraUpdate,
-  onTypeChange,
-} = useSystemEditorViewModel(props, emit);
+const { document, view, actions } = useSystemEditorViewModel(props, emit);
 </script>

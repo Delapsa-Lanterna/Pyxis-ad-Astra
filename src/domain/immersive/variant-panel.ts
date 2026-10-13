@@ -5,18 +5,15 @@ import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponNumber, weaponStatistics } from './weapon-statistics';
 import { variantModuleEntries, weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
 import type { ImmersiveField, ImmersiveStat } from './fields';
-import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
-import { weaponImageLayers, weaponLoadedMissile, type LoadedWeaponMissile } from './weapon-images';
+import { mountedWeaponImages, type MountedWeaponImages } from '@/domain/editors/weapon-images';
 import { VARIANT_COLORS } from './appearance';
 
-export interface VariantWeapon {
+export interface VariantWeapon extends MountedWeaponImages {
   slot: RowData;
   type: string;
   id: string;
   name: string;
   builtin: boolean;
-  layers: Array<{ resource: ResourceRef; origin: { x: number; y: number } }>;
-  loadedMissile: LoadedWeaponMissile | null;
   flux: number;
   peakFlux: number;
   cost: number;
@@ -80,7 +77,7 @@ export interface VariantSceneProjection {
   name: string;
   spec: Readonly<RowData>;
   hull: Pick<JointHullProjection, 'sprite' | 'modules'>;
-  weapons: Array<Pick<VariantWeapon, 'slot' | 'id' | 'name' | 'builtin' | 'layers' | 'loadedMissile'>>;
+  weapons: Array<MountedWeaponImages & Pick<VariantWeapon, 'id' | 'name' | 'builtin'>>;
   modules: Array<{ slot: RowData; variant: VariantSceneProjection }>;
   engineStyles: Readonly<RowData>;
   engineResources: Record<string, ResourceRef>;
@@ -98,19 +95,18 @@ export function variantCatalogScene(entry: JointVariantEntry): VariantSceneProje
       const weapon = preview.specs.find((spec) => spec.kind === 'weapon' && spec.id === id);
       const data = weapon && isRowData(weapon.data) ? weapon.data : {};
       const projectile = preview.specs.find((spec) => spec.kind === 'projectile' && spec.id === schemaStringValue(data.projectileSpecId));
-      const mode = slot.mount === 'HARDPOINT' ? 'hardpoint' : 'turret';
       return {
-        slot,
+        ...mountedWeaponImages(
+          data,
+          weapon?.resourceRefs ?? {},
+          projectile && isRowData(projectile.data) ? projectile.data : {},
+          projectile?.resourceRefs ?? {},
+          slot,
+          preview.hull.hints,
+        ),
         id,
         name: id,
         builtin: Object.hasOwn(preview.hull.builtInWeapons, schemaStringValue(slot.id)),
-        layers: weaponImageLayers(data, weapon?.resourceRefs ?? {}, mode),
-        loadedMissile: weaponLoadedMissile(
-          data,
-          projectile && isRowData(projectile.data) ? projectile.data : {},
-          projectile?.resourceRefs ?? {},
-          mode,
-        ),
       };
     }),
     modules: [],
@@ -220,16 +216,21 @@ export function projectVariantPanel(
           weaponCsv = jointObject(row?.value);
         const projectile = specRecord('projectile', schemaStringValue(weapon.projectileSpecId));
         const statistics = weaponStatistics(weaponCsv, weapon, jointObject(projectile?.value));
-        const mode: WeaponViewMode = slot.mount === 'HARDPOINT' ? 'hardpoint' : 'turret';
         const builtin = Object.hasOwn(hull.builtInWeapons, schemaStringValue(slot.id));
         return {
+          ...mountedWeaponImages(
+            weapon,
+            item?.resourceRefs ?? {},
+            jointObject(projectile?.value),
+            projectile?.resourceRefs ?? {},
+            slot,
+            hull.hints,
+          ),
           slot,
           type: schemaStringValue(weapon.type),
           id,
           name: schemaStringValue(weaponCsv.name) || id,
           builtin,
-          layers: weaponImageLayers(weapon, item?.resourceRefs ?? {}, mode),
-          loadedMissile: weaponLoadedMissile(weapon, jointObject(projectile?.value), projectile?.resourceRefs ?? {}, mode),
           flux: id ? statistics.sustainedFlux : 0,
           peakFlux: id ? statistics.fluxPerSecond : 0,
           cost: builtin || !id ? 0 : weaponNumber(weaponCsv, 'OPs', NaN),

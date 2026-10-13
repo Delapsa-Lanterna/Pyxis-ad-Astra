@@ -3,14 +3,14 @@
     <div ref="editorWindowRef" class="editor-window" tabindex="-1">
       <EditorHeader
         title="舰船编辑器"
-        :subtitle="str(localShip.hullName) || hullId"
+        :subtitle="str(document.hullName) || hullId"
         :dirty="dirty"
         :external-update-notice="externalUpdateNotice"
         @load-external="$emit('load-external')"
       >
         <div class="ship-mode-controls">
           <div class="segmented ship-mode-tabs">
-            <button v-for="m in modes" :key="m.value" :class="{ active: mode === m.value }" @click="runAction(() => setMode(m.value))">
+            <button v-for="m in view.modes" :key="m.value" :class="{ active: view.mode === m.value }" @click="actions.setMode(m.value)">
               {{ m.label }} <span class="ship-mode-shortcut">{{ m.shortcut }}</span>
             </button>
           </div>
@@ -22,52 +22,66 @@
           <canvas
             ref="canvasRef"
             class="editor-canvas"
-            @mousedown="onDown"
-            @mousemove="onMove"
-            @mouseup="onUp"
-            @mouseleave="onLeave"
-            @wheel.prevent="onWheel"
+            @mousedown="canvas.onDown"
+            @mousemove="canvas.onMove"
+            @mouseup="canvas.onUp"
+            @mouseleave="canvas.onLeave"
+            @wheel.prevent="canvas.onWheel"
             @contextmenu.prevent
           />
         </div>
-        <EditorInspector title="舰船检查器" @focusin.capture="beginField" @focusout.capture="fieldBlur" @keyup.capture="fieldKey">
+        <EditorInspector
+          title="舰船检查器"
+          @focusin.capture="canvas.beginField"
+          @focusout.capture="canvas.fieldBlur"
+          @keyup.capture="canvas.fieldKey"
+        >
+          <section v-if="view.weaponDiagnostics.length" class="editor-resource-diagnostics" role="status" aria-label="内置武器预览">
+            <strong>内置武器预览</strong>
+            <div v-for="diagnostic in view.weaponDiagnostics" :key="diagnostic">{{ diagnostic }}</div>
+          </section>
           <n-collapse
-            v-model:expanded-names="expandedSections"
+            v-model:expanded-names="view.expandedSections"
             :theme-overrides="editorCollapseTheme"
-            @update:expanded-names="onExpandedSectionsUpdate"
+            @update:expanded-names="canvas.onExpandedSectionsUpdate"
           >
             <n-collapse-item title="船体属性" name="basic">
               <div class="form-grid">
-                <label>hullId</label><n-input :value="localShip.hullId" @update:value="setField('hullId', $event)" /> <label>hullName</label
-                ><n-input :value="localShip.hullName" @update:value="setField('hullName', $event)" /> <label>hullSize</label
+                <label>hullId</label><n-input :value="document.hullId" @update:value="actions.setField('hullId', $event)" />
+                <label>hullName</label><n-input :value="document.hullName" @update:value="actions.setField('hullName', $event)" />
+                <label>hullSize</label
                 ><n-select
-                  :value="localShip.hullSize"
+                  :value="document.hullSize"
                   :options="toOptions(['FRIGATE', 'DESTROYER', 'CRUISER', 'CAPITAL_SHIP', 'FIGHTER'])"
-                  @update:value="setField('hullSize', $event)"
+                  @update:value="actions.setField('hullSize', $event)"
                 />
                 <label>style</label
                 ><n-select
-                  :value="localShip.style"
+                  :value="document.style"
                   filterable
                   tag
                   :options="toOptions(['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'])"
-                  @update:value="setField('style', $event)"
+                  @update:value="actions.setField('style', $event)"
                 />
-                <label>width</label><NumberValueInput :value="localShip.width" @update:value="setVisualField('width', $event)" />
-                <label>height</label><NumberValueInput :value="localShip.height" @update:value="setVisualField('height', $event)" />
+                <label>width</label><NumberValueInput :value="document.width" @update:value="actions.setVisualField('width', $event)" />
+                <label>height</label><NumberValueInput :value="document.height" @update:value="actions.setVisualField('height', $event)" />
               </div>
             </n-collapse-item>
             <n-collapse-item title="贴图" name="sprite">
               <div class="form-grid">
                 <label>spriteName</label>
                 <div class="sprite-field-row">
-                  <n-input :value="localShip.spriteName" @update:value="setField('spriteName', $event)" @change="loadSprite" />
+                  <n-input
+                    :value="document.spriteName"
+                    @update:value="actions.setField('spriteName', $event)"
+                    @change="actions.loadSprite"
+                  />
                   <n-button
                     class="sprite-icon-button"
                     tertiary
                     title="浏览贴图（引用 Mod 内文件）"
                     aria-label="浏览贴图"
-                    @click="runAction(pickShipSprite)"
+                    @click="actions.pickShipSprite()"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M4 19V5h6l2 2h8v12H4z" />
@@ -75,50 +89,52 @@
                     </svg>
                   </n-button>
                 </div>
-                <label>sprite width</label><NumberValueInput :value="spriteSize.width || null" disabled /> <label>sprite height</label
-                ><NumberValueInput :value="spriteSize.height || null" disabled />
+                <label>sprite width</label><NumberValueInput :value="view.spriteSize.width || null" disabled /> <label>sprite height</label
+                ><NumberValueInput :value="view.spriteSize.height || null" disabled />
               </div>
               <div class="sprite-actions">
-                <n-button :disabled="!canSyncSpriteSize" @click="runAction(syncSpriteSize)">更新贴图宽高</n-button>
+                <n-button :disabled="!view.canSyncSpriteSize" @click="actions.syncSpriteSize()">更新贴图宽高</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="中心与护盾" name="props">
               <div class="form-grid">
                 <label data-inspector-field="center-x">center X</label
-                ><NumberValueInput :value="center[0]" @update:value="setArray('center', 0, $event)" />
+                ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)" />
                 <label data-inspector-field="center-y">center Y</label
-                ><NumberValueInput :value="center[1]" @update:value="setArray('center', 1, $event)" /> <label>collisionRadius</label
-                ><NumberValueInput :value="localShip.collisionRadius" @update:value="setVisualField('collisionRadius', $event)" />
+                ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)" />
+                <label>collisionRadius</label
+                ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setVisualField('collisionRadius', $event)" />
                 <label data-inspector-field="shield-x">shield X</label
-                ><NumberValueInput :value="shieldCenter[0]" @update:value="setArray('shieldCenter', 0, $event)" />
+                ><NumberValueInput :value="view.shieldCenter[0]" @update:value="actions.setArray('shieldCenter', 0, $event)" />
                 <label data-inspector-field="shield-y">shield Y</label
-                ><NumberValueInput :value="shieldCenter[1]" @update:value="setArray('shieldCenter', 1, $event)" />
+                ><NumberValueInput :value="view.shieldCenter[1]" @update:value="actions.setArray('shieldCenter', 1, $event)" />
                 <label>shieldRadius</label
-                ><NumberValueInput :value="localShip.shieldRadius" @update:value="setVisualField('shieldRadius', $event)" />
+                ><NumberValueInput :value="document.shieldRadius" @update:value="actions.setVisualField('shieldRadius', $event)" />
               </div>
             </n-collapse-item>
             <n-collapse-item title="武器槽" name="weapons">
               <div class="item-list">
                 <button
-                  v-for="item in normalWeaponSlots"
+                  v-for="item in view.normalWeaponSlots"
                   :key="item.index"
                   :data-inspector-target="`weapon-${item.index}`"
-                  :class="{ selected: mode === 'weapon' && selected === item.index }"
-                  @click="runAction(() => selectInspectorItem('weapon', item.index, 'weapon'))"
+                  :class="{ selected: view.mode === 'weapon' && view.selected === item.index }"
+                  @click="actions.selectInspectorItem('weapon', item.index, 'weapon')"
                 >
                   {{ item.slot.id || `slot ${item.index}` }} <span>{{ item.slot.size }} {{ item.slot.type }}</span>
                 </button>
               </div>
-              <div v-if="mode === 'weapon' && selectedSlot" class="form-grid">
-                <label>id</label><n-input :value="selectedSlot.id" @update:value="setSlotField('id', $event)" /> <label>size</label
+              <div v-if="view.mode === 'weapon' && view.selectedSlot" class="form-grid">
+                <label>id</label><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)" />
+                <label>size</label
                 ><n-select
-                  :value="selectedSlot.size"
+                  :value="view.selectedSlot.size"
                   :options="toOptions(['SMALL', 'MEDIUM', 'LARGE'])"
-                  @update:value="setSlotField('size', $event)"
+                  @update:value="actions.setSlotField('size', $event)"
                 />
                 <label>type</label
                 ><n-select
-                  :value="selectedSlot.type"
+                  :value="view.selectedSlot.type"
                   :options="
                     toOptions([
                       'BALLISTIC',
@@ -134,139 +150,166 @@
                       'STATION_MODULE',
                     ])
                   "
-                  @update:value="setSlotField('type', $event)"
+                  @update:value="actions.setSlotField('type', $event)"
                 />
                 <label>mount</label
                 ><n-select
-                  :value="selectedSlot.mount"
+                  :value="view.selectedSlot.mount"
                   :options="toOptions(['TURRET', 'HARDPOINT', 'HIDDEN'])"
-                  @update:value="setSlotField('mount', $event)"
+                  @update:value="actions.setSlotField('mount', $event)"
                 />
-                <label>angle</label><NumberValueInput :value="selectedSlot.angle" @update:value="setSlotField('angle', $event)" />
-                <label>arc</label><NumberValueInput :value="selectedSlot.arc" @update:value="setSlotField('arc', $event)" />
-                <label>loc X</label><NumberValueInput :value="slotLoc[0]" @update:value="setSlotLoc(0, $event)" /> <label>loc Y</label
-                ><NumberValueInput :value="slotLoc[1]" @update:value="setSlotLoc(1, $event)" />
+                <label>angle</label
+                ><NumberValueInput :value="view.selectedSlot.angle" @update:value="actions.setSlotField('angle', $event)" />
+                <label>arc</label><NumberValueInput :value="view.selectedSlot.arc" @update:value="actions.setSlotField('arc', $event)" />
+                <label>renderOrderMod</label
+                ><NumberValueInput
+                  :value="view.selectedSlot.renderOrderMod"
+                  @update:value="actions.setSlotField('renderOrderMod', $event)"
+                />
+                <label>loc X</label><NumberValueInput :value="view.slotLoc[0]" @update:value="actions.setSlotLoc(0, $event)" />
+                <label>loc Y</label><NumberValueInput :value="view.slotLoc[1]" @update:value="actions.setSlotLoc(1, $event)" />
               </div>
               <div class="action-row button-row">
-                <n-button @click="runAction(addWeaponSlot)">添加</n-button
-                ><n-button type="error" ghost @click="runAction(deleteSelected)">删除</n-button>
+                <n-button @click="actions.addWeaponSlot()">添加</n-button
+                ><n-button type="error" ghost @click="actions.deleteSelected()">删除</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="甲板" name="launchBays">
               <div class="item-list">
                 <button
-                  v-for="item in launchBaySlots"
+                  v-for="item in view.launchBaySlots"
                   :key="item.index"
                   :data-inspector-target="`launchBay-${item.index}`"
-                  :class="{ selected: mode === 'launchBay' && selected === item.index }"
-                  @click="runAction(() => selectInspectorItem('launchBay', item.index, 'weapon'))"
+                  :class="{ selected: view.mode === 'launchBay' && view.selected === item.index }"
+                  @click="actions.selectInspectorItem('launchBay', item.index, 'weapon')"
                 >
                   {{ item.slot.id || `LB ${item.index + 1}` }} <span>甲板 · {{ bayPorts(item.slot.locations).length }}</span>
                 </button>
               </div>
-              <div v-if="mode === 'launchBay' && selectedSlot" class="form-grid">
-                <label>id</label><n-input :value="selectedSlot.id" @update:value="setSlotField('id', $event)" />
+              <div v-if="view.mode === 'launchBay' && view.selectedSlot" class="form-grid">
+                <label>id</label><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)" />
               </div>
-              <div v-if="mode === 'launchBay' && selectedSlot" class="port-rows">
+              <div v-if="view.mode === 'launchBay' && view.selectedSlot" class="port-rows">
                 <div
-                  v-for="(port, portIndex) in selectedBayPorts"
+                  v-for="(port, portIndex) in view.selectedBayPorts"
                   :key="portIndex"
                   class="port-row"
-                  :class="{ selected: portIndex === selectedPort }"
-                  @click="runAction(() => selectBayPort(portIndex))"
+                  :class="{ selected: portIndex === view.selectedPort }"
+                  @click="actions.selectBayPort(portIndex)"
                 >
                   <span>P{{ portIndex + 1 }}</span>
-                  <NumberValueInput size="small" :value="port[0]" @update:value="setBayPortCoord(portIndex, 0, $event)" @click.stop />
-                  <NumberValueInput size="small" :value="port[1]" @update:value="setBayPortCoord(portIndex, 1, $event)" @click.stop />
-                  <n-button size="tiny" quaternary type="error" @click.stop="runAction(() => removeBayPortAt(portIndex))">删</n-button>
+                  <NumberValueInput
+                    size="small"
+                    :value="port[0]"
+                    @update:value="actions.setBayPortCoord(portIndex, 0, $event)"
+                    @click.stop
+                  />
+                  <NumberValueInput
+                    size="small"
+                    :value="port[1]"
+                    @update:value="actions.setBayPortCoord(portIndex, 1, $event)"
+                    @click.stop
+                  />
+                  <n-button size="tiny" quaternary type="error" @click.stop="actions.removeBayPortAt(portIndex)">删</n-button>
                 </div>
               </div>
               <div class="action-row button-row">
-                <n-button :disabled="!selectedSlot" @click="runAction(addBayPortFromPanel)">添加港口</n-button>
-                <n-button @click="runAction(addLaunchBay)">添加</n-button
-                ><n-button type="error" ghost @click="runAction(deleteSelected)">删除</n-button>
+                <n-button :disabled="!view.selectedSlot" @click="actions.addBayPortFromPanel()">添加港口</n-button>
+                <n-button @click="actions.addLaunchBay()">添加</n-button
+                ><n-button type="error" ghost @click="actions.deleteSelected()">删除</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="引擎" name="engines">
               <div class="item-list">
                 <button
-                  v-for="(eng, i) in engineSlots"
+                  v-for="(eng, i) in view.engineSlots"
                   :key="entryKey('engine-slot', eng, i)"
                   :data-inspector-target="`engine-${i}`"
-                  :class="{ selected: mode === 'engine' && selected === i }"
-                  @click="runAction(() => selectInspectorItem('engine', i, 'engine'))"
+                  :class="{ selected: view.mode === 'engine' && view.selected === i }"
+                  @click="actions.selectInspectorItem('engine', i, 'engine')"
                 >
                   引擎 {{ i }} <span>{{ eng.width }}x{{ eng.length }}</span>
                 </button>
               </div>
-              <div v-if="mode === 'engine' && selectedEngine" class="form-grid">
-                <label>angle</label><NumberValueInput :value="selectedEngine.angle" @update:value="setEngineField('angle', $event)" />
-                <label>width</label><NumberValueInput :value="selectedEngine.width" @update:value="setEngineField('width', $event)" />
-                <label>length</label><NumberValueInput :value="selectedEngine.length" @update:value="setEngineField('length', $event)" />
+              <div v-if="view.mode === 'engine' && view.selectedEngine" class="form-grid">
+                <label>angle</label
+                ><NumberValueInput :value="view.selectedEngine.angle" @update:value="actions.setEngineField('angle', $event)" />
+                <label>width</label
+                ><NumberValueInput :value="view.selectedEngine.width" @update:value="actions.setEngineField('width', $event)" />
+                <label>length</label
+                ><NumberValueInput :value="view.selectedEngine.length" @update:value="actions.setEngineField('length', $event)" />
                 <label>contrailSize</label
-                ><NumberValueInput :value="selectedEngine.contrailSize" @update:value="setEngineField('contrailSize', $event)" />
+                ><NumberValueInput
+                  :value="view.selectedEngine.contrailSize"
+                  @update:value="actions.setEngineField('contrailSize', $event)"
+                />
                 <label>style</label
                 ><n-select
-                  :value="selectedEngine.style"
+                  :value="view.selectedEngine.style"
                   filterable
                   tag
                   :options="toOptions(['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'])"
-                  @update:value="setEngineField('style', $event)"
+                  @update:value="actions.setEngineField('style', $event)"
                 />
-                <label>loc X</label><NumberValueInput :value="engineLoc[0]" @update:value="setEngineLoc(0, $event)" /> <label>loc Y</label
-                ><NumberValueInput :value="engineLoc[1]" @update:value="setEngineLoc(1, $event)" />
+                <label>loc X</label><NumberValueInput :value="view.engineLoc[0]" @update:value="actions.setEngineLoc(0, $event)" />
+                <label>loc Y</label><NumberValueInput :value="view.engineLoc[1]" @update:value="actions.setEngineLoc(1, $event)" />
               </div>
               <div class="action-row button-row">
-                <n-button @click="runAction(addEngine)">添加</n-button
-                ><n-button type="error" ghost @click="runAction(deleteSelected)">删除</n-button>
+                <n-button @click="actions.addEngine()">添加</n-button
+                ><n-button type="error" ghost @click="actions.deleteSelected()">删除</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="碰撞边界" name="bounds">
               <div class="bounds-list">
                 <div
-                  v-for="(_, i) in boundPairs"
+                  v-for="(_, i) in view.boundPairs"
                   :key="`bound-${i}`"
                   :data-inspector-target="`bound-${i}`"
-                  :class="{ selected: mode === 'bounds' && selected === i }"
-                  @click="runAction(() => selectInspectorItem('bounds', i, 'bound'))"
+                  :class="{ selected: view.mode === 'bounds' && view.selected === i }"
+                  @click="actions.selectInspectorItem('bounds', i, 'bound')"
                 >
                   <span>{{ i }}</span>
-                  <NumberValueInput :value="bounds[i * 2]" @update:value="setBound(i * 2, $event)" />
-                  <NumberValueInput :value="bounds[i * 2 + 1]" @update:value="setBound(i * 2 + 1, $event)" />
+                  <NumberValueInput :value="view.bounds[i * 2]" @update:value="actions.setBound(i * 2, $event)" />
+                  <NumberValueInput :value="view.bounds[i * 2 + 1]" @update:value="actions.setBound(i * 2 + 1, $event)" />
                 </div>
               </div>
               <div class="action-row button-row">
-                <n-button @click="runAction(addBound)">添加点</n-button
-                ><n-button type="error" ghost @click="runAction(deleteSelected)">删除点</n-button>
+                <n-button @click="actions.addBound()">添加点</n-button
+                ><n-button type="error" ghost @click="actions.deleteSelected()">删除点</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="高级属性" name="advanced">
               <div class="form-grid">
-                <label>viewOffset</label><n-input :value="localShip.viewOffset" @update:value="setField('viewOffset', $event)" />
+                <label>viewOffset</label><n-input :value="document.viewOffset" @update:value="actions.setField('viewOffset', $event)" />
                 <label>coversColor</label
                 ><n-input
-                  :value="localShip.coversColor"
+                  :value="document.coversColor"
                   placeholder="R,G,B,A (如 255,255,255,255)"
-                  @update:value="setField('coversColor', $event)"
+                  @update:value="actions.setField('coversColor', $event)"
                 />
                 <label>moduleAnchor X</label
-                ><NumberValueInput :value="moduleAnchor[0]" @update:value="setArray('moduleAnchor', 0, $event)" />
+                ><NumberValueInput :value="view.moduleAnchor[0]" @update:value="actions.setArray('moduleAnchor', 0, $event)" />
                 <label>moduleAnchor Y</label
-                ><NumberValueInput :value="moduleAnchor[1]" @update:value="setArray('moduleAnchor', 1, $event)" />
+                ><NumberValueInput :value="view.moduleAnchor[1]" @update:value="actions.setArray('moduleAnchor', 1, $event)" />
               </div>
             </n-collapse-item>
             <n-collapse-item title="内置装备" name="builtins">
-              <JsonValueInput :value="localShip.builtInWeapons" label="builtInWeapons" shape="object" @update="builtInWeaponsUpdated" />
-              <label>builtInMods</label><n-dynamic-tags v-model:value="builtInMods" /> <label>builtInWings</label
-              ><n-dynamic-tags v-model:value="builtInWings" />
+              <JsonValueInput
+                :value="document.builtInWeapons"
+                label="builtInWeapons"
+                shape="object"
+                @update="actions.builtInWeaponsUpdated"
+              />
+              <label>builtInMods</label><n-dynamic-tags v-model:value="view.builtInMods" /> <label>builtInWings</label
+              ><n-dynamic-tags v-model:value="view.builtInWings" />
             </n-collapse-item>
           </n-collapse>
         </EditorInspector>
       </div>
-      <EditorFooter :note="footerNote">
+      <EditorFooter :note="view.footerNote">
         <template #actions>
           <n-button @click="$emit('close')">关闭</n-button>
-          <n-button type="primary" :disabled="!canSave" :loading="saving" @click="save">保存</n-button>
+          <n-button type="primary" :disabled="!canSave" :loading="saving" @click="actions.save">保存</n-button>
         </template>
       </EditorFooter>
     </div>
@@ -292,64 +335,5 @@ const emit = defineEmits<ShipEditorEvents>();
 const editorWindowRef = useTemplateRef<HTMLElement>('editorWindowRef');
 const stageRef = useTemplateRef<HTMLElement>('stageRef');
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
-const {
-  localShip,
-  mode,
-  selectedPort,
-  selectBayPort,
-  expandedSections,
-  spriteSize,
-  selected,
-  onDown,
-  onExpandedSectionsUpdate,
-  onLeave,
-  onMove,
-  onUp,
-  onWheel,
-  runAction,
-  beginField,
-  fieldBlur,
-  fieldKey,
-  modes,
-  footerNote,
-  normalWeaponSlots,
-  launchBaySlots,
-  engineSlots,
-  bounds,
-  boundPairs,
-  center,
-  shieldCenter,
-  moduleAnchor,
-  selectedSlot,
-  selectedEngine,
-  slotLoc,
-  selectedBayPorts,
-  engineLoc,
-  builtInMods,
-  builtInWings,
-  setMode,
-  loadSprite,
-  canSyncSpriteSize,
-  syncSpriteSize,
-  setField,
-  setVisualField,
-  setSlotField,
-  setEngineField,
-  setArray,
-  setSlotLoc,
-  setBayPortCoord,
-  removeBayPortAt,
-  addBayPortFromPanel,
-  setEngineLoc,
-  setBound,
-  selectInspectorItem,
-  addWeaponSlot,
-  addLaunchBay,
-  addEngine,
-  addBound,
-  deleteSelected,
-  builtInWeaponsUpdated,
-  pickShipSprite,
-  save,
-} = useShipEditorViewModel(props, emit, { editorWindowRef, stageRef, canvasRef });
+const { document, view, actions, canvas } = useShipEditorViewModel(props, emit, { editorWindowRef, stageRef, canvasRef });
 </script>

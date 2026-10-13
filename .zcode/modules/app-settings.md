@@ -11,8 +11,7 @@
 `src/app/composables/settings/use-settings-view-model.ts`：设置页 ViewModel，拥有日志目录保存与清空动作。
 `src/app/composables/settings/use-theme-dom-effect.ts`：主题 DOM 副作用 owner，watch 主题令牌并写 root dataset 与 CSS 变量。
 `src/domain/settings/rules.ts`：设置校验 owner，拥有主题/accent/自定义色/历史上限/editMode/原样保存/日志级别/日志目录的读取校验与归一化。
-`src/domain/settings/theme.ts`：主题令牌与色彩数学 owner，拥有 accent 预设、light/dark 中性色与 `createThemeColors` 纯函数。
-`src/domain/settings/theme.ts:THEME_TOKEN_MAP`：ThemeColorTokens 与 CSS 自定义属性的一一映射 owner。
+`src/domain/settings/theme.ts`：主题令牌与色彩数学 owner，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与 CSS 自定义属性映射。
 `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像 owner，负责保存、广播、接收镜像与 `historyLimit` 同步。
 `src/services/app-settings.service.ts`：settings 读写签名与 command 参数装配主归属。
 `src/stores/settings.store.ts`：settings 运行态 owner，只持状态、setter 与派生值；初始快照经统一初始化入口注入。

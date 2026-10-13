@@ -53,7 +53,7 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { warningNotice } from '@/shared/lib/errors';
 import { formatVariantNumber, variantCatalogScene } from '@/domain/immersive/variant-panel';
-import { weaponImageLayers, weaponLoadedMissile } from '@/domain/immersive/weapon-images';
+import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';
 import { variantWingLayout } from '@/domain/immersive/variant-scene';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';

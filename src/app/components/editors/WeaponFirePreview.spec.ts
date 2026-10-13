@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { editorUiStubs } from '@/test/ui-stubs';
@@ -60,6 +60,55 @@ function mountPreview(overrides: Record<string, unknown> = {}) {
 }
 
 describe('WeaponFirePreview', () => {
+  it('skips transparent glow while the simulation remains playing and redraws it when alpha changes', async () => {
+    vi.stubGlobal(
+      'Image',
+      class {
+        width = 2;
+        height = 2;
+        onload: (() => void) | null = null;
+        set src(_value: string) {
+          queueMicrotask(() => this.onload?.());
+        }
+      },
+    );
+    const request = vi.fn(() => 31);
+    vi.stubGlobal('requestAnimationFrame', request);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const drawImage = vi.fn();
+    const getImageData = vi.fn(() => ({ data: new Uint8ClampedArray(0) }));
+    const original = document.createElement('canvas').getContext('2d')!;
+    const context = new Proxy(original, {
+      get(target, property) {
+        if (property === 'drawImage') return drawImage;
+        if (property === 'getImageData') return getImageData;
+        return Reflect.get(target, property);
+      },
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context);
+    const weaponSpec = { id: 'railgun', specClass: 'projectile', glowColor: [100, 200, 50, 0] };
+    const preview = mountPreview({ weaponSpec, spriteData: { turretGlowSprite: 'glow' } });
+    await flushPromises();
+    expect(drawImage).toHaveBeenCalledTimes(0);
+    expect(getImageData).toHaveBeenCalledTimes(0);
+    expect(request).toHaveBeenCalledOnce();
+    expect(preview.findAll('button').some((button) => button.text() === '暂停')).toBe(true);
+    await preview.setProps({ weaponSpec: { ...weaponSpec, glowColor: [100, 200, 50, 128] } });
+    expect(drawImage).toHaveBeenCalledTimes(16);
+    expect(getImageData).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledOnce();
+    await preview
+      .findAll('button')
+      .find((button) => button.text() === '暂停')!
+      .trigger('click');
+    drawImage.mockClear();
+    getImageData.mockClear();
+    await preview.setProps({ weaponSpec });
+    expect(drawImage).toHaveBeenCalledTimes(0);
+    expect(getImageData).toHaveBeenCalledTimes(0);
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it('keeps glow animation paused while accepting color changes and releasing resources', async () => {
     const images: Array<{ onload: (() => void) | null }> = [];
     vi.stubGlobal(

@@ -198,6 +198,7 @@ pub struct JointHullProjection {
     pub weapons: BTreeMap<String, String>,
     pub sprite: Option<ResourceRef>,
     pub slots: Vec<Value>,
+    pub hints: Vec<String>,
     pub built_in_weapons: BTreeMap<String, String>,
     pub built_in_mods: Vec<String>,
     pub built_in_wings: Vec<String>,

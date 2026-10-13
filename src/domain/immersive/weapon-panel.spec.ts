@@ -26,7 +26,12 @@ describe('weapon immersive field and display projection', () => {
     snapshot.records[3]!.value = { state: 'present', value: { specClass: 'missile', size: [12, 24], center: [6, 12] } };
     values.spec = {
       state: 'present',
-      value: { ...jointObject(values.spec), renderHints: ['RENDER_BARREL_BELOW', 'RENDER_LOADED_MISSILES'], turretAngleOffsets: [0] },
+      value: {
+        ...jointObject(values.spec),
+        visualRecoil: 1,
+        renderHints: ['RENDER_BARREL_BELOW', 'RENDER_LOADED_MISSILES'],
+        turretAngleOffsets: [0],
+      },
     };
     const panel = projectWeaponPanel(snapshot, values);
     expect(panel.iconLayers.map((layer) => layer.resource.key)).toEqual(['turretUnderSprite', 'turretGunSprite', 'turretSprite']);

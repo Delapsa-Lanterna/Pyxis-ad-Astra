@@ -8,7 +8,7 @@ const architectureExtensions = new Set(['.css', '.js', '.json', '.jsx', '.mjs', 
 
 /** @typedef {{ path: string, rel: string }} RepoPath */
 /** @typedef {RepoPath & { text: string }} SourceFile */
-/** @typedef {SourceFile & import('./frontend-source.mjs').FrontendSource & { dependencies: import('./imports.mjs').ResolvedImport[], dependencyFailures: string[] }} RepoFile */
+/** @typedef {SourceFile & import('./frontend-source.mjs').FrontendSource & { dependencies: import('./imports.mjs').ResolvedImport[], dependencyFailures: string[], repositoryPaths: ReadonlySet<string> }} RepoFile */
 
 /**
  * Walks the repository once with the shared ignore rules and keeps the files
@@ -17,10 +17,11 @@ const architectureExtensions = new Set(['.css', '.js', '.json', '.jsx', '.mjs', 
  *
  * @param {string} root
  * @param {(rel: string, extension: string) => boolean} include
+ * @param {boolean} [includeDirectories]
  * @returns {Promise<RepoPath[]>}
  */
-export async function collectRepoPaths(root, include) {
-  return collectPaths(root, root, include);
+export async function collectRepoPaths(root, include, includeDirectories = false) {
+  return collectPaths(root, root, include, includeDirectories);
 }
 
 /**
@@ -31,8 +32,8 @@ export async function collectRepoPaths(root, include) {
  * @returns {Promise<RepoFile[]>}
  */
 export async function collectArchitectureFiles(root) {
-  const available = await collectRepoPaths(root, () => true);
-  const paths = available.filter((file) => isArchitecturePath(file.rel, extname(file.rel)));
+  const available = await collectRepoPaths(root, () => true, true);
+  const paths = available.filter((file) => !file.rel.endsWith('/') && isArchitecturePath(file.rel, extname(file.rel)));
   const files = await Promise.all(
     paths.map(async (path) => ({
       ...path,
@@ -95,17 +96,19 @@ export function singleFileByRel(files, rel) {
  * @param {string} root
  * @param {string} dir
  * @param {(rel: string, extension: string) => boolean} include
+ * @param {boolean} includeDirectories
  * @returns {Promise<RepoPath[]>}
  */
-async function collectPaths(root, dir, include) {
+async function collectPaths(root, dir, include, includeDirectories) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const path = join(dir, entry.name);
     const rel = normalizePath(relative(root, path));
     if (entry.isDirectory()) {
+      if (includeDirectories) files.push({ path, rel: rel + '/' });
       if (ignoredDirs.has(entry.name) || ignoredPathParts.some((part) => rel.startsWith(`${part}/`) || rel === part)) continue;
-      files.push(...(await collectPaths(root, path, include)));
+      files.push(...(await collectPaths(root, path, include, includeDirectories)));
       continue;
     }
     const extension = entry.name.includes('.') ? entry.name.slice(entry.name.lastIndexOf('.')) : '';

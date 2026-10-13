@@ -8,8 +8,10 @@
 
 `scripts/architecture/capability-boundary.check.mjs`：能力授权、规则归属和真实仓库入口的行为测试。
 `scripts/architecture/command-boundary.check.mjs`：command 来源、词法作用域与 owner 验收。
+`scripts/architecture/docs-module-map.check.mjs`：模块文档严格格式、参考路径与索引对应的行为测试。
 `scripts/architecture/rules/command-boundary.mjs`：command 调用归属的唯一检查 owner。
 `scripts/architecture/rules/css-token-boundary.mjs`：CSS token 定义、引用、主题覆盖和共享圆角/阴影语义的检查 owner。
+`scripts/architecture/rules/docs-module-map.mjs`：模块文档标题、紧凑正文、参考路径、排序及索引对应的唯一检查 owner。
 `scripts/architecture/rules/frontend-layer-boundary.mjs`：前端层级、组件消费、wire 边界、service 依赖和运行时循环的检查 owner。
 `scripts/architecture/rules/index.mjs`：正式规则及元规则注册表。
 `scripts/architecture/rules/parser-boundary.mjs`：工具资产、Mod JSON-like 与 CSV 解析职责 owner。
@@ -38,7 +40,7 @@
 - Rust 规则消费统一生产源码过滤和 crate 路径解析，模块分类按完整段判定。
 - 共址测试和夹具按测试角色分类，规则行为由 Node 检查入口验收。
 - 检查入口收集仓库文件并建立共享源码事实，规则消费解析后的绑定、节点、模块边和位置。
-- 模块文档规则消费 module map 与模块正文，校验索引、结构和行数。
+- 模块文档规则消费 module map、模块正文与共享仓库路径清单，拥有严格格式、参考路径及索引对应诊断。
 - 能力矩阵表达公开操作和正式消费者，command-policy 表达底层调用 owner。
 - 规则注册表装配正式规则与元规则，同一依赖事实归唯一检查 owner。
 - 通用规则拥有层级、组件、wire、service 和循环检查，业务规则拥有独立领域契约。
@@ -64,8 +66,9 @@
 ### 模块文档
 
 1. 文档规则解析 module map 并核对磁盘文档。
-2. 核对六章节结构、章节顺序与行数限制。
-3. 文档契约失败进入同一诊断出口。
+2. 校验 H1、固定 H2 顺序、各章节紧凑正文及链路 H3 的连续编号。
+3. 参考路径与完整文件和目录清单匹配，参考记录与无序条目分别按所属字典序比较。
+4. 索引与模块目录文件按路径一一匹配，文档契约失败进入同一诊断出口。
 
 ### 本地与 CI 验证
 

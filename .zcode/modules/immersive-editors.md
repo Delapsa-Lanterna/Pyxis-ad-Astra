@@ -11,13 +11,13 @@
 `src/app/components/immersive/`：共享展示与领域面板 owner，承载外壳、字体角色入口、数值行、字段浮层、控件和来源提示。
 `src/app/components/immersive/ImmersiveEditorActions.vue`：各沉浸式窗口共同消费的 meta 动作展示 owner。
 `src/app/components/immersive/ImmersiveText.vue`：业务字体角色与展示参数交付通用文字组件的入口。
-`src/app/components/immersive/immersive-render-context.ts`：内容渲染模式、媒体结果与编辑动作的交接接口。
 `src/app/components/immersive/VariantHullmodDetails.vue`：插件静态说明、参数占位与来源展开的展示 owner。
 `src/app/components/immersive/VariantHullmodPicker.vue`：插件目录、对话层、四列表与所属输入的展示 owner。
 `src/app/components/immersive/VariantRefitStats.vue`：装配主界面与插件选择共同消费的原版统计和插件展示 owner。
 `src/app/components/immersive/VariantShipInfo.vue`：当前装配舰船只读投影与悬浮媒体集合 owner。
 `src/app/components/immersive/VariantWeaponGroups.vue`：武器组矩阵、独立临时输入与整次确认 owner。
 `src/app/components/immersive/VariantWingIcon.vue`：甲板和候选卡共同消费的联队编队静态展示 owner。
+`src/app/components/immersive/immersive-render-context.ts`：内容渲染模式、媒体结果与编辑动作的交接接口。
 `src/app/composables/tables/use-csv-grid-viewport.ts`：装配候选消费的固定行高窗口原语，所属表格 owner 维护范围计算。
 `src/app/composables/use-immersive-editor-view-model.ts`：联合会话、历史、关联读取、身份跟随与媒体集合装配 owner。
 `src/app/composables/use-immersive-hover.ts`：信息入口、面板定位、悬浮等待与焦点恢复 owner。
@@ -36,7 +36,6 @@
 `src/domain/immersive/variant-scene.ts`：直立装配预览的原版槽位坐标转换 owner。
 `src/domain/immersive/variant-weapon-groups.ts`：七组临时投影、槽位排序、批量归组、类型颜色及窗口尺寸的纯规则 owner。
 `src/domain/immersive/weapon-icon.ts`：类型、尺寸与槽位标记几何投影 owner。
-`src/domain/immersive/weapon-images.ts`：武器面板与装配共同消费的首帧层顺序、原点与已装载导弹投影 owner。
 `src/domain/immersive/weapon-panel.ts`：武器字段、类型分支、覆盖文本、显示设置与静态图标投影 owner。
 `src/domain/immersive/weapon-statistics.ts`：原版武器基础统计与计算等级 owner。
 `src/domain/immersive/wing-panel.ts`：联队技术数据、有效舰体来源、系统高亮和武装汇总的展示 owner。
@@ -57,6 +56,7 @@
 - 武器组组件拥有独立临时调整，确认或保存交付一次会话动作。
 - 编辑会话与 `FieldInputs` 拥有原文、dirty、saving 与输入提交，快照历史拥有前后业务值。
 - 联合会话拥有可编辑记录集合、基线和版本，后端联合能力提供来源图、授权目标与原子写入。
+- 装配场景、武器面板和候选卡消费武器领域的静态装备投影，武器集合的排序与贴图阶段由共享绘制入口交付。
 - 装配场景消费共享画布视口、导航与命中，装备动作和模块草稿归联合 ViewModel。
 - 领域拥有舰船、武器、战机与装配的信息投影、基础公式和独立草稿转换。
 
@@ -98,6 +98,12 @@
 4. 外部版本由联合会话接纳或暂存，身份通知经所属通道映射草稿与历史。
 5. 关闭守卫等待保存与同步并确认最新 dirty；窗口销毁或 session 释放撤销读取、输入、媒体及目标登记。
 
+### 装配场景绘制
+
+1. 有效舰体及所属装备进入共享武器排序，每个舰体独立计算顺序。
+2. ShipDisplayPanel 的装配阶段依次绘制舰体、全体 UnderSprite、装饰武器主体、子模块及普通武器主体。
+3. 原槽位集合交付命中与选区，场景叠加交互标记。
+
 ### 只读信息展示
 
 1. 问号入口消费当前主舰或模块的关联快照与装配草稿，候选入口消费所属详情读取通道。
@@ -118,6 +124,7 @@
 - 候选目录必须按 Mod 优先、Core 补集读取，搜索和筛选必须消费排序后的完整目录；三类候选必须默认按 OP 降序，同成本必须保持相对顺序，缺失成本必须保留诊断并置于末尾。
 - 共享字段组件只允许提交所属来源记录；多字段浮层必须在全部原文有效后一次交付字段集合，并登记一条联合历史。
 - 内容渲染器必须显式消费只读或编辑模式；编辑模式必须由所属会话提供字段能力，只读模式只允许消费投影、来源与媒体结果。
+- 只读信息必须保持来源、公式与诊断，草稿、原始输入、历史、保存及目标登记必须归所属编辑会话。
 - 字体选择必须经领域角色映射交付实际身份，文字与截断测量必须消费字体模块的同一排布能力。
 - 字段身份必须使用稳定来源角色与路径；单行输入必须以 Enter 提交、Esc 取消，多行描述必须以 Ctrl+Enter 提交，未完成输入必须参与 dirty、保存和关闭交接。
 - 对话层必须拥有所属点击和焦点边界，字段与类别浮层必须挂载在所属 dialog；返回必须交接活动字段、取消手填输入并恢复发起入口焦点。
@@ -135,10 +142,9 @@
 - 武器组必须建立独立七组临时值与比较基线，保留空组及未知组字段；相等提交必须保持会话相等，调整确认或保存必须登记一次联合历史，取消必须恢复打开前分组。
 - 武器统计必须消费原版发射点、模式、充能、连射、光束周期与弹药恢复规则；高亮只允许作为逐字片段展示，严禁解释为 HTML。
 - 沉浸式基础统计必须明确插件零效果口径；派生项必须提供公式和来源，编辑动作必须提交实际来源参数。
-- 只读信息必须保持来源、公式与诊断，草稿、原始输入、历史、保存及目标登记必须归所属编辑会话。
-- 稳定详情身份必须保持渲染实例；候选读取必须消费现有缓存与 single-flight，隐藏和身份替换必须释放所属票据与媒体等待。
 - 清空必须保留内置装备、内置 S 强化、名称、舰体及模块引用与未知字段；确认期间目标、模块集合、草稿或原文变化必须结束请求并保留最新内容。
 - 清空必须捕获当前装配及递归模块并按实际记录键去重，确认必须展示实际文件与共享影响；可编辑装备、插件与幅能分配必须形成一条联合历史。
+- 稳定详情身份必须保持渲染实例；候选读取必须消费现有缓存与 single-flight，隐藏和身份替换必须释放所属票据与媒体等待。
 - 系统引用必须消费正式来源选项，说明必须读取所属 `SHIP_SYSTEM` 静态描述；关联武装和插件必须消费有效来源投影。
 - 联队名称必须消费有效舰体名称与装配 `displayName`，并在一次字段动作中提交；用途必须优先消费 `role desc`，直接参数必须绑定联队 CSV 或有效舰体的实际字段来源。
 - 联队投影必须消费原版角色、swarm 与防御分支；武装汇总必须按有效槽位统计，编队必须共同消费 `num`、`formation` 和有效舰体及装备。
@@ -146,10 +152,10 @@
 - 舰船船员必须绑定 `min crew` 与 `max crew`，部署点数必须消费 `supplies/rec`；护盾维持必须按 `shield upkeep` × `flux dissipation` 计算，相位消耗必须按来源系数 × `max flux` 计算。
 - 装配可编辑集合必须由根和模块引用图确定；同一模块必须共享实际记录键、草稿与版本，模块导航必须提交活动输入并保留全部所属草稿。
 - 装配基础舰体统计只允许查看来源；预算必须计入可编辑武器、非内置联队、普通插件及幅能分配，内置装备和永久插件必须按零 OP 计费。
-- 装配舰船信息必须消费当前主舰或模块的有效舰体及逐舰体展示绑定，容量、耗散、预算和完整装备必须消费当前装配草稿投影；引用维护和正式新建必须消费主窗口入口。
 - 装配字段身份必须表达根与模块槽位角色，改名必须共同映射记录键、输入、历史与导航；保存期间新增输入和草稿必须按实际基线保留。
 - 装配容量与耗散必须消费有效舰体基础值及配置 `fluxPerCapacitor`、`dissipationPerVent`；超预算、超舰级上限、不兼容和缺失引用必须提供定位诊断并允许保存。
 - 装配武器替换必须保留所属组，新增必须进入首组；联队卸下必须保留甲板索引，内置装备必须保持所属来源权限。
+- 装配舰船信息必须消费当前主舰或模块的有效舰体及逐舰体展示绑定，容量、耗散、预算和完整装备必须消费当前装配草稿投影；引用维护和正式新建必须消费主窗口入口。
 - 资源必须消费后端授权 `ResourceRef` 和所属媒体集合；场景、图标与槽位命中必须共用正式坐标、层序和有效 Skin 来源，解码接纳必须服从当前生命周期。
 
 ## 陷阱

@@ -104,6 +104,7 @@ export function variantJointFixture(): JointEditSnapshot {
     variantKey: 'variant',
     hullKey: 'spec',
     skinKeys: [],
+    hints: [],
     slots:
       hullData && typeof hullData === 'object' && !Array.isArray(hullData) && Array.isArray(hullData.weaponSlots)
         ? hullData.weaponSlots

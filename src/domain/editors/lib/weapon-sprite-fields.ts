@@ -34,9 +34,11 @@ export const WEAPON_SPRITE_DRAW_ORDER: Record<WeaponViewMode, readonly WeaponSpr
 };
 
 export function weaponSpriteDrawOrder(weapon: RowData, mode: WeaponViewMode): WeaponSpriteField[] {
-  const layers = WEAPON_SPRITE_DRAW_ORDER[mode].filter((field) => !field.endsWith('GlowSprite'));
+  // MissileWeapon renders the gun through its recoil tracker; BeamWeapon/PlasmaWeapon use the body.
+  const gun = weapon.specClass === 'projectile' && typeof weapon.visualRecoil === 'number' && weapon.visualRecoil !== 0;
+  const layers = WEAPON_SPRITE_DRAW_ORDER[mode].filter((field) => !field.endsWith('GlowSprite') && (gun || !field.endsWith('GunSprite')));
   const hints = Array.isArray(weapon.renderHints) ? weapon.renderHints : [];
-  return hints.includes('RENDER_BARREL_BELOW') ? [layers[0]!, layers[2]!, layers[1]!] : layers;
+  return gun && hints.includes('RENDER_BARREL_BELOW') ? [layers[0]!, layers[2]!, layers[1]!] : layers;
 }
 
 export const WEAPON_SPRITE_ORIGIN_RATIO: Record<WeaponViewMode, { x: number; y: number }> = {

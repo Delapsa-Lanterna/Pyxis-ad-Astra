@@ -30,9 +30,10 @@ import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport'
 import { clearCanvas, drawPixelImage } from '@/app/renderers/editors/canvas-drawing';
 import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
 import { useCanvasSelection } from '@/app/composables/canvas/use-canvas-selection';
-import { createCanvasEditorState } from '@/app/composables/canvas/use-canvas-editor';
+import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { drawWeaponSlotVisual } from '@/app/renderers/editors/canvas-visuals';
+import { renderMountedWeapons } from '@/app/renderers/editors/weapon-images';
 import { drawWeaponMount } from '@/domain/immersive/weapon-icon';
 import { variantSlotPoint, type VariantWingLayout } from '@/domain/immersive/variant-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
@@ -53,7 +54,7 @@ const canvas = shallowRef<HTMLCanvasElement | null>(null),
 const viewport = useCanvasViewport(canvas, 1, 4),
   reads = useQueryReadOwner(),
   feedback = useAppFeedback();
-const state = createCanvasEditorState<null>();
+const state = createCanvasState<null>();
 const hoverWeapon = computed(() => (state.hovered.value ? props.variant.weapons[state.hovered.value.i] : null));
 const navigation = useCanvasNavigation(
   {
@@ -200,46 +201,33 @@ function drawVariant(ctx: CanvasRenderingContext2D, variant: VariantSceneProject
   const hullCenter = Array.isArray(variant.spec.center) ? variant.spec.center : [0, 0];
   if (!props.iconSize) drawEngines(ctx, variant);
   if (image) drawPixelImage(ctx, image, -Number(hullCenter[0]), -(image.height - Number(hullCenter[1])), image.width, image.height);
-  for (const module of variant.modules) {
-    const location = Array.isArray(module.slot.locations) ? module.slot.locations : [0, 0];
-    const anchor = Array.isArray(module.variant.spec.moduleAnchor) ? module.variant.spec.moduleAnchor : [0, 0];
-    ctx.save();
-    const position = variantSlotPoint(location.map(Number));
-    ctx.translate(position.x, position.y);
-    ctx.rotate((-Number(module.slot.angle ?? 0) * Math.PI) / 180);
-    const attachment = variantSlotPoint(anchor.map(Number));
-    ctx.translate(-attachment.x, -attachment.y);
-    drawVariant(ctx, module.variant, nextParents);
-    ctx.restore();
-  }
+  // ShipDisplayPanel refit passes differ from the ship editor's combat order.
+  renderMountedWeapons(ctx, {
+    weapons: variant.weapons,
+    image: (resource) => images.get(url(resource)),
+    point: (slot) => variantSlotPoint((Array.isArray(slot.locations) ? slot.locations : [0, 0]).map(Number)),
+    rotation: (slot) => (-Number(slot.angle ?? 0) * Math.PI) / 180,
+    scale: 1,
+    context: 'refit',
+    renderModules: () => {
+      for (const module of variant.modules) {
+        const location = Array.isArray(module.slot.locations) ? module.slot.locations : [0, 0];
+        const anchor = Array.isArray(module.variant.spec.moduleAnchor) ? module.variant.spec.moduleAnchor : [0, 0];
+        ctx.save();
+        const position = variantSlotPoint(location.map(Number));
+        ctx.translate(position.x, position.y);
+        ctx.rotate((-Number(module.slot.angle ?? 0) * Math.PI) / 180);
+        const attachment = variantSlotPoint(anchor.map(Number));
+        ctx.translate(-attachment.x, -attachment.y);
+        drawVariant(ctx, module.variant, nextParents);
+        ctx.restore();
+      }
+    },
+  });
   for (const [index, weapon] of variant.weapons.entries()) {
     const location = Array.isArray(weapon.slot.locations) ? weapon.slot.locations : [0, 0];
     const p = variantSlotPoint(location.map(Number)),
       slot = weapon.slot;
-    for (const layer of weapon.layers) {
-      const bitmap = images.get(url(layer.resource));
-      if (!bitmap || slot.mount === 'HIDDEN') continue;
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate((-Number(slot.angle ?? 0) * Math.PI) / 180);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(bitmap, -bitmap.width * layer.origin.x, -bitmap.height * layer.origin.y, bitmap.width, bitmap.height);
-      ctx.restore();
-    }
-    const missile = weapon.loadedMissile;
-    if (missile && slot.mount !== 'HIDDEN') {
-      const bitmap = images.get(url(missile.resource));
-      if (bitmap)
-        for (let launch = 0; launch < missile.offsets.length / 2; launch++) {
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate((-Number(slot.angle ?? 0) * Math.PI) / 180);
-          ctx.translate(-missile.offsets[launch * 2 + 1]!, -missile.offsets[launch * 2]!);
-          ctx.rotate((-(missile.angles[launch] ?? 0) * Math.PI) / 180);
-          drawPixelImage(ctx, bitmap, -missile.center[0], -(missile.size[1] - missile.center[1]), missile.size[0], missile.size[1]);
-          ctx.restore();
-        }
-    }
     if (props.iconSize || slot.type === 'DECORATIVE' || slot.type === 'LAUNCH_BAY' || slot.type === 'SYSTEM' || slot.mount === 'HIDDEN')
       continue;
     const active = variant.key === props.variant.key && (state.selected.value === index || state.hovered.value?.i === index);
@@ -335,7 +323,7 @@ function move(event: MouseEvent) {
 }
 function leave() {
   navigation.finish();
-  state.hovered.value = null;
+  state.leave();
   paint();
 }
 function resize() {
@@ -351,7 +339,7 @@ function fit() {
     ? 1
     : Math.min(1, 500 / width, 500 / height, (size.width - 400) / width, (size.height - 70) / height);
   viewport.pan.value = { x: 0, y: 0 };
-  state.selected.value = null;
+  state.reset();
   paint();
 }
 watch(() => props.variant.key, fit);

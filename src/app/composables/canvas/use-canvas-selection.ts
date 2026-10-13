@@ -1,12 +1,13 @@
-import type { CanvasEditorState, CanvasTarget, CanvasTargetIdentity } from './use-canvas-editor';
+import type { CanvasState } from './use-canvas-state';
+import type { CanvasTarget, EditorTarget } from '@/domain/editors/editor-types';
 
-export function useCanvasSelection<T>(
-  state: CanvasEditorState<T>,
+export function useCanvasSelection(
+  state: Pick<CanvasState<unknown>, 'select' | 'clear' | 'inspectorLock'>,
   targets: (x: number, y: number) => CanvasTarget[],
   radius: (target: CanvasTarget) => number,
   nearestFallback = true,
 ) {
-  const matches = (target: CanvasTarget | null, identity: CanvasTargetIdentity | null) =>
+  const matches = (target: CanvasTarget | null, identity: EditorTarget | null) =>
     Boolean(target && identity && target.kind === identity.kind && target.i === identity.i && target.port === identity.port);
   function nearest(x: number, y: number) {
     const items = targets(x, y);
@@ -22,14 +23,10 @@ export function useCanvasSelection<T>(
     );
   }
   function select(target: CanvasTarget) {
-    state.hovered.value = { kind: target.kind, i: target.i, port: target.port };
-    state.selected.value = target.i;
-    state.activeTarget.value = { kind: target.kind, i: target.i, port: target.port };
+    state.select({ kind: target.kind, i: target.i, port: target.port });
   }
   function clear() {
-    state.hovered.value = null;
-    state.selected.value = null;
-    state.activeTarget.value = null;
+    state.clear();
   }
   function byPointer(x: number, y: number) {
     const target = nearest(x, y);
@@ -37,7 +34,7 @@ export function useCanvasSelection<T>(
     else clear();
     return target;
   }
-  function byIdentity(identity: CanvasTargetIdentity | null, x: number, y: number) {
+  function byIdentity(identity: EditorTarget | null, x: number, y: number) {
     const target = identity ? (targets(x, y).find((target) => matches(target, identity)) ?? null) : null;
     if (target) select(target);
     return target;

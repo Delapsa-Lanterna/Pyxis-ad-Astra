@@ -8,8 +8,8 @@
 
 `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则 owner。
 `src/app/components/editors/SystemEditor.vue`：系统表单展示与事件绑定入口。
+`src/app/composables/editors/use-editor-fields.ts`：系统消费的文档字段、颜色与对象绑定入口。
 `src/app/composables/editors/use-editor-window-view-model.ts`：共享窗口 ViewModel 交接，消费战术系统目标 Draft Session。
-`src/app/composables/editors/use-object-field.ts`：系统字段消费的编辑会话草稿对象绑定适配器。
 `src/app/composables/editors/use-system-editor-view-model.ts`：系统草稿、条件投影、字段转换与显式动作 owner。
 `src/domain/editors/lib/normalize.ts`：`.system` 规格归一化 owner。
 `src/domain/schema/schema.types.ts`：系统表单消费的正式 schema 类型。
@@ -17,7 +17,7 @@
 
 ## 边界
 
-- SystemEditor 绑定表单控件与编辑 ViewModel 动作，编辑 ViewModel 拥有条件展示与字段提交。
+- SystemEditor 绑定表单控件与编辑 ViewModel 动作，编辑文档拥有工作值与动作提交，ViewModel 提供条件展示与字段绑定。
 - type 控制行为区段展示，共享视觉属性与已有字段保留在同一草稿。
 - 写入归编辑器事务，receipt 经统一文件历史、项目投影和窗口通知接纳。
 - 窗口 ViewModel 拥有 bundle、目标会话、外部版本及保存交接。
@@ -29,7 +29,7 @@
 ### 打开与表单渲染
 
 1. 窗口按 `.system` 目标打开并加载 bundle。
-2. 组件接入编辑 ViewModel，以归一化规格建立本地草稿。
+2. 组件接入编辑 ViewModel，编辑文档接纳归一化工作值。
 3. 编辑 ViewModel 按 type 投影行为、音效、视觉与伤害区段，组件渲染对应控件。
 
 ### 字段编辑

@@ -95,6 +95,8 @@ const cases = [
   ['wing-joint-query', 'src/app/composables/use-immersive-editor-view-model.ts', 'src/services/joint-edit.service.ts', 'queryJointEditRow'],
   ['variant-catalog-query', 'src/app/composables/use-variant-catalog.ts', 'src/services/joint-edit.service.ts', 'queryJointVariantCatalog'],
   ['variant-candidate-query', 'src/app/composables/use-variant-candidate.ts', 'src/services/joint-edit.service.ts', 'queryJointEdit'],
+  ['ship-weapon-candidate', 'src/services/editor.service.ts', 'src/services/joint-edit.service.ts', 'queryJointCandidate'],
+  ['ship-weapon-sources', 'src/app/composables/editors/use-ship-weapons.ts', 'src/services/editor.service.ts', 'queryShipWeaponSources'],
   [
     'resource-reference',
     'src/app/composables/editors/use-resource-reference.ts',

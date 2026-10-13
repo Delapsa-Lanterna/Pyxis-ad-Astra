@@ -1,6 +1,6 @@
 import { onScopeDispose, ref, watch } from 'vue';
 
-export function useEditorImages(source: () => Readonly<Record<string, string>>, changed: () => void) {
+export function useEditorImages(source: () => Readonly<Record<string, string>>, changed: () => void, failed?: (key: string) => void) {
   const images = new Map<string, HTMLImageElement>();
   const pending = new Map<string, HTMLImageElement>();
   const tints = new Map<HTMLImageElement, { color: string; canvas: HTMLCanvasElement }>();
@@ -8,8 +8,14 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
   let disposed = false;
 
   function release() {
-    for (const image of pending.values()) image.onload = null;
-    for (const image of images.values()) image.onload = null;
+    for (const image of pending.values()) {
+      image.onload = null;
+      image.onerror = null;
+    }
+    for (const image of images.values()) {
+      image.onload = null;
+      image.onerror = null;
+    }
     pending.clear();
     images.clear();
     tints.clear();
@@ -26,6 +32,12 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
         if (disposed || pending.get(key) !== image) return;
         pending.delete(key);
         images.set(key, image);
+        revision.value++;
+      };
+      image.onerror = () => {
+        if (disposed || pending.get(key) !== image) return;
+        pending.delete(key);
+        failed?.(key);
         revision.value++;
       };
       image.src = data;

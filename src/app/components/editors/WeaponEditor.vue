@@ -10,10 +10,10 @@
       >
         <div class="ship-mode-controls">
           <div class="segmented ship-mode-tabs">
-            <button :class="{ active: viewMode === 'turret' }" @click="runAction(() => setView('turret'))">
+            <button :class="{ active: view.viewMode === 'turret' }" @click="actions.setView('turret')">
               炮塔视图 <span class="ship-mode-shortcut">U</span>
             </button>
-            <button :class="{ active: viewMode === 'hardpoint' }" @click="runAction(() => setView('hardpoint'))">
+            <button :class="{ active: view.viewMode === 'hardpoint' }" @click="actions.setView('hardpoint')">
               固定视图 <span class="ship-mode-shortcut">H</span>
             </button>
           </div>
@@ -25,31 +25,36 @@
           <canvas
             ref="canvasRef"
             class="editor-canvas"
-            @mousedown="onDown"
-            @mousemove="onMove"
-            @mouseup="onUp"
-            @mouseleave="onLeave"
-            @wheel.prevent="onWheel"
+            @mousedown="canvas.onDown"
+            @mousemove="canvas.onMove"
+            @mouseup="canvas.onUp"
+            @mouseleave="canvas.onLeave"
+            @wheel.prevent="canvas.onWheel"
             @contextmenu.prevent
           />
         </div>
-        <EditorInspector title="武器检查器" @focusin.capture="beginField" @focusout.capture="fieldBlur" @keyup.capture="fieldKey">
+        <EditorInspector
+          title="武器检查器"
+          @focusin.capture="canvas.beginField"
+          @focusout.capture="canvas.fieldBlur"
+          @keyup.capture="canvas.fieldKey"
+        >
           <n-collapse
-            v-model:expanded-names="expandedSections"
+            v-model:expanded-names="view.expandedSections"
             :theme-overrides="editorCollapseTheme"
-            @update:expanded-names="onExpandedSectionsUpdate"
+            @update:expanded-names="canvas.onExpandedSectionsUpdate"
           >
             <n-collapse-item title="基础属性" name="basic">
               <div class="form-grid">
                 <label>id</label><n-input :value="weaponId" disabled /> <label>specClass</label
                 ><n-select
-                  :value="localWeapon.specClass"
+                  :value="document.specClass"
                   :options="toOptions([...WEAPON_SPEC_CLASSES])"
-                  @update:value="onSpecClassChange"
+                  @update:value="actions.onSpecClassChange"
                 />
                 <label>type</label
                 ><n-select
-                  :value="localWeapon.type"
+                  :value="document.type"
                   :options="
                     toOptions([
                       'BALLISTIC',
@@ -64,29 +69,29 @@
                       'BUILT_IN',
                     ])
                   "
-                  @update:value="setField('type', $event)"
+                  @update:value="actions.setField('type', $event)"
                 />
                 <label>size</label
                 ><n-select
-                  :value="localWeapon.size"
+                  :value="document.size"
                   :options="toOptions(['SMALL', 'MEDIUM', 'LARGE'])"
-                  @update:value="setField('size', $event)"
+                  @update:value="actions.setField('size', $event)"
                 />
               </div>
               <p>{{ WEAPON_SPEC_CLASS_NOTE }}</p>
             </n-collapse-item>
             <n-collapse-item title="炮塔贴图" name="turretSprites">
               <div class="form-grid">
-                <template v-for="field in turretSpriteFields" :key="field">
+                <template v-for="field in view.turretSpriteFields" :key="field">
                   <label>{{ field }}</label>
                   <div class="sprite-field-row">
-                    <n-input :value="localWeapon[field]" @update:value="setField(field, $event)" @change="reloadSprites()" />
+                    <n-input :value="document[field]" @update:value="actions.setField(field, $event)" @change="actions.reloadSprites()" />
                     <n-button
                       class="sprite-icon-button"
                       tertiary
                       title="浏览贴图（引用 Mod 内文件）"
                       aria-label="浏览贴图"
-                      @click="runAction(() => pickWeaponSprite(field))"
+                      @click="actions.pickWeaponSprite(field)"
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M4 19V5h6l2 2h8v12H4z" />
@@ -99,16 +104,16 @@
             </n-collapse-item>
             <n-collapse-item title="固定贴图" name="hardpointSprites">
               <div class="form-grid">
-                <template v-for="field in hardpointSpriteFields" :key="field">
+                <template v-for="field in view.hardpointSpriteFields" :key="field">
                   <label>{{ field }}</label>
                   <div class="sprite-field-row">
-                    <n-input :value="localWeapon[field]" @update:value="setField(field, $event)" @change="reloadSprites()" />
+                    <n-input :value="document[field]" @update:value="actions.setField(field, $event)" @change="actions.reloadSprites()" />
                     <n-button
                       class="sprite-icon-button"
                       tertiary
                       title="浏览贴图（引用 Mod 内文件）"
                       aria-label="浏览贴图"
-                      @click="runAction(() => pickWeaponSprite(field))"
+                      @click="actions.pickWeaponSprite(field)"
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M4 19V5h6l2 2h8v12H4z" />
@@ -119,130 +124,150 @@
                 </template>
               </div>
             </n-collapse-item>
+            <n-collapse-item title="光效" name="glow">
+              <ColorPicker label="glowColor" v-model="view.glowColor" />
+              <div class="action-row button-row">
+                <n-button
+                  :type="view.glowPreviewEnabled ? 'primary' : 'default'"
+                  :aria-pressed="view.glowPreviewEnabled"
+                  @click="actions.toggleGlowPreview"
+                >
+                  预览光效
+                </n-button>
+              </div>
+            </n-collapse-item>
             <n-collapse-item title="炮塔发射点" name="turretBarrels">
               <div class="item-list">
                 <button
-                  v-for="(_, i) in barrelCountFor('turret')"
+                  v-for="(_, i) in actions.barrelCountFor('turret')"
                   :key="`barrel-turret-${i}`"
                   :data-inspector-target="`turret-barrel-${i}`"
-                  :class="{ selected: viewMode === 'turret' && selected === i }"
-                  @click="runAction(() => selectBarrel('turret', i))"
+                  :class="{ selected: view.viewMode === 'turret' && view.selected === i }"
+                  @click="actions.selectBarrel('turret', i)"
                 >
                   发射点 {{ i + 1 }}
-                  <span>[{{ offsetsFor('turret')[i * 2] }}, {{ offsetsFor('turret')[i * 2 + 1] }}] {{ anglesFor('turret')[i] || 0 }}°</span>
+                  <span
+                    >[{{ actions.offsetsFor('turret')[i * 2] }}, {{ actions.offsetsFor('turret')[i * 2 + 1] }}]
+                    {{ actions.anglesFor('turret')[i] || 0 }}°</span
+                  >
                 </button>
               </div>
-              <div v-if="viewMode === 'turret' && selected !== null" class="form-grid">
-                <label>X</label><NumberValueInput :value="offsets[selected * 2]" @update:value="setOffset(0, $event)" /> <label>Y</label
-                ><NumberValueInput :value="offsets[selected * 2 + 1]" @update:value="setOffset(1, $event)" /> <label>角度偏移</label
-                ><NumberValueInput :value="angles[selected] || 0" @update:value="setAngle($event)" />
+              <div v-if="view.viewMode === 'turret' && view.selected !== null" class="form-grid">
+                <label>X</label><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)" />
+                <label>Y</label
+                ><NumberValueInput :value="view.offsets[view.selected * 2 + 1]" @update:value="actions.setOffset(1, $event)" />
+                <label>角度偏移</label
+                ><NumberValueInput :value="view.angles[view.selected] || 0" @update:value="actions.setAngle($event)" />
               </div>
               <div class="action-row button-row">
-                <n-button @click="runAction(() => addBarrelFor('turret'))">添加</n-button
-                ><n-button type="error" ghost @click="runAction(() => deleteBarrelFor('turret'))">删除</n-button>
+                <n-button @click="actions.addBarrelFor('turret')">添加</n-button
+                ><n-button type="error" ghost @click="actions.deleteBarrelFor('turret')">删除</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="固定发射点" name="hardpointBarrels">
               <div class="item-list">
                 <button
-                  v-for="(_, i) in barrelCountFor('hardpoint')"
+                  v-for="(_, i) in actions.barrelCountFor('hardpoint')"
                   :key="`barrel-hardpoint-${i}`"
                   :data-inspector-target="`hardpoint-barrel-${i}`"
-                  :class="{ selected: viewMode === 'hardpoint' && selected === i }"
-                  @click="runAction(() => selectBarrel('hardpoint', i))"
+                  :class="{ selected: view.viewMode === 'hardpoint' && view.selected === i }"
+                  @click="actions.selectBarrel('hardpoint', i)"
                 >
                   发射点 {{ i + 1 }}
                   <span
-                    >[{{ offsetsFor('hardpoint')[i * 2] }}, {{ offsetsFor('hardpoint')[i * 2 + 1] }}]
-                    {{ anglesFor('hardpoint')[i] || 0 }}°</span
+                    >[{{ actions.offsetsFor('hardpoint')[i * 2] }}, {{ actions.offsetsFor('hardpoint')[i * 2 + 1] }}]
+                    {{ actions.anglesFor('hardpoint')[i] || 0 }}°</span
                   >
                 </button>
               </div>
-              <div v-if="viewMode === 'hardpoint' && selected !== null" class="form-grid">
-                <label>X</label><NumberValueInput :value="offsets[selected * 2]" @update:value="setOffset(0, $event)" /> <label>Y</label
-                ><NumberValueInput :value="offsets[selected * 2 + 1]" @update:value="setOffset(1, $event)" /> <label>角度偏移</label
-                ><NumberValueInput :value="angles[selected] || 0" @update:value="setAngle($event)" />
+              <div v-if="view.viewMode === 'hardpoint' && view.selected !== null" class="form-grid">
+                <label>X</label><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)" />
+                <label>Y</label
+                ><NumberValueInput :value="view.offsets[view.selected * 2 + 1]" @update:value="actions.setOffset(1, $event)" />
+                <label>角度偏移</label
+                ><NumberValueInput :value="view.angles[view.selected] || 0" @update:value="actions.setAngle($event)" />
               </div>
               <div class="action-row button-row">
-                <n-button @click="runAction(() => addBarrelFor('hardpoint'))">添加</n-button
-                ><n-button type="error" ghost @click="runAction(() => deleteBarrelFor('hardpoint'))">删除</n-button>
+                <n-button @click="actions.addBarrelFor('hardpoint')">添加</n-button
+                ><n-button type="error" ghost @click="actions.deleteBarrelFor('hardpoint')">删除</n-button>
               </div>
             </n-collapse-item>
             <n-collapse-item title="发射模式" name="barrelMode">
               <div class="form-grid">
                 <label>barrelMode</label
                 ><n-select
-                  :value="localWeapon.barrelMode"
+                  :value="document.barrelMode"
                   :options="toOptions(['ALTERNATING', 'LINKED'])"
-                  @update:value="setField('barrelMode', $event)"
+                  @update:value="actions.setField('barrelMode', $event)"
                 />
               </div>
             </n-collapse-item>
-            <n-collapse-item v-if="showProjectileSections" title="动画" name="anim">
+            <n-collapse-item v-if="view.showProjectileSections" title="动画" name="anim">
               <div class="form-grid">
                 <label>animationType</label
                 ><n-select
-                  :value="localWeapon.animationType"
+                  :value="document.animationType"
                   :options="toOptions(['NONE', 'MUZZLE_FLASH', 'SMOKE', 'GLOW_AND_FLASH', 'GLOW'])"
-                  @update:value="setField('animationType', $event)"
+                  @update:value="actions.setField('animationType', $event)"
                 />
                 <label>visualRecoil</label
-                ><NumberValueInput :value="localWeapon.visualRecoil" @update:value="setField('visualRecoil', $event)" />
+                ><NumberValueInput :value="document.visualRecoil" @update:value="actions.setField('visualRecoil', $event)" />
               </div>
               <JsonValueInput
-                :value="muzzleFlashSpec"
+                :value="view.muzzleFlashSpec"
                 label="muzzleFlashSpec"
                 show-label
                 shape="object"
-                @update="muzzleFlashSpec = $event"
+                @update="view.muzzleFlashSpec = $event"
               />
-              <JsonValueInput :value="smokeSpec" label="smokeSpec" show-label shape="object" @update="smokeSpec = $event" />
+              <JsonValueInput :value="view.smokeSpec" label="smokeSpec" show-label shape="object" @update="view.smokeSpec = $event" />
             </n-collapse-item>
-            <n-collapse-item v-if="showProjectileSections" title="弹体" name="proj">
+            <n-collapse-item v-if="view.showProjectileSections" title="弹体" name="proj">
               <div class="form-grid">
                 <label>projectileSpecId</label>
-                <n-auto-complete v-model:value="projectileSpecId" :options="projectileOptions" />
+                <n-auto-complete v-model:value="view.projectileSpecId" :options="view.projectileOptions" />
               </div>
               <div class="action-row button-row">
-                <n-button @click="$emit('edit-projectile', projectileSpecId)">编辑弹体</n-button>
+                <n-button @click="$emit('edit-projectile', view.projectileSpecId)">编辑弹体</n-button>
                 <n-button tertiary @click="$emit('preview', weaponId)">发射预览</n-button>
               </div>
             </n-collapse-item>
-            <n-collapse-item v-if="showBeamSection" title="光束" name="beam">
-              <ColorPicker label="fringeColor" v-model="fringeColor" />
-              <ColorPicker label="coreColor" v-model="coreColor" />
-              <ColorPicker label="glowColor" v-model="glowColor" />
+            <n-collapse-item v-if="view.showBeamSection" title="光束" name="beam">
+              <ColorPicker label="fringeColor" v-model="view.fringeColor" />
+              <ColorPicker label="coreColor" v-model="view.coreColor" />
               <div class="form-grid">
-                <label>width</label><NumberValueInput :value="localWeapon.width" @update:value="setField('width', $event)" />
+                <label>width</label><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)" />
                 <label>textureType</label
                 ><n-select
                   :options="toOptions(['ROUGH', 'SMOOTH', 'NONE'])"
-                  :value="localWeapon.textureType"
-                  @update:value="setField('textureType', $event)"
+                  :value="document.textureType"
+                  @update:value="actions.setField('textureType', $event)"
                 />
                 <label>textureScrollSpeed</label
-                ><NumberValueInput :value="localWeapon.textureScrollSpeed" @update:value="setField('textureScrollSpeed', $event)" />
+                ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)" />
                 <label>pixelsPerTexel</label
-                ><NumberValueInput :value="localWeapon.pixelsPerTexel" @update:value="setField('pixelsPerTexel', $event)" />
+                ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)" />
                 <label>convergeOnPoint</label
-                ><n-checkbox :checked="localWeapon.convergeOnPoint" @update:checked="setField('convergeOnPoint', $event)" />
-                <label>darkCore</label><n-checkbox :checked="localWeapon.darkCore" @update:checked="setField('darkCore', $event)" />
+                ><n-checkbox :checked="document.convergeOnPoint" @update:checked="actions.setField('convergeOnPoint', $event)" />
+                <label>darkCore</label><n-checkbox :checked="document.darkCore" @update:checked="actions.setField('darkCore', $event)" />
               </div>
               <n-button tertiary @click="$emit('preview', weaponId)">预览光束</n-button>
             </n-collapse-item>
             <n-collapse-item title="音效" name="sound">
               <div class="form-grid">
-                <label>fireSoundOne</label><n-input :value="localWeapon.fireSoundOne" @update:value="setField('fireSoundOne', $event)" />
-                <label>fireSoundTwo</label><n-input :value="localWeapon.fireSoundTwo" @update:value="setField('fireSoundTwo', $event)" />
+                <label>fireSoundOne</label
+                ><n-input :value="document.fireSoundOne" @update:value="actions.setField('fireSoundOne', $event)" />
+                <label>fireSoundTwo</label
+                ><n-input :value="document.fireSoundTwo" @update:value="actions.setField('fireSoundTwo', $event)" />
               </div>
             </n-collapse-item>
           </n-collapse>
         </EditorInspector>
       </div>
-      <EditorFooter :note="footerNote">
+      <EditorFooter :note="view.footerNote">
         <template #actions>
           <n-button @click="$emit('close')">关闭</n-button>
-          <n-button type="primary" :disabled="!canSave" :loading="saving" @click="save">保存</n-button>
+          <n-button type="primary" :disabled="!canSave" :loading="saving" @click="actions.save">保存</n-button>
         </template>
       </EditorFooter>
     </div>
@@ -271,48 +296,5 @@ const emit = defineEmits<WeaponEditorEvents>();
 const editorWindowRef = useTemplateRef<HTMLElement>('editorWindowRef');
 const stageRef = useTemplateRef<HTMLElement>('stageRef');
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
-const {
-  showProjectileSections,
-  showBeamSection,
-  localWeapon,
-  viewMode,
-  expandedSections,
-  selected,
-  onDown,
-  onExpandedSectionsUpdate,
-  onLeave,
-  onMove,
-  onUp,
-  onWheel,
-  runAction,
-  beginField,
-  fieldBlur,
-  fieldKey,
-  turretSpriteFields,
-  hardpointSpriteFields,
-  footerNote,
-  offsets,
-  angles,
-  projectileSpecId,
-  projectileOptions,
-  fringeColor,
-  coreColor,
-  glowColor,
-  muzzleFlashSpec,
-  smokeSpec,
-  setView,
-  setField,
-  onSpecClassChange,
-  selectBarrel,
-  offsetsFor,
-  anglesFor,
-  barrelCountFor,
-  setOffset,
-  setAngle,
-  addBarrelFor,
-  deleteBarrelFor,
-  pickWeaponSprite,
-  save,
-  reloadSprites,
-} = useWeaponEditorViewModel(props, emit, { editorWindowRef, stageRef, canvasRef });
+const { document, view, actions, canvas } = useWeaponEditorViewModel(props, emit, { editorWindowRef, stageRef, canvasRef });
 </script>

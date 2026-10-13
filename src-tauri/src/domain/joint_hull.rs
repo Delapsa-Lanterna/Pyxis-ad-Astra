@@ -69,6 +69,18 @@ pub fn project_joint_hull(
         );
     }
     let mut weapons = BTreeMap::new();
+    let mut hints: BTreeSet<String> = value(csv)
+        .and_then(|data| data.get("hints"))
+        .and_then(Value::as_str)
+        .map(|hints| {
+            hints
+                .split(',')
+                .map(str::trim)
+                .filter(|hint| !hint.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
     if let Some(data) = value(csv).and_then(Value::as_object) {
         for path in data.keys() {
             fields
@@ -99,6 +111,15 @@ pub fn project_joint_hull(
     let mut sprite = hull.resource_refs.get("sprite").cloned();
     for skin in skins.iter().rev() {
         let Some(data) = value(skin) else { continue };
+        // ShipHullSpreadsheetLoader supplies base hints; ShipHullSpecLoader applies each Skin.
+        if let Some(removed) = data.get("removeHints").and_then(Value::as_array) {
+            for hint in removed.iter().filter_map(Value::as_str) {
+                hints.remove(hint);
+            }
+        }
+        if let Some(added) = data.get("addHints").and_then(Value::as_array) {
+            hints.extend(added.iter().filter_map(Value::as_str).map(str::to_owned));
+        }
         for (path, overrides) in [
             ("name", &["hullName"][..]),
             ("tech/manufacturer", &["manufacturer", "tech"][..]),
@@ -210,6 +231,7 @@ pub fn project_joint_hull(
         weapons,
         sprite,
         slots,
+        hints: hints.into_iter().collect(),
         built_in_weapons,
         built_in_mods: mods.into_iter().collect(),
         built_in_wings: wings,

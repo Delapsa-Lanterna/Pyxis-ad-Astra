@@ -21,8 +21,7 @@
 `src/domain/tables/csv-search.ts`：搜索项选项与输入提示的纯投影 owner。
 `src/domain/tables/table-row-key.ts`：行身份规则 owner。
 `src/services/csv-table.service.ts`：窗口、行预览、资源装配和关联实际目标准备主归属。
-`src/stores/tables.store.ts`：表格运行态 owner，拥有窗口行、选择、dirty、当前表与保存中状态。
-`src/stores/tables.store.ts:initializeModTables`：按 session、Mod 和 manifest 一次建立表格状态与输入集合。
+`src/stores/tables.store.ts`：表格运行态 owner，拥有窗口行、选择、dirty、当前表与保存中状态；`initializeModTables` 按 session、Mod 和 manifest 一次建立表格状态与输入集合。
 `src/stores/workspace.store.ts`：按 Mod、表与列持有持久化列宽的 owner。
 
 ## 边界

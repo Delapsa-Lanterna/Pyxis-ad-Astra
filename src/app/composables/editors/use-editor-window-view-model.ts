@@ -692,6 +692,7 @@ export function useEditorWindowViewModel(params: {
     weaponPreviewData,
     systemEditorData,
     loading,
+    contentReady: computed(() => editorData.value !== null),
     errorText,
     weaponForEditor,
     shipSpriteForEditor,

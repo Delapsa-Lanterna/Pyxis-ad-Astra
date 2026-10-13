@@ -1,11 +1,11 @@
-import { computed, ref, watch, type EmitFn } from 'vue';
-import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
+import { computed, reactive, ref, type EmitFn } from 'vue';
+import { useEditorDocument } from './use-editor-document';
+import { useEditorFields } from './use-editor-fields';
 import type { JsonValue, RowData, EditContext } from '@/shared/types';
-import { arr, str } from '@/shared/lib/starsector';
+import { str } from '@/shared/lib/starsector';
 import { normalizeSystemSpec } from '@/domain/editors/lib/normalize';
 import { createSystemSpec } from '@/domain/editors/spec-construction';
 import { SYSTEM_STRUCTURED_FIELD_KEYS } from '@/domain/editors/lib/system-fields';
-import { useObjectField } from '@/app/composables/editors/use-object-field';
 
 export interface SystemEditorProps {
   systemId: string;
@@ -19,10 +19,16 @@ export interface SystemEditorProps {
 export type SystemEditorEvents = { close: []; 'save-requested': []; 'draft-changed': [system: RowData]; 'load-external': [] };
 
 export function useSystemEditorViewModel(props: Readonly<SystemEditorProps>, emit: EmitFn<SystemEditorEvents>) {
-  const localSystem = ref<RowData>(normalizeSystemSpec(props.system || createSystemSpec(props.systemId)));
-  const { commitBefore } = useFieldInputActions();
+  const document = useEditorDocument({
+    source: () => props.system || createSystemSpec(props.systemId),
+    normalize: normalizeSystemSpec,
+    context: computed(() => props.editContext),
+    publish: (value) => emit('draft-changed', value),
+  });
+  const localSystem = document.value,
+    fields = useEditorFields(document);
+
   const expandedSections = ref(['basic']);
-  const { bindObjectField } = useObjectField(localSystem, { onCommit: commitEdit });
 
   const AI_TYPES = [
     'BURN_DRIVE',
@@ -52,56 +58,24 @@ export function useSystemEditorViewModel(props: Readonly<SystemEditorProps>, emi
   const showWeaponSection = computed(() => systemType.value === 'WEAPON');
   const showDroneSection = computed(() => systemType.value === 'DRONE_LAUNCHER');
 
-  const engineGlowColor = computed({
-    get: () => arr(localSystem.value.engineGlowColor, [255, 175, 125, 255]),
-    set: (v) => setField('engineGlowColor', v),
-  });
-  const engineGlowContrailColor = computed({
-    get: () => arr(localSystem.value.engineGlowContrailColor, [255, 175, 125, 255]),
-    set: (v) => setField('engineGlowContrailColor', v),
-  });
-  const weaponGlowColor = computed({
-    get: () => arr(localSystem.value.weaponGlowColor, [255, 255, 255, 255]),
-    set: (v) => setField('weaponGlowColor', v),
-  });
-  const jitterColor = computed({
-    get: () => arr(localSystem.value.jitterColor, [255, 255, 255, 255]),
-    set: (v) => setField('jitterColor', v),
-  });
-  const jitterUnderColor = computed({
-    get: () => arr(localSystem.value.jitterUnderColor, [255, 255, 255, 255]),
-    set: (v) => setField('jitterUnderColor', v),
-  });
-  const effectColor1 = computed({
-    get: () => arr(localSystem.value.effectColor1, [100, 50, 200, 255]),
-    set: (v) => setField('effectColor1', v),
-  });
-  const effectColor2 = computed({
-    get: () => arr(localSystem.value.effectColor2, [150, 75, 255, 255]),
-    set: (v) => setField('effectColor2', v),
-  });
-  const shieldRingColor = computed({
-    get: () => arr(localSystem.value.shieldRingColor, [100, 200, 255, 255]),
-    set: (v) => setField('shieldRingColor', v),
-  });
-  const shieldInnerColor = computed({
-    get: () => arr(localSystem.value.shieldInnerColor, [100, 200, 255, 75]),
-    set: (v) => setField('shieldInnerColor', v),
-  });
+  const engineGlowColor = fields.color('engineGlowColor', [255, 175, 125, 255]);
+  const engineGlowContrailColor = fields.color('engineGlowContrailColor', [255, 175, 125, 255]);
+  const weaponGlowColor = fields.color('weaponGlowColor', [255, 255, 255, 255]);
+  const jitterColor = fields.color('jitterColor', [255, 255, 255, 255]);
+  const jitterUnderColor = fields.color('jitterUnderColor', [255, 255, 255, 255]);
+  const effectColor1 = fields.color('effectColor1', [100, 50, 200, 255]);
+  const effectColor2 = fields.color('effectColor2', [150, 75, 255, 255]);
+  const shieldRingColor = fields.color('shieldRingColor', [100, 200, 255, 255]);
+  const shieldInnerColor = fields.color('shieldInnerColor', [100, 200, 255, 75]);
 
-  const aiHintsJson = bindObjectField('aiHints');
+  const aiHintsJson = fields.object('aiHints');
 
-  function commitEdit() {
-    emit('draft-changed', localSystem.value);
-  }
   function setField(key: string, value: RowData[string]) {
-    localSystem.value[key] = value;
-    commitEdit();
+    fields.set(key, value);
   }
 
   function droneBehaviorUpdated(value: JsonValue[]) {
-    localSystem.value.droneBehavior = value;
-    commitEdit();
+    fields.set('droneBehavior', value);
   }
 
   const structuredKnownKeys = [...SYSTEM_STRUCTURED_FIELD_KEYS];
@@ -110,51 +84,43 @@ export function useSystemEditorViewModel(props: Readonly<SystemEditorProps>, emi
     Object.fromEntries(Object.entries(localSystem.value).filter(([key]) => !SYSTEM_STRUCTURED_FIELD_KEYS.has(key))),
   );
 
-  function onExtraUpdate(nextExtra: RowData) {
-    const structured = Object.fromEntries(Object.entries(localSystem.value).filter(([key]) => SYSTEM_STRUCTURED_FIELD_KEYS.has(key)));
-    localSystem.value = { ...structured, ...nextExtra };
-    commitEdit();
-  }
-
-  function onTypeChange(newType: string) {
-    void commitBefore(() => {
-      localSystem.value.type = newType;
-      commitEdit();
+  function onExtraUpdate(extra: RowData) {
+    document.change((value) => {
+      const structured = Object.fromEntries(Object.entries(value).filter(([key]) => SYSTEM_STRUCTURED_FIELD_KEYS.has(key)));
+      localSystem.value = { ...structured, ...extra };
     });
   }
 
-  watch(
-    () => props.editContext,
-    () => {
-      if (props.editContext?.handoff === 'save') return;
-      localSystem.value = normalizeSystemSpec(props.system || createSystemSpec(props.systemId));
-    },
-  );
+  function onTypeChange(type: string) {
+    void document.command((value) => {
+      value.type = type;
+    });
+  }
+
   return {
-    showCustomAi,
-    localSystem,
-    expandedSections,
-    AI_TYPES,
-    systemType,
-    aiType,
-    showDisplacerSection,
-    showWeaponSection,
-    showDroneSection,
-    engineGlowColor,
-    engineGlowContrailColor,
-    weaponGlowColor,
-    jitterColor,
-    jitterUnderColor,
-    effectColor1,
-    effectColor2,
-    shieldRingColor,
-    shieldInnerColor,
-    aiHintsJson,
-    setField,
-    droneBehaviorUpdated,
-    structuredKnownKeys,
-    extraFields,
-    onExtraUpdate,
-    onTypeChange,
+    document: localSystem,
+    view: reactive({
+      showCustomAi,
+      expandedSections,
+      AI_TYPES,
+      systemType,
+      aiType,
+      showDisplacerSection,
+      showWeaponSection,
+      showDroneSection,
+      engineGlowColor,
+      engineGlowContrailColor,
+      weaponGlowColor,
+      jitterColor,
+      jitterUnderColor,
+      effectColor1,
+      effectColor2,
+      shieldRingColor,
+      shieldInnerColor,
+      aiHintsJson,
+      structuredKnownKeys,
+      extraFields,
+    }),
+    actions: { setField, droneBehaviorUpdated, onExtraUpdate, onTypeChange },
   };
 }

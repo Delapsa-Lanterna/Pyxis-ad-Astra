@@ -1,3 +1,5 @@
+import { weaponCanvasPoint } from './lib/geometry';
+import type { Point } from './editor-types';
 import type { RowData } from '@/shared/types';
 import { num, str } from '@/shared/lib/starsector';
 import { weaponBarrelOffsetsFor, weaponAnglesKey, type WeaponViewMode } from './lib/weapon-sprite-fields';
@@ -154,4 +156,94 @@ export function advancePreviewBeam(source: BeamPreviewState, p: WeaponPreviewPar
     if (beam.timer <= 0 && firing) beam = beginPreviewBeamCharge(beam, p);
   }
   return beam;
+}
+
+export interface WeaponPreviewState {
+  running: boolean;
+  firing: boolean;
+  speed: number;
+  mode: WeaponViewMode;
+  fireTimer: number;
+  burst: number;
+  barrelIndex: number;
+  projectiles: ProjectilePreviewState[];
+  beam: BeamPreviewState;
+}
+export function createWeaponPreviewState(p: WeaponPreviewParams, mode: WeaponViewMode = 'turret', speed = 1): WeaponPreviewState {
+  return {
+    running: true,
+    firing: false,
+    speed,
+    mode,
+    fireTimer: p.chargeup,
+    burst: 0,
+    barrelIndex: 0,
+    projectiles: [],
+    beam: { alpha: 0, length: 0, offset: 0, phase: 'idle', timer: 0 },
+  };
+}
+export function previewBarrels(p: WeaponPreviewParams, origin: Point, scale: number): BarrelState[] {
+  return Array.from({ length: Math.max(1, Math.floor(p.offsets.length / 2)) }, (_, i) => ({
+    ...weaponCanvasPoint({ x: p.offsets[i * 2] || 0, y: p.offsets[i * 2 + 1] || 0 }, origin, scale),
+    angle: p.angles[i] || 0,
+  }));
+}
+export function startWeaponPreview(state: WeaponPreviewState, p: WeaponPreviewParams): WeaponPreviewState {
+  return {
+    ...state,
+    running: true,
+    firing: true,
+    fireTimer: 0,
+    beam: p.specClass === 'beam' ? beginPreviewBeamCharge(state.beam, p) : state.beam,
+  };
+}
+export function stopWeaponPreview(state: WeaponPreviewState, p: WeaponPreviewParams): WeaponPreviewState {
+  const beam =
+    p.specClass === 'beam' && state.beam.alpha > 0
+      ? { ...state.beam, phase: 'chargedown' as const, timer: Math.max(p.chargedown, 0.01) * state.beam.alpha }
+      : state.beam;
+  return { ...state, firing: false, beam };
+}
+export function advanceWeaponPreview(
+  source: WeaponPreviewState,
+  p: WeaponPreviewParams,
+  dt: number,
+  origin: Point,
+  scale: number,
+  random: () => number,
+): WeaponPreviewState {
+  if (!source.running) return source;
+  const state = { ...source };
+  if (p.specClass === 'beam') return { ...state, beam: advancePreviewBeam(state.beam, p, dt, state.firing) };
+  const spawned: ProjectilePreviewState[] = [];
+  if (state.firing) {
+    state.fireTimer -= dt;
+    if (state.fireTimer <= 0) {
+      const barrels = previewBarrels(p, origin, scale);
+      const indices = p.barrelMode === 'LINKED' ? barrels.map((_, i) => i) : [state.barrelIndex];
+      for (const i of indices) {
+        const barrel = barrels[i];
+        if (!barrel) continue;
+        const spread = ((p.minSpread + random() * (p.maxSpread - p.minSpread)) * Math.PI) / 180;
+        spawned.push({
+          x: barrel.x,
+          y: barrel.y,
+          angle: (barrel.angle * Math.PI) / 180 + (random() - 0.5) * spread,
+          speed: p.projSpeed * scale * (p.missileType ? 0.3 : 1),
+          age: 0,
+          trail: [],
+          exploding: false,
+          explosionAge: 0,
+          missile: Boolean(p.missileType),
+        });
+      }
+      if (p.barrelMode !== 'LINKED') state.barrelIndex = (state.barrelIndex + 1) % barrels.length;
+      state.burst++;
+      if (state.burst >= p.burstSize) {
+        state.fireTimer = p.chargedown + p.chargeup;
+        state.burst = 0;
+      } else state.fireTimer = p.burstDelay;
+    }
+  }
+  return { ...state, projectiles: advancePreviewProjectiles([...state.projectiles, ...spawned], p, dt, scale, origin.x, p.range * scale) };
 }

@@ -14,7 +14,7 @@
 `src-tauri/src/services/editor_config/`：任务索引、任务目录及族实体创建删除的保存 owner。
 `src-tauri/src/services/project/write/entity_identity.rs`：配置装配保存的身份事务 owner，协调目标、父引用与实际记录。
 `src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除 owner。
-`src/app/components/config/ConfigFaction*.vue`、`ConfigMission*.vue`、`ConfigModInfoEditor.vue`：势力、战役与 Mod 信息的展示及事件入口。
+`src/app/components/config/`：势力、战役与 Mod 信息的展示及事件入口。
 `src/app/components/config/ConfigTargetNotice.vue`：目标交接与外部删除提示的展示入口。
 `src/app/components/config/ConfigWorkspace.vue`：配置页组合入口，消费所属实体视图与文件历史展示。
 `src/app/composables/config/use-config-faction-view-model.ts`：势力列表与新建 ViewModel。

@@ -15,6 +15,11 @@ import { entityContentId } from '@/domain/editors/entity-identity';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import type { DeepReadonly } from '@/shared/types';
+import { queryJointCandidate } from '@/services/joint-edit.service';
+import { jointObject } from '@/domain/joint-edit';
+import { shipBuiltInWeaponIds, type ShipWeaponSources, type ShipWeaponSource } from '@/domain/editors/ship-weapons';
+import { formatError } from '@/shared/lib/errors';
+import type { JointEditRoot } from '@/shared/types';
 import type {
   EntityEditInfo,
   EntityEditTarget,
@@ -28,6 +33,48 @@ import type {
 } from '@/shared/types';
 
 type EditorSelectOption = { label: string; value: string };
+
+export async function queryShipWeaponSources(root: JointEditRoot, ship: RowData, signal?: AbortSignal): Promise<ShipWeaponSources> {
+  const ids = shipBuiltInWeaponIds(ship);
+  const [hull, ...results] = await Promise.allSettled([
+    queryJointCandidate({ ...root, kind: 'ship' }, signal),
+    ...ids.map((id) => queryJointCandidate({ ...root, kind: 'weapon', id }, signal)),
+  ]);
+  const hullSnapshot = hull!.status === 'fulfilled' ? hull!.value : null;
+  const csv = hullSnapshot?.records.find((record) => record.key === hullSnapshot.bindings.csv);
+  const hints = jointObject(csv?.value).hints;
+  const weapons = Object.fromEntries(
+    ids.map((id, index): [string, ShipWeaponSource] => {
+      const result = results[index]!;
+      if (result.status === 'rejected')
+        return [id, { spec: null, resources: {}, projectile: {}, projectileResources: {}, diagnostic: formatError(result.reason) }];
+      const snapshot = result.value;
+      const spec = snapshot.records.find((record) => record.key === snapshot.bindings.spec);
+      const projectile = snapshot.records.find((record) => record.key === snapshot.bindings.projectile);
+      return [
+        id,
+        {
+          spec: spec?.value.state === 'present' ? jointObject(spec.value) : null,
+          resources: cloneQuerySnapshot<Record<string, ResourceRef>>(spec?.resourceRefs ?? {}),
+          projectile: jointObject(projectile?.value),
+          projectileResources: cloneQuerySnapshot<Record<string, ResourceRef>>(projectile?.resourceRefs ?? {}),
+          diagnostic: '',
+        },
+      ];
+    }),
+  );
+  return {
+    hints:
+      typeof hints === 'string'
+        ? hints
+            .split(',')
+            .map((hint) => hint.trim())
+            .filter(Boolean)
+        : [],
+    weapons,
+    diagnostic: hull!.status === 'rejected' ? '舰体渲染提示读取失败：' + formatError(hull!.reason) : '',
+  };
+}
 
 export type EditorEntityBundle =
   ShipEditorEntityBundle | WeaponEditorEntityBundle | ProjectileEditorEntityBundle | SystemEditorEntityBundle | WeaponPreviewEntityBundle;

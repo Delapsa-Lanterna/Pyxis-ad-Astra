@@ -89,3 +89,10 @@ export function nearestBoundsSegment(bounds: readonly number[], point: number[])
   }
   return bestIndex;
 }
+
+export function weaponCanvasPoint(point: Point, origin: Point, scale: number): Point {
+  return { x: origin.x + point.x * scale, y: origin.y - point.y * scale };
+}
+export function weaponPointFromCanvas(point: Point, origin: Point, scale: number): Point {
+  return { x: (point.x - origin.x) / scale, y: -(point.y - origin.y) / scale };
+}

@@ -71,7 +71,9 @@ watch(
     const missile = props.loadedMissile;
     const sources = [
       ...props.layers.map((layer) => ({ ...layer, url: props.url(layer.resource), missile: false })),
-      ...(missile ? [{ resource: missile.resource, origin: { x: 0, y: 0 }, url: props.url(missile.resource), missile: true }] : []),
+      ...(missile
+        ? [{ resource: missile.resource, origin: { x: 0, y: 0 }, phase: 'body' as const, url: props.url(missile.resource), missile: true }]
+        : []),
     ].filter((layer) => layer.url);
     void reads.consume(
       'icon',

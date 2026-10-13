@@ -11,8 +11,21 @@ export function prepareArchitectureFiles(sources, available = sources.map((file)
   const config = sources.find((file) => file.rel === 'tsconfig.json');
   /** @type {Record<string, string[]>} */
   const aliases = config ? configAliases(config) : {};
-  const files = sources.map((file) => ({ ...file, ...parseFrontendSource(file), dependencies: /** @type {ResolvedImport[]} */ ([]) }));
-  const paths = new Set(available);
+  const repositoryPaths = new Set(available);
+  for (const rel of available) {
+    let parent = posix.dirname(rel.endsWith('/') ? rel.slice(0, -1) : rel);
+    while (parent !== '.') {
+      repositoryPaths.add(parent + '/');
+      parent = posix.dirname(parent);
+    }
+  }
+  const files = sources.map((file) => ({
+    ...file,
+    ...parseFrontendSource(file),
+    dependencies: /** @type {ResolvedImport[]} */ ([]),
+    repositoryPaths,
+  }));
+  const paths = new Set(available.filter((rel) => !rel.endsWith('/')));
   for (const file of files) {
     /** @type {Map<string, ResolvedImport>} */
     const edges = new Map();

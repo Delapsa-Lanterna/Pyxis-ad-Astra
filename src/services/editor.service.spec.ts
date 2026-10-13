@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWeaponSpec } from '@/domain/editors/spec-construction';
 import { inferWeaponSpecClass } from '@/domain/tables/associated-spec-creation';
 import type { EntityData, ResourceRef, RowData, WriteResult } from '@/shared/types';
+import { shipJointFixture } from '@/test/joint-edit';
+import { weaponJointFixture } from '@/test/weapon-joint-edit';
 
 const mocks = vi.hoisted(() => ({
   querySessionEntity: vi.fn(),
@@ -10,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   querySessionEditorDraftResources: vi.fn(async () => ({})),
   queryResourceDataUrls: vi.fn(async () => [] as (string | null)[]),
   invokeCommand: vi.fn(),
+  queryJointCandidate: vi.fn(),
 }));
 
 vi.mock('@/services/entity-query.service', () => ({
@@ -29,6 +32,7 @@ vi.mock('@/services/resource-cache.service', () => ({
 vi.mock('@/shared/runtime/command.runtime', () => ({
   invokeCommand: mocks.invokeCommand,
 }));
+vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: mocks.queryJointCandidate }));
 
 import { editorMissingTargetText, isEditorWindowKind } from '@/domain/editors/editor-definitions';
 import {
@@ -37,6 +41,7 @@ import {
   refreshBundleResources,
   saveEditorSpecByKind,
   loadImportedSpecFile,
+  queryShipWeaponSources,
 } from './editor.service';
 
 function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityData {
@@ -63,6 +68,51 @@ function writeResultFixture(): WriteResult {
     refreshedEntity: null,
   };
 }
+
+describe('ship built-in source reads', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  it('deduplicates weapon IDs and retains Core resources, projectile data and CSV hints', async () => {
+    const hull = shipJointFixture(),
+      weapon = weaponJointFixture();
+    hull.records[1]!.value = { state: 'present', value: { hints: 'WEAPONS_FRONT_TO_BACK, CIVILIAN' } };
+    const sprite: ResourceRef = {
+      key: 'turretSprite',
+      source: 'core',
+      relPath: 'graphics/weapon.png',
+      ownerKind: 'weapon',
+      ownerId: 'chaingun',
+    };
+    weapon.records[0]!.resourceRefs = { turretSprite: sprite };
+    mocks.queryJointCandidate.mockImplementation(async (root: import('@/shared/types').JointEditRoot) =>
+      root.kind === 'ship' ? hull : weapon,
+    );
+    const signal = new AbortController().signal;
+    const read = await queryShipWeaponSources(hull.root, { builtInWeapons: { A: 'chaingun', B: 'chaingun' } }, signal);
+    expect(mocks.queryJointCandidate).toHaveBeenCalledTimes(2);
+    expect(mocks.queryJointCandidate).toHaveBeenCalledWith({ ...hull.root, kind: 'weapon', id: 'chaingun' }, signal);
+    expect(read.hints).toEqual(['WEAPONS_FRONT_TO_BACK', 'CIVILIAN']);
+    expect(read.weapons.chaingun).toMatchObject({
+      spec: { id: 'chaingun', size: 'MEDIUM' },
+      resources: { turretSprite: sprite },
+      projectile: { id: 'chaingun_shot' },
+    });
+  });
+  it('returns per-weapon failures alongside available equipment and missing records', async () => {
+    mocks.queryJointCandidate.mockImplementation(async (root: import('@/shared/types').JointEditRoot) => {
+      if (root.kind === 'ship') return shipJointFixture();
+      if (root.id === 'broken') throw new Error('规格格式错误');
+      const snapshot = weaponJointFixture();
+      if (root.id === 'missing') snapshot.records[0]!.value = { state: 'missing' };
+      return snapshot;
+    });
+    const read = await queryShipWeaponSources(shipJointFixture().root, { builtInWeapons: { A: 'good', B: 'broken', C: 'missing' } });
+    expect(read.weapons.good!.spec).toMatchObject({ id: 'chaingun' });
+    expect(read.weapons.broken).toMatchObject({ spec: null, diagnostic: expect.stringContaining('规格格式错误') });
+    expect(read.weapons.missing!.spec).toBeNull();
+  });
+});
 
 describe('queryEditorEntityBundle', () => {
   beforeEach(() => {

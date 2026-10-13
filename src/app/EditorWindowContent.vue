@@ -1,10 +1,10 @@
 <template>
   <div class="app-frame editor-window-app" :data-theme="settings.theme" :inert="handoffLocked">
-    <div v-if="loading" class="editor-window-status">
+    <div v-if="loading && !contentReady" class="editor-window-status">
       <strong>正在加载</strong>
       <span>{{ target?.id ?? '缺少目标 id' }}</span>
     </div>
-    <div v-else-if="errorText" class="editor-window-status editor-window-error">
+    <div v-else-if="errorText && !contentReady" class="editor-window-status editor-window-error">
       <strong>加载失败</strong>
       <span>{{ errorText }}</span>
     </div>
@@ -126,6 +126,7 @@ const {
   weaponPreviewData,
   systemEditorData,
   loading,
+  contentReady,
   errorText,
   weaponForEditor,
   draftValue,

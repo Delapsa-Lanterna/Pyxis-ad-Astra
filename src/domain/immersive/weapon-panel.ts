@@ -12,7 +12,7 @@ import {
   weaponMissileSpeed,
   weaponMissileTracking,
 } from './weapon-statistics';
-import { weaponImageLayers, weaponLoadedMissile } from './weapon-images';
+import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';
 import { designTypeColor } from './design-type';
 
 export const WEAPON_TYPE_LABELS: Record<string, string> = {
