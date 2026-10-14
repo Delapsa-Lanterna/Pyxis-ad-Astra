@@ -256,7 +256,7 @@ pub(in crate::services::project) fn stage_entity_content(
     } else {
         target.write.rel_path.clone()
     };
-    let destination = boundary.resolve_relative(&next_rel, "entity target")?;
+    let destination = boundary.resolve_relative_target(&next_rel, "entity target")?;
     match target.kind {
         EntityKind::Variant => {
             crate::domain::config::build_variant_file(boundary.root(), &next_rel, &data)?;

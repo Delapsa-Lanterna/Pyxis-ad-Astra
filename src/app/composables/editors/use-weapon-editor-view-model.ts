@@ -4,8 +4,10 @@ import { computed, reactive, ref, type EmitFn, type ShallowRef } from 'vue';
 import type { RowData, EditContext, WeaponSpecClass } from '@/shared/types';
 import type { WeaponOperationPreview } from '@/domain/editors/editor-types';
 import { str, deepClone } from '@/shared/lib/starsector';
-import { normalizeWeaponSpec } from '@/domain/editors/lib/normalize';
-import { changeWeaponSpecClass } from '@/domain/editors/spec-construction';
+import { normalizeWeaponSpec } from '@/domain/editors/weapon-spec';
+
+import { changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
+
 import {
   projectWeaponBarrels,
   weaponOperationKind,
@@ -310,6 +312,11 @@ export function useWeaponEditorViewModel(
         }),
       pickWeaponSprite: (field: WeaponSpriteField) => document.run(() => void pickWeaponSprite(field)),
       reloadSprites: () => images.reload(),
+      editProjectile: () =>
+        document.run(() => {
+          const id = str(localWeapon.value.projectileSpecId);
+          if (id) emit('edit-projectile', id);
+        }),
       preview: () =>
         document.run(() => {
           document.finish();

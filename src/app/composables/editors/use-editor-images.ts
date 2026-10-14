@@ -1,4 +1,4 @@
-import { onScopeDispose, ref, watch } from 'vue';
+import { onScopeDispose, ref, watch, readonly } from 'vue';
 
 export function useEditorImages(source: () => Readonly<Record<string, string>>, changed: () => void, failed?: (key: string) => void) {
   const images = new Map<string, HTMLImageElement>();
@@ -54,12 +54,16 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
       image.onload = () => {
         if (disposed || pending.get(key) !== image) return;
         pending.delete(key);
+        image.onload = null;
+        image.onerror = null;
         images.set(key, image);
         revision.value++;
       };
       image.onerror = () => {
         if (disposed || pending.get(key) !== image) return;
         pending.delete(key);
+        image.onload = null;
+        image.onerror = null;
         sources.delete(key);
         failed?.(key);
         revision.value++;
@@ -93,5 +97,5 @@ export function useEditorImages(source: () => Readonly<Record<string, string>>, 
     disposed = true;
     release();
   });
-  return { images: images as ReadonlyMap<string, HTMLImageElement>, reload, tintImage };
+  return { revision: readonly(revision), images: images as ReadonlyMap<string, HTMLImageElement>, reload, tintImage };
 }

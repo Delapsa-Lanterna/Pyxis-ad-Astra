@@ -8,6 +8,32 @@ fn unique_suffix() -> u128 {
         .as_nanos()
 }
 
+#[cfg(windows)]
+pub(crate) fn short_path(path: &Path) -> PathBuf {
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    let input = path
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let mut output = vec![0; 32768];
+    let length = unsafe {
+        windows_sys::Win32::Storage::FileSystem::GetShortPathNameW(
+            input.as_ptr(),
+            output.as_mut_ptr(),
+            output.len() as u32,
+        )
+    };
+    assert!(
+        length > 0 && (length as usize) < output.len(),
+        "short path fixture: {}",
+        std::io::Error::last_os_error()
+    );
+    let short = PathBuf::from(std::ffi::OsString::from_wide(&output[..length as usize]));
+    assert_eq!(short.canonicalize().unwrap(), path.canonicalize().unwrap());
+    short
+}
+
 pub(crate) fn temp_path(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("circinus_ad_astra_{name}_{}", unique_suffix()))
 }

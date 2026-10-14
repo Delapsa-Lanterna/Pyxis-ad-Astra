@@ -4,7 +4,9 @@ import { useEditorFields } from './use-editor-fields';
 import type { JsonValue, RowData, EditContext } from '@/shared/types';
 import { str } from '@/shared/lib/starsector';
 import { normalizeSystemSpec } from '@/domain/editors/lib/normalize';
+
 import { createSystemSpec } from '@/domain/editors/spec-construction';
+
 import { SYSTEM_STRUCTURED_FIELD_KEYS } from '@/domain/editors/lib/system-fields';
 
 export interface SystemEditorProps {

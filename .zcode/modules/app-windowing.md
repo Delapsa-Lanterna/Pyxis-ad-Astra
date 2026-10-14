@@ -10,13 +10,16 @@
 `src-tauri/src/models/window.rs`：规格、文本与恢复窗口的判别身份、Windows 路径比较键与生命周期消息。
 `src-tauri/src/services/windows.rs`：原生窗口能力 owner，拥有身份登记、创建复用、目标占用、实例交接与关闭等待。
 `src/app/EditorWindowContent.vue`：编辑器窗口内容，消费窗口参数并触发保存同步。
-`src/app/composables/editors/use-editor-window-view-model.ts`：共享编辑窗口生命周期主归属，拥有读取票据、外部保存与身份事件接纳。
+`src/app/composables/editors/spec-editor-definitions.ts`：窗口宿主消费的类型化规格定义与业务依赖装配。
+`src/app/composables/editors/use-editor-window-view-model.ts`：共享规格窗口会话 owner，消费定义接口并拥有目标、保存、外部基线与身份接纳。
 `src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫 owner，在关闭请求上确认放弃并销毁。
+`src/domain/editors/editor-definitions.ts`：规格窗口名称、初始及最小尺寸的定义入口。
 `src/orchestrators/edit-target-handoff.orchestrator.ts`：消费原生登记、预约与释放能力，协调联合目标准备。
 `src/orchestrators/entity-identity.orchestrator.ts`：规格身份占用与原生窗口身份交接 owner。
 `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作 owner。
-`src/services/editor.service.ts`：共享窗口 ViewModel 消费的 bundle、领域依赖与资源装配。
+`src/services/editor.service.ts`：规格窗口消费的共享保存、导入及舰船和系统查询能力。
 `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配主归属。
+`src/shared/types/spec-editor.types.ts`：规格窗口数据与业务查询交接模型。
 `src/shared/types/window.types.ts`：前端窗口输入、上下文与交付结果模型。
 `src/windows/current.window.ts`：当前窗口生命周期 owner，提供关闭、销毁、关闭请求监听、最小化、最大化、拖拽、重载与显示。
 `src/windows/editor.window.ts`：编辑器窗口请求 owner，组装类型化身份、尺寸与结构化输入。
@@ -32,7 +35,7 @@
 - settings 初始化消费 原生 settings snapshot，后续更新归主窗口镜像。
 - 事件注册表拥有事件名与 payload，监听入口拥有接纳、错误交付和卸载释放。
 - 保存及身份编排消费原生登记、预约、聚焦和释放能力。
-- 共享窗口 ViewModel 拥有 bundle 读取、外部保存与身份接纳，读取取消沿所属能力传递。
+- 共享窗口会话拥有实际目标、版本、保存与外部接纳，业务定义交付规格读取和投影，依赖运行态拥有所属资源与目录。
 - 关闭守卫消费会话与活动输入的聚合 dirty，并拥有同一关闭意图的等待与确认。
 - 前端上下文运行态拥有只读投影、通知监听及回执编排，业务 ViewModel 拥有输入转换和业务状态。
 - 当前窗口 owner 提供关闭、销毁、重载和显示，业务动作消费其入口。
@@ -79,6 +82,7 @@
 - `sessionId`、kind 与实体 ID 必须按原值比较；Mod 与文件路径必须统一处理分隔符、大小写、尾部分隔符及扩展路径前缀。
 - 会话关闭必须阻止新窗口登记；创建期间的关闭意图必须在实例构造完成后继续执行。
 - 保存与回放通知必须共用 `committedWriteApplied`，事件必须携带 `originWindowLabel`、`modRoot`、nullable `sessionId`、reason 与完整 `WriteResult`。
+- 共享规格窗口会话必须消费 SpecEditorDefinition 的读取、规格投影及接纳接口，业务字段和依赖查询必须归所属业务运行态。
 - 关闭、创建失败与动作取消必须释放所属登记及占用；生命周期等待必须按请求身份接纳完成或取消。
 - 原生 label 必须由应用内登记序号产生，并且必须在业务身份交接时保持稳定。
 - 原生实例必须按 label 登记完整 `EditWriteTarget` 集合；目标查询必须核对 session、Mod 和物理路径范围，销毁及会话释放必须移除所属登记。
@@ -98,6 +102,7 @@
 - 沉浸式身份必须包含 session、Mod、`JointEditKind` 与 ID，并按正式 Windows 路径键比较；同实体的规格、文本与沉浸式窗口必须保留各自实例身份及共同物理协调范围。
 - 窗口创建必须以隐藏方式启动，由内容就绪后显式显示。
 - 窗口请求必须按所属种类声明初始和最小尺寸；内容必须消费实际容器完成重排，尺寸装配必须归正式窗口请求层。
+- 窗口身份与编辑目标必须消费正式读取交付的规范路径；登记、聚焦、预约和重定向必须沿用该路径身份。
 - 聚焦能力必须按完整 `WindowIdentity` 查询现有登记、显示窗口、恢复最小化并聚焦；找不到所属实例必须返回 `false`，调用方必须保留草稿与冲突诊断。
 - 规格、文本、CSV 关联和配置身份准备遇到目标已存在时，必须消费错误中的正式 target 聚焦所属实例，再报告原始冲突；配置列表的同 ID 拒绝必须消费所属已加载目标。
 - 规格身份必须分别表达 `sessionId`、kind、`modRoot` 与 id；文本身份必须分别表达 `sessionId`、`modRoot` 与 path；恢复身份必须分别表达 nullable `modRoot` 与 path。

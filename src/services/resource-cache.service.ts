@@ -9,7 +9,7 @@ import {
   registerMediaBudgetEntry,
   removeMediaBudgetEntry,
   touchMediaBudgetEntry,
-  WEBVIEW_MEDIA_BUDGET_BYTES,
+  mediaBudgetLimit,
 } from '@/shared/runtime/media-budget';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import type {
@@ -46,10 +46,11 @@ export interface ResourceCacheInvalidationEvent {
 
 type ResourceCacheInvalidationListener = (event: ResourceCacheInvalidationEvent) => void;
 
-export const RESOURCE_DATA_URL_CACHE_CAPACITY = 512;
+import { windowCacheLimits } from '@/shared/runtime/cache-limits';
+export const resourceCacheCapacity = () => windowCacheLimits().resources.resourceEntries;
 
 const dataUrlCache = createRuntimeCache<string, CachedResourceDataUrl, PendingResource>({
-  capacity: RESOURCE_DATA_URL_CACHE_CAPACITY,
+  capacity: resourceCacheCapacity,
   onEvict: (key) => removeMediaBudgetEntry(`resource:${key}`),
 });
 const invalidationListeners = new Set<ResourceCacheInvalidationListener>();
@@ -213,7 +214,7 @@ function validateResourceBatch(request: ResourceRef[], entries: ResourceDataUrlB
 
 function cacheResourceResult(sessionId: string, resource: ResourceRef, dataUrl: string | null): void {
   const bytes = mediaBudgetBytes(dataUrl);
-  if (bytes > WEBVIEW_MEDIA_BUDGET_BYTES) return;
+  if (bytes > mediaBudgetLimit() || !mediaBudgetLimit()) return;
   const key = resourceCacheKey(sessionId, resource);
   dataUrlCache.set(key, {
     dataUrl,

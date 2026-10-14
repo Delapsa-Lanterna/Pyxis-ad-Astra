@@ -157,7 +157,7 @@ impl FileChangeSetBuilder {
             .resolve_relative(before_rel_path, "rename source")?;
         let after = self
             .boundary
-            .resolve_relative(after_rel_path, "rename target")?;
+            .resolve_relative_target(after_rel_path, "rename target")?;
         require_rename_target(&before, &after)?;
         let mut change = build_text_change(&before, Some(text))?;
         change.after_path = after.to_string_lossy().to_string();
@@ -184,7 +184,7 @@ impl FileChangeSetBuilder {
             .resolve_relative(source_rel_path, "rename directory source")?;
         let target = self
             .boundary
-            .resolve_relative(target_rel_path, "rename directory target")?;
+            .resolve_relative_target(target_rel_path, "rename directory target")?;
         require_rename_target(&source, &target)?;
         let mut change = build_directory_replace_change(&source, after_files)?;
         change.after_path = target.to_string_lossy().to_string();
@@ -215,6 +215,32 @@ pub enum ChangeDirection {
     Redo,
 }
 
+pub fn resolve_change_paths(
+    root: &str,
+    mut changes: Vec<FileChangeRecord>,
+    direction: ChangeDirection,
+) -> AppResult<Vec<FileChangeRecord>> {
+    let boundary = FsRootBoundary::new(Path::new(root), "changeset root")?;
+    for change in &mut changes {
+        let (source, target) = match direction {
+            ChangeDirection::Redo => (&mut change.before_path, &mut change.after_path),
+            ChangeDirection::Undo => (&mut change.after_path, &mut change.before_path),
+        };
+        let resolved = boundary.resolve_absolute(Path::new(source), "changeset source")?;
+        let destination = if source == target {
+            resolved.clone()
+        } else {
+            boundary.resolve_absolute_target(Path::new(target), "changeset target")?
+        };
+        *source = resolved.to_string_lossy().into();
+        *target = destination.to_string_lossy().into();
+        for file in change.before_files.iter().chain(change.after_files.iter()) {
+            validate_safe_relative_path(Path::new(&file.rel_path), "file snapshot")?;
+        }
+    }
+    Ok(changes)
+}
+
 pub fn build_text_change(path: &Path, after_text: Option<String>) -> AppResult<FileChangeRecord> {
     build_file_change(path, after_text, None)
 }
@@ -224,6 +250,8 @@ pub fn build_file_change(
     after_text: Option<String>,
     after_data_base64: Option<String>,
 ) -> AppResult<FileChangeRecord> {
+    let canonical = super::canonical_path(path, "file change")?;
+    let path = canonical.as_path();
     if path.exists() {
         validate_walk_entry(path, "file change")?;
     }
@@ -254,6 +282,8 @@ pub fn build_file_change(
 }
 
 pub fn build_directory_delete_change(path: &Path) -> AppResult<FileChangeRecord> {
+    let canonical = super::canonical_path(path, "directory change")?;
+    let path = canonical.as_path();
     if path.exists() {
         validate_walk_entry(path, "directory change")?;
     }
@@ -282,6 +312,8 @@ pub fn build_directory_replace_change(
     path: &Path,
     after_files: Vec<FileSnapshot>,
 ) -> AppResult<FileChangeRecord> {
+    let canonical = super::canonical_path(path, "directory change")?;
+    let path = canonical.as_path();
     if path.exists() {
         validate_walk_entry(path, "directory change")?;
     }
@@ -679,6 +711,69 @@ mod tests {
         );
         apply_changes(&changes, ChangeDirection::Redo).unwrap();
         assert_eq!(filename(), "demo.spec");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn accepted_change_paths_expand_aliases_and_preserve_rename_case() {
+        let root = temp_dir("changeset_alias_case");
+        fs::write(root.join("Original.spec"), "before").unwrap();
+        let mut change =
+            build_text_change(&root.join("Original.spec"), Some("after".into())).unwrap();
+        let short_root = crate::testutil::short_path(&root);
+        change.before_path = short_root.join("Original.spec").to_string_lossy().into();
+        change.after_path = short_root.join("original.spec").to_string_lossy().into();
+        let changes = super::resolve_change_paths(
+            &root.to_string_lossy(),
+            vec![change],
+            ChangeDirection::Redo,
+        )
+        .unwrap();
+        assert_eq!(
+            changes[0].before_path,
+            root.join("Original.spec")
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+        );
+        assert_eq!(
+            changes[0].after_path,
+            root.canonicalize()
+                .unwrap()
+                .join("original.spec")
+                .to_string_lossy()
+        );
+        apply_changes(&changes, ChangeDirection::Redo).unwrap();
+        assert_eq!(
+            fs::read_dir(&root)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .file_name(),
+            "original.spec"
+        );
+        let undo = super::resolve_change_paths(
+            &short_root.to_string_lossy(),
+            changes,
+            ChangeDirection::Undo,
+        )
+        .unwrap();
+        apply_changes(&undo, ChangeDirection::Undo).unwrap();
+        assert_eq!(
+            fs::read_dir(&root)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .file_name(),
+            "Original.spec"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("Original.spec")).unwrap(),
+            "before"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -7,6 +7,11 @@ use base64::{Engine as _, engine::general_purpose};
 use std::path::Path;
 
 pub fn file_version(path: &Path) -> AppResult<FileVersion> {
+    let canonical = super::canonical_path(path, "versioned file")?;
+    version_from_path(&canonical)
+}
+
+fn version_from_path(path: &Path) -> AppResult<FileVersion> {
     let fingerprint = if path.is_file() {
         let bytes = std::fs::read(path)?;
         Some(fingerprint(&bytes))
@@ -91,7 +96,7 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(root), "version root")?;
     for expected in versions {
         let path = boundary.resolve_absolute(Path::new(&expected.path), "versioned file")?;
-        if file_version(&path)?.fingerprint != expected.fingerprint {
+        if version_from_path(&path)?.fingerprint != expected.fingerprint {
             return Err(AppError::message(
                 "write.version_conflict",
                 format!("文件已被修改，请载入外部版本后重新保存: {}", path.display()),
@@ -99,4 +104,40 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[cfg(windows)]
+    fn alias_reads_return_long_path_credentials_and_keep_conflicts() {
+        let root = crate::testutil::temp_dir("version_alias_identity");
+        let path = root.join("Long version filename.txt");
+        std::fs::write(&path, "before").unwrap();
+        let version = super::file_version(&crate::testutil::short_path(&path)).unwrap();
+        super::verify_versions(
+            &crate::testutil::short_path(&root).to_string_lossy(),
+            std::slice::from_ref(&version),
+        )
+        .unwrap();
+        assert_eq!(version.path, path.canonicalize().unwrap().to_string_lossy());
+        std::fs::write(&path, "external").unwrap();
+        assert_eq!(
+            super::verify_versions(&root.to_string_lossy(), &[version])
+                .unwrap_err()
+                .code(),
+            "write.version_conflict"
+        );
+        let missing = crate::testutil::short_path(&root).join("nested/new.txt");
+        let version = super::file_version(&missing).unwrap();
+        assert_eq!(
+            version.path,
+            root.canonicalize()
+                .unwrap()
+                .join("nested/new.txt")
+                .to_string_lossy()
+        );
+        assert!(version.fingerprint.is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

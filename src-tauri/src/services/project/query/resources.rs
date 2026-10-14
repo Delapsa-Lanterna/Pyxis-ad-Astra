@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn media_cache_evicts_oldest_beyond_capacity() {
         let root = temp_dir("media_cache_eviction");
-        let count = super::super::super::cache::media::SPRITE_MEDIA_CACHE_CAPACITY_FOR_TEST + 3;
+        let count = super::super::super::cache::media::media_capacity_for_test() + 3;
         let sprite_dir = root.join("graphics/ships");
         std::fs::create_dir_all(&sprite_dir).unwrap();
         let mut resources = Vec::new();

@@ -10,8 +10,9 @@
 `src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文 owner。
 `src-tauri/src/io/faction_index.rs`：索引引用的实际根与父链授权 owner。
 `src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放 owner。
+`src-tauri/src/io/file_versions.rs`：规范路径版本采集与指纹核对 owner。
 `src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历 owner。
-`src-tauri/src/io/paths.rs`：路径归一化与父链校验 owner。
+`src-tauri/src/io/paths.rs`：磁盘路径展开、父链授权与改名目标解析 owner。
 `src-tauri/src/io/text.rs`：UTF-8 文本读取 owner，拥有 BOM 剥离与 CP1252 归一化入口。
 `src-tauri/src/models/`：CP1252 归一化映射与 `FileChangeRecord` 模型 owner。
 `src-tauri/src/services/file_changes.rs`：变更服务实现 owner。
@@ -64,6 +65,7 @@
 - 源记录与目标凭据必须在同一 FIFO 租约中复核；缺少所属目标的读取凭据必须以 write.version_scope_missing 拒绝写入。
 - 目录必须以正式目录事件表达，严禁让前端递归枚举。
 - 联合业务保存必须在同一根租约中装配全部 changeset，版本与失败恢复必须消费实际目标集合；身份渲染必须在应用前完成。
+- 路径展开与身份规范化必须归 IO；现存目标必须交付规范长路径，缺失目标必须展开现存父目录并保留剩余段，改名目标必须保留要求的末级名称；消费者只允许接纳 IO 输出。
 
 ## 陷阱
 

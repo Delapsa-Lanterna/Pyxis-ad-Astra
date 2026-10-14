@@ -56,10 +56,15 @@
           >
             <span class="variant-hullmod-name" :title="entry.label" :style="{ color: state(entry).color }"
               ><span :ref="visible.mediaRef('icon/' + entry.id, entry.resourceRefs.icon)" class="variant-hullmod-icon"
-                ><img
-                  v-if="visible.mediaSrc(entry.resourceRefs.icon)"
-                  :src="visible.mediaSrc(entry.resourceRefs.icon)"
-                  :alt="entry.label" /><span
+                ><ResourceThumbnail
+                  v-if="entry.resourceRefs.icon"
+                  :session-id="root.sessionId"
+                  :resource="entry.resourceRefs.icon"
+                  :url="visible.mediaSrc(entry.resourceRefs.icon)"
+                  :active="visible.mediaVisible('icon/' + entry.id)"
+                  :label="entry.label"
+                  :width="32"
+                  :height="32" /><span
                   v-else
                   class="variant-hullmod-image-placeholder"
                   :title="entry.resourceRefs.icon ? '正在读取图片' : '插件图片来源缺失'" /></span
@@ -135,6 +140,7 @@ import { useVariantCatalog } from '@/app/composables/use-variant-catalog';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { warningNotice } from '@/shared/lib/errors';

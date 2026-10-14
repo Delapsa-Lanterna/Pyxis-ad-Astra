@@ -27,22 +27,21 @@ export interface QueryCacheInvalidationEvent {
 
 type QueryCacheInvalidationListener = (event: QueryCacheInvalidationEvent) => void;
 
-const LRU_CAPACITY: Record<QueryCacheKind, number> = {
-  'joint-edit-catalog': 16,
-  'joint-edit-candidate': 128,
-  'csv-table-window': 80,
-  'csv-source-options': 240,
-  'csv-row-preview': 400,
-  'hull-references': 128,
-  'entity-detail': 128,
-  'entity-list': 128,
-};
-
-const QUERY_CACHE_KINDS = Object.keys(LRU_CAPACITY) as QueryCacheKind[];
+import { windowCacheLimits } from '@/shared/runtime/cache-limits';
+const QUERY_CACHE_KINDS: QueryCacheKind[] = [
+  'joint-edit-catalog',
+  'joint-edit-candidate',
+  'csv-table-window',
+  'csv-source-options',
+  'csv-row-preview',
+  'hull-references',
+  'entity-detail',
+  'entity-list',
+];
 const caches = new Map<QueryCacheKind, RuntimeCache<string, QueryCacheEntry, PendingQueryEntry>>(
   QUERY_CACHE_KINDS.map((queryKind) => [
     queryKind,
-    createRuntimeCache<string, QueryCacheEntry, PendingQueryEntry>({ capacity: LRU_CAPACITY[queryKind] }),
+    createRuntimeCache<string, QueryCacheEntry, PendingQueryEntry>({ capacity: () => windowCacheLimits().queries[queryKind] }),
   ]),
 );
 const liveQueries = new Set<PendingQueryEntry>();

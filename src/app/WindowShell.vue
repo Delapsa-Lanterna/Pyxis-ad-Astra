@@ -18,6 +18,7 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { buildThemeOverrides } from '@/app/theme-overrides';
 import { useThemeDomEffect } from '@/app/composables/settings/use-theme-dom-effect';
 import { useSettingsPersistence, useSettingsMirror } from '@/app/composables/settings/use-settings-persistence';
+import { useWindowImageCacheLifetime } from '@/app/composables/use-window-image-cache';
 
 const props = withDefaults(defineProps<{ mode?: 'main' | 'child'; appearance?: 'application' | 'immersive' }>(), {
   mode: 'child',
@@ -25,6 +26,7 @@ const props = withDefaults(defineProps<{ mode?: 'main' | 'child'; appearance?: '
 });
 
 const settings = useSettingsStore();
+useWindowImageCacheLifetime();
 useCoreAssetsLifecycle();
 if (props.mode === 'main') useSettingsPersistence();
 else useSettingsMirror();

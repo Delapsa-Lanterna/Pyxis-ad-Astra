@@ -381,6 +381,7 @@ import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import { useEditorRowIdentities } from '@/app/composables/editors/use-editor-row-identities';
 import JsonValueInput from '@/shared/ui/JsonValueInput.vue';
 import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
+import ResourceOptionThumbnail from '@/app/components/media/ResourceOptionThumbnail.vue';
 import { useCoreGraphics } from '@/app/composables/use-core-assets';
 import SchemaScalarInput from '@/app/components/schema/SchemaScalarInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
@@ -418,7 +419,7 @@ const plainMode = computed(() => mode.value === 'plain');
 const fieldInputs = useFieldInputs();
 const fieldInputKey = computed(() => props.inputKey ?? props.field.key);
 const fieldTitle = computed(() => [props.field.key, props.field.description ?? ''].filter(Boolean).join('\n'));
-const { schemaSelectSprite, replaceSchemaSelectSprites, releaseSchemaSelectSprites } = useSchemaSelectMedia();
+const { replaceSchemaSelectSprites, releaseSchemaSelectSprites } = useSchemaSelectMedia();
 
 const strVal = computed(() => schemaStringValue(props.value));
 const stringTextareaAutosize = { minRows: 1, maxRows: 6 };
@@ -483,14 +484,10 @@ function collectOptionMedia(options: SelectOption[]): OptionMediaEntry[] {
   return out;
 }
 
-function ensureSelectMedia(id: string, options: SelectOption[]) {
+function ensureSelectMedia(id: string) {
   const sessionId = props.runtimeContext?.sessionId;
   if (!sessionId || !isCsvSource(props.field.source)) return;
-  void replaceSchemaSelectSprites(
-    sessionId,
-    id,
-    collectOptionMedia(options).map((entry) => entry.resource),
-  );
+  void replaceSchemaSelectSprites(sessionId, id, []);
 }
 
 function ensureCurrentMedia() {
@@ -513,11 +510,12 @@ watch([sourceOptions, () => fieldSourceCurrentValues(props.field, props.value)],
 // Render label with optional thumbnail for n-select options.
 function renderSelectLabel(option: SelectOption & { label?: string; value?: string }) {
   const label = h('span', { class: 'schema-select-option-label' }, selectOptionText(option));
-  const sprite = option.resourceRef ? schemaSelectSprite(props.runtimeContext?.sessionId, option.resourceRef) : undefined;
-  if (!sprite) return h('span', { title: selectOptionTitle(option) }, [label]);
+  if (!option.resourceRef || !props.runtimeContext?.sessionId) return h('span', { title: selectOptionTitle(option) }, [label]);
   return h('span', { class: 'schema-select-option', title: selectOptionTitle(option) }, [
-    h('img', {
-      src: sprite,
+    h(ResourceOptionThumbnail, {
+      sessionId: props.runtimeContext.sessionId,
+      resource: option.resourceRef,
+      label: selectOptionText(option),
       class: 'schema-select-option-thumb',
     }),
     label,
@@ -744,7 +742,7 @@ function handleSelectShowUpdate(show: boolean) {
   if (show && suppressNextSelectOpen.value) return;
   selectOpen.value = show;
   if (show) {
-    ensureSelectMedia('menu', [...displayOptions.value, ...listOptions.value, ...tagDisplayOptions.value]);
+    ensureSelectMedia('menu');
   } else {
     void releaseSchemaSelectSprites('menu');
   }
@@ -753,7 +751,7 @@ function handleSelectShowUpdate(show: boolean) {
 function handleKvSelectShowUpdate(rowId: number, show: boolean) {
   if (show && suppressNextKvSelectOpen.value[rowId]) return;
   kvSelectOpen.value[rowId] = show;
-  if (show) ensureSelectMedia(`kv:${rowId}`, kvKeyOptions.value);
+  if (show) ensureSelectMedia(`kv:${rowId}`);
   else void releaseSchemaSelectSprites(`kv:${rowId}`);
 }
 

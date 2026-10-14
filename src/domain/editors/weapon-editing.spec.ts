@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeWeaponSpec } from './lib/normalize';
+import { normalizeWeaponSpec } from '@/domain/editors/weapon-spec';
+
 import { findMirrorBarrelIndex } from './lib/mirror';
 import { addWeaponBarrel, updateWeaponBarrel, deleteWeaponBarrel, previewWeaponOperation, projectWeaponBarrels } from './weapon-editing';
 

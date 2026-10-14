@@ -12,10 +12,14 @@
 `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存 owner。
 `src-tauri/src/services/project/cache/persistent.rs`：Core 来源快照与指纹的持久化交接。
 `src-tauri/src/services/project/resources/`：资源解析与批量 data URL owner。
+`src/app/components/media/`：授权图片与配置选项消费的缩略图展示 owner。
 `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择 owner。
 `src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放主归属。
+`src/app/composables/use-image-preload.ts`：可见优先与邻近预读队列的资源集合消费 owner。
+`src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳 owner。
 `src/app/composables/use-resource-media-registry.ts`：资源集合、物理引用计数、票据和超额临时结果主归属。
 `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析 owner。
+`src/app/composables/use-window-image-cache.ts`：窗口图片、成品、代次、引用与预读并发 owner。
 `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影主归属。
 `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
 `src/services/hull-reference.service.ts`：Hull 查询及引用投影主归属。
@@ -24,12 +28,13 @@
 `src/services/resource-reference.service.ts`：授权引用解析能力主归属。
 `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
 `src/shared/runtime/media-budget.ts`：共享 WebView 字节预算与逐出回调主归属。
+`src/shared/runtime/resident-cache.ts`：活跃与闲置分离的双重预算及 LRU 原语 owner。
 
 ## 边界
 
 - Core 目录缓存按 canonical 游戏根维护已请求类型、源指纹和待持久化标记，快照持久化由正式缓存入口完成。
 - 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
-- 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，各缓存分别拥有访问顺序和容量。
+- 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，窗口图片运行态拥有解码与成品保留，活跃引用和闲置预算分别计量。
 - 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
 - 媒体服务拥有合批、single-flight 与资源失效，registry 拥有集合、引用计数及消费者等待。
 - 舰体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
@@ -71,13 +76,12 @@
 - Skin 实体贴图必须消费 SkinFile.data.spriteName；内置槽位必须携带最后定义该内置武器的 Mod/Core 来源并据此分组。
 - 列表缩略图只允许解析 observer 预读区内的资源。
 - 前端严禁构造 `ResourceRef`、拼路径、逐项读图或把 data URL 写入 manifest；缺失 data URL 保持 `null`。
-- 单个 data URL 超过 64 MiB 时必须返回本次内容并跳过共享缓存；可见消费者必须在隐藏、引用切换、失效和卸载释放暂存结果。
+- 单个 data URL 超过启动预算时必须返回本次内容并跳过共享缓存；活跃消费者必须持有所属结果，隐藏、引用切换、失效和卸载必须释放自身引用。
 - 可见元素 ref 再次登记同一 DOM 时必须保持可见身份和当前资源结果。
 - 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行严禁扫描全部登记项。
-- 各 WebView 的 resource cache 与 media projection 必须共用 64 MiB data URL 预算，resource cache 与后端指纹缓存必须分别保持 512 项容量；合批必须消费共享 single-flight 与所属失效。
+- 各缓存必须消费完整 settings 的启动预算；闲置结果必须同时受条数及字节限制并按 LRU 逐出，活跃工作集必须保持引用；合批必须消费共享 single-flight 与所属失效。
 - 媒体批次的失败资源必须按物理资源键建立一次结果索引，再按键交付可见消费者；错误后的下一次活跃集合请求必须释放已失败票据并重试。
-- 媒体消费者必须分别登记场景、列表、详情及控件集合，只有活跃可视集合才允许解析图片；引用替换、模块切换和关闭必须释放所属解码与媒体等待。
-- 屏幕外资源严禁发起 data URL 查询；资源失效后可见资源必须重新解析。
+- 媒体消费者必须分别登记场景、列表、详情及控件集合；可见图片必须优先读取，邻近预读必须在可见解码后消费窗口队列；引用替换、模块切换和关闭必须释放所属引用与等待。
 - 引用解析只接受 Mod 根内安全相对路径；绝对路径、`..` 与链接逃逸必须拒绝。
 - 指纹不一致即丢弃快照并重建；缓存损坏或不可写只降级，严禁读取旧快照。
 - 整批返回必须先核对数量、顺序、完整资源身份与 nullable data URL，再发布所属缓存。
@@ -86,6 +90,8 @@
 - 资源读取票据必须归共享媒体 registry；集合释放只结束所属等待，迟到结果严禁写入已撤销集合。
 - 选项媒体 owner 必须按集合登记菜单、已选值、摘要和键值行资源；集合替换只更新受影响资源，引用计数归零后才释放临时结果。
 - 静态武器及装配绘制必须共用正式层序、原点、发射点与有效 Skin 来源，已装载导弹必须消费实际弹体资源。
+- 预读只允许请求所属视口上下各一个视口的邻近资源，窗口预读只允许四项并发；失效、session 关闭和窗口销毁必须清理所属解码及依赖成品，迟到值必须服从所属票据。
+- 驻留图片与成品必须提供同步就绪消费；成品身份必须包含 session、来源代次、实际绘制参数、尺寸和 DPR，成品只允许消费正式领域绘制。
 
 ## 陷阱
 

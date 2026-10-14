@@ -1,8 +1,8 @@
 use crate::{
     errors::AppResult,
     io::{
-        ChangeDirection, FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, RootWriteLock,
-        acquire_root_write_lock, apply_changes, validate_safe_relative_path,
+        ChangeDirection, FileChangeSetBuilder, JsonWriteBatch, RootWriteLock,
+        acquire_root_write_lock, apply_changes, resolve_change_paths,
     },
     models::{
         AssociatedFileChange, FileChangeRecord, FileChangeReplayDirection, JsonWriteOptions,
@@ -55,7 +55,7 @@ pub(crate) fn apply_file_change_set_with_lock(
     changes: Vec<FileChangeRecord>,
     _write_lock: RootWriteLock,
 ) -> AppResult<WriteResult> {
-    validate_changeset_paths(mod_root, &changes)?;
+    let changes = resolve_change_paths(mod_root, changes, change_direction(direction))?;
     apply_changes(&changes, change_direction(direction))?;
     Ok(write_result(changes))
 }
@@ -69,22 +69,6 @@ fn change_direction(direction: FileChangeReplayDirection) -> ChangeDirection {
 
 fn write_result(changes: Vec<FileChangeRecord>) -> WriteResult {
     WriteResult::from_changes(changes)
-}
-
-fn validate_changeset_paths(mod_root: &str, changes: &[FileChangeRecord]) -> AppResult<()> {
-    let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
-    for change in changes {
-        boundary.resolve_absolute(Path::new(&change.before_path), "changeset source")?;
-        boundary.resolve_absolute(Path::new(&change.after_path), "changeset target")?;
-        for file in change.before_files.iter().chain(change.after_files.iter()) {
-            validate_snapshot_relative_path(&file.rel_path)?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_snapshot_relative_path(path: &str) -> AppResult<()> {
-    validate_safe_relative_path(Path::new(path), "file snapshot").map(|_| ())
 }
 
 #[cfg(test)]
@@ -252,7 +236,6 @@ mod tests {
         let change = build_directory_delete_change(&dir).unwrap();
         let result = write_result(vec![change]);
 
-        let _ = fs::remove_dir_all(root);
         assert!(
             result
                 .invalidation
@@ -267,6 +250,7 @@ mod tests {
                 .iter()
                 .any(|path| { path_string(path) == path_string(dir.join("demo.variant")) })
         );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -429,12 +413,10 @@ mod tests {
     #[test]
     fn replay_rejects_parent_dir_escape() {
         let root = temp_dir("changeset_rejects_parent_dir_escape");
-        let change = build_file_change(
-            &root.join("..").join("outside.txt"),
-            Some("bad".to_string()),
-            None,
-        )
-        .unwrap();
+        let mut change =
+            build_file_change(&root.join("inside.txt"), Some("bad".to_string()), None).unwrap();
+        change.before_path = root.join("..").join("outside.txt").to_string_lossy().into();
+        change.after_path = change.before_path.clone();
 
         let result = apply_file_change_set(
             &root.to_string_lossy(),

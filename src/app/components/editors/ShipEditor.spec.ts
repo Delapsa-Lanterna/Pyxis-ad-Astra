@@ -5,6 +5,7 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { editorUiStubs } from '@/test/ui-stubs';
+import type { ShipEditorProps } from '@/app/composables/editors/use-ship-editor-view-model';
 import type { RowData } from '@/shared/types';
 import ShipEditor from './ShipEditor.vue';
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ warning: vi.fn(), error: vi.fn() }) }));
@@ -33,7 +34,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-function openShip() {
+function openShip(overrides: Partial<ShipEditorProps> = {}) {
   wrapper = mount(ShipEditor, {
     props: {
       modRoot: 'M:/mod',
@@ -45,6 +46,7 @@ function openShip() {
       canSave: true,
       saving: false,
       externalUpdateNotice: '',
+      ...overrides,
     },
     global: { stubs: editorUiStubs },
     attachTo: document.body,
@@ -56,6 +58,95 @@ const shortcut = async (editor: ReturnType<typeof mount>, key: string, ctrl = fa
   await flushPromises();
 };
 describe('ship pointer and inspector actions', () => {
+  it('places the center action above dimension sync and disables both without a loaded image', () => {
+    const editor = openShip();
+    const buttons = editor.findAll('.sprite-actions button');
+    expect(buttons.map((button) => button.text())).toEqual(['更新舰船中心', '更新贴图宽高']);
+    expect(buttons.every((button) => button.attributes('disabled') !== undefined)).toBe(true);
+  });
+  it.each([true, false])('syncs dimensions on user loading, centers only when initially empty: %s', async (empty) => {
+    const loaded: Array<{ width: number; height: number; onload: (() => void) | null; onerror: (() => void) | null; src: string }> = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        width = 101;
+        height = 203;
+        onload = null;
+        onerror = null;
+        src = '';
+        constructor() {
+          loaded.push(this);
+        }
+      },
+    );
+    const source = {
+      hullId: 'ship',
+      spriteName: empty ? '' : 'old.png',
+      width: 100,
+      height: 150,
+      center: [5, 6],
+      shieldCenter: [2, 3],
+      weaponSlots: [{ id: 'A', locations: [10, 20] }],
+      engineSlots: [],
+      bounds: [1, 2, 3, 4],
+    };
+    const editor = openShip({ ship: source, spriteData: empty ? '' : 'old', spriteSourcePath: source.spriteName });
+    if (!empty) {
+      loaded.at(-1)!.onload?.();
+      await flushPromises();
+    }
+    const path = editor.get('.sprite-field-row input');
+    await path.setValue('new.png');
+    await editor.setProps({ spriteData: 'new', spriteSourcePath: 'new.png' });
+    loaded.at(-1)!.onload?.();
+    await flushPromises();
+    const draft = editor.emitted('draft-changed')!.at(-1)![0] as RowData;
+    expect(draft).toMatchObject({ width: 101, height: 203, center: empty ? [50.5, 101.5] : [5, 6] });
+    expect(draft.weaponSlots).toEqual(source.weaponSlots);
+    expect(draft.bounds).toEqual(source.bounds);
+    expect(draft.shieldCenter).toEqual(source.shieldCenter);
+    await shortcut(editor, 'z', true);
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ width: 100, height: 150, center: [5, 6], spriteName: 'new.png' });
+    await editor
+      .findAll('button')
+      .find((b) => b.text() === '更新舰船中心')!
+      .trigger('click');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ center: [50.5, 101.5] });
+  });
+  it('uses passive loading for display and user reload for geometry', async () => {
+    const loaded: Array<{ width: number; height: number; onload: (() => void) | null; onerror: (() => void) | null; src: string }> = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        width = 64;
+        height = 32;
+        onload = null;
+        onerror = null;
+        src = '';
+        constructor() {
+          loaded.push(this);
+        }
+      },
+    );
+    const editor = openShip({
+      ship: { hullId: 'ship', spriteName: 'old.png', width: 100, height: 150, center: [5, 6] },
+      spriteData: 'old',
+      spriteSourcePath: 'old.png',
+    });
+    loaded.at(-1)!.onload?.();
+    await flushPromises();
+    expect(editor.emitted('draft-changed')).toBeUndefined();
+    const path = editor.findAll('input').find((input) => (input.element as HTMLInputElement).value === 'old.png')!;
+    await path.trigger('change');
+    loaded.at(-1)!.onload?.();
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ width: 64, height: 32, center: [5, 6] });
+    await editor.setProps({ spriteData: 'background' });
+    loaded.at(-1)!.onload?.();
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ width: 64, height: 32, center: [5, 6] });
+  });
   it('creates and moves a mirrored slot pair through the real canvas, then undoes and redoes the whole gesture', async () => {
     const editor = openShip();
     await flushPromises();

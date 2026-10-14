@@ -23,6 +23,13 @@ function mountPicker(
 
 describe('CsvCellPicker placement', () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal('innerHeight', 800);
   });
 

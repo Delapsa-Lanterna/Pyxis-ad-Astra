@@ -27,7 +27,7 @@ const EDITOR_WINDOW_DEFINITIONS: Record<EditorWindowKind, EditorWindowDefinition
   projectile: {
     label: '弹体编辑器',
     specKind: 'projectile',
-    size: { width: 900, height: 760, minWidth: 720, minHeight: 520 },
+    size: { width: 1160, height: 760, minWidth: 860, minHeight: 560 },
   },
   system: {
     label: '战术系统编辑器',

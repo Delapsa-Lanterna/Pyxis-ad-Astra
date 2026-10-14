@@ -6,7 +6,16 @@
     <span v-for="value in listValues" :key="value" class="csv-cell-tag" :title="listValueDescription(value)">{{ value }}</span>
   </template>
   <template v-else-if="isReferenceControl">
-    <img v-if="sprite" class="csv-cell-thumb" :src="sprite" :alt="displayValue" />
+    <ResourceThumbnail
+      v-if="referenceMatch?.option.resourceRef"
+      class="csv-cell-thumb"
+      :session-id="context.target.sessionId"
+      :resource="referenceMatch.option.resourceRef"
+      :url="sprite ?? ''"
+      :label="displayValue"
+      :width="16"
+      :height="16"
+    />
     <span class="csv-cell-value">{{ displayValue }}</span>
     <span class="csv-cell-caret">⌄</span>
   </template>
@@ -20,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed } from 'vue';
 import { cell } from '@/shared/lib/starsector';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/tables/csv-grid-model';
@@ -35,7 +44,8 @@ import {
 } from '@/domain/tables/csv-column-schema';
 import { useCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { useSchemaSelectMedia } from '@/app/composables/tables/use-schema-select-media';
+import { useCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
 const props = defineProps<{
   column: CsvGridColumn;
@@ -46,7 +56,7 @@ const props = defineProps<{
 const rawValue = computed(() => cell(props.row.data[props.column.key]));
 const mode = useInputEditMode();
 const context = useCsvTableInputs();
-const { schemaSelectSprite, replaceSchemaSelectSprites } = useSchemaSelectMedia();
+const media = useCsvGridMedia();
 const control = computed(() => csvColumnControl(props.column.schema));
 const isListControl = computed(() => isCsvListControl(control.value));
 const isReferenceControl = computed(() => isCsvReferenceControl(control.value));
@@ -58,17 +68,8 @@ const displayValue = computed(() => referenceMatch.value?.option.label ?? rawVal
 const sprite = computed(() => {
   const match = referenceMatch.value;
   if (!match?.option.resourceRef) return undefined;
-  return schemaSelectSprite(context.target.sessionId, match.option.resourceRef);
+  return media.url(match.option.resourceRef);
 });
-
-watch(
-  () => [context.target.sessionId, referenceMatch.value?.option.resourceRef, mode.value] as const,
-  ([sessionId, resource, editMode]) => {
-    const resources = editMode === 'smart' && resource ? [resource] : [];
-    void replaceSchemaSelectSprites(sessionId, 'selected', resources);
-  },
-  { immediate: true },
-);
 
 function listValueDescription(value: string): string | undefined {
   return sourceValue(props.sourceIndex, props.column.schema?.source, value)?.option.description ?? undefined;

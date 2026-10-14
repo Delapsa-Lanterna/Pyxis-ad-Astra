@@ -1,5 +1,7 @@
 use crate::models::{AppLogLevel, optional_non_empty_string};
 use serde::{Deserialize, Serialize};
+mod cache_limits;
+pub use cache_limits::{CacheLimits, CacheSize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +33,8 @@ pub enum EditMode {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub cache_limits: CacheLimits,
     #[serde(default)]
     pub theme: Option<AppTheme>,
     #[serde(default = "default_accent")]
@@ -69,6 +73,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            cache_limits: CacheLimits::default(),
             theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),
@@ -132,6 +137,17 @@ fn default_log_level() -> AppLogLevel {
 mod tests {
     use super::{AppSettings, AppTheme};
     use serde_json::json;
+    #[test]
+    fn cache_limits_defaults_and_wire_budget_names() {
+        let wire = serde_json::to_value(AppSettings::default()).unwrap();
+        assert_eq!(wire["cacheLimits"]["resources"]["resourceEntries"], 2048);
+        assert_eq!(wire["cacheLimits"]["decodedImages"]["MiB"], 96);
+        assert_eq!(wire["cacheLimits"]["thumbnails"]["MiB"], 32);
+        assert_eq!(
+            serde_json::from_value::<AppSettings>(wire).unwrap(),
+            AppSettings::default()
+        );
+    }
 
     #[test]
     fn limits_have_backend_defaults_and_exact_wire_names() {

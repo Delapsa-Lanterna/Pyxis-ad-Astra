@@ -1,6 +1,7 @@
 import { computed, getCurrentScope, h, onScopeDispose, ref, type Ref } from 'vue';
 import { NSelect } from 'naive-ui/es/select';
-import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/spec-construction';
+import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/weapon-spec';
+
 import type { WeaponSpecClass } from '@/shared/types';
 import { NCheckbox } from 'naive-ui/es/checkbox';
 import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';

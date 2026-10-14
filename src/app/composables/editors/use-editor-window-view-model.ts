@@ -1,15 +1,10 @@
-import { createReadTicketOwner, isReadInvalidated } from '@/shared/runtime/read-request';
-import { computed, ref, watch } from 'vue';
+import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';
+import type { SpecEditorDefinition } from './spec-editor-definitions';
+import { isReadInvalidated } from '@/shared/runtime/read-request';
+import { computed, shallowRef } from 'vue';
 import type { UnlistenFn } from '@/windows/tauri.events';
-import {
-  queryEditorEntityBundle,
-  loadImportedSpecFile,
-  refreshBundleProjectiles,
-  refreshBundleResources,
-  queryDraftEditorImages,
-  type EditorEntityBundle,
-} from '@/services/editor.service';
-import type { EditorSpecKind, EditorWindowKind, EntityKind, RowData, WriteResult } from '@/shared/types';
+import { loadImportedSpecFile } from '@/services/editor.service';
+import type { EditorWindowKind, RowData, WriteResult, SpecEditorData } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { deepClone } from '@/shared/lib/starsector';
 import { formatError } from '@/shared/lib/errors';
@@ -23,19 +18,16 @@ import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orche
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { hasEntityInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
 import { editorMissingTargetText } from '@/domain/editors/editor-definitions';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { pickEditorSpecFile } from '@/shared/runtime/dialog.runtime';
 import { closeCurrentWindow } from '@/windows/current.window';
 import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
-import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
 import type { EditorSpecSavedEvent, ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 
-interface EditorWindowTarget {
+export interface EditorWindowTarget {
   id: string;
   kind: EditorWindowKind;
   modRoot: string;
@@ -43,115 +35,105 @@ interface EditorWindowTarget {
 }
 
 type MissingSpecChoice = { action: 'create' } | { action: 'import'; data: RowData } | { action: 'cancel' };
-type EditableEditorKind = 'ship' | 'weapon' | 'projectile' | 'system';
 
-export function useEditorWindowViewModel(params: {
-  sessionId: string | null;
-  modRoot: string | null;
-  id: string | null;
-  kind: EditorWindowKind;
-}) {
+export function useEditorWindowViewModel(
+  params: {
+    sessionId: string | null;
+    modRoot: string | null;
+    id: string | null;
+    kind: EditorWindowKind;
+  },
+  definition: SpecEditorDefinition<SpecEditorData>,
+) {
   const completedLocalWrites = new Set<number>();
-  const currentId = ref(params.id);
-  const editorData = ref<EditorEntityBundle | null>(null);
   const feedback = useAppFeedback();
-  const reads = createReadTicketOwner();
   let missingSpecIntent: object | null = null;
   let identityPreparation: Awaited<ReturnType<typeof createEntitySavePreparation>> | null = null;
-  const draftSession: EditTargetDraftSession<
-    RowData,
-    EditorWindowTarget,
-    { bundle: EditorEntityBundle; receipt: WriteResult<unknown> | null }
-  > = useEditTargetDraftSession<RowData, EditorWindowTarget, { bundle: EditorEntityBundle; receipt: WriteResult<unknown> | null }>({
-    emptyValue: {},
-    load: async (target, signal) => {
-      const data = await queryEditorEntityBundle(target.sessionId, target.kind, target.id, signal);
-      return {
-        target,
-        meta: { bundle: data, receipt: null },
-        baseVersions: data.baseVersions,
-        value: primarySpecForBundle(data, target.kind),
-      };
-    },
-    save: async (target, draft, baseVersions) => {
-      const kind = target.kind as EditorSpecKind;
-      const submittedBundle = deepClone(editorData.value!);
-      const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedBundle.target, draft);
-      const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
-      const result = await runConfirmedJsonWrite(feedback, (options) =>
-        saveEditorSpecByKind(target.sessionId, target.modRoot, submittedBundle.target, draft, options, versions),
-      );
-      if (!result) return;
-      const value = result.refreshedEntity!;
-      const savedTarget = result.identityChanges[0]!.after;
-      return {
-        target: { ...target, id: savedTarget.id },
-        value,
-        baseVersions: result.baseVersions,
-        commitId: result.commitId,
-        meta: {
-          bundle: {
-            ...applySavedSpecToBundle(submittedBundle, kind, savedTarget.id, value),
-            target: savedTarget,
-            isNew: false,
-            baseVersions: result.baseVersions,
-          },
-          receipt: result,
-        },
-      };
-    },
-    targetKey: editorWindowTargetKey,
-    withSavePreparation: async (target, submit) =>
-      identityPreparation!.withPreparation(target.sessionId, target.modRoot, editorData.value!.target, async (info) => {
-        if (info) {
-          const nextTarget = { ...target, id: info.target.id };
-          const previousId = target.id;
-          const baseline = draftSession.baselineSnapshot.value!;
-          const renamed = previousId !== nextTarget.id;
-          const fresh = renamed ? await queryEditorEntityBundle(target.sessionId, target.kind, nextTarget.id) : editorData.value!;
-          const value = renamed ? primarySpecForBundle(fresh, target.kind as EditableEditorKind) : baseline.value;
-          const versions = renamed ? fresh.baseVersions : handoffTableVersions(baseline.baseVersions, info);
-          draftSession.adoptIdentity(
-            target,
-            {
-              target: nextTarget,
-              value,
-              baseVersions: versions,
-              meta: { bundle: { ...fresh, target: info.target, baseVersions: versions }, receipt: null },
-            },
-            (draft) =>
-              previousId !== nextTarget.id && draft[params.kind === 'ship' ? 'hullId' : 'id'] === previousId
-                ? { ...draft, [params.kind === 'ship' ? 'hullId' : 'id']: nextTarget.id }
-                : draft,
-            previousId === nextTarget.id ? 'save' : 'external',
-          );
-          return submit(nextTarget);
-        }
-        return submit(target);
-      }),
-    afterSaved: async (snapshot) => {
-      const result = snapshot.meta.receipt!;
-      if (!completedLocalWrites.has(result.commitId)) {
-        await identityPreparation!.finish();
-        await retargetEntityWindow(
-          snapshot.target.sessionId,
-          snapshot.target.modRoot,
-          snapshot.target.kind as EditorSpecKind,
-          snapshot.target.id,
+  const draftSession: EditTargetDraftSession<RowData, EditorWindowTarget, { data: SpecEditorData; receipt: WriteResult<unknown> | null }> =
+    useEditTargetDraftSession<RowData, EditorWindowTarget, { data: SpecEditorData; receipt: WriteResult<unknown> | null }>({
+      emptyValue: {},
+      load: async (target, signal) => {
+        const data = await definition.read(target.sessionId, target.id, signal);
+        return {
+          target,
+          meta: { data, receipt: null },
+          baseVersions: data.baseVersions,
+          value: definition.project(data),
+        };
+      },
+      save: async (target, draft, baseVersions) => {
+        const submittedData = deepClone(editorData.value!);
+        const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
+        const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
+        const result = await runConfirmedJsonWrite(feedback, (options) =>
+          saveEditorSpecByKind(target.sessionId, target.modRoot, submittedData.target, draft, options, versions),
         );
-        await releaseCommittedIdentityTargets();
-        completedLocalWrites.add(result.commitId);
-      }
-      await emitEditorSpecSaved({
-        kind: snapshot.target.kind as EditorSpecKind,
-        sessionId: snapshot.target.sessionId,
-        modRoot: snapshot.target.modRoot,
-        id: snapshot.target.id,
-        spec: snapshot.value,
-        writeResult: result,
-      });
-    },
-  });
+        if (!result) return;
+        const value = result.refreshedEntity!;
+        const savedTarget = result.identityChanges[0]!.after;
+        return {
+          target: { ...target, id: savedTarget.id },
+          value,
+          baseVersions: result.baseVersions,
+          commitId: result.commitId,
+          meta: {
+            data: {
+              ...definition.accept(submittedData, value),
+              target: savedTarget,
+              isNew: false,
+              baseVersions: result.baseVersions,
+            },
+            receipt: result,
+          },
+        };
+      },
+      targetKey: editorWindowTargetKey,
+      withSavePreparation: async (target, submit) =>
+        identityPreparation!.withPreparation(target.sessionId, target.modRoot, editorData.value!.target, async (info) => {
+          if (info) {
+            const nextTarget = { ...target, id: info.target.id };
+            const previousId = target.id;
+            const baseline = draftSession.baselineSnapshot.value!;
+            const renamed = previousId !== nextTarget.id;
+            const fresh = renamed ? await definition.read(target.sessionId, nextTarget.id) : editorData.value!;
+            const value = renamed ? definition.project(fresh) : baseline.value;
+            const versions = renamed ? fresh.baseVersions : handoffTableVersions(baseline.baseVersions, info);
+            draftSession.adoptIdentity(
+              target,
+              {
+                target: nextTarget,
+                value,
+                baseVersions: versions,
+                meta: { data: { ...fresh, target: info.target, baseVersions: versions }, receipt: null },
+              },
+              (draft) =>
+                previousId !== nextTarget.id && draft[definition.idField] === previousId
+                  ? { ...draft, [definition.idField]: nextTarget.id }
+                  : draft,
+              previousId === nextTarget.id ? 'save' : 'external',
+            );
+            return submit(nextTarget);
+          }
+          return submit(target);
+        }),
+      afterSaved: async (snapshot) => {
+        const result = snapshot.meta.receipt!;
+        if (!completedLocalWrites.has(result.commitId)) {
+          await identityPreparation!.finish();
+          await retargetEntityWindow(snapshot.target.sessionId, snapshot.target.modRoot, snapshot.target.kind, snapshot.target.id);
+          await releaseCommittedIdentityTargets();
+          completedLocalWrites.add(result.commitId);
+        }
+        await emitEditorSpecSaved({
+          kind: snapshot.target.kind,
+          sessionId: snapshot.target.sessionId,
+          modRoot: snapshot.target.modRoot,
+          id: snapshot.target.id,
+          spec: snapshot.value,
+          writeResult: result,
+        });
+      },
+    });
   const unregisterSave = useSaveCommandStore().registerSaveSession({
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
@@ -180,83 +162,17 @@ export function useEditorWindowViewModel(params: {
   });
   const loading = draftSession.loading;
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
-  const errorText = ref('');
+  const errorText = shallowRef('');
   let unlistenEditorSpecSaved: UnlistenFn | null = null;
   let unlistenIdentity: UnlistenFn | null = null;
   let identityCommitId = -1;
   let stopSessionInvalidated: UnlistenFn | null = null;
   let stopQueryInvalidation: (() => void) | null = null;
-  let stopResourceInvalidation: (() => void) | null = null;
   let disposed = false;
-  const relatedCommitIds = new Map<string, number>();
-  const resourceRevision = ref(0);
-
-  const draftImageKey = computed(() =>
-    JSON.stringify(
-      (params.kind === 'ship' ? ['spriteName'] : WEAPON_SPRITE_FIELDS).map((field) => draftSession.draftValue.value[field] ?? null),
-    ),
-  );
-  watch([draftImageKey, resourceRevision], refreshDraftResources);
-  watch(
-    draftSession.baselineSnapshot,
-    (snapshot) => {
-      if (snapshot) currentId.value = snapshot.target.id;
-      if (snapshot && !disposed) {
-        reads.revoke();
-        applyLoadedEditorData(snapshot.meta.bundle, snapshot.meta.receipt !== null);
-      }
-    },
-    { flush: 'sync' },
-  );
-
-  function refreshDraftProjectiles() {
-    const bundle = editorData.value;
-    if (disposed || bundle?.kind !== 'weapon') return;
-    const id = typeof bundle.weapon.projectileSpecId === 'string' ? bundle.weapon.projectileSpecId : '';
-    const ids = Object.keys(bundle.projectileSpecs);
-    if (id ? ids.length === 1 && ids[0] === id : ids.length === 0) return;
-    editorData.value = { ...bundle, projectileSpecs: {} };
-    void refreshEditorDerivedData({ projectileSpecs: true, projectileOptions: false, resources: false });
-  }
-
-  async function refreshDraftResources() {
-    const key = draftImageKey.value;
-    const target = editorWindowTarget();
-    if (disposed || !target || !editorData.value || (params.kind !== 'ship' && params.kind !== 'weapon')) return;
-    const kind = params.kind;
-    const draft = draftSession.draftValue.value;
-    editorData.value = clearBundleImages(editorData.value);
-    await reads.consume(
-      'images',
-      { ...target, draftKey: key },
-      (signal) => queryDraftEditorImages(target.sessionId, kind, target.id, draft, signal),
-      {
-        ready: (images) => {
-          if (editorData.value?.kind === 'ship')
-            editorData.value = { ...editorData.value, resourceRefs: images.resourceRefs, shipSpriteData: images.shipSpriteData };
-          if (editorData.value?.kind === 'weapon')
-            editorData.value = { ...editorData.value, resourceRefs: images.resourceRefs, weaponSpriteData: images.weaponSpriteData };
-        },
-        error: (error) => feedback.error(error, '读取草稿贴图失败'),
-      },
-    );
-  }
-
-  const shipEditorData = computed(() => (editorData.value?.kind === 'ship' ? editorData.value : null));
-  const weaponEditorData = computed(() => (editorData.value?.kind === 'weapon' ? editorData.value : null));
-  const projectileEditorData = computed(() => (editorData.value?.kind === 'projectile' ? editorData.value : null));
-  const systemEditorData = computed(() => (editorData.value?.kind === 'system' ? editorData.value : null));
-  const weaponLikeEditorData = computed(() => {
-    const data = editorData.value;
-    return data?.kind === 'weapon' ? data : null;
+  const editorData = computed(() => {
+    const data = draftSession.baselineSnapshot.value?.meta.data;
+    return data ? definition.accept(data, draftSession.draftValue.value) : null;
   });
-  const weaponForEditor = computed<RowData>(() => {
-    const data = weaponLikeEditorData.value;
-    const target = editorWindowTarget();
-    if (!data || !target) return {};
-    return data.weapon;
-  });
-  const shipSpriteForEditor = computed(() => shipEditorData.value?.shipSpriteData ?? '');
   const draftDirty = draftSession.dirty;
   const editContext = draftSession.context;
   const draftSaving = draftSession.saving;
@@ -275,7 +191,6 @@ export function useEditorWindowViewModel(params: {
   async function queryEditorData(options: { promptForMissing: boolean; showLoading: boolean }) {
     const intent = {};
     missingSpecIntent = intent;
-    reads.revoke();
     const target = editorWindowTarget();
     if (!target) {
       errorText.value = '缺少 Mod 路径或目标 id。';
@@ -285,7 +200,7 @@ export function useEditorWindowViewModel(params: {
     try {
       const snapshot = options.promptForMissing ? await draftSession.loadTarget(target) : await draftSession.refreshTarget(target);
       if (!snapshot?.meta) return;
-      const data = snapshot.meta.bundle;
+      const data = snapshot.meta.data;
       if (data.isNew && options.promptForMissing) {
         const choice = await handleMissingSpec(params.kind, target);
         if (missingSpecIntent !== intent) return;
@@ -293,7 +208,7 @@ export function useEditorWindowViewModel(params: {
           void closeCurrentWindow();
           return;
         }
-        if (choice.action === 'import') applyImportedSpec(params.kind, target.id, choice.data);
+        if (choice.action === 'import') applyImportedSpec(choice.data);
       }
     } catch (error) {
       if (isReadInvalidated(error)) return;
@@ -303,7 +218,7 @@ export function useEditorWindowViewModel(params: {
   }
 
   async function handleMissingSpec(kind: EditorWindowKind, target: EditorWindowTarget): Promise<MissingSpecChoice> {
-    const specKind = kind as EditorSpecKind;
+    const specKind = kind;
     const choice = await feedback.choose({
       title: `找不到 ${target.id} 的 spec`,
       content: '目标文件不存在，请选择操作：',
@@ -327,22 +242,20 @@ export function useEditorWindowViewModel(params: {
     return { action: 'create' };
   }
 
-  function applyImportedSpec(kind: EditorWindowKind, id: string, data: RowData) {
+  function applyImportedSpec(data: RowData) {
     if (!editorData.value) return;
     const spec = deepClone(data);
     draftSession.setDraft(spec);
-    editorData.value = applySavedSpecToBundle(editorData.value, kind as EditorSpecKind, id, spec);
-    resourceRevision.value++;
   }
 
-  async function saveEditorData(kind: EditorSpecKind, data?: RowData): Promise<void> {
+  async function saveEditorData(data?: RowData): Promise<void> {
     const target = editorWindowTarget();
     if (!target) return;
     if (draftSession.saving.value) {
       await draftSession.waitForSave();
       return;
     }
-    if (data) updateEditorDraft(kind, data);
+    if (data) updateEditorDraft(data);
     try {
       const saved = await draftSession.saveDraft();
       if (saved) {
@@ -353,14 +266,11 @@ export function useEditorWindowViewModel(params: {
     }
   }
 
-  function updateEditorDraft(kind: EditorSpecKind, data: RowData): void {
+  function updateEditorDraft(data: RowData): void {
     const target = editorWindowTarget();
-    if (!target || !editorData.value || !isPrimaryEditableKind(params.kind, kind)) return;
-    const previousReference = bundleReferenceKey(editorData.value);
+    if (!target || !editorData.value) return;
     const spec = deepClone(data);
     draftSession.setDraft(spec);
-    editorData.value = applySavedSpecToBundle(editorData.value, kind, target.id, spec);
-    if (previousReference !== bundleReferenceKey(editorData.value)) refreshDraftProjectiles();
   }
 
   function loadPendingExternalSpec(): void {
@@ -404,14 +314,12 @@ export function useEditorWindowViewModel(params: {
       return;
     }
     stopQueryInvalidation = subscribeQueryInvalidations(handleQueryCacheInvalidated);
-    stopResourceInvalidation = subscribeResourceInvalidations(handleResourceCacheInvalidated);
     void queryEditorData({ promptForMissing: true, showLoading: true });
   }
 
   function disposeEditorWindow() {
     disposed = true;
     missingSpecIntent = null;
-    reads.revoke();
     identityPreparation?.dispose();
     unlistenIdentity?.();
     unlistenIdentity = null;
@@ -422,8 +330,6 @@ export function useEditorWindowViewModel(params: {
     stopSessionInvalidated = null;
     stopQueryInvalidation?.();
     stopQueryInvalidation = null;
-    stopResourceInvalidation?.();
-    stopResourceInvalidation = null;
     draftSession.dispose();
   }
 
@@ -437,8 +343,7 @@ export function useEditorWindowViewModel(params: {
     )
       return;
     const change = event.result.identityChanges.find(
-      (change) =>
-        change.before.kind === editorWindowEntityKind(target.kind) && change.before.id === target.id && change.after.id !== target.id,
+      (change) => change.before.kind === target.kind && change.before.id === target.id && change.after.id !== target.id,
     );
     if (!change) return;
     if (draftSession.saving.value && !(await draftSession.waitForSave())) return;
@@ -451,10 +356,10 @@ export function useEditorWindowViewModel(params: {
       });
       if (choice !== 'follow' || disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
     }
-    const data = await queryEditorEntityBundle(target.sessionId, target.kind, change.after.id);
+    const data = await definition.read(target.sessionId, change.after.id);
     if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
     const nextTarget = { ...target, id: change.after.id };
-    const next = primarySpecForBundle(data, target.kind);
+    const next = definition.project(data);
     await retargetEntityWindow(target.sessionId, target.modRoot, target.kind, nextTarget.id);
     const accepted = draftSession.adoptIdentity(
       target,
@@ -462,10 +367,10 @@ export function useEditorWindowViewModel(params: {
         target: nextTarget,
         value: next,
         baseVersions: data.baseVersions,
-        meta: { bundle: data, receipt: null },
+        meta: { data, receipt: null },
         commitId: event.result.commitId,
       },
-      (draft) => (draftSession.dirty.value ? { ...draft, [target.kind === 'ship' ? 'hullId' : 'id']: nextTarget.id } : next),
+      (draft) => (draftSession.dirty.value ? { ...draft, [definition.idField]: nextTarget.id } : next),
     );
     if (accepted) identityCommitId = event.result.commitId;
   }
@@ -479,21 +384,7 @@ export function useEditorWindowViewModel(params: {
       !editorData.value
     )
       return;
-    if (!shouldApplySavedSpec(editorData.value, target, event)) return;
-    if (isPrimaryEditableKind(params.kind, event.kind) && event.id === target.id) {
-      receiveExternalPrimarySpec(event.kind, event.id, event.spec, event.writeResult);
-      return;
-    }
-    const key = JSON.stringify([event.kind, event.id]);
-    if (event.writeResult.commitId <= (relatedCommitIds.get(key) ?? -1)) return;
-    relatedCommitIds.set(key, event.writeResult.commitId);
-    applySavedSpec(event.kind, event.id, event.spec);
-  }
-
-  function applySavedSpec(kind: EditorSpecKind, id: string, data: RowData) {
-    if (!editorData.value) return;
-    const spec = deepClone(data);
-    editorData.value = applySavedSpecToBundle(editorData.value, kind, id, spec);
+    if (event.kind === target.kind && event.id === target.id) receiveExternalPrimarySpec(event.spec, event.writeResult);
   }
 
   function onProjectSessionInvalidated(event: ProjectSessionInvalidatedEvent) {
@@ -511,7 +402,6 @@ export function useEditorWindowViewModel(params: {
     const target = editorWindowTarget();
     if (!target || event.sessionId !== target.sessionId) return;
     if (event.scope === 'session') {
-      reads.revoke('session');
       missingSpecIntent = null;
       return;
     }
@@ -519,111 +409,26 @@ export function useEditorWindowViewModel(params: {
       void queryEditorData({ promptForMissing: false, showLoading: false });
       return;
     }
-    const projectileSpecsChanged = hasProjectileSpecInvalidation(event, editorData.value);
-    const projectileOptionsChanged = hasProjectileListInvalidation(event, params.kind);
-    if (projectileSpecsChanged || projectileOptionsChanged) {
-      void refreshEditorDerivedData({
-        projectileOptions: projectileOptionsChanged,
-        projectileSpecs: projectileSpecsChanged,
-        resources: false,
-      });
-    }
-  }
-
-  function handleResourceCacheInvalidated(event: ResourceCacheInvalidationEvent) {
-    const target = editorWindowTarget();
-    if (!target || event.sessionId !== target.sessionId) return;
-    if (event.scope === 'session') {
-      return;
-    }
-    if (params.kind === 'ship' || params.kind === 'weapon') {
-      const paths = (params.kind === 'ship' ? ['spriteName'] : WEAPON_SPRITE_FIELDS)
-        .map((field) => draftSession.draftValue.value[field])
-        .filter((path): path is string => typeof path === 'string')
-        .map(normalizeFsPath);
-      const resources = event.invalidation?.resources ?? event.resources;
-      if (event.invalidation?.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
-        resourceRevision.value++;
-      return;
-    }
-    if (!editorResourceInvalidated(event, editorData.value)) return;
-    void refreshEditorDerivedData({
-      projectileOptions: false,
-      projectileSpecs: false,
-      resources: true,
-    });
-  }
-
-  async function refreshEditorDerivedData(options: { projectileSpecs: boolean; projectileOptions: boolean; resources: boolean }) {
-    const target = editorWindowTarget();
-    const bundle = editorData.value;
-    if (!target || !bundle) return;
-    const reference = bundleReferenceKey(bundle);
-    const error = (error: unknown) => feedback.error(error, '刷新编辑器派生数据失败');
-    const tasks: Promise<boolean>[] = [];
-    if (options.projectileSpecs)
-      tasks.push(
-        reads.consume(
-          'projectiles',
-          { ...target, reference },
-          (signal) => refreshBundleProjectiles(target.sessionId, bundle, { projectileSpecs: true, projectileOptions: false }, signal),
-          {
-            ready: (refreshed) => {
-              const current = editorData.value;
-              if (current?.kind === 'weapon' && refreshed.kind === 'weapon')
-                editorData.value = { ...current, projectileSpecs: refreshed.projectileSpecs };
-            },
-            error,
-          },
-        ),
-      );
-    if (options.projectileOptions)
-      tasks.push(
-        reads.consume(
-          'projectile-options',
-          target,
-          (signal) => refreshBundleProjectiles(target.sessionId, bundle, { projectileSpecs: false, projectileOptions: true }, signal),
-          {
-            ready: (refreshed) => {
-              if (editorData.value?.kind === 'weapon' && refreshed.kind === 'weapon')
-                editorData.value = { ...editorData.value, projectileOptions: refreshed.projectileOptions };
-            },
-            error,
-          },
-        ),
-      );
-    if (options.resources)
-      tasks.push(
-        reads.consume('resources', { ...target, reference }, (signal) => refreshBundleResources(target.sessionId, bundle, signal), {
-          ready: (refreshed) => {
-            const current = editorData.value;
-            if (current?.kind === 'weapon' && refreshed.kind === 'weapon')
-              editorData.value = { ...current, resourceRefs: refreshed.resourceRefs, weaponSpriteData: refreshed.weaponSpriteData };
-          },
-          error,
-        }),
-      );
-    await Promise.all(tasks);
   }
 
   function editorWindowTarget(): EditorWindowTarget | null {
-    if (!params.sessionId || !params.modRoot || !currentId.value) return null;
-    return { sessionId: params.sessionId, modRoot: params.modRoot, kind: params.kind, id: currentId.value };
+    if (!params.sessionId || !params.modRoot || !params.id) return null;
+    return {
+      sessionId: params.sessionId,
+      modRoot: params.modRoot,
+      kind: params.kind,
+      id: draftSession.currentTarget.value?.id ?? params.id,
+    };
   }
 
   return {
     currentTarget: computed(editorWindowTarget),
     editorData,
-    shipEditorData,
-    weaponEditorData,
-    projectileEditorData,
-    systemEditorData,
     loading,
     contentReady: computed(() => editorData.value !== null),
     errorText,
-    weaponForEditor,
-    shipSpriteForEditor,
     draftValue: draftSession.draftValue,
+    commitInputs: () => draftSession.inputs.commit(),
     draftDirty,
     editContext,
     waitForSave: draftSession.waitForSave,
@@ -640,23 +445,7 @@ export function useEditorWindowViewModel(params: {
     loadPendingExternalSpec,
   };
 
-  function applyLoadedEditorData(data: EditorEntityBundle, preserveCatalog = false): void {
-    const target = editorWindowTarget();
-    if (!target) {
-      editorData.value = data;
-      draftSession.clearTarget();
-      return;
-    }
-    const projected = clearBundleImages(applySavedSpecToBundle(data, params.kind, target.id, draftSession.draftValue.value));
-    editorData.value =
-      preserveCatalog && projected.kind === 'weapon' && editorData.value?.kind === 'weapon'
-        ? { ...projected, projectileOptions: editorData.value.projectileOptions }
-        : projected;
-    resourceRevision.value++;
-    refreshDraftProjectiles();
-  }
-
-  function receiveExternalPrimarySpec(kind: EditorSpecKind, id: string, data: RowData, result: WriteResult<unknown>): void {
+  function receiveExternalPrimarySpec(data: RowData, result: WriteResult<unknown>): void {
     if (!editorData.value) return;
     const spec = deepClone(data);
     const target = editorWindowTarget();
@@ -666,7 +455,7 @@ export function useEditorWindowViewModel(params: {
       value: spec,
       baseVersions: result.baseVersions,
       commitId: result.commitId,
-      meta: { bundle: applySavedSpecToBundle(editorData.value, kind, id, spec), receipt: result },
+      meta: { data: definition.accept(editorData.value, spec), receipt: result },
     });
   }
 }
@@ -675,93 +464,11 @@ function sameEditorWindowTarget(left: EditorWindowTarget, right: EditorWindowTar
   return Boolean(right && editorWindowTargetKey(left) === editorWindowTargetKey(right));
 }
 
-function bundleReferenceKey(bundle: EditorEntityBundle | null): string | null {
-  return bundle?.kind === 'weapon' ? JSON.stringify([bundle.kind, bundle.weapon.projectileSpecId ?? null]) : null;
-}
-
 function editorWindowTargetKey(target: EditorWindowTarget): string {
   return JSON.stringify([target.sessionId, normalizeFsPath(target.modRoot), target.kind, target.id]);
 }
 
-function shouldApplySavedSpec(bundle: EditorEntityBundle, target: EditorWindowTarget, event: EditorSpecSavedEvent): boolean {
-  if (event.kind === 'ship') return bundle.kind === 'ship' && event.id === target.id;
-  if (event.kind === 'weapon') return bundle.kind === 'weapon' && event.id === target.id;
-  if (event.kind === 'projectile') {
-    if (bundle.kind === 'projectile') return event.id === target.id;
-    if (bundle.kind === 'weapon') return event.id in bundle.projectileSpecs || bundle.weapon.projectileSpecId === event.id;
-  }
-  if (event.kind === 'system') return bundle.kind === 'system' && event.id === target.id;
-  return false;
-}
-
-function applySavedSpecToBundle(bundle: EditorEntityBundle, kind: EditorSpecKind, id: string, spec: RowData): EditorEntityBundle {
-  if (kind === 'ship' && bundle.kind === 'ship') {
-    const images = bundle.ship.spriteName === spec.spriteName ? {} : { resourceRefs: [], shipSpriteData: '' };
-    return { ...bundle, ...images, ship: spec };
-  }
-  if (kind === 'weapon' && bundle.kind === 'weapon') {
-    const images = WEAPON_SPRITE_FIELDS.every((field) => bundle.weapon[field] === spec[field])
-      ? {}
-      : { resourceRefs: [], weaponSpriteData: {} };
-    return { ...bundle, ...images, weapon: spec };
-  }
-  if (kind === 'projectile' && bundle.kind === 'projectile') {
-    return { ...bundle, projectile: spec, projectileSpecs: { ...bundle.projectileSpecs, [id]: spec } };
-  }
-  if (kind === 'projectile' && bundle.kind === 'weapon') {
-    return { ...bundle, projectileSpecs: { ...bundle.projectileSpecs, [id]: spec } };
-  }
-  if (kind === 'system' && bundle.kind === 'system') return { ...bundle, system: spec };
-  return bundle;
-}
-
-function clearBundleImages(bundle: EditorEntityBundle): EditorEntityBundle {
-  if (bundle.kind === 'ship') return { ...bundle, resourceRefs: [], shipSpriteData: '' };
-  if (bundle.kind === 'weapon') return { ...bundle, resourceRefs: [], weaponSpriteData: {} };
-  return bundle;
-}
-
-function isPrimaryEditableKind(windowKind: EditorWindowKind, specKind: EditorSpecKind): boolean {
-  return windowKind === specKind;
-}
-
-function primarySpecForBundle(bundle: EditorEntityBundle, kind: EditableEditorKind): RowData {
-  if (kind === 'ship' && bundle.kind === 'ship') return deepClone(bundle.ship);
-  if (kind === 'weapon' && bundle.kind === 'weapon') {
-    return deepClone(bundle.weapon);
-  }
-  if (kind === 'projectile' && bundle.kind === 'projectile') return deepClone(bundle.projectile);
-  if (kind === 'system' && bundle.kind === 'system') return deepClone(bundle.system);
-  return {};
-}
-
 function hasPrimaryDetailInvalidation(event: QueryCacheInvalidationEvent, windowKind: EditorWindowKind, id: string): boolean {
-  const primaryKind = editorWindowEntityKind(windowKind);
+  const primaryKind = windowKind;
   return hasEntityInvalidation(event, 'entity-detail', primaryKind, id);
 }
-
-function hasProjectileSpecInvalidation(event: QueryCacheInvalidationEvent, bundle: EditorEntityBundle | null): boolean {
-  if (bundle?.kind !== 'weapon') return false;
-  const projectileIds = [
-    ...Object.keys(bundle.projectileSpecs),
-    ...(typeof bundle.weapon.projectileSpecId === 'string' ? [bundle.weapon.projectileSpecId] : []),
-  ];
-  if (projectileIds.length === 0) return false;
-  return projectileIds.some((id) => hasEntityInvalidation(event, 'entity-detail', 'projectile', id));
-}
-
-function hasProjectileListInvalidation(event: QueryCacheInvalidationEvent, windowKind: EditorWindowKind): boolean {
-  if (windowKind !== 'weapon') return false;
-  return hasEntityInvalidation(event, 'entity-list', 'projectile');
-}
-
-function editorResourceInvalidated(event: ResourceCacheInvalidationEvent, bundle: EditorEntityBundle | null): boolean {
-  if (!bundle || !('resourceRefs' in bundle)) return false;
-  return hasResourceInvalidation(event, bundle.resourceRefs);
-}
-
-function editorWindowEntityKind(windowKind: EditorWindowKind): EntityKind {
-  return windowKind;
-}
-
-import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';

@@ -10,7 +10,21 @@ export type EditMode = (typeof EDIT_MODES)[number];
 export const LOG_LEVELS = ['info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+export interface CacheSize {
+  entries: number;
+  MiB: number;
+}
+export interface CacheLimits {
+  resources: { resourceEntries: number; mediaEntries: number; dataUrlMiB: number };
+  decodedImages: CacheSize;
+  thumbnails: CacheSize;
+  backendMedia: CacheSize;
+  queries: Record<import('./query-cache.types').QueryCacheKind, number>;
+  fonts: { glyphEntriesPerPage: number };
+}
+
 export interface AppSettings {
+  cacheLimits: CacheLimits;
   theme: AppTheme | null;
   accent: AccentPreset;
   customAccent: string;

@@ -11,6 +11,8 @@ export interface CsvGridViewportState<T> {
   setViewportMetrics: (metrics: { clientHeight: number; scrollTop: number }) => void;
   startIndex: Ref<number>;
   visibleItems: Ref<T[]>;
+  firstVisibleIndex: Ref<number>;
+  lastVisibleIndex: Ref<number>;
 }
 
 export function useCsvGridViewport<T>(
@@ -22,7 +24,9 @@ export function useCsvGridViewport<T>(
   const scrollTop = ref(0);
   const viewportHeight = ref(0);
 
-  const rawStartIndex = computed(() => Math.max(0, Math.floor(scrollTop.value / rowHeight) - overscan));
+  const firstVisibleIndex = computed(() => Math.max(0, Math.floor(scrollTop.value / rowHeight)));
+  const lastVisibleIndex = computed(() => Math.min(items.value.length, Math.ceil((scrollTop.value + viewportHeight.value) / rowHeight)));
+  const rawStartIndex = computed(() => Math.max(0, firstVisibleIndex.value - overscan));
   const rawEndIndex = computed(() =>
     Math.min(items.value.length, Math.ceil((scrollTop.value + viewportHeight.value) / rowHeight) + overscan),
   );
@@ -42,7 +46,17 @@ export function useCsvGridViewport<T>(
     viewportHeight.value = metrics.clientHeight;
   }
 
-  return { afterHeight, beforeHeight, endIndex, onScroll, setViewportMetrics, startIndex, visibleItems };
+  return {
+    afterHeight,
+    beforeHeight,
+    endIndex,
+    onScroll,
+    setViewportMetrics,
+    startIndex,
+    visibleItems,
+    firstVisibleIndex,
+    lastVisibleIndex,
+  };
 }
 
 function includeEditingIndex(start: number, end: number, editingIndex: number | null): { end: number; start: number } {

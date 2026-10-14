@@ -5,6 +5,9 @@ import { reactive } from 'vue';
 import CsvGrid from './CsvGrid.vue';
 import type { CsvGridModel } from '@/domain/tables/csv-grid-model';
 import { mountCsvInputHost } from '@/test/csv-input-host';
+import { createPinia, setActivePinia } from 'pinia';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 let fixture: ReturnType<typeof mountCsvInputHost>;
@@ -30,6 +33,8 @@ function modelFixture(): CsvGridModel {
 }
 
 function mountGrid() {
+  setActivePinia(createPinia());
+  initializeSettingsStore(createSettingsFixture());
   fixture = mountCsvInputHost(
     CsvGrid,
     {

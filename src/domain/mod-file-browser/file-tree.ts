@@ -66,18 +66,83 @@ export function modFileTree(
     const children = entry.kind === 'directory' ? modFileTree(directories, entry.relPath, sort) : undefined;
     if (children && state?.entries && children.length === 0)
       children.push({ key: 'status:' + entry.relPath, label: '空文件夹', isLeaf: true, disabled: true, kind: 'status' });
-    return {
-      key: entry.relPath,
-      label: entry.name,
-      isLeaf: entry.kind !== 'directory',
-      disabled: entry.kind === 'restricted',
-      kind: entry.kind,
-      typeText: modFileType(entry),
-      sizeText: modFileSize(entry.sizeBytes),
-      modifiedText: modFileTime(entry.modifiedAt),
-      ...(children ? { children } : {}),
-    };
+    return { ...modFileNode(entry), ...(children ? { children } : {}) };
   });
+}
+function modFileNode(entry: ModFileEntry): ModFileNode {
+  return {
+    key: entry.relPath,
+    label: entry.name,
+    isLeaf: entry.kind !== 'directory',
+    disabled: entry.kind === 'restricted',
+    kind: entry.kind,
+    typeText: modFileType(entry),
+    sizeText: modFileSize(entry.sizeBytes),
+    modifiedText: modFileTime(entry.modifiedAt),
+  };
+}
+
+export function createModFileTreeProjection() {
+  const cache = new Map<
+    string | null,
+    {
+      entries: readonly ModFileEntry[] | null;
+      sort: string;
+      sorted: ModFileEntry[];
+      nodes: ModFileNode[];
+    }
+  >();
+  let labels = new WeakMap<ModFileEntry, ModFileNode>();
+  const empty: ModFileNode[] = [];
+  function project(
+    directories: ReadonlyMap<string | null, ModDirectoryState>,
+    expanded: readonly string[],
+    sort: ModFileSort,
+  ): ModFileNode[] {
+    const open = new Set(expanded),
+      sortKey = sort.key + ':' + sort.ascending;
+    function visit(directory: string | null): ModFileNode[] {
+      const entries = directories.get(directory)?.entries ?? null;
+      const previous = cache.get(directory);
+      const sorted = previous?.entries === entries && previous.sort === sortKey ? previous.sorted : sortModFiles(entries ?? [], sort);
+      const previousNodes = new Map(previous?.nodes.map((node) => [node.key, node]));
+      const nodes = sorted.map((entry) => {
+        let base = labels.get(entry);
+        if (!base) {
+          base = modFileNode(entry);
+          labels.set(entry, base);
+        }
+        if (entry.kind !== 'directory') return base;
+        const children = open.has(entry.relPath) ? visit(entry.relPath) : empty;
+        const old = previousNodes.get(entry.relPath);
+        return old?.children === children &&
+          old.label === base.label &&
+          old.modifiedText === base.modifiedText &&
+          old.typeText === base.typeText
+          ? old
+          : { ...base, children };
+      });
+      if (directory !== null && entries?.length === 0)
+        nodes.push(
+          previous?.nodes[0]?.kind === 'status'
+            ? previous.nodes[0]
+            : { key: 'status:' + directory, label: '空文件夹', isLeaf: true, disabled: true, kind: 'status' },
+        );
+      const result =
+        previous?.nodes.length === nodes.length && nodes.every((node, index) => node === previous.nodes[index]) ? previous.nodes : nodes;
+      cache.set(directory, { entries, sort: sortKey, sorted, nodes: result });
+      return result;
+    }
+    return visit(null);
+  }
+  function forget(paths: readonly string[]) {
+    for (const key of cache.keys()) if (key !== null && paths.some((path) => key === path || key.startsWith(path + '/'))) cache.delete(key);
+  }
+  function clear() {
+    cache.clear();
+    labels = new WeakMap();
+  }
+  return { project, forget, clear };
 }
 export function visibleModFiles(nodes: readonly ModFileNode[], expanded: readonly string[]): ModFileNode[] {
   return nodes.flatMap((node) => [

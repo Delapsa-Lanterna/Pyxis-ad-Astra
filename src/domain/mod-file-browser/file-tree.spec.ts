@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createModFileTreeProjection,
   sortModFiles,
   modFileTree,
   visibleModFiles,
@@ -92,5 +93,63 @@ describe('file metadata and sorting', () => {
     expect(nested.matched).toBe(false);
     expect(nested.children![0]!.children![0]).toMatchObject({ key: 'data/hulls/船.ship', matched: true });
     expect(tree.find((node) => node.key === '船目录')!.children![0]!.label).toBe('无匹配子项');
+  });
+});
+
+describe('cached visible directory projection', () => {
+  function setup() {
+    const directories = new Map<string | null, ModDirectoryState>([
+      [null, { entries: [entry('data', 'directory'), entry('other', 'directory'), entry('README')], loading: false, error: '' }],
+      ['data', { entries: [entry('data/spec.wpn')], loading: false, error: '' }],
+      ['other', { entries: [], loading: false, error: '' }],
+    ]);
+    const projection = createModFileTreeProjection();
+    const project = (expanded: string[] = [], ascending = true) => projection.project(directories, expanded, { key: 'name', ascending });
+    return { directories, projection, project };
+  }
+  it('keeps collapsed caches out of display and preserves unchanged array and sibling identities', () => {
+    const { directories, project } = setup();
+    const collapsed = project();
+    expect(collapsed[0]!.children).toEqual([]);
+    directories.get('data')!.entries = [entry('data/new.wpn')];
+    expect(project()).toBe(collapsed);
+    const expanded = project(['data']);
+    expect(expanded[0]!.children![0]!.key).toBe('data/new.wpn');
+    expect(expanded[1]).toBe(collapsed[1]);
+    expect(expanded[2]).toBe(collapsed[2]);
+    expect(project(['data'])).toBe(expanded);
+    directories.get('data')!.entries = [entry('data/changed.wpn')];
+    const changed = project(['data']);
+    expect(changed[0]).not.toBe(expanded[0]);
+    expect(changed[1]).toBe(expanded[1]);
+    expect(changed[2]).toBe(expanded[2]);
+  });
+  it('projects sorting and empty-directory rows while reusing formatted file nodes', () => {
+    const { project } = setup();
+    const before = project(['other']);
+    expect(before[1]!.children![0]).toMatchObject({ label: '空文件夹', disabled: true });
+    const reverse = project(['other'], false);
+    expect(reverse.map((node) => node.key)).toEqual(['other', 'data', 'README']);
+    expect(reverse[2]).toBe(before[2]);
+    expect(reverse[0]!.children).toBe(before[1]!.children);
+  });
+  it('replaces a previously nonempty directory with its empty status row', () => {
+    const { directories, project } = setup();
+    project(['data']);
+    directories.get('data')!.entries = [];
+    const empty = project(['data']);
+    expect(empty[0]!.children).toEqual([{ key: 'status:data', label: '空文件夹', isLeaf: true, disabled: true, kind: 'status' }]);
+    expect(project(['data'])).toBe(empty);
+  });
+  it('releases removed subtree projections and clears window-scoped identities', () => {
+    const { directories, projection, project } = setup();
+    const before = project(['data']);
+    directories.delete('data');
+    projection.forget(['data']);
+    expect(project(['data'])[0]!.children).toEqual([]);
+    directories.set('data', { entries: [entry('data/recreated')], loading: false, error: '' });
+    expect(project(['data'])[0]!.children![0]!.key).toBe('data/recreated');
+    projection.clear();
+    expect(project(['data'])[2]).not.toBe(before[2]);
   });
 });

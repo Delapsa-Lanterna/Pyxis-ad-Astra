@@ -11,19 +11,30 @@
       @keydown.enter.prevent="submitCustom"
     />
     <button v-if="!multiple && selectedValues.size > 0" class="csv-cell-picker-clear" type="button" @click="clearValue">清除当前值</button>
-    <div class="csv-cell-picker-list">
+    <div :ref="visible.setMediaRoot" class="csv-cell-picker-list">
       <template v-for="group in filteredGroups" :key="group.key">
         <div v-if="group.label" class="csv-cell-picker-group">{{ group.label }}</div>
         <button
           v-for="option in group.options"
           :key="option.value"
+          :ref="visible.mediaRef(option.value, option.resourceRef)"
           :class="['csv-cell-picker-option', { selected: selectedValues.has(option.value) }]"
           :title="option.description ?? undefined"
           type="button"
           @click="selectOption(option.value)"
         >
           <span v-if="multiple" class="csv-cell-picker-check">{{ selectedValues.has(option.value) ? '✓' : '' }}</span>
-          <img v-if="optionSprite(option)" class="csv-cell-picker-thumb" :src="optionSprite(option)" :alt="option.label" />
+          <ResourceThumbnail
+            v-if="option.resourceRef"
+            class="csv-cell-picker-thumb"
+            :session-id="sessionId"
+            :resource="option.resourceRef"
+            :url="visible.mediaSrc(option.resourceRef)"
+            :active="visible.mediaVisible(option.value)"
+            :label="option.label"
+            :width="18"
+            :height="18"
+          />
           <span class="csv-cell-picker-label">{{ option.label }}</span>
           <span v-if="option.value !== option.label" class="csv-cell-picker-value">{{ option.value }}</span>
         </button>
@@ -34,9 +45,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import { groupSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
-import { useSchemaSelectMedia } from '@/app/composables/tables/use-schema-select-media';
+import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import { useCsvFloatingPanel } from '@/app/composables/tables/use-csv-floating-panel';
 
 const props = defineProps<{
@@ -54,11 +66,7 @@ const emit = defineEmits<{
   update: [values: string[]];
 }>();
 
-const { schemaSelectSprite, replaceSchemaSelectSprites } = useSchemaSelectMedia();
-
-function optionSprite(option: SelectOption): string | undefined {
-  return schemaSelectSprite(props.sessionId, option.resourceRef);
-}
+const visible = useVisibleResourceMedia({ sessionId: () => props.sessionId, surface: 'CSV 选项', failureLabel: '读取选项图片失败' });
 
 const query = ref('');
 const customMode = ref(false);
@@ -81,15 +89,6 @@ const filteredGroups = computed(() => {
     }))
     .filter((group) => group.options.length > 0);
 });
-
-watch(
-  () => [props.sessionId, filteredGroups.value] as const,
-  ([sid, groups]) => {
-    const resources = groups.flatMap((group) => group.options.flatMap((option) => (option.resourceRef ? [option.resourceRef] : [])));
-    void replaceSchemaSelectSprites(sid, 'menu', resources);
-  },
-  { immediate: true, flush: 'post' },
-);
 
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentMouseDown, true);

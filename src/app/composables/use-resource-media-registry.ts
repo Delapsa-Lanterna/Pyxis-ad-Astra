@@ -52,7 +52,7 @@ export function useResourceMediaRegistry(options: {
         const ticket = createReadTicket({ sessionId: capturedSession, resource: entry.resource }, () =>
           batch.then((result) => {
             if (result.failedKeys.has(key)) return null;
-            return result.uncachedDataUrls.get(key) ?? '';
+            return result.uncachedDataUrls.get(key) ?? resourceMediaDataUrl(capturedSession, entry.resource) ?? '';
           }),
         );
         entry.ticket = ticket;

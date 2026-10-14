@@ -90,6 +90,30 @@ describe('weapon fire preview queries', () => {
     expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(1);
   });
 
+  it('follows saved and draft references independently on consecutive reads', async () => {
+    mocks.querySessionEntity.mockImplementation(async (_session: string, kind: string, id: string) =>
+      kind === 'weapon'
+        ? entity({ id, spec: { id, projectileSpecId: 'saved' }, csvRow: { id } })
+        : entity({ id, specClass: 'projectile', length: id === 'saved' ? 10 : 42 }),
+    );
+    const source = { kind: 'draft' as const, weapon: { id: 'railgun', projectileSpecId: 'draft' } };
+    const draft = await queryWeaponFirePreviewData('s1', 'railgun', source);
+    const saved = await queryWeaponFirePreviewData('s1', 'railgun', { kind: 'saved' });
+    expect(draft.projectileSpecs).toEqual({ draft: { id: 'draft', specClass: 'projectile', length: 42 } });
+    expect(saved.projectileSpecs).toEqual({ saved: { id: 'saved', specClass: 'projectile', length: 10 } });
+    expect(source.weapon.projectileSpecId).toBe('draft');
+  });
+
+  it.each(['saved', 'draft'] as const)('loads %s beam previews with an empty projectile dependency', async (kind) => {
+    const weapon = { id: 'laser', specClass: 'beam', projectileSpecId: 'unused' };
+    mocks.querySessionEntity.mockResolvedValue(entity({ id: 'laser', spec: weapon, csvRow: { id: 'laser' } }));
+    const source = kind === 'draft' ? { kind, weapon } : { kind };
+    const result = await queryWeaponFirePreviewData('s1', 'laser', source);
+    expect(result.weapon).toEqual(weapon);
+    expect(result.projectileSpecs).toEqual({});
+    expect(mocks.querySessionEntity).toHaveBeenCalledExactlyOnceWith('s1', 'weapon', 'laser', undefined);
+  });
+
   it('reports a missing draft projectile as a preview query error', async () => {
     mocks.querySessionEntity.mockImplementation(async (_sessionId: string, kind: string, id: string) =>
       kind === 'weapon' ? entity({ id, spec: { id, projectileSpecId: 'saved' }, csvRow: { id } }) : null,

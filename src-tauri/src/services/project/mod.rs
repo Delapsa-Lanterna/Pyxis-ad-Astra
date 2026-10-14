@@ -12,6 +12,7 @@ mod session;
 mod versions;
 mod write;
 
+pub(crate) use cache::media::configure_media_cache;
 pub(crate) use cache::persistent::configure_persistent_index_cache;
 pub(crate) use performance::PerformanceTrace;
 pub use query::query_entity_identity_intent;

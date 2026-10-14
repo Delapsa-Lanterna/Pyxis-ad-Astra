@@ -36,8 +36,11 @@ pub fn save_project_text_file(
     text: String,
     versions: &[crate::models::FileVersion],
 ) -> AppResult<WriteResult<serde_json::Value>> {
+    let path = FsRootBoundary::new(Path::new(mod_root), "mod root")?
+        .resolve_absolute(Path::new(path), "file path")?;
+    let path = path.to_string_lossy();
     if let Some(session_id) = session_id
-        && let Some(info) = super::project::query_file_entity_target(session_id, path)?
+        && let Some(info) = super::project::query_file_entity_target(session_id, &path)?
     {
         super::project::require_entity_version_scope(
             session_id,
@@ -47,7 +50,7 @@ pub fn save_project_text_file(
         )?;
         super::project::save_entity_text(session_id, &info.target, text)
     } else {
-        Ok(save_text_file(mod_root, path, text.clone())?
+        Ok(save_text_file(mod_root, &path, text.clone())?
             .with_refreshed_entity(serde_json::json!({"text":text})))
     }
 }

@@ -4,6 +4,9 @@ import { darkTheme, lightTheme } from 'naive-ui/es/themes';
 import type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel } from '@/shared/types';
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
 import { generalFontFamily } from '@/domain/settings/fonts';
+import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
+import { readCacheLimits } from '@/domain/settings/rules';
+import { deepClone } from '@/shared/lib/starsector';
 import {
   assertValidSettings,
   readAccent,
@@ -27,11 +30,13 @@ let initialSettings: AppSettings | null = null;
 export function initializeSettingsStore(settings: AppSettings): void {
   assertValidSettings(settings);
   initialSettings = settings;
+  initializeCacheLimits(settings.cacheLimits);
 }
 
 export const useSettingsStore = defineStore('settings', () => {
   if (!initialSettings) throw new Error('Settings store used before initialization');
   const themePreference = ref(readTheme(initialSettings.theme));
+  const cacheLimits = ref(structuredClone(initialSettings.cacheLimits));
   const systemTheme = ref<AppTheme>('light');
   const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
@@ -136,6 +141,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function settingsSnapshot() {
     return {
+      cacheLimits: deepClone(cacheLimits.value),
       theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
@@ -155,6 +161,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function replaceSettings(settings: AppSettings) {
+    const nextCacheLimits = readCacheLimits(settings.cacheLimits);
     const nextGeneralFont = readGeneralFont(settings.generalFont);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
     const nextFileHistoryLimit = readHistoryLimit(settings.fileHistoryLimit);
@@ -165,6 +172,7 @@ export const useSettingsStore = defineStore('settings', () => {
     accent.value = readAccent(settings.accent);
     customAccent.value = readCustomAccent(settings.customAccent);
     generalFont.value = nextGeneralFont;
+    cacheLimits.value = structuredClone(nextCacheLimits);
     fileHistoryLimit.value = nextFileHistoryLimit;
     editHistoryLimit.value = nextEditHistoryLimit;
     logRotationSizeMiB.value = nextLogRotationSizeMiB;
@@ -184,6 +192,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return {
+    cacheLimits,
     accent,
     activeAccentHex,
     customAccent,

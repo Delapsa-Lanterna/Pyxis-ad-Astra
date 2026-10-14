@@ -41,7 +41,19 @@ export const useModFileBrowserStore = defineStore('mod-file-browser', () => {
       !result.entries.some((entry) => entry.relPath === state.selected)
     )
       state.selected = null;
-    previous.entries = result.entries;
+    const oldEntries = new Map((previous.entries ?? []).map((entry) => [entry.relPath, entry]));
+    const entries = result.entries.map((entry) => {
+      const old = oldEntries.get(entry.relPath);
+      return old &&
+        old.name === entry.name &&
+        old.kind === entry.kind &&
+        old.sizeBytes === entry.sizeBytes &&
+        old.modifiedAt === entry.modifiedAt
+        ? old
+        : entry;
+    });
+    if (!previous.entries || previous.entries.length !== entries.length || entries.some((entry) => oldEntries.get(entry.relPath) !== entry))
+      previous.entries = entries;
     previous.error = '';
     return removed;
   }

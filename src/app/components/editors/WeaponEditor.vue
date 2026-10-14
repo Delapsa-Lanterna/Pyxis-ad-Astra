@@ -228,7 +228,7 @@
                 <n-auto-complete v-model:value="view.projectileSpecId" :options="view.projectileOptions" />
               </div>
               <div class="action-row button-row">
-                <n-button @click="$emit('edit-projectile', view.projectileSpecId)">编辑弹体</n-button>
+                <n-button @click="actions.editProjectile">编辑弹体</n-button>
                 <n-button tertiary @click="actions.preview">发射预览</n-button>
               </div>
             </n-collapse-item>
@@ -283,7 +283,8 @@ import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import EditorInspector from '@/app/components/editors/common/EditorInspector.vue';
 import JsonValueInput from '@/shared/ui/JsonValueInput.vue';
 import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
-import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/spec-construction';
+import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/weapon-spec';
+
 import { editorCollapseTheme, toOptions } from '@/domain/editors/lib/editor-constants';
 import {
   useWeaponEditorViewModel,

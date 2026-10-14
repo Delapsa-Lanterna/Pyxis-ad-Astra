@@ -9,6 +9,7 @@ import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { normalizeShipSpec } from '@/domain/editors/lib/normalize';
+
 import type { RowData } from '@/shared/types';
 import EditorWindowContent from './EditorWindowContent.vue';
 
@@ -18,6 +19,14 @@ vi.mock('@/app/composables/use-dirty-window-close-guard', () => ({
   useDirtyWindowCloseGuard: () => ({ install: vi.fn(async () => {}), dispose: vi.fn() }),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn(), warning: vi.fn() }) }));
+vi.mock('@/app/composables/editors/use-editor-draft-images', () => ({
+  useEditorDraftImages: () => ({ value: ref(null), loading: ref(false), errorText: ref('') }),
+}));
+vi.mock('@/services/editor.service', () => ({
+  queryShipEditorImages: vi.fn(),
+  queryShipEditorData: vi.fn(),
+  querySystemEditorData: vi.fn(),
+}));
 vi.mock('@/windows/current.window', () => ({ closeCurrentWindow: vi.fn(async () => {}) }));
 vi.mock('@/windows/editor.window', () => ({
   openProjectileEditorWindow: vi.fn(async () => {}),
@@ -40,22 +49,19 @@ afterEach(() => {
 });
 function setupWindow(initial = true) {
   const source = normalizeShipSpec({ hullId: 'XY', hullName: 'Initial', center: [0, 0], shieldCenter: [0, 0] });
-  const data = ref<{ ship: RowData } | null>(initial ? { ship: source } : null),
+  const data = ref<{ kind: 'ship'; spec: RowData } | null>(initial ? { kind: 'ship', spec: source } : null),
     dirty = ref(false),
     loading = ref(!initial);
   const context = ref({ targetKey: 'ship', baselineGeneration: 1, handoff: 'load' as 'load' | 'external' });
   const inputs = createFieldInputs(ref('ship'));
   const vm = {
     currentTarget: ref({ id: 'XY', kind: 'ship', sessionId: 's1', modRoot: 'M:/mod' }),
-    shipEditorData: data,
-    weaponEditorData: ref(null),
-    projectileEditorData: ref(null),
-    systemEditorData: ref(null),
+    editorData: data,
     loading,
     contentReady: computed(() => data.value !== null),
     errorText: ref(''),
     weaponForEditor: ref({}),
-    draftValue: computed(() => data.value?.ship ?? {}),
+    draftValue: computed(() => data.value?.spec ?? {}),
     shipSpriteForEditor: ref(''),
     draftDirty: dirty,
     editContext: context,
@@ -68,8 +74,8 @@ function setupWindow(initial = true) {
     disposeEditorWindow: vi.fn(),
     saveEditorData: vi.fn(),
     loadPendingExternalSpec: vi.fn(),
-    updateEditorDraft: (_kind: string, value: RowData) => {
-      data.value = { ship: value };
+    updateEditorDraft: (value: RowData) => {
+      data.value = { kind: 'ship', spec: value };
       dirty.value = true;
     },
   };
@@ -107,7 +113,7 @@ describe('editor window refresh lifetime', () => {
     vm.loading.value = false;
     recording.ops.length = 0;
     inputs.cancel();
-    vm.shipEditorData.value = { ship: normalizeShipSpec({ ...vm.shipEditorData.value!.ship, hullName: 'External' }) };
+    vm.editorData.value = { kind: 'ship', spec: normalizeShipSpec({ ...vm.editorData.value!.spec, hullName: 'External' }) };
     vm.editContext.value = { targetKey: 'ship', baselineGeneration: 2, handoff: 'external' };
     await flushPromises();
     expect(wrapper.get('canvas').element).toBe(originalCanvas);
@@ -119,7 +125,7 @@ describe('editor window refresh lifetime', () => {
     const { vm, source, wrapper } = setupWindow(false);
     expect(wrapper.find('.editor-window-status').text()).toContain('正在加载');
     expect(wrapper.find('canvas').exists()).toBe(false);
-    vm.shipEditorData.value = { ship: source };
+    vm.editorData.value = { kind: 'ship', spec: source };
     await flushPromises();
     expect(wrapper.find('canvas').exists()).toBe(true);
     const canvas = wrapper.get('canvas').element;

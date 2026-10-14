@@ -104,6 +104,7 @@ export const nCollapseItem = {
 /// One bundle covering every Naive UI component used by the editor and table
 /// components under test.
 export const editorUiStubs: GlobalStubs = {
+  ResourceThumbnail: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' },
   'n-input': nInput,
   'n-input-number': nInputNumber,
   'n-switch': nSwitch,

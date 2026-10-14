@@ -13,6 +13,7 @@
 `src/app/components/tables/CsvGridRow.vue`：行渲染与选中态 owner。
 `src/app/components/tables/DataTable.vue`：表格工作区组合 owner。
 `src/app/composables/tables/use-csv-floating-panel.ts`：浮层视口 owner，统一位置、宽度、上下翻转与 resize 释放。
+`src/app/composables/tables/use-csv-grid-media.ts`：网格持有媒体结果到单元格展示的交接接口。
 `src/app/composables/tables/use-csv-row-preview.ts`：详情行预览、读取票据、失效重读与释放主归属。
 `src/app/composables/tables/use-csv-table-inputs.ts`：表格输入上下文 owner，连接所属输入集合、活动单元格与值提交。
 `src/app/composables/tables/use-csv-table-view-model.ts`：表格 ViewModel owner，连接 query、store、列 schema 与网格。
@@ -90,6 +91,7 @@
 - 行预览必须消费捕获的 session、表和 `rowKey`，目标变化及卸载必须释放等待；资源或行预览失效必须合并后读取当前目标。
 - 表格窗口、来源集合与行预览必须分别经所属通道接纳结果和错误；来源集合必须在全部目录返回后共同发布。
 - 表格窗口必须按可视区请求行，严禁一次加载全表。
+- 表格缩略图必须由网格管理可见与邻近资源集合；行组件必须消费窗口驻留图像，虚拟行销毁只允许释放所属展示引用与输入登记。
 - 选择、编辑与 dirty 只允许消费正式行，严禁把虚拟间隔和占位作为业务记录。
 - 选择与文本浮层必须共用视口计算；浮层宽度与水平位置必须服从当前窗口，resize 监听必须随控件释放。
 

@@ -1,6 +1,11 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
+import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { useSettingsStore } from '@/stores/settings.store';
+import { flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import type { RowData } from '@/shared/types';
 import { installCanvas2DStub } from '@/test/canvas-stub';
@@ -35,6 +40,8 @@ let wrapper: import('@vue/test-utils').VueWrapper | null = null;
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function mountEditor(projectile: RowData) {
@@ -59,9 +66,107 @@ function mountEditor(projectile: RowData) {
 describe('ProjectileEditor', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
     installCanvas2DStub();
   });
 
+  it('keeps view navigation separate from the draft and resets to its current dimensions', async () => {
+    const recording = createCanvasRecorder();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(recording.ctx);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 500, height: 400 } as DOMRect);
+    const editor = mountEditor({ id: 'proj1', specClass: 'projectile', length: 40, width: 8 });
+    await flushPromises();
+    expect(editor.get('.editor-side .inspector-title').text()).toBe('弹体检查器');
+    const canvas = editor.get('canvas');
+    recording.ops.length = 0;
+    await canvas.trigger('mousedown', { button: 2, clientX: 10, clientY: 20 });
+    await canvas.trigger('mousemove', { clientX: 40, clientY: 60 });
+    await canvas.trigger('mouseup');
+    await canvas.trigger('wheel', { deltaY: 1 });
+    expect(recording.calls('translate').at(-1)!.args).toEqual([280, 240]);
+    expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
+    expect(editor.emitted('draft-changed')).toBeUndefined();
+    const width = editor.findAll('input').find((input) => (input.element as HTMLInputElement).value === '8')!;
+    await width.setValue('16');
+    await flushPromises();
+    expect(recording.calls('translate').at(-1)!.args).toEqual([280, 240]);
+    expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
+    await editor
+      .findAll('button')
+      .find((button) => button.text() === '重置视图')!
+      .trigger('click');
+    expect(recording.calls('translate').at(-1)!.args).toEqual([250, 200]);
+    expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(10.5);
+    const before = editor.emitted('draft-changed')!.length;
+    await canvas.trigger('mousedown', { button: 0 });
+    await canvas.trigger('mousemove', { clientX: 60, clientY: 70 });
+    await canvas.trigger('mouseup');
+    expect(editor.emitted('draft-changed')).toHaveLength(before);
+  });
+  it('redraws themes and DPI while retaining the current view through external acceptance', async () => {
+    const recording = createCanvasRecorder();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(recording.ctx);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 500, height: 400 } as DOMRect);
+    const editor = mountEditor({ id: 'proj1', specClass: 'missile', size: [10, 20], center: [5, 10], collisionRadius: 10 });
+    await flushPromises();
+    await editor.get('canvas').trigger('mousedown', { button: 2, clientX: 0, clientY: 0 });
+    await editor.get('canvas').trigger('mousemove', { clientX: 30, clientY: 40 });
+    await editor.get('canvas').trigger('mouseup');
+    await editor.setProps({
+      projectile: { id: 'proj1', specClass: 'missile', size: [12, 30], center: [3, 8], collisionRadius: 20 },
+      editContext: { targetKey: 'p', baselineGeneration: 2, handoff: 'external' },
+    });
+    useSettingsStore().setTheme('dark');
+    await flushPromises();
+    expect(recording.calls('translate').at(-1)!.args).toEqual([280, 240]);
+    const canvas = editor.get('canvas').element as HTMLCanvasElement;
+    vi.stubGlobal('devicePixelRatio', 2);
+    window.dispatchEvent(new Event('resize'));
+    await flushPromises();
+    expect(canvas.width).toBe(1000);
+    expect(canvas.height).toBe(800);
+    expect(recording.calls('setTransform').at(-1)!.args).toEqual([2, 0, 0, 2, 0, 0]);
+    const calls = recording.calls('clearRect').length;
+    editor.unmount();
+    wrapper = null;
+    window.dispatchEvent(new Event('resize'));
+    expect(recording.calls('clearRect')).toHaveLength(calls);
+  });
+  it('replaces in-flight decoding and exposes loading and errors in the canvas', async () => {
+    const bitmaps: Array<{ onload: (() => void) | null; onerror: (() => void) | null; src: string; width: number; height: number }> = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        width = 10;
+        height = 20;
+        onload = null;
+        onerror = null;
+        src = '';
+        constructor() {
+          bitmaps.push(this);
+        }
+      },
+    );
+    const editor = mountEditor({ id: 'proj1', specClass: 'projectile', bulletSprite: 'first.png' });
+    await editor.setProps({ spriteLoading: true });
+    expect(editor.get('[role="status"]').text()).toContain('正在读取');
+    await editor.setProps({ spriteLoading: false, spriteData: { bulletSprite: 'first-data' } });
+    expect(editor.get('[role="status"]').text()).toContain('正在加载');
+    await editor.setProps({ spriteData: { bulletSprite: 'second-data' } });
+    expect(bitmaps[0]!.onload).toBeNull();
+    bitmaps[1]!.onload?.();
+    await flushPromises();
+    expect(editor.find('[role="status"]').exists()).toBe(false);
+    await editor.setProps({ spriteData: { bulletSprite: 'broken-data' } });
+    bitmaps[2]!.onerror?.();
+    await flushPromises();
+    expect(editor.get('[role="status"]').text()).toContain('无法解码');
+    await editor.setProps({ spriteData: {}, spriteError: '路径授权失败' });
+    expect(editor.get('[role="status"]').text()).toBe('路径授权失败');
+    editor.unmount();
+    wrapper = null;
+    expect(bitmaps.every((image) => image.onload === null && image.onerror === null)).toBe(true);
+  });
   it('renders the editor shell with close and save actions', async () => {
     const editor = mountEditor({ id: 'proj1', specClass: 'projectile' });
     const buttons = editor.findAll('button').map((button) => button.text());

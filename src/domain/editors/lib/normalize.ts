@@ -12,20 +12,6 @@ export function normalizeShipSpec(ship: RowData): RowData {
   return normalized;
 }
 
-export function normalizeWeaponSpec(weapon: RowData): RowData {
-  const normalized = deepClone(weapon);
-  for (const key of ['turretOffsets', 'hardpointOffsets', 'turretAngleOffsets', 'hardpointAngleOffsets']) {
-    normalized[key] = Array.isArray(normalized[key]) ? normalized[key] : [];
-  }
-  return normalized;
-}
-
-export function normalizeProjectileSpec(projectile: RowData): RowData {
-  const normalized = deepClone(projectile);
-  normalized.engineSlots = Array.isArray(normalized.engineSlots) ? normalized.engineSlots : [];
-  return normalized;
-}
-
 export function normalizeSystemSpec(system: RowData): RowData {
   const normalized = deepClone(system);
   normalized.type = normalized.type || 'STAT_MOD';

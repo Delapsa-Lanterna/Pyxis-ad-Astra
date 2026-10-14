@@ -70,7 +70,7 @@
   </main>
 </template>
 <script setup lang="ts">
-import { h, nextTick, onMounted, useTemplateRef, watch } from 'vue';
+import { h, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'vue';
 import type { TreeInst, TreeProps } from 'naive-ui/es/tree';
 import type { ModFileSortKey } from '@/shared/types';
 import { useModFileBrowserViewModel } from '@/app/composables/mod-file-browser/use-mod-file-browser-view-model';
@@ -125,20 +125,44 @@ const renderSuffix: NonNullable<TreeProps['renderSuffix']> = ({ option }) =>
     h('span', { class: 'mod-files-number' }, String(option.sizeText ?? '')),
     h('span', {}, String(option.modifiedText ?? '')),
   ]);
+let scrollRestore: { top: number } | null = null;
+let scrollFrame: number | null = null;
 function onScroll(event: Event) {
-  if (!view.refreshing && event.target instanceof HTMLElement) actions.setScroll(event.target.scrollTop);
+  if (!scrollRestore && event.target instanceof HTMLElement) actions.setScroll(event.target.scrollTop);
 }
 async function restoreScroll() {
+  const captured = { top: view.scrollTop };
+  scrollRestore = captured;
+  if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
   await nextTick();
-  if (view.ready && !view.refreshing) tree.value?.scrollTo({ top: view.scrollTop });
+  if (scrollRestore !== captured) return;
+  scrollFrame = requestAnimationFrame(() => {
+    if (scrollRestore !== captured) return;
+    if (view.ready && !view.refreshing) tree.value?.scrollTo({ top: captured.top });
+    scrollFrame = requestAnimationFrame(() => {
+      scrollRestore = null;
+      scrollFrame = null;
+    });
+  });
 }
-watch(() => [view.title, view.searching, view.ready, view.refreshing], restoreScroll);
+watch(() => [view.title, view.searching, view.ready], restoreScroll, { flush: 'sync' });
+watch(() => [view.nodes, tree.value], restoreScroll, { flush: 'post' });
+watch(
+  () => view.refreshing,
+  (refreshing) => {
+    if (!refreshing) void restoreScroll();
+  },
+);
 watch(
   () => view.selected[0],
   (key) => {
-    if (key && !view.refreshing) tree.value?.scrollTo({ key });
+    if (key && !view.refreshing && !scrollRestore) tree.value?.scrollTo({ key });
   },
 );
+onScopeDispose(() => {
+  scrollRestore = null;
+  if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
+});
 useShortcutDispatch({
   keyScope: (event) =>
     event.target instanceof HTMLElement && Boolean(stage.value?.contains(event.target)) && !event.target.closest('button'),

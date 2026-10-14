@@ -11,13 +11,14 @@ import {
   registerMediaBudgetEntry,
   removeMediaBudgetEntry,
   touchMediaBudgetEntry,
-  WEBVIEW_MEDIA_BUDGET_BYTES,
+  mediaBudgetLimit,
 } from '@/shared/runtime/media-budget';
 import { createReadTicket, invalidatedRead, waitForRead, type ReadTicket } from '@/shared/runtime/read-request';
 import { requireProjectionReady } from '@/shared/runtime/project-projection';
 import type { ProjectSessionId, ResourceRef } from '@/shared/types';
 
-export const RESOURCE_MEDIA_CACHE_CAPACITY = 512;
+import { windowCacheLimits } from '@/shared/runtime/cache-limits';
+export const mediaCacheCapacity = () => windowCacheLimits().resources.mediaEntries;
 export const RESOURCE_MEDIA_FLUSH_DELAY_MS = 25;
 
 export interface ResourceMediaBatchResult {
@@ -189,11 +190,11 @@ async function flushPendingMedia(): Promise<void> {
 }
 
 function storeMedia(key: string, dataUrl: string | null): void {
-  if (mediaBudgetBytes(dataUrl) > WEBVIEW_MEDIA_BUDGET_BYTES) return;
+  if (!mediaBudgetLimit() || mediaBudgetBytes(dataUrl) > mediaBudgetLimit()) return;
   media.set(key, dataUrl);
   touchMedia(key);
   registerMediaBudgetEntry(`media:${key}`, mediaBudgetBytes(dataUrl), () => removeMediaKey(key));
-  while (accessOrder.size > RESOURCE_MEDIA_CACHE_CAPACITY) {
+  while (accessOrder.size > mediaCacheCapacity()) {
     const oldestKey = accessOrder.keys().next().value as string | undefined;
     if (oldestKey === undefined) return;
     accessOrder.delete(oldestKey);

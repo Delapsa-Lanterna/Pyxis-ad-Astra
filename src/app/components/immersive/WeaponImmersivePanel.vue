@@ -11,6 +11,7 @@
       /></ImmersiveSection>
       <div class="weapon-immersive-data">
         <ImmersiveWeaponIcon
+          :session-id="render.root.sessionId"
           :layers="panel.iconLayers"
           :url="render.mediaUrl"
           :label="panel.heading[0]!.display"

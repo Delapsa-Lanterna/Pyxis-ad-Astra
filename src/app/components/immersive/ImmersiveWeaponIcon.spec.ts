@@ -2,10 +2,15 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ImmersiveWeaponIcon from './ImmersiveWeaponIcon.vue';
 import type { ResourceRef } from '@/shared/types';
+import { windowImageCache } from '@/app/composables/use-window-image-cache';
 
 const feedback = vi.hoisted(() => ({ error: vi.fn() }));
+let iconSurface: import('@vue/test-utils').VueWrapper | null = null;
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => feedback }));
 afterEach(() => {
+  iconSurface?.unmount();
+  iconSurface = null;
+  windowImageCache().clearSession('icon-test');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   feedback.error.mockReset();
@@ -47,8 +52,16 @@ function harness() {
   const resource = (key: string): ResourceRef => ({ source: 'mod', ownerKind: 'weapon', ownerId: 'w', key, relPath: key + '.png' });
   const layers = ['under', 'main'].map((key) => ({ resource: resource(key), origin: { x: 0.5, y: 0.5 } }));
   const wrapper = mount(ImmersiveWeaponIcon, {
-    props: { layers, url: (resource: ResourceRef) => resource.key, label: 'Weapon', mountType: 'BALLISTIC', mountSize: 'MEDIUM' },
+    props: {
+      sessionId: 'icon-test',
+      layers,
+      url: (resource: ResourceRef) => resource.key,
+      label: 'Weapon',
+      mountType: 'BALLISTIC',
+      mountSize: 'MEDIUM',
+    },
   });
+  iconSurface = wrapper;
   return { wrapper, images, context, layers, resource };
 }
 describe('static weapon icon and owned decode lifetime', () => {
@@ -82,7 +95,10 @@ describe('static weapon icon and owned decode lifetime', () => {
     await flushPromises();
     own.images.forEach((image) => image.onload());
     await flushPromises();
-    expect(own.context.drawImage.mock.calls.map((call) => call[0].src)).toEqual(['under', 'main']);
+    expect(own.context.drawImage.mock.calls.filter((call) => call[0] instanceof Image).map((call) => call[0].src)).toEqual([
+      'under',
+      'main',
+    ]);
     expect(own.context.drawImage.mock.calls[0]!.slice(1)).toEqual([0, 0, 80, 40, -40, -20, 80, 40]);
     expect(own.context.rotate).toHaveBeenCalledWith(Math.PI / 4);
     expect(own.context.fill.mock.calls.length).toBeGreaterThanOrEqual(6);
@@ -98,7 +114,7 @@ describe('static weapon icon and owned decode lifetime', () => {
     await flushPromises();
     previous[0]!.onerror();
     await flushPromises();
-    expect(own.context.drawImage).toHaveBeenCalledOnce();
+    expect(own.context.drawImage.mock.calls.filter((call) => call[0] instanceof Image)).toHaveLength(1);
     expect(own.context.drawImage.mock.calls[0]![0].src).toBe('next');
     expect(feedback.error).not.toHaveBeenCalled();
     own.wrapper.unmount();

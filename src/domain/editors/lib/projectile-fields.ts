@@ -1,6 +1,9 @@
-import type { RowData } from '@/shared/types';
+import defaults from '../../../../schemas/spec-defaults.json';
+import { fillRequiredFields } from '../spec-construction';
+import { deepClone } from '@/shared/lib/starsector';
+import type { ProjectileSpecClass, RowData } from '@/shared/types';
 import { str } from '@/shared/lib/starsector';
-import { nextFormattedId } from '@/domain/editors/lib/ship-slots';
+import { nextFormattedId } from '@/shared/lib/next-formatted-id';
 
 export function createProjectileEngineSlot(slots: RowData[]): RowData {
   const id = nextFormattedId(new Set(slots.map((slot) => str(slot.id))), (index) => `ES${index}`);
@@ -22,4 +25,28 @@ export function createProjectileEngineSlot(slots: RowData[]): RowData {
       type: 'SMOKE',
     },
   };
+}
+
+export function createProjectileSpec(id: string, specClass: ProjectileSpecClass = 'projectile'): RowData {
+  return { ...deepClone(defaults.projectile[specClass]), id };
+}
+
+const PROJECTILE_REQUIRED_FIELDS: Record<ProjectileSpecClass, readonly string[]> = {
+  projectile: ['spawnType', 'collisionClass', 'collisionClassByFighter', 'width', 'fadeTime'],
+  missile: ['missileType', 'sprite', 'size', 'center', 'collisionRadius', 'collisionClass', 'engineSpec'],
+};
+
+export function changeProjectileSpecClass(content: RowData, specClass: ProjectileSpecClass): RowData {
+  const next = fillRequiredFields(content, defaults.projectile[specClass], PROJECTILE_REQUIRED_FIELDS[specClass]);
+  if (specClass === 'missile') {
+    const engine = next.engineSpec as RowData;
+    next.engineSpec = fillRequiredFields(engine, defaults.projectile.missile.engineSpec, ['turnAcc', 'turnRate', 'acc', 'dec']);
+  }
+  next.specClass = specClass;
+  return next;
+}
+export function normalizeProjectileSpec(projectile: RowData): RowData {
+  const normalized = deepClone(projectile);
+  normalized.engineSlots = Array.isArray(normalized.engineSlots) ? normalized.engineSlots : [];
+  return normalized;
 }

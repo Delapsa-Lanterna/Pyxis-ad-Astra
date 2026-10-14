@@ -1,6 +1,5 @@
 import {
   querySessionEntity,
-  querySessionEntityList,
   querySessionEditorDraftResources,
   querySessionEntityEditTarget,
   querySessionEntityIdentityIntent,
@@ -8,8 +7,7 @@ import {
 import { AppError, withCause } from '@/shared/lib/errors';
 import { queryResourceDataUrls } from '@/services/resource-cache.service';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createShipSpec, createProjectileSpec, createSystemSpec } from '@/domain/editors/spec-construction';
-import { queryWeaponData, queryWeaponSprites, queryWeaponProjectiles } from '@/services/weapon-data.service';
+import { createShipSpec, createSystemSpec } from '@/domain/editors/spec-construction';
 import { entityContentId } from '@/domain/editors/entity-identity';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
@@ -18,19 +16,7 @@ import { jointObject } from '@/domain/joint-edit';
 import { shipBuiltInWeaponIds, type ShipWeaponSources, type ShipWeaponSource } from '@/domain/editors/ship-weapons';
 import { formatError } from '@/shared/lib/errors';
 import type { JointEditRoot } from '@/shared/types';
-import type {
-  EntityEditInfo,
-  EntityEditTarget,
-  EditorSpecKind,
-  EditorWindowKind,
-  EntityData,
-  ProjectSessionId,
-  ResourceRef,
-  RowData,
-  WriteResult,
-} from '@/shared/types';
-
-type EditorSelectOption = { label: string; value: string };
+import type { EntityEditTarget, EditorSpecKind, EntityData, ProjectSessionId, ResourceRef, RowData, WriteResult } from '@/shared/types';
 
 export async function queryShipWeaponSources(root: JointEditRoot, ship: RowData, signal?: AbortSignal): Promise<ShipWeaponSources> {
   const ids = shipBuiltInWeaponIds(ship);
@@ -74,160 +60,45 @@ export async function queryShipWeaponSources(root: JointEditRoot, ship: RowData,
   };
 }
 
-export type EditorEntityBundle =
-  ShipEditorEntityBundle | WeaponEditorEntityBundle | ProjectileEditorEntityBundle | SystemEditorEntityBundle;
-
-export interface ShipEditorEntityBundle extends EntityEditInfo {
-  kind: 'ship';
-  ship: RowData;
-  resourceRefs: ResourceRef[];
-  shipSpriteData: string;
-  isNew: boolean;
-}
-
-export interface WeaponEditorEntityBundle extends EntityEditInfo {
-  kind: 'weapon';
-  weapon: RowData;
-  weaponCsvRow: RowData;
-  projectileSpecs: Record<string, RowData>;
-  projectileOptions: EditorSelectOption[];
-  resourceRefs: ResourceRef[];
-  weaponSpriteData: Record<string, string>;
-  isNew: boolean;
-}
-
-export interface ProjectileEditorEntityBundle extends EntityEditInfo {
-  kind: 'projectile';
-  projectile: RowData;
-  projectileSpecs: Record<string, RowData>;
-  isNew: boolean;
-}
-
-export interface SystemEditorEntityBundle extends EntityEditInfo {
-  kind: 'system';
-  system: RowData;
-  isNew: boolean;
-}
-
-export async function queryEditorEntityBundle(
+export async function queryShipEditorData(
   sessionId: ProjectSessionId,
-  kind: EditorWindowKind,
   id: string,
   signal?: AbortSignal,
-): Promise<EditorEntityBundle> {
-  return BUNDLE_LOADERS[kind](sessionId, id, { signal });
-}
-
-export async function refreshBundleResources(
-  sessionId: ProjectSessionId,
-  bundle: EditorEntityBundle,
-  signal?: AbortSignal,
-): Promise<EditorEntityBundle> {
-  if (bundle.kind === 'ship') {
-    return {
-      ...bundle,
-      shipSpriteData: await querySpriteData(sessionId, bundle.resourceRefs.find((resource) => resource.key === 'sprite') ?? null, signal),
-    };
-  }
-  if (bundle.kind === 'weapon') {
-    return { ...bundle, weaponSpriteData: await queryWeaponSprites(sessionId, resourceRefsByKey(bundle.resourceRefs), signal) };
-  }
-  return bundle;
-}
-
-export async function queryDraftEditorImages(
-  sessionId: ProjectSessionId,
-  kind: 'ship' | 'weapon',
-  id: string,
-  draft: RowData,
-  signal?: AbortSignal,
-) {
-  const refs = await querySessionEditorDraftResources(sessionId, kind, id, draft, signal);
-  return {
-    resourceRefs: Object.values(refs),
-    shipSpriteData: kind === 'ship' ? await querySpriteData(sessionId, refs.sprite ?? null, signal) : '',
-    weaponSpriteData: kind === 'weapon' ? await queryWeaponSprites(sessionId, refs, signal) : {},
-  };
-}
-
-export async function refreshBundleProjectiles(
-  sessionId: ProjectSessionId,
-  bundle: EditorEntityBundle,
-  options: { projectileSpecs: boolean; projectileOptions: boolean },
-  signal?: AbortSignal,
-): Promise<EditorEntityBundle> {
-  if (bundle.kind !== 'weapon') return bundle;
-  return {
-    ...bundle,
-    projectileSpecs: options.projectileSpecs ? await queryWeaponProjectiles(sessionId, bundle.weapon, signal) : bundle.projectileSpecs,
-    projectileOptions: options.projectileOptions ? await queryProjectileOptions(sessionId, signal) : bundle.projectileOptions,
-  };
-}
-
-const BUNDLE_LOADERS: Record<
-  EditorWindowKind,
-  (sessionId: ProjectSessionId, id: string, options: { signal?: AbortSignal }) => Promise<EditorEntityBundle>
-> = {
-  ship: (sessionId, id, { signal }) => queryShipEditorBundle(sessionId, id, signal),
-  weapon: (sessionId, id, { signal }) => queryWeaponEditorBundle(sessionId, id, signal),
-  projectile: (sessionId, id, { signal }) => queryProjectileEditorBundle(sessionId, id, signal),
-  system: (sessionId, id, { signal }) => querySystemEditorBundle(sessionId, id, signal),
-};
-
-async function queryShipEditorBundle(sessionId: ProjectSessionId, id: string, signal?: AbortSignal): Promise<ShipEditorEntityBundle> {
+): Promise<import('@/shared/types').SpecEditorData<'ship'>> {
   const record = await querySessionEntity(sessionId, 'ship', id, signal);
-  const ship = record ? cloneQuerySnapshot<EntityData>(record) : null;
-  const info = ship ?? (await querySessionEntityEditTarget(sessionId, 'ship', id, signal));
-  const shipSpec = ship ? requireRowData(ship.data, `舰船 ${id} 数据无效`) : createShipSpec(id);
+  const data = record ? cloneQuerySnapshot<EntityData>(record) : null;
+  const info = data ?? (await querySessionEntityEditTarget(sessionId, 'ship', id, signal));
   return {
     kind: 'ship',
+    spec: data ? requireRowData(data.data, '舰船 ' + id + ' 数据无效') : createShipSpec(id),
     target: info.target,
     baseVersions: cloneQuerySnapshot<import('@/shared/types').FileVersion[]>(info.baseVersions),
-    ship: shipSpec,
-    resourceRefs: ship ? Object.values(ship.resourceRefs) : [],
-    shipSpriteData: ship ? await querySpriteData(sessionId, ship.resourceRefs.sprite ?? null, signal) : '',
     isNew: info.target.state === 'create',
   };
 }
-
-async function queryWeaponEditorBundle(sessionId: ProjectSessionId, id: string, signal?: AbortSignal): Promise<WeaponEditorEntityBundle> {
-  const bundle = await queryWeaponData(sessionId, id, undefined, signal);
-  return {
-    kind: 'weapon',
-    ...bundle,
-    projectileOptions: await queryProjectileOptions(sessionId, signal),
-  };
-}
-
-async function queryProjectileEditorBundle(
+export async function querySystemEditorData(
   sessionId: ProjectSessionId,
   id: string,
   signal?: AbortSignal,
-): Promise<ProjectileEditorEntityBundle> {
-  const record = await querySessionEntity(sessionId, 'projectile', id, signal);
-  const projectile = record ? cloneQuerySnapshot<EntityData>(record) : null;
-  const info = projectile ?? (await querySessionEntityEditTarget(sessionId, 'projectile', id, signal));
-  const spec = projectile ? requireRowData(projectile.data, `弹体 ${id} 数据无效`) : createProjectileSpec(id);
+): Promise<import('@/shared/types').SpecEditorData<'system'>> {
+  const record = await querySessionEntity(sessionId, 'system', id, signal);
+  const data = record ? cloneQuerySnapshot<EntityData>(record) : null;
+  const info = data ?? (await querySessionEntityEditTarget(sessionId, 'system', id, signal));
   return {
-    kind: 'projectile',
+    kind: 'system',
+    spec: data ? requireRowData(data.data, '战术系统 ' + id + ' 数据无效') : createSystemSpec(id),
     target: info.target,
     baseVersions: cloneQuerySnapshot<import('@/shared/types').FileVersion[]>(info.baseVersions),
-    projectile: spec,
-    projectileSpecs: { [id]: spec },
     isNew: info.target.state === 'create',
   };
 }
-
-async function querySystemEditorBundle(sessionId: ProjectSessionId, id: string, signal?: AbortSignal): Promise<SystemEditorEntityBundle> {
-  const record = await querySessionEntity(sessionId, 'system', id, signal);
-  const system = record ? cloneQuerySnapshot<EntityData>(record) : null;
-  const info = system ?? (await querySessionEntityEditTarget(sessionId, 'system', id, signal));
+export async function queryShipEditorImages(sessionId: string, id: string, draft: RowData, signal?: AbortSignal) {
+  const refs = await querySessionEditorDraftResources(sessionId, 'ship', id, draft, signal);
+  const spriteData = await querySpriteData(sessionId, refs.sprite ?? null, signal);
   return {
-    kind: 'system',
-    target: info.target,
-    baseVersions: cloneQuerySnapshot<import('@/shared/types').FileVersion[]>(info.baseVersions),
-    system: system ? requireRowData(system.data, `战术系统 ${id} 数据无效`) : createSystemSpec(id),
-    isNew: info.target.state === 'create',
+    resourceRefs: Object.values(refs),
+    spriteData,
+    diagnostic: draft.spriteName && !spriteData ? '找不到贴图：' + draft.spriteName : '',
   };
 }
 
@@ -280,15 +151,6 @@ export async function loadImportedSpecFile(kind: EditorSpecKind, path: string): 
 async function querySpriteData(sessionId: ProjectSessionId, resource: ResourceRef | null, signal?: AbortSignal): Promise<string> {
   if (!resource) return '';
   return (await queryResourceDataUrls(sessionId, [resource], signal))[0] ?? '';
-}
-
-function resourceRefsByKey(resources: ResourceRef[]): Record<string, ResourceRef> {
-  return Object.fromEntries(resources.map((resource) => [resource.key, resource]));
-}
-
-async function queryProjectileOptions(sessionId: ProjectSessionId, signal?: AbortSignal): Promise<EditorSelectOption[]> {
-  const projectiles = await querySessionEntityList(sessionId, 'projectile', signal);
-  return projectiles.map((projectile) => ({ label: projectile.id, value: projectile.id }));
 }
 
 function ensureSpecContext(modRoot: string, id: string) {

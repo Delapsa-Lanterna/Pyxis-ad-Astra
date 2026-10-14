@@ -119,7 +119,17 @@
           >
             <ImmersiveText text="−" font="refit-button" />
           </button>
-          <span class="variant-mod-icon"><img v-if="media.mediaSrc(mod.icon)" :src="media.mediaSrc(mod.icon)" :alt="mod.name" /></span>
+          <span class="variant-mod-icon"
+            ><ResourceThumbnail
+              v-if="mod.icon"
+              :session-id="vm.joint.currentTarget.value!.sessionId"
+              :resource="mod.icon"
+              :url="media.mediaSrc(mod.icon)"
+              :active="media.mediaVisible(mod.id)"
+              :label="mod.name"
+              :width="34"
+              :height="34"
+          /></span>
         </div>
       </div>
       <button ref="pickerButton" class="variant-add-mod" :disabled="!variant.editable" @click="$emit('picker')">
@@ -140,6 +150,7 @@ import ImmersiveText from './ImmersiveText.vue';
 import ImmersivePanelRow from './ImmersivePanelRow.vue';
 import { editableRenderContext } from './immersive-render-context';
 import VariantShipInfo from './VariantShipInfo.vue';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 const props = defineProps<{ variant: VariantProjection; vm: ReturnType<typeof useImmersiveEditorViewModel>; pickerOpen: boolean }>();
 const render = editableRenderContext(props.vm);
 const pickerButton = ref<HTMLButtonElement | null>(null);

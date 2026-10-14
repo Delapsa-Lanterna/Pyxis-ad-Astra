@@ -939,6 +939,63 @@ pub fn focus_managed_window(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn io_paths_share_focus_reservations_and_target_owners() {
+        let root = crate::testutil::temp_dir("window_expanded_identity");
+        let path = root.join("Long filename.spec");
+        std::fs::write(&path, "{}").unwrap();
+        let identity = |root: &std::path::Path, path: &std::path::Path| {
+            let boundary = crate::io::FsRootBoundary::new(root, "window fixture").unwrap();
+            WindowIdentity::File {
+                session_id: "s".into(),
+                mod_root: boundary.root().to_string_lossy().into(),
+                path: boundary
+                    .resolve_absolute(path, "file")
+                    .unwrap()
+                    .to_string_lossy()
+                    .into(),
+            }
+        };
+        let original = identity(&root, &path);
+        let alias = identity(
+            &crate::testutil::short_path(&root),
+            &crate::testutil::short_path(&path),
+        );
+        assert_eq!(original, alias);
+        let WindowIdentity::File {
+            session_id,
+            mod_root,
+            path,
+        } = &original
+        else {
+            unreachable!()
+        };
+        let target = crate::models::EditWriteTarget {
+            session_id: session_id.clone(),
+            mod_root: mod_root.clone(),
+            path: path.clone(),
+        };
+        let mut state = WindowRegistry::default();
+        let label = register(&mut state, original);
+        assert_eq!(state.focus_target("main", &alias), Some(label.clone()));
+        state.instances.get_mut(&label).unwrap().status.dirty = true;
+        assert_eq!(
+            state.reserve("main", std::slice::from_ref(&alias)),
+            Err(label.clone())
+        );
+        state
+            .edit_targets
+            .insert(label.clone(), vec![target.clone()]);
+        assert_eq!(
+            state.edit_target_owners(std::slice::from_ref(&target)),
+            vec![label.clone()]
+        );
+        state.release(&label);
+        assert!(state.edit_target_owners(&[target]).is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn edit_target_registration_respects_complete_scope_and_window_release() {
         let mut state = super::WindowRegistry::default();

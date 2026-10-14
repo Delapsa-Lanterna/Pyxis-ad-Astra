@@ -14,7 +14,16 @@
         @click="selectFaction(faction.id)"
       >
         <span class="faction-list-preview config-entity-thumb">
-          <img v-if="factionCrest(faction.id)" :src="factionCrest(faction.id)" alt="" />
+          <ResourceThumbnail
+            v-if="props.factionCrestRefs[faction.id]"
+            :session-id="sessionId!"
+            :resource="props.factionCrestRefs[faction.id]!"
+            :url="factionCrest(faction.id)"
+            :active="mediaVisible(faction.id)"
+            :label="faction.displayName || faction.id"
+            :width="22"
+            :height="22"
+          />
           <span v-else class="color-swatch" :style="{ backgroundColor: faction.colorCss }" />
         </span>
         <span class="faction-name config-entity-name">{{ faction.displayName || faction.id }}</span>
@@ -58,6 +67,7 @@ import type { ResourceRef, RowData } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { configFactionListItems } from '@/domain/config/config-entities';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
 const props = defineProps<{
   selectedId: string | null;
@@ -73,7 +83,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [factionId: string | null] }>();
 
 const feedback = useAppFeedback();
-const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
+const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
   surface: 'config-faction-list',
   failureLabel: '读取势力徽标失败',

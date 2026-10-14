@@ -1,10 +1,11 @@
-import { nextTick, onUnmounted, watch, type ComponentPublicInstance } from 'vue';
+import { nextTick, onUnmounted, watch, shallowReactive, type ComponentPublicInstance } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry, type MediaCollectionChange } from '@/app/composables/use-resource-media-registry';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
 import type { ResourceRef } from '@/shared/types';
 import { recordPerformance } from '@/shared/runtime/performance';
 import { warningNotice } from '@/shared/lib/errors';
+import { useImagePreload } from './use-image-preload';
 
 interface RegisteredMedia {
   id: string;
@@ -28,8 +29,10 @@ export function useVisibleResourceMedia(args: { sessionId: () => string | null |
       ),
   });
   const registered = new Map<string, RegisteredMedia>();
+  const preload = useImagePreload(args.surface + '预读', registry);
   const elementEntries = new Map<Element, RegisteredMedia>();
   const callbacks = new Map<string, (element: Element | ComponentPublicInstance | null) => void>();
+  const visibleIds = shallowReactive(new Set<string>());
   let root: HTMLElement | null = null;
   let observer: IntersectionObserver | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -94,6 +97,8 @@ export function useVisibleResourceMedia(args: { sessionId: () => string | null |
     if (entry.visible) void registry.releaseCollection(id);
     entry.element = nextElement;
     entry.visible = false;
+    visibleIds.delete(id);
+    if (!visibleIds.size) preload.prepare(args.sessionId() ?? '', [], []);
     if (nextElement) {
       elementEntries.set(nextElement, entry);
       observer?.observe(nextElement);
@@ -113,6 +118,7 @@ export function useVisibleResourceMedia(args: { sessionId: () => string | null |
     observer?.disconnect();
     observer = null;
     registry.clear();
+    visibleIds.clear();
     rootHeight = root?.clientHeight ?? 0;
     if (!root || typeof IntersectionObserver === 'undefined') return;
     observer = new IntersectionObserver(handleIntersections, {
@@ -132,9 +138,24 @@ export function useVisibleResourceMedia(args: { sessionId: () => string | null |
       const entry = elementEntries.get(observed.target);
       if (!entry || entry.visible === observed.isIntersecting) continue;
       entry.visible = observed.isIntersecting;
+      if (entry.visible) visibleIds.add(entry.id);
+      else visibleIds.delete(entry.id);
       changes.push({ id: entry.id, resources: entry.visible && entry.resource ? [entry.resource] : [] });
     }
     if (changes.length) void registry.replaceCollections(args.sessionId(), changes);
+    const session = args.sessionId();
+    if (session && root) {
+      const bounds = root.getBoundingClientRect(),
+        active: ResourceRef[] = [],
+        near: ResourceRef[] = [];
+      for (const id of visibleIds) {
+        const entry = registered.get(id)!;
+        if (!entry.resource || !entry.element) continue;
+        const item = entry.element.getBoundingClientRect();
+        (item.bottom > bounds.top && item.top < bounds.bottom ? active : near).push(entry.resource);
+      }
+      preload.prepare(session, active, near);
+    }
   }
 
   watch(() => args.sessionId(), rebuildObserver);
@@ -146,7 +167,8 @@ export function useVisibleResourceMedia(args: { sessionId: () => string | null |
     registered.clear();
     elementEntries.clear();
     callbacks.clear();
+    visibleIds.clear();
   });
 
-  return { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot };
+  return { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible: (id: string) => visibleIds.has(id) };
 }

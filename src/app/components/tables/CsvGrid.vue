@@ -29,6 +29,10 @@ import CsvGridHeader from '@/app/components/tables/CsvGridHeader.vue';
 import { usePerformanceLogger } from '@/app/composables/use-performance-logger';
 import { useCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
+import { useImagePreload } from '@/app/composables/use-image-preload';
+import { sourceValue } from '@/domain/tables/csv-source-options';
+import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { provideCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
 
 const props = defineProps<{
   editing: ModTableState['editing'];
@@ -56,6 +60,31 @@ const editingIndex = computed(() => {
 });
 const rows = computed(() => props.model.rows);
 const viewport = useCsvGridViewport(rows, { editingIndex });
+const mode = useInputEditMode(),
+  preload = useImagePreload('CSV 网格');
+provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource) });
+function preloadImages() {
+  const panel = panelRef.value;
+  if (!panel) return;
+  const start = Math.floor(panel.scrollTop / 24),
+    count = Math.ceil(panel.clientHeight / 24);
+  const resources = (items: CsvGridRowSlot[]) =>
+    mode.value === 'smart'
+      ? items.flatMap((row) =>
+          row.kind === 'row'
+            ? props.model.columns.flatMap((column) => {
+                const option = sourceValue(props.model.sourceIndex, column.schema?.source, String(row.data[column.key] ?? ''));
+                return option?.option.resourceRef ? [option.option.resourceRef] : [];
+              })
+            : [],
+        )
+      : [];
+  preload.prepare(
+    context.target.sessionId,
+    resources(rows.value.slice(start, start + count)),
+    resources(rows.value.slice(Math.max(0, start - count), start + count * 2)),
+  );
+}
 const afterHeight = computed(() => viewport.afterHeight.value);
 const beforeHeight = computed(() => viewport.beforeHeight.value);
 const visibleRows = computed<CsvGridRowSlot[]>(() => viewport.visibleItems.value);
@@ -76,6 +105,7 @@ function handleScroll(event: Event) {
   const metrics = { clientHeight: panel.clientHeight, scrollTop: panel.scrollTop };
   void commitBefore(() => {
     viewport.setViewportMetrics(metrics);
+    preloadImages();
     clearActiveCell();
     emit('request-window', viewport.startIndex.value, Math.max(0, viewport.endIndex.value - viewport.startIndex.value));
   });
@@ -93,6 +123,7 @@ function activateCell(row: CsvRowRecord, column: CsvGridColumn) {
 function syncViewportMetrics() {
   const panel = panelRef.value;
   viewport.setViewportMetrics({ clientHeight: panel?.clientHeight ?? 0, scrollTop: panel?.scrollTop ?? 0 });
+  preloadImages();
   emit('request-window', viewport.startIndex.value, Math.max(0, viewport.endIndex.value - viewport.startIndex.value));
 }
 

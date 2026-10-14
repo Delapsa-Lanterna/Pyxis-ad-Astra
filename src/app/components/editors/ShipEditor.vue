@@ -92,7 +92,9 @@
                 <label>sprite width</label><NumberValueInput :value="view.spriteSize.width || null" disabled /> <label>sprite height</label
                 ><NumberValueInput :value="view.spriteSize.height || null" disabled />
               </div>
+              <div v-if="spriteError" class="editor-resource-diagnostics">{{ spriteError }}</div>
               <div class="sprite-actions">
+                <n-button :disabled="!view.canSyncSpriteSize" @click="actions.syncShipCenter()">更新舰船中心</n-button>
                 <n-button :disabled="!view.canSyncSpriteSize" @click="actions.syncSpriteSize()">更新贴图宽高</n-button>
               </div>
             </n-collapse-item>

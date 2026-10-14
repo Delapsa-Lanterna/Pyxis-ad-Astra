@@ -77,7 +77,7 @@ pub fn save_mission_with_json(
     let before_rel = format!("data/missions/{source_id}");
     let after_rel = format!("data/missions/{next_id}");
     let source = boundary.resolve_relative(&before_rel, "mission source")?;
-    let target = boundary.resolve_relative(&after_rel, "mission target")?;
+    let target = boundary.resolve_relative_target(&after_rel, "mission target")?;
     if target.exists()
         && previous_id != Some(next_id)
         && (previous_id.is_none() || !crate::io::same_physical_path(&source, &target))

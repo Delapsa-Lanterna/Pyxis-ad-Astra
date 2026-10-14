@@ -16,7 +16,16 @@
         @click="emit('select', mission.id)"
       >
         <span class="mission-icon-thumb config-entity-thumb">
-          <img v-if="missionIcon(mission.id)" :src="missionIcon(mission.id)" alt="" />
+          <ResourceThumbnail
+            v-if="props.missionIconRefs[mission.id]"
+            :session-id="sessionId!"
+            :resource="props.missionIconRefs[mission.id]!"
+            :url="missionIcon(mission.id)"
+            :active="mediaVisible(mission.id)"
+            :label="mission.id"
+            :width="22"
+            :height="22"
+          />
         </span>
         <span class="mission-file-name config-entity-name">{{ mission.id }}</span>
         <n-button
@@ -55,6 +64,7 @@ import { h, ref, watch } from 'vue';
 import { NCheckbox } from 'naive-ui/es/checkbox';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import type { ResourceRef } from '@/shared/types';
 
 const props = defineProps<{
@@ -71,7 +81,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [missionId: string | null] }>();
 
 const feedback = useAppFeedback();
-const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
+const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
   surface: 'config-mission-list',
   failureLabel: '读取战役图标失败',

@@ -1,8 +1,9 @@
-import { computed, reactive, ref, type EmitFn, type ShallowRef } from 'vue';
+import { computed, reactive, ref, watch, type EmitFn, type ShallowRef } from 'vue';
 import type { RowData, EditContext } from '@/shared/types';
 import type { CanvasInput, ShipEditorMode, ShipHoverPreview } from '@/domain/editors/editor-types';
 import { arr, num, str } from '@/shared/lib/starsector';
 import { normalizeShipSpec } from '@/domain/editors/lib/normalize';
+
 import { shipCanvasPoint, shipPointFromCanvas, shipRelativeToAbsolute, distance } from '@/domain/editors/lib/geometry';
 import { bayPorts, appendBayPort, updateBayPort } from '@/domain/editors/lib/ship-slots';
 import {
@@ -34,6 +35,8 @@ export interface ShipEditorProps {
   hullId: string;
   ship: RowData;
   spriteData?: string;
+  spriteSourcePath?: string;
+  spriteError?: string;
   editContext: EditContext | null;
   dirty: boolean;
   canSave: boolean;
@@ -57,7 +60,10 @@ export function useShipEditorViewModel(
     expandedSections = ref(['basic']),
     spriteSize = ref({ width: 0, height: 0 });
   const viewport = useCanvasViewport(canvasRef, 1, 10);
-  let fitPending = true;
+  let fitPending = true,
+    centerRevision = 0,
+    spriteAbsent = !str(props.ship.spriteName);
+  let spriteAction: { path: string; center: boolean; revision: number } | null = null;
   const document = useEditorDocument({
     source: () => props.ship,
     normalize: normalizeShipSpec,
@@ -67,6 +73,7 @@ export function useShipEditorViewModel(
     contains: (element) => Boolean(editorWindowRef.value?.contains(element)),
     draw,
     reset: (reason) => {
+      spriteAction = null;
       if (reason === 'replay') fitPending = true;
       state.reset();
       canvas?.reset();
@@ -133,16 +140,39 @@ export function useShipEditorViewModel(
     () => ({ sprite: props.spriteData || '' }),
     () => {
       const image = images.images.get('sprite');
-      spriteSize.value = image
-        ? { width: image.naturalWidth || image.width, height: image.naturalHeight || image.height }
-        : { width: 0, height: 0 };
+      spriteSize.value = image ? { width: image.width, height: image.height } : { width: 0, height: 0 };
+      const action = image && spriteAction?.path === props.spriteSourcePath ? spriteAction : null;
+      if (action) {
+        const size = { ...spriteSize.value },
+          accepts = document.captureActionContext();
+        spriteAction = null;
+        void document.command((ship) => {
+          if (!accepts() || str(ship.spriteName) !== action.path) return;
+          Object.assign(ship, size);
+          if (action.center && action.revision === centerRevision) ship.center = [size.width / 2, size.height / 2];
+        });
+      }
+      if (image) spriteAbsent = false;
       if (image && fitPending) {
         viewport.scale.value = Math.min(1, 500 / Math.max(image.width, image.height));
         fitPending = false;
       }
       draw();
     },
+    () => {
+      spriteAbsent = true;
+    },
   );
+  watch(
+    () => props.spriteError,
+    (error) => {
+      if (error) spriteAbsent = true;
+    },
+  );
+  function loadSprite() {
+    spriteAction ??= { path: str(localShip.value.spriteName), center: spriteAbsent, revision: centerRevision };
+    images.reload();
+  }
   const builtins = useShipWeapons(
     () => ({ sessionId: props.sessionId, modRoot: props.modRoot, kind: 'ship', id: props.hullId }),
     () => localShip.value,
@@ -218,7 +248,13 @@ export function useShipEditorViewModel(
           return null;
         }
         if (adds) state.select(gesture.target);
-        return { kind: gesture.kind, update: (input) => updateShipOperation(localShip.value, gesture, absolutePoint(input)) };
+        return {
+          kind: gesture.kind,
+          update: (input) => {
+            if (gesture.kind === 'center') centerRevision++;
+            updateShipOperation(localShip.value, gesture, absolutePoint(input));
+          },
+        };
       },
       preview: (input) =>
         previewShipOperation(localShip.value, mode.value, state.target.value, input, absolutePoint(input), state.mirrorMode.value),
@@ -295,13 +331,18 @@ export function useShipEditorViewModel(
     });
   }
   function setField(key: string, value: RowData[string]) {
-    if (key === 'spriteName') fitPending = true;
+    if (key === 'spriteName') {
+      spriteAction = { path: str(value), center: spriteAbsent, revision: centerRevision };
+      spriteAbsent ||= !str(value);
+      fitPending = true;
+    }
     document.change((ship) => {
       ship[key] = value;
     });
   }
   function setArray(key: string, index: number, value: number | null) {
-    void document.command((ship) => {
+    document.change((ship) => {
+      if (key === 'center') centerRevision++;
       const values = arr(ship[key], [0, 0]);
       values[index] = value || 0;
       ship[key] = values;
@@ -438,12 +479,13 @@ export function useShipEditorViewModel(
       addBound: () => addElement('bound'),
       builtInWeaponsUpdated: (value: RowData) => setField('builtInWeapons', value),
       pickShipSprite: () => document.run(() => void pickShipSprite()),
-      loadSprite: () => images.reload(),
-      syncSpriteSize: () =>
+      loadSprite,
+      syncShipCenter: () =>
         document.command((ship) => {
-          ship.width = spriteSize.value.width;
-          ship.height = spriteSize.value.height;
+          centerRevision++;
+          ship.center = [spriteSize.value.width / 2, spriteSize.value.height / 2];
         }),
+      syncSpriteSize: () => document.command((ship) => Object.assign(ship, spriteSize.value)),
       save: () => emit('save-requested'),
     },
     canvas: { ...canvas, beginField: document.beginField, fieldBlur: document.fieldBlur, fieldKey: document.fieldKey },

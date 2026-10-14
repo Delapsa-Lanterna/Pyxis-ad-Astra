@@ -35,15 +35,31 @@ impl FsRootBoundary {
 
     pub fn resolve_relative(&self, rel_path: &str, label: &str) -> AppResult<PathBuf> {
         let rel_path = validate_safe_relative_path(Path::new(rel_path), label)?;
-        let target = self.root.join(rel_path);
-        self.validate_target_path(&target, label)?;
-        Ok(target)
+        self.resolve_absolute(&self.root.join(rel_path), label)
     }
 
     pub fn resolve_absolute(&self, path: &Path, label: &str) -> AppResult<PathBuf> {
-        validate_safe_absolute_path(path, label)?;
-        self.validate_target_path(path, label)?;
-        Ok(path.to_path_buf())
+        let target = canonical_path(path, label)?;
+        self.require_target(&target, path, label)?;
+        Ok(target)
+    }
+
+    pub fn resolve_relative_target(&self, rel_path: &str, label: &str) -> AppResult<PathBuf> {
+        let rel_path = validate_safe_relative_path(Path::new(rel_path), label)?;
+        self.resolve_absolute_target(&self.root.join(rel_path), label)
+    }
+
+    pub fn resolve_absolute_target(&self, path: &Path, label: &str) -> AppResult<PathBuf> {
+        let resolved = self.resolve_absolute(path, label)?;
+        if path.exists() {
+            let requested = path.file_name().expect("write target has a name");
+            let actual = resolved.file_name().expect("resolved target has a name");
+            if requested.to_string_lossy().to_lowercase() == actual.to_string_lossy().to_lowercase()
+            {
+                return Ok(resolved.with_file_name(requested));
+            }
+        }
+        Ok(resolved)
     }
 
     pub fn resolve_changed_path_to_relative(
@@ -56,9 +72,8 @@ impl FsRootBoundary {
             return self.resolve_absolute_change_to_relative(path, label);
         }
         let rel_path = validate_safe_relative_path(path, label)?;
-        let target = self.root.join(rel_path);
-        self.validate_target_path(&target, label)?;
-        Ok(Some(forward_slash_path(rel_path)))
+        let target = self.resolve_relative(&forward_slash_path(rel_path), label)?;
+        Ok(Some(forward_slash_relative_path(&self.root, &target)))
     }
 
     fn resolve_absolute_change_to_relative(
@@ -66,36 +81,10 @@ impl FsRootBoundary {
         path: &Path,
         label: &str,
     ) -> AppResult<Option<String>> {
-        validate_safe_absolute_path(path, label)?;
-        reject_existing_path_links(path, label)?;
-        let Some(existing) = nearest_existing_path(path) else {
-            return Ok(None);
-        };
-        reject_existing_path_links(&existing, label)?;
-        let canonical = existing.canonicalize().map_err(|error| {
-            AppError::context(
-                format!("canonicalize {label} path failed ({})", existing.display()),
-                error.into(),
-            )
-            .at_path(&existing)
-        })?;
-        if !path_belongs_to_root(&canonical, &self.root) {
+        let target = canonical_path(path, label)?;
+        if !path_belongs_to_root(&target, &self.root) {
             return Ok(None);
         }
-        let target = if path.exists() {
-            canonical
-        } else {
-            let rel_suffix = path.strip_prefix(&existing).map_err(|error| {
-                AppError::message(
-                    "path.relative_failed",
-                    format!(
-                        "{label} path cannot be related to existing parent ({}): {error}",
-                        path.display()
-                    ),
-                )
-            })?;
-            canonical.join(rel_suffix)
-        };
         let rel = target.strip_prefix(&self.root).map_err(|error| {
             AppError::message(
                 "path.outside_root",
@@ -105,29 +94,40 @@ impl FsRootBoundary {
         Ok(Some(forward_slash_path(rel)))
     }
 
-    fn validate_target_path(&self, path: &Path, label: &str) -> AppResult<()> {
-        reject_existing_path_links(path, label)?;
-        let existing = nearest_existing_path(path).ok_or_else(|| {
-            AppError::message(
-                "path.no_existing_parent",
-                format!("{label} path has no existing parent: {}", path.display()),
-            )
-        })?;
-        reject_existing_path_links(&existing, label)?;
-        let canonical = existing.canonicalize().map_err(|error| {
-            AppError::context(
-                format!("canonicalize {label} path failed ({})", existing.display()),
-                error.into(),
-            )
-            .at_path(&existing)
-        })?;
-        if !path_belongs_to_root(&canonical, &self.root) {
+    fn require_target(&self, target: &Path, path: &Path, label: &str) -> AppResult<()> {
+        if !path_belongs_to_root(target, &self.root) {
             return Err(AppError::message(
                 "path.outside_root",
                 format!("{label} path is outside root: {}", path.display()),
             ));
         }
         Ok(())
+    }
+}
+
+pub fn canonical_path(path: &Path, label: &str) -> AppResult<PathBuf> {
+    validate_safe_absolute_path(path, label)?;
+    reject_existing_path_links(path, label)?;
+    let existing = nearest_existing_path(path).ok_or_else(|| {
+        AppError::message(
+            "path.no_existing_parent",
+            format!("{label} path has no existing parent: {}", path.display()),
+        )
+    })?;
+    let canonical = existing.canonicalize().map_err(|error| {
+        AppError::context(
+            format!("canonicalize {label} path failed ({})", existing.display()),
+            error.into(),
+        )
+        .at_path(path)
+    })?;
+    if existing == path {
+        Ok(canonical)
+    } else {
+        Ok(canonical.join(
+            path.strip_prefix(&existing)
+                .expect("nearest existing path is an ancestor"),
+        ))
     }
 }
 
@@ -237,6 +237,85 @@ mod tests {
     use crate::io::write_utf8_no_bom;
     use crate::testutil::{temp_dir, temp_linked_dir};
     use std::fs;
+
+    #[test]
+    fn identity_and_requested_target_share_expanded_parent() {
+        let root = temp_dir("path_identity_target");
+        fs::create_dir_all(root.join("nested")).unwrap();
+        let original = root.join("nested/Original.ship");
+        write_utf8_no_bom(&original, "{}").unwrap();
+        let boundary = FsRootBoundary::new(&root, "test root").unwrap();
+        assert_eq!(
+            boundary.resolve_absolute(&original, "source").unwrap(),
+            original.canonicalize().unwrap()
+        );
+        assert_eq!(
+            boundary
+                .resolve_relative("nested/new/deep/new.ship", "missing")
+                .unwrap(),
+            boundary.root().join("nested/new/deep/new.ship")
+        );
+        assert_eq!(
+            boundary
+                .resolve_relative_target("nested/original.ship", "rename")
+                .unwrap(),
+            boundary.root().join("nested/original.ship")
+        );
+        assert_eq!(
+            boundary
+                .resolve_relative("nested/Original.ship", "source")
+                .unwrap(),
+            original.canonicalize().unwrap()
+        );
+        fs::remove_file(&original).unwrap();
+        assert_eq!(
+            boundary.resolve_absolute(&original, "deleted").unwrap(),
+            boundary.root().join("nested/Original.ship")
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn short_aliases_expand_files_parents_and_versions() {
+        let root = temp_dir("expanded_path_identity");
+        fs::create_dir_all(root.join("Long directory name")).unwrap();
+        let path = root.join("Long directory name/Long weapon filename.wpn");
+        write_utf8_no_bom(&path, "{}").unwrap();
+        let short = crate::testutil::short_path(&path);
+        assert_ne!(short, path);
+        let boundary =
+            FsRootBoundary::new(&crate::testutil::short_path(&root), "test root").unwrap();
+        let expanded = path.canonicalize().unwrap();
+        assert_eq!(boundary.resolve_absolute(&short, "file").unwrap(), expanded);
+        assert_eq!(
+            boundary
+                .resolve_absolute_target(&short, "target alias")
+                .unwrap(),
+            expanded
+        );
+        assert_eq!(super::canonical_path(&short, "file").unwrap(), expanded);
+        assert_eq!(
+            crate::io::file_version(&short).unwrap().path,
+            expanded.to_string_lossy()
+        );
+        let missing = crate::testutil::short_path(path.parent().unwrap()).join("new/deep/new.wpn");
+        assert_eq!(
+            boundary.resolve_absolute(&missing, "missing").unwrap(),
+            path.parent()
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .join("new/deep/new.wpn")
+        );
+        assert_eq!(
+            boundary
+                .resolve_changed_path_to_relative(&short.to_string_lossy(), "changed")
+                .unwrap(),
+            Some("Long directory name/Long weapon filename.wpn".into())
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn changed_path_resolves_project_relative_path() {

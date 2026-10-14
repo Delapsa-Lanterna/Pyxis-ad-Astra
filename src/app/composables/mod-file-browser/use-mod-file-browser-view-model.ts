@@ -1,21 +1,29 @@
-import { computed, onScopeDispose, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
 import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { queryModDirectory, queryModFileSearch, queryModTextFileTarget } from '@/services/mod-file-browser.service';
 import { createReadTicketOwner } from '@/shared/runtime/read-request';
-import { modFileTree, modFileSearchTree, visibleModFiles, affectedModDirectories } from '@/domain/mod-file-browser/file-tree';
+import {
+  createModFileTreeProjection,
+  modFileSearchTree,
+  visibleModFiles,
+  affectedModDirectories,
+} from '@/domain/mod-file-browser/file-tree';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { listenCommittedWrites } from '@/orchestrators/project-session-refresh.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
 import { relativePathFromRoot, pathBelongsToRoot, normalizeFsPath } from '@/shared/lib/paths';
+import { createModDirectoryReads } from './use-mod-directory-reads';
+import { measurePerformance, recordPerformance } from '@/shared/runtime/performance';
 import type { ModFileSortKey } from '@/shared/types';
 export function useModFileBrowserViewModel() {
   const project = useProjectStore(),
     store = useModFileBrowserStore(),
     feedback = useAppFeedback(),
-    reads = createReadTicketOwner();
+    reads = createReadTicketOwner(),
+    tree = createModFileTreeProjection();
   const target = computed(() => project.activeManifest);
   const state = computed(() => (target.value ? store.sessions.get(target.value.sessionId)! : null));
   const searching = computed(() => Boolean(state.value?.search.text.trim()));
@@ -27,7 +35,9 @@ export function useModFileBrowserViewModel() {
       ? current.search.result
         ? modFileSearchTree(current.search.result, current.sort)
         : []
-      : modFileTree(current.directories, null, current.sort);
+      : measurePerformance('modFiles.treeProjection', { sessionId: target.value!.sessionId }, () =>
+          tree.project(current.directories, current.expanded, current.sort),
+        );
   });
   const root = computed(() => state.value?.directories.get(null)),
     refreshing = ref(false);
@@ -41,34 +51,81 @@ export function useModFileBrowserViewModel() {
       searchTimer = null;
     }
   }
+  const directoryReads = createModDirectoryReads({
+    load: ({ sessionId, directory }) => queryModDirectory(sessionId, directory),
+    started: ({ sessionId, directory }) => {
+      const status = store.directoryState(sessionId, directory);
+      status.loading = true;
+      status.error = '';
+    },
+    ready: ({ sessionId }, result) => {
+      const removed = store.acceptDirectory(sessionId, result);
+      if (removed.length) {
+        tree.forget(removed);
+        directoryReads.revoke(
+          ({ directory }) => directory !== null && removed.some((path) => directory === path || directory.startsWith(path + '/')),
+        );
+      }
+    },
+    error: ({ sessionId, directory }, error) => {
+      store.directoryState(sessionId, directory).error = formatError(error);
+    },
+    settled: ({ sessionId, directory }) => {
+      const status = store.sessions.get(sessionId)?.directories.get(directory);
+      if (status) status.loading = false;
+    },
+  });
+  const displayed = new Map<string | null, { startedAt: number; cached: boolean } | undefined>();
+  let prefetchFrame: number | null = null,
+    prefetchTimer: ReturnType<typeof setTimeout> | null = null;
+  function cancelPrefetch() {
+    displayed.clear();
+    if (prefetchFrame !== null) cancelAnimationFrame(prefetchFrame);
+    prefetchFrame = null;
+    if (prefetchTimer !== null) clearTimeout(prefetchTimer);
+    prefetchTimer = null;
+  }
+  function isDisplayed(directory: string | null) {
+    return directory === null || (state.value!.expanded.includes(directory) && ancestorsExpanded(directory));
+  }
+  function afterDisplay(directory: string | null, sample?: { startedAt: number; cached: boolean }) {
+    if (disposed || searching.value || !isDisplayed(directory)) return;
+    if (!displayed.has(directory) || sample) displayed.set(directory, sample);
+    void nextTick(() => {
+      if (disposed || !displayed.size || prefetchFrame !== null || prefetchTimer !== null) return;
+      prefetchFrame = requestAnimationFrame(() => {
+        prefetchFrame = null;
+        const pending = [...displayed];
+        displayed.clear();
+        const sessionId = target.value!.sessionId;
+        for (const [directory, sample] of pending) {
+          if (!isDisplayed(directory)) continue;
+          if (sample)
+            recordPerformance('modFiles.directoryFrame', performance.now() - sample.startedAt, {
+              sessionId,
+              directory,
+              cached: sample.cached,
+            });
+        }
+        prefetchTimer = setTimeout(() => {
+          prefetchTimer = null;
+          for (const [directory] of pending) {
+            if (!isDisplayed(directory)) continue;
+            for (const entry of state.value!.directories.get(directory)?.entries ?? [])
+              if (entry.kind === 'directory' && !state.value!.directories.get(entry.relPath)?.entries)
+                void directoryReads.request({ sessionId, directory: entry.relPath }, 'prefetch');
+          }
+          for (const directory of displayed.keys()) afterDisplay(directory);
+        }, 0);
+      });
+    });
+  }
   async function load(directory: string | null) {
     const captured = target.value;
     if (!captured || disposed) return false;
-    const status = store.directoryState(captured.sessionId, directory);
-    status.loading = true;
-    status.error = '';
-    return reads.consume(
-      'directory:' + JSON.stringify(directory),
-      { sessionId: captured.sessionId, directory },
-      () => queryModDirectory(captured.sessionId, directory),
-      {
-        ready: (result) => {
-          const loading = [...store.sessions.get(captured.sessionId)!.directories]
-            .filter(([, status]) => status.loading)
-            .map(([directory]) => directory);
-          const removed = store.acceptDirectory(captured.sessionId, result);
-          for (const directory of loading)
-            if (directory !== null && removed.some((path) => directory === path || directory.startsWith(path + '/')))
-              reads.revoke('consumer', 'directory:' + JSON.stringify(directory));
-        },
-        error: (error) => {
-          status.error = formatError(error);
-        },
-        settled: () => {
-          status.loading = false;
-        },
-      },
-    );
+    const accepted = await directoryReads.request({ sessionId: captured.sessionId, directory });
+    if (accepted && captured.sessionId === target.value?.sessionId) afterDisplay(directory);
+    return accepted;
   }
   async function submitSearch() {
     cancelSearchTimer();
@@ -99,6 +156,10 @@ export function useModFileBrowserViewModel() {
     cancelSearchTimer();
     reads.revoke('consumer', 'search');
     reads.revoke('consumer', 'open');
+    cancelPrefetch();
+    directoryReads.revoke();
+    refreshVersion++;
+    refreshing.value = false;
     const search = state.value!.search;
     search.text = text;
     search.error = '';
@@ -108,6 +169,8 @@ export function useModFileBrowserViewModel() {
       search.expanded = [];
       search.selected = null;
       search.scrollTop = 0;
+      afterDisplay(null);
+      for (const path of state.value!.expanded) afterDisplay(path);
       return;
     }
     searchTimer = setTimeout(() => void submitSearch(), 250);
@@ -124,7 +187,7 @@ export function useModFileBrowserViewModel() {
     try {
       if (!(await load(null))) return;
       for (const directory of [...state.value!.expanded].sort((a, b) => a.split('/').length - b.split('/').length)) {
-        if (disposed || version !== refreshVersion || target.value?.sessionId !== captured.sessionId) return;
+        if (disposed || searching.value || version !== refreshVersion || target.value?.sessionId !== captured.sessionId) return;
         if (state.value!.expanded.includes(directory) && ancestorsExpanded(directory)) await load(directory);
       }
     } finally {
@@ -140,20 +203,24 @@ export function useModFileBrowserViewModel() {
       added = keys.filter((key): key is string => typeof key === 'string' && !current.expanded.includes(key));
     current.expanded = keys.map(String);
     if (searching.value) return;
-    for (const path of added) void reloadBranch(path);
-    for (const [path, status] of state.value!.directories)
-      if (path !== null && (!current.expanded.includes(path) || !ancestorsExpanded(path)) && status.loading) {
-        reads.revoke('consumer', 'directory:' + JSON.stringify(path));
-        status.loading = false;
-      }
+    for (const path of added) {
+      const sample = {
+        startedAt: performance.now(),
+        cached: Boolean(state.value!.directories.get(path)?.entries),
+      };
+      if (sample.cached) afterDisplay(path, sample);
+      void reloadBranch(path, sample.cached ? undefined : sample);
+    }
   }
-  async function reloadBranch(path: string) {
+  async function reloadBranch(path: string, sample?: { startedAt: number; cached: boolean }) {
     const captured = target.value!.sessionId;
     if (!(await load(path))) return;
+    if (disposed || searching.value || target.value?.sessionId !== captured) return;
+    if (sample) afterDisplay(path, sample);
     for (const child of state
       .value!.expanded.filter((directory) => directory.startsWith(path + '/'))
       .sort((a, b) => a.split('/').length - b.split('/').length)) {
-      if (disposed || target.value?.sessionId !== captured || !state.value!.expanded.includes(path)) return;
+      if (disposed || searching.value || target.value?.sessionId !== captured || !state.value!.expanded.includes(path)) return;
       if (state.value!.expanded.includes(child) && ancestorsExpanded(child)) await load(child);
     }
   }
@@ -210,6 +277,9 @@ export function useModFileBrowserViewModel() {
       cancelSearchTimer();
       refreshVersion++;
       reads.revoke();
+      cancelPrefetch();
+      directoryReads.revoke();
+      tree.clear();
       refreshing.value = false;
       resetPending(previous);
       if (target.value) store.establish(target.value.sessionId, target.value.modRoot);
@@ -222,14 +292,17 @@ export function useModFileBrowserViewModel() {
       if (paths.length) reads.schedule('search-update', () => void submitSearch());
       return;
     }
-    for (const directory of affectedModDirectories(state.value!.directories, paths))
-      reads.schedule('refresh:' + JSON.stringify(directory), () => void load(directory));
+    const affected = affectedModDirectories(state.value!.directories, paths);
+    directoryReads.revoke(({ directory }) => affected.includes(directory));
+    for (const directory of affected) reads.schedule('refresh:' + JSON.stringify(directory), () => void load(directory));
   }
   const stopInvalidation = subscribeQueryInvalidations((event) => {
     if (event.sessionId !== target.value?.sessionId) return;
     if (event.scope === 'session') {
       cancelSearchTimer();
       reads.revoke('session');
+      cancelPrefetch();
+      directoryReads.revoke(() => true, 'session');
       resetPending(event.sessionId);
       return;
     }
@@ -247,7 +320,9 @@ export function useModFileBrowserViewModel() {
       if (paths.length) await submitSearch();
       return;
     }
-    for (const directory of affectedModDirectories(state.value!.directories, paths)) {
+    const affected = affectedModDirectories(state.value!.directories, paths);
+    directoryReads.revoke(({ directory }) => affected.includes(directory));
+    for (const directory of affected) {
       if (disposed || target.value?.sessionId !== captured.sessionId) return;
       if (state.value!.directories.has(directory)) await load(directory);
     }
@@ -264,6 +339,9 @@ export function useModFileBrowserViewModel() {
     cancelSearchTimer();
     refreshVersion++;
     reads.revoke();
+    cancelPrefetch();
+    directoryReads.revoke();
+    tree.clear();
     stopWrites?.();
     stopInvalidation();
     resetPending(target.value?.sessionId);

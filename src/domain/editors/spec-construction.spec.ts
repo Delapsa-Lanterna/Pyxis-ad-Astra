@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  changeProjectileSpecClass,
-  changeWeaponSpecClass,
-  createProjectileSpec,
-  createShipSpec,
-  createSkillSpec,
-  createSystemSpec,
-  createWeaponSpec,
-} from './spec-construction';
+import { createShipSpec, createSkillSpec, createSystemSpec } from './spec-construction';
+import { changeWeaponSpecClass, createWeaponSpec } from '@/domain/editors/weapon-spec';
+import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/editors/lib/projectile-fields';
 import defaults from '../../../schemas/spec-defaults.json';
 import type { RowData } from '@/shared/types';
 

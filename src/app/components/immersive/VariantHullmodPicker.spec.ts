@@ -40,6 +40,7 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
   useVisibleResourceMedia: () => ({
     setMediaRoot: () => {},
     mediaRef: () => () => {},
+    mediaVisible: () => true,
     mediaSrc: (resource: { key: string } | undefined) => (resource ? resource.key + '.png' : ''),
   }),
 }));
@@ -96,6 +97,7 @@ function harness(count = 6) {
       global: {
         components: { NInput, NSelect, NButton },
         stubs: {
+          ResourceThumbnail: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' },
           ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
           VariantHullmodDetails: { props: ['entry'], template: '<aside>{{entry.label}}</aside>' },
         },

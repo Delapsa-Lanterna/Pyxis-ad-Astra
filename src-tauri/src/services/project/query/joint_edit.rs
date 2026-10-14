@@ -64,8 +64,10 @@ pub fn query_variant_catalog(
     let mut session = cache::lock_ready_session(&handle)?;
     let (reference_settings, damage_icons) = reference_settings(&session)?;
     let catalog = variant_catalog(&mut session, kind, damage_icons)?;
+    let mut root = root.clone();
+    root.mod_root = session.manifest.mod_root.clone();
     Ok(JointVariantCatalogRead {
-        root: root.clone(),
+        root,
         reference_settings,
         catalog,
     })
@@ -89,6 +91,8 @@ pub(in crate::services::project) fn query_joint_edit_values(
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
     let handle = cache::session_handle(&root.session_id)?;
     let mut session = cache::lock_ready_session(&handle)?;
+    let mut root = root.clone();
+    root.mod_root = session.manifest.mod_root.clone();
     let (reference_settings, damage_icons) = reference_settings(&session)?;
     let mut graph = JointGraph {
         session: &mut session,

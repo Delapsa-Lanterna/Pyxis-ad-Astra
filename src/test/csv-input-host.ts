@@ -2,6 +2,8 @@ import { h, ref, type Component } from 'vue';
 import { mount, type MountingOptions } from '@vue/test-utils';
 import { provideCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
+import { provideCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
+import { resourceMediaDataUrl } from '@/services/resource-media.service';
 import type { CsvCellTarget, CsvTableTarget } from '@/shared/types';
 
 export function mountCsvInputHost(
@@ -17,6 +19,7 @@ export function mountCsvInputHost(
   const host = mount(
     {
       setup() {
+        provideCsvGridMedia({ url: (resource) => resourceMediaDataUrl(target.sessionId, resource) ?? '' });
         provideCsvTableInputs({
           target,
           inputs,

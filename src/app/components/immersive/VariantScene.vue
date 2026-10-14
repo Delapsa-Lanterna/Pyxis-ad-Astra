@@ -37,7 +37,8 @@ import { renderMountedWeapons } from '@/app/renderers/editors/weapon-images';
 import { drawWeaponMount } from '@/domain/immersive/weapon-icon';
 import { variantSlotPoint, type VariantWingLayout } from '@/domain/immersive/variant-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
-import { useEditorImages } from '@/app/composables/editors/use-editor-images';
+import { useResourceImages } from '@/app/composables/use-resource-images';
+import { windowImageCache } from '@/app/composables/use-window-image-cache';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { warningNotice } from '@/shared/lib/errors';
@@ -47,6 +48,7 @@ const props = defineProps<{
   sessionId: string;
   iconSize?: number;
   wingLayout?: VariantWingLayout;
+  resourceUrl?: (resource: import('@/shared/types').ResourceRef) => string;
 }>();
 const emit = defineEmits<{ slot: [index: number, anchor: { x: number; y: number }]; module: [key: string]; blank: [] }>();
 const canvas = shallowRef<HTMLCanvasElement | null>(null),
@@ -68,18 +70,20 @@ const navigation = useCanvasNavigation(
   },
   paint,
 );
-const media = useResourceMediaRegistry({
-  surface: '装配网格',
-  onError: (error) => feedback.error(error),
-  onFailures: (resources) =>
-    feedback.warning(
-      warningNotice(
-        '装配贴图读取失败：' + resources.map((resource) => resource.relPath).join('、'),
-        'resource.read_failed',
-        'Variant scene resource decode',
-      ),
-    ),
-});
+const media = props.resourceUrl
+  ? null
+  : useResourceMediaRegistry({
+      surface: '装配网格',
+      onError: (error) => feedback.error(error),
+      onFailures: (resources) =>
+        feedback.warning(
+          warningNotice(
+            '装配贴图读取失败：' + resources.map((resource) => resource.relPath).join('、'),
+            'resource.read_failed',
+            'Variant scene resource decode',
+          ),
+        ),
+    });
 function sceneVariants(root: VariantSceneProjection, visited = new Set<string>()): VariantSceneProjection[] {
   if (visited.has(root.key)) return [];
   visited.add(root.key);
@@ -97,22 +101,46 @@ const resources = () =>
 watch(
   resources,
   (items) => {
-    void media.replaceCollection(props.sessionId, 'scene', items);
+    if (media) void media.replaceCollection(props.sessionId, 'scene', items);
   },
   { immediate: true },
 );
-const url = (resource: import('@/shared/types').ResourceRef) => media.dataUrl(props.sessionId, resource) ?? '';
-const { images } = useEditorImages(
-  () =>
-    Object.fromEntries(
-      resources()
-        .map(url)
-        .filter(Boolean)
-        .map((source) => [source, source]),
-    ),
+const url = (resource: import('@/shared/types').ResourceRef) =>
+  props.resourceUrl ? props.resourceUrl(resource) : (media!.dataUrl(props.sessionId, resource) ?? '');
+const decoded = useResourceImages(
+  () => props.sessionId,
+  () => resources().map((resource) => ({ resource, url: url(resource) })),
   paint,
-  () => feedback.error(new Error('装配图片解码失败'), '读取装配预览失败'),
+  (error) => feedback.error(error, '读取装配预览失败'),
 );
+const imageCache = windowImageCache();
+let releaseThumbnail: (() => void) | null = null;
+const sceneSignature = computed(() =>
+  JSON.stringify([
+    'scene',
+    props.sessionId,
+    props.iconSize,
+    props.wingLayout,
+    sceneVariants(props.variant).map((variant) => [
+      variant.spec.center,
+      variant.hull.sprite,
+      variant.weapons.map((weapon) => [
+        weapon.slot.locations,
+        weapon.slot.angle,
+        weapon.slot.type,
+        weapon.renderOrder,
+        weapon.additive,
+        weapon.layers.map((layer) => [imageCache.key(props.sessionId, layer.resource), layer.origin, layer.phase]),
+        weapon.loadedMissile,
+      ]),
+      variant.modules.map((module) => [module.slot.locations, module.slot.angle, module.variant.spec.moduleAnchor]),
+    ]),
+    resources().map((resource) => imageCache.revision(props.sessionId, resource)),
+  ]),
+);
+function thumbnailKey() {
+  return sceneSignature.value + '/' + window.devicePixelRatio;
+}
 const point = (slot: import('@/shared/types').DeepReadonly<import('@/shared/types').RowData>) => {
   const location = Array.isArray(slot.locations) ? slot.locations : [0, 0];
   return viewport.toCanvas('ship', -Number(location[1]), Number(location[0]));
@@ -135,6 +163,15 @@ function paint() {
     center = viewport.center(),
     scale = viewport.scale.value;
   clearCanvas(ctx, size.width, size.height, IMMERSIVE_COLORS.background);
+  const cached = props.iconSize ? imageCache.thumbnail(thumbnailKey()) : null;
+  const nextRelease = cached ? imageCache.retainThumbnail(thumbnailKey()) : null;
+  releaseThumbnail?.();
+  releaseThumbnail = null;
+  if (cached) {
+    releaseThumbnail = nextRelease;
+    drawPixelImage(ctx, cached, 0, 0, size.width, size.height);
+    return;
+  }
   if (!props.iconSize) {
     ctx.strokeStyle = 'rgba(70,200,255,0.2941176471)';
     ctx.lineWidth = 1 / window.devicePixelRatio;
@@ -154,7 +191,7 @@ function paint() {
   ctx.save();
   ctx.translate(center.x, center.y);
   if (props.wingLayout) {
-    const image = props.variant.hull.sprite ? images.get(url(props.variant.hull.sprite)) : null;
+    const image = props.variant.hull.sprite ? decoded.image(props.variant.hull.sprite) : null;
     const origin = Array.isArray(props.variant.spec.center) ? props.variant.spec.center : [0, 0];
     const fighterScale = props.wingLayout.spriteHeight / (image?.height ?? Number(props.variant.spec.height));
     for (const point of props.wingLayout.points) {
@@ -170,19 +207,27 @@ function paint() {
     drawVariant(ctx, props.variant, new Set());
   }
   ctx.restore();
+  if (props.iconSize && decoded.ready() && resources().length) {
+    const finished = document.createElement('canvas');
+    finished.width = surface.width;
+    finished.height = surface.height;
+    finished.getContext('2d')!.drawImage(surface, 0, 0);
+    const key = thumbnailKey();
+    releaseThumbnail = imageCache.storeThumbnail(key, props.sessionId, resources(), finished);
+  }
 }
 function drawVariant(ctx: CanvasRenderingContext2D, variant: VariantSceneProjection, parents: Set<string>) {
   if (parents.has(variant.key)) return;
   const nextParents = new Set([...parents, variant.key]);
   const sprite = variant.hull.sprite,
-    image = sprite ? images.get(url(sprite)) : null;
+    image = sprite ? decoded.image(sprite) : null;
   const hullCenter = Array.isArray(variant.spec.center) ? variant.spec.center : [0, 0];
   if (!props.iconSize) drawEngines(ctx, variant);
   if (image) drawPixelImage(ctx, image, -Number(hullCenter[0]), -(image.height - Number(hullCenter[1])), image.width, image.height);
   // ShipDisplayPanel refit passes differ from the ship editor's combat order.
   renderMountedWeapons(ctx, {
     weapons: variant.weapons,
-    image: (resource) => images.get(url(resource)),
+    image: (resource) => decoded.image(resource) ?? undefined,
     point: (slot) => variantSlotPoint((Array.isArray(slot.locations) ? slot.locations : [0, 0]).map(Number)),
     rotation: (slot) => (-Number(slot.angle ?? 0) * Math.PI) / 180,
     scale: 1,
@@ -243,7 +288,7 @@ function drawEngines(ctx: CanvasRenderingContext2D, variant: VariantSceneProject
       ['engineHitGlow', Number(engine.width) * 2, Number(engine.width) * 2, 0.6],
     ] as const) {
       const resource = variant.engineResources[key],
-        image = resource ? images.get(url(resource)) : null;
+        image = resource ? decoded.image(resource) : null;
       if (!image) continue;
       const tinted = document.createElement('canvas');
       tinted.width = image.width;
@@ -331,6 +376,7 @@ onMounted(() => {
   fit();
 });
 onScopeDispose(() => {
+  releaseThumbnail?.();
   observer?.disconnect();
   stopRatio?.();
   navigation.finish();

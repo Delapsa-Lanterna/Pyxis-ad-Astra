@@ -87,14 +87,6 @@ export function formatLaunchBayId(index: number): string {
 
 /// Smallest unused id ≥ 1 for the given format; falls back past the scanned
 /// range when every candidate is taken.
-export function nextFormattedId(used: ReadonlySet<string>, format: (index: number) => string, scanLimit = 9999): string {
-  for (let index = 1; index <= scanLimit; index += 1) {
-    const id = format(index);
-    if (!used.has(id)) return id;
-  }
-  return format(scanLimit + 1);
-}
-
 export function shiftRelativePosition(value: RowData[string] | undefined, dxAbsolute: number, dyAbsolute: number) {
   // Multi-port launch bays keep every coordinate pair in `locations`; only an
   // odd trailing number is dropped.

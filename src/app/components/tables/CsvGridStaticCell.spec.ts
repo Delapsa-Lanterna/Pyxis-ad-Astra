@@ -43,7 +43,9 @@ function columnFixture(control: string, source?: string): CsvGridColumn {
 function mountCell(props: Record<string, unknown>) {
   const fixture = mountCsvInputHost(
     CsvGridStaticCell,
-    { global: { stubs: editorUiStubs } },
+    {
+      global: { stubs: { ...editorUiStubs, ResourceThumbnail: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' } } },
+    },
     {
       row: { rowKey: 'key-0', data: { col: 'railgun' } },
       sourceIndex: sourceIndexFixture(),

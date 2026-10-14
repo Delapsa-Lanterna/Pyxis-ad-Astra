@@ -6,6 +6,7 @@
 
 ## 参考
 
+`scripts/architecture/cache-settings.check.mjs`：设置启动接入精确媒体配置能力的合法与违规验证。
 `scripts/architecture/capability-boundary.check.mjs`：能力授权、规则归属和真实仓库入口的行为测试。
 `scripts/architecture/command-boundary.check.mjs`：command 来源、词法作用域与 owner 验收。
 `scripts/architecture/docs-module-map.check.mjs`：模块文档严格格式、参考路径与索引对应的行为测试。
@@ -32,6 +33,7 @@
 `scripts/shared/imports.check.mjs`：源码语义、实际路径、转导出和共享解析的行为测试。
 `scripts/shared/imports.mjs`：项目 alias、实际节点、去重模块边和符号来源 owner。
 `scripts/shared/rust-crate-paths.mjs`：Rust crate、super、self 路径解析与去重 owner。
+`scripts/test-rust-paths.ps1`：Windows 长路径与实际 8.3 短路径的独立全测环境 owner。
 
 ## 边界
 
@@ -79,6 +81,7 @@
 
 ## 规范
 
+- CI 的 Rust 全测必须分别在长路径与实际 8.3 短路径的独立进程执行；测试入口必须核对别名解析一致性，并只允许清理自己建立且身份未变化的目录。
 - CSS 授权必须精确表达文件、选择器、属性和值；局部授权必须保持其他作用域的检查，fixture 必须同时验收合法消费者和越界行为。
 - UI 规则必须依据共享控件的实际语义区分展示职责，职责约束必须在正式消费者和合成入口中验证。
 - namespace 与通配转导出必须展开运行时能力；符号别名和转导出必须保留正式能力来源，显式导出必须拥有其名称。

@@ -3,24 +3,24 @@ import { queryResourceDataUrls } from '@/services/resource-cache.service';
 import { AppError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { createWeaponSpec } from '@/domain/editors/spec-construction';
+import { createWeaponSpec } from '@/domain/editors/weapon-spec';
+
 import { inferWeaponSpecClass } from '@/domain/tables/associated-spec-creation';
 import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
 import type { DeepReadonly, EntityData, EntityEditInfo, EditorSpecKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
 export interface WeaponData extends EntityEditInfo {
   weapon: RowData;
   weaponCsvRow: RowData;
-  projectileSpecs: Record<string, RowData>;
   resourceRefs: ResourceRef[];
   weaponSpriteData: Record<string, string>;
   isNew: boolean;
 }
-export async function queryWeaponData(
+export async function queryWeaponSpecData(
   sessionId: ProjectSessionId,
   id: string,
   weaponOverride?: RowData,
   signal?: AbortSignal,
-): Promise<WeaponData> {
+): Promise<Omit<WeaponData, 'weaponSpriteData'>> {
   const weapon = requireEditorEntity(await querySessionEntity(sessionId, 'weapon', id, signal), 'weapon', id);
   const weaponEntity = requireRowData(weapon.data, `武器 ${id} 数据无效`);
   const savedWeaponSpec = requireRowData(weaponEntity.spec, `武器 ${id} spec 数据无效`);
@@ -30,16 +30,25 @@ export async function queryWeaponData(
   const resourceRefs = weaponOverride
     ? await querySessionEditorDraftResources(sessionId, 'weapon', id, weaponOverride, signal)
     : weapon.resourceRefs;
-  const projectileSpecs = await queryWeaponProjectiles(sessionId, weaponSpec, signal);
   return {
     weapon: weaponSpec,
     target: weapon.target,
     baseVersions: weapon.baseVersions,
     weaponCsvRow,
     isNew,
-    projectileSpecs,
     resourceRefs: Object.values(resourceRefs),
-    weaponSpriteData: await queryWeaponSprites(sessionId, resourceRefs, signal),
+  };
+}
+export async function queryWeaponData(
+  sessionId: ProjectSessionId,
+  id: string,
+  weaponOverride?: RowData,
+  signal?: AbortSignal,
+): Promise<WeaponData> {
+  const data = await queryWeaponSpecData(sessionId, id, weaponOverride, signal);
+  return {
+    ...data,
+    weaponSpriteData: await queryWeaponSprites(sessionId, Object.fromEntries(data.resourceRefs.map((ref) => [ref.key, ref])), signal),
   };
 }
 export async function queryWeaponSprites(
@@ -64,18 +73,6 @@ export async function queryWeaponSprites(
       return dataUrl && entry ? [[entry.field, dataUrl] as const] : [];
     }),
   );
-}
-export async function queryWeaponProjectiles(
-  sessionId: ProjectSessionId,
-  weapon: RowData,
-  signal?: AbortSignal,
-): Promise<Record<string, RowData>> {
-  const id = typeof weapon.projectileSpecId === 'string' ? weapon.projectileSpecId : '';
-  if (!id) return {};
-  const record = await querySessionEntity(sessionId, 'projectile', id, signal);
-  if (!record) return {};
-  const projectile = cloneQuerySnapshot<EntityData>(record);
-  return { [id]: requireRowData(projectile.data, `弹体 ${id} 数据无效`) };
 }
 function requireEditorEntity(entity: DeepReadonly<EntityData> | null, kind: EditorSpecKind, id: string): EntityData {
   if (entity) return cloneQuerySnapshot<EntityData>(entity);

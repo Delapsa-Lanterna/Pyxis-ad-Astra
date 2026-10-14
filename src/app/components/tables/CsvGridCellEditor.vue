@@ -25,7 +25,16 @@
         <span v-for="value in listValue" :key="value" class="csv-cell-tag" :title="listValueDescription(value)">{{ value }}</span>
       </template>
       <template v-else-if="isReferenceControl">
-        <img v-if="sprite" class="csv-cell-thumb" :src="sprite" :alt="displayValue" />
+        <ResourceThumbnail
+          v-if="referenceMatch?.option.resourceRef"
+          class="csv-cell-thumb"
+          :session-id="context.target.sessionId"
+          :resource="referenceMatch.option.resourceRef"
+          :url="sprite ?? ''"
+          :label="displayValue"
+          :width="16"
+          :height="16"
+        />
         <span class="csv-cell-value">{{ displayValue }}</span>
       </template>
       <template v-else>
@@ -50,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue';
 import { cell } from '@/shared/lib/starsector';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/tables/csv-grid-model';
@@ -65,13 +74,14 @@ import {
   isCsvListControl,
   isCsvReferenceControl,
 } from '@/domain/tables/csv-column-schema';
-import { useSchemaSelectMedia } from '@/app/composables/tables/use-schema-select-media';
+import { useCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
 import { useCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { registerFieldInput } from '@/shared/runtime/field-inputs';
 import { focusFieldInput } from '@/shared/runtime/focus-field-input';
 import CsvCellPicker from '@/app/components/tables/CsvCellPicker.vue';
 import CsvCellTextEditor from '@/app/components/tables/CsvCellTextEditor.vue';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
 const props = defineProps<{
   anchorElement: HTMLElement | null;
@@ -86,7 +96,7 @@ const emit = defineEmits<{
 
 const mode = useInputEditMode();
 const context = useCsvTableInputs();
-const { schemaSelectSprite, replaceSchemaSelectSprites } = useSchemaSelectMedia();
+const media = useCsvGridMedia();
 const inputRef = useTemplateRef<HTMLInputElement>('inputRef');
 const pickerAnchor = ref<{ height: number; left: number; top: number; width: number } | null>(null);
 
@@ -122,16 +132,8 @@ const displayValue = computed(() => referenceMatch.value?.option.label ?? rawVal
 const sprite = computed(() => {
   const match = referenceMatch.value;
   if (!match?.option.resourceRef) return undefined;
-  return schemaSelectSprite(context.target.sessionId, match.option.resourceRef);
+  return media.url(match.option.resourceRef);
 });
-
-watch(
-  () => [context.target.sessionId, referenceMatch.value?.option.resourceRef, mode.value] as const,
-  ([sessionId, resource, editMode]) => {
-    void replaceSchemaSelectSprites(sessionId, 'selected', editMode === 'smart' && resource ? [resource] : []);
-  },
-  { immediate: true },
-);
 
 onMounted(() => {
   nextTick(() => {

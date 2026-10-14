@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createSettingsFixture } from '@/test/settings';
 import { initializeSettingsStore, useSettingsStore } from './settings.store';
+import { windowCacheLimits } from '@/shared/runtime/cache-limits';
 
 const snapshot = createSettingsFixture({ theme: 'light' });
 
@@ -11,6 +12,17 @@ beforeEach(() => {
 });
 
 describe('settings integer limits', () => {
+  it('mirrors hidden cache limits while keeping the captured startup budget', () => {
+    const settings = useSettingsStore(),
+      next = createSettingsFixture();
+    next.cacheLimits.thumbnails.MiB = 64;
+    settings.replaceSettings(next);
+    expect(settings.settingsSnapshot().cacheLimits.thumbnails.MiB).toBe(64);
+    expect(windowCacheLimits().thumbnails.MiB).toBe(32);
+    next.cacheLimits.decodedImages.entries = -1;
+    expect(() => settings.replaceSettings(next)).toThrow();
+    expect(settings.cacheLimits.thumbnails.MiB).toBe(64);
+  });
   it('publishes and mirrors a general font while preserving the default combination', () => {
     const settings = useSettingsStore();
     expect(settings.generalFont).toBeNull();

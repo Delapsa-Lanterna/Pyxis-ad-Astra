@@ -4,17 +4,16 @@ import { openJointEditRowSnapshot, openJointEditSnapshot } from '@/orchestrators
 import { openImmersiveEditorWindow, immersiveWindowTitle } from '@/windows/immersive-editor.window';
 import { publishWindowContext } from '@/windows/window-context.window';
 import { immersiveEditableRecords } from '@/domain/immersive/source-records';
-import { openEditorWindow } from '@/windows/editor.window';
+import { openProjectileEditorWindow } from '@/windows/editor.window';
 import { jointObject } from '@/domain/joint-edit';
 import type { JointValue } from '@/shared/types';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 
 export function openImmersiveProjectile(snapshot: JointEditSnapshot, values: Record<string, JointValue>, settings: AppSettings) {
   const id = schemaStringValue(jointObject(values[snapshot.bindings.spec!]).projectileSpecId);
-  return openEditorWindow({
+  return openProjectileEditorWindow({
     sessionId: snapshot.root.sessionId,
     modRoot: snapshot.root.modRoot,
-    kind: 'projectile',
     id,
     starsectorRoot: settings.starsectorRoot,
   });

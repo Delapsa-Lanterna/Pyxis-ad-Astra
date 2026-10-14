@@ -14,7 +14,16 @@
         @click="emit('select', fileId(file))"
       >
         <span class="config-entity-thumb">
-          <img v-if="mediaSrc(props.spriteRefs[fileId(file)])" :src="mediaSrc(props.spriteRefs[fileId(file)])" alt="" />
+          <ResourceThumbnail
+            v-if="props.spriteRefs[fileId(file)]"
+            :session-id="sessionId!"
+            :resource="props.spriteRefs[fileId(file)]!"
+            :url="mediaSrc(props.spriteRefs[fileId(file)])"
+            :active="mediaVisible(fileId(file))"
+            :label="fileTitle(file)"
+            :width="22"
+            :height="22"
+          />
           <svg v-else class="config-entity-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in family.listIconPaths" :key="path" :d="path" />
           </svg>
@@ -69,6 +78,7 @@ import type { ConfigEntityFamilyDefinition, ConfigFamilyFile } from '@/domain/co
 import { compareFamilyFiles, familyFileId, familyFileTitle } from '@/domain/config/config-entity-families';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
 const props = defineProps<{
   family: ConfigEntityFamilyDefinition;
@@ -89,7 +99,7 @@ const emit = defineEmits<{ select: [id: string | null] }>();
 
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
-const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
+const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
   surface: props.family.mediaSurface,
   failureLabel: `读取${props.family.displayName}缩略图失败`,

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ResourceDataUrlBatchEntry, ResourceDataUrlBatchResult, ResourceRef } from '@/shared/types';
 import * as resourceCacheService from '@/services/resource-cache.service';
-import { WEBVIEW_MEDIA_BUDGET_BYTES } from '@/shared/runtime/media-budget';
+import { mediaBudgetLimit } from '@/shared/runtime/media-budget';
 
 const { queryResourceDataUrls: queryResources } = resourceCacheService;
-const { RESOURCE_DATA_URL_CACHE_CAPACITY } = resourceCacheService;
+const { resourceCacheCapacity } = resourceCacheService;
 
 const mocks = vi.hoisted(() => ({
   queryBatch: vi.fn(async (first: string | ResourceRef[], second?: ResourceRef[]): Promise<ResourceDataUrlBatchResult> => ({
@@ -46,7 +46,7 @@ describe('resource data URL cache', () => {
     const first = resource(952),
       second = resource(953);
     await queryResources('oversized-resource', [first]);
-    const oversized = 'x'.repeat(WEBVIEW_MEDIA_BUDGET_BYTES + 1);
+    const oversized = 'x'.repeat(mediaBudgetLimit() + 1);
     mocks.queryBatch.mockResolvedValueOnce({ entries: [{ ...second, dataUrl: oversized }] });
     expect((await queryResources('oversized-resource', [second]))[0]).toBe(oversized);
     expect(await queryResources('oversized-resource', [first])).toEqual(['data:graphics/test/952.png']);
@@ -55,14 +55,14 @@ describe('resource data URL cache', () => {
   });
   it('holds 512 physical resources and refreshes LRU order on access', async () => {
     const sessionId = 'resource-cache-lru';
-    const initial = Array.from({ length: RESOURCE_DATA_URL_CACHE_CAPACITY }, (_, index) => resource(index));
+    const initial = Array.from({ length: resourceCacheCapacity() }, (_, index) => resource(index));
     await queryResources(sessionId, initial);
     await queryResources(sessionId, [initial[0]!]);
-    await queryResources(sessionId, [resource(RESOURCE_DATA_URL_CACHE_CAPACITY)]);
+    await queryResources(sessionId, [resource(resourceCacheCapacity())]);
     await queryResources(sessionId, [initial[1]!]);
     await queryResources(sessionId, [initial[0]!]);
 
-    expect(mocks.queryBatch.mock.calls.map((call) => call[1]?.length)).toEqual([512, 1, 1]);
+    expect(mocks.queryBatch.mock.calls.map((call) => call[1]?.length)).toEqual([resourceCacheCapacity(), 1, 1]);
   });
 
   it('shares a cached data URL across owner metadata for one physical path', async () => {

@@ -3,11 +3,10 @@ use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 
-const SPRITE_MEDIA_CACHE_CAPACITY: usize = 512;
-const SPRITE_MEDIA_CACHE_BYTES: usize = 64 * 1024 * 1024;
 #[cfg(test)]
-pub(in crate::services::project) const SPRITE_MEDIA_CACHE_CAPACITY_FOR_TEST: usize =
-    SPRITE_MEDIA_CACHE_CAPACITY;
+pub(in crate::services::project) fn media_capacity_for_test() -> usize {
+    crate::models::CacheLimits::default().backend_media.entries as usize
+}
 
 struct CachedSpriteMedia {
     resolved_path: PathBuf,
@@ -17,6 +16,8 @@ struct CachedSpriteMedia {
 }
 
 struct SpriteMediaCacheState {
+    limits: crate::models::CacheSize,
+    configured: bool,
     entries: HashMap<(String, String), CachedSpriteMedia>,
     order: VecDeque<(String, String)>,
     bytes: usize,
@@ -40,8 +41,8 @@ impl SpriteMediaCacheState {
         self.bytes += entry.data_url.len();
         self.entries.insert(key.clone(), entry);
         self.touch(&key);
-        while self.entries.len() > SPRITE_MEDIA_CACHE_CAPACITY
-            || self.bytes > SPRITE_MEDIA_CACHE_BYTES
+        while self.entries.len() > self.limits.entries as usize
+            || self.bytes > self.limits.mib as usize * 1024 * 1024
         {
             let Some(oldest) = self.order.front().cloned() else {
                 break;
@@ -54,12 +55,27 @@ impl SpriteMediaCacheState {
 fn sprite_media_cache() -> &'static Mutex<SpriteMediaCacheState> {
     static CACHE: LazyLock<Mutex<SpriteMediaCacheState>> = LazyLock::new(|| {
         Mutex::new(SpriteMediaCacheState {
+            limits: crate::models::CacheLimits::default().backend_media,
+            configured: false,
             entries: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
         })
     });
     &CACHE
+}
+
+pub(crate) fn configure_media_cache(
+    limits: &crate::models::CacheSize,
+) -> crate::errors::AppResult<()> {
+    let mut cache = sprite_media_cache().lock().map_err(|_| {
+        crate::errors::AppError::message("settings.lock_poisoned", "media cache lock poisoned")
+    })?;
+    if !cache.configured {
+        cache.limits = limits.clone();
+        cache.configured = true;
+    }
+    Ok(())
 }
 
 /// Returns the cached data URL only while the underlying file is unchanged;
@@ -148,9 +164,22 @@ pub(in crate::services::project) fn cached_sprite_media_contains(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn zero_media_limits_keep_returned_content_outside_idle_cache() {
+        let mut cache = state();
+        cache.limits.entries = 0;
+        cache.insert(key(0), entry(1));
+        assert!(cache.entries.is_empty());
+        cache.limits.entries = 1;
+        cache.limits.mib = 0;
+        cache.insert(key(0), entry(1));
+        assert!(cache.entries.is_empty());
+    }
 
     fn state() -> SpriteMediaCacheState {
         SpriteMediaCacheState {
+            limits: crate::models::CacheLimits::default().backend_media,
+            configured: false,
             entries: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
@@ -173,31 +202,33 @@ mod tests {
     #[test]
     fn media_cache_access_and_replacement_update_lru_order() {
         let mut cache = state();
-        for index in 0..SPRITE_MEDIA_CACHE_CAPACITY {
+        let capacity = cache.limits.entries as usize;
+        for index in 0..capacity {
             cache.insert(key(index), entry(1));
         }
         cache.touch(&key(0));
-        cache.insert(key(SPRITE_MEDIA_CACHE_CAPACITY), entry(1));
+        cache.insert(key(capacity), entry(1));
         assert!(cache.entries.contains_key(&key(0)));
         assert!(!cache.entries.contains_key(&key(1)));
         cache.insert(key(2), entry(2));
         assert_eq!(cache.order.back(), Some(&key(2)));
-        assert_eq!(cache.bytes, SPRITE_MEDIA_CACHE_CAPACITY + 1);
+        assert_eq!(cache.bytes, capacity + 1);
     }
 
     #[test]
     fn media_cache_enforces_byte_budget_and_releases_removals() {
         let mut cache = state();
-        cache.insert(key(0), entry(SPRITE_MEDIA_CACHE_BYTES / 2));
-        cache.insert(key(1), entry(SPRITE_MEDIA_CACHE_BYTES / 2));
+        let bytes = cache.limits.mib as usize * 1024 * 1024;
+        cache.insert(key(0), entry(bytes / 2));
+        cache.insert(key(1), entry(bytes / 2));
         cache.touch(&key(0));
         cache.insert(key(2), entry(1));
         assert!(cache.entries.contains_key(&key(0)));
         assert!(!cache.entries.contains_key(&key(1)));
-        assert_eq!(cache.bytes, SPRITE_MEDIA_CACHE_BYTES / 2 + 1);
+        assert_eq!(cache.bytes, bytes / 2 + 1);
         cache.remove(&key(0));
         assert_eq!(cache.bytes, 1);
-        cache.insert(key(3), entry(SPRITE_MEDIA_CACHE_BYTES + 1));
+        cache.insert(key(3), entry(bytes + 1));
         assert!(cache.entries.is_empty());
         assert_eq!(cache.bytes, 0);
     }

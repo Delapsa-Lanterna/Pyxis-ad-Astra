@@ -24,6 +24,7 @@
       :root="root"
       :kind="kind"
       :entry="currentEntry"
+      :media-url="(resource) => preload.url(root.sessionId, resource)"
       :cost="cost(currentEntry)"
       diagnostic=""
       current
@@ -48,12 +49,17 @@
       <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
       <template v-else>
         <div :style="{ height: viewport.beforeHeight.value + 'px' }" aria-hidden="true" />
-        <template v-for="entry in viewport.visibleItems.value" :key="entry.id">
+        <template v-for="(entry, index) in viewport.visibleItems.value" :key="entry.id">
           <VariantCandidateCard
             :data-entry-id="entry.id"
             :root="root"
             :kind="kind"
             :entry="entry"
+            :media-url="(resource) => preload.url(root.sessionId, resource)"
+            :in-view="
+              viewport.startIndex.value + index >= viewport.firstVisibleIndex.value &&
+              viewport.startIndex.value + index < viewport.lastVisibleIndex.value
+            "
             :cost="cost(entry)"
             :diagnostic="diagnostic(entry)"
             @select="choose(entry.id)"
@@ -117,6 +123,8 @@ import VariantCandidateCard from './VariantCandidateCard.vue';
 import ImmersiveFilterToggle from './ImmersiveFilterToggle.vue';
 import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
 import { useImmersiveHover } from '@/app/composables/use-immersive-hover';
+import { useImagePreload } from '@/app/composables/use-image-preload';
+import { variantCandidateResources } from '@/domain/immersive/variant-panel';
 const props = defineProps<{
   root: JointEditRoot;
   kind: 'weapons' | 'wings';
@@ -225,13 +233,36 @@ const filtered = computed(() => {
   return items;
 });
 const viewport = useCsvGridViewport(filtered, { editingIndex: ref(null), rowHeight: VARIANT_CARD_STEP, overscan: 2 });
+const preload = useImagePreload('装配候选预读');
+const candidateResources = new WeakMap<JointVariantEntry, import('@/shared/types').ResourceRef[]>();
+function preloadImages() {
+  const list = listSurface.value!,
+    start = Math.floor(list.scrollTop / VARIANT_CARD_STEP),
+    count = Math.ceil(list.clientHeight / VARIANT_CARD_STEP),
+    resources = (entries: JointVariantEntry[]) =>
+      entries.flatMap((entry) => {
+        let resources = candidateResources.get(entry);
+        if (!resources) {
+          resources = variantCandidateResources(entry, props.kind);
+          candidateResources.set(entry, resources);
+        }
+        return resources;
+      });
+  preload.prepare(
+    props.root.sessionId,
+    [...resources(currentEntry.value ? [currentEntry.value] : []), ...resources(filtered.value.slice(start, start + count))],
+    resources(filtered.value.slice(Math.max(0, start - count), start + count * 2)),
+  );
+}
 function measureList() {
   const list = listSurface.value!;
   viewport.setViewportMetrics({ clientHeight: list.clientHeight, scrollTop: list.scrollTop });
+  preloadImages();
 }
 function scrollList(event: Event) {
   hover.close();
   viewport.onScroll(event);
+  preloadImages();
 }
 watch(
   filtered,

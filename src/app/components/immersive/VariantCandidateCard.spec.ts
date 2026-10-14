@@ -14,7 +14,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
-function harness(kind: 'weapons' | 'wings') {
+function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; inView?: boolean } = { inView: false }) {
   const snapshot = wingJointFixture();
   const source = snapshot.records[0]!.source!;
   const entry: JointVariantEntry = {
@@ -33,22 +33,8 @@ function harness(kind: 'weapons' | 'wings') {
     projectile: null,
     preview: kind === 'wings' ? { hull: snapshot.hull!, spec: jointObject(snapshot.records[0]!.value), specs: [] } : null,
   };
-  let visible!: IntersectionObserverCallback;
-  const disconnect = vi.fn();
-  vi.stubGlobal(
-    'IntersectionObserver',
-    class {
-      constructor(callback: IntersectionObserverCallback) {
-        visible = callback;
-      }
-      observe() {}
-      disconnect() {
-        disconnect();
-      }
-    },
-  );
   const wrapper = mount(VariantCandidateCard, {
-    props: { root: snapshot.root, kind, entry, cost: 12, diagnostic: '' },
+    props: { root: snapshot.root, kind, entry, cost: 12, diagnostic: '', mediaUrl: () => '', ...visibility },
     global: {
       stubs: {
         ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
@@ -60,13 +46,16 @@ function harness(kind: 'weapons' | 'wings') {
   return {
     wrapper,
     entry,
-    disconnect,
-    show: (value: boolean) => visible([{ isIntersecting: value }] as IntersectionObserverEntry[], {} as IntersectionObserver),
-    showBatch: (values: boolean[]) =>
-      visible(values.map((isIntersecting) => ({ isIntersecting })) as IntersectionObserverEntry[], {} as IntersectionObserver),
+    show: (value: boolean) => wrapper.setProps({ inView: value }),
+    showBatch: (values: boolean[]) => wrapper.setProps({ inView: values.at(-1)! }),
   };
 }
 describe('catalog-driven candidate cards', () => {
+  it.each(['weapons', 'wings'] as const)('shows the equipped %s preview when viewport visibility is omitted', (kind) => {
+    const own = harness(kind, { current: true });
+    expect(own.wrapper.find('canvas').exists()).toBe(true);
+    own.wrapper.unmount();
+  });
   it.each(['weapons', 'wings'] as const)('accepts the latest queued scroll visibility for %s', async (kind) => {
     const own = harness(kind);
     own.showBatch([false, true]);
@@ -88,13 +77,12 @@ describe('catalog-driven candidate cards', () => {
     const icon = own.wrapper.findComponent({ name: 'ImmersiveWeaponIcon' });
     expect(icon.props('mountType')).toBe('ENERGY');
     expect(icon.props('layers')[0].resource.relPath).toBe('weapon.png');
-    expect(media.replace.mock.calls.at(-1)![2]).toHaveLength(1);
+    expect(media.replace).not.toHaveBeenCalled();
     expect(media.query).not.toHaveBeenCalled();
     own.show(false);
     await flushPromises();
-    expect(media.replace.mock.calls.at(-1)![2]).toEqual([]);
+    expect(media.replace).not.toHaveBeenCalled();
     own.wrapper.unmount();
-    expect(own.disconnect).toHaveBeenCalledOnce();
   });
   it('renders wing formation from the catalog preview without querying the candidate', async () => {
     const own = harness('wings');

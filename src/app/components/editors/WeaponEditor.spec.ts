@@ -354,6 +354,18 @@ describe('WeaponEditor', () => {
     expect(editor.emitted('draft-changed')).toBeUndefined();
   });
 
+  it('commits active color input before delivering the current projectile ID', async () => {
+    const editor = mountEditor({ id: 'railgun', specClass: 'projectile', projectileSpecId: 'shot' }, {}, true);
+    await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 128]');
+    await editor
+      .findAll('button')
+      .find((button) => button.text() === '编辑弹体')!
+      .trigger('click');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ glowColor: [100, 200, 50, 128] });
+    expect(editor.emitted('edit-projectile')).toEqual([['shot']]);
+  });
+
   it('delivers a detached fire-preview snapshot after committing active color input', async () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'projectile', unknown: { value: 7 } }, {}, true);
     await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 128]');

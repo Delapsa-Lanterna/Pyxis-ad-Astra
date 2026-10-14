@@ -51,20 +51,23 @@ pub(in crate::services::project) fn projectile_resource_refs(
     id: &str,
     data: &Value,
 ) -> BTreeMap<String, ResourceRef> {
-    string_field(data, "sprite")
-        .map(|sprite| {
-            BTreeMap::from([(
-                "sprite".into(),
-                resource_ref(
-                    ResourceSource::Mod,
-                    &sprite,
-                    crate::models::EntityKind::Projectile.into(),
-                    id,
-                    "sprite",
-                ),
-            )])
+    ["sprite", "bulletSprite"]
+        .into_iter()
+        .filter_map(|field| {
+            string_field(data, field).map(|sprite| {
+                (
+                    field.to_string(),
+                    resource_ref(
+                        ResourceSource::Mod,
+                        &sprite,
+                        crate::models::EntityKind::Projectile.into(),
+                        id,
+                        field,
+                    ),
+                )
+            })
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 pub(in crate::services::project) fn system_resource_refs(

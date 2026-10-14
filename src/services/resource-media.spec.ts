@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
 import type { ResourceRef } from '@/shared/types';
-import { ensureResourceMedia, RESOURCE_MEDIA_CACHE_CAPACITY, resourceMediaDataUrl } from '@/services/resource-media.service';
-import { WEBVIEW_MEDIA_BUDGET_BYTES } from '@/shared/runtime/media-budget';
+import { ensureResourceMedia, mediaCacheCapacity, resourceMediaDataUrl } from '@/services/resource-media.service';
+import { mediaBudgetLimit } from '@/shared/runtime/media-budget';
 
 const mocks = vi.hoisted(() => ({
   invalidationListener: null as ((event: ResourceCacheInvalidationEvent) => void) | null,
@@ -30,7 +30,7 @@ describe('resource media service', () => {
 
   it('returns oversized content as consumer-owned temporary data', async () => {
     const target = resource(990);
-    const oversized = 'x'.repeat(WEBVIEW_MEDIA_BUDGET_BYTES + 1);
+    const oversized = 'x'.repeat(mediaBudgetLimit() + 1);
     mocks.query.mockResolvedValueOnce([oversized]);
     const loading = ensureResourceMedia('oversized', [target], 'test');
     await vi.runAllTimersAsync();
@@ -55,19 +55,19 @@ describe('resource media service', () => {
   });
 
   it('holds 512 entries, evicts the oldest, and refreshes access order', async () => {
-    const initial = Array.from({ length: RESOURCE_MEDIA_CACHE_CAPACITY }, (_, index) => resource(index));
+    const initial = Array.from({ length: mediaCacheCapacity() }, (_, index) => resource(index));
     const loading = ensureResourceMedia('lru-session', initial, 'test');
     await vi.runAllTimersAsync();
     await loading;
 
     expect(resourceMediaDataUrl('lru-session', initial[0])).toBe('data:graphics/test/000.png');
-    const overflow = ensureResourceMedia('lru-session', [resource(RESOURCE_MEDIA_CACHE_CAPACITY)], 'test');
+    const overflow = ensureResourceMedia('lru-session', [resource(mediaCacheCapacity())], 'test');
     await vi.runAllTimersAsync();
     await overflow;
 
     expect(resourceMediaDataUrl('lru-session', initial[0])).toBe('data:graphics/test/000.png');
     expect(resourceMediaDataUrl('lru-session', initial[1])).toBeUndefined();
-    expect(resourceMediaDataUrl('lru-session', resource(RESOURCE_MEDIA_CACHE_CAPACITY))).toBe('data:graphics/test/512.png');
+    expect(resourceMediaDataUrl('lru-session', resource(mediaCacheCapacity()))).toBe('data:graphics/test/' + mediaCacheCapacity() + '.png');
   });
 
   it('clears invalidated resources and queries them again', async () => {

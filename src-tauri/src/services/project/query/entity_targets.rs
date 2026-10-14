@@ -148,7 +148,7 @@ pub fn query_entity_identity_intent(
         Path::new(&session.manifest.mod_root),
         "entity intent root",
     )?;
-    let destination = boundary.resolve_relative(&relative, "entity intent target")?;
+    let destination = boundary.resolve_relative_target(&relative, "entity intent target")?;
     let same_file = crate::io::same_physical_path(Path::new(&source.write.path), &destination);
     let next_target = describe_entity_target(&mut session, source.kind, next_id)?.target;
     if (destination.exists() && (source.state == EntityTargetState::Create || !same_file))

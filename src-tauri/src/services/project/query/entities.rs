@@ -2,7 +2,8 @@ use super::super::{
     cache::{lock_ready_session, session_handle},
     definitions::entity_definitions::entity_definition,
     definitions::entity_resources::{
-        faction_resource_refs, mission_resource_refs, ship_resource_refs, weapon_resource_refs,
+        faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
+        weapon_resource_refs,
     },
 };
 use crate::{
@@ -67,8 +68,8 @@ pub fn query_editor_draft_resources(
         crate::models::EditorResourceKind::Weapon => weapon_resource_refs(id, draft),
         crate::models::EditorResourceKind::Faction => faction_resource_refs(id, draft),
         crate::models::EditorResourceKind::Mission => mission_resource_refs(id, draft),
-        crate::models::EditorResourceKind::Projectile
-        | crate::models::EditorResourceKind::System => std::collections::BTreeMap::new(),
+        crate::models::EditorResourceKind::Projectile => projectile_resource_refs(id, draft),
+        crate::models::EditorResourceKind::System => std::collections::BTreeMap::new(),
     })
 }
 
@@ -192,6 +193,45 @@ mod tests {
                 crate::models::EditorResourceKind::Weapon,
                 "weapon",
                 &draft
+            )
+            .is_err()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn projectile_draft_resources_keep_both_sprite_fields_and_owner() {
+        let root = temp_dir("projectile_draft_resources");
+        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let draft = serde_json::json!({"sprite":"graphics/missile.png", "bulletSprite":"graphics/shot.png"});
+        let resources = query_editor_draft_resources(
+            &manifest.session_id,
+            crate::models::EditorResourceKind::Projectile,
+            "shot",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(resources.len(), 2);
+        for (field, path) in [
+            ("sprite", "graphics/missile.png"),
+            ("bulletSprite", "graphics/shot.png"),
+        ] {
+            assert_eq!(resources[field].rel_path, path);
+            assert_eq!(resources[field].key, field);
+            assert_eq!(resources[field].owner_id, "shot");
+            assert_eq!(
+                resources[field].owner_kind,
+                crate::models::EntityKind::Projectile.into()
+            );
+        }
+        close_project_session(manifest.session_id.clone()).unwrap();
+        assert!(
+            query_editor_draft_resources(
+                &manifest.session_id,
+                crate::models::EditorResourceKind::Projectile,
+                "shot",
+                &draft,
             )
             .is_err()
         );

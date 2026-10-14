@@ -8,7 +8,7 @@
  */
 
 export interface RuntimeCacheOptions<TKey> {
-  capacity: number;
+  capacity: number | (() => number);
   onEvict?: (key: TKey) => void;
 }
 
@@ -43,7 +43,7 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
   }
 
   function evictOverCapacity(): void {
-    while (cache.size > capacity) {
+    while (cache.size > (typeof capacity === 'function' ? capacity() : capacity)) {
       const oldest = cache.keys().next().value as TKey | undefined;
       if (oldest === undefined) return;
       cache.delete(oldest);

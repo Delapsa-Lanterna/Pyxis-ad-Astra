@@ -6,6 +6,7 @@
 
 ## 参考
 
+`schemas/spec-defaults.json`：规格创建与分支转换消费的共享默认模板资产。
 `src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听的 owner。
 `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置 owner。
 `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配 owner。
@@ -13,9 +14,10 @@
 `src/app/composables/canvas/use-canvas-state.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览的 owner。
 `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移 owner。
 `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接的 owner。
+`src/app/composables/editors/use-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
 `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
 `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放 owner。
-`src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、着色缓存与释放 owner。
+`src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放 owner。
 `src/app/composables/use-snapshot-history.ts`：编辑文档消费的目标快照历史适配器。
 `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
 `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
@@ -25,8 +27,11 @@
 `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型 owner。
 `src/domain/editors/lib/canvas-palette.ts`：应用主题到画布配色的纯投影 owner。
 `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量 owner。
+`src/domain/editors/lib/game-spec-enums.ts`：规格字段消费的游戏枚举常量。
 `src/domain/editors/lib/mirror.ts`：镜像规则 owner，拥有对称判定、镜像角度与成对新增。
+`src/domain/editors/spec-construction.ts`：共享规格创建与必读字段补齐的纯规则入口。
 `src/shared/lib/entry-keys.ts`：稳定条目键 owner，为列表渲染提供结构化稳定 key。
+`src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
 
 ## 边界
 
@@ -36,8 +41,8 @@
 - 图像解码失败回调由展示消费方提供；资源替换与释放清除成功、失败回调及当前加载身份。
 - 检查器拥有字段输入，提交回调把动作交付业务草稿。
 - 渲染场景拥有视觉规则，绘制原语消费明确的几何与最终样式。
-- 渲染运行态拥有可用贴图、着色缓存与帧循环，编辑 ViewModel 消费资源并装配场景输入。
 - 编辑 ViewModel 装配文档、领域操作、选区、视口与场景；组件消费分组展示与动作接口。
+- 草稿图像运行态拥有授权资源查询及结果接纳，渲染运行态拥有解码、着色缓存与帧循环，编辑 ViewModel 装配场景输入。
 - 骨架拥有闲置、输入等待与编辑手势阶段；选区状态归共享状态原语，草稿与历史归编辑文档。
 - 骨架装配 resize、keydown 与 keyup，组件释放所属交互与监听。
 

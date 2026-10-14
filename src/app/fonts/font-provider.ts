@@ -3,6 +3,7 @@ import type { BitmapFont, BitmapGlyph } from '@/domain/fonts/font.types';
 import type { OriginalFontResult } from '@/shared/types';
 import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
 import { AppError } from '@/shared/lib/errors';
+import { windowCacheLimits } from '@/shared/runtime/cache-limits';
 
 const glyphs = new WeakMap<HTMLImageElement, RuntimeCache<string, HTMLCanvasElement, never>>();
 
@@ -72,7 +73,7 @@ export async function decodeOriginalFont(source: Extract<OriginalFontResult, { s
 export function fontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: string, outline = false): HTMLCanvasElement {
   let cache = glyphs.get(image);
   if (!cache) {
-    cache = createRuntimeCache<string, HTMLCanvasElement>({ capacity: 512 });
+    cache = createRuntimeCache<string, HTMLCanvasElement>({ capacity: () => windowCacheLimits().fonts.glyphEntriesPerPage });
     glyphs.set(image, cache);
   }
   const key = JSON.stringify([glyph.id, color, outline]);

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeShipSpec } from './lib/normalize';
+
 import { shipRelativeToAbsolute } from './lib/geometry';
 import {
   projectShipGeometry,

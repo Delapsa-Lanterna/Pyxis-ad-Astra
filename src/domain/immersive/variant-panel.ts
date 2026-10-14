@@ -14,7 +14,7 @@ import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponNumber, weaponStatistics } from './weapon-statistics';
 import { variantModuleEntries, weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
 import type { ImmersiveField, ImmersiveStat } from './fields';
-import { mountedWeaponImages, type MountedWeaponImages } from '@/domain/editors/weapon-images';
+import { mountedWeaponImages, weaponImageLayers, weaponLoadedMissile, type MountedWeaponImages } from '@/domain/editors/weapon-images';
 import { VARIANT_COLORS } from './appearance';
 
 export interface VariantWeapon extends MountedWeaponImages {
@@ -95,6 +95,24 @@ export function variantCatalogScene(entry: JointVariantEntry): VariantSceneProje
   const preview = entry.preview;
   if (!preview || !isRowData(preview.spec)) return null;
   return variantHullScene(preview.hull, preview.spec, entry.label, preview.specs);
+}
+export function variantCandidateResources(entry: JointVariantEntry, kind: 'weapons' | 'wings'): ResourceRef[] {
+  if (kind === 'wings') {
+    const scene = variantCatalogScene(entry);
+    return scene
+      ? [
+          ...(scene.hull.sprite ? [scene.hull.sprite] : []),
+          ...scene.weapons.flatMap((weapon) => [
+            ...weapon.layers.map((layer) => layer.resource),
+            ...(weapon.loadedMissile ? [weapon.loadedMissile.resource] : []),
+          ]),
+        ]
+      : [];
+  }
+  const spec = isRowData(entry.spec) ? entry.spec : {},
+    projectile = entry.projectile && isRowData(entry.projectile.data) ? entry.projectile.data : {};
+  const missile = weaponLoadedMissile(spec, projectile, entry.projectile?.resourceRefs ?? {}, 'turret');
+  return [...weaponImageLayers(spec, entry.resourceRefs, 'turret').map((layer) => layer.resource), ...(missile ? [missile.resource] : [])];
 }
 function variantHullScene(
   hull: JointHullProjection,

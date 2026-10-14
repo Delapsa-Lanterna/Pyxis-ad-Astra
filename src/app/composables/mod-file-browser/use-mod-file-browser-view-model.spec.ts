@@ -27,6 +27,15 @@ vi.mock('@/services/mod-file-browser.service', () => ({
 vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ listenCommittedWrites: mocks.listen }));
+const frames = new Map<number, FrameRequestCallback>();
+let frameId = 0;
+async function paint() {
+  const callbacks = [...frames.values()];
+  frames.clear();
+  callbacks.forEach((callback) => callback(performance.now()));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushPromises();
+}
 const scopes: ReturnType<typeof effectScope>[] = [];
 const entry = (relPath: string, kind: ModFileEntry['kind'] = 'file'): ModFileEntry => ({
   name: relPath.split('/').at(-1)!,
@@ -53,6 +62,12 @@ async function open() {
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.resetAllMocks();
+  frames.clear();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frames.set(++frameId, callback);
+    return frameId;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
   mocks.listen.mockImplementation(async (handler) => {
     mocks.handler = handler;
     return vi.fn();
@@ -72,9 +87,10 @@ beforeEach(() => {
 afterEach(() => {
   scopes.splice(0).forEach((scope) => scope.stop());
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 describe('mod file browser actions and read lifetime', () => {
-  it('reads only expanded directories and navigates nested folders with the keyboard', async () => {
+  it('loads expanded directories and navigates nested folders with the keyboard', async () => {
     const { vm } = await open();
     expect(mocks.directory).toHaveBeenCalledExactlyOnceWith('s1', null);
     vm.actions.navigate('ArrowDown');
@@ -177,29 +193,22 @@ describe('mod file browser actions and read lifetime', () => {
     expect(vm.view.nodes.map((node) => node.key)).toEqual(['README']);
     expect(useModFileBrowserStore().sessions.get('s1')!.directories.has('data')).toBe(false);
   });
-  it('accepts only the latest directory response and ignores late errors after release', async () => {
+  it('shares simultaneous directory reads and ignores late errors after release', async () => {
     const { vm, scope } = await open();
-    let older!: (value: ModDirectory) => void;
-    let latest!: (value: ModDirectory) => void;
-    mocks.directory
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            older = resolve;
-          }),
-      )
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            latest = resolve;
-          }),
-      );
+    let complete!: (value: ModDirectory) => void;
+    mocks.directory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const count = mocks.directory.mock.calls.length;
     const first = vm.actions.load(null),
       second = vm.actions.load(null);
-    latest({ directory: null, entries: [entry('latest')] });
-    await second;
-    older({ directory: null, entries: [entry('older')] });
-    await first;
+    expect(mocks.directory.mock.calls.length).toBe(count + 1);
+    complete({ directory: null, entries: [entry('latest')] });
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
     expect(vm.view.nodes.map((node) => node.key)).toEqual(['latest']);
     let reject!: (error: Error) => void;
     mocks.file.mockImplementationOnce(
@@ -266,6 +275,110 @@ describe('mod file browser actions and read lifetime', () => {
     expect(stop).toHaveBeenCalledOnce();
     useModFileBrowserStore().removeModState('M:/A');
     expect(useModFileBrowserStore().sessions.has('s1')).toBe(false);
+  });
+});
+
+describe('directory preload and display continuity', () => {
+  it('prefetches one layer after display and reveals cached children before refreshing', async () => {
+    const { vm } = await open();
+    const rootNodes = vm.view.nodes;
+    expect(mocks.directory).toHaveBeenCalledOnce();
+    await paint();
+    expect(mocks.directory.mock.calls.map((call) => call[1])).toEqual([null, 'data']);
+    expect(vm.view.nodes).toBe(rootNodes);
+    expect(vm.view.nodes[0]!.children).toEqual([]);
+    await paint();
+    expect(mocks.directory).toHaveBeenCalledTimes(2);
+
+    let complete!: (value: ModDirectory) => void;
+    mocks.directory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    await vm.actions.activate('data');
+    expect(vm.view.nodes[0]!.children!.map((node) => node.key)).toEqual(['data/nested', 'data/spec.wpn']);
+    vm.actions.select(['data/spec.wpn']);
+    vm.actions.setScroll(45);
+    await paint();
+    expect(mocks.directory).toHaveBeenLastCalledWith('s1', 'data/nested');
+    expect(vm.view.directories.get('data').loading).toBe(true);
+    complete({ directory: 'data', entries: [entry('data/nested', 'directory'), entry('data/spec.wpn')] });
+    const before = vm.view.nodes;
+    await flushPromises();
+    expect(vm.view.nodes).toBe(before);
+    expect(vm.view.selected).toEqual(['data/spec.wpn']);
+    expect(vm.view.scrollTop).toBe(45);
+  });
+  it('joins a running preload on expansion and accepts its result once', async () => {
+    const { vm } = await open();
+    let complete!: (value: ModDirectory) => void;
+    mocks.directory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    await paint();
+    await vm.actions.activate('data');
+    expect(mocks.directory.mock.calls.filter((call) => call[1] === 'data')).toHaveLength(1);
+    complete({ directory: 'data', entries: [entry('data/new.txt')] });
+    await flushPromises();
+    expect(vm.view.nodes[0]!.children![0]!.key).toBe('data/new.txt');
+  });
+  it('invalidates an in-flight listing on a committed change before reading its replacement', async () => {
+    const { vm } = await open();
+    let complete!: (value: ModDirectory) => void;
+    mocks.directory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const old = vm.actions.load(null);
+    mocks.directory.mockResolvedValueOnce({ directory: null, entries: [entry('current')] });
+    invalidateQueryCacheByProject('s1', {
+      paths: ['current'],
+      tables: [],
+      entities: [],
+      resources: [],
+      queryScopes: [],
+      session: false,
+    });
+    await flushPromises();
+    expect(await old).toBe(false);
+    expect(vm.view.nodes.map((node) => node.key)).toEqual(['current']);
+    complete({ directory: null, entries: [entry('obsolete')] });
+    await flushPromises();
+    expect(vm.view.nodes.map((node) => node.key)).toEqual(['current']);
+  });
+  it('ends queued frame work and late preloads on search, session replacement and release', async () => {
+    const { vm, scope } = await open();
+    mocks.search.mockResolvedValue(searchResult('find'));
+    vm.actions.setSearch('find');
+    await vm.actions.submitSearch();
+    await paint();
+    expect(mocks.directory).toHaveBeenCalledOnce();
+    vm.actions.clearSearch();
+    await flushPromises();
+    let complete!: (value: ModDirectory) => void;
+    mocks.directory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    await paint();
+    register('s2', 'M:/B');
+    await flushPromises();
+    complete({ directory: 'data', entries: [entry('data/obsolete')] });
+    await flushPromises();
+    expect(useModFileBrowserStore().sessions.get('s1')!.directories.get('data')!.entries).toBe(null);
+    scope.stop();
+    await paint();
+    expect(frames.size).toBe(0);
+    expect(vm.view.title).toBe('M:/B');
   });
 });
 

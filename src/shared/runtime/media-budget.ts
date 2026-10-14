@@ -1,4 +1,5 @@
-export const WEBVIEW_MEDIA_BUDGET_BYTES = 64 * 1024 * 1024;
+import { windowCacheLimits } from './cache-limits';
+export const mediaBudgetLimit = () => windowCacheLimits().resources.dataUrlMiB * 1024 * 1024;
 
 interface BudgetEntry {
   bytes: number;
@@ -34,7 +35,7 @@ export function removeMediaBudgetEntry(key: string): void {
 }
 
 function evictOverBudget(): void {
-  while (usedBytes > WEBVIEW_MEDIA_BUDGET_BYTES) {
+  while (usedBytes > mediaBudgetLimit()) {
     const oldestKey = entries.keys().next().value as string | undefined;
     if (oldestKey === undefined) return;
     const entry = entries.get(oldestKey);

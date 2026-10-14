@@ -8,7 +8,7 @@
 
 `src-tauri/src/commands/file_editor.rs`：文件编辑 command 边界。
 `src-tauri/src/parsers/preserve_json.rs`：文本 ID 字段范围定位与替换 owner。
-`src-tauri/src/services/file_editor.rs`：后端编辑 service owner，拥有路径校验与文本读写。
+`src-tauri/src/services/file_editor.rs`：后端编辑 service owner，消费 IO 路径授权并交付文本读写。
 `src-tauri/src/services/project/write/entity_identity.rs`：已识别规格文本与结构化保存的身份事务 owner。
 `src/app/FileEditorApp.vue`：窗口根 owner，装配唯一窗口壳与文件编辑器内容。
 `src/app/FileEditorContent.vue`：窗口内容 owner，拥有行号槽、文本域、快捷键与外部文本呈现。
@@ -77,6 +77,7 @@
 - 已识别规格读取必须共同返回文本、正式 `EntityEditInfo` 与所属版本范围；文本修改 ID 必须消费结构化保存的同一身份事务。
 - 恢复入口只允许消费后端结构化 recovery 目标；恢复保存只允许写当前文件，必须使用无 session 能力，严禁登记文件历史。
 - 撤销重做必须在文本域获得焦点时仍然生效。
+- 文件读取和保存必须消费 IO 规范路径识别所属实体；保存必须消费正式读取交付的版本凭据并由事务核对。
 - 文件路径、窗口上下文、原生登记、事件过滤与保存句柄必须共同消费当前目标；后续编辑必须按实际写盘文本计算 dirty。
 - 文本事务必须保留提交原文；身份字段归一与外部跟随只允许修改解析定位的 ID 值范围。
 - 文本域必须完整保留换行与空白，严禁规范化输入内容；转码必须按用户选择的源编码执行，严禁自动探测。

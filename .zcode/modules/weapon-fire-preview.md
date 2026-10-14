@@ -14,8 +14,8 @@
 `src/app/renderers/weapon-fire-preview/scene.ts`：预览场景及最终绘制样式 owner，消费共享武器贴图绘制。
 `src/domain/weapon-fire-preview/simulation.ts`：规格投影、发射计时、弹体和光束阶段的纯模型 owner。
 `src/orchestrators/weapon-fire-preview.orchestrator.ts`：预览原生身份、标题与窗口上下文交接 owner。
-`src/services/weapon-data.service.ts`：消费共享武器、CSV、弹体与资源查询。
-`src/services/weapon-fire-preview.service.ts`：独立只读查询入口与依赖错误 owner。
+`src/services/weapon-data.service.ts`：消费共享武器规格、CSV 与授权武器资源查询。
+`src/services/weapon-fire-preview.service.ts`：武器来源及完整弹体只读装配、依赖错误 owner。
 `src/shared/types/weapon-fire-preview.types.ts`：来源及只读查询结果交接模型。
 `src/windows/weapon-fire-preview.window.ts`：完整预览身份、来源、标题与尺寸的请求入口。
 
@@ -24,8 +24,8 @@
 - 业务来源由打开动作交付，窗口 ViewModel 拥有已接纳来源与所属读取。
 - 场景拥有视觉规则，共享图像运行态与帧循环拥有加载、缓存和释放。
 - 播放 ViewModel 拥有当前模拟状态、播放速度、开火状态及挂载视图。
-- 查询入口消费共享武器数据能力，交付只读规格、CSV、弹体与授权贴图。
 - 窗口协议拥有请求版本与回执，业务 ViewModel 在来源交接后安排依赖读取。
+- 预览查询入口消费共享武器规格、CSV 与资源，按当前来源的 projectileSpecId 读取完整弹体并交付只读结果。
 - 领域模拟拥有状态转换与随机依赖，Canvas 调用归应用渲染层。
 
 ## 链路

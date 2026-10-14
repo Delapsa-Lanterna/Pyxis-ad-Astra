@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeProjectileSpec, normalizeShipSpec, normalizeSystemSpec, normalizeWeaponSpec } from './normalize';
+import { normalizeShipSpec, normalizeSystemSpec } from './normalize';
+import { normalizeWeaponSpec } from '@/domain/editors/weapon-spec';
+import { normalizeProjectileSpec } from '@/domain/editors/lib/projectile-fields';
 
 describe('normalizeShipSpec', () => {
   it('fills missing collections with empty defaults', () => {

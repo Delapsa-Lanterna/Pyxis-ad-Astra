@@ -1,13 +1,20 @@
-import { computed, reactive, ref, type EmitFn } from 'vue';
+import { computed, reactive, ref, watch, onMounted, onScopeDispose, type EmitFn, type ShallowRef } from 'vue';
 import { useEditorDocument } from './use-editor-document';
 import { useEditorFields } from './use-editor-fields';
 
 import type { RowData, EditContext, ProjectileSpecClass } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
-import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/editors/spec-construction';
-import { normalizeProjectileSpec } from '@/domain/editors/lib/normalize';
+import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/editors/lib/projectile-fields';
+import { normalizeProjectileSpec } from '@/domain/editors/lib/projectile-fields';
 import { createProjectileEngineSlot } from '@/domain/editors/lib/projectile-fields';
 
+import { projectProjectileGeometry } from '@/domain/editors/projectile-geometry';
+import { renderProjectileScene } from '@/app/renderers/editors/projectile-scene';
+import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
+import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
+import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
+import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
+import { useEditorImages } from './use-editor-images';
 import { useResourceReference } from '@/app/composables/editors/use-resource-reference';
 
 export interface ProjectileEditorProps {
@@ -15,6 +22,9 @@ export interface ProjectileEditorProps {
   sessionId: string;
   projectileId: string;
   projectile?: RowData;
+  spriteData?: Record<string, string>;
+  spriteLoading?: boolean;
+  spriteError?: string;
   editContext: EditContext | null;
   dirty: boolean;
   canSave: boolean;
@@ -28,17 +38,94 @@ export type ProjectileEditorEvents = {
   'load-external': [];
 };
 
-export function useProjectileEditorViewModel(props: Readonly<ProjectileEditorProps>, emit: EmitFn<ProjectileEditorEvents>) {
+export function useProjectileEditorViewModel(
+  props: Readonly<ProjectileEditorProps>,
+  emit: EmitFn<ProjectileEditorEvents>,
+  elements: {
+    stageRef: Readonly<ShallowRef<HTMLElement | null>>;
+    canvasRef: Readonly<ShallowRef<HTMLCanvasElement | null>>;
+  },
+) {
+  const { stageRef, canvasRef } = elements;
+  const viewport = useCanvasViewport(canvasRef, 1, 20);
   const document = useEditorDocument({
     source: () => props.projectile || createProjectileSpec(props.projectileId),
     normalize: normalizeProjectileSpec,
     context: computed(() => props.editContext),
     publish: (value) => emit('draft-changed', value),
+    draw,
   });
   const localProjectile = document.value,
     fields = useEditorFields(document);
 
   const expandedSections = ref(['basic']);
+  const geometry = computed(() => projectProjectileGeometry(localProjectile.value));
+  const palette = useCanvasPalette(draw),
+    navigation = useCanvasNavigation(viewport, draw);
+  const decodeError = ref('');
+  const images = useEditorImages(
+    () => props.spriteData ?? {},
+    draw,
+    () => {
+      decodeError.value = '无法解码贴图：' + geometry.value.spritePath;
+    },
+  );
+  watch(
+    () => props.spriteData,
+    () => {
+      decodeError.value = '';
+    },
+    { flush: 'sync' },
+  );
+  const spriteNotice = computed(() => {
+    void images.revision.value;
+    if (props.spriteError) return props.spriteError;
+    if (!geometry.value.spritePath) return '';
+    if (props.spriteLoading) return '正在读取贴图…';
+    if (decodeError.value) return decodeError.value;
+    if (props.spriteData?.[geometry.value.spriteField] && !images.images.has(geometry.value.spriteField)) return '正在加载贴图…';
+    return '';
+  });
+  function draw() {
+    const ctx = canvasRef.value?.getContext('2d');
+    if (!ctx) return;
+    const dimensions = viewport.size();
+    renderProjectileScene(ctx, {
+      base: { ...dimensions, center: viewport.center(), scale: viewport.scale.value, palette: palette.value, mirrorY: null, cursor: null },
+      geometry: geometry.value,
+      sprite: images.images.get(geometry.value.spriteField) ?? null,
+    });
+  }
+  function resetView() {
+    const dimensions = viewport.size(),
+      extent = geometry.value.extent;
+    viewport.pan.value = { x: 0, y: 0 };
+    viewport.scale.value = Math.max(
+      0.1,
+      Math.min(
+        20,
+        Math.max(1, dimensions.width - 80) / Math.max(1, extent.x * 2),
+        Math.max(1, dimensions.height - 80) / Math.max(1, extent.y * 2),
+      ),
+    );
+    draw();
+  }
+  function resize() {
+    const rect = stageRef.value?.getBoundingClientRect();
+    if (viewport.resize(rect?.width, rect?.height)) draw();
+  }
+  let stopDpi: (() => void) | undefined;
+  onMounted(() => {
+    resize();
+    resetView();
+    stopDpi = watchCanvasPixelRatio(resize);
+    window.addEventListener('resize', resize);
+  });
+  onScopeDispose(() => {
+    navigation.finish();
+    stopDpi?.();
+    window.removeEventListener('resize', resize);
+  });
 
   const { pickModImageReference } = useResourceReference();
   const specClass = computed(() => str(localProjectile.value.specClass, 'projectile'));
@@ -101,6 +188,16 @@ export function useProjectileEditorViewModel(props: Readonly<ProjectileEditorPro
   }
 
   return {
+    canvas: {
+      onDown: navigation.start,
+      onMove: navigation.move,
+      onUp: navigation.finish,
+      onLeave: navigation.finish,
+      onWheel: navigation.wheel,
+      beginField: document.beginField,
+      fieldBlur: document.fieldBlur,
+      fieldKey: document.fieldKey,
+    },
     document: localProjectile,
     view: reactive({
       showProjectileSections,
@@ -116,8 +213,10 @@ export function useProjectileEditorViewModel(props: Readonly<ProjectileEditorPro
       engineSpec,
       explosionSpec,
       slotLoc,
+      spriteNotice,
     }),
     actions: {
+      resetView,
       setField,
       onSpecClassChange,
       setArray,

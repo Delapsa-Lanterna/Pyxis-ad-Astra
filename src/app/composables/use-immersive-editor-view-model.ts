@@ -7,7 +7,9 @@ import { useAppFeedback } from './use-app-feedback';
 import { useResourceMediaRegistry } from './use-resource-media-registry';
 import { useSettingsStore } from '@/stores/settings.store';
 import { immersiveDefinition, type ImmersiveEditorKind } from '@/domain/immersive/editor-definition';
-import { changeWeaponSpecClass, createShipSpec } from '@/domain/editors/spec-construction';
+import { createShipSpec } from '@/domain/editors/spec-construction';
+import { changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
+
 import { updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';

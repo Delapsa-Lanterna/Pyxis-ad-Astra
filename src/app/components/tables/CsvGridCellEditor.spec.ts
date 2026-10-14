@@ -56,12 +56,19 @@ function mountEditor(props: Record<string, unknown>) {
 
 describe('CsvGridCellEditor', () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     media.replace.mockClear();
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
   });
 
-  it('registers the selected image with the active reference control', () => {
+  it('consumes the selected image through the grid media owner', () => {
     const resource = {
       source: 'mod' as const,
       relPath: 'graphics/selected.png',
@@ -79,7 +86,8 @@ describe('CsvGridCellEditor', () => {
       },
     });
     expect(editor.text()).toContain('Selected');
-    expect(media.replace).toHaveBeenCalledWith('sess-1', 'selected', [resource]);
+    expect(editor.find('.csv-cell-thumb').exists()).toBe(true);
+    expect(media.replace).not.toHaveBeenCalled();
   });
 
   it('commits edited native input on blur and on enter', async () => {

@@ -75,11 +75,39 @@ function open() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queueMicrotask(() => callback(performance.now()));
+    return 0;
+  });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
   vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() });
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600);
 });
 describe('mod file browser controls', () => {
+  it('records user scrolling while cached content is being refreshed', async () => {
+    const { view, actions, wrapper } = open();
+    await flushPromises();
+    view.refreshing = true;
+    const stage = wrapper.get('[aria-label="Mod 文件树"]');
+    stage.element.scrollTop = 120;
+    await stage.trigger('scroll');
+    expect(actions.setScroll).toHaveBeenCalledWith(120);
+  });
+  it('preserves the captured browser position through transient tree scrolling during search changes', async () => {
+    const { view, actions, wrapper } = open();
+    await flushPromises();
+    view.scrollTop = 120;
+    view.searching = true;
+    const stage = wrapper.get('[aria-label="Mod 文件树"]');
+    stage.element.scrollTop = 0;
+    await stage.trigger('scroll');
+    expect(actions.setScroll).not.toHaveBeenCalled();
+    await flushPromises();
+    stage.element.scrollTop = 25;
+    await stage.trigger('scroll');
+    expect(actions.setScroll).toHaveBeenCalledWith(25);
+  });
   it('keeps single selection separate from double-click activation and exposes node retry', async () => {
     const { actions, wrapper } = open();
     await flushPromises();

@@ -45,6 +45,7 @@ export const rustServiceEdgeBoundaryRule = {
       for (const parts of cratePaths(productionText, file.rel)) {
         if (parts[0] !== 'services' || parts.length < 2) continue;
         const to = parts[1] === 'project' ? 'project' : parts[1];
+        if (from === 'app_settings' && parts.join('::') === 'services::project::configure_media_cache') continue;
         if (to === from || allowedServiceEdges.has(`${from} -> ${to}`)) continue;
         if (!rejected.has(to))
           failures.push(`${file.rel}: backend service ${from} must not depend on service ${to} (crate::${parts.join('::')})`);

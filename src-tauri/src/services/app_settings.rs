@@ -25,6 +25,7 @@ static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
 pub fn load_app_settings(app_handle: tauri::AppHandle) -> AppResult<AppSettings> {
     let app_data = app_paths::app_data_dir(app_handle)?;
     let settings = load_settings(&app_data)?;
+    super::project::configure_media_cache(&settings.cache_limits.backend_media)?;
     ALLOW_CORE_EDITING.store(settings.allow_core_editing, Ordering::Release);
     super::file_history::set_history_limit(settings.file_history_limit as usize)?;
     Ok(settings)
@@ -98,6 +99,27 @@ pub fn save_settings(app_data_dir: &Path, settings: &AppSettings) -> AppResult<(
 }
 
 fn validate_settings_limits(settings: &AppSettings) -> AppResult<()> {
+    if settings
+        .cache_limits
+        .queries
+        .keys()
+        .ne(crate::models::app_settings::CacheLimits::default()
+            .queries
+            .keys())
+    {
+        return Err(AppError::message(
+            "settings.limit_invalid",
+            "Invalid query cache keys",
+        ));
+    }
+    for (name, value, maximum) in settings.cache_limits.values() {
+        if value > maximum {
+            return Err(AppError::message(
+                "settings.limit_invalid",
+                format!("Invalid cache limit {name}: {value}; expected 0..={maximum}"),
+            ));
+        }
+    }
     if let Some(font) = &settings.general_font
         && (font.trim().is_empty() || font.chars().any(char::is_control))
     {
@@ -283,6 +305,21 @@ mod tests {
         let settings = load_settings(&dir).unwrap();
         let _ = fs::remove_dir_all(dir);
         assert_eq!(settings, AppSettings::default());
+    }
+    #[test]
+    fn cache_limits_validate_zero_boundaries_and_exact_query_set() {
+        let mut settings = AppSettings::default();
+        settings.cache_limits.decoded_images.entries = 0;
+        settings.cache_limits.thumbnails.mib = 0;
+        assert!(validate_settings_limits(&settings).is_ok());
+        settings.cache_limits.decoded_images.entries = 65536;
+        settings.cache_limits.thumbnails.mib = 4096;
+        assert!(validate_settings_limits(&settings).is_ok());
+        settings.cache_limits.decoded_images.entries = 65537;
+        assert!(validate_settings_limits(&settings).is_err());
+        settings.cache_limits.decoded_images.entries = 1024;
+        settings.cache_limits.queries.remove("entity-list");
+        assert!(validate_settings_limits(&settings).is_err());
     }
 
     #[test]

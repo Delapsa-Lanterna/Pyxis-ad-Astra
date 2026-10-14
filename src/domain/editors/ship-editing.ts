@@ -22,10 +22,10 @@ import {
   weaponSlotWithDefaults,
   launchBayWithDefaults,
   engineWithDefaults,
-  nextFormattedId,
   formatWeaponSlotId,
   formatLaunchBayId,
 } from './lib/ship-slots';
+import { nextFormattedId } from '@/shared/lib/next-formatted-id';
 import {
   findMirrorWeaponSlotIndex,
   findMirrorEngineIndex,

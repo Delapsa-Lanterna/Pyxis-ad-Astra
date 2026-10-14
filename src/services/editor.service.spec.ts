@@ -1,14 +1,11 @@
 import { entityTargetFixture } from '@/test/entity-target';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createWeaponSpec } from '@/domain/editors/spec-construction';
-import { inferWeaponSpecClass } from '@/domain/tables/associated-spec-creation';
 import type { EntityData, ResourceRef, RowData, WriteResult } from '@/shared/types';
 import { shipJointFixture } from '@/test/joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
 
 const mocks = vi.hoisted(() => ({
   querySessionEntity: vi.fn(),
-  querySessionEntityList: vi.fn(async () => [] as { id: string }[]),
   querySessionEditorDraftResources: vi.fn(async () => ({})),
   queryResourceDataUrls: vi.fn(async () => [] as (string | null)[]),
   invokeCommand: vi.fn(),
@@ -21,7 +18,6 @@ vi.mock('@/services/entity-query.service', () => ({
     baseVersions: [],
   })),
   querySessionEntity: mocks.querySessionEntity,
-  querySessionEntityList: mocks.querySessionEntityList,
   querySessionEditorDraftResources: mocks.querySessionEditorDraftResources,
 }));
 
@@ -36,9 +32,9 @@ vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: mocks.que
 
 import { editorMissingTargetText, isEditorWindowKind } from '@/domain/editors/editor-definitions';
 import {
-  queryEditorEntityBundle,
-  refreshBundleProjectiles,
-  refreshBundleResources,
+  queryShipEditorData,
+  querySystemEditorData,
+  queryShipEditorImages,
   saveEditorSpecByKind,
   loadImportedSpecFile,
   queryShipWeaponSources,
@@ -114,121 +110,47 @@ describe('ship built-in source reads', () => {
   });
 });
 
-describe('queryEditorEntityBundle', () => {
+describe('ship and system edit queries', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('loads a ship bundle with its sprite and isNew=false for existing specs', async () => {
+  it('returns an existing ship with its loaded target', async () => {
     const spriteRef: ResourceRef = { key: 'sprite', source: 'mod', relPath: 'graphics/ship.png', ownerKind: 'ship', ownerId: 'XY' };
     mocks.querySessionEntity.mockResolvedValue(entity({ hullId: 'XY' }, { sprite: spriteRef }));
-    mocks.queryResourceDataUrls.mockResolvedValue(['data:image/png;base64,AAA']);
 
-    const bundle = await queryEditorEntityBundle('s1', 'ship', 'XY');
-    expect(bundle).toMatchObject({ kind: 'ship', isNew: false, shipSpriteData: 'data:image/png;base64,AAA' });
-    expect(bundle.kind === 'ship' && bundle.ship).toEqual({ hullId: 'XY' });
-    expect(bundle.kind === 'ship' && bundle.resourceRefs).toEqual([spriteRef]);
+    const bundle = await queryShipEditorData('s1', 'XY');
+    expect(bundle).toMatchObject({ kind: 'ship', isNew: false });
+    expect(bundle.kind === 'ship' && bundle.spec).toEqual({ hullId: 'XY' });
+    expect(bundle.target).toEqual(entity({}).target);
   });
 
   it('marks a missing ship as new and falls back to the default spec', async () => {
     mocks.querySessionEntity.mockResolvedValue(null);
-    const bundle = await queryEditorEntityBundle('s1', 'ship', 'XY');
+    const bundle = await queryShipEditorData('s1', 'XY');
     expect(bundle.kind === 'ship' && bundle.isNew).toBe(true);
-    expect(bundle.kind === 'ship' && bundle.ship.hullId).toBe('XY');
-    expect(bundle.kind === 'ship' && bundle.shipSpriteData).toBe('');
+    expect(bundle.kind === 'ship' && bundle.spec.hullId).toBe('XY');
   });
 
-  it('loads a weapon bundle with csv row, projectile spec and options', async () => {
-    mocks.querySessionEntity.mockImplementation(async (_sessionId: string, kind: string, id: string) => {
-      if (kind === 'weapon') return entity({ id, spec: { id, projectileSpecId: 'proj1' }, csvRow: { id: 'railgun' } }, {});
-      if (kind === 'projectile') return entity({ id: 'proj1' }, {});
-      return null;
-    });
-    mocks.querySessionEntityList.mockResolvedValue([{ id: 'proj1' }, { id: 'proj2' }]);
-
-    const bundle = await queryEditorEntityBundle('s1', 'weapon', 'railgun');
-    expect(bundle.kind).toBe('weapon');
-    if (bundle.kind !== 'weapon') return;
-    expect(bundle.weapon).toEqual({ id: 'railgun', projectileSpecId: 'proj1' });
-    expect(bundle.weaponCsvRow).toEqual({ id: 'railgun' });
-    expect(bundle.isNew).toBe(false);
-    expect(bundle.projectileSpecs).toHaveProperty('proj1');
-    expect(bundle.projectileOptions).toEqual([
-      { label: 'proj1', value: 'proj1' },
-      { label: 'proj2', value: 'proj2' },
-    ]);
-  });
-
-  it('rejects weapon queries without entity data', async () => {
-    mocks.querySessionEntity.mockResolvedValue(null);
-    await expect(queryEditorEntityBundle('s1', 'weapon', 'ghost')).rejects.toThrow('找不到 ghost 的 weapon 数据');
-  });
-
-  it('treats a weapon spec without fields as new', async () => {
-    mocks.querySessionEntity.mockResolvedValue(entity({ id: 'w', spec: {}, csvRow: {} }, {}));
-    const bundle = await queryEditorEntityBundle('s1', 'weapon', 'w');
-    expect(bundle.kind === 'weapon' && bundle.isNew).toBe(true);
-  });
-
-  it('loads projectile and system bundles with new flags', async () => {
-    mocks.querySessionEntity.mockResolvedValueOnce(entity({ id: 'p1' }));
-    const projectile = await queryEditorEntityBundle('s1', 'projectile', 'p1');
-    expect(projectile.kind === 'projectile' && projectile.isNew).toBe(false);
-
+  it('creates a missing system with its default stat modifier branch', async () => {
     mocks.querySessionEntity.mockResolvedValueOnce(null);
-    const missingSystem = await queryEditorEntityBundle('s1', 'system', 's1');
+    const missingSystem = await querySystemEditorData('s1', 's1');
     expect(missingSystem.kind === 'system' && missingSystem.isNew).toBe(true);
-    expect(missingSystem.kind === 'system' && missingSystem.system.type).toBe('STAT_MOD');
+    expect(missingSystem.kind === 'system' && missingSystem.spec.type).toBe('STAT_MOD');
   });
 });
 
-describe('bundle refresh', () => {
+describe('editor dependencies', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('refreshes the ship sprite data from the sprite resource ref', async () => {
-    const spriteRef: ResourceRef = { key: 'sprite', source: 'mod', relPath: 'graphics/ship.png', ownerKind: 'ship', ownerId: 'XY' };
-    mocks.querySessionEntity.mockResolvedValue(entity({ hullId: 'XY' }, { sprite: spriteRef }));
-    mocks.queryResourceDataUrls.mockResolvedValue(['data:image/png;base64,BBB']);
-    const bundle = await queryEditorEntityBundle('s1', 'ship', 'XY');
-    const refreshed = await refreshBundleResources('s1', bundle);
-    expect(refreshed.kind === 'ship' && refreshed.shipSpriteData).toBe('data:image/png;base64,BBB');
-  });
-
-  it('refreshes weapon projectile specs and drops vanished projectiles', async () => {
-    mocks.querySessionEntity.mockImplementation(async (_sessionId: string, kind: string, id: string) => {
-      if (kind === 'weapon') return entity({ id, spec: { id, projectileSpecId: 'proj1' }, csvRow: {} }, {});
-      if (id === 'proj1') return entity({ id: 'proj1', updated: true }, {});
-      return null;
-    });
-    const bundle = await queryEditorEntityBundle('s1', 'weapon', 'railgun');
-    const refreshed = await refreshBundleProjectiles('s1', bundle, { projectileSpecs: true, projectileOptions: false });
-    expect(refreshed.kind === 'weapon' && refreshed.projectileSpecs.proj1).toEqual({ id: 'proj1', updated: true });
-
-    mocks.querySessionEntity.mockImplementation(async () => null);
-    const emptied = await refreshBundleProjectiles('s1', refreshed, { projectileSpecs: true, projectileOptions: false });
-    expect(emptied.kind === 'weapon' && emptied.projectileSpecs).toEqual({});
-  });
-
-  it('loads projectile dependencies from the current weapon reference', async () => {
-    mocks.querySessionEntity.mockImplementation(async (_session: string, kind: string, id: string) =>
-      kind === 'weapon' ? entity({ id, spec: { id, projectileSpecId: 'old' }, csvRow: {} }) : entity({ id }),
-    );
-    const loaded = await queryEditorEntityBundle('s1', 'weapon', 'weapon');
-    if (loaded.kind !== 'weapon') throw new Error('weapon bundle expected');
-    const refreshed = await refreshBundleProjectiles(
-      's1',
-      { ...loaded, weapon: { ...loaded.weapon, projectileSpecId: 'next' } },
-      { projectileSpecs: true, projectileOptions: false },
-    );
-    expect(refreshed.kind === 'weapon' && refreshed.projectileSpecs).toEqual({ next: { id: 'next' } });
-  });
-
-  it('leaves projectile and system bundles untouched by resource refresh', async () => {
-    mocks.querySessionEntity.mockResolvedValue(entity({ id: 'p1' }));
-    const bundle = await queryEditorEntityBundle('s1', 'projectile', 'p1');
-    await expect(refreshBundleResources('s1', bundle)).resolves.toBe(bundle);
+  it('queries ship images from the submitted draft reference', async () => {
+    const sprite: ResourceRef = { key: 'sprite', source: 'mod', relPath: 'graphics/ship.png', ownerKind: 'ship', ownerId: 'XY' };
+    mocks.querySessionEditorDraftResources.mockResolvedValueOnce({ sprite });
+    mocks.queryResourceDataUrls.mockResolvedValueOnce(['data:image/png;base64,BBB']);
+    const data = await queryShipEditorImages('s1', 'XY', { hullId: 'XY', spriteName: 'graphics/ship.png' });
+    expect(data).toEqual({ resourceRefs: [sprite], spriteData: 'data:image/png;base64,BBB', diagnostic: '' });
   });
 });
 
@@ -284,13 +206,5 @@ describe('editor definitions helpers', () => {
     expect(isEditorWindowKind('not-a-kind')).toBe(false);
     expect(isEditorWindowKind(null)).toBe(false);
     expect(editorMissingTargetText('ship', 'XY')).toContain('spec');
-  });
-
-  it('builds a beam weapon default when the csv row declares beam speed', () => {
-    const beam = createWeaponSpec('laser', inferWeaponSpecClass({ 'beam speed': 1 }));
-    expect(beam.specClass).toBe('beam');
-    expect(beam.fringeColor).toBeDefined();
-    const projectile = createWeaponSpec('cannon', inferWeaponSpecClass({}));
-    expect(projectile.specClass).toBe('projectile');
   });
 });

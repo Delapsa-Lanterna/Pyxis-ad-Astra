@@ -47,7 +47,7 @@ export type {
   WindowRequestReceipt,
 } from '@/shared/types/window.types';
 export type { CreatedMod, CreateModRequest, NewModDestination, NewModTemplate } from '@/shared/types/mod-creation.types';
-export type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel } from '@/shared/types/settings.types';
+export type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel, CacheLimits, CacheSize } from '@/shared/types/settings.types';
 export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shared/types/settings.types';
 export type { AppLogEntry, AppLogLevel, AppLogStatus } from '@/shared/types/app-log.types';
 export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
@@ -165,3 +165,5 @@ export type { AppFeedback, ChooseOptions, ConfirmOptions } from '@/shared/types/
 export type * from '@/shared/types/joint-edit.types';
 
 export type { WeaponFirePreviewSource, WeaponFirePreviewData } from '@/shared/types/weapon-fire-preview.types';
+
+export type { SpecEditorData, WeaponEditorData, ProjectileEditorData } from '@/shared/types/spec-editor.types';

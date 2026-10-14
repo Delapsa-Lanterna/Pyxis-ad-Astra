@@ -7,6 +7,7 @@
 ## 参考
 
 `src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值 owner。
+`src-tauri/src/models/app_settings/cache_limits.rs`：隐藏缓存容量模型与后端默认值 owner。
 `src-tauri/src/services/app_settings.rs`：设置持久化、容量边界校验及文件历史容量接入 owner。
 `src-tauri/src/services/app_settings/system_fonts.rs`：Windows 已安装字体族枚举、去重与排序 owner。
 `src/app/WindowShell.vue`：唯一窗口壳，main 模式启动设置持久化、child 模式启动设置镜像并挂载主题 effect。
@@ -19,8 +20,10 @@
 `src/domain/settings/theme.ts`：主题令牌与色彩数学 owner，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与 CSS 自定义属性映射。
 `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像 owner，负责保存、广播、接收镜像、编辑历史容量同步与文件历史刷新交接。
 `src/services/app-settings.service.ts`：settings 读写签名与 command 参数装配主归属。
+`src/shared/runtime/cache-limits.ts`：完整启动快照交付缓存消费者的容量 owner。
 `src/stores/settings-store.spec.ts`：容量输入、初始化与镜像边界验证。
 `src/stores/settings.store.ts`：settings 运行态 owner，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
+`src/test/cache-setup.ts`：缓存服务测试消费的完整启动预算装配。
 `src/test/settings.ts`：完整设置快照及独立覆盖的共享测试夹具。
 
 ## 边界
@@ -28,7 +31,7 @@
 - `appearance` 提供沉浸式固定颜色；设计类型与槽位语义颜色归所属领域投影。
 - settings 持久化目标是工具 app-data，私有根由 Tauri 标识 `com.caopancake.circinus-ad-astra` 解析。
 - 主窗口拥有 settings 持久化，子窗口以 原生 settings snapshot 初始化并接收完整镜像。
-- 后端设置更新文件保存历史容量，前端持久化编排同步 CSV 编辑容量并交接权威文件历史摘要刷新。
+- 后端设置更新文件保存历史容量并在启动接入媒体缓存预算，前端持久化编排同步 CSV 编辑容量并交接权威文件历史摘要刷新。
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。
@@ -79,6 +82,7 @@
 ## 规范
 
 - `accent` 与 `editMode` 必须是正式枚举；非法值在初始化与替换时必须抛出。
+- `cacheLimits` 必须随完整快照持久化与镜像；缓存必须消费启动时捕获的预算，修改必须在重启后生效；条数必须为 0–65536 的整数，MiB 必须为 0–4096 的整数，零值必须关闭对应闲置缓存。
 - `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值必须分别为 250 与 20，整数范围必须为 1–1000；设置读取和保存必须共同校验范围。
 - `generalFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合必须为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择必须随完整快照持久化及镜像。
 - `immersiveGameFont` 必须是默认开启的布尔值，并随完整设置快照持久化和镜像；字体设置框必须声明有意的缺字问号显示。

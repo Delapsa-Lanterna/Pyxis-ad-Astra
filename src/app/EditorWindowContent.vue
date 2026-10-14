@@ -13,16 +13,18 @@
       :mod-root="target.modRoot"
       :session-id="target.sessionId"
       :hull-id="target.id"
-      :ship="shipEditorData.ship"
+      :ship="shipEditorData.spec"
       :sprite-data="shipSpriteForEditor"
+      :sprite-source-path="shipImages?.value.value?.resourceRefs[0]?.relPath ?? ''"
+      :sprite-error="shipImages?.errorText.value || shipImages?.value.value?.diagnostic || ''"
       :edit-context="editContext"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
-      @save-requested="saveEditorData('ship')"
-      @draft-changed="updateEditorDraft('ship', $event)"
+      @save-requested="saveEditorData()"
+      @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
     <WeaponEditor
@@ -30,17 +32,17 @@
       :mod-root="target.modRoot"
       :session-id="target.sessionId"
       :weapon-id="target.id"
-      :weapon="weaponForEditor"
-      :sprite-data="weaponEditorData.weaponSpriteData"
-      :projectile-options="weaponEditorData.projectileOptions"
+      :weapon="weaponEditorData.spec"
+      :sprite-data="weaponDependencies?.spriteData.value ?? {}"
+      :projectile-options="weaponDependencies?.projectileOptions.value ?? []"
       :edit-context="editContext"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
-      @save-requested="saveEditorData('weapon')"
-      @draft-changed="updateEditorDraft('weapon', $event)"
+      @save-requested="saveEditorData()"
+      @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
       @edit-projectile="openProjectile"
       @preview="openPreview"
@@ -50,29 +52,32 @@
       :mod-root="target.modRoot"
       :session-id="target.sessionId"
       :projectile-id="target.id"
-      :projectile="projectileEditorData.projectile"
+      :projectile="projectileEditorData.spec"
+      :sprite-data="projectileImages?.value.value?.spriteData ?? {}"
+      :sprite-loading="projectileImages?.loading.value ?? false"
+      :sprite-error="projectileImages?.errorText.value || projectileImages?.value.value?.diagnostic || ''"
       :edit-context="editContext"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
-      @save-requested="saveEditorData('projectile')"
-      @draft-changed="updateEditorDraft('projectile', $event)"
+      @save-requested="saveEditorData()"
+      @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
     <SystemEditor
       v-else-if="systemEditorData && target"
       :system-id="target.id"
-      :system="systemEditorData.system"
+      :system="systemEditorData.spec"
       :edit-context="editContext"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
-      @save-requested="saveEditorData('system')"
-      @draft-changed="updateEditorDraft('system', $event)"
+      @save-requested="saveEditorData()"
+      @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
     <div v-else class="editor-window-status editor-window-error">
@@ -83,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import ShipEditor from '@/app/components/editors/ShipEditor.vue';
 import WeaponEditor from '@/app/components/editors/WeaponEditor.vue';
 import ProjectileEditor from '@/app/components/editors/ProjectileEditor.vue';
@@ -95,6 +100,7 @@ import { openProjectileEditorWindow } from '@/windows/editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useSettingsStore } from '@/stores/settings.store';
 import { closeCurrentWindow } from '@/windows/current.window';
+import { specEditorDefinition, useSpecEditorDependencies } from '@/app/composables/editors/spec-editor-definitions';
 import { useEditorWindowViewModel } from '@/app/composables/editors/use-editor-window-view-model';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
@@ -106,17 +112,13 @@ const starsectorRoot = context.input.starsectorRoot;
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
 
+const windowModel = useEditorWindowViewModel({ sessionId, modRoot, id, kind }, specEditorDefinition(kind));
 const {
   currentTarget: target,
-  shipEditorData,
-  weaponEditorData,
-  projectileEditorData,
-  systemEditorData,
+  editorData,
   loading,
   contentReady,
   errorText,
-  weaponForEditor,
-  shipSpriteForEditor,
   draftDirty,
   editContext,
   draftSaving,
@@ -129,7 +131,15 @@ const {
   saveEditorData,
   updateEditorDraft,
   loadPendingExternalSpec,
-} = useEditorWindowViewModel({ sessionId, modRoot, id, kind });
+} = windowModel;
+const shipEditorData = computed(() => (editorData.value?.kind === 'ship' ? editorData.value : null));
+const weaponEditorData = computed(() => (editorData.value?.kind === 'weapon' ? editorData.value : null));
+const projectileEditorData = computed(() => (editorData.value?.kind === 'projectile' ? editorData.value : null));
+const systemEditorData = computed(() => (editorData.value?.kind === 'system' ? editorData.value : null));
+const { weapon: weaponDependencies, ship: shipImages, projectile: projectileImages } = useSpecEditorDependencies(windowModel, kind);
+const shipSpriteForEditor = computed(() =>
+  typeof shipImages?.value.value?.spriteData === 'string' ? shipImages.value.value.spriteData : '',
+);
 useManagedWindowRequests(() => {});
 const closeGuard = useDirtyWindowCloseGuard({
   content: '当前 spec 有未保存修改，关闭后这些修改将丢失。',
@@ -163,7 +173,7 @@ function openPreview(weapon: import('@/shared/types').RowData) {
 
 useShortcutDispatch({
   commands: {
-    save: () => void saveEditorData(kind),
+    save: () => void saveEditorData(),
   },
 });
 
