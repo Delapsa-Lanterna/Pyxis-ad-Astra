@@ -11,6 +11,20 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 export const frontendCapabilities = [
   {
     role: 'service',
+    domain: 'mod-file-browser',
+    names: ['queryModDirectory', 'queryModFileSearch', 'queryModTextFileTarget'],
+    capability: 'mod-file-browser-read',
+    owners: [{ layer: 'app', role: 'composable', domain: 'mod-file-browser-view-model' }],
+  },
+  {
+    role: 'service',
+    domain: 'font',
+    names: ['queryOriginalFont'],
+    capability: 'original-font-read',
+    owners: [{ layer: 'app', role: 'composable', domain: 'original-fonts' }],
+  },
+  {
+    role: 'service',
     domain: 'weapon-data',
     names: ['queryWeaponData', 'queryWeaponSprites', 'queryWeaponProjectiles'],
     capability: 'weapon-data-read',
@@ -90,6 +104,13 @@ export const frontendCapabilities = [
     names: ['loadSettings'],
     capability: 'settings-read',
     owners: [{ path: 'src/main.ts', layer: 'app' }],
+  },
+  {
+    role: 'service',
+    domain: 'app-settings',
+    names: ['querySystemFonts'],
+    capability: 'system-fonts-read',
+    owners: [{ path: 'src/app/composables/settings/use-settings-view-model.ts', layer: 'app' }],
   },
   {
     role: 'service',

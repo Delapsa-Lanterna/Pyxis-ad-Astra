@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ConfigMissionView from './ConfigMissionView.vue';
 import ConfigMissionList from './ConfigMissionList.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useWriteSyncStore } from '@/stores/write-sync.store';
@@ -94,19 +95,7 @@ function invalidate() {
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'plain',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   useWorkspaceStore().registerMod({ modRoot: 'M:/mod', displayName: 'Mod', version: '', status: 'ready' });
   useWorkspaceStore().activateModConfig('M:/mod', 'mission');
   const update = sessionUpdateFixture('s1', 'M:/mod');

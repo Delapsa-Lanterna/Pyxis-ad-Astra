@@ -61,6 +61,7 @@ vi.mock('@/services/app-log.service', () => ({
 
 import { useWorkspaceShellActions } from './use-workspace-shell-actions';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -81,19 +82,7 @@ function feedbackStub(): AppFeedback {
 describe('useWorkspaceShellActions', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({
-      theme: 'light',
-      accent: 'blue',
-      customAccent: '#3388cc',
-      fileHistoryLimit: 20,
-      editHistoryLimit: 250,
-      logRotationSizeMiB: 5,
-      logBackupCount: 1,
-      editMode: 'smart',
-      starsectorRoot: null,
-      logDirectory: null,
-      logLevel: 'info',
-    });
+    initializeSettingsStore(createSettingsFixture());
     vi.clearAllMocks();
   });
 

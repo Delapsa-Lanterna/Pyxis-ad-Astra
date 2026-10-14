@@ -5,6 +5,11 @@ use crate::{
 };
 
 #[tauri::command(async)]
+pub fn query_system_fonts() -> Result<Vec<String>, AppError> {
+    services::app_settings::query_system_fonts()
+}
+
+#[tauri::command(async)]
 pub fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettings, AppError> {
     services::app_settings::load_app_settings(app_handle)
 }

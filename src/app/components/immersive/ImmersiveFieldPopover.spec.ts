@@ -6,6 +6,7 @@ import { NInput } from 'naive-ui/es/input';
 import { NSelect } from 'naive-ui/es/select';
 import { NButton } from 'naive-ui/es/button';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
 import { projectShipPanel } from '@/domain/immersive/ship-panel';
@@ -22,19 +23,7 @@ beforeEach(() => {
     },
   );
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'dark',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ theme: 'dark' }));
   vi.clearAllMocks();
 });
 function harness(id = 'hitpoints', missing = false) {

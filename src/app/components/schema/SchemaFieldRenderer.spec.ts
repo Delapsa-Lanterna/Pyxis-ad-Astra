@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { nSelect } from '@/test/ui-stubs';
@@ -36,20 +37,6 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
   }),
 }));
 
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
-
 let wrapper: import('@vue/test-utils').VueWrapper | null = null;
 
 afterEach(() => {
@@ -72,7 +59,7 @@ function mountField(field: FieldSchema, value: unknown, props: Record<string, un
 describe('SchemaFieldRenderer smart mode', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
   });
 
   it('preserves object-array input nodes and focus across cloned drafts', async () => {
@@ -196,7 +183,7 @@ describe('SchemaFieldRenderer smart mode', () => {
 describe('SchemaFieldRenderer plain mode', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS, editMode: 'plain' });
+    initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   });
 
   it('renders enums as plain text inputs without options', async () => {

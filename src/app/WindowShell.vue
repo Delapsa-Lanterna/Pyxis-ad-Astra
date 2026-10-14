@@ -32,5 +32,5 @@ const colors = computed(() => (props.appearance === 'immersive' ? IMMERSIVE_COLO
 const theme = computed(() => (props.appearance === 'immersive' ? ('dark' as const) : settings.theme));
 const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null));
 useThemeDomEffect(() => ({ colors: colors.value, theme: theme.value }));
-const themeOverrides = computed(() => buildThemeOverrides(colors.value));
+const themeOverrides = computed(() => buildThemeOverrides(colors.value, settings.fontFamily));
 </script>

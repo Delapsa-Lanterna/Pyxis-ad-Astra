@@ -17,6 +17,8 @@ use std::{
 };
 
 const SETTINGS_FILE: &str = "settings.json";
+mod system_fonts;
+pub use system_fonts::query_system_fonts;
 static ALLOW_CORE_EDITING: AtomicBool = AtomicBool::new(false);
 static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -96,6 +98,14 @@ pub fn save_settings(app_data_dir: &Path, settings: &AppSettings) -> AppResult<(
 }
 
 fn validate_settings_limits(settings: &AppSettings) -> AppResult<()> {
+    if let Some(font) = &settings.general_font
+        && (font.trim().is_empty() || font.chars().any(char::is_control))
+    {
+        return Err(AppError::message(
+            "settings.font_invalid",
+            "Invalid general font family",
+        ));
+    }
     for (name, value, maximum) in [
         ("fileHistoryLimit", settings.file_history_limit, 1000),
         ("editHistoryLimit", settings.edit_history_limit, 1000),
@@ -273,6 +283,37 @@ mod tests {
         let settings = load_settings(&dir).unwrap();
         let _ = fs::remove_dir_all(dir);
         assert_eq!(settings, AppSettings::default());
+    }
+
+    #[test]
+    fn font_settings_roundtrip() {
+        let dir = temp_dir("settings_fonts");
+        let settings = AppSettings {
+            general_font: Some("Microsoft YaHei".into()),
+            immersive_game_font: false,
+            ..AppSettings::default()
+        };
+        save_settings(&dir, &settings).unwrap();
+        assert_eq!(load_settings(&dir).unwrap(), settings);
+        for family in ["", " ", "Arial\n"] {
+            let invalid = AppSettings {
+                general_font: Some(family.into()),
+                ..AppSettings::default()
+            };
+            assert_eq!(
+                save_settings(&dir, &invalid).unwrap_err().code(),
+                "settings.font_invalid"
+            );
+            let text = serde_json::to_string(&invalid).unwrap();
+            write_utf8_no_bom(&settings_path(&dir), &text).unwrap();
+            let error = load_settings(&dir).unwrap_err();
+            assert_eq!(error.code(), "settings.font_invalid");
+            assert_eq!(
+                error.location().unwrap().path.as_deref(),
+                settings_path(&dir).to_str()
+            );
+        }
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

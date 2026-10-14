@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useThemeDomEffect } from './use-theme-dom-effect';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 
@@ -15,24 +16,10 @@ function mountEffect() {
   });
 }
 
-const LIGHT_SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
-
 describe('useThemeDomEffect', () => {
   let systemTheme: EventTarget & { matches: boolean };
   it('keeps a fixed window appearance while the mirrored application theme changes', async () => {
-    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: 'light' });
+    initializeSettingsStore(createSettingsFixture({ theme: 'light' }));
     const wrapper = mount({
       setup() {
         useThemeDomEffect(() => ({ colors: IMMERSIVE_COLORS, theme: 'dark' }));
@@ -46,6 +33,19 @@ describe('useThemeDomEffect', () => {
     await nextTick();
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(document.documentElement.style.getPropertyValue('--color-bg')).toBe(IMMERSIVE_COLORS.background);
+    wrapper.unmount();
+  });
+  it('applies mirrored font choices immediately to the root and Naive UI controls', async () => {
+    const { buildThemeOverrides } = await import('@/app/theme-overrides');
+    initializeSettingsStore(createSettingsFixture());
+    const wrapper = mountEffect();
+    const settings = useSettingsStore();
+    expect(document.documentElement.style.getPropertyValue('--font-sans')).toBe(settings.fontFamily);
+    settings.replaceSettings(createSettingsFixture({ generalFont: 'Microsoft YaHei' }));
+    expect(document.documentElement.style.getPropertyValue('--font-sans')).toBe(settings.fontFamily);
+    expect(buildThemeOverrides(settings.themeColors, settings.fontFamily).common?.fontFamily).toBe(settings.fontFamily);
+    settings.setGeneralFont(null);
+    expect(document.documentElement.style.getPropertyValue('--font-sans')).toBe(settings.fontFamily);
     wrapper.unmount();
   });
   beforeEach(() => {
@@ -66,7 +66,7 @@ describe('useThemeDomEffect', () => {
 
   it.each([false, true])('follows the system on startup and when it changes (dark: %s)', async (dark) => {
     systemTheme.matches = dark;
-    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: null });
+    initializeSettingsStore(createSettingsFixture());
     const wrapper = mountEffect();
     const settings = useSettingsStore();
     expect(settings.theme).toBe(dark ? 'dark' : 'light');
@@ -85,7 +85,7 @@ describe('useThemeDomEffect', () => {
 
   it.each([false, true])('preserves a manual selection across system changes and reloads (dark: %s)', async (dark) => {
     systemTheme.matches = dark;
-    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: null });
+    initializeSettingsStore(createSettingsFixture());
     const wrapper = mountEffect();
     const settings = useSettingsStore();
     settings.toggleTheme();
@@ -109,20 +109,20 @@ describe('useThemeDomEffect', () => {
 
   it('resolves mirrored preferences using the current system theme', async () => {
     systemTheme.matches = true;
-    initializeSettingsStore(LIGHT_SETTINGS);
+    initializeSettingsStore(createSettingsFixture({ theme: 'light' }));
     const wrapper = mountEffect();
     const settings = useSettingsStore();
-    settings.replaceSettings({ ...LIGHT_SETTINGS, theme: null });
+    settings.replaceSettings(createSettingsFixture());
     await nextTick();
     expect(document.documentElement.dataset.theme).toBe('dark');
-    settings.replaceSettings(LIGHT_SETTINGS);
+    settings.replaceSettings(createSettingsFixture({ theme: 'light' }));
     await nextTick();
     expect(document.documentElement.dataset.theme).toBe('light');
     wrapper.unmount();
   });
 
   it('releases the system preference listener when the window unmounts', () => {
-    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: null });
+    initializeSettingsStore(createSettingsFixture());
     const removeListener = vi.spyOn(systemTheme, 'removeEventListener');
     const wrapper = mountEffect();
     wrapper.unmount();
@@ -133,7 +133,7 @@ describe('useThemeDomEffect', () => {
   });
 
   it('applies the current theme and color tokens immediately', () => {
-    initializeSettingsStore({ ...LIGHT_SETTINGS, theme: 'dark' });
+    initializeSettingsStore(createSettingsFixture({ theme: 'dark' }));
     const settings = useSettingsStore();
     document.documentElement.style.setProperty('--color-bg', 'stale');
     mountEffect();
@@ -142,7 +142,7 @@ describe('useThemeDomEffect', () => {
   });
 
   it('updates the DOM when the theme changes', async () => {
-    initializeSettingsStore({ ...LIGHT_SETTINGS });
+    initializeSettingsStore(createSettingsFixture({ theme: 'light' }));
     const settings = useSettingsStore();
     mountEffect();
     expect(document.documentElement.dataset.theme).toBe('light');
@@ -153,7 +153,7 @@ describe('useThemeDomEffect', () => {
   });
 
   it('updates the primary token when the accent changes', async () => {
-    initializeSettingsStore({ ...LIGHT_SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
     const settings = useSettingsStore();
     mountEffect();
     settings.setAccent('orange');
@@ -162,7 +162,7 @@ describe('useThemeDomEffect', () => {
   });
 
   it('replaces stale managed tokens when the theme changes', async () => {
-    initializeSettingsStore({ ...LIGHT_SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
     const settings = useSettingsStore();
     mountEffect();
     document.documentElement.style.setProperty('--color-overlay', 'stale');

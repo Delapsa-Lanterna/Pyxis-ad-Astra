@@ -13,6 +13,15 @@ use crate::models::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryOriginalFontPayload {
+    pub session_id: ProjectSessionId,
+    #[serde(deserialize_with = "required_nullable_non_empty_string")]
+    pub starsector_root: Option<String>,
+    pub font_id: crate::models::font::FontId,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveCsvPatchPayload {

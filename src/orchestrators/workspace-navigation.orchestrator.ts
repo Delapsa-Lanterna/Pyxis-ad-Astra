@@ -33,6 +33,13 @@ export function navigateToModTable(modRoot: string, tab: TableKey) {
   workspace.activateModTable(modRoot);
 }
 
+export function navigateToModFiles(modRoot: string) {
+  const workspace = useWorkspaceStore();
+  if (!workspace.mods.has(modRoot)) return;
+  syncActiveModRuntime(modRoot);
+  workspace.activateModFiles(modRoot);
+}
+
 export function navigateToModConfig(modRoot: string, view: ConfigView) {
   const workspace = useWorkspaceStore();
   if (!workspace.mods.has(modRoot)) return;

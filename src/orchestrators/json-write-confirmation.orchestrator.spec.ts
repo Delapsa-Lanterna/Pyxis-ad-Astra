@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import type { AppFeedback } from '@/shared/types';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { runConfirmedJsonWrite } from './json-write-confirmation.orchestrator';
 import { AppError, withCause } from '@/shared/lib/errors';
 
@@ -21,20 +22,7 @@ describe('runConfirmedJsonWrite', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setActivePinia(createPinia());
-    initializeSettingsStore({
-      theme: 'light',
-      accent: 'blue',
-      customAccent: '#2563eb',
-      fileHistoryLimit: 20,
-      editHistoryLimit: 250,
-      logRotationSizeMiB: 5,
-      logBackupCount: 1,
-      editMode: 'smart',
-      preserveOriginalJson: true,
-      starsectorRoot: null,
-      logDirectory: null,
-      logLevel: 'info',
-    });
+    initializeSettingsStore(createSettingsFixture());
   });
 
   it('confirms a rewrite and retries with the source fingerprint', async () => {

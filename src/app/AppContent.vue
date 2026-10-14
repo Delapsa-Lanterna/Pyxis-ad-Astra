@@ -16,6 +16,7 @@
       />
       <SettingsPage v-else-if="workspace.currentView === 'settings'" />
       <AboutPage v-else-if="workspace.currentView === 'about'" />
+      <ModFileBrowser v-else-if="workspace.currentView === 'mod-files' && project.activeManifest" />
       <TableWorkspace v-else-if="workspace.currentView === 'table' && project.activeManifest" />
       <ConfigWorkspace v-else-if="workspace.currentView === 'config' && project.activeManifest" />
       <main v-else class="workspace workspace-loading">
@@ -49,6 +50,7 @@ const OverviewPage = defineAsyncComponent(() => import('@/app/components/Overvie
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
 const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.vue'));
 const TableWorkspace = defineAsyncComponent(() => import('@/app/components/TableWorkspace.vue'));
+const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const ConfigWorkspace = defineAsyncComponent(() => import('@/app/components/config/ConfigWorkspace.vue'));
 
 const project = useProjectStore();

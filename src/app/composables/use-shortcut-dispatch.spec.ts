@@ -35,6 +35,18 @@ describe('useShortcutDispatch plain keys', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it('leaves keys outside the active surface available to their focused controls', () => {
+    const handler = vi.fn();
+    mountDispatch({ keys: { enter: handler }, keyScope: (event) => (event.target as HTMLElement).className === 'surface' });
+    const outside = document.createElement('button'),
+      inside = document.createElement('div');
+    inside.className = 'surface';
+    document.body.append(outside, inside);
+    expect(press('Enter', {}, outside).defaultPrevented).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+    expect(press('Enter', {}, inside).defaultPrevented).toBe(true);
+    expect(handler).toHaveBeenCalledOnce();
+  });
   it('matches keys case-insensitively', () => {
     const handler = vi.fn();
     mountDispatch({ keys: { t: handler } });

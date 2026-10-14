@@ -138,8 +138,8 @@ import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewpo
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { warningNotice } from '@/shared/lib/errors';
-import { getFont } from '@/app/fonts/font-provider';
-import { layoutText, textGraphemes } from '@/domain/fonts/text-layout';
+import { useFontMeasurement } from '@/app/composables/use-original-fonts';
+import { textGraphemes } from '@/domain/fonts/text-layout';
 import { immersiveFontIds } from '@/domain/immersive/font-roles';
 import ImmersiveText from './ImmersiveText.vue';
 import ImmersiveFilterGroup from './ImmersiveFilterGroup.vue';
@@ -244,12 +244,12 @@ watch(
   { immediate: true },
 );
 const selected = computed(() => (hovered.value ? availableEntries.value.find((entry) => entry.id === hovered.value) : undefined));
+const measureText = useFontMeasurement(immersiveFontIds.body);
 function abbreviate(text: string, maxWidth: number) {
-  const font = getFont(immersiveFontIds.body);
-  if (layoutText(font, [{ text }]).width <= maxWidth) return text;
+  if (measureText([{ text }]) <= maxWidth) return text;
   let result = '';
   for (const character of textGraphemes(text)) {
-    if (layoutText(font, [{ text: result + character + '…' }]).width > maxWidth) break;
+    if (measureText([{ text: result + character + '…' }]) > maxWidth) break;
     result += character;
   }
   return result + '…';

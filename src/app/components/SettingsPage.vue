@@ -56,6 +56,28 @@
       </div>
     </section>
     <section class="settings-section">
+      <h3>字体</h3>
+      <div class="settings-row">
+        <span>通用字体</span>
+        <div class="settings-control-row">
+          <n-select
+            :value="settings.generalFont ?? ''"
+            :options="fontOptions"
+            :loading="fontsLoading"
+            filterable
+            size="small"
+            @update:value="settings.setGeneralFont($event || null)"
+          />
+        </div>
+      </div>
+      <div class="settings-hint">选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。</div>
+      <div class="settings-row">
+        <span>沉浸式编辑器原版字体</span>
+        <n-switch class="tool-switch" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" />
+      </div>
+      <div class="settings-hint">从游戏安装目录加载原版字体。原版字体缺字时，按设计显示英文问号。</div>
+    </section>
+    <section class="settings-section">
       <h3>编辑模式</h3>
       <div class="settings-row">
         <span>引用式编辑</span>
@@ -64,7 +86,7 @@
           <n-radio-button value="smart">增强控件</n-radio-button>
         </n-radio-group>
       </div>
-      <div class="settings-hint">纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑；增强控件模式下保持当前实现。</div>
+      <div class="settings-hint">纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑。增强控件模式下，将引入更直观的编辑界面。</div>
     </section>
     <section class="settings-section">
       <h3>全局限制</h3>
@@ -80,7 +102,7 @@
           @update:value="settings.setFileHistoryLimit($event ?? settings.fileHistoryLimit)"
         />
       </div>
-      <div class="settings-hint">每个 Mod 独立保留已保存文件的撤销历史；降低步数会立即裁剪较早的 undo 记录。</div>
+      <div class="settings-hint">每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。</div>
       <div class="settings-row">
         <span>编辑撤销步数</span>
         <n-input-number
@@ -93,7 +115,7 @@
           @update:value="settings.setEditHistoryLimit($event ?? settings.editHistoryLimit)"
         />
       </div>
-      <div class="settings-hint">各表格及编辑会话独立保留草稿撤销历史；降低步数会立即裁剪较早的 undo 记录。</div>
+      <div class="settings-hint">各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。</div>
     </section>
     <section class="settings-section">
       <h3>JSON 保存</h3>
@@ -101,7 +123,7 @@
         <span>原样保存</span>
         <n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" />
       </div>
-      <div class="settings-hint">尽量保留结构化 JSON 文件的注释与字段顺序；无法保留时会在写入前请求确认。</div>
+      <div class="settings-hint">尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。</div>
     </section>
     <section class="settings-section">
       <h3>原版内容</h3>
@@ -152,7 +174,7 @@
           @update:value="settings.setLogBackupCount($event ?? settings.logBackupCount)"
         />
       </div>
-      <div class="settings-hint">保留最近的已轮转日志；降低份数在下次轮转时整理已有备份。</div>
+      <div class="settings-hint">保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。</div>
       <div class="settings-row">
         <span>Log 文件大小</span>
         <strong>{{ formattedLogSize }}</strong>
@@ -191,6 +213,9 @@ const settings = useSettingsStore();
 const customAccentDraft = ref(settings.customAccent);
 const customAccentValid = ref(true);
 const {
+  fontOptions,
+  fontsLoading,
+  loadSystemFonts,
   formattedLogSize,
   logPathHint,
   pickLogDirectory,
@@ -204,6 +229,7 @@ const {
 } = useSettingsViewModel();
 
 onMounted(() => {
+  void loadSystemFonts();
   void refreshLogStatus();
 });
 

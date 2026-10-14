@@ -1,24 +1,12 @@
 .immersive-editor-shell {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   width: 100vw;
   height: 100vh;
   min-width: 0;
   min-height: 0;
   color: var(--color-text);
   background: var(--color-bg);
-}
-.immersive-window-header {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-primary);
-}
-.immersive-window-header strong {
-  flex: 1;
-  min-width: 0;
 }
 .immersive-editor-scroll {
   min-width: 0;
@@ -365,6 +353,10 @@ button.immersive-stat-value:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+}
+.immersive-meta-status {
+  font-family: var(--font-sans);
+  white-space: nowrap;
 }
 .variant-window-shell .immersive-editor-scroll {
   position: absolute;

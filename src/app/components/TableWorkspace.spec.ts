@@ -7,6 +7,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { sessionUpdateFixture } from '@/test/write-result';
 import { editorUiStubs, nInput } from '@/test/ui-stubs';
 import type { CsvTableWindow } from '@/shared/types';
@@ -33,19 +34,7 @@ function record(header = ['id', 'name', 'tags']): CsvTableWindow {
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'plain',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   const update = sessionUpdateFixture(target.sessionId, target.modRoot);
   if (update.status !== 'ready') throw new Error('fixture is ready');
   update.projection.manifest.tableSummaries.ships.header = record().header;

@@ -1,4 +1,17 @@
+export type {
+  ModFileEntry,
+  ModDirectory,
+  ModFileKind,
+  ModTextFileTarget,
+  ModDirectoryState,
+  ModFileBrowserState,
+  ModFileBranch,
+  ModFileSearch,
+  ModFileSortKey,
+  ModFileSort,
+} from '@/shared/types/mod-file-browser.types';
 export type { JsonInputShape, JsonInputValue, JsonValue, RowData } from '@/shared/types/json.types';
+export type { FontId, OriginalFontPage, OriginalFontResult } from '@/shared/types/font.types';
 export type { EditContext } from '@/shared/types/edit-context.types';
 export type {
   DeepReadonly,

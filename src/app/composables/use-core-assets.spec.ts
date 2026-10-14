@@ -5,6 +5,7 @@ import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics } from '@/orch
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useCoreGraphics, useCoreSchema } from './use-core-assets';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { DiscoveredField } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
@@ -16,19 +17,7 @@ let scope: ReturnType<typeof effectScope>;
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: 'D:/A',
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ starsectorRoot: 'D:/A' }));
   vi.clearAllMocks();
   mocks.fields.mockResolvedValue(fields);
   mocks.graphics.mockResolvedValue(['graphics/a.png']);

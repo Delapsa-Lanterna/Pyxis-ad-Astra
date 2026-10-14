@@ -4,6 +4,7 @@ import { installCanvas2DStub } from '@/test/canvas-stub';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => ({
@@ -23,19 +24,7 @@ let wrapper: import('@vue/test-utils').VueWrapper | null = null;
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#2563eb',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
   installCanvas2DStub();
 });
 

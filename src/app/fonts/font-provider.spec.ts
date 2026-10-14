@@ -1,106 +1,99 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fontGlyph, getFont, loadFontAtlas } from './font-provider';
+import { fontGlyph, decodeOriginalFont } from './font-provider';
+import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
+import { originalFontFixture } from '@/test/font';
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-describe('shared glyph raster cache', () => {
-  it('loads the original victor14 filter metrics and mixed Chinese/Latin glyphs', () => {
-    expect(getFont('victor14').lineHeight).toBe(13);
-    expect(getFont('victor14').base).toBe(10);
-    for (const character of '实弹能量导弹小型中型大型Ctrl') expect(getFont('victor14').glyphs.has(character.codePointAt(0)!)).toBe(true);
+
+function images() {
+  const created: Array<{
+    src: string;
+    naturalWidth: number;
+    naturalHeight: number;
+    onload: null | (() => void);
+    onerror: null | (() => void);
+  }> = [];
+  vi.stubGlobal(
+    'Image',
+    class {
+      src = '';
+      naturalWidth = 16;
+      naturalHeight = 16;
+      onload: null | (() => void) = null;
+      onerror: null | (() => void) = null;
+      constructor() {
+        created.push(this);
+      }
+    },
+  );
+  return created;
+}
+describe('external font decode', () => {
+  it('decodes every declared page before publishing a font', async () => {
+    const created = images();
+    const loading = decodeOriginalFont(originalFontFixture(undefined, 2));
+    expect(created).toHaveLength(2);
+    created[0]!.onload!();
+    created[1]!.onload!();
+    const font = await loading;
+    expect([...font.pages.values()]).toEqual(created);
+    expect(created.every((image) => image.onload === null && image.onerror === null)).toBe(true);
   });
-  it('reuses the same glyph/color raster and isolates outline and atlas identity', () => {
-    const context = { drawImage: vi.fn(), fillRect: vi.fn(), fillStyle: '', globalCompositeOperation: 'source-over' };
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+  it('reports the failed page path and supports a fresh loading attempt', async () => {
+    const created = images(),
+      source = originalFontFixture(undefined, 2);
+    const failed = decodeOriginalFont(source);
+    const rejected = expect(failed).rejects.toMatchObject({ code: 'font.decode_failed', location: { path: source.pages[1]!.path } });
+    created[0]!.onload!();
+    created[1]!.onerror!();
+    await rejected;
+    const retry = decodeOriginalFont(source);
+    created.slice(2).forEach((image) => image.onload!());
+    expect((await retry).pages.size).toBe(2);
+  });
+  it('rejects malformed definitions, duplicate pages and mismatched image dimensions', async () => {
+    const created = images(),
+      source = originalFontFixture();
+    await expect(decodeOriginalFont({ ...source, definition: 'invalid' })).rejects.toMatchObject({
+      code: 'font.definition_invalid',
+      location: { path: source.path },
+    });
+    await expect(decodeOriginalFont({ ...source, pages: [] })).rejects.toMatchObject({ code: 'font.definition_invalid' });
+    const duplicate = originalFontFixture(undefined, 2);
+    duplicate.pages[1]!.id = 0;
+    await expect(decodeOriginalFont(duplicate)).rejects.toMatchObject({ code: 'font.definition_invalid' });
+    const loading = decodeOriginalFont(source);
+    created[0]!.naturalWidth = 20;
+    created[0]!.onload!();
+    await expect(loading).rejects.toMatchObject({ code: 'font.definition_invalid', location: { path: source.pages[0]!.path } });
+  });
+});
+describe('glyph raster ownership', () => {
+  function context() {
+    const paint = { drawImage: vi.fn(), fillRect: vi.fn() };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(paint as unknown as CanvasRenderingContext2D);
+    return paint;
+  }
+  it('shares glyph/color rasters and isolates outlines and page identities', () => {
+    const paint = context(),
+      source = originalFontFixture(),
+      glyph = parseOriginalBitmapFont(source.definition).glyphs.get(65)!;
     const image = new Image(),
-      glyph = getFont('insignia15LTaa').glyphs.get('舰'.codePointAt(0)!)!;
-    const first = fontGlyph(image, glyph, '#ffd200');
+      first = fontGlyph(image, glyph, '#ffd200');
     expect(fontGlyph(image, glyph, '#ffd200')).toBe(first);
-    expect(context.fillRect).toHaveBeenCalledOnce();
+    expect(paint.fillRect).toHaveBeenCalledOnce();
     expect(fontGlyph(image, glyph, '#000000', true)).not.toBe(first);
     expect(fontGlyph(new Image(), glyph, '#ffd200')).not.toBe(first);
   });
-  it('evicts the oldest raster after 512 distinct entries', () => {
-    const context = { drawImage: vi.fn(), fillRect: vi.fn() };
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+  it('evicts the oldest raster beyond 512 entries', () => {
+    context();
     const image = new Image(),
-      base = getFont('insignia15LTaa').glyphs.get('舰'.codePointAt(0)!)!;
-    const first = fontGlyph(image, { ...base, id: 0 }, '#ffd200');
-    for (let id = 1; id <= 512; id++) fontGlyph(image, { ...base, id }, '#ffd200');
-    expect(fontGlyph(image, { ...base, id: 0 }, '#ffd200')).not.toBe(first);
-  });
-});
-
-describe('font definitions and atlas lifecycle', () => {
-  it.each([
-    ['insignia15LTaa', 17, 15, 6735],
-    ['insignia21LTaa', 18, 16, 6735],
-    ['orbitron12condensed', 16, 16, 6500],
-    ['orbitron20aa', 20, 19, 6516],
-    ['orbitron20aabold', 20, 19, 6517],
-    ['orbitron24aa', 24, 21, 6516],
-    ['orbitron24aabold', 24, 21, 6516],
-    ['victor10', 9, 8, 8082],
-    ['victor14', 13, 10, 8038],
-  ] as const)('provides %s synchronously and shares its definition', (id, lineHeight, base, glyphCount) => {
-    const font = getFont(id);
-    expect(getFont(id)).toBe(font);
-    expect(font).toMatchObject({ lineHeight, base });
-    expect(font.glyphs.size).toBe(glyphCount);
-  });
-
-  function images() {
-    const created: Array<{ src: string; onload: () => void; onerror: () => void }> = [];
-    vi.stubGlobal(
-      'Image',
-      class {
-        src = '';
-        onload = () => {};
-        onerror = () => {};
-        constructor() {
-          created.push(this);
-        }
-      },
-    );
-    return created;
-  }
-
-  it('shares a pending decode and reuses the decoded atlas', async () => {
-    const created = images();
-    const first = loadFontAtlas('orbitron20aa');
-    expect(loadFontAtlas('orbitron20aa')).toBe(first);
-    expect(created).toHaveLength(1);
-    expect(created[0]!.src).toContain('orbitron20aa_0.png');
-    created[0]!.onload();
-    expect(await first).toBe(created[0]);
-    expect(loadFontAtlas('orbitron20aa')).toBe(first);
-  });
-
-  it('retries after a failed decode with the same font identity', async () => {
-    const created = images();
-    const failed = loadFontAtlas('victor14');
-    const rejected = expect(failed).rejects.toMatchObject({
-      code: 'font.decode_failed',
-      action: 'font-load',
-      message: expect.stringContaining('victor14'),
-    });
-    created[0]!.onerror();
-    await rejected;
-    const retry = loadFontAtlas('victor14');
-    expect(retry).not.toBe(failed);
-    expect(created).toHaveLength(2);
-    created[1]!.onload();
-    expect(await retry).toBe(created[1]);
-  });
-
-  it('isolates actual font identities', async () => {
-    const created = images();
-    const first = loadFontAtlas('orbitron24aa');
-    const second = loadFontAtlas('orbitron24aabold');
-    expect(first).not.toBe(second);
-    expect(created).toHaveLength(2);
-    created.forEach((image) => image.onload());
-    expect(await first).not.toBe(await second);
+      glyph = parseOriginalBitmapFont(originalFontFixture().definition).glyphs.get(65)!;
+    const first = fontGlyph(image, { ...glyph, id: 0 }, '#fff');
+    for (let id = 1; id <= 512; id++) fontGlyph(image, { ...glyph, id }, '#fff');
+    expect(fontGlyph(image, { ...glyph, id: 0 }, '#fff')).not.toBe(first);
   });
 });

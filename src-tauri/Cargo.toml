@@ -27,3 +27,6 @@ tauri-plugin-single-instance = "^2.5.2"
 thiserror = "2"
 walkdir = "2.5"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Graphics_Gdi"] }
+

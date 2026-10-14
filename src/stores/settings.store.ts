@@ -3,11 +3,14 @@ import { defineStore } from 'pinia';
 import { darkTheme, lightTheme } from 'naive-ui/es/themes';
 import type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel } from '@/shared/types';
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
+import { generalFontFamily } from '@/domain/settings/fonts';
 import {
   assertValidSettings,
   readAccent,
   readCustomAccent,
+  readGeneralFont,
   readEditMode,
+  readImmersiveGameFont,
   readHistoryLimit,
   readLogRotationSizeMiB,
   readLogBackupCount,
@@ -33,11 +36,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
   const customAccent = ref(readCustomAccent(initialSettings.customAccent));
+  const generalFont = ref(initialSettings.generalFont);
+  const fontFamily = computed(() => generalFontFamily(generalFont.value));
   const fileHistoryLimit = ref(initialSettings.fileHistoryLimit);
   const editHistoryLimit = ref(initialSettings.editHistoryLimit);
   const logRotationSizeMiB = ref(initialSettings.logRotationSizeMiB);
   const logBackupCount = ref(initialSettings.logBackupCount);
   const editMode = ref<EditMode>(readEditMode(initialSettings.editMode));
+  const immersiveGameFont = ref(initialSettings.immersiveGameFont);
   const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
   const savedCoreEditing = ref(allowCoreEditing.value);
@@ -100,6 +106,14 @@ export const useSettingsStore = defineStore('settings', () => {
     editMode.value = mode;
   }
 
+  function setImmersiveGameFont(value: boolean) {
+    immersiveGameFont.value = readImmersiveGameFont(value);
+  }
+
+  function setGeneralFont(value: string | null) {
+    generalFont.value = readGeneralFont(value);
+  }
+
   function setPreserveOriginalJson(enabled: boolean) {
     preserveOriginalJson.value = readPreserveOriginalJson(enabled);
   }
@@ -125,11 +139,13 @@ export const useSettingsStore = defineStore('settings', () => {
       theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
+      generalFont: generalFont.value,
       fileHistoryLimit: fileHistoryLimit.value,
       editHistoryLimit: editHistoryLimit.value,
       logRotationSizeMiB: logRotationSizeMiB.value,
       logBackupCount: logBackupCount.value,
       editMode: editMode.value,
+      immersiveGameFont: immersiveGameFont.value,
       preserveOriginalJson: preserveOriginalJson.value,
       allowCoreEditing: allowCoreEditing.value,
       starsectorRoot: starsectorRoot.value,
@@ -139,6 +155,8 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function replaceSettings(settings: AppSettings) {
+    const nextGeneralFont = readGeneralFont(settings.generalFont);
+    const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
     const nextFileHistoryLimit = readHistoryLimit(settings.fileHistoryLimit);
     const nextEditHistoryLimit = readHistoryLimit(settings.editHistoryLimit);
     const nextLogRotationSizeMiB = readLogRotationSizeMiB(settings.logRotationSizeMiB);
@@ -146,11 +164,13 @@ export const useSettingsStore = defineStore('settings', () => {
     themePreference.value = readTheme(settings.theme);
     accent.value = readAccent(settings.accent);
     customAccent.value = readCustomAccent(settings.customAccent);
+    generalFont.value = nextGeneralFont;
     fileHistoryLimit.value = nextFileHistoryLimit;
     editHistoryLimit.value = nextEditHistoryLimit;
     logRotationSizeMiB.value = nextLogRotationSizeMiB;
     logBackupCount.value = nextLogBackupCount;
     editMode.value = readEditMode(settings.editMode);
+    immersiveGameFont.value = nextImmersiveGameFont;
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
     savedCoreEditing.value = allowCoreEditing.value;
@@ -167,7 +187,10 @@ export const useSettingsStore = defineStore('settings', () => {
     accent,
     activeAccentHex,
     customAccent,
+    generalFont,
+    fontFamily,
     editMode,
+    immersiveGameFont,
     preserveOriginalJson,
     allowCoreEditing,
     canEditCore,
@@ -186,7 +209,9 @@ export const useSettingsStore = defineStore('settings', () => {
     themeColors,
     setAccent,
     setCustomAccent,
+    setGeneralFont,
     setEditMode,
+    setImmersiveGameFont,
     setPreserveOriginalJson,
     setAllowCoreEditing,
     setFileHistoryLimit,

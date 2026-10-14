@@ -14,7 +14,7 @@ import { gameModsDirectoryPath } from '@/shared/lib/paths';
 
 interface ModNavigationContext {
   configView: ConfigView;
-  currentView: Extract<WorkspaceView, 'config' | 'table'>;
+  currentView: Extract<WorkspaceView, 'config' | 'table' | 'mod-files'>;
 }
 
 function createDefaultModNavigationContext(): ModNavigationContext {
@@ -35,7 +35,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const columnWidths = ref<WorkspaceColumnWidths>({});
 
   const activeMod = computed(() => (activeModRoot.value ? (mods.value.get(activeModRoot.value) ?? null) : null));
-  const isModView = computed(() => currentView.value === 'config' || currentView.value === 'table');
+  const isModView = computed(() => currentView.value === 'config' || currentView.value === 'table' || currentView.value === 'mod-files');
   const loadedModList = computed(() => [...mods.value.values()]);
   const loadedModCount = computed(() => mods.value.size);
   const hasLoadedMods = computed(() => mods.value.size > 0);
@@ -112,6 +112,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeModRoot.value = modRoot;
     currentView.value = 'table';
     updateModNavigationContext(modRoot, { currentView: 'table' });
+  }
+
+  function activateModFiles(modRoot: string) {
+    if (!mods.value.has(modRoot)) return;
+    activeModRoot.value = modRoot;
+    currentView.value = 'mod-files';
+    updateModNavigationContext(modRoot, { currentView: 'mod-files' });
   }
 
   function activateModConfig(modRoot: string, view: ConfigView) {
@@ -227,6 +234,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     modOpeningFailures,
     mods,
     activateModConfig,
+    activateModFiles,
     activateModOverview,
     activateModTable,
     applyPersistedWorkspaceSnapshot,

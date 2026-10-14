@@ -88,10 +88,11 @@
 - [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、保存等待、EditContext、快照历史与未保存注册表。
 - [联合编辑与目标交接](modules/joint-editing.md)：说明联合来源快照、物理写入范围、跨编辑面保存准备、三方冲突选择、原子提交及释放。
 - [沉浸式编辑器](modules/immersive-editors.md)：说明领域内容渲染器、只读与编辑能力、窗口壳、字段浮层、装配动作、候选读取、悬浮信息与联合会话生命周期交接。
-- [字体](modules/fonts.md)：说明字体身份、内置资产、格式解析、文字排布、共享图集和通用文字展示生命周期。
+- [字体](modules/fonts.md)：说明原版字体读取、逐字体回退、缺字问号、文字测量、共享图集和展示生命周期。
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。
 - [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、CSV 草稿优先级与文件 history 分派。
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布命中检测、选区同步、镜像轴、光标绘制、undo 集成与显式 draft 提交引擎。
+- [Mod 文件浏览器](modules/mod-file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。
 - [文件编辑器](modules/file-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
 - [配置系统](modules/config.md)：说明 mod_info、Faction、Mission、Variant、Skin、目标草稿、实体 query/write 与文件级 history。
 - [字段模式系统](modules/schema.md)：说明 schema 资产加载、runtime、字段渲染、editMode、校验、引用 source、SelectOption 与资源选择。

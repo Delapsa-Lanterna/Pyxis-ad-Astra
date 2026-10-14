@@ -66,26 +66,13 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 import { useConfigFamilyViewModel } from './use-config-family-view-model';
 import { variantFamily } from '@/domain/config/config-entity-families';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
-
 function freshPinia() {
   setActivePinia(createPinia());
-  initializeSettingsStore({ ...SETTINGS });
+  initializeSettingsStore(createSettingsFixture());
   return getActivePinia();
 }
 

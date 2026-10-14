@@ -15,6 +15,12 @@ const cases = [
   ['core-fields-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreFields'],
   ['core-graphics-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreGraphics'],
   [
+    'system-fonts-read',
+    'src/app/composables/settings/use-settings-view-model.ts',
+    'src/services/app-settings.service.ts',
+    'querySystemFonts',
+  ],
+  [
     'config-list-retry',
     'src/app/composables/config/use-config-list-selection.ts',
     'src/orchestrators/project-session-refresh.orchestrator.ts',

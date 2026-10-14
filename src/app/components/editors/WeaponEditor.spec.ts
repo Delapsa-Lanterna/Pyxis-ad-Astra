@@ -9,6 +9,7 @@ import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 const mocks = vi.hoisted(() => ({
   feedback: {
@@ -154,19 +155,7 @@ describe('WeaponEditor', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({
-      theme: 'light',
-      accent: 'blue',
-      customAccent: '#2563eb',
-      fileHistoryLimit: 20,
-      editHistoryLimit: 250,
-      logRotationSizeMiB: 5,
-      logBackupCount: 1,
-      editMode: 'smart',
-      starsectorRoot: null,
-      logDirectory: null,
-      logLevel: 'info',
-    });
+    initializeSettingsStore(createSettingsFixture());
     installCanvas2DStub();
   });
 

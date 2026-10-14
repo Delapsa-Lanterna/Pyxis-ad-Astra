@@ -1,5 +1,6 @@
 <template>
   <div class="immersive-meta-actions">
+    <slot name="before" />
     <n-button size="small" :disabled="!canUndo || saving" @click="$emit('undo')">撤销</n-button>
     <n-button size="small" :disabled="!canRedo || saving" @click="$emit('redo')">重做</n-button>
     <n-button size="small" :loading="saving" :disabled="!ready" type="primary" @click="$emit('save')">保存</n-button>

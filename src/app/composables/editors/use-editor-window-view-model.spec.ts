@@ -7,6 +7,7 @@ import ShipEditor from '@/app/components/editors/ShipEditor.vue';
 import WeaponEditor from '@/app/components/editors/WeaponEditor.vue';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceCacheForSession, invalidateResourceCacheByProject } from '@/services/resource-cache.service';
@@ -135,19 +136,7 @@ function writeResultFixture(refreshedEntity: RowData = { hullId: 'XY' }): WriteR
 const viewModels: ReturnType<typeof useEditorWindowViewModel>[] = [];
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#2563eb',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
   mocks.refreshBundleProjectiles.mockImplementation(async (_session: string, bundle: EditorEntityBundle) => bundle);
   mocks.queryDraftEditorImages.mockImplementation(async (_session: string, kind: string, _id: string, draft: RowData) => {
     const field = kind === 'ship' ? 'spriteName' : 'turretSprite';

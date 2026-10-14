@@ -8,6 +8,7 @@ import { editorUiStubs } from '@/test/ui-stubs';
 import { createPinia, setActivePinia } from 'pinia';
 import { vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn() }) }));
 
@@ -22,19 +23,7 @@ const schema: FileSchema = {
 
 function mountForm(modelValue: RowData) {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
   return mount(SchemaFormRenderer, {
     props: { schema, modelValue },
     global: {

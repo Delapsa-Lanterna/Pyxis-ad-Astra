@@ -6,6 +6,7 @@ import type { CsvTableViewModel } from '@/app/composables/tables/use-csv-table-v
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn() }) }));
 
@@ -42,19 +43,7 @@ function tableVmFixture(overrides: { tables?: Record<string, unknown>; loadExter
 
 function mountTable(vm: CsvTableViewModel) {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
   wrapper = mount(DataTable, {
     props: { csvTable: vm },
     global: {

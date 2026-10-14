@@ -1,13 +1,4 @@
-export type FontId =
-  | 'insignia15LTaa'
-  | 'insignia21LTaa'
-  | 'orbitron12condensed'
-  | 'orbitron20aa'
-  | 'orbitron20aabold'
-  | 'orbitron24aa'
-  | 'orbitron24aabold'
-  | 'victor10'
-  | 'victor14';
+export type { FontId } from '@/shared/types';
 
 export interface TextRun {
   text: string;
@@ -27,6 +18,10 @@ export interface BitmapGlyph {
 }
 
 export interface BitmapFont {
+  readonly pages: ReadonlyMap<number, string>;
+  readonly width: number;
+  readonly height: number;
+  readonly pageCount: number;
   readonly lineHeight: number;
   readonly base: number;
   readonly glyphs: ReadonlyMap<number, BitmapGlyph>;
@@ -40,6 +35,7 @@ export interface BitmapPlacement {
   y: number;
   advance: number;
   color?: string;
+  missing?: boolean;
 }
 
 export interface TextBounds {

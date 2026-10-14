@@ -9,6 +9,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
 import { sessionUpdateFixture } from '@/test/write-result';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { CsvTableTarget, CsvTableWindow } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));
@@ -46,19 +47,7 @@ function harness() {
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'plain',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   for (const target of [a, b]) {
     const update = sessionUpdateFixture(target.sessionId, target.modRoot);
     if (update.status !== 'ready') throw new Error('fixture projection is ready');

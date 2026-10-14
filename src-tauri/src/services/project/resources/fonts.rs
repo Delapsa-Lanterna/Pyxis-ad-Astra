@@ -1,0 +1,227 @@
+use crate::{
+    errors::{AppError, AppResult},
+    io::{FsRootBoundary, read_utf8_no_bom},
+    models::font::{FontId, OriginalFontPage, OriginalFontResult},
+};
+use base64::{Engine as _, engine::general_purpose};
+use std::{collections::BTreeSet, fs, path::Path};
+
+pub fn query_original_font(
+    session_id: &str,
+    override_root: Option<&str>,
+    font_id: FontId,
+) -> AppResult<OriginalFontResult> {
+    let handle = super::super::cache::session_handle(session_id)?;
+    let session = super::super::cache::lock_session(&handle)?;
+    let root = override_root
+        .map(str::to_string)
+        .or_else(|| session.manifest.starsector_root.clone());
+    drop(session);
+    let Some(root) = root else {
+        return Ok(OriginalFontResult::Unavailable);
+    };
+    read_original_font(Path::new(&root), font_id)
+}
+
+fn read_original_font(root: &Path, font_id: FontId) -> AppResult<OriginalFontResult> {
+    let game = FsRootBoundary::new(root, "font game root")?;
+    let core_path = game.resolve_relative("starsector-core", "font core root")?;
+    if !core_path.is_dir() {
+        return Ok(OriginalFontResult::Unavailable);
+    }
+    let core = FsRootBoundary::new(&core_path, "font core root")?;
+    let relative = format!("graphics/fonts/{}.fnt", font_id.name());
+    let path = core.resolve_relative(&relative, "font definition")?;
+    let definition = read_utf8_no_bom(&path)?;
+    let mut pages = Vec::new();
+    let mut ids = BTreeSet::new();
+    for line in definition.lines().filter(|line| line.starts_with("page ")) {
+        let malformed = || {
+            AppError::message(
+                "font.definition_invalid",
+                "Invalid bitmap font page declaration",
+            )
+            .at_path(&path)
+        };
+        let id = line
+            .split_whitespace()
+            .find_map(|field| field.strip_prefix("id="))
+            .ok_or_else(malformed)?
+            .parse::<u32>()
+            .map_err(|_| malformed())?;
+        let file = line
+            .split_once("file=\"")
+            .and_then(|(_, tail)| tail.split_once('"').map(|(file, _)| file))
+            .ok_or_else(malformed)?;
+        if !ids.insert(id) {
+            return Err(malformed());
+        }
+        let image = core.resolve_relative(&format!("graphics/fonts/{file}"), "font page")?;
+        let bytes = fs::read(&image).map_err(|error| {
+            AppError::context("Read font page failed", error.into()).at_path(&image)
+        })?;
+        pages.push(OriginalFontPage {
+            id,
+            path: image.to_string_lossy().into_owned(),
+            data_url: format!(
+                "data:image/png;base64,{}",
+                general_purpose::STANDARD.encode(bytes)
+            ),
+        });
+    }
+    Ok(OriginalFontResult::Available {
+        root: game.root().to_string_lossy().into_owned(),
+        font_id,
+        path: path.to_string_lossy().into_owned(),
+        definition,
+        pages,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        io::write_utf8_no_bom,
+        testutil::{temp_dir, temp_linked_dir},
+    };
+
+    fn install(root: &Path, marker: &str) {
+        let directory = root.join("starsector-core/graphics/fonts");
+        fs::create_dir_all(&directory).unwrap();
+        write_utf8_no_bom(&directory.join("orbitron12condensed.fnt"), &format!("common lineHeight=15 base=12 scaleW=1 scaleH=1 pages=2\npage id=0 file=\"orbitron12_0.png\"\npage id=1 file=\"page1.png\"\n{marker}")).unwrap();
+        fs::write(directory.join("orbitron12_0.png"), [1, 2, 3]).unwrap();
+        fs::write(directory.join("page1.png"), [4, 5, 6]).unwrap();
+    }
+
+    #[test]
+    fn reads_declared_page_names_and_returns_actual_source_paths() {
+        let root = temp_dir("original_font_pages");
+        install(&root, "original");
+        let result = read_original_font(&root, FontId::Orbitron12condensed).unwrap();
+        let OriginalFontResult::Available {
+            pages,
+            path,
+            definition,
+            root: effective,
+            ..
+        } = result
+        else {
+            panic!("available font");
+        };
+        assert_eq!(pages.len(), 2);
+        assert!(pages[0].path.ends_with("orbitron12_0.png"));
+        assert_eq!(pages[0].data_url, "data:image/png;base64,AQID");
+        assert_eq!(pages[1].id, 1);
+        assert!(path.ends_with("orbitron12condensed.fnt"));
+        assert!(definition.contains("original"));
+        assert_eq!(Path::new(&effective), root.canonicalize().unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn distinguishes_unavailable_core_from_missing_font_and_page_files() {
+        let root = temp_dir("original_font_missing");
+        assert!(matches!(
+            read_original_font(&root, FontId::Victor14).unwrap(),
+            OriginalFontResult::Unavailable
+        ));
+        install(&root, "original");
+        let error = read_original_font(&root, FontId::Victor14).unwrap_err();
+        assert!(
+            error
+                .location()
+                .unwrap()
+                .path
+                .as_ref()
+                .unwrap()
+                .ends_with("victor14.fnt")
+        );
+        fs::remove_file(root.join("starsector-core/graphics/fonts/page1.png")).unwrap();
+        let error = read_original_font(&root, FontId::Orbitron12condensed).unwrap_err();
+        assert!(
+            error
+                .location()
+                .unwrap()
+                .path
+                .as_ref()
+                .unwrap()
+                .ends_with("page1.png")
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_malformed_duplicate_and_escaping_page_declarations() {
+        let root = temp_dir("original_font_invalid_page");
+        install(&root, "original");
+        let path = root.join("starsector-core/graphics/fonts/orbitron12condensed.fnt");
+        for text in [
+            "page id=invalid file=\"page1.png\"",
+            "page id=0",
+            "page id=0 file=\"page1.png\"\npage id=0 file=\"page1.png\"",
+            "page id=0 file=\"../../../outside.png\"",
+        ] {
+            write_utf8_no_bom(&path, text).unwrap();
+            assert!(read_original_font(&root, FontId::Orbitron12condensed).is_err());
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_linked_font_parent_chains() {
+        let Some((root, outside, _linked)) =
+            temp_linked_dir("original_font_link", "starsector-core/graphics/fonts")
+        else {
+            return;
+        };
+        write_utf8_no_bom(&outside.join("victor14.fnt"), "page id=0 file=\"page.png\"").unwrap();
+        assert!(read_original_font(&root, FontId::Victor14).is_err());
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
+    fn captures_session_root_and_prioritizes_explicit_settings_root() {
+        let root = temp_dir("original_font_session_root");
+        let game = temp_dir("original_font_game");
+        let other = temp_dir("original_font_other_game");
+        write_utf8_no_bom(
+            &root.join("mod_info.json"),
+            "{\"id\":\"font-test\",\"name\":\"Font Test\"}",
+        )
+        .unwrap();
+        install(&game, "session-source");
+        install(&other, "settings-source");
+        let mut trace = crate::services::project::PerformanceTrace::new("fonts.test");
+        let manifest = super::super::super::session::open_project_session_traced(
+            &root,
+            Some(&game),
+            &mut trace,
+        )
+        .unwrap();
+        let from_session =
+            query_original_font(&manifest.session_id, None, FontId::Orbitron12condensed).unwrap();
+        let OriginalFontResult::Available { definition, .. } = from_session else {
+            panic!("session font");
+        };
+        assert!(definition.contains("session-source"));
+        let from_settings = query_original_font(
+            &manifest.session_id,
+            Some(&other.to_string_lossy()),
+            FontId::Orbitron12condensed,
+        )
+        .unwrap();
+        let OriginalFontResult::Available { definition, .. } = from_settings else {
+            panic!("settings font");
+        };
+        assert!(definition.contains("settings-source"));
+        super::super::super::session::close_project_session(manifest.session_id.clone()).unwrap();
+        assert!(
+            query_original_font(&manifest.session_id, None, FontId::Orbitron12condensed).is_err()
+        );
+        for dir in [root, game, other] {
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}

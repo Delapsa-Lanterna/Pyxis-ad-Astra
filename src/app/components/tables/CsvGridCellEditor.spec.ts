@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { CsvSourceIndex } from '@/domain/tables/csv-source-options';
 import type { CsvGridColumn } from '@/domain/tables/csv-grid-model';
 import CsvGridCellEditor from './CsvGridCellEditor.vue';
@@ -9,20 +10,6 @@ import { mountCsvInputHost } from '@/test/csv-input-host';
 import { vi } from 'vitest';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
-
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
 
 const sourceIndex: CsvSourceIndex = { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() };
 
@@ -71,7 +58,7 @@ describe('CsvGridCellEditor', () => {
   beforeEach(() => {
     media.replace.mockClear();
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
   });
 
   it('registers the selected image with the active reference control', () => {

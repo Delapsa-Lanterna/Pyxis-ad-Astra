@@ -20,6 +20,11 @@ export function useWorkspaceNavigationActions() {
     confirmNavigation(() => workspaceNavigation.navigateToModTable(modRoot, table));
   }
 
+  function navigateToModFiles(modRoot: string): void {
+    if (workspace.activeModRoot === modRoot && workspace.currentView === 'mod-files') return;
+    confirmNavigation(() => workspaceNavigation.navigateToModFiles(modRoot));
+  }
+
   function navigateToModConfig(modRoot: string, configView: ConfigView): void {
     if (workspace.activeModRoot === modRoot && workspace.currentView === 'config' && workspace.configView === configView) return;
     confirmNavigation(() => workspaceNavigation.navigateToModConfig(modRoot, configView));
@@ -84,6 +89,7 @@ export function useWorkspaceNavigationActions() {
   return {
     activateModTab,
     navigateToModConfig,
+    navigateToModFiles,
     navigateToModOverview,
     navigateToModTable,
     showAbout,

@@ -3,12 +3,19 @@ import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs, nInputNumber } from '@/test/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
 
 vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
   useSettingsViewModel: () => ({
     formattedLogSize: ref('0 B'),
+    fontOptions: ref([
+      { label: '默认字体组合', value: '' },
+      { label: 'Microsoft YaHei', value: 'Microsoft YaHei' },
+    ]),
+    fontsLoading: ref(false),
+    loadSystemFonts: vi.fn(),
     logPathHint: ref('Log'),
     pickLogDirectory: vi.fn(),
     pickStarsectorRoot: vi.fn(),
@@ -23,22 +30,32 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#2563eb',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
 });
 
 describe('settings limit controls', () => {
+  it('places general and immersive fonts below appearance and applies both controls', async () => {
+    const wrapper = mount(SettingsPage, {
+      global: {
+        stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
+      },
+    });
+    const sections = wrapper.findAll('section');
+    expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑模式', '全局限制']);
+    const immersive = sections[2]!;
+    expect(immersive.findAll('.settings-row > span').map((label) => label.text())).toEqual(['通用字体', '沉浸式编辑器原版字体']);
+    expect(useSettingsStore().generalFont).toBeNull();
+    await immersive.get('select').setValue('"Microsoft YaHei"');
+    expect(useSettingsStore().generalFont).toBe('Microsoft YaHei');
+    await immersive.get('select').setValue('""');
+    expect(useSettingsStore().generalFont).toBeNull();
+    expect(immersive.text()).toContain('从游戏安装目录加载原版字体');
+    expect(immersive.text()).toContain('按设计显示英文问号');
+    expect(useSettingsStore().immersiveGameFont).toBe(true);
+    await immersive.get('button').trigger('click');
+    expect(useSettingsStore().immersiveGameFont).toBe(false);
+    wrapper.unmount();
+  });
   it('places history and log settings in their sections with units and scope hints', async () => {
     const wrapper = mount(SettingsPage, {
       global: {

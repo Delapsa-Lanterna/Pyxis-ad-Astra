@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSettingsFixture } from '@/test/settings';
 
 const mocks = vi.hoisted(() => ({
   saveSettings: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock('@/windows/tauri.events', () => ({
 
 vi.mock('@/windows/window-context.window', () => ({
   publishWindowSettings: mocks.publishWindowSettings,
-  readWindowSettings: vi.fn(async () => ({ revision: 1, value: BASE_SETTINGS })),
+  readWindowSettings: vi.fn(async () => ({ revision: 1, value: createSettingsFixture() })),
   acceptWindowSettings: () => true,
 }));
 import { saveLogDirectory, startSettingsMirror, startSettingsPersistence } from './settings-persistence.orchestrator';
@@ -33,30 +34,11 @@ import { useFileHistoryStore } from '@/stores/file-history.store';
 import { sessionUpdateFixture } from '@/test/write-result';
 import type { AppSettings } from '@/shared/types';
 
-const BASE_SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  preserveOriginalJson: true,
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
-
-function settingsFixture(overrides: Partial<AppSettings> = {}) {
-  return { ...BASE_SETTINGS, ...overrides };
-}
-
 describe('settings persistence orchestration', () => {
   let stopPersistence: () => void;
   beforeAll(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore(settingsFixture());
+    initializeSettingsStore(createSettingsFixture());
     stopPersistence = startSettingsPersistence();
   });
   afterAll(() => stopPersistence());
@@ -67,7 +49,7 @@ describe('settings persistence orchestration', () => {
     mocks.loadFileHistory.mockReset();
     mocks.loadFileHistory.mockResolvedValue({ revision: 2, undoStack: [], redoStack: [] });
     mocks.saveSettings.mockReset();
-    mocks.saveSettings.mockImplementation(async (snapshot: typeof BASE_SETTINGS) => snapshot);
+    mocks.saveSettings.mockImplementation(async (snapshot: AppSettings) => snapshot);
     mocks.publishWindowSettings.mockClear();
     mocks.listenWindowEvent.mockClear();
   });
@@ -86,7 +68,7 @@ describe('settings persistence orchestration', () => {
   it('persists system-following preferences when other settings change', async () => {
     const { nextTick } = await import('vue');
     const settings = useSettingsStore();
-    settings.replaceSettings({ ...BASE_SETTINGS, theme: null });
+    settings.replaceSettings(createSettingsFixture());
     await nextTick();
     await vi.waitFor(() => expect(mocks.publishWindowSettings).toHaveBeenCalled());
     mocks.saveSettings.mockClear();
@@ -110,6 +92,24 @@ describe('settings persistence orchestration', () => {
     expect(settings.settingsSnapshot().preserveOriginalJson).toBe(false);
     settings.setPreserveOriginalJson(true);
     await nextTick();
+  });
+
+  it('persists and publishes the original-font switch to open windows', async () => {
+    const settings = useSettingsStore();
+    settings.setImmersiveGameFont(false);
+    await vi.waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ immersiveGameFont: false })));
+    await vi.waitFor(() => expect(mocks.publishWindowSettings).toHaveBeenCalledWith(expect.objectContaining({ immersiveGameFont: false })));
+    settings.setImmersiveGameFont(true);
+    await vi.waitFor(() => expect(mocks.publishWindowSettings).toHaveBeenCalledWith(expect.objectContaining({ immersiveGameFont: true })));
+  });
+  it('persists and publishes the selected general font', async () => {
+    useSettingsStore().setGeneralFont('Microsoft YaHei');
+    await vi.waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ generalFont: 'Microsoft YaHei' })));
+    await vi.waitFor(() =>
+      expect(mocks.publishWindowSettings).toHaveBeenCalledWith(expect.objectContaining({ generalFont: 'Microsoft YaHei' })),
+    );
+    useSettingsStore().setGeneralFont(null);
+    await vi.waitFor(() => expect(mocks.publishWindowSettings).toHaveBeenCalledWith(expect.objectContaining({ generalFont: null })));
   });
 
   it('persists the edit history limit and updates CSV history', async () => {
@@ -145,7 +145,7 @@ describe('settings persistence orchestration', () => {
 
   it('saves a picked log directory and rebroadcasts the settings', async () => {
     const settings = useSettingsStore();
-    mocks.saveSettings.mockImplementation(async (snapshot: typeof BASE_SETTINGS) => ({ ...snapshot, logDirectory: 'C:/custom-log' }));
+    mocks.saveSettings.mockImplementation(async (snapshot: AppSettings) => ({ ...snapshot, logDirectory: 'C:/custom-log' }));
 
     await saveLogDirectory('C:/custom-log');
     expect(settings.logDirectory).toBe('C:/custom-log');
@@ -164,8 +164,10 @@ describe('settings persistence orchestration', () => {
     await vi.waitFor(() => expect(mirrorHandler).not.toBeNull());
     mirrorHandler!({
       revision: 2,
-      value: settingsFixture({
+      value: createSettingsFixture({
         theme: 'dark',
+        generalFont: 'Arial',
+        immersiveGameFont: false,
         editHistoryLimit: 3,
         fileHistoryLimit: 40,
         logRotationSizeMiB: 8,
@@ -175,6 +177,8 @@ describe('settings persistence orchestration', () => {
     });
 
     expect(settings.theme).toBe('dark');
+    expect(settings.generalFont).toBe('Arial');
+    expect(settings.immersiveGameFont).toBe(false);
     expect(settings.preserveOriginalJson).toBe(false);
     expect(settings.settingsSnapshot()).toMatchObject({
       editHistoryLimit: 3,
@@ -183,6 +187,7 @@ describe('settings persistence orchestration', () => {
       logBackupCount: 2,
     });
     settings.setPreserveOriginalJson(true);
+    settings.setImmersiveGameFont(true);
     dispose();
   });
 
@@ -220,7 +225,7 @@ describe('settings persistence orchestration', () => {
 
   it('keeps a captured settings write from broadcasting after its lifecycle is replaced', async () => {
     const { nextTick } = await import('vue');
-    let finish!: (snapshot: ReturnType<typeof settingsFixture>) => void;
+    let finish!: (snapshot: AppSettings) => void;
     mocks.saveSettings.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -232,9 +237,9 @@ describe('settings persistence orchestration', () => {
     await vi.waitFor(() => expect(finish).toBeDefined());
     stopPersistence();
     setActivePinia(createPinia());
-    initializeSettingsStore(settingsFixture());
+    initializeSettingsStore(createSettingsFixture());
     stopPersistence = startSettingsPersistence();
-    finish(settingsFixture({ theme: 'dark' }));
+    finish(createSettingsFixture({ theme: 'dark' }));
     await nextTick();
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     expect(useSettingsStore().theme).toBe('light');

@@ -6,6 +6,7 @@ import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import { useConfigEditorDraftSession } from '@/app/composables/config/use-config-editor-draft-session';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs } from '@/test/ui-stubs';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import type { RowData } from '@/shared/types';
@@ -42,19 +43,7 @@ let wrapper: VueWrapper | null = null;
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
 });
 
 afterEach(() => {

@@ -1,3 +1,4 @@
+import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
@@ -43,7 +44,7 @@ export function captureWorkspaceCloseTarget(): WorkspaceCloseTarget {
   };
 }
 
-// Sole use case for the 5-store removal sequence: workspace/tables/fileHistory/csvEditHistory/project.
+// Sole owner of per-Mod runtime cleanup after close authorization.
 // Cache invalidation, Rust session close and view rollback are composed by callers outside the case.
 export function removeModRuntimeState(modRoot: string) {
   const workspace = useWorkspaceStore();
@@ -52,6 +53,7 @@ export function removeModRuntimeState(modRoot: string) {
   const fileHistory = useFileHistoryStore();
   const csvEditHistory = useTablesEditHistoryStore();
   const writeSync = useWriteSyncStore();
+  useModFileBrowserStore().removeModState(modRoot);
   workspace.removeLoadedModEntry(modRoot);
   tables.removeModState(modRoot);
   fileHistory.removeModState(modRoot);

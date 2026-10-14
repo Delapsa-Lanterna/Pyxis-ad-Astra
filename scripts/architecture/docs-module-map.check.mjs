@@ -170,8 +170,8 @@ test('module map and physical documents form a one-to-one correspondence', () =>
 test('the shared collector supplies real module, source, binary and directory identities to the rule', async () => {
   const files = await collectArchitectureFiles(process.cwd());
   const inventory = files[0].repositoryPaths;
-  assert.ok(inventory.has('src/assets/fonts/'));
-  assert.ok([...inventory].some((path) => path.startsWith('src/assets/fonts/') && path.endsWith('.png')));
+  assert.ok(inventory.has('src-tauri/icons/'));
+  assert.ok(inventory.has('src-tauri/icons/icon.ico'));
   assert.deepEqual(docsModuleMapRule.check(files), []);
 });
 

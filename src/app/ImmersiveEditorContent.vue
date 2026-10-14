@@ -1,7 +1,6 @@
 <template>
   <ImmersiveEditorShell
     :compact="kind === 'variant'"
-    :title="`${label}沉浸式编辑器 · ${joint.currentTarget.value?.id ?? root.id}`"
     :dirty="dirty"
     :saving="saving"
     :loading="loading"
@@ -32,11 +31,10 @@
           @redo="vm.redo"
           @save="vm.save"
           @close="closeWindow"
-        />
-      </template>
-      <template #status>
-        <span class="variant-meta-status"><ImmersiveText :text="saving ? '保存中' : dirty ? '未保存' : '已保存'" /></span>
-        <n-button v-if="externalUpdateNotice" size="small" @click="vm.loadExternal">载入外部版本</n-button>
+        >
+          <span class="immersive-meta-status" role="status">{{ saving ? '保存中' : dirty ? '未保存' : '已保存' }}</span>
+          <n-button v-if="externalUpdateNotice" size="small" @click="vm.loadExternal">载入外部版本</n-button>
+        </ImmersiveEditorActions>
       </template>
     </VariantImmersivePanel>
   </ImmersiveEditorShell>
@@ -57,10 +55,11 @@ import WeaponImmersivePanel from '@/app/components/immersive/WeaponImmersivePane
 import WingImmersivePanel from '@/app/components/immersive/WingImmersivePanel.vue';
 import VariantImmersivePanel from '@/app/components/immersive/VariantImmersivePanel.vue';
 import ImmersiveEditorActions from '@/app/components/immersive/ImmersiveEditorActions.vue';
-import ImmersiveText from '@/app/components/immersive/ImmersiveText.vue';
 import { editableRenderContext } from '@/app/components/immersive/immersive-render-context';
+import { provideOriginalFonts } from '@/app/composables/use-original-fonts';
 const context = useWindowContext('immersive-editor').value;
 const { sessionId, modRoot, id, kind } = context.identity;
+provideOriginalFonts(() => sessionId);
 const rowKey = context.input.rowKey;
 const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowKey?: string } = {
   sessionId,

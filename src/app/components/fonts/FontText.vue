@@ -2,21 +2,30 @@
   <span
     ref="surface"
     class="font-text"
-    :class="{ block }"
-    :style="{ width: block ? '100%' : natural.width + 'px', height: displayHeight + 'px' }"
+    :class="{ block, 'font-default': !font, outlined }"
+    :style="
+      font
+        ? { width: block ? '100%' : natural!.width + 'px', height: displayHeight + 'px' }
+        : { fontSize: fallback.size + 'px', fontWeight: fallback.weight }
+    "
     :title="missingTitle || undefined"
   >
-    <span class="font-accessible-text">{{ original }}</span
-    ><canvas ref="canvas" aria-hidden="true" />
+    <template v-if="font"
+      ><span class="font-accessible-text">{{ original }}</span
+      ><canvas ref="canvas" aria-hidden="true"
+    /></template>
+    <template v-else
+      ><span v-for="(run, index) in runs" :key="index" :style="{ color: run.color }">{{ run.text }}</span></template
+    >
   </span>
 </template>
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch, onMounted, onScopeDispose } from 'vue';
-import { getFont, loadFontAtlas, fontGlyph } from '@/app/fonts/font-provider';
+import { computed, ref, watch, onMounted, onScopeDispose } from 'vue';
+import { fontGlyph } from '@/app/fonts/font-provider';
+import { useOriginalFont } from '@/app/composables/use-original-fonts';
+import { fontDefaultStyles } from '@/domain/fonts/font-styles';
 import { layoutText } from '@/domain/fonts/text-layout';
 import type { TextRun, FontId } from '@/domain/fonts/font.types';
-import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = withDefaults(
   defineProps<{
     text?: string;
@@ -36,52 +45,39 @@ const props = withDefaults(
 );
 const surface = ref<HTMLElement | null>(null),
   canvas = ref<HTMLCanvasElement | null>(null),
-  width = ref(0),
-  atlas = shallowRef<HTMLImageElement | null>(null);
-const reads = useQueryReadOwner(),
-  feedback = useAppFeedback();
+  width = ref(0);
+const font = useOriginalFont(() => props.font);
+const fallback = computed(() => fontDefaultStyles[props.font]);
 const runs = computed(() => props.runs ?? [{ text: props.text }]),
   original = computed(() => runs.value.map((run) => run.text).join(''));
-const definition = computed(() => getFont(props.font));
-const natural = computed(() => layoutText(definition.value, runs.value));
-const layout = computed(() => (width.value ? layoutText(definition.value, runs.value, width.value) : natural.value));
-const inkBounds = computed(() => layout.value.ink);
-const displayHeight = computed(() => (props.inkAligned ? inkBounds.value.height : layout.value.height));
-const missingTitle = computed(() =>
-  layout.value.missing
-    .map(
-      (character) =>
-        `缺字：${character} ${Array.from(character)
-          .map((point) => 'U+' + point.codePointAt(0)!.toString(16).toUpperCase())
-          .join(' ')}`,
-    )
-    .join('；'),
-);
-watch(
-  () => props.font,
-  () => {
-    atlas.value = null;
-    void reads.consume('font', { fontId: props.font }, () => loadFontAtlas(props.font), {
-      ready: (image) => {
-        atlas.value = image;
-      },
-      error: (error) => feedback.error(error, '读取字体失败'),
-    });
-  },
-  { immediate: true },
+const definition = computed(() => font.value?.definition ?? null);
+const natural = computed(() => (definition.value ? layoutText(definition.value, runs.value) : null));
+const layout = computed(() => (definition.value && width.value ? layoutText(definition.value, runs.value, width.value) : natural.value));
+const inkBounds = computed(() => layout.value?.ink);
+const displayHeight = computed(() => (layout.value ? (props.inkAligned ? inkBounds.value!.height : layout.value.height) : 0));
+const missingTitle = computed(
+  () =>
+    (layout.value?.missing ?? [])
+      .map(
+        (character) =>
+          `缺字：${character} ${Array.from(character)
+            .map((point) => 'U+' + point.codePointAt(0)!.toString(16).toUpperCase())
+            .join(' ')}`,
+      )
+      .join('；') + (layout.value?.missing.length ? '（按设计显示英文问号）' : ''),
 );
 function paint() {
   const target = canvas.value,
     element = surface.value,
-    image = atlas.value;
-  if (!target || !element || !image) return;
+    loaded = font.value;
+  if (!target || !element || !loaded) return;
   const pixelRatio = window.devicePixelRatio,
     ink = getComputedStyle(element).color;
   const padding = props.outlined ? Math.max(1, Math.round(pixelRatio)) / pixelRatio : 0,
-    offsetX = Math.min(0, inkBounds.value.left),
-    offsetY = props.inkAligned ? inkBounds.value.top : Math.min(0, inkBounds.value.top);
-  const right = Math.max(width.value || natural.value.width, inkBounds.value.right);
-  const bottom = props.inkAligned ? inkBounds.value.bottom : Math.max(layout.value.height, inkBounds.value.bottom);
+    offsetX = Math.min(0, inkBounds.value!.left),
+    offsetY = props.inkAligned ? inkBounds.value!.top : Math.min(0, inkBounds.value!.top);
+  const right = Math.max(width.value || natural.value!.width, inkBounds.value!.right);
+  const bottom = props.inkAligned ? inkBounds.value!.bottom : Math.max(layout.value!.height, inkBounds.value!.bottom);
   target.width = Math.ceil((right - offsetX + padding * 2) * pixelRatio);
   target.height = Math.ceil((bottom - offsetY + padding * 2) * pixelRatio);
   target.style.width = target.width / pixelRatio + 'px';
@@ -89,21 +85,11 @@ function paint() {
   alignPixels();
   const context = target.getContext('2d')!;
   context.imageSmoothingEnabled = false;
-  for (const item of layout.value.placements) {
+  for (const item of layout.value!.placements) {
     if (item.character === '\t') continue;
     context.fillStyle = item.color ?? ink;
-    if (!item.glyph) {
-      context.strokeStyle = item.color ?? ink;
-      context.lineWidth = pixelRatio;
-      context.strokeRect(
-        Math.round((item.x + 1 - offsetX + padding) * pixelRatio),
-        Math.round((item.y + 2 - offsetY + padding) * pixelRatio),
-        Math.round((item.advance - 3) * pixelRatio),
-        Math.round((definition.value.lineHeight - 4) * pixelRatio),
-      );
-      continue;
-    }
-    const glyph = item.glyph;
+    const glyph = item.glyph!;
+    const image = loaded.pages.get(glyph.page)!;
     const left = Math.round((item.x + glyph.xoffset - offsetX + padding) * pixelRatio),
       top = Math.round((item.y + glyph.yoffset - offsetY + padding) * pixelRatio);
     const glyphWidth = Math.round((item.x + glyph.xoffset + glyph.width - offsetX + padding) * pixelRatio) - left,
@@ -127,7 +113,7 @@ function paint() {
   }
 }
 function alignPixels() {
-  if (!surface.value || !canvas.value) return;
+  if (!surface.value || !canvas.value || !inkBounds.value) return;
   const bounds = surface.value.getBoundingClientRect(),
     ratio = window.devicePixelRatio;
   const padding = props.outlined ? Math.max(1, Math.round(ratio)) / ratio : 0;
@@ -150,8 +136,9 @@ onMounted(() => {
     });
   });
   observer.observe(surface.value!);
+  paint();
 });
-watch([layout, atlas, () => props.inkAligned, () => props.outlined], paint, { flush: 'post' });
+watch([layout, font, () => props.inkAligned, () => props.outlined], paint, { flush: 'post' });
 window.addEventListener('resize', paint);
 window.addEventListener('scroll', alignPixels, true);
 onScopeDispose(() => {
@@ -171,6 +158,19 @@ onScopeDispose(() => {
 }
 .font-text.block {
   display: block;
+}
+.font-default {
+  font-family: var(--font-sans);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+.font-default.outlined {
+  text-shadow:
+    -1px 0 #000,
+    1px 0 #000,
+    0 -1px #000,
+    0 1px #000;
 }
 .font-text canvas {
   position: absolute;

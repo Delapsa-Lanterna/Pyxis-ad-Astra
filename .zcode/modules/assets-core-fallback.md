@@ -30,7 +30,7 @@
 - Core 目录缓存按 canonical 游戏根维护已请求类型、源指纹和待持久化标记，快照持久化由正式缓存入口完成。
 - 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
 - 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，各缓存分别拥有访问顺序和容量。
-- 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果。
+- 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
 - 媒体服务拥有合批、single-flight 与资源失效，registry 拥有集合、引用计数及消费者等待。
 - 舰体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。

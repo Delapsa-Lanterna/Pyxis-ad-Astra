@@ -1,8 +1,10 @@
 mod core_graphics;
+mod fonts;
 mod refs;
 mod sprites;
 
 pub use core_graphics::scan_core_graphics;
+pub use fonts::query_original_font;
 pub(super) use refs::{
     resource_cache_key, resource_ref, skin_resource_ref, sprite_resource_bytes,
     sprite_source_context,

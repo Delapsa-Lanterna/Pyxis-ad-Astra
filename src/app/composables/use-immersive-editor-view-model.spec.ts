@@ -11,6 +11,7 @@ import { variantJointFixture } from '@/test/variant-joint-edit';
 import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant-actions';
 import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 
@@ -91,19 +92,7 @@ function shipPanel(vm: ReturnType<typeof useImmersiveEditorViewModel>) {
 }
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'dark',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 20,
-    logRotationSizeMiB: 10,
-    logBackupCount: 5,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ theme: 'dark', editHistoryLimit: 20, logRotationSizeMiB: 10, logBackupCount: 5 }));
   vi.clearAllMocks();
   mocks.invalidations.length = 0;
   mocks.projectUpdates.length = 0;

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadSettings, saveSettings } from './app-settings.service';
+import { loadSettings, saveSettings, querySystemFonts } from './app-settings.service';
+import { createSettingsFixture } from '@/test/settings';
 import { clearConfig, openConfigFolder } from './app-config.service';
 import { clearLog, loadLogStatus, openLogFile, recordLogBestEffort } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';
@@ -26,30 +27,11 @@ import {
   closeNativeSessionWindows,
   cancelNativeWindowClose,
 } from './window.service';
-import type {
-  AppSettings,
-  CreateModRequest,
-  ManagedWindowStatus,
-  NativeWindowRequest,
-  PersistedWorkspace,
-  WindowIdentity,
-} from '@/shared/types';
+import type { CreateModRequest, ManagedWindowStatus, NativeWindowRequest, PersistedWorkspace, WindowIdentity } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
-const settings: AppSettings = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-};
+const settings = createSettingsFixture();
 const state: PersistedWorkspace = { starsectorRoot: null, mods: [], columnWidths: {}, gameMods: [], gameWarnings: [] };
 const create: CreateModRequest = {
   destination: { kind: 'directory', parentDirectory: 'M:/' },
@@ -69,6 +51,7 @@ const status: ManagedWindowStatus = { dirty: false, saving: false };
 const entry = { level: 'warning' as const, code: 'demo', message: 'raw', path: null, line: null, fields: null };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
   ['load_app_settings', loadSettings, undefined],
+  ['query_system_fonts', querySystemFonts, undefined],
   ['save_app_settings', () => saveSettings(settings), { payload: { settings } }],
   ['append_app_log', () => recordLogBestEffort(entry), { payload: { entry } }],
   ['get_app_log_status', loadLogStatus, undefined],

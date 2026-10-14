@@ -1,6 +1,15 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
+import { installCanvas2DStub } from '@/test/canvas-stub';
 import ImmersiveFilterGroup from './ImmersiveFilterGroup.vue';
+beforeEach(() => {
+  installCanvas2DStub();
+  setActivePinia(createPinia());
+  initializeSettingsStore(createSettingsFixture());
+});
 describe('original rectangular multi-select', () => {
   it('exposes counted checkbox semantics and sends normal or additive choices to its owner', async () => {
     const wrapper = mount(ImmersiveFilterGroup, {

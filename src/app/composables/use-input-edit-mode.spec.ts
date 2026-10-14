@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick, ref } from 'vue';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useInputEditMode } from './use-input-edit-mode';
 
 const feedback = vi.hoisted(() => ({ choose: vi.fn(), error: vi.fn() }));
@@ -12,19 +13,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => fee
 beforeEach(() => {
   vi.resetAllMocks();
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'plain',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
 });
 
 function mountMode() {

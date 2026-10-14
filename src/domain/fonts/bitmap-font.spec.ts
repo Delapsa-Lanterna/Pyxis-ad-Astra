@@ -1,57 +1,56 @@
 import { describe, it, expect } from 'vitest';
-import body from '@/assets/fonts/insignia15LTaa.fnt?raw';
-import heading from '@/assets/fonts/orbitron12condensed.fnt?raw';
-import title from '@/assets/fonts/orbitron20aabold.fnt?raw';
-import caption from '@/assets/fonts/victor10.fnt?raw';
-import op from '@/assets/fonts/orbitron24aabold.fnt?raw';
-import pickerTitle from '@/assets/fonts/orbitron20aa.fnt?raw';
-import refitButton from '@/assets/fonts/orbitron24aa.fnt?raw';
-import slotName from '@/assets/fonts/insignia21LTaa.fnt?raw';
-import { parseBitmapFont } from './bitmap-font';
+import { bitmapFontFixture } from '@/test/font';
+import { parseBitmapFont, parseOriginalBitmapFont } from './bitmap-font';
 import { layoutText, bitmapInkBounds } from './text-layout';
-describe('bundled Chinese original bitmap font layout', () => {
+
+describe('external bitmap font parsing and layout', () => {
+  it('parses metrics, page file names, glyphs and kerning', () => {
+    const font = parseOriginalBitmapFont(bitmapFontFixture(undefined, 2));
+    expect(font).toMatchObject({ lineHeight: 10, base: 8, width: 16, height: 16, pageCount: 2 });
+    expect([...font.pages]).toEqual([
+      [0, 'page0.png'],
+      [1, 'page1.png'],
+    ]);
+    expect(font.glyphs.get(65)?.page).toBe(0);
+    expect(font.kernings.get('65:86')).toBe(-2);
+  });
   it.each([
-    [body, 17, 15, 6735],
-    [heading, 16, 16, 6500],
-    [title, 20, 19, 6517],
-    [caption, 9, 8, 8082],
-    [op, 24, 21, 6516],
-    [pickerTitle, 20, 19, 6516],
-    [refitButton, 24, 21, 6516],
-    [slotName, 18, 16, 6735],
-  ])('parses real glyphs, metrics and kerning', (raw, height, base, count) => {
-    const font = parseBitmapFont(raw as string);
-    expect(font.lineHeight).toBe(height);
-    expect(font.base).toBe(base);
-    expect(font.glyphs.size).toBe(count);
-    expect(font.glyphs.has('舰'.codePointAt(0)!)).toBe(true);
-    expect(font.glyphs.has(65)).toBe(true);
+    ['lineHeight=10', 'lineHeight=0'],
+    ['pages=1', 'pages=2'],
+    ['base=8', 'base=invalid'],
+    ['page=0', 'page=2'],
+    ['width=6', 'width=40'],
+    ['xadvance=7', 'xadvance=invalid'],
+    ['amount=-2', 'amount=invalid'],
+    ['first=65', 'first=invalid'],
+    ['char id=63', 'char id=64'],
+    ['char id=32', 'char id=31'],
+  ])('rejects invalid external data: %s', (before, after) => {
+    expect(() => parseOriginalBitmapFont(bitmapFontFixture().replace(before, after))).toThrow();
   });
-  it('lays out mixed text, preserves color runs and wraps using advances', () => {
-    const font = parseBitmapFont(body),
-      runs = [{ text: '舰船 ' }, { text: '75', color: '#ffd200' }];
-    const full = layoutText(font, runs);
-    expect(full.width).toBe(full.placements.reduce((sum, item) => sum + item.advance, 0));
-    expect(full.placements.at(-1)!.color).toBe('#ffd200');
-    const wrapped = layoutText(font, runs, 30);
-    expect(wrapped.height).toBeGreaterThan(font.lineHeight);
-    expect(wrapped.placements.map((item) => item.character).join('')).toBe('舰船 75');
+  it('retains mixed text, color runs and explicit line breaks', () => {
+    const font = parseOriginalBitmapFont(bitmapFontFixture());
+    const full = layoutText(font, [{ text: '舰船 ' }, { text: 'AV', color: '#ffd200' }]);
+    expect(full.placements.map((item) => item.character).join('')).toBe('舰船 AV');
+    expect(full.placements.at(-1)?.color).toBe('#ffd200');
+    expect(layoutText(font, [{ text: '舰船 AV' }], 14).height).toBeGreaterThan(font.lineHeight);
   });
-  it('retains missing Unicode and explicit newlines', () => {
-    const font = parseBitmapFont(body),
-      result = layoutText(font, [{ text: '舰\n\u{1f680}' }]);
-    expect(result.missing).toEqual(['🚀']);
-    expect(result.height).toBe(34);
-    expect(result.placements[1]!).toMatchObject({ glyph: null, character: '🚀', y: 17 });
+  it('intentionally substitutes one question mark per missing grapheme with question-mark kerning', () => {
+    const font = parseOriginalBitmapFont(bitmapFontFixture(' ?AV') + '\nkerning first=65 second=63 amount=-1');
+    const result = layoutText(font, [{ text: 'A🚀áV' }]);
+    expect(result.missing).toEqual(['🚀', 'á']);
+    expect(result.placements.map((item) => item.character)).toEqual(['A', '🚀', 'á', 'V']);
+    expect(result.placements.map((item) => item.glyph?.id)).toEqual([65, 63, 63, 86]);
+    expect(result.placements[1]?.x).toBe(6);
+    expect(result.advanceWidth).toBe(27);
   });
-  it('uses formal kerning amounts and word wrapping', () => {
-    const font = parseBitmapFont(
-      'common lineHeight=10 base=8\nchar id=32 x=0 y=0 width=0 height=0 xoffset=0 yoffset=0 xadvance=3 page=0\nchar id=65 x=0 y=0 width=6 height=8 xoffset=0 yoffset=0 xadvance=7 page=0\nchar id=86 x=6 y=0 width=6 height=8 xoffset=0 yoffset=0 xadvance=7 page=0\nkerning first=65 second=86 amount=-2',
-    );
-    expect(layoutText(font, [{ text: 'AV' }]).width).toBe(12);
-    expect(layoutText(font, [{ text: 'A AV' }], 15).placements.at(-1)!.y).toBe(10);
+  it('wraps missing characters using the rendered question-mark advance', () => {
+    const font = parseOriginalBitmapFont(bitmapFontFixture(' ?A'));
+    const result = layoutText(font, [{ text: '🚀🚀\nA' }], 7);
+    expect(result.placements.map((item) => item.y)).toEqual([0, 10, 20]);
+    expect(result.height).toBe(30);
   });
-  it('measures visible text ink independently of baseline and whitespace', () => {
+  it('measures visible ink independently of baseline and whitespace', () => {
     const font = parseBitmapFont(
       'common lineHeight=20 base=16\nchar id=32 x=0 y=0 width=1 height=1 xoffset=0 yoffset=19 xadvance=4 page=0\nchar id=65 x=0 y=0 width=8 height=9 xoffset=0 yoffset=4 xadvance=9 page=0',
     );

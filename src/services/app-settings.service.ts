@@ -8,3 +8,7 @@ export function loadSettings(): Promise<AppSettings> {
 export function saveSettings(settings: AppSettings): Promise<AppSettings> {
   return invokeCommand('save_app_settings', { payload: { settings } });
 }
+
+export function querySystemFonts(): Promise<string[]> {
+  return invokeCommand('query_system_fonts');
+}

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ConfigEntityFamilyView from './ConfigEntityFamilyView.vue';
 import ConfigFactionView from './ConfigFactionView.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
@@ -231,19 +232,7 @@ async function save(kind: Kind) {
 beforeEach(() => {
   vi.clearAllMocks();
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'plain',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   for (const letter of ['A', 'B', 'C']) {
     const modRoot = `M:/${letter}`;
     useWorkspaceStore().registerMod({ modRoot, displayName: letter, version: '', status: 'ready' });

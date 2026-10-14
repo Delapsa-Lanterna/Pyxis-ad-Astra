@@ -7,6 +7,7 @@ import { createAppFeedback } from './app-feedback';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { sessionUpdateFixture } from '@/test/write-result';
 
 const mocks = vi.hoisted(() => ({ log: vi.fn(), open: vi.fn(async () => {}), transcode: vi.fn() }));
@@ -18,19 +19,7 @@ let wrapper: VueWrapper | null = null;
 beforeEach(() => {
   vi.clearAllMocks();
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
   const update = sessionUpdateFixture('s1', 'M:/mod');
   if (update.status === 'ready') useProjectStore().registerProjectManifest(update.projection.manifest);
 });

@@ -30,22 +30,9 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 import { useConfigFamilyEditorViewModel } from './use-config-family-editor-view-model';
 import { variantFamily, skinFamily } from '@/domain/config/config-entity-families';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { RowData } from '@/shared/types';
 import type { ConfigFamilyFile } from '@/domain/config/config-entity-families';
-
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
 
 function fileFixture(variantId: string): ConfigFamilyFile {
   return {
@@ -125,7 +112,7 @@ function mountEditor(family = variantFamily) {
 describe('useConfigFamilyEditorViewModel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
     vi.clearAllMocks();
   });
 

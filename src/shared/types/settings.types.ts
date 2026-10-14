@@ -14,11 +14,13 @@ export interface AppSettings {
   theme: AppTheme | null;
   accent: AccentPreset;
   customAccent: string;
+  generalFont: string | null;
   fileHistoryLimit: number;
   editHistoryLimit: number;
   logRotationSizeMiB: number;
   logBackupCount: number;
   editMode: EditMode;
+  immersiveGameFont: boolean;
   preserveOriginalJson?: boolean;
   allowCoreEditing?: boolean;
   starsectorRoot: string | null;

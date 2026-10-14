@@ -2,6 +2,7 @@ mod csv_window;
 mod entities;
 pub(crate) mod entity_targets;
 mod hull_references;
+mod mod_file_browser;
 mod resources;
 mod source_options;
 
@@ -13,6 +14,9 @@ pub use entity_targets::query_file_entity_target;
 pub use entity_targets::require_csv_version_scope;
 pub use entity_targets::require_entity_version_scope;
 pub use hull_references::query_hull_references;
+pub use mod_file_browser::{
+    query_mod_directory, query_mod_file_search, query_mod_text_file_target,
+};
 pub use resources::query_resource_data_urls;
 pub use source_options::query_csv_source_options;
 pub(in crate::services::project) mod joint_edit;

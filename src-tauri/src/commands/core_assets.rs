@@ -9,6 +9,17 @@ use crate::{
 use std::collections::BTreeMap;
 
 #[tauri::command(async)]
+pub fn query_original_font(
+    payload: crate::models::command_payloads::QueryOriginalFontPayload,
+) -> Result<crate::models::font::OriginalFontResult, AppError> {
+    services::project::query_original_font(
+        &payload.session_id,
+        payload.starsector_root.as_deref(),
+        payload.font_id,
+    )
+}
+
+#[tauri::command(async)]
 pub fn scan_core_fields(
     payload: CoreScanPayload,
 ) -> Result<BTreeMap<String, Vec<DiscoveredField>>, AppError> {

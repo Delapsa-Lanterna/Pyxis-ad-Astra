@@ -1,12 +1,14 @@
 export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 
 export const commandOwners = {
-  'src/services/app-settings.service.ts': ['load_app_settings', 'save_app_settings'],
+  'src/services/app-settings.service.ts': ['load_app_settings', 'save_app_settings', 'query_system_fonts'],
   'src/services/app-log.service.ts': ['append_app_log', 'get_app_log_status', 'open_app_log_file', 'clear_app_log_file'],
   'src/services/app-config.service.ts': ['open_config_dir', 'clear_config_files'],
   'src/services/workspace-state.service.ts': ['load_workspace', 'save_workspace'],
   'src/services/mod-creation.service.ts': ['create_mod'],
   'src/services/core-assets.service.ts': ['scan_core_fields', 'scan_core_graphics', 'invalidate_core_cache'],
+  'src/services/mod-file-browser.service.ts': ['query_mod_directory', 'query_mod_file_search', 'query_mod_text_file_target'],
+  'src/services/font.service.ts': ['query_original_font'],
   'src/services/directory.service.ts': ['detect_directory', 'scan_game_overview'],
   'src/services/project-session.service.ts': [
     'open_project_session',

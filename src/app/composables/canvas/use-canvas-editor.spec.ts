@@ -11,24 +11,13 @@ import { useCanvasViewport } from './use-canvas-viewport';
 import type { EditContext, RowData } from '@/shared/types';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 
 function mountCanvas() {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#2563eb',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
   installCanvas2DStub();
   let value!: Ref<RowData>;
   const source = ref<RowData>({ x: 0 }),

@@ -8,7 +8,7 @@
 
 `scripts/architecture/rules/workspace-module-boundary.mjs`：workspace 边界规则 owner。
 `src-tauri/src/services/workspace_persistence.rs`：工具私有快照读写 owner。
-`src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期 owner，拥有关闭目标捕获、五个 store 清理用例与工作区关闭。
+`src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期 owner，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
 `src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航 owner，同步跨 store 运行态。
 `src/orchestrators/workspace-persistence.orchestrator.ts`：workspace 快照保存与启动恢复 owner。
 `src/services/workspace-state.service.ts`：workspace 持久化签名与协议装配主归属。
@@ -21,6 +21,7 @@
 - 启动恢复重建 session 与运行态，完成后显示总览。
 - 导航编排按 Mod 根同步 project、tables、editor 和 history 运行态，并恢复所属页面。
 - 持久化编排投影可恢复数据，Rust service 读写工具私有 workspace 文件。
+- 文件浏览模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 mod-files 页面及 Mod 页面记忆。
 - 生命周期编排拥有子窗口交接、Mod 清理、缓存释放和 session 关闭。
 - 目录打开提供 outcome 和迟到 session 清理，工作区接纳成功建立的运行态。
 - 配置会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
@@ -37,7 +38,7 @@
 
 1. 用户发起移除；所属待同步提交完成后，dirty 经确认放弃。
 2. 生命周期编排按会话请求所属子窗口等待保存并处理关闭。
-3. 交接完成后执行五个 store 清理用例并撤销目标 Mod 代次。
+3. 交接完成后执行所属模块清理用例并撤销目标 Mod 代次。
 4. 编排失效查询与资源缓存并关闭后端 session。
 5. 页签移除后按存活页签决定回退视图。
 
@@ -62,6 +63,7 @@
 ## 规范
 
 - Mod 代次必须在注册时分配、移除时撤销，并且只允许保存在当前运行的内存中；恢复响应必须沿用捕获的代次。
+- mod-files 导航必须消费活动输入和保存交接，页面记忆必须归工作区，文件树状态必须由所属浏览模块管理。
 - workspace 缺失返回空默认；损坏时报错且严禁立即用空态覆盖。
 - 任何会卸载当前配置组件的导航或移除动作在 dirty 时必须先确认放弃；取消时严禁同步活动运行态或销毁 session。
 - 列宽必须使用结构化 `modRoot/table/column`，严禁拼接 key。

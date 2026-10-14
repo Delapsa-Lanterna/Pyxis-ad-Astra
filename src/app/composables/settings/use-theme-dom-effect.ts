@@ -14,6 +14,11 @@ export function useThemeDomEffect(source?: () => { colors: ThemeColorTokens; the
   systemTheme.addEventListener('change', updateSystemTheme);
   onUnmounted(() => systemTheme.removeEventListener('change', updateSystemTheme));
   watch(
+    () => settings.fontFamily,
+    (family) => document.documentElement.style.setProperty('--font-sans', family),
+    { immediate: true, flush: 'sync' },
+  );
+  watch(
     () => source?.() ?? { colors: settings.themeColors, theme: settings.theme },
     ({ colors, theme }) => {
       if (typeof document === 'undefined') return;

@@ -51,6 +51,10 @@ function isActive(item: ModNavigationItem): boolean {
 function navigate(item: ModNavigationItem) {
   const modRoot = workspace.activeModRoot;
   if (!modRoot) return;
+  if (item.target.type === 'mod-files') {
+    navigation.navigateToModFiles(modRoot);
+    return;
+  }
   if (item.target.type === 'config') {
     navigation.navigateToModConfig(modRoot, item.target.view);
     return;

@@ -37,6 +37,8 @@ pub struct AppSettings {
     pub accent: AccentPreset,
     #[serde(default = "default_custom_accent")]
     pub custom_accent: String,
+    #[serde(default)]
+    pub general_font: Option<String>,
     #[serde(default = "default_file_history_limit")]
     pub file_history_limit: u32,
     #[serde(default = "default_edit_history_limit")]
@@ -50,6 +52,8 @@ pub struct AppSettings {
     pub log_backup_count: u32,
     #[serde(default = "default_edit_mode")]
     pub edit_mode: EditMode,
+    #[serde(default = "default_immersive_game_font")]
+    pub immersive_game_font: bool,
     #[serde(default = "default_preserve_original_json")]
     pub preserve_original_json: bool,
     #[serde(default)]
@@ -68,11 +72,13 @@ impl Default for AppSettings {
             theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),
+            general_font: None,
             file_history_limit: default_file_history_limit(),
             edit_history_limit: default_edit_history_limit(),
             log_rotation_size_mib: default_log_rotation_size_mib(),
             log_backup_count: default_log_backup_count(),
             edit_mode: default_edit_mode(),
+            immersive_game_font: default_immersive_game_font(),
             preserve_original_json: default_preserve_original_json(),
             allow_core_editing: false,
             starsector_root: None,
@@ -110,6 +116,10 @@ fn default_edit_mode() -> EditMode {
     EditMode::Smart
 }
 
+fn default_immersive_game_font() -> bool {
+    true
+}
+
 fn default_preserve_original_json() -> bool {
     true
 }
@@ -139,6 +149,38 @@ mod tests {
             serde_json::from_value::<AppSettings>(wire).unwrap(),
             settings
         );
+    }
+
+    #[test]
+    fn original_font_switch_defaults_true_and_roundtrips_false() {
+        let defaults: AppSettings = serde_json::from_value(json!({})).unwrap();
+        assert!(defaults.immersive_game_font);
+        let disabled: AppSettings =
+            serde_json::from_value(json!({"immersiveGameFont": false})).unwrap();
+        assert!(!disabled.immersive_game_font);
+        assert_eq!(
+            serde_json::to_value(disabled).unwrap()["immersiveGameFont"],
+            false
+        );
+        assert!(
+            serde_json::from_value::<AppSettings>(json!({"immersiveGameFont": "false"})).is_err()
+        );
+    }
+
+    #[test]
+    fn general_font_roundtrip() {
+        assert_eq!(AppSettings::default().general_font, None);
+        let settings: AppSettings =
+            serde_json::from_value(json!({"generalFont": "Microsoft YaHei"})).unwrap();
+        assert_eq!(settings.general_font.as_deref(), Some("Microsoft YaHei"));
+        let wire = serde_json::to_value(&settings).unwrap();
+        assert_eq!(wire["generalFont"], "Microsoft YaHei");
+        assert!(wire["immersiveGameFont"].as_bool().unwrap());
+        assert_eq!(
+            serde_json::from_value::<AppSettings>(wire).unwrap(),
+            settings
+        );
+        assert!(serde_json::from_value::<AppSettings>(json!({"generalFont": 1})).is_err());
     }
 
     #[test]

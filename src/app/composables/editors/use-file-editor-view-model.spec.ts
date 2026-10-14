@@ -3,22 +3,11 @@ import { createPinia, setActivePinia } from 'pinia';
 import { savedWriteFixture } from '@/test/write-result';
 import { entityTargetFixture } from '@/test/entity-target';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#2563eb',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
 });
 
 vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ applyCommittedWriteCacheInvalid: vi.fn() }));

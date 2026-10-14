@@ -1,20 +1,72 @@
-import { bundledFonts } from './bundled-fonts';
-import { parseBitmapFont } from '@/domain/fonts/bitmap-font';
-import type { FontId, BitmapFont, BitmapGlyph } from '@/domain/fonts/font.types';
+import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
+import type { BitmapFont, BitmapGlyph } from '@/domain/fonts/font.types';
+import type { OriginalFontResult } from '@/shared/types';
 import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
 import { AppError } from '@/shared/lib/errors';
 
-const definitions = new Map<FontId, BitmapFont>();
-const decoded = new Map<FontId, Promise<HTMLImageElement>>();
 const glyphs = new WeakMap<HTMLImageElement, RuntimeCache<string, HTMLCanvasElement, never>>();
 
-export function getFont(id: FontId): BitmapFont {
-  let font = definitions.get(id);
-  if (!font) {
-    font = parseBitmapFont(bundledFonts[id].definition);
-    definitions.set(id, font);
+export interface LoadedFont {
+  definition: BitmapFont;
+  pages: ReadonlyMap<number, HTMLImageElement>;
+}
+
+export async function decodeOriginalFont(source: Extract<OriginalFontResult, { status: 'available' }>): Promise<LoadedFont> {
+  let definition: BitmapFont;
+  try {
+    definition = parseOriginalBitmapFont(source.definition);
+  } catch (cause) {
+    throw new AppError('Invalid original font definition', {
+      cause,
+      code: 'font.definition_invalid',
+      location: { path: source.path, line: null, column: null },
+      action: 'font-load',
+    });
   }
-  return font;
+  if (
+    source.pages.length !== definition.pages.size ||
+    new Set(source.pages.map((page) => page.id)).size !== source.pages.length ||
+    source.pages.some((page) => !definition.pages.has(page.id))
+  )
+    throw new AppError('Invalid original font page collection', {
+      code: 'font.definition_invalid',
+      location: { path: source.path, line: null, column: null },
+      action: 'font-load',
+    });
+  const results = await Promise.allSettled(
+    source.pages.map(async (page) => {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          image.onload = null;
+          image.onerror = null;
+          resolve(image);
+        };
+        image.onerror = () => {
+          image.onload = null;
+          image.onerror = null;
+          reject(
+            new AppError('Original font page decode failed', {
+              code: 'font.decode_failed',
+              location: { path: page.path, line: null, column: null },
+              action: 'font-load',
+            }),
+          );
+        };
+        image.src = page.dataUrl;
+      });
+      if (image.naturalWidth !== definition.width || image.naturalHeight !== definition.height)
+        throw new AppError('Original font page dimensions do not match its definition', {
+          code: 'font.definition_invalid',
+          location: { path: page.path, line: null, column: null },
+          action: 'font-load',
+        });
+      return [page.id, image] as const;
+    }),
+  );
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
+  return { definition, pages: new Map(results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))) };
 }
 
 export function fontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: string, outline = false): HTMLCanvasElement {
@@ -40,20 +92,4 @@ export function fontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: st
   }
   cache.set(key, surface);
   return surface;
-}
-export function loadFontAtlas(id: FontId): Promise<HTMLImageElement> {
-  let promise = decoded.get(id);
-  if (!promise) {
-    promise = new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => {
-        decoded.delete(id);
-        reject(new AppError(`字体图集解码失败：${id}`, { action: 'font-load', code: 'font.decode_failed' }));
-      };
-      image.src = bundledFonts[id].atlas;
-    });
-    decoded.set(id, promise);
-  }
-  return promise;
 }

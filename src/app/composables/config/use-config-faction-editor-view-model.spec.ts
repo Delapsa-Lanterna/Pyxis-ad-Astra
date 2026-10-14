@@ -23,22 +23,9 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 
 import { useConfigFactionEditorViewModel } from './use-config-faction-editor-view-model';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { RowData } from '@/shared/types';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
-
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
 
 interface Harness {
   vm: ReturnType<typeof useConfigFactionEditorViewModel>;
@@ -90,7 +77,7 @@ function mountEditor() {
 describe('useConfigFactionEditorViewModel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
     vi.clearAllMocks();
   });
 

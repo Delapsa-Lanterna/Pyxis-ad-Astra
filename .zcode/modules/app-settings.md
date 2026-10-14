@@ -8,17 +8,20 @@
 
 `src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值 owner。
 `src-tauri/src/services/app_settings.rs`：设置持久化、容量边界校验及文件历史容量接入 owner。
+`src-tauri/src/services/app_settings/system_fonts.rs`：Windows 已安装字体族枚举、去重与排序 owner。
 `src/app/WindowShell.vue`：唯一窗口壳，main 模式启动设置持久化、child 模式启动设置镜像并挂载主题 effect。
 `src/app/components/SettingsPage.spec.ts`：四项设置的位置、范围、单位及更新行为验证。
 `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
-`src/app/composables/settings/use-settings-view-model.ts`：设置页 ViewModel，拥有日志目录保存与清空动作。
-`src/app/composables/settings/use-theme-dom-effect.ts`：主题 DOM 副作用 owner，watch 主题令牌并写 root dataset 与 CSS 变量。
+`src/app/composables/settings/use-settings-view-model.ts`：设置页 ViewModel，拥有系统字体读取及日志目录保存与清空动作。
+`src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用 owner，写 root dataset、颜色变量与字体变量。
+`src/domain/settings/fonts.ts`：通用字体组合与 CSS 字体族投影 owner。
 `src/domain/settings/rules.ts`：设置校验 owner，拥有主题/accent/自定义色/历史上限/editMode/原样保存/日志级别/日志目录的读取校验与归一化。
 `src/domain/settings/theme.ts`：主题令牌与色彩数学 owner，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与 CSS 自定义属性映射。
 `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像 owner，负责保存、广播、接收镜像、编辑历史容量同步与文件历史刷新交接。
 `src/services/app-settings.service.ts`：settings 读写签名与 command 参数装配主归属。
 `src/stores/settings-store.spec.ts`：容量输入、初始化与镜像边界验证。
 `src/stores/settings.store.ts`：settings 运行态 owner，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
+`src/test/settings.ts`：完整设置快照及独立覆盖的共享测试夹具。
 
 ## 边界
 
@@ -30,6 +33,7 @@
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。
 - 领域拥有输入校验与主题算法，store 持有设置运行态、setter 和派生结果。
+- 领域拥有通用字体组合，主题 effect 与 Naive provider 消费 store 派生的同一字体族。
 
 ## 链路
 
@@ -64,10 +68,20 @@
 3. 主题 effect 把 root dataset 主题名与全部 CSS 变量写入 document。
 4. 唯一窗口壳的 Naive provider 消费同一份令牌派生的覆盖对象。
 
+### 通用字体选择
+
+1. 设置页 ViewModel 通过设置 service 请求本机已安装字体族。
+2. 后端 Windows 枚举去重并排序，读取票据接纳所属设置页的字体选项。
+3. 用户选择字体族或默认组合，store 发布完整设置快照并派生 CSS 字体族。
+4. 主题 effect 更新 `--font-sans`，Naive provider 消费相同字体族。
+5. 默认文字测量消费响应式字体族并更新截断与布局。
+
 ## 规范
 
 - `accent` 与 `editMode` 必须是正式枚举；非法值在初始化与替换时必须抛出。
 - `editHistoryLimit` 与 `fileHistoryLimit` 必须分别控制每个编辑撤销栈及每个 Mod 根的文件保存历史，默认值必须分别为 250 与 20，整数范围必须为 1–1000；设置读取和保存必须共同校验范围。
+- `generalFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合必须为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择必须随完整快照持久化及镜像。
+- `immersiveGameFont` 必须是默认开启的布尔值，并随完整设置快照持久化和镜像；字体设置框必须声明有意的缺字问号显示。
 - `logBackupCount` 默认必须为 1，整数范围必须为 1–20；`logRotationSizeMiB` 默认必须为 5，整数范围必须为 1–1024。
 - `logLevel` 只允许 `info`（默认档，丢弃 debug 条目）或 `debug`（详细档，全量保留）；缺省视为 info。
 - `preserveOriginalJson` 必须是布尔值；缺省视为 `true`。该设置必须随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作必须在开始时捕获本次使用的值。
@@ -77,10 +91,12 @@
 - 保存失败必须进入所属日志；设置广播必须在保存成功后执行，文件历史刷新失败必须保留已经保存和广播的设置。
 - 同一输入面的子控件必须消费同一实际模式；不同输入集合必须分别拥有模式交接，模式确认必须绑定目标与生命周期。
 - 子窗口只允许接收完整 settings 镜像，严禁发送设置广播。
+- 字体设置框必须位于外观之后，通用字体下拉栏必须位于沉浸式编辑器原版字体开关之前；字体选项必须消费本机已安装的水平字体族与默认组合。
 - 日志目录读取必须以 `logDirectory=null` 表达 app-data 默认目录，并拒绝空白字符串。
 - 自定义 accent 必须是 `#rrggbb` 形式；非法输入只拒绝不修正。
 - 设置保存必须消费捕获的所属 store、快照和生命周期；释放后的成功与错误严禁接管新窗口投影或广播。
 - 设置页必须在全局限制中展示文件保存历史步数和编辑撤销步数，在配置文件中展示日志轮转大小与备份份数，并说明每栈范围、裁剪及轮转时机。
+- 设置页释放必须撤销系统字体读取接纳，迟到的成功与错误严禁更新选项或反馈。
 - 路径授权必须消费后端根边界，`starsectorRoot` 只允许作为默认目录提示。
 - 镜像监听与持久化监听释放后必须允许重新装配；迟到的监听注册必须立即解除，严禁接纳已释放窗口的设置。
 

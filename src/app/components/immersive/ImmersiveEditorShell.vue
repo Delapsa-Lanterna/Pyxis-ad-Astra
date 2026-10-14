@@ -1,10 +1,5 @@
 <template>
   <div class="immersive-editor-shell" :class="{ 'variant-window-shell': compact }" :inert="locked">
-    <header v-if="!compact" class="immersive-window-header">
-      <strong><ImmersiveText :text="title" :font="compact ? 'caption' : 'heading'" /></strong>
-      <span><ImmersiveText :text="saving ? '保存中' : dirty ? '未保存' : '已保存'" /></span>
-      <n-button v-if="externalNotice" size="small" @click="$emit('load-external')">载入外部版本</n-button>
-    </header>
     <main class="immersive-editor-scroll">
       <div v-if="loading" class="immersive-status"><ImmersiveText text="正在读取联合来源" /></div>
       <div v-else-if="error" class="immersive-status">
@@ -24,7 +19,12 @@
         @redo="$emit('redo')"
         @save="$emit('save')"
         @close="$emit('close')"
-      />
+      >
+        <template #before>
+          <n-button v-if="externalNotice" size="small" @click="$emit('load-external')">载入外部版本</n-button>
+          <span class="immersive-meta-status" role="status">{{ saving ? '保存中' : dirty ? '未保存' : '已保存' }}</span>
+        </template>
+      </ImmersiveEditorActions>
     </footer>
   </div>
 </template>
@@ -32,7 +32,6 @@
 import ImmersiveText from './ImmersiveText.vue';
 import ImmersiveEditorActions from './ImmersiveEditorActions.vue';
 defineProps<{
-  title: string;
   dirty: boolean;
   saving: boolean;
   loading: boolean;

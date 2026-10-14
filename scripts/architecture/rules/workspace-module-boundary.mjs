@@ -15,7 +15,7 @@ const oldWorkspaceCalls = [
   { name: 'setActiveConfig', pattern: /\bworkspace\.setActiveConfig\s*\(/ },
   { name: 'navigateTo', pattern: /\bworkspace\.navigateTo\s*\(/ },
 ];
-const componentActivationCalls = /\bworkspace\.(?:activateModOverview|activateModTable|activateModConfig)\s*\(/;
+const componentActivationCalls = /\bworkspace\.(?:activateModOverview|activateModTable|activateModConfig|activateModFiles)\s*\(/;
 const directoryOpeningDetails = /\b(?:openModProjectManifest|hydrateOpenedModRuntime|rollbackFailedModOpening)\b/;
 const lifecycleDetailCalls = /\b(?:invalidateQueryCacheForSession|invalidateResourceCacheForSession|closeProject)\b/;
 

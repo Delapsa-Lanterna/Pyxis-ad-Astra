@@ -6,6 +6,7 @@ import CsvGrid from './CsvGrid.vue';
 import { createCsvGridModel } from '@/domain/tables/csv-grid-model';
 import { provideCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
@@ -17,19 +18,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ 
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'plain',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
 });
 
 function mountTable() {

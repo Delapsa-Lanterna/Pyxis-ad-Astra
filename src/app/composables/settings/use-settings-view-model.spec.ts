@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { effectScope } from 'vue';
 
 const mocks = vi.hoisted(() => ({
   feedback: {
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   clearConfig: vi.fn(async () => {}),
   clearLog: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   reloadCurrentWindow: vi.fn(async () => {}),
+  querySystemFonts: vi.fn(async () => ['Arial', 'Microsoft YaHei']),
 }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
@@ -38,6 +40,7 @@ vi.mock('@/services/app-log.service', () => ({
 }));
 
 vi.mock('@/services/app-config.service', () => ({ openConfigFolder: mocks.openConfigFolder, clearConfig: mocks.clearConfig }));
+vi.mock('@/services/app-settings.service', () => ({ querySystemFonts: mocks.querySystemFonts }));
 
 vi.mock('@/orchestrators/settings-persistence.orchestrator', () => ({
   saveLogDirectory: mocks.saveLogDirectory,
@@ -49,26 +52,59 @@ vi.mock('@/windows/current.window', () => ({
 
 import { useSettingsViewModel } from './use-settings-view-model';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-
-const DEFAULT_SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
+import { createSettingsFixture } from '@/test/settings';
 
 describe('useSettingsViewModel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...DEFAULT_SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
     vi.clearAllMocks();
+  });
+
+  it('loads installed families while retaining the default combination', async () => {
+    const scope = effectScope();
+    const viewModel = scope.run(useSettingsViewModel)!;
+    const loading = viewModel.loadSystemFonts();
+    expect(viewModel.fontsLoading.value).toBe(true);
+    await loading;
+    expect(viewModel.fontsLoading.value).toBe(false);
+    expect(viewModel.fontOptions.value).toEqual([
+      { label: '默认字体组合', value: '' },
+      { label: 'Arial', value: 'Arial' },
+      { label: 'Microsoft YaHei', value: 'Microsoft YaHei' },
+    ]);
+    scope.stop();
+  });
+
+  it.each(['success', 'error'] as const)('releases late installed-font %s after leaving settings', async (result) => {
+    let resolve!: (fonts: string[]) => void;
+    let reject!: (error: Error) => void;
+    mocks.querySystemFonts.mockImplementationOnce(
+      () =>
+        new Promise((yes, no) => {
+          resolve = yes;
+          reject = no;
+        }),
+    );
+    const scope = effectScope();
+    const viewModel = scope.run(useSettingsViewModel)!;
+    const loading = viewModel.loadSystemFonts();
+    scope.stop();
+    if (result === 'success') resolve(['Arial']);
+    else reject(new Error('late enumeration'));
+    await loading;
+    expect(viewModel.fontOptions.value).toEqual([{ label: '默认字体组合', value: '' }]);
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+  });
+
+  it('reports enumeration failures and finishes loading', async () => {
+    mocks.querySystemFonts.mockRejectedValueOnce(new Error('enumeration failed'));
+    const scope = effectScope();
+    const viewModel = scope.run(useSettingsViewModel)!;
+    await viewModel.loadSystemFonts();
+    expect(viewModel.fontsLoading.value).toBe(false);
+    expect(mocks.feedback.error).toHaveBeenCalledWith(expect.any(Error), '读取系统字体失败');
+    scope.stop();
   });
 
   it('formats log sizes in bytes, kilobytes and megabytes', async () => {
@@ -128,7 +164,7 @@ describe('useSettingsViewModel', () => {
   it('restores the default log directory', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue(null);
     mocks.loadLogStatus.mockResolvedValue({ path: 'C:/log/app.log', sizeBytes: 0 });
-    mocks.saveLogDirectory.mockResolvedValue({ ...DEFAULT_SETTINGS, logDirectory: null } as never);
+    mocks.saveLogDirectory.mockResolvedValue(createSettingsFixture() as never);
     const viewModel = useSettingsViewModel();
     await viewModel.restoreDefaultLogDirectory();
     expect(mocks.saveLogDirectory).toHaveBeenCalledWith(null);

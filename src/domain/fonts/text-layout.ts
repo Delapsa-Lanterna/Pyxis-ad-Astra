@@ -43,11 +43,15 @@ export function bitmapInkBounds(font: BitmapFont, placements: readonly BitmapPla
 export function layoutText(font: BitmapFont, runs: readonly TextRun[], maxWidth = Infinity): TextLayout {
   const characters = coloredGraphemes(runs).map(({ character, color }) => {
     const id = Array.from(character).length === 1 ? character.codePointAt(0)! : null;
-    const glyph = id === null ? null : (font.glyphs.get(id) ?? null);
+    const originalGlyph = id === null ? null : (font.glyphs.get(id) ?? null);
+    const missing = !originalGlyph && !/^[\r\n\t]+$/u.test(character);
+    // Missing graphemes intentionally use the ASCII question-mark glyph and its metrics.
+    const glyph = missing ? (font.glyphs.get(63) ?? null) : originalGlyph;
     return {
       character,
       color,
       glyph,
+      missing,
       advance: character === '\t' ? font.glyphs.get(32)!.xadvance * 4 : (glyph?.xadvance ?? font.lineHeight),
     };
   });
@@ -108,7 +112,7 @@ export function layoutText(font: BitmapFont, runs: readonly TextRun[], maxWidth 
         kern = 0;
       }
       x += kern;
-      if (!item.glyph && !/^\s+$/u.test(item.character)) missing.add(item.character);
+      if (item.missing) missing.add(item.character);
       placements.push({ ...item, x, y });
       x += item.advance;
       previous = item.glyph?.id ?? null;

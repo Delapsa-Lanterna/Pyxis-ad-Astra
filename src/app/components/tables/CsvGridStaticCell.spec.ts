@@ -2,25 +2,12 @@ import { mountCsvInputHost } from '@/test/csv-input-host';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { CsvSourceIndex } from '@/domain/tables/csv-source-options';
 import type { CsvGridColumn } from '@/domain/tables/csv-grid-model';
 import type { ResourceRef } from '@/shared/types';
 import CsvGridStaticCell from './CsvGridStaticCell.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
-
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
 
 vi.mock('@/services/resource-media.service', () => ({
   resourceMediaDataUrl: vi.fn(() => 'data:image/png;base64,x'),
@@ -70,11 +57,11 @@ function mountCell(props: Record<string, unknown>) {
 describe('CsvGridStaticCell', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
   });
 
   it('renders the raw value in plain edit mode', () => {
-    initializeSettingsStore({ ...SETTINGS, editMode: 'plain' });
+    initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
     const cell = mountCell({ column: columnFixture('text') });
     expect(cell.get('.csv-cell-value').text()).toBe('railgun');
     expect(cell.find('.csv-cell-caret').exists()).toBe(false);

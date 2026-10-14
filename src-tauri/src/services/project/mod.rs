@@ -23,7 +23,8 @@ pub use query::{
     query_editor_draft_resources, query_entity, query_entity_edit_target, query_entity_list,
     query_hull_references, query_resource_data_urls,
 };
-pub use resources::{resolve_mod_relative_path, scan_core_graphics};
+pub use query::{query_mod_directory, query_mod_file_search, query_mod_text_file_target};
+pub use resources::{query_original_font, resolve_mod_relative_path, scan_core_graphics};
 pub(crate) use session::open_project_session_traced;
 pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};
 pub use session::{

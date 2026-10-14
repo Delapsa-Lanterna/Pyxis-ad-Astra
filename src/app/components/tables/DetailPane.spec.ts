@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -22,20 +23,6 @@ function tableEntitySummariesFixture(): ProjectManifest['tableEntitySummaries'] 
   for (const key of TABLE_KEYS) summaries[key] = 0;
   return summaries;
 }
-
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => ({
@@ -106,7 +93,7 @@ function mountPane() {
 describe('DetailPane', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
   });
 
   it('renders the display id and module label of the selected row', async () => {

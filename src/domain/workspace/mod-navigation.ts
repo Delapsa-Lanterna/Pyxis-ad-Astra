@@ -1,7 +1,7 @@
 import type { ConfigView, ProjectManifest, TableKey, WorkspaceView } from '@/shared/types';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
 
-export type ModNavigationTarget = { type: 'config'; view: ConfigView } | { type: 'table'; table: TableKey };
+export type ModNavigationTarget = { type: 'config'; view: ConfigView } | { type: 'table'; table: TableKey } | { type: 'mod-files' };
 
 export interface ModNavigationItem {
   id: string;
@@ -30,7 +30,11 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
   return [
     {
       id: 'workspace',
-      items: [configItem('mod-overview', 'Mod 概览'), configItem('file-history', '文件历史')],
+      items: [
+        configItem('mod-overview', 'Mod 概览'),
+        { id: 'mod-files', label: 'Mod 文件', count: null, target: { type: 'mod-files' } },
+        configItem('file-history', '文件历史'),
+      ],
     },
     {
       id: 'mod-info',
@@ -63,6 +67,7 @@ export function isModNavigationItemActive(
   configView: ConfigView,
   currentTable: TableKey,
 ): boolean {
+  if (item.target.type === 'mod-files') return currentView === 'mod-files';
   if (item.target.type === 'config') return currentView === 'config' && configView === item.target.view;
   return currentView === 'table' && currentTable === item.target.table;
 }

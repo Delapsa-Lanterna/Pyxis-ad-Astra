@@ -7,6 +7,7 @@ export interface ShortcutDispatchHandlers {
   // contenteditable targets; a hit always prevents the default behavior.
   keys?: Record<string, (event: KeyboardEvent) => void>;
   undoRedoInEditable?: boolean;
+  keyScope?: (event: KeyboardEvent) => boolean;
 }
 
 // Sole shortcut dispatch entry of the app: command parsing lives in the domain
@@ -24,6 +25,7 @@ export function useShortcutDispatch(handlers: ShortcutDispatchHandlers) {
       return;
     }
     if (!handlers.keys || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (handlers.keyScope && !handlers.keyScope(event)) return;
     if (isEditableKeyTarget(event.target)) return;
     const keyHandler = handlers.keys[event.key.toLowerCase()];
     if (keyHandler) {

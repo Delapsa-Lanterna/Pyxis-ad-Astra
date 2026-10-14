@@ -33,11 +33,13 @@ export function assertValidSettings(settings: AppSettings): void {
   readTheme(settings.theme);
   readAccent(settings.accent);
   readCustomAccent(settings.customAccent);
+  readGeneralFont(settings.generalFont);
   readHistoryLimit(settings.fileHistoryLimit);
   readHistoryLimit(settings.editHistoryLimit);
   readLogRotationSizeMiB(settings.logRotationSizeMiB);
   readLogBackupCount(settings.logBackupCount);
   readEditMode(settings.editMode);
+  readImmersiveGameFont(settings.immersiveGameFont);
   readPreserveOriginalJson(settings.preserveOriginalJson);
   readAllowCoreEditing(settings.allowCoreEditing);
   readLogLevel(settings.logLevel);
@@ -86,6 +88,17 @@ function readIntegerLimit(value: number, maximum: number, label: string): number
 
 export function readEditMode(value: EditMode): EditMode {
   if (!isSharedSettingValue(EDIT_MODES, value)) throw new Error(`Invalid edit mode: ${value}`);
+  return value;
+}
+
+export function readImmersiveGameFont(value: boolean): boolean {
+  if (typeof value !== 'boolean') throw new Error(`Invalid original fonts setting: ${value}`);
+  return value;
+}
+
+export function readGeneralFont(value: string | null): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !value.trim() || /\p{Cc}/u.test(value)) throw new Error(`Invalid general font: ${value}`);
   return value;
 }
 

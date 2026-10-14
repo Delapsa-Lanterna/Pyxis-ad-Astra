@@ -1,7 +1,7 @@
 import type { GlobalThemeOverrides } from 'naive-ui/es/config-provider';
 import type { ThemeColorTokens } from '@/domain/settings/theme';
 
-export function buildThemeOverrides(colors: ThemeColorTokens): GlobalThemeOverrides {
+export function buildThemeOverrides(colors: ThemeColorTokens, fontFamily: string): GlobalThemeOverrides {
   const {
     background,
     border,
@@ -29,6 +29,7 @@ export function buildThemeOverrides(colors: ThemeColorTokens): GlobalThemeOverri
 
   return {
     common: {
+      fontFamily,
       primaryColor: primary,
       primaryColorHover: primaryHover,
       primaryColorPressed: primaryPressed,

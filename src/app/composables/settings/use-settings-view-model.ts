@@ -5,6 +5,8 @@ import { clearLog, loadLogStatus, openLogFile } from '@/services/app-log.service
 import { useAppConfigActions } from '@/app/composables/settings/use-app-config-actions';
 import { useSettingsStore } from '@/stores/settings.store';
 import { saveLogDirectory } from '@/orchestrators/settings-persistence.orchestrator';
+import { querySystemFonts } from '@/services/app-settings.service';
+import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 
 export function useSettingsViewModel() {
   const settings = useSettingsStore();
@@ -14,6 +16,26 @@ export function useSettingsViewModel() {
   const formattedLogSize = computed(() => formatBytes(logSizeBytes.value));
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
   const configActions = useAppConfigActions(refreshLogStatus);
+  const reads = useQueryReadOwner();
+  const systemFonts = ref<string[]>([]);
+  const fontsLoading = ref(false);
+  const fontOptions = computed(() => [
+    { label: '默认字体组合', value: '' },
+    ...systemFonts.value.map((font) => ({ label: font, value: font })),
+  ]);
+
+  async function loadSystemFonts() {
+    fontsLoading.value = true;
+    await reads.consume('system-fonts', {}, querySystemFonts, {
+      ready: (fonts) => {
+        systemFonts.value = fonts;
+      },
+      error: (error) => feedback.error(error, '读取系统字体失败'),
+      settled: () => {
+        fontsLoading.value = false;
+      },
+    });
+  }
 
   async function pickStarsectorRoot() {
     const selected = await pickDirectoryDialog('选择 Starsector 安装目录');
@@ -82,6 +104,9 @@ export function useSettingsViewModel() {
   }
 
   return {
+    fontOptions,
+    fontsLoading,
+    loadSystemFonts,
     formattedLogSize,
     logPathHint,
     pickLogDirectory,

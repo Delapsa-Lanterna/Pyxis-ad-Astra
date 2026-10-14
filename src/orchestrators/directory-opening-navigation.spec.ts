@@ -61,6 +61,7 @@ const mocks = vi.hoisted(() => {
     fileHistory: { activateFor: vi.fn(), removeModState: vi.fn() },
     csvHistory: { clearForMod: vi.fn() },
     writeSync: { pending: [], removeModState: vi.fn() },
+    fileBrowser: { removeModState: vi.fn() },
     openProject: vi.fn(),
     closeProject: vi.fn(async () => {}),
   };
@@ -72,6 +73,7 @@ vi.mock('@/stores/tables.store', () => ({ useTablesStore: () => mocks.tables }))
 vi.mock('@/stores/file-history.store', () => ({ useFileHistoryStore: () => mocks.fileHistory }));
 vi.mock('@/stores/tables-edit-history.store', () => ({ useTablesEditHistoryStore: () => mocks.csvHistory }));
 vi.mock('@/stores/write-sync.store', () => ({ useWriteSyncStore: () => mocks.writeSync }));
+vi.mock('@/stores/mod-file-browser.store', () => ({ useModFileBrowserStore: () => mocks.fileBrowser }));
 vi.mock('@/services/project-session.service', () => ({
   openProject: mocks.openProject,
   closeProject: mocks.closeProject,
@@ -124,6 +126,7 @@ describe('workspace Mod opening navigation', () => {
     await expect(openModFromOverview(modRoot)).rejects.toMatchObject({ code: 'parse.csv' });
 
     expect(mocks.workspaceStore.removeLoadedModEntry).toHaveBeenCalledWith(modRoot);
+    expect(mocks.fileBrowser.removeModState).toHaveBeenCalledWith(modRoot);
     expect(mocks.workspaceStore.setModOpeningFailure).toHaveBeenCalledWith({
       modRoot,
       message: 'CSV 解析失败',

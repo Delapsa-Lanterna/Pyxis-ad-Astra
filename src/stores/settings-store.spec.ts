@@ -1,21 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { AppSettings } from '@/shared/types';
+import { createSettingsFixture } from '@/test/settings';
 import { initializeSettingsStore, useSettingsStore } from './settings.store';
 
-const snapshot: AppSettings = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#2563eb',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-};
+const snapshot = createSettingsFixture({ theme: 'light' });
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -23,6 +11,34 @@ beforeEach(() => {
 });
 
 describe('settings integer limits', () => {
+  it('publishes and mirrors a general font while preserving the default combination', () => {
+    const settings = useSettingsStore();
+    expect(settings.generalFont).toBeNull();
+    settings.setGeneralFont('Microsoft YaHei');
+    expect(settings.settingsSnapshot().generalFont).toBe('Microsoft YaHei');
+    expect(settings.fontFamily).toBe("\"Microsoft YaHei\", Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif");
+    settings.replaceSettings(createSettingsFixture({ generalFont: 'Arial' }));
+    expect(settings.generalFont).toBe('Arial');
+    settings.setGeneralFont(null);
+    expect(settings.fontFamily).toBe("Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif");
+    for (const value of ['', ' ', 'Arial\n', 1]) {
+      const generalFont = value as string;
+      expect(() => initializeSettingsStore(createSettingsFixture({ generalFont }))).toThrow();
+      expect(() => settings.setGeneralFont(generalFont)).toThrow();
+      expect(() => settings.replaceSettings(createSettingsFixture({ generalFont }))).toThrow();
+      expect(settings.generalFont).toBeNull();
+    }
+  });
+  it('validates and adopts the original-font switch through initialization and mirrors', () => {
+    const settings = useSettingsStore();
+    expect(settings.immersiveGameFont).toBe(true);
+    settings.setImmersiveGameFont(false);
+    expect(settings.settingsSnapshot().immersiveGameFont).toBe(false);
+    settings.replaceSettings({ ...snapshot, immersiveGameFont: true });
+    expect(settings.immersiveGameFont).toBe(true);
+    expect(() => settings.replaceSettings({ ...snapshot, immersiveGameFont: 'true' as unknown as boolean })).toThrow();
+    expect(settings.immersiveGameFont).toBe(true);
+  });
   const limits = [
     ['fileHistoryLimit', 'setFileHistoryLimit', 1000],
     ['editHistoryLimit', 'setEditHistoryLimit', 1000],
@@ -34,7 +50,7 @@ describe('settings integer limits', () => {
     const settings = useSettingsStore();
     for (const value of [1, maximum]) {
       settings[setter](value);
-      expect(settings.settingsSnapshot()).toEqual({ ...snapshot, [field]: value, preserveOriginalJson: true, allowCoreEditing: false });
+      expect(settings.settingsSnapshot()).toEqual({ ...snapshot, [field]: value });
     }
   });
 

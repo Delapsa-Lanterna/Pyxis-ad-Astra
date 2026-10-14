@@ -28,7 +28,7 @@ describe('buildModNavigationSections', () => {
 
   it('keeps workspace and mod-info entries without counts', () => {
     const byId = new Map(sections().map((section) => [section.id, section]));
-    expect(byId.get('workspace')?.items.map((item) => item.id)).toEqual(['config:mod-overview', 'config:file-history']);
+    expect(byId.get('workspace')?.items.map((item) => item.id)).toEqual(['config:mod-overview', 'mod-files', 'config:file-history']);
     expect(byId.get('workspace')?.items.every((item) => item.count === null)).toBe(true);
     expect(byId.get('mod-info')?.items.map((item) => item.id)).toEqual(['config:mod-info']);
   });

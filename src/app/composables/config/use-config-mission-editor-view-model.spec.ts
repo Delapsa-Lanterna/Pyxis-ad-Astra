@@ -23,22 +23,9 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 
 import { useConfigMissionEditorViewModel } from './use-config-mission-editor-view-model';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { ConfigMissionEditorData, RowData } from '@/shared/types';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
-
-const SETTINGS = {
-  theme: 'light',
-  accent: 'blue',
-  customAccent: '#3388cc',
-  fileHistoryLimit: 20,
-  editHistoryLimit: 250,
-  logRotationSizeMiB: 5,
-  logBackupCount: 1,
-  editMode: 'smart',
-  starsectorRoot: null,
-  logDirectory: null,
-  logLevel: 'info',
-} as const;
 
 interface Harness {
   vm: ReturnType<typeof useConfigMissionEditorViewModel>;
@@ -105,7 +92,7 @@ function mountEditor() {
 describe('useConfigMissionEditorViewModel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    initializeSettingsStore({ ...SETTINGS });
+    initializeSettingsStore(createSettingsFixture());
     vi.clearAllMocks();
   });
 

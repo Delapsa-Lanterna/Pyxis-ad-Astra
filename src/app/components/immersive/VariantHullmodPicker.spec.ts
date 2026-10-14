@@ -1,5 +1,9 @@
 import { mount, flushPromises } from '@vue/test-utils';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
+import { installCanvas2DStub } from '@/test/canvas-stub';
 import { h, ref, shallowRef } from 'vue';
 import { NInput, NSelect, NButton } from 'naive-ui';
 import type { JointVariantEntry } from '@/shared/types';
@@ -8,6 +12,11 @@ import { projectVariantPanel } from '@/domain/immersive/variant-panel';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import VariantHullmodPicker from './VariantHullmodPicker.vue';
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], media: vi.fn() }));
+beforeEach(() => {
+  installCanvas2DStub();
+  setActivePinia(createPinia());
+  initializeSettingsStore(createSettingsFixture());
+});
 vi.mock('@/app/composables/use-variant-catalog', () => ({
   useVariantCatalog: () => ({
     entries: shallowRef(mocks.entries),

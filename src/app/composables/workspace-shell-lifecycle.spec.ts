@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspaceShellLifecycle } from './use-workspace-shell-lifecycle';
 import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 import type { AppFeedback } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ identity: vi.fn(), events: vi.fn(), restore: vi.fn(), stopPersistence: vi.fn() }));
 vi.mock('@/orchestrators/window-save.orchestrator', () => ({ listenWindowSaveEvents: mocks.events }));
@@ -15,19 +16,7 @@ vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 beforeEach(() => {
   vi.clearAllMocks();
   setActivePinia(createPinia());
-  initializeSettingsStore({
-    theme: 'light',
-    accent: 'blue',
-    customAccent: '#3388cc',
-    fileHistoryLimit: 20,
-    editHistoryLimit: 250,
-    logRotationSizeMiB: 5,
-    logBackupCount: 1,
-    editMode: 'smart',
-    starsectorRoot: null,
-    logDirectory: null,
-    logLevel: 'info',
-  });
+  initializeSettingsStore(createSettingsFixture());
 });
 describe('workspace shell listener lifecycle', () => {
   it('releases late event registration and ends startup', async () => {
