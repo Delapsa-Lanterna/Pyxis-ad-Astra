@@ -5,7 +5,9 @@ import { recordWindowEventHandlerError } from '@/orchestrators/window-event-erro
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useWriteSyncStore, type PendingWriteSync } from '@/stores/write-sync.store';
-import { synchronizeSessionCommit } from '@/services/project-session.service';
+import { synchronizeSessionCommit, refreshProjectSources } from '@/services/project-session.service';
+import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
+import type { InvalidatedResourceScope } from '@/shared/types';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceCacheByProject } from '@/services/resource-cache.service';
 import { markProjectionPending, markProjectionReady } from '@/shared/runtime/project-projection';
@@ -218,8 +220,58 @@ export async function listenCommittedWrites(
   };
 }
 
-export function listenProjectSessionInvalidated(handler: WindowEventHandler<ProjectSessionInvalidatedEvent>) {
-  return listenCommittedWrites(async (event) => {
+export async function listenProjectSessionInvalidated(handler: WindowEventHandler<ProjectSessionInvalidatedEvent>) {
+  const stop = await listenCommittedWrites(async (event) => {
     for (const update of event.result.sessionUpdates) if (update.status === 'ready') await handler(update.projection);
   });
+  try {
+    const stopRefresh = await listenWindowEvent<ProjectSessionInvalidatedEvent & { originWindowLabel: string }>(
+      WINDOW_EVENTS.projectSourcesRefreshed,
+      async (event) => {
+        if (event.originWindowLabel === currentWindowLabel()) return;
+        acceptSourceRefresh(event);
+        await handler(event);
+      },
+      recordWindowEventHandlerError,
+    );
+    return () => {
+      stop();
+      stopRefresh();
+    };
+  } catch (error) {
+    stop();
+    throw error;
+  }
+}
+
+export async function refreshProjectSourcePaths(
+  sessionId: string,
+  modRoot: string,
+  paths: string[],
+  current: () => boolean,
+  resources: readonly InvalidatedResourceScope[] = [],
+) {
+  const sources: InvalidatedResourceScope[] = paths.map((path) =>
+    pathBelongsToRoot(path, modRoot)
+      ? { source: 'mod', relPath: relativePathFromRoot(modRoot, path) }
+      : {
+          source: 'core',
+          relPath: normalizeRelPath(path)
+            .split(/\/starsector-core\//i)
+            .at(-1)!,
+        },
+  );
+  const result = await refreshProjectSources(sessionId, [
+    ...new Map([...sources, ...resources].map((source) => [JSON.stringify(source), source])).values(),
+  ]);
+  if (!current()) return;
+  acceptSourceRefresh(result);
+  await emitWindowEvent(WINDOW_EVENTS.projectSourcesRefreshed, { ...result, originWindowLabel: currentWindowLabel() });
+}
+function acceptSourceRefresh(event: ProjectSessionInvalidatedEvent) {
+  const project = useProjectStore();
+  const previous = project.getManifest(event.manifest.modRoot);
+  if (previous && previous.sessionId !== event.manifest.sessionId) return;
+  project.replaceProjectManifest(event.manifest, event.projectionRevision);
+  applyProjectSessionCacheInvalid(event);
 }

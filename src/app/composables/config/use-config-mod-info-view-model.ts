@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { computed, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
 import { completeConfigSave, saveModInfoAction } from '@/orchestrators/config-save.orchestrator';
@@ -83,6 +85,19 @@ export function useConfigModInfoViewModel() {
     }
   }
 
+  useContextMenuScope({
+    identity: () => draftSession.currentTargetKey.value ?? '',
+    canRefresh: () => Boolean(project.activeManifest),
+    refresh: (current) => {
+      const manifest = project.activeManifest!;
+      return refreshProjectSourcePaths(
+        manifest.sessionId,
+        manifest.modRoot,
+        manifest.baseVersions.map((version) => version.path),
+        current,
+      );
+    },
+  });
   return {
     dirty: draftSession.dirty,
     draftData: draftSession.draftValue,

@@ -14,6 +14,7 @@ export const commandOwners = {
     'open_project_session',
     'close_project_session',
     'invalidate_project_session',
+    'refresh_project_sources',
     'synchronize_committed_write',
   ],
   'src/services/window.service.ts': [

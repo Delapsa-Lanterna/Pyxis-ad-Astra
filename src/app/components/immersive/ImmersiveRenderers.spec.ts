@@ -6,6 +6,7 @@ import { weaponJointFixture } from '@/test/weapon-joint-edit';
 import { wingJointFixture } from '@/test/wing-joint-edit';
 import { projectShipPanel } from '@/domain/immersive/ship-panel';
 import { projectWeaponPanel } from '@/domain/immersive/weapon-panel';
+import { jointObject } from '@/domain/joint-edit';
 import { projectWingPanel } from '@/domain/immersive/wing-panel';
 import type { ImmersiveEditing, ImmersiveRenderContext } from './immersive-render-context';
 import ShipImmersivePanel from './ShipImmersivePanel.vue';
@@ -16,6 +17,17 @@ describe('shared immersive content renderers', () => {
   it.each(['ship', 'weapon', 'wing'] as const)('shares %s technical content while applying the readonly summary', async (kind) => {
     const snapshot = kind === 'ship' ? shipJointFixture() : kind === 'weapon' ? weaponJointFixture() : wingJointFixture();
     const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
+    if (kind === 'weapon')
+      values.csv = {
+        state: 'present',
+        value: {
+          ...jointObject(values.csv),
+          customPrimary: 'Burst %s',
+          customPrimaryHL: '25%',
+          customAncillary: '%s beams',
+          customAncillaryHL: '2 {x}',
+        },
+      };
     const editing: ImmersiveEditing = {
       snapshot,
       values,
@@ -55,7 +67,6 @@ describe('shared immersive content renderers', () => {
         global: {
           stubs: {
             ImmersiveText: { props: ['text', 'runs'], template: '<span>{{text || runs?.map(run => run.text).join("")}}</span>' },
-            ImmersiveHighlightedText: { props: ['text'], template: '<span>{{text}}</span>' },
             ImmersiveShipPreview: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' },
             VariantScene: { name: 'VariantScene', props: ['variant', 'wingLayout', 'iconSize'], template: '<canvas />' },
             ImmersiveWeaponIcon: { props: ['url', 'label'], template: '<img :src="url(null)" :alt="label" />' },
@@ -77,6 +88,8 @@ describe('shared immersive content renderers', () => {
         )
         .map((row) => row.text());
     const editableContent = content();
+    const customText = () => own.findAll('.immersive-custom-text').map((row) => row.text());
+    if (kind === 'weapon') expect(customText()).toEqual(['Burst 25%', '2 × beams']);
     const images = own.findAll('img').map((image) => image.attributes('src'));
     const formation = panel.kind === 'wing' ? own.findComponent({ name: 'VariantScene' }) : null;
     if (formation) {
@@ -96,6 +109,7 @@ describe('shared immersive content renderers', () => {
     render.value = { ...common, mode: 'readonly' };
     await nextTick();
     expect(content()).toEqual(editableContent);
+    if (kind === 'weapon') expect(customText()).toEqual(['Burst 25%', '2 × beams']);
     if (formation) expect(own.findComponent({ name: 'VariantScene' }).element).toBe(formation.element);
     if (kind === 'ship') {
       expect(own.find('.ship-immersive-header').exists()).toBe(false);

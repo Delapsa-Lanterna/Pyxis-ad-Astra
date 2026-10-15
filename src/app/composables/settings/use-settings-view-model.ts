@@ -1,3 +1,4 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, ref } from 'vue';
 import { pickDirectoryDialog } from '@/shared/runtime/dialog.runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -36,6 +37,8 @@ export function useSettingsViewModel() {
       },
     });
   }
+
+  useContextMenuScope({ identity: () => 'settings', refresh: () => Promise.all([loadSystemFonts(), refreshLogStatus()]) });
 
   async function pickStarsectorRoot() {
     const selected = await pickDirectoryDialog('选择 Starsector 安装目录');

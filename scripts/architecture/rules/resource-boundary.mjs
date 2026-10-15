@@ -21,7 +21,7 @@ export const resourceBoundaryRule = {
       if (/\bPromise\.all\s*\([^)]*queryResource/s.test(file.text)) {
         failures.push(`${file.rel}: resource loading must use one batch request, not per-item promises`);
       }
-      if (current.layer !== 'shared' && /source\s*:\s*['"](?:mod|core)['"]|\b(ownerKind|ownerId)\s*:/.test(file.text)) {
+      if (current.layer !== 'shared' && /\b(ownerKind|ownerId)\s*:/.test(file.text)) {
         failures.push(`${file.rel}: ResourceRef objects are backend query output; frontend must not construct them`);
       }
     }

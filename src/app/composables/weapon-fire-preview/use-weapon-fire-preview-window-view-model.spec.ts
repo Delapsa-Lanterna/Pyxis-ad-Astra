@@ -40,7 +40,14 @@ function request(source: WeaponFirePreviewSource): WindowContextFor<'weapon-fire
   };
 }
 function data(id = 'w'): WeaponFirePreviewData {
-  return { weapon: { id, specClass: 'beam' }, weaponCsvRow: { id }, projectileSpecs: {}, weaponSpriteData: {}, resourceRefs: [] };
+  return {
+    weapon: { id, specClass: 'beam' },
+    weaponCsvRow: { id },
+    baseVersions: [],
+    projectileSpecs: {},
+    weaponSpriteData: {},
+    resourceRefs: [],
+  };
 }
 const scopes: ReturnType<typeof effectScope>[] = [];
 beforeEach(() => {

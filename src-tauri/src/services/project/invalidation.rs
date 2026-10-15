@@ -27,6 +27,14 @@ pub(crate) fn invalidate_session_changes(
 ) -> AppResult<ProjectInvalidation> {
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let files = changed_project_files(changes, &boundary)?;
+    invalidate_files(session, files, false)
+}
+
+fn invalidate_files(
+    session: &mut ProjectSession,
+    files: Vec<ChangedProjectFile>,
+    preserve_rows: bool,
+) -> AppResult<ProjectInvalidation> {
     let impacts = files
         .iter()
         .map(ChangedProjectImpact::new)
@@ -71,6 +79,17 @@ pub(crate) fn invalidate_session_changes(
             table_entity_count(session, table.as_str(), &summaries).map(|count| (*table, count))
         })
         .collect::<AppResult<Vec<_>>>()?;
+    let refreshed_rows = if preserve_rows {
+        content_tables
+            .iter()
+            .filter(|table| session.csv_tables[table.as_str()].rows.is_some())
+            .map(|table| {
+                super::cache::csv::read_table_snapshot(session, *table).map(|rows| (*table, rows))
+            })
+            .collect::<AppResult<Vec<_>>>()?
+    } else {
+        Vec::new()
+    };
     let resources = impacts
         .iter()
         .map(|impact| InvalidatedResourceScope {
@@ -103,6 +122,26 @@ pub(crate) fn invalidate_session_changes(
         if !retained {
             state.rows = None;
         }
+    }
+    for (table, (header, rows, next_seq)) in refreshed_rows {
+        let state = session
+            .csv_tables
+            .get_mut(table.as_str())
+            .expect("registered table");
+        state.header = header;
+        state.rows = Some(rows);
+        state.next_row_seq = next_seq;
+        state.saved_text = None;
+        let summary = session
+            .manifest
+            .table_summaries
+            .get_mut(&table)
+            .expect("registered summary");
+        summary.header = state.header.clone();
+        summary.available = Path::new(&session.manifest.mod_root)
+            .join(&state.path)
+            .exists();
+        summary.total_rows = state.rows.as_ref().map(Vec::len);
     }
     for update in updates {
         update.apply(session);
@@ -583,6 +622,70 @@ fn table_entity_count(
         definition.spec.key,
         &table.path,
     )
+}
+
+pub(super) fn refresh_sources(
+    session: &mut ProjectSession,
+    sources: &[InvalidatedResourceScope],
+) -> AppResult<ProjectInvalidation> {
+    let mod_root = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
+    let mut files = Vec::new();
+    let mut paths = Vec::new();
+    for source in sources {
+        let boundary = match source.source {
+            ResourceSource::Mod => mod_root.clone(),
+            ResourceSource::Core => FsRootBoundary::new(
+                &super::cache::core::core_dir(
+                    session.manifest.starsector_root.as_deref().ok_or_else(|| {
+                        crate::errors::AppError::message(
+                            "resource.core_root_required",
+                            "Core root required",
+                        )
+                    })?,
+                )?,
+                "core root",
+            )?,
+        };
+        let path = boundary.resolve_relative(&source.rel_path, "refresh source")?;
+        paths.push(path.to_string_lossy().to_string());
+        files.push(ChangedProjectFile {
+            path: source.rel_path.clone(),
+            before_text: None,
+            after_text: None,
+        });
+    }
+    if let Some(root) = session.manifest.starsector_root.as_deref() {
+        super::cache::core::invalidate_core_sources(root, sources)?;
+    }
+    let mut versions = BTreeMap::new();
+    for source in sources
+        .iter()
+        .filter(|source| source.source == ResourceSource::Mod)
+    {
+        let path = mod_root.root().join(&source.rel_path);
+        versions.insert(source.rel_path.clone(), crate::io::file_version(&path)?);
+        if path.is_dir() {
+            for entry in walkdir::WalkDir::new(&path).min_depth(1) {
+                let entry = entry.map_err(|error| {
+                    crate::errors::AppError::message("refresh.walk_failed", error.to_string())
+                        .at_path(&path)
+                })?;
+                crate::io::validate_walk_entry(entry.path(), "refresh version")?;
+                let relative =
+                    crate::io::forward_slash_relative_path(mod_root.root(), entry.path());
+                versions.insert(relative, crate::io::file_version(entry.path())?);
+            }
+        }
+    }
+    let mut result = invalidate_files(session, files, true)?;
+    result.paths = paths;
+    result.resources = sources.to_vec();
+    result.query_scopes =
+        query_scopes_for_invalidation(&result.tables, &result.entities, &result.resources)?;
+    session.source_versions.extend(versions);
+    session.manifest.base_versions =
+        vec![super::versions::version_for_path(session, "mod_info.json")];
+    Ok(result)
 }
 
 #[cfg(test)]

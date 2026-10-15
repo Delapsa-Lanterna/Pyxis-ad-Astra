@@ -18,17 +18,22 @@ export async function queryWeaponFirePreviewData(
     signal,
   );
   const projectileSpecs: Record<string, RowData> = {};
+  const baseVersions = [...data.baseVersions],
+    resourceRefs = [...data.resourceRefs];
   if (data.weapon.specClass !== 'beam') {
     const id = typeof data.weapon.projectileSpecId === 'string' ? data.weapon.projectileSpecId : '';
     const projectile = id ? await querySessionEntity(sessionId, 'projectile', id, signal) : null;
     if (!projectile) throw new AppError('找不到预览弹体 ' + id + '。', { action: 'query-weapon-fire-preview' });
+    baseVersions.push(...projectile.baseVersions);
+    resourceRefs.push(...Object.values(projectile.resourceRefs));
     projectileSpecs[id] = cloneQuerySnapshot(requireRowData(projectile.data, '弹体 ' + id + ' 数据无效'));
   }
   return shallowReadonly({
+    baseVersions,
     weapon: data.weapon,
     weaponCsvRow: data.weaponCsvRow,
     projectileSpecs,
-    resourceRefs: data.resourceRefs,
+    resourceRefs,
     weaponSpriteData: data.weaponSpriteData,
   });
 }

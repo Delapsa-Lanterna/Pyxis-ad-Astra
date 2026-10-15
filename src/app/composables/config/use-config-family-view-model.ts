@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
@@ -72,6 +74,21 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
     },
   });
 
+  useContextMenuScope({
+    identity: () => sessionKey(),
+    canRefresh: () => Boolean(sessionId.value),
+    refresh: (current) =>
+      refreshProjectSourcePaths(
+        sessionId.value!,
+        modRoot.value!,
+        [
+          modRoot.value! + (family.id === 'variant' ? '/data/variants' : '/data/hulls/skins'),
+          ...files.value.flatMap((file) => file.baseVersions.map((version) => version.path)),
+        ],
+        current,
+        Object.values(spriteRefs.value).filter((ref): ref is ResourceRef => ref !== null),
+      ),
+  });
   function sessionKey() {
     return JSON.stringify([sessionId.value, modRoot.value]);
   }

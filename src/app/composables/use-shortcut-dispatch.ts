@@ -2,6 +2,7 @@ import { onMounted, onUnmounted } from 'vue';
 import { isEditableKeyTarget, shortcutCommandFromKeyEvent, type ShortcutCommand } from '@/domain/workspace/main-window-commands';
 
 export interface ShortcutDispatchHandlers {
+  priority?: (event: KeyboardEvent) => boolean;
   commands?: Partial<Record<ShortcutCommand, () => void>>;
   // Plain keys (no Ctrl/Alt/Meta): never fire inside inputs, textareas, selects or
   // contenteditable targets; a hit always prevents the default behavior.
@@ -15,6 +16,11 @@ export interface ShortcutDispatchHandlers {
 // command routing and plain-key table dispatch.
 export function useShortcutDispatch(handlers: ShortcutDispatchHandlers) {
   function onKeyDown(event: KeyboardEvent) {
+    if (event.defaultPrevented) return;
+    if (handlers.priority?.(event)) {
+      event.preventDefault();
+      return;
+    }
     const command = shortcutCommandFromKeyEvent(event, { undoRedoInEditable: handlers.undoRedoInEditable });
     if (command) {
       const commandHandler = handlers.commands?.[command];
@@ -34,6 +40,6 @@ export function useShortcutDispatch(handlers: ShortcutDispatchHandlers) {
     }
   }
 
-  onMounted(() => window.addEventListener('keydown', onKeyDown));
-  onUnmounted(() => window.removeEventListener('keydown', onKeyDown));
+  onMounted(() => window.addEventListener('keydown', onKeyDown, Boolean(handlers.priority)));
+  onUnmounted(() => window.removeEventListener('keydown', onKeyDown, Boolean(handlers.priority)));
 }

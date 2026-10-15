@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   openEditorWindow: vi.fn(async () => {}),
   openFileEditorWindow: vi.fn(async () => {}),
   recordLogBestEffort: vi.fn(),
+  refreshProjectSourcePaths: vi.fn(),
 }));
 
 vi.mock('@/services/directory.service', () => ({
@@ -59,13 +60,19 @@ vi.mock('@/services/app-log.service', () => ({
   recordLogBestEffort: mocks.recordLogBestEffort,
 }));
 
+vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
+  refreshProjectSourcePaths: mocks.refreshProjectSourcePaths,
+  retryPendingWritesForMod: vi.fn(),
+}));
 import { useWorkspaceShellActions } from './use-workspace-shell-actions';
+import { useProjectStore } from '@/stores/project.store';
+import type { ProjectManifest } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { ref } from 'vue';
+import { effectScope, ref } from 'vue';
 
 function feedbackStub(): AppFeedback {
   return {
@@ -267,6 +274,82 @@ describe('useWorkspaceShellActions', () => {
     actions.redoCurrentTableEdit();
     expect(feedback.error).toHaveBeenCalledWith('撤销 CSV 编辑失败');
     expect(feedback.error).toHaveBeenCalledWith('重做 CSV 编辑失败');
+  });
+
+  function registerOverview(root: string, sessionId: string) {
+    const manifest: ProjectManifest = {
+      sessionId,
+      modRoot: root,
+      baseVersions: [{ path: root + '/mod_info.json', fingerprint: 'base' }],
+      modInfo: { name: 'Before', version: '1' },
+      starsectorRoot: null,
+      coreAvailable: false,
+      associatedSpecTables: [],
+      tableSummaries: {} as ProjectManifest['tableSummaries'],
+      tableEntitySummaries: {} as ProjectManifest['tableEntitySummaries'],
+      entitySummaries: { factions: 0, missions: 0, ships: 0, weapons: 0, projectiles: 0, variants: 0, skins: 0, systems: 0, skills: 0 },
+      warnings: [],
+    };
+    useWorkspaceStore().registerMod({ modRoot: root, displayName: 'Before', version: '1', status: 'ready' });
+    useProjectStore().registerProjectManifest(manifest);
+    return manifest;
+  }
+  it('enables and refreshes the active Mod overview and card metadata', async () => {
+    const manifest = registerOverview('C:/mods/alpha', 's1'),
+      workspace = useWorkspaceStore();
+    workspace.activateModOverview(manifest.modRoot);
+    const actions = useWorkspaceShellActions(feedbackStub());
+    expect(actions.canRefreshOverview.value).toBe(true);
+    mocks.refreshProjectSourcePaths.mockImplementationOnce(async () => {
+      useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } }, 1);
+    });
+    await actions.refreshModOverview(manifest.modRoot, () => true);
+    expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledWith(
+      's1',
+      manifest.modRoot,
+      [manifest.modRoot + '/mod_info.json', manifest.modRoot + '/data'],
+      expect.any(Function),
+    );
+    expect(workspace.activeMod).toMatchObject({ displayName: 'After', version: '2' });
+    workspace.activateModConfig(manifest.modRoot, 'file-history');
+    expect(actions.canRefreshOverview.value).toBe(false);
+  });
+  it('refreshes all loaded sessions from an overview without a game root', async () => {
+    registerOverview('C:/mods/alpha', 's1');
+    registerOverview('C:/mods/beta', 's2');
+    const actions = useWorkspaceShellActions(feedbackStub());
+    expect(actions.canRefreshOverview.value).toBe(true);
+    await actions.refreshWorkspace();
+    expect(mocks.refreshProjectSourcePaths.mock.calls.map((args) => args[0])).toEqual(['s1', 's2']);
+    expect(mocks.scanDirectoryGameOverview).not.toHaveBeenCalled();
+  });
+  it.each([false, true])('retains the current card after refresh handoff or disposal: %s', async (dispose) => {
+    const manifest = registerOverview('C:/mods/alpha', 's1');
+    let finish!: () => void;
+    mocks.refreshProjectSourcePaths.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const scope = effectScope();
+    const actions = scope.run(() => useWorkspaceShellActions(feedbackStub()))!;
+    let current = true;
+    const pending = actions.refreshModOverview(manifest.modRoot, () => current);
+    if (dispose) scope.stop();
+    else current = false;
+    useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } }, 1);
+    finish();
+    await pending;
+    expect(useWorkspaceStore().loadedModList[0]).toMatchObject({ displayName: 'Before', version: '1' });
+  });
+  it('reports a loaded-session refresh failure and retains its current entry', async () => {
+    registerOverview('C:/mods/alpha', 's1');
+    const feedback = feedbackStub();
+    mocks.refreshProjectSourcePaths.mockRejectedValueOnce(new Error('read failed'));
+    await useWorkspaceShellActions(feedback).refreshWorkspace();
+    expect(feedback.error).toHaveBeenCalledWith(expect.any(Error), '刷新工作区失败');
+    expect(useWorkspaceStore().loadedModList[0]!.displayName).toBe('Before');
   });
 
   it('refreshes the workspace overview from the known root', async () => {

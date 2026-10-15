@@ -38,6 +38,7 @@ afterEach(() => {
 
 function source(id: string): ShipWeaponSources {
   return {
+    baseVersions: [],
     hints: [],
     diagnostic: '',
     weapons: {

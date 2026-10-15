@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types';
 import { queryShipWeaponSources } from '@/services/editor.service';
@@ -11,11 +13,22 @@ import { useEditorImages } from './use-editor-images';
 import { formatError } from '@/shared/lib/errors';
 
 export function useShipWeapons(root: () => JointEditRoot, ship: () => RowData, changed: () => void) {
-  const sources = shallowRef<ShipWeaponSources>({ hints: [], weapons: {}, diagnostic: '' });
+  const sources = shallowRef<ShipWeaponSources>({ baseVersions: [], hints: [], weapons: {}, diagnostic: '' });
   const reads = useQueryReadOwner(),
     feedback = useAppFeedback();
   const mediaFailures = ref<readonly ResourceRef[]>([]),
     decodeFailures = ref<string[]>([]);
+  useContextMenuScope({
+    identity: () => JSON.stringify(root()),
+    refresh: (current) =>
+      refreshProjectSourcePaths(
+        root().sessionId,
+        root().modRoot,
+        sources.value.baseVersions.map((version) => version.path),
+        current,
+        resources.value,
+      ),
+  });
   const projection = computed(() => projectShipWeapons(ship(), sources.value));
   const resources = computed<ResourceRef[]>((previous) => {
     const next = projection.value.weapons.flatMap((weapon) => [
@@ -38,7 +51,7 @@ export function useShipWeapons(root: () => JointEditRoot, ship: () => RowData, c
   function load() {
     const target = { ...root() },
       draft = ship();
-    sources.value = { hints: [], weapons: {}, diagnostic: '' };
+    sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: '' };
     mediaFailures.value = [];
     void reads.consume(
       'weapons',
@@ -49,7 +62,7 @@ export function useShipWeapons(root: () => JointEditRoot, ship: () => RowData, c
           sources.value = value;
         },
         error: (error) => {
-          sources.value = { hints: [], weapons: {}, diagnostic: formatError(error) };
+          sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: formatError(error) };
         },
       },
     );
@@ -60,7 +73,7 @@ export function useShipWeapons(root: () => JointEditRoot, ship: () => RowData, c
       if (event.sessionId !== root().sessionId || !hasQueryInvalidation(event, 'joint-edit-candidate')) return;
       if (event.scope === 'session') {
         reads.revoke('session');
-        sources.value = { hints: [], weapons: {}, diagnostic: '' };
+        sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: '' };
         media.clear();
       } else reads.schedule('weapons', load);
     }),

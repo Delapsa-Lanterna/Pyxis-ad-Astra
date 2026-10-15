@@ -86,7 +86,10 @@ const stage = useTemplateRef<HTMLElement>('stage'),
   tree = useTemplateRef<TreeInst>('tree');
 const nodeProps: NonNullable<TreeProps['nodeProps']> = ({ option }) => ({
   title: String(option.key),
-  onDblclick: () => void actions.activate(String(option.key)),
+  onDblclick: (event: MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest('[data-switcher]')) return;
+    void actions.activate(String(option.key));
+  },
 });
 const renderPrefix: NonNullable<TreeProps['renderPrefix']> = ({ option }) =>
   option.kind === 'status'

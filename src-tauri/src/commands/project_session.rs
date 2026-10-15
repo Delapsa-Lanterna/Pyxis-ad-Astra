@@ -46,3 +46,10 @@ pub fn synchronize_committed_write(
         payload.commit_id,
     )
 }
+
+#[tauri::command(async)]
+pub fn refresh_project_sources(
+    payload: crate::models::command_payloads::RefreshProjectSourcesPayload,
+) -> Result<ProjectSessionInvalidationResult, AppError> {
+    services::project::refresh_project_sources(&payload.session_id, payload.sources)
+}

@@ -250,6 +250,13 @@ export const frontendCapabilities = [
   {
     role: 'orchestrator',
     domain: 'project-session-refresh',
+    names: ['refreshProjectSourcePaths'],
+    capability: 'source-refresh',
+    owners: [{ layer: 'app', role: 'composable' }],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'project-session-refresh',
     names: ['retryPendingProjectSessionWrites'],
     capability: 'commit-retry',
     owners: [{ layer: 'app', role: 'composable', domain: 'write-sync-view-model' }],
@@ -595,7 +602,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'project-session',
-    names: ['requestProjectSessionRefresh', 'synchronizeSessionCommit'],
+    names: ['requestProjectSessionRefresh', 'synchronizeSessionCommit', 'refreshProjectSources'],
     capability: 'session-refresh',
     owners: [{ layer: 'orchestrators', domain: 'project-session-refresh' }],
   },

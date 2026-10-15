@@ -31,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue';
 import TitleBar from '@/app/TitleBar.vue';
 import ModNavigation from '@/app/components/ModNavigation.vue';
@@ -63,6 +64,12 @@ useWorkspaceShellLifecycle(feedback, actions.selectAssociatedSpecs);
 const saveCommand = useSaveCommandStore();
 useMainWindowShortcuts(feedback);
 const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some((mod) => draftSessions.hasUnsavedWorkForMod(mod.modRoot)));
+useContextMenuScope({
+  identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
+  canRefresh: () => actions.canRefreshOverview.value,
+  refresh: (current) =>
+    workspace.currentView === 'overview' ? actions.refreshWorkspace(current) : actions.refreshModOverview(project.activeModRoot!, current),
+});
 const closeGuard = useDirtyWindowCloseGuard({
   beforeClose: actions.closeWorkspaceWindows,
   content: '主窗口中仍有未保存修改，关闭后这些修改将丢失。',

@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { computed, ref, shallowRef, onScopeDispose } from 'vue';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
@@ -128,6 +130,18 @@ export function useWeaponFirePreviewWindowViewModel() {
     );
     scheduleRefresh();
   }
+  useContextMenuScope({
+    identity: () => JSON.stringify(target.value),
+    canRefresh: () => Boolean(data.value),
+    refresh: (current) =>
+      refreshProjectSourcePaths(
+        target.value.sessionId,
+        target.value.modRoot,
+        data.value!.baseVersions.map((version) => version.path),
+        current,
+        data.value!.resourceRefs,
+      ),
+  });
   function dispose() {
     disposed = true;
     reads.revoke();

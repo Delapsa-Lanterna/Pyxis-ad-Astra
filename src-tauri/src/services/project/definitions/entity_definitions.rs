@@ -199,7 +199,7 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         kind: EntityKind::Skin,
         spec: Some(&SKIN_SPEC_DEFINITION),
         csv_table: None,
-        source_options: &["ships.id", "wings.id"],
+        source_options: &["ships.id", "ships.tags", "wings.id"],
         path_matches: spec_path_matches,
         query_impacts: &[InvalidatedQueryKind::HullReferences],
         prepare: prepare_none,

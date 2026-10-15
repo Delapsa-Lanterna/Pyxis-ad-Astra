@@ -1,3 +1,7 @@
+import { relativePathFromRoot } from '@/shared/lib/paths';
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { parseCsvSource } from '@/domain/tables/csv-source-options';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -40,6 +44,31 @@ export function useCsvTableViewModel() {
   );
   const targetKey = computed(() => (target.value ? JSON.stringify(target.value) : ''));
   const { confirmDiscard } = useFieldInputActions(null);
+  useContextMenuScope({
+    identity: () => targetKey.value,
+    canRefresh: () => Boolean(target.value) && !tables.currentTableLocked,
+    refresh: (current) => {
+      const captured = target.value!;
+      const tables = new Set([
+        captured.table,
+        ...[...visibleSourceIds()].flatMap((source) => {
+          const parsed = parseCsvSource(source);
+          return parsed ? [parsed.table] : [];
+        }),
+      ]);
+      const targets = project.tableWriteTargets.filter((target) => target.sessionId === captured.sessionId && tables.has(target.table));
+      const coreSources = project.activeManifest!.coreAvailable
+        ? targets.map((target) => ({ source: 'core' as const, relPath: relativePathFromRoot(captured.modRoot, target.path) }))
+        : [];
+      return refreshProjectSourcePaths(
+        captured.sessionId,
+        captured.modRoot,
+        targets.map((target) => target.path),
+        current,
+        [...loadedSourceResourceRefs(), ...coreSources],
+      );
+    },
+  });
 
   async function commitTableInput() {
     const current = target.value;
@@ -143,7 +172,10 @@ export function useCsvTableViewModel() {
     if (tableWindowChanged) {
       if (tables.saving || tables.currentTableLocked) {
         refreshAfterSave = true;
-      } else if (tables.hasTableDirtyChanges(tables.currentTab)) {
+      } else if (
+        tables.hasTableDirtyChanges(tables.currentTab) ||
+        tables.getTableInputs(target.value!.modRoot, tables.currentTab).dirty.value
+      ) {
         tables.markTableExternalUpdate(target.value!);
       } else {
         reads.schedule('window', () => {

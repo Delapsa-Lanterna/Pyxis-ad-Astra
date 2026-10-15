@@ -1,3 +1,4 @@
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';
 import type { SpecEditorDefinition } from './spec-editor-definitions';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
@@ -422,6 +423,14 @@ export function useEditorWindowViewModel(
   }
 
   return {
+    refresh: (current: () => boolean, resources: readonly import('@/shared/types').InvalidatedResourceScope[]) =>
+      refreshProjectSourcePaths(
+        params.sessionId!,
+        params.modRoot!,
+        editorData.value!.baseVersions.map((version) => version.path),
+        current,
+        resources,
+      ),
     currentTarget: computed(editorWindowTarget),
     editorData,
     loading,

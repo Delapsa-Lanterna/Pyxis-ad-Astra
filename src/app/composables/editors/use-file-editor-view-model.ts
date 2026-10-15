@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, queryFileTextIdentityIntent, followFileTextIdentity } from '@/services/files.service';
@@ -333,6 +335,15 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     else draftSession.resetDraft();
   }
 
+  useContextMenuScope({
+    identity: () => draftSession.currentTargetKey.value ?? '',
+    canRefresh: () => Boolean(currentPath.value),
+    refresh: async (current) => {
+      const target = fileEditorTarget()!;
+      if (target.sessionId) await refreshProjectSourcePaths(target.sessionId, target.modRoot, [target.filePath], current);
+      if (current()) await draftSession.refreshTarget(target);
+    },
+  });
   function loadPendingExternalText() {
     if (pendingIdentity) {
       void followPendingIdentity();

@@ -1,5 +1,4 @@
 use super::super::{
-    cache::{load_core_ship_files, load_core_skin_files},
     model::{
         ABILITIES_SPEC, COMMODITIES_SPEC, CoreSourceData, CsvTableSpec, DESCRIPTIONS_SPEC,
         HULLMODS_SPEC, INDUSTRIES_SPEC, MARKET_CONDITIONS_SPEC, ProjectSession, SHIP_SYSTEMS_SPEC,
@@ -7,7 +6,7 @@ use super::super::{
         WEAPONS_SPEC, WINGS_SPEC, csv_table_spec, string_field, string_from_row,
         weapon_sprite_path,
     },
-    resources::{resource_ref, skin_resource_ref},
+    resources::{HullReferenceResolver, resource_ref},
 };
 use crate::{
     errors::AppResult,
@@ -410,17 +409,15 @@ fn ship_source_display_name(
     _table: CsvTableKey,
     value: &str,
     row: &Map<String, Value>,
-    core_data: Option<&CoreSourceData>,
+    _core_data: Option<&CoreSourceData>,
     session: &ProjectSession,
 ) -> AppResult<Option<String>> {
     if let Some(name) = string_from_row(row, "name") {
         return Ok(Some(name));
     }
-    let ship = match source {
-        ResourceSource::Core => core_data.and_then(|data| data.ship_files.get(value)),
-        ResourceSource::Mod => session.ship_files.get(value),
-    };
-    Ok(ship.and_then(|ship| string_field(&ship.data, "hullName")))
+    Ok(HullReferenceResolver::new(session)
+        .field(source, value, "hullName")?
+        .map(|(name, _, _)| name))
 }
 
 fn weapon_source_resource(
@@ -541,53 +538,7 @@ pub(in crate::services::project) fn hull_resource_ref(
     source: ResourceSource,
     hull_id: &str,
 ) -> AppResult<Option<ResourceRef>> {
-    if source == ResourceSource::Core {
-        let root = session.manifest.starsector_root.as_ref().ok_or_else(|| {
-            crate::errors::AppError::message(
-                "resource.core_root_required",
-                "core resource reference requires starsector root",
-            )
-        })?;
-        let ships = load_core_ship_files(root)?;
-        if let Some(ship) = ships.get(hull_id) {
-            return Ok(string_field(&ship.data, "spriteName").map(|path| {
-                resource_ref(
-                    ResourceSource::Core,
-                    &path,
-                    ResourceOwnerKind::Ship,
-                    hull_id,
-                    "sprite",
-                )
-            }));
-        }
-        let skins = load_core_skin_files(root)?;
-        Ok(skins
-            .iter()
-            .find(|skin| skin.skin_hull_id == hull_id)
-            .and_then(|skin| skin_resource_ref(source, &ships, skin)))
-    } else {
-        Ok(mod_hull_resource_ref(session, hull_id))
-    }
-}
-
-fn mod_hull_resource_ref(session: &ProjectSession, hull_id: &str) -> Option<ResourceRef> {
-    if let Some(ship) = session.ship_files.get(hull_id) {
-        string_field(&ship.data, "spriteName").map(|path| {
-            resource_ref(
-                ResourceSource::Mod,
-                &path,
-                ResourceOwnerKind::Ship,
-                hull_id,
-                "sprite",
-            )
-        })
-    } else {
-        session
-            .skin_files
-            .iter()
-            .find(|skin| skin.skin_hull_id == hull_id)
-            .and_then(|skin| skin_resource_ref(ResourceSource::Mod, &session.ship_files, skin))
-    }
+    HullReferenceResolver::new(session).resource(source, hull_id)
 }
 
 #[cfg(test)]

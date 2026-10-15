@@ -7,6 +7,38 @@ import { updateImmersiveField } from './fields';
 import { highlightedTextParts } from './highlighted-text';
 
 describe('weapon immersive field and display projection', () => {
+  it.each(['customPrimary', 'customAncillary'] as const)('formats and highlights %s while retaining editable CSV text', (key) => {
+    const snapshot = weaponJointFixture(),
+      values = jointFixtureValues(snapshot);
+    const text = '%s causes %s ~ %s times Effect damage.\nWith %s installed, damage increases by %s.';
+    values.csv = {
+      state: 'present',
+      value: { ...jointObject(values.csv), [key]: text, [key + 'HL']: 'Effect | 0.4 | 0.6 | Example hullmod | 25%' },
+    };
+    const panel = projectWeaponPanel(snapshot, values);
+    expect(panel[key]).toBe('Effect causes 0.4 ~ 0.6 times Effect damage.\nWith Example hullmod installed, damage increases by 25%.');
+    expect(
+      highlightedTextParts(panel[key], key === 'customPrimary' ? panel.customPrimaryHL : panel.customAncillaryHL)
+        .filter((part) => part.highlight)
+        .map((part) => part.text),
+    ).toEqual(['Effect', '0.4', '0.6', 'Effect', 'Example hullmod', '25%']);
+    expect(jointObject(values.csv)[key]).toBe(text);
+  });
+  it.each([
+    ['%2$s then %s then %1$s', 'A | B', 'B then A then A', 'A | B'],
+    ['%s damage; 100%% %n next', '25%', '25% damage; 100% \n next', '25%'],
+    ['%s beams', '2 {x}', '2 × beams', '2 ×'],
+    ['Literal 2 × beams', '2 {x}', 'Literal 2 × beams', '2 ×'],
+    ['%s / %s', '25%', '25% / %s', '25%'],
+    ['Raw %s %% %n', '', 'Raw %s %% %n', ''],
+  ])('projects custom format %s', (text, highlights, expected, expectedHighlights) => {
+    const snapshot = weaponJointFixture(),
+      values = jointFixtureValues(snapshot);
+    values.csv = { state: 'present', value: { ...jointObject(values.csv), customPrimary: text, customPrimaryHL: highlights } };
+    const panel = projectWeaponPanel(snapshot, values);
+    expect([panel.customPrimary, panel.customPrimaryHL]).toEqual([expected, expectedHighlights]);
+    expect(jointObject(values.csv).customPrimaryHL).toBe(highlights);
+  });
   it('projects mount identity, barrel ordering and loaded projectile source', () => {
     const snapshot = weaponJointFixture(),
       values = jointFixtureValues(snapshot);

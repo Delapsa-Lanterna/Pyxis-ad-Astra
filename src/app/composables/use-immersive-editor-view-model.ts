@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
 import { useJointEditSession } from './use-joint-edit-session';
@@ -778,6 +780,21 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
     selectionIntent = null;
     stopIdentity?.();
     stopProjection();
+  });
+  useContextMenuScope({
+    identity: () => joint.currentTargetKey.value ?? '',
+    canRefresh: () => Boolean(snapshot.value),
+    refresh: async (current) => {
+      const graph = displaySnapshot.value!;
+      await refreshProjectSourcePaths(
+        root.sessionId,
+        root.modRoot,
+        [...graph.baseVersions, ...graph.referenceSettings.versions].map((version) => version.path),
+        current,
+        [...graph.records.flatMap((record) => Object.values(record.resourceRefs)), ...Object.values(graph.referenceSettings.resources)],
+      );
+      if (current()) await joint.refreshTarget(joint.currentTarget.value!);
+    },
   });
   function loadExternal() {
     const key = joint.currentTargetKey.value;

@@ -771,3 +771,10 @@ mod tests {
         assert_eq!(serde_json::to_value(parsed).unwrap()["isComment"], false);
     }
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RefreshProjectSourcesPayload {
+    pub session_id: String,
+    pub sources: Vec<crate::models::InvalidatedResourceScope>,
+}

@@ -1,5 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { effectScope, nextTick } from 'vue';
+import { flushPromises } from '@vue/test-utils';
 
 const mocks = vi.hoisted(() => ({
   feedback: {
@@ -11,6 +13,12 @@ const mocks = vi.hoisted(() => ({
     confirmWarning: vi.fn(),
     choose: vi.fn(async () => null),
   },
+  historyScope: vi.fn(),
+  loadFileHistory: vi.fn(async () => ({
+    revision: 0,
+    undoStack: [] as import('@/shared/types').FileHistoryItem[],
+    redoStack: [] as import('@/shared/types').FileHistoryItem[],
+  })),
   replayNextFileUndo: vi.fn(),
   replayNextFileRedo: vi.fn(),
   clearSavedFileHistory: vi.fn(async () => ({ revision: 10, undoStack: [], redoStack: [] })),
@@ -20,7 +28,7 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
 vi.mock('@/services/file-history.service', () => ({
-  loadFileHistory: vi.fn(async () => ({ revision: 0, undoStack: [], redoStack: [] })),
+  loadFileHistory: mocks.loadFileHistory,
   clearSavedFileHistory: mocks.clearSavedFileHistory,
 }));
 
@@ -29,6 +37,7 @@ vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({
   replayNextFileRedo: mocks.replayNextFileRedo,
 }));
 
+vi.mock('@/app/composables/use-context-menu', () => ({ useContextMenuScope: mocks.historyScope }));
 import { useFileHistoryViewModel } from './use-file-history-view-model';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -55,6 +64,52 @@ describe('useFileHistoryViewModel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+  });
+
+  function activateHistory() {
+    const root = 'C:/mods/alpha';
+    useWorkspaceStore().registerMod({ modRoot: root, displayName: 'Alpha', version: '', status: 'ready' });
+    useWorkspaceStore().activateModOverview(root);
+    useProjectStore().registerProjectManifest(manifestFixture(root));
+    const scope = effectScope();
+    const vm = scope.run(useFileHistoryViewModel)!;
+    return { root, scope, vm };
+  }
+  it('registers history refresh and accepts authoritative stack counts', async () => {
+    const { root, scope, vm } = activateHistory();
+    await flushPromises();
+    expect(mocks.historyScope.mock.calls.at(-1)![0].canRefresh()).toBe(true);
+    mocks.loadFileHistory.mockResolvedValueOnce({
+      revision: 3,
+      undoStack: [{ id: 1, timestamp: 0, label: 'save', paths: ['a'] }],
+      redoStack: [],
+    });
+    await mocks.historyScope.mock.calls.at(-1)![0].refresh(() => true);
+    expect(vm.historyCount.value).toBe(1);
+    expect(vm.canUndo.value).toBe(true);
+    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(3);
+    scope.stop();
+  });
+  it.each(['success', 'error', 'handoff'])('rejects a late history result after %s', async (mode) => {
+    const { root, scope, vm } = activateHistory();
+    await flushPromises();
+    let finish!: () => void;
+    mocks.loadFileHistory.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = () => (mode === 'error' ? reject(new Error('late')) : resolve({ revision: 5, undoStack: [], redoStack: [] }));
+        }),
+    );
+    const pending = vm.refresh();
+    if (mode === 'handoff') {
+      useProjectStore().registerProjectManifest({ ...manifestFixture(root), sessionId: 's2' });
+      await nextTick();
+    } else scope.stop();
+    finish();
+    await pending;
+    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(0);
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+    scope.stop();
   });
 
   it('falls back to the unselected-mod title', () => {

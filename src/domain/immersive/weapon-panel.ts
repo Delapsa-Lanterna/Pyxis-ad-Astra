@@ -37,6 +37,16 @@ const DAMAGE: Record<string, { label: string; armor: number; shield: number }> =
 export const weaponDamageLabel = (type: string) => DAMAGE[type]?.label ?? type;
 const format = (value: number) =>
   Number.isFinite(value) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2, useGrouping: false }).format(value) : '来源数值无效';
+function customWeaponText(text: string, highlights: string): string {
+  if (!highlights) return text;
+  const parameters = highlights.split('|').map((value) => value.trim());
+  let index = 0;
+  return text.replace(/%%|%n|%(?:(\d+)\$)?s/g, (token, position: string | undefined) => {
+    if (token === '%%') return '%';
+    if (token === '%n') return '\n';
+    return parameters[position ? Number(position) - 1 : index++] ?? token;
+  });
+}
 export interface WeaponPanel {
   kind: 'weapon';
   heading: ImmersiveStat[];
@@ -320,6 +330,8 @@ export function projectWeaponPanel(
   for (const entry of visiblePrimary)
     entry.gapBefore = ['range', 'flux-second', 'no-flux'].includes(entry.id) || (noDps && entry.id === 'energy/shot');
   for (const entry of visibleAncillary) entry.gapBefore = ['speed', 'accuracy', 'ammo', 'refire'].includes(entry.id);
+  const customPrimaryHL = schemaStringValue(csv.customPrimaryHL).replaceAll('{x}', '×');
+  const customAncillaryHL = schemaStringValue(csv.customAncillaryHL).replaceAll('{x}', '×');
   return {
     kind: 'weapon',
     heading,
@@ -330,10 +342,10 @@ export function projectWeaponPanel(
     ancillarySettings,
     branch,
     projectile: projectileStat,
-    customPrimary: schemaStringValue(csv.customPrimary),
-    customPrimaryHL: schemaStringValue(csv.customPrimaryHL),
-    customAncillary: schemaStringValue(csv.customAncillary),
-    customAncillaryHL: schemaStringValue(csv.customAncillaryHL),
+    customPrimary: customWeaponText(schemaStringValue(csv.customPrimary), customPrimaryHL),
+    customPrimaryHL,
+    customAncillary: customWeaponText(schemaStringValue(csv.customAncillary), customAncillaryHL),
+    customAncillaryHL,
     damageDescription:
       `${damageType.armor}% 对装甲，${damageType.shield}% 对护盾` + (stats.beam || tags.includes('damage_soft_flux') ? '；产生软幅能' : ''),
     damageIcon: projection?.records.find((record) => record.key === projection.bindings.csv)?.resourceRefs.damageIcon ?? null,

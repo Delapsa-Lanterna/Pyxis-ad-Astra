@@ -56,6 +56,7 @@ export function useWeaponEditorDependencies(window: ReturnType<typeof useEditorW
   onScopeDispose(dispose);
   return {
     spriteData: computed(() => images.value.value?.spriteData ?? {}),
+    resourceRefs: computed(() => images.value.value?.resourceRefs ?? []),
     projectileOptions: computed(() => projectileOptions.value),
     dispose,
   };

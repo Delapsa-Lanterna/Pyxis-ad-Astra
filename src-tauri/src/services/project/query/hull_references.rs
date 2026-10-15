@@ -2,7 +2,7 @@ use super::super::cache::{
     ensure_registered_table_rows, load_core_csv_table, loaded_csv_rows, loaded_registered_csv_rows,
     lock_ready_session, session_handle,
 };
-use super::super::resources::{resource_ref, skin_resource_ref};
+use super::super::resources::{HullReferenceResolver, resource_ref};
 use super::super::{
     cache::{load_core_ship_files, load_core_skin_files},
     model::{ProjectSession, SessionCsvRow, string_field, string_from_row},
@@ -41,6 +41,7 @@ pub(super) fn build_hull_references(
     ensure_registered_table_rows(session, CsvTableKey::Ships)?;
     let mod_hull_names =
         all_ship_names_from_rows(loaded_registered_csv_rows(session, CsvTableKey::Ships)?);
+    let mut resolver = HullReferenceResolver::new(session);
     let mut groups = Vec::new();
     let mut seen = BTreeSet::new();
     let ship_options: Vec<HullReferenceOption> = session
@@ -48,7 +49,11 @@ pub(super) fn build_hull_references(
         .iter()
         .map(|(hull_id, ship)| {
             seen.insert(hull_id.clone());
-            let label = hull_reference_label(hull_id, mod_hull_names.get(hull_id), Some(ship));
+            let name = mod_hull_names
+                .get(hull_id)
+                .cloned()
+                .or_else(|| string_field(&ship.data, "hullName"));
+            let label = hull_reference_label(hull_id, name);
             let resource_ref = string_field(&ship.data, "spriteName").map(|sprite| {
                 resource_ref(
                     ResourceSource::Mod,
@@ -81,20 +86,19 @@ pub(super) fn build_hull_references(
         .iter()
         .map(|skin| {
             seen.insert(skin.skin_hull_id.clone());
-            let resource_ref = skin_resource_ref(ResourceSource::Mod, &session.ship_files, skin);
-            HullReferenceOption {
-                label: hull_reference_label(
-                    &skin.skin_hull_id,
-                    mod_hull_names.get(&skin.skin_hull_id),
-                    session.ship_files.get(&skin.skin_hull_id),
-                ),
+            let name = resolver
+                .field(ResourceSource::Mod, &skin.skin_hull_id, "hullName")?
+                .map(|(name, _, _)| name);
+            let resource_ref = resolver.resource(ResourceSource::Mod, &skin.skin_hull_id)?;
+            Ok(HullReferenceOption {
+                label: hull_reference_label(&skin.skin_hull_id, name),
                 value: skin.skin_hull_id.clone(),
                 origin: ResourceSource::Mod,
                 kind: HullReferenceKind::Skin,
                 resource_ref,
-            }
+            })
         })
-        .collect();
+        .collect::<AppResult<_>>()?;
     if !skin_options.is_empty() {
         push_non_empty_group(
             &mut groups,
@@ -120,7 +124,11 @@ pub(super) fn build_hull_references(
                 continue;
             }
             seen.insert(hull_id.clone());
-            let label = hull_reference_label(hull_id, core_hull_names.get(hull_id), Some(ship));
+            let name = core_hull_names
+                .get(hull_id)
+                .cloned()
+                .or_else(|| string_field(&ship.data, "hullName"));
+            let label = hull_reference_label(hull_id, name);
             let resource_ref = string_field(&ship.data, "spriteName").map(|sprite| {
                 resource_ref(
                     ResourceSource::Core,
@@ -153,13 +161,12 @@ pub(super) fn build_hull_references(
                 continue;
             }
             seen.insert(skin.skin_hull_id.clone());
-            let resource_ref = skin_resource_ref(ResourceSource::Core, &core_ship_files, skin);
+            let name = resolver
+                .field(ResourceSource::Core, &skin.skin_hull_id, "hullName")?
+                .map(|(name, _, _)| name);
+            let resource_ref = resolver.resource(ResourceSource::Core, &skin.skin_hull_id)?;
             core_skin_options.push(HullReferenceOption {
-                label: hull_reference_label(
-                    &skin.skin_hull_id,
-                    core_hull_names.get(&skin.skin_hull_id),
-                    core_ship_files.get(&skin.skin_hull_id),
-                ),
+                label: hull_reference_label(&skin.skin_hull_id, name),
                 value: skin.skin_hull_id.clone(),
                 origin: ResourceSource::Core,
                 kind: HullReferenceKind::Skin,
@@ -283,77 +290,15 @@ fn resolve_requested_hull_names(
     session: &mut ProjectSession,
     requested_reference_ids: &[String],
 ) -> AppResult<BTreeMap<String, String>> {
-    let requested_ids = requested_reference_ids
-        .iter()
-        .filter(|id| !id.trim().is_empty())
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    if requested_ids.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-
     ensure_registered_table_rows(session, CsvTableKey::Ships)?;
-    let mut hull_names = {
-        let rows = loaded_registered_csv_rows(session, CsvTableKey::Ships)?;
-        ship_names_from_rows(rows, &requested_ids)
-    };
-    extend_ship_hull_name_fallbacks(&mut hull_names, &session.ship_files, &requested_ids);
-    let unresolved_ids = unresolved_hull_ids(&requested_ids, &hull_names);
-    let Some(starsector_root) = session.manifest.starsector_root.as_ref() else {
-        return Ok(hull_names);
-    };
-    if unresolved_ids.is_empty() {
-        return Ok(hull_names);
-    }
-    if let Some(core_table) = load_core_csv_table(starsector_root, CsvTableKey::Ships)? {
-        let core_rows = loaded_csv_rows(&core_table, CsvTableKey::Ships.as_str())?;
-        hull_names.extend(ship_names_from_rows(core_rows, &unresolved_ids));
-    }
-    let unresolved_ids = unresolved_hull_ids(&requested_ids, &hull_names);
-    if !unresolved_ids.is_empty() {
-        let core_ship_files = load_core_ship_files(starsector_root)?;
-        extend_ship_hull_name_fallbacks(&mut hull_names, &core_ship_files, &unresolved_ids);
-    }
-    Ok(hull_names)
-}
-
-fn unresolved_hull_ids(
-    requested_ids: &BTreeSet<String>,
-    hull_names: &BTreeMap<String, String>,
-) -> BTreeSet<String> {
-    requested_ids
-        .iter()
-        .filter(|id| !hull_names.contains_key(id.as_str()))
-        .cloned()
-        .collect()
-}
-
-fn extend_ship_hull_name_fallbacks(
-    hull_names: &mut BTreeMap<String, String>,
-    ship_files: &BTreeMap<String, crate::models::LoadedSpecRecord>,
-    requested_ids: &BTreeSet<String>,
-) {
-    for hull_id in requested_ids {
-        if hull_names.contains_key(hull_id) {
-            continue;
-        }
-        if let Some(name) = ship_files
-            .get(hull_id)
-            .and_then(|ship| string_field(&ship.data, "hullName"))
-        {
-            hull_names.insert(hull_id.clone(), name);
+    let mut resolver = HullReferenceResolver::new(session);
+    let mut names = BTreeMap::new();
+    for id in requested_reference_ids {
+        if let Some((name, _, _)) = resolver.field(ResourceSource::Mod, id, "hullName")? {
+            names.insert(id.clone(), name);
         }
     }
-}
-
-fn ship_names_from_rows(
-    rows: &[SessionCsvRow],
-    requested_ids: &BTreeSet<String>,
-) -> BTreeMap<String, String> {
-    all_ship_names_from_rows(rows)
-        .into_iter()
-        .filter(|(id, _)| requested_ids.contains(id))
-        .collect()
+    Ok(names)
 }
 
 fn all_ship_names_from_rows(rows: &[SessionCsvRow]) -> BTreeMap<String, String> {
@@ -371,84 +316,14 @@ fn resolve_requested_hull_sprites(
     session: &ProjectSession,
     requested_reference_ids: &[String],
 ) -> AppResult<BTreeMap<String, crate::models::ResourceRef>> {
+    let mut resolver = HullReferenceResolver::new(session);
     let mut sprites = BTreeMap::new();
-    for reference_id in requested_reference_ids {
-        if let Some(resource) = resolve_mod_hull_sprite(session, reference_id) {
-            sprites.insert(reference_id.clone(), resource);
-        }
-    }
-    let unresolved: BTreeSet<String> = requested_reference_ids
-        .iter()
-        .filter(|reference_id| !sprites.contains_key(reference_id.as_str()))
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    if unresolved.is_empty() {
-        return Ok(sprites);
-    }
-    let Some(root) = session.manifest.starsector_root.as_ref() else {
-        return Ok(sprites);
-    };
-    let core_ship_files = load_core_ship_files(root)?;
-    let core_skin_files = load_core_skin_files(root)?;
-    for reference_id in unresolved {
-        if let Some(resource) =
-            resolve_core_hull_sprite(&core_ship_files, &core_skin_files, &reference_id)
-        {
-            sprites.insert(reference_id, resource);
+    for id in requested_reference_ids {
+        if let Some(resource) = resolver.resource(ResourceSource::Mod, id)? {
+            sprites.insert(id.clone(), resource);
         }
     }
     Ok(sprites)
-}
-
-fn resolve_mod_hull_sprite(
-    session: &ProjectSession,
-    reference_id: &str,
-) -> Option<crate::models::ResourceRef> {
-    session
-        .skin_files
-        .iter()
-        .find(|skin| skin.skin_hull_id == reference_id)
-        .and_then(|skin| skin_resource_ref(ResourceSource::Mod, &session.ship_files, skin))
-        .or_else(|| {
-            session
-                .ship_files
-                .get(reference_id)
-                .and_then(|ship| string_field(&ship.data, "spriteName"))
-                .map(|sprite| {
-                    resource_ref(
-                        ResourceSource::Mod,
-                        &sprite,
-                        ResourceOwnerKind::Ship,
-                        reference_id,
-                        "thumbnail",
-                    )
-                })
-        })
-}
-
-fn resolve_core_hull_sprite(
-    core_ship_files: &BTreeMap<String, crate::models::LoadedSpecRecord>,
-    core_skin_files: &[crate::models::SkinFile],
-    reference_id: &str,
-) -> Option<crate::models::ResourceRef> {
-    core_skin_files
-        .iter()
-        .find(|skin| skin.skin_hull_id == reference_id)
-        .and_then(|skin| skin_resource_ref(ResourceSource::Core, core_ship_files, skin))
-        .or_else(|| {
-            core_ship_files
-                .get(reference_id)
-                .and_then(|ship| string_field(&ship.data, "spriteName"))
-                .map(|sprite| {
-                    resource_ref(
-                        ResourceSource::Core,
-                        &sprite,
-                        ResourceOwnerKind::Ship,
-                        reference_id,
-                        "thumbnail",
-                    )
-                })
-        })
 }
 
 /// Group identity is structured (origin + kind); the frontend composes its
@@ -469,16 +344,8 @@ fn push_non_empty_group(
     });
 }
 
-fn hull_reference_label(
-    hull_id: &str,
-    csv_name: Option<&String>,
-    ship: Option<&crate::models::LoadedSpecRecord>,
-) -> String {
-    let hull_name = ship.and_then(|ship| string_field(&ship.data, "hullName"));
-    let name = csv_name
-        .map(String::as_str)
-        .or(hull_name.as_deref())
-        .unwrap_or_default();
+fn hull_reference_label(hull_id: &str, name: Option<String>) -> String {
+    let name = name.unwrap_or_default();
     if name.trim().is_empty() || name == hull_id {
         hull_id.to_string()
     } else {
@@ -527,17 +394,17 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/ship_data.csv"),
-            "id,name\r\nmod_ship,Mod CSV Ship\r\nmod_fallback,\r\nmod_skin,Mod CSV Skin\r\n",
+            "id,name,tags\r\nmod_ship,Mod CSV Ship,\r\nmod_fallback,,\r\nmod_skin,Mod CSV Skin,\r\n",
         )
         .unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/ship_data.csv"),
-            "id,name\r\ncore_ship,Core CSV Ship\r\ncore_fallback,\r\ncore_skin,Core CSV Skin\r\n",
+            "id,name,tags\r\ncore_ship,Core CSV Ship,\r\ncore_fallback,,\r\ncore_skin,Core CSV Skin,\r\n",
         )
         .unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/skins/core_skin.skin"),
-            r#"{"skinHullId":"core_skin","baseHullId":"core_ship"}"#,
+            r#"{"skinHullId":"core_skin","baseHullId":"core_ship","tags":["example_tag","core_tag"]}"#,
         )
         .unwrap();
 
@@ -545,6 +412,18 @@ mod tests {
             crate::services::project::performance::PerformanceTrace::new("project.openSession");
         write_utf8_no_bom(&mod_root.join("data/hulls/skins/mod_core.skin"), r#"{"skinHullId":"mod_core","baseHullId":"core_ship","builtInWeapons":{"MOD_SLOT":"mod_weapon"}}"#).unwrap();
         write_utf8_no_bom(&mod_root.join("data/hulls/skins/mod_override.skin"), r#"{"skinHullId":"mod_override","baseHullId":"core_ship","builtInWeapons":{"CORE_SLOT":"mod_weapon"}}"#).unwrap();
+        write_utf8_no_bom(&mod_root.join("data/hulls/skins/nested.skin"), r#"{"skinHullId":"nested","baseHullId":"mod_core","hullName":"Nested Hull","tags":["example_tag","example_tag"]}"#).unwrap();
+        std::fs::create_dir_all(mod_root.join("data/variants")).unwrap();
+        write_utf8_no_bom(
+            &mod_root.join("data/variants/nested.variant"),
+            r#"{"variantId":"nested","hullId":"nested"}"#,
+        )
+        .unwrap();
+        write_utf8_no_bom(
+            &mod_root.join("data/hulls/wing_data.csv"),
+            "id,variant\r\nexample_wing,nested\r\n",
+        )
+        .unwrap();
         let manifest = open_project_session_traced(&mod_root, Some(&root), &mut trace).unwrap();
         let catalog = query_hull_references(&manifest.session_id, &[]).unwrap();
         let previews = query_hull_references(
@@ -669,6 +548,72 @@ mod tests {
             inherited.built_in_weapon_slots["mod_override"][0].origin,
             ResourceSource::Mod
         );
+        let nested =
+            query_hull_references(&manifest.session_id, &["nested".into(), "mod_core".into()])
+                .unwrap();
+        assert_eq!(nested.sprites["nested"].source, ResourceSource::Core);
+        assert_eq!(
+            nested.sprites["nested"].rel_path,
+            "graphics/ships/core_ship.png"
+        );
+        let ids = super::super::source_options::query_csv_source_options(
+            &manifest.session_id,
+            "csv:ships.id",
+        )
+        .unwrap();
+        assert_eq!(
+            ids.iter()
+                .flat_map(|group| &group.options)
+                .find(|item| item.value == "nested")
+                .unwrap()
+                .label,
+            "Nested Hull (nested)"
+        );
+        let tags = super::super::source_options::query_csv_source_options(
+            &manifest.session_id,
+            "csv:ships.tags",
+        )
+        .unwrap();
+        assert_eq!(
+            tags.iter()
+                .flat_map(|group| &group.options)
+                .filter(|item| item.value == "example_tag")
+                .count(),
+            1
+        );
+        assert!(
+            tags.iter()
+                .flat_map(|group| &group.options)
+                .any(|item| item.value == "core_tag")
+        );
+        let variants = super::super::entities::query_entity_list(
+            &manifest.session_id,
+            crate::models::EntityKind::Variant,
+        )
+        .unwrap();
+        assert_eq!(
+            variants[0].resource_refs["sprite"].rel_path,
+            nested.sprites["nested"].rel_path
+        );
+        let wings = super::super::csv_window::query_csv_table_window(
+            &manifest.session_id,
+            CsvTableKey::Wings,
+            0,
+            10,
+            None,
+            crate::models::CsvSearchField::IdName,
+        )
+        .unwrap();
+        let preview = super::super::csv_window::query_csv_row_preview(
+            &manifest.session_id,
+            CsvTableKey::Wings,
+            &wings.rows[0].row_key,
+        )
+        .unwrap();
+        assert_eq!(
+            preview.resource_ref.unwrap().rel_path,
+            nested.sprites["nested"].rel_path
+        );
         assert_eq!(previews.sprites.len(), 6);
         assert_eq!(
             previews.hull_names.get("mod_ship"),
@@ -702,5 +647,34 @@ mod tests {
         );
         let _ = close_project_session(manifest.session_id);
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cyclic_skin_references_end_with_a_formal_error() {
+        for base in ["first", "second"] {
+            let root = temp_dir("skin_cycle");
+            std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
+            write_utf8_no_bom(
+                &root.join("data/hulls/skins/first.skin"),
+                &serde_json::json!({"skinHullId":"first","baseHullId":base}).to_string(),
+            )
+            .unwrap();
+            write_utf8_no_bom(
+                &root.join("data/hulls/skins/second.skin"),
+                r#"{"skinHullId":"second","baseHullId":"first"}"#,
+            )
+            .unwrap();
+            let mut trace =
+                crate::services::project::performance::PerformanceTrace::new("project.openSession");
+            let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+            assert_eq!(
+                query_hull_references(&manifest.session_id, &["first".into()])
+                    .unwrap_err()
+                    .code(),
+                "skin.base_cycle"
+            );
+            close_project_session(manifest.session_id).unwrap();
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 }

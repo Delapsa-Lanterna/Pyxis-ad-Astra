@@ -1,3 +1,4 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
 import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
@@ -346,6 +347,7 @@ export function useModFileBrowserViewModel() {
     stopInvalidation();
     resetPending(target.value?.sessionId);
   });
+  useContextMenuScope({ identity: () => JSON.stringify(target.value), refresh, canRefresh: () => Boolean(target.value) });
   return {
     view: reactive({
       nodes,

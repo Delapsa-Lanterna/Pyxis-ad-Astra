@@ -1,4 +1,6 @@
 import { computed, watch } from 'vue';
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { replayNextFileRedo, replayNextFileUndo } from '@/orchestrators/file-history-replay.orchestrator';
 import { useFileHistoryStore } from '@/stores/file-history.store';
@@ -13,20 +15,35 @@ export function useFileHistoryViewModel() {
   const feedback = useAppFeedback();
 
   const activeMod = computed(() => project.activeManifest);
+  const reads = useQueryReadOwner();
+  async function refresh(current: () => boolean = () => true) {
+    const target = activeMod.value;
+    if (!target) return;
+    const accepts = () => current() && project.getSessionId(target.modRoot) === target.sessionId;
+    await reads.consume(
+      'history',
+      { sessionId: target.sessionId, modRoot: target.modRoot },
+      () => loadFileHistory(target.sessionId, target.modRoot),
+      {
+        ready: (snapshot) => {
+          if (accepts()) fileHistory.applySnapshot(target.modRoot, snapshot);
+        },
+        error: (error) => {
+          if (accepts()) feedback.error(error, '读取文件历史失败');
+        },
+      },
+    );
+  }
+  const identity = () => JSON.stringify([activeMod.value?.sessionId, activeMod.value?.modRoot]);
   watch(
-    () => activeMod.value?.sessionId,
-    async () => {
-      const target = activeMod.value;
-      if (!target) return;
-      try {
-        const snapshot = await loadFileHistory(target.sessionId, target.modRoot);
-        if (project.getSessionId(target.modRoot) === target.sessionId) fileHistory.applySnapshot(target.modRoot, snapshot);
-      } catch (error) {
-        feedback.error(error, '读取文件历史失败');
-      }
+    identity,
+    () => {
+      reads.revoke();
+      void refresh();
     },
     { immediate: true },
   );
+  useContextMenuScope({ identity, refresh, canRefresh: () => Boolean(activeMod.value) });
   const modTitle = computed(() => activeMod.value?.modInfo?.name ?? activeMod.value?.modRoot ?? '未选择 Mod');
   const stacks = computed(() =>
     activeMod.value ? fileHistory.getHistoryStacks(activeMod.value.modRoot) : { undoStack: [], redoStack: [] },
@@ -68,6 +85,7 @@ export function useFileHistoryViewModel() {
 
   return {
     modTitle,
+    refresh,
     undoStack,
     redoStack,
     undoDisplayItems,

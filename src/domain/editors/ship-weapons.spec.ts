@@ -3,6 +3,7 @@ import type { RowData } from '@/shared/types';
 import { projectShipWeapons, shipBuiltInWeaponIds, type ShipWeaponSources } from './ship-weapons';
 
 const source: ShipWeaponSources = {
+  baseVersions: [],
   hints: ['WEAPONS_FRONT_TO_BACK'],
   diagnostic: '',
   weapons: {

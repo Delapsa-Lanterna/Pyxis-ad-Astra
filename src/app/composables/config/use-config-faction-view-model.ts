@@ -1,3 +1,5 @@
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { listConfigFactionRecords, queryFactionPreviewImages, getConfigFactionRecord } from '@/services/config-entity.service';
@@ -69,6 +71,23 @@ export function useConfigFactionViewModel() {
     },
   });
 
+  useContextMenuScope({
+    identity: () => sessionKey(),
+    canRefresh: () => Boolean(sessionId.value),
+    refresh: (current) =>
+      refreshProjectSourcePaths(
+        sessionId.value!,
+        modRoot.value!,
+        [
+          modRoot.value! + '/data/world/factions',
+          ...Object.values(factionVersions.value)
+            .flat()
+            .map((version) => version.path),
+        ],
+        current,
+        factionCrestResourceRefs.value,
+      ),
+  });
   function sessionKey() {
     return JSON.stringify([sessionId.value, modRoot.value]);
   }

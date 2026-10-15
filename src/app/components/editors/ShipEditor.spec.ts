@@ -10,7 +10,9 @@ import type { RowData } from '@/shared/types';
 import ShipEditor from './ShipEditor.vue';
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ warning: vi.fn(), error: vi.fn() }) }));
 vi.mock('@/shared/runtime/dialog.runtime', () => ({ pickImageFileDialog: vi.fn(async () => null) }));
-vi.mock('@/services/editor.service', () => ({ queryShipWeaponSources: vi.fn(async () => ({ hints: [], weapons: {}, diagnostic: '' })) }));
+vi.mock('@/services/editor.service', () => ({
+  queryShipWeaponSources: vi.fn(async () => ({ baseVersions: [], hints: [], weapons: {}, diagnostic: '' })),
+}));
 let wrapper: ReturnType<typeof mount> | null = null;
 beforeEach(() => {
   setActivePinia(createPinia());

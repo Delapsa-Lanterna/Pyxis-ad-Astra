@@ -48,6 +48,9 @@ export async function queryShipWeaponSources(root: JointEditRoot, ship: RowData,
     }),
   );
   return {
+    baseVersions: [hullSnapshot, ...results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))].flatMap(
+      (snapshot) => snapshot?.baseVersions ?? [],
+    ),
     hints:
       typeof hints === 'string'
         ? hints

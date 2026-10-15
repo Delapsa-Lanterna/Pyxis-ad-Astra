@@ -88,6 +88,7 @@
 </template>
 
 <script setup lang="ts">
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, onMounted, onUnmounted } from 'vue';
 import ShipEditor from '@/app/components/editors/ShipEditor.vue';
 import WeaponEditor from '@/app/components/editors/WeaponEditor.vue';
@@ -140,6 +141,16 @@ const { weapon: weaponDependencies, ship: shipImages, projectile: projectileImag
 const shipSpriteForEditor = computed(() =>
   typeof shipImages?.value.value?.spriteData === 'string' ? shipImages.value.value.spriteData : '',
 );
+useContextMenuScope({
+  identity: () => JSON.stringify(target.value),
+  canRefresh: () => Boolean(editorData.value) && !editorData.value?.isNew,
+  refresh: (current) =>
+    windowModel.refresh(current, [
+      ...(shipImages?.value.value?.resourceRefs ?? []),
+      ...(projectileImages?.value.value?.resourceRefs ?? []),
+      ...(weaponDependencies?.resourceRefs.value ?? []),
+    ]),
+});
 useManagedWindowRequests(() => {});
 const closeGuard = useDirtyWindowCloseGuard({
   content: '当前 spec 有未保存修改，关闭后这些修改将丢失。',

@@ -224,6 +224,54 @@ pub(crate) fn load_core_source_data(
     Ok(data)
 }
 
+pub(in crate::services::project) fn invalidate_core_sources(
+    root: &str,
+    sources: &[crate::models::InvalidatedResourceScope],
+) -> AppResult<()> {
+    if !sources
+        .iter()
+        .any(|source| source.source == ResourceSource::Core)
+    {
+        return Ok(());
+    }
+    let key = core_cache_key(root)?;
+    let Some(handle) = lock_core_caches()?.get(&key).cloned() else {
+        return Ok(());
+    };
+    let mut data = lock_core_cache(&handle)?.data.clone();
+    for source in sources
+        .iter()
+        .filter(|source| source.source == ResourceSource::Core)
+    {
+        let matches = |path: &str| {
+            crate::domain::config::path_affects_target(&source.rel_path, path)
+                || crate::domain::config::path_affects_target(path, &source.rel_path)
+        };
+        data.csv_tables.retain(|_, table| !matches(&table.path));
+        if matches("data/hulls") {
+            data.ship_files = None;
+        }
+        if matches("data/variants") {
+            data.variant_files = None;
+        }
+        if matches("data/hulls/skins") {
+            data.skin_files = None;
+        }
+        if matches("data/weapons") {
+            data.weapon_specs = None;
+        }
+        if matches("data/weapons/proj") {
+            data.projectile_specs = None;
+        }
+    }
+    persistent::invalidate_core_fingerprint(&key)?;
+    lock_core_caches()?.insert(
+        key,
+        Arc::new(Mutex::new(CoreCacheEntry { data, dirty: true })),
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

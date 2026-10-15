@@ -1,11 +1,18 @@
+use super::super::cache::{
+    load_core_csv_table, load_core_ship_files, load_core_skin_files, loaded_csv_rows,
+    loaded_registered_csv_rows,
+};
 use super::super::cache::{lock_ready_session, lock_registry, media, session_handle};
-use super::super::model::string_field;
+use super::super::model::{ProjectSession, string_field, string_from_row};
 use super::sprites;
 use crate::errors::{AppError, AppResult};
-use crate::models::{LoadedSpecRecord, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
+use crate::models::{
+    CsvTableKey, LoadedSpecRecord, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile,
+};
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// The session-owned inputs to sprite loading, cloned out of the session under
 /// a short lock so batch loading never holds the session (or registry) lock.
@@ -92,35 +99,139 @@ pub(in crate::services::project) fn resource_cache_key(resource: &ResourceRef) -
     .to_string()
 }
 
-pub(in crate::services::project) fn skin_resource_ref(
-    source: ResourceSource,
-    ship_files: &BTreeMap<String, LoadedSpecRecord>,
-    skin: &SkinFile,
-) -> Option<ResourceRef> {
-    string_field(&skin.data, "spriteName")
-        .map(|sprite| {
-            resource_ref(
-                source,
-                &sprite,
-                ResourceOwnerKind::Skin,
-                &skin.skin_hull_id,
-                "thumbnail",
-            )
-        })
-        .or_else(|| {
-            ship_files
-                .get(&skin.base_hull_id)
-                .and_then(|ship| string_field(&ship.data, "spriteName"))
-                .map(|sprite| {
-                    resource_ref(
-                        source,
-                        &sprite,
-                        ResourceOwnerKind::Skin,
-                        &skin.skin_hull_id,
-                        "thumbnail",
-                    )
-                })
-        })
+pub(in crate::services::project) struct HullReferenceResolver<'a> {
+    session: &'a ProjectSession,
+    core_ships: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+    core_skins: Option<Arc<Vec<SkinFile>>>,
+    core_names: Option<BTreeMap<String, String>>,
+}
+
+impl<'a> HullReferenceResolver<'a> {
+    pub fn new(session: &'a ProjectSession) -> Self {
+        Self {
+            session,
+            core_ships: None,
+            core_skins: None,
+            core_names: None,
+        }
+    }
+
+    pub fn field(
+        &mut self,
+        source: ResourceSource,
+        id: &str,
+        field: &str,
+    ) -> AppResult<Option<(String, ResourceSource, ResourceOwnerKind)>> {
+        let mut current = id.to_string();
+        let mut seen = BTreeSet::new();
+        let mut owner = ResourceOwnerKind::Ship;
+        loop {
+            if !seen.insert(current.clone()) {
+                return Err(AppError::message(
+                    "skin.base_cycle",
+                    format!("循环舰体皮肤引用: {id}"),
+                ));
+            }
+            if field == "hullName"
+                && source == ResourceSource::Mod
+                && let Some(name) = loaded_registered_csv_rows(self.session, CsvTableKey::Ships)?
+                    .iter()
+                    .filter(|row| !row.is_comment)
+                    .find(|row| {
+                        row.data.get("id").and_then(serde_json::Value::as_str)
+                            == Some(current.as_str())
+                    })
+                    .and_then(|row| string_from_row(&row.data, "name"))
+            {
+                return Ok(Some((name, ResourceSource::Mod, owner)));
+            }
+            let local = if source == ResourceSource::Mod {
+                self.session
+                    .skin_files
+                    .iter()
+                    .find(|skin| skin.skin_hull_id == current)
+                    .map(|skin| &skin.data)
+                    .or_else(|| self.session.ship_files.get(&current).map(|ship| &ship.data))
+            } else {
+                None
+            };
+            let (data, origin) = if let Some(data) = local {
+                (data, ResourceSource::Mod)
+            } else {
+                let Some(root) = &self.session.manifest.starsector_root else {
+                    return Ok(None);
+                };
+                if self.core_ships.is_none() {
+                    self.core_ships = Some(load_core_ship_files(root)?);
+                }
+                if field == "hullName" {
+                    if self.core_names.is_none() {
+                        let table = load_core_csv_table(root, CsvTableKey::Ships)?;
+                        self.core_names = Some(
+                            table
+                                .as_ref()
+                                .map(|table| loaded_csv_rows(table, "ships"))
+                                .transpose()?
+                                .unwrap_or_default()
+                                .iter()
+                                .filter(|row| !row.is_comment)
+                                .filter_map(|row| {
+                                    Some((
+                                        string_from_row(&row.data, "id")?,
+                                        string_from_row(&row.data, "name")?,
+                                    ))
+                                })
+                                .collect(),
+                        );
+                    }
+                    if let Some(name) = self
+                        .core_names
+                        .as_ref()
+                        .expect("Core names are prepared")
+                        .get(&current)
+                    {
+                        return Ok(Some((name.clone(), ResourceSource::Core, owner)));
+                    }
+                }
+                let ship = self
+                    .core_ships
+                    .as_ref()
+                    .expect("Core ships are prepared")
+                    .get(&current);
+                let data = if let Some(ship) = ship {
+                    Some(&ship.data)
+                } else {
+                    if self.core_skins.is_none() {
+                        self.core_skins = Some(load_core_skin_files(root)?);
+                    }
+                    self.core_skins
+                        .as_ref()
+                        .expect("Core skins are prepared")
+                        .iter()
+                        .find(|skin| skin.skin_hull_id == current)
+                        .map(|skin| &skin.data)
+                };
+                let Some(data) = data else { return Ok(None) };
+                (data, ResourceSource::Core)
+            };
+            if seen.len() == 1 && data.get("baseHullId").is_some() {
+                owner = ResourceOwnerKind::Skin;
+            }
+            if let Some(value) = string_field(data, field) {
+                return Ok(Some((value, origin, owner)));
+            }
+            let Some(base) = string_field(data, "baseHullId") else {
+                return Ok(None);
+            };
+            current = base;
+        }
+    }
+
+    pub fn resource(&mut self, source: ResourceSource, id: &str) -> AppResult<Option<ResourceRef>> {
+        Ok(self
+            .field(source, id, "spriteName")?
+            .map(|(path, origin, owner)| resource_ref(origin, &path, owner, id, "thumbnail")))
+    }
 }
 
 pub(in crate::services::project) fn resource_ref(

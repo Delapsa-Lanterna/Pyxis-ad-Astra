@@ -11,7 +11,7 @@ const TestTree = defineComponent({
   inheritAttrs: false,
   setup(_props, { attrs, expose }) {
     expose({ scrollTo: vi.fn() });
-    return () => h(NTree, { ...attrs, virtualScroll: false });
+    return () => h(NTree, { ...attrs, virtualScroll: false, animated: false });
   },
 });
 vi.mock('@/app/composables/mod-file-browser/use-mod-file-browser-view-model', () => ({ useModFileBrowserViewModel: mocks.vm }));
@@ -85,6 +85,30 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600);
 });
 describe('mod file browser controls', () => {
+  it('keeps rapid switcher clicks separate from content double-clicks', async () => {
+    const { view, actions, wrapper } = open();
+    actions.setExpanded.mockImplementation((keys: string[]) => {
+      view.expanded = keys;
+    });
+    actions.activate.mockImplementation((key: string) => {
+      actions.setExpanded(view.expanded.includes(key) ? view.expanded.filter((path) => path !== key) : [...view.expanded, key]);
+    });
+    await flushPromises();
+    const switcher = () => wrapper.get('[title="data"] [data-switcher] .n-tree-node-switcher__icon');
+    await switcher().trigger('click');
+    expect(view.expanded).toEqual(['data']);
+    await switcher().trigger('click');
+    expect(view.expanded).toEqual([]);
+    await switcher().trigger('dblclick');
+    expect(view.expanded).toEqual([]);
+    expect(actions.activate).not.toHaveBeenCalled();
+    const label = () => wrapper.get('[title="data"] .mod-files-name-text');
+    await label().trigger('dblclick');
+    expect(view.expanded).toEqual(['data']);
+    await label().trigger('dblclick');
+    expect(view.expanded).toEqual([]);
+    expect(actions.activate).toHaveBeenCalledTimes(2);
+  });
   it('records user scrolling while cached content is being refreshed', async () => {
     const { view, actions, wrapper } = open();
     await flushPromises();

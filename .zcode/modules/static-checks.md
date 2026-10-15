@@ -10,6 +10,7 @@
 `scripts/architecture/capability-boundary.check.mjs`：能力授权、规则归属和真实仓库入口的行为测试。
 `scripts/architecture/command-boundary.check.mjs`：command 来源、词法作用域与 owner 验收。
 `scripts/architecture/docs-module-map.check.mjs`：模块文档严格格式、参考路径与索引对应的行为测试。
+`scripts/architecture/resource-scope.check.mjs`：资源引用构造与来源失效信号的职责验证。
 `scripts/architecture/rules/command-boundary.mjs`：command 调用归属的唯一检查 owner。
 `scripts/architecture/rules/css-token-boundary.mjs`：CSS token 定义、引用、主题覆盖和共享圆角/阴影语义的检查 owner。
 `scripts/architecture/rules/docs-module-map.mjs`：模块文档标题、紧凑正文、参考路径、排序及索引对应的唯一检查 owner。

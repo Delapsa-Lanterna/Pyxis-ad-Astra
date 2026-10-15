@@ -36,7 +36,9 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { useWriteSyncStore } from '@/stores/write-sync.store';
-import { retryPendingWritesForMod } from '@/orchestrators/project-session-refresh.orchestrator';
+import { retryPendingWritesForMod, refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { cell, formatModVersion } from '@/shared/lib/starsector';
+import { pathBasename } from '@/shared/lib/paths';
 
 export function useWorkspaceShellActions(feedback: AppFeedback) {
   const project = useProjectStore();
@@ -99,13 +101,50 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
-  async function refreshWorkspace() {
-    const root = workspace.gameOverview?.starsectorRoot;
-    if (!root) return;
-    const generation = workspace.getWorkspaceGeneration();
+  const canRefreshOverview = computed(() =>
+    workspace.currentView === 'overview'
+      ? Boolean(workspace.gameOverview) || project.manifests.size > 0
+      : workspace.currentView === 'config' && workspace.configView === 'mod-overview' && Boolean(project.activeManifest),
+  );
+
+  async function refreshModOverview(modRoot: string, current: () => boolean) {
+    const target = project.getManifest(modRoot)!;
+    const accepts = () => !disposed && current() && project.getSessionId(modRoot) === target.sessionId;
     try {
+      await refreshProjectSourcePaths(
+        target.sessionId,
+        modRoot,
+        [...target.baseVersions.map((version) => version.path), modRoot + '/data'],
+        accepts,
+      );
+      if (!accepts()) return;
+      const refreshed = project.getManifest(modRoot)!;
+      workspace.updateModInfo(
+        modRoot,
+        cell(refreshed.modInfo?.name) || pathBasename(modRoot),
+        formatModVersion(refreshed.modInfo?.version),
+      );
+    } catch (error) {
+      if (accepts()) throw error;
+    }
+  }
+
+  async function refreshWorkspace(current: () => boolean = () => true) {
+    const root = workspace.gameOverview?.starsectorRoot;
+    const generation = workspace.getWorkspaceGeneration();
+    const accepts = () => !disposed && current() && workspace.getWorkspaceGeneration() === generation;
+    try {
+      if (!root) {
+        const targets = [...project.manifests.values()];
+        for (const target of targets) {
+          if (!accepts()) return;
+          if (project.getSessionId(target.modRoot) !== target.sessionId) continue;
+          await refreshModOverview(target.modRoot, accepts);
+        }
+        return;
+      }
       const overview = await scanDirectoryGameOverview(root);
-      if (workspace.getWorkspaceGeneration() !== generation || workspace.gameOverview?.starsectorRoot !== root) return;
+      if (!accepts() || workspace.gameOverview?.starsectorRoot !== root) return;
       workspace.clearModOpeningFailures();
       workspace.setGameOverview(overview);
       settings.setStarsectorRoot(overview.starsectorRoot);
@@ -119,7 +158,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       });
       feedback.success(`工作区已刷新：${overview.mods.length} 个 Mod`);
     } catch (err) {
-      feedback.error(err, '刷新工作区失败');
+      if (accepts()) feedback.error(err, '刷新工作区失败');
     }
   }
 
@@ -527,6 +566,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     openDirectory,
     redoCurrentTableEdit,
     refreshWorkspace,
+    refreshModOverview,
+    canRefreshOverview,
     saveChanges,
     undoCurrentTableEdit,
   };

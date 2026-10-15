@@ -2,7 +2,9 @@
   <n-config-provider :theme="naiveTheme" :theme-overrides="themeOverrides">
     <n-message-provider :duration="10000" closable keep-alive-on-hover>
       <n-dialog-provider>
-        <EditTargetHandoffLifecycle><slot /></EditTargetHandoffLifecycle>
+        <ContextMenu
+          ><EditTargetHandoffLifecycle><slot /></EditTargetHandoffLifecycle
+        ></ContextMenu>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -10,6 +12,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import ContextMenu from '@/app/components/ContextMenu.vue';
 import { darkTheme } from 'naive-ui/es/themes';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import EditTargetHandoffLifecycle from '@/app/EditTargetHandoffLifecycle.vue';

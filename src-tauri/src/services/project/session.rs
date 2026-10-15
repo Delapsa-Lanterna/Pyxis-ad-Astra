@@ -917,3 +917,86 @@ mod tests {
         }
     }
 }
+
+/// Refreshes authorized sources while retaining session and CSV row identities.
+pub fn refresh_project_sources(
+    session_id: &str,
+    sources: Vec<crate::models::InvalidatedResourceScope>,
+) -> AppResult<ProjectSessionInvalidationResult> {
+    let handle = session_handle(session_id)?;
+    let root = cache::lock_ready_session(&handle)?
+        .manifest
+        .mod_root
+        .clone();
+    let _lease = crate::io::acquire_root_write_lock(Path::new(&root))?;
+    let mut session = cache::lock_ready_session(&handle)?;
+    let invalidation = super::invalidation::refresh_sources(&mut session, &sources)?;
+    session.projection_revision += 1;
+    Ok(ProjectSessionInvalidationResult {
+        projection_revision: session.projection_revision,
+        manifest: session.manifest.clone(),
+        invalidation,
+    })
+}
+
+#[cfg(test)]
+mod source_refresh_tests {
+    use super::*;
+    use crate::models::{CsvTableKey, InvalidatedResourceScope, ResourceSource};
+    #[test]
+    fn refresh_keeps_rows_and_rejects_escape() {
+        let root = crate::testutil::temp_dir("source_refresh");
+        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let csv = root.join("data/hulls/ship_data.csv");
+        crate::io::write_utf8_no_bom(&csv, "id,name\nship,Before\n").unwrap();
+        crate::io::write_utf8_no_bom(&root.join("data/hulls/ship.ship"), r#"{"hullId":"ship"}"#)
+            .unwrap();
+        let manifest =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("test")).unwrap();
+        let handle = session_handle(&manifest.session_id).unwrap();
+        cache::ensure_registered_table_rows(
+            &mut lock_session(&handle).unwrap(),
+            CsvTableKey::Ships,
+        )
+        .unwrap();
+        let key = lock_session(&handle).unwrap().csv_tables["ships"]
+            .rows
+            .as_ref()
+            .unwrap()[0]
+            .row_key
+            .clone();
+        crate::io::write_utf8_no_bom(&csv, "id,name\nship,After\nadded,New\n").unwrap();
+        let source = InvalidatedResourceScope {
+            source: ResourceSource::Mod,
+            rel_path: "data/hulls".into(),
+        };
+        crate::io::write_utf8_no_bom(&root.join("data/hulls/added.ship"), r#"{"hullId":"added"}"#)
+            .unwrap();
+        refresh_project_sources(&manifest.session_id, vec![source]).unwrap();
+        let added = super::super::query_entity_edit_target(
+            &manifest.session_id,
+            crate::models::EntityKind::Ship,
+            "added",
+        )
+        .unwrap();
+        assert!(
+            added
+                .base_versions
+                .iter()
+                .all(|version| version.fingerprint.is_some())
+        );
+        let session = lock_session(&handle).unwrap();
+        let rows = session.csv_tables["ships"].rows.as_ref().unwrap();
+        assert_eq!(rows[0].row_key, key);
+        assert_eq!(rows[0].data["name"], "After");
+        assert_ne!(rows[1].row_key, key);
+        drop(session);
+        let invalid = InvalidatedResourceScope {
+            source: ResourceSource::Mod,
+            rel_path: "../outside".into(),
+        };
+        assert!(refresh_project_sources(&manifest.session_id, vec![invalid]).is_err());
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

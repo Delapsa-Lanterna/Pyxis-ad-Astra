@@ -1,13 +1,15 @@
 use super::super::{
     cache::{
-        ensure_registered_table_rows, load_core_csv_table, load_core_source_data, loaded_csv_rows,
-        loaded_registered_csv_rows, lock_ready_session, session_handle,
+        ensure_registered_table_rows, load_core_csv_table, load_core_skin_files,
+        load_core_source_data, loaded_csv_rows, loaded_registered_csv_rows, lock_ready_session,
+        session_handle,
     },
     definitions::{
         entity_definitions::entity_definitions,
         table_definitions::{csv_table_source_display_name, csv_table_source_resource_ref},
     },
     model::{CoreSourceData, ProjectSession, SessionCsvRow, string_from_row},
+    resources::HullReferenceResolver,
 };
 use crate::{
     domain::well_known_labels::{
@@ -80,6 +82,15 @@ pub fn query_csv_source_options(
     } else {
         None
     };
+    let core_skins = if table == CsvTableKey::Ships {
+        starsector_root
+            .as_ref()
+            .map(|root| load_core_skin_files(root))
+            .transpose()?
+    } else {
+        None
+    };
+    let mut resolver = HullReferenceResolver::new(&session);
     let resource_context = SourceOptionResourceContext {
         metadata_catalog: metadata_catalog.as_ref(),
         session: &session,
@@ -87,7 +98,7 @@ pub fn query_csv_source_options(
     };
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
-    let options = source_options_from_rows(
+    let mut options = source_options_from_rows(
         ResourceSource::Mod,
         rows,
         column,
@@ -97,14 +108,24 @@ pub fn query_csv_source_options(
             seen: &mut seen,
         },
     )?;
+    if table == CsvTableKey::Ships {
+        options.extend(skin_source_options(
+            &session.skin_files,
+            ResourceSource::Mod,
+            column,
+            &mut resolver,
+            resource_context,
+            &mut seen,
+        )?);
+    }
     if !options.is_empty() {
         groups.push(SourceOptionGroup {
             origin: ResourceSource::Mod,
             options,
         });
     }
-    if let (Some(core_rows), Some(core_data)) = (core_rows, core_data.as_ref()) {
-        let options = source_options_from_rows(
+    let mut options = if let (Some(core_rows), Some(core_data)) = (core_rows, core_data.as_ref()) {
+        source_options_from_rows(
             ResourceSource::Core,
             core_rows,
             column,
@@ -113,15 +134,85 @@ pub fn query_csv_source_options(
                 resource_context,
                 seen: &mut seen,
             },
-        )?;
-        if !options.is_empty() {
-            groups.push(SourceOptionGroup {
-                origin: ResourceSource::Core,
-                options,
+        )?
+    } else {
+        Vec::new()
+    };
+    if let Some(skins) = core_skins.as_ref() {
+        options.extend(skin_source_options(
+            skins,
+            ResourceSource::Core,
+            column,
+            &mut resolver,
+            resource_context,
+            &mut seen,
+        )?);
+    }
+    if !options.is_empty() {
+        groups.push(SourceOptionGroup {
+            origin: ResourceSource::Core,
+            options,
+        });
+    }
+    Ok(groups)
+}
+
+fn skin_source_options(
+    skins: &[crate::models::SkinFile],
+    origin: ResourceSource,
+    column: &str,
+    resolver: &mut HullReferenceResolver<'_>,
+    context: SourceOptionResourceContext<'_>,
+    seen: &mut BTreeSet<String>,
+) -> AppResult<Vec<crate::models::SourceOption>> {
+    let mut options = Vec::new();
+    for skin in skins {
+        let values = match column {
+            "id" => vec![skin.skin_hull_id.clone()],
+            "tags" => skin
+                .data
+                .get("tags")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(|tag| tag.trim().to_string())
+                .collect(),
+            _ => return Ok(options),
+        };
+        for value in values {
+            if value.is_empty() || !seen.insert(value.clone()) {
+                continue;
+            }
+            let (label, resource_ref) = if column == "id" {
+                let name = resolver
+                    .field(origin, &value, "hullName")?
+                    .map(|(name, _, _)| name)
+                    .unwrap_or_else(|| value.clone());
+                (
+                    if name == value {
+                        name
+                    } else {
+                        format!("{name} ({value})")
+                    },
+                    resolver.resource(origin, &value)?,
+                )
+            } else {
+                (
+                    source_option_label_for_value(column, &value, context.metadata_catalog),
+                    None,
+                )
+            };
+            options.push(crate::models::SourceOption {
+                label,
+                value: value.clone(),
+                origin,
+                description: source_option_description(&value, context.metadata_catalog),
+                resource_ref,
             });
         }
     }
-    Ok(groups)
+    Ok(options)
 }
 
 /// Sources declared by an entity (its `source_options`) resolve to the entity

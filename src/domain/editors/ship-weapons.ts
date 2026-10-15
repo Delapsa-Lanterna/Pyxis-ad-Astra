@@ -12,6 +12,7 @@ export interface ShipWeaponSource {
   diagnostic: string;
 }
 export interface ShipWeaponSources {
+  baseVersions: import('@/shared/types').FileVersion[];
   hints: string[];
   weapons: Record<string, ShipWeaponSource>;
   diagnostic: string;

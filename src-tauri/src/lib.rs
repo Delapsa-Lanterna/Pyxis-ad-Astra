@@ -22,6 +22,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed)
                 && let Err(error) = services::windows::release_window(window.label())
@@ -97,6 +98,7 @@ pub fn run() {
             commands::query_editor_draft_resources,
             commands::query_resource_data_urls,
             commands::invalidate_project_session,
+            commands::refresh_project_sources,
             commands::synchronize_committed_write,
             commands::invalidate_core_cache,
             commands::detect_directory,

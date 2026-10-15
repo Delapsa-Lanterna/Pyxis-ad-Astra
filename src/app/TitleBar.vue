@@ -51,6 +51,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import appIcon from '@/assets/app-icon.svg';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
 import { useProjectStore } from '@/stores/project.store';
@@ -102,6 +103,11 @@ function showAbout() {
   workspaceMenuVisible.value = false;
   navigation.showAbout();
 }
+
+useContextMenuScope({
+  identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
+  windowActions: { 设置: showSettings, 关于: showAbout, 最小化: minimizeWindow, 退出: closeWindow },
+});
 
 onMounted(refreshMaximized);
 </script>

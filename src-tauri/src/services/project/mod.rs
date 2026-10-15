@@ -30,7 +30,7 @@ pub(crate) use session::open_project_session_traced;
 pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};
 pub use session::{
     close_project_session, ensure_project_session_mod_root, invalidate_core_cache,
-    invalidate_project_session,
+    invalidate_project_session, refresh_project_sources,
 };
 pub use write::save_csv_patch_snapshot;
 pub use write::save_entity_spec;

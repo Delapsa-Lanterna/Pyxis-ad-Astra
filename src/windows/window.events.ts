@@ -11,6 +11,7 @@ export const WINDOW_EVENTS = {
   managedWindowReleased: 'managed-window-released',
   managedWindowRequestAvailable: 'managed-window-request-available',
   appSettingsChanged: 'app-settings-changed',
+  projectSourcesRefreshed: 'project-sources-refreshed',
 } as const;
 
 export interface EditorSpecSavedEvent {
