@@ -5,7 +5,6 @@ import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvide
 import { NSpace } from 'naive-ui/es/space';
 import { NText } from 'naive-ui/es/typography';
 import {
-  commandErrorCode,
   extractFileReferenceFromError,
   fileReferenceLocationSuffix,
   formatError,
@@ -20,7 +19,6 @@ import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { managedWindowContext } from '@/windows/window-context.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
-import { errorMessageOf } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
 import { closestRootForPath } from '@/shared/lib/paths';
 import { logFields } from '@/shared/lib/log-fields';
@@ -159,7 +157,13 @@ function renderToastContent(
     const actionRequest = { message, dialog, reference, session, level };
     const actions: VNode[] = [
       toastAction('打开文件', TOAST_CONTEXT[level].buttonType, () =>
-        openReferenceInEditor(actionRequest.reference, actionRequest.session, actionRequest.level),
+        openReferenceInEditor(
+          actionRequest.message,
+          actionRequest.dialog,
+          actionRequest.reference,
+          actionRequest.session,
+          actionRequest.level,
+        ),
       ),
     ];
     if (options?.transcodable === true) {
@@ -211,7 +215,13 @@ function fileReferenceText(reference: FileReference): string {
   return reference.line ? `${reference.path}（${fileReferenceLocationSuffix(reference.line, reference.column)}）` : reference.path;
 }
 
-async function openReferenceInEditor(reference: FileReference, session: FeedbackFileSession, level: ToastLevel): Promise<void> {
+async function openReferenceInEditor(
+  message: MessageApiInjection,
+  dialog: DialogApiInjection,
+  reference: FileReference,
+  session: FeedbackFileSession,
+  level: ToastLevel,
+): Promise<void> {
   const context = TOAST_CONTEXT[level];
   await openFileEditorWindow({
     modRoot: session.modRoot,
@@ -225,14 +235,7 @@ async function openReferenceInEditor(reference: FileReference, session: Feedback
     contextSeverity: context.contextSeverity,
     message: reference.message,
   }).catch((error) => {
-    recordLogBestEffort({
-      level: 'error',
-      code: commandErrorCode(error) ?? 'unknown',
-      message: errorMessageOf(error) ?? 'error file open failed',
-      path: reference.path,
-      line: reference.line ?? null,
-      fields: null,
-    });
+    showErrorToast(message, dialog, error, '打开文件失败');
   });
 }
 

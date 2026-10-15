@@ -54,8 +54,11 @@ export function replayNextFileRedo(project: ProjectStore, tables: TablesStore, f
   return replayNextFileHistoryEntry('redo', project, tables, feedback);
 }
 
-export function createFileReplayPlan(project: ProjectStore, direction: FileHistoryReplayDirection): FileHistoryReplayPlan | null {
-  const modRoot = project.activeModRoot;
+export function createFileReplayPlan(
+  project: ProjectStore,
+  direction: FileHistoryReplayDirection,
+  modRoot = project.activeModRoot,
+): FileHistoryReplayPlan | null {
   if (!modRoot) return null;
   const sessionId = project.getSessionId(modRoot);
   if (!sessionId) return null;
@@ -117,7 +120,7 @@ async function replayNextFileHistoryEntry(
       return false;
     }
   }
-  const plan = createFileReplayPlan(project, direction);
+  const plan = createFileReplayPlan(project, direction, root);
   if (!plan) return false;
   confirmFileHistoryReplay(feedback, plan, async () => {
     try {

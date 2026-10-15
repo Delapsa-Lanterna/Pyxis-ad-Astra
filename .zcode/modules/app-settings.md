@@ -13,7 +13,7 @@
 `src/app/WindowShell.vue`：唯一窗口壳，main 模式启动设置持久化、child 模式启动设置镜像并挂载主题 effect。
 `src/app/components/SettingsPage.spec.ts`：四项设置的位置、范围、单位及更新行为验证。
 `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
-`src/app/composables/settings/use-settings-view-model.ts`：设置页 ViewModel，拥有系统字体读取及日志目录保存与清空动作。
+`src/app/composables/settings/use-settings-view-model.ts`：字体与日志状态读取票据、页面投影及日志维护动作。
 `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用 owner，写 root dataset、颜色变量与字体变量。
 `src/domain/settings/fonts.ts`：通用字体组合与 CSS 字体族投影 owner。
 `src/domain/settings/rules.ts`：设置校验 owner，拥有主题/accent/自定义色/历史上限/editMode/原样保存/日志级别/日志目录的读取校验与归一化。
@@ -100,7 +100,7 @@
 - 自定义 accent 必须是 `#rrggbb` 形式；非法输入只拒绝不修正。
 - 设置保存必须消费捕获的所属 store、快照和生命周期；释放后的成功与错误严禁接管新窗口投影或广播。
 - 设置页必须在全局限制中展示文件保存历史步数和编辑撤销步数，在配置文件中展示日志轮转大小与备份份数，并说明每栈范围、裁剪及轮转时机。
-- 设置页释放必须撤销系统字体读取接纳，迟到的成功与错误严禁更新选项或反馈。
+- 设置页释放必须撤销字体与日志展示读取的接纳；已执行日志动作必须由所属窗口反馈结果，页面投影必须由当前读取票据接纳。
 - 路径授权必须消费后端根边界，`starsectorRoot` 只允许作为默认目录提示。
 - 镜像监听与持久化监听释放后必须允许重新装配；迟到的监听注册必须立即解除，严禁接纳已释放窗口的设置。
 

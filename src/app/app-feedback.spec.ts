@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
@@ -39,6 +39,19 @@ function feedbackHarness() {
 }
 
 describe('feedback diagnostics, file authorization and actions', () => {
+  it('presents and logs a recovery file-open failure once at its window provider', async () => {
+    const { feedback, messages } = feedbackHarness();
+    feedback.error({ code: 'parse.json', message: 'Invalid token', location: { path: 'M:/mod/demo.skin', line: 1, column: 1 } });
+    wrapper = mount({ render: messages.error.mock.lastCall![0] });
+    mocks.open.mockRejectedValueOnce(new Error('native window failed'));
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+    expect(messages.error).toHaveBeenCalledTimes(2);
+    expect(mocks.log).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+    wrapper = mount({ render: messages.error.mock.lastCall![0] });
+    expect(wrapper.text()).toContain('打开文件失败');
+  });
   it('renders mapped copy and structured location while logging raw diagnostics', async () => {
     const { feedback, messages } = feedbackHarness();
     const diagnostic = {

@@ -2,7 +2,7 @@ import { onMounted, onUnmounted } from 'vue';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 import { useSettingsStore } from '@/stores/settings.store';
-import { listenWindowSaveEvents } from '@/orchestrators/window-save.orchestrator';
+import { listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import {
   restorePersistedWorkspace,
@@ -39,25 +39,23 @@ export function useWorkspaceShellLifecycle(
       fields: { version: __APP_VERSION__ },
     });
     workspacePersistence = watchWorkspacePersistence();
-    const stopEvents = await listenWindowSaveEvents({
-      onEditorSpecSaved: (event) => {
-        if (disposed) return;
-        recordLogBestEffort({
-          level: 'info',
-          code: 'editor.spec_saved',
-          message: 'editor spec saved',
-          path: null,
-          line: null,
-          fields: {
-            kind: event.kind,
-            id: event.id,
-            modRoot: event.modRoot,
-            sessionId: event.sessionId,
-            changes: String(event.writeResult.changes.length),
-          },
-        });
-        feedback.success(`${event.id} 已保存`);
-      },
+    const stopEvents = await listenEditorSpecSaved((event) => {
+      if (disposed) return;
+      recordLogBestEffort({
+        level: 'info',
+        code: 'editor.spec_saved',
+        message: 'editor spec saved',
+        path: null,
+        line: null,
+        fields: {
+          kind: event.kind,
+          id: event.id,
+          modRoot: event.modRoot,
+          sessionId: event.sessionId,
+          changes: String(event.writeResult.changes.length),
+        },
+      });
+      feedback.success(`${event.id} 已保存`);
     });
     if (disposed) {
       stopEvents();

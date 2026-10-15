@@ -6,7 +6,7 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import type { AppFeedback } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ identity: vi.fn(), events: vi.fn(), restore: vi.fn(), stopPersistence: vi.fn() }));
-vi.mock('@/orchestrators/window-save.orchestrator', () => ({ listenWindowSaveEvents: mocks.events }));
+vi.mock('@/orchestrators/editor-window.orchestrator', () => ({ listenEditorSpecSaved: mocks.events }));
 vi.mock('@/orchestrators/workspace-persistence.orchestrator', () => ({
   restorePersistedWorkspace: mocks.restore,
   watchWorkspacePersistence: () => ({ beginRestore: vi.fn(), finishRestore: vi.fn(), stop: mocks.stopPersistence }),

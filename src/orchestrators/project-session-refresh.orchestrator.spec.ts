@@ -5,12 +5,16 @@ import type { CommittedWriteEvent } from '@/windows/window.events';
 import { savedWriteFixture } from '@/test/write-result';
 const mocks = vi.hoisted(() => ({
   synchronizeSessionCommit: vi.fn(),
+  refreshProjectSources: vi.fn(),
   invalidateQueryCacheByProject: vi.fn(),
   invalidateResourceCacheByProject: vi.fn(),
   emitWindowEvent: vi.fn(),
   handler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
 }));
-vi.mock('@/services/project-session.service', () => ({ synchronizeSessionCommit: mocks.synchronizeSessionCommit }));
+vi.mock('@/services/project-session.service', () => ({
+  synchronizeSessionCommit: mocks.synchronizeSessionCommit,
+  refreshProjectSources: mocks.refreshProjectSources,
+}));
 vi.mock('@/services/query-cache.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/query-cache.service')>();
   return { ...actual, invalidateQueryCacheByProject: mocks.invalidateQueryCacheByProject };
@@ -31,9 +35,11 @@ import {
   retryPendingProjectSessionWrites,
   listenCommittedWrites,
   applyProjectSessionCacheInvalid,
+  refreshProjectSourcePaths,
 } from './project-session-refresh.orchestrator';
 import { useWriteSyncStore } from '@/stores/write-sync.store';
 import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { requireProjectionReady, markProjectionReady } from '@/services/project-projection.service';
 import { queryCached, invalidateQueryCacheForSession } from '@/services/query-cache.service';
@@ -111,6 +117,46 @@ beforeEach(() => {
 afterEach(() => markProjectionReady('s1'));
 
 describe('committed session synchronization', () => {
+  it('accepts and broadcasts an in-flight source refresh after its page leaves', async () => {
+    let finish!: (value: ProjectSessionInvalidationResult) => void;
+    mocks.refreshProjectSources.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const action = refreshProjectSourcePaths('s1', root, [root + '/notes.txt']);
+    useWorkspaceStore().showSettings();
+    finish(projection(3));
+    await action;
+    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-3');
+    expect(mocks.emitWindowEvent).toHaveBeenCalledExactlyOnceWith(
+      'project-sources-refreshed',
+      expect.objectContaining({ projectionRevision: 3 }),
+    );
+    expect(mocks.refreshProjectSources).toHaveBeenCalledWith('s1', [{ source: 'mod', relPath: 'notes.txt' }]);
+  });
+  it.each(['success', 'failure'] as const)('ends a source-refresh %s when its session closes', async (outcome) => {
+    let finish!: (value: ProjectSessionInvalidationResult) => void;
+    let fail!: (error: Error) => void;
+    mocks.refreshProjectSources.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        }),
+    );
+    const action = refreshProjectSourcePaths('s1', root, [root + '/notes.txt']);
+    invalidateQueryCacheForSession('s1');
+    useProjectStore().removeProjectManifest(root);
+    useProjectStore().registerProjectManifest(manifestFixture(root, 's2'));
+    if (outcome === 'success') finish(projection());
+    else fail(new Error('closed session'));
+    await action;
+    expect(useProjectStore().getSessionId(root)).toBe('s2');
+    expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
+    expect(mocks.invalidateResourceCacheByProject).not.toHaveBeenCalled();
+  });
   it('keeps an identity query alive when the received receipt invalidates its destination', async () => {
     const actual = await vi.importActual<typeof import('@/services/query-cache.service')>('@/services/query-cache.service');
     mocks.invalidateQueryCacheByProject.mockImplementationOnce(actual.invalidateQueryCacheByProject);
@@ -309,5 +355,11 @@ describe('committed session synchronization', () => {
     applyProjectSessionCacheInvalid(projection());
     applyProjectSessionCacheInvalid(projection());
     expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
+  });
+  it('releases projection acceptance markers together with the owning Mod runtime', () => {
+    applyProjectSessionCacheInvalid(projection());
+    expect(useWriteSyncStore().wasProjectionAccepted('s1', 1)).toBe(true);
+    useWriteSyncStore().removeModState(root);
+    expect(useWriteSyncStore().wasProjectionAccepted('s1', 1)).toBe(false);
   });
 });

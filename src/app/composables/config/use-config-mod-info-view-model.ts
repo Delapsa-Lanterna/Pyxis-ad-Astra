@@ -88,13 +88,12 @@ export function useConfigModInfoViewModel() {
   useContextMenuScope({
     identity: () => draftSession.currentTargetKey.value ?? '',
     canRefresh: () => Boolean(project.activeManifest),
-    refresh: (current) => {
+    refresh: () => {
       const manifest = project.activeManifest!;
       return refreshProjectSourcePaths(
         manifest.sessionId,
         manifest.modRoot,
         manifest.baseVersions.map((version) => version.path),
-        current,
       );
     },
   });

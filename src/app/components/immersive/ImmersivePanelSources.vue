@@ -5,11 +5,12 @@
     :saving="render.editing.saving || render.editing.changing"
     :per-record="perRecord"
     @create-overrides="render.editing.override"
-    @create-source="render.editing.create"
+    @create-source="$emit('create-source', $event)"
   />
 </template>
 <script setup lang="ts">
 import type { ImmersiveRenderContext } from './immersive-render-context';
 import ImmersiveSourceNotice from './ImmersiveSourceNotice.vue';
 defineProps<{ render: ImmersiveRenderContext; perRecord?: boolean }>();
+defineEmits<{ 'create-source': [key: string] }>();
 </script>

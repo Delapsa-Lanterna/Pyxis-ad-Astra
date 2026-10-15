@@ -72,6 +72,7 @@
 - Core fields 与 graphics 必须由同一 WindowShell 生命周期分别加载；root、generation、A-B-A、根清空和窗口销毁是唯一接纳条件。
 - 窗口 identity 必须包含完整 session、`modRoot`、kind 和业务目标；原生 label、目标占用、可重载上下文、标题、事件过滤和 ViewModel 目标必须共同交接。
 - dirty 或 saving 窗口必须先拦截关闭；保存、pending 恢复和最新 dirty 判定完成前不得销毁窗口、移除 Mod 或关闭 session。
+- 已执行动作必须消费捕获的业务目标，终结反馈必须归所属窗口；页面读取必须按所属展示生命周期接纳。
 - workspace、settings、日志和派生索引只允许写工具私有目录；Mod、Core 和用户外部目录必须由所属 path owner 授权。
 - 主窗口初始化及设置保存成功后必须发布完整正式 snapshot，原生窗口 owner 必须保留最新版本；子窗口只允许按 revision 消费该 snapshot；主窗口拥有 settings 持久化，子窗口不得自行读盘、补默认值或广播镜像。
 - 结构化错误必须保留稳定码、原始诊断、路径、行列、action、command 和 payload；用户文案、日志诊断和恢复授权不得互相推导。

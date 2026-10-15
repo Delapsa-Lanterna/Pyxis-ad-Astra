@@ -15,6 +15,19 @@ export interface PendingWriteSync {
 export const useWriteSyncStore = defineStore('write-sync', () => {
   const pending = ref<PendingWriteSync[]>([]);
   const completed = new Map<string, Set<number>>();
+  const projections = new Map<string, { modRoot: string; revisions: Set<number> }>();
+
+  function wasProjectionAccepted(sessionId: string, revision: number) {
+    return projections.get(sessionId)?.revisions.has(revision) ?? false;
+  }
+  function markProjectionAccepted(modRoot: string, sessionId: string, revision: number) {
+    let entry = projections.get(sessionId);
+    if (!entry) {
+      entry = { modRoot: normalizeFsPath(modRoot), revisions: new Set() };
+      projections.set(sessionId, entry);
+    }
+    entry.revisions.add(revision);
+  }
 
   function enqueue(event: CommittedWriteEvent) {
     const id = JSON.stringify([normalizeFsPath(event.modRoot), event.result.commitId]);
@@ -38,10 +51,21 @@ export const useWriteSyncStore = defineStore('write-sync', () => {
   function removeModState(modRoot: string) {
     pending.value = pending.value.filter((entry) => normalizeFsPath(entry.event.modRoot) !== normalizeFsPath(modRoot));
     completed.delete(normalizeFsPath(modRoot));
+    for (const [sessionId, entry] of projections) if (entry.modRoot === normalizeFsPath(modRoot)) projections.delete(sessionId);
   }
   function markFailed(id: string, error: ErrorDiagnostic) {
     const entry = pending.value.find((entry) => entry.id === id);
     if (entry) entry.error = error;
   }
-  return { pending, enqueue, wasAccepted, markAccepted, complete, removeModState, markFailed };
+  return {
+    pending,
+    enqueue,
+    wasAccepted,
+    markAccepted,
+    complete,
+    removeModState,
+    markFailed,
+    wasProjectionAccepted,
+    markProjectionAccepted,
+  };
 });

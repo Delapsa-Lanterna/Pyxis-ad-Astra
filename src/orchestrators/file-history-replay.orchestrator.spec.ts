@@ -182,6 +182,29 @@ describe('authoritative file history replay', () => {
     await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
     expect(messages.success).toHaveBeenCalledWith('文件历史已撤销');
   });
+  it('keeps the requested Mod when navigation changes during the history read', async () => {
+    const projects = useProjectStore();
+    const update = sessionUpdateFixture('s1', root);
+    if (update.status !== 'ready') throw new Error('ready fixture');
+    projects.registerProjectManifest(update.projection.manifest);
+    const workspace = (await import('@/stores/workspace.store')).useWorkspaceStore();
+    workspace.registerMod({ modRoot: root, displayName: 'First', version: '', status: 'ready' });
+    workspace.activateModOverview(root);
+    let finish!: (snapshot: FileHistorySnapshot) => void;
+    mocks.loadFileHistory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const messages = feedback();
+    const action = replayNextFileUndo(projects, tables(), messages);
+    workspace.showSettings();
+    finish({ revision: 1, undoStack: [entry()], redoStack: [] });
+    expect(await action).toBe(true);
+    await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
+    expect(mocks.replayFileChangeSet).toHaveBeenCalledExactlyOnceWith('s1', root, 'undo', 1, 1);
+  });
 
   it('reports replay failures through the feedback boundary', async () => {
     useFileHistoryStore().applySnapshot(root, { revision: 2, undoStack: [], redoStack: [entry()] });

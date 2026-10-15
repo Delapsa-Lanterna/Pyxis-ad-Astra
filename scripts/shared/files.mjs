@@ -106,6 +106,7 @@ async function collectPaths(root, dir, include, includeDirectories) {
   for (const entry of entries) {
     const path = join(dir, entry.name);
     const rel = normalizePath(relative(root, path));
+    if (rel === '.audit-tools') continue;
     if (entry.isDirectory()) {
       if (includeDirectories) files.push({ path, rel: rel + '/' });
       if (ignoredDirs.has(entry.name) || ignoredPathParts.some((part) => rel.startsWith(`${part}/`) || rel === part)) continue;

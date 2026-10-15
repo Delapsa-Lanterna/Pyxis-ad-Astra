@@ -36,6 +36,7 @@ beforeEach(() => {
 describe('settings limit controls', () => {
   it('places general and immersive fonts below appearance and applies both controls', async () => {
     const wrapper = mount(SettingsPage, {
+      props: { closeWorkspace: vi.fn(async () => true) },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },
@@ -58,6 +59,7 @@ describe('settings limit controls', () => {
   });
   it('places history and log settings in their sections with units and scope hints', async () => {
     const wrapper = mount(SettingsPage, {
+      props: { closeWorkspace: vi.fn(async () => true) },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },

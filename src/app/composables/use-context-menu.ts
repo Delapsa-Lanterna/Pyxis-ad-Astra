@@ -185,7 +185,7 @@ export function useWindowContextMenu() {
           throw new Error('Text editing command failed');
       }
     } catch (error) {
-      if (current(captured)) feedback.error(error, '右键操作失败');
+      feedback.error(error, '右键操作失败');
     }
   }
   function handleKey(event: KeyboardEvent) {

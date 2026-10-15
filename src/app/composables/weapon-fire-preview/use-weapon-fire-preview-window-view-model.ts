@@ -133,12 +133,11 @@ export function useWeaponFirePreviewWindowViewModel() {
   useContextMenuScope({
     identity: () => JSON.stringify(target.value),
     canRefresh: () => Boolean(data.value),
-    refresh: (current) =>
+    refresh: () =>
       refreshProjectSourcePaths(
         target.value.sessionId,
         target.value.modRoot,
         data.value!.baseVersions.map((version) => version.path),
-        current,
         data.value!.resourceRefs,
       ),
   });

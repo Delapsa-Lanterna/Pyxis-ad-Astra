@@ -41,7 +41,6 @@ describe('shared immersive content renderers', () => {
       dismiss: vi.fn(),
       update: vi.fn(),
       override: vi.fn(async () => {}),
-      create: vi.fn(async () => {}),
     };
     const common = { root: snapshot.root, records: snapshot.records, mediaUrl: () => 'data:image/png;base64,fixture' };
     const render = shallowRef<ImmersiveRenderContext>({ ...common, mode: 'editable', editing });

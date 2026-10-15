@@ -242,7 +242,7 @@ export function useModFileBrowserViewModel() {
       ready: (result) => {
         if (result)
           void openFileEditorWindow({ ...result }).catch((error) => {
-            if (!disposed && target.value?.sessionId === captured.sessionId) feedback.error(error, '打开文件编辑器失败');
+            feedback.error(error, '打开文件编辑器失败');
           });
       },
       error: (error) => feedback.error(error, '打开文件失败'),

@@ -15,7 +15,6 @@ export interface ImmersiveEditing {
   dismiss(): void;
   update(changes: ImmersiveFieldChange[]): void | Promise<void>;
   override(keys?: string[]): Promise<void>;
-  create(key: string): Promise<void>;
 }
 interface ImmersiveDisplay {
   readonly root: JointEditRoot;

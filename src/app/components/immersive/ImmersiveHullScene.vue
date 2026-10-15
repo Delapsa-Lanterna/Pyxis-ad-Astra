@@ -42,6 +42,7 @@ import { windowImageCache } from '@/app/composables/use-window-image-cache';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { warningNotice } from '@/shared/lib/errors';
+import type { ResourceRef } from '@/shared/types';
 import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{
   variant: ImmersiveHullProjection;
@@ -115,6 +116,39 @@ const decoded = useResourceImages(
 );
 const imageCache = windowImageCache();
 let releaseThumbnail: (() => void) | null = null;
+const engineTints = new Map<string, { canvas: HTMLCanvasElement; release: () => void }>();
+const paintedTints = new Set<string>();
+function engineTint(resource: ResourceRef, image: HTMLImageElement, color: unknown[]) {
+  const key = JSON.stringify([
+    'engine-source-atop',
+    imageCache.key(props.sessionId, resource),
+    imageCache.revision(props.sessionId, resource),
+    image.width,
+    image.height,
+    color.slice(0, 3),
+  ]);
+  paintedTints.add(key);
+  let entry = engineTints.get(key);
+  if (!entry) {
+    let tinted = imageCache.thumbnail(key);
+    let release: () => void;
+    if (tinted) release = imageCache.retainThumbnail(key);
+    else {
+      tinted = document.createElement('canvas');
+      tinted.width = image.width;
+      tinted.height = image.height;
+      const paint = tinted.getContext('2d')!;
+      paint.drawImage(image, 0, 0);
+      paint.globalCompositeOperation = 'source-atop';
+      paint.fillStyle = 'rgb(' + color.slice(0, 3).join(',') + ')';
+      paint.fillRect(0, 0, image.width, image.height);
+      release = imageCache.storeThumbnail(key, props.sessionId, [resource], tinted);
+    }
+    entry = { canvas: tinted, release };
+    engineTints.set(key, entry);
+  }
+  return entry.canvas;
+}
 const sceneSignature = computed(() =>
   JSON.stringify([
     'scene',
@@ -158,6 +192,7 @@ const selection = useCanvasSelection(
 function paint() {
   const surface = canvas.value;
   if (!surface) return;
+  paintedTints.clear();
   const ctx = surface.getContext('2d')!,
     size = viewport.size(),
     center = viewport.center(),
@@ -207,6 +242,11 @@ function paint() {
     drawVariant(ctx, props.variant, new Set());
   }
   ctx.restore();
+  for (const [key, entry] of engineTints)
+    if (!paintedTints.has(key)) {
+      entry.release();
+      engineTints.delete(key);
+    }
   if (props.iconSize && decoded.ready() && resources().length) {
     const finished = document.createElement('canvas');
     finished.width = surface.width;
@@ -290,16 +330,8 @@ function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
       const resource = variant.engineResources[key],
         image = resource ? decoded.image(resource) : null;
       if (!image) continue;
-      const tinted = document.createElement('canvas');
-      tinted.width = image.width;
-      tinted.height = image.height;
-      const paint = tinted.getContext('2d')!;
-      paint.drawImage(image, 0, 0);
-      paint.globalCompositeOperation = 'source-atop';
-      paint.fillStyle = 'rgb(' + color.slice(0, 3).join(',') + ')';
-      paint.fillRect(0, 0, image.width, image.height);
       ctx.globalAlpha = alpha;
-      ctx.drawImage(tinted, key === 'engineHitGlow' ? -width / 2 : 0, -height / 2, width, height);
+      ctx.drawImage(engineTint(resource!, image, color), key === 'engineHitGlow' ? -width / 2 : 0, -height / 2, width, height);
     }
     ctx.restore();
   }
@@ -377,6 +409,8 @@ onMounted(() => {
 });
 onScopeDispose(() => {
   releaseThumbnail?.();
+  for (const entry of engineTints.values()) entry.release();
+  engineTints.clear();
   observer?.disconnect();
   stopRatio?.();
   navigation.finish();

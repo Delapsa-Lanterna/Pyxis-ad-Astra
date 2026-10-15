@@ -210,6 +210,7 @@ function updateLogLevel(value: string) {
 }
 
 const settings = useSettingsStore();
+const props = defineProps<{ closeWorkspace: () => Promise<boolean> }>();
 const customAccentDraft = ref(settings.customAccent);
 const customAccentValid = ref(true);
 const {
@@ -226,7 +227,7 @@ const {
   restoreDefaultLogDirectory,
   confirmClearConfig,
   confirmClearLog,
-} = useSettingsViewModel();
+} = useSettingsViewModel(props.closeWorkspace);
 
 onMounted(() => {
   void loadSystemFonts();

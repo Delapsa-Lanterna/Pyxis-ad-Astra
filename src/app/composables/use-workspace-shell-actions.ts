@@ -73,7 +73,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     },
   });
   let disposed = false;
-  let closeIntent: Promise<void> | null = null;
+  let closeIntent: Promise<boolean> | null = null;
   const removeIntents = new Map<string, Promise<void>>();
   if (getCurrentScope())
     onScopeDispose(() => {
@@ -107,16 +107,14 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       : workspace.currentView === 'config' && workspace.configView === 'mod-overview' && Boolean(project.activeManifest),
   );
 
-  async function refreshModOverview(modRoot: string, current: () => boolean) {
+  async function refreshModOverview(modRoot: string) {
     const target = project.getManifest(modRoot)!;
-    const accepts = () => !disposed && current() && project.getSessionId(modRoot) === target.sessionId;
+    const accepts = () => !disposed && project.getSessionId(modRoot) === target.sessionId;
     try {
-      await refreshProjectSourcePaths(
-        target.sessionId,
-        modRoot,
-        [...target.baseVersions.map((version) => version.path), modRoot + '/data'],
-        accepts,
-      );
+      await refreshProjectSourcePaths(target.sessionId, modRoot, [
+        ...target.baseVersions.map((version) => version.path),
+        modRoot + '/data',
+      ]);
       if (!accepts()) return;
       const refreshed = project.getManifest(modRoot)!;
       workspace.updateModInfo(
@@ -129,17 +127,17 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
-  async function refreshWorkspace(current: () => boolean = () => true) {
+  async function refreshWorkspace() {
     const root = workspace.gameOverview?.starsectorRoot;
     const generation = workspace.getWorkspaceGeneration();
-    const accepts = () => !disposed && current() && workspace.getWorkspaceGeneration() === generation;
+    const accepts = () => !disposed && workspace.getWorkspaceGeneration() === generation;
     try {
       if (!root) {
         const targets = [...project.manifests.values()];
         for (const target of targets) {
           if (!accepts()) return;
           if (project.getSessionId(target.modRoot) !== target.sessionId) continue;
-          await refreshModOverview(target.modRoot, accepts);
+          await refreshModOverview(target.modRoot);
         }
         return;
       }
@@ -162,10 +160,17 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
-  function confirmCloseWorkspace() {
+  function confirmCloseWorkspace(notify = true) {
     if (closeIntent) return closeIntent;
     closeIntent = requestWorkspaceClose()
-      .catch((error: unknown) => feedback.error(error, '关闭工作区失败'))
+      .then((closed) => {
+        if (closed && notify) feedback.success('工作区已关闭');
+        return closed;
+      })
+      .catch((error: unknown) => {
+        feedback.error(error, '关闭工作区失败');
+        return false;
+      })
       .finally(() => {
         closeIntent = null;
       });
@@ -174,7 +179,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
 
   async function requestWorkspaceClose() {
     const pending = saveCommands.waitForSaves();
-    if ((pending && !(await pending)) || disposed) return;
+    if ((pending && !(await pending)) || disposed) return false;
     const target = captureWorkspaceCloseTarget();
     const sessions = target.modRoots.map((root) => project.getSessionId(root));
     const hasDirtyMods = target.modRoots.some((modRoot) => draftSessions.hasUnsavedWorkForMod(modRoot));
@@ -184,7 +189,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       choices: [{ label: '关闭', value: 'close', type: 'warning' }],
     });
     if (choice === 'close' && !disposed && target.modRoots.every((root, index) => project.getSessionId(root) === sessions[index]))
-      await closeWorkspace(target);
+      return closeWorkspace(target);
+    return false;
   }
 
   function confirmRemoveMod(modRoot: string) {
@@ -472,7 +478,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   async function closeWorkspace(target: WorkspaceCloseTarget) {
-    if (!(await closeWorkspaceRuntime(target))) return;
+    if (!(await closeWorkspaceRuntime(target))) return false;
     recordLogBestEffort({
       level: 'info',
       code: 'workspace.closed',
@@ -481,7 +487,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       line: null,
       fields: { mods: String(target.modRoots.length) },
     });
-    feedback.success('工作区已关闭');
+    return true;
   }
 
   function showSaveResult(result: TableSaveResult) {

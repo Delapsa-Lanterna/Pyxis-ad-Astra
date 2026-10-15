@@ -77,7 +77,7 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
   useContextMenuScope({
     identity: () => sessionKey(),
     canRefresh: () => Boolean(sessionId.value),
-    refresh: (current) =>
+    refresh: () =>
       refreshProjectSourcePaths(
         sessionId.value!,
         modRoot.value!,
@@ -85,7 +85,6 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
           modRoot.value! + (family.id === 'variant' ? '/data/variants' : '/data/hulls/skins'),
           ...files.value.flatMap((file) => file.baseVersions.map((version) => version.path)),
         ],
-        current,
         Object.values(spriteRefs.value).filter((ref): ref is ResourceRef => ref !== null),
       ),
   });

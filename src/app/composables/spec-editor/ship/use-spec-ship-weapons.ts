@@ -20,12 +20,11 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
     decodeFailures = ref<string[]>([]);
   useContextMenuScope({
     identity: () => JSON.stringify(root()),
-    refresh: (current) =>
+    refresh: () =>
       refreshProjectSourcePaths(
         root().sessionId,
         root().modRoot,
         sources.value.baseVersions.map((version) => version.path),
-        current,
         resources.value,
       ),
   });

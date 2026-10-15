@@ -9,7 +9,6 @@ import { useAppFeedback } from '../use-app-feedback';
 import { useResourceMediaRegistry } from '../use-resource-media-registry';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { ImmersiveEditorDefinition, ImmersivePanelState } from '@/domain/immersive/fields';
-import { createShipSpec } from '@/domain/editors/spec-construction';
 
 import { updateImmersiveField, type ImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
@@ -268,86 +267,6 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       referenceChanging.value = false;
     }
   }
-  async function createMissingSource(key: string) {
-    const record = snapshot.value!.records.find((record) => record.key === key)!;
-    if (record.target.kind !== 'spec') return;
-    if (record.target.target.kind === 'variant') {
-      await toggleStat('hull-reference', true);
-      return;
-    }
-    if (record.target.target.kind === 'ship') {
-      try {
-        const choice = await feedback.choose({
-          title: '补全舰体来源',
-          content: `引用 ID：${record.target.target.id}。选择创建战机舰体或 Skin；Skin 需要选择基础舰体。`,
-          choices: [
-            { label: '创建战机舰体', value: 'ship', type: 'primary' },
-            { label: '创建 Skin', value: 'skin' },
-          ],
-        });
-        if (choice !== 'ship' && choice !== 'skin') return;
-        if (choice === 'skin') {
-          if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false) return;
-          if (joint.dirty.value) {
-            const accepted = await feedback.choose({
-              title: '保存后补全来源？',
-              content: '保存当前相关编辑，再建立 Skin 来源。',
-              choices: [{ label: '保存并继续', value: 'save', type: 'primary' }],
-            });
-            if (accepted !== 'save' || !(await joint.saveDraft()) || joint.dirty.value) return;
-          }
-          const target = joint.currentTarget.value!,
-            key = joint.currentTargetKey.value;
-          const row = snapshot.value!.records.find((entry) => entry.key === snapshot.value!.bindings.csv)!;
-          if (row.target.kind !== 'csv') return;
-          const newSources = [...snapshot.value!.newSources, { kind: 'skin' as const, id: record.target.target.id }];
-          let captured: JointEditSnapshot | null = null;
-          referenceChanging.value = true;
-          try {
-            await reads.consume(
-              'creation',
-              { target, newSources },
-              (signal) => queryJointEditRow(target, row.target.kind === 'csv' ? row.target.rowKey : '', signal, newSources),
-              {
-                ready: (value) => {
-                  captured = cloneQuerySnapshot<JointEditSnapshot>(value);
-                },
-              },
-            );
-            if (!captured || !active || joint.currentTargetKey.value !== key) return;
-            const next: JointEditSnapshot = captured;
-            joint.applyExternalForTarget({
-              target: next.root,
-              value: Object.fromEntries(
-                next.records
-                  .filter((entry) => definition.editableRecords(next).includes(entry.key))
-                  .map((entry) => [entry.key, entry.value]),
-              ),
-              baseVersions: next.baseVersions,
-              meta: { snapshot: next, receipt: null, previous: null },
-            });
-          } finally {
-            referenceChanging.value = false;
-          }
-          await toggleStat('skin-base-reference', true);
-          return;
-        }
-        if ((await joint.inputs.commit()) === false || !active) return;
-        const before = deepClone(joint.draftValue.value);
-        const after = {
-          ...before,
-          [key]: { state: 'present' as const, value: { ...createShipSpec(record.target.target.id), hullSize: 'FIGHTER' } },
-        };
-        joint.setDraft(after);
-        history.push(before, after);
-        await save();
-      } catch (error) {
-        feedback.error(error, '补全舰体失败');
-      }
-    }
-    if (record.target.target.kind === 'skin') await toggleStat('skin-base-reference', true);
-  }
-
   async function undo() {
     try {
       const result = await joint.inputs.commit();
@@ -477,7 +396,6 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
         root.sessionId,
         root.modRoot,
         [...graph.baseVersions, ...graph.referenceSettings.versions].map((version) => version.path),
-        current,
         [...graph.records.flatMap((record) => Object.values(record.resourceRefs)), ...Object.values(graph.referenceSettings.resources)],
       );
       if (current()) await joint.refreshTarget(joint.currentTarget.value!);
@@ -520,7 +438,6 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     dismissStat,
     save,
     createOverrides,
-    createMissingSource,
     undo,
     redo,
     initialize,

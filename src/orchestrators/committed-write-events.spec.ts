@@ -49,6 +49,14 @@ describe('committed write domain projections', () => {
     await emitFileEditorSaved({ modRoot: 'M:/mod', sessionId: 's1', path: 'M:/mod/notes.txt', writeResult: receipt });
     expect(mocks.publish).toHaveBeenCalledWith('M:/mod', receipt, 's1');
   });
+  it('releases a spec listener after consuming a generic file receipt', async () => {
+    const receive = vi.fn();
+    const stop = await listenEditorSpecSaved(receive);
+    await mocks.listeners[0]!.handler(event());
+    expect(receive).not.toHaveBeenCalled();
+    stop();
+    expect(mocks.listeners).toHaveLength(0);
+  });
   it('routes identified text saves through projection reads while retaining their text receipt', async () => {
     const receipt = savedWriteFixture({ text: '{hullId:"next"}' });
     receipt.identityChanges = [{ before: entityTargetFixture('ship', 'old'), after: entityTargetFixture('ship', 'next') }];

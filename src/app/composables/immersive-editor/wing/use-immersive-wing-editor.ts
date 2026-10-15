@@ -6,6 +6,8 @@ import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { immersiveEditableRecords } from '@/domain/immersive/source-records';
 import { rebaseJointDraft } from '@/domain/joint-edit';
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
+import { createShipSpec } from '@/domain/editors/spec-construction';
+import { deepClone } from '@/shared/lib/starsector';
 
 export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
   const { root, joint, snapshot, referenceChanging, reads, history } = runtime;
@@ -65,5 +67,76 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
     const map = (draft: Record<string, JointValue>) => rebaseJointDraft(draft, previous, next, [], []);
     if (joint.adoptIdentity(target, actual, map, 'identity')) history.rebase(map);
   }
-  return { readSnapshot, refreshWingBaseline };
+  async function createMissingSource(key: string) {
+    const record = snapshot.value!.records.find((record) => record.key === key)!;
+    if (record.target.kind !== 'spec') return;
+    let target = joint.currentTarget.value!;
+    let baseline = snapshot.value;
+    const current = () => runtime.isActive() && joint.isTargetCurrent(target) && snapshot.value === baseline;
+    if (record.target.target.kind === 'variant') return runtime.toggleStat('hull-reference', true);
+    if (record.target.target.kind === 'skin') return runtime.toggleStat('skin-base-reference', true);
+    try {
+      const choice = await feedback.choose({
+        title: '补全舰体来源',
+        content: `引用 ID：${record.target.target.id}。选择创建战机舰体或 Skin；Skin 需要选择基础舰体。`,
+        choices: [
+          { label: '创建战机舰体', value: 'ship', type: 'primary' },
+          { label: '创建 Skin', value: 'skin' },
+        ],
+      });
+      if (!current() || (choice !== 'ship' && choice !== 'skin')) return;
+      if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false || !current()) return;
+      if (choice === 'ship') {
+        const before = deepClone(joint.draftValue.value);
+        const after = {
+          ...before,
+          [key]: { state: 'present' as const, value: { ...createShipSpec(record.target.target.id), hullSize: 'FIGHTER' } },
+        };
+        joint.setDraft(after);
+        history.push(before, after);
+        await runtime.save();
+        return;
+      }
+      if (joint.dirty.value) {
+        const accepted = await feedback.choose({
+          title: '保存后补全来源？',
+          content: '保存当前相关编辑，再建立 Skin 来源。',
+          choices: [{ label: '保存并继续', value: 'save', type: 'primary' }],
+        });
+        if (accepted !== 'save' || !current()) return;
+        const saved = await joint.saveDraft();
+        if (!saved || joint.dirty.value) return;
+        target = saved.target;
+        baseline = snapshot.value;
+      }
+      if (!current()) return;
+      const row = snapshot.value!.records.find((entry) => entry.key === snapshot.value!.bindings.csv)!;
+      if (row.target.kind !== 'csv') return;
+      const rowKey = row.target.rowKey;
+      const newSources = [...snapshot.value!.newSources, { kind: 'skin' as const, id: record.target.target.id }];
+      referenceChanging.value = true;
+      let captured: JointEditSnapshot | null = null;
+      await reads.consume('creation', { target, newSources }, (signal) => queryJointEditRow(target, rowKey, signal, newSources), {
+        ready: (value) => {
+          captured = cloneQuerySnapshot<JointEditSnapshot>(value);
+        },
+      });
+      if (!captured || !current()) return;
+      const next: JointEditSnapshot = captured;
+      joint.applyExternalForTarget({
+        target: next.root,
+        value: Object.fromEntries(
+          next.records.filter((entry) => immersiveEditableRecords(next).includes(entry.key)).map((entry) => [entry.key, entry.value]),
+        ),
+        baseVersions: next.baseVersions,
+        meta: { snapshot: next, receipt: null, previous: null },
+      });
+      await runtime.toggleStat('skin-base-reference', true);
+    } catch (error) {
+      feedback.error(error, '补全舰体失败');
+    } finally {
+      referenceChanging.value = false;
+    }
+  }
+  return { readSnapshot, refreshWingBaseline, createMissingSource };
 }

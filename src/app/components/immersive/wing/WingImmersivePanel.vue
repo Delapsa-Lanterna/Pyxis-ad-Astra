@@ -36,7 +36,7 @@
         @click="render.editing.update([{ field: panel.defaultDescription, update: { kind: 'remove' } }])"
         >使用 Skin 默认描述</n-button
       >
-      <ImmersivePanelSources :render="render" per-record />
+      <ImmersivePanelSources :render="render" per-record @create-source="$emit('create-source', $event)" />
     </section>
   </div>
 </template>
@@ -52,6 +52,7 @@ import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveHullScene from '../ImmersiveHullScene.vue';
 import { immersiveWingLayout } from '@/domain/immersive/hull-scene';
 const props = defineProps<{ panel: WingPanel; render: ImmersiveRenderContext }>();
+defineEmits<{ 'create-source': [key: string] }>();
 const description = computed(() => descriptionForRender(props.panel.description, props.render.mode));
 const layout = computed(() => immersiveWingLayout(props.panel.count, props.panel.formation, 80));
 </script>

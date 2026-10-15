@@ -612,6 +612,85 @@ describe('variant joint actions', () => {
 });
 
 describe('wing joint source handoff', () => {
+  it('creates a missing fighter through the wing action and submits its captured source', async () => {
+    const baseline = prepare();
+    baseline.records.find((record) => record.key === 'spec')!.value = { state: 'missing' };
+    mocks.choose.mockResolvedValueOnce('ship');
+    mocks.save.mockResolvedValueOnce(null);
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    await vm.wing!.createMissingSource('spec');
+    expect(vm.joint.draftValue.value.spec).toMatchObject({ state: 'present', value: { hullId: 'sarissa', hullSize: 'FIGHTER' } });
+    expect(mocks.save.mock.calls[0]![0].values.spec).toEqual(vm.joint.draftValue.value.spec);
+    await vm.undo();
+    expect(vm.joint.draftValue.value.spec).toEqual({ state: 'missing' });
+    wrapper.unmount();
+  });
+  it('hands a missing hull to a Skin graph using the authoritative wing row', async () => {
+    const baseline = prepare();
+    baseline.records.find((record) => record.key === 'spec')!.value = { state: 'missing' };
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    mocks.choose.mockResolvedValueOnce('skin');
+    const skinGraph = structuredClone(baseline);
+    skinGraph.newSources = [{ kind: 'skin', id: 'sarissa' }];
+    mocks.query.mockResolvedValueOnce(skinGraph);
+    await vm.wing!.createMissingSource('spec');
+    expect(mocks.query).toHaveBeenLastCalledWith(baseline.root, 'wing-row', expect.any(AbortSignal), skinGraph.newSources);
+    expect(vm.snapshot.value!.newSources).toEqual(skinGraph.newSources);
+    expect(vm.selectedStatId.value).toBe('skin-base-reference');
+    expect(vm.referenceChanging.value).toBe(false);
+    wrapper.unmount();
+  });
+  it('continues Skin creation using the identity returned by its own dirty save', async () => {
+    const baseline = prepare();
+    baseline.records.find((record) => record.key === 'spec')!.value = { state: 'missing' };
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const panel = vm.panel.value;
+    if (panel?.kind !== 'wing') throw new Error('wing fixture');
+    vm.updateField(panel.technical.find((stat) => stat.id === 'num')!.fields[0]!, { kind: 'set', value: 4 });
+    const saved = structuredClone(baseline);
+    saved.root.id = 'next-wing';
+    saved.records.find((record) => record.key === 'wing')!.value = {
+      state: 'present',
+      value: { id: 'next-wing', num: '4', variant: 'sarissa_Fighter' },
+    };
+    mocks.choose.mockResolvedValueOnce('skin').mockResolvedValueOnce('save');
+    mocks.save.mockResolvedValueOnce({ ...savedWriteFixture(), refreshedEntity: saved });
+    const graph = { ...saved, newSources: [{ kind: 'skin' as const, id: 'sarissa' }] };
+    mocks.query.mockResolvedValueOnce(graph);
+    await vm.wing!.createMissingSource('spec');
+    expect(mocks.query).toHaveBeenLastCalledWith(saved.root, 'wing-row', expect.any(AbortSignal), graph.newSources);
+    expect(vm.snapshot.value!.newSources).toEqual(graph.newSources);
+    expect(vm.selectedStatId.value).toBe('skin-base-reference');
+    wrapper.unmount();
+  });
+  it.each(['external', 'unmount'] as const)('releases a missing-source choice after %s handoff', async (handoff) => {
+    const baseline = prepare();
+    baseline.records.find((record) => record.key === 'spec')!.value = { state: 'missing' };
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    let finish!: (value: string) => void;
+    mocks.choose.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const creating = vm.wing!.createMissingSource('spec');
+    await flushPromises();
+    if (handoff === 'unmount') wrapper.unmount();
+    else {
+      mocks.query.mockResolvedValueOnce(wingJointFixture());
+      await vm.joint.refreshTarget(vm.joint.currentTarget.value!);
+    }
+    finish('ship');
+    await creating;
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(vm.history.canUndo.value).toBe(false);
+    if (handoff === 'external') wrapper.unmount();
+  });
   it('follows the persisted wing row while preserving dirty values, raw input and undo history', async () => {
     const baseline = prepare();
     const { vm, wrapper } = editor('wing');

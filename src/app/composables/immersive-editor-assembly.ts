@@ -17,6 +17,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
   return {
     ...runtime,
     variant,
+    wing,
     variantActionPending: computed(() => variant?.variantActionPending.value ?? false),
     createOverrides: weapon?.createOverrides ?? runtime.createOverrides,
     openProjectile: weapon?.openProjectile,
@@ -65,7 +66,6 @@ export function editableRenderContext(vm: ReturnType<typeof useImmersiveEditorVi
       dismiss: vm.dismissStat,
       update: vm.updateFields,
       override: vm.createOverrides,
-      create: vm.createMissingSource,
     },
   };
 }

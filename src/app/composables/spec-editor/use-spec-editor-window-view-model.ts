@@ -410,12 +410,11 @@ export function useSpecEditorWindowViewModel(
   }
 
   return {
-    refresh: (current: () => boolean, resources: readonly import('@/shared/types/index').InvalidatedResourceScope[]) =>
+    refresh: (resources: readonly import('@/shared/types/index').InvalidatedResourceScope[]) =>
       refreshProjectSourcePaths(
         params.sessionId!,
         params.modRoot!,
         editorData.value!.baseVersions.map((version) => version.path),
-        current,
         resources,
       ),
     currentTarget: computed(editorWindowTarget),

@@ -1659,35 +1659,91 @@ fn core_header_and_sensor_sources() {
 }
 
 #[test]
-#[ignore = "local Core performance sample"]
-fn native_variant_catalog_timings() {
-    let game = PathBuf::from(
-        std::env::var("CAA_PERF_GAME").expect("game path is supplied for manual measurement"),
-    );
+fn variant_catalog_core_repeated_reads() {
     let (dir, mut root) = fixture();
     project::close_project_session(root.session_id.clone()).unwrap();
-    let mut trace = project::PerformanceTrace::new("variant.catalog.native");
+    let game = temp_dir("variant_catalog_core_reads");
+    let core = game.join("starsector-core");
+    for (relative, content) in [
+        (
+            "data/weapons/weapon_data.csv",
+            "id,name\ncore_weapon,Core weapon\n",
+        ),
+        (
+            "data/weapons/core_weapon.wpn",
+            r#"{"id":"core_weapon","specClass":"beam","size":"MEDIUM"}"#,
+        ),
+        (
+            "data/hulls/wing_data.csv",
+            "id,variant,num\ncore_wing,core_variant,2\n",
+        ),
+        (
+            "data/hulls/ship_data.csv",
+            "id,name\ncore_ship,Core fighter\n",
+        ),
+        (
+            "data/hulls/core_ship.ship",
+            r#"{"hullId":"core_ship","hullSize":"FIGHTER","spriteName":"graphics/core.png"}"#,
+        ),
+        (
+            "data/variants/core_variant.variant",
+            r#"{"variantId":"core_variant","hullId":"core_ship","displayName":"Support"}"#,
+        ),
+    ] {
+        let path = core.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write_utf8_no_bom(&path, content).unwrap();
+    }
+    let mut trace = project::PerformanceTrace::new("variant.catalog.fixture");
     root.session_id = project::open_project_session_traced(&dir, Some(&game), &mut trace)
         .unwrap()
         .session_id;
     root.kind = JointEditKind::Variant;
     root.id = "var".into();
-    for kind in [
-        JointVariantCatalogKind::Weapons,
-        JointVariantCatalogKind::Wings,
+    for (kind, core_id, mod_id) in [
+        (JointVariantCatalogKind::Weapons, "core_weapon", "weapon"),
+        (JointVariantCatalogKind::Wings, "core_wing", "wing"),
     ] {
+        let initial = project::query_variant_catalog(&root, kind).unwrap();
+        assert_eq!(initial.root, root);
+        assert_eq!(initial.catalog.entries.len(), 2);
+        for (id, source) in [
+            (core_id, ResourceSource::Core),
+            (mod_id, ResourceSource::Mod),
+        ] {
+            let entry = initial
+                .catalog
+                .entries
+                .iter()
+                .find(|entry| entry.id == id)
+                .unwrap();
+            assert_eq!(entry.source.source, source);
+            assert_eq!(entry.spec_source.as_ref().unwrap().source, source);
+            assert_eq!(
+                entry.spec.is_some(),
+                matches!(kind, JointVariantCatalogKind::Weapons)
+            );
+            assert_eq!(
+                entry.preview.is_some(),
+                matches!(kind, JointVariantCatalogKind::Wings)
+            );
+        }
+        let expected = serde_json::to_vec(&initial).unwrap();
         for sample in 0..10 {
             let timer = trace.timer();
             let read = project::query_variant_catalog(&root, kind).unwrap();
+            let bytes = serde_json::to_vec(&read).unwrap();
+            assert_eq!(bytes, expected);
             println!(
                 "CATALOG {:?} sample={} entries={} ms={} bytes={}",
                 kind,
                 sample,
                 read.catalog.entries.len(),
                 timer.elapsed_ms(),
-                serde_json::to_vec(&read).unwrap().len()
+                bytes.len()
             );
         }
     }
     cleanup(dir, &root);
+    std::fs::remove_dir_all(game).unwrap();
 }

@@ -77,7 +77,7 @@
 - [沉浸式编辑器基础](modules/immersive-editor.md)：说明共同运行态、字段展示、来源选择、资源与舰体场景。
 - [沉浸式舰船编辑器](modules/immersive-ship-editor.md)：说明舰船字段、基础统计与只读信息内容。
 - [沉浸式武器编辑器](modules/immersive-weapon-editor.md)：说明武器信息、分支动作与弹体打开。
-- [沉浸式联队编辑器](modules/immersive-wing-editor.md)：说明联队信息、来源引用与行身份跟随。
+- [沉浸式联队编辑器](modules/immersive-wing-editor.md)：说明联队信息、来源补全、引用与行身份跟随。
 - [沉浸式装配编辑器](modules/immersive-variant-editor.md)：说明装配投影、装备动作、模块导航与候选交互。
 - [字体](modules/fonts.md)：说明原版字体读取、逐字体回退、缺字问号、文字测量、共享图集和展示生命周期。
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。

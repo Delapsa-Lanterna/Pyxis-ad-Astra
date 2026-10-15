@@ -47,7 +47,7 @@ export function useCsvTableViewModel() {
   useContextMenuScope({
     identity: () => targetKey.value,
     canRefresh: () => Boolean(target.value) && !tables.currentTableLocked,
-    refresh: (current) => {
+    refresh: () => {
       const captured = target.value!;
       const tables = new Set([
         captured.table,
@@ -64,7 +64,6 @@ export function useCsvTableViewModel() {
         captured.sessionId,
         captured.modRoot,
         targets.map((target) => target.path),
-        current,
         [...loadedSourceResourceRefs(), ...coreSources],
       );
     },

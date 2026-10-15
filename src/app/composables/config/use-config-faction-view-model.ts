@@ -74,7 +74,7 @@ export function useConfigFactionViewModel() {
   useContextMenuScope({
     identity: () => sessionKey(),
     canRefresh: () => Boolean(sessionId.value),
-    refresh: (current) =>
+    refresh: () =>
       refreshProjectSourcePaths(
         sessionId.value!,
         modRoot.value!,
@@ -84,7 +84,6 @@ export function useConfigFactionViewModel() {
             .flat()
             .map((version) => version.path),
         ],
-        current,
         factionCrestResourceRefs.value,
       ),
   });

@@ -2,12 +2,12 @@
 
 ## 定义
 
-沉浸式联队编辑器模块提供联队信息、有效舰体展示及行身份跟随。
+沉浸式联队编辑器模块提供联队信息、有效舰体展示、来源补全及行身份跟随。
 
 ## 参考
 
 `src/app/components/immersive/wing/WingImmersivePanel.vue`：联队内容及来源字段展示。
-`src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取及联队身份跟随。
+`src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全及联队身份跟随。
 `src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
 
 ## 边界
@@ -15,7 +15,7 @@
 - 共同来源规则提供联队可编辑记录集合。
 - 基础运行态拥有联合会话、字段、历史及释放。
 - 有效舰体与装备由共同舰体场景展示。
-- 联队实现拥有行身份重读和重命名接纳。
+- 联队实现拥有舰船与 Skin 来源补全、引用定位、行身份重读和重命名接纳。
 - 联队投影提供角色、防御、系统、来源与编队参数。
 
 ## 链路
@@ -34,6 +34,7 @@
 
 ## 规范
 
+- 来源补全必须由联队动作消费来源展示事件，确认、读取与创建必须绑定捕获目标和联合基线。
 - 等待保存及确认期间必须核对所属目标与读取接纳权。
 - 联队名称必须消费有效舰体名称与装配 `displayName`，并在一次字段动作中提交；用途必须优先消费 `role desc`，直接参数必须绑定联队 CSV 或有效舰体的实际字段来源。
 - 联队投影必须消费原版角色、swarm 与防御分支；武装汇总必须按有效槽位统计，甲板、候选和内容渲染器的编队必须共同消费 `num`、`formation`、有效舰体及装备的同一场景投影与绘制。

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { architectureFixtures } from '../shared/check-fixtures.mjs';
-import { collectArchitectureFiles } from '../shared/files.mjs';
+import { collectArchitectureFiles, collectRepoPaths } from '../shared/files.mjs';
 import { writeBoundaryRule } from './rules/write-boundary.mjs';
 import { frontendLayerBoundaryRule } from './rules/frontend-layer-boundary.mjs';
 import { sharedTypesBoundaryRule } from './rules/shared-types-boundary.mjs';
@@ -308,6 +308,11 @@ test('flat edit-session primitives retain their declared adapter ownership', () 
 });
 
 test('every actual repository dependency resolves and all registered rules execute', async () => {
+  const paths = await collectRepoPaths(process.cwd(), () => true, true);
+  assert.equal(
+    paths.some((file) => file.rel.startsWith('.audit-tools/')),
+    false,
+  );
   const files = await collectArchitectureFiles(process.cwd());
   assert.equal(
     files.some((file) => file.rel.startsWith('.zcode/plans/')),

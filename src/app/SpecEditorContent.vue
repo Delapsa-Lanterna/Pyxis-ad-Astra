@@ -144,8 +144,8 @@ const shipSpriteForEditor = computed(() =>
 useContextMenuScope({
   identity: () => JSON.stringify(target.value),
   canRefresh: () => Boolean(editorData.value) && !editorData.value?.isNew,
-  refresh: (current) =>
-    windowModel.refresh(current, [
+  refresh: () =>
+    windowModel.refresh([
       ...(shipImages?.value.value?.resourceRefs ?? []),
       ...(projectileImages?.value.value?.resourceRefs ?? []),
       ...(weaponDependencies?.resourceRefs.value ?? []),

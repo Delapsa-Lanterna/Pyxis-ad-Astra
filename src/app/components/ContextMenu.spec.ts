@@ -260,4 +260,20 @@ describe('window context menu', () => {
     expect(input.value).toBe('hello');
     expect(mocks.error).toHaveBeenCalledWith(expect.any(Error), '右键操作失败');
   });
+  it('reports an executed refresh failure after the registered page changes', async () => {
+    const own = setup();
+    let fail!: (error: Error) => void;
+    own.refresh.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = reject;
+        }),
+    );
+    await open(wrapper.get('main').element);
+    await select('刷新');
+    own.identity.value = 'B';
+    fail(new Error('source refresh failed'));
+    await flushPromises();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '右键操作失败');
+  });
 });

@@ -8,23 +8,20 @@ import { useWriteSyncStore, type PendingWriteSync } from '@/stores/write-sync.st
 import { synchronizeSessionCommit, refreshProjectSources } from '@/services/project-session.service';
 import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
 import type { InvalidatedResourceScope } from '@/shared/types';
-import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
+import { invalidateQueryCacheByProject, subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { invalidateResourceCacheByProject } from '@/services/resource-cache.service';
 import { markProjectionPending, markProjectionReady } from '@/services/project-projection.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { WriteResult } from '@/shared/types';
 
-const acceptedProjections = new WeakMap<ReturnType<typeof useWriteSyncStore>, Set<string>>();
 const syncExecutions = new WeakMap<ReturnType<typeof useWriteSyncStore>, Map<string, Promise<void>>>();
 
 export function applyProjectSessionCacheInvalid(event: ProjectSessionInvalidatedEvent) {
   const sync = useWriteSyncStore();
-  if (!acceptedProjections.has(sync)) acceptedProjections.set(sync, new Set());
-  const key = JSON.stringify([event.manifest.sessionId, event.projectionRevision]);
-  if (acceptedProjections.get(sync)!.has(key)) return;
+  if (sync.wasProjectionAccepted(event.manifest.sessionId, event.projectionRevision)) return;
   invalidateResourceCacheByProject(event.manifest.sessionId, event.invalidation);
   invalidateQueryCacheByProject(event.manifest.sessionId, event.invalidation);
-  acceptedProjections.get(sync)!.add(key);
+  sync.markProjectionAccepted(event.manifest.modRoot, event.manifest.sessionId, event.projectionRevision);
 }
 
 export function applyCommittedWriteCacheInvalid(sessionId: string, result: WriteResult<unknown>) {
@@ -248,7 +245,6 @@ export async function refreshProjectSourcePaths(
   sessionId: string,
   modRoot: string,
   paths: string[],
-  current: () => boolean,
   resources: readonly InvalidatedResourceScope[] = [],
 ) {
   const sources: InvalidatedResourceScope[] = paths.map((path) =>
@@ -261,12 +257,22 @@ export async function refreshProjectSourcePaths(
             .at(-1)!,
         },
   );
-  const result = await refreshProjectSources(sessionId, [
-    ...new Map([...sources, ...resources].map((source) => [JSON.stringify(source), source])).values(),
-  ]);
-  if (!current()) return;
-  acceptSourceRefresh(result);
-  await emitWindowEvent(WINDOW_EVENTS.projectSourcesRefreshed, { ...result, originWindowLabel: currentWindowLabel() });
+  let active = true;
+  const stop = subscribeQueryInvalidations((event) => {
+    if (event.sessionId === sessionId && event.scope === 'session') active = false;
+  });
+  try {
+    const result = await refreshProjectSources(sessionId, [
+      ...new Map([...sources, ...resources].map((source) => [JSON.stringify(source), source])).values(),
+    ]);
+    if (!active) return;
+    acceptSourceRefresh(result);
+    await emitWindowEvent(WINDOW_EVENTS.projectSourcesRefreshed, { ...result, originWindowLabel: currentWindowLabel() });
+  } catch (error) {
+    if (active) throw error;
+  } finally {
+    stop();
+  }
 }
 function acceptSourceRefresh(event: ProjectSessionInvalidatedEvent) {
   const project = useProjectStore();

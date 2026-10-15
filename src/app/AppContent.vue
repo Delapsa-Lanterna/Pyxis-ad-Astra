@@ -14,7 +14,7 @@
         @edit-failure-file="actions.openModOpeningFailureFile"
         @load-mod="actions.loadOverviewMod"
       />
-      <SettingsPage v-else-if="workspace.currentView === 'settings'" />
+      <SettingsPage v-else-if="workspace.currentView === 'settings'" :close-workspace="() => actions.confirmCloseWorkspace(false)" />
       <AboutPage v-else-if="workspace.currentView === 'about'" />
       <ModFileBrowser v-else-if="workspace.currentView === 'mod-files' && project.activeManifest" />
       <TableWorkspace v-else-if="workspace.currentView === 'table' && project.activeManifest" />
@@ -67,8 +67,7 @@ const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some(
 useContextMenuScope({
   identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
   canRefresh: () => actions.canRefreshOverview.value,
-  refresh: (current) =>
-    workspace.currentView === 'overview' ? actions.refreshWorkspace(current) : actions.refreshModOverview(project.activeModRoot!, current),
+  refresh: () => (workspace.currentView === 'overview' ? actions.refreshWorkspace() : actions.refreshModOverview(project.activeModRoot!)),
 });
 const closeGuard = useDirtyWindowCloseGuard({
   beforeClose: actions.closeWorkspaceWindows,

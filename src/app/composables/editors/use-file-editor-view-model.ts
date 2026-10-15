@@ -340,7 +340,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     canRefresh: () => Boolean(currentPath.value),
     refresh: async (current) => {
       const target = fileEditorTarget()!;
-      if (target.sessionId) await refreshProjectSourcePaths(target.sessionId, target.modRoot, [target.filePath], current);
+      if (target.sessionId) await refreshProjectSourcePaths(target.sessionId, target.modRoot, [target.filePath]);
       if (current()) await draftSession.refreshTarget(target);
     },
   });

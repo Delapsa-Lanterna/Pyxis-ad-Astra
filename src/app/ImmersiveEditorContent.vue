@@ -19,7 +19,7 @@
   >
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
     <WeaponImmersivePanel v-else-if="panel?.kind === 'weapon'" :panel="panel" :render="render" @open-projectile="vm.openProjectile" />
-    <WingImmersivePanel v-else-if="panel?.kind === 'wing'" :panel="panel" :render="render" />
+    <WingImmersivePanel v-else-if="panel?.kind === 'wing'" :panel="panel" :render="render" @create-source="vm.wing!.createMissingSource" />
     <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" :panel="panel" :vm="vm.variant!" :render="render">
       <template #meta>
         <ImmersiveEditorActions

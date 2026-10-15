@@ -1,5 +1,5 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { computed, ref } from 'vue';
+import { computed, ref, onScopeDispose } from 'vue';
 import { pickDirectoryDialog } from '@/shared/runtime/dialog.runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { clearLog, loadLogStatus, openLogFile } from '@/services/app-log.service';
@@ -9,15 +9,19 @@ import { saveLogDirectory } from '@/orchestrators/settings-persistence.orchestra
 import { querySystemFonts } from '@/services/app-settings.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 
-export function useSettingsViewModel() {
+export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const settings = useSettingsStore();
   const feedback = useAppFeedback();
   const logSizeBytes = ref(0);
   const logPath = ref('');
   const formattedLogSize = computed(() => formatBytes(logSizeBytes.value));
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
-  const configActions = useAppConfigActions(refreshLogStatus);
+  const configActions = useAppConfigActions(closeWorkspace);
   const reads = useQueryReadOwner();
+  let active = true;
+  onScopeDispose(() => {
+    active = false;
+  });
   const systemFonts = ref<string[]>([]);
   const fontsLoading = ref(false);
   const fontOptions = computed(() => [
@@ -52,8 +56,8 @@ export function useSettingsViewModel() {
     if (!selected || typeof selected !== 'string') return;
     try {
       await saveLogDirectory(selected);
-      await refreshLogStatus();
       feedback.success('日志输出目录已更新');
+      if (active) await refreshLogStatus();
     } catch (error) {
       feedback.error(error, '保存日志输出目录失败');
     }
@@ -62,27 +66,27 @@ export function useSettingsViewModel() {
   async function restoreDefaultLogDirectory() {
     try {
       await saveLogDirectory(null);
-      await refreshLogStatus();
       feedback.success('日志输出目录已恢复默认位置');
+      if (active) await refreshLogStatus();
     } catch (error) {
       feedback.error(error, '恢复默认日志输出目录失败');
     }
   }
 
   async function refreshLogStatus() {
-    try {
-      const status = await loadLogStatus();
-      logSizeBytes.value = status.sizeBytes;
-      logPath.value = status.path;
-    } catch (error) {
-      feedback.error(error, '读取 log 状态失败');
-    }
+    await reads.consume('log-status', {}, loadLogStatus, {
+      ready: (status) => {
+        logSizeBytes.value = status.sizeBytes;
+        logPath.value = status.path;
+      },
+      error: (error) => feedback.error(error, '读取 log 状态失败'),
+    });
   }
 
   async function openLogFileAction() {
     try {
       await openLogFile();
-      await refreshLogStatus();
+      if (active) await refreshLogStatus();
     } catch (error) {
       feedback.error(error, '打开 log 文件失败');
     }
@@ -95,9 +99,13 @@ export function useSettingsViewModel() {
       actionText: '清除',
       onConfirm: async () => {
         try {
+          reads.revoke('consumer', 'log-status');
           const status = await clearLog();
-          logSizeBytes.value = status.sizeBytes;
-          logPath.value = status.path;
+          if (active) {
+            reads.revoke('consumer', 'log-status');
+            logSizeBytes.value = status.sizeBytes;
+            logPath.value = status.path;
+          }
           feedback.success('log 文件已清除');
         } catch (error) {
           feedback.error(error, '清除 log 文件失败');

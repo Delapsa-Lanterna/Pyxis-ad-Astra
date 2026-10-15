@@ -163,7 +163,7 @@ describe('useWorkspaceShellActions', () => {
     (feedback.choose as ReturnType<typeof vi.fn>).mockResolvedValue('close');
     const actions = useWorkspaceShellActions(feedback);
 
-    await actions.confirmCloseWorkspace();
+    expect(await actions.confirmCloseWorkspace()).toBe(true);
     const content = (feedback.choose as ReturnType<typeof vi.fn>).mock.calls[0]![0].content;
     expect(content).toContain('未保存修改');
     await vi.waitFor(() => expect(mocks.closeWorkspaceRuntime).toHaveBeenCalledTimes(1));
@@ -189,7 +189,7 @@ describe('useWorkspaceShellActions', () => {
     dirty.value = true;
     saving.value = false;
     release(saved);
-    await closing;
+    expect(await closing).toBe(saved);
     if (saved) {
       expect(feedback.choose).toHaveBeenCalledOnce();
       expect((feedback.choose as ReturnType<typeof vi.fn>).mock.calls[0]![0].content).toContain('未保存修改');
@@ -206,6 +206,32 @@ describe('useWorkspaceShellActions', () => {
     const actions = useWorkspaceShellActions(feedback);
     await actions.saveChanges();
     expect(mocks.saveTableChanges).toHaveBeenCalledTimes(1);
+  });
+  it('returns child-window cancellation to the config-clearing caller', async () => {
+    mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
+    mocks.closeWorkspaceRuntime.mockResolvedValueOnce(false);
+    const feedback = feedbackStub();
+    vi.mocked(feedback.choose).mockResolvedValueOnce('close');
+    expect(await useWorkspaceShellActions(feedback).confirmCloseWorkspace(false)).toBe(false);
+    expect(feedback.success).not.toHaveBeenCalled();
+  });
+  it('lets configuration maintenance own the final success feedback', async () => {
+    mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
+    const feedback = feedbackStub();
+    vi.mocked(feedback.choose).mockResolvedValueOnce('close');
+    expect(await useWorkspaceShellActions(feedback).confirmCloseWorkspace(false)).toBe(true);
+    expect(mocks.closeWorkspaceRuntime).toHaveBeenCalledOnce();
+    expect(feedback.success).not.toHaveBeenCalled();
+  });
+  it('returns an explicit cancellation or failure before config clearing can proceed', async () => {
+    mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
+    const feedback = feedbackStub();
+    const actions = useWorkspaceShellActions(feedback);
+    expect(await actions.confirmCloseWorkspace(false)).toBe(false);
+    vi.mocked(feedback.choose).mockResolvedValueOnce('close');
+    mocks.closeWorkspaceRuntime.mockRejectedValueOnce(new Error('session close failed'));
+    expect(await actions.confirmCloseWorkspace(false)).toBe(false);
+    expect(feedback.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '关闭工作区失败');
   });
 
   it('reports the save result of the active table', async () => {
@@ -303,13 +329,11 @@ describe('useWorkspaceShellActions', () => {
     mocks.refreshProjectSourcePaths.mockImplementationOnce(async () => {
       useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } }, 1);
     });
-    await actions.refreshModOverview(manifest.modRoot, () => true);
-    expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledWith(
-      's1',
-      manifest.modRoot,
-      [manifest.modRoot + '/mod_info.json', manifest.modRoot + '/data'],
-      expect.any(Function),
-    );
+    await actions.refreshModOverview(manifest.modRoot);
+    expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledWith('s1', manifest.modRoot, [
+      manifest.modRoot + '/mod_info.json',
+      manifest.modRoot + '/data',
+    ]);
     expect(workspace.activeMod).toMatchObject({ displayName: 'After', version: '2' });
     workspace.activateModConfig(manifest.modRoot, 'file-history');
     expect(actions.canRefreshOverview.value).toBe(false);
@@ -323,7 +347,7 @@ describe('useWorkspaceShellActions', () => {
     expect(mocks.refreshProjectSourcePaths.mock.calls.map((args) => args[0])).toEqual(['s1', 's2']);
     expect(mocks.scanDirectoryGameOverview).not.toHaveBeenCalled();
   });
-  it.each([false, true])('retains the current card after refresh handoff or disposal: %s', async (dispose) => {
+  it.each([false, true])('keeps overview refresh at the workspace lifetime with disposal: %s', async (dispose) => {
     const manifest = registerOverview('C:/mods/alpha', 's1');
     let finish!: () => void;
     mocks.refreshProjectSourcePaths.mockImplementationOnce(
@@ -334,14 +358,15 @@ describe('useWorkspaceShellActions', () => {
     );
     const scope = effectScope();
     const actions = scope.run(() => useWorkspaceShellActions(feedbackStub()))!;
-    let current = true;
-    const pending = actions.refreshModOverview(manifest.modRoot, () => current);
+    const pending = actions.refreshModOverview(manifest.modRoot);
     if (dispose) scope.stop();
-    else current = false;
+    else useWorkspaceStore().showSettings();
     useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } }, 1);
     finish();
     await pending;
-    expect(useWorkspaceStore().loadedModList[0]).toMatchObject({ displayName: 'Before', version: '1' });
+    expect(useWorkspaceStore().loadedModList[0]).toMatchObject(
+      dispose ? { displayName: 'Before', version: '1' } : { displayName: 'After', version: '2' },
+    );
   });
   it('reports a loaded-session refresh failure and retains its current entry', async () => {
     registerOverview('C:/mods/alpha', 's1');

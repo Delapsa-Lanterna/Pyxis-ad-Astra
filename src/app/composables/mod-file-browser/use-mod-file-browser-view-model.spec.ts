@@ -151,6 +151,22 @@ describe('mod file browser actions and read lifetime', () => {
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith(error, '打开文件失败');
     expect(mocks.open).not.toHaveBeenCalled();
   });
+  it('reports an already delivered window request failure after leaving the browser', async () => {
+    const { vm, scope } = await open();
+    mocks.file.mockResolvedValueOnce({ sessionId: 's1', modRoot: 'M:/A', path: 'M:/A/README' });
+    let fail!: (error: Error) => void;
+    mocks.open.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = reject;
+        }),
+    );
+    await vm.actions.activate('README');
+    scope.stop();
+    fail(new Error('window startup failed'));
+    await flushPromises();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '打开文件编辑器失败');
+  });
   it('keeps accepted content through failure and recovers via refresh', async () => {
     const { vm } = await open();
     const before = vm.view.nodes;

@@ -62,7 +62,7 @@ export function useConfigMissionViewModel() {
   useContextMenuScope({
     identity: () => sessionKey(),
     canRefresh: () => Boolean(sessionId.value),
-    refresh: (current) =>
+    refresh: () =>
       refreshProjectSourcePaths(
         sessionId.value!,
         modRoot.value!,
@@ -72,7 +72,6 @@ export function useConfigMissionViewModel() {
             .flat()
             .map((version) => version.path),
         ],
-        current,
         missionIconResourceRefs.value,
       ),
   });
