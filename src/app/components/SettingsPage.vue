@@ -75,7 +75,7 @@
         <span>沉浸式编辑器原版字体</span>
         <n-switch class="tool-switch" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" />
       </div>
-      <div class="settings-hint">从游戏安装目录加载原版字体。原版字体缺字时，按设计显示英文问号。</div>
+      <div class="settings-hint">从游戏安装目录加载原版字体。原版字体缺字时，以英文问号代替。</div>
     </section>
     <section class="settings-section">
       <h3>编辑模式</h3>

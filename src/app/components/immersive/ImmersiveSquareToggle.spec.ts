@@ -14,6 +14,15 @@ describe('original square toggle', () => {
     await wrapper.setProps({ checked: true });
     expect(wrapper.attributes('aria-checked')).toBe('true');
     expect(wrapper.find('img').attributes('src')).toBe('on.png');
+    for (const missing of ['onImage', 'offImage']) {
+      await wrapper.setProps({ onImage: 'on.png', offImage: 'off.png', [missing]: '' });
+      expect(wrapper.classes()).toContain('fallback');
+      expect(wrapper.find('img').exists()).toBe(false);
+      expect(wrapper.attributes('aria-checked')).toBe('true');
+    }
+    await wrapper.setProps({ onImage: 'new-on.png', offImage: 'new-off.png', checked: false });
+    expect(wrapper.classes()).not.toContain('fallback');
+    expect(wrapper.find('img').attributes('src')).toBe('new-off.png');
     wrapper.unmount();
   });
 });

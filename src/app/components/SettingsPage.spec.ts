@@ -51,7 +51,6 @@ describe('settings limit controls', () => {
     await immersive.get('select').setValue('""');
     expect(useSettingsStore().generalFont).toBeNull();
     expect(immersive.text()).toContain('从游戏安装目录加载原版字体');
-    expect(immersive.text()).toContain('按设计显示英文问号');
     expect(useSettingsStore().immersiveGameFont).toBe(true);
     await immersive.get('button').trigger('click');
     expect(useSettingsStore().immersiveGameFont).toBe(false);

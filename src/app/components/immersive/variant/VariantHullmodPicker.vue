@@ -24,8 +24,8 @@
           @click="sort(column.key)"
         >
           <ImmersiveText :text="column.label" font="heading" ink-aligned outlined /><ImmersiveResourceIcon
-            v-if="uiImages.sortIcon"
-            :source="uiImages.sortIcon"
+            :source="uiImages.sortIcon || ''"
+            fallback="sortIcon"
             color="#aadeff"
             :size="15"
             label="排序"
@@ -74,17 +74,14 @@
               ><ImmersiveText :text="abbreviate(hullmodDesign(entry), columnWidths[1]! - 6)" ink-aligned outlined
             /></span>
             <span :style="{ color: state(entry).costColor }"><ImmersiveText :text="state(entry).costText" ink-aligned outlined /></span>
-            <span :ref="visible.mediaRef('status/' + entry.id, statusRef(entry))"
+            <span
               ><ImmersiveResourceIcon
-                v-if="visible.mediaSrc(statusRef(entry))"
-                :source="visible.mediaSrc(statusRef(entry))"
+                v-if="installed(entry.id)"
+                :source="uiImages[state(entry).iconKey] || ''"
+                :fallback="state(entry).iconKey"
                 :color="state(entry).iconColor"
                 :size="20"
-                :label="state(entry).label" /><ImmersiveText
-                v-else-if="installed(entry.id)"
-                :text="state(entry).label"
-                font="caption"
-                ink-aligned
+                :label="state(entry).label"
             /></span>
           </button>
           <div :style="{ height: viewport.afterHeight.value + 'px' }" aria-hidden="true" />
@@ -143,7 +140,6 @@ import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewpo
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { warningNotice } from '@/shared/lib/errors';
 import { useFontMeasurement } from '@/app/composables/use-original-fonts';
 import { textGraphemes } from '@/domain/fonts/text-layout';
 import { immersiveFontIds } from '@/domain/immersive/font-roles';
@@ -214,17 +210,15 @@ const visible = useVisibleResourceMedia({
   surface: '插件选择列表',
   failureLabel: '插件图片读取失败',
 });
-const statusRef = (entry: import('@/shared/types').JointVariantEntry) => reference.value.referenceSettings.resources[state(entry).iconKey];
 const feedback = useAppFeedback(),
   inputs = useFieldInputs()!,
   prefix = 'variant-hullmod/manual';
 const media = useResourceMediaRegistry({
   surface: '插件选择控件',
   onError: feedback.error,
-  onFailures: (items) =>
-    feedback.warning(warningNotice('插件控件资源缺失：' + items.length, 'resource.read_failed', 'Hullmod selector controls')),
+  onFailures: () => undefined,
 });
-const uiKeys = [
+const uiKeys = computed(() => [
   'sortIcon',
   'ui_border1b_e',
   'ui_border1b_e_bot',
@@ -232,19 +226,20 @@ const uiKeys = [
   'ui_border1b_w',
   'ui_border1b_w_bot',
   'ui_border1b_w_top',
-];
+  ...new Set(viewport.visibleItems.value.map((entry) => state(entry).iconKey).filter(Boolean)),
+]);
 const uiImages = computed(() =>
   Object.fromEntries(
-    uiKeys.map((key) => [key, media.dataUrl(props.root.sessionId, reference.value.referenceSettings.resources[key]) ?? '']),
+    uiKeys.value.map((key) => [key, media.dataUrl(props.root.sessionId, reference.value.referenceSettings.resources[key]) ?? '']),
   ),
 );
 watch(
-  reference,
-  (value) => {
+  [reference, uiKeys],
+  ([value, keys]) => {
     void media.replaceCollection(
       props.root.sessionId,
       'hullmod-ui',
-      uiKeys.flatMap((key) => (value.referenceSettings.resources[key] ? [value.referenceSettings.resources[key]!] : [])),
+      keys.flatMap((key) => (value.referenceSettings.resources[key] ? [value.referenceSettings.resources[key]!] : [])),
     );
   },
   { immediate: true },

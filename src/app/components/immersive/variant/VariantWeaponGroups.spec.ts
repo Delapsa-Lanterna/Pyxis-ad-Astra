@@ -44,7 +44,7 @@ function harness() {
   return { wrapper, inputs, applyVariantAction, values, vm, snapshotRef, group: wrapper.findComponent(VariantWeaponGroups) };
 }
 describe('variant weapon group confirmation', () => {
-  it('registers only square toggle media for the line frame', async () => {
+  it('registers available frame and toggle media together while keeping fallback controls usable', async () => {
     const own = harness();
     for (const key of ['toggle20_on', 'toggle20_off', 'ui_border1_top_left'])
       own.vm.snapshot.value!.referenceSettings.resources[key] = {
@@ -65,8 +65,11 @@ describe('variant weapon group confirmation', () => {
     expect(media.replace).toHaveBeenLastCalledWith(own.vm.joint.currentTarget.value!.sessionId, 'weapon-groups', [
       expect.objectContaining({ key: 'toggle20_on' }),
       expect.objectContaining({ key: 'toggle20_off' }),
+      expect.objectContaining({ key: 'ui_border1_top_left' }),
     ]);
-    expect(own.wrapper.find('.immersive-game-frame').attributes('images')).toBeUndefined();
+    expect(own.wrapper.find('.immersive-game-frame').classes()).not.toContain('textured');
+    expect(own.wrapper.find('[role=checkbox]').classes()).toContain('fallback');
+    expect(own.wrapper.find('.variant-group-resource-note').exists()).toBe(false);
     own.wrapper.unmount();
   });
   it('keeps edits in the input owner and cancels without a history action', async () => {

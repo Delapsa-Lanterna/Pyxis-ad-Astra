@@ -64,7 +64,7 @@ const missingTitle = computed(
             .map((point) => 'U+' + point.codePointAt(0)!.toString(16).toUpperCase())
             .join(' ')}`,
       )
-      .join('；') + (layout.value?.missing.length ? '（按设计显示英文问号）' : ''),
+      .join('；'),
 );
 function paint() {
   const target = canvas.value,

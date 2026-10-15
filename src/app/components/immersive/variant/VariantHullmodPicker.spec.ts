@@ -11,8 +11,9 @@ import { variantJointFixture } from '@/test/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import VariantHullmodPicker from './VariantHullmodPicker.vue';
-const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], media: vi.fn() }));
+const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], media: vi.fn(), dataUrl: vi.fn() }));
 beforeEach(() => {
+  mocks.dataUrl.mockReturnValue('');
   installCanvas2DStub();
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
@@ -45,7 +46,7 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
   }),
 }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({
-  useResourceMediaRegistry: () => ({ replaceCollection: mocks.media, dataUrl: () => '' }),
+  useResourceMediaRegistry: () => ({ replaceCollection: mocks.media, dataUrl: mocks.dataUrl }),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn(), warning: vi.fn() }) }));
 afterEach(() => {
@@ -107,6 +108,26 @@ function harness(count = 6) {
   return { wrapper, inputs, variant, picker: wrapper.findComponent(VariantHullmodPicker) };
 }
 describe('original hullmod picker', () => {
+  it.each(['normal', 'permanent', 's'] as const)('uses visible %s status media and local icons through replacement', async (category) => {
+    const own = harness();
+    await flushPromises();
+    own.variant.value = {
+      ...own.variant.value,
+      mods: [{ id: 'mod_1', name: 'Module', design: 'Common', cost: 0, category, strengthened: false, icon: null }],
+    };
+    await flushPromises();
+    const status = own.wrapper.find('[data-entry-id=mod_1] .immersive-resource-icon');
+    expect(status.find('svg path').exists()).toBe(true);
+    const key = { normal: 'checkmark', permanent: 'checkmark_locked', s: 'checkmark_unlocked' }[category];
+    expect(mocks.media).toHaveBeenLastCalledWith('s', 'hullmod-ui', [expect.objectContaining({ key })]);
+    mocks.dataUrl.mockImplementation((_session, resource?: { key: string }) => (resource ? resource.key + '.png' : ''));
+    own.variant.value = { ...own.variant.value, mods: [...own.variant.value.mods] };
+    await flushPromises();
+    expect(status.find('svg').exists()).toBe(false);
+    expect(status.attributes('style')).toContain(key + '.png');
+    expect(own.wrapper.findAll('.variant-hullmod-columns svg')).toHaveLength(4);
+    own.wrapper.unmount();
+  });
   it('shows details only for a hovered candidate when the catalogue contains an empty ID row', async () => {
     const own = harness();
     await flushPromises();

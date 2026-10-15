@@ -1,5 +1,5 @@
 <template>
-  <ImmersiveGameFrame class="variant-weapon-groups" :style="{ height: groupDialogHeight(equipped.length) + 'px' }">
+  <ImmersiveGameFrame class="variant-weapon-groups" :images="images" :style="{ height: groupDialogHeight(equipped.length) + 'px' }">
     <div
       ref="surface"
       class="variant-group-content"
@@ -156,9 +156,6 @@
         </section>
       </div>
       <div class="variant-group-actions">
-        <span v-if="missingResources.length" class="variant-group-resource-note" :title="missingResources.join('、')"
-          ><ImmersiveText :text="'控件资源来源缺失（' + missingResources.length + '项）'" font="caption"
-        /></span>
         <button class="variant-cut-button" @click="confirm"><ImmersiveText text="确认" font="picker-title" ink-aligned /></button>
         <button class="variant-cut-button" @click="cancel"><ImmersiveText text="取消" font="picker-title" ink-aligned /></button>
       </div>
@@ -190,7 +187,6 @@ import { jointObject } from '@/domain/joint-edit';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
-import { warningNotice } from '@/shared/lib/errors';
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveSquareToggle from '../ImmersiveSquareToggle.vue';
 import ImmersiveGameFrame from '../ImmersiveGameFrame.vue';
@@ -230,11 +226,13 @@ const resources = computed(() => props.vm.snapshot.value?.referenceSettings.reso
 const media = useResourceMediaRegistry({
   surface: '武器组控件',
   onError: feedback.error,
-  onFailures: (items) =>
-    feedback.warning(warningNotice('武器组资源缺失：' + items.length, 'resource.read_failed', 'Weapon group controls')),
+  onFailures: () => undefined,
 });
-const resourceKeys = ['toggle20_on', 'toggle20_off'];
-const missingResources = computed(() => resourceKeys.filter((key) => !resources.value[key]));
+const resourceKeys = [
+  'toggle20_on',
+  'toggle20_off',
+  ...['top_left', 'top', 'top_right', 'left', 'right', 'bot_left', 'bot', 'bot_right'].map((edge) => 'ui_border1_' + edge),
+];
 const images = computed(() => Object.fromEntries(resourceKeys.map((key) => [key, media.dataUrl(sessionId, resources.value[key]) ?? ''])));
 watch(
   resources,

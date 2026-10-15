@@ -1642,7 +1642,20 @@ fn core_header_and_sensor_sources() {
             .keys()
             .map(String::as_str)
             .collect::<Vec<_>>(),
-        ["toggle20_off", "toggle20_on"]
+        [
+            "toggle20_off",
+            "toggle20_on",
+            "ui_border1_top_left",
+            "ui_border1_top_right"
+        ]
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["ui_border1_top_left"].source,
+        ResourceSource::Core
+    );
+    assert_eq!(
+        snapshot.reference_settings.resources["ui_border1_top_right"].source,
+        ResourceSource::Mod
     );
     let key = snapshot.bindings["csv"].clone();
     let mut input = payload(snapshot);
