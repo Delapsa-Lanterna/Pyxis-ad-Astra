@@ -1,5 +1,5 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { requireProjectionReady } from '@/shared/runtime/project-projection';
+import { requireProjectionReady } from '@/services/project-projection.service';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { AppError } from '@/shared/lib/errors';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
@@ -10,7 +10,7 @@ import {
   removeMediaBudgetEntry,
   touchMediaBudgetEntry,
   mediaBudgetLimit,
-} from '@/shared/runtime/media-budget';
+} from '@/services/resource-budget.service';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import type {
   ProjectInvalidation,

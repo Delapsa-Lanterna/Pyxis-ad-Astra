@@ -14,10 +14,10 @@
 `src/app/composables/canvas/use-canvas-state.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览的 owner。
 `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移 owner。
 `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接的 owner。
-`src/app/composables/editors/use-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
 `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
 `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放 owner。
 `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放 owner。
+`src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
 `src/app/composables/use-snapshot-history.ts`：编辑文档消费的目标快照历史适配器。
 `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
 `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。

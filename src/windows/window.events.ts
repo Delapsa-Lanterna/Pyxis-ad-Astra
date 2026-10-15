@@ -1,6 +1,6 @@
 import type { ProjectInvalidation, ProjectManifest, RowData } from '@/shared/types';
 import type { WriteResult } from '@/shared/types';
-import type { EditorSpecKind } from '@/shared/types';
+import type { SpecEditorKind } from '@/shared/types';
 
 export const WINDOW_EVENTS = {
   editTargetPrepare: 'edit-target-prepare',
@@ -15,7 +15,7 @@ export const WINDOW_EVENTS = {
 } as const;
 
 export interface EditorSpecSavedEvent {
-  kind: EditorSpecKind;
+  kind: SpecEditorKind;
   sessionId: string;
   modRoot: string;
   id: string;

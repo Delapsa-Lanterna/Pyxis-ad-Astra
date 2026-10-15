@@ -13,7 +13,7 @@ import { logFields } from '@/shared/lib/log-fields';
 import { useWriteSyncStore } from '@/stores/write-sync.store';
 import { closeNativeSessionWindows } from '@/services/window.service';
 import { retryPendingWritesForMod } from '@/orchestrators/project-session-refresh.orchestrator';
-import { markProjectionReady } from '@/shared/runtime/project-projection';
+import { markProjectionReady } from '@/services/project-projection.service';
 
 export interface WorkspaceCloseTarget {
   gameOverviewRoot: string | null;

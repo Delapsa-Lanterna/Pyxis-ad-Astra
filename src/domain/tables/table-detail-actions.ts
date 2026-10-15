@@ -1,8 +1,8 @@
 import { rowSpecId } from '@/shared/lib/starsector';
-import type { EditorWindowKind, EntityKind, CsvRowRecord, TableKey } from '@/shared/types';
+import type { SpecEditorKind, EntityKind, CsvRowRecord, TableKey } from '@/shared/types';
 import { isCsvCommentRow } from '@/domain/tables/csv-comment-row';
 import { associatedSpecEditorKinds, associatedSpecKind } from '@/domain/tables/associated-specs';
-import { editorWindowLabel } from '@/domain/editors/editor-definitions';
+import { specEditorWindowLabel } from '@/domain/spec-editor/spec-editor-definitions';
 
 export type TableDetailAction =
   | { type: 'weapon-fire-preview'; modRoot: string; sessionId: string; id: string }
@@ -10,7 +10,7 @@ export type TableDetailAction =
   | { type: 'file-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
   | {
       type: 'editor-window';
-      kind: EditorWindowKind;
+      kind: SpecEditorKind;
       modRoot: string;
       sessionId: string;
       starsectorRoot: string | null;
@@ -62,7 +62,7 @@ export function detailActionLabel(action: TableDetailAction): string {
   if (action.type === 'weapon-fire-preview') return '发射预览';
   if (action.type === 'file-editor') return '文件编辑器';
   if (action.type === 'immersive-editor') return '沉浸式编辑器';
-  return editorWindowLabel(action.kind);
+  return specEditorWindowLabel(action.kind);
 }
 
 export function detailActionKey(action: TableDetailAction): string {

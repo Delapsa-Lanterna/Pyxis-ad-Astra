@@ -1,12 +1,36 @@
-import type { DeepReadonly, JointEditRecord, JointValue, JsonValue } from '@/shared/types';
+import type {
+  DeepReadonly,
+  JointEditRecord,
+  JointEditSnapshot,
+  JointEditKind,
+  JointValue,
+  JsonValue,
+  ResourceRef,
+  RowData,
+} from '@/shared/types';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import { applySchemaFieldUpdate, getNestedValue, schemaStringValue } from '@/domain/schema/schema-values';
 import { entityContentIdField } from '@/domain/editors/entity-identity';
 import { jointObject } from '@/domain/joint-edit';
 import type { TextRun } from '@/domain/fonts/font.types';
 import type { ImmersiveFontRole } from './font-roles';
+import { parseInputNumber } from '@/shared/lib/input-number';
 import { createDefaultVariant, createDefaultSkin } from '@/domain/config/config-entities';
-import { variantModuleEntries, setVariantModule } from './variant-actions';
+import { variantModuleEntries, setVariantModule } from '@/domain/config/config-entities';
+
+export interface ImmersivePanelState {
+  kind: JointEditKind;
+  allStats: ImmersiveStat[];
+}
+export interface ImmersiveEditorDefinition<TPanel extends ImmersivePanelState = ImmersivePanelState> {
+  label: string;
+  editableRecords: (snapshot: JointEditSnapshot) => string[];
+  project: (snapshot: JointEditSnapshot, values: Record<string, JointValue>, projection: JointEditSnapshot | null) => TPanel;
+  references: (snapshot: JointEditSnapshot, values: Record<string, JointValue>) => unknown[];
+  media: (panel: TPanel) => ResourceRef[];
+  retainDisplayReferences: boolean;
+  updateField?: typeof updateImmersiveField;
+}
 
 export interface ImmersiveField {
   id: string;
@@ -73,4 +97,11 @@ export function updateImmersiveField(
     ...values,
     [record.key]: { state: 'present', value: applySchemaFieldUpdate(data, field.schema.key, converted) as Record<string, JsonValue> },
   };
+}
+
+export function immersiveNumber(csv: Readonly<RowData>, key: string, fallback: number): number {
+  const raw = schemaStringValue(csv[key]);
+  if (!raw.trim()) return fallback;
+  const value = parseInputNumber(raw, false);
+  return typeof value === 'number' ? value : NaN;
 }

@@ -18,7 +18,7 @@ test('joint edit submission is owned by its orchestrator and registration by its
 
 test('immersive projections and window identity capabilities retain their declared owners', () => {
   const files = architectureFixtures({
-    'src/app/composables/use-immersive-editor-view-model.ts':
+    'src/app/composables/immersive-editor/use-immersive-editor-runtime.ts':
       "import {queryJointEditProjection} from '@/services/joint-edit.service'; queryJointEditProjection(draft);",
     'src/orchestrators/immersive-editor.orchestrator.ts':
       "import {focusNativeManagedWindow,retargetNativeWindow} from '@/services/window.service'; focusNativeManagedWindow(identity); retargetNativeWindow(identity,title);",
@@ -55,11 +55,11 @@ test('joint commands have a single capability owner and reject a second payload 
   const files = architectureFixtures({
     'src/services/joint-edit.service.ts':
       "import {invokeCommand} from '@/shared/runtime/command.runtime'; export const read=(payload)=>invokeCommand('query_joint_edit',{payload});",
-    'src/services/editor.service.ts':
+    'src/services/spec-editor.service.ts':
       "import {invokeCommand} from '@/shared/runtime/command.runtime'; export const read=(payload)=>invokeCommand('query_joint_edit',{payload});",
     'src/shared/runtime/command.runtime.ts': 'export const invokeCommand=(command,args)=>({command,args});',
   });
   const failures = commandBoundaryRule.check(files);
   assert.equal(failures.length, 1);
-  assert.ok(failures[0].includes('src/services/editor.service.ts'));
+  assert.ok(failures[0].includes('src/services/spec-editor.service.ts'));
 });

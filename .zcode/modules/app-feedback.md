@@ -9,8 +9,8 @@
 `src-tauri/src/errors.rs`：后端稳定码、原始错误链、位置与附加 payload。
 `src/app/app-feedback.ts`：反馈工厂及恢复动作 owner。
 `src/app/composables/use-app-feedback.ts`：唯一工厂消费 hook。
+`src/domain/app-feedback.ts`：错误路径所属会话解析。
 `src/shared/lib/errors.ts`：`AppError`、诊断与文案投影主归属。
-`src/shared/lib/feedback-session.ts`：错误路径所属会话解析。
 `src/shared/types/error.types.ts`：诊断与通知对象。
 `src/shared/types/feedback.types.ts`：反馈公开交接类型。
 

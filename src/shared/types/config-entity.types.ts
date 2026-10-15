@@ -9,7 +9,7 @@ export interface ConfigSaveIdentity {
   id: string;
   data: RowData;
   receipt: import('@/shared/types/write.types').WriteResult;
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
 }
 
 export interface ConfigIdentityHandoff<T> {
@@ -28,7 +28,7 @@ export interface ConfigEditTarget {
 }
 
 export interface ConfigFileEntityWrite {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
   previousId: string | null;
@@ -40,7 +40,7 @@ export interface ConfigFileEntityWrite {
 export type IndexedConfigKind = 'faction' | 'mission';
 
 export interface IndexedConfigEntityWrite {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
   kind: IndexedConfigKind;
@@ -51,7 +51,7 @@ export interface IndexedConfigEntityWrite {
 }
 
 export interface DeleteIndexedConfigEntityWrite {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
   kind: IndexedConfigKind;
@@ -60,7 +60,7 @@ export interface DeleteIndexedConfigEntityWrite {
 }
 
 export interface IndexedConfigEntityData {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   entityId: string;
   indexPath: string;
   indexHeader: string[];
@@ -71,7 +71,7 @@ export interface IndexedConfigEntityData {
 export type VariantEntityWrite = ConfigFileEntityWrite;
 
 export interface DeleteVariantEntityWrite {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
   entityId: string;
@@ -81,7 +81,7 @@ export interface DeleteVariantEntityWrite {
 export type SkinEntityWrite = ConfigFileEntityWrite;
 
 export interface DeleteSkinEntityWrite {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
   entityId: string;
@@ -89,7 +89,7 @@ export interface DeleteSkinEntityWrite {
 }
 
 export interface ConfigMissionEditorData {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   list: RowData;
   descriptor: RowData;
   text: string;
@@ -97,9 +97,9 @@ export interface ConfigMissionEditorData {
 }
 
 export interface ConfigFamilyFile {
-  target: import('@/shared/types/entity-target.types').EntityEditTarget;
+  target: import('@/shared/types/project-identity.types').EntityEditTarget;
   id: string;
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   path: string;
   relPath: string;
   data: RowData;

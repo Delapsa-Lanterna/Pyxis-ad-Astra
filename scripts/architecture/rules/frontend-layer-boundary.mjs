@@ -1,5 +1,5 @@
 import { classifyFrontendPath } from '../../shared/classify.mjs';
-import { frontendFile } from '../../shared/files.mjs';
+import { frontendFile, specFile } from '../../shared/files.mjs';
 import { importedProjectPaths } from '../../shared/imports.mjs';
 import { dependencyDiagnostic, frontendDependencyFailure } from '../../shared/frontend-policy.mjs';
 
@@ -24,26 +24,20 @@ export const frontendLayerBoundaryRule = {
         const reason = frontendDependencyFailure(current, target, edge);
         if (reason) reject(edge, reason);
       }
-      if (current.role === 'api' && /\bexport\s+(?:interface|type)\s+(?!\{)/.test(file.text))
-        failures.push(`${file.rel}: wire APIs must consume business types from shared/types or domain`);
       if (/\b(?:localStorage|sessionStorage|indexedDB)\b/.test(file.text))
         failures.push(`${file.rel}: app state persistence must use app config services`);
     }
-    failures.push(...orchestratorCycleFailures(files));
+    failures.push(...frontendCycleFailures(files));
     return failures;
   },
 };
 
 /** @param {import('../../shared/files.mjs').RepoFile[]} files @returns {string[]} */
-function orchestratorCycleFailures(files) {
-  const modules = files.filter((file) => classifyFrontendPath(file.rel).layer === 'orchestrators');
+function frontendCycleFailures(files) {
+  const modules = files.filter((file) => frontendFile(file.rel) && !specFile(file.rel));
+  const nodes = new Set(modules.map((file) => file.rel));
   const graph = new Map(
-    modules.map((file) => [
-      file.rel,
-      file.dependencies
-        .filter((edge) => !edge.typeOnly && classifyFrontendPath(edge.resolved).layer === 'orchestrators')
-        .map((edge) => edge.resolved),
-    ]),
+    modules.map((file) => [file.rel, file.dependencies.filter((edge) => nodes.has(edge.resolved)).map((edge) => edge.resolved)]),
   );
   const visiting = new Set();
   const visited = new Set();
@@ -52,7 +46,7 @@ function orchestratorCycleFailures(files) {
   /** @param {string} rel @param {string[]} trail */
   function visit(rel, trail) {
     if (visiting.has(rel)) {
-      failures.push(`${rel}: orchestrator dependency cycle detected: ${[...trail.slice(trail.indexOf(rel)), rel].join(' -> ')}`);
+      failures.push(`${rel}: frontend dependency cycle detected: ${[...trail.slice(trail.indexOf(rel)), rel].join(' -> ')}`);
       return;
     }
     if (visited.has(rel)) return;

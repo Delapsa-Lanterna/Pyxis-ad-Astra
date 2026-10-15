@@ -162,7 +162,7 @@ test('type-only export-star has no runtime capability origin and cyclic barrels 
 test('classification expresses flat domain and actual responsibility suffixes consistently', () => {
   assert.equal(classifyFrontendPath('src/domain/edit-session.ts').domain, 'edit-session');
   assert.equal(classifyFrontendPath('src/services/csv-table.service.ts').domain, 'csv-table');
-  assert.equal(classifyFrontendPath('src/shared/api/files-api.ts').domain, 'files');
+  assert.equal(classifyFrontendPath('src/services/files.service.ts').domain, 'files');
   assert.equal(classifyFrontendPath('src/orchestrators/table-save.orchestrator.ts').domain, 'table-save');
 });
 

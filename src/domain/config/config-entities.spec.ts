@@ -1,3 +1,4 @@
+import { variantModuleEntries, setVariantModule, renameVariantModules } from './config-entities';
 import { describe, expect, it } from 'vitest';
 import { configEntityIdInvalidMessage, createDefaultFaction, createDefaultSkin } from '@/domain/config/config-entities';
 import { configFactionSaveDraft, configMissionSaveDraft, configModInfoSaveData } from '@/domain/config/config-entities';
@@ -55,5 +56,24 @@ describe('config entity id invalid message', () => {
     const plain = '势力 ID 仅允许以 ASCII 字母或数字开头，只能包含 ASCII 字母、数字、下划线（_）、点（.）、连字符（-）';
     expect(configEntityIdInvalidMessage('势力 ID')).toBe(plain);
     expect(configEntityIdInvalidMessage('势力 ID', '')).toBe(plain);
+  });
+});
+
+describe('variant module format and identity', () => {
+  it.each([false, true])('preserves module order and unknown content during identity changes', (array) => {
+    const modules: import('@/shared/types').JsonValue = array ? [{ B: 'old' }, { A: 'other' }] : { B: 'old', A: 'other' };
+    const source = { variantId: 'root', modules, custom: { value: 3 } };
+    const renamed = renameVariantModules(source, 'old', 'new');
+    expect(variantModuleEntries(renamed.modules)).toEqual([
+      ['B', 'new'],
+      ['A', 'other'],
+    ]);
+    expect(renamed.custom).toEqual({ value: 3 });
+    expect(Array.isArray(renamed.modules)).toBe(Array.isArray(modules));
+    expect(variantModuleEntries(setVariantModule(renamed, 'B', '').modules)).toEqual([['A', 'other']]);
+    expect(variantModuleEntries(source.modules)).toEqual([
+      ['B', 'old'],
+      ['A', 'other'],
+    ]);
   });
 });

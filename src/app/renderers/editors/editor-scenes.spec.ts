@@ -5,8 +5,8 @@ import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import { createThemeColors } from '@/domain/settings/theme';
 import { renderCanvasCursor, type CanvasScene } from './canvas-scene';
-import { renderShipScene, type ShipScene } from './ship-scene';
-import { renderWeaponScene, type WeaponScene } from './weapon-scene';
+import { renderSpecShipEditorScene, type SpecShipEditorScene } from '../spec-editor/ship/spec-ship-scene';
+import { renderSpecWeaponEditorScene, type SpecWeaponEditorScene } from '../spec-editor/weapon/spec-weapon-scene';
 import { renderWeaponImages } from './weapon-images';
 
 function canvasScene(): CanvasScene {
@@ -21,7 +21,7 @@ function canvasScene(): CanvasScene {
   };
 }
 
-function shipScene(): ShipScene {
+function shipScene(): SpecShipEditorScene {
   return {
     base: canvasScene(),
     geometry: {
@@ -119,7 +119,7 @@ describe('editor scene rendering', () => {
     const recording = createCanvasRecorder();
     const sprite = { width: 100, height: 80 } as HTMLImageElement;
     const tintedSprite = { width: 100, height: 80 } as HTMLCanvasElement;
-    renderShipScene(recording.ctx, {
+    renderSpecShipEditorScene(recording.ctx, {
       ...shipScene(),
       interaction: { ...shipScene().interaction, mode },
       resources: { sprite, tintedSprite },
@@ -142,7 +142,7 @@ describe('editor scene rendering', () => {
         relPath: 'graphics/gun.png',
         key: 'turretSprite',
       };
-      renderShipScene(recording.ctx, {
+      renderSpecShipEditorScene(recording.ctx, {
         ...shipScene(),
         interaction: { ...shipScene().interaction, mode },
         resources: { sprite, tintedSprite: null },
@@ -236,7 +236,7 @@ describe('editor scene rendering', () => {
   ])('renders selected, hovered and mirrored barrels with their final styles: %j', ({ expected, ...selection }) => {
     const recording = createCanvasRecorder(),
       base = canvasScene();
-    renderWeaponScene(recording.ctx, {
+    renderSpecWeaponEditorScene(recording.ctx, {
       base,
       assets: {
         images: new Map(),
@@ -261,7 +261,7 @@ describe('editor scene rendering', () => {
 
   it('paints the ship radius fills before its bounds', () => {
     const recording = createCanvasRecorder();
-    renderShipScene(recording.ctx, shipScene());
+    renderSpecShipEditorScene(recording.ctx, shipScene());
     const fills = recording.ops
       .map((op, index) => ({ op, index }))
       .filter(({ op }) => op.op === 'fill' && String(op.args[0]).startsWith('rgba('));
@@ -274,7 +274,7 @@ describe('editor scene rendering', () => {
   it('preserves the effective slot and engine ghost opacities', () => {
     const slot = createCanvasRecorder(),
       engine = createCanvasRecorder();
-    renderShipScene(slot.ctx, {
+    renderSpecShipEditorScene(slot.ctx, {
       ...shipScene(),
       geometry: { ...shipScene().geometry, bounds: [] },
       interaction: {
@@ -287,7 +287,7 @@ describe('editor scene rendering', () => {
         },
       },
     });
-    renderShipScene(engine.ctx, {
+    renderSpecShipEditorScene(engine.ctx, {
       ...shipScene(),
       geometry: { ...shipScene().geometry, bounds: [] },
       interaction: {
@@ -307,7 +307,7 @@ describe('editor scene rendering', () => {
   it('paints the weapon ghost with its final marker opacity and an opaque number', () => {
     const recording = createCanvasRecorder(),
       base = canvasScene();
-    const scene: WeaponScene = {
+    const scene: SpecWeaponEditorScene = {
       base,
       assets: {
         images: new Map(),
@@ -325,7 +325,7 @@ describe('editor scene rendering', () => {
       angles: [],
       preview: { kind: 'add', coord: { x: 0, y: 0 } },
     };
-    renderWeaponScene(recording.ctx, scene);
+    renderSpecWeaponEditorScene(recording.ctx, scene);
     expect(recording.calls('fill').at(-1)!.alpha).toBe(0.8);
     expect(recording.calls('fillText').at(-1)!.alpha).toBe(1);
     expect(recording.calls('fillText').at(-1)!.args[0]).toBe('1');

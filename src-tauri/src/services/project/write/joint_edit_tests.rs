@@ -1636,12 +1636,13 @@ fn core_header_and_sensor_sources() {
         ResourceSource::Core
     );
     assert_eq!(
-        snapshot.reference_settings.resources["ui_border1_top_left"].source,
-        ResourceSource::Core
-    );
-    assert_eq!(
-        snapshot.reference_settings.resources["ui_border1_top_right"].source,
-        ResourceSource::Mod
+        snapshot
+            .reference_settings
+            .resources
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["toggle20_off", "toggle20_on"]
     );
     let key = snapshot.bindings["csv"].clone();
     let mut input = payload(snapshot);

@@ -2,7 +2,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { defineComponent } from 'vue';
 import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
-import { projectShipPanel } from '@/domain/immersive/ship-panel';
+import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import ImmersiveStatRow from './ImmersiveStatRow.vue';
 afterEach(() => {
   vi.restoreAllMocks();

@@ -4,7 +4,7 @@ import { logFields } from '@/shared/lib/log-fields';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import type { PersistedMod, ProjectManifest, FeedbackNotice } from '@/shared/types';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { formatLoadWarnings } from '@/domain/project/load-warnings';
+import { formatLoadWarnings } from '@/domain/project/load-diagnostics';
 import { hydrateOpenedModRuntime, openModProjectManifest } from '@/orchestrators/directory-opening.orchestrator';
 import { measurePerformance } from '@/shared/runtime/performance';
 import { recordLogBestEffort } from '@/services/app-log.service';

@@ -10,7 +10,7 @@ import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/sha
 import type { InvalidatedResourceScope } from '@/shared/types';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceCacheByProject } from '@/services/resource-cache.service';
-import { markProjectionPending, markProjectionReady } from '@/shared/runtime/project-projection';
+import { markProjectionPending, markProjectionReady } from '@/services/project-projection.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { WriteResult } from '@/shared/types';
 

@@ -9,6 +9,7 @@
 `src-tauri/src/commands/entity_query.rs`：实体读取 command 的参数及返回模型主归属。
 `src/app/composables/use-query-read-owner.ts`：`ReadTicket` 消费者等待、请求通道与释放主归属。
 `src/services/entity-query.service.ts`：详情、列表、实际目标、身份意图及草稿资源能力主归属。
+`src/services/project-projection.service.ts`：查询与媒体读取共同消费的会话投影门控。
 `src/services/query-cache.service.ts`：八类缓存、single-flight、失效匹配与实时读取 owner。
 `src/shared/lib/query-snapshot.ts`：只读记录到所属独立可写快照的交接。
 `src/shared/runtime/cache.ts`：类型化 LRU 与 `pending` 原语主归属。

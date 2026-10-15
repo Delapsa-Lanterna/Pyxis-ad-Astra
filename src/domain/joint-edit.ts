@@ -14,7 +14,7 @@ import { formatJsonInput } from '@/shared/lib/json-input';
 import { entityContentIdField } from '@/domain/editors/entity-identity';
 import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { renameVariantModules } from '@/domain/immersive/variant-actions';
+import { renameVariantModules } from '@/domain/config/config-entities';
 
 export function jointObject(value: DeepReadonly<JointValue> | undefined): Readonly<RowData> {
   return value?.state === 'present' && isRowData(value.value) ? value.value : {};

@@ -74,21 +74,26 @@
 - [表格保存与变更集](modules/table-save-changeset.md)：说明 dirty patches、关联 spec 动作、原子 changeset、rowKey map 与保存后提交。
 - [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、保存等待、EditContext、快照历史与未保存注册表。
 - [联合编辑与目标交接](modules/joint-editing.md)：说明联合来源快照、物理写入范围、跨编辑面保存准备、三方冲突选择、原子提交及释放。
-- [沉浸式编辑器](modules/immersive-editors.md)：说明领域内容渲染器、只读与编辑能力、窗口壳、字段浮层、装配动作、候选读取、悬浮信息与联合会话生命周期交接。
+- [沉浸式编辑器基础](modules/immersive-editor.md)：说明共同运行态、字段展示、来源选择、资源与舰体场景。
+- [沉浸式舰船编辑器](modules/immersive-ship-editor.md)：说明舰船字段、基础统计与只读信息内容。
+- [沉浸式武器编辑器](modules/immersive-weapon-editor.md)：说明武器信息、分支动作与弹体打开。
+- [沉浸式联队编辑器](modules/immersive-wing-editor.md)：说明联队信息、来源引用与行身份跟随。
+- [沉浸式装配编辑器](modules/immersive-variant-editor.md)：说明装配投影、装备动作、模块导航与候选交互。
 - [字体](modules/fonts.md)：说明原版字体读取、逐字体回退、缺字问号、文字测量、共享图集和展示生命周期。
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。
 - [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、CSV 草稿优先级与文件 history 分派。
+- [Spec 编辑器基础](modules/spec-editor.md)：说明规格宿主、基础契约、文档交接与四类实现装配。
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布命中检测、选区同步、镜像轴、光标绘制、undo 集成与显式 draft 提交引擎。
 - [Mod 文件浏览器](modules/mod-file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。
 - [文件编辑器](modules/file-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
 - [配置系统](modules/config.md)：说明 mod_info、Faction、Mission、Variant、Skin、目标草稿、实体 query/write 与文件级 history。
 - [字段模式系统](modules/schema.md)：说明 schema 资产加载、runtime、字段渲染、editMode、校验、引用 source、SelectOption 与资源选择。
 - [配置实体族编辑器](modules/family-editors.md)：说明装配与皮肤两族参数化编辑、family 定义、实体 query/write 和单文件保存。
-- [舰船编辑器](modules/ship-editor.md)：说明 `.ship` 画布注入、槽位、引擎、shield、贴图引用选择与独立窗口保存。
-- [武器编辑器](modules/weapon-editor.md)：说明武器编辑、依赖读取、资源及预览快照交付。
-- [弹体编辑器](modules/projectile-editor.md)：说明弹体与导弹字段、引擎、规格查询及保存交接。
+- [Spec 舰船编辑器](modules/spec-ship-editor.md)：说明 `.ship` 画布注入、槽位、引擎、shield、贴图引用选择与独立窗口保存。
+- [Spec 武器编辑器](modules/spec-weapon-editor.md)：说明武器编辑、依赖读取、资源及预览快照交付。
+- [Spec 弹体编辑器](modules/spec-projectile-editor.md)：说明弹体与导弹字段、引擎、规格查询及保存交接。
 - [武器开火预览](modules/weapon-fire-preview.md)：说明预览来源、只读查询、模拟、播放控制与独立窗口生命周期。
-- [战术系统编辑器](modules/system-editor.md)：说明 `.system` spec、schema 表单、type 条件字段与独立窗口保存。
+- [Spec 战术系统编辑器](modules/spec-system-editor.md)：说明 `.system` spec、schema 表单、type 条件字段与独立窗口保存。
 - [资源与原版回退](modules/assets-core-fallback.md)：说明 `ResourceRef`、Mod/Core 优先级、批量 data URL、引用选择、媒体预算、可见资源集合及 Core 来源目录缓存。
 - [后端文件读写与变更集](modules/rust-file-io-changeset.md)：说明 UTF-8 IO、canonical 路径、父链校验、文件或目录快照与 replay。
 - [性能基线](modules/performance-baseline.md)：说明正式计时日志、可复现样本、ProjectSession 阶段、持久化索引和入口 bundle 体积。

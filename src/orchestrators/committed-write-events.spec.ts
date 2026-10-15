@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CommittedWriteEvent, EditorSpecKind, FileChangeRecord } from '@/shared/types';
+import type { CommittedWriteEvent, SpecEditorKind, FileChangeRecord } from '@/shared/types';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
 import { entityTargetFixture } from '@/test/entity-target';
 const mocks = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ beforeEach(() => {
   mocks.publish.mockResolvedValue(undefined);
 });
 describe('committed write domain projections', () => {
-  it.each(['ship', 'weapon', 'projectile', 'system'] as EditorSpecKind[])(
+  it.each(['ship', 'weapon', 'projectile', 'system'] as SpecEditorKind[])(
     'publishes %s saves and projects their formal identity from one receipt',
     async (kind) => {
       const receipt = savedWriteFixture({ id: 'next', hullId: 'next' });

@@ -1,18 +1,19 @@
 <template><canvas ref="canvas" class="immersive-weapon-icon" width="80" height="80" role="img" :aria-label="label" /></template>
 <script setup lang="ts">
 import { computed, ref, watch, onScopeDispose } from 'vue';
-import type { WeaponPanel } from '@/domain/immersive/weapon-panel';
+import type { ResourceRef } from '@/shared/types';
+import type { LoadedWeaponMissile } from '@/domain/editors/weapon-images';
 import { useResourceImages } from '@/app/composables/use-resource-images';
 import { windowImageCache } from '@/app/composables/use-window-image-cache';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { drawWeaponMount } from '@/domain/immersive/weapon-icon';
+import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';
 const props = defineProps<{
-  layers: WeaponPanel['iconLayers'];
-  url: (resource: WeaponPanel['iconLayers'][number]['resource']) => string;
+  layers: Array<{ resource: ResourceRef; origin: { x: number; y: number } }>;
+  url: (resource: ResourceRef) => string;
   label: string;
   mountType: string;
   mountSize: string;
-  loadedMissile?: WeaponPanel['loadedMissile'];
+  loadedMissile?: LoadedWeaponMissile | null;
   sessionId: string;
 }>();
 const canvas = ref<HTMLCanvasElement | null>(null),

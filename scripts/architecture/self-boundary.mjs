@@ -90,9 +90,7 @@ function singleFileInAuthorizationHelper(text) {
 /** @param {string} text @returns {boolean} */
 function usesDirectoryPrefixAuthorization(text) {
   const helperMatches = text.matchAll(/\b(?:mayUse|canUse|allow|allows)[A-Za-z0-9_]*\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/g);
-  return [...helperMatches].some((match) =>
-    /rel\.startsWith\(\s*['"]src\/(?!shared\/api\/|windows\/|shared\/runtime\/)[^'"]+['"]\s*\)/.test(match[1]),
-  );
+  return [...helperMatches].some((match) => /rel\.startsWith\(\s*['"]src\/(?!windows\/|shared\/runtime\/)[^'"]+['"]\s*\)/.test(match[1]));
 }
 
 /** @param {string} text @returns {boolean} */

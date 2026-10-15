@@ -26,7 +26,7 @@ import type { CsvGridColumn, CsvGridModel } from '@/domain/tables/csv-grid-model
 import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
 import CsvGridBody from '@/app/components/tables/CsvGridBody.vue';
 import CsvGridHeader from '@/app/components/tables/CsvGridHeader.vue';
-import { usePerformanceLogger } from '@/app/composables/use-performance-logger';
+import { measurePerformance } from '@/shared/runtime/performance';
 import { useCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useImagePreload } from '@/app/composables/use-image-preload';
@@ -50,7 +50,6 @@ const emit = defineEmits<{
 const panelRef = useTemplateRef<HTMLDivElement>('panelRef');
 const context = useCsvTableInputs();
 const { commitBefore } = useFieldInputActions(context.inputs);
-const performanceLogger = usePerformanceLogger();
 const activeCellKey = computed(() => (props.editing ? { columnKey: props.editing.column, rowKey: props.editing.rowKey } : null));
 const editingIndex = computed(() => {
   const rowKey = props.editing?.rowKey;
@@ -112,7 +111,7 @@ function handleScroll(event: Event) {
 }
 
 function activateCell(row: CsvRowRecord, column: CsvGridColumn) {
-  performanceLogger.measure('frontend.csvGrid.activateCell', { column: column.key, rowKey: row.rowKey }, () => {
+  measurePerformance('frontend.csvGrid.activateCell', { column: column.key, rowKey: row.rowKey }, () => {
     void commitBefore(() => {
       forwardSelectRow(row.rowKey);
       context.activate({ ...context.target, rowKey: row.rowKey, column: column.key });
@@ -132,7 +131,7 @@ function clearActiveCell() {
 }
 
 function forwardSelectRow(rowKey: string) {
-  void commitBefore(() => performanceLogger.measure('frontend.csvGrid.selectRow', { rowKey }, () => emit('select-row', rowKey)));
+  void commitBefore(() => measurePerformance('frontend.csvGrid.selectRow', { rowKey }, () => emit('select-row', rowKey)));
 }
 
 function forwardResizeColumn(key: string, width: number) {

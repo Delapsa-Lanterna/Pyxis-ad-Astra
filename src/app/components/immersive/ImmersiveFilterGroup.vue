@@ -13,8 +13,8 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { HullmodFilterOption } from '@/domain/immersive/variant-hullmods';
-import { toggleHullmodFilter } from '@/domain/immersive/variant-hullmods';
+import type { HullmodFilterOption } from '@/domain/immersive/variant/variant-hullmods';
+import { toggleHullmodFilter } from '@/domain/immersive/variant/variant-hullmods';
 import { useFontMeasurement } from '@/app/composables/use-original-fonts';
 import { immersiveFontIds } from '@/domain/immersive/font-roles';
 import ImmersiveFilterToggle from './ImmersiveFilterToggle.vue';

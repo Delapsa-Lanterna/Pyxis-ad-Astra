@@ -1,5 +1,5 @@
 import { recordPerformance } from '@/shared/runtime/performance';
-import { requireProjectionReady } from '@/shared/runtime/project-projection';
+import { requireProjectionReady } from '@/services/project-projection.service';
 import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { deepClone } from '@/shared/lib/starsector';

@@ -11,12 +11,22 @@ test('extensionless relative and alias imports reveal an orchestrator cycle', ()
   assert.equal(frontendLayerBoundaryRule.check(files).filter((failure) => failure.includes('dependency cycle')).length, 1);
 });
 
-test('one-way runtime imports and type-only edges keep the dependency graph acyclic', () => {
+test('one-way runtime and type imports keep the dependency graph acyclic', () => {
   const files = architectureFixtures({
-    'src/orchestrators/alpha.orchestrator.ts': "import { beta } from './beta.orchestrator'; export interface Alpha {}",
-    'src/orchestrators/beta.orchestrator.ts': "import type { Alpha } from './alpha.orchestrator'; export function beta() {}",
+    'src/orchestrators/alpha.orchestrator.ts': "import { beta, type Beta } from './beta.orchestrator'; export interface Alpha {}",
+    'src/orchestrators/beta.orchestrator.ts': 'export interface Beta {} export function beta() {}',
   });
   assert.deepEqual(frontendLayerBoundaryRule.check(files), []);
+});
+
+test('type cycles are checked across shared models and domain projections', () => {
+  for (const directory of ['shared/types', 'domain/schema']) {
+    const files = architectureFixtures({
+      [`src/${directory}/alpha.ts`]: "import type { Beta } from './beta'; export interface Alpha {}",
+      [`src/${directory}/beta.ts`]: "import type { Alpha } from './alpha'; export interface Beta {}",
+    });
+    assert.equal(frontendLayerBoundaryRule.check(files).length, 1);
+  }
 });
 
 test('a mixed type import still participates in runtime cycle detection', () => {

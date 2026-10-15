@@ -134,8 +134,20 @@ export function stripRustTestBlocks(text) {
   const marker = '#[cfg(test)]';
   let index = output.indexOf(marker);
   while (index !== -1) {
-    const blockStart = output.indexOf('{', index);
-    if (blockStart === -1) break;
+    let blockStart = index + marker.length;
+    let signatureDepth = 0;
+    for (; blockStart < output.length; blockStart++) {
+      const char = output[blockStart];
+      if ('(['.includes(char)) signatureDepth++;
+      else if (')]'.includes(char)) signatureDepth--;
+      else if (signatureDepth === 0 && (char === '{' || char === ';')) break;
+    }
+    if (output[blockStart] === ';') {
+      output = output.slice(0, index) + output.slice(blockStart + 1);
+      index = output.indexOf(marker);
+      continue;
+    }
+    if (blockStart === output.length) break;
     let depth = 0;
     let end = blockStart;
     for (; end < output.length; end += 1) {

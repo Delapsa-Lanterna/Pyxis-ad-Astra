@@ -24,7 +24,7 @@ async function bootstrap() {
   if (bootstrap.kind === 'main') await publishWindowSettings(useSettingsStore(pinia).settingsSnapshot());
   installNaiveUi(app);
   app.mount('#app');
-  await revealCurrentWindow();
+  await showCurrentWindow();
 }
 
 async function loadWindowRoot(kind: string | null): Promise<Component> {
@@ -32,7 +32,7 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
     case 'file-editor':
       return (await import('@/app/FileEditorApp.vue')).default;
     case 'editor':
-      return (await import('@/app/EditorWindowApp.vue')).default;
+      return (await import('@/app/SpecEditorApp.vue')).default;
     case 'weapon-fire-preview':
       return (await import('@/app/WeaponFirePreviewApp.vue')).default;
     case 'immersive-editor':
@@ -59,7 +59,7 @@ void bootstrap().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     target.innerHTML = `<div class="startup-error"><h1>启动失败</h1><pre>${escapeHtml(message)}</pre></div>`;
   }
-  void revealCurrentWindow();
+  void showCurrentWindow();
 });
 
 function escapeHtml(value: string): string {
@@ -73,8 +73,4 @@ function escapeHtml(value: string): string {
     };
     return entities[char] ?? char;
   });
-}
-
-async function revealCurrentWindow() {
-  await showCurrentWindow();
 }

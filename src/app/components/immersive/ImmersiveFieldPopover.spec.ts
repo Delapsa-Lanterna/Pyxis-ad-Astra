@@ -9,7 +9,7 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
-import { projectShipPanel } from '@/domain/immersive/ship-panel';
+import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import { updateImmersiveField, type ImmersiveFieldChange } from '@/domain/immersive/fields';
 import ImmersiveFieldPopover from './ImmersiveFieldPopover.vue';
 const feedback = vi.hoisted(() => ({ error: vi.fn() }));

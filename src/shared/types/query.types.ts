@@ -1,5 +1,12 @@
+import type {
+  TableKey,
+  ProjectSessionId,
+  EntityKind,
+  ResourceSource,
+  ResourceOwnerKind,
+  ResourceRef,
+} from '@/shared/types/project-identity.types';
 import type { JsonValue, RowData } from '@/shared/types/json.types';
-import type { TableKey } from '@/shared/types/tables.types';
 import type { ErrorDiagnostic } from '@/shared/types/error.types';
 
 export interface DiscoveredField {
@@ -11,10 +18,8 @@ export interface DiscoveredField {
 export type DiscoveredFieldType =
   'boolean' | 'integer' | 'float' | 'string' | 'path-image' | 'string-array' | 'color-rgba' | 'array-of-object' | 'tag-select' | 'object';
 
-export type ProjectSessionId = string;
-
 export interface ProjectManifest {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: ProjectSessionId;
   modRoot: string;
   starsectorRoot: string | null;
@@ -103,42 +108,12 @@ export interface SourceOption {
 }
 
 export interface EntityData {
-  target: import('@/shared/types/entity-target.types').EntityEditTarget;
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  target: import('@/shared/types/project-identity.types').EntityEditTarget;
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   kind: EntityKind;
   id: string;
   data: JsonValue;
   resourceRefs: Record<string, ResourceRef>;
-}
-
-export type EntityKind = 'ship' | 'weapon' | 'projectile' | 'system' | 'skill' | 'faction' | 'mission' | 'variant' | 'skin';
-export const RESOURCE_SOURCES = ['mod', 'core'] as const;
-export type ResourceSource = (typeof RESOURCE_SOURCES)[number];
-export const RESOURCE_OWNER_KINDS = [
-  'ship',
-  'weapon',
-  'variant',
-  'skin',
-  'faction',
-  'mission',
-  'hullmods',
-  'shipSystems',
-  'industries',
-  'skills',
-  'abilities',
-  'commodities',
-  'specialItems',
-  'submarkets',
-  'marketConditions',
-] as const;
-export type ResourceOwnerKind = (typeof RESOURCE_OWNER_KINDS)[number];
-
-export interface ResourceRef {
-  readonly source: ResourceSource;
-  readonly relPath: string;
-  readonly ownerKind: ResourceOwnerKind;
-  readonly ownerId: string;
-  readonly key: string;
 }
 
 export interface ResourceDataUrlBatchEntry {

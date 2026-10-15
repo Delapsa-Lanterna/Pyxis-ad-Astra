@@ -85,7 +85,6 @@ vi.mock('@/services/directory.service', () => ({
 vi.mock('@/services/core-assets.service', () => ({
   invalidateCoreCacheForRoot: vi.fn(async () => {}),
 }));
-vi.mock('@/domain/project/load-warnings', () => ({ formatLoadWarnings: () => [] }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 vi.mock('@/shared/runtime/performance', () => ({
   measurePerformance: (_name: string, _detail: unknown, action: () => unknown) => action(),
@@ -100,7 +99,7 @@ beforeEach(() => {
   mocks.workspaceStore.mods.clear();
   mocks.workspaceStore.isModImported.mockReturnValue(false);
   mocks.workspaceStore.removeLoadedModEntry.mockImplementation((modRoot: string) => mocks.workspaceStore.mods.delete(modRoot));
-  mocks.openProject.mockResolvedValue({ modInfo: { name: 'Demo' } });
+  mocks.openProject.mockResolvedValue({ modInfo: { name: 'Demo' }, warnings: [] });
 });
 
 describe('workspace Mod opening navigation', () => {

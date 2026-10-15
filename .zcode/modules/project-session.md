@@ -19,7 +19,9 @@
 `src-tauri/src/services/write_transactions/committed.rs`：已写盘提交的投影结果、恢复记录和根序号 owner。
 `src/orchestrators/project-session-refresh.orchestrator.ts`：提交接纳 owner，拥有投影恢复、历史与 manifest 接纳、缓存失效、统一通知及重试进度。
 `src/services/entity-query.service.ts`：实体查询能力交接。
+`src/services/project-projection.service.ts`：窗口内按 session 与提交序号维护读取门控的运行态。
 `src/services/project-session.service.ts`：session 打开、关闭、刷新与恢复协议主归属。
+`src/shared/types/project-identity.types.ts`：会话、实体、表、资源与文件版本身份的基础协议。
 `src/stores/project.store.ts`：前端 manifest 与活动 session 缓存 owner。
 
 ## 边界

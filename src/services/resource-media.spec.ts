@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
 import type { ResourceRef } from '@/shared/types';
 import { ensureResourceMedia, mediaCacheCapacity, resourceMediaDataUrl } from '@/services/resource-media.service';
-import { mediaBudgetLimit } from '@/shared/runtime/media-budget';
+import { mediaBudgetLimit } from '@/services/resource-budget.service';
 
 const mocks = vi.hoisted(() => ({
   invalidationListener: null as ((event: ResourceCacheInvalidationEvent) => void) | null,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ResourceDataUrlBatchEntry, ResourceDataUrlBatchResult, ResourceRef } from '@/shared/types';
 import * as resourceCacheService from '@/services/resource-cache.service';
-import { mediaBudgetLimit } from '@/shared/runtime/media-budget';
+import { mediaBudgetLimit } from '@/services/resource-budget.service';
 
 const { queryResourceDataUrls: queryResources } = resourceCacheService;
 const { resourceCacheCapacity } = resourceCacheService;

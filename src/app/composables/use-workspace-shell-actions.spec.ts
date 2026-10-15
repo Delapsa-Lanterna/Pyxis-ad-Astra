@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   captureWorkspaceCloseTarget: vi.fn(),
   closeWorkspaceRuntime: vi.fn(async () => true),
   removeLoadedModRuntime: vi.fn(async () => true),
-  openEditorWindow: vi.fn(async () => {}),
+  openSpecEditorWindow: vi.fn(async () => {}),
   openFileEditorWindow: vi.fn(async () => {}),
   recordLogBestEffort: vi.fn(),
   refreshProjectSourcePaths: vi.fn(),
@@ -46,8 +46,8 @@ vi.mock('@/orchestrators/workspace-lifecycle.orchestrator', () => ({
   removeLoadedModRuntime: mocks.removeLoadedModRuntime,
 }));
 
-vi.mock('@/windows/editor.window', () => ({
-  openEditorWindow: mocks.openEditorWindow,
+vi.mock('@/windows/spec-editor.window', () => ({
+  openSpecEditorWindow: mocks.openSpecEditorWindow,
 }));
 
 vi.mock('@/windows/file-editor.window', () => ({

@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: ['dist/**', 'release/**', 'src-tauri/target/**', 'src-tauri/gen/**'],
+    ignores: ['.audit-tools/**', '.zcode/plans/**', 'dist/**', 'release/**', 'src-tauri/target/**', 'src-tauri/gen/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

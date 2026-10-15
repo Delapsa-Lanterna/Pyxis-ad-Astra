@@ -4,14 +4,14 @@ import { h, shallowRef, nextTick } from 'vue';
 import { shipJointFixture } from '@/test/joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
 import { wingJointFixture } from '@/test/wing-joint-edit';
-import { projectShipPanel } from '@/domain/immersive/ship-panel';
-import { projectWeaponPanel } from '@/domain/immersive/weapon-panel';
+import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
+import { projectWeaponPanel } from '@/domain/immersive/weapon/weapon-panel';
 import { jointObject } from '@/domain/joint-edit';
-import { projectWingPanel } from '@/domain/immersive/wing-panel';
+import { projectWingPanel } from '@/domain/immersive/wing/wing-panel';
 import type { ImmersiveEditing, ImmersiveRenderContext } from './immersive-render-context';
-import ShipImmersivePanel from './ShipImmersivePanel.vue';
-import WeaponImmersivePanel from './WeaponImmersivePanel.vue';
-import WingImmersivePanel from './WingImmersivePanel.vue';
+import ShipImmersivePanel from './ship/ShipImmersivePanel.vue';
+import WeaponImmersivePanel from './weapon/WeaponImmersivePanel.vue';
+import WingImmersivePanel from './wing/WingImmersivePanel.vue';
 
 describe('shared immersive content renderers', () => {
   it.each(['ship', 'weapon', 'wing'] as const)('shares %s technical content while applying the readonly summary', async (kind) => {
@@ -42,7 +42,6 @@ describe('shared immersive content renderers', () => {
       update: vi.fn(),
       override: vi.fn(async () => {}),
       create: vi.fn(async () => {}),
-      openProjectile: vi.fn(async () => {}),
     };
     const common = { root: snapshot.root, records: snapshot.records, mediaUrl: () => 'data:image/png;base64,fixture' };
     const render = shallowRef<ImmersiveRenderContext>({ ...common, mode: 'editable', editing });
@@ -68,7 +67,7 @@ describe('shared immersive content renderers', () => {
           stubs: {
             ImmersiveText: { props: ['text', 'runs'], template: '<span>{{text || runs?.map(run => run.text).join("")}}</span>' },
             ImmersiveShipPreview: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' },
-            VariantScene: { name: 'VariantScene', props: ['variant', 'wingLayout', 'iconSize'], template: '<canvas />' },
+            ImmersiveHullScene: { name: 'ImmersiveHullScene', props: ['variant', 'wingLayout', 'iconSize'], template: '<canvas />' },
             ImmersiveWeaponIcon: { props: ['url', 'label'], template: '<img :src="url(null)" :alt="label" />' },
             ImmersiveFieldPopover: true,
             NPopover: { template: '<div><slot name="trigger" /></div>' },
@@ -91,12 +90,20 @@ describe('shared immersive content renderers', () => {
     const customText = () => own.findAll('.immersive-custom-text').map((row) => row.text());
     if (kind === 'weapon') expect(customText()).toEqual(['Burst 25%', '2 × beams']);
     const images = own.findAll('img').map((image) => image.attributes('src'));
-    const formation = panel.kind === 'wing' ? own.findComponent({ name: 'VariantScene' }) : null;
+    const formation = panel.kind === 'wing' ? own.findComponent({ name: 'ImmersiveHullScene' }) : null;
     if (formation) {
       expect(formation.props('wingLayout').points).toHaveLength(3);
       expect(formation.props('wingLayout').points[0].y).toBeCloseTo(13.2);
       expect(formation.props('iconSize')).toBe(80);
       expect(formation.props('variant').spec.hullId).toBe('sarissa');
+    }
+    if (kind === 'weapon') {
+      const weapon = own.findComponent(WeaponImmersivePanel);
+      await weapon
+        .findAll('button')
+        .find((button) => button.text() === '弹体编辑器')!
+        .trigger('click');
+      expect(weapon.emitted('open-projectile')).toEqual([[]]);
     }
     const firstButton = own.find('.immersive-stat-value');
     await firstButton.trigger('click');
@@ -110,7 +117,7 @@ describe('shared immersive content renderers', () => {
     await nextTick();
     expect(content()).toEqual(editableContent);
     if (kind === 'weapon') expect(customText()).toEqual(['Burst 25%', '2 × beams']);
-    if (formation) expect(own.findComponent({ name: 'VariantScene' }).element).toBe(formation.element);
+    if (formation) expect(own.findComponent({ name: 'ImmersiveHullScene' }).element).toBe(formation.element);
     if (kind === 'ship') {
       expect(own.find('.ship-immersive-header').exists()).toBe(false);
       expect(own.findAll('.immersive-source-note')).toHaveLength(0);

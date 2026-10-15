@@ -1,8 +1,8 @@
-import type { EditorWindowKind, TableKey } from '@/shared/types';
+import type { SpecEditorKind, TableKey } from '@/shared/types';
 
 interface AssociatedSpecDefinition {
   kind: 'ship' | 'weapon' | 'system' | 'skill';
-  editorKinds: EditorWindowKind[];
+  editorKinds: SpecEditorKind[];
 }
 
 const ASSOCIATED_SPEC_DEFINITIONS: Partial<Record<TableKey, AssociatedSpecDefinition>> = {
@@ -24,7 +24,7 @@ const ASSOCIATED_SPEC_DEFINITIONS: Partial<Record<TableKey, AssociatedSpecDefini
   },
 };
 
-export function associatedSpecEditorKinds(table: TableKey): EditorWindowKind[] {
+export function associatedSpecEditorKinds(table: TableKey): SpecEditorKind[] {
   return [...(ASSOCIATED_SPEC_DEFINITIONS[table]?.editorKinds ?? [])];
 }
 export function associatedSpecKind(table: TableKey) {

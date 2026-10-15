@@ -41,10 +41,10 @@ const cases = [
   [
     'projection-pending-owner',
     'src/orchestrators/project-session-refresh.orchestrator.ts',
-    'src/shared/runtime/project-projection.ts',
+    'src/services/project-projection.service.ts',
     'markProjectionPending',
   ],
-  ['projection-read-owner', 'src/services/query-cache.service.ts', 'src/shared/runtime/project-projection.ts', 'requireProjectionReady'],
+  ['projection-read-owner', 'src/services/query-cache.service.ts', 'src/services/project-projection.service.ts', 'requireProjectionReady'],
   ['window-open', 'src/windows/managed.window.ts', 'src/services/window.service.ts', 'openNativeManagedWindow'],
   ['window-focus', 'src/orchestrators/window-target-focus.orchestrator.ts', 'src/services/window.service.ts', 'focusNativeManagedWindow'],
   ['window-status', 'src/app/composables/use-dirty-window-close-guard.ts', 'src/services/window.service.ts', 'updateNativeWindowStatus'],
@@ -63,7 +63,7 @@ const cases = [
   ['window-reserve', 'src/orchestrators/entity-identity.orchestrator.ts', 'src/services/window.service.ts', 'reserveNativeWindowTargets'],
   ['window-release', 'src/orchestrators/table-save.orchestrator.ts', 'src/services/window.service.ts', 'releaseNativeWindowTargets'],
   ['window-retarget', 'src/orchestrators/entity-identity.orchestrator.ts', 'src/services/window.service.ts', 'retargetNativeWindow'],
-  ['entity-target-query', 'src/services/editor.service.ts', 'src/services/entity-query.service.ts', 'querySessionEntityEditTarget'],
+  ['entity-target-query', 'src/services/spec-editor.service.ts', 'src/services/entity-query.service.ts', 'querySessionEntityEditTarget'],
   [
     'identity-target-query',
     'src/orchestrators/entity-identity.orchestrator.ts',
@@ -76,10 +76,15 @@ const cases = [
     'src/services/entity-query.service.ts',
     'querySessionEntityEditTarget',
   ],
-  ['entity-intent-query', 'src/services/editor.service.ts', 'src/services/entity-query.service.ts', 'querySessionEntityIdentityIntent'],
+  [
+    'entity-intent-query',
+    'src/services/spec-editor.service.ts',
+    'src/services/entity-query.service.ts',
+    'querySessionEntityIdentityIntent',
+  ],
   ['config-write', 'src/orchestrators/config-save.orchestrator.ts', 'src/services/config-entity.service.ts', 'saveModInfo'],
   ['table-write', 'src/orchestrators/table-save.orchestrator.ts', 'src/services/csv-table.service.ts', 'saveCsvPatch'],
-  ['spec-write', 'src/services/editor.service.ts', 'src/services/editor.service.ts', 'saveEditorSpec'],
+  ['spec-write', 'src/services/spec-editor.service.ts', 'src/services/spec-editor.service.ts', 'saveSpecEditorSpec'],
   ['text-write', 'src/app/composables/use-file-editor-view-model.ts', 'src/services/files.service.ts', 'writeEditableFileText'],
   ['text-transcode', 'src/app/app-feedback.ts', 'src/services/files.service.ts', 'transcodeFileToUtf8'],
   [
@@ -93,16 +98,36 @@ const cases = [
   ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-options.service.ts', 'querySourceOptionCatalog'],
   ['hull-query', 'src/app/composables/use-sample.ts', 'src/services/hull-reference.service.ts', 'queryHullReferenceOptions'],
   [
-    'wing-hull-query',
-    'src/app/composables/use-immersive-editor-view-model.ts',
+    'immersive-hull-query',
+    'src/app/composables/immersive-editor/use-immersive-editor-runtime.ts',
     'src/services/hull-reference.service.ts',
     'querySessionHullReferences',
   ],
-  ['wing-joint-query', 'src/app/composables/use-immersive-editor-view-model.ts', 'src/services/joint-edit.service.ts', 'queryJointEditRow'],
-  ['variant-catalog-query', 'src/app/composables/use-variant-catalog.ts', 'src/services/joint-edit.service.ts', 'queryJointVariantCatalog'],
-  ['variant-candidate-query', 'src/app/composables/use-variant-candidate.ts', 'src/services/joint-edit.service.ts', 'queryJointEdit'],
-  ['ship-weapon-candidate', 'src/services/editor.service.ts', 'src/services/joint-edit.service.ts', 'queryJointCandidate'],
-  ['ship-weapon-sources', 'src/app/composables/editors/use-ship-weapons.ts', 'src/services/editor.service.ts', 'queryShipWeaponSources'],
+  [
+    'wing-joint-query',
+    'src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts',
+    'src/services/joint-edit.service.ts',
+    'queryJointEditRow',
+  ],
+  [
+    'variant-catalog-query',
+    'src/app/composables/immersive-editor/variant/use-variant-catalog.ts',
+    'src/services/joint-edit.service.ts',
+    'queryJointVariantCatalog',
+  ],
+  [
+    'variant-candidate-query',
+    'src/app/composables/immersive-editor/variant/use-variant-candidate.ts',
+    'src/services/joint-edit.service.ts',
+    'queryJointEdit',
+  ],
+  ['ship-weapon-candidate', 'src/services/spec-ship-editor.service.ts', 'src/services/joint-edit.service.ts', 'queryJointCandidate'],
+  [
+    'ship-weapon-sources',
+    'src/app/composables/spec-editor/ship/use-spec-ship-weapons.ts',
+    'src/services/spec-ship-editor.service.ts',
+    'querySpecShipWeaponSources',
+  ],
   [
     'resource-reference',
     'src/app/composables/editors/use-resource-reference.ts',
@@ -112,7 +137,7 @@ const cases = [
   ['query-observe', 'src/app/composables/use-sample.ts', 'src/services/query-cache.service.ts', 'subscribeQueryInvalidations'],
   ['resource-observe', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'hasResourceInvalidation'],
   ['resource-key', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'resourceCacheKey'],
-  ['resource-read', 'src/services/editor.service.ts', 'src/services/resource-cache.service.ts', 'queryResourceDataUrls'],
+  ['resource-read', 'src/services/spec-ship-editor.service.ts', 'src/services/resource-cache.service.ts', 'queryResourceDataUrls'],
   [
     'query-project-invalidate',
     'src/orchestrators/project-session-refresh.orchestrator.ts',
@@ -206,9 +231,9 @@ test('the close boundary owns session cleanup and the refresh boundary owns proj
 test('explicit and extensionless imports reject the same capability once', () => {
   for (const suffix of ['', '.ts']) {
     const files = architectureFixtures({
-      'src/windows/audit.window.ts': `import { saveCsvPatch } from '@/services/csv-table.service${suffix}'; import { saveEditorSpec } from '@/services/editor.service${suffix}';`,
+      'src/windows/audit.window.ts': `import { saveCsvPatch } from '@/services/csv-table.service${suffix}'; import { saveSpecEditorSpec } from '@/services/spec-editor.service${suffix}';`,
       'src/services/csv-table.service.ts': 'export function saveCsvPatch() {}',
-      'src/services/editor.service.ts': 'export function saveEditorSpec() {}',
+      'src/services/spec-editor.service.ts': 'export function saveSpecEditorSpec() {}',
     });
     const failures = writeBoundaryRule.check(files);
     assert.equal(failures.length, 2);
@@ -284,6 +309,22 @@ test('flat edit-session primitives retain their declared adapter ownership', () 
 
 test('every actual repository dependency resolves and all registered rules execute', async () => {
   const files = await collectArchitectureFiles(process.cwd());
+  assert.equal(
+    files.some((file) => file.rel.startsWith('.zcode/plans/')),
+    false,
+  );
+  assert.equal(
+    files.some((file) => file.rel.startsWith('src/')),
+    true,
+  );
+  assert.equal(
+    files.some((file) => file.rel.startsWith('src-tauri/src/')),
+    true,
+  );
+  assert.equal(
+    files.some((file) => file.rel.startsWith('.zcode/modules/')),
+    true,
+  );
   assert.deepEqual(
     files.flatMap((file) => file.dependencyFailures),
     [],

@@ -35,7 +35,7 @@ import {
 import { useWriteSyncStore } from '@/stores/write-sync.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
-import { requireProjectionReady, markProjectionReady } from '@/shared/runtime/project-projection';
+import { requireProjectionReady, markProjectionReady } from '@/services/project-projection.service';
 import { queryCached, invalidateQueryCacheForSession } from '@/services/query-cache.service';
 function manifestFixture(modRoot: string, sessionId: string): ProjectManifest {
   return {

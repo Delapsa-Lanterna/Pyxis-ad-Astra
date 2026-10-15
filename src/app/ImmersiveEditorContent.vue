@@ -18,9 +18,9 @@
     @load-external="vm.loadExternal"
   >
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
-    <WeaponImmersivePanel v-else-if="panel?.kind === 'weapon'" :panel="panel" :render="render" />
+    <WeaponImmersivePanel v-else-if="panel?.kind === 'weapon'" :panel="panel" :render="render" @open-projectile="vm.openProjectile" />
     <WingImmersivePanel v-else-if="panel?.kind === 'wing'" :panel="panel" :render="render" />
-    <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" :panel="panel" :vm="vm">
+    <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" :panel="panel" :vm="vm.variant!" :render="render">
       <template #meta>
         <ImmersiveEditorActions
           :can-undo="history.canUndo.value"
@@ -44,18 +44,17 @@ import { computed, onMounted, onUnmounted } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
-import { useImmersiveEditorViewModel } from '@/app/composables/use-immersive-editor-view-model';
+import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/composables/immersive-editor-assembly';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { closeCurrentWindow } from '@/windows/current.window';
 import ImmersiveEditorShell from '@/app/components/immersive/ImmersiveEditorShell.vue';
-import ShipImmersivePanel from '@/app/components/immersive/ShipImmersivePanel.vue';
-import WeaponImmersivePanel from '@/app/components/immersive/WeaponImmersivePanel.vue';
-import WingImmersivePanel from '@/app/components/immersive/WingImmersivePanel.vue';
-import VariantImmersivePanel from '@/app/components/immersive/VariantImmersivePanel.vue';
+import ShipImmersivePanel from '@/app/components/immersive/ship/ShipImmersivePanel.vue';
+import WeaponImmersivePanel from '@/app/components/immersive/weapon/WeaponImmersivePanel.vue';
+import WingImmersivePanel from '@/app/components/immersive/wing/WingImmersivePanel.vue';
+import VariantImmersivePanel from '@/app/components/immersive/variant/VariantImmersivePanel.vue';
 import ImmersiveEditorActions from '@/app/components/immersive/ImmersiveEditorActions.vue';
-import { editableRenderContext } from '@/app/components/immersive/immersive-render-context';
 import { provideOriginalFonts } from '@/app/composables/use-original-fonts';
 const context = useWindowContext('immersive-editor').value;
 const { sessionId, modRoot, id, kind } = context.identity;
@@ -69,8 +68,8 @@ const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowK
   ...(rowKey ? { rowKey } : {}),
 };
 useManagedWindowRequests(() => {});
-const label = { ship: '舰船', weapon: '武器', wing: '战机', variant: '装配' }[kind];
 const vm = useImmersiveEditorViewModel(root);
+const label = vm.label;
 const render = editableRenderContext(vm);
 const { joint, panel, errorText, history } = vm;
 const { saving, loading, ready, handoffLocked, externalUpdateNotice } = joint;

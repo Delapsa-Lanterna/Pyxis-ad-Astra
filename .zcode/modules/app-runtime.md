@@ -8,10 +8,12 @@
 
 `index.html`：`#app` 挂载点与启动错误呈现容器。
 `src/app/App.vue`：主窗口根，以 main 模式包装唯一窗口壳并装配主窗口内容。
-`src/app/EditorWindowApp.vue`：编辑器子窗口根，以 child 模式包装编辑器窗口内容。
 `src/app/FileEditorApp.vue`：文件编辑器子窗口根，以 child 模式包装文件编辑器窗口内容。
+`src/app/SpecEditorApp.vue`：编辑器子窗口根，以 child 模式包装编辑器窗口内容。
 `src/app/WeaponFirePreviewApp.vue`：独立开火预览窗口根，消费唯一 child 窗口壳。
 `src/app/WindowShell.vue`：唯一窗口壳 owner，以 main/child 模式区分设置持久化与设置镜像，统一挂载 Provider、主题与 Core 加载生命周期。
+`src/app/composables/immersive-editor-assembly.ts`：沉浸式实现选择、会话交接及展示协议适配。
+`src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
 `src/app/naive-ui.runtime.ts`：Naive UI 按需注册 owner。
 `src/app/theme-overrides.ts`：Naive UI 主题覆盖构建 owner，消费主题令牌生成 provider 覆盖。
 `src/assets/app-icon.svg`：标题栏透明罗盘图标资源。

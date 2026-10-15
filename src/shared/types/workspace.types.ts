@@ -1,5 +1,6 @@
+import type { TableKey } from '@/shared/types/project-identity.types';
 import type { GameModSummary, GameScanWarning } from '@/shared/types/query.types';
-import type { CsvDirtyRow, CsvSearchField, CsvTableRows, TableKey } from '@/shared/types/tables.types';
+import type { CsvDirtyRow, CsvSearchField, CsvTableRows } from '@/shared/types/tables.types';
 import type { CsvCellTarget } from '@/shared/types/tables.types';
 
 export type WorkspaceColumnWidths = Record<string, Partial<Record<TableKey, Record<string, number>>>>;
@@ -28,7 +29,7 @@ export interface ModOpeningFailure {
 
 /** Per-Mod table state — fully isolated from other Mods */
 export interface ModTableState {
-  baseVersions: Record<TableKey, import('@/shared/types/write.types').FileVersion[]>;
+  baseVersions: Record<TableKey, import('@/shared/types/project-identity.types').FileVersion[]>;
   tables: Record<TableKey, CsvTableRows>;
   originalTables: Record<TableKey, CsvTableRows>;
   headers: Record<TableKey, string[]>;

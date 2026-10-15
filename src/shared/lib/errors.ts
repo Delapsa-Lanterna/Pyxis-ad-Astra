@@ -1,5 +1,4 @@
-import type { ErrorDiagnostic, ErrorLocation, FeedbackNotice, ModOpeningFailure } from '@/shared/types';
-import { pathBelongsToRoot } from '@/shared/lib/paths';
+import type { ErrorDiagnostic, ErrorLocation, FeedbackNotice } from '@/shared/types';
 import { commandErrorCopy } from '@/shared/lib/error-messages';
 
 export class AppError extends Error {
@@ -114,18 +113,4 @@ export function fileReferenceLocationSuffix(line: number, column?: number): stri
 export function appendFileReferenceLocation(message: string, reference: FileReference | null): string {
   if (!reference?.line) return message;
   return `${message}（${fileReferenceLocationSuffix(reference.line, reference.column)}）`;
-}
-
-export function buildModOpeningFailure(modRoot: string, error: unknown): ModOpeningFailure {
-  const diagnostic = errorDiagnosticOf(error);
-  const reference = extractFileReferenceFromError(error);
-  return {
-    modRoot,
-    message: formatError(error),
-    diagnostic,
-    file:
-      reference && pathBelongsToRoot(reference.path, modRoot)
-        ? { path: reference.path, line: reference.line, column: reference.column }
-        : null,
-  };
 }

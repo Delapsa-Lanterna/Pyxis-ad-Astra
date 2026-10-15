@@ -5,21 +5,32 @@ import { editorModuleBoundaryRule } from './rules/editor-module-boundary.mjs';
 
 test('a spec session consumes the shared definition interface', () => {
   const files = architectureFixtures({
-    'src/app/composables/editors/use-editor-window-view-model.ts': "import type { SpecEditorDefinition } from './spec-editor-definitions';",
-    'src/app/composables/editors/spec-editor-definitions.ts': 'export interface SpecEditorDefinition {}',
+    'src/app/composables/spec-editor/use-spec-editor-window-view-model.ts':
+      "import type { SpecEditorDefinition } from './spec-editor.types';",
+    'src/app/composables/spec-editor/spec-editor.types.ts': 'export interface SpecEditorDefinition {}',
   });
   assert.deepEqual(editorModuleBoundaryRule.check(files), []);
 });
-test('the shared spec session rejects business dependencies', () => {
-  const files = architectureFixtures({
-    'src/app/composables/editors/use-editor-window-view-model.ts': "import { read } from '@/services/weapon-editor.service';",
-    'src/services/weapon-editor.service.ts': 'export function read() {}',
-  });
-  assert.equal(editorModuleBoundaryRule.check(files).length, 1);
+test('the shared spec session rejects every business reader and the application assembly', () => {
+  for (const target of [
+    'src/services/spec-ship-editor.service.ts',
+    'src/services/spec-weapon-editor.service.ts',
+    'src/services/spec-projectile-editor.service.ts',
+    'src/services/spec-system-editor.service.ts',
+    'src/app/composables/spec-editor-assembly.ts',
+  ]) {
+    for (const type of ['', 'type ']) {
+      const files = architectureFixtures({
+        'src/app/composables/spec-editor/use-spec-editor-window-view-model.ts': `import ${type}{ read } from '@/${target.slice(4, -3)}';`,
+        [target]: 'export function read() {}',
+      });
+      assert.equal(editorModuleBoundaryRule.check(files).length, 1);
+    }
+  }
 });
 test('weapon reads separate catalogue access from projectile detail consumption', () => {
   const files = architectureFixtures({
-    'src/services/weapon-editor.service.ts': "const catalogue = querySessionEntityList(sessionId, 'projectile');",
+    'src/services/spec-weapon-editor.service.ts': "const catalogue = querySessionEntityList(sessionId, 'projectile');",
     'src/services/weapon-data.service.ts': "const detail = querySessionEntity(sessionId, 'projectile', id);",
   });
   assert.deepEqual(editorModuleBoundaryRule.check(files), [

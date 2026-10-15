@@ -1,5 +1,6 @@
 import type { JointEditSnapshot, JointEditRecord } from '@/shared/types';
-import { variantEditableRecords } from './variant-panel';
+import { variantModuleEntries } from '@/domain/config/config-entities';
+import { jointObject } from '@/domain/joint-edit';
 
 export function immersiveSourceRecords(snapshot: JointEditSnapshot): {
   spec: JointEditRecord;
@@ -33,4 +34,24 @@ export function immersiveEditableRecords(snapshot: JointEditSnapshot): string[] 
     ];
   }
   return Object.values(immersiveSourceRecords(snapshot)).map((record) => record.key);
+}
+
+export function variantEditableRecords(snapshot: JointEditSnapshot): string[] {
+  const root = snapshot.bindings.variant ?? snapshot.bindings.spec!;
+  const keys = new Set([root]);
+  const pending = [root];
+  while (pending.length) {
+    const key = pending.pop()!;
+    const data = jointObject(snapshot.records.find((record) => record.key === key)?.value);
+    for (const [, id] of variantModuleEntries(data.modules)) {
+      const target = snapshot.records.find(
+        (record) => record.target.kind === 'spec' && record.target.target.kind === 'variant' && record.target.target.id === id,
+      );
+      if (target && !keys.has(target.key)) {
+        keys.add(target.key);
+        pending.push(target.key);
+      }
+    }
+  }
+  return [...keys];
 }

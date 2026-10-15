@@ -1,3 +1,19 @@
+export { TABLE_KEYS, RESOURCE_OWNER_KINDS, RESOURCE_SOURCES } from '@/shared/types/project-identity.types';
+export type {
+  EntityEditTarget,
+  EntityEditInfo,
+  EntityFileLocation,
+  EntityLinkedRecord,
+  EntityIdentityChange,
+  EntityIdentityIntent,
+  FileVersion,
+  TableKey,
+  EntityKind,
+  ProjectSessionId,
+  ResourceOwnerKind,
+  ResourceRef,
+  ResourceSource,
+} from '@/shared/types/project-identity.types';
 export type {
   ModFileEntry,
   ModDirectory,
@@ -24,14 +40,7 @@ export type {
   QueryValue,
 } from '@/shared/types/query-cache.types';
 export type { ErrorDiagnostic, ErrorLocation, FeedbackNotice } from '@/shared/types/error.types';
-export type {
-  EntityEditTarget,
-  EntityEditInfo,
-  EntityFileLocation,
-  EntityLinkedRecord,
-  EntityIdentityChange,
-  EntityIdentityIntent,
-} from '@/shared/types/entity-target.types';
+
 export type {
   WindowIdentity,
   WindowCloseIntent,
@@ -68,7 +77,6 @@ export type {
   WriteResult,
   CommittedSessionUpdate,
   CommittedWriteEvent,
-  FileVersion,
 } from '@/shared/types/write.types';
 export type {
   ConfigFileEntityWrite,
@@ -103,14 +111,12 @@ export type {
   CsvTableRows,
   CsvTableWindow,
   CsvWindowRow,
-  TableKey,
 } from '@/shared/types/tables.types';
-export { TABLE_KEYS } from '@/shared/types/tables.types';
+
 export type {
   DiscoveredField,
   DiscoveredFieldType,
   EntityData,
-  EntityKind,
   EntitySummaries,
   GameModSummary,
   GameOverviewData,
@@ -129,27 +135,15 @@ export type {
   ProjectInvalidation,
   ProjectManifest,
   ProjectSessionInvalidationResult,
-  ProjectSessionId,
   ResourceDataUrlBatchEntry,
   ResourceDataUrlBatchResult,
-  ResourceOwnerKind,
-  ResourceRef,
-  ResourceSource,
   SourceOption,
   SourceOptionGroup,
   TableSummary,
 } from '@/shared/types/query.types';
-export { RESOURCE_OWNER_KINDS, RESOURCE_SOURCES } from '@/shared/types/query.types';
-export type {
-  EditableFileData,
-  EditorKind,
-  EditorResourceKind,
-  EditorSpecKind,
-  EditorWindowKind,
-  WeaponSpecClass,
-  ProjectileSpecClass,
-} from '@/shared/types/editor.types';
-export { EDITOR_KINDS, EDITOR_WINDOW_KINDS } from '@/shared/types/editor.types';
+
+export type { EditableFileData, EditorResourceKind, WeaponSpecClass, ProjectileSpecClass } from '@/shared/types/editor.types';
+export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';
 export type {
   ConfigView,
   ModEntry,
@@ -166,4 +160,4 @@ export type * from '@/shared/types/joint-edit.types';
 
 export type { WeaponFirePreviewSource, WeaponFirePreviewData } from '@/shared/types/weapon-fire-preview.types';
 
-export type { SpecEditorData, WeaponEditorData, ProjectileEditorData } from '@/shared/types/spec-editor.types';
+export type { SpecEditorKind, SpecEditorData, SpecWeaponEditorData, SpecProjectileEditorData } from '@/shared/types/spec-editor.types';

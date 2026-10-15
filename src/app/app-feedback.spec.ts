@@ -13,7 +13,7 @@ import { sessionUpdateFixture } from '@/test/write-result';
 const mocks = vi.hoisted(() => ({ log: vi.fn(), open: vi.fn(async () => {}), transcode: vi.fn() }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
-vi.mock('@/windows/window-identity.window', () => ({ currentWindowSessionIdentity: () => null }));
+vi.mock('@/windows/window-context.window', () => ({ managedWindowContext: { value: null } }));
 vi.mock('@/services/files.service', () => ({ transcodeFileToUtf8: mocks.transcode }));
 let wrapper: VueWrapper | null = null;
 beforeEach(() => {

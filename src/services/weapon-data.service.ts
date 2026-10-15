@@ -7,7 +7,7 @@ import { createWeaponSpec } from '@/domain/editors/weapon-spec';
 
 import { inferWeaponSpecClass } from '@/domain/tables/associated-spec-creation';
 import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
-import type { DeepReadonly, EntityData, EntityEditInfo, EditorSpecKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
+import type { DeepReadonly, EntityData, EntityEditInfo, SpecEditorKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
 export interface WeaponData extends EntityEditInfo {
   weapon: RowData;
   weaponCsvRow: RowData;
@@ -74,7 +74,7 @@ export async function queryWeaponSprites(
     }),
   );
 }
-function requireEditorEntity(entity: DeepReadonly<EntityData> | null, kind: EditorSpecKind, id: string): EntityData {
+function requireEditorEntity(entity: DeepReadonly<EntityData> | null, kind: SpecEditorKind, id: string): EntityData {
   if (entity) return cloneQuerySnapshot<EntityData>(entity);
   throw new AppError(`找不到 ${id} 的 ${kind} 数据。`, { action: 'query-editor-entity' });
 }

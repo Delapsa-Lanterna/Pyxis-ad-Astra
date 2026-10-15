@@ -1,9 +1,8 @@
-import * as filesApi from '@/shared/api/files-api';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import type { AssociatedFileChange, EditableFileData, FileVersion, WriteResult } from '@/shared/types';
 
 export function loadEditableFileData(sessionId: string | null, modRoot: string, path: string): Promise<EditableFileData> {
-  return filesApi.loadEditableFile(sessionId, modRoot, path);
+  return invokeCommand('load_editable_file', { payload: { sessionId, modRoot, path } });
 }
 
 export function writeEditableFileText(
@@ -35,5 +34,14 @@ export function saveModFiles(
   return invokeCommand('save_mod_files', { payload: { baseVersions, sessionId, modRoot, files } });
 }
 
-export const queryFileTextIdentityIntent = filesApi.queryTextIdentityIntent;
-export const followFileTextIdentity = filesApi.followTextIdentity;
+export function queryFileTextIdentityIntent(
+  sessionId: string,
+  source: import('@/shared/types').EntityEditTarget,
+  text: string,
+): Promise<import('@/shared/types').EntityIdentityIntent> {
+  return invokeCommand('query_text_identity_intent', { payload: { sessionId, source, text } });
+}
+
+export function followFileTextIdentity(kind: import('@/shared/types').EntityKind, text: string, nextId: string): Promise<string> {
+  return invokeCommand('follow_text_identity', { payload: { kind, text, nextId } });
+}

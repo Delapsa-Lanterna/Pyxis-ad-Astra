@@ -22,6 +22,7 @@
 `src/app/composables/config/use-config-list-selection.ts`：列表选择、草稿确认、动作锁定及提交接纳 owner。
 `src/app/composables/config/use-config-mission-view-model.ts`：战役列表与编辑 ViewModel。
 `src/app/composables/config/use-config-mod-info-view-model.ts`：Mod 信息 ViewModel。
+`src/domain/config/config-entities.ts`：配置默认值、ID 与装配 modules 格式及改名纯规则 owner。
 `src/domain/config/config-records.ts`：配置记录与可写快照转换主归属。
 `src/orchestrators/config-save.orchestrator.ts`：配置保存编排 owner，拥有十个写动作族。
 `src/services/config-entity.service.ts`：配置实体读 service。
@@ -108,6 +109,7 @@
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
 - 结构化 JSON 保存必须使用设置快照选择原样更新或规范化写入；原样更新无法安全完成时必须在写入前确认影响文件。
 - 表单双向绑定必须经统一 Draft Session setter 提交；校验拒绝与保存取消必须返回 `null`，严禁提交成功基线或触发保存成功回调。
+- 装配 modules 读取、设置和改名必须消费实体纯规则，必须保留对象或有序条目数组的格式、顺序和未知业务字段。
 - 装配改名必须协调父引用的活动输入、相关保存及实际版本；主文件与全部父装配 modules 引用必须原子提交并共同回放，后续同步必须消费完整 receipt。
 - 配置列表必须以 `sessionId` 与 `modRoot` 共同归属数据、版本凭据、资源引用和选择；身份切换必须同步清空这些状态，新列表到达后才允许建立编辑目标。
 - 配置编辑会话必须登记实际版本覆盖的文件范围及所属保存动作；联合交接必须保留配置身份和动作 owner。

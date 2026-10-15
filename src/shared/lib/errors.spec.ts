@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   AppError,
-  buildModOpeningFailure,
   errorDiagnosticOf,
   extractFileReferenceFromError,
   fileReferenceLocationSuffix,
@@ -52,13 +51,6 @@ describe('error diagnostic projections', () => {
       column: 9,
     });
     expect(extractFileReferenceFromError({ ...diagnostic, location: { path: null, line: 7, column: 9 } })).toBeNull();
-  });
-
-  it('authorizes a structured recovery target using the trusted root', () => {
-    const failure = buildModOpeningFailure('\\\\?\\D:\\mods\\demo', diagnostic);
-    expect(failure.file).toEqual({ path: diagnostic.location.path, line: 5, column: 44 });
-    expect(failure.diagnostic).toEqual(diagnostic);
-    expect(buildModOpeningFailure('D:/mods/other', diagnostic).file).toBeNull();
   });
 
   it('keeps warning user copy separate from raw diagnostics', () => {

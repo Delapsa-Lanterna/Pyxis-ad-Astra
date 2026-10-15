@@ -10,7 +10,7 @@ import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { createCsvGridModel } from '@/domain/tables/csv-grid-model';
 import { csvColumnSchemaFor } from '@/domain/tables/csv-column-schema';
-import { sourceGroupLabel } from '@/domain/tables/csv-source-options';
+import { sourceGroupLabel } from '@/domain/schema/schema-options';
 import { recordPerformance } from '@/shared/runtime/performance';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { queryTableRowPreviewDataUrl, queryTableWindow } from '@/services/csv-table.service';

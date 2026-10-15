@@ -1,10 +1,10 @@
-import type { EditorSpecKind } from './editor.types';
+import type { SpecEditorKind } from './spec-editor.types';
 import type { AppSettings } from './settings.types';
 import type { JointEditKind } from './joint-edit.types';
 import type { WeaponFirePreviewSource } from './weapon-fire-preview.types';
 export type WindowIdentity =
   | { type: 'immersive'; sessionId: string; kind: JointEditKind; modRoot: string; id: string }
-  | { type: 'spec'; sessionId: string; kind: EditorSpecKind; modRoot: string; id: string }
+  | { type: 'spec'; sessionId: string; kind: SpecEditorKind; modRoot: string; id: string }
   | { type: 'weapon-fire-preview'; sessionId: string; modRoot: string; id: string }
   | { type: 'file'; sessionId: string; modRoot: string; path: string }
   | { type: 'recovery'; modRoot: string | null; path: string };

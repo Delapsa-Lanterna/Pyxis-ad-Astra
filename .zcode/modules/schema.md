@@ -15,7 +15,7 @@
 `src/app/components/schema/SchemaFormRenderer.vue`：表单渲染 owner。
 `src/app/components/schema/SchemaScalarInput.vue`：类型文本输入 owner，暂存原文并提交正式字段动作。
 `src/domain/schema/schema-core-fields.ts`：原版字段合并 owner。
-`src/domain/schema/schema-options.ts`：source 选项与 `SelectOption` 规则 owner。
+`src/domain/schema/schema-options.ts`：source 分组标签、选项与 `SelectOption` 规则 owner。
 `src/domain/schema/schema-registry.ts`：schema 资产唯一加载入口，拥有 5 个 spec 与 14 个 csv 列资产的运行时形状校验。
 `src/domain/schema/schema-runtime.ts`：runtime 上下文 owner。
 `src/domain/schema/schema-sections.ts`：section 投影与折叠标识 owner。

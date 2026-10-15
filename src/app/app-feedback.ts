@@ -13,11 +13,11 @@ import {
   errorContextOf,
   type FileReference,
 } from '@/shared/lib/errors';
-import { resolveFeedbackFileSession, type FeedbackFileSession } from '@/shared/lib/feedback-session';
+import { resolveFeedbackFileSession, type FeedbackFileSession } from '@/domain/app-feedback';
 import type { AppFeedback, ChooseOptions, ConfirmOptions, FileWindowLocation } from '@/shared/types';
 import { emitFileEditorSaved } from '@/orchestrators/file-editor-window.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
-import { currentWindowSessionIdentity } from '@/windows/window-identity.window';
+import { managedWindowContext } from '@/windows/window-context.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorMessageOf } from '@/shared/lib/errors';
@@ -136,7 +136,9 @@ function resolveSessionForPath(path: string): FeedbackFileSession | null {
   const project = useProjectStore();
   const modRoot = closestRootForPath(project.manifests.keys(), path);
   const sessionId = modRoot === null ? null : project.getSessionId(modRoot);
-  return resolveFeedbackFileSession(modRoot, sessionId, currentWindowSessionIdentity(), path);
+  const identity = managedWindowContext.value?.identity;
+  const windowSession = identity && 'sessionId' in identity ? { modRoot: identity.modRoot, sessionId: identity.sessionId } : null;
+  return resolveFeedbackFileSession(modRoot, sessionId, windowSession, path);
 }
 
 function renderToastContent(

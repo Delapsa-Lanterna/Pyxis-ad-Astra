@@ -1,23 +1,9 @@
-import type { AppFeedback, AppSettings, EditWriteTarget, JointEditRoot, JointEditSnapshot } from '@/shared/types';
+import type { AppFeedback, EditWriteTarget, JointEditRoot, JointEditSnapshot } from '@/shared/types';
 import { focusNativeManagedWindow, retargetNativeWindow } from '@/services/window.service';
 import { openJointEditRowSnapshot, openJointEditSnapshot } from '@/orchestrators/joint-edit.orchestrator';
 import { openImmersiveEditorWindow, immersiveWindowTitle } from '@/windows/immersive-editor.window';
 import { publishWindowContext } from '@/windows/window-context.window';
 import { immersiveEditableRecords } from '@/domain/immersive/source-records';
-import { openProjectileEditorWindow } from '@/windows/editor.window';
-import { jointObject } from '@/domain/joint-edit';
-import type { JointValue } from '@/shared/types';
-import { schemaStringValue } from '@/domain/schema/schema-values';
-
-export function openImmersiveProjectile(snapshot: JointEditSnapshot, values: Record<string, JointValue>, settings: AppSettings) {
-  const id = schemaStringValue(jointObject(values[snapshot.bindings.spec!]).projectileSpecId);
-  return openProjectileEditorWindow({
-    sessionId: snapshot.root.sessionId,
-    modRoot: snapshot.root.modRoot,
-    id,
-    starsectorRoot: settings.starsectorRoot,
-  });
-}
 
 export async function openEntityImmersiveEditor(
   request: {

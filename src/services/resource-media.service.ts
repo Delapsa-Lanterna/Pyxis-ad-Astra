@@ -12,9 +12,9 @@ import {
   removeMediaBudgetEntry,
   touchMediaBudgetEntry,
   mediaBudgetLimit,
-} from '@/shared/runtime/media-budget';
+} from '@/services/resource-budget.service';
 import { createReadTicket, invalidatedRead, waitForRead, type ReadTicket } from '@/shared/runtime/read-request';
-import { requireProjectionReady } from '@/shared/runtime/project-projection';
+import { requireProjectionReady } from '@/services/project-projection.service';
 import type { ProjectSessionId, ResourceRef } from '@/shared/types';
 
 import { windowCacheLimits } from '@/shared/runtime/cache-limits';

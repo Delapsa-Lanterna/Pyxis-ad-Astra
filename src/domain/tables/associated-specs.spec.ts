@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EditorWindowKind, TableKey } from '@/shared/types';
+import type { SpecEditorKind, TableKey } from '@/shared/types';
 import { associatedSpecEditorKinds, associatedSpecKind } from './associated-specs';
 
 const TABLE_WITHOUT_SPECS: TableKey[] = ['wings', 'hullmods', 'industries', 'skills', 'descriptions'];
@@ -25,7 +25,7 @@ describe('associatedSpecEditorKinds', () => {
 
   it('returns copies so callers cannot mutate the definitions', () => {
     const kinds = associatedSpecEditorKinds('weapons');
-    kinds.push('ship' as EditorWindowKind);
+    kinds.push('ship' as SpecEditorKind);
     expect(associatedSpecEditorKinds('weapons')).toEqual(['weapon']);
   });
 });

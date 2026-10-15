@@ -1,10 +1,12 @@
-import type { EditorSpecKind } from './editor.types';
-import type { EntityEditInfo } from './entity-target.types';
+import type { EntityEditInfo } from '@/shared/types/project-identity.types';
 import type { RowData } from './json.types';
-export interface SpecEditorData<K extends EditorSpecKind = EditorSpecKind> extends EntityEditInfo {
+export const SPEC_EDITOR_KINDS = ['ship', 'weapon', 'projectile', 'system'] as const;
+export type SpecEditorKind = (typeof SPEC_EDITOR_KINDS)[number];
+
+export interface SpecEditorData<K extends SpecEditorKind = SpecEditorKind> extends EntityEditInfo {
   kind: K;
   spec: RowData;
   isNew: boolean;
 }
-export type WeaponEditorData = SpecEditorData<'weapon'>;
-export type ProjectileEditorData = SpecEditorData<'projectile'>;
+export type SpecWeaponEditorData = SpecEditorData<'weapon'>;
+export type SpecProjectileEditorData = SpecEditorData<'projectile'>;

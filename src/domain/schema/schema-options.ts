@@ -1,7 +1,6 @@
-import type { ResourceRef, SourceOptionGroup } from '@/shared/types';
+import type { ResourceRef, ResourceSource, SourceOptionGroup } from '@/shared/types';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import type { DeepReadonly } from '@/shared/types';
-import { sourceGroupLabel } from '@/domain/tables/csv-source-options';
 import { schemaArrayStringValues, schemaKeyValueEntries, schemaStringValue, schemaTagValues } from '@/domain/schema/schema-values';
 
 export interface SelectOption {
@@ -32,6 +31,10 @@ const CURRENT_VALUE_OPTION_GROUP = {
   label: '当前值',
   value: '__current',
 } as const;
+
+export function sourceGroupLabel(origin: ResourceSource): string {
+  return origin === 'core' ? '原版' : '当前 Mod';
+}
 
 export function selectOptionValueExists(options: SelectOption[], value: string): boolean {
   return options.some((option) => option.value === value || option.children?.some((child) => child.value === value));

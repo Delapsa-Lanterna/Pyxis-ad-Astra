@@ -1,4 +1,5 @@
-import type { CsvDraftRow, TableKey } from '@/shared/types/tables.types';
+import type { TableKey } from '@/shared/types/project-identity.types';
+import type { CsvDraftRow } from '@/shared/types/tables.types';
 
 export interface CsvCellValueSetOperation {
   type: 'cell-value-set';

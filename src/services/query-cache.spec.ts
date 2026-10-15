@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { invalidateQueryCacheByProject, invalidateQueryCacheForSession, queryCached, queryLive } from '@/services/query-cache.service';
 import type { QueryValue } from '@/shared/types';
-import { markProjectionPending, markProjectionReady } from '@/shared/runtime/project-projection';
+import { markProjectionPending, markProjectionReady } from '@/services/project-projection.service';
 
 describe('query pending ownership', () => {
   it('does not start a loader for an already released consumer', async () => {

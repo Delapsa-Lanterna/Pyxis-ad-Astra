@@ -15,6 +15,7 @@
 `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel owner，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
 `src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫。
 `src/orchestrators/file-editor-window.orchestrator.ts`：窗口打开编排 owner，处理 warning 与失败目标的窗口化。
+`src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
 `src/windows/file-editor.window.ts`：窗口请求 owner，承载常规与错误恢复两种请求形状。
 
 ## 边界
@@ -42,7 +43,7 @@
 
 1. 用户在文本域输入，文本 Draft Session 记录 dirty。
 2. 用户点击保存或 Ctrl+S 进入保存编排。
-3. 保存经 service/API 到后端校验并写盘。
+3. 保存经文件 service 到后端校验并写盘。
 4. 会话以实际提交文本和返回版本接纳基线，保留后续输入与文本历史。
 5. 完整 receipt 进入统一接纳入口，按 ready 或 `pending` 处理会话投影并发送提交通知。
 6. 同步失败呈现已写盘状态与同步错误，等待交接结束。

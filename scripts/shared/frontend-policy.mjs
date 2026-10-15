@@ -11,6 +11,13 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 export const frontendCapabilities = [
   {
     role: 'service',
+    domain: 'resource-budget',
+    names: ['mediaBudgetLimit', 'mediaBudgetBytes', 'registerMediaBudgetEntry', 'removeMediaBudgetEntry', 'touchMediaBudgetEntry'],
+    capability: 'resource-budget',
+    owners: ['resource-cache', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
+  },
+  {
+    role: 'service',
     domain: 'mod-file-browser',
     names: ['queryModDirectory', 'queryModFileSearch', 'queryModTextFileTarget'],
     capability: 'mod-file-browser-read',
@@ -29,30 +36,30 @@ export const frontendCapabilities = [
     names: ['queryWeaponData', 'queryWeaponSpecData', 'queryWeaponSprites'],
     capability: 'weapon-data-read',
     owners: [
-      { layer: 'services', domain: 'weapon-editor' },
+      { layer: 'services', domain: 'spec-weapon-editor' },
       { layer: 'services', domain: 'weapon-fire-preview' },
     ],
   },
   {
     role: 'service',
-    domain: 'weapon-editor',
-    names: ['queryWeaponEditorData'],
+    domain: 'spec-weapon-editor',
+    names: ['querySpecWeaponEditorData'],
     capability: 'weapon-editor-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-definitions' }],
+    owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-assembly' }],
   },
   {
     role: 'service',
-    domain: 'weapon-editor',
-    names: ['queryWeaponEditorImages', 'queryWeaponProjectileOptions'],
-    capability: 'weapon-editor-dependencies',
-    owners: [{ layer: 'app', role: 'composable', domain: 'weapon-editor-dependencies' }],
+    domain: 'spec-weapon-editor',
+    names: ['querySpecWeaponEditorImages', 'querySpecWeaponProjectileOptions'],
+    capability: 'spec-weapon-editor-dependencies',
+    owners: [{ layer: 'app', role: 'composable', domain: 'spec-weapon-editor-dependencies' }],
   },
   {
     role: 'service',
-    domain: 'projectile-editor',
-    names: ['queryProjectileEditorData', 'queryProjectileEditorImages'],
+    domain: 'spec-projectile-editor',
+    names: ['querySpecProjectileEditorData', 'querySpecProjectileEditorImages'],
     capability: 'projectile-editor-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-definitions' }],
+    owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-assembly' }],
   },
   {
     role: 'service',
@@ -69,7 +76,9 @@ export const frontendCapabilities = [
     owners: [
       { layer: 'orchestrators', domain: 'joint-edit' },
       { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
-      { layer: 'app', role: 'composable', domain: 'immersive-editor-view-model' },
+      { layer: 'app', role: 'composable', domain: 'immersive-editor-runtime' },
+      { layer: 'app', role: 'composable', domain: 'immersive-variant-editor' },
+      { layer: 'app', role: 'composable', domain: 'immersive-wing-editor' },
       { layer: 'app', role: 'composable', domain: 'variant-catalog' },
       { layer: 'app', role: 'composable', domain: 'variant-candidate' },
     ],
@@ -82,10 +91,9 @@ export const frontendCapabilities = [
     owners: [
       { layer: 'orchestrators', domain: 'joint-edit' },
       { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
-      { layer: 'app', role: 'composable', domain: 'immersive-editor-view-model' },
       { layer: 'app', role: 'composable', domain: 'variant-catalog' },
       { layer: 'app', role: 'composable', domain: 'variant-candidate' },
-      { layer: 'services', domain: 'editor' },
+      { layer: 'services', domain: 'spec-ship-editor' },
     ],
   },
   {
@@ -117,7 +125,7 @@ export const frontendCapabilities = [
     domain: 'runtime',
     names: ['invokeCommand'],
     capability: 'command-transport',
-    owners: [{ layer: 'services' }, { layer: 'shared', role: 'api' }],
+    owners: [{ layer: 'services' }],
   },
   {
     role: 'service',
@@ -193,19 +201,15 @@ export const frontendCapabilities = [
     owners: [{ layer: 'orchestrators', domain: 'core-assets' }],
   },
   {
-    path: 'src/shared/runtime/project-projection.ts',
-    layer: 'shared',
-    role: 'shared',
-    domain: 'runtime',
+    role: 'service',
+    domain: 'project-projection',
     names: ['markProjectionPending'],
     capability: 'projection-state',
     owners: [{ layer: 'orchestrators', domain: 'project-session-refresh' }],
   },
   {
-    path: 'src/shared/runtime/project-projection.ts',
-    layer: 'shared',
-    role: 'shared',
-    domain: 'runtime',
+    role: 'service',
+    domain: 'project-projection',
     names: ['markProjectionReady'],
     capability: 'projection-state',
     owners: [
@@ -214,13 +218,11 @@ export const frontendCapabilities = [
     ],
   },
   {
-    path: 'src/shared/runtime/project-projection.ts',
-    layer: 'shared',
-    role: 'shared',
-    domain: 'runtime',
+    role: 'service',
+    domain: 'project-projection',
     names: ['requireProjectionReady'],
     capability: 'projection-read',
-    owners: [{ layer: 'services' }],
+    owners: ['query-cache', 'resource-cache', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
   },
   {
     role: 'orchestrator',
@@ -470,22 +472,36 @@ export const frontendCapabilities = [
   },
   {
     role: 'service',
-    domain: 'editor',
-    names: ['saveEditorSpec', 'saveEditorSpecByKind'],
+    domain: 'spec-editor',
+    names: ['saveSpecEditorSpec', 'saveSpecEditorSpecByKind'],
     capability: 'spec-write',
     owners: readOwners,
   },
   {
     role: 'service',
-    domain: 'editor',
-    names: ['queryShipEditorData', 'querySystemEditorData', 'queryShipEditorImages', 'queryEditorIdentityIntent', 'queryShipWeaponSources'],
+    domain: 'spec-ship-editor',
+    names: ['querySpecShipEditorData', 'querySpecShipEditorImages', 'querySpecShipWeaponSources'],
+    capability: 'spec-ship-editor-read',
+    owners: readOwners,
+  },
+  {
+    role: 'service',
+    domain: 'spec-system-editor',
+    names: ['querySpecSystemEditorData'],
+    capability: 'spec-system-editor-read',
+    owners: readOwners,
+  },
+  {
+    role: 'service',
+    domain: 'spec-editor',
+    names: ['querySpecEditorIdentityIntent'],
     capability: 'editor-query',
     owners: readOwners,
   },
   {
     role: 'service',
-    domain: 'editor',
-    names: ['loadImportedSpecFile'],
+    domain: 'spec-editor',
+    names: ['loadSpecEditorImport'],
     capability: 'spec-import',
     owners: readOwners,
   },
@@ -580,10 +596,12 @@ export const frontendCapabilities = [
     domain: 'resource-cache',
     names: ['queryResourceDataUrls'],
     capability: 'resource-load',
-    owners: ['config-resource', 'csv-table', 'editor', 'weapon-data', 'resource-media', 'projectile-editor'].map((domain) => ({
-      layer: 'services',
-      domain,
-    })),
+    owners: ['config-resource', 'csv-table', 'spec-ship-editor', 'weapon-data', 'resource-media', 'spec-projectile-editor'].map(
+      (domain) => ({
+        layer: 'services',
+        domain,
+      }),
+    ),
   },
   {
     role: 'service',
@@ -665,15 +683,13 @@ export function capabilityOrigins(edge, nodes) {
 export function frontendDependencyFailure(current, target, edge) {
   if (current.role === 'bootstrap' && target.layer === 'styles') return null;
   if (!validFrontendDependency(current.layer, target.layer)) return `${current.layer} must not import ${target.layer}`;
-  if (!edge.typeOnly && current.role === 'component' && ['service', 'orchestrator', 'api'].includes(target.role))
+  if (!edge.typeOnly && current.role === 'component' && ['service', 'orchestrator'].includes(target.role))
     return 'components must consume ViewModel/composable state and actions';
-  if (target.role === 'api' && current.layer !== 'services') return 'wire APIs must be consumed through backend capability services';
   if (!edge.typeOnly && current.layer === 'services' && target.layer === 'services' && !allowedServiceEdge(current, target))
     return 'service composition must follow the declared capability dependency matrix';
-  const runtimeOwner =
-    current.role === 'api' || current.layer === 'windows' || (current.layer === 'shared' && current.domain === 'runtime');
+  const runtimeOwner = current.layer === 'windows' || (current.layer === 'shared' && current.domain === 'runtime');
   if (!edge.typeOnly && edge.specifier.startsWith('@tauri-apps/') && !runtimeOwner)
-    return 'Tauri runtime access belongs behind wire, window or shared runtime boundaries';
+    return 'Tauri runtime access belongs behind window or shared runtime boundaries';
   return null;
 }
 
@@ -693,6 +709,11 @@ function matchesOwner(current, owner) {
 }
 
 const serviceEdges = new Set([
+  'query-cache -> project-projection',
+  'resource-cache -> project-projection',
+  'resource-media -> project-projection',
+  'resource-cache -> resource-budget',
+  'resource-media -> resource-budget',
   'entity-query -> query-cache',
   'csv-table -> query-cache',
   'joint-edit -> query-cache',
@@ -705,18 +726,20 @@ const serviceEdges = new Set([
   'config-resource -> resource-cache',
   'csv-table -> entity-query',
   'csv-table -> resource-cache',
-  'weapon-editor -> weapon-data',
-  'weapon-editor -> entity-query',
-  'projectile-editor -> entity-query',
-  'projectile-editor -> resource-cache',
+  'spec-weapon-editor -> weapon-data',
+  'spec-weapon-editor -> entity-query',
+  'spec-projectile-editor -> entity-query',
+  'spec-projectile-editor -> resource-cache',
   'weapon-fire-preview -> entity-query',
   'weapon-data -> entity-query',
   'weapon-data -> resource-cache',
   'weapon-fire-preview -> weapon-data',
-  'editor -> files',
-  'editor -> entity-query',
-  'editor -> joint-edit',
-  'editor -> resource-cache',
+  'spec-editor -> files',
+  'spec-editor -> entity-query',
+  'spec-ship-editor -> entity-query',
+  'spec-ship-editor -> joint-edit',
+  'spec-ship-editor -> resource-cache',
+  'spec-system-editor -> entity-query',
 ]);
 
 /** @param {PathRole} from @param {PathRole} to @returns {boolean} */

@@ -7,13 +7,12 @@ import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { closeProject, openProject } from '@/services/project-session.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from '@/services/directory.service';
-import { formatLoadWarnings, scanWarningNotice } from '@/domain/project/load-warnings';
+import { buildModOpeningFailure, formatLoadWarnings, scanWarningNotice } from '@/domain/project/load-diagnostics';
 import { measurePerformance } from '@/shared/runtime/performance';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { navigateToModOverview } from '@/orchestrators/workspace-navigation.orchestrator';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
-import { buildModOpeningFailure } from '@/shared/lib/errors';
 
 export type DirectoryOpeningOutcome =
   | { type: 'game-overview'; root: string; availableModCount: number }

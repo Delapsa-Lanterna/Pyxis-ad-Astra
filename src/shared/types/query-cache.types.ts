@@ -1,6 +1,13 @@
-import type { CsvSearchField, CsvTableWindow, CsvRowPreview, TableKey } from '@/shared/types/tables.types';
-import type { EntityData, EntityKind, HullReferencesResult, SourceOptionGroup, ResourceRef } from '@/shared/types/query.types';
-import type { EntityEditInfo, EntityEditTarget, EntityIdentityIntent } from '@/shared/types/entity-target.types';
+import type {
+  TableKey,
+  EntityKind,
+  ResourceRef,
+  EntityEditInfo,
+  EntityEditTarget,
+  EntityIdentityIntent,
+} from '@/shared/types/project-identity.types';
+import type { CsvSearchField, CsvTableWindow, CsvRowPreview } from '@/shared/types/tables.types';
+import type { EntityData, HullReferencesResult, SourceOptionGroup } from '@/shared/types/query.types';
 import type { EditorResourceKind } from '@/shared/types/editor.types';
 import type { RowData, JsonValue } from '@/shared/types/json.types';
 

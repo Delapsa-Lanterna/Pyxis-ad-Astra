@@ -52,6 +52,7 @@ export async function collectArchitectureFiles(root) {
  * @returns {boolean}
  */
 function isArchitecturePath(rel, extension) {
+  if (rel.startsWith('.zcode/plans/')) return false;
   const isModuleDoc = extension === '.md' && rel.startsWith('.zcode/modules/');
   const isModuleMap = extension === '.md' && rel === '.zcode/module-map.md';
   return (

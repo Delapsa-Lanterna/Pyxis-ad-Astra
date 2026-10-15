@@ -12,7 +12,7 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCoreSchema } from '@/app/composables/use-core-assets';
 import { recordLogBestEffort } from '@/services/app-log.service';
-import { buildModOpeningFailure } from '@/shared/lib/errors';
+import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
 import { useTableSaveParticipants } from '@/app/composables/use-table-save-participants';
 
 // Main-window-only bootstrap: startup restore, workspace-state persistence and

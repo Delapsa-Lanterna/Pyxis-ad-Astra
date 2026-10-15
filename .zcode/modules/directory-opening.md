@@ -12,7 +12,7 @@
 `src-tauri/src/services/directory_opening/overview.rs`：游戏概览扫描 owner。
 `src-tauri/src/services/project_session.rs`：打开动作的 ProjectSession 建立交接能力。
 `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
-`src/domain/project/load-warnings.ts`：加载警告格式化 owner。
+`src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影 owner。
 `src/orchestrators/directory-opening.orchestrator.ts`：打开编排 owner，拥有识别分流、打开结果形状与失败回滚。
 `src/services/directory.service.ts`：目录选择、识别及概览协议主归属。
 

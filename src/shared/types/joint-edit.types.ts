@@ -1,8 +1,6 @@
-import type { EntityEditTarget, EntityFileLocation } from './entity-target.types';
-import type { TableKey } from './tables.types';
-import type { ResourceRef } from './query.types';
+import type { EntityEditTarget, EntityFileLocation, TableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
 import type { JsonValue } from './json.types';
-import type { FileVersion, JsonWriteOptions, WriteResult } from './write.types';
+import type { JsonWriteOptions, WriteResult } from './write.types';
 
 export type JointEditKind = 'ship' | 'weapon' | 'wing' | 'variant';
 export interface JointEditRoot {
@@ -34,7 +32,7 @@ export interface JointVariantEntry {
   primaryRole: string | null;
 }
 export interface JointPreviewSpec {
-  kind: import('./query.types').EntityKind;
+  kind: import('@/shared/types/project-identity.types').EntityKind;
   id: string;
   data: JsonValue;
   resourceRefs: Record<string, ResourceRef>;

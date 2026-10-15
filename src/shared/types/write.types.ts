@@ -1,12 +1,8 @@
+import type { FileVersion } from '@/shared/types/project-identity.types';
 import type { FileChangeRecord } from '@/shared/types/history.types';
 import type { RowData } from '@/shared/types/json.types';
 import type { ProjectInvalidation, ProjectSessionInvalidationResult } from '@/shared/types/query.types';
 import type { FileHistorySnapshot } from '@/shared/types/file-history.types';
-
-export interface FileVersion {
-  path: string;
-  fingerprint: string | null;
-}
 
 export interface CsvRowKeyMapping {
   previousKey: string;
@@ -16,7 +12,7 @@ export interface CsvRowKeyMapping {
 
 export interface WriteResult<T = RowData> {
   sessionUpdates: CommittedSessionUpdate[];
-  identityChanges: import('@/shared/types/entity-target.types').EntityIdentityChange[];
+  identityChanges: import('@/shared/types/project-identity.types').EntityIdentityChange[];
   changes: FileChangeRecord[];
   invalidation: ProjectInvalidation;
   keyMap: CsvRowKeyMapping[];
@@ -70,7 +66,7 @@ export type AssociatedSpecChange =
 
 export interface AssociatedSpecWrite {
   change: AssociatedSpecChange;
-  target: import('@/shared/types/entity-target.types').EntityEditTarget;
+  target: import('@/shared/types/project-identity.types').EntityEditTarget;
 }
 
 export type CsvRowPatchAction = 'upsert' | 'delete';

@@ -1,25 +1,5 @@
+import type { ProjectSessionId, ResourceRef, TableKey } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
-import type { ProjectSessionId } from '@/shared/types/query.types';
-import type { ResourceRef } from '@/shared/types/query.types';
-
-export const TABLE_KEYS = [
-  'ships',
-  'weapons',
-  'wings',
-  'hullmods',
-  'shipSystems',
-  'industries',
-  'skills',
-  'abilities',
-  'commodities',
-  'specialItems',
-  'submarkets',
-  'marketConditions',
-  'simOpponents',
-  'descriptions',
-] as const;
-
-export type TableKey = (typeof TABLE_KEYS)[number];
 
 export interface CsvTableTarget {
   sessionId: string;
@@ -53,7 +33,7 @@ export interface CsvDraftRow extends CsvRowRecord {
 export type CsvTableRows = Array<CsvDraftRow | null>;
 
 export interface CsvTableWindow {
-  baseVersions: import('@/shared/types/write.types').FileVersion[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   table: TableKey;
   header: string[];
   totalRows: number;

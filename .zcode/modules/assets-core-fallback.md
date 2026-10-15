@@ -23,11 +23,11 @@
 `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影主归属。
 `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
 `src/services/hull-reference.service.ts`：Hull 查询及引用投影主归属。
+`src/services/resource-budget.service.ts`：共享 WebView 字节预算与逐出回调主归属。
 `src/services/resource-cache.service.ts`：前端资源缓存 service owner。
 `src/services/resource-media.service.ts`：通用媒体服务 owner，资源缓存之上的响应式投影视图。
 `src/services/resource-reference.service.ts`：授权引用解析能力主归属。
 `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
-`src/shared/runtime/media-budget.ts`：共享 WebView 字节预算与逐出回调主归属。
 `src/shared/runtime/resident-cache.ts`：活跃与闲置分离的双重预算及 LRU 原语 owner。
 
 ## 边界

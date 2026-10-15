@@ -7,7 +7,7 @@ import { NCheckbox } from 'naive-ui/es/checkbox';
 import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';
 import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
-import { openEditorWindow } from '@/windows/editor.window';
+import { openSpecEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useProjectStore } from '@/stores/project.store';
 import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.service';
@@ -542,7 +542,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       line: null,
       fields: logFields({ kind: action.kind, id: action.id, modRoot: action.modRoot, sessionId: action.sessionId }),
     });
-    openEditorWindow({
+    openSpecEditorWindow({
       kind: action.kind,
       modRoot: action.modRoot,
       id: action.id,
