@@ -58,53 +58,63 @@
         </section>
         <n-collapse v-model:expanded-names="view.expandedSections" @update:expanded-names="canvas.onExpandedSectionsUpdate">
           <n-collapse-item class="schema-section" title="船体属性" name="basic">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="hullId" :path="'hullId'" /></label
-              ><n-input :value="document.hullId" @update:value="actions.setField('hullId', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="hullName" :path="'hullName'" /></label
-              ><n-input :value="document.hullName" @update:value="actions.setField('hullName', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="hullSize" :path="'hullSize'" /></label
-              ><n-select
-                :value="document.hullSize"
-                :options="toOptions(['FRIGATE', 'DESTROYER', 'CRUISER', 'CAPITAL_SHIP', 'FIGHTER'])"
-                @update:value="actions.setField('hullSize', $event)"
-              />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="style" :path="'style'" /></label
-              ><n-select
-                :value="document.style"
-                filterable
-                tag
-                :options="toOptions(['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'])"
-                @update:value="actions.setField('style', $event)"
-              />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="width" :path="'width'" /></label
-              ><NumberValueInput :value="document.width" @update:value="actions.setVisualField('width', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="height" :path="'height'" /></label
-              ><NumberValueInput :value="document.height" @update:value="actions.setVisualField('height', $event)" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['hullId'] ?? 'hullId'" field-key="hullId" :path="'hullId'"
+                ><n-input :value="document.hullId" @update:value="actions.setField('hullId', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['hullName'] ?? 'hullName'" field-key="hullName" :path="'hullName'"
+                ><n-input :value="document.hullName" @update:value="actions.setField('hullName', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['hullSize'] ?? 'hullSize'" field-key="hullSize" :path="'hullSize'"
+                ><n-select
+                  :value="document.hullSize"
+                  :options="toOptions(['FRIGATE', 'DESTROYER', 'CRUISER', 'CAPITAL_SHIP', 'FIGHTER'])"
+                  @update:value="actions.setField('hullSize', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['style'] ?? 'style'" field-key="style" :path="'style'"
+                ><n-select
+                  :value="document.style"
+                  filterable
+                  tag
+                  :options="toOptions(['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'])"
+                  @update:value="actions.setField('style', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['width'] ?? 'width'" field-key="width" :path="'width'"
+                ><NumberValueInput :value="document.width" @update:value="actions.setVisualField('width', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['height'] ?? 'height'" field-key="height" :path="'height'"
+                ><NumberValueInput :value="document.height" @update:value="actions.setVisualField('height', $event)"
+              /></FieldRow>
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="贴图" name="sprite">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="spriteName" :path="'spriteName'" /></label>
-              <div class="sprite-field-row ui-layout-grid ui-layout-center">
-                <n-input :value="document.spriteName" @update:value="actions.setField('spriteName', $event)" @change="actions.loadSprite" />
-                <n-button
-                  class="sprite-icon-button ui-control-reset"
-                  tertiary
-                  title="浏览贴图（引用 Mod 内文件）"
-                  aria-label="浏览贴图"
-                  @click="actions.pickShipSprite()"
-                >
-                  <svg class="sprite-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 19V5h6l2 2h8v12H4z" />
-                    <path d="M8 14h8M12 10v8" />
-                  </svg>
-                </n-button>
-              </div>
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="sprite width" /></label
-              ><NumberValueInput :value="view.spriteSize.width || null" disabled />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="sprite height" /></label
-              ><NumberValueInput :value="view.spriteSize.height || null" disabled />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['spriteName'] ?? 'spriteName'" field-key="spriteName" :path="'spriteName'"
+                ><div class="sprite-field-row ui-layout-grid ui-layout-center">
+                  <n-input
+                    :value="document.spriteName"
+                    @update:value="actions.setField('spriteName', $event)"
+                    @change="actions.loadSprite"
+                  />
+                  <n-button
+                    class="sprite-icon-button ui-control-reset"
+                    tertiary
+                    title="浏览贴图（引用 Mod 内文件）"
+                    aria-label="浏览贴图"
+                    @click="actions.pickShipSprite()"
+                  >
+                    <svg class="sprite-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 19V5h6l2 2h8v12H4z" />
+                      <path d="M8 14h8M12 10v8" />
+                    </svg>
+                  </n-button></div
+              ></FieldRow>
+              <FieldRow :label="fieldNames['sprite width'] ?? 'sprite width'" field-key="sprite.width"
+                ><NumberValueInput :value="view.spriteSize.width || null" disabled
+              /></FieldRow>
+              <FieldRow :label="fieldNames['sprite height'] ?? 'sprite height'" field-key="sprite.height"
+                ><NumberValueInput :value="view.spriteSize.height || null" disabled
+              /></FieldRow>
             </div>
             <div v-if="spriteError" class="editor-resource-diagnostics ui-layout-grid ui-text-wrap ui-text-small">{{ spriteError }}</div>
             <div class="sprite-actions ui-layout-grid">
@@ -113,19 +123,25 @@
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="中心与护盾" name="props">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi" data-inspector-field="center-x"><SpecFieldLabel raw="center X" /></label
-              ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)" />
-              <label class="form-grid-label field-label-multi" data-inspector-field="center-y"><SpecFieldLabel raw="center Y" /></label
-              ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="collisionRadius" :path="'collisionRadius'" /></label
-              ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setVisualField('collisionRadius', $event)" />
-              <label class="form-grid-label field-label-multi" data-inspector-field="shield-x"><SpecFieldLabel raw="shield X" /></label
-              ><NumberValueInput :value="view.shieldCenter[0]" @update:value="actions.setArray('shieldCenter', 0, $event)" />
-              <label class="form-grid-label field-label-multi" data-inspector-field="shield-y"><SpecFieldLabel raw="shield Y" /></label
-              ><NumberValueInput :value="view.shieldCenter[1]" @update:value="actions.setArray('shieldCenter', 1, $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="shieldRadius" :path="'shieldRadius'" /></label
-              ><NumberValueInput :value="document.shieldRadius" @update:value="actions.setVisualField('shieldRadius', $event)" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['center X'] ?? 'center X'" field-key="center[0]" data-inspector-field="center-x"
+                ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['center Y'] ?? 'center Y'" field-key="center[1]" data-inspector-field="center-y"
+                ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['collisionRadius'] ?? 'collisionRadius'" field-key="collisionRadius" :path="'collisionRadius'"
+                ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setVisualField('collisionRadius', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['shield X'] ?? 'shield X'" field-key="shieldCenter[0]" data-inspector-field="shield-x"
+                ><NumberValueInput :value="view.shieldCenter[0]" @update:value="actions.setArray('shieldCenter', 0, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['shield Y'] ?? 'shield Y'" field-key="shieldCenter[1]" data-inspector-field="shield-y"
+                ><NumberValueInput :value="view.shieldCenter[1]" @update:value="actions.setArray('shieldCenter', 1, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['shieldRadius'] ?? 'shieldRadius'" field-key="shieldRadius" :path="'shieldRadius'"
+                ><NumberValueInput :value="document.shieldRadius" @update:value="actions.setVisualField('shieldRadius', $event)"
+              /></FieldRow>
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="武器槽" name="weapons">
@@ -142,59 +158,66 @@
                 <span class="item-list-label ui-text-muted">{{ item.slot.size }} {{ item.slot.type }}</span>
               </button>
             </div>
-            <div v-if="view.mode === 'weapon' && view.selectedSlot" class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="id" :path="`weaponSlots[${view.selected}].id`" /></label
-              ><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="size" :path="`weaponSlots[${view.selected}].size`" /></label
-              ><n-select
-                :value="view.selectedSlot.size"
-                :options="toOptions(['SMALL', 'MEDIUM', 'LARGE'])"
-                @update:value="actions.setSlotField('size', $event)"
-              />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="type" :path="`weaponSlots[${view.selected}].type`" /></label
-              ><n-select
-                :value="view.selectedSlot.type"
-                :options="
-                  toOptions([
-                    'BALLISTIC',
-                    'ENERGY',
-                    'MISSILE',
-                    'HYBRID',
-                    'UNIVERSAL',
-                    'SYNERGY',
-                    'COMPOSITE',
-                    'BUILT_IN',
-                    'DECORATIVE',
-                    'SYSTEM',
-                    'STATION_MODULE',
-                  ])
-                "
-                @update:value="actions.setSlotField('type', $event)"
-              />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="mount" :path="`weaponSlots[${view.selected}].mount`" /></label
-              ><n-select
-                :value="view.selectedSlot.mount"
-                :options="toOptions(['TURRET', 'HARDPOINT', 'HIDDEN'])"
-                @update:value="actions.setSlotField('mount', $event)"
-              />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="angle" :path="`weaponSlots[${view.selected}].angle`" /></label
-              ><NumberValueInput :value="view.selectedSlot.angle" @update:value="actions.setSlotField('angle', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="arc" :path="`weaponSlots[${view.selected}].arc`" /></label
-              ><NumberValueInput :value="view.selectedSlot.arc" @update:value="actions.setSlotField('arc', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="renderOrderMod" :path="`weaponSlots[${view.selected}].renderOrderMod`" /></label
-              ><NumberValueInput :value="view.selectedSlot.renderOrderMod" @update:value="actions.setSlotField('renderOrderMod', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="loc X" :path="`weaponSlots[${view.selected}].locations[0]`" /></label
-              ><NumberValueInput :value="view.slotLoc[0]" @update:value="actions.setSlotLoc(0, $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="loc Y" :path="`weaponSlots[${view.selected}].locations[1]`" /></label
-              ><NumberValueInput :value="view.slotLoc[1]" @update:value="actions.setSlotLoc(1, $event)" />
+            <div v-if="view.mode === 'weapon' && view.selectedSlot" class="ui-field-stack">
+              <FieldRow :label="fieldNames['id'] ?? 'id'" field-key="id" :path="`weaponSlots[${view.selected}].id`"
+                ><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['size'] ?? 'size'" field-key="size" :path="`weaponSlots[${view.selected}].size`"
+                ><n-select
+                  :value="view.selectedSlot.size"
+                  :options="toOptions(['SMALL', 'MEDIUM', 'LARGE'])"
+                  @update:value="actions.setSlotField('size', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['type'] ?? 'type'" field-key="type" :path="`weaponSlots[${view.selected}].type`"
+                ><n-select
+                  :value="view.selectedSlot.type"
+                  :options="
+                    toOptions([
+                      'BALLISTIC',
+                      'ENERGY',
+                      'MISSILE',
+                      'HYBRID',
+                      'UNIVERSAL',
+                      'SYNERGY',
+                      'COMPOSITE',
+                      'BUILT_IN',
+                      'DECORATIVE',
+                      'SYSTEM',
+                      'STATION_MODULE',
+                    ])
+                  "
+                  @update:value="actions.setSlotField('type', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['mount'] ?? 'mount'" field-key="mount" :path="`weaponSlots[${view.selected}].mount`"
+                ><n-select
+                  :value="view.selectedSlot.mount"
+                  :options="toOptions(['TURRET', 'HARDPOINT', 'HIDDEN'])"
+                  @update:value="actions.setSlotField('mount', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['angle'] ?? 'angle'" field-key="angle" :path="`weaponSlots[${view.selected}].angle`"
+                ><NumberValueInput :value="view.selectedSlot.angle" @update:value="actions.setSlotField('angle', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['arc'] ?? 'arc'" field-key="arc" :path="`weaponSlots[${view.selected}].arc`"
+                ><NumberValueInput :value="view.selectedSlot.arc" @update:value="actions.setSlotField('arc', $event)"
+              /></FieldRow>
+              <FieldRow
+                :label="fieldNames['renderOrderMod'] ?? 'renderOrderMod'"
+                field-key="renderOrderMod"
+                :path="`weaponSlots[${view.selected}].renderOrderMod`"
+                ><NumberValueInput :value="view.selectedSlot.renderOrderMod" @update:value="actions.setSlotField('renderOrderMod', $event)"
+              /></FieldRow>
+              <FieldRow
+                :label="fieldNames['loc X'] ?? 'loc X'"
+                field-key="locations[0]"
+                :path="`weaponSlots[${view.selected}].locations[0]`"
+                ><NumberValueInput :value="view.slotLoc[0]" @update:value="actions.setSlotLoc(0, $event)"
+              /></FieldRow>
+              <FieldRow
+                :label="fieldNames['loc Y'] ?? 'loc Y'"
+                field-key="locations[1]"
+                :path="`weaponSlots[${view.selected}].locations[1]`"
+                ><NumberValueInput :value="view.slotLoc[1]" @update:value="actions.setSlotLoc(1, $event)"
+              /></FieldRow>
             </div>
             <div class="action-row button-row action-group">
               <n-button @click="actions.addWeaponSlot()">添加</n-button
@@ -215,9 +238,10 @@
                 <span class="item-list-label ui-text-muted">甲板 · {{ bayPorts(item.slot.locations).length }}</span>
               </button>
             </div>
-            <div v-if="view.mode === 'launchBay' && view.selectedSlot" class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="id" :path="`weaponSlots[${view.selected}].id`" /></label
-              ><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)" />
+            <div v-if="view.mode === 'launchBay' && view.selectedSlot" class="ui-field-stack">
+              <FieldRow :label="fieldNames['id'] ?? 'id'" field-key="id" :path="`weaponSlots[${view.selected}].id`"
+                ><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)"
+              /></FieldRow>
             </div>
             <div v-if="view.mode === 'launchBay' && view.selectedSlot && view.selectedBayPorts.length" class="port-rows ui-layout-grid">
               <div
@@ -252,34 +276,36 @@
                 引擎 {{ i }} <span class="item-list-label ui-text-muted">{{ eng.width }}x{{ eng.length }}</span>
               </button>
             </div>
-            <div v-if="view.mode === 'engine' && view.selectedEngine" class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="angle" :path="`engineSlots[${view.selected}].angle`" /></label
-              ><NumberValueInput :value="view.selectedEngine.angle" @update:value="actions.setEngineField('angle', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="width" :path="`engineSlots[${view.selected}].width`" /></label
-              ><NumberValueInput :value="view.selectedEngine.width" @update:value="actions.setEngineField('width', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="length" :path="`engineSlots[${view.selected}].length`" /></label
-              ><NumberValueInput :value="view.selectedEngine.length" @update:value="actions.setEngineField('length', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="contrailSize" :path="`engineSlots[${view.selected}].contrailSize`" /></label
-              ><NumberValueInput :value="view.selectedEngine.contrailSize" @update:value="actions.setEngineField('contrailSize', $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="style" :path="`engineSlots[${view.selected}].style`" /></label
-              ><n-select
-                :value="view.selectedEngine.style"
-                filterable
-                tag
-                :options="toOptions(['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'])"
-                @update:value="actions.setEngineField('style', $event)"
-              />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="loc X" :path="`engineSlots[${view.selected}].location[0]`" /></label
-              ><NumberValueInput :value="view.engineLoc[0]" @update:value="actions.setEngineLoc(0, $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="loc Y" :path="`engineSlots[${view.selected}].location[1]`" /></label
-              ><NumberValueInput :value="view.engineLoc[1]" @update:value="actions.setEngineLoc(1, $event)" />
+            <div v-if="view.mode === 'engine' && view.selectedEngine" class="ui-field-stack">
+              <FieldRow :label="fieldNames['angle'] ?? 'angle'" field-key="angle" :path="`engineSlots[${view.selected}].angle`"
+                ><NumberValueInput :value="view.selectedEngine.angle" @update:value="actions.setEngineField('angle', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['width'] ?? 'width'" field-key="width" :path="`engineSlots[${view.selected}].width`"
+                ><NumberValueInput :value="view.selectedEngine.width" @update:value="actions.setEngineField('width', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['length'] ?? 'length'" field-key="length" :path="`engineSlots[${view.selected}].length`"
+                ><NumberValueInput :value="view.selectedEngine.length" @update:value="actions.setEngineField('length', $event)"
+              /></FieldRow>
+              <FieldRow
+                :label="fieldNames['contrailSize'] ?? 'contrailSize'"
+                field-key="contrailSize"
+                :path="`engineSlots[${view.selected}].contrailSize`"
+                ><NumberValueInput :value="view.selectedEngine.contrailSize" @update:value="actions.setEngineField('contrailSize', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['style'] ?? 'style'" field-key="style" :path="`engineSlots[${view.selected}].style`"
+                ><n-select
+                  :value="view.selectedEngine.style"
+                  filterable
+                  tag
+                  :options="toOptions(['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'])"
+                  @update:value="actions.setEngineField('style', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['loc X'] ?? 'loc X'" field-key="locations[0]" :path="`engineSlots[${view.selected}].location[0]`"
+                ><NumberValueInput :value="view.engineLoc[0]" @update:value="actions.setEngineLoc(0, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['loc Y'] ?? 'loc Y'" field-key="locations[1]" :path="`engineSlots[${view.selected}].location[1]`"
+                ><NumberValueInput :value="view.engineLoc[1]" @update:value="actions.setEngineLoc(1, $event)"
+              /></FieldRow>
             </div>
             <div class="action-row button-row action-group">
               <n-button @click="actions.addEngine()">添加</n-button
@@ -307,30 +333,38 @@
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="高级属性" name="advanced">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="viewOffset" :path="'viewOffset'" /></label
-              ><n-input :value="document.viewOffset" @update:value="actions.setField('viewOffset', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="coversColor" :path="'coversColor'" /></label
-              ><n-input
-                :value="document.coversColor"
-                placeholder="R,G,B,A (如 255,255,255,255)"
-                @update:value="actions.setField('coversColor', $event)"
-              />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="moduleAnchor X" /></label
-              ><NumberValueInput :value="view.moduleAnchor[0]" @update:value="actions.setArray('moduleAnchor', 0, $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="moduleAnchor Y" :path="'moduleAnchor[1]'" /></label
-              ><NumberValueInput :value="view.moduleAnchor[1]" @update:value="actions.setArray('moduleAnchor', 1, $event)" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['viewOffset'] ?? 'viewOffset'" field-key="viewOffset" :path="'viewOffset'"
+                ><n-input :value="document.viewOffset" @update:value="actions.setField('viewOffset', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['coversColor'] ?? 'coversColor'" field-key="coversColor" :path="'coversColor'"
+                ><n-input
+                  :value="document.coversColor"
+                  placeholder="R,G,B,A (如 255,255,255,255)"
+                  @update:value="actions.setField('coversColor', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['moduleAnchor X'] ?? 'moduleAnchor X'" field-key="moduleAnchor[0]"
+                ><NumberValueInput :value="view.moduleAnchor[0]" @update:value="actions.setArray('moduleAnchor', 0, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['moduleAnchor Y'] ?? 'moduleAnchor Y'" field-key="moduleAnchor[1]" :path="'moduleAnchor[1]'"
+                ><NumberValueInput :value="view.moduleAnchor[1]" @update:value="actions.setArray('moduleAnchor', 1, $event)"
+              /></FieldRow>
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="内置装备" name="builtins">
-            <JsonValueInput
-              :value="document.builtInWeapons"
-              label="builtInWeapons"
-              shape="object"
-              @update="actions.builtInWeaponsUpdated"
-            />
-            <label><SpecFieldLabel raw="builtInMods" /></label><n-dynamic-tags v-model:value="view.builtInMods" />
-            <label><SpecFieldLabel raw="builtInWings" /></label><n-dynamic-tags v-model:value="view.builtInWings" />
+            <FieldRow :label="fieldNames['builtInWeapons'] ?? 'builtInWeapons'" field-key="builtInWeapons" layout="group"
+              ><JsonValueInput
+                :value="document.builtInWeapons"
+                label="builtInWeapons"
+                shape="object"
+                @update="actions.builtInWeaponsUpdated"
+            /></FieldRow>
+            <FieldRow :label="fieldNames['builtInMods'] ?? 'builtInMods'" field-key="builtInMods"
+              ><n-dynamic-tags v-model:value="view.builtInMods"
+            /></FieldRow>
+            <FieldRow :label="fieldNames['builtInWings'] ?? 'builtInWings'" field-key="builtInWings"
+              ><n-dynamic-tags v-model:value="view.builtInWings"
+            /></FieldRow>
           </n-collapse-item>
         </n-collapse>
       </EditorInspector>
@@ -341,7 +375,8 @@
 
 <script setup lang="ts">
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
-import SpecFieldLabel from '@/app/components/editors/common/SpecFieldLabel.vue';
+import FieldRow from '@/shared/ui/FieldRow.vue';
+import { fieldNames } from '@/domain/editors/lib/field-names';
 import { useTemplateRef } from 'vue';
 
 import EditorFooter from '@/app/components/editors/common/EditorFooter.vue';

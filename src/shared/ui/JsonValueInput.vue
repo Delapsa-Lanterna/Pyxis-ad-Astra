@@ -1,6 +1,5 @@
 <template>
   <div class="field-json-input">
-    <label v-if="showLabel">{{ label }}</label>
     <n-input
       ref="input"
       :value="raw"
@@ -28,7 +27,6 @@ const props = defineProps<{
   value: unknown;
   label: string;
   inputKey?: string;
-  showLabel?: boolean;
   shape: T;
   normalize?: (value: JsonInputValue<T>) => JsonInputValue<T>;
 }>();

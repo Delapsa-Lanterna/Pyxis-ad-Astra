@@ -34,26 +34,24 @@
       :positive-button-props="{ loading: actionRunning, disabled: actionRunning }"
       @positive-click="doCreateMission"
     >
-      <n-input v-model:value="newMissionId" placeholder="输入战役 ID（英文目录名）" autofocus />
+      <FieldRow label="战役 ID"><n-input v-model:value="newMissionId" placeholder="输入战役 ID（英文目录名）" autofocus /></FieldRow>
     </n-modal>
   </aside>
 </template>
 
 <script setup lang="ts">
+import FieldRow from '@/shared/ui/FieldRow.vue';
 import { ref, watch } from 'vue';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
-import type { ResourceRef } from '@/shared/types';
 
 const props = defineProps<{
   selectedId: string | null;
   actionRunning: boolean;
   missions: Array<{ id: string }>;
-  missionIconRefs: Record<string, ResourceRef | null>;
   modRoot: string | null;
   sessionId: string | null;
   listLoadStartedAt: number;
   createMission: (sessionId: string, modRoot: string, id: string) => Promise<boolean>;
-  deleteMission: (sessionId: string, modRoot: string, id: string, deleteDirectory: boolean) => Promise<boolean>;
 }>();
 const emit = defineEmits<{ select: [missionId: string | null] }>();
 

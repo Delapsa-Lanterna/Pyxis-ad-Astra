@@ -1,41 +1,33 @@
 <template>
-  <main
-    v-if="schema"
-    class="mission-editor editor-page ui-layout-row ui-content-contained ui-content-surface-muted"
-    :inert="actionsLocked || handoffLocked"
-  >
-    <slot name="list" />
-    <div class="editor-content ui-content-column ui-content-contained">
-      <ConfigTargetNotice
-        label="战役"
-        :deleted-target="deletedTarget"
-        :actions-locked="actionsLocked"
-        :discard-deleted-target="discardDeletedTarget"
-      />
-      <EditorHeader
-        :title="displayName"
-        :path="paths"
-        :dirty="dirty"
-        :saving="saving"
-        :external-update-notice="externalUpdateNotice"
-        @load-external="loadPendingExternalData"
-        ><template #actions
-          ><n-button secondary type="error" @click="confirmDeleteMission">删除</n-button
-          ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
-          ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
-        ></EditorHeader
-      >
-      <div class="editor-fields ui-content-scroll">
-        <div v-if="iconSrc" class="panel-card ui-layout-row ui-control-border ui-content-surface">
-          <div class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
-            <span class="ui-text-soft ui-text-small">图标</span>
-            <img class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" :src="iconSrc" :alt="displayName" />
-          </div>
+  <section v-if="schema" class="editor-content ui-content-column ui-content-contained ui-content-surface-muted">
+    <ConfigTargetNotice
+      label="战役"
+      :deleted-target="deletedTarget"
+      :actions-locked="actionsLocked"
+      :discard-deleted-target="discardDeletedTarget"
+    /><EditorHeader
+      :title="displayName"
+      :path="paths"
+      :dirty="dirty"
+      :saving="saving"
+      :external-update-notice="externalUpdateNotice"
+      @load-external="loadPendingExternalData"
+      ><template #actions
+        ><n-button secondary type="error" @click="confirmDeleteMission">删除</n-button
+        ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+        ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+      ></EditorHeader
+    >
+    <div class="editor-fields ui-content-scroll">
+      <div v-if="iconSrc" class="panel-card ui-layout-row ui-control-border ui-content-surface">
+        <div class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
+          <span class="ui-text-soft ui-text-small">图标</span>
+          <img class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" :src="iconSrc" :alt="displayName" />
         </div>
-        <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
       </div>
+      <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>
-  </main>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -151,6 +143,8 @@ async function deleteMissionTarget(deleteSessionId: string, deleteModRoot: strin
   }
   return true;
 }
+
+defineExpose({ handoffLocked });
 
 const saveCommand = useSaveCommandStore();
 onMounted(() => saveCommand.registerActiveSaveHandler(save));

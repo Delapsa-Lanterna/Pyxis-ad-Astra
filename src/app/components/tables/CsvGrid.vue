@@ -1,5 +1,5 @@
 <template>
-  <div ref="panelRef" class="table-panel ui-content-scroll ui-content-surface" @scroll="handleScroll">
+  <div ref="panelRef" class="table-panel ui-content-fill ui-content-scroll ui-content-surface" @scroll="handleScroll">
     <table class="data-table ui-text-small" :style="{ width: `${model.totalWidthPx}px`, minWidth: `${model.totalWidthPx}px` }">
       <CsvGridHeader :columns="model.columns" @resize-column="forwardResizeColumn" />
       <CsvGridBody

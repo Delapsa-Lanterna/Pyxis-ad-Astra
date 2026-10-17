@@ -1,68 +1,60 @@
 <template>
-  <div class="settings-page page-content page-slot">
-    <header class="settings-header page-header">
+  <div class="page-content">
+    <header class="page-header">
       <div class="page-identity">
         <h1 class="page-title">设置</h1>
         <p class="page-description">配置游戏目录、界面外观与编辑偏好。</p>
       </div>
     </header>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">游戏目录</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">Starsector 安装路径</span>
-        <div class="settings-control-row ui-field-actions ui-field-control ui-layout-stretch action-group">
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">游戏目录</h3>
+      <FieldRow label="Starsector 安装路径"
+        ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-input :value="settings.starsectorRoot ?? ''" size="small" placeholder="自动推断或手动指定" readonly />
           <n-button size="small" @click="pickStarsectorRoot">选择目录</n-button>
           <n-button v-if="settings.starsectorRoot" size="small" quaternary @click="settings.setStarsectorRoot(null)">清除</n-button>
         </div>
-        <div
-          v-if="settings.starsectorRoot"
-          class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small"
-        >
-          已设置: {{ settings.starsectorRoot }}
-        </div>
-        <div v-else class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          未设置时，工具将从导入的 Mod 路径自动推断（mod_root 的上两级目录）。
-        </div>
-      </div>
+        <template #hint
+          ><div
+            v-if="settings.starsectorRoot"
+            class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small"
+          >
+            已设置: {{ settings.starsectorRoot }}
+          </div>
+          <div v-else class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            未设置时，工具将从导入的 Mod 路径自动推断（mod_root 的上两级目录）。
+          </div></template
+        ></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">外观</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">主题明暗</span>
-        <n-switch class="tool-switch settings-theme-switch ui-field-control" :value="settings.isDark" @update:value="settings.toggleTheme">
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">外观</h3>
+      <FieldRow label="主题明暗"
+        ><n-switch class="tool-switch" :value="settings.isDark" @update:value="settings.toggleTheme">
           <template #checked>暗色</template>
           <template #unchecked>浅色</template>
-        </n-switch>
-      </div>
-      <div class="settings-row ui-field-row settings-row-top">
-        <span class="settings-row-label ui-field-label field-label-multi">主题色</span>
-        <div class="accent-settings color-picker-palette ui-field-control ui-field-control-top ui-layout-grid ui-layout-shrink">
-          <div class="accent-swatch-grid color-picker-palette-options ui-layout-row ui-layout-center">
+        </n-switch></FieldRow
+      >
+      <FieldRow label="主题色"
+        ><div class="color-picker-palette ui-layout-grid ui-layout-shrink">
+          <div class="color-picker-palette-options ui-layout-row ui-layout-center">
             <button
               v-for="preset in ACCENT_PRESETS"
               :key="preset.value"
-              class="accent-swatch-button color-picker-palette-button ui-button ui-layout-grid ui-control-pointer ui-control-reset ui-control-border ui-content-surface"
+              class="color-picker-palette-button ui-button ui-layout-grid ui-control-pointer ui-control-reset ui-control-border ui-content-surface"
               :class="{ active: settings.accent === preset.value }"
               type="button"
               :title="preset.name"
               @click="settings.setAccent(preset.value)"
             >
-              <span
-                class="accent-swatch-button-label color-picker-palette-swatch ui-control-border"
-                :style="{ backgroundColor: preset.hex }"
-              />
+              <span class="color-picker-palette-swatch ui-control-border" :style="{ backgroundColor: preset.hex }" />
             </button>
             <div
-              class="accent-custom-control color-picker-palette-custom ui-control-row ui-layout-grid ui-layout-center ui-control-border ui-content-surface"
+              class="color-picker-palette-custom ui-control-row ui-layout-grid ui-layout-center ui-control-border ui-content-surface"
               :class="{ active: settings.accent === 'custom' }"
             >
               <button
-                class="accent-custom-label color-picker-palette-label ui-button ui-control-button ui-text-normal ui-control-reset ui-text-soft ui-text-small"
+                class="color-picker-palette-label ui-button ui-control-button ui-text-normal ui-control-reset ui-text-soft ui-text-small"
                 type="button"
                 @click="settings.setAccent('custom')"
               >
@@ -70,7 +62,7 @@
               </button>
               <ColorPicker
                 v-model="customAccentDraft"
-                class="accent-custom-input color-picker-palette-input"
+                class="color-picker-palette-input"
                 channels="rgb"
                 output="hex-rgb"
                 :allow-text-input="true"
@@ -81,20 +73,17 @@
           </div>
           <div
             v-if="!customAccentValid"
-            class="settings-hint ui-field-hint settings-hint-error ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small"
+            class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small"
           >
             自定义主题色必须是 #RRGGBB。
           </div>
-        </div>
-      </div>
+        </div></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">字体</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">通用字体</span>
-        <div class="settings-control-row ui-field-actions ui-field-control ui-layout-stretch action-group">
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">字体</h3>
+      <FieldRow label="通用字体"
+        ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-select
             :value="settings.generalFont ?? ''"
             :options="fontOptions"
@@ -104,159 +93,144 @@
             @update:value="settings.setGeneralFont($event || null)"
           />
         </div>
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。
-        </div>
-      </div>
+        <template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。
+          </div></template
+        ></FieldRow
+      >
 
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">沉浸式编辑器字体</span>
-        <n-switch class="tool-switch ui-field-control" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          从游戏安装目录加载原版字体。原版字体缺字时，以英文问号代替。
-        </div>
-      </div>
+      <FieldRow label="沉浸式编辑器字体"
+        ><n-switch class="tool-switch" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" /><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            从游戏安装目录加载原版字体。原版字体缺字时，以英文问号代替。
+          </div></template
+        ></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">编辑模式</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">引用式编辑</span>
-        <n-radio-group :value="settings.editMode" class="settings-mode-group ui-field-control" @update:value="settings.setEditMode">
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">编辑模式</h3>
+      <FieldRow label="引用式编辑"
+        ><n-radio-group :value="settings.editMode" @update:value="settings.setEditMode">
           <n-radio-button value="plain">纯文本</n-radio-button>
-          <n-radio-button value="smart">增强控件</n-radio-button>
-        </n-radio-group>
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑。增强控件模式下，将引入更直观的编辑界面。
-        </div>
-      </div>
+          <n-radio-button value="smart">增强控件</n-radio-button> </n-radio-group
+        ><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑。增强控件模式下，将引入更直观的编辑界面。
+          </div></template
+        ></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">全局限制</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">文件保存历史步数</span>
-        <n-input-number
-          class="settings-number-input ui-field-number ui-field-control"
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">全局限制</h3>
+      <FieldRow label="文件保存历史步数"
+        ><n-input-number
+          class="ui-field-number"
           :value="settings.fileHistoryLimit"
           :min="1"
           :max="MAX_HISTORY_LIMIT"
           :step="1"
           :precision="0"
           @update:value="settings.setFileHistoryLimit($event ?? settings.fileHistoryLimit)"
-        />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。
-        </div>
-      </div>
+        /><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。
+          </div></template
+        ></FieldRow
+      >
 
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">编辑撤销步数</span>
-        <n-input-number
-          class="settings-number-input ui-field-number ui-field-control"
+      <FieldRow label="编辑撤销步数"
+        ><n-input-number
+          class="ui-field-number"
           :value="settings.editHistoryLimit"
           :min="1"
           :max="MAX_HISTORY_LIMIT"
           :step="1"
           :precision="0"
           @update:value="settings.setEditHistoryLimit($event ?? settings.editHistoryLimit)"
-        />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。
-        </div>
-      </div>
+        /><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。
+          </div></template
+        ></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">JSON 保存</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">原样保存</span>
-        <n-switch
-          class="tool-switch ui-field-control"
-          :value="settings.preserveOriginalJson"
-          @update:value="settings.setPreserveOriginalJson"
-        />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。
-        </div>
-      </div>
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">JSON 保存</h3>
+      <FieldRow label="原样保存"
+        ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
+          #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。
+          </div></template
+        ></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">原版内容</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">允许编辑原版</span>
-        <n-switch class="tool-switch ui-field-control" :value="settings.allowCoreEditing" @update:value="settings.setAllowCoreEditing" />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          允许写入 Starsector 原版内容。
-        </div>
-      </div>
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">原版内容</h3>
+      <FieldRow label="允许编辑原版"
+        ><n-switch class="tool-switch" :value="settings.allowCoreEditing" @update:value="settings.setAllowCoreEditing" /><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            允许写入 Starsector 原版内容。
+          </div></template
+        ></FieldRow
+      >
     </section>
-    <section
-      class="settings-section panel-card schema-form ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch"
-    >
-      <h3 class="settings-section-title panel-section-title">配置文件</h3>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">日志输出目录</span>
-        <div class="settings-control-row ui-field-actions ui-field-control ui-layout-stretch action-group">
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">配置文件</h3>
+      <FieldRow label="日志输出目录"
+        ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-input :value="settings.logDirectory ?? '默认 app data'" size="small" readonly />
           <n-button size="small" @click="pickLogDirectory">选择目录</n-button>
           <n-button v-if="settings.logDirectory" size="small" quaternary @click="restoreDefaultLogDirectory">恢复默认</n-button>
-        </div>
-      </div>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">日志级别</span>
-        <div class="settings-control-row ui-field-actions ui-field-control ui-layout-stretch action-group">
-          <n-select :value="settings.logLevel" :options="LOG_LEVEL_OPTIONS" size="small" @update:value="updateLogLevel" />
-        </div>
-      </div>
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">日志轮转大小（MiB）</span>
-        <n-input-number
-          class="settings-number-input ui-field-number ui-field-control"
+        </div></FieldRow
+      >
+      <FieldRow label="日志级别"
+        ><div class="ui-field-actions ui-layout-stretch action-group">
+          <n-select :value="settings.logLevel" :options="LOG_LEVEL_OPTIONS" size="small" @update:value="updateLogLevel" /></div
+      ></FieldRow>
+      <FieldRow label="日志轮转大小（MiB）"
+        ><n-input-number
+          class="ui-field-number"
           :value="settings.logRotationSizeMiB"
           :min="1"
           :max="MAX_LOG_ROTATION_SIZE_MIB"
           :step="1"
           :precision="0"
           @update:value="settings.setLogRotationSizeMiB($event ?? settings.logRotationSizeMiB)"
-        />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          当前日志达到该大小时，在下一次追加前轮转。
-        </div>
-      </div>
+        /><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            当前日志达到该大小时，在下一次追加前轮转。
+          </div></template
+        ></FieldRow
+      >
 
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">日志备份份数</span>
-        <n-input-number
-          class="settings-number-input ui-field-number ui-field-control"
+      <FieldRow label="日志备份份数"
+        ><n-input-number
+          class="ui-field-number"
           :value="settings.logBackupCount"
           :min="1"
           :max="MAX_LOG_BACKUP_COUNT"
           :step="1"
           :precision="0"
           @update:value="settings.setLogBackupCount($event ?? settings.logBackupCount)"
-        />
-        <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-          保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。
-        </div>
-      </div>
+        /><template #hint
+          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+            保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。
+          </div></template
+        ></FieldRow
+      >
 
-      <div class="settings-row ui-field-row">
-        <span class="settings-row-label ui-field-label">Log 文件大小</span>
-        <strong class="ui-field-control ui-emphasis">{{ formattedLogSize }}</strong>
-      </div>
-      <div class="settings-control-row ui-field-actions settings-file-actions action-group">
+      <FieldRow readonly label="Log 文件大小"
+        ><strong class="ui-emphasis">{{ formattedLogSize }}</strong></FieldRow
+      >
+      <div class="ui-field-actions action-group">
         <n-button size="small" @click="openConfigFolderAction">打开配置文件夹</n-button>
         <n-button size="small" @click="openLogFileAction">打开 log 文件</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearConfig">清空配置文件</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearLog">清除 log 文件</n-button>
       </div>
-      <div class="settings-hint ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
+      <div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
         {{ logPathHint }}
       </div>
     </section>
@@ -264,6 +238,7 @@
 </template>
 
 <script setup lang="ts">
+import FieldRow from '@/shared/ui/FieldRow.vue';
 import { onMounted, ref, watch } from 'vue';
 import type { JsonValue, LogLevel } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';

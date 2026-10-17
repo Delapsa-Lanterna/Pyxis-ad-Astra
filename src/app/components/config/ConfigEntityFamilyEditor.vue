@@ -1,36 +1,28 @@
 <template>
-  <main
-    v-if="selectedFile && schema"
-    class="config-family-editor editor-page ui-layout-row ui-content-contained ui-content-surface-muted"
-    :inert="actionsLocked || handoffLocked"
-  >
-    <slot name="list" />
-    <div class="editor-content ui-content-column ui-content-contained">
-      <ConfigTargetNotice
-        :label="family.displayName"
-        :deleted-target="deletedTarget"
-        :actions-locked="actionsLocked"
-        :discard-deleted-target="discardDeletedTarget"
-      />
-      <EditorHeader
-        :title="String(draftData.displayName || draftData.hullName || selectedId)"
-        :path="paths"
-        :dirty="dirty"
-        :saving="saving"
-        :external-update-notice="externalUpdateNotice"
-        @load-external="loadPendingExternalData"
-        ><template #actions
-          ><n-button v-if="family.immersiveKind" @click="openImmersive">沉浸式编辑器</n-button
-          ><n-button secondary type="error" @click="confirmDelete">删除</n-button
-          ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
-          ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
-        ></EditorHeader
-      >
-      <div class="editor-fields ui-content-scroll">
-        <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
-      </div>
+  <section v-if="selectedFile && schema" class="editor-content ui-content-column ui-content-contained ui-content-surface-muted">
+    <ConfigTargetNotice
+      :label="family.displayName"
+      :deleted-target="deletedTarget"
+      :actions-locked="actionsLocked"
+      :discard-deleted-target="discardDeletedTarget"
+    /><EditorHeader
+      :title="String(draftData.displayName || draftData.hullName || selectedId)"
+      :path="paths"
+      :dirty="dirty"
+      :saving="saving"
+      :external-update-notice="externalUpdateNotice"
+      @load-external="loadPendingExternalData"
+      ><template #actions
+        ><n-button v-if="family.immersiveKind" @click="openImmersive">沉浸式编辑器</n-button
+        ><n-button secondary type="error" @click="confirmDelete">删除</n-button
+        ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+        ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+      ></EditorHeader
+    >
+    <div class="editor-fields ui-content-scroll">
+      <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>
-  </main>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -122,6 +114,8 @@ async function deleteEntityTarget(deleteSessionId: string, deleteModRoot: string
   }
   return true;
 }
+
+defineExpose({ handoffLocked });
 
 const saveCommand = useSaveCommandStore();
 onMounted(() => saveCommand.registerActiveSaveHandler(save));

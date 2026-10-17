@@ -3,9 +3,6 @@ import { nextTick } from 'vue';
 export async function focusFieldInput(element: HTMLElement | null) {
   if (!element) return;
   for (const ancestor of ancestorsOf(element)) {
-    if (ancestor.classList.contains('schema-section')) {
-      ancestor.querySelector<HTMLElement>('.section-header[aria-expanded="false"]')?.click();
-    }
     if (ancestor.classList.contains('n-collapse-item') && !ancestor.classList.contains('n-collapse-item--active')) {
       ancestor.querySelector<HTMLElement>('.n-collapse-item__header-main')?.click();
     }

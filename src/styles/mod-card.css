@@ -20,6 +20,7 @@
 }
 .mod-card-actions {
   justify-content: flex-end;
+  margin-top: auto;
 }
 .mod-card-dirty {
   font-size: 11px;
@@ -31,6 +32,5 @@
   line-height: 16px;
 }
 .overview-mod-card {
-  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }

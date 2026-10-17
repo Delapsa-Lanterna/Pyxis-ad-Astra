@@ -1,51 +1,41 @@
 <template>
-  <div
-    class="app-frame app-frame-main ui-content-contained ui-text-normal ui-layout-grid"
-    :class="{
-      'app-shell-nav-hidden': !workspace.isModView || !contentNavigation.state.wideExpanded,
-      'app-shell-narrow': contentNavigation.state.narrow,
-    }"
+  <MainWindowFrame
+    :navigation-visible="workspace.isModView"
+    :narrow="contentNavigation.state.narrow"
+    :navigation-expanded="contentNavigation.state.wideExpanded"
     :data-theme="settings.theme"
+    ><template #titlebar><TitleBar /></template><template #tabs><ModTabsBar @remove-mod="actions.confirmRemoveMod" /></template
+    ><template #navigation><ModNavigation /></template><template #notice><WriteSyncNotice /></template
+    ><OverviewPage
+      v-if="workspace.currentView === 'overview'"
+      @import-mod="actions.openDirectory"
+      @refresh-workspace="actions.refreshWorkspace"
+      @close-workspace="actions.confirmCloseWorkspace"
+      @edit-warning-file="actions.openGameWarningFile"
+      @edit-failure-file="actions.openModOpeningFailureFile"
+      @load-mod="actions.loadOverviewMod"
+    /><SettingsPage
+      v-else-if="workspace.currentView === 'settings'"
+      :close-workspace="() => actions.confirmCloseWorkspace(false)"
+    /><AboutPage v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
+      v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest"
+    /><TableWorkspace
+      v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
+      v-model:sidebar-expanded="sidebarExpanded"
+    /><ConfigWorkspace v-else-if="workspace.currentView === 'config' && workspace.activeManifest" />
+    <section v-else class="empty-state ui-content-scroll ui-text-normal ui-layout-grid">
+      <n-spin size="large" />
+      <h1 class="page-title">正在加载 Mod</h1>
+      <p class="ui-text-muted ui-text-reset ui-text-wrap">{{ loadingModLabel }}</p>
+    </section></MainWindowFrame
   >
-    <TitleBar />
-    <ModTabsBar @remove-mod="actions.confirmRemoveMod" />
-    <div class="app-shell ui-content-contained ui-layout-grid">
-      <ModNavigation />
-      <div class="page-slot ui-content-column ui-content-contained">
-        <WriteSyncNotice />
-        <OverviewPage
-          v-if="workspace.currentView === 'overview'"
-          @import-mod="actions.openDirectory"
-          @refresh-workspace="actions.refreshWorkspace"
-          @close-workspace="actions.confirmCloseWorkspace"
-          @edit-warning-file="actions.openGameWarningFile"
-          @edit-failure-file="actions.openModOpeningFailureFile"
-          @load-mod="actions.loadOverviewMod"
-        />
-        <SettingsPage v-else-if="workspace.currentView === 'settings'" :close-workspace="() => actions.confirmCloseWorkspace(false)" />
-        <AboutPage v-else-if="workspace.currentView === 'about'" />
-        <ModFileBrowser v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" />
-        <TableWorkspace
-          v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
-          v-model:sidebar-expanded="sidebarExpanded"
-        />
-        <ConfigWorkspace v-else-if="workspace.currentView === 'config' && workspace.activeManifest" />
-        <main v-else class="workspace workspace-loading page-slot ui-content-contained ui-layout-grid ui-layout-stretch">
-          <section class="workspace-loading-state ui-text-normal ui-layout-grid">
-            <n-spin size="large" />
-            <h1 class="page-title">正在加载 Mod</h1>
-            <p class="workspace-loading-state-description ui-text-muted ui-text-reset">{{ loadingModLabel }}</p>
-          </section>
-        </main>
-      </div>
-    </div>
-  </div>
 </template>
 
 <script setup lang="ts">
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { createContentNavigation, contentNavigationKey } from '@/app/composables/use-content-navigation';
+import MainWindowFrame from '@/app/components/MainWindowFrame.vue';
 import TitleBar from '@/app/TitleBar.vue';
 import WriteSyncNotice from '@/app/components/WriteSyncNotice.vue';
 import ModNavigation from '@/app/components/ModNavigation.vue';

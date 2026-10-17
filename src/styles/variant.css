@@ -1,9 +1,6 @@
 .variant-modal-mask {
   background: rgba(0, 0, 0, 0.66);
 }
-.variant-dialog-fields {
-  gap: var(--space-3);
-}
 .variant-window-shell {
   position: relative;
   display: block;

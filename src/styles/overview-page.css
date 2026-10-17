@@ -1,8 +1,5 @@
-.overview-page-empty {
-  grid-template-rows: minmax(0, 1fr);
-}
-.overview-empty-state {
-  min-height: 100%;
+.overview-page.overview-page-empty {
+  padding: 12px;
 }
 .overview-empty-actions {
   justify-content: center;
@@ -12,11 +9,11 @@
   gap: 8px;
 }
 .overview-page-empty .overview-page-content {
+  flex: 1;
   align-content: stretch;
 }
 .overview-grid {
   align-content: start;
-  align-items: start;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 8px;
 }

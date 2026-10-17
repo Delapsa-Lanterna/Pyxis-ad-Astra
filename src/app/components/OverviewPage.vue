@@ -1,6 +1,6 @@
 <template>
   <div
-    class="overview-page page-content page-slot"
+    class="overview-page page-content"
     :class="{ 'overview-page-empty': !workspace.hasWorkspaceContext && !workspace.hasModOpeningFailures }"
   >
     <header v-if="workspace.hasWorkspaceContext || workspace.hasModOpeningFailures" class="overview-header page-header">
@@ -36,7 +36,7 @@
 
       <section v-if="!workspace.hasWorkspaceContext" class="overview-empty-state empty-state ui-text-muted ui-layout-grid ui-text-normal">
         <h1 class="page-title">选择一个 Starsector / Mod 目录</h1>
-        <p class="empty-state-description ui-text-muted ui-text-reset">可以打开游戏目录，也可以直接打开一个 Mod 目录。</p>
+        <p class="empty-state-description ui-text-muted ui-text-reset">打开游戏目录，或打开一个 Mod 目录。</p>
         <div class="overview-empty-actions action-group">
           <n-button size="large" @click="beginCreateMod">创建新 Mod</n-button>
           <n-button size="large" @click="$emit('import-mod')">打开目录</n-button>
@@ -60,28 +60,19 @@
         <p class="create-mod-hint ui-text-small ui-text-wrap ui-text-reset ui-text-muted">
           将创建 `mod_info.json` 与标准空目录；不会预置 CSV 或 spec 文件。
         </p>
-        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
-          <span>Mod ID</span>
-          <n-input v-model:value="createModTemplate.id" autofocus placeholder="英文标识，例如 example_mod" />
-        </label>
-        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
-          <span>名称</span>
-          <n-input v-model:value="createModTemplate.name" placeholder="显示名称" />
-        </label>
-        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
-          <span>版本号</span>
-          <n-input v-model:value="createModTemplate.version" />
-        </label>
-        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
-          <span>适用游戏版本</span>
-          <n-input v-model:value="createModTemplate.gameVersion" />
-        </label>
+        <FieldRow label="Mod ID"
+          ><n-input v-model:value="createModTemplate.id" autofocus placeholder="英文标识，例如 example_mod"
+        /></FieldRow>
+        <FieldRow label="名称"><n-input v-model:value="createModTemplate.name" placeholder="显示名称" /></FieldRow>
+        <FieldRow label="版本号"><n-input v-model:value="createModTemplate.version" /></FieldRow>
+        <FieldRow label="适用游戏版本"><n-input v-model:value="createModTemplate.gameVersion" /></FieldRow>
       </div>
     </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
+import FieldRow from '@/shared/ui/FieldRow.vue';
 import { computed } from 'vue';
 import GameOverviewPanel from '@/app/components/GameOverviewPanel.vue';
 import LoadedModsPanel from '@/app/components/LoadedModsPanel.vue';

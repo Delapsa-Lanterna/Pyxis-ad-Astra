@@ -219,7 +219,7 @@ describe('SpecWeaponEditor', () => {
     const position = sections.indexOf('glow');
     expect(sections.slice(position - 1, position + 2)).toEqual(['hardpointSprites', 'glow', 'turretBarrels']);
     expect(editor.get('[data-name="glow"]').text()).toContain('glowColor');
-    expect(editor.findAll('.color-picker-label').filter((label) => label.text() === 'glowColor')).toHaveLength(1);
+    expect(editor.findAll('.field-label-key').filter((label) => label.text() === 'glowColor')).toHaveLength(1);
     expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('false');
   });
 

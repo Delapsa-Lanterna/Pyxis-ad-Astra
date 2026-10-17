@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ConfigMissionView from './ConfigMissionView.vue';
 import ConfigMissionList from './ConfigMissionList.vue';
+import ConfigMissionEditor from './ConfigMissionEditor.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
@@ -116,6 +117,20 @@ describe('Mission view, list and editor lifecycle', () => {
     expect(wrapper.get('.mission-file-item.active').text()).toContain('a');
   });
 
+  it('retains the list instance through an empty selection and later records', async () => {
+    await mountPage();
+    const container = wrapper.get('.config-entity-list').element;
+    mocks.list.mockResolvedValue([]);
+    invalidate();
+    await flushPromises();
+    expect(wrapper.findComponent(ConfigMissionEditor).exists()).toBe(false);
+    expect(wrapper.get('.config-entity-list').element).toBe(container);
+    mocks.list.mockResolvedValue([record('c')]);
+    invalidate();
+    await flushPromises();
+    expect(wrapper.get('.mission-file-item.active').text()).toContain('c');
+  });
+
   it('accepts saved identity and versions while retaining subsequent raw input', async () => {
     await mountPage();
     await wrapper.findAll('textarea')[0]!.setValue('next');
@@ -180,7 +195,7 @@ describe('Mission view, list and editor lifecycle', () => {
     expect(wrapper.get('.mission-file-item.active').text()).toContain('c');
     mocks.remove.mockResolvedValue({ ...savedWriteFixture(), commitId: 2 });
     mocks.list.mockResolvedValue([record('a'), record('b')]);
-    expect(await wrapper.getComponent(ConfigMissionList).props().deleteMission('s1', 'M:/mod', 'c', true)).toBe(true);
+    expect(await wrapper.getComponent(ConfigMissionEditor).props().deleteMission('s1', 'M:/mod', 'c', true)).toBe(true);
     await flushPromises();
     expect(mocks.list).toHaveBeenCalledTimes(3);
     expect(wrapper.get('.mission-file-item.active').text()).toContain('a');

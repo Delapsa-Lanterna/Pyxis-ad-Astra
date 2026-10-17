@@ -168,12 +168,7 @@ describe('file information toolbar', () => {
   it('shows the four sortable columns and passes search, clear and collapse actions', async () => {
     const { view, actions, wrapper } = open();
     await flushPromises();
-    expect(wrapper.findAll('[role="columnheader"]').map((column) => column.text().replace('↑', ''))).toEqual([
-      '文件名',
-      '类型',
-      '大小',
-      '修改时间',
-    ]);
+    expect(wrapper.findAll('[role="columnheader"]').map((column) => column.text())).toEqual(['文件名', '类型', '大小', '修改时间']);
     expect(wrapper.findAll('[role="columnheader"]')[0]!.attributes('aria-sort')).toBe('ascending');
     await wrapper.findAll('[role="columnheader"]')[2]!.get('button').trigger('click');
     expect(actions.setSort).toHaveBeenCalledWith('size');

@@ -1,13 +1,12 @@
 <template>
-  <main class="config-workspace page-slot ui-content-contained ui-layout-row ui-layout-stack ui-layout-stretch">
-    <ConfigModOverview v-if="workspace.configView === 'mod-overview'" />
-    <ConfigFileHistoryView v-else-if="workspace.configView === 'file-history'" />
-    <ConfigModInfoEditor v-else-if="workspace.configView === 'mod-info'" />
-    <ConfigFactionView v-else-if="workspace.configView === 'factions'" />
-    <ConfigEntityFamilyView v-else-if="workspace.configView === 'skins'" family-id="skin" />
-    <ConfigEntityFamilyView v-else-if="workspace.configView === 'variants'" family-id="variant" />
-    <ConfigMissionView v-else-if="workspace.configView === 'mission'" />
-  </main>
+  <ConfigModOverview v-if="workspace.configView === 'mod-overview'" /><ConfigFileHistoryView
+    v-else-if="workspace.configView === 'file-history'"
+  /><ConfigModInfoEditor v-else-if="workspace.configView === 'mod-info'" /><ConfigFactionView
+    v-else-if="workspace.configView === 'factions'"
+  /><ConfigEntityFamilyView v-else-if="workspace.configView === 'skins'" family-id="skin" /><ConfigEntityFamilyView
+    v-else-if="workspace.configView === 'variants'"
+    family-id="variant"
+  /><ConfigMissionView v-else-if="workspace.configView === 'mission'" />
 </template>
 
 <script setup lang="ts">

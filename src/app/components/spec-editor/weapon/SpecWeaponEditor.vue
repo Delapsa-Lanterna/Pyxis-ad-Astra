@@ -54,90 +54,91 @@
       >
         <n-collapse v-model:expanded-names="view.expandedSections" @update:expanded-names="canvas.onExpandedSectionsUpdate">
           <n-collapse-item class="schema-section" title="基础属性" name="basic">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="id" /></label><n-input :value="weaponId" disabled />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="specClass" :path="'specClass'" /></label
-              ><n-select
-                :value="document.specClass"
-                :options="toOptions([...WEAPON_SPEC_CLASSES])"
-                @update:value="actions.onSpecClassChange"
-              />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="type" :path="'type'" /></label
-              ><n-select
-                :value="document.type"
-                :options="
-                  toOptions([
-                    'BALLISTIC',
-                    'ENERGY',
-                    'MISSILE',
-                    'HYBRID',
-                    'UNIVERSAL',
-                    'SYNERGY',
-                    'COMPOSITE',
-                    'DECORATIVE',
-                    'SYSTEM',
-                    'BUILT_IN',
-                  ])
-                "
-                @update:value="actions.setField('type', $event)"
-              />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="size" :path="'size'" /></label
-              ><n-select
-                :value="document.size"
-                :options="toOptions(['SMALL', 'MEDIUM', 'LARGE'])"
-                @update:value="actions.setField('size', $event)"
-              />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['id'] ?? 'id'" field-key="id"><n-input :value="weaponId" disabled /></FieldRow>
+              <FieldRow :label="fieldNames['specClass'] ?? 'specClass'" field-key="specClass" :path="'specClass'"
+                ><n-select
+                  :value="document.specClass"
+                  :options="toOptions([...WEAPON_SPEC_CLASSES])"
+                  @update:value="actions.onSpecClassChange"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['type'] ?? 'type'" field-key="type" :path="'type'"
+                ><n-select
+                  :value="document.type"
+                  :options="
+                    toOptions([
+                      'BALLISTIC',
+                      'ENERGY',
+                      'MISSILE',
+                      'HYBRID',
+                      'UNIVERSAL',
+                      'SYNERGY',
+                      'COMPOSITE',
+                      'DECORATIVE',
+                      'SYSTEM',
+                      'BUILT_IN',
+                    ])
+                  "
+                  @update:value="actions.setField('type', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['size'] ?? 'size'" field-key="size" :path="'size'"
+                ><n-select
+                  :value="document.size"
+                  :options="toOptions(['SMALL', 'MEDIUM', 'LARGE'])"
+                  @update:value="actions.setField('size', $event)"
+              /></FieldRow>
             </div>
             <p class="field-description">{{ WEAPON_SPEC_CLASS_NOTE }}</p>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="炮塔贴图" name="turretSprites">
-            <div class="form-grid ui-layout-center">
+            <div class="ui-field-stack">
               <template v-for="field in view.turretSpriteFields" :key="field">
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel :raw="field" /></label>
-                <div class="sprite-field-row ui-layout-grid ui-layout-center">
-                  <n-input :value="document[field]" @update:value="actions.setField(field, $event)" @change="actions.reloadSprites()" />
-                  <n-button
-                    class="sprite-icon-button ui-control-reset"
-                    tertiary
-                    title="浏览贴图（引用 Mod 内文件）"
-                    aria-label="浏览贴图"
-                    @click="actions.pickWeaponSprite(field)"
-                  >
-                    <svg class="sprite-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 19V5h6l2 2h8v12H4z" />
-                      <path d="M8 14h8M12 10v8" />
-                    </svg>
-                  </n-button>
-                </div>
+                <FieldRow :label="fieldNames[field] ?? field" :field-key="field"
+                  ><div class="sprite-field-row ui-layout-grid ui-layout-center">
+                    <n-input :value="document[field]" @update:value="actions.setField(field, $event)" @change="actions.reloadSprites()" />
+                    <n-button
+                      class="sprite-icon-button ui-control-reset"
+                      tertiary
+                      title="浏览贴图（引用 Mod 内文件）"
+                      aria-label="浏览贴图"
+                      @click="actions.pickWeaponSprite(field)"
+                    >
+                      <svg class="sprite-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 19V5h6l2 2h8v12H4z" />
+                        <path d="M8 14h8M12 10v8" />
+                      </svg>
+                    </n-button></div
+                ></FieldRow>
               </template>
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="固定贴图" name="hardpointSprites">
-            <div class="form-grid ui-layout-center">
+            <div class="ui-field-stack">
               <template v-for="field in view.hardpointSpriteFields" :key="field">
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel :raw="field" /></label>
-                <div class="sprite-field-row ui-layout-grid ui-layout-center">
-                  <n-input :value="document[field]" @update:value="actions.setField(field, $event)" @change="actions.reloadSprites()" />
-                  <n-button
-                    class="sprite-icon-button ui-control-reset"
-                    tertiary
-                    title="浏览贴图（引用 Mod 内文件）"
-                    aria-label="浏览贴图"
-                    @click="actions.pickWeaponSprite(field)"
-                  >
-                    <svg class="sprite-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 19V5h6l2 2h8v12H4z" />
-                      <path d="M8 14h8M12 10v8" />
-                    </svg>
-                  </n-button>
-                </div>
+                <FieldRow :label="fieldNames[field] ?? field" :field-key="field"
+                  ><div class="sprite-field-row ui-layout-grid ui-layout-center">
+                    <n-input :value="document[field]" @update:value="actions.setField(field, $event)" @change="actions.reloadSprites()" />
+                    <n-button
+                      class="sprite-icon-button ui-control-reset"
+                      tertiary
+                      title="浏览贴图（引用 Mod 内文件）"
+                      aria-label="浏览贴图"
+                      @click="actions.pickWeaponSprite(field)"
+                    >
+                      <svg class="sprite-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 19V5h6l2 2h8v12H4z" />
+                        <path d="M8 14h8M12 10v8" />
+                      </svg>
+                    </n-button></div
+                ></FieldRow>
               </template>
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="光效" name="glow">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="glowColor" /></label>
-              <ColorPicker label="glowColor" v-model="view.glowColor" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['glowColor'] ?? 'glowColor'" field-key="glowColor"
+                ><ColorPicker label="glowColor" v-model="view.glowColor"
+              /></FieldRow>
             </div>
             <div class="action-row button-row action-group">
               <n-button
@@ -166,16 +167,16 @@
                 >
               </button>
             </div>
-            <div v-if="view.viewMode === 'turret' && view.selected !== null" class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="X" :path="`${view.viewMode}Offsets[${view.selected! * 2}]`" /></label
-              ><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="Y" :path="`${view.viewMode}Offsets[${view.selected! * 2 + 1}]`" /></label
-              ><NumberValueInput :value="view.offsets[view.selected * 2 + 1]" @update:value="actions.setOffset(1, $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="角度偏移" :path="`${view.viewMode}AngleOffsets[${view.selected}]`" /></label
-              ><NumberValueInput :value="view.angles[view.selected] || 0" @update:value="actions.setAngle($event)" />
+            <div v-if="view.viewMode === 'turret' && view.selected !== null" class="ui-field-stack">
+              <FieldRow :label="fieldNames['X'] ?? 'X'" field-key="X" :path="`${view.viewMode}Offsets[${view.selected! * 2}]`"
+                ><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['Y'] ?? 'Y'" field-key="Y" :path="`${view.viewMode}Offsets[${view.selected! * 2 + 1}]`"
+                ><NumberValueInput :value="view.offsets[view.selected * 2 + 1]" @update:value="actions.setOffset(1, $event)"
+              /></FieldRow>
+              <FieldRow label="角度偏移" field-key="角度偏移" :path="`${view.viewMode}AngleOffsets[${view.selected}]`"
+                ><NumberValueInput :value="view.angles[view.selected] || 0" @update:value="actions.setAngle($event)"
+              /></FieldRow>
             </div>
             <div class="action-row button-row action-group">
               <n-button @click="actions.addBarrelFor('turret')">添加</n-button
@@ -199,16 +200,16 @@
                 >
               </button>
             </div>
-            <div v-if="view.viewMode === 'hardpoint' && view.selected !== null" class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="X" :path="`${view.viewMode}Offsets[${view.selected! * 2}]`" /></label
-              ><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="Y" :path="`${view.viewMode}Offsets[${view.selected! * 2 + 1}]`" /></label
-              ><NumberValueInput :value="view.offsets[view.selected * 2 + 1]" @update:value="actions.setOffset(1, $event)" />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="角度偏移" :path="`${view.viewMode}AngleOffsets[${view.selected}]`" /></label
-              ><NumberValueInput :value="view.angles[view.selected] || 0" @update:value="actions.setAngle($event)" />
+            <div v-if="view.viewMode === 'hardpoint' && view.selected !== null" class="ui-field-stack">
+              <FieldRow :label="fieldNames['X'] ?? 'X'" field-key="X" :path="`${view.viewMode}Offsets[${view.selected! * 2}]`"
+                ><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['Y'] ?? 'Y'" field-key="Y" :path="`${view.viewMode}Offsets[${view.selected! * 2 + 1}]`"
+                ><NumberValueInput :value="view.offsets[view.selected * 2 + 1]" @update:value="actions.setOffset(1, $event)"
+              /></FieldRow>
+              <FieldRow label="角度偏移" field-key="角度偏移" :path="`${view.viewMode}AngleOffsets[${view.selected}]`"
+                ><NumberValueInput :value="view.angles[view.selected] || 0" @update:value="actions.setAngle($event)"
+              /></FieldRow>
             </div>
             <div class="action-row button-row action-group">
               <n-button @click="actions.addBarrelFor('hardpoint')">添加</n-button
@@ -216,39 +217,39 @@
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="发射模式" name="barrelMode">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="barrelMode" :path="'barrelMode'" /></label
-              ><n-select
-                :value="document.barrelMode"
-                :options="toOptions(['ALTERNATING', 'LINKED'])"
-                @update:value="actions.setField('barrelMode', $event)"
-              />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['barrelMode'] ?? 'barrelMode'" field-key="barrelMode" :path="'barrelMode'"
+                ><n-select
+                  :value="document.barrelMode"
+                  :options="toOptions(['ALTERNATING', 'LINKED'])"
+                  @update:value="actions.setField('barrelMode', $event)"
+              /></FieldRow>
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" v-if="view.showProjectileSections" title="动画" name="anim">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="animationType" :path="'animationType'" /></label
-              ><n-select
-                :value="document.animationType"
-                :options="toOptions(['NONE', 'MUZZLE_FLASH', 'SMOKE', 'GLOW_AND_FLASH', 'GLOW'])"
-                @update:value="actions.setField('animationType', $event)"
-              />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="visualRecoil" :path="'visualRecoil'" /></label
-              ><NumberValueInput :value="document.visualRecoil" @update:value="actions.setField('visualRecoil', $event)" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['animationType'] ?? 'animationType'" field-key="animationType" :path="'animationType'"
+                ><n-select
+                  :value="document.animationType"
+                  :options="toOptions(['NONE', 'MUZZLE_FLASH', 'SMOKE', 'GLOW_AND_FLASH', 'GLOW'])"
+                  @update:value="actions.setField('animationType', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['visualRecoil'] ?? 'visualRecoil'" field-key="visualRecoil" :path="'visualRecoil'"
+                ><NumberValueInput :value="document.visualRecoil" @update:value="actions.setField('visualRecoil', $event)"
+              /></FieldRow>
             </div>
-            <JsonValueInput
-              :value="view.muzzleFlashSpec"
-              label="muzzleFlashSpec"
-              show-label
-              shape="object"
-              @update="view.muzzleFlashSpec = $event"
-            />
-            <JsonValueInput :value="view.smokeSpec" label="smokeSpec" show-label shape="object" @update="view.smokeSpec = $event" />
+            <FieldRow :label="fieldNames['muzzleFlashSpec'] ?? 'muzzleFlashSpec'" field-key="muzzleFlashSpec" layout="group"
+              ><JsonValueInput :value="view.muzzleFlashSpec" label="muzzleFlashSpec" shape="object" @update="view.muzzleFlashSpec = $event"
+            /></FieldRow>
+            <FieldRow :label="fieldNames['smokeSpec'] ?? 'smokeSpec'" field-key="smokeSpec" layout="group"
+              ><JsonValueInput :value="view.smokeSpec" label="smokeSpec" shape="object" @update="view.smokeSpec = $event"
+            /></FieldRow>
           </n-collapse-item>
           <n-collapse-item class="schema-section" v-if="view.showProjectileSections" title="弹体" name="proj">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="projectileSpecId" /></label>
-              <n-auto-complete v-model:value="view.projectileSpecId" :options="view.projectileOptions" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['projectileSpecId'] ?? 'projectileSpecId'" field-key="projectileSpecId"
+                ><n-auto-complete v-model:value="view.projectileSpecId" :options="view.projectileOptions"
+              /></FieldRow>
             </div>
             <div class="action-row button-row action-group">
               <n-button @click="actions.editProjectile">编辑弹体</n-button>
@@ -256,35 +257,48 @@
             </div>
           </n-collapse-item>
           <n-collapse-item class="schema-section" v-if="view.showBeamSection" title="光束" name="beam">
-            <ColorPicker label="fringeColor" v-model="view.fringeColor" />
-            <ColorPicker label="coreColor" v-model="view.coreColor" />
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="width" :path="'width'" /></label
-              ><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="textureType" :path="'textureType'" /></label
-              ><n-select
-                :options="toOptions(['ROUGH', 'SMOOTH', 'NONE'])"
-                :value="document.textureType"
-                @update:value="actions.setField('textureType', $event)"
-              />
-              <label class="form-grid-label field-label-multi"
-                ><SpecFieldLabel raw="textureScrollSpeed" :path="'textureScrollSpeed'" /></label
-              ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="pixelsPerTexel" :path="'pixelsPerTexel'" /></label
-              ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="convergeOnPoint" /></label
-              ><n-checkbox :checked="document.convergeOnPoint" @update:checked="actions.setField('convergeOnPoint', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="darkCore" /></label
-              ><n-checkbox :checked="document.darkCore" @update:checked="actions.setField('darkCore', $event)" />
+            <FieldRow :label="fieldNames['fringeColor'] ?? 'fringeColor'" field-key="fringeColor"
+              ><ColorPicker label="fringeColor" v-model="view.fringeColor"
+            /></FieldRow>
+            <FieldRow :label="fieldNames['coreColor'] ?? 'coreColor'" field-key="coreColor"
+              ><ColorPicker label="coreColor" v-model="view.coreColor"
+            /></FieldRow>
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['width'] ?? 'width'" field-key="width" :path="'width'"
+                ><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['textureType'] ?? 'textureType'" field-key="textureType" :path="'textureType'"
+                ><n-select
+                  :options="toOptions(['ROUGH', 'SMOOTH', 'NONE'])"
+                  :value="document.textureType"
+                  @update:value="actions.setField('textureType', $event)"
+              /></FieldRow>
+              <FieldRow
+                :label="fieldNames['textureScrollSpeed'] ?? 'textureScrollSpeed'"
+                field-key="textureScrollSpeed"
+                :path="'textureScrollSpeed'"
+                ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['pixelsPerTexel'] ?? 'pixelsPerTexel'" field-key="pixelsPerTexel" :path="'pixelsPerTexel'"
+                ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['convergeOnPoint'] ?? 'convergeOnPoint'" field-key="convergeOnPoint"
+                ><n-checkbox :checked="document.convergeOnPoint" @update:checked="actions.setField('convergeOnPoint', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['darkCore'] ?? 'darkCore'" field-key="darkCore"
+                ><n-checkbox :checked="document.darkCore" @update:checked="actions.setField('darkCore', $event)"
+              /></FieldRow>
             </div>
             <n-button tertiary @click="actions.preview">预览光束</n-button>
           </n-collapse-item>
           <n-collapse-item class="schema-section" title="音效" name="sound">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fireSoundOne" :path="'fireSoundOne'" /></label
-              ><n-input :value="document.fireSoundOne" @update:value="actions.setField('fireSoundOne', $event)" />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fireSoundTwo" :path="'fireSoundTwo'" /></label
-              ><n-input :value="document.fireSoundTwo" @update:value="actions.setField('fireSoundTwo', $event)" />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['fireSoundOne'] ?? 'fireSoundOne'" field-key="fireSoundOne" :path="'fireSoundOne'"
+                ><n-input :value="document.fireSoundOne" @update:value="actions.setField('fireSoundOne', $event)"
+              /></FieldRow>
+              <FieldRow :label="fieldNames['fireSoundTwo'] ?? 'fireSoundTwo'" field-key="fireSoundTwo" :path="'fireSoundTwo'"
+                ><n-input :value="document.fireSoundTwo" @update:value="actions.setField('fireSoundTwo', $event)"
+              /></FieldRow>
             </div>
           </n-collapse-item>
         </n-collapse>
@@ -296,7 +310,8 @@
 
 <script setup lang="ts">
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
-import SpecFieldLabel from '@/app/components/editors/common/SpecFieldLabel.vue';
+import FieldRow from '@/shared/ui/FieldRow.vue';
+import { fieldNames } from '@/domain/editors/lib/field-names';
 import { useTemplateRef } from 'vue';
 
 import ColorPicker from '@/shared/ui/ColorPicker.vue';

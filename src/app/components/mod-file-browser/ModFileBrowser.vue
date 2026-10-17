@@ -1,5 +1,5 @@
 <template>
-  <main class="mod-files-page page-content page-slot">
+  <section class="mod-files-page page-content">
     <header class="mod-files-header page-header">
       <div class="mod-files-header-content page-identity">
         <h1 class="page-title">Mod 文件</h1>
@@ -48,10 +48,10 @@
               type="button"
               @click="actions.setSort(column.key)"
             >
-              {{ column.label
-              }}<span class="mod-files-sort" aria-hidden="true">{{
-                view.sort.key === column.key ? (view.sort.ascending ? '↑' : '↓') : ''
-              }}</span>
+              {{ column.label }}
+              <svg class="mod-files-sort ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path v-if="view.sort.key === column.key" :d="view.sort.ascending ? 'M8 13V3M4 7l4-4 4 4' : 'M8 3v10M4 9l4 4 4-4'" />
+              </svg>
             </button>
           </div>
         </div>
@@ -82,7 +82,7 @@
     <footer class="mod-files-footer ui-footer ui-text-description ui-text-muted ui-text-small ui-text-reset">
       双击文件夹展开或收起，双击文本文件打开编辑器。
     </footer>
-  </main>
+  </section>
 </template>
 <script setup lang="ts">
 import { h, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'vue';
@@ -109,7 +109,16 @@ const nodeProps: NonNullable<TreeProps['nodeProps']> = ({ option }) => ({
 const renderPrefix: NonNullable<TreeProps['renderPrefix']> = ({ option }) =>
   option.kind === 'status'
     ? null
-    : h('span', { 'aria-hidden': true }, option.kind === 'directory' ? '📁' : option.kind === 'restricted' ? '🔒' : '📄');
+    : h('svg', { class: 'mod-files-node-icon ui-control-icon', viewBox: '0 0 16 16', 'aria-hidden': true }, [
+        h('path', {
+          d:
+            option.kind === 'directory'
+              ? 'M2 4h4l2 2h6v6H2z'
+              : option.kind === 'restricted'
+                ? 'M5 7V5a3 3 0 0 1 6 0v2M4 7h8v7H4zM8 10v1.5'
+                : 'M9 2H4v12h8V5zM9 2v3h3',
+        }),
+      ]);
 const renderLabel: NonNullable<TreeProps['renderLabel']> = ({ option }) => {
   const status = view.searching ? undefined : view.directories.get(String(option.key));
   return h('span', { class: 'mod-files-name' }, [

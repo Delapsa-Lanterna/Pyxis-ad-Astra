@@ -9,23 +9,24 @@
   height: 72px;
   gap: 4px;
 }
-.file-history-summary .file-history-summary-label,
-.file-history-entry-main .file-history-entry-main-label,
-.file-history-entry-main .file-history-entry-main-note,
-.file-history-empty {
-  font-size: 11px;
-}
 .file-history-summary .file-history-summary-value {
   font: 600 20px/24px var(--font-sans);
 }
-.file-history-panel > .file-history-panel-heading {
+.file-history-panel {
+  align-self: start;
+  border-radius: 6px;
+}
+.file-history-panel-heading,
+.file-history-content {
   gap: 8px;
-  padding: 0 0 8px;
+  padding: 12px;
+}
+.file-history-panel-heading {
   border-bottom: 1px solid var(--color-border);
 }
-.file-history-entry {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border);
+.file-history-entry + .file-history-entry {
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
 }
 .file-history-entry-main {
   gap: 8px;
@@ -33,9 +34,6 @@
 .file-history-entry-main > .file-history-entry-main-content {
   flex: 1;
   gap: 2px;
-}
-.file-history-entry-main .file-history-entry-index {
-  font: 400 10px/12px var(--font-sans);
 }
 .file-history-change-list {
   padding-left: 16px;

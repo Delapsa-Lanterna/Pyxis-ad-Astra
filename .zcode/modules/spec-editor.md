@@ -35,6 +35,8 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、重排确认与写入重试交接。
 - `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
 - `src/shared/types/spec-editor.types.ts`：规格种类、分支、保存及导入请求与窗口业务读取投影。
+- `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。
+- `src/shared/ui/FieldRow.vue`：字段、集合、说明与辅助动作的共同展示。
 
 ### 装配
 
@@ -74,6 +76,8 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - 四类实现必须消费共同目标、保存及外部接纳协议。
 - 图像与依赖读取必须消费独立输入契约，严禁通过完整窗口 VM 类型取得输入。
 - 基础会话必须消费独立定义接口，具体实现选择必须归应用装配。
+- 字段必须以完整字段行消费共同标签与值控件，中文名称、原始键和完整路径必须显式交付。
+- 折叠分组必须消费 EditorCollapse 与 Naive 折叠项，首次展开后必须保留原文、校验和输入登记。
 - 规格窗口身份必须包含 session、Mod、种类和 ID，身份接纳必须共同更新窗口与会话。
 - 资源替换、基线交接及释放必须结束旧读取的接纳权。
 

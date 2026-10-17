@@ -22,6 +22,7 @@
 - `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染。
 - `src/app/components/schema/SchemaFormRenderer.vue`：表单渲染。
 - `src/app/components/schema/SchemaScalarInput.vue`：类型文本输入，暂存原文并提交正式字段动作。
+- `src/app/components/schema/SchemaValueInput.vue`：类型与模式分派、自身递归及字段更新交付。
 - `src/app/composables/editors/use-editor-row-identities.ts`：结构化输入条目的稳定行身份。
 - `src/app/composables/editors/use-schema-path-picker.ts`：所属字段文件选择、路径转换与目标接纳。
 - `src/app/composables/editors/use-schema-source-options.ts`：字段来源选项读取、失效及释放。
@@ -48,6 +49,8 @@
 - `src/shared/types/core-assets.types.ts`：字段合并消费的 Core 字段发现结果。
 - `src/shared/types/schema.types.ts`：字段来源请求、选项与来源分组协议。
 - `src/shared/ui/`：数值、JSON、额外字段与颜色输入及其行为测试。
+- `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。
+- `src/shared/ui/FieldRow.vue`：字段、集合、说明与辅助动作的共同展示。
 - `src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑。
 - `src/shared/ui/JsonValueInput.vue`：JSON 原始输入，按声明形状解析并提交。
 - `src/shared/ui/NumberValueInput.vue`：Smart 数值原文与正式值提交。
@@ -101,10 +104,13 @@
 - Bundled schema 注册时必须校验每个 `csv:` source 的表名属于正式 CSV 表注册表或实体注册表的 source 声明，无效 source 必须阻止注册。
 - Core 根切换必须立即清空所属字段与图形投影；静态 schema 合并必须消费当前根字段，失败时必须保留静态 schema。
 - Plain 数字、布尔与 Smart 数字必须登记原文；非法输入必须保留正式字段类型并阻止提交，可选具名字段清空必须删除键，必填字段清空必须定位为错误。
+- SchemaFieldRenderer 必须组合共同字段行、说明和值分派；SchemaValueInput 必须自身递归并交付 SchemaFieldUpdate。
 - Smart 下拉的选项菜单与已选标签必须共用同一 `SelectOption`。
 - `plain` editMode 只允许文本或 JSON 文本；`smart` editMode 才允许增强控件；含换行字符串必须使用 textarea。
 - schema 组件严禁写盘或直连 IPC。
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
+- 分组必须消费 EditorCollapse 与 Naive 折叠项，默认折叠必须按 schema 身份初始化，首次展开后的隐藏必须保留所属输入。
+- 字段名称、字段键与完整路径必须显式交给共同标签，值控件必须消费原文登记与正式提交接口。
 - 字段挂载严禁触发选项贴图批量读取；批量解析必须 single-flight 去重。
 - 字段默认与数组项默认必须由所属 schema 消费语义决定；完整规格新建必须消费所属格式的共享模板构造。
 - 字符串字段只允许提交字符串；Plain 整数必须按完整十进制和安全整数范围解析，浮点必须按完整有限十进制解析，非法文本必须逐字符保留。

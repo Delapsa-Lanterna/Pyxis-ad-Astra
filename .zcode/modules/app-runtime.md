@@ -42,6 +42,7 @@
 - `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁的建立与提供，以及目标交接挂载。
 - `src/app/WindowShell.vue`：唯一窗口壳，以 main/child 模式区分设置持久化与设置镜像，统一挂载 Provider、主题与 Core 加载生命周期。
 - `src/app/app-feedback-assembly.ts`：文件会话定位、授权恢复动作、转码及保存同步。
+- `src/app/components/MainWindowFrame.vue`：主窗口空间及主内容区域的展示框架。
 - `src/app/composables/immersive-editor-assembly.ts`：沉浸式实现选择、会话交接及展示协议适配。
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备、设置提交及配置清理动作装配。
@@ -111,6 +112,7 @@
 ## 规范
 
 - 主窗口与子窗口的模式差异必须由唯一窗口壳的 mode 参数表达，严禁出现第二份 Provider 栈。
+- 主窗口必须通过 MainWindowFrame 分配标题栏、页签、导航、通知与唯一主内容区域，导航实例与工作区动作必须归 AppContent。
 - 全部窗口 settings snapshot 必须从 Rust 设置服务读取并经统一校验入口初始化，后续更新必须先监听再读取正式快照并按版本接纳。
 - 关闭取消必须保留实际销毁及完整释放结果，存活 owner 必须恢复准备状态、焦点和保留的读取失效。
 - 关闭必须由 Rust 应用生命周期协调范围、准备回复、销毁等待与会话释放；窗口模块必须交付实例与原生事件，项目会话必须交付会话释放，工作区必须消费实际释放结果。

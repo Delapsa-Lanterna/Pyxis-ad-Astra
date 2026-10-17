@@ -47,12 +47,13 @@
       :positive-button-props="{ loading: actionRunning, disabled: actionRunning }"
       @positive-click="doCreate"
     >
-      <n-input v-model:value="newFactionId" placeholder="输入势力 ID（英文标识）" autofocus />
+      <FieldRow label="势力 ID"><n-input v-model:value="newFactionId" placeholder="输入势力 ID（英文标识）" autofocus /></FieldRow>
     </n-modal>
   </aside>
 </template>
 
 <script setup lang="ts">
+import FieldRow from '@/shared/ui/FieldRow.vue';
 import { computed, ref, watch } from 'vue';
 import type { ResourceRef, RowData } from '@/shared/types';
 import { configFactionListItems } from '@/domain/config/config-entities';
@@ -68,7 +69,6 @@ const props = defineProps<{
   sessionId: string | null;
   listLoadStartedAt: number;
   createFaction: (sessionId: string, modRoot: string, id: string) => Promise<boolean>;
-  deleteFaction: (sessionId: string, modRoot: string, id: string, deleteFile: boolean) => Promise<boolean>;
 }>();
 const emit = defineEmits<{ select: [factionId: string | null] }>();
 

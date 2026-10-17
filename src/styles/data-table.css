@@ -95,7 +95,9 @@
 .csv-cell-caret {
   flex: 0 0 auto;
   margin-left: auto;
-  font-size: 11px;
+  width: 10px;
+  height: 10px;
+  stroke-width: 1.5;
 }
 .csv-cell-thumb {
   flex: 0 0 auto;
@@ -201,11 +203,13 @@
   display: block;
   box-sizing: border-box;
   padding: var(--space-1) var(--space-2);
-  color: var(--color-danger);
   text-align: left;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--color-border);
+}
+.csv-cell-picker-clear {
+  color: var(--color-danger);
 }
 .csv-cell-picker-action {
   flex: 0 0 auto;
@@ -233,8 +237,10 @@
 }
 .csv-cell-picker-check {
   flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
   color: var(--color-primary);
-  font-size: 11px;
+  stroke-width: 1.5;
 }
 .csv-cell-picker-thumb {
   flex: 0 0 auto;
@@ -250,14 +256,4 @@
   flex: 0 0 auto;
   max-width: 40%;
   font-size: 11px;
-}
-.table-panel {
-  flex: 1;
-  position: relative;
-  inset: auto;
-  width: auto;
-  height: auto;
-}
-.table-content {
-  gap: 8px;
 }

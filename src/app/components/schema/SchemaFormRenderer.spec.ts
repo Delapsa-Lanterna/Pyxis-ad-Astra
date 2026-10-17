@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import type { RowData } from '@/shared/types';
 import type { FileSchema } from '@/domain/schema/schema.types';
+import { NCollapseItem } from 'naive-ui/es/collapse';
 import SchemaFormRenderer from './SchemaFormRenderer.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { createPinia, setActivePinia } from 'pinia';
@@ -27,8 +28,13 @@ function mountForm(modelValue: RowData) {
   return mount(SchemaFormRenderer, {
     props: { schema, modelValue },
     global: {
+      components: { NCollapseItem },
       stubs: {
         ...editorUiStubs,
+        NCollapse: false,
+        NCollapseItem: false,
+        'n-collapse': false,
+        'n-collapse-item': false,
         SchemaFieldRenderer: {
           name: 'SchemaFieldRenderer',
           props: ['field', 'value'],
@@ -51,22 +57,22 @@ describe('SchemaFormRenderer', () => {
     const form = mountForm({ name: 'a', level: 1 });
     expect(form.findAll('.schema-section')).toHaveLength(2);
     expect(form.findAll('.field-stub')).toHaveLength(1);
-    await form.findAll('.section-header')[1]!.trigger('click');
+    await form.findAll('.n-collapse-item__header-main')[1]!.trigger('click');
     expect(form.findAll('.field-stub')).toHaveLength(2);
     const field = form.findAll('.field-stub')[1]!.element;
-    await form.findAll('.section-header')[1]!.trigger('click');
+    await form.findAll('.n-collapse-item__header-main')[1]!.trigger('click');
     expect(form.findAll('.field-stub')[1]!.element).toBe(field);
     expect(form.find('.json-stub').exists()).toBe(false);
   });
 
   it('toggles section collapse on header clicks', async () => {
     const form = mountForm({});
-    const headers = form.findAll('.section-header');
-    expect(headers[1]!.find('.collapsed').exists()).toBe(true);
+    const headers = form.findAll('.n-collapse-item__header-main');
+    expect(form.findAll('.n-collapse-item')[1]!.classes()).not.toContain('n-collapse-item--active');
     await headers[1]!.trigger('click');
-    expect(headers[1]!.find('.collapsed').exists()).toBe(false);
+    expect(form.findAll('.n-collapse-item')[1]!.classes()).toContain('n-collapse-item--active');
     await headers[1]!.trigger('click');
-    expect(headers[1]!.find('.collapsed').exists()).toBe(true);
+    expect(form.findAll('.n-collapse-item')[1]!.classes()).not.toContain('n-collapse-item--active');
   });
 
   it('writes field updates back into the model with dotted paths', async () => {

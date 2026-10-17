@@ -4,7 +4,6 @@
     transform var(--ui-motion-duration) var(--ui-motion-easing),
     color var(--ui-feedback-duration) var(--ui-feedback-easing);
 }
-.section-header,
 .overview-mod-card,
 .config-entity-list-item,
 .mod-tab,
@@ -126,11 +125,4 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-.ui-empty {
-  display: grid;
-  place-content: center;
-  gap: 12px;
-  height: 100%;
-  text-align: center;
 }

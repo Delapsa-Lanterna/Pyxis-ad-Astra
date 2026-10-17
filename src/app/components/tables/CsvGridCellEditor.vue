@@ -46,7 +46,7 @@
       <template v-else>
         <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       </template>
-      <span class="csv-cell-caret ui-text-muted">⌄</span>
+      <svg class="csv-cell-caret ui-control-icon ui-text-muted" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       <CsvCellPicker
         ref="pickerRef"
         v-if="pickerAnchor"

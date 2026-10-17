@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { h, ref } from 'vue';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import ColorPicker from './ColorPicker.vue';
+import FieldRow from './FieldRow.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { deepClone } from '@/shared/lib/starsector';
 
@@ -83,9 +84,15 @@ describe('ColorPicker', () => {
     expect(picker.emitted('update:modelValue')?.at(-1)).toEqual(['#10ff0f']);
   });
 
-  it('shows the label next to the preview button', () => {
-    const picker = mountPicker([0, 0, 0, 255], { label: '颜色' });
-    expect(picker.get('.color-picker-label').text()).toBe('颜色');
+  it('composes its visible label through the field row', () => {
+    wrapper = mount(FieldRow, {
+      props: { label: '颜色', fieldKey: 'color' },
+      slots: { default: () => h(ColorPicker, { modelValue: [0, 0, 0, 255], label: '颜色' }) },
+      global: { stubs: editorUiStubs },
+    });
+    expect(wrapper.get('.field-label-name').text()).toBe('颜色');
+    expect(wrapper.findAll('.field-label')).toHaveLength(1);
+    expect(wrapper.find('.color-picker-preview').exists()).toBe(true);
   });
 
   it('protects raw color text and participates in save capture', async () => {

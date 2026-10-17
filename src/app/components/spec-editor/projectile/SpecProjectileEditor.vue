@@ -44,101 +44,124 @@
       >
         <n-collapse v-model:expanded-names="view.expandedSections">
           <n-collapse-item class="schema-section" title="基础属性" name="basic">
-            <div class="form-grid ui-layout-center">
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="id" /></label><n-input :value="projectileId" disabled />
-              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="specClass" :path="'specClass'" /></label
-              ><n-select
-                :value="document.specClass"
-                :options="toOptions(['projectile', 'missile'])"
-                @update:value="actions.onSpecClassChange"
-              />
+            <div class="ui-field-stack">
+              <FieldRow :label="fieldNames['id'] ?? 'id'" field-key="id"><n-input :value="projectileId" disabled /></FieldRow>
+              <FieldRow :label="fieldNames['specClass'] ?? 'specClass'" field-key="specClass" :path="'specClass'"
+                ><n-select
+                  :value="document.specClass"
+                  :options="toOptions(['projectile', 'missile'])"
+                  @update:value="actions.onSpecClassChange"
+              /></FieldRow>
             </div>
           </n-collapse-item>
           <template v-if="view.showProjectileSections">
             <n-collapse-item class="schema-section" title="弹体外观" name="visual">
-              <div class="form-grid ui-layout-center">
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="spawnType" :path="'spawnType'" /></label
-                ><n-select
-                  :options="toOptions([...PROJECTILE_SPAWN_TYPES])"
-                  :value="document.spawnType"
-                  @update:value="actions.setField('spawnType', $event)"
-                />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="bulletSprite" :path="'bulletSprite'" /></label
-                ><n-input :value="document.bulletSprite" @update:value="actions.setField('bulletSprite', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="length" :path="'length'" /></label
-                ><NumberValueInput :value="document.length" @update:value="actions.setField('length', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="width" :path="'width'" /></label
-                ><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)" />
-                <label class="form-grid-label field-label-multi"
-                  ><SpecFieldLabel raw="textureScrollSpeed" :path="'textureScrollSpeed'" /></label
-                ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="pixelsPerTexel" :path="'pixelsPerTexel'" /></label
-                ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fringeColor" /></label>
-                <ColorPicker label="fringeColor" v-model="view.fringeColor" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="coreColor" /></label>
-                <ColorPicker label="coreColor" v-model="view.coreColor" />
+              <div class="ui-field-stack">
+                <FieldRow :label="fieldNames['spawnType'] ?? 'spawnType'" field-key="spawnType" :path="'spawnType'"
+                  ><n-select
+                    :options="toOptions([...PROJECTILE_SPAWN_TYPES])"
+                    :value="document.spawnType"
+                    @update:value="actions.setField('spawnType', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['bulletSprite'] ?? 'bulletSprite'" field-key="bulletSprite" :path="'bulletSprite'"
+                  ><n-input :value="document.bulletSprite" @update:value="actions.setField('bulletSprite', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['length'] ?? 'length'" field-key="length" :path="'length'"
+                  ><NumberValueInput :value="document.length" @update:value="actions.setField('length', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['width'] ?? 'width'" field-key="width" :path="'width'"
+                  ><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)"
+                /></FieldRow>
+                <FieldRow
+                  :label="fieldNames['textureScrollSpeed'] ?? 'textureScrollSpeed'"
+                  field-key="textureScrollSpeed"
+                  :path="'textureScrollSpeed'"
+                  ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['pixelsPerTexel'] ?? 'pixelsPerTexel'" field-key="pixelsPerTexel" :path="'pixelsPerTexel'"
+                  ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['fringeColor'] ?? 'fringeColor'" field-key="fringeColor"
+                  ><ColorPicker label="fringeColor" v-model="view.fringeColor"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['coreColor'] ?? 'coreColor'" field-key="coreColor"
+                  ><ColorPicker label="coreColor" v-model="view.coreColor"
+                /></FieldRow>
               </div>
               <n-button size="small" tertiary @click="actions.pickProjectileSprite('bulletSprite')">浏览贴图（引用 Mod 内文件）</n-button>
             </n-collapse-item>
             <n-collapse-item class="schema-section" title="碰撞与消散" name="collision">
-              <div class="form-grid ui-layout-center">
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="collisionClass" :path="'collisionClass'" /></label
-                ><n-select
-                  :options="
-                    toOptions([
-                      'PROJECTILE_NO_FF',
-                      'PROJECTILE_FF',
-                      'PROJECTILE_FIGHTER',
-                      'MISSILE_NO_FF',
-                      'MISSILE_FF',
-                      'RAY',
-                      'RAY_FIGHTER',
-                      'HITS_SHIPS_AND_ASTEROIDS',
-                      'NONE',
-                    ])
-                  "
-                  :value="document.collisionClass"
-                  @update:value="actions.setField('collisionClass', $event)"
-                />
-                <label class="form-grid-label field-label-multi"
-                  ><SpecFieldLabel raw="collisionClassByFighter" :path="'collisionClassByFighter'" /></label
-                ><n-input :value="document.collisionClassByFighter" @update:value="actions.setField('collisionClassByFighter', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fadeTime" :path="'fadeTime'" /></label
-                ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="hitGlowRadius" :path="'hitGlowRadius'" /></label
-                ><NumberValueInput :value="document.hitGlowRadius" @update:value="actions.setField('hitGlowRadius', $event)" />
+              <div class="ui-field-stack">
+                <FieldRow :label="fieldNames['collisionClass'] ?? 'collisionClass'" field-key="collisionClass" :path="'collisionClass'"
+                  ><n-select
+                    :options="
+                      toOptions([
+                        'PROJECTILE_NO_FF',
+                        'PROJECTILE_FF',
+                        'PROJECTILE_FIGHTER',
+                        'MISSILE_NO_FF',
+                        'MISSILE_FF',
+                        'RAY',
+                        'RAY_FIGHTER',
+                        'HITS_SHIPS_AND_ASTEROIDS',
+                        'NONE',
+                      ])
+                    "
+                    :value="document.collisionClass"
+                    @update:value="actions.setField('collisionClass', $event)"
+                /></FieldRow>
+                <FieldRow
+                  :label="fieldNames['collisionClassByFighter'] ?? 'collisionClassByFighter'"
+                  field-key="collisionClassByFighter"
+                  :path="'collisionClassByFighter'"
+                  ><n-input :value="document.collisionClassByFighter" @update:value="actions.setField('collisionClassByFighter', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['fadeTime'] ?? 'fadeTime'" field-key="fadeTime" :path="'fadeTime'"
+                  ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['hitGlowRadius'] ?? 'hitGlowRadius'" field-key="hitGlowRadius" :path="'hitGlowRadius'"
+                  ><NumberValueInput :value="document.hitGlowRadius" @update:value="actions.setField('hitGlowRadius', $event)"
+                /></FieldRow>
               </div>
             </n-collapse-item>
           </template>
           <template v-else-if="view.showMissileSections">
             <n-collapse-item class="schema-section" title="导弹外观" name="missileVisual">
-              <div class="form-grid ui-layout-center">
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="missileType" :path="'missileType'" /></label
-                ><n-select
-                  :value="document.missileType"
-                  :options="toOptions([...MISSILE_TYPES])"
-                  @update:value="actions.setField('missileType', $event)"
-                />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="sprite" :path="'sprite'" /></label
-                ><n-input :value="document.sprite" @update:value="actions.setField('sprite', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="size W" /></label
-                ><NumberValueInput :value="view.size[0]" @update:value="actions.setArray('size', 0, $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="size H" /></label
-                ><NumberValueInput :value="view.size[1]" @update:value="actions.setArray('size', 1, $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="center X" /></label
-                ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="center Y" /></label
-                ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="collisionRadius" :path="'collisionRadius'" /></label
-                ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setField('collisionRadius', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="explosionColor" /></label>
-                <ColorPicker label="explosionColor" v-model="view.explosionColor" />
+              <div class="ui-field-stack">
+                <FieldRow :label="fieldNames['missileType'] ?? 'missileType'" field-key="missileType" :path="'missileType'"
+                  ><n-select
+                    :value="document.missileType"
+                    :options="toOptions([...MISSILE_TYPES])"
+                    @update:value="actions.setField('missileType', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['sprite'] ?? 'sprite'" field-key="sprite" :path="'sprite'"
+                  ><n-input :value="document.sprite" @update:value="actions.setField('sprite', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['size W'] ?? 'size W'" field-key="size[0]"
+                  ><NumberValueInput :value="view.size[0]" @update:value="actions.setArray('size', 0, $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['size H'] ?? 'size H'" field-key="size[1]"
+                  ><NumberValueInput :value="view.size[1]" @update:value="actions.setArray('size', 1, $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['center X'] ?? 'center X'" field-key="center[0]"
+                  ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['center Y'] ?? 'center Y'" field-key="center[1]"
+                  ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['collisionRadius'] ?? 'collisionRadius'" field-key="collisionRadius" :path="'collisionRadius'"
+                  ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setField('collisionRadius', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['explosionColor'] ?? 'explosionColor'" field-key="explosionColor"
+                  ><ColorPicker label="explosionColor" v-model="view.explosionColor"
+                /></FieldRow>
               </div>
               <n-button size="small" tertiary @click="actions.pickProjectileSprite('sprite')">浏览贴图（引用 Mod 内文件）</n-button>
             </n-collapse-item>
             <n-collapse-item class="schema-section" title="引擎参数" name="engine">
-              <JsonValueInput :value="view.engineSpec" label="engineSpec" shape="object" @update="view.engineSpec = $event" />
+              <FieldRow :label="fieldNames['engineSpec'] ?? 'engineSpec'" field-key="engineSpec" layout="group"
+                ><JsonValueInput :value="view.engineSpec" label="engineSpec" shape="object" @update="view.engineSpec = $event"
+              /></FieldRow>
             </n-collapse-item>
             <n-collapse-item class="schema-section" title="引擎槽位" name="slots">
               <div v-if="view.engineSlots.length" class="bounds-list ui-layout-grid">
@@ -156,27 +179,34 @@
               <n-button @click="actions.addEngineSlot">添加引擎槽</n-button>
             </n-collapse-item>
             <n-collapse-item class="schema-section" title="爆炸与时间" name="explosion">
-              <div class="form-grid ui-layout-center">
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="explosionRadius" :path="'explosionRadius'" /></label
-                ><NumberValueInput :value="document.explosionRadius" @update:value="actions.setField('explosionRadius', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="flameoutTime" :path="'flameoutTime'" /></label
-                ><NumberValueInput :value="document.flameoutTime" @update:value="actions.setField('flameoutTime', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="armingTime" :path="'armingTime'" /></label
-                ><NumberValueInput :value="document.armingTime" @update:value="actions.setField('armingTime', $event)" />
-                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fadeTime" :path="'fadeTime'" /></label
-                ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)" />
+              <div class="ui-field-stack">
+                <FieldRow :label="fieldNames['explosionRadius'] ?? 'explosionRadius'" field-key="explosionRadius" :path="'explosionRadius'"
+                  ><NumberValueInput :value="document.explosionRadius" @update:value="actions.setField('explosionRadius', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['flameoutTime'] ?? 'flameoutTime'" field-key="flameoutTime" :path="'flameoutTime'"
+                  ><NumberValueInput :value="document.flameoutTime" @update:value="actions.setField('flameoutTime', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['armingTime'] ?? 'armingTime'" field-key="armingTime" :path="'armingTime'"
+                  ><NumberValueInput :value="document.armingTime" @update:value="actions.setField('armingTime', $event)"
+                /></FieldRow>
+                <FieldRow :label="fieldNames['fadeTime'] ?? 'fadeTime'" field-key="fadeTime" :path="'fadeTime'"
+                  ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)"
+                /></FieldRow>
               </div>
-              <JsonValueInput :value="view.explosionSpec" label="explosionSpec" shape="object" @update="view.explosionSpec = $event" />
+              <FieldRow :label="fieldNames['explosionSpec'] ?? 'explosionSpec'" field-key="explosionSpec" layout="group"
+                ><JsonValueInput :value="view.explosionSpec" label="explosionSpec" shape="object" @update="view.explosionSpec = $event"
+              /></FieldRow>
             </n-collapse-item>
           </template>
           <n-collapse-item class="schema-section" v-else title="通用属性" name="generic">
-            <JsonValueInput
-              :value="document"
-              label="弹体规格"
-              shape="object"
-              :normalize="view.normalizeProjectile"
-              @update="actions.projectileUpdated"
-            />
+            <FieldRow label="弹体规格" field-key="弹体规格" layout="group"
+              ><JsonValueInput
+                :value="document"
+                label="弹体规格"
+                shape="object"
+                :normalize="view.normalizeProjectile"
+                @update="actions.projectileUpdated"
+            /></FieldRow>
           </n-collapse-item>
         </n-collapse>
       </EditorInspector>
@@ -187,7 +217,8 @@
 
 <script setup lang="ts">
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
-import SpecFieldLabel from '@/app/components/editors/common/SpecFieldLabel.vue';
+import FieldRow from '@/shared/ui/FieldRow.vue';
+import { fieldNames } from '@/domain/editors/lib/field-names';
 import { useTemplateRef } from 'vue';
 import EditorInspector from '@/app/components/editors/common/EditorInspector.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';

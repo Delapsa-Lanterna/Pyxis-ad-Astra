@@ -1,6 +1,5 @@
 <template>
   <div class="color-picker ui-layout-grid ui-layout-shrink ui-layout-center">
-    <span v-if="label" class="color-picker-label ui-text-soft ui-text-small">{{ label }}</span>
     <n-popover
       v-model:show="panelOpen"
       trigger="manual"

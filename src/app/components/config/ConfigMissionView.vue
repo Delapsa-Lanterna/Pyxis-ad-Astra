@@ -1,6 +1,7 @@
 <template>
-  <div class="mission-view editor-page ui-content-column ui-content-contained">
-    <ConfigMissionEditor
+  <div class="mission-view editor-page ui-layout-row ui-content-contained" :inert="actionsLocked || editorRef?.handoffLocked">
+    <ConfigMissionList v-bind="listProps" @select="selectMission" /><ConfigMissionEditor
+      ref="editorRef"
       v-if="selectedMission"
       :key="JSON.stringify([sessionId, modRoot])"
       :mission-id="selectedMission"
@@ -17,22 +18,13 @@
       :discard-deleted-target="discardDeletedTarget"
       :identity-handoff="identityHandoff"
       @saved="handleSaved"
-    >
-      <template #list>
-        <ConfigMissionList v-bind="listProps" @select="selectMission" />
-      </template>
-    </ConfigMissionEditor>
-    <div v-else class="editor-content ui-content-contained ui-layout-row">
-      <ConfigMissionList v-bind="listProps" @select="selectMission" />
-      <div class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
-        <p>选择一个战役以编辑</p>
-      </div>
-    </div>
+    />
+    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid"><p>选择一个战役以编辑</p></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useTemplateRef } from 'vue';
 import ConfigMissionList from '@/app/components/config/ConfigMissionList.vue';
 import ConfigMissionEditor from '@/app/components/config/ConfigMissionEditor.vue';
 import { useConfigMissionViewModel } from '@/app/composables/config/use-config-mission-view-model';
@@ -49,7 +41,6 @@ const {
   missionIconRefreshToken,
   listLoadStartedAt,
   missionItems,
-  missionIconRefs,
   modRoot,
   sessionId,
   handleSaved,
@@ -59,15 +50,14 @@ const {
   queryMissionIcon,
   saveMission,
 } = useConfigMissionViewModel();
+const editorRef = useTemplateRef('editorRef');
 const listProps = computed(() => ({
   selectedId: selectedMission.value,
   actionRunning: actionRunning.value,
   missions: missionItems.value,
-  missionIconRefs: missionIconRefs.value,
   modRoot: modRoot.value,
   sessionId: sessionId.value,
   listLoadStartedAt: listLoadStartedAt.value,
   createMission: createMission,
-  deleteMission: deleteMission,
 }));
 </script>

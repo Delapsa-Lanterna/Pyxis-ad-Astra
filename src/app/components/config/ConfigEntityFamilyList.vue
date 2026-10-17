@@ -50,16 +50,25 @@
       :positive-button-props="{ loading: actionRunning, disabled: actionRunning }"
       @positive-click="submitCreate"
     >
-      <div class="variant-dialog-fields ui-layout-grid">
-        <n-input v-if="settings.isPlainEditMode" v-model:value="newCompanionId" :placeholder="family.companionLabel" />
-        <n-select v-else v-model:value="newCompanionId" :options="hullOptions" filterable tag :placeholder="family.companionLabel" />
-        <n-input v-model:value="newId" :placeholder="family.idField" />
+      <div class="ui-field-stack">
+        <FieldRow :label="family.companionLabel">
+          <n-input v-if="settings.isPlainEditMode" v-model:value="newCompanionId" :placeholder="family.companionLabel" />
+          <n-select
+            v-else
+            v-model:value="newCompanionId"
+            :options="hullOptions"
+            filterable
+            tag
+            :placeholder="family.companionLabel"
+          /> </FieldRow
+        ><FieldRow :label="family.idField"><n-input v-model:value="newId" :placeholder="family.idField" /></FieldRow>
       </div>
     </n-modal>
   </aside>
 </template>
 
 <script setup lang="ts">
+import FieldRow from '@/shared/ui/FieldRow.vue';
 import { computed, ref, watch } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { ResourceRef } from '@/shared/types';
@@ -82,7 +91,6 @@ const props = defineProps<{
   sessionId: string | null;
   listLoadStartedAt: number;
   createEntity: (sessionId: string, modRoot: string, companionId: string, id: string) => Promise<boolean>;
-  deleteEntity: (sessionId: string, modRoot: string, id: string, relPath: string) => Promise<boolean>;
 }>();
 const emit = defineEmits<{ select: [id: string | null] }>();
 

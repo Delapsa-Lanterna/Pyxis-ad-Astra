@@ -1,6 +1,7 @@
 <template>
-  <div class="config-factions-layout editor-page ui-content-column ui-content-contained">
-    <ConfigFactionEditor
+  <div class="config-factions-layout editor-page ui-layout-row ui-content-contained" :inert="actionsLocked || editorRef?.handoffLocked">
+    <ConfigFactionList v-bind="listProps" @select="selectFaction" /><ConfigFactionEditor
+      ref="editorRef"
       v-if="selectedFaction && editorFactions[selectedFaction]"
       :key="JSON.stringify([sessionId, modRoot])"
       :faction-id="selectedFaction"
@@ -19,20 +20,13 @@
       :deleted-target="deletedTarget"
       :discard-deleted-target="discardDeletedTarget"
       @saved="onSaved"
-    >
-      <template #list>
-        <ConfigFactionList v-bind="listProps" @select="selectFaction" />
-      </template>
-    </ConfigFactionEditor>
-    <div v-else class="editor-content ui-content-contained ui-layout-row">
-      <ConfigFactionList v-bind="listProps" @select="selectFaction" />
-      <div class="config-placeholder ui-control-center ui-text-muted ui-layout-grid"><p>选择一个势力以编辑</p></div>
-    </div>
+    />
+    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid"><p>选择一个势力以编辑</p></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useTemplateRef } from 'vue';
 import ConfigFactionList from '@/app/components/config/ConfigFactionList.vue';
 import ConfigFactionEditor from '@/app/components/config/ConfigFactionEditor.vue';
 import { useConfigFactionViewModel } from '@/app/composables/config/use-config-faction-view-model';
@@ -61,6 +55,7 @@ const {
   queryFactionPreviewImages,
   saveFaction,
 } = useConfigFactionViewModel();
+const editorRef = useTemplateRef('editorRef');
 const listProps = computed(() => ({
   selectedId: selectedFaction.value,
   actionRunning: actionRunning.value,
@@ -70,6 +65,5 @@ const listProps = computed(() => ({
   sessionId: sessionId.value,
   listLoadStartedAt: listLoadStartedAt.value,
   createFaction: createFaction,
-  deleteFaction: deleteFaction,
 }));
 </script>

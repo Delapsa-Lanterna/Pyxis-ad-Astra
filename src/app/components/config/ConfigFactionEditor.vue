@@ -1,47 +1,40 @@
 <template>
-  <div
-    class="faction-editor-page editor-page ui-layout-row ui-content-contained ui-content-surface-muted"
-    :inert="actionsLocked || handoffLocked"
-  >
-    <slot name="list" />
-    <div class="editor-content ui-content-column ui-content-contained">
-      <ConfigTargetNotice
-        label="势力"
-        :deleted-target="deletedTarget"
-        :actions-locked="actionsLocked"
-        :discard-deleted-target="discardDeletedTarget"
-      />
-      <EditorHeader
-        :title="displayName"
-        :path="paths"
-        :dirty="dirty"
-        :saving="saving"
-        :external-update-notice="externalUpdateNotice"
-        @load-external="loadPendingExternalData"
-        ><template #actions
-          ><n-button secondary type="error" @click="confirmDeleteFaction">删除</n-button
-          ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
-          ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
-        ></EditorHeader
-      >
-      <div class="editor-fields ui-content-scroll">
-        <!-- Logo/Crest preview -->
-        <div v-if="logoSrc || crestSrc" class="panel-card ui-layout-row ui-control-border ui-content-surface">
-          <div v-if="logoSrc" class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
-            <span class="ui-text-soft ui-text-small">Logo</span>
-            <img :src="logoSrc" class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" />
-          </div>
-          <div v-if="crestSrc" class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
-            <span class="ui-text-soft ui-text-small">Crest</span>
-            <img :src="crestSrc" class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" />
-          </div>
+  <section class="editor-content ui-content-column ui-content-contained ui-content-surface-muted">
+    <ConfigTargetNotice
+      label="势力"
+      :deleted-target="deletedTarget"
+      :actions-locked="actionsLocked"
+      :discard-deleted-target="discardDeletedTarget"
+    /><EditorHeader
+      :title="displayName"
+      :path="paths"
+      :dirty="dirty"
+      :saving="saving"
+      :external-update-notice="externalUpdateNotice"
+      @load-external="loadPendingExternalData"
+      ><template #actions
+        ><n-button secondary type="error" @click="confirmDeleteFaction">删除</n-button
+        ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+        ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+      ></EditorHeader
+    >
+    <div class="editor-fields ui-content-scroll">
+      <!-- Logo/Crest preview -->
+      <div v-if="logoSrc || crestSrc" class="panel-card ui-layout-row ui-control-border ui-content-surface">
+        <div v-if="logoSrc" class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
+          <span class="ui-text-soft ui-text-small">Logo</span>
+          <img :src="logoSrc" class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" />
         </div>
-
-        <!-- Schema-driven form -->
-        <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="props.schemaRuntimeContext" />
+        <div v-if="crestSrc" class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
+          <span class="ui-text-soft ui-text-small">Crest</span>
+          <img :src="crestSrc" class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" />
+        </div>
       </div>
+
+      <!-- Schema-driven form -->
+      <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="props.schemaRuntimeContext" />
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -157,6 +150,8 @@ async function deleteFactionTarget(deleteSessionId: string, deleteModRoot: strin
   }
   return true;
 }
+
+defineExpose({ handoffLocked });
 
 const saveCommand = useSaveCommandStore();
 onMounted(() => saveCommand.registerActiveSaveHandler(save));

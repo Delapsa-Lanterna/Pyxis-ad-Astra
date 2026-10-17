@@ -49,7 +49,14 @@
 }
 .mod-files-sort {
   width: 12px;
+  height: 12px;
+  stroke-width: 1.5;
   color: var(--color-primary);
+}
+.mod-files-node-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.5;
 }
 .mod-files-tree {
   flex: 1;

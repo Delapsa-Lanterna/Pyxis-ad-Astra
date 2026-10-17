@@ -40,11 +40,14 @@
           :key="option.value"
           :ref="visible.mediaRef(option.value, option.resourceRef)"
           :class="['csv-cell-picker-option', { selected: selectedValues.has(option.value) }]"
+          :aria-pressed="multiple ? selectedValues.has(option.value) : undefined"
           :title="option.description ?? undefined"
           type="button"
           @click="selectOption(option.value)"
         >
-          <span v-if="multiple" class="csv-cell-picker-check">{{ selectedValues.has(option.value) ? '✓' : '' }}</span>
+          <svg v-if="multiple" class="csv-cell-picker-check ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path v-if="selectedValues.has(option.value)" d="m3 8 3 3 7-6" />
+          </svg>
           <ResourceThumbnail
             v-if="option.resourceRef"
             class="csv-cell-picker-thumb"

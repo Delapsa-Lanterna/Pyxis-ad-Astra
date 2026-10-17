@@ -1,6 +1,7 @@
 <template>
-  <div class="config-family-view editor-page ui-content-column ui-content-contained">
-    <ConfigEntityFamilyEditor
+  <div class="config-family-view editor-page ui-layout-row ui-content-contained" :inert="actionsLocked || editorRef?.handoffLocked">
+    <ConfigEntityFamilyList v-bind="listProps" @select="selectFile" /><ConfigEntityFamilyEditor
+      ref="editorRef"
       v-if="selectedId && editorFiles.some((file) => idOf(file) === selectedId)"
       :key="JSON.stringify([sessionId, modRoot, family.id])"
       :family="family"
@@ -16,22 +17,15 @@
       :deleted-target="deletedTarget"
       :discard-deleted-target="discardDeletedTarget"
       @saved="onSaved"
-    >
-      <template #list>
-        <ConfigEntityFamilyList v-bind="listProps" @select="selectFile" />
-      </template>
-    </ConfigEntityFamilyEditor>
-    <div v-else class="editor-content ui-content-contained ui-layout-row">
-      <ConfigEntityFamilyList v-bind="listProps" @select="selectFile" />
-      <div class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
-        <p>选择一个{{ family.displayName }}以编辑</p>
-      </div>
+    />
+    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
+      <p>选择一个{{ family.displayName }}以编辑</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useTemplateRef } from 'vue';
 import ConfigEntityFamilyEditor from '@/app/components/config/ConfigEntityFamilyEditor.vue';
 import ConfigEntityFamilyList from '@/app/components/config/ConfigEntityFamilyList.vue';
 import { useConfigFamilyViewModel } from '@/app/composables/config/use-config-family-view-model';
@@ -65,6 +59,7 @@ const {
   saveFamilyEntity,
   idOf,
 } = familyViewModel;
+const editorRef = useTemplateRef('editorRef');
 const listProps = computed(() => ({
   family: family.value,
   selectedId: selectedId.value,
@@ -78,6 +73,5 @@ const listProps = computed(() => ({
   sessionId: sessionId.value,
   listLoadStartedAt: listLoadStartedAt.value,
   createEntity: createFamilyEntity,
-  deleteEntity: deleteFamilyEntity,
 }));
 </script>

@@ -1,5 +1,5 @@
 <template>
-  <main class="workspace page-slot ui-content-fill ui-content-contained ui-layout-grid ui-layout-stretch">
+  <section class="workspace ui-content-fill ui-content-contained ui-layout-grid ui-layout-stretch">
     <header class="topbar page-header ui-content-surface">
       <div class="view-heading page-identity">
         <h1 class="view-title page-title ui-text-truncate">{{ MODULE_LABELS[tables.currentTab] }}</h1>
@@ -57,25 +57,14 @@
         <DataTable :key="csvTable.targetKey.value" :csv-table="csvTable" />
       </div>
       <button
-        class="workspace-sidebar-toggle ui-button ui-control-button ui-control-center ui-control-reset ui-text-muted"
+        class="workspace-sidebar-toggle ui-button ui-control-button ui-control-reset"
         type="button"
         :title="sidebarExpanded ? '收起侧边栏' : '展开侧边栏'"
         :aria-label="sidebarExpanded ? '收起侧边栏' : '展开侧边栏'"
         :aria-expanded="sidebarExpanded"
         aria-controls="csv-sidebar-panel"
         @click="sidebarExpanded = !sidebarExpanded"
-      >
-        <svg
-          class="workspace-sidebar-toggle-icon ui-control-icon"
-          width="10"
-          height="10"
-          viewBox="0 0 16 16"
-          stroke-width="1.5"
-          aria-hidden="true"
-        >
-          <path :d="sidebarExpanded ? 'm6 4 4 4-4 4' : 'm10 4-4 4 4 4'" />
-        </svg>
-      </button>
+      />
       <DetailPane
         id="csv-sidebar-panel"
         v-show="sidebarExpanded"
@@ -84,7 +73,7 @@
         @detail-action="actions.handleDetailAction"
       />
     </section>
-  </main>
+  </section>
 </template>
 
 <script setup lang="ts">

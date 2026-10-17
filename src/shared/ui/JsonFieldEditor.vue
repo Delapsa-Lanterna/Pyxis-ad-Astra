@@ -1,14 +1,15 @@
 <template>
   <div class="field-json">
-    <div v-for="key in extraKeys" :key="key" class="field-json-row ui-layout-grid ui-layout-shrink">
-      <span class="field-json-key ui-text-truncate ui-text-muted">{{ key }}</span>
-      <n-input
+    <FieldRow
+      v-for="key in extraKeys"
+      :key="key"
+      :field-key="key"
+      :layout="model[key] !== null && typeof model[key] === 'object' ? 'group' : 'row'"
+      ><n-input
         v-if="typeof model[key] === 'string' || model[key] === null || model[key] === undefined"
         :value="String(model[key] ?? '')"
         size="small"
-        @update:value="updateField(key, $event)"
-      />
-      <NumberValueInput
+        @update:value="updateField(key, $event)" /><NumberValueInput
         v-else-if="typeof model[key] === 'number'"
         :value="model[key]"
         :input-key="key"
@@ -17,28 +18,22 @@
         :show-button="false"
         size="small"
         @update:value="updateField(key, $event)"
-        @remove="removeField(key)"
-      />
-      <n-switch
+        @remove="removeField(key)" /><n-switch
         v-else-if="typeof model[key] === 'boolean'"
         class="tool-switch field-switch"
         :value="model[key] as boolean"
         size="small"
-        @update:value="updateField(key, $event)"
-      />
-      <JsonValueInput
+        @update:value="updateField(key, $event)" /><JsonValueInput
         v-else
         :value="model[key]"
         :label="key"
         :shape="Array.isArray(model[key]) ? 'array' : 'object'"
-        @update="updateField(key, $event)"
-      />
-      <n-button class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除字段" @click="removeField(key)">
-        <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M6 6l12 12M18 6 6 18" />
-        </svg>
-      </n-button>
-    </div>
+        @update="updateField(key, $event)" /><template #actions
+        ><n-button class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除字段" @click="removeField(key)">
+          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg> </n-button></template
+    ></FieldRow>
     <div v-if="extraKeys.length === 0" class="field-json-empty ui-text-muted ui-text-small">无额外字段</div>
     <div class="field-json-add ui-layout-row ui-layout-center">
       <n-input v-model:value="newKey" class="field-json-new-key" size="small" placeholder="新字段名" />
@@ -48,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import FieldRow from '@/shared/ui/FieldRow.vue';
 import { computed, ref } from 'vue';
 import { extraJsonFieldKeys } from '@/shared/lib/json-fields';
 import type { JsonValue, RowData } from '@/shared/types';
