@@ -67,7 +67,7 @@
 - `src/app/composables/use-query-read-owner.ts`：Vue 读取票据的作用域交接。
 - `src/domain/cache-limits.ts`：缓存预算的前端校验。
 - `src/shared/`：前端公共协议、原语、工具与控件。
-- `src/styles/`：按同名语义作用域划分的展示规则与唯一聚合入口。
+- `src/styles/`：按业务及关联组件组织的展示规则与样式入口。
 - `src/test/`：前端测试共享夹具。
 
 ## 模块索引

@@ -29,7 +29,7 @@ function harness(attachTo?: HTMLElement) {
         ImmersiveText: true,
         NPopover: defineComponent({
           name: 'NPopover',
-          props: ['to'],
+          props: { to: { type: HTMLElement, default: undefined } },
           setup(_props, { expose }) {
             expose({ syncPosition: sync });
           },

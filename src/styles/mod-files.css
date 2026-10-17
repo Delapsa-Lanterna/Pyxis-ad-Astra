@@ -30,9 +30,10 @@
 }
 .mod-files-columns .mod-files-columns-button {
   gap: var(--space-2);
-  padding: var(--space-2);
   font: inherit;
   text-align: left;
+  padding: 4px 8px;
+  min-height: 28px;
 }
 .mod-files-columns .mod-files-columns-button:hover {
   background: var(--color-surface-hover);
@@ -55,7 +56,7 @@
 }
 .mod-files-tree .n-tree {
   height: 100%;
-  padding: var(--space-2);
+  padding: 4px;
   font-size: 12px;
 }
 .mod-files-tree .n-tree-node-content {
@@ -129,12 +130,4 @@
 .mod-files-toolbar,
 .mod-files-tools {
   gap: 8px;
-}
-.mod-files-columns .mod-files-columns-button {
-  padding: 4px 8px;
-  min-height: 28px;
-}
-.mod-files-tree .n-tree {
-  padding: 4px;
-  font-size: 12px;
 }

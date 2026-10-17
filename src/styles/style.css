@@ -1,4 +1,9 @@
 @import './base.css';
+@import './editor-header.css';
+@import './panel-card.css';
+@import './feedback.css';
+@import './naive-ui.css';
+@import './action-group.css';
 @import './window-runtime.css';
 @import './font-text.css';
 @import './joint-conflict.css';

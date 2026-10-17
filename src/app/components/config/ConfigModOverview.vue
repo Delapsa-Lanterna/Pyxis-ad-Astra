@@ -1,9 +1,9 @@
 <template>
-  <section class="mod-overview-page page-content ui-content-column ui-content-surface-muted">
-    <header class="mod-overview-header page-header ui-control-between ui-layout-row ui-control-reset">
-      <div class="page-identity ui-layout-grid ui-layout-shrink">
-        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">{{ modName }}</h1>
-        <p class="mod-overview-header-description page-description ui-text-description ui-text-muted ui-text-reset ui-text-small">
+  <section class="mod-overview-page page-content">
+    <header class="mod-overview-header page-header">
+      <div class="page-identity">
+        <h1 class="page-title">{{ modName }}</h1>
+        <p class="mod-overview-header-description page-description">
           {{ modVersion || '未声明版本' }}
         </p>
       </div>

@@ -156,7 +156,6 @@
 }
 .preview-window .editor-body {
   grid-template-columns: minmax(0, 1fr) 280px;
-  min-height: 0;
 }
 .preview-control-panel {
   gap: 8px;
@@ -184,9 +183,6 @@
 .editor-page {
   flex: 1;
   height: 100%;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
 }
 .editor-tools {
   flex: 1 0 100%;

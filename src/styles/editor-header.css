@@ -1,0 +1,52 @@
+.mod-opening-failure-content .mod-opening-failure-content-label,
+.game-warning-content .game-warning-content-label,
+.page-path {
+  font: 400 10px/14px var(--font-mono);
+}
+.editor-title-row,
+.file-editor-title-row,
+.mod-opening-failure-item,
+.game-warning-item {
+  gap: 8px;
+}
+.page-title,
+.view-title,
+.file-editor-title,
+.editor-title > .editor-title-value {
+  font: 650 18px/24px var(--font-sans);
+}
+.page-description,
+.view-meta {
+  font: 400 11px/16px var(--font-sans);
+}
+.page-header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 52px;
+  padding-block: 6px;
+  display: flex;
+}
+.page-header > .action-group,
+.page-header > .n-button {
+  align-self: center;
+}
+.page-identity {
+  gap: 2px;
+  flex: 1 1 200px;
+  display: grid;
+  align-items: start;
+  min-width: 0;
+}
+.page-title {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+.page-description {
+  margin: 0;
+  color: var(--color-muted);
+}

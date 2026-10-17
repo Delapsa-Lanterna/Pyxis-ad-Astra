@@ -1,6 +1,6 @@
 <template>
   <aside class="detail-pane ui-layout-grid ui-content-scroll ui-content-surface-muted">
-    <div class="panel-section-title ui-text-muted ui-text-small">上下文</div>
+    <div class="panel-section-title ui-text-muted">侧边栏</div>
     <template v-if="tables.selectedRow">
       <section class="panel-card detail-card record-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
         <div class="detail-thumbnail ui-control-center ui-layout-clip ui-layout-stretch ui-control-border">
@@ -24,7 +24,7 @@
         <div class="detail-name ui-text-soft ui-text-small">{{ displayName }}</div>
       </section>
       <section class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
-        <div class="panel-section-title ui-text-soft ui-text-small">操作</div>
+        <div class="panel-section-title">操作</div>
         <div class="detail-actions ui-layout-grid">
           <n-button v-for="action in detailActions" :key="detailActionKey(action)" block secondary @click="$emit('detail-action', action)">
             {{ detailActionLabel(action) }}
@@ -34,7 +34,7 @@
         <div v-else-if="!hasActions" class="muted ui-text-muted">当前模块没有专用编辑器。</div>
       </section>
       <section class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
-        <div class="panel-section-title ui-text-soft ui-text-small">字段速览</div>
+        <div class="panel-section-title">字段速览</div>
         <div class="schema-preview-list ui-layout-grid">
           <div v-for="item in summaryItems" :key="item.key" class="schema-preview-row ui-layout-grid">
             <span class="schema-preview-label ui-text-muted" :title="item.key">{{ item.label }}</span>
@@ -75,7 +75,7 @@
     </template>
     <div v-else class="panel-empty detail-empty ui-text-muted ui-layout-grid ui-content-surface">
       <strong class="detail-empty-value ui-emphasis ui-text-soft">未选择记录</strong>
-      <span class="detail-empty-label ui-text-small">点击一行查看上下文操作，双击单元格编辑 CSV。</span>
+      <span class="detail-empty-label ui-text-small">点击一行查看侧边栏详情与操作，双击单元格编辑 CSV。</span>
     </div>
   </aside>
 </template>

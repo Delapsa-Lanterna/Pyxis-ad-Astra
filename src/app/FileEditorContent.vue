@@ -1,13 +1,13 @@
 <template>
   <main class="file-editor-page ui-content-grid ui-text-normal" :data-theme="settings.theme" :inert="handoffLocked">
-    <header class="file-editor-header page-header ui-control-between ui-layout-row ui-layout-grid ui-layout-center">
-      <div class="file-editor-heading page-identity ui-layout-grid ui-layout-shrink">
+    <header class="file-editor-header page-header ui-layout-grid">
+      <div class="file-editor-heading page-identity">
         <div class="file-editor-title-row ui-control-row">
-          <h1 class="file-editor-title page-title ui-text-truncate ui-text-reset ui-layout-shrink ui-text-normal" :title="fileName">
+          <h1 class="file-editor-title page-title ui-text-truncate" :title="fileName">
             {{ fileName }}
           </h1>
           <div
-            class="file-editor-status ui-text-muted ui-layout-inline ui-layout-center ui-text-path"
+            class="file-editor-status ui-text-path"
             :class="{
               dirty,
               saving,
@@ -37,7 +37,7 @@
           }}</span>
         </div>
       </div>
-      <div class="file-editor-actions ui-control-row ui-layout-row ui-layout-center">
+      <div class="file-editor-actions action-group">
         <n-button v-if="hasPendingExternalText" secondary type="warning" @click="loadExternalText">载入外部文本</n-button>
         <n-button v-if="isErrorContext && !contentReady" @click="reloadCurrentWindow">重试</n-button>
         <n-button :disabled="!dirty || saving" @click="cancelFileChanges">取消</n-button>

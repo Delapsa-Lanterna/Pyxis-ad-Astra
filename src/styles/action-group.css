@@ -1,0 +1,14 @@
+.top-actions {
+  align-items: flex-start;
+}
+.action-group,
+.immersive-actions,
+.immersive-buttons {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.action-group {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}

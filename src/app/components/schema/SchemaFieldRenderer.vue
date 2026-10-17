@@ -1,11 +1,9 @@
 <template>
-  <div class="schema-field ui-layout-grid ui-layout-shrink" :class="{ 'nested-row': isNested }" :data-field-path="fieldTitle">
-    <span
-      class="field-label field-label-multi ui-text-truncate ui-text-muted ui-text-normal ui-text-small ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-      :title="fieldTitle"
+  <div class="schema-field" :class="{ 'nested-row': isNested }" :data-field-path="fieldTitle">
+    <span class="field-label field-label-multi" :title="fieldTitle"
       ><SpecFieldLabel :raw="field.key" :label="field.label" :path="fieldTitle"
     /></span>
-    <div class="field-control ui-layout-row ui-layout-shrink ui-layout-stack">
+    <div class="field-control">
       <template v-if="plainMode">
         <n-input
           v-if="field.type === 'string'"

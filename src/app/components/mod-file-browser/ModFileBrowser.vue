@@ -1,8 +1,8 @@
 <template>
-  <main class="mod-files-page page-content page-slot ui-content-column ui-content-surface-muted">
-    <header class="mod-files-header page-header ui-control-between ui-layout-row ui-control-reset">
-      <div class="mod-files-header-content page-identity ui-layout-grid ui-layout-shrink">
-        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">Mod 文件</h1>
+  <main class="mod-files-page page-content page-slot">
+    <header class="mod-files-header page-header">
+      <div class="mod-files-header-content page-identity">
+        <h1 class="page-title">Mod 文件</h1>
         <p
           class="mod-files-header-description page-path ui-text-truncate ui-text-description ui-text-muted ui-text-reset ui-text-small"
           :title="view.title"

@@ -1,0 +1,136 @@
+.section-chevron,
+.n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item-arrow {
+  transition:
+    transform var(--ui-motion-duration) var(--ui-motion-easing),
+    color var(--ui-feedback-duration) var(--ui-feedback-easing);
+}
+.section-header,
+.overview-mod-card,
+.config-entity-list-item,
+.mod-tab,
+.mod-navigation-button,
+.titlebar-button,
+.mod-tabs-overview,
+.mod-tab-close,
+.mod-tabs-navigation-toggle,
+.color-picker-palette-button,
+.schema-select-resource-list > .schema-select-resource-button,
+.titlebar-workspace-menu .titlebar-workspace-menu-button,
+.segmented .segmented-button,
+.item-list .item-list-button,
+.bounds-list > .bounds-list-content,
+.port-row,
+.data-table .csv-grid-cell,
+.color-picker-preview,
+.csv-cell-frame,
+.csv-cell-picker-option,
+.csv-cell-picker-action,
+.csv-cell-picker-clear {
+  transition:
+    background-color var(--ui-feedback-duration) var(--ui-feedback-easing),
+    color var(--ui-feedback-duration) var(--ui-feedback-easing),
+    border-color var(--ui-feedback-duration) var(--ui-feedback-easing),
+    box-shadow var(--ui-feedback-duration) var(--ui-feedback-easing);
+}
+.mod-opening-failure-content,
+.game-warning-content {
+  gap: 4px;
+}
+.mod-opening-failure-content .mod-opening-failure-content-value,
+.game-warning-content .game-warning-content-value,
+.preview-control-section .preview-control-section-title,
+.file-history-panel .file-history-panel-title,
+.game-overview-empty .game-overview-empty-title {
+  font: 600 12px/16px var(--font-sans);
+}
+.mod-tab-status,
+.mod-tab-dirty,
+.ui-status .ui-status-indicator,
+.file-editor-status::before,
+.mod-card-status::before,
+.ui-readonly-status::before,
+.mod-card-dirty::before {
+  --status-dot-color: #22c55e;
+  flex: 0 0 var(--status-dot-size);
+  width: var(--status-dot-size);
+  height: var(--status-dot-size);
+  border-radius: 50%;
+  background: var(--status-dot-color);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--status-dot-color) 75%, var(--color-text)),
+    0 0 4px 1px color-mix(in srgb, var(--status-dot-color) 50%, transparent);
+  transition: background-color var(--ui-feedback-duration) var(--ui-feedback-easing);
+}
+.mod-tab-dirty,
+.ui-status.dirty .ui-status-indicator,
+.ui-status.warning .ui-status-indicator,
+.file-editor-status.dirty::before,
+.file-editor-status.warning::before,
+.mod-card-dirty::before {
+  --status-dot-color: #f59e0b;
+}
+.ui-status.dirty {
+  color: var(--color-warning);
+}
+.ui-status,
+.ui-readonly-status,
+.file-editor-status,
+.mod-card-status,
+.mod-card-dirty {
+  gap: 6px;
+  flex: 0 0 auto;
+  font: 400 10px/12px var(--font-sans);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
+}
+.file-editor-status::before,
+.mod-card-status::before,
+.ui-readonly-status::before,
+.mod-card-dirty::before {
+  content: '';
+}
+.file-editor-status.saving::before,
+.ui-status.saving .ui-status-indicator,
+.file-editor-status.loading::before,
+.mod-card-status.loading::before,
+.mod-card-status.pending::before {
+  --status-dot-color: #94a3b8;
+}
+.mod-card-status.error::before,
+.file-editor-status.error::before {
+  --status-dot-color: #ef4444;
+}
+.table-external-update-note,
+.editor-resource-diagnostics,
+.file-editor-message,
+.mod-opening-failure-item,
+.game-warning-item,
+.ui-notice {
+  padding: 8px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: 6px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font: 400 11px/16px var(--font-sans);
+}
+.mod-opening-failure-item,
+.file-editor-message.danger {
+  border-color: var(--color-danger-border-soft);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+.ui-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ui-empty {
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  height: 100%;
+  text-align: center;
+}

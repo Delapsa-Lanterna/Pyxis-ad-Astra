@@ -155,7 +155,11 @@ export function buildThemeOverrides(
       border: '0',
     },
     Switch: {
+      railColor: surfaceActive,
       railColorActive: primary,
+      buttonColor: panel,
+      buttonBoxShadow: colors.shadowSubtle,
+      boxShadowFocus: `inset 0 0 0 1px ${primaryBorder}`,
     },
   };
   if (appearance === 'application') {

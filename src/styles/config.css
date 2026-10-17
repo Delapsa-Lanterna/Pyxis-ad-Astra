@@ -32,6 +32,8 @@
   padding: 4px 10px;
   border-left: 2px solid transparent;
   text-align: left;
+  grid-template-columns: 20px minmax(0, 1fr);
+  width: 100%;
 }
 .config-entity-list-item:hover {
   background: var(--color-surface-hover);
@@ -82,14 +84,9 @@
     display: none;
   }
 }
-
 .config-entity-list-header-title {
   margin: 0;
   font: inherit;
-}
-.config-entity-list-item {
-  grid-template-columns: 20px minmax(0, 1fr);
-  width: 100%;
 }
 .config-entity-icon {
   width: 20px;

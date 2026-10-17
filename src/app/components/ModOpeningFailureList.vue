@@ -11,7 +11,7 @@
           failure.file?.path ?? failure.modRoot
         }}</span>
       </div>
-      <div class="game-overview-actions ui-control-row ui-layout-row">
+      <div class="game-overview-actions action-group">
         <n-button v-if="failure.file" size="small" secondary type="error" @click="$emit('edit-failure-file', failure)"> 打开文件 </n-button>
         <n-button size="small" @click="$emit('dismiss-failure', failure.modRoot)">关闭提示</n-button>
       </div>

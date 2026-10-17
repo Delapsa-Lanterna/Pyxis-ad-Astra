@@ -44,14 +44,9 @@
       >
         <n-collapse v-model:expanded-names="view.expandedSections">
           <n-collapse-item class="schema-section" title="基础属性" name="basic">
-            <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
-              <label
-                class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                ><SpecFieldLabel raw="id" /></label
-              ><n-input :value="projectileId" disabled />
-              <label
-                class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                ><SpecFieldLabel raw="specClass" :path="'specClass'" /></label
+            <div class="form-grid ui-layout-center">
+              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="id" /></label><n-input :value="projectileId" disabled />
+              <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="specClass" :path="'specClass'" /></label
               ><n-select
                 :value="document.specClass"
                 :options="toOptions(['projectile', 'missile'])"
@@ -61,34 +56,23 @@
           </n-collapse-item>
           <template v-if="view.showProjectileSections">
             <n-collapse-item class="schema-section" title="弹体外观" name="visual">
-              <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="spawnType" :path="'spawnType'" /></label
+              <div class="form-grid ui-layout-center">
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="spawnType" :path="'spawnType'" /></label
                 ><n-select
                   :options="toOptions([...PROJECTILE_SPAWN_TYPES])"
                   :value="document.spawnType"
                   @update:value="actions.setField('spawnType', $event)"
                 />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="bulletSprite" :path="'bulletSprite'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="bulletSprite" :path="'bulletSprite'" /></label
                 ><n-input :value="document.bulletSprite" @update:value="actions.setField('bulletSprite', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="length" :path="'length'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="length" :path="'length'" /></label
                 ><NumberValueInput :value="document.length" @update:value="actions.setField('length', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="width" :path="'width'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="width" :path="'width'" /></label
                 ><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
+                <label class="form-grid-label field-label-multi"
                   ><SpecFieldLabel raw="textureScrollSpeed" :path="'textureScrollSpeed'" /></label
                 ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="pixelsPerTexel" :path="'pixelsPerTexel'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="pixelsPerTexel" :path="'pixelsPerTexel'" /></label
                 ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)" />
                 <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fringeColor" /></label>
                 <ColorPicker label="fringeColor" v-model="view.fringeColor" />
@@ -98,10 +82,8 @@
               <n-button size="small" tertiary @click="actions.pickProjectileSprite('bulletSprite')">浏览贴图（引用 Mod 内文件）</n-button>
             </n-collapse-item>
             <n-collapse-item class="schema-section" title="碰撞与消散" name="collision">
-              <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="collisionClass" :path="'collisionClass'" /></label
+              <div class="form-grid ui-layout-center">
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="collisionClass" :path="'collisionClass'" /></label
                 ><n-select
                   :options="
                     toOptions([
@@ -119,55 +101,36 @@
                   :value="document.collisionClass"
                   @update:value="actions.setField('collisionClass', $event)"
                 />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
+                <label class="form-grid-label field-label-multi"
                   ><SpecFieldLabel raw="collisionClassByFighter" :path="'collisionClassByFighter'" /></label
                 ><n-input :value="document.collisionClassByFighter" @update:value="actions.setField('collisionClassByFighter', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="fadeTime" :path="'fadeTime'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fadeTime" :path="'fadeTime'" /></label
                 ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="hitGlowRadius" :path="'hitGlowRadius'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="hitGlowRadius" :path="'hitGlowRadius'" /></label
                 ><NumberValueInput :value="document.hitGlowRadius" @update:value="actions.setField('hitGlowRadius', $event)" />
               </div>
             </n-collapse-item>
           </template>
           <template v-else-if="view.showMissileSections">
             <n-collapse-item class="schema-section" title="导弹外观" name="missileVisual">
-              <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="missileType" :path="'missileType'" /></label
+              <div class="form-grid ui-layout-center">
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="missileType" :path="'missileType'" /></label
                 ><n-select
                   :value="document.missileType"
                   :options="toOptions([...MISSILE_TYPES])"
                   @update:value="actions.setField('missileType', $event)"
                 />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="sprite" :path="'sprite'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="sprite" :path="'sprite'" /></label
                 ><n-input :value="document.sprite" @update:value="actions.setField('sprite', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="size W" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="size W" /></label
                 ><NumberValueInput :value="view.size[0]" @update:value="actions.setArray('size', 0, $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="size H" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="size H" /></label
                 ><NumberValueInput :value="view.size[1]" @update:value="actions.setArray('size', 1, $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="center X" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="center X" /></label
                 ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="center Y" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="center Y" /></label
                 ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="collisionRadius" :path="'collisionRadius'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="collisionRadius" :path="'collisionRadius'" /></label
                 ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setField('collisionRadius', $event)" />
                 <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="explosionColor" /></label>
                 <ColorPicker label="explosionColor" v-model="view.explosionColor" />
@@ -193,22 +156,14 @@
               <n-button @click="actions.addEngineSlot">添加引擎槽</n-button>
             </n-collapse-item>
             <n-collapse-item class="schema-section" title="爆炸与时间" name="explosion">
-              <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="explosionRadius" :path="'explosionRadius'" /></label
+              <div class="form-grid ui-layout-center">
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="explosionRadius" :path="'explosionRadius'" /></label
                 ><NumberValueInput :value="document.explosionRadius" @update:value="actions.setField('explosionRadius', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="flameoutTime" :path="'flameoutTime'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="flameoutTime" :path="'flameoutTime'" /></label
                 ><NumberValueInput :value="document.flameoutTime" @update:value="actions.setField('flameoutTime', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="armingTime" :path="'armingTime'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="armingTime" :path="'armingTime'" /></label
                 ><NumberValueInput :value="document.armingTime" @update:value="actions.setField('armingTime', $event)" />
-                <label
-                  class="form-grid-label field-label-multi ui-text-muted ui-text-small ui-text-normal ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
-                  ><SpecFieldLabel raw="fadeTime" :path="'fadeTime'" /></label
+                <label class="form-grid-label field-label-multi"><SpecFieldLabel raw="fadeTime" :path="'fadeTime'" /></label
                 ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)" />
               </div>
               <JsonValueInput :value="view.explosionSpec" label="explosionSpec" shape="object" @update="view.explosionSpec = $event" />

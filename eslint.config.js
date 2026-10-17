@@ -10,6 +10,7 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
+  { files: ['src/**/*.spec.ts'], rules: { 'vue/one-component-per-file': 'off' } },
   {
     files: ['**/*.vue', '**/*.ts'],
     languageOptions: {

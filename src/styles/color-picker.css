@@ -94,7 +94,6 @@
 .color-picker-error {
   color: var(--color-danger);
 }
-
 .color-picker-palette {
   gap: 8px;
 }

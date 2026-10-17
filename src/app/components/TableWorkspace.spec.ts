@@ -51,13 +51,13 @@ async function mountWorkspace() {
   await flushPromises();
 }
 describe('table workspace search controls', () => {
-  it('toggles context without replacing the table, selection or mounted detail pane', async () => {
+  it('toggles the sidebar without replacing the table, selection or mounted detail pane', async () => {
     await mountWorkspace();
     const table = wrapper.getComponent({ name: 'DataTable' }).element;
     const pane = wrapper.getComponent({ name: 'DetailPane' }).element;
     const tables = useTablesStore();
     tables.selectRowByKey(target, 'row');
-    await wrapper.get('[aria-controls="csv-context-panel"]').trigger('click');
+    await wrapper.get('[aria-controls="csv-sidebar-panel"]').trigger('click');
     expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('false');
     expect(wrapper.getComponent({ name: 'DetailPane' }).isVisible()).toBe(false);
     expect(wrapper.getComponent({ name: 'DataTable' }).element).toBe(table);
@@ -68,7 +68,7 @@ describe('table workspace search controls', () => {
     expect(wrapper.getComponent({ name: 'DetailPane' }).isVisible()).toBe(true);
   });
 
-  it('retains the window-owned context choice when the table page is reopened', async () => {
+  it('retains the window-owned sidebar choice when the table page is reopened', async () => {
     const expanded = ref(true),
       shown = ref(true);
     wrapper = mount(
@@ -76,8 +76,8 @@ describe('table workspace search controls', () => {
         setup: () => () =>
           shown.value
             ? h(TableWorkspace, {
-                contextExpanded: expanded.value,
-                'onUpdate:contextExpanded': (value: boolean) => {
+                sidebarExpanded: expanded.value,
+                'onUpdate:sidebarExpanded': (value: boolean) => {
                   expanded.value = value;
                 },
               })

@@ -1,0 +1,90 @@
+.n-dialog .n-dialog__title,
+.n-modal.n-card .n-card-header .n-card-header__main {
+  font: 600 16px/22px var(--font-sans);
+}
+.n-button__content {
+  line-height: 18px;
+}
+.n-base-selection-tags {
+  gap: var(--space-1);
+  padding: 3px !important;
+}
+.n-base-selection-tags .n-base-selection-input-tag {
+  margin-left: 0 !important;
+}
+.n-base-selection-tags .n-tag {
+  --n-color: var(--color-primary-soft) !important;
+  --n-border: 1px solid var(--color-primary-border) !important;
+  --n-text-color: var(--color-primary) !important;
+  --n-border-radius: var(--radius-sm) !important;
+}
+.n-base-select-menu {
+  border: 1px solid var(--color-border);
+}
+.n-base-select-menu .n-base-select-option__content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@layer ui-motion {
+  .n-button,
+  .n-message,
+  .n-popover,
+  .n-dialog,
+  .n-card,
+  .n-button__border,
+  .n-button__state-border,
+  .n-input,
+  .n-input__border,
+  .n-input__state-border,
+  .n-base-selection,
+  .n-base-selection__border,
+  .n-base-selection__state-border,
+  .n-base-selection-label,
+  .n-base-select-option,
+  .n-base-select-menu,
+  .n-dropdown-option-body,
+  .n-radio-button,
+  .n-radio-button__state-border,
+  .n-radio-group__splitor,
+  .n-input-number__plus-button,
+  .n-input-number__minus-button,
+  .n-checkbox-box,
+  .n-checkbox-box__border,
+  .n-checkbox__label,
+  .n-radio__label,
+  .n-slider-rail,
+  .n-slider-rail__fill,
+  .n-slider-handle,
+  .n-slider-dot,
+  .n-tree-node,
+  .n-tree-node-content,
+  .n-tree-node-switcher__icon,
+  .n-collapse-item,
+  .n-collapse-item__header,
+  .n-collapse-item__header-main {
+    transition-duration: var(--ui-feedback-duration) !important;
+    transition-timing-function: var(--ui-feedback-easing) !important;
+  }
+  .fade-in-height-expand-transition-enter-active,
+  .fade-in-height-expand-transition-leave-active,
+  .fade-in-width-expand-transition-enter-active,
+  .fade-in-width-expand-transition-leave-active,
+  .fade-in-scale-up-transition-enter-active,
+  .fade-in-scale-up-transition-leave-active,
+  .fade-in-transition-enter-active,
+  .fade-in-transition-leave-active,
+  .popover-transition-enter-active,
+  .popover-transition-leave-active,
+  .icon-switch-transition-enter-active,
+  .icon-switch-transition-leave-active,
+  .n-tree-node-switcher,
+  .n-switch__rail,
+  .n-switch__button,
+  .n-radio__dot,
+  .n-checkbox-icon .check-icon,
+  .n-checkbox-icon .line-icon {
+    transition-duration: var(--ui-motion-duration) !important;
+    transition-timing-function: var(--ui-motion-easing) !important;
+  }
+}

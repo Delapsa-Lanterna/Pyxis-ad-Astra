@@ -6,6 +6,7 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { createSettingsFixture } from '@/test/settings';
 import { useThemeDomEffect } from './use-theme-dom-effect';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
+import { THEME_TOKEN_MAP } from '@/domain/settings/theme';
 
 function mountEffect() {
   return mount({
@@ -17,6 +18,16 @@ function mountEffect() {
 }
 
 describe('useThemeDomEffect', () => {
+  it.each(['light', 'dark'] as const)('publishes every mapped theme value for %s', (theme) => {
+    initializeSettingsStore(createSettingsFixture({ theme }));
+    const wrapper = mountEffect();
+    const colors = useSettingsStore().themeColors;
+    for (const [property, field] of Object.entries(THEME_TOKEN_MAP)) {
+      expect(colors[field]).not.toBe('');
+      expect(document.documentElement.style.getPropertyValue(property)).toBe(colors[field]);
+    }
+    wrapper.unmount();
+  });
   let systemTheme: EventTarget & { matches: boolean };
   it('keeps a fixed window appearance while the mirrored application theme changes', async () => {
     initializeSettingsStore(createSettingsFixture({ theme: 'light' }));

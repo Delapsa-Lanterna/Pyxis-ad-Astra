@@ -9,7 +9,7 @@
           overview.coreAvailable ? '原版数据可用' : '原版数据不可用'
         }}</span>
       </div>
-      <div class="game-overview-actions ui-control-row ui-layout-row">
+      <div class="game-overview-actions action-group">
         <n-button size="small" @click="$emit('create-mod')">创建新 Mod</n-button>
         <n-button size="small" @click="$emit('refresh-workspace')">刷新工作区</n-button>
         <n-button size="small" secondary type="error" @click="$emit('close-workspace')">关闭工作区</n-button>
@@ -28,7 +28,7 @@
           <strong class="game-warning-content-value ui-emphasis ui-text-wrap ui-text-small">{{ warningMessage(warning) }}</strong>
           <span class="game-warning-content-label ui-text-truncate ui-text-muted ui-layout-shrink">{{ warning.path }}</span>
         </div>
-        <div class="game-overview-actions ui-control-row ui-layout-row">
+        <div class="game-overview-actions action-group">
           <n-button v-if="warning.editTarget" size="small" secondary type="warning" @click="$emit('edit-warning-file', warning)">
             打开文件
           </n-button>
@@ -42,7 +42,7 @@
       <p class="game-overview-empty-description ui-text-muted ui-text-small ui-text-reset">
         已打开游戏目录，但 `mods` 目录下没有包含 `mod_info.json` 的 Mod。
       </p>
-      <div class="game-overview-actions ui-control-row ui-layout-row">
+      <div class="game-overview-actions action-group">
         <n-button size="small" @click="$emit('create-mod')">创建新 Mod</n-button>
         <n-button size="small" @click="$emit('refresh-workspace')">刷新工作区</n-button>
         <n-button size="small" secondary type="error" @click="$emit('close-workspace')">关闭工作区</n-button>
@@ -58,11 +58,7 @@
       >
         <div class="mod-card-header ui-layout-row ui-layout-center">
           <strong class="mod-card-header-value ui-emphasis ui-text-truncate ui-text-small ui-layout-shrink">{{ mod.name }}</strong>
-          <span
-            class="mod-card-status ui-text-muted ui-layout-inline ui-layout-center ui-text-path ui-control-border"
-            :class="modStatus(mod.modRoot)"
-            >{{ statusText(mod.modRoot) }}</span
-          >
+          <span class="mod-card-status ui-text-path ui-control-border" :class="modStatus(mod.modRoot)">{{ statusText(mod.modRoot) }}</span>
         </div>
         <div class="mod-card-version ui-text-muted ui-text-small">{{ mod.version || '未声明版本' }}</div>
         <div class="mod-card-path ui-text-truncate ui-text-muted">{{ mod.modRoot }}</div>

@@ -1,9 +1,9 @@
 <template>
-  <section class="file-history-page page-content ui-content-column ui-content-surface-muted">
-    <header class="file-history-header page-header ui-control-between ui-layout-row ui-control-reset">
-      <div class="page-identity ui-layout-grid ui-layout-shrink">
-        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">文件历史</h1>
-        <p class="file-history-header-description page-description ui-text-description ui-text-muted ui-text-reset ui-text-small">
+  <section class="file-history-page page-content">
+    <header class="file-history-header page-header">
+      <div class="page-identity">
+        <h1 class="page-title">文件历史</h1>
+        <p class="file-history-header-description page-description">
           {{ modTitle }}
         </p>
       </div>

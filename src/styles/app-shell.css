@@ -1,3 +1,23 @@
+.app-shell {
+  position: relative;
+  grid-template-columns: 176px minmax(0, 1fr);
+  transition: grid-template-columns var(--ui-motion-duration) var(--ui-motion-easing);
+}
+.page-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  gap: 8px;
+  padding: 0 12px 12px;
+  overflow: auto;
+  background: var(--color-panel-muted);
+}
+.page-slot {
+  grid-column: 2;
+  grid-row: 1;
+}
 .app-frame.app-frame-main {
   grid-template-rows: 36px 32px minmax(0, 1fr);
   width: 100%;
@@ -7,11 +27,6 @@
 .app-frame.app-frame-child {
   grid-template-rows: 36px minmax(0, 1fr);
   height: 100%;
-}
-.app-shell {
-  position: relative;
-  grid-template-columns: 176px minmax(0, 1fr);
-  transition: grid-template-columns var(--ui-motion-duration) var(--ui-motion-easing);
 }
 .app-shell-nav-hidden .app-shell {
   grid-template-columns: 0 minmax(0, 1fr);

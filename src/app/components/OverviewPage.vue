@@ -1,15 +1,12 @@
 <template>
   <div
-    class="overview-page page-content page-slot ui-content-column ui-content-grid ui-content-surface-muted"
+    class="overview-page page-content page-slot"
     :class="{ 'overview-page-empty': !workspace.hasWorkspaceContext && !workspace.hasModOpeningFailures }"
   >
-    <header
-      v-if="workspace.hasWorkspaceContext || workspace.hasModOpeningFailures"
-      class="overview-header page-header ui-control-between ui-layout-row ui-control-reset"
-    >
-      <div class="page-identity ui-layout-grid ui-layout-shrink">
-        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">工作区总览</h1>
-        <p class="overview-subtitle overview-header-description page-description ui-text-description ui-text-muted ui-text-reset">
+    <header v-if="workspace.hasWorkspaceContext || workspace.hasModOpeningFailures" class="overview-header page-header">
+      <div class="page-identity">
+        <h1 class="page-title">工作区总览</h1>
+        <p class="overview-subtitle overview-header-description page-description">
           {{ subtitle }}
         </p>
       </div>
@@ -38,9 +35,9 @@
       />
 
       <section v-if="!workspace.hasWorkspaceContext" class="overview-empty-state empty-state ui-text-muted ui-layout-grid ui-text-normal">
-        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">选择一个 Starsector / Mod 目录</h1>
+        <h1 class="page-title">选择一个 Starsector / Mod 目录</h1>
         <p class="empty-state-description ui-text-muted ui-text-reset">可以打开游戏目录，也可以直接打开一个 Mod 目录。</p>
-        <div class="overview-empty-actions ui-control-row ui-layout-row">
+        <div class="overview-empty-actions action-group">
           <n-button size="large" @click="beginCreateMod">创建新 Mod</n-button>
           <n-button size="large" @click="$emit('import-mod')">打开目录</n-button>
         </div>

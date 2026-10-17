@@ -1,7 +1,7 @@
 declare module 'css-tree' {
   interface Location {
-    start: { line: number; column: number };
-    end: { line: number; column: number };
+    start: { line: number; column: number; offset: number };
+    end: { line: number; column: number; offset: number };
   }
   interface NodeBase {
     loc?: Location | null;
@@ -23,6 +23,15 @@ declare module 'css-tree' {
   interface Atrule extends NodeBase {
     type: 'Atrule';
     name: string;
+    prelude: AtrulePrelude | null;
+  }
+  interface AtrulePrelude extends NodeBase {
+    type: 'AtrulePrelude';
+    children: List<CssNode>;
+  }
+  interface LiteralNode extends NodeBase {
+    type: 'String' | 'Url' | 'Operator';
+    value: string;
   }
   interface SelectorList extends NodeBase {
     type: 'SelectorList';
@@ -64,12 +73,14 @@ declare module 'css-tree' {
     unit: string;
   }
   interface OtherNode extends NodeBase {
-    type: 'StyleSheet' | 'Raw' | 'Operator' | 'Number' | 'Percentage' | 'Hash' | 'String' | 'Combinator';
+    type: 'StyleSheet' | 'Raw' | 'Number' | 'Percentage' | 'Hash' | 'Combinator';
   }
   export type CssNode =
     | Declaration
     | Rule
     | Atrule
+    | AtrulePrelude
+    | LiteralNode
     | SelectorList
     | Selector
     | Block
@@ -81,7 +92,16 @@ declare module 'css-tree' {
     | Dimension
     | OtherNode;
   export function parse(source: string, options: { context: 'selector' }): Selector;
-  export function parse(source: string, options?: { context?: string; positions?: boolean; parseCustomProperty?: boolean }): CssNode;
+  interface ParseError extends Error {
+    line: number;
+    column: number;
+    offset: number;
+  }
+  export function parse(
+    source: string,
+    options?: { context?: string; positions?: boolean; parseCustomProperty?: boolean; onParseError?: (error: ParseError) => void },
+  ): CssNode;
+  export const lexer: { matchProperty(property: string, value: CssNode): { error: Error | null } };
   export function generate(node: CssNode): string;
   export function walk<T extends CssNode['type']>(
     node: CssNode,

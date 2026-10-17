@@ -1,3 +1,71 @@
+.ui-code,
+.field-json-input .n-input .n-input__textarea-el {
+  font-family: var(--font-mono);
+}
+.schema-field,
+.form-grid,
+.ui-field-row,
+.field-json-row {
+  grid-template-columns: var(--field-label-width) minmax(0, 1fr);
+  gap: 2px 12px;
+  align-items: start;
+  padding: 0;
+}
+.field-label,
+.form-grid > .form-grid-label,
+.ui-field-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 18px;
+  padding: 0;
+  color: var(--color-text);
+  font: 500 12px/18px var(--font-sans);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 460px) {
+  .schema-field,
+  .form-grid,
+  .ui-field-row,
+  .field-json-row {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+}
+.ui-field-stack {
+  display: grid;
+  gap: 8px;
+}
+.ui-field-label,
+.ui-field-control {
+  min-width: 0;
+  max-width: 100%;
+  justify-self: start;
+  align-self: center;
+}
+.ui-field-control-top {
+  align-self: start;
+}
+.ui-field-row,
+.field-json {
+  display: grid;
+}
+.ui-field-actions .n-input,
+.ui-field-actions .n-select {
+  flex: 1;
+  min-width: 100px;
+}
+.ui-field-number {
+  width: 120px;
+}
+.ui-field-row > .ui-field-hint {
+  grid-column: 2;
+}
+.ui-field-hint {
+  margin: 0;
+  font: 400 11px/16px var(--font-sans);
+}
 .schema-form,
 .section-fields,
 .n-collapse .schema-section.n-collapse-item > .n-collapse-item__content-wrapper > .n-collapse-item__content-inner {
@@ -25,6 +93,9 @@
   gap: 2px;
   align-items: stretch;
   min-height: 30px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 .field-switch {
   align-self: flex-start;
@@ -184,4 +255,10 @@
 .field-collection-header,
 .path-field {
   gap: var(--space-1);
+}
+.schema-field,
+.form-grid,
+.ui-field-row {
+  display: grid;
+  min-width: 0;
 }

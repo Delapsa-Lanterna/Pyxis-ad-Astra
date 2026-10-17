@@ -27,13 +27,13 @@
         <ModFileBrowser v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" />
         <TableWorkspace
           v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
-          v-model:context-expanded="contextExpanded"
+          v-model:sidebar-expanded="sidebarExpanded"
         />
         <ConfigWorkspace v-else-if="workspace.currentView === 'config' && workspace.activeManifest" />
         <main v-else class="workspace workspace-loading page-slot ui-content-contained ui-layout-grid ui-layout-stretch">
           <section class="workspace-loading-state ui-text-normal ui-layout-grid">
             <n-spin size="large" />
-            <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">正在加载 Mod</h1>
+            <h1 class="page-title">正在加载 Mod</h1>
             <p class="workspace-loading-state-description ui-text-muted ui-text-reset">{{ loadingModLabel }}</p>
           </section>
         </main>
@@ -68,7 +68,7 @@ const TableWorkspace = defineAsyncComponent(() => import('@/app/components/Table
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const ConfigWorkspace = defineAsyncComponent(() => import('@/app/components/config/ConfigWorkspace.vue'));
 const contentNavigation = createContentNavigation();
-const contextExpanded = ref(true);
+const sidebarExpanded = ref(true);
 provide(contentNavigationKey, contentNavigation);
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
