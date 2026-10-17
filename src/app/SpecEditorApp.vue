@@ -1,5 +1,5 @@
 <template>
-  <WindowShell>
+  <WindowShell title="Spec 编辑器">
     <SpecEditorContent />
   </WindowShell>
 </template>

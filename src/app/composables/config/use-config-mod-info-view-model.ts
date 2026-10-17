@@ -1,3 +1,4 @@
+import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { computed, watch } from 'vue';
@@ -100,7 +101,19 @@ export function useConfigModInfoViewModel() {
     },
   });
   return {
+    displayName: computed(() =>
+      draftSession.ready.value
+        ? String((draftSession.draftValue.value.file as RowData).name || 'Mod 信息')
+        : workspace.activeMod!.displayName,
+    ),
     dirty: draftSession.dirty,
+    reset: draftSession.resetDraft,
+    paths: computed(
+      () =>
+        draftSession.baselineSnapshot.value?.baseVersions
+          .map((version) => relativePathFromRoot(draftSession.baselineSnapshot.value!.target.modRoot, version.path))
+          .join(' · ') ?? '',
+    ),
     draftData: draftSession.draftValue,
     externalUpdateNotice: draftSession.externalUpdateNotice,
     hasPendingExternalData: draftSession.hasPendingExternalValue,

@@ -1,5 +1,17 @@
 <template>
   <nav class="mod-tabs-bar ui-control-row ui-content-surface-muted ui-layout-grid ui-layout-shrink" aria-label="已打开 Mod">
+    <button
+      v-if="workspace.isModView"
+      class="mod-tabs-navigation-toggle ui-button ui-control-button ui-text-muted ui-layout-grid ui-control-reset ui-text-reset"
+      type="button"
+      title="切换内容导航"
+      aria-label="切换内容导航"
+      aria-controls="mod-navigation-content"
+      :aria-expanded="contentNavigation.expanded.value"
+      @click="contentNavigation.toggle"
+    >
+      <svg class="mod-tabs-navigation-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+    </button>
     <div class="mod-tabs-list ui-control-row ui-layout-row ui-layout-shrink" role="tablist">
       <div
         v-for="mod in workspace.loadedModList"
@@ -43,8 +55,8 @@
     </button>
   </nav>
 </template>
-
 <script setup lang="ts">
+import { useContentNavigation } from '@/app/composables/use-content-navigation';
 import { modStatusLabel } from '@/domain/workspace/mod-status';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
@@ -52,6 +64,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 
 defineEmits<{ 'remove-mod': [modRoot: string] }>();
 
+const contentNavigation = useContentNavigation();
 const workspace = useWorkspaceStore();
 const draftSessions = useDraftSessionsStore();
 const navigation = useWorkspaceNavigationActions();

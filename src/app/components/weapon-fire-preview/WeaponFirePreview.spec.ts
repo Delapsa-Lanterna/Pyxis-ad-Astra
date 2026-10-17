@@ -172,14 +172,14 @@ describe('WeaponFirePreview', () => {
   });
   it('renders the weapon and projectile identity in the header', () => {
     const preview = mountPreview();
-    expect(preview.get('.editor-title strong').text()).toBe('发射预览');
-    expect(preview.get('.editor-title span').text()).toContain('railgun');
-    expect(preview.get('.editor-title span').text()).toContain('proj1');
+    expect(preview.get('.ui-readonly-status').text()).toBe('只读播放');
+    expect(preview.get('h1').text()).toContain('railgun');
+    expect(preview.get('h1').text()).toContain('proj1');
   });
 
   it('reports a missing weapon spec through the subtitle state', () => {
     const preview = mountPreview({ weaponSpec: {}, projectileSpecs: {} });
-    expect(preview.get('.editor-title span').text()).toContain('railgun');
+    expect(preview.get('h1').text()).toContain('railgun');
   });
 
   it('exposes the play controls of the canvas stage', () => {

@@ -1,5 +1,5 @@
 <template>
-  <WindowShell>
+  <WindowShell title="文件编辑器">
     <FileEditorContent />
   </WindowShell>
 </template>

@@ -39,6 +39,7 @@ export interface SpecWeaponEditorProps {
   spriteData?: Record<string, string>;
   projectileOptions: { label: string; value: string }[];
   editContext: EditContext | null;
+  path?: string;
   dirty: boolean;
   canSave: boolean;
   saving: boolean;
@@ -46,6 +47,7 @@ export interface SpecWeaponEditorProps {
 }
 export type SpecWeaponEditorEvents = {
   close: [];
+  'reset-requested': [];
   'save-requested': [];
   'draft-changed': [weapon: RowData];
   'load-external': [];

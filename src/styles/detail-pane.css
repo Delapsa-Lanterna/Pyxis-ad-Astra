@@ -1,34 +1,15 @@
+.record-card,
+.detail-actions,
+.schema-preview-list,
 .detail-pane {
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: 280px;
-  padding: var(--space-3);
-  border-left: 1px solid var(--color-border);
-}
-.pane-title {
-  margin-bottom: var(--space-2);
-  font-size: 11px;
-  font-weight: 650;
-}
-.detail-card {
-  margin-bottom: var(--space-3);
-}
-.record-card {
-  gap: 10px;
+  gap: 8px;
 }
 .detail-id {
   color: var(--color-primary);
-  font-size: 15px;
-  font-weight: 700;
-}
-.detail-thumbnail {
-  height: 126px;
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
+  font: 400 10px/14px var(--font-mono);
 }
 .detail-thumbnail .detail-thumbnail-image {
   height: 100%;
-  object-fit: contain;
   image-rendering: pixelated;
 }
 .thumbnail-placeholder {
@@ -45,44 +26,12 @@
   line-height: 1.35;
   text-align: center;
 }
-.detail-actions,
-.schema-preview-list {
-  gap: var(--space-2);
-}
-.kv-list {
-  display: grid;
-  gap: 5px;
-}
-.detail-pane .field-map-row {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: var(--space-2);
-  padding: 3px 0;
-  font-size: 12px;
-  border-bottom: 1px solid var(--color-border);
-}
-.detail-pane .field-map-row .field-map-row-label {
-  color: var(--color-muted);
-}
-.detail-pane .field-map-row .field-map-row-value {
-  overflow-wrap: anywhere;
-  font-weight: 500;
-}
-.schema-preview-row {
-  gap: var(--space-1);
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--color-border);
-}
 .schema-preview-label {
-  font-size: 11px;
-  font-weight: 650;
+  font: 500 12px/18px var(--font-sans);
 }
 .schema-preview-value {
   flex-wrap: wrap;
-  gap: 5px;
-}
-.schema-preview-value .schema-preview-value-value {
-  font-weight: 550;
+  gap: 4px;
 }
 .schema-preview-value .schema-preview-value-meta {
   font-size: 10px;
@@ -109,4 +58,25 @@
 }
 .detail-empty .detail-empty-label {
   line-height: 1.45;
+}
+.detail-pane {
+  align-content: start;
+  padding: 12px;
+  border-left: 1px solid var(--color-border);
+}
+.detail-thumbnail {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  height: 100px;
+}
+.schema-preview-row {
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  padding: 4px 0;
+}
+@media (max-width: 700px) {
+  .detail-pane {
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+  }
 }

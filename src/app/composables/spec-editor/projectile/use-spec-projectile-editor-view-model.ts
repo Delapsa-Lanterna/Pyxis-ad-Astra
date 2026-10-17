@@ -29,6 +29,7 @@ export interface SpecProjectileEditorProps {
   spriteLoading?: boolean;
   spriteError?: string;
   editContext: EditContext | null;
+  path?: string;
   dirty: boolean;
   canSave: boolean;
   saving: boolean;
@@ -36,6 +37,7 @@ export interface SpecProjectileEditorProps {
 }
 export type SpecProjectileEditorEvents = {
   close: [];
+  'reset-requested': [];
   'save-requested': [];
   'draft-changed': [projectile: RowData];
   'load-external': [];

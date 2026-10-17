@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-page page-content page-slot ui-content-column ui-content-grid ui-content-surface-muted">
+  <div class="settings-page page-content page-slot ui-content-surface-muted">
     <header class="settings-header about-header page-header ui-control-between ui-layout-row ui-control-reset">
       <div class="about-header-content page-identity ui-layout-grid ui-layout-shrink ui-layout-row ui-layout-center">
         <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">关于</h1>

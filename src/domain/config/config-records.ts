@@ -14,7 +14,7 @@ import type {
 
 export interface ConfigFactionRecord {
   baseVersions: import('@/shared/types').FileVersion[];
-  crestRef: ResourceRef | null;
+  iconRef: ResourceRef | null;
   id: string;
   data: RowData;
 }
@@ -40,7 +40,7 @@ export function toConfigFactionRecord(record: DeepReadonly<EntityData>): ConfigF
   const entity = cloneQuerySnapshot<EntityData>(record);
   return {
     baseVersions: entity.baseVersions,
-    crestRef: entity.resourceRefs.crest ?? null,
+    iconRef: entity.resourceRefs.crest ?? entity.resourceRefs.logo ?? null,
     id: entity.id,
     data: requireRowData(entity.data, `势力 ${entity.id} 数据无效`),
   };

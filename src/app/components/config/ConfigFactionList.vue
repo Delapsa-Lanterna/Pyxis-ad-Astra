@@ -1,43 +1,35 @@
 <template>
   <aside class="faction-list config-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="faction-list-header config-entity-list-header">
-      <h3 class="config-entity-list-header-title ui-text-reset">势力列表</h3>
+      <h3 class="config-entity-list-header-title ui-text-reset">势力</h3>
+      <small class="config-entity-list-count">{{ factions.length }} 项</small>
     </header>
 
     <ul :ref="setMediaRoot" class="faction-list-items config-entity-list-items ui-text-reset">
       <li
         v-for="faction in factions"
         :key="faction.id"
-        :ref="mediaRef(faction.id, props.factionCrestRefs[faction.id])"
+        :ref="mediaRef(faction.id, factionIconRefs[faction.id])"
         class="faction-list-item config-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
         :class="{ active: faction.id === selectedId }"
         @click="selectFaction(faction.id)"
       >
-        <span class="faction-list-preview config-entity-thumb ui-layout-grid ui-layout-clip ui-control-border">
+        <span v-if="factionIconRefs[faction.id]" class="config-entity-thumb ui-layout-grid ui-layout-clip">
           <ResourceThumbnail
-            v-if="props.factionCrestRefs[faction.id]"
             :session-id="sessionId!"
-            :resource="props.factionCrestRefs[faction.id]!"
-            :url="factionCrest(faction.id)"
+            :resource="factionIconRefs[faction.id]!"
+            :url="mediaSrc(factionIconRefs[faction.id])"
             :active="mediaVisible(faction.id)"
             :label="faction.displayName || faction.id"
-            :width="22"
-            :height="22"
+            :width="20"
+            :height="20"
           />
-          <span v-else class="color-swatch ui-control-border" :style="{ backgroundColor: faction.colorCss }" />
         </span>
-        <span class="faction-name config-entity-name ui-text-truncate ui-layout-shrink">{{ faction.displayName || faction.id }}</span>
-        <n-button
-          size="tiny"
-          quaternary
-          class="faction-delete-btn config-entity-delete compact-icon-button ui-control-reset"
-          title="删除势力"
-          @click.stop="confirmDelete(faction.id)"
+        <span v-else class="config-entity-color ui-control-border" :style="{ backgroundColor: faction.colorCss }" /><span
+          class="config-entity-text ui-layout-grid ui-layout-shrink"
+          ><strong class="config-entity-text-value ui-text-truncate">{{ faction.displayName || faction.id }}</strong
+          ><small class="config-entity-text-meta ui-text-truncate ui-text-muted">{{ faction.id }}</small></span
         >
-          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </n-button>
       </li>
     </ul>
 
@@ -61,10 +53,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue';
-import { NCheckbox } from 'naive-ui/es/checkbox';
+import { computed, ref, watch } from 'vue';
 import type { ResourceRef, RowData } from '@/shared/types';
-import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { configFactionListItems } from '@/domain/config/config-entities';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
@@ -73,7 +63,7 @@ const props = defineProps<{
   selectedId: string | null;
   actionRunning: boolean;
   factions: Record<string, RowData>;
-  factionCrestRefs: Record<string, ResourceRef | null>;
+  factionIconRefs: Record<string, ResourceRef | null>;
   modRoot: string | null;
   sessionId: string | null;
   listLoadStartedAt: number;
@@ -82,8 +72,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ select: [factionId: string | null] }>();
 
-const feedback = useAppFeedback();
-const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
+const { mediaRef, mediaSrc, mediaVisible, recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
   surface: 'config-faction-list',
   failureLabel: '读取势力徽标失败',
@@ -96,10 +85,6 @@ const createSessionId = ref<string | null>(null);
 
 const factions = computed(() => configFactionListItems(props.factions));
 watch(factions, (items) => void recordListFirstFrame(props.listLoadStartedAt, items.length));
-
-function factionCrest(id: string): string {
-  return mediaSrc(props.factionCrestRefs[id]);
-}
 
 function selectFaction(id: string) {
   emit('select', id);
@@ -121,41 +106,5 @@ async function doCreate() {
   if (!(await props.createFaction(targetSessionId, targetModRoot, trimmedId))) return false;
   showCreateDialog.value = false;
   return true;
-}
-
-function confirmDelete(id: string) {
-  const deleteModRoot = props.modRoot;
-  const deleteSessionId = props.sessionId;
-  if (!deleteModRoot || !deleteSessionId) return;
-  let deleteFactionDataFile = false;
-  feedback.confirmDanger({
-    title: '删除势力',
-    content: () =>
-      h('div', { class: 'associated-save-dialog' }, [
-        h('p', `确定要从 factions.csv 中删除 "${id}" 吗？`),
-        h(
-          NCheckbox,
-          {
-            checked: deleteFactionDataFile,
-            'onUpdate:checked': (checked: boolean) => {
-              deleteFactionDataFile = checked;
-            },
-          },
-          { default: () => '同时删除势力文件' },
-        ),
-      ]),
-    actionText: '删除',
-    onConfirm: async () => {
-      await doDelete(deleteSessionId, deleteModRoot, id, deleteFactionDataFile);
-    },
-  });
-}
-
-async function doDelete(deleteSessionId: string, deleteModRoot: string, id: string, deleteFile: boolean) {
-  try {
-    if (!(await props.deleteFaction(deleteSessionId, deleteModRoot, id, deleteFile))) return;
-  } catch (error) {
-    feedback.error(error, '删除势力失败');
-  }
 }
 </script>

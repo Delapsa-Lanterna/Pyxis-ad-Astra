@@ -1,3 +1,4 @@
+import { relativePathFromRoot } from '@/shared/lib/paths';
 import { completeConfigSave } from '@/orchestrators/config-save.orchestrator';
 import type { ConfigEditTarget } from '@/shared/types';
 import { computed, watch, type Ref } from 'vue';
@@ -173,6 +174,14 @@ export function useConfigFamilyEditorViewModel(params: {
   });
 
   return {
+    dirty: draftSession.dirty,
+    reset: draftSession.resetDraft,
+    paths: computed(
+      () =>
+        draftSession.baselineSnapshot.value?.baseVersions
+          .map((version) => relativePathFromRoot(draftSession.baselineSnapshot.value!.target.modRoot, version.path))
+          .join(' · ') ?? '',
+    ),
     draftData: draftSession.draftValue,
     externalUpdateNotice: draftSession.externalUpdateNotice,
     hasPendingExternalData: draftSession.hasPendingExternalValue,

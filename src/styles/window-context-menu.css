@@ -4,3 +4,6 @@
 .window-context-menu .context-menu-danger {
   color: var(--color-danger) !important;
 }
+.window-context-menu .n-dropdown-option-body {
+  min-height: 28px;
+}

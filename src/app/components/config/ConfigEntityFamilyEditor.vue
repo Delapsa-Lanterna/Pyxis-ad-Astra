@@ -1,39 +1,41 @@
 <template>
   <main
     v-if="selectedFile && schema"
-    class="config-family-editor ui-content-column ui-content-surface-muted"
+    class="config-family-editor editor-page ui-layout-row ui-content-contained ui-content-surface-muted"
     :inert="actionsLocked || handoffLocked"
   >
-    <ConfigTargetNotice
-      :label="family.displayName"
-      :deleted-target="deletedTarget"
-      :actions-locked="actionsLocked"
-      :discard-deleted-target="discardDeletedTarget"
-    />
-    <header class="config-family-editor-header ui-control-between ui-content-surface">
-      <div>
-        <h3 class="config-family-editor-header-title">{{ selectedId }}</h3>
-        <p class="config-family-editor-header-description ui-text-muted ui-text-reset">{{ selectedFile.relPath }}</p>
+    <slot name="list" />
+    <div class="editor-content ui-content-column ui-content-contained">
+      <ConfigTargetNotice
+        :label="family.displayName"
+        :deleted-target="deletedTarget"
+        :actions-locked="actionsLocked"
+        :discard-deleted-target="discardDeletedTarget"
+      />
+      <EditorHeader
+        :title="String(draftData.displayName || draftData.hullName || selectedId)"
+        :path="paths"
+        :dirty="dirty"
+        :saving="saving"
+        :external-update-notice="externalUpdateNotice"
+        @load-external="loadPendingExternalData"
+        ><template #actions
+          ><n-button v-if="family.immersiveKind" @click="openImmersive">沉浸式编辑器</n-button
+          ><n-button secondary type="error" @click="confirmDelete">删除</n-button
+          ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+          ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+        ></EditorHeader
+      >
+      <div class="editor-fields ui-content-scroll">
+        <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
       </div>
-      <div class="config-family-editor-actions ui-layout-row ui-layout-center">
-        <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
-          载入外部版本
-        </n-button>
-        <n-button v-if="family.immersiveKind" size="small" secondary @click="openImmersive">沉浸式编辑器</n-button>
-        <n-button size="small" secondary type="error" @click="confirmDelete">删除</n-button>
-        <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
-      </div>
-    </header>
-    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
-      {{ externalUpdateNotice }}
-    </div>
-    <div class="config-family-editor-body ui-layout-grid">
-      <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
+import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
+
 import { computed, onMounted, onUnmounted, toRef } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import type { RowData, SavedConfig, ConfigIdentityHandoff } from '@/shared/types';
@@ -66,9 +68,11 @@ const feedback = useAppFeedback();
 const schema = computed(() => getSchema(props.family.schemaId));
 const files = computed(() => [...props.files]);
 const {
+  dirty,
+  reset,
+  paths,
   draftData,
   externalUpdateNotice,
-  hasPendingExternalData,
   loadPendingExternalData,
   save,
   openImmersive,

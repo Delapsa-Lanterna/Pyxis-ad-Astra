@@ -159,7 +159,7 @@ function setRecords(kind: Kind, root: string, name: string, fingerprint = 'v1') 
   if (kind === 'skin') mocks.skins.mockResolvedValue([skin(root, name, fingerprint)]);
   if (kind === 'faction')
     mocks.factions.mockResolvedValue([
-      { id: 'same', data: { id: 'same', displayName: name }, crestRef: null, baseVersions: versions(root, fingerprint) },
+      { id: 'same', data: { id: 'same', displayName: name }, iconRef: null, baseVersions: versions(root, fingerprint) },
     ]);
 }
 
@@ -186,7 +186,7 @@ function deferRecords(kind: Kind, root: string, name: string) {
     mocks.factions.mockImplementation(
       () =>
         new Promise((resolve, fail) => {
-          release = () => resolve([{ id: 'same', data: { id: 'same', displayName: name }, crestRef: null, baseVersions: versions(root) }]);
+          release = () => resolve([{ id: 'same', data: { id: 'same', displayName: name }, iconRef: null, baseVersions: versions(root) }]);
           reject = fail;
         }),
     );
@@ -355,7 +355,7 @@ describe('configuration page session baselines', () => {
     const nextTarget = entityTargetFixture(kind, id);
     if (kind === 'faction')
       mocks.factions.mockResolvedValue([
-        { id, data: { id, displayName: 'External' }, crestRef: null, baseVersions: versions('M:/A', 'v2') },
+        { id, data: { id, displayName: 'External' }, iconRef: null, baseVersions: versions('M:/A', 'v2') },
       ]);
     else {
       const record = kind === 'variant' ? variant('M:/A', 'External', 'v2') : skin('M:/A', 'External', 'v2');

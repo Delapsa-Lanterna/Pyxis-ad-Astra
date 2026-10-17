@@ -1,7 +1,8 @@
 <template>
   <aside class="config-entity-list config-family-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="config-entity-list-header">
-      <h3 class="config-entity-list-header-title ui-text-reset">{{ family.displayName }}列表</h3>
+      <h3 class="config-entity-list-header-title ui-text-reset">{{ family.displayName }}</h3>
+      <small class="config-entity-list-count">{{ sortedFiles.length }} 项</small>
     </header>
     <ul :ref="setMediaRoot" class="config-entity-list-items ui-text-reset">
       <li v-if="sortedFiles.length === 0" class="config-entity-list-empty ui-text-small">{{ family.directoryHint }}</li>
@@ -21,28 +22,17 @@
             :url="mediaSrc(props.spriteRefs[fileId(file)])"
             :active="mediaVisible(fileId(file))"
             :label="fileTitle(file)"
-            :width="22"
-            :height="22"
+            :width="20"
+            :height="20"
           />
           <svg v-else class="config-entity-icon ui-text-muted" viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in family.listIconPaths" :key="path" :d="path" />
           </svg>
         </span>
         <span class="config-entity-text ui-layout-grid ui-layout-shrink">
-          <span class="config-entity-name ui-text-truncate ui-layout-shrink">{{ fileTitle(file) }}</span>
+          <span class="config-entity-name config-entity-text-value ui-text-truncate ui-layout-shrink">{{ fileTitle(file) }}</span>
           <small class="config-entity-text-meta ui-text-truncate ui-text-muted ui-layout-shrink">{{ fileId(file) }}</small>
         </span>
-        <n-button
-          size="tiny"
-          quaternary
-          class="config-entity-delete compact-icon-button ui-control-reset"
-          :title="`删除${family.displayName}`"
-          @click.stop="confirmDelete(file)"
-        >
-          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </n-button>
       </li>
     </ul>
     <footer class="config-entity-list-footer ui-footer">
@@ -76,7 +66,6 @@ import type { ResourceRef } from '@/shared/types';
 import type { SelectOption } from '@/domain/schema/schema-options';
 import type { ConfigEntityFamilyDefinition, ConfigFamilyFile } from '@/domain/config/config-entity-families';
 import { compareFamilyFiles, familyFileId, familyFileTitle } from '@/domain/config/config-entity-families';
-import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
@@ -98,7 +87,6 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: string | null] }>();
 
 const settings = useSettingsStore();
-const feedback = useAppFeedback();
 const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
   surface: props.family.mediaSurface,
@@ -146,22 +134,6 @@ async function submitCreate() {
   newCompanionId.value = '';
   newId.value = '';
   return true;
-}
-
-function confirmDelete(file: ConfigFamilyFile) {
-  const deleteModRoot = props.modRoot;
-  const deleteSessionId = props.sessionId;
-  if (!deleteModRoot || !deleteSessionId) return;
-  const id = fileId(file);
-  const relPath = String(file.relPath ?? '');
-  feedback.confirmDanger({
-    title: props.family.deleteConfirmTitle,
-    content: `确定要删除${props.family.displayName} "${id}" 吗？`,
-    actionText: '删除',
-    onConfirm: async () => {
-      await props.deleteEntity(deleteSessionId, deleteModRoot, id, relPath);
-    },
-  });
 }
 
 watch(

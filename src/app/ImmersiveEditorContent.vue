@@ -23,6 +23,7 @@
     <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" :panel="panel" :vm="vm.variant!" :render="render">
       <template #meta>
         <ImmersiveEditorActions
+          :dirty="dirty"
           :can-undo="history.canUndo.value"
           :can-redo="history.canRedo.value"
           :saving="saving"

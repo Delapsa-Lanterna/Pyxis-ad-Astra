@@ -7,6 +7,7 @@ import { NDialogProvider } from 'naive-ui/es/dialog';
 import { NPopover } from 'naive-ui/es/popover';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WindowShell from './WindowShell.vue';
+import TitleBar from './TitleBar.vue';
 import { createWindowFeedback } from './app-feedback-assembly';
 import { useAppFeedback } from './composables/use-app-feedback';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -41,12 +42,12 @@ const Probe = defineComponent({
     return () => h('span', 'page');
   },
 });
-function windowHarness(mode: 'main' | 'child' = 'main') {
+function windowHarness(mode: 'main' | 'child' = 'main', title?: string) {
   const page = ref(0);
   const wrapper = mount(WindowShell, {
     attachTo: document.body,
-    props: { mode },
-    global: { components: { NConfigProvider, NMessageProvider, NDialogProvider } },
+    props: { mode, title },
+    global: { components: { NConfigProvider, NMessageProvider, NDialogProvider }, stubs: { TitleBar: true } },
     slots: { default: () => [h(Probe, { key: page.value }), h(Probe, { key: 'peer' })] },
   });
   wrappers.push(wrapper);
@@ -66,6 +67,18 @@ afterEach(async () => {
 });
 
 describe('window-owned feedback', () => {
+  it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '发射预览'])(
+    'assembles the shared %s titlebar inside the owning close boundary',
+    async (title) => {
+      const { wrapper } = windowHarness('child', title);
+      expect(wrapper.findComponent(TitleBar).props('title')).toBe(title);
+      closingStates[0]!.value = true;
+      await nextTick();
+      expect(wrapper.get('.window-runtime').attributes('inert')).toBeDefined();
+      expect(createWindowFeedback).toHaveBeenCalledOnce();
+      expect(consumers[0]).toBe(consumers[1]);
+    },
+  );
   it('locks existing and late content overlays while preserving feedback controls', async () => {
     const show = ref(true);
     const Host = defineComponent({

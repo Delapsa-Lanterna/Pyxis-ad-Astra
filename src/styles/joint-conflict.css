@@ -4,10 +4,13 @@
   gap: var(--space-3);
 }
 .joint-conflict-row {
+  display: grid;
+  gap: 8px;
   padding: var(--space-3);
   border-radius: var(--radius-md);
 }
 .joint-conflict-row .joint-conflict-row-details {
+  margin: 0;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2);
 }

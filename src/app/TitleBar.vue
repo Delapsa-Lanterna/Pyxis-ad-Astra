@@ -1,21 +1,25 @@
 <template>
   <header
-    class="titlebar ui-text-normal ui-layout-row ui-layout-center ui-content-surface ui-layout-grid"
+    class="titlebar ui-text-normal ui-layout-row ui-layout-center ui-content-surface"
     @pointerdown="startDrag"
     @dblclick="toggleMaximize"
   >
-    <div class="titlebar-brand ui-control-row ui-control-reset">
+    <div class="titlebar-brand ui-control-row ui-control-reset ui-layout-shrink">
       <img class="titlebar-mark ui-image" :src="appIcon" alt="星界罗盘 [Circinus ad Astra]" draggable="false" />
       <div class="titlebar-text ui-layout-grid ui-layout-shrink">
-        <strong class="titlebar-text-value ui-emphasis ui-text-truncate ui-text-small">星界罗盘 [Circinus ad Astra]</strong>
-        <span class="titlebar-text-label ui-text-truncate ui-text-meta ui-text-muted" :title="workspace.activeManifest?.modRoot ?? ''">{{
-          workspace.activeMod?.displayName || '尚未打开项目'
-        }}</span>
+        <strong class="titlebar-text-value ui-emphasis ui-text-truncate ui-text-small">{{
+          title || '星界罗盘 [Circinus ad Astra]'
+        }}</strong>
+        <span
+          class="titlebar-text-label ui-text-truncate ui-text-meta ui-text-muted"
+          :title="subtitle ?? workspace.activeManifest?.modRoot ?? ''"
+          >{{ subtitle ?? (workspace.activeMod?.displayName || '尚未打开项目') }}</span
+        >
       </div>
     </div>
 
     <div class="titlebar-controls ui-layout-row ui-layout-center" @pointerdown.stop @dblclick.stop>
-      <n-popover v-model:show="workspaceMenuVisible" placement="bottom-end" trigger="click">
+      <n-popover v-if="!title" v-model:show="workspaceMenuVisible" placement="bottom-end" trigger="click">
         <template #trigger>
           <button
             class="titlebar-button ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
@@ -51,6 +55,7 @@
         </div>
       </n-popover>
       <button
+        v-if="!title"
         class="titlebar-button ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
         type="button"
         :title="settings.isDark ? '切换到浅色' : '切换到暗色'"
@@ -111,10 +116,11 @@ import {
   toggleMaximizeCurrentWindow,
 } from '@/windows/current.window';
 const workspace = useWorkspaceStore();
+const props = defineProps<{ title?: string; subtitle?: string }>();
 const settings = useSettingsStore();
 const isMaximized = ref(false);
 const workspaceMenuVisible = ref(false);
-const navigation = useWorkspaceNavigationActions();
+const navigation = props.title ? null : useWorkspaceNavigationActions();
 
 async function refreshMaximized() {
   isMaximized.value = await isCurrentWindowMaximized();
@@ -140,18 +146,19 @@ async function closeWindow() {
 
 function showSettings() {
   workspaceMenuVisible.value = false;
-  navigation.showSettings();
+  navigation!.showSettings();
 }
 
 function showAbout() {
   workspaceMenuVisible.value = false;
-  navigation.showAbout();
+  navigation!.showAbout();
 }
 
-useContextMenuScope({
-  identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
-  windowActions: { 设置: showSettings, 关于: showAbout, 最小化: minimizeWindow, 退出: closeWindow },
-});
+if (!props.title)
+  useContextMenuScope({
+    identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
+    windowActions: { 设置: showSettings, 关于: showAbout, 最小化: minimizeWindow, 退出: closeWindow },
+  });
 
 onMounted(refreshMaximized);
 </script>

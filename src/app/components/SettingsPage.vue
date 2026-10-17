@@ -3,6 +3,7 @@
     <header class="settings-header page-header ui-control-between ui-layout-row ui-control-reset">
       <div class="page-identity ui-layout-grid ui-layout-shrink">
         <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">设置</h1>
+        <p class="page-description ui-text-description ui-text-muted ui-text-reset">配置游戏目录、界面外观与编辑偏好。</p>
       </div>
     </header>
     <section

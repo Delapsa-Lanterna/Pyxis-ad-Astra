@@ -1,23 +1,27 @@
 <template>
-  <div class="config-page ui-content-grid" :inert="handoffLocked">
-    <header class="config-page-header">
-      <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">Mod 信息</h1>
-    </header>
+  <div class="config-page editor-page ui-content-column" :inert="handoffLocked">
+    <EditorHeader
+      :title="displayName"
+      :path="paths"
+      :dirty="dirty"
+      :saving="saving"
+      :external-update-notice="externalUpdateNotice"
+      @load-external="loadPendingExternalData"
+      ><template #actions
+        ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+        ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+      ></EditorHeader
+    >
 
-    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
-      {{ externalUpdateNotice }}
+    <div class="editor-fields ui-content-scroll">
+      <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>
-
-    <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
-
-    <footer class="config-page-footer ui-footer ui-layout-row">
-      <n-button v-if="hasPendingExternalData" secondary type="warning" @click="loadPendingExternalData">载入外部版本</n-button>
-      <n-button type="primary" :loading="saving" :disabled="!dirty" @click="save">保存</n-button>
-    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
+import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
+
 import { computed, onMounted, onUnmounted } from 'vue';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import { useCoreSchema } from '@/app/composables/use-core-assets';
@@ -29,9 +33,11 @@ void loadCoreFields();
 const schema = computed(() => getMergedSchema('mod-info'));
 const {
   dirty,
+  displayName,
+  reset,
+  paths,
   draftData,
   externalUpdateNotice,
-  hasPendingExternalData,
   loadPendingExternalData,
   saving,
   handoffLocked,

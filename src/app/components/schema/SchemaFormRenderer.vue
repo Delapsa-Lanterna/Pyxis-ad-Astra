@@ -1,51 +1,60 @@
 <template>
   <div class="schema-form ui-layout-row ui-layout-stack">
     <div v-for="section in sections" :key="section.id" class="schema-section ui-layout-clip ui-control-border ui-content-surface">
-      <div
-        class="section-header ui-control-pointer ui-layout-stretch ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-text-reset"
+      <button
+        type="button"
+        class="section-header ui-button ui-control-pointer ui-layout-stretch ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-text-reset"
+        :aria-expanded="!collapsedSections.has(section.id)"
         @click="toggleSection(section.id)"
       >
+        <strong class="section-header-value ui-emphasis">{{ section.label }}</strong
+        ><small class="section-header-meta ui-text-muted ui-control-border">{{ section.fields.length }} 项</small>
         <span class="section-chevron ui-text-muted ui-layout-grid" :class="{ collapsed: collapsedSections.has(section.id) }">
           <svg class="section-chevron-icon ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M6 4l4 4-4 4" />
           </svg>
         </span>
-        {{ section.label }}
-      </div>
-      <div v-show="!collapsedSections.has(section.id)" class="section-fields ui-layout-row ui-layout-stack">
-        <SchemaFieldRenderer
-          v-for="field in section.fields"
-          :key="field.key"
-          :field="field"
-          :value="getNestedValue(modelValue, field.key)"
-          :runtime-context="runtimeContext"
-          @update="onFieldUpdate(field.key, $event)"
-        />
-      </div>
+      </button>
+      <n-collapse-transition :show="!collapsedSections.has(section.id)" display-directive="show"
+        ><div class="section-fields ui-layout-row ui-layout-stack">
+          <SchemaFieldRenderer
+            v-for="field in section.fields"
+            :key="field.key"
+            :field="field"
+            :value="getNestedValue(modelValue, field.key)"
+            :runtime-context="runtimeContext"
+            @update="onFieldUpdate(field.key, $event)"
+          /></div
+      ></n-collapse-transition>
     </div>
 
     <!-- Extra fields: data keys not defined in schema -->
     <div v-if="extraKeys.length > 0" class="schema-section ui-layout-clip ui-control-border ui-content-surface">
-      <div
-        class="section-header ui-control-pointer ui-layout-stretch ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-text-reset"
+      <button
+        type="button"
+        class="section-header ui-button ui-control-pointer ui-layout-stretch ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-text-reset"
+        :aria-expanded="!collapsedSections.has('__extra')"
         @click="toggleSection('__extra')"
       >
+        <strong class="section-header-value ui-emphasis">额外字段</strong
+        ><small class="section-header-meta ui-text-muted ui-control-border">{{ extraKeys.length }} 项</small>
         <span class="section-chevron ui-text-muted ui-layout-grid" :class="{ collapsed: collapsedSections.has('__extra') }">
           <svg class="section-chevron-icon ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M6 4l4 4-4 4" />
           </svg>
         </span>
-        额外字段 ({{ extraKeys.length }})
-      </div>
-      <div v-show="!collapsedSections.has('__extra')" class="section-fields ui-layout-row ui-layout-stack">
-        <JsonFieldEditor :model-value="extraModelValue" :known-keys="extraKnownKeys" @update:model-value="onExtraUpdate" />
-      </div>
+      </button>
+      <n-collapse-transition :show="!collapsedSections.has('__extra')" display-directive="show"
+        ><div class="section-fields ui-layout-row ui-layout-stack">
+          <JsonFieldEditor :model-value="extraModelValue" :known-keys="extraKnownKeys" @update:model-value="onExtraUpdate" /></div
+      ></n-collapse-transition>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
+import { NCollapseTransition } from 'naive-ui/es/collapse-transition';
 import { extraJsonFieldKeys } from '@/shared/lib/json-fields';
 import type { RowData } from '@/shared/types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';

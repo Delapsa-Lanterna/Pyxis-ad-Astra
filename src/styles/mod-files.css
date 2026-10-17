@@ -1,8 +1,3 @@
-.mod-files-page {
-  flex: 1;
-  gap: var(--space-3);
-  padding: var(--space-7) var(--space-9);
-}
 .mod-files-toolbar {
   flex-wrap: wrap;
   gap: var(--space-3);
@@ -131,8 +126,15 @@
 .mod-files-tree .mod-files-retry:focus-visible {
   outline: 2px solid var(--color-primary);
 }
-@media (max-width: 640px) {
-  .mod-files-page {
-    padding: var(--space-4);
-  }
+.mod-files-toolbar,
+.mod-files-tools {
+  gap: 8px;
+}
+.mod-files-columns .mod-files-columns-button {
+  padding: 4px 8px;
+  min-height: 28px;
+}
+.mod-files-tree .n-tree {
+  padding: 4px;
+  font-size: 12px;
 }

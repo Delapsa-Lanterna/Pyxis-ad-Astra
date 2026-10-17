@@ -1,68 +1,56 @@
 .titlebar {
-  grid-template-columns: minmax(0, 1fr) auto;
-  height: 42px;
-  min-height: 42px;
+  gap: 8px;
+  height: 36px;
+  min-height: 36px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--color-border);
   user-select: none;
 }
 .titlebar-brand {
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
+  gap: 8px;
+  flex: 1;
 }
 .titlebar-mark {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  object-fit: contain;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
 }
 .titlebar-text {
-  line-height: 1.2;
+  gap: 1px;
 }
 .titlebar-text .titlebar-text-value {
-  font-weight: 650;
-}
-.titlebar-text .titlebar-text-label {
-  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
 }
 .titlebar-controls {
-  height: 100%;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 .titlebar-button {
   place-items: center;
-  width: 44px;
-  height: 100%;
-  background: transparent;
-  border: 0;
-  cursor: default;
-}
-.titlebar-button:hover,
-.titlebar-workspace-menu .titlebar-workspace-menu-button:hover {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-.titlebar-button.close:hover {
-  color: var(--color-on-primary);
-  background: var(--color-danger);
+  width: 30px;
+  height: 26px;
+  padding: 4px;
+  border-radius: 4px;
 }
 .titlebar-button .titlebar-button-icon {
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.8;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.6;
 }
-.titlebar-workspace-menu {
-  min-width: 144px;
-  gap: 2px;
-  padding: var(--space-1);
+.titlebar-button:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
-.titlebar-workspace-menu .titlebar-workspace-menu-button {
-  padding: 6px var(--space-2);
-  text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+.titlebar-button.close:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
-.titlebar-workspace-menu .active {
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary-border);
+@media (max-width: 460px) {
+  .titlebar-text .titlebar-text-value {
+    font-size: 11px;
+  }
+  .titlebar-button {
+    width: 26px;
+  }
 }

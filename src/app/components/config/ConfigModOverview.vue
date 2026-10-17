@@ -1,5 +1,5 @@
 <template>
-  <section class="mod-overview-page page-content ui-content-column ui-content-grid ui-content-surface-muted">
+  <section class="mod-overview-page page-content ui-content-column ui-content-surface-muted">
     <header class="mod-overview-header page-header ui-control-between ui-layout-row ui-control-reset">
       <div class="page-identity ui-layout-grid ui-layout-shrink">
         <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">{{ modName }}</h1>
@@ -50,7 +50,7 @@
       <div
         v-for="item in breakdown"
         :key="item.label"
-        class="mod-overview-breakdown-row ui-text-small ui-layout-row ui-text-soft ui-layout-grid ui-layout-center"
+        class="mod-overview-breakdown-row ui-text-small ui-layout-row ui-text-soft ui-layout-center"
       >
         <span>{{ item.label }}</span>
         <strong class="mod-overview-breakdown-row-value ui-emphasis ui-text-muted">{{ item.count }}</strong>

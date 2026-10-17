@@ -2,6 +2,30 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkCssScope, checkStyleEntry, checkVueStyles, cssTokenBoundaryRule } from './rules/css-token-boundary.mjs';
 
+test('presentations share responsibility-based scopes with the application', () => {
+  for (const directory of [
+    'src/styles',
+    '.zcode/plans/editor-ui-lab/compact',
+    '.zcode/plans/editor-ui-lab/aligned',
+    '.zcode/plans/editor-ui-lab/current',
+  ]) {
+    for (const [scope, selector] of [
+      ['schema-form', '.schema-section.n-collapse-item .n-collapse-item__content-inner'],
+      ['editor-window', '.editor-spec-page .editor-inspector'],
+      ['config', '.config-entity-list-item'],
+      ['mod-navigation', '.mod-navigation-container'],
+      ['schema-select-option', '.schema-select-resource-list'],
+      ['workspace', '.workspace-preview-toolbar'],
+      ['base', '.ui-status'],
+    ]) {
+      assert.deepEqual(checkCssScope({ rel: `${directory}/${scope}.css`, text: `${selector} {display:flex}` }), []);
+    }
+    for (const selector of ['.lab-example', '.aligned-example']) {
+      assert.match(checkCssScope({ rel: `${directory}/base.css`, text: `${selector} {display:flex}` })[0], /component responsibilities/);
+    }
+  }
+});
+
 test('component scope owns its same-named file in every presentation directory', () => {
   for (const directory of ['src/styles', '.zcode/plans/editor-ui-lab/aligned']) {
     assert.deepEqual(checkCssScope({ rel: `${directory}/mod-files.css`, text: '.mod-files-header h1 {margin:0}' }), []);
@@ -24,7 +48,7 @@ test('scope checks cover nested conditions and semantic child classes', () => {
 
 test('positive selector alternatives keep every semantic owner', () => {
   for (const pseudo of ['is', 'where']) {
-    const selector = `.aligned-shell :${pseudo}(.settings-header, .mod-files-header)`;
+    const selector = `.app-frame-main :${pseudo}(.settings-header, .mod-files-header)`;
     assert.ok(checkCssScope({ rel: 'sample/settings.css', text: `${selector} {display:flex}` }).length);
     assert.deepEqual(checkCssScope({ rel: 'sample/base.css', text: `${selector} {display:flex}` }), []);
   }
@@ -44,7 +68,7 @@ test('context shells and conditional selectors do not hide the presentation owne
   }
   assert.deepEqual(checkCssScope({ rel: 'sample/app-shell.css', text: '.app-shell > :not(.settings-page) {display:block}' }), []);
   assert.ok(
-    checkCssScope({ rel: 'sample/app-shell.css', text: '.aligned-shell .app-shell .about-content :is(h2,h3,h4){font-weight:600}' }).length,
+    checkCssScope({ rel: 'sample/app-shell.css', text: '.app-frame-main .app-shell .about-content :is(h2,h3,h4){font-weight:600}' }).length,
   );
 });
 

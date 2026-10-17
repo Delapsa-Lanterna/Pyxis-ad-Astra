@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'vue';
 import type { CsvGridRowSlot, CsvRowRecord, ModTableState } from '@/shared/types';
 import type { CsvGridColumn, CsvGridModel } from '@/domain/tables/csv-grid-model';
 import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
@@ -95,9 +95,12 @@ watch(
   },
 );
 
+const resizeObserver = new ResizeObserver(syncViewportMetrics);
 onMounted(() => {
+  resizeObserver.observe(panelRef.value!);
   nextTick(syncViewportMetrics);
 });
+onScopeDispose(() => resizeObserver.disconnect());
 
 function handleScroll(event: Event) {
   const panel = event.currentTarget as HTMLDivElement;

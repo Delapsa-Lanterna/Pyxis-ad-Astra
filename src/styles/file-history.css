@@ -1,100 +1,42 @@
-.file-history-confirm {
-  display: grid;
-  gap: var(--space-2);
-}
-.file-history-confirm .file-history-confirm-description {
-  margin: 0;
-  color: var(--color-muted);
-}
-.file-history-confirm-list {
-  display: grid;
-  max-height: 180px;
-  padding-left: 18px;
-  margin: 0;
-  overflow: auto;
-  overflow-wrap: anywhere;
-}
-.file-history-page {
-  align-content: start;
-  gap: var(--space-3);
-  flex: 1;
-  padding: var(--space-7) var(--space-9);
-  overflow-y: auto;
-}
-.file-history-header {
-  gap: var(--space-3);
-  align-items: flex-start;
-  justify-content: space-between;
-}
 .file-history-summary {
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: var(--space-3);
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
 }
-.file-history-summary > .file-history-summary-content {
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-subtle);
+.file-history-summary-content {
+  flex: 0 0 72px;
+  height: 72px;
+  gap: 4px;
+}
+.file-history-summary .file-history-summary-label,
+.file-history-entry-main .file-history-entry-main-label,
+.file-history-entry-main .file-history-entry-main-note,
+.file-history-empty {
+  font-size: 11px;
 }
 .file-history-summary .file-history-summary-value {
-  font-size: 20px;
-  font-weight: 650;
+  font: 600 20px/24px var(--font-sans);
 }
-.file-history-stacks {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  align-items: start;
-}
-.file-history-panel {
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-subtle);
-}
-.file-history-panel > .file-history-panel-heading,
-.file-history-entry {
-  gap: var(--space-2);
-  padding: var(--space-3);
+.file-history-panel > .file-history-panel-heading {
+  gap: 8px;
+  padding: 0 0 8px;
   border-bottom: 1px solid var(--color-border);
 }
-.file-history-panel .file-history-panel-title {
-  font-size: 14px;
-  font-weight: 650;
-}
-.file-history-panel > header .file-history-panel-label,
-.file-history-entry-main div .file-history-entry-main-label {
-  color: var(--color-muted);
-  font-size: 11px;
-}
-.file-history-empty {
-  padding: var(--space-4);
-}
-.file-history-entry:last-child {
-  border-bottom: 0;
+.file-history-entry {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
 }
 .file-history-entry-main {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: var(--space-2);
+  gap: 8px;
 }
-.file-history-entry-index {
-  color: var(--color-faint);
-  font-size: 11px;
-}
-.file-history-entry-main .file-history-entry-main-content {
+.file-history-entry-main > .file-history-entry-main-content {
+  flex: 1;
   gap: 2px;
 }
-.file-history-entry-main .file-history-entry-main-value {
-  font-weight: 650;
-}
-.file-history-entry-main .file-history-entry-main-note {
-  font-size: 11px;
-  font-style: normal;
-  white-space: nowrap;
+.file-history-entry-main .file-history-entry-index {
+  font: 400 10px/12px var(--font-sans);
 }
 .file-history-change-list {
-  gap: var(--space-1);
-  list-style: none;
-}
-.file-history-change-list .file-history-change-list-item {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2);
-  font-size: 11px;
+  padding-left: 16px;
 }

@@ -1,5 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { defineComponent, h, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TableWorkspace from './TableWorkspace.vue';
 import { useTablesStore } from '@/stores/tables.store';
@@ -46,10 +47,56 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 async function mountWorkspace() {
-  wrapper = mount(TableWorkspace, { global: { stubs: { ...editorUiStubs, DataTable: true, DetailPane: true } } });
+  wrapper = mount(TableWorkspace, { attachTo: document.body, global: { stubs: { ...editorUiStubs, DataTable: true, DetailPane: true } } });
   await flushPromises();
 }
 describe('table workspace search controls', () => {
+  it('toggles context without replacing the table, selection or mounted detail pane', async () => {
+    await mountWorkspace();
+    const table = wrapper.getComponent({ name: 'DataTable' }).element;
+    const pane = wrapper.getComponent({ name: 'DetailPane' }).element;
+    const tables = useTablesStore();
+    tables.selectRowByKey(target, 'row');
+    await wrapper.get('[aria-controls="csv-context-panel"]').trigger('click');
+    expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('false');
+    expect(wrapper.getComponent({ name: 'DetailPane' }).isVisible()).toBe(false);
+    expect(wrapper.getComponent({ name: 'DataTable' }).element).toBe(table);
+    expect(tables.selectedRowKey).toBe('row');
+    await wrapper.get('[aria-controls]').trigger('click');
+    expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.getComponent({ name: 'DetailPane' }).element).toBe(pane);
+    expect(wrapper.getComponent({ name: 'DetailPane' }).isVisible()).toBe(true);
+  });
+
+  it('retains the window-owned context choice when the table page is reopened', async () => {
+    const expanded = ref(true),
+      shown = ref(true);
+    wrapper = mount(
+      defineComponent({
+        setup: () => () =>
+          shown.value
+            ? h(TableWorkspace, {
+                contextExpanded: expanded.value,
+                'onUpdate:contextExpanded': (value: boolean) => {
+                  expanded.value = value;
+                },
+              })
+            : null,
+      }),
+      { global: { stubs: { ...editorUiStubs, DataTable: true, DetailPane: true } } },
+    );
+    await flushPromises();
+    await wrapper.get('[aria-controls]').trigger('click');
+    expect(expanded.value).toBe(false);
+    shown.value = false;
+    await flushPromises();
+    shown.value = true;
+    await flushPromises();
+    expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('false');
+    await wrapper.get('[aria-controls]').trigger('click');
+    expect(expanded.value).toBe(true);
+  });
+
   it('shows the declared fields and changes the search prompt while retaining the keyword', async () => {
     await mountWorkspace();
     const select = wrapper.get('select');

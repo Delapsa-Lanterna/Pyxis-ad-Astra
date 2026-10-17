@@ -1,7 +1,8 @@
 <template>
   <aside class="mission-file-list config-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="mission-file-list-header config-entity-list-header">
-      <h3 class="config-entity-list-header-title ui-text-reset">战役列表</h3>
+      <h3 class="config-entity-list-header-title ui-text-reset">战役</h3>
+      <small class="config-entity-list-count">{{ missions.length }} 项</small>
     </header>
     <ul :ref="setMediaRoot" class="mission-file-items config-entity-list-items ui-text-reset">
       <li v-if="missions.length === 0" class="mission-file-empty config-entity-list-empty ui-text-small">
@@ -10,35 +11,14 @@
       <li
         v-for="mission in missions"
         :key="mission.id"
-        :ref="mediaRef(mission.id, props.missionIconRefs[mission.id])"
         class="mission-file-item config-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
         :class="{ active: mission.id === selectedId }"
         @click="emit('select', mission.id)"
       >
-        <span class="mission-icon-thumb config-entity-thumb ui-layout-grid ui-layout-clip ui-control-border">
-          <ResourceThumbnail
-            v-if="props.missionIconRefs[mission.id]"
-            :session-id="sessionId!"
-            :resource="props.missionIconRefs[mission.id]!"
-            :url="missionIcon(mission.id)"
-            :active="mediaVisible(mission.id)"
-            :label="mission.id"
-            :width="22"
-            :height="22"
-          />
-        </span>
-        <span class="mission-file-name config-entity-name ui-text-truncate ui-layout-shrink">{{ mission.id }}</span>
-        <n-button
-          size="tiny"
-          quaternary
-          class="mission-delete-btn config-entity-delete compact-icon-button ui-control-reset"
-          title="删除战役"
-          @click.stop="confirmDeleteMission(mission.id)"
-        >
-          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </n-button>
+        <svg class="config-entity-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></svg>
+        <span class="mission-file-name config-entity-name config-entity-text-value ui-text-truncate ui-layout-shrink">{{
+          mission.id
+        }}</span>
       </li>
     </ul>
     <footer class="mission-file-list-footer config-entity-list-footer ui-footer">
@@ -60,11 +40,8 @@
 </template>
 
 <script setup lang="ts">
-import { h, ref, watch } from 'vue';
-import { NCheckbox } from 'naive-ui/es/checkbox';
-import { useAppFeedback } from '@/app/composables/use-app-feedback';
+import { ref, watch } from 'vue';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
-import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import type { ResourceRef } from '@/shared/types';
 
 const props = defineProps<{
@@ -80,8 +57,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ select: [missionId: string | null] }>();
 
-const feedback = useAppFeedback();
-const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
+const { recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
   surface: 'config-mission-list',
   failureLabel: '读取战役图标失败',
@@ -91,10 +67,6 @@ const showCreateDialog = ref(false);
 const newMissionId = ref('');
 const createModRoot = ref<string | null>(null);
 const createSessionId = ref<string | null>(null);
-
-function missionIcon(id: string): string {
-  return mediaSrc(props.missionIconRefs[id]);
-}
 
 function openCreateDialog() {
   createModRoot.value = props.modRoot;
@@ -112,42 +84,6 @@ async function doCreateMission() {
   if (!(await props.createMission(targetSessionId, targetModRoot, id))) return false;
   showCreateDialog.value = false;
   return true;
-}
-
-function confirmDeleteMission(id: string) {
-  const deleteModRoot = props.modRoot;
-  const deleteSessionId = props.sessionId;
-  if (!deleteModRoot || !deleteSessionId) return;
-  let deleteMissionDirectory = false;
-  feedback.confirmDanger({
-    title: '删除战役',
-    content: () =>
-      h('div', { class: 'associated-save-dialog' }, [
-        h('p', `确定要从战役列表中删除 "${id}" 吗？`),
-        h(
-          NCheckbox,
-          {
-            checked: deleteMissionDirectory,
-            'onUpdate:checked': (checked: boolean) => {
-              deleteMissionDirectory = checked;
-            },
-          },
-          { default: () => '同时删除战役目录' },
-        ),
-      ]),
-    actionText: '删除',
-    onConfirm: async () => {
-      await deleteMissionTarget(deleteSessionId, deleteModRoot, id, deleteMissionDirectory);
-    },
-  });
-}
-
-async function deleteMissionTarget(deleteSessionId: string, deleteModRoot: string, id: string, deleteDirectory: boolean) {
-  try {
-    await props.deleteMission(deleteSessionId, deleteModRoot, id, deleteDirectory);
-  } catch (error) {
-    feedback.error(error, '删除战役失败');
-  }
 }
 
 watch(

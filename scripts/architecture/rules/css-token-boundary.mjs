@@ -157,6 +157,15 @@ export function checkCssScope(file) {
     failures.push(`${file.rel}: CSS files must use a registered semantic scope name`);
   const ast = csstree.parse(file.text, { positions: true });
   csstree.walk(ast, {
+    visit: 'ClassSelector',
+    enter(node) {
+      if (/^(?:lab(?:-|$)|aligned-)/.test(node.name))
+        failures.push(
+          `${file.rel}:${node.loc?.start.line ?? 1}: CSS classes must describe component responsibilities, not preview variants`,
+        );
+    },
+  });
+  csstree.walk(ast, {
     visit: 'Atrule',
     enter(node) {
       if (owner === 'style' && node.name.toLowerCase() !== 'import')

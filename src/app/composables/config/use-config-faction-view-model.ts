@@ -30,8 +30,8 @@ export function useConfigFactionViewModel() {
   const factionPreviewRevision = ref(0);
   const factions = ref<Record<string, RowData>>({});
   const factionVersions = ref<Record<string, import('@/shared/types').FileVersion[]>>({});
-  const factionCrestRefs = ref<Record<string, ResourceRef | null>>({});
-  const factionCrestResourceRefs = ref<ResourceRef[]>([]);
+  const factionIconRefs = ref<Record<string, ResourceRef | null>>({});
+  const factionIconResourceRefs = ref<ResourceRef[]>([]);
   const listLoadStartedAt = ref(0);
   const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
@@ -85,7 +85,7 @@ export function useConfigFactionViewModel() {
             .flat()
             .map((version) => version.path),
         ],
-        factionCrestResourceRefs.value,
+        factionIconResourceRefs.value,
       ),
   });
   function sessionKey() {
@@ -100,8 +100,8 @@ export function useConfigFactionViewModel() {
       listSessionKey = key;
       factions.value = {};
       factionVersions.value = {};
-      factionCrestRefs.value = {};
-      factionCrestResourceRefs.value = [];
+      factionIconRefs.value = {};
+      factionIconResourceRefs.value = [];
       selectedFaction.value = null;
       heldFaction.value = null;
     }
@@ -114,8 +114,8 @@ export function useConfigFactionViewModel() {
         const heldVersions = selected ? factionVersions.value[selected] : [];
         factions.value = Object.fromEntries(records.map((record) => [record.id, record.data]));
         factionVersions.value = Object.fromEntries(records.map((record) => [record.id, record.baseVersions]));
-        factionCrestRefs.value = Object.fromEntries(records.map((record) => [record.id, record.crestRef]));
-        factionCrestResourceRefs.value = records.flatMap((record) => (record.crestRef ? [record.crestRef] : []));
+        factionIconRefs.value = Object.fromEntries(records.map((record) => [record.id, record.iconRef]));
+        factionIconResourceRefs.value = records.flatMap((record) => (record.iconRef ? [record.iconRef] : []));
         selection.reconcile(Object.keys(factions.value).sort(), identity.receiving.value);
         if (selected && selectedFaction.value === selected && !factions.value[selected]) {
           if (held) heldFaction.value = { id: selected, data: held, baseVersions: heldVersions! };
@@ -252,7 +252,7 @@ export function useConfigFactionViewModel() {
   });
   const stopResourceInvalidation = subscribeResourceInvalidations((event) => {
     if (event.sessionId !== workspace.activeSessionId) return;
-    if (!hasResourceInvalidation(event, factionCrestResourceRefs.value)) return;
+    if (!hasResourceInvalidation(event, factionIconResourceRefs.value)) return;
     factionPreviewRevision.value += 1;
   });
   onUnmounted(() => {
@@ -280,7 +280,7 @@ export function useConfigFactionViewModel() {
     listLoadStartedAt,
     factions,
     factionVersions,
-    factionCrestRefs,
+    factionIconRefs,
     modRoot,
     sessionId,
     schemaRuntimeContext,

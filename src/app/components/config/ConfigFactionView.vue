@@ -1,17 +1,5 @@
 <template>
-  <div class="config-factions-layout ui-layout-row ui-layout-clip">
-    <ConfigFactionList
-      :selected-id="selectedFaction"
-      :action-running="actionRunning"
-      :factions="factions"
-      :faction-crest-refs="factionCrestRefs"
-      :mod-root="modRoot"
-      :session-id="sessionId"
-      :list-load-started-at="listLoadStartedAt"
-      :create-faction="createFaction"
-      :delete-faction="deleteFaction"
-      @select="selectFaction"
-    />
+  <div class="config-factions-layout editor-page ui-content-column ui-content-contained">
     <ConfigFactionEditor
       v-if="selectedFaction && editorFactions[selectedFaction]"
       :key="JSON.stringify([sessionId, modRoot])"
@@ -31,12 +19,20 @@
       :deleted-target="deletedTarget"
       :discard-deleted-target="discardDeletedTarget"
       @saved="onSaved"
-    />
-    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid"><p>选择一个势力以编辑</p></div>
+    >
+      <template #list>
+        <ConfigFactionList v-bind="listProps" @select="selectFaction" />
+      </template>
+    </ConfigFactionEditor>
+    <div v-else class="editor-content ui-content-contained ui-layout-row">
+      <ConfigFactionList v-bind="listProps" @select="selectFaction" />
+      <div class="config-placeholder ui-control-center ui-text-muted ui-layout-grid"><p>选择一个势力以编辑</p></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import ConfigFactionList from '@/app/components/config/ConfigFactionList.vue';
 import ConfigFactionEditor from '@/app/components/config/ConfigFactionEditor.vue';
 import { useConfigFactionViewModel } from '@/app/composables/config/use-config-faction-view-model';
@@ -55,7 +51,7 @@ const {
   factionPreviewRevision,
   listLoadStartedAt,
   factions,
-  factionCrestRefs,
+  factionIconRefs,
   modRoot,
   sessionId,
   schemaRuntimeContext,
@@ -65,4 +61,15 @@ const {
   queryFactionPreviewImages,
   saveFaction,
 } = useConfigFactionViewModel();
+const listProps = computed(() => ({
+  selectedId: selectedFaction.value,
+  actionRunning: actionRunning.value,
+  factions: factions.value,
+  factionIconRefs: factionIconRefs.value,
+  modRoot: modRoot.value,
+  sessionId: sessionId.value,
+  listLoadStartedAt: listLoadStartedAt.value,
+  createFaction: createFaction,
+  deleteFaction: deleteFaction,
+}));
 </script>

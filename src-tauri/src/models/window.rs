@@ -213,6 +213,8 @@ pub enum WindowBootstrap {
     Managed {
         context: Box<ManagedWindowContext>,
         restoring: bool,
+        #[serde(rename = "modName")]
+        mod_name: String,
     },
 }
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]

@@ -1,44 +1,54 @@
 <template>
-  <div class="faction-editor-page ui-content-column ui-content-surface-muted" :inert="actionsLocked || handoffLocked">
-    <ConfigTargetNotice
-      label="势力"
-      :deleted-target="deletedTarget"
-      :actions-locked="actionsLocked"
-      :discard-deleted-target="discardDeletedTarget"
-    />
-    <header class="faction-editor-header ui-control-between">
-      <h2 class="faction-editor-header-title ui-text-normal ui-text-reset">{{ displayName }}</h2>
-      <div class="config-editor-actions ui-layout-row ui-layout-center">
-        <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
-          载入外部版本
-        </n-button>
-        <n-button size="small" secondary type="error" @click="confirmDeleteFaction">删除</n-button>
-        <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
-      </div>
-    </header>
-    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
-      {{ externalUpdateNotice }}
-    </div>
+  <div
+    class="faction-editor-page editor-page ui-layout-row ui-content-contained ui-content-surface-muted"
+    :inert="actionsLocked || handoffLocked"
+  >
+    <slot name="list" />
+    <div class="editor-content ui-content-column ui-content-contained">
+      <ConfigTargetNotice
+        label="势力"
+        :deleted-target="deletedTarget"
+        :actions-locked="actionsLocked"
+        :discard-deleted-target="discardDeletedTarget"
+      />
+      <EditorHeader
+        :title="displayName"
+        :path="paths"
+        :dirty="dirty"
+        :saving="saving"
+        :external-update-notice="externalUpdateNotice"
+        @load-external="loadPendingExternalData"
+        ><template #actions
+          ><n-button secondary type="error" @click="confirmDeleteFaction">删除</n-button
+          ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+          ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+        ></EditorHeader
+      >
+      <div class="editor-fields ui-content-scroll">
+        <!-- Logo/Crest preview -->
+        <div v-if="logoSrc || crestSrc" class="panel-card ui-layout-row ui-control-border ui-content-surface">
+          <div v-if="logoSrc" class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
+            <span class="ui-text-soft ui-text-small">Logo</span>
+            <img :src="logoSrc" class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" />
+          </div>
+          <div v-if="crestSrc" class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
+            <span class="ui-text-soft ui-text-small">Crest</span>
+            <img :src="crestSrc" class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" />
+          </div>
+        </div>
 
-    <!-- Logo/Crest preview -->
-    <div v-if="logoSrc || crestSrc" class="faction-previews ui-layout-grid ui-control-border ui-content-surface">
-      <div v-if="logoSrc" class="faction-preview-item faction-preview-logo ui-text-muted ui-layout-grid ui-layout-shrink">
-        <span class="faction-preview-item-label ui-text-soft ui-text-small">Logo</span>
-        <img :src="logoSrc" class="faction-full-preview ui-image ui-layout-stretch ui-control-border" />
-      </div>
-      <div v-if="crestSrc" class="faction-preview-item faction-preview-crest ui-text-muted ui-layout-grid ui-layout-shrink">
-        <span class="faction-preview-item-label ui-text-soft ui-text-small">Crest</span>
-        <img :src="crestSrc" class="faction-full-preview ui-image ui-layout-stretch ui-control-border" />
+        <!-- Schema-driven form -->
+        <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="props.schemaRuntimeContext" />
       </div>
     </div>
-
-    <!-- Schema-driven form -->
-    <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="props.schemaRuntimeContext" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, toRef } from 'vue';
+import { NCheckbox } from 'naive-ui/es/checkbox';
+import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
+
+import { h, ref, computed, onMounted, onUnmounted, toRef } from 'vue';
 import type { RowData } from '@/shared/types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { FileSchema } from '@/domain/schema/schema.types';
@@ -83,9 +93,11 @@ const feedback = useAppFeedback();
 const {
   crestSrc,
   displayName,
+  dirty,
+  reset,
+  paths,
   draftData,
   externalUpdateNotice,
-  hasPendingExternalData,
   loadPendingExternalData,
   logoSrc,
   save,
@@ -112,19 +124,33 @@ function confirmDeleteFaction() {
   const deleteSessionId = props.sessionId;
   const deleteId = props.factionId;
   if (!deleteModRoot || !deleteSessionId || !deleteId) return;
+  const removeSource = ref(false);
   feedback.confirmDanger({
     title: '删除势力',
-    content: `确定要删除势力 "${deleteId}" 吗？`,
+    content: () =>
+      h('div', [
+        h('p', `确定要从列表移除 "${deleteId}" 吗？`),
+        h(
+          NCheckbox,
+          {
+            checked: removeSource.value,
+            'onUpdate:checked': (checked: boolean) => {
+              removeSource.value = checked;
+            },
+          },
+          { default: () => '同时删除势力文件' },
+        ),
+      ]),
     actionText: '删除',
     onConfirm: async () => {
-      await deleteFactionTarget(deleteSessionId, deleteModRoot, deleteId);
+      await deleteFactionTarget(deleteSessionId, deleteModRoot, deleteId, removeSource.value);
     },
   });
 }
 
-async function deleteFactionTarget(deleteSessionId: string, deleteModRoot: string, deleteId: string) {
+async function deleteFactionTarget(deleteSessionId: string, deleteModRoot: string, deleteId: string, removeSource: boolean) {
   try {
-    await props.deleteFaction(deleteSessionId, deleteModRoot, deleteId, true);
+    await props.deleteFaction(deleteSessionId, deleteModRoot, deleteId, removeSource);
   } catch (error) {
     feedback.error(error, '删除势力失败');
     return false;

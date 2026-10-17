@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   flush: vi.fn(),
 }));
 vi.mock('@/windows/current.window', () => ({
+  currentWindowLabel: () => 'close-fixture',
   listenCurrentWindowCloseRequest: async (handler: (...args: unknown[]) => unknown) => {
     api.close.mockImplementation(handler);
     return vi.fn();

@@ -1,6 +1,6 @@
 <template>
-  <aside class="detail-pane ui-content-scroll ui-content-surface-muted">
-    <div class="pane-title ui-text-muted ui-text-small">上下文</div>
+  <aside class="detail-pane ui-layout-grid ui-content-scroll ui-content-surface-muted">
+    <div class="panel-section-title ui-text-muted ui-text-small">上下文</div>
     <template v-if="tables.selectedRow">
       <section class="panel-card detail-card record-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
         <div class="detail-thumbnail ui-control-center ui-layout-clip ui-layout-stretch ui-control-border">
@@ -52,11 +52,9 @@
               </template>
               <template v-else-if="item.kind === 'color'">
                 <span class="schema-preview-swatch ui-control-border" :style="{ background: item.value }"></span>
-                <strong
-                  class="schema-preview-value-value ui-emphasis ui-text-small ui-layout-shrink ui-text-wrap"
-                  :title="previewValueTitle(item)"
-                  >{{ item.value || '-' }}</strong
-                >
+                <span class="schema-preview-value-value ui-text-small ui-layout-shrink ui-text-wrap" :title="previewValueTitle(item)">{{
+                  item.value || '-'
+                }}</span>
               </template>
               <template v-else>
                 <img
@@ -65,11 +63,9 @@
                   :src="item.sprite"
                   :alt="item.display"
                 />
-                <strong
-                  class="schema-preview-value-value ui-emphasis ui-text-small ui-layout-shrink ui-text-wrap"
-                  :title="previewValueTitle(item)"
-                  >{{ item.display || '-' }}</strong
-                >
+                <span class="schema-preview-value-value ui-text-small ui-layout-shrink ui-text-wrap" :title="previewValueTitle(item)">{{
+                  item.display || '-'
+                }}</span>
                 <small class="schema-preview-value-meta ui-text-muted" v-if="showReferenceDecorations && item.meta">{{ item.meta }}</small>
               </template>
             </div>

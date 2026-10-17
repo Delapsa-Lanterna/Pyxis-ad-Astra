@@ -17,6 +17,13 @@ import { editorUiStubs } from '@/test/ui-stubs';
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
 
 beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
 });

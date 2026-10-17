@@ -2,7 +2,7 @@ import { pauseQueryReads } from '@/app/composables/use-query-read-owner';
 import { nextTick, watch, type Ref } from 'vue';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { listenCurrentWindowCloseRequest } from '@/windows/current.window';
+import { currentWindowLabel, listenCurrentWindowCloseRequest } from '@/windows/current.window';
 import { listenWindowEvent, type UnlistenFn } from '@/windows/tauri.events';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import { updateNativeWindowStatus } from '@/services/window.service';
@@ -123,6 +123,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
         return stages;
       },
       recordWindowEventHandlerError,
+      currentWindowLabel(),
     );
     if (disposed) {
       unlisten();

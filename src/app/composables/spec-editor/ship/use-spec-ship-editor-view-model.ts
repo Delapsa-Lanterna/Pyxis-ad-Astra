@@ -41,12 +41,19 @@ export interface SpecShipEditorProps {
   spriteSourcePath?: string;
   spriteError?: string;
   editContext: EditContext | null;
+  path?: string;
   dirty: boolean;
   canSave: boolean;
   saving: boolean;
   externalUpdateNotice: string;
 }
-export type SpecShipEditorEvents = { close: []; 'save-requested': []; 'draft-changed': [ship: RowData]; 'load-external': [] };
+export type SpecShipEditorEvents = {
+  close: [];
+  'reset-requested': [];
+  'save-requested': [];
+  'draft-changed': [ship: RowData];
+  'load-external': [];
+};
 export function useSpecShipEditorViewModel(
   props: Readonly<SpecShipEditorProps>,
   emit: EmitFn<SpecShipEditorEvents>,

@@ -13,10 +13,15 @@ export async function listenWindowEvent<T>(
   event: string,
   handler: WindowEventHandler<T>,
   onError: WindowEventErrorHandler,
+  target?: string,
 ): Promise<UnlistenFn> {
-  return listen<T>(event, (message) => {
-    void dispatchWindowEvent(message.payload, handler).catch((error: unknown) => onError(error, event));
-  });
+  return listen<T>(
+    event,
+    (message) => {
+      void dispatchWindowEvent(message.payload, handler).catch((error: unknown) => onError(error, event));
+    },
+    { target },
+  );
 }
 
 async function dispatchWindowEvent<T>(data: T, handler: WindowEventHandler<T>): Promise<void> {

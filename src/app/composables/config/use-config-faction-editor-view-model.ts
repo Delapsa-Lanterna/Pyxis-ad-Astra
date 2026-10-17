@@ -1,3 +1,4 @@
+import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { completeConfigSave } from '@/orchestrators/config-save.orchestrator';
 import type { ConfigEditTarget } from '@/shared/types';
@@ -190,6 +191,14 @@ export function useConfigFactionEditorViewModel(params: {
   const displayName = computed(() => cell(factionFile.value.displayName) || params.factionId.value);
 
   return {
+    dirty: draftSession.dirty,
+    reset: draftSession.resetDraft,
+    paths: computed(
+      () =>
+        draftSession.baselineSnapshot.value?.baseVersions
+          .map((version) => relativePathFromRoot(draftSession.baselineSnapshot.value!.target.modRoot, version.path))
+          .join(' · ') ?? '',
+    ),
     crestSrc,
     displayName,
     draftData,

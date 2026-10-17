@@ -1,6 +1,6 @@
 <template>
   <div
-    class="app-frame editor-window-app ui-content-contained ui-layout-grid ui-layout-clip ui-layout-stretch ui-text-normal"
+    class="app-frame editor-window-app editor-page editor-spec-page ui-content-contained ui-layout-grid ui-layout-clip ui-layout-stretch ui-text-normal"
     :data-theme="settings.theme"
     :inert="handoffLocked"
   >
@@ -26,12 +26,14 @@
       :sprite-source-path="shipImages?.value.value?.resourceRefs[0]?.relPath ?? ''"
       :sprite-error="shipImages?.errorText.value || shipImages?.value.value?.diagnostic || ''"
       :edit-context="editContext"
+      :path="editorData?.target.write.relPath"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
       @save-requested="saveEditorData()"
+      @reset-requested="resetDraft"
       @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
@@ -44,12 +46,14 @@
       :sprite-data="weaponDependencies?.spriteData.value ?? {}"
       :projectile-options="weaponDependencies?.projectileOptions.value ?? []"
       :edit-context="editContext"
+      :path="editorData?.target.write.relPath"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
       @save-requested="saveEditorData()"
+      @reset-requested="resetDraft"
       @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
       @edit-projectile="openProjectile"
@@ -65,12 +69,14 @@
       :sprite-loading="projectileImages?.loading.value ?? false"
       :sprite-error="projectileImages?.errorText.value || projectileImages?.value.value?.diagnostic || ''"
       :edit-context="editContext"
+      :path="editorData?.target.write.relPath"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
       @save-requested="saveEditorData()"
+      @reset-requested="resetDraft"
       @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
@@ -79,12 +85,14 @@
       :system-id="target.id"
       :system="systemEditorData.spec"
       :edit-context="editContext"
+      :path="editorData?.target.write.relPath"
       :dirty="draftDirty"
       :can-save="canSaveSpec"
       :saving="draftSaving"
       :external-update-notice="externalUpdateNotice"
       @close="closeWindow"
       @save-requested="saveEditorData()"
+      @reset-requested="resetDraft"
       @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
@@ -137,6 +145,7 @@ const {
   missingEditorText,
   disposeEditorWindow,
   saveEditorData,
+  resetDraft,
   updateEditorDraft,
   loadPendingExternalSpec,
 } = windowModel;

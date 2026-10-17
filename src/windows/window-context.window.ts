@@ -17,6 +17,8 @@ export function settleWindowRequests() {
 }
 let restoring = false;
 const context = shallowRef<ManagedWindowContext | null>(null);
+const modName = shallowRef('');
+export const windowModName = readonly(modName);
 export const managedWindowContext = readonly(context);
 export function publishWindowContext(next: ManagedWindowContext) {
   if (context.value && next.revision < context.value.revision) return;
@@ -25,6 +27,7 @@ export function publishWindowContext(next: ManagedWindowContext) {
 export async function initializeWindowContext() {
   const bootstrap = await getNativeWindowBootstrap();
   if (bootstrap.kind === 'managed') {
+    modName.value = bootstrap.modName;
     publishWindowContext(bootstrap.context);
     restoring = bootstrap.restoring;
   }

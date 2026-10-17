@@ -1,10 +1,5 @@
-.table-panel {
-  position: absolute;
-  inset: 0 280px 0 0;
-  width: auto;
-  height: auto;
-}
 .data-table {
+  font-variant-numeric: tabular-nums;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -23,10 +18,10 @@
   top: 0;
   z-index: 1;
   color: var(--color-text-soft);
-  font-weight: 650;
+  font-weight: 600;
   text-align: left;
   background: var(--color-panel);
-  box-shadow: inset 0-1px 0 var(--color-border-strong);
+  box-shadow: inset 0-1px 0 var(--color-border);
 }
 .csv-th-label {
   text-overflow: ellipsis;
@@ -131,27 +126,18 @@
   outline: none;
 }
 .table-empty-note {
-  padding: 18px;
+  padding: 12px;
   color: var(--color-warning);
-  font-size: 13px;
 }
 .table-external-update-note {
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  margin-bottom: var(--space-1);
-  color: var(--color-warning);
-  font-size: 13px;
-  background: var(--color-warning-bg);
-  border: 1px solid var(--color-warning-border);
-  border-radius: var(--radius-sm);
 }
 .csv-cell-picker {
   position: fixed;
   z-index: 80;
   box-sizing: border-box;
   max-height: 320px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-floating);
 }
 .csv-cell-picker-search,
@@ -176,15 +162,14 @@
   box-sizing: border-box;
   gap: var(--space-1);
   padding: var(--space-1);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-floating);
 }
 .csv-cell-text-input {
   flex: 1;
   box-sizing: border-box;
   min-height: 0;
-  padding: 5px 6px;
+  padding: 6px;
   font: inherit;
   line-height: 1.4;
   background: var(--color-bg);
@@ -232,9 +217,9 @@
   background: var(--color-primary-soft);
 }
 .csv-cell-picker-group {
-  padding: 5px 6px 3px;
+  padding: 6px;
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
 }
 .csv-cell-picker-option {
   box-sizing: border-box;
@@ -265,4 +250,14 @@
   flex: 0 0 auto;
   max-width: 40%;
   font-size: 11px;
+}
+.table-panel {
+  flex: 1;
+  position: relative;
+  inset: auto;
+  width: auto;
+  height: auto;
+}
+.table-content {
+  gap: 8px;
 }

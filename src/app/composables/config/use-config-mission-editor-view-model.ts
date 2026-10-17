@@ -1,3 +1,4 @@
+import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { completeConfigSave } from '@/orchestrators/config-save.orchestrator';
 import { warningNotice } from '@/shared/lib/errors';
@@ -217,9 +218,22 @@ export function useConfigMissionEditorViewModel(params: {
   }
 
   return {
+    dirty: draftSession.dirty,
+    reset: draftSession.resetDraft,
+    paths: computed(
+      () =>
+        draftSession.baselineSnapshot.value?.baseVersions
+          .map((version) => relativePathFromRoot(draftSession.baselineSnapshot.value!.target.modRoot, version.path))
+          .join(' · ') ?? '',
+    ),
     clearMissionTarget,
     draftData,
     editingMissionId,
+    displayName: computed(() =>
+      draftSession.ready.value
+        ? String((draftData.value.descriptor as RowData).title || editingMissionId.value || params.missionId.value)
+        : params.missionId.value,
+    ),
     externalUpdateNotice: draftSession.externalUpdateNotice,
     hasPendingExternalData: draftSession.hasPendingExternalValue,
     iconSrc,

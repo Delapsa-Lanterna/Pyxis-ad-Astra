@@ -11,6 +11,7 @@
     </main>
     <footer v-if="!compact" class="immersive-editor-actions ui-footer ui-layout-row ui-layout-center">
       <ImmersiveEditorActions
+        :dirty="dirty"
         :can-undo="canUndo"
         :can-redo="canRedo"
         :saving="saving"
@@ -22,9 +23,9 @@
       >
         <template #before>
           <n-button v-if="externalNotice" size="small" @click="$emit('load-external')">载入外部版本</n-button>
-          <span class="immersive-meta-status" role="status">{{ saving ? '保存中' : dirty ? '未保存' : '已保存' }}</span>
         </template>
-      </ImmersiveEditorActions>
+        <span role="status">{{ saving ? '保存中' : dirty ? '未保存' : '已保存' }}</span></ImmersiveEditorActions
+      >
     </footer>
   </div>
 </template>

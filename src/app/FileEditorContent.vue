@@ -3,11 +3,11 @@
     <header class="file-editor-header page-header ui-control-between ui-layout-row ui-layout-grid ui-layout-center">
       <div class="file-editor-heading page-identity ui-layout-grid ui-layout-shrink">
         <div class="file-editor-title-row ui-control-row">
-          <div class="file-editor-title ui-text-truncate ui-text-reset ui-layout-shrink ui-text-normal" :title="fileName">
+          <h1 class="file-editor-title page-title ui-text-truncate ui-text-reset ui-layout-shrink ui-text-normal" :title="fileName">
             {{ fileName }}
-          </div>
+          </h1>
           <div
-            class="file-editor-status ui-text-muted ui-layout-inline ui-layout-center ui-text-path ui-control-border ui-content-surface-muted"
+            class="file-editor-status ui-text-muted ui-layout-inline ui-layout-center ui-text-path"
             :class="{
               dirty,
               saving,

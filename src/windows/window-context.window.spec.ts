@@ -164,9 +164,10 @@ describe('window context request reception', () => {
     expect(api.startup).toHaveBeenCalledWith(expect.objectContaining({ message: '监听失败' }));
   });
   it('accepts only newer settings and identity revisions across bootstrap and notifications', async () => {
-    api.bootstrap.mockResolvedValue({ kind: 'managed', context: request(4), settings: { revision: 5, value: {} } });
+    api.bootstrap.mockResolvedValue({ kind: 'managed', context: request(4), restoring: false, modName: 'Fixture Mod' });
     const runtime = await import('./window-context.window');
     await runtime.initializeWindowContext();
+    expect(runtime.windowModName.value).toBe('Fixture Mod');
     runtime.publishWindowContext(request(3));
     expect(runtime.managedWindowContext.value?.revision).toBe(4);
   });

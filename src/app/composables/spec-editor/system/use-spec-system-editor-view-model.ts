@@ -11,12 +11,19 @@ export interface SpecSystemEditorProps {
   systemId: string;
   system?: RowData;
   editContext: EditContext | null;
+  path?: string;
   dirty: boolean;
   canSave: boolean;
   saving: boolean;
   externalUpdateNotice: string;
 }
-export type SpecSystemEditorEvents = { close: []; 'save-requested': []; 'draft-changed': [system: RowData]; 'load-external': [] };
+export type SpecSystemEditorEvents = {
+  close: [];
+  'reset-requested': [];
+  'save-requested': [];
+  'draft-changed': [system: RowData];
+  'load-external': [];
+};
 
 export function useSpecSystemEditorViewModel(props: Readonly<SpecSystemEditorProps>, emit: EmitFn<SpecSystemEditorEvents>) {
   const document = useEditorDocument({

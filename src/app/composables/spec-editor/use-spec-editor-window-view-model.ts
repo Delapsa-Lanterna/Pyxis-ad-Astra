@@ -436,6 +436,7 @@ export function useSpecEditorWindowViewModel(
     errorText,
     draftValue: draftSession.draftValue,
     commitInputs: () => draftSession.inputs.commit(),
+    resetDraft: draftSession.resetDraft,
     draftDirty,
     editContext,
     waitForSave: draftSession.waitForSave,

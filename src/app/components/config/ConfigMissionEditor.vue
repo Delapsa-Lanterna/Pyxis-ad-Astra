@@ -1,35 +1,48 @@
 <template>
-  <main v-if="schema" class="mission-editor ui-content-column ui-content-surface-muted" :inert="actionsLocked || handoffLocked">
-    <ConfigTargetNotice
-      label="战役"
-      :deleted-target="deletedTarget"
-      :actions-locked="actionsLocked"
-      :discard-deleted-target="discardDeletedTarget"
-    />
-    <header class="mission-editor-header ui-control-between ui-content-surface">
-      <h3 class="mission-editor-header-title ui-text-reset">{{ editingMissionId || missionId }}</h3>
-      <div class="config-editor-actions ui-layout-row ui-layout-center">
-        <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
-          载入外部版本
-        </n-button>
-        <n-button size="small" secondary type="error" @click="confirmDeleteMission">删除</n-button>
-        <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
+  <main
+    v-if="schema"
+    class="mission-editor editor-page ui-layout-row ui-content-contained ui-content-surface-muted"
+    :inert="actionsLocked || handoffLocked"
+  >
+    <slot name="list" />
+    <div class="editor-content ui-content-column ui-content-contained">
+      <ConfigTargetNotice
+        label="战役"
+        :deleted-target="deletedTarget"
+        :actions-locked="actionsLocked"
+        :discard-deleted-target="discardDeletedTarget"
+      />
+      <EditorHeader
+        :title="displayName"
+        :path="paths"
+        :dirty="dirty"
+        :saving="saving"
+        :external-update-notice="externalUpdateNotice"
+        @load-external="loadPendingExternalData"
+        ><template #actions
+          ><n-button secondary type="error" @click="confirmDeleteMission">删除</n-button
+          ><n-button :disabled="!dirty || saving" @click="reset">重置</n-button
+          ><n-button type="primary" :disabled="!dirty" :loading="saving" @click="save">保存</n-button></template
+        ></EditorHeader
+      >
+      <div class="editor-fields ui-content-scroll">
+        <div v-if="iconSrc" class="panel-card ui-layout-row ui-control-border ui-content-surface">
+          <div class="config-image-preview ui-text-muted ui-layout-grid ui-layout-shrink">
+            <span class="ui-text-soft ui-text-small">图标</span>
+            <img class="config-image-preview-image ui-image ui-layout-stretch ui-control-border" :src="iconSrc" :alt="displayName" />
+          </div>
+        </div>
+        <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
       </div>
-    </header>
-    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
-      {{ externalUpdateNotice }}
-    </div>
-    <div class="mission-editor-body ui-layout-grid">
-      <div v-if="iconSrc" class="mission-icon-preview ui-layout-clip ui-control-border">
-        <img class="ui-image mission-icon-preview-image ui-canvas-image" :src="iconSrc" alt="" />
-      </div>
-      <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, toRef } from 'vue';
+import { NCheckbox } from 'naive-ui/es/checkbox';
+import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
+
+import { h, ref, computed, onMounted, onUnmounted, toRef } from 'vue';
 import type { ConfigMissionEditorData, RowData } from '@/shared/types';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import ConfigTargetNotice from '@/app/components/config/ConfigTargetNotice.vue';
@@ -73,10 +86,12 @@ const schemaRuntimeContext = computed(() =>
   props.modRoot && props.sessionId ? { ...createSchemaRuntimeContext(props.modRoot, props.sessionId), missionId: props.missionId } : null,
 );
 const {
+  dirty,
+  reset,
+  paths,
   draftData,
-  editingMissionId,
+  displayName,
   externalUpdateNotice,
-  hasPendingExternalData,
   iconSrc,
   loadPendingExternalData,
   loadedMissionId,
@@ -103,19 +118,33 @@ function confirmDeleteMission() {
   const deleteModRoot = modRoot.value;
   const deleteSessionId = sessionId.value;
   if (!deleteModRoot || !deleteSessionId || !id) return;
+  const removeSource = ref(false);
   feedback.confirmDanger({
     title: '删除战役',
-    content: `确定要删除战役 "${id}" 吗？`,
+    content: () =>
+      h('div', [
+        h('p', `确定要从列表移除 "${id}" 吗？`),
+        h(
+          NCheckbox,
+          {
+            checked: removeSource.value,
+            'onUpdate:checked': (checked: boolean) => {
+              removeSource.value = checked;
+            },
+          },
+          { default: () => '同时删除战役目录' },
+        ),
+      ]),
     actionText: '删除',
     onConfirm: async () => {
-      await deleteMissionTarget(deleteSessionId, deleteModRoot, id);
+      await deleteMissionTarget(deleteSessionId, deleteModRoot, id, removeSource.value);
     },
   });
 }
 
-async function deleteMissionTarget(deleteSessionId: string, deleteModRoot: string, id: string) {
+async function deleteMissionTarget(deleteSessionId: string, deleteModRoot: string, id: string, removeSource: boolean) {
   try {
-    await props.deleteMission(deleteSessionId, deleteModRoot, id, true);
+    await props.deleteMission(deleteSessionId, deleteModRoot, id, removeSource);
   } catch (error) {
     feedback.error(error, '删除战役失败');
     return false;

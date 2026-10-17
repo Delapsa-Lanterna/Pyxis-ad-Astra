@@ -562,6 +562,7 @@ pub(crate) fn register_window_request(
     let built = WebviewWindowBuilder::new(app, &opened.label, WebviewUrl::App("/".into()))
         .title(request.title)
         .visible(false)
+        .decorations(false)
         .theme(native_theme)
         .inner_size(request.width, request.height)
         .min_inner_size(request.min_width, request.min_height)
@@ -621,9 +622,31 @@ pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
             .owner = None;
     }
     let context = state.context(label, false)?;
+    let restoring = state.instances[label].accepted_input.is_some();
+    drop(state);
+    let mod_name = match context.identity.session_id() {
+        Some(session) => super::project::current_projection(session)?
+            .manifest
+            .mod_info
+            .and_then(|info| {
+                info.get("name")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            }),
+        None => None,
+    }
+    .unwrap_or_else(|| {
+        context
+            .identity
+            .mod_root()
+            .and_then(|root| std::path::Path::new(root).file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "未关联 Mod".into())
+    });
     Ok(WindowBootstrap::Managed {
         context: Box::new(context),
-        restoring: state.instances[label].accepted_input.is_some(),
+        restoring,
+        mod_name,
     })
 }
 pub fn current_window_context(label: &str) -> AppResult<ManagedWindowContext> {
@@ -994,6 +1017,63 @@ pub(crate) fn session_has_windows(session: &str) -> AppResult<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editor_bootstrap_delivers_the_owning_mod_name() {
+        let root = crate::testutil::temp_dir("window_mod_name");
+        crate::io::write_utf8_no_bom(
+            &root.join("mod_info.json"),
+            r#"{"id":"fixture","name":"Named Mod"}"#,
+        )
+        .unwrap();
+        let manifest = super::super::project::open_project_session_traced(
+            &root,
+            None,
+            &mut super::super::project::PerformanceTrace::new("fixture"),
+        )
+        .unwrap();
+        let identities = [
+            (
+                WindowIdentity::Immersive {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    kind: crate::models::JointEditKind::Ship,
+                    id: "fixture".into(),
+                },
+                ManagedWindowInput::ImmersiveEditor { row_key: None },
+            ),
+            (
+                WindowIdentity::File {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    path: root.join("mod_info.json").to_string_lossy().into(),
+                },
+                ManagedWindowInput::FileEditor {
+                    location: crate::models::FileWindowLocation {
+                        context_label: None,
+                        context_severity: None,
+                        message: None,
+                        line: None,
+                        column: None,
+                    },
+                },
+            ),
+        ];
+        for (identity, input) in identities {
+            let label = registry()
+                .unwrap()
+                .register(identity, "fixture".into(), input);
+            let WindowBootstrap::Managed { mod_name, .. } =
+                current_window_bootstrap(&label).unwrap()
+            else {
+                panic!("managed fixture")
+            };
+            assert_eq!(mod_name, "Named Mod");
+            release_window(&label).unwrap();
+        }
+        super::super::project::close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn io_paths_share_focus_reservations_and_target_owners() {

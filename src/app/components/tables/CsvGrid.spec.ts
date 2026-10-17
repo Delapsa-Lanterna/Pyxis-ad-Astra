@@ -1,6 +1,6 @@
 import { csvDraftRow } from '@/test/csv-row';
 import type { VueWrapper } from '@vue/test-utils';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive } from 'vue';
 import CsvGrid from './CsvGrid.vue';
 import type { CsvGridModel } from '@/domain/tables/csv-grid-model';
@@ -13,10 +13,25 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ 
 let fixture: ReturnType<typeof mountCsvInputHost>;
 
 let wrapper: VueWrapper | null = null;
+let resize: () => void;
+const disconnect = vi.fn();
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        resize = callback;
+      }
+      observe = vi.fn();
+      disconnect = disconnect;
+    },
+  );
+});
 
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  vi.unstubAllGlobals();
 });
 
 function modelFixture(): CsvGridModel {
@@ -69,6 +84,20 @@ function mountGrid() {
 }
 
 describe('CsvGrid', () => {
+  it('refreshes the requested window on container resize while retaining the active cell and releases observation', async () => {
+    const grid = mountGrid();
+    await grid.vm.$nextTick();
+    await grid.find('.row-slot').trigger('click');
+    const requests = grid.emitted('request-window')!.length;
+    resize();
+    await grid.vm.$nextTick();
+    expect(grid.emitted('request-window')!.length).toBeGreaterThan(requests);
+    expect(fixture.activeCell.value).toMatchObject({ rowKey: 'key-0', column: 'id' });
+    wrapper!.unmount();
+    wrapper = null;
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
   it('emits the visible window size on mount so the store can load data', async () => {
     const grid = mountGrid();
     await grid.vm.$nextTick();

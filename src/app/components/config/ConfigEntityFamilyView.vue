@@ -1,21 +1,5 @@
 <template>
-  <div class="config-family-view ui-layout-row ui-layout-clip">
-    <ConfigEntityFamilyList
-      :family="family"
-      :selected-id="selectedId"
-      :action-running="actionRunning"
-      :files="files"
-      :sprite-refs="spriteRefs"
-      :hull-names="hullNames"
-      :hull-options="hullOptions"
-      :load-hull-options="loadHullOptions"
-      :mod-root="modRoot"
-      :session-id="sessionId"
-      :list-load-started-at="listLoadStartedAt"
-      :create-entity="createFamilyEntity"
-      :delete-entity="deleteFamilyEntity"
-      @select="selectFile"
-    />
+  <div class="config-family-view editor-page ui-content-column ui-content-contained">
     <ConfigEntityFamilyEditor
       v-if="selectedId && editorFiles.some((file) => idOf(file) === selectedId)"
       :key="JSON.stringify([sessionId, modRoot, family.id])"
@@ -32,9 +16,16 @@
       :deleted-target="deletedTarget"
       :discard-deleted-target="discardDeletedTarget"
       @saved="onSaved"
-    />
-    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
-      <p>选择一个{{ family.displayName }}以编辑</p>
+    >
+      <template #list>
+        <ConfigEntityFamilyList v-bind="listProps" @select="selectFile" />
+      </template>
+    </ConfigEntityFamilyEditor>
+    <div v-else class="editor-content ui-content-contained ui-layout-row">
+      <ConfigEntityFamilyList v-bind="listProps" @select="selectFile" />
+      <div class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
+        <p>选择一个{{ family.displayName }}以编辑</p>
+      </div>
     </div>
   </div>
 </template>
@@ -74,4 +65,19 @@ const {
   saveFamilyEntity,
   idOf,
 } = familyViewModel;
+const listProps = computed(() => ({
+  family: family.value,
+  selectedId: selectedId.value,
+  actionRunning: actionRunning.value,
+  files: files.value,
+  spriteRefs: spriteRefs.value,
+  hullNames: hullNames.value,
+  hullOptions: hullOptions.value,
+  loadHullOptions: loadHullOptions,
+  modRoot: modRoot.value,
+  sessionId: sessionId.value,
+  listLoadStartedAt: listLoadStartedAt.value,
+  createEntity: createFamilyEntity,
+  deleteEntity: deleteFamilyEntity,
+}));
 </script>

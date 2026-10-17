@@ -1,40 +1,60 @@
 .workspace {
-  position: relative;
-  grid-template-rows: 62px 1fr;
-}
-.workspace-loading {
-  grid-template-rows: 1fr;
-}
-.workspace-loading-state {
-  place-content: center;
-  gap: var(--space-3);
-  text-align: center;
-}
-.workspace-loading-state .workspace-loading-state-description {
-  font-size: 13px;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 .topbar {
-  grid-template-columns: minmax(180px, 1fr) auto;
-  gap: var(--space-4);
-  padding: 10px var(--space-4);
+  padding-inline: 12px;
   border-bottom: 1px solid var(--color-border);
 }
-.top-action-group {
-  gap: var(--space-2);
-  padding-left: var(--space-2);
-  border-left: 1px solid var(--color-border);
-}
 .top-action-group:first-child {
-  padding-left: 0;
-  border-left: 0;
+  flex: 0 1 300px;
+  max-width: 100%;
 }
-.content-grid {
-  position: relative;
-  grid-template-columns: minmax(0, 1fr) 280px;
-}
-.top-search-input {
-  width: 240px;
+.top-search-input.n-input {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 .top-search-field-select {
-  width: 180px;
+  flex: 0 0 112px;
+}
+.content-grid {
+  grid-template-columns: minmax(0, 1fr) 12px 280px;
+  transition:
+    grid-template-columns var(--ui-motion-duration) var(--ui-motion-easing),
+    grid-template-rows var(--ui-motion-duration) var(--ui-motion-easing);
+}
+.content-grid.workspace-context-collapsed {
+  grid-template-columns: minmax(0, 1fr) 12px 0;
+}
+.workspace-context-toggle {
+  width: 12px;
+  height: 40px;
+  place-self: center;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--ui-feedback-duration) var(--ui-feedback-easing),
+    color var(--ui-feedback-duration) var(--ui-feedback-easing);
+}
+.workspace-context-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+@media (max-width: 700px) {
+  .content-grid,
+  .content-grid.workspace-context-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .content-grid {
+    grid-template-rows: minmax(150px, 1fr) 12px minmax(150px, 1fr);
+    overflow: auto;
+  }
+  .content-grid.workspace-context-collapsed {
+    grid-template-rows: minmax(150px, 1fr) 12px minmax(0, 0fr);
+  }
+  .workspace-context-toggle {
+    width: 40px;
+    height: 12px;
+  }
+  .workspace-context-toggle-icon {
+    transform: rotate(90deg);
+  }
 }

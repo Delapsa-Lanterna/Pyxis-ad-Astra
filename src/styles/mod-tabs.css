@@ -1,92 +1,83 @@
 .mod-tabs-bar {
-  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  min-height: 0;
+  height: 32px;
+  padding: 0 4px;
   border-bottom: 1px solid var(--color-border);
 }
 .mod-tabs-list {
+  flex: 1;
+  gap: 4px;
+  height: 100%;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: thin;
 }
 .mod-tab {
   flex: 0 0 auto;
-  min-width: 116px;
   max-width: 220px;
-  height: 37px;
-  gap: 6px;
-  background: transparent;
+  height: 28px;
   border: 0;
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
 }
-.mod-tab:hover,
-.mod-tab:focus-within,
-.mod-tab-close:hover {
-  color: var(--color-text);
+.mod-tab:hover {
   background: var(--color-surface-hover);
 }
 .mod-tab.active {
-  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+.mod-tab.active .mod-tab-name {
+  font-weight: 500;
 }
 .mod-tab-activate {
-  flex: 1;
+  gap: 8px;
   height: 100%;
-  gap: 6px;
-  padding: 0 0 0 var(--space-2);
+  padding: 0 8px;
+  border-radius: 6px;
   color: inherit;
-  background: transparent;
-  border: 1px solid transparent;
+  font: 400 12px/18px var(--font-sans);
 }
-.mod-tab-name {
-  text-align: left;
-  font-weight: 550;
-}
-.mod-tab-status,
-.mod-tab-dirty {
+.mod-tab-close,
+.mod-tabs-overview,
+.mod-tabs-navigation-toggle {
+  place-items: center;
   flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
 }
-.mod-tab-status.ready {
-  background: var(--color-success);
+.mod-tabs-overview,
+.mod-tabs-navigation-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
 }
-.mod-tab-status.loading {
-  background: var(--color-muted);
+.mod-tab-close:hover,
+.mod-tabs-overview:hover,
+.mod-tabs-navigation-toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
-.mod-tab-status.error {
-  background: var(--color-danger);
-}
-.mod-tab-dirty {
-  background: var(--color-warning);
+.mod-tab-close .mod-tab-close-icon,
+.mod-tabs-overview .mod-tabs-overview-icon,
+.mod-tabs-navigation-toggle .mod-tabs-navigation-toggle-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 .mod-tab-error-label {
   color: var(--color-danger);
-  font-size: 11px;
+  font-size: 10px;
 }
-.mod-tab-close {
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  margin: 0 var(--space-2) 0 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+.mod-tab-status.loading {
+  --status-dot-color: #94a3b8;
 }
-.mod-tab-close .mod-tab-close-icon,
-.mod-tabs-overview .mod-tabs-overview-icon {
-  width: 14px;
-  height: 14px;
-  stroke-width: 1.6;
-}
-.mod-tabs-overview {
-  width: 38px;
-  height: 37px;
-  place-items: center;
-  border: 0;
-  border-left: 1px solid var(--color-border);
-}
-.mod-tabs-overview:hover,
-.mod-tabs-overview.active {
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
+.mod-tab-status.error {
+  --status-dot-color: #ef4444;
 }

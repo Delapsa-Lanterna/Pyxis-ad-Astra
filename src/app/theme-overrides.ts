@@ -1,7 +1,11 @@
 import type { GlobalThemeOverrides } from 'naive-ui/es/config-provider';
 import type { ThemeColorTokens } from '@/domain/settings/theme';
 
-export function buildThemeOverrides(colors: ThemeColorTokens, fontFamily: string): GlobalThemeOverrides {
+export function buildThemeOverrides(
+  colors: ThemeColorTokens,
+  fontFamily: string,
+  appearance: 'application' | 'immersive' = 'application',
+): GlobalThemeOverrides {
   const {
     background,
     border,
@@ -27,7 +31,7 @@ export function buildThemeOverrides(colors: ThemeColorTokens, fontFamily: string
     warning,
   } = colors;
 
-  return {
+  const theme: GlobalThemeOverrides = {
     common: {
       fontFamily,
       primaryColor: primary,
@@ -154,4 +158,77 @@ export function buildThemeOverrides(colors: ThemeColorTokens, fontFamily: string
       railColorActive: primary,
     },
   };
+  if (appearance === 'application') {
+    const sizes: GlobalThemeOverrides = {
+      common: {
+        heightSmall: '30px',
+        heightMedium: '30px',
+        fontSize: '12px',
+        fontSizeSmall: '12px',
+        fontSizeMedium: '12px',
+        fontWeight: '400',
+        fontWeightStrong: '600',
+        lineHeight: '1.5',
+        borderRadius: '4px',
+      },
+      Dialog: {
+        borderRadius: '6px',
+        padding: '16px',
+        titleFontSize: '16px',
+        titleFontWeight: '600',
+        fontSize: '12px',
+        lineHeight: '1.5',
+        contentMargin: '12px 0 16px',
+        actionSpace: '8px',
+      },
+      Card: { borderRadius: '6px', paddingMedium: '12px', titleFontSizeMedium: '12px', titleFontWeight: '600' },
+      Collapse: { fontSize: '12px', titleFontSize: '12px', titleFontWeight: '600', itemMargin: '0', titlePadding: '0' },
+      Popover: { borderRadius: '6px', padding: '8px' },
+      Dropdown: { borderRadius: '6px', optionHeightSmall: '28px', fontSizeSmall: '12px' },
+      Button: {
+        fontWeight: '400',
+        fontWeightStrong: '400',
+        heightSmall: '30px',
+        heightMedium: '30px',
+        fontSizeSmall: '12px',
+        fontSizeMedium: '12px',
+        paddingSmall: '0 10px',
+        paddingMedium: '0 10px',
+        borderRadiusTiny: '4px',
+        borderRadiusSmall: '4px',
+        borderRadiusMedium: '4px',
+      },
+    };
+    Object.assign(theme, sizes, {
+      common: { ...theme.common, ...sizes.common },
+      Button: { ...theme.Button, ...sizes.Button },
+      Input: { ...theme.Input, borderRadius: '4px' },
+    });
+    theme.Select = {
+      peers: {
+        InternalSelection: {
+          borderRadius: '4px',
+          color: panel,
+          colorActive: panel,
+          colorDisabled: surface,
+          textColor: text,
+          placeholderColor: muted,
+          arrowColor: muted,
+          border: '1px solid ' + border,
+          borderHover: '1px solid ' + borderStrong,
+          borderFocus: '1px solid ' + primaryBorder,
+          borderActive: '1px solid ' + primaryBorder,
+        },
+        InternalSelectMenu: {
+          color: panel,
+          borderRadius: '6px',
+          optionHeightSmall: '28px',
+          optionFontSizeSmall: '12px',
+          optionColorActive: surfaceActive,
+          optionColorPending: surfaceHover,
+        },
+      },
+    };
+  }
+  return theme;
 }

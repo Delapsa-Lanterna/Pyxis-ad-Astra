@@ -47,10 +47,15 @@ function mountForm(modelValue: RowData) {
 }
 
 describe('SchemaFormRenderer', () => {
-  it('renders one block per schema section plus the extra fields section', () => {
+  it('mounts fields when their section first opens and retains them after closing', async () => {
     const form = mountForm({ name: 'a', level: 1 });
     expect(form.findAll('.schema-section')).toHaveLength(2);
+    expect(form.findAll('.field-stub')).toHaveLength(1);
+    await form.findAll('.section-header')[1]!.trigger('click');
     expect(form.findAll('.field-stub')).toHaveLength(2);
+    const field = form.findAll('.field-stub')[1]!.element;
+    await form.findAll('.section-header')[1]!.trigger('click');
+    expect(form.findAll('.field-stub')[1]!.element).toBe(field);
     expect(form.find('.json-stub').exists()).toBe(false);
   });
 

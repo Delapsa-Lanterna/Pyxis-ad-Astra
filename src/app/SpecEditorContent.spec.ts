@@ -10,6 +10,8 @@ import { editorUiStubs } from '@/test/ui-stubs';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { normalizeShipSpec } from '@/domain/spec-editor/ship/spec-ship-editing';
 
+import { entityTargetFixture } from '@/test/entity-target';
+const fileTarget = entityTargetFixture('ship', 'XY');
 import type { RowData } from '@/shared/types/index';
 import SpecEditorContent from './SpecEditorContent.vue';
 
@@ -48,7 +50,9 @@ afterEach(() => {
 });
 function setupWindow(initial = true) {
   const source = normalizeShipSpec({ hullId: 'XY', hullName: 'Initial', center: [0, 0], shieldCenter: [0, 0] });
-  const data = ref<{ kind: 'ship'; spec: RowData } | null>(initial ? { kind: 'ship', spec: source } : null),
+  const data = ref<{ kind: 'ship'; spec: RowData; target: typeof fileTarget } | null>(
+      initial ? { kind: 'ship', target: fileTarget, spec: source } : null,
+    ),
     dirty = ref(false),
     loading = ref(!initial);
   const context = ref({ targetKey: 'ship', baselineGeneration: 1, handoff: 'load' as 'load' | 'external' });
@@ -72,9 +76,10 @@ function setupWindow(initial = true) {
     initializeEditorWindow: vi.fn(async () => {}),
     disposeEditorWindow: vi.fn(),
     saveEditorData: vi.fn(),
+    resetDraft: vi.fn(),
     loadPendingExternalSpec: vi.fn(),
     updateEditorDraft: (value: RowData) => {
-      data.value = { kind: 'ship', spec: value };
+      data.value = { kind: 'ship', target: fileTarget, spec: value };
       dirty.value = true;
     },
   };
@@ -112,7 +117,11 @@ describe('editor window refresh lifetime', () => {
     vm.loading.value = false;
     recording.ops.length = 0;
     inputs.cancel();
-    vm.editorData.value = { kind: 'ship', spec: normalizeShipSpec({ ...vm.editorData.value!.spec, hullName: 'External' }) };
+    vm.editorData.value = {
+      kind: 'ship',
+      target: fileTarget,
+      spec: normalizeShipSpec({ ...vm.editorData.value!.spec, hullName: 'External' }),
+    };
     vm.editContext.value = { targetKey: 'ship', baselineGeneration: 2, handoff: 'external' };
     await flushPromises();
     expect(wrapper.get('canvas').element).toBe(originalCanvas);
@@ -124,7 +133,7 @@ describe('editor window refresh lifetime', () => {
     const { vm, source, wrapper } = setupWindow(false);
     expect(wrapper.find('.editor-window-status').text()).toContain('正在加载');
     expect(wrapper.find('canvas').exists()).toBe(false);
-    vm.editorData.value = { kind: 'ship', spec: source };
+    vm.editorData.value = { kind: 'ship', target: fileTarget, spec: source };
     await flushPromises();
     expect(wrapper.find('canvas').exists()).toBe(true);
     const canvas = wrapper.get('canvas').element;

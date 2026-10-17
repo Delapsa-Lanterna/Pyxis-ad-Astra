@@ -1,6 +1,10 @@
 <template>
-  <div class="schema-field ui-layout-grid ui-layout-shrink" :class="{ 'nested-row': isNested }">
-    <span class="field-label field-label-multi ui-text-truncate ui-text-muted" :title="fieldTitle">{{ field.label }}</span>
+  <div class="schema-field ui-layout-grid ui-layout-shrink" :class="{ 'nested-row': isNested }" :data-field-path="fieldTitle">
+    <span
+      class="field-label field-label-multi ui-text-truncate ui-text-muted ui-text-normal ui-text-small ui-layout-row ui-layout-shrink ui-layout-stack ui-text-wrap"
+      :title="fieldTitle"
+      ><SpecFieldLabel :raw="field.key" :label="field.label" :path="fieldTitle"
+    /></span>
     <div class="field-control ui-layout-row ui-layout-shrink ui-layout-stack">
       <template v-if="plainMode">
         <n-input
@@ -259,6 +263,7 @@
               v-if="field.valueSchema"
               :field="field.valueSchema"
               :value="row.entry.val"
+              :field-path="valuePath(row.entry.key, idx)"
               :runtime-context="runtimeContext"
               :is-nested="true"
               :input-key="`${fieldInputKey}/${row.rowId}`"
@@ -290,6 +295,7 @@
             :key="sub.key"
             :field="sub"
             :value="getSubValue(sub.key)"
+            :field-path="`${fieldTitle}.${sub.key}`"
             :runtime-context="runtimeContext"
             :is-nested="true"
             :input-key="`${fieldInputKey}/${sub.key}`"
@@ -323,6 +329,7 @@
             <SchemaFieldRenderer
               :field="{ ...field.item, required: true }"
               :value="genericArrayItems[idx]"
+              :field-path="`${fieldTitle}[${idx}]`"
               :runtime-context="runtimeContext"
               :is-nested="true"
               :input-key="`${fieldInputKey}/${genericRowIds[idx]}`"
@@ -354,6 +361,7 @@
               :key="sub.key"
               :field="sub"
               :value="getArrayItemValue(idx, sub.key)"
+              :field-path="`${fieldTitle}[${idx}].${sub.key}`"
               :runtime-context="runtimeContext"
               :is-nested="true"
               :input-key="`${fieldInputKey}/${arrayRowIds[idx]}/${sub.key}`"
@@ -373,14 +381,14 @@
         />
       </template>
 
-      <!-- Warning text -->
-      <span v-if="field.warning" class="field-warning ui-text-note ui-text-wrap ui-text-reset">{{ field.warning }}</span>
-      <span v-if="field.danger" class="field-danger ui-text-note ui-text-wrap ui-text-reset">{{ field.danger }}</span>
+      <FieldHints :field="field" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import SpecFieldLabel from '@/app/components/editors/common/SpecFieldLabel.vue';
+import FieldHints from '@/app/components/schema/FieldHints.vue';
 import { computed, h, ref, watch } from 'vue';
 import { NTag } from 'naive-ui/es/tag';
 import type { JsonValue, ResourceRef } from '@/shared/types';
@@ -432,6 +440,7 @@ const props = defineProps<{
   runtimeContext?: SchemaRuntimeContext | null;
   isNested?: boolean;
   inputKey?: string;
+  fieldPath?: string;
 }>();
 
 const emit = defineEmits<{
@@ -455,7 +464,11 @@ const mode = useInputEditMode();
 const plainMode = computed(() => mode.value === 'plain');
 const fieldInputs = useFieldInputs();
 const fieldInputKey = computed(() => props.inputKey ?? props.field.key);
-const fieldTitle = computed(() => [props.field.key, props.field.description ?? ''].filter(Boolean).join('\n'));
+const fieldTitle = computed(() => props.fieldPath ?? props.field.key);
+function valuePath(key: string, index: number): string {
+  const base = Array.isArray(props.value) ? `${fieldTitle.value}[${index}]` : fieldTitle.value;
+  return `${base}[${JSON.stringify(key)}]`;
+}
 const { replaceSchemaSelectSprites, releaseSchemaSelectSprites } = useSchemaSelectMedia();
 
 const strVal = computed(() => schemaStringValue(props.value));
