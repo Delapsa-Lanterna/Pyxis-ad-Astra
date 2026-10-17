@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useConfigListSelection } from './use-config-list-selection';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { savedWriteFixture } from '@/test/write-result';
 import type { AppFeedback, CommittedWriteEvent } from '@/shared/types';
 
@@ -16,14 +16,14 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
 vi.mock('@/orchestrators/config-save.orchestrator', () => ({ completeConfigSave: mocks.complete }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ retryPendingWritesForMod: mocks.retry }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ retryPendingModSyncs: mocks.retry }));
 let wrapper: VueWrapper;
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
   mocks.retry.mockResolvedValue(undefined);
   mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: CommittedWriteEvent['result']) => {
-    useWriteSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
+    useProjectSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
   });
 });
 afterEach(() => wrapper?.unmount());
@@ -176,13 +176,13 @@ describe('config list selection and action boundaries', () => {
     const { selection } = harness();
     const action = mutation(selection);
     mocks.complete.mockImplementationOnce(async (modRoot, _session, result) => {
-      if (step === 'broadcast') useWriteSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
+      if (step === 'broadcast') useProjectSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
       throw new Error(step);
     });
     expect(await action.run()).toBe(false);
     expect(selection.selectedId.value).toBe(step === 'broadcast' ? 'b' : 'a');
     mocks.retry.mockImplementationOnce(async () => {
-      useWriteSyncStore().markAccepted({ modRoot: 'M:/mod', result: savedWriteFixture() } as CommittedWriteEvent);
+      useProjectSyncStore().markAccepted({ modRoot: 'M:/mod', result: savedWriteFixture() } as CommittedWriteEvent);
     });
     const pending = useSaveCommandStore().waitForSaves('M:/mod');
     if (pending) expect(await pending).toBe(true);

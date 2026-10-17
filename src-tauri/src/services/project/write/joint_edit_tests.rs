@@ -1,6 +1,8 @@
 #![cfg(test)]
+use super::super::csv_staging;
 use super::*;
-use crate::services::project::prepare_joint_edit;
+
+use crate::services::prepare_joint_edit;
 use crate::{
     io::{read_csv_data, write_utf8_no_bom},
     services::{project, write_transactions},
@@ -168,23 +170,22 @@ fn variant_rename_all_mod_parents() {
         .unwrap()
         .session_id;
     let info =
-        project::query_entity_edit_target(&root.session_id, EntityKind::Variant, "var").unwrap();
+        crate::services::query_entity_edit_target(&root.session_id, EntityKind::Variant, "var")
+            .unwrap();
     assert_eq!(info.base_versions.len(), 3);
     let mut versions = info.base_versions;
     versions.push(crate::io::file_version(&dir.join("data/variants/new.variant")).unwrap());
-    let result = crate::commands::save_variant_entity(
-        crate::models::command_payloads::VariantEntityPayload {
-            session_id: root.session_id.clone(),
-            mod_root: root.mod_root.clone(),
-            previous_id: Some("var".into()),
-            next_id: "new".into(),
-            rel_path: Some("data/variants/var.variant".into()),
-            data: json!({"variantId":"new","hullId":"a","fluxVents":3}),
-            json_write: Default::default(),
-            ordered_json: None,
-            base_versions: versions,
-        },
-    )
+    let result = crate::commands::save_variant_entity(crate::models::ConfigFamilyEntityPayload {
+        session_id: root.session_id.clone(),
+        mod_root: root.mod_root.clone(),
+        previous_id: Some("var".into()),
+        next_id: "new".into(),
+        rel_path: Some("data/variants/var.variant".into()),
+        data: json!({"variantId":"new","hullId":"a","fluxVents":3}),
+        json_write: Default::default(),
+        ordered_json: None,
+        base_versions: versions,
+    })
     .unwrap();
     assert_eq!(result.changes.len(), 3);
     assert_eq!(result.history.undo_stack.len(), 1);
@@ -286,7 +287,7 @@ fn variant_skin_slots_and_sources() {
 #[test]
 fn variant_weapon_catalog_sources() {
     let (dir, root) = fixture();
-    let snapshot = project::query_variant_catalog(
+    let snapshot = crate::services::query_variant_catalog(
         &JointEditRoot {
             kind: JointEditKind::Variant,
             id: "var".into(),
@@ -336,7 +337,7 @@ fn weapon_render_hints_skin_chain() {
     let hull = &snapshot.variants[&snapshot.bindings["variant"]];
     assert_eq!(hull.hints, ["CIVILIAN", "PHASE", "WEAPONS_FRONT_TO_BACK"]);
     let outer = hull.skin_keys.last().unwrap();
-    let projected = project::query_joint_edit_request(&JointEditQuery {
+    let projected = crate::services::query_joint_edit_request(&JointEditQuery {
         root: root.clone(),
         row_key: None,
         new_sources: Vec::new(),
@@ -390,7 +391,8 @@ fn variant_wing_catalog_core_reference() {
         .session_id;
     root.kind = JointEditKind::Variant;
     root.id = "var".into();
-    let snapshot = project::query_variant_catalog(&root, JointVariantCatalogKind::Wings).unwrap();
+    let snapshot =
+        crate::services::query_variant_catalog(&root, JointVariantCatalogKind::Wings).unwrap();
     let entries = snapshot.catalog.entries;
     assert!(entries[0].preview.is_some());
     assert_eq!(entries[0].label, "Authority fighter Support Fighter");
@@ -664,7 +666,7 @@ fn wing_creates_skin_and_versions() {
     root.session_id = project::open_project_session_traced(&dir, None, &mut trace)
         .unwrap()
         .session_id;
-    let baseline = project::query_joint_edit_request(&JointEditQuery {
+    let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
         catalog: None,
         root: root.clone(),
         row_key: None,
@@ -727,7 +729,7 @@ fn weapon_projection_icons_and_source() {
             JointValue::Present(json!({"id":"weapon","type":"KINETIC"})),
         ),
     ]);
-    let projected = project::query_joint_edit_request(&JointEditQuery {
+    let projected = crate::services::query_joint_edit_request(&JointEditQuery {
         catalog: None,
         root: weapon_root,
         row_key: None,
@@ -939,7 +941,8 @@ fn hullmod_catalog_ui_icons() {
         session_id: manifest.session_id,
         ..root
     };
-    let result = project::query_variant_catalog(&root, JointVariantCatalogKind::Hullmods).unwrap();
+    let result =
+        crate::services::query_variant_catalog(&root, JointVariantCatalogKind::Hullmods).unwrap();
     assert_eq!(result.catalog.entries.len(), 3);
     let shared = result
         .catalog
@@ -1008,6 +1011,11 @@ fn rename_keeps_csv_field_edits() {
                     table: CsvTableKey::Ships,
                     ..
                 } => value["name"] = json!("Renamed"),
+                JointRecordTarget::Csv {
+                    table: CsvTableKey::Descriptions,
+                    identity,
+                    ..
+                } if identity["id"] == "a" => value["text1"] = json!("Edited description"),
                 _ => continue,
             }
             input
@@ -1015,7 +1023,12 @@ fn rename_keeps_csv_field_edits() {
                 .insert(record.key.clone(), JointValue::Present(value));
         }
     }
+    csv_staging::take_render_counts();
     let saved = submit(&input).unwrap();
+    assert_eq!(
+        csv_staging::take_render_counts(),
+        BTreeMap::from([(CsvTableKey::Ships, 1), (CsvTableKey::Descriptions, 1)])
+    );
     assert_eq!(saved.refreshed_entity.unwrap().root.id, "A");
     let rows = read_csv_data(&dir.join("data/hulls/ship_data.csv"))
         .unwrap()
@@ -1024,7 +1037,7 @@ fn rename_keeps_csv_field_edits() {
     assert_eq!(rows[1].data["name"], "Renamed");
     let descriptions = read_csv_data(&dir.join("data/strings/descriptions.csv")).unwrap();
     assert_eq!(descriptions.rows[0].data["id"], "A");
-    assert_eq!(descriptions.rows[0].data["text1"], "Original");
+    assert_eq!(descriptions.rows[0].data["text1"], "Edited description");
     assert_eq!(descriptions.rows[0].data["notes"], "007");
     assert!(dir.join("data/hulls/A.ship").exists());
     cleanup(dir, &root);
@@ -1343,7 +1356,12 @@ fn missing_columns_keep_comments() {
         value["hitpoints"] = json!("999");
         value["name"] = json!("#Literal");
     }
+    csv_staging::take_render_counts();
     let result = submit(&input).unwrap();
+    assert_eq!(
+        csv_staging::take_render_counts(),
+        BTreeMap::from([(CsvTableKey::Ships, 1)])
+    );
     let csv = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
     assert_eq!(csv.header, ["name", "id", "hitpoints", "custom", "custom2"]);
     assert!(csv.rows[0].is_comment);
@@ -1420,7 +1438,10 @@ fn csv_identity_and_draft_system() {
         new_sources: Vec::new(),
     };
     assert_eq!(
-        project::query_joint_edit_request(&query).unwrap().root.id,
+        crate::services::query_joint_edit_request(&query)
+            .unwrap()
+            .root
+            .id,
         "a"
     );
     let JointValue::Present(mut edited) = row.value.clone() else {
@@ -1431,7 +1452,7 @@ fn csv_identity_and_draft_system() {
         row.key.clone(),
         JointValue::Present(edited),
     )]));
-    let projection = project::query_joint_edit_request(&query).unwrap();
+    let projection = crate::services::query_joint_edit_request(&query).unwrap();
     assert!(projection.records.iter().any(|record| matches!(&record.target, JointRecordTarget::Spec{target} if target.kind==EntityKind::System && target.id=="two")));
     assert!(!projection.records.iter().any(|record| matches!(&record.target, JointRecordTarget::Spec{target} if target.kind==EntityKind::System && target.id=="one")));
     assert_eq!(
@@ -1717,7 +1738,7 @@ fn variant_catalog_core_repeated_reads() {
         (JointVariantCatalogKind::Weapons, "core_weapon", "weapon"),
         (JointVariantCatalogKind::Wings, "core_wing", "wing"),
     ] {
-        let initial = project::query_variant_catalog(&root, kind).unwrap();
+        let initial = crate::services::query_variant_catalog(&root, kind).unwrap();
         assert_eq!(initial.root, root);
         assert_eq!(initial.catalog.entries.len(), 2);
         for (id, source) in [
@@ -1744,7 +1765,7 @@ fn variant_catalog_core_repeated_reads() {
         let expected = serde_json::to_vec(&initial).unwrap();
         for sample in 0..10 {
             let timer = trace.timer();
-            let read = project::query_variant_catalog(&root, kind).unwrap();
+            let read = crate::services::query_variant_catalog(&root, kind).unwrap();
             let bytes = serde_json::to_vec(&read).unwrap();
             assert_eq!(bytes, expected);
             println!(

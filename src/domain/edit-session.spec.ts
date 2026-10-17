@@ -5,6 +5,7 @@ import {
   canUndoEntry,
   clearUndoStack,
   createEditSessionValue,
+  editTargetsOverlap,
   createUndoStackState,
   nextUndoStackId,
   peekRedoEntry,
@@ -15,9 +16,27 @@ import {
   pushUndoEntry,
   setUndoStackLimit,
 } from './edit-session';
+import type { EditWriteTarget } from '@/shared/types';
 
 const identity = <T>(value: T): T => value;
 const strictEquals = <T>(left: T, right: T): boolean => left === right;
+
+describe('edit target overlap', () => {
+  const target: EditWriteTarget = { sessionId: 'session', modRoot: 'M:/mod', path: 'M:/mod/data/ships.csv' };
+  it.each([
+    { label: 'same file', other: { ...target }, expected: true },
+    { label: 'different session', other: { ...target, sessionId: 'other' }, expected: false },
+    { label: 'different Mod root', other: { ...target, modRoot: 'M:/other' }, expected: false },
+    { label: 'normalized Windows identity', other: { ...target, modRoot: 'm:\\MOD\\', path: 'm:\\MOD\\DATA\\SHIPS.CSV' }, expected: true },
+    { label: 'parent directory', other: { ...target, path: 'm:\\MOD\\data\\' }, expected: true },
+    { label: 'sibling file', other: { ...target, path: 'M:/mod/data/weapons.csv' }, expected: false },
+    { label: 'same file prefix', other: { ...target, path: 'M:/mod/data/ships.csv.copy' }, expected: false },
+    { label: 'same directory prefix', other: { ...target, path: 'M:/mod/database/ships.csv' }, expected: false },
+  ])('compares $label symmetrically', ({ other, expected }) => {
+    expect(editTargetsOverlap(target, other)).toBe(expected);
+    expect(editTargetsOverlap(other, target)).toBe(expected);
+  });
+});
 
 describe('createEditSessionValue', () => {
   function createNumberSession(initial = 1) {

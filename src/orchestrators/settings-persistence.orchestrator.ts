@@ -1,167 +1,175 @@
-import { watch } from 'vue';
+import { nextTick, watch } from 'vue';
+import { stableStringify } from '@/shared/lib/stable-compare';
 import { recordLogBestEffort } from '@/services/app-log.service';
-import { saveSettings } from '@/services/app-settings.service';
+import { readSettings, saveSettings } from '@/services/app-settings.service';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
-import { listenWindowEvent, type UnlistenFn } from '@/windows/tauri.events';
-import { WINDOW_EVENTS, type AppSettingsChangedEvent } from '@/windows/window.events';
-import { publishWindowSettings, readWindowSettings, acceptWindowSettings } from '@/windows/window-context.window';
-import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
-import { logFields } from '@/shared/lib/log-fields';
-import type { AppSettings } from '@/shared/types';
-import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
-import { refreshLoadedFileHistory } from '@/orchestrators/file-history-replay.orchestrator';
-
-let started = false;
-let mirrorStarted = false;
-let skipPersistedSnapshot = false;
-let saveQueue = Promise.resolve();
-let logRequestId = 0;
-let persistenceGeneration = 0;
-
-const noopDispose = () => {};
-
-export function startSettingsPersistence(): () => void {
-  if (started) return noopDispose;
-  started = true;
-  const generation = ++persistenceGeneration;
+import { listenWindowEvent } from '@/windows/tauri.events';
+import { WINDOW_EVENTS } from '@/windows/window.events';
+import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
+import type { AppSettings, SettingsSnapshot } from '@/shared/types';
+let official: SettingsSnapshot | null = null;
+let receive: ((snapshot: SettingsSnapshot) => void) | null = null;
+let queue = Promise.resolve();
+let saved = '';
+let failure: unknown = null;
+const pendingSnapshots = new Set<AppSettings>();
+let generation = 0;
+let paused = false;
+let stopPersistence: (() => void) | null = null;
+let committed: (accepts: () => boolean) => Promise<void>;
+function report(error: unknown) {
+  const diagnostic = errorDiagnosticOf(error);
+  recordLogBestEffort({
+    level: 'error',
+    code: diagnostic.code,
+    message: diagnostic.message,
+    path: diagnostic.location?.path ?? null,
+    line: diagnostic.location?.line ?? null,
+    fields: { action: 'settings' },
+  });
+}
+function accept(snapshot: SettingsSnapshot) {
+  if (paused || (official && snapshot.revision <= official.revision)) return;
+  official = snapshot;
+  receive?.(snapshot);
+}
+export async function initializeSettings(): Promise<SettingsSnapshot> {
+  const stop = await listenWindowEvent<SettingsSnapshot>(WINDOW_EVENTS.appSettingsChanged, accept, report);
+  const refresh = () => {
+    void readSettings().then(accept).catch(report);
+  };
+  window.addEventListener('focus', refresh);
+  window.addEventListener(
+    'pagehide',
+    () => {
+      stop();
+      window.removeEventListener('focus', refresh);
+      receive = null;
+    },
+    { once: true },
+  );
+  accept(await readSettings());
+  return official!;
+}
+function enqueue(operation: () => Promise<void>) {
+  const pending = queue.then(operation);
+  queue = pending.catch(() => {});
+  return pending;
+}
+function mergeNormalized(current: AppSettings, snapshot: AppSettings, normalized: AppSettings): AppSettings {
+  return Object.fromEntries(
+    Object.entries(current).map(([key, value]) => [
+      key,
+      stableStringify(value) === stableStringify(snapshot[key as keyof AppSettings]) ? normalized[key as keyof AppSettings] : value,
+    ]),
+  ) as unknown as AppSettings;
+}
+function enqueueSave(snapshot: AppSettings, life: number) {
+  pendingSnapshots.add(snapshot);
+  return enqueue(async () => {
+    pendingSnapshots.delete(snapshot);
+    try {
+      await persist(snapshot, life, committed);
+      failure = null;
+    } catch (error) {
+      failure = error;
+      throw error;
+    }
+  });
+}
+async function persist(snapshot: AppSettings, life: number, committed: (accepts: () => boolean) => Promise<void>) {
+  const result = await saveSettings(snapshot);
+  if (life !== generation) return;
+  saved = stableStringify(result.value);
   const settings = useSettingsStore();
-  syncHistoryLimit(settings.editHistoryLimit);
-  const stopWatch = watch(
+  const current = settings.settingsSnapshot();
+  const merged = mergeNormalized(current, snapshot, result.value);
+  for (const pending of pendingSnapshots) Object.assign(pending, mergeNormalized(pending, snapshot, result.value));
+  settings.replaceSettings(merged);
+  settings.confirmSavedSettings(result.value);
+  useTablesEditHistoryStore().setHistoryLimit(result.value.editHistoryLimit);
+  accept(result);
+  try {
+    await committed(() => life === generation);
+  } catch (error) {
+    report(error);
+  }
+}
+export function startSettingsPersistence(onCommitted: (accepts: () => boolean) => Promise<void>): () => void {
+  if (stopPersistence) return () => {};
+  committed = onCommitted;
+  const life = ++generation;
+  const settings = useSettingsStore();
+  saved = stableStringify(official?.value ?? settings.settingsSnapshot());
+  receive = (snapshot) => {
+    settings.confirmSavedSettings(snapshot.value);
+  };
+  useTablesEditHistoryStore().setHistoryLimit(settings.editHistoryLimit);
+  const stop = watch(
     () => settings.settingsSnapshot(),
     (snapshot) => {
-      if (skipPersistedSnapshot) {
-        skipPersistedSnapshot = false;
-        return;
-      }
-      syncHistoryLimit(snapshot.editHistoryLimit);
-      void enqueueSettingsSave(() => persistSettingsSnapshot(settings, snapshot, () => generation === persistenceGeneration));
+      if (
+        !paused &&
+        stableStringify(snapshot) !== saved &&
+        ![...pendingSnapshots].some((pending) => stableStringify(pending) === stableStringify(snapshot))
+      )
+        void enqueueSave(snapshot, life).catch(report);
     },
     { deep: true },
   );
+  stopPersistence = () => {
+    stop();
+    receive = null;
+    stopPersistence = null;
+    generation++;
+  };
+  return stopPersistence;
+}
+export function startSettingsMirror(): () => void {
+  const settings = useSettingsStore();
+  receive = (snapshot) => {
+    settings.replaceSettings(snapshot.value);
+    useTablesEditHistoryStore().setHistoryLimit(snapshot.value.editHistoryLimit);
+  };
+  if (official) receive(official);
   return () => {
-    stopWatch();
-    started = false;
-    persistenceGeneration++;
+    receive = null;
   };
 }
-
 export async function saveLogDirectory(directory: string | null): Promise<void> {
   const settings = useSettingsStore();
-  const requestId = ++logRequestId;
-  const generation = persistenceGeneration;
-  await enqueueSettingsSave(async () => {
-    const snapshot: AppSettings = { ...settings.settingsSnapshot(), logDirectory: directory };
-    const saved = await saveSettings(snapshot);
-    if (generation !== persistenceGeneration) return;
-    settings.confirmSavedSettings(saved);
-    if (requestId === logRequestId && settings.logDirectory !== saved.logDirectory) {
-      skipPersistedSnapshot = true;
-      settings.setLogDirectory(saved.logDirectory);
+  settings.setLogDirectory(directory);
+  await flushSettings();
+}
+export async function flushSettings(): Promise<void> {
+  const life = generation;
+  for (;;) {
+    await nextTick();
+    const pending = queue;
+    await pending;
+    if (failure) {
+      const error = failure;
+      failure = null;
+      throw error;
     }
-    await broadcastSettingsSnapshot(saved);
-    await refreshLoadedFileHistory(() => generation === persistenceGeneration);
-  });
-}
-
-function enqueueSettingsSave(operation: () => Promise<void>): Promise<void> {
-  const pending = saveQueue.then(operation);
-  saveQueue = pending.catch(() => {});
-  return pending;
-}
-
-export function startSettingsMirror(): () => void {
-  if (mirrorStarted) return noopDispose;
-  mirrorStarted = true;
-  let disposed = false;
-  const settings = useSettingsStore();
-  syncHistoryLimit(settings.editHistoryLimit);
-  const unlisteners: UnlistenFn[] = [];
-  void listenWindowEvent<AppSettingsChangedEvent>(
-    WINDOW_EVENTS.appSettingsChanged,
-    (snapshot) => {
-      if (disposed) return;
-      if (!acceptWindowSettings(snapshot)) return;
-      settings.replaceSettings(snapshot.value);
-      syncHistoryLimit(snapshot.value.editHistoryLimit);
-    },
-    recordWindowEventHandlerError,
-  )
-    .then((unlisten) => {
-      if (disposed) unlisten();
-      else {
-        unlisteners.push(unlisten);
-        void readWindowSettings()
-          .then((snapshot) => {
-            if (disposed || !acceptWindowSettings(snapshot)) return;
-            settings.replaceSettings(snapshot.value);
-            syncHistoryLimit(snapshot.value.editHistoryLimit);
-          })
-          .catch((error) => recordWindowEventHandlerError(error, WINDOW_EVENTS.appSettingsChanged));
-      }
-    })
-    .catch((error: unknown) => {
-      if (disposed) return;
-      const diagnostic = errorDiagnosticOf(error);
-      recordLogBestEffort({
-        level: 'error',
-        code: diagnostic.code,
-        message: diagnostic.message,
-        path: diagnostic.location?.path ?? null,
-        line: diagnostic.location?.line ?? null,
-        fields: logFields({ ...errorContextOf(error), action: 'settings-listen', column: diagnostic.location?.column }),
-      });
+    if (life !== generation) throw new AppError('设置保存生命周期已变化', { action: 'settings-close' });
+    if (pending !== queue) continue;
+    const snapshot = useSettingsStore().settingsSnapshot();
+    if (stableStringify(snapshot) === saved) return;
+    await enqueueSave(snapshot, life).catch((error) => {
+      failure = null;
+      throw error;
     });
-  return () => {
-    disposed = true;
-    mirrorStarted = false;
-    for (const unlisten of unlisteners) unlisten();
-  };
-}
-
-function syncHistoryLimit(limit: number): void {
-  useTablesEditHistoryStore().setHistoryLimit(limit);
-}
-
-async function persistSettingsSnapshot(
-  settings: ReturnType<typeof useSettingsStore>,
-  snapshot: AppSettings,
-  accepts: () => boolean,
-): Promise<void> {
-  try {
-    const saved = await saveSettings(snapshot);
-    if (!accepts()) return;
-    settings.confirmSavedSettings(saved);
-    await broadcastSettingsSnapshot(saved);
-    await refreshLoadedFileHistory(accepts);
-  } catch (error) {
-    if (!accepts()) return;
-    const diagnostic = errorDiagnosticOf(error);
-    recordLogBestEffort({
-      level: 'error',
-      code: diagnostic.code,
-      message: diagnostic.message,
-      path: diagnostic.location?.path ?? null,
-      line: diagnostic.location?.line ?? null,
-      fields: logFields({ ...errorContextOf(error), action: 'settings-save', column: diagnostic.location?.column }),
-    });
-    return;
   }
-  recordLogBestEffort({ level: 'debug', code: 'settings.saved', message: 'settings saved', path: null, line: null, fields: null });
 }
-
-async function broadcastSettingsSnapshot(snapshot: AppSettings): Promise<void> {
+export async function withSettingsReset(action: () => Promise<void>) {
+  await flushSettings();
+  paused = true;
   try {
-    await publishWindowSettings(snapshot);
+    await action();
   } catch (error) {
-    const diagnostic = errorDiagnosticOf(error);
-    recordLogBestEffort({
-      level: 'error',
-      code: diagnostic.code,
-      message: diagnostic.message,
-      path: diagnostic.location?.path ?? null,
-      line: diagnostic.location?.line ?? null,
-      fields: logFields({ ...errorContextOf(error), action: 'settings-broadcast', column: diagnostic.location?.column }),
-    });
+    paused = false;
+    throw error;
   }
 }

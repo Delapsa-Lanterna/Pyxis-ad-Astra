@@ -6,9 +6,8 @@ use super::super::cache::{lock_ready_session, lock_registry, media, session_hand
 use super::super::model::{ProjectSession, string_field, string_from_row};
 use super::sprites;
 use crate::errors::{AppError, AppResult};
-use crate::models::{
-    CsvTableKey, LoadedSpecRecord, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile,
-};
+use crate::models::{CsvTableKey, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
+use crate::services::project::model::LoadedSpecRecord;
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;

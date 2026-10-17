@@ -10,7 +10,7 @@ import type {
 } from '@/shared/types';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import { applySchemaFieldUpdate, getNestedValue, schemaStringValue } from '@/domain/schema/schema-values';
-import { entityContentIdField } from '@/domain/editors/entity-identity';
+import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { jointObject } from '@/domain/joint-edit';
 import type { TextRun } from '@/domain/fonts/font.types';
 import type { ImmersiveFontRole } from './font-roles';

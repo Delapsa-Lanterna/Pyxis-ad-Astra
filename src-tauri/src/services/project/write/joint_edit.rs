@@ -5,6 +5,7 @@ use super::super::{
     model::{SessionCsvRow, csv_table_spec},
     write::stage_entity_content,
 };
+use super::csv_staging::CsvTableDraft;
 use crate::{
     errors::{AppError, AppResult},
     io::{FileChangeSetBuilder, JsonWriteBatch, read_csv_data},
@@ -89,7 +90,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     let mut session = cache::lock_ready_session(&handle)?;
     let mut builder = FileChangeSetBuilder::new(Path::new(&current.root.mod_root))?;
     let mut json = JsonWriteBatch::new(payload.json_write.clone());
-    let mut tables: BTreeMap<CsvTableKey, (Vec<String>, Vec<SessionCsvRow>, u64)> = BTreeMap::new();
+    let mut tables: BTreeMap<CsvTableKey, CsvTableDraft> = BTreeMap::new();
     let mut identities = Vec::new();
     let mut description_renames = Vec::new();
     let mut key_map = Vec::new();
@@ -208,18 +209,18 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 if let Some(rename) = staged.description_rename {
                     description_renames.push(rename);
                 }
-                if let Some(csv) = staged.saved_csv {
-                    if let Some((_, pending, _)) = tables.get_mut(&csv.table) {
+                if let Some(csv) = staged.linked_csv {
+                    if let Some(pending) = tables.get_mut(&csv.table) {
                         if let Some(EntityLinkedRecord::Csv { row_key, .. }) =
                             &staged.identity.before.linked_record
                             && let Some(row) =
-                                pending.iter_mut().find(|row| row.row_key == *row_key)
+                                pending.rows.iter_mut().find(|row| row.row_key == *row_key)
                         {
                             row.data
                                 .insert("id".into(), staged.identity.after.id.clone().into());
                         }
                     } else {
-                        tables.insert(csv.table, (csv.header, csv.rows, csv.next_seq));
+                        tables.insert(csv.table, csv);
                     }
                 }
                 let next = saved
@@ -274,9 +275,14 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 value,
             ) => {
                 if !tables.contains_key(table) {
-                    tables.insert(*table, cache::csv::read_table_snapshot(&session, *table)?);
+                    tables.insert(*table, CsvTableDraft::read(&session, *table)?);
                 }
-                let (header, rows, next_seq) = tables.get_mut(table).expect("joint table staged");
+                let CsvTableDraft {
+                    header,
+                    rows,
+                    next_row_seq: next_seq,
+                    ..
+                } = tables.get_mut(table).expect("joint table staged");
                 if header.is_empty()
                     && let Some(source) = &record.source
                 {
@@ -403,17 +409,16 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 )?;
             }
         } else if let Some(csv) =
-            super::entity_description::stage_description_renames(&session, &description_renames)?
+            super::entity_description::prepare_description_renames(&session, &description_renames)?
         {
-            tables.insert(
-                CsvTableKey::Descriptions,
-                (csv.header, csv.rows, csv.next_seq),
-            );
+            tables.insert(csv.table, csv);
         }
     }
-    for (table, (header, rows, _)) in &mut tables {
-        if let Some(first) = header.first() {
-            for row in rows
+    let mut staged_tables = BTreeMap::new();
+    for (table, mut draft) in tables {
+        if let Some(first) = draft.header.first() {
+            for row in draft
+                .rows
                 .iter_mut()
                 .filter(|row| row.is_comment && !row.data.is_empty())
             {
@@ -425,21 +430,14 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 }
             }
         }
-        let text = crate::parsers::render_csv_text(
-            header,
-            &rows
-                .iter()
-                .map(|row| (&row.data, row.is_comment))
-                .collect::<Vec<_>>(),
-        )?;
-        builder.text_file(csv_table_spec(*table).rel_path, Some(text))?;
+        staged_tables.insert(table, draft.stage(&session, &mut builder)?);
     }
     json.finish()?;
     for identity in &mut identities {
         if let Some(table) =
             crate::domain::editor_config_definitions::entity_spec_definition(identity.after.kind)
                 .and_then(|definition| definition.csv_table)
-            && let Some((_, rows, _)) = tables.get(&table)
+            && let Some(rows) = staged_tables.get(&table).map(|csv| &csv.draft.rows)
             && let Some(row) = rows.iter().find(|row| {
                 !row.is_comment
                     && row.data.get("id").and_then(Value::as_str)
@@ -466,7 +464,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             identity,
             ..
         } = &mut record.target
-            && let Some((_, rows, _)) = tables.get(table)
+            && let Some(rows) = staged_tables.get(table).map(|csv| &csv.draft.rows)
         {
             let next_key = key_map
                 .iter()
@@ -518,20 +516,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         }
     }
     let changes = builder.apply()?;
-    for (table, (header, rows, next_seq)) in tables {
-        let state = session
-            .csv_tables
-            .get_mut(table.as_str())
-            .expect("registered table");
-        state.saved_text = changes
-            .iter()
-            .find(|change| {
-                Path::new(&change.after_path) == Path::new(&current.root.mod_root).join(&state.path)
-            })
-            .and_then(|change| change.after_text.clone());
-        state.header = header;
-        state.rows = Some(rows);
-        state.next_row_seq = next_seq;
+    for csv in staged_tables.into_values() {
+        csv.accept(&mut session);
     }
     let changed_versions = changes
         .iter()

@@ -1,12 +1,12 @@
 <template>
-  <main class="workspace">
-    <header class="topbar">
-      <div class="view-heading">
-        <div class="view-title">{{ MODULE_LABELS[tables.currentTab] }}</div>
-        <div class="view-meta">{{ tables.tableInfo }}</div>
+  <main class="workspace page-slot ui-content-contained ui-layout-grid ui-layout-stretch">
+    <header class="topbar page-header ui-control-between ui-layout-row ui-content-surface ui-layout-grid ui-layout-center">
+      <div class="view-heading page-identity ui-layout-grid ui-layout-shrink">
+        <div class="view-title ui-text-truncate ui-text-reset ui-text-normal">{{ MODULE_LABELS[tables.currentTab] }}</div>
+        <div class="view-meta page-description ui-text-description ui-text-muted ui-text-reset ui-text-small">{{ tables.tableInfo }}</div>
       </div>
-      <div class="top-actions">
-        <div class="top-action-group">
+      <div class="top-actions ui-control-row">
+        <div class="top-action-group ui-control-row ui-layout-row ui-layout-center">
           <n-input
             :value="tables.searchText"
             :disabled="tables.currentTableLocked"
@@ -24,13 +24,13 @@
             placeholder="搜索项"
           />
         </div>
-        <div class="top-action-group">
-          <n-button :disabled="tables.currentTableLocked || !project.activeManifest" @click="actions.addNewRow">新建</n-button>
+        <div class="top-action-group ui-control-row ui-layout-row ui-layout-center">
+          <n-button :disabled="tables.currentTableLocked || !workspace.activeManifest" @click="actions.addNewRow">新建</n-button>
           <n-button type="error" ghost :disabled="tables.currentTableLocked || !tables.selectedRowKey" @click="actions.deleteSelectedRow"
             >删除</n-button
           >
         </div>
-        <div class="top-action-group">
+        <div class="top-action-group ui-control-row ui-layout-row ui-layout-center">
           <n-button :disabled="tables.currentTableLocked || !tables.canUndoCurrentTableEdit" @click="actions.undoCurrentTableEdit"
             >撤销</n-button
           >
@@ -49,7 +49,7 @@
         </div>
       </div>
     </header>
-    <section class="content-grid">
+    <section class="content-grid ui-content-contained ui-layout-grid ui-layout-stretch">
       <DataTable :key="csvTable.targetKey.value" :csv-table="csvTable" />
       <DetailPane
         :query-row-preview="csvTable.querySelectedRowPreview"
@@ -68,12 +68,12 @@ import { useCsvTableViewModel } from '@/app/composables/tables/use-csv-table-vie
 import { useWorkspaceShellActions } from '@/app/composables/use-workspace-shell-actions';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useTablesStore } from '@/stores/tables.store';
-import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
 import { csvSearchOptions, csvSearchPlaceholder } from '@/domain/tables/csv-search';
 
 const tables = useTablesStore();
-const project = useProjectStore();
+const workspace = useWorkspaceStore();
 const csvTable = useCsvTableViewModel();
 const actions = useWorkspaceShellActions(useAppFeedback());
 

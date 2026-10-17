@@ -1,3 +1,4 @@
+import { useWindowCloseState } from '@/app/composables/use-window-close-state';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -22,6 +23,7 @@ export interface ContextMenuScope {
 type Scope = ContextMenuScope & { root: () => Node | null; revision: number };
 const menuKey: InjectionKey<ReturnType<typeof provideContextMenu>> = Symbol('context-menu');
 export function provideContextMenu() {
+  const closing = useWindowCloseState();
   const scopes = new Set<Scope>();
   let active = true;
   onScopeDispose(() => {
@@ -60,6 +62,7 @@ export function provideContextMenu() {
     };
   }
   function open(event: MouseEvent) {
+    if (closing?.value) return;
     if (event.defaultPrevented) return;
     event.preventDefault();
     const target = event.target as HTMLElement;
@@ -120,6 +123,8 @@ export function useWindowContextMenu() {
   const { menu, close, open, current } = provideContextMenu();
   const feedback = useAppFeedback(),
     commands = useSaveCommandStore();
+  const closing = useWindowCloseState();
+  watch(() => closing?.value, close, { flush: 'sync' });
   const selected = ref(-1);
   const enabled = computed(() => options.value.filter((option): option is MenuAction => !('type' in option) && !option.disabled));
   const activeKey = computed(() => enabled.value[selected.value]?.key);
@@ -152,6 +157,7 @@ export function useWindowContextMenu() {
     event.preventDefault();
   }
   async function select(key: string) {
+    if (closing?.value) return;
     const captured = menu.value!;
     close();
     try {

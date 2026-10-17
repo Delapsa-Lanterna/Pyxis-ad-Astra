@@ -1,9 +1,9 @@
-import type { TableKey } from '@/shared/types/project-identity.types';
+import type { CsvTableKey } from '@/shared/types/project-identity.types';
 import type { CsvDraftRow } from '@/shared/types/tables.types';
 
 export interface CsvCellValueSetOperation {
   type: 'cell-value-set';
-  tab: TableKey;
+  tab: CsvTableKey;
   rowKey: string;
   col: string;
   previousValue: string;
@@ -14,7 +14,7 @@ export interface CsvCellValueSetOperation {
 
 export interface CsvRowCreatedOperation {
   type: 'row-created';
-  tab: TableKey;
+  tab: CsvTableKey;
   rowKey: string;
   rowIndex: number;
   row: CsvDraftRow;
@@ -22,7 +22,7 @@ export interface CsvRowCreatedOperation {
 
 export interface CsvRowDeletedOperation {
   type: 'row-deleted';
-  tab: TableKey;
+  tab: CsvTableKey;
   rowKey: string;
   rowIndex: number;
   row: CsvDraftRow;

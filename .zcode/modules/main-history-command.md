@@ -6,14 +6,24 @@
 
 ## 参考
 
-`src/app/AppContent.vue`：主窗口装配入口，注册活动保存目标与窗口快捷键。
-`src/app/composables/canvas/use-canvas-editor.ts`：画布骨架快捷键消费方，经分发器路由 undo/redo 与画布纯键。
-`src/app/composables/use-main-window-shortcuts.ts`：主窗口快捷键装配 owner，连接保存注册表与历史编排。
-`src/app/composables/use-shortcut-dispatch.ts`：快捷键分发唯一 owner，拥有 window 监听、命令路由、纯键表分发与命中拦截。
-`src/domain/workspace/main-window-commands.ts`：快捷键命令映射唯一 owner，拥有 undo/redo/save/close 键位表与输入焦点豁免策略。
-`src/orchestrators/file-history-replay.orchestrator.ts`：文件历史回放 owner。
-`src/orchestrators/main-history-command.orchestrator.ts`：历史分派 owner，CSV 草稿优先于文件 history。
-`src/stores/save-command.store.ts`：活动保存命令、目标保存句柄和交接意图序号 owner。
+### 拥有
+
+- `src/app/composables/use-main-window-shortcuts.ts`：主窗口快捷键装配，连接保存注册表与历史编排。
+- `src/app/composables/use-shortcut-dispatch.ts`：快捷键分发唯一，拥有 window 监听、命令路由、纯键表分发与命中拦截。
+- `src/domain/workspace/main-window-commands.ts`：快捷键命令映射唯一，拥有 undo/redo/save/close 键位表与输入焦点豁免策略。
+- `src/orchestrators/main-history-command.orchestrator.ts`：历史分派，CSV 草稿优先于文件 history。
+
+### 消费
+
+- `src/app/composables/canvas/use-canvas-editor.ts`：画布骨架快捷键消费方，经分发器路由 undo/redo 与画布纯键。
+- `src/orchestrators/file-history-replay.orchestrator.ts`：文件历史回放。
+- `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
+- `src/stores/save-command.store.ts`：活动保存命令、目标保存句柄和交接意图序号。
+- `src/stores/workspace.store.ts`：当前 Mod 选择、清单与 session 的派生投影。
+
+### 装配
+
+- `src/app/AppContent.vue`：主窗口装配入口，注册活动保存目标与窗口快捷键。
 
 ## 边界
 
@@ -57,6 +67,7 @@
 - undo/redo 的可编辑目标豁免必须可按表面开启，文本编辑面必须开启。
 - 主窗口历史分派失败只呈现反馈，严禁改变历史栈状态。
 - 主窗口装配必须消费统一分发器，键盘解析只允许由领域键位表完成，历史调用必须经过正式分派。
+- 当前展示目标必须消费工作区的当前项目投影，异步动作必须捕获并持续消费所属 Mod 根与 session。
 - 快捷键纯键命中必须阻止默认行为；命令命中但无处理器时严禁阻止默认行为。
 - 快捷键触发必须避免与输入控件、schema 控件、CSV 单元格编辑器和系统快捷键冲突。
 - 检查器与 schema 的输入焦点必须保留原生撤销体验；文本文件编辑面必须按已声明的焦点策略消费文本快照历史。

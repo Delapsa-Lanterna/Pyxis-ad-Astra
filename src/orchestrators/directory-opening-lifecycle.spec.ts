@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@/services/window.service', () => ({ closeNativeSessionWindows: vi.fn(async () => true) }));
+const requestClose = vi.fn(async (scope: import('@/shared/types').CloseScope) => ({
+  status: 'closed' as const,
+  destroyedWindows: [],
+  releasedSessions: scope.kind === 'sessions' ? scope.sessionIds : [],
+  diagnostic: null,
+}));
 import { createPinia, setActivePinia } from 'pinia';
 import { openDirectoryTarget, openModFromOverview } from '@/orchestrators/directory-opening.orchestrator';
 import {
@@ -80,7 +85,7 @@ describe('directory opening lifecycle', () => {
   it('closes a late session after its loading Mod is removed', async () => {
     const pending = pendingOpen();
     const opening = openModFromOverview(modRoot);
-    await removeLoadedModRuntime(modRoot);
+    await removeLoadedModRuntime(modRoot, requestClose);
     pending.resolve(manifest('stale'));
     await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot });
     expect(mocks.closeProject).toHaveBeenCalledWith('stale');
@@ -97,7 +102,7 @@ describe('directory opening lifecycle', () => {
       }),
     );
     const opening = openDirectoryTarget(modRoot, null);
-    await closeWorkspaceRuntime(captureWorkspaceCloseTarget());
+    await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     resolveDetection({ kind: 'unknown', modRoot: null, starsectorRoot: null, overview: null, warnings: [] });
     await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot });
   });
@@ -105,7 +110,7 @@ describe('directory opening lifecycle', () => {
   it('keeps the new opening when the previous request succeeds later', async () => {
     const pending = pendingOpen();
     const oldOpening = openModFromOverview(modRoot);
-    await removeLoadedModRuntime(modRoot);
+    await removeLoadedModRuntime(modRoot, requestClose);
     mocks.openProject.mockResolvedValueOnce(manifest('current'));
     await openModFromOverview(modRoot);
     pending.resolve(manifest('stale'));
@@ -119,7 +124,7 @@ describe('directory opening lifecycle', () => {
   it('keeps the new opening when the previous request fails later', async () => {
     const pending = pendingOpen();
     const oldOpening = openModFromOverview(modRoot);
-    await removeLoadedModRuntime(modRoot);
+    await removeLoadedModRuntime(modRoot, requestClose);
     mocks.openProject.mockResolvedValueOnce(manifest('current'));
     await openModFromOverview(modRoot);
     pending.reject(new Error('old opening failed'));
@@ -131,7 +136,7 @@ describe('directory opening lifecycle', () => {
   it('closes every late session after the captured workspace is closed', async () => {
     const pending = pendingOpen();
     const opening = openModFromOverview(modRoot);
-    await closeWorkspaceRuntime(captureWorkspaceCloseTarget());
+    await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     pending.resolve(manifest('stale'));
     await opening;
     expect(useWorkspaceStore().hasLoadedMods).toBe(false);
@@ -151,7 +156,7 @@ describe('directory opening lifecycle', () => {
     const pending = pendingOpen();
     const restoring = restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: vi.fn() });
     await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(1));
-    await closeWorkspaceRuntime(captureWorkspaceCloseTarget());
+    await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     pending.resolve(manifest('restored-stale'));
     await restoring;
     expect(useProjectStore().manifests.size).toBe(0);
@@ -178,7 +183,7 @@ describe('directory opening lifecycle', () => {
     );
     const restoring = restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: vi.fn() });
     await vi.waitFor(() => expect(mocks.scanDirectoryGameOverview).toHaveBeenCalledTimes(1));
-    await closeWorkspaceRuntime(captureWorkspaceCloseTarget());
+    await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     resolveScan({ starsectorRoot, mods: [], warnings: [] });
     await restoring;
     expect(useWorkspaceStore().gameOverview).toBeNull();

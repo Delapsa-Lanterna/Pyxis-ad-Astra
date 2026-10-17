@@ -6,18 +6,31 @@
 
 ## 参考
 
-`src/app/components/spec-editor/weapon/SpecWeaponEditor.vue`：武器控件与画布事件绑定。
-`src/app/composables/spec-editor/weapon/use-spec-weapon-editor-dependencies.ts`：武器贴图与弹体选项目录的读取接纳 owner。
-`src/app/composables/spec-editor/weapon/use-spec-weapon-editor-view-model.ts`：武器文档、发射点动作、挂载视图与光效预览 owner。
-`src/app/renderers/spec-editor/weapon/spec-weapon-scene.ts`：武器场景视觉规则与绘制入口。
-`src/domain/editors/lib/weapon-sprite-fields.ts`：武器贴图字段、键映射及 origin 比例。
-`src/domain/editors/weapon-images.ts`：静态装备贴图、绘制阶段及已装载导弹纯投影。
-`src/domain/editors/weapon-render-order.ts`：装备绘制顺序、位置修正与槽位 ID 比较。
-`src/domain/editors/weapon-spec.ts`：武器创建、归一化、分支转换与正式类型入口。
-`src/domain/spec-editor/weapon/spec-weapon-editing.ts`：发射点操作、上下镜像及候选预览。
-`src/services/spec-weapon-editor.service.ts`：武器编辑数据、贴图和弹体选项目录的查询入口。
-`src/services/weapon-data.service.ts`：武器规格、CSV 与授权武器资源的共享查询。
-`src/windows/spec-editor.window.ts`：武器与弹体动作消费的 managed 规格窗口入口。
+### 拥有
+
+- `src/app/components/spec-editor/weapon/`：武器画布、检查器与行为测试。
+- `src/app/components/spec-editor/weapon/SpecWeaponEditor.vue`：武器控件与画布事件绑定。
+- `src/app/composables/spec-editor/weapon/`：武器字段、发射点动作、光效与资源依赖生命周期。
+- `src/app/composables/spec-editor/weapon/use-spec-weapon-editor-dependencies.ts`：武器贴图与弹体选项目录的读取接纳。
+- `src/app/composables/spec-editor/weapon/use-spec-weapon-editor-view-model.ts`：武器文档、发射点动作、挂载视图与光效预览。
+- `src/app/renderers/spec-editor/weapon/`：武器贴图与发射点场景。
+- `src/app/renderers/spec-editor/weapon/spec-weapon-scene.ts`：武器场景视觉规则与绘制入口。
+- `src/domain/editors/lib/weapon-sprite-fields.ts`：武器贴图字段、键映射及 origin 比例。
+- `src/domain/editors/weapon-images.ts`：静态装备贴图、绘制阶段及已装载导弹纯投影。
+- `src/domain/editors/weapon-render-order.ts`：装备绘制顺序、位置修正与槽位 ID 比较。
+- `src/domain/editors/weapon-spec.ts`：武器创建、归一化、分支转换与正式类型入口。
+- `src/domain/spec-editor/weapon/`：发射点动作、镜像及操作预览规则。
+- `src/domain/spec-editor/weapon/spec-weapon-editing.ts`：发射点操作、上下镜像及候选预览。
+- `src/services/spec-weapon-editor.service.ts`：武器编辑数据、贴图和弹体选项目录的查询入口。
+- `src/services/weapon-data.service.ts`：武器规格、CSV 与授权武器资源的共享查询。
+
+### 消费
+
+- `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+
+### 关联
+
+- `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
 
 ## 边界
 

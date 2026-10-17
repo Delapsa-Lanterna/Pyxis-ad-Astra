@@ -5,7 +5,7 @@ import type { EntityData, ResourceRef, RowData } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   querySessionEntity: vi.fn(),
   querySessionEntityList: vi.fn(async () => [] as { id: string }[]),
-  querySessionEditorDraftResources: vi.fn(async () => ({})),
+  querySessionDraftResources: vi.fn(async () => ({})),
   queryResourceDataUrls: vi.fn(async () => [] as (string | null)[]),
   invokeCommand: vi.fn(),
   queryJointCandidate: vi.fn(),
@@ -18,7 +18,9 @@ vi.mock('@/services/entity-query.service', () => ({
   })),
   querySessionEntity: mocks.querySessionEntity,
   querySessionEntityList: mocks.querySessionEntityList,
-  querySessionEditorDraftResources: mocks.querySessionEditorDraftResources,
+}));
+vi.mock('@/services/resource-reference.service', () => ({
+  querySessionDraftResources: mocks.querySessionDraftResources,
 }));
 
 vi.mock('@/services/resource-cache.service', () => ({
@@ -30,7 +32,7 @@ vi.mock('@/shared/runtime/command.runtime', () => ({
 }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: mocks.queryJointCandidate }));
 
-import { queryWeaponFirePreviewData } from './weapon-fire-preview.service';
+import { queryWeaponFirePreviewData, queryWeaponFirePreviewImages } from './weapon-fire-preview.service';
 
 function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityData {
   return {
@@ -60,7 +62,7 @@ describe('weapon fire preview queries', () => {
       return null;
     });
     mocks.queryResourceDataUrls.mockResolvedValue(['data:image/png;base64,DRAFT']);
-    mocks.querySessionEditorDraftResources.mockResolvedValue({
+    mocks.querySessionDraftResources.mockResolvedValue({
       turretSprite: { source: 'mod', relPath: 'graphics/draft.png', ownerKind: 'weapon', ownerId: 'railgun', key: 'turretSprite' },
     });
 
@@ -75,8 +77,10 @@ describe('weapon fire preview queries', () => {
 
     expect(bundle.weapon.projectileSpecId).toBe('proj_b');
     expect(bundle.projectileSpecs).toEqual({ proj_b: { id: 'proj_b', specClass: 'projectile', length: 42 } });
-    expect(bundle.weaponSpriteData).toEqual({ turretSprite: 'data:image/png;base64,DRAFT' });
-    expect(mocks.querySessionEditorDraftResources).toHaveBeenCalledWith(
+    expect(bundle.weaponSpriteData).toEqual({});
+    expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(0);
+    expect(await queryWeaponFirePreviewImages('s1', bundle.resourceRefs)).toEqual({ turretSprite: 'data:image/png;base64,DRAFT' });
+    expect(mocks.querySessionDraftResources).toHaveBeenCalledWith(
       's1',
       'weapon',
       'railgun',

@@ -2,7 +2,7 @@
   <ImmersiveGameFrame class="variant-weapon-groups" :images="images" :style="{ height: groupDialogHeight(equipped.length) + 'px' }">
     <div
       ref="surface"
-      class="variant-group-content"
+      class="variant-group-content ui-text-normal ui-layout-row ui-layout-stack"
       role="dialog"
       aria-modal="true"
       aria-label="管理武器组"
@@ -12,8 +12,10 @@
       @keydown="shiftHeld = $event.shiftKey"
       @keyup="shiftHeld = $event.shiftKey"
     >
-      <header><ImmersiveText text="管理武器组" font="heading" ink-aligned outlined /></header>
-      <div class="variant-group-autofire">
+      <header class="variant-group-content-heading ui-control-center ui-content-surface-muted">
+        <ImmersiveText text="管理武器组" font="heading" ink-aligned outlined />
+      </header>
+      <div class="variant-group-autofire ui-layout-grid ui-layout-center">
         <ImmersiveText text="开战时自动开火" ink-aligned outlined />
         <ImmersiveSquareToggle
           v-for="(group, index) in groups"
@@ -27,11 +29,16 @@
           @change="setGroup(index, 'autofire', !group.autofire)"
         />
       </div>
-      <div class="variant-group-tables">
-        <section class="variant-group-matrix" :style="{ height: groupTableHeight(equipped.length) + 'px' }">
-          <div class="variant-group-table-header">
-            <span><ImmersiveText text="武器" font="heading" ink-aligned outlined /></span>
-            <span v-for="index in WEAPON_GROUP_COUNT" :key="index"
+      <div class="variant-group-tables ui-layout-row">
+        <section class="variant-group-matrix ui-layout-row ui-layout-stack" :style="{ height: groupTableHeight(equipped.length) + 'px' }">
+          <div class="variant-group-table-header ui-layout-grid ui-layout-center">
+            <span class="variant-group-table-header-label ui-control-center ui-control-border"
+              ><ImmersiveText text="武器" font="heading" ink-aligned outlined
+            /></span>
+            <span
+              class="variant-group-table-header-label ui-control-center ui-control-border"
+              v-for="index in WEAPON_GROUP_COUNT"
+              :key="index"
               ><ImmersiveText :text="String(index)" font="heading" ink-aligned outlined
             /></span>
           </div>
@@ -39,7 +46,7 @@
             <div
               v-for="weapon in equipped"
               :key="String(weapon.slot.id)"
-              class="variant-group-weapon-row"
+              class="variant-group-weapon-row ui-layout-grid ui-layout-center"
               :class="{ highlighted: highlighted(weapon) }"
               :style="{ backgroundColor: groupWeaponColor(weapon) + '40' }"
               @mouseenter="hoverWeapon(weapon, $event)"
@@ -47,7 +54,7 @@
               @mouseleave="hoveredWeapon = null"
             >
               <span
-                class="variant-group-weapon-name"
+                class="variant-group-weapon-name ui-layout-row ui-layout-center ui-layout-clip"
                 :title="weapon.name + ' · ' + weapon.slot.id + (weapon.diagnostic ? '\n' + weapon.diagnostic : '')"
               >
                 <ImmersiveText
@@ -55,7 +62,13 @@
                   ink-aligned
                   outlined
                 />
-                <svg width="16" height="16" :aria-label="'射界 ' + weapon.slot.arc + '°'" viewBox="-8 -8 16 16">
+                <svg
+                  class="variant-group-weapon-name-icon"
+                  width="16"
+                  height="16"
+                  :aria-label="'射界 ' + weapon.slot.arc + '°'"
+                  viewBox="-8 -8 16 16"
+                >
                   <circle
                     v-for="radius in [7.5, 7.25, 7.75]"
                     :key="radius"
@@ -103,16 +116,20 @@
           </div>
         </section>
         <section class="variant-group-summary">
-          <div class="variant-group-summary-header">
-            <span><ImmersiveText text="武器组" font="heading" ink-aligned outlined /></span
-            ><span><ImmersiveText text="开火模式" font="heading" ink-aligned outlined /></span
-            ><span><ImmersiveText text="幅能" font="heading" ink-aligned outlined /></span>
+          <div class="variant-group-summary-header ui-layout-grid ui-layout-center">
+            <span class="variant-group-summary-header-label ui-control-center ui-control-border"
+              ><ImmersiveText text="武器组" font="heading" ink-aligned outlined /></span
+            ><span class="variant-group-summary-header-label ui-control-center ui-control-border"
+              ><ImmersiveText text="开火模式" font="heading" ink-aligned outlined /></span
+            ><span class="variant-group-summary-header-label ui-control-center ui-control-border"
+              ><ImmersiveText text="幅能" font="heading" ink-aligned outlined
+            /></span>
           </div>
           <div class="variant-group-summary-list">
             <button
               v-for="(group, index) in groups"
               :key="index"
-              class="variant-group-summary-row"
+              class="variant-group-summary-row ui-button ui-layout-grid ui-layout-center ui-control-pointer ui-layout-stretch ui-control-reset"
               :class="{ empty: !members(group).length }"
               :style="{ backgroundColor: members(group).length ? groupColor(members(group)) + '40' : '#000000' }"
               :aria-label="'第' + (index + 1) + '组开火模式'"
@@ -145,7 +162,7 @@
             </button>
           </div>
           <div class="variant-group-budget">
-            <div v-for="stat in budget" :key="stat.label">
+            <div class="variant-group-budget-content ui-control-between" v-for="stat in budget" :key="stat.label">
               <ImmersiveText :text="stat.label" ink-aligned outlined /><ImmersiveText
                 :text="integerFlux(stat.value)"
                 ink-aligned
@@ -155,9 +172,19 @@
           </div>
         </section>
       </div>
-      <div class="variant-group-actions">
-        <button class="variant-cut-button" @click="confirm"><ImmersiveText text="确认" font="picker-title" ink-aligned /></button>
-        <button class="variant-cut-button" @click="cancel"><ImmersiveText text="取消" font="picker-title" ink-aligned /></button>
+      <div class="variant-group-actions ui-layout-row">
+        <button
+          class="variant-cut-button ui-button variant-group-actions-button ui-layout-inline ui-layout-center ui-control-pointer ui-content-surface-muted"
+          @click="confirm"
+        >
+          <ImmersiveText text="确认" font="picker-title" ink-aligned />
+        </button>
+        <button
+          class="variant-cut-button ui-button variant-group-actions-button ui-layout-inline ui-layout-center ui-control-pointer ui-content-surface-muted"
+          @click="cancel"
+        >
+          <ImmersiveText text="取消" font="picker-title" ink-aligned />
+        </button>
       </div>
     </div>
   </ImmersiveGameFrame>

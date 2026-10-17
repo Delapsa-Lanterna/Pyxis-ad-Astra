@@ -1,4 +1,5 @@
 import { trimmedConfigStringField } from '@/domain/config/config-entities';
+import { entityContentIdField } from '@/domain/project/entity-definitions';
 import type { ConfigFamilyFile } from '@/shared/types';
 
 /**
@@ -53,7 +54,7 @@ export const variantFamily: ConfigEntityFamilyDefinition = {
   displayName: '装配',
   schemaId: 'variant',
   entityKind: 'variant',
-  idField: 'variantId',
+  idField: entityContentIdField('variant'),
   companionField: 'hullId',
   companionLabel: 'hullId',
   directoryHint: '未找到 data/variants 下的 .variant 文件。',
@@ -71,7 +72,7 @@ export const skinFamily: ConfigEntityFamilyDefinition = {
   displayName: '舰船皮肤',
   schemaId: 'skin',
   entityKind: 'skin',
-  idField: 'skinHullId',
+  idField: entityContentIdField('skin'),
   companionField: 'baseHullId',
   companionLabel: 'baseHullId',
   directoryHint: '未找到 data/hulls/skins 下的 .skin 文件。',

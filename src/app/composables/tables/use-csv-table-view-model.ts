@@ -1,6 +1,8 @@
+import { hasSourceInvalidation } from '@/services/source-options.service';
+import { hasTableInvalidation } from '@/services/csv-table.service';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { parseCsvSource } from '@/domain/tables/csv-source-options';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -16,7 +18,7 @@ import { stableStringify } from '@/shared/lib/stable-compare';
 import { queryTableRowPreviewDataUrl, queryTableWindow } from '@/services/csv-table.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import type { SelectOption } from '@/domain/schema/schema-options';
-import { hasSourceInvalidation, hasTableInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
@@ -34,9 +36,9 @@ export function useCsvTableViewModel() {
   let disposed = false;
   let refreshAfterSave = false;
   const target = computed(() =>
-    project.activeSessionId && tables.activeModRoot
+    workspace.activeSessionId && tables.activeModRoot
       ? {
-          sessionId: project.activeSessionId,
+          sessionId: workspace.activeSessionId,
           modRoot: tables.activeModRoot,
           table: tables.currentTab,
         }
@@ -57,7 +59,7 @@ export function useCsvTableViewModel() {
         }),
       ]);
       const targets = project.tableWriteTargets.filter((target) => target.sessionId === captured.sessionId && tables.has(target.table));
-      const coreSources = project.activeManifest!.coreAvailable
+      const coreSources = workspace.activeManifest!.coreAvailable
         ? targets.map((target) => ({ source: 'core' as const, relPath: relativePathFromRoot(captured.modRoot, target.path) }))
         : [];
       return refreshProjectSourcePaths(
@@ -162,7 +164,7 @@ export function useCsvTableViewModel() {
   }
 
   const stopQueryInvalidation = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== project.activeSessionId) return;
+    if (event.sessionId !== workspace.activeSessionId) return;
     if (event.scope === 'session') {
       reads.revoke();
       return;
@@ -205,7 +207,7 @@ export function useCsvTableViewModel() {
     { flush: 'sync' },
   );
   const stopResourceInvalidation = subscribeResourceInvalidations((event) => {
-    if (event.sessionId !== project.activeSessionId) return;
+    if (event.sessionId !== workspace.activeSessionId) return;
     if (!hasResourceInvalidation(event, loadedSourceResourceRefs())) return;
     reads.schedule('source', () => {
       void reloadVisibleSourceOptions();
@@ -264,7 +266,7 @@ export function useCsvTableViewModel() {
   }
 
   async function loadTableWindow(start: number, count: number) {
-    const sessionId = project.activeSessionId;
+    const sessionId = workspace.activeSessionId;
     if (!sessionId || count <= 0) return;
     const table = tables.currentTab;
     const modRoot = tables.activeModRoot!;
@@ -300,7 +302,7 @@ export function useCsvTableViewModel() {
   }
 
   async function reloadVisibleSourceOptions() {
-    const sessionId = project.activeSessionId;
+    const sessionId = workspace.activeSessionId;
     if (!sessionId) return;
     const table = tables.currentTab;
     const sources = [...visibleSourceIds()];

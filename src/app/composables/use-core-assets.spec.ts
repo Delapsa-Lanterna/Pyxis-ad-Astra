@@ -1,11 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { effectScope } from 'vue';
+import { effectScope, ref, type Ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics } from '@/orchestrators/core-assets.orchestrator';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useCoreGraphics, useCoreSchema } from './use-core-assets';
-import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
 import type { DiscoveredField } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
@@ -14,15 +12,16 @@ vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log })
 const fields: Record<string, DiscoveredField[]> = { faction: [{ key: 'bonus', type: 'string', origin: 'core' }] };
 let stop: () => void;
 let scope: ReturnType<typeof effectScope>;
+let root: Ref<string | null>;
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  initializeSettingsStore(createSettingsFixture({ starsectorRoot: 'D:/A' }));
+  root = ref<string | null>('D:/A');
   vi.clearAllMocks();
   mocks.fields.mockResolvedValue(fields);
   mocks.graphics.mockResolvedValue(['graphics/a.png']);
   scope = effectScope();
-  stop = scope.run(startCoreAssetsLoading)!;
+  stop = scope.run(() => startCoreAssetsLoading(root))!;
 });
 afterEach(() => {
   stop();
@@ -30,6 +29,34 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  it('registers the root without reading until a consumer requests each resource', async () => {
+    expect(useCoreAssetsStore().root).toBe('D:/A');
+    expect(mocks.fields).not.toHaveBeenCalled();
+    expect(mocks.graphics).not.toHaveBeenCalled();
+    await loadCoreFields();
+    expect(mocks.fields).toHaveBeenCalledExactlyOnceWith('D:/A');
+    expect(mocks.graphics).not.toHaveBeenCalled();
+  });
+  it('isolates loaders, responses and release between window stores', async () => {
+    const first = useCoreAssetsStore();
+    const firstPending = loadCoreFields();
+    const secondPinia = createPinia();
+    setActivePinia(secondPinia);
+    const secondRoot = ref<string | null>('D:/second');
+    const secondScope = effectScope();
+    const stopSecond = secondScope.run(() => startCoreAssetsLoading(secondRoot))!;
+    const second = useCoreAssetsStore();
+    await loadCoreGraphics();
+    await firstPending;
+    expect(first.fields.status).toBe('ready');
+    expect(second.fields.status).toBe('idle');
+    expect(second.graphics.status).toBe('ready');
+    stop();
+    expect(first.root).toBeNull();
+    expect(second.root).toBe('D:/second');
+    stopSecond();
+    secondScope.stop();
+  });
   it('projects loaded fields and graphics through reactive facades', async () => {
     const schema = useCoreSchema();
     const graphics = useCoreGraphics();
@@ -66,7 +93,7 @@ describe('Core asset ownership and acceptance', () => {
           resolve = yes;
         }),
     );
-    useSettingsStore().setStarsectorRoot('D:/B');
+    root.value = 'D:/B';
     expect(useCoreAssetsStore().fields.content).toEqual({});
     expect(useCoreAssetsStore().fields.status).toBe('loading');
     await loadCoreGraphics();
@@ -86,8 +113,8 @@ describe('Core asset ownership and acceptance', () => {
         }),
     );
     const old = loadCoreFields();
-    useSettingsStore().setStarsectorRoot('D:/B');
-    useSettingsStore().setStarsectorRoot('D:/A');
+    root.value = 'D:/B';
+    root.value = 'D:/A';
     await loadCoreFields();
     if (completion === 'resolve') resolve({});
     else reject(new Error('stale'));
@@ -116,7 +143,7 @@ describe('Core asset ownership and acceptance', () => {
         }),
     );
     const pending = loadCoreFields();
-    if (action === 'clear') useSettingsStore().setStarsectorRoot(null);
+    if (action === 'clear') root.value = null;
     else stop();
     resolve(fields);
     await pending;

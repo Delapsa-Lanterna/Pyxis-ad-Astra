@@ -1,5 +1,5 @@
 export const CSS_TOKEN_OWNER = 'src/styles/base.css';
-export const ORIGINAL_SPACING_OWNER = 'src/styles/immersive-editors.css';
+export const ORIGINAL_SPACING_OWNER = 'src/styles/immersive.css';
 
 export const THIRD_PARTY_PROPERTIES = new Map([
   [
@@ -128,26 +128,26 @@ export const SPECIAL_VALUES = [
     ['.variant-group-budget', 'margin-left', '20px'],
     ['.variant-group-actions', 'gap', '11px'],
     ['.variant-group-actions', 'padding-top', '10px'],
-  ].map(([selector, property, value]) => ['src/styles/immersive-editors.css', selector, property, value]),
-  ['src/styles/base.css', '.schema-select-option-thumb', 'border-radius', '2px'],
-  ['src/styles/base.css', '.color-picker-sv-handle', 'border-radius', '50%'],
-  ['src/styles/base.css', '.color-picker-sv-handle', 'box-shadow', '0 0 0 1px rgba(0,0,0,0.72)'],
-  ['src/styles/base.css', '::-webkit-scrollbar-thumb', 'border-radius', '999px'],
-  ['src/styles/workspace.css', '.mod-tab-status', 'border-radius', '50%'],
-  ['src/styles/workspace.css', '.mod-tab-dirty', 'border-radius', '50%'],
-  ['src/styles/config.css', '.config-entity-list-item.active', 'box-shadow', 'inset 2px 0 0 var(--color-primary)'],
-  ['src/styles/settings.css', '.accent-swatch-button.active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary)'],
-  ['src/styles/settings.css', '.accent-custom-control.active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary)'],
-  ['src/styles/tables.css', '.data-table th', 'box-shadow', 'inset 0-1px 0 var(--color-border-strong)'],
-  ['src/styles/tables.css', '.data-table tr.selected td', 'box-shadow', 'inset 0-1px 0 var(--color-primary-border)'],
-  ['src/styles/tables.css', '.data-table td.dirty', 'box-shadow', 'inset 0 0 0 1px var(--color-warning-border)'],
-  ['src/styles/tables.css', '.data-table td.csv-cell-active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary-border)'],
-  ['src/styles/tables.css', '.csv-cell-frame-active', 'box-shadow', '0 0 0 1px var(--color-primary-soft)'],
-  ['src/styles/overview.css', '.overview-mod-card.card-active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary-border)'],
+  ],
+  ['.schema-select-option-thumb', 'border-radius', '2px'],
+  ['.color-picker-sv-handle', 'border-radius', '50%'],
+  ['.color-picker-sv-handle', 'box-shadow', '0 0 0 1px rgba(0,0,0,0.72)'],
+  ['::-webkit-scrollbar-thumb', 'border-radius', '999px'],
+  ['.mod-tab-status', 'border-radius', '50%'],
+  ['.mod-tab-dirty', 'border-radius', '50%'],
+  ['.config-entity-list-item.active', 'box-shadow', 'inset 2px 0 0 var(--color-primary)'],
+  ['.accent-swatch-button.active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary)'],
+  ['.accent-custom-control.active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary)'],
+  ['.data-table th', 'box-shadow', 'inset 0-1px 0 var(--color-border-strong)'],
+  ['.data-table tr.selected td', 'box-shadow', 'inset 0-1px 0 var(--color-primary-border)'],
+  ['.data-table td.dirty', 'box-shadow', 'inset 0 0 0 1px var(--color-warning-border)'],
+  ['.data-table td.csv-cell-active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary-border)'],
+  ['.csv-cell-frame-active', 'box-shadow', '0 0 0 1px var(--color-primary-soft)'],
+  ['.overview-mod-card.card-active', 'box-shadow', 'inset 0 0 0 1px var(--color-primary-border)'],
   ...[
     '.mod-tab-close:focus-visible',
     '.mod-tab-activate:focus-visible',
     '.mod-tabs-overview:focus-visible',
     '.mod-navigation-button:focus-visible',
-  ].map((selector) => ['src/styles/workspace.css', selector, 'box-shadow', 'inset 0 0 0 1px var(--color-primary-border)']),
+  ].map((selector) => [selector, 'box-shadow', 'inset 0 0 0 1px var(--color-primary-border)']),
 ];

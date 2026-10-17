@@ -1,7 +1,7 @@
 <template>
-  <div v-if="records.length" class="immersive-source-notice">
+  <div v-if="records.length" class="immersive-source-notice ui-layout-grid">
     <strong><ImmersiveText text="来源与补全" font="heading" /></strong>
-    <div v-for="record in records" :key="record.key">
+    <div class="immersive-source-notice-content ui-layout-grid ui-text-wrap" v-for="record in records" :key="record.key">
       <span><ImmersiveText :text="record.source?.source === 'core' ? '原版来源' : '来源记录缺失'" /></span>
       <small><ImmersiveText :text="record.source?.path ?? writePath(record)" block /></small>
       <small v-if="record.referencedBy.length > 1"><ImmersiveText :text="'关联：' + record.referencedBy.join('、')" block /></small>

@@ -6,13 +6,21 @@
 
 ## 参考
 
-`src-tauri/src/services/project/performance.rs`：后端 ProjectSession 阶段打点 owner。
-`src/app/components/tables/CsvGrid.vue`：单元格激活与选行计时的消费入口。
-`src/app/composables/config/use-config-family-view-model.ts`：配置列表首帧打点消费方。
-`src/app/composables/tables/use-csv-table-view-model.ts`：source 目录与查询缓存打点消费方。
-`src/services/app-log.service.ts`：日志 sink 的接收交接能力，启动时显式注册。
-`src/services/resource-media.service.ts`：可视区媒体批次打点消费方。
-`src/shared/runtime/performance.ts`：性能记录 owner，拥有计时格式化、记录入口与可注入日志 sink。
+### 拥有
+
+- `src-tauri/src/services/project/performance.rs`：后端 ProjectSession 阶段打点。
+
+### 消费
+
+- `src/services/app-log.service.ts`：日志 sink 的接收交接能力，启动时显式注册。
+- `src/shared/runtime/performance.ts`：性能记录，拥有计时格式化、记录入口与可注入日志 sink。
+
+### 关联
+
+- `src/app/components/tables/CsvGrid.vue`：单元格激活与选行计时的消费入口。
+- `src/app/composables/config/use-config-family-view-model.ts`：配置列表首帧打点消费方。
+- `src/app/composables/tables/use-csv-table-view-model.ts`：source 目录与查询缓存打点消费方。
+- `src/services/resource-media.service.ts`：可视区媒体批次打点消费方。
 
 ## 边界
 

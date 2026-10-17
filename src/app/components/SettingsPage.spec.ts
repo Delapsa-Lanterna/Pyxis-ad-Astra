@@ -44,7 +44,7 @@ describe('settings limit controls', () => {
     const sections = wrapper.findAll('section');
     expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑模式', '全局限制']);
     const immersive = sections[2]!;
-    expect(immersive.findAll('.settings-row > span').map((label) => label.text())).toEqual(['通用字体', '沉浸式编辑器原版字体']);
+    expect(immersive.findAll('.settings-row > span').map((label) => label.text())).toEqual(['通用字体', '沉浸式编辑器字体']);
     expect(useSettingsStore().generalFont).toBeNull();
     await immersive.get('select').setValue('"Microsoft YaHei"');
     expect(useSettingsStore().generalFont).toBe('Microsoft YaHei');

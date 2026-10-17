@@ -1,4 +1,6 @@
+import { useSaveCommandStore } from '@/stores/save-command.store';
 import { onMounted, onUnmounted } from 'vue';
+import { useWindowLifecycleActions } from './use-window-close-state';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -22,6 +24,7 @@ export function useWorkspaceShellLifecycle(
   selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>,
 ) {
   useTableSaveParticipants(feedback, selectAssociatedSpecs);
+  const { requestClose } = useWindowLifecycleActions();
   const settings = useSettingsStore();
   const workspace = useWorkspaceStore();
   const { loadCoreFields } = useCoreSchema();
@@ -66,24 +69,26 @@ export function useWorkspaceShellLifecycle(
     let shouldPersistRestoredWorkspace = false;
     try {
       persistence.beginRestore();
-      await restorePersistedWorkspace({
-        isCurrent: () => !disposed,
-        knownStarsectorRoot: settings.starsectorRoot,
-        loadCoreFields,
-        onModRestoreError: async (modRoot, displayName, error) => {
-          if (disposed) return;
-          await removeLoadedModRuntime(modRoot);
-          if (disposed) return;
-          workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
-          feedback.error(error, `恢复 ${displayName} 失败`);
-        },
-        onModRestoreWarnings: (displayName, warnings) => {
-          if (disposed) return;
-          for (const warning of warnings) {
-            feedback.warning({ ...warning, userMessage: `${displayName}：${warning.userMessage}` });
-          }
-        },
-      });
+      await useSaveCommandStore().trackCloseAction(
+        restorePersistedWorkspace({
+          isCurrent: () => !disposed,
+          knownStarsectorRoot: settings.starsectorRoot,
+          loadCoreFields,
+          onModRestoreError: async (modRoot, displayName, error) => {
+            if (disposed) return;
+            await removeLoadedModRuntime(modRoot, requestClose);
+            if (disposed) return;
+            workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
+            feedback.error(error, `恢复 ${displayName} 失败`);
+          },
+          onModRestoreWarnings: (displayName, warnings) => {
+            if (disposed) return;
+            for (const warning of warnings) {
+              feedback.warning({ ...warning, userMessage: `${displayName}：${warning.userMessage}` });
+            }
+          },
+        }),
+      );
       shouldPersistRestoredWorkspace = !disposed;
     } catch (error) {
       if (!disposed) feedback.error(error, '恢复工作区状态失败');

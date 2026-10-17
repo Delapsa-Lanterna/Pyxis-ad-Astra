@@ -1,11 +1,19 @@
 use crate::models::{
-    CsvTableKey, EntitySummaries, GameScanWarning, LoadedSpecRecord, ProjectManifest, SkinFile,
+    CsvTableKey, EntityFileLocation, EntitySummaries, GameScanWarning, ProjectManifest, SkinFile,
     VariantFile,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LoadedSpecRecord {
+    pub id: String,
+    pub location: EntityFileLocation,
+    pub data: serde_json::Value,
+}
 
 pub(super) const MISSION_LIST_TABLE_KEY: &str = "missions";
 

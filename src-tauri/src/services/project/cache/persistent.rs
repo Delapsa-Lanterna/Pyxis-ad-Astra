@@ -1,10 +1,11 @@
+use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
     io::{
         forward_slash_path, read_text_bytes_no_bom, read_utf8_no_bom, validate_walk_entry,
         write_utf8_no_bom,
     },
-    models::{CsvTableKey, LoadedSpecRecord},
+    models::CsvTableKey,
     parsers::parse_persisted_json,
 };
 use serde::{Deserialize, Serialize};

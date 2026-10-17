@@ -1,191 +1,100 @@
-/* File history page */
-
-.file-history-page {
+.file-history-confirm {
   display: grid;
+  gap: var(--space-2);
+}
+.file-history-confirm .file-history-confirm-description {
+  margin: 0;
+  color: var(--color-muted);
+}
+.file-history-confirm-list {
+  display: grid;
+  max-height: 180px;
+  padding-left: 18px;
+  margin: 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.file-history-page {
   align-content: start;
   gap: var(--space-3);
   flex: 1;
-  min-width: 0;
-  min-height: 0;
   padding: var(--space-7) var(--space-9);
   overflow-y: auto;
-  background: var(--color-panel-muted);
 }
-
 .file-history-header {
-  display: flex;
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
 }
-
-.file-history-header h1 {
-  margin: 0 0 var(--space-1);
-  color: var(--color-text);
-  font-size: 22px;
-  font-weight: 650;
-}
-
-.file-history-header p {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
 .file-history-summary {
-  display: grid;
   grid-template-columns: repeat(3, minmax(120px, 1fr));
   gap: var(--space-3);
 }
-
-.file-history-summary > div {
-  display: grid;
+.file-history-summary > .file-history-summary-content {
   gap: var(--space-1);
   padding: var(--space-3);
-  background: var(--color-panel);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-subtle);
 }
-
-.file-history-summary span {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.file-history-summary strong {
-  color: var(--color-text);
+.file-history-summary .file-history-summary-value {
   font-size: 20px;
   font-weight: 650;
 }
-
 .file-history-stacks {
-  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   align-items: start;
 }
-
 .file-history-panel {
-  display: grid;
-  min-width: 0;
-  overflow: hidden;
-  background: var(--color-panel);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-subtle);
 }
-
-.file-history-panel > header {
-  display: flex;
+.file-history-panel > .file-history-panel-heading,
+.file-history-entry {
   gap: var(--space-2);
-  align-items: center;
-  justify-content: space-between;
   padding: var(--space-3);
   border-bottom: 1px solid var(--color-border);
 }
-
-.file-history-panel h2 {
-  margin: 0;
-  color: var(--color-text);
+.file-history-panel .file-history-panel-title {
   font-size: 14px;
   font-weight: 650;
 }
-
-.file-history-panel > header span {
+.file-history-panel > header .file-history-panel-label,
+.file-history-entry-main div .file-history-entry-main-label {
   color: var(--color-muted);
   font-size: 11px;
 }
-
 .file-history-empty {
-  margin: 0;
   padding: var(--space-4);
-  color: var(--color-muted);
-  font-size: 12px;
 }
-
-.file-history-entry-list {
-  display: grid;
-}
-
-.file-history-entry {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-  padding: var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-}
-
 .file-history-entry:last-child {
   border-bottom: 0;
 }
-
 .file-history-entry-main {
-  display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--space-2);
-  align-items: center;
-  min-width: 0;
 }
-
 .file-history-entry-index {
   color: var(--color-faint);
   font-size: 11px;
 }
-
-.file-history-entry-main div {
-  display: grid;
+.file-history-entry-main .file-history-entry-main-content {
   gap: 2px;
-  min-width: 0;
 }
-
-.file-history-entry-main strong,
-.file-history-entry-main span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-history-entry-main strong {
-  color: var(--color-text);
-  font-size: 12px;
+.file-history-entry-main .file-history-entry-main-value {
   font-weight: 650;
 }
-
-.file-history-entry-main div span {
-  color: var(--color-muted);
-  font-size: 11px;
-}
-
-.file-history-entry-main em {
-  color: var(--color-muted);
+.file-history-entry-main .file-history-entry-main-note {
   font-size: 11px;
   font-style: normal;
   white-space: nowrap;
 }
-
 .file-history-change-list {
-  display: grid;
   gap: var(--space-1);
-  padding: 0;
-  margin: 0;
   list-style: none;
 }
-
-.file-history-change-list li {
-  display: grid;
+.file-history-change-list .file-history-change-list-item {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-2);
-  min-width: 0;
-  color: var(--color-muted);
   font-size: 11px;
-}
-
-.file-history-change-list code {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-soft);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

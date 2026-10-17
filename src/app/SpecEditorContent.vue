@@ -1,12 +1,20 @@
 <template>
-  <div class="app-frame editor-window-app" :data-theme="settings.theme" :inert="handoffLocked">
-    <div v-if="loading && !contentReady" class="editor-window-status">
-      <strong>正在加载</strong>
+  <div
+    class="app-frame editor-window-app ui-content-contained ui-layout-grid ui-layout-clip ui-layout-stretch ui-text-normal"
+    :data-theme="settings.theme"
+    :inert="handoffLocked"
+  >
+    <div v-if="loading && !contentReady" class="editor-window-status ui-text-muted ui-layout-grid ui-layout-stretch">
+      <strong class="editor-window-status-value ui-emphasis ui-text-normal">正在加载</strong>
       <span>{{ target?.id ?? '缺少目标 id' }}</span>
     </div>
-    <div v-else-if="errorText && !contentReady" class="editor-window-status editor-window-error">
-      <strong>加载失败</strong>
-      <span>{{ errorText }}</span>
+    <div
+      v-else-if="errorText && !contentReady"
+      class="editor-window-status editor-window-error ui-text-muted ui-layout-grid ui-layout-stretch"
+    >
+      <strong class="editor-window-status-value editor-window-error-value ui-emphasis ui-text-normal">加载失败</strong>
+      <span class="editor-window-error-label">{{ errorText }}</span>
+      <n-button @click="reloadCurrentWindow">重试</n-button>
     </div>
     <SpecShipEditor
       v-else-if="shipEditorData && target"
@@ -80,9 +88,9 @@
       @draft-changed="updateEditorDraft($event)"
       @load-external="loadPendingExternalSpec"
     />
-    <div v-else class="editor-window-status editor-window-error">
-      <strong>无法打开编辑器</strong>
-      <span>{{ missingEditorText }}</span>
+    <div v-else class="editor-window-status editor-window-error ui-text-muted ui-layout-grid ui-layout-stretch">
+      <strong class="editor-window-status-value editor-window-error-value ui-emphasis ui-text-normal">无法打开编辑器</strong>
+      <span class="editor-window-error-label">{{ missingEditorText }}</span>
     </div>
   </div>
 </template>
@@ -100,7 +108,7 @@ import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useSettingsStore } from '@/stores/settings.store';
-import { closeCurrentWindow } from '@/windows/current.window';
+import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import { specEditorDefinition, useSpecEditorDependencies } from '@/app/composables/spec-editor-assembly';
 import { useSpecEditorWindowViewModel } from '@/app/composables/spec-editor/use-spec-editor-window-view-model';
 import { useWindowContext } from '@/windows/window-context.window';
@@ -127,7 +135,6 @@ const {
   canSaveSpec,
   externalUpdateNotice,
   missingEditorText,
-  initializeEditorWindow,
   disposeEditorWindow,
   saveEditorData,
   updateEditorDraft,
@@ -151,7 +158,10 @@ useContextMenuScope({
       ...(weaponDependencies?.resourceRefs.value ?? []),
     ]),
 });
-useManagedWindowRequests(() => {});
+useManagedWindowRequests(async () => {
+  await windowModel.initializeEditorWindow();
+  if (!(await windowModel.waitForSave())) throw new Error('所属保存尚未完成');
+});
 const closeGuard = useDirtyWindowCloseGuard({
   content: '当前 spec 有未保存修改，关闭后这些修改将丢失。',
   dirty: draftDirty,
@@ -190,7 +200,6 @@ useShortcutDispatch({
 
 onMounted(() => {
   void closeGuard.install();
-  void initializeEditorWindow();
 });
 
 onUnmounted(() => {

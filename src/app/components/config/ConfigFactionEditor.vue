@@ -1,14 +1,14 @@
 <template>
-  <div class="faction-editor-page" :inert="actionsLocked || handoffLocked">
+  <div class="faction-editor-page ui-content-column ui-content-surface-muted" :inert="actionsLocked || handoffLocked">
     <ConfigTargetNotice
       label="势力"
       :deleted-target="deletedTarget"
       :actions-locked="actionsLocked"
       :discard-deleted-target="discardDeletedTarget"
     />
-    <header class="faction-editor-header">
-      <h2>{{ displayName }}</h2>
-      <div class="config-editor-actions">
+    <header class="faction-editor-header ui-control-between">
+      <h2 class="faction-editor-header-title ui-text-normal ui-text-reset">{{ displayName }}</h2>
+      <div class="config-editor-actions ui-layout-row ui-layout-center">
         <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
           载入外部版本
         </n-button>
@@ -16,17 +16,19 @@
         <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
       </div>
     </header>
-    <div v-if="externalUpdateNotice" class="config-external-update-note">{{ externalUpdateNotice }}</div>
+    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
+      {{ externalUpdateNotice }}
+    </div>
 
     <!-- Logo/Crest preview -->
-    <div v-if="logoSrc || crestSrc" class="faction-previews">
-      <div v-if="logoSrc" class="faction-preview-item faction-preview-logo">
-        <span>Logo</span>
-        <img :src="logoSrc" class="faction-full-preview" />
+    <div v-if="logoSrc || crestSrc" class="faction-previews ui-layout-grid ui-control-border ui-content-surface">
+      <div v-if="logoSrc" class="faction-preview-item faction-preview-logo ui-text-muted ui-layout-grid ui-layout-shrink">
+        <span class="faction-preview-item-label ui-text-soft ui-text-small">Logo</span>
+        <img :src="logoSrc" class="faction-full-preview ui-image ui-layout-stretch ui-control-border" />
       </div>
-      <div v-if="crestSrc" class="faction-preview-item faction-preview-crest">
-        <span>Crest</span>
-        <img :src="crestSrc" class="faction-full-preview" />
+      <div v-if="crestSrc" class="faction-preview-item faction-preview-crest ui-text-muted ui-layout-grid ui-layout-shrink">
+        <span class="faction-preview-item-label ui-text-soft ui-text-small">Crest</span>
+        <img :src="crestSrc" class="faction-full-preview ui-image ui-layout-stretch ui-control-border" />
       </div>
     </div>
 

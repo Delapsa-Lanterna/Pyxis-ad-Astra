@@ -1,14 +1,14 @@
 <template>
   <div
     ref="surface"
-    class="variant-picker"
+    class="variant-picker ui-layout-row ui-layout-stack ui-content-surface"
     :style="position"
     tabindex="-1"
     @keydown.esc.stop.prevent="hovered ? hover.close(true) : cancel()"
     @keydown="compareKey"
     @keyup="compareKey"
   >
-    <header>
+    <header class="variant-picker-heading ui-control-between">
       <n-input v-model:value="search" placeholder="搜索 ID／名称" clearable />
     </header>
     <div v-if="currentEntry" class="variant-current-title">
@@ -32,7 +32,7 @@
       @hover="showCandidate(currentId, $event)"
       @leave="hover.leave"
     />
-    <div class="variant-picker-filters" :class="{ 'weapon-filter-grid': kind === 'weapons' }">
+    <div class="variant-picker-filters ui-layout-grid" :class="{ 'weapon-filter-grid': kind === 'weapons' }">
       <ImmersiveFilterToggle
         v-for="option in filterOptions"
         :key="option.value"
@@ -72,9 +72,11 @@
       </template>
     </div>
     <details class="variant-picker-extra">
-      <summary class="immersive-disclosure-summary"><ImmersiveText text="来源与 ID" font="caption" ink-aligned /></summary>
+      <summary class="immersive-disclosure-summary ui-layout-row ui-layout-center ui-control-pointer">
+        <ImmersiveText text="来源与 ID" font="caption" ink-aligned />
+      </summary>
       <n-select v-model:value="origin" :options="origins" />
-      <footer>
+      <footer class="variant-picker-extra-footer ui-footer ui-layout-row">
         <n-input v-model:value="manualId" placeholder="手动填写 ID" @keydown.enter.stop.prevent="manual" /><n-button @click="manual"
           >提交 ID</n-button
         >
@@ -84,7 +86,7 @@
   <div
     v-if="hovered"
     :ref="(element) => (hover.surface.value = element as HTMLElement | null)"
-    class="variant-picker-tooltip"
+    class="variant-picker-tooltip ui-layout-row"
     :style="hover.position.value"
     tabindex="-1"
     role="dialog"

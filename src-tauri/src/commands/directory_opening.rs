@@ -1,8 +1,7 @@
 use crate::{
     errors::AppResult,
     models::{
-        GameOverviewData, OpenDirectoryResult,
-        command_payloads::{DetectDirectoryPayload, ScanGameOverviewPayload},
+        DetectDirectoryPayload, GameOverviewData, OpenDirectoryResult, ScanGameOverviewPayload,
     },
     services,
 };

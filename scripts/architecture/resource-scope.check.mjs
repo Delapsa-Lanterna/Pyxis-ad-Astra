@@ -6,7 +6,7 @@ test('invalidation scopes carry source and path without granting ResourceRef own
   assert.deepEqual(
     resourceBoundaryRule.check(
       architectureFixtures({
-        'src/orchestrators/project-session-refresh.orchestrator.ts': "const scope = { source: 'mod', relPath: 'data/hulls' };",
+        'src/orchestrators/project-sync.orchestrator.ts': "const scope = { source: 'mod', relPath: 'data/hulls' };",
       }),
     ),
     [],

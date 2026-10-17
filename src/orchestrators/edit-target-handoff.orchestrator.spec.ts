@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
+import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { entityTargetFixture } from '@/test/entity-target';
 import { savedWriteFixture } from '@/test/write-result';
@@ -82,13 +83,15 @@ function participant(
     pending.value = false;
     return true;
   });
+  const inputs = createFieldInputs(key);
+  vi.spyOn(inputs, 'commit').mockImplementation(async () => commit());
   const unregister = useSaveCommandStore().registerSaveSession({
     targetKey: key,
     modRoot: ref(target.modRoot),
     saving,
     pendingSynchronization: pending,
     waitForSave: wait,
-    editing: { targets: ref([target]), label: 'ships', dirty, commitInputs: commit, save },
+    editing: { targets: ref([target]), label: 'ships', dirty, draftSession: { draftValue: ref({}), inputs }, save },
   });
   return { dirty, pending, saving, key, order, save, commit, wait, unregister };
 }
@@ -108,26 +111,34 @@ describe('edit target handoff', () => {
     await expect(cancelled).resolves.toBeNull();
     expect(own.save).not.toHaveBeenCalled();
   });
-  it('ends overlapping reciprocal preparations instead of waiting on each saving window', async () => {
-    mocks.label = 'managed-2';
-    const stop = await listenEditTargetHandoff(feedback);
-    const own = participant({ dirty: false });
-    mocks.owners.mockResolvedValue(['main']);
-    const lifecycle = new AbortController();
-    const action = vi.fn(async () => true);
-    const outgoing = withEditTargetHandoff([target], feedback, action, undefined, undefined, lifecycle.signal);
-    await vi.waitFor(() => expect(mocks.sent.some((event) => event.name === WINDOW_EVENTS.editTargetPrepare)).toBe(true));
-    own.saving.value = true;
-    const request: EditHandoffRequest = { requestId: 'reciprocal', ownerLabel: 'main', receiverLabel: 'managed-2', targets: [target] };
-    for (const handler of mocks.handlers.get(WINDOW_EVENTS.editTargetPrepare)!) await handler(request);
-    const reply = mocks.sent.find((event) => event.name === WINDOW_EVENTS.editTargetPrepared)!.payload as EditHandoffReply;
-    expect(reply.status).toBe('failed');
-    expect(own.wait).not.toHaveBeenCalled();
-    lifecycle.abort();
-    await expect(outgoing).resolves.toBeNull();
-    expect(action).not.toHaveBeenCalled();
-    stop();
-  });
+  it.each(['same file', 'parent directory'] as const)(
+    'ends reciprocal preparations for %s instead of waiting on each saving window',
+    async (scope) => {
+      mocks.label = 'managed-2';
+      const stop = await listenEditTargetHandoff(feedback);
+      const own = participant({ dirty: false });
+      mocks.owners.mockResolvedValue(['main']);
+      const lifecycle = new AbortController();
+      const action = vi.fn(async () => true);
+      const outgoing = withEditTargetHandoff([target], feedback, action, undefined, undefined, lifecycle.signal);
+      await vi.waitFor(() => expect(mocks.sent.some((event) => event.name === WINDOW_EVENTS.editTargetPrepare)).toBe(true));
+      own.saving.value = true;
+      const request: EditHandoffRequest = {
+        requestId: 'reciprocal',
+        ownerLabel: 'main',
+        receiverLabel: 'managed-2',
+        targets: [{ ...target, path: scope === 'parent directory' ? 'm:\\MOD\\' : target.path }],
+      };
+      for (const handler of mocks.handlers.get(WINDOW_EVENTS.editTargetPrepare)!) await handler(request);
+      const reply = mocks.sent.find((event) => event.name === WINDOW_EVENTS.editTargetPrepared)!.payload as EditHandoffReply;
+      expect(reply.status).toBe('failed');
+      expect(own.wait).not.toHaveBeenCalled();
+      lifecycle.abort();
+      await expect(outgoing).resolves.toBeNull();
+      expect(action).not.toHaveBeenCalled();
+      stop();
+    },
+  );
   it('cancels a confirmation before related drafts are written', async () => {
     const own = participant();
     const lifecycle = new AbortController();

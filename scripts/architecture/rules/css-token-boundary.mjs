@@ -1,4 +1,9 @@
 import * as csstree from 'css-tree';
+import { parse } from '@vue/compiler-sfc';
+import { parse as parseHtml } from '@vue/compiler-dom';
+import { basename } from 'node:path';
+import { parseFrontendSource } from '../../shared/frontend-source.mjs';
+import { CSS_SCOPES, selectorScope } from '../../shared/css-scopes.mjs';
 import {
   CSS_TOKEN_OWNER,
   ORIGINAL_SPACING_OWNER,
@@ -54,6 +59,122 @@ const REQUIRED_TOKENS = [
   '--shadow-subtle',
 ];
 const DARK_REQUIRED_TOKENS = REQUIRED_TOKENS.filter((token) => !token.startsWith('--space-') && !token.startsWith('--radius-'));
+
+/** @param {{rel: string, text: string}} file @returns {string[]} */
+export function checkVueStyles(file) {
+  return parse(file.text, { filename: file.rel }).descriptor.styles.flatMap((style) =>
+    Object.keys(style.attrs).some((attribute) => attribute.toLowerCase() === 'scoped')
+      ? [`${file.rel}:${style.loc.start.line}:${style.loc.start.column}: scoped CSS is forbidden; use the shared CSS entry`]
+      : [`${file.rel}:${style.loc.start.line}:${style.loc.start.column}: Vue style blocks are forbidden; use the shared CSS entry`],
+  );
+}
+
+/** @param {{rel: string, text: string}} file @returns {string[]} */
+export function checkStyleEntry(file) {
+  const failures = file.rel.endsWith('.vue') ? checkVueStyles(file) : [];
+  const facts = parseFrontendSource({ ...file, path: file.rel });
+  for (const entry of facts.imports) {
+    if (/\.css(?:[?#]|$)/i.test(entry.specifier) && basename(entry.specifier) !== 'style.css')
+      failures.push(`${file.rel}:${entry.line}:${entry.column}: CSS imports must target style.css: ${entry.specifier}`);
+  }
+  if (file.rel.endsWith('.css') && basename(file.rel) !== 'style.css') {
+    const ast = csstree.parse(file.text, { positions: true });
+    csstree.walk(ast, {
+      visit: 'Atrule',
+      enter(node) {
+        if (node.name.toLowerCase() === 'import')
+          failures.push(
+            `${file.rel}:${node.loc?.start.line ?? 1}:${node.loc?.start.column ?? 1}: only style.css may aggregate CSS imports`,
+          );
+      },
+    });
+  }
+  if (file.rel.endsWith('.html')) {
+    /** @param {import('@vue/compiler-dom').RootNode | import('@vue/compiler-dom').TemplateChildNode} node */
+    const visit = (node) => {
+      if (node.type === 1 && node.tag === 'link') {
+        const attributes = node.props.filter((prop) => prop.type === 6);
+        const href = attributes.find((prop) => prop.name === 'href')?.value?.content;
+        const rel = attributes.find((prop) => prop.name === 'rel')?.value?.content;
+        if (rel?.split(/\s+/).includes('stylesheet') && href && basename(href) !== 'style.css')
+          failures.push(`${file.rel}:${node.loc.start.line}:${node.loc.start.column}: stylesheet links must target style.css: ${href}`);
+      }
+      if (node.type === 1 && node.tag === 'style')
+        failures.push(`${file.rel}:${node.loc.start.line}:${node.loc.start.column}: inline style blocks must use style.css`);
+      if (node.type === 1 && node.tag === 'script') {
+        const source = file.text.slice(node.loc.start.offset, node.loc.end.offset).replace(/^<script[^>]*>|<\/script>$/g, '');
+        failures.push(...checkStyleEntry({ rel: file.rel + '.js', text: source }));
+      }
+      if (node.type === 0 || node.type === 1) for (const child of node.children) visit(child);
+    };
+    visit(parseHtml(file.text));
+  }
+  return failures;
+}
+
+/** @param {string} selector @returns {string} */
+export function cssScope(selector) {
+  const scopes = new Set(cssScopes(selector));
+  return scopes.size === 1 ? [...scopes][0] : 'base';
+}
+
+/** @param {import('css-tree').Selector} selector @returns {string[][]} */
+function selectorBranches(selector) {
+  /** @type {string[][]} */
+  let branches = [[]];
+  for (const node of selector.children) {
+    if (node.type === 'ClassSelector') branches = branches.map((names) => [...names, node.name]);
+    if (node.type !== 'PseudoClassSelector' || !['is', 'where'].includes(node.name)) continue;
+    const alternatives = node.children.toArray().flatMap((list) => list.children.toArray().flatMap(selectorBranches));
+    branches = branches.flatMap((names) => alternatives.map((alternative) => [...names, ...alternative]));
+  }
+  return branches;
+}
+
+/** @param {string} selector @returns {string[]} */
+export function cssScopes(selector) {
+  const ast = csstree.parse(selector, { context: 'selector' });
+  const scopes = selectorBranches(ast).map(selectorScope);
+  if (scopes.some((scope) => scope !== 'base')) return scopes;
+  /** @type {string[]} */
+  const conditions = [];
+  csstree.walk(ast, {
+    visit: 'PseudoClassSelector',
+    enter(node) {
+      if (node.name === 'has')
+        for (const list of node.children) conditions.push(...list.children.toArray().flatMap(selectorBranches).map(selectorScope));
+    },
+  });
+  return conditions.length ? conditions : scopes;
+}
+
+/** @param {{rel: string, text: string}} file @returns {string[]} */
+export function checkCssScope(file) {
+  /** @type {string[]} */
+  const failures = [];
+  const owner = basename(file.rel, '.css');
+  if (!['base', 'style'].includes(owner) && !CSS_SCOPES.has(owner))
+    failures.push(`${file.rel}: CSS files must use a registered semantic scope name`);
+  const ast = csstree.parse(file.text, { positions: true });
+  csstree.walk(ast, {
+    visit: 'Atrule',
+    enter(node) {
+      if (owner === 'style' && node.name.toLowerCase() !== 'import')
+        failures.push(`${file.rel}:${node.loc?.start.line ?? 1}: style.css must contain only CSS imports`);
+    },
+  });
+  csstree.walk(ast, {
+    visit: 'Rule',
+    enter(rule) {
+      if (rule.prelude.type !== 'SelectorList') return;
+      const scopes = new Set(rule.prelude.children.toArray().flatMap((selector) => cssScopes(csstree.generate(selector))));
+      const expected = scopes.size === 1 ? [...scopes][0] : 'base';
+      if (owner !== expected)
+        failures.push(`${file.rel}:${rule.loc?.start.line ?? 1}: selector scope belongs in ${expected}.css, not ${owner}.css`);
+    },
+  });
+  return failures;
+}
 
 export const cssTokenBoundaryRule = {
   name: 'css-token-boundary',
@@ -139,7 +260,7 @@ export const cssTokenBoundaryRule = {
             failures.push(diagnostic(file, node, selectors, `unauthorized third-party CSS variable ${property}`));
         } else if (!global.has(property)) {
           const scopes = local.get(property) ?? [];
-          const injected = file.rel === CSS_TOKEN_OWNER && selectors.every((selector) => DOM_PROPERTIES.get(property)?.includes(selector));
+          const injected = selectors.every((selector) => DOM_PROPERTIES.get(property)?.includes(selector));
           if (
             !injected &&
             !selectors.every((selector) =>
@@ -157,10 +278,7 @@ export const cssTokenBoundaryRule = {
         }
       }
       const special = selectors.every((current) =>
-        SPECIAL_VALUES.some(
-          ([path, selector, property, expected]) =>
-            file.rel === path && current === selector && node.property === property && value === expected,
-        ),
+        SPECIAL_VALUES.some(([selector, property, expected]) => current === selector && node.property === property && value === expected),
       );
       if (special) continue;
       if (node.property === 'box-shadow' && value !== 'none' && !onlyTokenValue(node.value, '--shadow-', ['none']))
@@ -174,7 +292,11 @@ export const cssTokenBoundaryRule = {
           visit: 'Dimension',
           enter(dimension) {
             if (dimension.unit === 'px' && [4, 8, 12, 16].includes(Number(dimension.value))) hardcoded = true;
-            if (file.rel === ORIGINAL_SPACING_OWNER && dimension.unit === 'px' && [3, 9, 10, 17, 18, 21].includes(Number(dimension.value)))
+            if (
+              [ORIGINAL_SPACING_OWNER, 'src/styles/variant.css'].includes(file.rel) &&
+              dimension.unit === 'px' &&
+              [3, 9, 10, 17, 18, 21].includes(Number(dimension.value))
+            )
               originalSpacing = true;
           },
         });

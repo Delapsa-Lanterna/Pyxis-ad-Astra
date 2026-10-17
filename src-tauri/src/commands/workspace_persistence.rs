@@ -1,6 +1,6 @@
 use crate::{
     errors::AppError,
-    models::{PersistedWorkspace, command_payloads::SaveWorkspacePayload},
+    models::{PersistedWorkspace, SaveWorkspacePayload},
     services,
 };
 

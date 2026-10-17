@@ -1,7 +1,16 @@
 use super::super::resources::{resource_cache_key, sprite_resource_bytes, sprite_source_context};
+use super::super::{
+    cache::{lock_ready_session, session_handle},
+    definitions::entity_resources::{
+        faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
+        weapon_resource_refs,
+    },
+};
 use crate::{
     errors::AppResult,
-    models::{ResourceDataUrlBatchEntry, ResourceDataUrlBatchResult, ResourceRef},
+    models::{
+        DraftResourceEntityKind, ResourceDataUrlBatchEntry, ResourceDataUrlBatchResult, ResourceRef,
+    },
 };
 use std::collections::BTreeMap;
 
@@ -31,6 +40,24 @@ pub fn query_resource_data_urls(
         });
     }
     Ok(ResourceDataUrlBatchResult { entries })
+}
+
+pub fn query_draft_resources(
+    session_id: &str,
+    kind: DraftResourceEntityKind,
+    id: &str,
+    draft: &serde_json::Value,
+) -> AppResult<BTreeMap<String, ResourceRef>> {
+    let handle = session_handle(session_id)?;
+    let _session = lock_ready_session(&handle)?;
+    Ok(match kind {
+        DraftResourceEntityKind::Ship => ship_resource_refs(id, draft),
+        DraftResourceEntityKind::Weapon => weapon_resource_refs(id, draft),
+        DraftResourceEntityKind::Faction => faction_resource_refs(id, draft),
+        DraftResourceEntityKind::Mission => mission_resource_refs(id, draft),
+        DraftResourceEntityKind::Projectile => projectile_resource_refs(id, draft),
+        DraftResourceEntityKind::System => BTreeMap::new(),
+    })
 }
 
 #[cfg(test)]
@@ -326,5 +353,94 @@ mod tests {
             &resource_cache_key(&resource)
         ));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn draft_weapon_resources_are_derived_from_submitted_snapshot() {
+        let root = temp_dir("draft_weapon_resources");
+        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let draft = serde_json::json!({"id":"weapon", "turretSprite":"graphics/draft.png"});
+        let resources = query_draft_resources(
+            &manifest.session_id,
+            DraftResourceEntityKind::Weapon,
+            "weapon",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(resources["turretSprite"].rel_path, "graphics/draft.png");
+        assert_eq!(resources["turretSprite"].owner_id, "weapon");
+        assert_eq!(resources["turretSprite"].key, "turretSprite");
+        close_project_session(manifest.session_id).unwrap();
+        assert!(
+            query_draft_resources("closed", DraftResourceEntityKind::Weapon, "weapon", &draft)
+                .is_err()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn projectile_draft_resources_keep_both_sprite_fields_and_owner() {
+        let root = temp_dir("projectile_draft_resources");
+        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let draft = serde_json::json!({"sprite":"graphics/missile.png", "bulletSprite":"graphics/shot.png"});
+        let resources = query_draft_resources(
+            &manifest.session_id,
+            DraftResourceEntityKind::Projectile,
+            "shot",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(resources.len(), 2);
+        for (field, path) in [
+            ("sprite", "graphics/missile.png"),
+            ("bulletSprite", "graphics/shot.png"),
+        ] {
+            assert_eq!(resources[field].rel_path, path);
+            assert_eq!(resources[field].key, field);
+            assert_eq!(resources[field].owner_id, "shot");
+            assert_eq!(
+                resources[field].owner_kind,
+                crate::models::EntityKind::Projectile.into()
+            );
+        }
+        close_project_session(manifest.session_id.clone()).unwrap();
+        assert!(
+            query_draft_resources(
+                &manifest.session_id,
+                DraftResourceEntityKind::Projectile,
+                "shot",
+                &draft,
+            )
+            .is_err()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn config_draft_resources_use_the_current_references_and_owner() {
+        let root = temp_dir("config_draft_resources");
+        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let faction = query_draft_resources(
+            &manifest.session_id,
+            DraftResourceEntityKind::Faction,
+            "faction",
+            &serde_json::json!({"logo":"graphics/new.png", "crest":"graphics/crest.png"}),
+        )
+        .unwrap();
+        assert_eq!(faction["logo"].rel_path, "graphics/new.png");
+        assert_eq!(faction["crest"].owner_id, "faction");
+        let mission = query_draft_resources(
+            &manifest.session_id,
+            DraftResourceEntityKind::Mission,
+            "mission",
+            &serde_json::json!({"descriptor":{"icon":"new.png"}}),
+        )
+        .unwrap();
+        assert_eq!(mission["icon"].rel_path, "data/missions/mission/new.png");
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -2,13 +2,12 @@ use super::super::{
     cache,
     model::{ProjectSession, SessionCsvRow},
 };
+use super::csv_staging::CsvTableDraft;
 use crate::{
     errors::{AppError, AppResult},
     models::{CsvTableKey, EntityKind},
 };
 use serde_json::Value;
-
-pub(super) type DescriptionTable = (Vec<String>, Vec<SessionCsvRow>, u64);
 
 #[derive(Clone)]
 pub(super) struct DescriptionRename {
@@ -37,12 +36,17 @@ pub(super) fn description_rename(
 
 pub(super) fn rename_description_row(
     session: &ProjectSession,
-    table: &mut DescriptionTable,
+    table: &mut CsvTableDraft,
     previous: &str,
     next: &str,
     typ: &str,
 ) -> AppResult<bool> {
-    let (header, rows, sequence) = table;
+    let CsvTableDraft {
+        header,
+        rows,
+        next_row_seq: sequence,
+        ..
+    } = table;
     let matches = |row: &SessionCsvRow, id: &str| {
         !row.is_comment
             && row.data.get("id").and_then(Value::as_str) == Some(id)
@@ -120,14 +124,14 @@ pub(super) fn rename_description_row(
     Ok(true)
 }
 
-pub(super) fn stage_description_renames(
+pub(super) fn prepare_description_renames(
     session: &ProjectSession,
     renames: &[DescriptionRename],
-) -> AppResult<Option<super::entity_identity::StagedIdentityCsv>> {
+) -> AppResult<Option<CsvTableDraft>> {
     if renames.is_empty() {
         return Ok(None);
     }
-    let mut table = cache::csv::read_table_snapshot(session, CsvTableKey::Descriptions)?;
+    let mut table = CsvTableDraft::read(session, CsvTableKey::Descriptions)?;
     let mut changed = false;
     for rename in renames {
         changed |= rename_description_row(
@@ -141,19 +145,5 @@ pub(super) fn stage_description_renames(
     if !changed {
         return Ok(None);
     }
-    let (header, rows, next_seq) = table;
-    let text = crate::parsers::render_csv_text(
-        &header,
-        &rows
-            .iter()
-            .map(|row| (&row.data, row.is_comment))
-            .collect::<Vec<_>>(),
-    )?;
-    Ok(Some(super::entity_identity::StagedIdentityCsv {
-        table: CsvTableKey::Descriptions,
-        header,
-        rows,
-        text,
-        next_seq,
-    }))
+    Ok(Some(table))
 }

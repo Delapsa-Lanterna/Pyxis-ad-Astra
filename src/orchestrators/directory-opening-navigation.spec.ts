@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => {
     workspaceStore,
     project: {
       registerProjectManifest: vi.fn(),
+      getManifest: vi.fn(() => null),
       getSessionId: vi.fn(() => null),
       removeProjectManifest: vi.fn(),
       setActiveModRoot: vi.fn(),
@@ -72,7 +73,7 @@ vi.mock('@/stores/project.store', () => ({ useProjectStore: () => mocks.project 
 vi.mock('@/stores/tables.store', () => ({ useTablesStore: () => mocks.tables }));
 vi.mock('@/stores/file-history.store', () => ({ useFileHistoryStore: () => mocks.fileHistory }));
 vi.mock('@/stores/tables-edit-history.store', () => ({ useTablesEditHistoryStore: () => mocks.csvHistory }));
-vi.mock('@/stores/write-sync.store', () => ({ useWriteSyncStore: () => mocks.writeSync }));
+vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => mocks.writeSync }));
 vi.mock('@/stores/mod-file-browser.store', () => ({ useModFileBrowserStore: () => mocks.fileBrowser }));
 vi.mock('@/services/project-session.service', () => ({
   openProject: mocks.openProject,
@@ -86,6 +87,10 @@ vi.mock('@/services/core-assets.service', () => ({
   invalidateCoreCacheForRoot: vi.fn(async () => {}),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
+vi.mock('@/services/window.service', () => ({
+  beginSessionWindowClose: vi.fn(async () => {}),
+  releaseSessionWindowClose: vi.fn(async () => {}),
+}));
 vi.mock('@/shared/runtime/performance', () => ({
   measurePerformance: (_name: string, _detail: unknown, action: () => unknown) => action(),
 }));

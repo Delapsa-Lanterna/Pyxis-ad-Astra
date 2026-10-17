@@ -1,0 +1,10 @@
+<svg width="80" height="80" viewBox="0 0 80 80" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" color="rgb(199, 182, 158)">
+  <defs>
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="22" cy="58" r="48">
+      <stop stop-color="currentColor" />
+      <stop offset="1" stop-color="currentColor" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <path d="M42 38L30 42L28 5L22 43L9 23L19 50L4 45L14 58L3 77L22 66L35 76L30 61L57 71L37 58L75 52L38 50Z" fill="url(#glow)" opacity="0.7" />
+  <path d="M22 58L42 26L59 8L72 21L54 38Z" fill="currentColor" />
+</svg>

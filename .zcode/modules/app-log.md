@@ -6,12 +6,20 @@
 
 ## 参考
 
-`src-tauri/src/commands/app_log.rs`：日志 command 主归属。
-`src-tauri/src/diagnostics.rs`：后端内部诊断 sink 主归属。
-`src-tauri/src/services/app_log.rs`：日志路径、级别、渲染及轮转。
-`src/services/app-log.service.ts`：四个 command 的签名与参数装配、best-effort 和性能 sink 接线。
-`src/shared/lib/log-fields.ts`：结构化上下文组装主归属。
-`src/shared/types/app-log.types.ts`：日志 wire 模型。
+### 拥有
+
+- `src-tauri/src/commands/app_log.rs`：日志 command。
+- `src-tauri/src/services/app_log.rs`：日志路径、级别、渲染及轮转。
+- `src/services/app-log.service.ts`：四个 command 的签名与参数装配、best-effort 和性能 sink 接线。
+- `src/services/app-log.spec.ts`：日志 sink 登记、异步失败及窗口释放验证。
+
+### 消费
+
+- `src-tauri/src/diagnostics.rs`：后端内部诊断 sink。
+- `src-tauri/src/models/app_log.rs`：固定日志名、级别、记录、状态与追加请求协议。
+- `src-tauri/src/services/system_open.rs`：系统文件管理器路径打开适配。
+- `src/shared/lib/log-fields.ts`：结构化上下文组装。
+- `src/shared/types/app-log.types.ts`：日志 wire 模型。
 
 ## 边界
 

@@ -18,3 +18,9 @@ export interface OriginalFontPage {
 export type OriginalFontResult =
   | { status: 'unavailable' }
   | { status: 'available'; root: string; fontId: FontId; path: string; definition: string; pages: OriginalFontPage[] };
+
+export interface QueryOriginalFontPayload {
+  sessionId: string;
+  starsectorRoot: string | null;
+  fontId: FontId;
+}

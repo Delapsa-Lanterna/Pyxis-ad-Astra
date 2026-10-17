@@ -1,15 +1,18 @@
 <template>
-  <div class="schema-form">
-    <div v-for="section in sections" :key="section.id" class="schema-section">
-      <div class="section-header" @click="toggleSection(section.id)">
-        <span class="section-chevron" :class="{ collapsed: collapsedSections.has(section.id) }">
-          <svg viewBox="0 0 16 16" aria-hidden="true">
+  <div class="schema-form ui-layout-row ui-layout-stack">
+    <div v-for="section in sections" :key="section.id" class="schema-section ui-layout-clip ui-control-border ui-content-surface">
+      <div
+        class="section-header ui-control-pointer ui-layout-stretch ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-text-reset"
+        @click="toggleSection(section.id)"
+      >
+        <span class="section-chevron ui-text-muted ui-layout-grid" :class="{ collapsed: collapsedSections.has(section.id) }">
+          <svg class="section-chevron-icon ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M6 4l4 4-4 4" />
           </svg>
         </span>
         {{ section.label }}
       </div>
-      <div v-show="!collapsedSections.has(section.id)" class="section-fields">
+      <div v-show="!collapsedSections.has(section.id)" class="section-fields ui-layout-row ui-layout-stack">
         <SchemaFieldRenderer
           v-for="field in section.fields"
           :key="field.key"
@@ -22,16 +25,19 @@
     </div>
 
     <!-- Extra fields: data keys not defined in schema -->
-    <div v-if="extraKeys.length > 0" class="schema-section">
-      <div class="section-header" @click="toggleSection('__extra')">
-        <span class="section-chevron" :class="{ collapsed: collapsedSections.has('__extra') }">
-          <svg viewBox="0 0 16 16" aria-hidden="true">
+    <div v-if="extraKeys.length > 0" class="schema-section ui-layout-clip ui-control-border ui-content-surface">
+      <div
+        class="section-header ui-control-pointer ui-layout-stretch ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-text-reset"
+        @click="toggleSection('__extra')"
+      >
+        <span class="section-chevron ui-text-muted ui-layout-grid" :class="{ collapsed: collapsedSections.has('__extra') }">
+          <svg class="section-chevron-icon ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M6 4l4 4-4 4" />
           </svg>
         </span>
         额外字段 ({{ extraKeys.length }})
       </div>
-      <div v-show="!collapsedSections.has('__extra')" class="section-fields">
+      <div v-show="!collapsedSections.has('__extra')" class="section-fields ui-layout-row ui-layout-stack">
         <JsonFieldEditor :model-value="extraModelValue" :known-keys="extraKnownKeys" @update:model-value="onExtraUpdate" />
       </div>
     </div>

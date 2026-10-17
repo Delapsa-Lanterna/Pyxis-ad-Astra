@@ -1,39 +1,22 @@
 mod cache;
 mod definitions;
 mod invalidation;
-pub use query::joint_edit::{prepare_joint_edit, query_joint_edit_request, query_variant_catalog};
-pub use write::joint_edit::save_joint_edit;
 mod model;
 mod performance;
-mod query;
-mod resources;
+pub(in crate::services) mod query;
+pub(in crate::services) mod resources;
 mod root;
 mod session;
 mod versions;
-mod write;
+pub(in crate::services) mod write;
 
 pub(crate) use cache::media::configure_media_cache;
 pub(crate) use cache::persistent::configure_persistent_index_cache;
 pub(crate) use performance::PerformanceTrace;
-pub use query::query_entity_identity_intent;
-pub use query::query_file_entity_target;
-pub use query::require_csv_version_scope;
-pub use query::require_entity_version_scope;
-pub use query::{
-    query_csv_row_preview, query_csv_source_options, query_csv_table_window,
-    query_editor_draft_resources, query_entity, query_entity_edit_target, query_entity_list,
-    query_hull_references, query_resource_data_urls,
-};
-pub use query::{query_mod_directory, query_mod_file_search, query_mod_text_file_target};
-pub use resources::{query_original_font, resolve_mod_relative_path, scan_core_graphics};
 pub(crate) use session::open_project_session_traced;
 pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};
 pub use session::{
-    close_project_session, ensure_project_session_mod_root, invalidate_core_cache,
-    invalidate_project_session, refresh_project_sources,
+    close_project_session, ensure_project_session_mod_root, hold_session_openings,
+    invalidate_core_cache, invalidate_project_session, refresh_project_sources,
+    registered_session_ids,
 };
-pub use write::save_csv_patch_snapshot;
-pub use write::save_entity_spec;
-pub use write::save_entity_text;
-pub use write::save_variant_entity;
-pub use write::{delete_faction_entity, save_faction_entity};

@@ -6,13 +6,13 @@ import { COMMAND_TRANSPORT, commandOwners } from '../shared/command-policy.mjs';
 
 const provider = 'export function invokeCommand() {}';
 const imports = [
-  "import { invokeCommand as run } from '@/shared/runtime/command.runtime'; run('load_app_settings');",
-  "import * as wire from '@/shared/runtime/command.runtime'; wire.invokeCommand('load_app_settings');",
-  "import { invokeCommand } from '@/shared/runtime/command.runtime'; const run = invokeCommand; run('load_app_settings');",
-  "import { run } from '@/shared/command-bridge'; run('load_app_settings');",
-  "const wire = await import('@/shared/runtime/command.runtime'); wire.invokeCommand('load_app_settings');",
-  "(await import('@/shared/runtime/command.runtime')).invokeCommand('load_app_settings');",
-  "const { invokeCommand: run } = await import('@/shared/runtime/command.runtime'); run('load_app_settings');",
+  "import { invokeCommand as run } from '@/shared/runtime/command.runtime'; run('read_settings');",
+  "import * as wire from '@/shared/runtime/command.runtime'; wire.invokeCommand('read_settings');",
+  "import { invokeCommand } from '@/shared/runtime/command.runtime'; const run = invokeCommand; run('read_settings');",
+  "import { run } from '@/shared/command-bridge'; run('read_settings');",
+  "const wire = await import('@/shared/runtime/command.runtime'); wire.invokeCommand('read_settings');",
+  "(await import('@/shared/runtime/command.runtime')).invokeCommand('read_settings');",
+  "const { invokeCommand: run } = await import('@/shared/runtime/command.runtime'); run('read_settings');",
 ];
 
 for (const [index, source] of imports.entries()) {
@@ -25,7 +25,7 @@ for (const [index, source] of imports.entries()) {
     });
     const failures = commandBoundaryRule.check(files);
     assert.equal(failures.length, 1);
-    assert.match(failures[0], /example\.service\.ts:1:\d+: load_app_settings/);
+    assert.match(failures[0], /example\.service\.ts:1:\d+: read_settings/);
   });
 }
 
@@ -39,11 +39,11 @@ test('computed commands require declared protocol facts', () => {
 
 test('scoped aliases and shadowed parameters retain their lexical ownership', () => {
   const source =
-    "import { invokeCommand } from '@/shared/runtime/command.runtime'; function local(invokeCommand) { invokeCommand('save_app_settings'); } function actual() { const run = invokeCommand; run('load_app_settings'); }";
+    "import { invokeCommand } from '@/shared/runtime/command.runtime'; function local(invokeCommand) { invokeCommand('save_settings'); } function actual() { const run = invokeCommand; run('read_settings'); }";
   const files = architectureFixtures({ [COMMAND_TRANSPORT]: provider, 'src/services/example.service.ts': source });
   const failures = commandBoundaryRule.check(files);
   assert.equal(failures.length, 1);
-  assert.match(failures[0], /load_app_settings/);
+  assert.match(failures[0], /read_settings/);
 });
 
 test('every declared command has exactly one capability owner', () => {

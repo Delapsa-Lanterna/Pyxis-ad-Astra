@@ -45,6 +45,15 @@ pub struct AppLogStatus {
     pub size_bytes: u64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppendAppLogPayload {
+    pub entry: AppLogEntry,
+}
+
+/// Frozen on-disk log file name; every writer and validator must share it.
+pub const LOG_FILE: &str = "circinus-ad-astra.log";
+
 #[cfg(test)]
 mod tests {
     use super::AppLogEntry;

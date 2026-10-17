@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="-40 -24 128 112">
+  <defs>
+    <radialGradient id="body" gradientUnits="userSpaceOnUse" r="1" gradientTransform="translate(24.32 32) scale(57.6 49.883)" cx="0" cy="0">
+      <stop offset="0" stop-color="white" stop-opacity="1.00000" />
+      <stop offset="0.1" stop-color="white" stop-opacity="0.91393" />
+      <stop offset="0.2" stop-color="white" stop-opacity="0.69768" />
+      <stop offset="0.3" stop-color="white" stop-opacity="0.44486" />
+      <stop offset="0.4" stop-color="white" stop-opacity="0.23693" />
+      <stop offset="0.5" stop-color="white" stop-opacity="0.10540" />
+      <stop offset="0.6" stop-color="white" stop-opacity="0.03916" />
+      <stop offset="0.7" stop-color="white" stop-opacity="0.01216" />
+      <stop offset="0.8" stop-color="white" stop-opacity="0.00315" />
+      <stop offset="0.9" stop-color="white" stop-opacity="0.00068" />
+      <stop offset="1" stop-color="white" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="cut" href="#body" gradientTransform="translate(0 32) scale(100000 12.88)" />
+    <linearGradient id="fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="64" y2="0">
+      <stop stop-color="white" />
+      <stop offset="0.32" stop-color="white" />
+      <stop offset="0.52" stop-color="white" stop-opacity="0" />
+    </linearGradient>
+    <mask id="fading"><rect x="-40" y="-24" width="128" height="112" fill="url(#fade)" /></mask>
+    <filter id="black"><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" /></filter>
+    <mask id="slit">
+      <rect x="-40" y="-24" width="128" height="112" fill="white" />
+      <rect x="-40" y="-24" width="128" height="112" fill="url(#cut)" filter="url(#black)" opacity="0.9" mask="url(#fading)" />
+    </mask>
+  </defs>
+  <rect x="-40" y="-24" width="128" height="112" fill="url(#body)" mask="url(#slit)" />
+</svg>

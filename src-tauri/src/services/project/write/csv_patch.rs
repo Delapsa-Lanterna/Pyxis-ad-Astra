@@ -1,9 +1,10 @@
 use super::super::cache::{
     ensure_registered_table_rows, loaded_registered_csv_rows, lock_session,
-    registered_session_table, registered_session_table_mut, session_handle,
+    registered_session_table, session_handle,
 };
 use super::super::definitions::entity_definitions::associated_spec_definition;
 use super::super::model::SessionCsvRow;
+use super::csv_staging::CsvTableDraft;
 use crate::domain::spec_construction::{create_associated_spec, validate_weapon_spec_class};
 use crate::{
     errors::{AppError, AppResult},
@@ -12,7 +13,6 @@ use crate::{
         AssociatedSpecChange, AssociatedSpecCreateParams, AssociatedSpecWrite, CsvRowKeyMapping,
         CsvRowPatch, CsvRowPatchAction, CsvTableKey, WriteResult,
     },
-    parsers::render_csv_text,
 };
 use serde_json::Value;
 use std::path::Path;
@@ -50,7 +50,7 @@ pub fn save_csv_patch_with_json_options(
                 AssociatedSpecChange::Rename { previous_id, .. } => previous_id.as_str(),
                 _ => change.id(),
             };
-            let info = super::super::query::query_entity_edit_target(
+            let info = super::super::query::entity_targets::query_entity_edit_target(
                 session_id,
                 definition.entity_kind,
                 id,
@@ -77,25 +77,25 @@ pub fn save_csv_patch_snapshot(
     let write_lock = acquire_root_write_lock(Path::new(&root))?;
     let mut session = lock_session(&handle)?;
     ensure_registered_table_rows(&mut session, table)?;
-    let (mod_root, rel_path, header, mut rows, mut next_row_seq) = {
+    let (mod_root, header, mut rows, mut next_row_seq) = {
         let table_data = registered_session_table(&session, table)?;
         (
             session.manifest.mod_root.clone(),
-            table_data.path.clone(),
             table_data.header.clone(),
             loaded_registered_csv_rows(&session, table)?.to_vec(),
             table_data.next_row_seq,
         )
     };
     let key_map = apply_csv_row_patches(table, &mut rows, &mut next_row_seq, patches)?;
-    let row_values = rows
-        .iter()
-        .map(|row| (&row.data, row.is_comment))
-        .collect::<Vec<_>>();
-    let csv_text = render_csv_text(&header, &row_values)?;
     let mut builder = FileChangeSetBuilder::new_with_lock(Path::new(&mod_root), write_lock)?;
     let mut json = JsonWriteBatch::new(options);
-    builder.text_file(&rel_path, Some(csv_text.clone()))?;
+    let csv = CsvTableDraft {
+        table,
+        header,
+        rows,
+        next_row_seq,
+    }
+    .stage(&session, &mut builder)?;
     let mut description_renames = Vec::new();
     for spec in &associated_specs {
         let current = super::super::query::entity_targets::describe_entity_target(
@@ -116,29 +116,15 @@ pub fn save_csv_patch_snapshot(
         }
     }
     let description =
-        super::entity_description::stage_description_renames(&session, &description_renames)?;
-    if let Some(csv) = &description {
-        builder.text_file("data/strings/descriptions.csv", Some(csv.text.clone()))?;
-    }
+        super::entity_description::prepare_description_renames(&session, &description_renames)?
+            .map(|draft| draft.stage(&session, &mut builder))
+            .transpose()?;
     json.finish()?;
     let changes = builder.apply()?;
-    if let Some(csv) = description {
-        let state = session
-            .csv_tables
-            .get_mut(csv.table.as_str())
-            .expect("registered descriptions");
-        state.rows = Some(csv.rows);
-        state.header = csv.header;
-        state.next_row_seq = csv.next_seq;
-        state.saved_text = Some(csv.text);
+    if let Some(description) = description {
+        description.accept(&mut session);
     }
-    {
-        let table_data = registered_session_table_mut(&mut session, table)?;
-        table_data.rows = Some(rows);
-        table_data.header = header;
-        table_data.next_row_seq = next_row_seq;
-        table_data.saved_text = Some(csv_text);
-    }
+    csv.accept(&mut session);
     let mut write_result: WriteResult<()> = WriteResult::new(changes, key_map, None);
     for spec in &associated_specs {
         let definition = associated_spec_definition(table).expect("associated format exists");
@@ -492,20 +478,11 @@ mod tests {
             assert_eq!(window.rows[0].data, *content.as_object().unwrap());
             assert_ne!(window.rows[0].row_key, "business-key");
             let csv = read_utf8_no_bom(&csv_path).unwrap();
-            crate::services::file_changes::apply_file_change_set(
-                &root.to_string_lossy(),
-                FileChangeReplayDirection::Undo,
-                saved.changes.clone(),
-            )
-            .unwrap();
+            crate::io::apply_changes(&saved.changes.clone(), FileChangeReplayDirection::Undo)
+                .unwrap();
             assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), before);
             assert!(!spec_path.exists());
-            crate::services::file_changes::apply_file_change_set(
-                &root.to_string_lossy(),
-                FileChangeReplayDirection::Redo,
-                saved.changes,
-            )
-            .unwrap();
+            crate::io::apply_changes(&saved.changes, FileChangeReplayDirection::Redo).unwrap();
             assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv);
             assert_eq!(read_json_file(&spec_path).unwrap(), expected);
             close_project_session(manifest.session_id).unwrap();
@@ -530,12 +507,19 @@ mod tests {
             .unwrap();
             let mut trace = project::PerformanceTrace::new("project.openSession");
             let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
-            let info =
-                project::query_entity_edit_target(&manifest.session_id, EntityKind::Weapon, "Demo")
-                    .unwrap();
+            let info = crate::services::project::query::entity_targets::query_entity_edit_target(
+                &manifest.session_id,
+                EntityKind::Weapon,
+                "Demo",
+            )
+            .unwrap();
             let intent =
-                project::query_entity_identity_intent(&manifest.session_id, &info.target, next_id)
-                    .unwrap();
+                crate::services::project::query::entity_targets::query_entity_identity_intent(
+                    &manifest.session_id,
+                    &info.target,
+                    next_id,
+                )
+                .unwrap();
             let window = query_csv_table_window(
                 &manifest.session_id,
                 CsvTableKey::Weapons,
@@ -556,32 +540,30 @@ mod tests {
             }) {
                 base_versions.push(intent.destination_version);
             }
-            let saved = crate::commands::save_csv_patch(
-                crate::models::command_payloads::SaveCsvPatchPayload {
-                    session_id: manifest.session_id.clone(),
-                    mod_root: manifest.mod_root.clone(),
-                    base_versions,
-                    table: CsvTableKey::Weapons,
-                    patches: vec![CsvRowPatch {
-                        is_comment: false,
-                        row_key: window.rows[0].row_key.clone(),
-                        insert_at: None,
-                        action: CsvRowPatchAction::Upsert,
-                        row,
-                    }],
-                    associated_specs: vec![AssociatedSpecWrite {
-                        target: info.target,
-                        change: AssociatedSpecChange::Rename {
-                            previous_id: "Demo".into(),
-                            create: AssociatedSpecCreateParams::Weapon {
-                                id: next_id.into(),
-                                spec_class: WeaponSpecClass::Projectile,
-                            },
+            let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                base_versions,
+                table: CsvTableKey::Weapons,
+                patches: vec![CsvRowPatch {
+                    is_comment: false,
+                    row_key: window.rows[0].row_key.clone(),
+                    insert_at: None,
+                    action: CsvRowPatchAction::Upsert,
+                    row,
+                }],
+                associated_specs: vec![AssociatedSpecWrite {
+                    target: info.target,
+                    change: AssociatedSpecChange::Rename {
+                        previous_id: "Demo".into(),
+                        create: AssociatedSpecCreateParams::Weapon {
+                            id: next_id.into(),
+                            spec_class: WeaponSpecClass::Projectile,
                         },
-                    }],
-                    json_write: Default::default(),
-                },
-            )
+                    },
+                }],
+                json_write: Default::default(),
+            })
             .unwrap();
             let actual_name = || {
                 std::fs::read_dir(&directory)
@@ -602,7 +584,7 @@ mod tests {
                 crate::io::read_csv_data(&csv_path).unwrap().rows[0].data["custom"],
                 "keep"
             );
-            let next = project::query_entity_edit_target(
+            let next = crate::services::project::query::entity_targets::query_entity_edit_target(
                 &manifest.session_id,
                 EntityKind::Weapon,
                 next_id,
@@ -685,16 +667,14 @@ mod tests {
         close_project_session(manifest.session_id).unwrap();
         std::fs::remove_dir_all(root).unwrap();
     }
+    use crate::services::project::query::csv_window::query_csv_table_window;
     use crate::{
         io::{read_utf8_no_bom, write_utf8_no_bom},
         models::{
             AssociatedSpecChange, AssociatedSpecCreateParams, CsvRowPatch, CsvRowPatchAction,
             CsvSearchField, FileChangeKind,
         },
-        services::project::{
-            query::query_csv_table_window,
-            session::{close_project_session, open_project_session_traced},
-        },
+        services::project::session::{close_project_session, open_project_session_traced},
     };
     use serde_json::{Map, Value};
     use std::path::Path;
@@ -735,14 +715,17 @@ mod tests {
                 .collect::<Vec<_>>(),
             [true, false, false, false, false, false]
         );
-        let info =
-            project::query_entity_edit_target(&manifest.session_id, EntityKind::Ship, "same")
-                .unwrap();
+        let info = crate::services::project::query::entity_targets::query_entity_edit_target(
+            &manifest.session_id,
+            EntityKind::Ship,
+            "same",
+        )
+        .unwrap();
         assert!(
             matches!(info.target.linked_record, Some(crate::models::EntityLinkedRecord::Csv { row_key, .. }) if row_key == window.rows[1].row_key)
         );
         assert!(
-            project::query_csv_row_preview(
+            crate::services::project::query::csv_window::query_csv_row_preview(
                 &manifest.session_id,
                 CsvTableKey::Ships,
                 &window.rows[0].row_key
@@ -752,7 +735,7 @@ mod tests {
             .is_none()
         );
         assert!(
-            project::query_csv_row_preview(
+            crate::services::project::query::csv_window::query_csv_row_preview(
                 &manifest.session_id,
                 CsvTableKey::Ships,
                 &window.rows[1].row_key
@@ -761,8 +744,11 @@ mod tests {
             .resource_ref
             .is_some()
         );
-        let catalog =
-            project::query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
+        let catalog = crate::services::project::query::source_options::query_csv_source_options(
+            &manifest.session_id,
+            "csv:ships.id",
+        )
+        .unwrap();
         assert_eq!(
             catalog[0]
                 .options
@@ -773,23 +759,22 @@ mod tests {
         );
         let mut data = window.rows[1].data.clone();
         data.insert("name".into(), Value::String("#edited".into()));
-        let saved =
-            crate::commands::save_csv_patch(crate::models::command_payloads::SaveCsvPatchPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                base_versions: window.base_versions,
-                table: CsvTableKey::Ships,
-                patches: vec![CsvRowPatch {
-                    row_key: window.rows[1].row_key.clone(),
-                    is_comment: false,
-                    action: CsvRowPatchAction::Upsert,
-                    row: data,
-                    insert_at: None,
-                }],
-                associated_specs: Vec::new(),
-                json_write: Default::default(),
-            })
-            .unwrap();
+        let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            base_versions: window.base_versions,
+            table: CsvTableKey::Ships,
+            patches: vec![CsvRowPatch {
+                row_key: window.rows[1].row_key.clone(),
+                is_comment: false,
+                action: CsvRowPatchAction::Upsert,
+                row: data,
+                insert_at: None,
+            }],
+            associated_specs: Vec::new(),
+            json_write: Default::default(),
+        })
+        .unwrap();
         assert!(
             read_utf8_no_bom(&path)
                 .unwrap()

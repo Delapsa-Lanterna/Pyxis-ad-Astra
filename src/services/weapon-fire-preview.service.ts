@@ -1,7 +1,7 @@
 import { querySessionEntity } from '@/services/entity-query.service';
 import { requireRowData } from '@/shared/lib/row-data';
 import { shallowReadonly } from 'vue';
-import { queryWeaponData } from '@/services/weapon-data.service';
+import { queryWeaponSpecData, queryWeaponSprites } from '@/services/weapon-data.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { AppError } from '@/shared/lib/errors';
 import type { DeepReadonly, RowData, WeaponFirePreviewSource, WeaponFirePreviewData } from '@/shared/types';
@@ -11,7 +11,7 @@ export async function queryWeaponFirePreviewData(
   source: DeepReadonly<WeaponFirePreviewSource>,
   signal?: AbortSignal,
 ): Promise<WeaponFirePreviewData> {
-  const data = await queryWeaponData(
+  const data = await queryWeaponSpecData(
     sessionId,
     id,
     source.kind === 'draft' ? cloneQuerySnapshot<RowData>(source.weapon) : undefined,
@@ -34,6 +34,14 @@ export async function queryWeaponFirePreviewData(
     weaponCsvRow: data.weaponCsvRow,
     projectileSpecs,
     resourceRefs,
-    weaponSpriteData: data.weaponSpriteData,
+    weaponSpriteData: {},
   });
+}
+
+export function queryWeaponFirePreviewImages(sessionId: string, refs: WeaponFirePreviewData['resourceRefs'], signal?: AbortSignal) {
+  return queryWeaponSprites(
+    sessionId,
+    Object.fromEntries(refs.filter((ref) => ref.ownerKind === 'weapon').map((ref) => [ref.key, ref])),
+    signal,
+  );
 }

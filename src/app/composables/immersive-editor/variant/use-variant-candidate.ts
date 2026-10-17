@@ -28,7 +28,11 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
   const media = useResourceMediaRegistry({
     surface: '装配候选详情',
     onError: (error) => feedback.error(error),
-    onFailures: (items) => feedback.warning(warningNotice('候选资源缺失：' + items.length, 'resource.read_failed', 'Variant detail media')),
+    onFailures: (items) => {
+      const missing = items.filter((resource) => resource.ownerId !== 'damage-type');
+      if (missing.length)
+        feedback.warning(warningNotice('候选资源缺失：' + missing.length, 'resource.read_failed', 'Variant detail media'));
+    },
   });
   const mediaUrl = (resource: ResourceRef | null | undefined) => media.dataUrl(root().sessionId, resource) ?? '';
   function load() {

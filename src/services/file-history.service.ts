@@ -1,12 +1,13 @@
+import type { FileHistoryPayload, ApplyFileChangeSetPayload } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import type { FileChangeReplayDirection, FileHistorySnapshot } from '@/shared/types';
 
 export function loadFileHistory(sessionId: string, modRoot: string): Promise<FileHistorySnapshot> {
-  return invokeCommand('query_file_history', { payload: { sessionId, modRoot } });
+  return invokeCommand('query_file_history', { payload: { sessionId, modRoot } satisfies FileHistoryPayload });
 }
 
 export function clearSavedFileHistory(sessionId: string, modRoot: string): Promise<FileHistorySnapshot> {
-  return invokeCommand('clear_file_history', { payload: { sessionId, modRoot } });
+  return invokeCommand('clear_file_history', { payload: { sessionId, modRoot } satisfies FileHistoryPayload });
 }
 
 export function replayFileChangeSet(
@@ -16,5 +17,7 @@ export function replayFileChangeSet(
   entryId: number,
   revision: number,
 ): Promise<import('@/shared/types').WriteResult> {
-  return invokeCommand('apply_file_change_set', { payload: { sessionId, modRoot, direction, entryId, revision } });
+  return invokeCommand('apply_file_change_set', {
+    payload: { sessionId, modRoot, direction, entryId, revision } satisfies ApplyFileChangeSetPayload,
+  });
 }

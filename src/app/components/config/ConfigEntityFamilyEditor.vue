@@ -1,17 +1,21 @@
 <template>
-  <main v-if="selectedFile && schema" class="config-family-editor" :inert="actionsLocked || handoffLocked">
+  <main
+    v-if="selectedFile && schema"
+    class="config-family-editor ui-content-column ui-content-surface-muted"
+    :inert="actionsLocked || handoffLocked"
+  >
     <ConfigTargetNotice
       :label="family.displayName"
       :deleted-target="deletedTarget"
       :actions-locked="actionsLocked"
       :discard-deleted-target="discardDeletedTarget"
     />
-    <header class="config-family-editor-header">
+    <header class="config-family-editor-header ui-control-between ui-content-surface">
       <div>
-        <h3>{{ selectedId }}</h3>
-        <p>{{ selectedFile.relPath }}</p>
+        <h3 class="config-family-editor-header-title">{{ selectedId }}</h3>
+        <p class="config-family-editor-header-description ui-text-muted ui-text-reset">{{ selectedFile.relPath }}</p>
       </div>
-      <div class="config-family-editor-actions">
+      <div class="config-family-editor-actions ui-layout-row ui-layout-center">
         <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
           载入外部版本
         </n-button>
@@ -20,8 +24,10 @@
         <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
       </div>
     </header>
-    <div v-if="externalUpdateNotice" class="config-external-update-note">{{ externalUpdateNotice }}</div>
-    <div class="config-family-editor-body">
+    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
+      {{ externalUpdateNotice }}
+    </div>
+    <div class="config-family-editor-body ui-layout-grid">
       <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>
   </main>

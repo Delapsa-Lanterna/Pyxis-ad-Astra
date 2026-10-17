@@ -1,17 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as csvTable from '@/services/csv-table.service';
 import * as configEntity from '@/services/config-entity.service';
+import * as configFamily from '@/services/config-family.service';
 import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as fileService from '@/services/files.service';
 import { entityTargetFixture } from '@/test/entity-target';
 import type {
-  DeleteIndexedConfigEntityWrite,
-  DeleteSkinEntityWrite,
-  DeleteVariantEntityWrite,
-  IndexedConfigEntityWrite,
-  SkinEntityWrite,
-  VariantEntityWrite,
+  DeleteIndexedConfigEntityPayload,
+  DeleteConfigFamilyEntityPayload,
+  IndexedConfigEntityPayload,
+  ConfigFamilyEntityPayload,
 } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -23,7 +22,7 @@ const sessionId = 's1',
 const target = entityTargetFixture('ship', id);
 const data = { hullId: id, _business: { key: '0012' } };
 const jsonWrite = { preserveOriginalJson: true, confirmedSources: [] };
-const indexed: IndexedConfigEntityWrite = {
+const indexed: IndexedConfigEntityPayload = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -33,8 +32,8 @@ const indexed: IndexedConfigEntityWrite = {
   indexRow: { mission: id },
   entityData: { descriptor: { title: 'Demo' }, text: '' },
 };
-const deleteIndexed: DeleteIndexedConfigEntityWrite = { sessionId, modRoot, baseVersions: [], kind: 'mission', id, deleteTarget: true };
-const family: VariantEntityWrite & SkinEntityWrite = {
+const deleteIndexed: DeleteIndexedConfigEntityPayload = { sessionId, modRoot, baseVersions: [], kind: 'mission', id, deleteTarget: true };
+const family: ConfigFamilyEntityPayload = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -43,7 +42,7 @@ const family: VariantEntityWrite & SkinEntityWrite = {
   relPath: null,
   data,
 };
-const deleteFamily: DeleteVariantEntityWrite & DeleteSkinEntityWrite = {
+const deleteFamily: DeleteConfigFamilyEntityPayload = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -84,7 +83,6 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
     () => configEntity.saveModInfo(sessionId, modRoot, data, jsonWrite),
     { sessionId, modRoot, data, jsonWrite, orderedJson: JSON.stringify(data), baseVersions: [] },
   ],
-  ['save_mod_files', () => fileService.saveModFiles(sessionId, modRoot, []), { sessionId, modRoot, files: [], baseVersions: [] }],
   [
     'apply_file_change_set',
     () => fileHistory.replayFileChangeSet(sessionId, modRoot, 'undo', 1, 2),
@@ -101,14 +99,14 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   ['delete_indexed_config_entity', () => configEntity.deleteIndexedConfigEntity(deleteIndexed), deleteIndexed],
   [
     'save_variant_entity',
-    () => configEntity.saveVariantEntity(family, jsonWrite),
+    () => configFamily.saveVariantEntity(family, jsonWrite),
     { ...family, jsonWrite, orderedJson: JSON.stringify(data) },
   ],
-  ['create_variant_entity', () => configEntity.createVariantEntity(family), family],
-  ['delete_variant_entity', () => configEntity.deleteVariantEntity(deleteFamily), deleteFamily],
-  ['save_skin_entity', () => configEntity.saveSkinEntity(family, jsonWrite), { ...family, jsonWrite, orderedJson: JSON.stringify(data) }],
-  ['create_skin_entity', () => configEntity.createSkinEntity(family), family],
-  ['delete_skin_entity', () => configEntity.deleteSkinEntity(deleteFamily), deleteFamily],
+  ['create_variant_entity', () => configFamily.createVariantEntity(family), family],
+  ['delete_variant_entity', () => configFamily.deleteVariantEntity(deleteFamily), deleteFamily],
+  ['save_skin_entity', () => configFamily.saveSkinEntity(family, jsonWrite), { ...family, jsonWrite, orderedJson: JSON.stringify(data) }],
+  ['create_skin_entity', () => configFamily.createSkinEntity(family), family],
+  ['delete_skin_entity', () => configFamily.deleteSkinEntity(deleteFamily), deleteFamily],
 ];
 beforeEach(() => {
   vi.clearAllMocks();
@@ -119,5 +117,43 @@ describe('query and persistence transport protocols', () => {
     const result = await action();
     expect(result).toEqual({ ready: true });
     expect(invoke).toHaveBeenCalledExactlyOnceWith(command, { payload });
+  });
+  it.each([
+    [
+      'save_editor_spec',
+      () => editor.saveSpecEditorSpec(sessionId, modRoot, target, data),
+      { baseVersions: [], sessionId, modRoot, target, data },
+    ],
+    ['save_indexed_config_entity', () => configEntity.saveIndexedConfigEntity(indexed), indexed],
+    ['save_variant_entity', () => configFamily.saveVariantEntity(family), family],
+    ['save_skin_entity', () => configFamily.saveSkinEntity(family), family],
+    [
+      'save_csv_patch',
+      () => csvTable.saveCsvPatch(sessionId, modRoot, 'ships', [], []),
+      { baseVersions: [], sessionId, modRoot, table: 'ships', patches: [], associatedSpecs: [] },
+    ],
+  ] as const)('%s preserves omitted JSON options', async (command, action, payload) => {
+    await action();
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(command, { payload });
+  });
+
+  it('orders faction JSON from its file while preserving the complete entity input', async () => {
+    const faction: IndexedConfigEntityPayload = { ...indexed, kind: 'faction', entityData: { file: { id, name: 'Faction' } } };
+    await configEntity.saveIndexedConfigEntity(faction, jsonWrite);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('save_indexed_config_entity', {
+      payload: { ...faction, jsonWrite, orderedJson: JSON.stringify(faction.entityData.file) },
+    });
+  });
+
+  it.each([null, sessionId])('text commands preserve session %s and loaded versions', async (session) => {
+    const baseVersions = [{ path, fingerprint: 'loaded' }];
+    await fileService.writeEditableFileText(session, modRoot, path, '{}', baseVersions);
+    expect(invoke).toHaveBeenLastCalledWith('save_text_file', { payload: { baseVersions, sessionId: session, modRoot, path, text: '{}' } });
+    await fileService.transcodeFileToUtf8(session, modRoot, path, 'windows-1252', baseVersions);
+    expect(invoke).toHaveBeenLastCalledWith('transcode_file_to_utf8', {
+      payload: { baseVersions, sessionId: session, modRoot, path, encoding: 'windows-1252' },
+    });
+    await fileService.loadEditableFileData(session, modRoot, path);
+    expect(invoke).toHaveBeenLastCalledWith('load_editable_file', { payload: { sessionId: session, modRoot, path } });
   });
 });

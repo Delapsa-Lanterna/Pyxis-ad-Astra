@@ -1,17 +1,22 @@
 <template>
-  <div class="csv-cell-text-editor" :style="editorStyle" tabindex="-1" @mousedown.stop>
+  <div
+    class="csv-cell-text-editor ui-layout-row ui-layout-stack ui-control-border ui-content-surface"
+    :style="editorStyle"
+    tabindex="-1"
+    @mousedown.stop
+  >
     <textarea
       ref="textRef"
       :value="value"
       @input="updateText"
-      class="csv-cell-text-input"
+      class="csv-cell-text-input ui-textarea ui-text-normal ui-control-border"
       spellcheck="false"
       @keydown.enter.ctrl.prevent="commit"
       @keydown.esc.prevent="cancel"
     ></textarea>
-    <div class="csv-cell-text-actions">
-      <span class="csv-cell-text-hint">Ctrl+Enter 提交，Esc 取消</span>
-      <button type="button" class="csv-cell-text-commit" @click="commit">提交</button>
+    <div class="csv-cell-text-actions ui-control-between">
+      <span class="csv-cell-text-hint ui-text-muted">Ctrl+Enter 提交，Esc 取消</span>
+      <button type="button" class="csv-cell-text-commit ui-button ui-text-small" @click="commit">提交</button>
     </div>
   </div>
 </template>

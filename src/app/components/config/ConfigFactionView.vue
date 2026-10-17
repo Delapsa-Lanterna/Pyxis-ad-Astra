@@ -1,5 +1,5 @@
 <template>
-  <div class="config-factions-layout">
+  <div class="config-factions-layout ui-layout-row ui-layout-clip">
     <ConfigFactionList
       :selected-id="selectedFaction"
       :action-running="actionRunning"
@@ -32,7 +32,7 @@
       :discard-deleted-target="discardDeletedTarget"
       @saved="onSaved"
     />
-    <div v-else class="config-placeholder"><p>选择一个势力以编辑</p></div>
+    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid"><p>选择一个势力以编辑</p></div>
   </div>
 </template>
 

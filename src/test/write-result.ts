@@ -1,6 +1,6 @@
 import {
   TABLE_KEYS,
-  type TableKey,
+  type CsvTableKey,
   type TableSummary,
   type RowData,
   type WriteResult,
@@ -10,7 +10,7 @@ import {
 
 export function sessionUpdateFixture(sessionId: string, modRoot: string, commitId = 1): CommittedSessionUpdate {
   const tableSummaries = Object.fromEntries(
-    TABLE_KEYS.map((key): [TableKey, TableSummary] => [key, { path: key + '.csv', header: [], available: false, totalRows: 0 }]),
+    TABLE_KEYS.map((key): [CsvTableKey, TableSummary] => [key, { path: key + '.csv', header: [], available: false, totalRows: 0 }]),
   ) as ProjectManifest['tableSummaries'];
   const tableEntitySummaries = Object.fromEntries(TABLE_KEYS.map((key) => [key, 0])) as ProjectManifest['tableEntitySummaries'];
   return {

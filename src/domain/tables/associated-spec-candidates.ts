@@ -1,4 +1,4 @@
-import type { AssociatedSpecChange, ModTableState, TableKey } from '@/shared/types';
+import type { AssociatedSpecChange, ModTableState, CsvTableKey } from '@/shared/types';
 import { rowSpecId } from '@/shared/lib/starsector';
 import { isCsvDeletedRow } from '@/domain/tables/csv-dirty';
 import { isLoadedCsvTableRow } from '@/domain/tables/csv-table-rows';
@@ -6,15 +6,15 @@ import { associatedSpecCreateParams } from '@/domain/tables/associated-spec-crea
 
 export interface AssociatedSpecCandidate {
   key: string;
-  table: TableKey;
+  table: CsvTableKey;
   label: string;
   change: AssociatedSpecChange;
 }
 
 export function getAssociatedSpecCandidates(
   state: ModTableState | undefined,
-  table: TableKey,
-  associatedSpecTables: readonly TableKey[],
+  table: CsvTableKey,
+  associatedSpecTables: readonly CsvTableKey[],
 ): AssociatedSpecCandidate[] {
   if (!state || !associatedSpecTables.includes(table)) return [];
   const originalRows = new Map(state.originalTables[table].filter(isLoadedCsvTableRow).map((row) => [row.rowKey, row]));

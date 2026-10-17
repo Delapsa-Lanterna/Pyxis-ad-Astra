@@ -1,7 +1,8 @@
+use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, forward_slash_path, read_faction_index, read_json_file},
-    models::{EntityFileLocation, FactionIndexEntry, LoadedSpecRecord, ResourceSource},
+    models::{EntityFileLocation, FactionIndexEntry, ResourceSource},
 };
 use serde_json::{Map, Value};
 use std::{

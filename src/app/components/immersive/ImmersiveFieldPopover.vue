@@ -1,7 +1,9 @@
 <template>
-  <div class="immersive-field-popover" @keydown.esc.stop.prevent="cancel" @keydown.enter="enter">
+  <div class="immersive-field-popover ui-content-grid" @keydown.esc.stop.prevent="cancel" @keydown.enter="enter">
     <strong><ImmersiveText :text="stat.label" font="heading" /></strong>
-    <p v-if="stat.formula" class="immersive-source-note"><ImmersiveText :text="stat.formula" block /></p>
+    <p v-if="stat.formula" class="immersive-source-note ui-text-muted ui-text-wrap ui-text-reset">
+      <ImmersiveText :text="stat.formula" block />
+    </p>
     <div v-for="(field, index) in stat.fields" :key="field.id">
       <ImmersiveFieldInput
         :field="field"
@@ -12,7 +14,9 @@
         :autofocus="index === 0"
         @update="pending.set(field.id, $event)"
       />
-      <small class="immersive-source-note"><ImmersiveText :text="sourcePath(field.recordKey) + ' · ' + field.schema.key" block /></small>
+      <small class="immersive-source-note ui-text-muted ui-text-wrap ui-text-reset"
+        ><ImmersiveText :text="sourcePath(field.recordKey) + ' · ' + field.schema.key" block
+      /></small>
     </div>
     <div class="immersive-field-actions">
       <n-button @mousedown.prevent @click="cancel">取消</n-button><n-button type="primary" @click="submit">提交</n-button>

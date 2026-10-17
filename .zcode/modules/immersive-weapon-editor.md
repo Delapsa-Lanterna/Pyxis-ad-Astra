@@ -6,10 +6,20 @@
 
 ## 参考
 
-`src/app/components/immersive/weapon/WeaponImmersivePanel.vue`：武器内容与弹体打开事件入口。
-`src/app/composables/immersive-editor/weapon/use-immersive-weapon-editor.ts`：分支覆盖与弹体打开动作 owner。
-`src/domain/immersive/weapon/weapon-panel.ts`：武器字段、说明、图标来源和分支投影。
-`src/domain/immersive/weapon/weapon-statistics.ts`：武器周期、弹药与伤害统计纯规则。
+### 拥有
+
+- `src/app/components/immersive/ImmersiveHighlightedText.vue`：武器说明高亮文本展示。
+- `src/app/components/immersive/weapon/`：武器信息与弹体打开事件展示。
+- `src/app/components/immersive/weapon/WeaponImmersivePanel.vue`：武器内容与弹体打开事件入口。
+- `src/app/composables/immersive-editor/weapon/`：武器分支及弹体打开动作。
+- `src/app/composables/immersive-editor/weapon/use-immersive-weapon-editor.ts`：分支覆盖与弹体打开动作。
+- `src/domain/immersive/weapon/`：武器字段、统计与信息投影。
+- `src/domain/immersive/weapon/weapon-panel.ts`：武器字段、说明、图标来源和分支投影。
+- `src/domain/immersive/weapon/weapon-statistics.ts`：武器周期、弹药与伤害统计纯规则。
+
+### 消费
+
+- `src/test/weapon-joint-edit.ts`：武器联合来源与规格的测试构造。
 
 ## 边界
 

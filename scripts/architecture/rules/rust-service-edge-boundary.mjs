@@ -1,5 +1,5 @@
 import { rustFile } from '../../shared/files.mjs';
-import { cratePaths } from '../../shared/rust-crate-paths.mjs';
+import { rustServiceExports, rustServicePaths } from '../../shared/rust-crate-paths.mjs';
 import { productionRustSource } from '../../shared/rust-source.mjs';
 
 // Horizontal edges between top-level backend services. The `project` subtree
@@ -7,26 +7,26 @@ import { productionRustSource } from '../../shared/rust-source.mjs';
 // here only as a single dependency target.
 const allowedServiceEdges = new Set([
   'app_config -> app_paths',
-  'app_config -> app_settings',
+  'app_lifecycle -> windows',
+  'app_lifecycle -> project',
+  'app_lifecycle -> project_session',
   'app_config -> system_open',
   'app_log -> app_paths',
   'app_log -> app_settings',
   'app_log -> system_open',
   'app_settings -> app_paths',
   'app_settings -> workspace_persistence',
-  'app_settings -> file_history',
   'project_session -> app_log',
   'project_session -> app_paths',
   'project_session -> directory_opening',
   'project_session -> project',
-  'editor_config -> file_changes',
-  'file_editor -> file_changes',
+  'project_session -> write_transactions',
+  'project_session -> windows',
   'file_editor -> project',
   'windows -> project',
   'mod_creation -> directory_opening',
   'workspace_persistence -> app_paths',
   'write_transactions -> app_settings',
-  'write_transactions -> file_changes',
   'write_transactions -> file_history',
   'write_transactions -> project',
 ]);
@@ -36,16 +36,17 @@ export const rustServiceEdgeBoundaryRule = {
   /** @param {import('../../shared/files.mjs').RepoFile[]} files @returns {string[]} */
   check(files) {
     const failures = [];
+    const exports = rustServiceExports(files);
     for (const file of files) {
       if (!rustFile(file.rel)) continue;
       const from = topLevelServiceModule(file.rel);
       if (!from) continue;
       const productionText = productionRustSource(file.text);
       const rejected = new Set();
-      for (const parts of cratePaths(productionText, file.rel)) {
+      for (const edge of rustServicePaths(productionText, file.rel, exports)) {
+        const parts = edge.target;
         if (parts[0] !== 'services' || parts.length < 2) continue;
         const to = parts[1] === 'project' ? 'project' : parts[1];
-        if (from === 'app_settings' && parts.join('::') === 'services::project::configure_media_cache') continue;
         if (to === from || allowedServiceEdges.has(`${from} -> ${to}`)) continue;
         if (!rejected.has(to))
           failures.push(`${file.rel}: backend service ${from} must not depend on service ${to} (crate::${parts.join('::')})`);
@@ -60,5 +61,5 @@ export const rustServiceEdgeBoundaryRule = {
 function topLevelServiceModule(rel) {
   const match = /^src-tauri\/src\/services\/([^/]+?)(?:\.rs|\/)/.exec(rel);
   if (!match) return null;
-  return match[1] === 'project' ? null : match[1];
+  return ['project', 'mod'].includes(match[1]) ? null : match[1];
 }

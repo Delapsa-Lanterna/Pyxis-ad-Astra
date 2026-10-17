@@ -1,3 +1,4 @@
+use super::required_nullable_non_empty_string;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -59,9 +60,24 @@ pub struct GameWarningEditTarget {
     pub path: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectDirectoryPayload {
+    pub path: String,
+    #[serde(deserialize_with = "required_nullable_non_empty_string")]
+    pub known_starsector_root: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanGameOverviewPayload {
+    pub starsector_root: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn open_directory_result_roundtrips_kebab_kind_and_camel_fields() {
@@ -105,5 +121,25 @@ mod tests {
         };
         let json = serde_json::to_value(&warning).expect("serializable");
         assert!(json["editTarget"].is_null());
+    }
+
+    #[test]
+    fn detect_directory_payload_requires_explicit_nullable_known_root() {
+        let result = serde_json::from_value::<DetectDirectoryPayload>(json!({
+            "path": "D:/mods/demo"
+        }));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn detect_directory_payload_treats_blank_known_root_as_missing() {
+        let payload = serde_json::from_value::<DetectDirectoryPayload>(json!({
+            "path": "D:/mods/demo",
+            "knownStarsectorRoot": "  "
+        }))
+        .unwrap();
+
+        assert_eq!(payload.known_starsector_root, None);
     }
 }

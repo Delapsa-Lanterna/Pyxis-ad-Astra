@@ -1,5 +1,5 @@
 <template>
-  <label class="immersive-field-input">
+  <label class="immersive-field-input ui-layout-grid ui-layout-shrink">
     <span><ImmersiveText :text="field.schema.label" /></span>
     <n-select
       v-if="mode === 'smart' && (field.schema.options || field.schema.source)"

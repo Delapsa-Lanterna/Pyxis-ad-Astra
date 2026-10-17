@@ -6,10 +6,19 @@
 
 ## 参考
 
-`src/app/AppContent.vue`：挂载入口，按当前视图挂载关于页面。
-`src/app/TitleBar.vue`：标题栏入口，触发 `showAbout` 导航。
-`src/app/components/AboutPage.vue`：页面组件 owner，拥有静态元信息模板与 Markdown 渲染。
-`src/stores/workspace.store.ts`：视图状态 owner，只持有 `currentView='about'`。
+### 拥有
+
+- `CHANGELOG.md`：关于页面构建时消费的发布说明。
+- `src/app/components/AboutPage.vue`：页面组件，拥有静态元信息模板与 Markdown 渲染。
+
+### 装配
+
+- `src/app/AppContent.vue`：挂载入口，按当前视图挂载关于页面。
+- `src/app/TitleBar.vue`：标题栏入口，触发 `showAbout` 导航。
+
+### 关联
+
+- `src/stores/workspace.store.ts`：视图状态，只持有 `currentView='about'`。
 
 ## 边界
 

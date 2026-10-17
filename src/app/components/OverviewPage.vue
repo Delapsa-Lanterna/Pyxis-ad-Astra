@@ -1,9 +1,17 @@
 <template>
-  <div class="overview-page" :class="{ 'overview-page-empty': !workspace.hasWorkspaceContext && !workspace.hasModOpeningFailures }">
-    <header v-if="workspace.hasWorkspaceContext || workspace.hasModOpeningFailures" class="overview-header">
-      <div>
-        <h1>工作区总览</h1>
-        <p class="overview-subtitle">{{ subtitle }}</p>
+  <div
+    class="overview-page page-content page-slot ui-content-column ui-content-grid ui-content-surface-muted"
+    :class="{ 'overview-page-empty': !workspace.hasWorkspaceContext && !workspace.hasModOpeningFailures }"
+  >
+    <header
+      v-if="workspace.hasWorkspaceContext || workspace.hasModOpeningFailures"
+      class="overview-header page-header ui-control-between ui-layout-row ui-control-reset"
+    >
+      <div class="page-identity ui-layout-grid ui-layout-shrink">
+        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">工作区总览</h1>
+        <p class="overview-subtitle overview-header-description page-description ui-text-description ui-text-muted ui-text-reset">
+          {{ subtitle }}
+        </p>
       </div>
       <n-button v-if="!workspace.gameOverview" size="small" @click="beginCreateMod">创建新 Mod</n-button>
     </header>
@@ -17,16 +25,22 @@
       @close-workspace="$emit('close-workspace')"
       @edit-warning-file="$emit('edit-warning-file', $event)"
       @edit-failure-file="$emit('edit-failure-file', $event)"
+      @dismiss-failure="workspace.clearModOpeningFailure"
+      @dismiss-warning="workspace.clearGameScanWarning"
       @load-mod="$emit('load-mod', $event)"
     />
 
-    <div v-else class="overview-page-content">
-      <ModOpeningFailureList :failures="workspace.modOpeningFailureList" @edit-failure-file="$emit('edit-failure-file', $event)" />
+    <div v-else class="overview-page-content ui-content-grid">
+      <ModOpeningFailureList
+        :failures="workspace.modOpeningFailureList"
+        @edit-failure-file="$emit('edit-failure-file', $event)"
+        @dismiss-failure="workspace.clearModOpeningFailure"
+      />
 
-      <section v-if="!workspace.hasWorkspaceContext" class="overview-empty-state empty-state">
-        <h1>选择一个 Starsector / Mod 目录</h1>
-        <p>可以打开游戏目录，也可以直接打开一个 Mod 目录。</p>
-        <div class="overview-empty-actions">
+      <section v-if="!workspace.hasWorkspaceContext" class="overview-empty-state empty-state ui-text-muted ui-layout-grid ui-text-normal">
+        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">选择一个 Starsector / Mod 目录</h1>
+        <p class="empty-state-description ui-text-muted ui-text-reset">可以打开游戏目录，也可以直接打开一个 Mod 目录。</p>
+        <div class="overview-empty-actions ui-control-row ui-layout-row">
           <n-button size="large" @click="beginCreateMod">创建新 Mod</n-button>
           <n-button size="large" @click="$emit('import-mod')">打开目录</n-button>
         </div>
@@ -44,22 +58,24 @@
       :positive-button-props="{ loading: createModSaving }"
       @positive-click="submitCreateMod"
     >
-      <div class="create-mod-dialog">
-        <p class="create-mod-target">目标目录：{{ createModDestinationText }}</p>
-        <p class="create-mod-hint">将创建 `mod_info.json` 与标准空目录；不会预置 CSV 或 spec 文件。</p>
-        <label class="create-mod-field">
+      <div class="create-mod-dialog ui-layout-grid">
+        <p class="create-mod-target ui-text-small ui-text-wrap ui-text-reset ui-text-soft">目标目录：{{ createModDestinationText }}</p>
+        <p class="create-mod-hint ui-text-small ui-text-wrap ui-text-reset ui-text-muted">
+          将创建 `mod_info.json` 与标准空目录；不会预置 CSV 或 spec 文件。
+        </p>
+        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
           <span>Mod ID</span>
           <n-input v-model:value="createModTemplate.id" autofocus placeholder="英文标识，例如 example_mod" />
         </label>
-        <label class="create-mod-field">
+        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
           <span>名称</span>
           <n-input v-model:value="createModTemplate.name" placeholder="显示名称" />
         </label>
-        <label class="create-mod-field">
+        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
           <span>版本号</span>
           <n-input v-model:value="createModTemplate.version" />
         </label>
-        <label class="create-mod-field">
+        <label class="create-mod-field ui-text-soft ui-text-small ui-layout-grid">
           <span>适用游戏版本</span>
           <n-input v-model:value="createModTemplate.gameVersion" />
         </label>

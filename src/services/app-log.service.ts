@@ -1,9 +1,9 @@
+import type { AppendAppLogPayload, AppLogEntry, AppLogStatus } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { setPerformanceLogSink } from '@/shared/runtime/performance';
-import type { AppLogEntry, AppLogStatus } from '@/shared/types';
 
 export function recordLogBestEffort(entry: AppLogEntry): void {
-  void invokeCommand<void>('append_app_log', { payload: { entry } }).catch(ignoreLogFailure);
+  void invokeCommand<void>('append_app_log', { payload: { entry } satisfies AppendAppLogPayload }).catch(ignoreLogFailure);
 }
 
 function ignoreLogFailure(): void {

@@ -1,6 +1,6 @@
 <template>
-  <div class="color-picker">
-    <span v-if="label" class="color-picker-label">{{ label }}</span>
+  <div class="color-picker ui-layout-grid ui-layout-shrink ui-layout-center">
+    <span v-if="label" class="color-picker-label ui-text-soft ui-text-small">{{ label }}</span>
     <n-popover
       v-model:show="panelOpen"
       trigger="manual"
@@ -11,40 +11,62 @@
     >
       <template #trigger>
         <button
-          class="color-picker-preview"
+          class="color-picker-preview ui-button ui-control-pointer ui-control-reset ui-control-border"
           type="button"
           :style="{ '--preview-color': cssColor(currentColor) }"
           title="选择颜色"
           @click="openPanel"
         />
       </template>
-      <div class="color-picker-panel" @keydown.stop @keyup.stop @keypress.stop>
+      <div class="color-picker-panel ui-layout-grid ui-control-border ui-content-surface" @keydown.stop @keyup.stop @keypress.stop>
         <div
           ref="svRef"
-          class="color-picker-sv"
+          class="color-picker-sv ui-control-border"
           :style="{ '--hue-color': cssColor({ r: hueRgb.r, g: hueRgb.g, b: hueRgb.b, a: 255 }) }"
           @pointerdown.prevent="startSvDrag"
         >
           <span class="color-picker-sv-handle" :style="{ left: `${draft.s}%`, top: `${100 - draft.v}%` }" />
         </div>
-        <div class="color-picker-slider-row">
+        <div class="color-picker-slider-row ui-text-muted ui-layout-grid ui-layout-center">
           <span>H</span>
-          <input v-model.number="draft.h" class="color-picker-hue" type="range" min="0" max="360" @input="syncDraftFromHsv" />
+          <input
+            v-model.number="draft.h"
+            class="color-picker-hue ui-input color-picker-slider-row-input ui-layout-stretch ui-text-reset"
+            type="range"
+            min="0"
+            max="360"
+            @input="syncDraftFromHsv"
+          />
         </div>
-        <div class="color-picker-slider-row">
+        <div class="color-picker-slider-row ui-text-muted ui-layout-grid ui-layout-center">
           <span>A</span>
-          <input v-model.number="draft.a" class="color-picker-alpha" type="range" min="0" max="255" />
+          <input
+            v-model.number="draft.a"
+            class="color-picker-alpha ui-input color-picker-slider-row-input ui-layout-stretch ui-text-reset"
+            type="range"
+            min="0"
+            max="255"
+          />
           <span class="color-picker-alpha-value">{{ draft.a }}</span>
         </div>
-        <div class="color-picker-panel-preview">
-          <span class="color-picker-preview small" :style="{ '--preview-color': cssColor(draftColor) }" />
-          <span>{{ draftColor.r }}, {{ draftColor.g }}, {{ draftColor.b }}, {{ draftColor.a }}</span>
+        <div class="color-picker-panel-preview ui-text-soft ui-layout-grid ui-layout-center">
+          <span
+            class="color-picker-preview small color-picker-panel-preview-label ui-control-pointer ui-control-reset ui-control-border"
+            :style="{ '--preview-color': cssColor(draftColor) }"
+          />
+          <span class="color-picker-panel-preview-label"
+            >{{ draftColor.r }}, {{ draftColor.g }}, {{ draftColor.b }}, {{ draftColor.a }}</span
+          >
         </div>
-        <div class="color-picker-channels">
-          <label v-for="channel in channelKeys" :key="channel">
+        <div class="color-picker-channels ui-layout-grid ui-layout-shrink">
+          <label
+            class="color-picker-channels-label ui-text-muted ui-layout-grid ui-layout-shrink ui-layout-center"
+            v-for="channel in channelKeys"
+            :key="channel"
+          >
             <span>{{ channel.toUpperCase() }}</span>
             <NumberValueInput
-              class="color-picker-channel-input"
+              class="color-picker-channel-input ui-layout-shrink"
               :input-key="colorKey + '/' + channel"
               :label="(label || '颜色') + ' ' + channel.toUpperCase()"
               :value="channelValue(channel)"
@@ -57,8 +79,8 @@
             />
           </label>
         </div>
-        <div class="color-picker-actions">
-          <span v-if="panelError" class="color-picker-error">{{ panelError }}</span>
+        <div class="color-picker-actions ui-layout-row">
+          <span v-if="panelError" class="color-picker-error ui-text-small ui-text-wrap">{{ panelError }}</span>
           <n-button size="tiny" quaternary @click="cancelPanel">取消</n-button>
           <n-button size="tiny" type="primary" @click="confirmPanel">确认</n-button>
         </div>
@@ -67,7 +89,7 @@
     <n-input
       v-if="allowTextInput"
       ref="textInput"
-      class="color-picker-text-input"
+      class="color-picker-text-input ui-layout-shrink"
       :value="textDraft"
       size="small"
       :status="textValid ? undefined : 'error'"

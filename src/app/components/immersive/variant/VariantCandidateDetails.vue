@@ -1,5 +1,5 @@
 <template>
-  <div class="variant-candidate-details immersive-display-surface">
+  <div class="variant-candidate-details immersive-display-surface ui-content-surface">
     <WeaponImmersivePanel v-if="panel?.kind === 'weapon'" :panel="panel" :render="render" />
     <WingImmersivePanel v-else-if="panel?.kind === 'wing'" :panel="panel" :render="render" />
     <ImmersiveText v-else :text="errorText || '正在读取候选详情'" block />

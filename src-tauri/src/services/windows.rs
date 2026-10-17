@@ -1,35 +1,168 @@
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        ManagedWindowContext, ManagedWindowInput, ManagedWindowOpened, ManagedWindowRequest,
-        ManagedWindowStatus, WindowBootstrap, WindowIdentity, WindowRequestReceipt,
-        WindowRequestStatus, WindowSettingsSnapshot,
+        ManagedWindowContext, ManagedWindowInput, ManagedWindowRequest, ManagedWindowStatus,
+        WindowBootstrap, WindowIdentity, WindowRequestReceipt, WindowRequestStatus,
     },
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Condvar, LazyLock, Mutex, mpsc},
+    collections::BTreeMap,
+    sync::{Condvar, LazyLock, Mutex},
 };
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+
+#[cfg(windows)]
+pub mod auxiliary {
+    use crate::errors::{AppError, AppResult};
+    use std::io;
+    use windows_sys::Win32::{
+        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        System::Threading::GetCurrentThreadId,
+        UI::{
+            Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
+            WindowsAndMessaging::*,
+        },
+    };
+
+    struct Installation {
+        single_class: String,
+        result: AppResult<()>,
+    }
+
+    /// Installs auxiliary-window protection on the application's GUI thread.
+    pub fn install(identifier: &str) -> AppResult<()> {
+        let mut state = Installation {
+            single_class: format!("{identifier}-sic"),
+            result: Ok(()),
+        };
+        // Enumeration and subclass installation run on the owning thread.
+        let complete = unsafe {
+            EnumThreadWindows(
+                GetCurrentThreadId(),
+                Some(attach),
+                &mut state as *mut _ as LPARAM,
+            )
+        };
+        state.result?;
+        if complete == 0 {
+            return Err(AppError::context(
+                "enumerate GUI windows",
+                io::Error::last_os_error().into(),
+            ));
+        }
+        Ok(())
+    }
+
+    unsafe extern "system" fn attach(window: HWND, data: LPARAM) -> i32 {
+        let state = unsafe { &mut *(data as *mut Installation) };
+        let mut name = [0u16; 256];
+        let length = unsafe { GetClassNameW(window, name.as_mut_ptr(), name.len() as i32) };
+        if length == 0 {
+            state.result = Err(AppError::context(
+                "read window class",
+                io::Error::last_os_error().into(),
+            ));
+            return 0;
+        }
+        let class = String::from_utf16_lossy(&name[..length as usize]);
+        if (class == "Tao Thread Event Target" || class == state.single_class)
+            && unsafe { SetWindowSubclass(window, Some(protect), 0, 0) } == 0
+        {
+            state.result = Err(AppError::message(
+                "window.auxiliary_protection_failed",
+                format!("install close protection: {class}"),
+            ));
+            return 0;
+        }
+        1
+    }
+
+    unsafe extern "system" fn protect(
+        window: HWND,
+        message: u32,
+        w: WPARAM,
+        l: LPARAM,
+        id: usize,
+        _: usize,
+    ) -> LRESULT {
+        if message == WM_CLOSE || (message == WM_SYSCOMMAND && w & 0xfff0 == SC_CLOSE as usize) {
+            return 0;
+        }
+        // Runtime-owned DestroyWindow remains authoritative during shutdown.
+        if message == WM_NCDESTROY {
+            unsafe { RemoveWindowSubclass(window, Some(protect), id) };
+        }
+        unsafe { DefSubclassProc(window, message, w, l) }
+    }
+
+    #[test]
+    fn auxiliary_close_keeps_runtime() {
+        use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+        unsafe {
+            let instance = GetModuleHandleW(std::ptr::null());
+            let mut windows = Vec::new();
+            for name in [
+                "Tao Thread Event Target",
+                "guard.fixture-sic",
+                "guard.unrelated",
+            ] {
+                let class = name.encode_utf16().chain(Some(0)).collect::<Vec<_>>();
+                let definition = WNDCLASSW {
+                    hInstance: instance,
+                    lpfnWndProc: Some(DefWindowProcW),
+                    lpszClassName: class.as_ptr(),
+                    ..std::mem::zeroed()
+                };
+                assert_ne!(RegisterClassW(&definition), 0);
+                let window = CreateWindowExW(
+                    0,
+                    class.as_ptr(),
+                    class.as_ptr(),
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    instance,
+                    std::ptr::null(),
+                );
+                assert!(!window.is_null());
+                windows.push((window, class));
+            }
+            install("guard.fixture").unwrap();
+            install("guard.fixture").unwrap();
+            for (index, (window, class)) in windows.iter().enumerate() {
+                SendMessageW(*window, WM_SYSCOMMAND, SC_CLOSE as usize, 0);
+                SendMessageW(*window, WM_CLOSE, 0, 0);
+                assert_eq!(IsWindow(*window) != 0, index < 2);
+                if index < 2 {
+                    assert_eq!(
+                        SendMessageW(*window, WM_GETTEXTLENGTH, 0, 0),
+                        (class.len() - 1) as isize
+                    );
+                    assert_ne!(DestroyWindow(*window), 0);
+                    assert_eq!(IsWindow(*window), 0);
+                }
+            }
+            for (_, class) in windows {
+                assert_ne!(UnregisterClassW(class.as_ptr(), instance), 0);
+            }
+        }
+    }
+}
 
 #[derive(Default)]
 struct WindowRegistry {
     request_sequence: u64,
     requests: BTreeMap<u64, PendingWindowRequest>,
-    settings: Option<WindowSettingsSnapshot>,
     edit_targets: BTreeMap<String, Vec<crate::models::EditWriteTarget>>,
     sequence: u64,
     identities: BTreeMap<WindowIdentity, String>,
     instances: BTreeMap<String, WindowInstance>,
     reservations: BTreeMap<WindowIdentity, String>,
-    close_requests: BTreeMap<u64, CloseRequest>,
-    closing_sessions: BTreeSet<String>,
-}
-
-struct CloseRequest {
-    session_id: Option<String>,
-    labels: BTreeSet<String>,
-    sender: mpsc::Sender<bool>,
+    closing: BTreeMap<u64, (String, crate::models::CloseScope, Vec<String>)>,
 }
 
 struct PendingWindowRequest {
@@ -38,15 +171,21 @@ struct PendingWindowRequest {
     result: Option<Result<WindowRequestReceipt, crate::errors::ErrorDiagnostic>>,
 }
 
+pub(crate) struct OpenedWindow {
+    pub(crate) label: String,
+    pub(crate) request_id: u64,
+}
+
 struct WindowInstance {
     title: String,
     input: ManagedWindowInput,
     accepted_input: Option<(u64, ManagedWindowInput)>,
+    active: Option<(u64, ManagedWindowInput)>,
+    receiver_generation: u64,
     revision: u64,
     request_id: u64,
     identity: WindowIdentity,
     creating: bool,
-    guard_ready: bool,
     status: ManagedWindowStatus,
 }
 
@@ -86,11 +225,12 @@ impl WindowRegistry {
                 title,
                 input,
                 accepted_input: None,
+                active: None,
+                receiver_generation: 0,
                 revision: 0,
                 request_id: 0,
                 identity,
                 creating: true,
-                guard_ready: false,
                 status: Default::default(),
             },
         );
@@ -118,27 +258,17 @@ impl WindowRegistry {
             self.identities.remove(&instance.identity.comparison_key());
         }
         self.reservations.retain(|_, owner| owner != label);
-        let completed = self
-            .close_requests
-            .iter_mut()
-            .filter_map(|(id, request)| {
-                request.labels.remove(label);
-                request.labels.is_empty().then_some(*id)
-            })
-            .collect::<Vec<_>>();
-        for id in completed {
-            let _ = self
-                .close_requests
-                .remove(&id)
-                .expect("completed close request")
-                .sender
-                .send(true);
-        }
     }
 
     fn receive(&mut self, label: &str, owner: &str, input: ManagedWindowInput) -> u64 {
         let previous = self.instances[label].request_id;
-        self.complete(previous, WindowRequestStatus::Superseded);
+        if self.instances[label]
+            .active
+            .as_ref()
+            .is_none_or(|(id, _)| *id != previous)
+        {
+            self.complete(previous, WindowRequestStatus::Superseded);
+        }
         self.request_sequence += 1;
         let id = self.request_sequence;
         let instance = self
@@ -179,6 +309,7 @@ impl WindowRegistry {
         Ok(ManagedWindowContext {
             kind: instance.input.kind(),
             label: label.into(),
+            receiver_generation: instance.receiver_generation,
             revision: instance.revision,
             request_id: if pending {
                 instance.request_id
@@ -202,12 +333,38 @@ impl WindowRegistry {
             },
         })
     }
-    fn accept(&mut self, label: &str, id: u64) -> AppResult<bool> {
+    fn claim(&mut self, label: &str) -> AppResult<Option<ManagedWindowContext>> {
         let instance = self
             .instances
             .get_mut(label)
             .ok_or_else(|| AppError::message("window.released", "窗口已释放"))?;
-        if instance.request_id != id {
+        if instance.active.is_none()
+            && self
+                .requests
+                .get(&instance.request_id)
+                .is_some_and(|request| request.result.is_none())
+        {
+            instance.active = Some((instance.request_id, instance.input.clone()));
+        }
+        let Some((id, input)) = instance.active.clone() else {
+            return Ok(None);
+        };
+        let mut context = self.context(label, true)?;
+        context.request_id = id;
+        context.input = input;
+        Ok(Some(context))
+    }
+    fn accept(&mut self, label: &str, id: u64, receiver_generation: u64) -> AppResult<bool> {
+        let instance = self
+            .instances
+            .get_mut(label)
+            .ok_or_else(|| AppError::message("window.released", "窗口已释放"))?;
+        if instance
+            .active
+            .as_ref()
+            .is_none_or(|(active, _)| *active != id)
+            || instance.receiver_generation != receiver_generation
+        {
             return Ok(false);
         }
         if self
@@ -217,7 +374,7 @@ impl WindowRegistry {
         {
             return Ok(false);
         }
-        instance.accepted_input = Some((id, instance.input.clone()));
+        instance.accepted_input = instance.active.take();
         self.complete(id, WindowRequestStatus::Accepted);
         Ok(true)
     }
@@ -229,6 +386,14 @@ impl WindowRegistry {
     ) -> AppResult<()> {
         if !self.instances.contains_key(label) {
             return Err(AppError::message("window.released", "窗口已释放"));
+        }
+        if let Some(instance) = self.instances.get_mut(label)
+            && instance
+                .active
+                .as_ref()
+                .is_some_and(|(active, _)| *active == id)
+        {
+            instance.active = None;
         }
         if let Some(request) = self.requests.get_mut(&id)
             && request.label == label
@@ -280,6 +445,9 @@ impl WindowRegistry {
         instance.identity = identity;
         instance.revision += 1;
         instance.input.retarget(&instance.identity);
+        if let Some((_, input)) = &mut instance.active {
+            input.retarget(&instance.identity);
+        }
         if let Some((_, input)) = &mut instance.accepted_input {
             input.retarget(&instance.identity);
         }
@@ -293,6 +461,9 @@ impl WindowRegistry {
             .get_mut(label)
             .expect("retargeted window is registered");
         instance.input = input.clone();
+        if let Some((_, active)) = &mut instance.active {
+            *active = input.clone();
+        }
         if let Some((_, accepted)) = &mut instance.accepted_input {
             *accepted = input;
         }
@@ -308,53 +479,41 @@ fn registry() -> AppResult<std::sync::MutexGuard<'static, WindowRegistry>> {
         .map_err(|_| AppError::message("window.registry_poisoned", "窗口登记状态不可用"))
 }
 
-pub fn open_managed_window(
+pub(crate) fn register_window_request(
     app: &tauri::AppHandle,
     owner: &str,
     request: ManagedWindowRequest,
-) -> AppResult<ManagedWindowOpened> {
+) -> AppResult<OpenedWindow> {
     if !request.input.matches(&request.identity) {
         return Err(AppError::message(
             "window.input_identity_mismatch",
             "窗口输入与身份不匹配",
         ));
     }
-    match &request.identity {
-        WindowIdentity::Spec {
-            session_id,
-            mod_root,
-            ..
-        }
-        | WindowIdentity::File {
-            session_id,
-            mod_root,
-            ..
-        }
-        | WindowIdentity::Immersive {
-            session_id,
-            mod_root,
-            ..
-        }
-        | WindowIdentity::WeaponFirePreview {
-            session_id,
-            mod_root,
-            ..
-        } => super::project::ensure_project_session_mod_root(session_id, mod_root)?,
-        WindowIdentity::Recovery { .. } => {}
-    }
+    authorize_identity(&request.identity)?;
     let native_theme =
         matches!(&request.identity, WindowIdentity::Immersive { .. }).then_some(tauri::Theme::Dark);
     let key = request.identity.comparison_key();
     let (opened, create, notify) = {
         let mut state = registry()?;
-        if request
-            .identity
-            .session_id()
-            .is_some_and(|session| state.closing_sessions.contains(session))
+        if state
+            .closing
+            .values()
+            .any(|(_, scope, labels)| match scope {
+                crate::models::CloseScope::Application => true,
+                crate::models::CloseScope::Sessions { session_ids } => request
+                    .identity
+                    .session_id()
+                    .is_some_and(|id| session_ids.iter().any(|session| session == id)),
+                crate::models::CloseScope::Window => state
+                    .identities
+                    .get(&key)
+                    .is_some_and(|label| labels.contains(label)),
+            })
         {
             return Err(AppError::message(
-                "window.session_closing",
-                "所属会话正在关闭",
+                "window.scope_closing",
+                "窗口范围正在关闭",
             ));
         }
         if let Some(owner) = state.reservations.get(&key).cloned() {
@@ -376,15 +535,7 @@ pub fn open_managed_window(
         });
         let notify = !state.instances[&label].creating;
         let request_id = state.receive(&label, owner, request.input);
-        (
-            ManagedWindowOpened {
-                label,
-                request_id,
-                reused: !create,
-            },
-            create,
-            notify,
-        )
+        (OpenedWindow { label, request_id }, create, notify)
     };
     REGISTRY.1.notify_all();
     if !create {
@@ -416,23 +567,14 @@ pub fn open_managed_window(
         .min_inner_size(request.min_width, request.min_height)
         .build();
     let mut state = registry()?;
-    let close_after = state
-        .close_requests
-        .values()
-        .any(|request| request.labels.contains(&opened.label));
     match built {
-        Ok(window) => {
+        Ok(_window) => {
             if let Some(instance) = state.instances.get_mut(&opened.label) {
                 instance.creating = false;
             } else {
                 return Ok(opened);
             }
             REGISTRY.1.notify_all();
-            if close_after {
-                drop(state);
-                window.destroy()?;
-                return Ok(opened);
-            }
         }
         Err(error) => {
             let diagnostic = AppError::Tauri(error).diagnostic();
@@ -456,40 +598,77 @@ pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
     if label == "main" {
         return Ok(WindowBootstrap::Main);
     }
-    let state = registry()?;
+    let mut state = registry()?;
+    state
+        .instances
+        .get_mut(label)
+        .expect("managed window is registered")
+        .receiver_generation += 1;
+    let instance = &state.instances[label];
+    if instance.accepted_input.is_none()
+        && instance.active.is_none()
+        && state
+            .requests
+            .get(&instance.request_id)
+            .is_none_or(|request| request.result.is_some())
+    {
+        let input = instance.input.clone();
+        let id = state.receive(label, label, input);
+        state
+            .requests
+            .get_mut(&id)
+            .expect("retry request is registered")
+            .owner = None;
+    }
     let context = state.context(label, false)?;
-    let settings = state
-        .settings
-        .clone()
-        .ok_or_else(|| AppError::message("window.settings_uninitialized", "窗口设置尚未初始化"))?;
     Ok(WindowBootstrap::Managed {
         context: Box::new(context),
-        settings,
+        restoring: state.instances[label].accepted_input.is_some(),
     })
 }
 pub fn current_window_context(label: &str) -> AppResult<ManagedWindowContext> {
     registry()?.context(label, false)
 }
 pub fn current_window_request(label: &str) -> AppResult<Option<ManagedWindowContext>> {
-    let state = registry()?;
-    let context = state.context(label, true)?;
-    Ok(state
-        .requests
-        .get(&context.request_id)
-        .is_some_and(|request| request.result.is_none())
-        .then_some(context))
+    let mut state = registry()?;
+    state.claim(label)
 }
-pub fn accept_window_request(label: &str, id: u64) -> AppResult<bool> {
-    let accepted = registry()?.accept(label, id)?;
+pub fn accept_window_request(label: &str, id: u64, receiver_generation: u64) -> AppResult<bool> {
+    let accepted = registry()?.accept(label, id, receiver_generation)?;
     REGISTRY.1.notify_all();
     Ok(accepted)
 }
 pub fn fail_window_request(
     label: &str,
     id: u64,
+    receiver_generation: u64,
     diagnostic: crate::errors::ErrorDiagnostic,
 ) -> AppResult<()> {
-    registry()?.fail(label, id, diagnostic)?;
+    let mut state = registry()?;
+    if state
+        .instances
+        .get(label)
+        .is_some_and(|instance| instance.receiver_generation == receiver_generation)
+    {
+        state.fail(label, id, diagnostic)?;
+    }
+    REGISTRY.1.notify_all();
+    Ok(())
+}
+pub fn fail_window_startup(
+    label: &str,
+    diagnostic: crate::errors::ErrorDiagnostic,
+) -> AppResult<()> {
+    let mut state = registry()?;
+    let pending: Vec<_> = state
+        .requests
+        .iter()
+        .filter(|(_, request)| request.label == label && request.result.is_none())
+        .map(|(id, _)| *id)
+        .collect();
+    for id in pending {
+        state.fail(label, id, diagnostic.clone())?;
+    }
     REGISTRY.1.notify_all();
     Ok(())
 }
@@ -536,37 +715,6 @@ pub fn await_window_request(
         })?;
     }
 }
-pub fn publish_window_settings(
-    app: &tauri::AppHandle,
-    label: &str,
-    value: crate::models::AppSettings,
-) -> AppResult<WindowSettingsSnapshot> {
-    if label != "main" {
-        return Err(AppError::message(
-            "window.settings_owner_mismatch",
-            "设置只允许由主窗口发布",
-        ));
-    }
-    let snapshot = {
-        let mut state = registry()?;
-        let revision = state
-            .settings
-            .as_ref()
-            .map_or(1, |snapshot| snapshot.revision + 1);
-        let snapshot = WindowSettingsSnapshot { revision, value };
-        state.settings = Some(snapshot.clone());
-        snapshot
-    };
-    app.emit("app-settings-changed", &snapshot)?;
-    Ok(snapshot)
-}
-pub fn current_window_settings() -> AppResult<WindowSettingsSnapshot> {
-    registry()?
-        .settings
-        .clone()
-        .ok_or_else(|| AppError::message("window.settings_uninitialized", "窗口设置尚未初始化"))
-}
-
 pub fn release_window(label: &str) -> AppResult<()> {
     registry()?.release(label);
     REGISTRY.1.notify_all();
@@ -576,8 +724,8 @@ pub fn release_window(label: &str) -> AppResult<()> {
 pub fn update_status(label: &str, status: ManagedWindowStatus) -> AppResult<()> {
     if let Some(instance) = registry()?.instances.get_mut(label) {
         instance.status = status;
-        instance.guard_ready = true;
     }
+    REGISTRY.1.notify_all();
     Ok(())
 }
 
@@ -593,15 +741,6 @@ pub fn update_edit_targets(
     let mut state = registry()?;
     if label != "main" && !state.instances.contains_key(label) {
         return Err(AppError::message("window.released", "编辑窗口已释放"));
-    }
-    if targets
-        .iter()
-        .any(|target| state.closing_sessions.contains(&target.session_id))
-    {
-        return Err(AppError::message(
-            "window.session_closing",
-            "编辑会话正在关闭",
-        ));
     }
     if targets.is_empty() {
         state.edit_targets.remove(label);
@@ -677,7 +816,7 @@ pub fn reserve_targets(
     app: &tauri::AppHandle,
     label: &str,
     identities: Vec<WindowIdentity>,
-) -> AppResult<()> {
+) -> AppResult<Vec<String>> {
     let displaced = {
         let mut state = registry()?;
         if let Err(conflict) = state.reserve(label, &identities) {
@@ -693,111 +832,66 @@ pub fn reserve_targets(
             .filter_map(|identity| state.identities.get(&identity.comparison_key()))
             .filter(|owner| owner.as_str() != label)
             .cloned()
-            .collect::<BTreeSet<_>>()
+            .collect::<Vec<_>>()
     };
-    if !displaced.is_empty() {
-        let waiting = match request_close(app, displaced.clone(), true, None) {
-            Ok(waiting) => waiting,
-            Err(error) => {
-                release_targets(label)?;
-                return Err(error);
-            }
-        };
-        if !waiting
-            .recv()
-            .map_err(|error| AppError::message("window.lifecycle_wait", error.to_string()))?
-        {
-            release_targets(label)?;
-            if let Some(conflict) = displaced.iter().next() {
-                focus_window(app, conflict)?;
-            }
-            return Err(AppError::message(
-                "window.target_unsaved",
-                "目标窗口有待保存内容，请先完成该窗口的编辑",
-            ));
-        }
+    Ok(displaced)
+}
+
+pub(crate) fn hold_close(
+    id: u64,
+    owner: &str,
+    scope: &crate::models::CloseScope,
+    parent: Option<u64>,
+) -> AppResult<Vec<String>> {
+    let mut state = registry()?;
+    let mut labels: Vec<_> = state
+        .instances
+        .iter()
+        .filter(|(label, instance)| match scope {
+            crate::models::CloseScope::Window => label.as_str() == owner,
+            crate::models::CloseScope::Sessions { session_ids } => instance
+                .identity
+                .session_id()
+                .is_some_and(|id| session_ids.iter().any(|session| session == id)),
+            crate::models::CloseScope::Application => true,
+        })
+        .map(|(label, _)| label.clone())
+        .collect();
+    if *scope != crate::models::CloseScope::Window {
+        labels.insert(0, "main".into());
     }
+    if state.closing.iter().any(|(id, (_, other, occupied))| {
+        Some(*id) != parent
+            && (scope.overlaps(other) || labels.iter().any(|label| occupied.contains(label)))
+    }) {
+        return Err(AppError::message("lifecycle.busy", "所属范围正在关闭"));
+    }
+    state
+        .closing
+        .insert(id, (owner.into(), scope.clone(), labels.clone()));
+    Ok(labels)
+}
+pub(crate) fn release_close(id: u64) -> AppResult<()> {
+    registry()?.closing.remove(&id);
+    REGISTRY.1.notify_all();
     Ok(())
 }
-
-fn request_close(
-    app: &tauri::AppHandle,
-    labels: BTreeSet<String>,
-    only_if_clean: bool,
-    session_id: Option<String>,
-) -> AppResult<mpsc::Receiver<bool>> {
-    let (sender, receiver) = mpsc::channel();
-    let (intent, unready) = {
-        let mut state = registry()?;
-        let labels = labels
-            .into_iter()
-            .filter(|label| state.instances.contains_key(label))
-            .collect::<BTreeSet<_>>();
-        if labels.is_empty() {
-            let _ = sender.send(true);
-            return Ok(receiver);
-        }
-        let unready = labels
-            .iter()
-            .filter(|label| !state.instances[*label].guard_ready)
-            .cloned()
-            .collect::<Vec<_>>();
-        state.sequence += 1;
-        let id = state.sequence;
-        let intent = crate::models::WindowCloseIntent {
-            request_id: id,
-            labels: labels.iter().cloned().collect(),
-            only_if_clean,
-        };
-        state.close_requests.insert(
-            id,
-            CloseRequest {
-                labels,
-                sender,
-                session_id,
-            },
-        );
-        (intent, unready)
-    };
-    if let Err(error) = app.emit("window-lifecycle-close-requested", &intent) {
-        cancel_request(&mut *registry()?, intent.request_id);
-        return Err(error.into());
+pub(crate) fn wait_ready(label: &str) -> AppResult<bool> {
+    let mut state = registry()?;
+    while state
+        .instances
+        .get(label)
+        .is_some_and(|instance| instance.creating)
+    {
+        state = REGISTRY
+            .1
+            .wait(state)
+            .map_err(|_| AppError::message("window.registry_poisoned", "窗口登记状态不可用"))?;
     }
-    for label in unready {
-        if let Some(window) = app.get_webview_window(&label)
-            && let Err(error) = window.destroy()
-        {
-            cancel_request(&mut *registry()?, intent.request_id);
-            return Err(error.into());
-        }
-    }
-    Ok(receiver)
+    Ok(state.instances.contains_key(label))
 }
-
-pub fn request_session_close(
-    app: &tauri::AppHandle,
-    session_id: &str,
-) -> AppResult<mpsc::Receiver<bool>> {
-    let labels = {
-        let mut state = registry()?;
-        state.closing_sessions.insert(session_id.to_string());
-        state
-            .instances
-            .iter()
-            .filter(|(_, instance)| instance.identity.session_id() == Some(session_id))
-            .map(|(label, _)| label.clone())
-            .collect::<BTreeSet<_>>()
-    };
-    let result = request_close(app, labels, false, Some(session_id.to_string()));
-    if result.is_err() {
-        registry()?.closing_sessions.remove(session_id);
-    }
-    result
-}
-
 pub fn release_session(session_id: &str) -> AppResult<()> {
     let mut state = registry()?;
-    state.closing_sessions.remove(session_id);
     state
         .edit_targets
         .values_mut()
@@ -807,27 +901,6 @@ pub fn release_session(session_id: &str) -> AppResult<()> {
         .reservations
         .retain(|identity, _| identity.session_id() != Some(session_id));
     Ok(())
-}
-
-pub fn cancel_close_request(label: &str, request_id: u64) -> AppResult<()> {
-    let mut state = registry()?;
-    if state
-        .close_requests
-        .get(&request_id)
-        .is_some_and(|request| request.labels.contains(label))
-    {
-        cancel_request(&mut state, request_id);
-    }
-    Ok(())
-}
-
-fn cancel_request(state: &mut WindowRegistry, request_id: u64) {
-    if let Some(request) = state.close_requests.remove(&request_id) {
-        if let Some(session) = request.session_id {
-            state.closing_sessions.remove(&session);
-        }
-        let _ = request.sender.send(false);
-    }
 }
 
 pub fn release_targets(label: &str) -> AppResult<()> {
@@ -851,7 +924,7 @@ pub fn retarget_window(
             "窗口输入与身份不匹配",
         ));
     }
-    let displaced = {
+    {
         let mut state = registry()?;
         if let Some(conflict) = state.conflict(label, std::slice::from_ref(&identity)) {
             drop(state);
@@ -860,14 +933,6 @@ pub fn retarget_window(
                 "window.target_unsaved",
                 format!("目标窗口正在编辑: {conflict}"),
             ));
-        }
-        let displaced = state
-            .identities
-            .get(&identity.comparison_key())
-            .filter(|owner| owner.as_str() != label)
-            .cloned();
-        if let Some(displaced) = &displaced {
-            state.release(displaced);
         }
         state.retarget(label, identity);
         if let Some(input) = input {
@@ -878,14 +943,8 @@ pub fn retarget_window(
             .get_mut(label)
             .expect("retargeted window is registered")
             .title = title.to_string();
-        displaced
-    };
-    REGISTRY.1.notify_all();
-    if let Some(displaced) = displaced
-        && let Some(window) = app.get_webview_window(&displaced)
-    {
-        window.destroy()?;
     }
+    REGISTRY.1.notify_all();
     if let Some(window) = app.get_webview_window(label) {
         window.set_title(title)?;
     }
@@ -901,34 +960,22 @@ fn focus_window(app: &tauri::AppHandle, label: &str) -> AppResult<()> {
     Ok(())
 }
 
+fn authorize_identity(identity: &WindowIdentity) -> AppResult<()> {
+    if let Some(session) = identity.session_id() {
+        super::project::ensure_project_session_mod_root(
+            session,
+            identity.mod_root().expect("session identity owns a root"),
+        )?;
+    }
+    Ok(())
+}
+
 pub fn focus_managed_window(
     app: &tauri::AppHandle,
     caller: &str,
     identity: &WindowIdentity,
 ) -> AppResult<bool> {
-    if let WindowIdentity::Spec {
-        session_id,
-        mod_root,
-        ..
-    }
-    | WindowIdentity::File {
-        session_id,
-        mod_root,
-        ..
-    }
-    | WindowIdentity::Immersive {
-        session_id,
-        mod_root,
-        ..
-    }
-    | WindowIdentity::WeaponFirePreview {
-        session_id,
-        mod_root,
-        ..
-    } = identity
-    {
-        super::project::ensure_project_session_mod_root(session_id, mod_root)?;
-    }
+    authorize_identity(identity)?;
     let label = registry()?.focus_target(caller, identity);
     if let Some(label) = label {
         focus_window(app, &label)?;
@@ -937,9 +984,17 @@ pub fn focus_managed_window(
     Ok(false)
 }
 
+pub(crate) fn session_has_windows(session: &str) -> AppResult<bool> {
+    Ok(registry()?
+        .instances
+        .values()
+        .any(|instance| instance.identity.session_id() == Some(session)))
+}
+
 #[cfg(test)]
 mod tests {
-    #[cfg(windows)]
+    use super::*;
+
     #[test]
     fn io_paths_share_focus_reservations_and_target_owners() {
         let root = crate::testutil::temp_dir("window_expanded_identity");
@@ -1029,7 +1084,6 @@ mod tests {
         state.release("managed-1");
         assert_eq!(state.edit_target_owners(&[target]), vec!["main"]);
     }
-    use super::*;
     fn register(state: &mut WindowRegistry, identity: WindowIdentity) -> String {
         let input = match &identity {
             WindowIdentity::Immersive { .. } => {
@@ -1044,7 +1098,7 @@ mod tests {
     fn identity(id: &str, root: &str, session: &str) -> WindowIdentity {
         WindowIdentity::Spec {
             session_id: session.into(),
-            kind: crate::models::EditorSpecKind::Weapon,
+            kind: crate::models::SpecEditorKind::Weapon,
             mod_root: root.into(),
             id: id.into(),
         }
@@ -1097,38 +1151,6 @@ mod tests {
         assert!(state.instances[&label].status.dirty);
         state.release(&label);
         assert_eq!(state.focus_target("other", &target), None);
-    }
-    #[test]
-    fn lifecycle_cancel_releases_creation_gate_and_destroy_completes_waiting_intent() {
-        let mut state = WindowRegistry::default();
-        let label = register(&mut state, identity("creating", "D:/Mod", "s"));
-        state.closing_sessions.insert("s".to_string());
-        let (sent, received) = mpsc::channel();
-        state.close_requests.insert(
-            1,
-            CloseRequest {
-                session_id: Some("s".into()),
-                labels: BTreeSet::from([label.clone()]),
-                sender: sent,
-            },
-        );
-        assert!(state.close_requests[&1].labels.contains(&label));
-        cancel_request(&mut state, 1);
-        assert!(!received.recv().unwrap());
-        assert!(!state.closing_sessions.contains("s"));
-        let (sent, received) = mpsc::channel();
-        state.close_requests.insert(
-            2,
-            CloseRequest {
-                session_id: Some("s".into()),
-                labels: BTreeSet::from([label.clone()]),
-                sender: sent,
-            },
-        );
-        state.release(&label);
-        assert!(received.recv().unwrap());
-        assert!(state.close_requests.is_empty());
-        assert!(state.instances.is_empty());
     }
     #[test]
     fn comparison_keeps_entity_and_session_case_and_normalizes_paths() {
@@ -1208,10 +1230,11 @@ mod tests {
         let first = state.receive(&label, "main", preview_input("first"));
         let second = state.receive(&label, "main", preview_input("second"));
         assert_eq!(receipt(&state, first), WindowRequestStatus::Superseded);
-        assert!(!state.accept(&label, first).unwrap());
-        assert!(state.accept(&label, second).unwrap());
+        assert!(!state.accept(&label, first, 0).unwrap());
+        state.claim(&label).unwrap();
+        assert!(state.accept(&label, second, 0).unwrap());
         assert_eq!(receipt(&state, second), WindowRequestStatus::Accepted);
-        assert!(!state.accept(&label, second).unwrap());
+        assert!(!state.accept(&label, second, 0).unwrap());
         assert_eq!(
             serde_json::to_value(state.context(&label, false).unwrap()).unwrap()["input"]["source"]
                 ["weapon"]["description"],
@@ -1227,7 +1250,8 @@ mod tests {
             preview_input("accepted"),
         );
         let accepted = state.receive(&label, "main", preview_input("accepted"));
-        state.accept(&label, accepted).unwrap();
+        state.claim(&label).unwrap();
+        state.accept(&label, accepted, 0).unwrap();
         let failed = state.receive(&label, "main", preview_input("failed"));
         assert_eq!(state.context(&label, false).unwrap().request_id, accepted);
         assert_eq!(state.context(&label, true).unwrap().request_id, failed);
@@ -1258,7 +1282,8 @@ mod tests {
         let id = state.receive(&label, "source", preview_input("中文"));
         state.release("source");
         assert!(state.requests[&id].owner.is_none());
-        assert!(state.accept(&label, id).unwrap());
+        state.claim(&label).unwrap();
+        assert!(state.accept(&label, id, 0).unwrap());
         assert!(!state.requests.contains_key(&id));
         assert_eq!(state.context(&label, false).unwrap().request_id, id);
         let waiting = state.receive(&label, "main", preview_input("pending"));
@@ -1294,7 +1319,8 @@ mod tests {
         let mut state = WindowRegistry::default();
         let label = state.register(preview_identity("w"), "预览".into(), preview_input(&text));
         let id = state.receive(&label, "main", preview_input(&text));
-        state.accept(&label, id).unwrap();
+        state.claim(&label).unwrap();
+        state.accept(&label, id, 0).unwrap();
         assert_eq!(
             serde_json::to_value(state.context(&label, false).unwrap()).unwrap()["input"]["source"]
                 ["weapon"]["description"],
@@ -1351,7 +1377,8 @@ mod tests {
         };
         let label = state.register(identity.clone(), "联队".into(), input.clone());
         let accepted = state.receive(&label, "main", input.clone());
-        state.accept(&label, accepted).unwrap();
+        state.claim(&label).unwrap();
+        state.accept(&label, accepted, 0).unwrap();
         state.receive(&label, "main", input);
         let next = WindowIdentity::Immersive {
             session_id: "s".into(),
@@ -1371,5 +1398,23 @@ mod tests {
             assert_eq!(context["identity"]["id"], "next");
             assert_eq!(context["input"]["rowKey"], "next-row");
         }
+    }
+    #[test]
+    fn active_delivery_finishes_before_latest_pending_and_reload_reclaims_it() {
+        let mut state = WindowRegistry::default();
+        let label = state.register(preview_identity("w"), "preview".into(), preview_input("a"));
+        let a = state.receive(&label, "main", preview_input("a"));
+        assert_eq!(state.claim(&label).unwrap().unwrap().request_id, a);
+        let b = state.receive(&label, "main", preview_input("b"));
+        let c = state.receive(&label, "main", preview_input("c"));
+        assert_eq!(receipt(&state, b), WindowRequestStatus::Superseded);
+        state.instances.get_mut(&label).unwrap().receiver_generation = 1;
+        assert!(!state.accept(&label, a, 0).unwrap());
+        assert_eq!(state.claim(&label).unwrap().unwrap().request_id, a);
+        assert!(state.accept(&label, a, 1).unwrap());
+        assert_eq!(receipt(&state, a), WindowRequestStatus::Accepted);
+        assert_eq!(state.claim(&label).unwrap().unwrap().request_id, c);
+        assert!(state.accept(&label, c, 1).unwrap());
+        assert!(state.claim(&label).unwrap().is_none());
     }
 }

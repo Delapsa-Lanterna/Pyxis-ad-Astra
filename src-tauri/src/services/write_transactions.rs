@@ -1,12 +1,11 @@
-use super::file_history::{HistoryEntry, history_limit, lock_histories, snapshot, trim_history};
+use super::file_history;
 use crate::io::{verify_versions, version_after_change};
 use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, RootWriteLock, acquire_root_write_lock},
     models::SessionModScope,
     models::{
-        FileChangeRecord, FileChangeReplayDirection, FileHistorySnapshot, FileHistorySummary,
-        FileVersion, WriteResult,
+        FileChangeRecord, FileChangeReplayDirection, FileHistorySnapshot, FileVersion, WriteResult,
     },
 };
 use std::path::Path;
@@ -90,33 +89,8 @@ impl WriteTransaction {
         versions.sort_by(|left, right| left.path.cmp(&right.path));
         result.base_versions = versions;
         if self.session_id.is_some() {
-            let mut histories = lock_histories()?;
-            let history = histories.entry(self.root.clone()).or_default();
-            if !result.changes.is_empty() {
-                history.revision += 1;
-                history.undo.push(HistoryEntry {
-                    identity_changes: result.identity_changes.clone(),
-                    summary: FileHistorySummary {
-                        id: history.revision,
-                        label: label.to_string(),
-                        timestamp: chrono::Utc::now().timestamp_millis(),
-                        paths: result
-                            .changes
-                            .iter()
-                            .flat_map(|change| {
-                                [change.before_path.clone(), change.after_path.clone()]
-                            })
-                            .collect::<std::collections::BTreeSet<_>>()
-                            .into_iter()
-                            .collect(),
-                    },
-                    changes: history_changes(&result.changes),
-                });
-                history.redo.clear();
-                trim_history(history, history_limit()?);
-            }
-            result.commit_id = history.revision;
-            result.history = snapshot(history);
+            result.history =
+                file_history::record(&self.root, &result.changes, &result.identity_changes, label)?;
         }
         result.commit_id = committed::next_commit(&self.root)?;
         result.session_updates = committed::project_commit(
@@ -130,7 +104,7 @@ impl WriteTransaction {
         {
             let mut versions = Vec::new();
             for identity in &result.identity_changes {
-                match super::project::query_entity_edit_target(
+                match crate::services::query_entity_edit_target(
                     session_id,
                     identity.after.kind,
                     &identity.after.id,
@@ -156,20 +130,12 @@ pub fn query_history(session_id: &str, root: &str) -> AppResult<FileHistorySnaps
         .root()
         .to_string_lossy()
         .to_lowercase();
-    Ok(lock_histories()?
-        .get(&root)
-        .map(snapshot)
-        .unwrap_or_default())
+    file_history::query(&root)
 }
 
 pub fn clear_history(session_id: &str, root: &str) -> AppResult<FileHistorySnapshot> {
     let transaction = acquire(root, Some(session_id))?;
-    let mut histories = lock_histories()?;
-    let history = histories.entry(transaction.root.clone()).or_default();
-    history.revision += 1;
-    history.undo.clear();
-    history.redo.clear();
-    Ok(snapshot(history))
+    file_history::clear(&transaction.root)
 }
 
 pub fn replay(
@@ -181,21 +147,7 @@ pub fn replay(
 ) -> AppResult<WriteResult> {
     let transaction = acquire(root, Some(session_id))?;
     super::app_settings::ensure_core_editing_allowed(&transaction.root)?;
-    let entry = {
-        let histories = lock_histories()?;
-        let history = histories
-            .get(&transaction.root)
-            .ok_or_else(history_conflict)?;
-        let stack = match direction {
-            FileChangeReplayDirection::Undo => &history.undo,
-            FileChangeReplayDirection::Redo => &history.redo,
-        };
-        let entry = stack
-            .last()
-            .filter(|entry| entry.summary.id == entry_id && history.revision == revision)
-            .ok_or_else(history_conflict)?;
-        entry.clone()
-    };
+    let entry = file_history::prepare_replay(&transaction.root, direction, entry_id, revision)?;
     let mut changes = entry.changes.clone();
     if matches!(direction, FileChangeReplayDirection::Undo) {
         changes.reverse();
@@ -227,8 +179,9 @@ pub fn replay(
             ));
         }
     }
-    let mut result =
-        super::file_changes::apply_file_change_set(root, FileChangeReplayDirection::Redo, changes)?;
+    let changes = crate::io::resolve_change_paths(root, changes, FileChangeReplayDirection::Redo)?;
+    crate::io::apply_changes(&changes, FileChangeReplayDirection::Redo)?;
+    let mut result = WriteResult::from_changes(changes);
     result.base_versions = versions_for_changes(&result.changes)?;
     result.identity_changes = entry
         .identity_changes
@@ -241,25 +194,7 @@ pub fn replay(
             },
         })
         .collect();
-    let mut histories = lock_histories()?;
-    let history = histories
-        .get_mut(&transaction.root)
-        .expect("queued history remains registered");
-    match direction {
-        FileChangeReplayDirection::Undo => {
-            history.undo.pop();
-            history.redo.push(entry);
-        }
-        FileChangeReplayDirection::Redo => {
-            history.redo.pop();
-            history.undo.push(entry);
-        }
-    }
-    history.revision += 1;
-    trim_history(history, history_limit()?);
-    result.commit_id = history.revision;
-    result.history = snapshot(history);
-    drop(histories);
+    result.history = file_history::accept_replay(&transaction.root, direction, entry)?;
     result.commit_id = committed::next_commit(&transaction.root)?;
     result.session_updates = committed::project_commit(
         &transaction.root,
@@ -270,7 +205,7 @@ pub fn replay(
     if !result.identity_changes.is_empty() {
         let mut versions = Vec::new();
         for identity in &result.identity_changes {
-            match super::project::query_entity_edit_target(
+            match crate::services::query_entity_edit_target(
                 session_id,
                 identity.after.kind,
                 &identity.after.id,
@@ -306,56 +241,11 @@ pub fn release_session_commits(session_id: &str) -> AppResult<()> {
     committed::release(session_id)
 }
 
-fn history_changes(changes: &[FileChangeRecord]) -> Vec<FileChangeRecord> {
-    let mut normalized = Vec::new();
-    for change in changes {
-        if changes.iter().any(|parent| {
-            matches!(parent.kind, crate::models::FileChangeKind::Directory)
-                && parent.after_path != change.after_path
-                && Path::new(&change.after_path).starts_with(&parent.after_path)
-        }) {
-            continue;
-        }
-        let mut combined = change.clone();
-        if matches!(combined.kind, crate::models::FileChangeKind::Directory)
-            && combined.after_exists
-        {
-            for child in changes {
-                if matches!(child.kind, crate::models::FileChangeKind::File)
-                    && let Ok(relative) =
-                        Path::new(&child.after_path).strip_prefix(&combined.after_path)
-                {
-                    let relative = crate::io::forward_slash_path(relative);
-                    combined
-                        .after_files
-                        .retain(|file| file.rel_path != relative);
-                    if child.after_exists {
-                        combined.after_files.push(crate::models::FileSnapshot {
-                            rel_path: relative,
-                            text: child.after_text.clone(),
-                            data_base64: child.after_data_base64.clone(),
-                        });
-                    }
-                }
-            }
-            combined
-                .after_files
-                .sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
-        }
-        normalized.push(combined);
-    }
-    normalized
-}
-
-fn history_conflict() -> AppError {
-    AppError::message("history.version_conflict", "文件历史已更新，请重新确认回放")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::io::file_version;
-    use crate::{models::command_payloads::SaveTextFilePayload, testutil::temp_dir};
+    use crate::{models::SaveTextFilePayload, testutil::temp_dir};
 
     #[test]
     fn committed_projection_is_built_once_per_affected_session_and_reused() {
@@ -367,14 +257,14 @@ mod tests {
         let mut trace = project::PerformanceTrace::new("project.openSession");
         let first = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let second = project::open_project_session_traced(&root, None, &mut trace).unwrap();
-        let loaded = project::query_entity_edit_target(
+        let loaded = crate::services::query_entity_edit_target(
             &first.session_id,
             crate::models::EntityKind::Variant,
             "demo",
         )
         .unwrap();
-        let saved = crate::commands::save_variant_entity(
-            crate::models::command_payloads::VariantEntityPayload {
+        let saved =
+            crate::commands::save_variant_entity(crate::models::ConfigFamilyEntityPayload {
                 session_id: first.session_id.clone(),
                 mod_root: first.mod_root.clone(),
                 base_versions: loaded.base_versions,
@@ -384,9 +274,8 @@ mod tests {
                 data: serde_json::json!({"variantId":"next","hullId":"hull"}),
                 json_write: Default::default(),
                 ordered_json: None,
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert_eq!(saved.session_updates.len(), 2);
         for update in &saved.session_updates {
             let crate::models::CommittedProjection::Ready { projection } = &update.projection
@@ -395,7 +284,7 @@ mod tests {
             };
             assert_eq!(projection.projection_revision, 1);
             assert!(
-                project::query_entity(
+                crate::services::query_entity(
                     &update.session_id,
                     crate::models::EntityKind::Variant,
                     "next"
@@ -414,17 +303,13 @@ mod tests {
             };
             assert_eq!(repeated.projection_revision, 1);
         }
-        crate::commands::close_project_session(
-            crate::models::command_payloads::CloseProjectSessionPayload {
-                session_id: first.session_id,
-            },
-        )
+        crate::commands::close_project_session(crate::models::CloseProjectSessionPayload {
+            session_id: first.session_id,
+        })
         .unwrap();
-        crate::commands::close_project_session(
-            crate::models::command_payloads::CloseProjectSessionPayload {
-                session_id: second.session_id,
-            },
-        )
+        crate::commands::close_project_session(crate::models::CloseProjectSessionPayload {
+            session_id: second.session_id,
+        })
         .unwrap();
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -438,7 +323,7 @@ mod tests {
         std::fs::write(&path, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
         let mut trace = project::PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
-        let loaded = project::query_entity_edit_target(
+        let loaded = crate::services::query_entity_edit_target(
             &manifest.session_id,
             crate::models::EntityKind::Variant,
             "demo",
@@ -446,8 +331,8 @@ mod tests {
         .unwrap();
         let bad = root.join("data/variants/broken.variant");
         std::fs::write(&bad, "{").unwrap();
-        let saved = crate::commands::save_variant_entity(
-            crate::models::command_payloads::VariantEntityPayload {
+        let saved =
+            crate::commands::save_variant_entity(crate::models::ConfigFamilyEntityPayload {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: loaded.base_versions,
@@ -457,9 +342,8 @@ mod tests {
                 data: serde_json::json!({"variantId":"next","hullId":"hull"}),
                 json_write: Default::default(),
                 ordered_json: None,
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
         assert!(matches!(
             saved.session_updates[0].projection,
             crate::models::CommittedProjection::Pending { .. }
@@ -470,7 +354,7 @@ mod tests {
         );
         assert_eq!(saved.history.undo_stack.len(), 1);
         assert_eq!(
-            project::query_entity(
+            crate::services::query_entity(
                 &manifest.session_id,
                 crate::models::EntityKind::Variant,
                 "next"
@@ -493,7 +377,7 @@ mod tests {
         };
         assert_eq!(projection.projection_revision, 1);
         assert!(
-            project::query_entity(
+            crate::services::query_entity(
                 &manifest.session_id,
                 crate::models::EntityKind::Variant,
                 "next"
@@ -508,11 +392,9 @@ mod tests {
                 .len(),
             1
         );
-        crate::commands::close_project_session(
-            crate::models::command_payloads::CloseProjectSessionPayload {
-                session_id: manifest.session_id,
-            },
-        )
+        crate::commands::close_project_session(crate::models::CloseProjectSessionPayload {
+            session_id: manifest.session_id,
+        })
         .unwrap();
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -564,7 +446,7 @@ mod tests {
             crate::models::CommittedProjection::Ready { .. }
         ));
         assert_eq!(
-            project::query_entity(
+            crate::services::query_entity(
                 &manifest.session_id,
                 crate::models::EntityKind::Variant,
                 "demo"
@@ -574,11 +456,9 @@ mod tests {
             .data["displayName"],
             "Written"
         );
-        crate::commands::close_project_session(
-            crate::models::command_payloads::CloseProjectSessionPayload {
-                session_id: manifest.session_id,
-            },
-        )
+        crate::commands::close_project_session(crate::models::CloseProjectSessionPayload {
+            session_id: manifest.session_id,
+        })
         .unwrap();
         std::fs::remove_dir_all(fixture).unwrap();
     }
@@ -611,7 +491,7 @@ mod tests {
         let mut trace = super::super::project::PerformanceTrace::new("project.openSession");
         let manifest =
             super::super::project::open_project_session_traced(&root, None, &mut trace).unwrap();
-        let base = super::super::project::query_entity_edit_target(
+        let base = crate::services::query_entity_edit_target(
             &manifest.session_id,
             crate::models::EntityKind::Mission,
             "old",
@@ -619,7 +499,7 @@ mod tests {
         .unwrap()
         .base_versions;
         let saved = crate::commands::save_indexed_config_entity(
-            crate::models::command_payloads::IndexedConfigEntityPayload {
+            crate::models::IndexedConfigEntityPayload {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: base,
@@ -644,7 +524,7 @@ mod tests {
                 .to_string()
         };
         assert_eq!(directory_name(), next_id);
-        let info = super::super::project::query_entity_edit_target(
+        let info = crate::services::query_entity_edit_target(
             &manifest.session_id,
             crate::models::EntityKind::Mission,
             next_id,
@@ -806,7 +686,7 @@ mod tests {
 
     #[test]
     fn csv_undo_queries_actual_disk_state() {
-        use crate::models::command_payloads::SaveCsvPatchPayload;
+        use crate::models::SaveCsvPatchPayload;
         use crate::models::{CsvRowPatch, CsvRowPatchAction, CsvSearchField, CsvTableKey};
         let root = temp_dir("csv_history_actual_direction");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
@@ -816,7 +696,7 @@ mod tests {
         let manifest =
             super::super::project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let query = || {
-            super::super::project::query_csv_table_window(
+            crate::services::query_csv_table_window(
                 &manifest.session_id,
                 CsvTableKey::Ships,
                 0,

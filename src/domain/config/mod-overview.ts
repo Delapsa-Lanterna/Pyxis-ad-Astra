@@ -1,4 +1,4 @@
-import type { ProjectManifest, TableKey } from '@/shared/types';
+import type { ProjectManifest, CsvTableKey } from '@/shared/types';
 import { gameCoreDirectoryPath } from '@/shared/lib/paths';
 import { cell, formatModVersion, MODULE_LABELS } from '@/shared/lib/starsector';
 
@@ -19,7 +19,7 @@ export interface ConfigModOverviewModel {
   breakdown: ConfigModOverviewBreakdownItem[];
 }
 
-const OVERVIEW_TABLE_KEYS: TableKey[] = ['ships', 'weapons', 'wings', 'hullmods', 'shipSystems', 'industries', 'skills'];
+const OVERVIEW_TABLE_KEYS: CsvTableKey[] = ['ships', 'weapons', 'wings', 'hullmods', 'shipSystems', 'industries', 'skills'];
 
 export function buildConfigModOverview(manifest: ProjectManifest | null | undefined): ConfigModOverviewModel {
   const breakdown = manifest ? overviewBreakdown(manifest) : [];

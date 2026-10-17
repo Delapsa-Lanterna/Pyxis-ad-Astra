@@ -1,0 +1,138 @@
+.mod-files-page {
+  flex: 1;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-9);
+}
+.mod-files-toolbar {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.mod-files-toolbar > .n-input {
+  flex: 1 1 240px;
+  min-width: min(100%, 240px);
+  max-width: 560px;
+}
+.mod-files-tools {
+  flex-shrink: 0;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.mod-files-table {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--radius-md);
+  scrollbar-gutter: stable;
+}
+.mod-files-table-content {
+  min-width: 740px;
+  height: 100%;
+}
+.mod-files-columns {
+  grid-template-columns: minmax(260px, 1fr) 128px 112px 192px;
+  flex-shrink: 0;
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+.mod-files-columns .mod-files-columns-button {
+  gap: var(--space-2);
+  padding: var(--space-2);
+  font: inherit;
+  text-align: left;
+}
+.mod-files-columns .mod-files-columns-button:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.mod-files-columns .mod-files-columns-button:focus-visible,
+.mod-files-tree:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+.mod-files-columns > .mod-files-number .mod-files-number-button {
+  justify-content: flex-end;
+}
+.mod-files-sort {
+  width: 12px;
+  color: var(--color-primary);
+}
+.mod-files-tree {
+  flex: 1;
+}
+.mod-files-tree .n-tree {
+  height: 100%;
+  padding: var(--space-2);
+  font-size: 12px;
+}
+.mod-files-tree .n-tree-node-content {
+  flex: 1;
+  min-width: 0;
+  padding-right: 0;
+}
+.mod-files-tree .n-tree-node-content__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.mod-files-tree .n-tree-node-content__suffix {
+  flex-shrink: 0;
+  margin-left: 0;
+}
+.mod-files-tree .mod-files-metadata {
+  display: grid;
+  grid-template-columns: 128px 112px 192px;
+  width: 432px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mod-files-tree .mod-files-metadata > .mod-files-metadata-label {
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mod-files-tree .mod-files-number {
+  text-align: right;
+}
+.mod-files-tree .mod-files-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.mod-files-tree .mod-files-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mod-files-tree .mod-files-match {
+  color: var(--color-primary);
+}
+.mod-files-tree .mod-files-node-status {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.mod-files-empty {
+  padding: var(--space-4);
+}
+.mod-files-error {
+  gap: var(--space-2);
+  color: var(--color-danger);
+}
+.mod-files-tree .mod-files-retry {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font: inherit;
+  cursor: pointer;
+}
+.mod-files-tree .mod-files-retry:focus-visible {
+  outline: 2px solid var(--color-primary);
+}
+@media (max-width: 640px) {
+  .mod-files-page {
+    padding: var(--space-4);
+  }
+}

@@ -1,5 +1,9 @@
 <template>
-  <div ref="frameRef" :class="['csv-cell-frame', `csv-cell-frame-${control}`, { 'csv-cell-frame-active': active }]">
+  <div
+    class="ui-text-body ui-text-normal ui-layout-row ui-layout-center ui-layout-clip ui-layout-stretch ui-content-surface-muted"
+    ref="frameRef"
+    :class="['csv-cell-frame', `csv-cell-frame-${control}`, { 'csv-cell-frame-active': active }]"
+  >
     <slot />
   </div>
 </template>

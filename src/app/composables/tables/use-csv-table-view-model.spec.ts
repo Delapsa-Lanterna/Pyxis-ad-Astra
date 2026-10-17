@@ -2,7 +2,7 @@ import { csvDraftRow } from '@/test/csv-row';
 import { mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CsvTableWindow, CsvTableRows, TableKey } from '@/shared/types';
+import type { CsvTableWindow, CsvTableRows, CsvTableKey } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   queryTableWindow: vi.fn(),
@@ -29,12 +29,15 @@ vi.mock('@/services/csv-table.service', () => ({
   queryTableWindow: mocks.queryTableWindow,
   querySourceOptionCatalog: mocks.querySourceOptionCatalog,
   queryTableRowPreviewDataUrl: mocks.queryTableRowPreviewDataUrl,
-}));
-vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: mocks.querySourceOptionCatalog }));
-
-vi.mock('@/services/query-cache.service', () => ({
-  hasSourceInvalidation: vi.fn(() => false),
   hasTableInvalidation: mocks.hasTableInvalidation,
+}));
+vi.mock('@/services/source-options.service', () => ({
+  querySourceOptionCatalog: mocks.querySourceOptionCatalog,
+  hasSourceInvalidation: vi.fn(() => false),
+}));
+
+vi.mock('@/services/query-cache.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
   subscribeQueryInvalidations: mocks.subscribeQueryInvalidations,
 }));
 
@@ -48,11 +51,12 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 }));
 
 vi.mock('@/stores/project.store', () => ({
-  useProjectStore: () => ({ activeSessionId: 'sess-1' }),
+  useProjectStore: () => ({ tableWriteTargets: [] }),
 }));
 
 vi.mock('@/stores/workspace.store', () => ({
   useWorkspaceStore: () => ({
+    activeSessionId: 'sess-1',
     activeModRoot: 'M:/mod',
     getColumnWidths: vi.fn(() => undefined),
     setColumnWidths: vi.fn(),
@@ -64,7 +68,7 @@ const tablesState = vi.hoisted(() => ({}) as Record<string, unknown>);
 vi.mock('@/stores/tables.store', () => ({
   useTablesStore: () => ({
     get currentTab() {
-      return (tablesState.currentTab ?? 'ships') as TableKey;
+      return (tablesState.currentTab ?? 'ships') as CsvTableKey;
     },
     get visibleColumns() {
       return (tablesState.visibleColumns ?? ['id', 'name']) as string[];

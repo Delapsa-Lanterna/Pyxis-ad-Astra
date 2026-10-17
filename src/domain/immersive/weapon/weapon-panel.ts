@@ -57,6 +57,7 @@ export interface WeaponPanel {
   customAncillary: string;
   customAncillaryHL: string;
   damageDescription: string;
+  damageType: string;
   damageIcon: ResourceRef | null;
   iconLayers: Array<{ resource: ResourceRef; origin: { x: number; y: number } }>;
   mountType: string;
@@ -242,7 +243,8 @@ export function projectWeaponPanel(
       ),
     );
   } else primary.push(stat('no-flux', '开火幅能', '无幅能消耗', [cf('energy/shot'), cf('energy/second')]));
-  const damageType = DAMAGE[schemaStringValue(csv.type)] ?? DAMAGE.OTHER!;
+  const damageTypeId = Object.hasOwn(DAMAGE, schemaStringValue(csv.type)) ? schemaStringValue(csv.type) : 'OTHER';
+  const damageType = DAMAGE[damageTypeId]!;
   const ancillary = [stat('damage-type', '伤害类型', damageType.label, [cf('type')])];
   const overrideStat = (id: string, label: string, computed: string, fields: ImmersiveField[], override: string) =>
     stat(
@@ -343,6 +345,7 @@ export function projectWeaponPanel(
     customAncillaryHL,
     damageDescription:
       `${damageType.armor}% 对装甲，${damageType.shield}% 对护盾` + (stats.beam || tags.includes('damage_soft_flux') ? '；产生软幅能' : ''),
+    damageType: damageTypeId,
     damageIcon: projection?.records.find((record) => record.key === projection.bindings.csv)?.resourceRefs.damageIcon ?? null,
     iconLayers: layers,
     mountType: schemaStringValue(spec.mountTypeOverride) || schemaStringValue(spec.type),

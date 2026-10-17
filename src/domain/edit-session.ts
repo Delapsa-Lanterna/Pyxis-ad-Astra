@@ -1,5 +1,15 @@
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
+import type { EditWriteTarget } from '@/shared/types';
+
+export function editTargetsOverlap(left: EditWriteTarget, right: EditWriteTarget): boolean {
+  return (
+    left.sessionId === right.sessionId &&
+    normalizeFsPath(left.modRoot) === normalizeFsPath(right.modRoot) &&
+    (pathBelongsToRoot(left.path, right.path) || pathBelongsToRoot(right.path, left.path))
+  );
+}
 
 /**
  * Unified edit-session primitive (framework-agnostic; can be wrapped with `reactive()`

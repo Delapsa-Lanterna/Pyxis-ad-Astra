@@ -1,11 +1,11 @@
-use super::super::{
-    cache::{lock_session, session_handle},
-    query::query_entity_edit_target,
-};
+use super::super::cache::{lock_session, session_handle};
+use crate::services::project::query::entity_targets::query_entity_edit_target;
 use crate::{
     errors::{AppError, AppResult},
     io::{FileChangeSetBuilder, FsRootBoundary, acquire_root_write_lock, read_csv_data},
-    models::{EntityKind, EntityLinkedRecord, IndexedEntityRefresh, JsonWriteOptions, WriteResult},
+    models::{
+        EntityKind, EntityLinkedRecord, IndexedConfigEntityRefresh, JsonWriteOptions, WriteResult,
+    },
     parsers::render_csv_text,
 };
 use serde_json::Value;
@@ -53,7 +53,7 @@ pub fn save_faction_entity(
     )?;
     let index_rel = "data/world/factions/factions.csv";
     let index = read_csv_data(&Path::new(&info.target.write.root).join(index_rel))?;
-    result.refreshed_entity = Some(serde_json::to_value(IndexedEntityRefresh {
+    result.refreshed_entity = Some(serde_json::to_value(IndexedConfigEntityRefresh {
         entity_id: next_id.to_string(),
         index_path: index_rel.to_string(),
         index_header: index.header,
@@ -96,7 +96,7 @@ pub fn delete_faction_entity(
     let changes = builder.apply()?;
     Ok(WriteResult::from_refreshed_entity(
         changes,
-        serde_json::to_value(IndexedEntityRefresh {
+        serde_json::to_value(IndexedConfigEntityRefresh {
             entity_id: id.to_string(),
             index_path: path.clone(),
             index_header: index.header,
@@ -111,7 +111,7 @@ mod tests {
     use super::*;
     use crate::{
         models::IndexedConfigKind,
-        models::command_payloads::{DeleteIndexedConfigEntityPayload, IndexedConfigEntityPayload},
+        models::{DeleteIndexedConfigEntityPayload, IndexedConfigEntityPayload},
         services::project,
         testutil::temp_dir,
     };
@@ -135,9 +135,12 @@ mod tests {
         .unwrap();
         let mut trace = project::PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
-        let info =
-            project::query_entity_edit_target(&manifest.session_id, EntityKind::Faction, "loaded")
-                .unwrap();
+        let info = crate::services::project::query::entity_targets::query_entity_edit_target(
+            &manifest.session_id,
+            EntityKind::Faction,
+            "loaded",
+        )
+        .unwrap();
         assert_eq!(
             info.target.write.rel_path,
             "data/custom/nested/filename.faction"
@@ -161,9 +164,12 @@ mod tests {
             ordered_json: None,
         })
         .unwrap();
-        let next =
-            project::query_entity_edit_target(&manifest.session_id, EntityKind::Faction, "next")
-                .unwrap();
+        let next = crate::services::project::query::entity_targets::query_entity_edit_target(
+            &manifest.session_id,
+            EntityKind::Faction,
+            "next",
+        )
+        .unwrap();
         assert_eq!(saved.base_versions, next.base_versions);
         assert_eq!(
             next.target.write.rel_path,

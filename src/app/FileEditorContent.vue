@@ -1,37 +1,73 @@
 <template>
-  <main class="file-editor-page" :data-theme="settings.theme" :inert="handoffLocked">
-    <header class="file-editor-header">
-      <div class="file-editor-heading">
-        <div class="file-editor-title-row">
-          <div class="file-editor-title" :title="fileName">{{ fileName }}</div>
-          <div class="file-editor-status" :class="{ dirty, saving, loading }">{{ fileStatusText }}</div>
+  <main class="file-editor-page ui-content-grid ui-text-normal" :data-theme="settings.theme" :inert="handoffLocked">
+    <header class="file-editor-header page-header ui-control-between ui-layout-row ui-layout-grid ui-layout-center">
+      <div class="file-editor-heading page-identity ui-layout-grid ui-layout-shrink">
+        <div class="file-editor-title-row ui-control-row">
+          <div class="file-editor-title ui-text-truncate ui-text-reset ui-layout-shrink ui-text-normal" :title="fileName">
+            {{ fileName }}
+          </div>
+          <div
+            class="file-editor-status ui-text-muted ui-layout-inline ui-layout-center ui-text-path ui-control-border ui-content-surface-muted"
+            :class="{
+              dirty,
+              saving,
+              loading,
+              error: showContextMessage && isErrorContext,
+              warning: Boolean(externalTextNotice) || (showContextMessage && isWarningContext),
+            }"
+          >
+            {{ fileStatusText }}
+          </div>
         </div>
-        <div class="file-editor-path" :title="filePathText">{{ displayPath }}</div>
-        <div class="file-editor-meta" aria-label="文件信息">
-          <span>{{ fileTypeText }}</span>
-          <span>{{ lineCount }} 行</span>
-          <span>{{ modRootName }}</span>
+        <div
+          class="file-editor-path page-path ui-text-truncate ui-text-muted ui-text-reset ui-layout-shrink ui-text-path ui-text-small"
+          :title="filePathText"
+        >
+          {{ displayPath }}
+        </div>
+        <div class="file-editor-meta ui-layout-row ui-layout-shrink" aria-label="文件信息">
+          <span class="file-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
+            fileTypeText
+          }}</span>
+          <span class="file-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted"
+            >{{ lineCount }} 行</span
+          >
+          <span class="file-editor-meta-label ui-text-truncate ui-text-muted ui-control-border ui-content-surface-muted">{{
+            modRootName
+          }}</span>
         </div>
       </div>
-      <div class="file-editor-actions">
+      <div class="file-editor-actions ui-control-row ui-layout-row ui-layout-center">
         <n-button v-if="hasPendingExternalText" secondary type="warning" @click="loadExternalText">载入外部文本</n-button>
+        <n-button v-if="isErrorContext && !contentReady" @click="reloadCurrentWindow">重试</n-button>
         <n-button :disabled="!dirty || saving" @click="cancelFileChanges">取消</n-button>
         <n-button type="primary" :loading="saving" :disabled="!canSave" @click="saveFile">保存</n-button>
       </div>
     </header>
 
-    <section v-if="externalTextNotice" class="file-editor-message warning">
-      <span>外部更新</span>
-      <p>{{ externalTextNotice }}</p>
+    <section
+      v-if="externalTextNotice"
+      class="file-editor-message warning ui-layout-grid ui-text-normal ui-control-border ui-content-surface-muted"
+    >
+      <span class="file-editor-message-label ui-text-small">外部更新</span>
+      <p class="file-editor-message-description ui-text-note ui-text-wrap ui-text-reset ui-text-small">{{ externalTextNotice }}</p>
     </section>
 
-    <section v-if="showContextMessage" :class="['file-editor-message', { danger: isErrorContext, warning: isWarningContext }]">
-      <span>{{ contextLabel }}</span>
-      <p>{{ contextMessage }}</p>
+    <section
+      class="ui-layout-grid ui-text-normal ui-control-border ui-content-surface-muted"
+      v-if="showContextMessage"
+      :class="['file-editor-message', { danger: isErrorContext, warning: isWarningContext, info: !isErrorContext && !isWarningContext }]"
+    >
+      <span class="file-editor-message-label ui-text-small">{{ contextLabel }}</span>
+      <p class="file-editor-message-description ui-text-note ui-text-wrap ui-text-reset ui-text-small">{{ contextMessage }}</p>
     </section>
 
-    <section class="file-editor-body" :aria-busy="loading">
-      <div ref="lineGutterRef" class="file-editor-gutter" aria-hidden="true">
+    <section class="file-editor-body ui-content-contained ui-layout-grid ui-control-border ui-content-surface" :aria-busy="loading">
+      <div
+        ref="lineGutterRef"
+        class="file-editor-gutter ui-text-muted ui-text-small ui-layout-clip ui-content-surface-muted"
+        aria-hidden="true"
+      >
         <div v-for="lineNumber in lineCount" :key="lineNumber" :class="['file-editor-line-number', { active: lineNumber === targetLine }]">
           {{ lineNumber }}
         </div>
@@ -39,7 +75,7 @@
       <textarea
         ref="textareaRef"
         :value="text"
-        class="file-editor-textarea"
+        class="file-editor-textarea ui-textarea ui-content-scroll ui-text-normal ui-text-small ui-layout-stretch"
         spellcheck="false"
         :disabled="loading"
         @input="handleTextInput"
@@ -56,7 +92,7 @@ import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-clo
 import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useSettingsStore } from '@/stores/settings.store';
-import { closeCurrentWindow } from '@/windows/current.window';
+import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { pathBasename, pathBelongsToRoot, relativePathFromRoot } from '@/shared/lib/paths';
@@ -85,6 +121,7 @@ const textareaRef = useTemplateRef<HTMLTextAreaElement>('textareaRef');
 const lineGutterRef = useTemplateRef<HTMLElement>('lineGutterRef');
 const {
   filePath,
+  contentReady,
   contextLabel,
   contextMessage,
   targetLine,
@@ -121,8 +158,11 @@ const {
   line: context.input.location.line,
   column: context.input.location.column,
 });
-useManagedWindowRequests((request) => {
+useManagedWindowRequests(async (request) => {
+  await initialize();
   if (request.kind === 'file-editor') applyLocation(request.input.location);
+  await nextTick();
+  scrollToTargetLine();
 });
 const showContextMessage = computed(() => Boolean(contextMessage.value && (isErrorContext.value || targetLine.value)));
 const closeGuard = useDirtyWindowCloseGuard({
@@ -197,10 +237,6 @@ useShortcutDispatch({
 
 onMounted(() => {
   void closeGuard.install();
-  void initialize().then(async () => {
-    await nextTick();
-    scrollToTargetLine();
-  });
 });
 
 watch([targetLine, targetColumn], () => void nextTick(scrollToTargetLine));

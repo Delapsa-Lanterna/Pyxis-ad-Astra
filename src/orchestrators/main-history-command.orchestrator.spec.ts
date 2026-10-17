@@ -30,7 +30,10 @@ vi.mock('@/stores/tables.store', () => ({
 }));
 
 vi.mock('@/stores/project.store', () => ({
-  useProjectStore: () => ({
+  useProjectStore: () => ({}),
+}));
+vi.mock('@/stores/workspace.store', () => ({
+  useWorkspaceStore: () => ({
     get activeModRoot() {
       return mocks.activeModRoot();
     },

@@ -1,12 +1,12 @@
 import { computed, ref } from 'vue';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
-import { retryPendingProjectSessionWrites } from '@/orchestrators/project-session-refresh.orchestrator';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
+import { retryPendingSessionSyncs } from '@/orchestrators/project-sync.orchestrator';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { AppError } from '@/shared/lib/errors';
 
 export function useWriteSyncViewModel() {
-  const sync = useWriteSyncStore();
+  const sync = useProjectSyncStore();
   const feedback = useAppFeedback();
   const retrying = ref(false);
   const failedCount = computed(() => sync.pending.filter((entry) => entry.error !== null).length);
@@ -20,7 +20,7 @@ export function useWriteSyncViewModel() {
           entry.event.sessionId ? [entry.event.sessionId] : entry.event.result.sessionUpdates.map((update) => update.sessionId),
         ),
       )) {
-        await retryPendingProjectSessionWrites(sessionId);
+        await retryPendingSessionSyncs(sessionId);
       }
     } catch (error) {
       feedback.error(error, '同步已保存内容失败');

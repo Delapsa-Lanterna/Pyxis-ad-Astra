@@ -1,5 +1,5 @@
 import { rowSpecId } from '@/shared/lib/starsector';
-import type { SpecEditorKind, EntityKind, CsvRowRecord, TableKey } from '@/shared/types';
+import type { SpecEditorKind, EntityKind, CsvRowRecord, CsvTableKey } from '@/shared/types';
 import { isCsvCommentRow } from '@/domain/tables/csv-comment-row';
 import { associatedSpecEditorKinds, associatedSpecKind } from '@/domain/tables/associated-specs';
 import { specEditorWindowLabel } from '@/domain/spec-editor/spec-editor-definitions';
@@ -25,7 +25,7 @@ export interface TableDetailActionContext {
 
 export function detailActionsForRow(
   context: TableDetailActionContext,
-  table: TableKey,
+  table: CsvTableKey,
   row: CsvRowRecord | null | undefined,
 ): TableDetailAction[] {
   if (!row) return [];

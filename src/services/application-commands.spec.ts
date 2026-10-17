@@ -1,5 +1,6 @@
+import { requestClose, replyNativeClose, readyNativeClose } from './app-lifecycle.service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadSettings, saveSettings, querySystemFonts } from './app-settings.service';
+import { readSettings, saveSettings, querySystemFonts } from './app-settings.service';
 import { createSettingsFixture } from '@/test/settings';
 import { clearConfig, openConfigFolder } from './app-config.service';
 import { clearLog, loadLogStatus, openLogFile, recordLogBestEffort } from './app-log.service';
@@ -7,7 +8,9 @@ import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-stat
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
-import { openProject, closeProject, requestProjectSessionRefresh, synchronizeSessionCommit } from './project-session.service';
+import { synchronizeSessionCommit, requestProjectSessionRefresh, refreshProjectSources } from './project-sync.service';
+import { queryOriginalFont } from './font.service';
+import { openProject, closeProject } from './project-session.service';
 import {
   getNativeWindowBootstrap,
   getNativeWindowContext,
@@ -15,17 +18,12 @@ import {
   acceptNativeWindowRequest,
   failNativeWindowRequest,
   failNativeWindowStartup,
-  awaitNativeWindowRequest,
-  publishNativeWindowSettings,
-  getNativeWindowSettings,
-  openNativeManagedWindow,
+  requestNativeWindow,
   focusNativeManagedWindow,
   updateNativeWindowStatus,
   reserveNativeWindowTargets,
   releaseNativeWindowTargets,
   retargetNativeWindow,
-  closeNativeSessionWindows,
-  cancelNativeWindowClose,
 } from './window.service';
 import type { CreateModRequest, ManagedWindowStatus, NativeWindowRequest, PersistedWorkspace, WindowIdentity } from '@/shared/types';
 
@@ -50,9 +48,14 @@ const request: NativeWindowRequest = {
 const status: ManagedWindowStatus = { dirty: false, saving: false };
 const entry = { level: 'warning' as const, code: 'demo', message: 'raw', path: null, line: null, fields: null };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
-  ['load_app_settings', loadSettings, undefined],
+  ['read_settings', readSettings, undefined],
   ['query_system_fonts', querySystemFonts, undefined],
-  ['save_app_settings', () => saveSettings(settings), { payload: { settings } }],
+  [
+    'query_original_font',
+    () => queryOriginalFont('s1', null, 'insignia15LTaa'),
+    { payload: { sessionId: 's1', starsectorRoot: null, fontId: 'insignia15LTaa' } },
+  ],
+  ['save_settings', () => saveSettings(settings), { payload: { settings } }],
   ['append_app_log', () => recordLogBestEffort(entry), { payload: { entry } }],
   ['get_app_log_status', loadLogStatus, undefined],
   ['open_app_log_file', openLogFile, undefined],
@@ -71,35 +74,38 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ['close_project_session', () => closeProject('s1'), { payload: { sessionId: 's1' } }],
   ['invalidate_project_session', () => requestProjectSessionRefresh('s1', []), { payload: { sessionId: 's1', changes: [] } }],
   [
+    'refresh_project_sources',
+    () => refreshProjectSources('s1', [{ source: 'core', relPath: 'data/hulls/demo.ship' }]),
+    { payload: { sessionId: 's1', sources: [{ source: 'core', relPath: 'data/hulls/demo.ship' }] } },
+  ],
+  [
     'synchronize_committed_write',
     () => synchronizeSessionCommit('s1', 'M:/mod', 7),
     { payload: { sessionId: 's1', modRoot: 'M:/mod', commitId: 7 } },
   ],
+  ['request_close', () => requestClose({ kind: 'window' }), { scope: { kind: 'window' } }],
+  ['reply_close', () => replyNativeClose(1, 'hold', true), { operationId: 1, phase: 'hold', accepted: true, diagnostic: null }],
+  ['ready_close', readyNativeClose, undefined],
   ['get_window_bootstrap', getNativeWindowBootstrap, undefined],
   ['get_current_window_context', getNativeWindowContext, undefined],
   ['get_current_window_request', getNativeWindowRequest, undefined],
-  ['accept_window_request', () => acceptNativeWindowRequest(9), { requestId: 9 }],
+  ['accept_window_request', () => acceptNativeWindowRequest(9, 2), { requestId: 9, receiverGeneration: 2 }],
   [
     'fail_window_request',
-    () => failNativeWindowRequest(9, { code: 'window.failed', message: '失败', location: null }),
-    { requestId: 9, diagnostic: { code: 'window.failed', message: '失败', location: null } },
+    () => failNativeWindowRequest(9, 2, { code: 'window.failed', message: '失败', location: null }),
+    { requestId: 9, receiverGeneration: 2, diagnostic: { code: 'window.failed', message: '失败', location: null } },
   ],
   [
     'fail_window_startup',
     () => failNativeWindowStartup({ code: 'window.failed', message: '失败', location: null }),
     { diagnostic: { code: 'window.failed', message: '失败', location: null } },
   ],
-  ['await_window_request', () => awaitNativeWindowRequest(9), { requestId: 9 }],
-  ['publish_window_settings', () => publishNativeWindowSettings(settings), { settings }],
-  ['get_window_settings', getNativeWindowSettings, undefined],
-  ['open_managed_window', () => openNativeManagedWindow(request), { payload: request }],
+  ['request_window', () => requestNativeWindow(request), { payload: request }],
   ['focus_managed_window', () => focusNativeManagedWindow(identity), { identity }],
   ['update_managed_window_status', () => updateNativeWindowStatus(status), { payload: status }],
   ['reserve_window_targets', () => reserveNativeWindowTargets([identity]), { identities: [identity] }],
   ['release_window_targets', releaseNativeWindowTargets, undefined],
   ['retarget_managed_window', () => retargetNativeWindow(identity, 'Demo'), { identity, title: 'Demo', input: null }],
-  ['request_session_window_close', () => closeNativeSessionWindows('s1'), { sessionId: 's1' }],
-  ['cancel_window_close_request', () => cancelNativeWindowClose(7), { requestId: 7 }],
 ];
 beforeEach(() => {
   vi.clearAllMocks();

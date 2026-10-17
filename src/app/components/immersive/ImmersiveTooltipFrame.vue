@@ -2,6 +2,7 @@
   <div class="immersive-tooltip-frame" :class="{ textured }">
     <div class="immersive-tooltip-frame-content"><slot /></div>
     <span
+      class="immersive-tooltip-frame-label"
       v-for="edge in textured ? edges : []"
       :key="edge"
       :class="'immersive-tooltip-edge-' + edge"

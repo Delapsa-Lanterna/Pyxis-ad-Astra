@@ -1,146 +1,187 @@
-import { describe, expect, it, vi } from 'vitest';
-import { invalidateQueryCacheByProject, invalidateQueryCacheForSession, queryCached, queryLive } from '@/services/query-cache.service';
-import type { QueryValue } from '@/shared/types';
-import { markProjectionPending, markProjectionReady } from '@/services/project-projection.service';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import {
+  createCachedSessionQuery,
+  createLiveSessionQuery,
+  invalidateQueryCacheByProject,
+  invalidateQueryCacheForSession,
+} from './query-cache.service';
+import { markProjectionPending, markProjectionReady } from './project-projection.service';
+import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
+import { createSettingsFixture } from '@/test/settings';
+import type { DeepReadonly, ProjectInvalidation } from '@/shared/types';
 
-describe('query pending ownership', () => {
-  it('does not start a loader for an already released consumer', async () => {
+const changed: ProjectInvalidation = { paths: ['changed'], tables: [], entities: [], resources: [], queryScopes: [], session: false };
+const createReader = (load: () => Promise<Array<{ name: string }>>) =>
+  createCachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
+
+describe('session query ownership', () => {
+  it('fixes parameters and the read-only result at the query definition', async () => {
+    const read = createReader(async () => [{ name: 'Original' }]);
+    expectTypeOf(read).parameter(1).toEqualTypeOf<{ id: string }>();
+    expectTypeOf<Awaited<ReturnType<typeof read>>>().toEqualTypeOf<DeepReadonly<Array<{ name: string }>>>();
+    expect(await read('typed-query', { id: 'a' })).toEqual([{ name: 'Original' }]);
+    invalidateQueryCacheForSession('typed-query');
+  });
+  it('ends an already released consumer before loading', async () => {
     const controller = new AbortController();
     controller.abort();
-    const loader = vi.fn(async () => []);
-    await expect(
-      queryCached({ sessionId: 'already-ended', queryKind: 'entity-list', parameters: { kind: 'ship' } }, loader, controller.signal),
-    ).rejects.toMatchObject({ code: 'query.invalidated' });
-    expect(loader).not.toHaveBeenCalled();
+    const load = vi.fn(async () => []);
+    await expect(createReader(load)('aborted-query', { id: 'a' }, controller.signal)).rejects.toMatchObject({ code: 'query.invalidated' });
+    expect(load).not.toHaveBeenCalled();
   });
-  it('shares one loader while a released consumer ends only its own wait', async () => {
-    const identity = { sessionId: 'shared-query', queryKind: 'entity-list' as const, parameters: { kind: 'ship' as const } };
-    let finish!: (value: QueryValue<'entity-list'>) => void;
-    const loader = vi.fn(
+  it('shares a pending request while cancellation ends only the consumer wait', async () => {
+    let finish!: (value: []) => void;
+    const load = vi.fn(
       () =>
-        new Promise<QueryValue<'entity-list'>>((resolve) => {
+        new Promise<[]>((resolve) => {
           finish = resolve;
         }),
     );
-    const controller = new AbortController();
-    const first = queryCached(identity, loader, controller.signal);
-    const second = queryCached(identity, loader);
+    const read = createReader(load),
+      controller = new AbortController();
+    const first = read('shared-query', { id: 'a' }, controller.signal);
+    const second = read('shared-query', { id: 'a' });
     const ended = expect(first).rejects.toMatchObject({ code: 'query.invalidated', cause: { reason: 'consumer' } });
     controller.abort();
     await ended;
     finish([]);
     await expect(second).resolves.toEqual([]);
-    await queryCached(identity, loader);
-    expect(loader).toHaveBeenCalledOnce();
-    invalidateQueryCacheForSession(identity.sessionId);
+    await read('shared-query', { id: 'a' });
+    expect(load).toHaveBeenCalledOnce();
+    invalidateQueryCacheForSession('shared-query');
   });
-
-  it('retries failed reads and isolates sessions at the same query identity', async () => {
-    const identity = { sessionId: 'failed-query', queryKind: 'csv-source-options' as const, parameters: { source: 'csv:ships.id' } };
-    const loader = vi.fn().mockRejectedValueOnce(new Error('read failure')).mockResolvedValue([]);
-    await expect(queryCached(identity, loader)).rejects.toThrow('read failure');
-    await queryCached(identity, loader);
-    await queryCached({ ...identity, sessionId: 'other-query' }, loader);
-    expect(loader).toHaveBeenCalledTimes(3);
-    invalidateQueryCacheForSession(identity.sessionId);
+  it('retries failures and isolates sessions', async () => {
+    const load = vi.fn().mockRejectedValueOnce(new Error('read failure')).mockResolvedValue([]);
+    const read = createReader(load);
+    await expect(read('failed-query', { id: 'a' })).rejects.toThrow('read failure');
+    await read('failed-query', { id: 'a' });
+    await read('other-query', { id: 'a' });
+    expect(load).toHaveBeenCalledTimes(3);
+    invalidateQueryCacheForSession('failed-query');
     invalidateQueryCacheForSession('other-query');
   });
-
-  it('ends a live draft-resource request immediately when the source detail changes', async () => {
-    const identity = {
-      sessionId: 'live-query',
-      queryKind: 'editor-draft-resources' as const,
-      parameters: { kind: 'ship' as const, id: 'demo', draft: {} },
-    };
-    let finish!: (value: QueryValue<'editor-draft-resources'>) => void;
-    const read = queryLive(
-      identity,
+  it.each(['success', 'error'] as const)('keeps replacement data after an invalidated late %s', async (outcome) => {
+    let finish!: (value: []) => void, fail!: (error: Error) => void;
+    const load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<[]>((resolve, reject) => {
+            finish = resolve;
+            fail = reject;
+          }),
+      )
+      .mockResolvedValue([{ name: 'Current' }]);
+    const read = createReader(load);
+    const old = read('late-query', { id: 'a' });
+    const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
+    invalidateQueryCacheByProject('late-query', changed);
+    await ended;
+    await read('late-query', { id: 'a' });
+    if (outcome === 'success') finish([]);
+    else fail(new Error('late failure'));
+    expect(await read('late-query', { id: 'a' })).toEqual([{ name: 'Current' }]);
+    expect(load).toHaveBeenCalledTimes(2);
+    invalidateQueryCacheForSession('late-query');
+  });
+  it('gates cached values and pending completion with the projection state', async () => {
+    const read = createReader(async () => []);
+    await read('projection-gated', { id: 'a' });
+    markProjectionPending('projection-gated', 3);
+    await expect(read('projection-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.projection_pending' });
+    markProjectionReady('projection-gated', 2);
+    await expect(read('projection-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.projection_pending' });
+    markProjectionReady('projection-gated', 3);
+    await expect(read('projection-gated', { id: 'a' })).resolves.toEqual([]);
+    invalidateQueryCacheForSession('projection-gated');
+    let finish!: (value: []) => void;
+    const pending = createReader(
       () =>
-        new Promise<QueryValue<'editor-draft-resources'>>((resolve) => {
+        new Promise<[]>((resolve) => {
+          finish = resolve;
+        }),
+    )('projection-gated', { id: 'b' });
+    markProjectionPending('projection-gated', 4);
+    finish([]);
+    await expect(pending).rejects.toMatchObject({ code: 'session.projection_pending' });
+    markProjectionReady('projection-gated', 4);
+    invalidateQueryCacheForSession('projection-gated');
+  });
+  it('ends pending requests for a closed session and allows a fresh read', async () => {
+    let finish!: (value: []) => void;
+    const load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<[]>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue([]);
+    const read = createReader(load),
+      old = read('closed-query', { id: 'a' });
+    const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated', cause: { reason: 'session' } });
+    invalidateQueryCacheForSession('closed-query');
+    await ended;
+    finish([]);
+    await read('closed-query', { id: 'a' });
+    expect(load).toHaveBeenCalledTimes(2);
+    invalidateQueryCacheForSession('closed-query');
+  });
+  it('preserves single-flight with zero retained capacity', async () => {
+    const limits = createSettingsFixture().cacheLimits;
+    limits.queries['entity-list'] = 0;
+    initializeCacheLimits(limits);
+    try {
+      let finish!: (value: []) => void;
+      const load = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<[]>((resolve) => {
+              finish = resolve;
+            }),
+        )
+        .mockResolvedValue([]);
+      const read = createReader(load);
+      const first = read('zero-query', { id: 'a' }),
+        second = read('zero-query', { id: 'a' });
+      expect(load).toHaveBeenCalledOnce();
+      finish([]);
+      await Promise.all([first, second]);
+      await read('zero-query', { id: 'a' });
+      expect(load).toHaveBeenCalledTimes(2);
+      invalidateQueryCacheForSession('zero-query');
+    } finally {
+      initializeCacheLimits(createSettingsFixture().cacheLimits);
+    }
+  });
+  it.each(['cached', 'live'] as const)('captures %s parameters once for loading and invalidation', async (mode) => {
+    let reads = 0,
+      finish!: (value: []) => void;
+    const input = {
+      get path() {
+        reads++;
+        return 'original';
+      },
+    };
+    const load = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
           finish = resolve;
         }),
     );
-    const ended = expect(read).rejects.toMatchObject({ code: 'query.invalidated', cause: { identity, reason: 'project' } });
-    invalidateQueryCacheByProject(identity.sessionId, {
-      paths: [],
-      tables: [],
-      entities: [],
-      resources: [],
-      session: false,
-      queryScopes: [{ kind: 'entity-detail', table: null, source: null, entity: { kind: 'ship', id: 'demo' }, resource: null }],
-    });
+    const invalidates = vi.fn((parameters: { path: string }) => parameters.path === 'original');
+    const definition = { queryKind: 'entity-list' as const, load, invalidates };
+    const read = mode === 'cached' ? createCachedSessionQuery(definition) : createLiveSessionQuery(definition);
+    const pending = read('snapshot-query', input);
+    expect(reads).toBe(1);
+    expect(load).toHaveBeenCalledWith({ sessionId: 'snapshot-query', queryKind: 'entity-list', parameters: { path: 'original' } });
+    const ended = expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
+    invalidateQueryCacheByProject('snapshot-query', changed);
     await ended;
-    finish({});
-    invalidateQueryCacheForSession(identity.sessionId);
-  });
-  it('keeps cached values behind the formal pending-projection query gate', async () => {
-    const session = 'projection-gated';
-    const loader = vi.fn(async () => []);
-    const identity = { sessionId: session, queryKind: 'entity-list' as const, parameters: { kind: 'skin' as const } };
-    await queryCached(identity, loader);
-    markProjectionPending(session, 3);
-    await expect(queryCached(identity, loader)).rejects.toMatchObject({
-      action: 'query-session',
-      code: 'session.projection_pending',
-    });
-    markProjectionReady(session, 2);
-    await expect(queryCached(identity, loader)).rejects.toMatchObject({
-      action: 'query-session',
-      code: 'session.projection_pending',
-    });
-    markProjectionReady(session, 3);
-    await expect(queryCached(identity, loader)).resolves.toEqual([]);
-    expect(loader).toHaveBeenCalledOnce();
-    invalidateQueryCacheForSession(session);
-  });
-  it('keeps replacement data after an invalidated request arrives late', async () => {
-    const session = 'query-late';
-    let resolveOld!: (value: []) => void;
-    const oldLoader = vi.fn(
-      () =>
-        new Promise<[]>((resolve) => {
-          resolveOld = resolve;
-        }),
-    );
-    const currentLoader = vi.fn(async () => []);
-    const identity = { sessionId: session, queryKind: 'csv-source-options' as const, parameters: { source: 'csv:commodities.tags' } };
-    const old = queryCached(identity, oldLoader);
-    const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
-    invalidateQueryCacheByProject(session, {
-      paths: [],
-      tables: ['specialItems'],
-      entities: [],
-      resources: [],
-      session: false,
-      queryScopes: [{ kind: 'csv-source-options', table: null, source: 'csv:commodities.tags', entity: null, resource: null }],
-    });
-    await ended;
-    await expect(queryCached(identity, currentLoader)).resolves.toEqual([]);
-    resolveOld([]);
-    await expect(queryCached(identity, currentLoader)).resolves.toEqual([]);
-    expect(currentLoader).toHaveBeenCalledOnce();
-    invalidateQueryCacheForSession(session);
-  });
-
-  it('does not store a response for a closed session', async () => {
-    const session = 'query-closed';
-    let resolveOld!: (value: []) => void;
-    const old = queryCached(
-      { sessionId: session, queryKind: 'entity-list', parameters: { kind: 'ship' } },
-      () =>
-        new Promise<[]>((resolve) => {
-          resolveOld = resolve;
-        }),
-    );
-    const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
-    invalidateQueryCacheForSession(session);
-    await ended;
-    resolveOld([]);
-    const currentLoader = vi.fn(async () => []);
-    await expect(
-      queryCached({ sessionId: session, queryKind: 'entity-list', parameters: { kind: 'ship' } }, currentLoader),
-    ).resolves.toEqual([]);
-    expect(currentLoader).toHaveBeenCalledOnce();
-    invalidateQueryCacheForSession(session);
+    expect(invalidates).toHaveBeenCalledWith({ path: 'original' }, changed);
+    finish([]);
+    invalidateQueryCacheForSession('snapshot-query');
   });
 });

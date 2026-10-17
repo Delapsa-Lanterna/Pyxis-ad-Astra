@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useTablesStore } from '@/stores/tables.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import type { ConfigView, TableKey } from '@/shared/types';
+import type { ConfigView, CsvTableKey } from '@/shared/types';
 
 export function useWorkspaceNavigationActions() {
   const workspace = useWorkspaceStore();
@@ -16,7 +16,7 @@ export function useWorkspaceNavigationActions() {
     confirmNavigation(() => workspaceNavigation.navigateToModOverview(modRoot));
   }
 
-  function navigateToModTable(modRoot: string, table: TableKey): void {
+  function navigateToModTable(modRoot: string, table: CsvTableKey): void {
     confirmNavigation(() => workspaceNavigation.navigateToModTable(modRoot, table));
   }
 

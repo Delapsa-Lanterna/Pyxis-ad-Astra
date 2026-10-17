@@ -1,0 +1,6 @@
+.window-context-menu {
+  min-width: 160px;
+}
+.window-context-menu .context-menu-danger {
+  color: var(--color-danger) !important;
+}

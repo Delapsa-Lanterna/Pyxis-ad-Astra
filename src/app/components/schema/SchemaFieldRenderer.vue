@@ -1,7 +1,7 @@
 <template>
-  <div class="schema-field" :class="{ 'nested-row': isNested }">
-    <span class="field-label" :title="fieldTitle">{{ field.label }}</span>
-    <div class="field-control">
+  <div class="schema-field ui-layout-grid ui-layout-shrink" :class="{ 'nested-row': isNested }">
+    <span class="field-label field-label-multi ui-text-truncate ui-text-muted" :title="fieldTitle">{{ field.label }}</span>
+    <div class="field-control ui-layout-row ui-layout-shrink ui-layout-stack">
       <template v-if="plainMode">
         <n-input
           v-if="field.type === 'string'"
@@ -159,7 +159,7 @@
         />
 
         <!-- path-image: searchable dropdown + file picker -->
-        <div v-else-if="field.type === 'path-image'" class="path-field">
+        <div v-else-if="field.type === 'path-image'" class="path-field ui-control-row">
           <n-select
             :show="selectOpen"
             :value="strVal || null"
@@ -175,8 +175,14 @@
             @update:show="handleSelectShowUpdate"
             @update:value="emitValue($event ?? '')"
           />
-          <n-button class="compact-icon-button" size="small" quaternary title="选择图片文件" @click="pickPathFile({ imageFilter: true })">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+          <n-button
+            class="compact-icon-button ui-control-reset"
+            size="small"
+            quaternary
+            title="选择图片文件"
+            @click="pickPathFile({ imageFilter: true })"
+          >
+            <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 19V5h6l2 2h8v12H4z" />
               <path d="M8 14h8M12 10v8" />
             </svg>
@@ -184,10 +190,10 @@
         </div>
 
         <!-- path: input + file picker (no image dropdown) -->
-        <div v-else-if="field.type === 'path'" class="path-field">
+        <div v-else-if="field.type === 'path'" class="path-field ui-control-row">
           <n-input :value="strVal" size="small" @update:value="emitValue($event)" />
-          <n-button class="compact-icon-button" size="small" quaternary title="选择文件" @click="pickPathFile">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+          <n-button class="compact-icon-button ui-control-reset" size="small" quaternary title="选择文件" @click="pickPathFile">
+            <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 19V5h6l2 2h8v12H4z" />
               <path d="M8 14h8M12 10v8" />
             </svg>
@@ -226,8 +232,16 @@
           @update:value="emitValue(wrapTags($event))"
         />
 
-        <div v-else-if="field.type === 'key-value'" class="key-value-editor" :class="{ 'reference-key-value': isReferenceKeyValue }">
-          <div v-for="(row, idx) in kvRows" :key="row.rowId" class="kv-row">
+        <div
+          v-else-if="field.type === 'key-value'"
+          class="field-map ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip ui-layout-stretch"
+          :class="{ 'field-map-reference': isReferenceKeyValue }"
+        >
+          <div
+            v-for="(row, idx) in kvRows"
+            :key="row.rowId"
+            class="field-map-row ui-layout-grid ui-layout-shrink ui-layout-center ui-layout-stretch"
+          >
             <n-select
               :show="kvSelectOpen[row.rowId]"
               :value="row.entry.key"
@@ -236,7 +250,7 @@
               filterable
               tag
               size="small"
-              class="kv-key-select"
+              class="field-map-key ui-layout-shrink ui-layout-stretch"
               @mousedown.capture="closeOpenKvSelectOnFieldClick($event, row.rowId)"
               @update:show="handleKvSelectShowUpdate(row.rowId, $event)"
               @update:value="updateKvKey(idx, $event)"
@@ -253,12 +267,12 @@
             <n-input
               v-else
               :value="formatSchemaKeyValueText(row.entry.val)"
-              class="kv-value-input"
+              class="field-map-value ui-layout-shrink ui-layout-stretch"
               size="small"
               @update:value="updateKvVal(idx, $event)"
             />
-            <n-button class="compact-icon-button" size="tiny" quaternary title="删除" @click="removeKvEntry(idx)">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
+            <n-button class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除" @click="removeKvEntry(idx)">
+              <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 6l12 12M18 6 6 18" />
               </svg>
             </n-button>
@@ -267,7 +281,10 @@
         </div>
 
         <!-- object (recurse into nested fields) -->
-        <div v-else-if="field.type === 'object' && field.nested" class="nested-object">
+        <div
+          v-else-if="field.type === 'object' && field.nested"
+          class="nested-object ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip"
+        >
           <SchemaFieldRenderer
             v-for="sub in field.nested"
             :key="sub.key"
@@ -280,12 +297,25 @@
           />
         </div>
 
-        <div v-else-if="field.type === 'array' && field.item" class="array-of-object">
-          <div v-for="(_, idx) in genericArrayItems" :key="genericRowIds[idx]" class="array-item">
-            <div class="array-item-header">
-              <span class="array-item-index">#{{ idx + 1 }}</span>
-              <n-button class="compact-icon-button" size="tiny" quaternary title="删除" @click="removeGenericArrayItem(idx)">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+        <div
+          v-else-if="field.type === 'array' && field.item"
+          class="field-collection ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip ui-layout-stretch"
+        >
+          <div
+            v-for="(_, idx) in genericArrayItems"
+            :key="genericRowIds[idx]"
+            class="field-collection-item ui-layout-shrink ui-layout-clip ui-layout-stretch ui-control-border"
+          >
+            <div class="field-collection-header ui-control-row">
+              <span class="field-collection-index ui-text-meta ui-text-muted">#{{ idx + 1 }}</span>
+              <n-button
+                class="compact-icon-button ui-control-reset"
+                size="tiny"
+                quaternary
+                title="删除"
+                @click="removeGenericArrayItem(idx)"
+              >
+                <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M6 6l12 12M18 6 6 18" />
                 </svg>
               </n-button>
@@ -302,12 +332,19 @@
           <n-button size="tiny" @click="addGenericArrayItem">+ 添加项</n-button>
         </div>
 
-        <div v-else-if="field.type === 'array-of-object' && field.nested" class="array-of-object">
-          <div v-for="(_, idx) in arrayItems" :key="arrayRowIds[idx]" class="array-item">
-            <div class="array-item-header">
-              <span class="array-item-index">#{{ idx + 1 }}</span>
-              <n-button class="compact-icon-button" size="tiny" quaternary title="删除" @click="removeArrayItem(idx)">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+        <div
+          v-else-if="field.type === 'array-of-object' && field.nested"
+          class="field-collection ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip ui-layout-stretch"
+        >
+          <div
+            v-for="(_, idx) in arrayItems"
+            :key="arrayRowIds[idx]"
+            class="field-collection-item ui-layout-shrink ui-layout-clip ui-layout-stretch ui-control-border"
+          >
+            <div class="field-collection-header ui-control-row">
+              <span class="field-collection-index ui-text-meta ui-text-muted">#{{ idx + 1 }}</span>
+              <n-button class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除" @click="removeArrayItem(idx)">
+                <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M6 6l12 12M18 6 6 18" />
                 </svg>
               </n-button>
@@ -337,8 +374,8 @@
       </template>
 
       <!-- Warning text -->
-      <span v-if="field.warning" class="field-warning">{{ field.warning }}</span>
-      <span v-if="field.danger" class="field-danger">{{ field.danger }}</span>
+      <span v-if="field.warning" class="field-warning ui-text-note ui-text-wrap ui-text-reset">{{ field.warning }}</span>
+      <span v-if="field.danger" class="field-danger ui-text-note ui-text-wrap ui-text-reset">{{ field.danger }}</span>
     </div>
   </div>
 </template>

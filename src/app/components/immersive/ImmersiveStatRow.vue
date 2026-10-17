@@ -1,6 +1,11 @@
 <template>
-  <div class="immersive-stat-row" :class="[stat.tone ?? 'highlight', { inline: stat.inline, 'group-gap': stat.gapBefore }]">
-    <span><ImmersiveText :text="stat.label + (stat.inline ? '：' : '')" /></span>
+  <div
+    class="immersive-stat-row ui-layout-grid ui-layout-shrink ui-control-reset ui-layout-row"
+    :class="[stat.tone ?? 'highlight', { inline: stat.inline, 'group-gap': stat.gapBefore }]"
+  >
+    <span class="immersive-stat-row-label ui-layout-shrink ui-text-wrap"
+      ><ImmersiveText :text="stat.label + (stat.inline ? '：' : '')"
+    /></span>
     <n-popover
       ref="popover"
       v-if="editable && stat.fields.length"
@@ -16,7 +21,7 @@
         ><button
           ref="trigger"
           type="button"
-          class="immersive-stat-value"
+          class="immersive-stat-value ui-button ui-text-wrap ui-control-reset ui-control-pointer"
           :title="stat.diagnostic || stat.formula || '点击编辑来源参数'"
           @click="$emit('toggle', !active)"
         >
@@ -32,7 +37,7 @@
         @close="$emit('dismiss')"
       />
     </n-popover>
-    <strong v-else class="immersive-stat-value" :title="stat.diagnostic || stat.formula"
+    <strong v-else class="immersive-stat-value ui-text-wrap ui-control-reset ui-control-pointer" :title="stat.diagnostic || stat.formula"
       ><ImmersiveText :text="stat.display" :runs="stat.displayRuns" :font="stat.font"
     /></strong>
   </div>

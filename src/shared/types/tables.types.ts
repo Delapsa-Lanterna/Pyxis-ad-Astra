@@ -1,10 +1,10 @@
-import type { ProjectSessionId, ResourceRef, TableKey } from '@/shared/types/project-identity.types';
+import type { ProjectSessionId, ResourceRef, CsvTableKey } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 
 export interface CsvTableTarget {
   sessionId: string;
   modRoot: string;
-  table: TableKey;
+  table: CsvTableKey;
 }
 
 export interface CsvCellTarget extends CsvTableTarget {
@@ -34,7 +34,7 @@ export type CsvTableRows = Array<CsvDraftRow | null>;
 
 export interface CsvTableWindow {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  table: TableKey;
+  table: CsvTableKey;
   header: string[];
   totalRows: number;
   filteredRows: number;
@@ -66,5 +66,20 @@ export interface CsvRowPreview {
 export interface CsvRowPreviewTarget {
   rowKey: string;
   sessionId: ProjectSessionId;
-  table: TableKey;
+  table: CsvTableKey;
+}
+
+export interface CsvTableWindowPayload {
+  sessionId: string;
+  table: import('@/shared/types/project-identity.types').CsvTableKey;
+  start: number;
+  count: number;
+  search: string | null;
+  searchField: CsvSearchField;
+}
+
+export interface CsvRowPreviewPayload {
+  sessionId: string;
+  table: import('@/shared/types/project-identity.types').CsvTableKey;
+  rowKey: string;
 }

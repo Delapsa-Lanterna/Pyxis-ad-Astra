@@ -1,8 +1,8 @@
 <template>
-  <div class="app-frame" :data-theme="settings.theme">
+  <div class="app-frame ui-content-contained ui-text-normal ui-layout-grid" :data-theme="settings.theme">
     <TitleBar />
     <ModTabsBar @remove-mod="actions.confirmRemoveMod" />
-    <div class="app-shell">
+    <div class="app-shell ui-content-contained ui-layout-grid">
       <ModNavigation />
 
       <OverviewPage
@@ -16,14 +16,14 @@
       />
       <SettingsPage v-else-if="workspace.currentView === 'settings'" :close-workspace="() => actions.confirmCloseWorkspace(false)" />
       <AboutPage v-else-if="workspace.currentView === 'about'" />
-      <ModFileBrowser v-else-if="workspace.currentView === 'mod-files' && project.activeManifest" />
-      <TableWorkspace v-else-if="workspace.currentView === 'table' && project.activeManifest" />
-      <ConfigWorkspace v-else-if="workspace.currentView === 'config' && project.activeManifest" />
-      <main v-else class="workspace workspace-loading">
-        <section class="workspace-loading-state">
+      <ModFileBrowser v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" />
+      <TableWorkspace v-else-if="workspace.currentView === 'table' && workspace.activeManifest" />
+      <ConfigWorkspace v-else-if="workspace.currentView === 'config' && workspace.activeManifest" />
+      <main v-else class="workspace workspace-loading page-slot ui-content-contained ui-layout-grid ui-layout-stretch">
+        <section class="workspace-loading-state ui-text-normal ui-layout-grid">
           <n-spin size="large" />
-          <h1>正在加载 Mod</h1>
-          <p>{{ loadingModLabel }}</p>
+          <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">正在加载 Mod</h1>
+          <p class="workspace-loading-state-description ui-text-muted ui-text-reset">{{ loadingModLabel }}</p>
         </section>
       </main>
     </div>
@@ -37,7 +37,6 @@ import TitleBar from '@/app/TitleBar.vue';
 import ModNavigation from '@/app/components/ModNavigation.vue';
 import ModTabsBar from '@/app/components/ModTabsBar.vue';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useWorkspaceShellActions } from '@/app/composables/use-workspace-shell-actions';
 import { useWorkspaceShellLifecycle } from '@/app/composables/use-workspace-shell-lifecycle';
@@ -46,6 +45,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
+import { useProjectStore } from '@/stores/project.store';
 
 const OverviewPage = defineAsyncComponent(() => import('@/app/components/OverviewPage.vue'));
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
@@ -53,10 +53,9 @@ const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.
 const TableWorkspace = defineAsyncComponent(() => import('@/app/components/TableWorkspace.vue'));
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const ConfigWorkspace = defineAsyncComponent(() => import('@/app/components/config/ConfigWorkspace.vue'));
-
-const project = useProjectStore();
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
+const project = useProjectStore();
 const draftSessions = useDraftSessionsStore();
 const feedback = useAppFeedback();
 const actions = useWorkspaceShellActions(feedback);
@@ -67,16 +66,21 @@ const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some(
 useContextMenuScope({
   identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
   canRefresh: () => actions.canRefreshOverview.value,
-  refresh: () => (workspace.currentView === 'overview' ? actions.refreshWorkspace() : actions.refreshModOverview(project.activeModRoot!)),
+  refresh: () => (workspace.currentView === 'overview' ? actions.refreshWorkspace() : actions.refreshModOverview(workspace.activeModRoot!)),
 });
 const closeGuard = useDirtyWindowCloseGuard({
-  beforeClose: actions.closeWorkspaceWindows,
+  settle: actions.settleDirectoryOpenings,
+  dirtyForScope: (scope) =>
+    scope.kind === 'sessions'
+      ? [...project.manifests.values()].some(
+          (manifest) => scope.sessionIds.includes(manifest.sessionId) && draftSessions.hasUnsavedWorkForMod(manifest.modRoot),
+        )
+      : hasUnsavedMainWindowChanges.value,
   content: '主窗口中仍有未保存修改，关闭后这些修改将丢失。',
   dirty: hasUnsavedMainWindowChanges,
   title: '放弃未保存修改并关闭？',
 });
-
-const isTableView = computed(() => workspace.currentView === 'table' && Boolean(project.activeManifest));
+const isTableView = computed(() => workspace.currentView === 'table' && Boolean(workspace.activeManifest));
 const loadingModLabel = computed(() => {
   const activeModRoot = workspace.activeModRoot;
   if (!activeModRoot) return '';

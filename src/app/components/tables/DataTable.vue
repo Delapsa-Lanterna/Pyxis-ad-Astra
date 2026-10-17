@@ -1,8 +1,8 @@
 <template>
-  <div v-if="csvTable.tables.currentTableLocked" class="table-external-update-note">
+  <div v-if="csvTable.tables.currentTableLocked" class="table-external-update-note ui-control-between ui-text-note">
     <span>规格身份正在交接，本表稍后恢复编辑。</span>
   </div>
-  <div v-if="csvTable.tables.hasCurrentTableExternalUpdate" class="table-external-update-note">
+  <div v-if="csvTable.tables.hasCurrentTableExternalUpdate" class="table-external-update-note ui-control-between ui-text-note">
     <span>当前 CSV 文件已在外部更新，未保存修改已保留。</span>
     <n-button size="tiny" secondary type="warning" @click="csvTable.loadExternalTableUpdate">载入外部版本</n-button>
   </div>
@@ -16,10 +16,10 @@
     @resize-column="csvTable.setColumnWidth"
     @select-row="csvTable.tables.selectRowByKey(target, $event)"
   />
-  <div v-if="csvTable.tables.filteredRowCount > 0 && csvTable.tables.visibleColumns.length === 0" class="table-empty-note">
+  <div v-if="csvTable.tables.filteredRowCount > 0 && csvTable.tables.visibleColumns.length === 0" class="table-empty-note ui-text-small">
     当前表有 {{ csvTable.tables.filteredRowCount }} 行，但没有可显示列。请检查 CSV 表头。
   </div>
-  <div v-else-if="csvTable.tables.rows.length > 0 && csvTable.tables.filteredRowCount === 0" class="table-empty-note">
+  <div v-else-if="csvTable.tables.rows.length > 0 && csvTable.tables.filteredRowCount === 0" class="table-empty-note ui-text-small">
     当前表有 {{ csvTable.tables.rows.length }} 行，但被搜索隐藏。
   </div>
 </template>

@@ -1,20 +1,41 @@
 <template>
-  <div class="csv-cell-picker" :style="pickerStyle" tabindex="-1" @mousedown.stop @keydown.esc.stop.prevent="$emit('cancel')">
-    <input ref="searchRef" v-model="query" class="csv-cell-picker-search" placeholder="搜索选项" />
-    <button class="csv-cell-picker-action" type="button" @click="toggleCustomMode">自定义值</button>
+  <div
+    class="csv-cell-picker ui-layout-row ui-layout-stack ui-layout-clip ui-control-border ui-content-surface"
+    :style="pickerStyle"
+    tabindex="-1"
+    @mousedown.stop
+    @keydown.esc.stop.prevent="$emit('cancel')"
+  >
+    <input
+      ref="searchRef"
+      v-model="query"
+      class="csv-cell-picker-search ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
+      placeholder="搜索选项"
+    />
+    <button class="csv-cell-picker-action ui-button ui-text-small ui-layout-stretch ui-text-normal" type="button" @click="toggleCustomMode">
+      自定义值
+    </button>
     <input
       v-if="customMode"
       :value="customText"
-      class="csv-cell-picker-custom"
+      class="csv-cell-picker-custom ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
       placeholder="输入自定义值"
       @input="updateCustom"
       @keydown.enter.prevent="submitCustom"
     />
-    <button v-if="!multiple && selectedValues.size > 0" class="csv-cell-picker-clear" type="button" @click="clearValue">清除当前值</button>
+    <button
+      v-if="!multiple && selectedValues.size > 0"
+      class="csv-cell-picker-clear ui-button ui-text-small ui-layout-stretch"
+      type="button"
+      @click="clearValue"
+    >
+      清除当前值
+    </button>
     <div :ref="visible.setMediaRoot" class="csv-cell-picker-list">
       <template v-for="group in filteredGroups" :key="group.key">
-        <div v-if="group.label" class="csv-cell-picker-group">{{ group.label }}</div>
+        <div v-if="group.label" class="csv-cell-picker-group ui-text-muted">{{ group.label }}</div>
         <button
+          class="ui-button ui-text-normal ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
           v-for="option in group.options"
           :key="option.value"
           :ref="visible.mediaRef(option.value, option.resourceRef)"
@@ -35,12 +56,21 @@
             :width="18"
             :height="18"
           />
-          <span class="csv-cell-picker-label">{{ option.label }}</span>
-          <span v-if="option.value !== option.label" class="csv-cell-picker-value">{{ option.value }}</span>
+          <span class="csv-cell-picker-label ui-text-truncate ui-layout-shrink">{{ option.label }}</span>
+          <span v-if="option.value !== option.label" class="csv-cell-picker-value ui-text-truncate ui-layout-shrink ui-text-muted">{{
+            option.value
+          }}</span>
         </button>
       </template>
     </div>
-    <button v-if="multiple" class="csv-cell-picker-action" type="button" @click="$emit('commit', captureValues())">确认选择</button>
+    <button
+      v-if="multiple"
+      class="csv-cell-picker-action ui-button ui-text-small ui-layout-stretch ui-text-normal"
+      type="button"
+      @click="$emit('commit', captureValues())"
+    >
+      确认选择
+    </button>
   </div>
 </template>
 

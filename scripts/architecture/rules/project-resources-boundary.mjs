@@ -1,22 +1,28 @@
 import { rustCommandModule } from '../../shared/files.mjs';
+import { rustServiceExports, rustServicePaths } from '../../shared/rust-crate-paths.mjs';
 
 export const projectResourcesBoundaryRule = {
   name: 'project-resources-boundary',
   /** @param {import('../../shared/files.mjs').RepoFile[]} files @returns {string[]} */
   check(files) {
     const failures = [];
+    const exports = rustServiceExports(files);
     for (const file of files) {
       const rel = file.rel;
       if (rel.startsWith('scripts/architecture/')) continue;
       if (
-        rel.startsWith('src-tauri/src/services/editor_config/') &&
+        /^src-tauri\/src\/services\/(?:config_entity|config_family|spec_editor)(?:\.rs|\/)/.test(rel) &&
         /\b(upload_sprite|scan_core_graphics|resource_data_url|ResourceRef)\b/.test(file.text)
       ) {
-        failures.push(`${file.rel}: editor/config backend must not own project resource behavior`);
+        failures.push(`${file.rel}: config and spec backends must not own project resource behavior`);
       }
       if (rustCommandModule(rel)) {
         for (const body of commandBodies(file.text, ['upload_sprite', 'scan_core_graphics'])) {
-          if (!body.includes('services::project::')) {
+          if (
+            !rustServicePaths(body, rel, exports).some(
+              (edge) => edge.target.slice(0, 4).join('::') === 'services::project::resources::core_graphics',
+            )
+          ) {
             failures.push(`${file.rel}: project resource commands must route to Project Resources`);
           }
           if (body.includes('services::schema::')) {

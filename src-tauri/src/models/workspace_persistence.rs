@@ -26,6 +26,12 @@ pub struct PersistedMod {
     pub version: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveWorkspacePayload {
+    pub state: PersistedWorkspace,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

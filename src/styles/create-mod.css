@@ -1,0 +1,10 @@
+.create-mod-dialog {
+  gap: var(--space-3);
+}
+.create-mod-target,
+.create-mod-hint {
+  line-height: 1.5;
+}
+.create-mod-field {
+  gap: var(--space-1);
+}

@@ -21,9 +21,12 @@ vi.mock('@/services/window.service', () => ({
   reserveNativeWindowTargets: vi.fn(async () => {}),
   releaseNativeWindowTargets: vi.fn(async () => {}),
 }));
-vi.mock('@/orchestrators/file-history-write.orchestrator', () => ({ completeSavedWrite }));
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  completeSavedWrite,
+}));
 
-import type { ProjectInvalidation, ProjectManifest, WriteResult } from '@/shared/types';
+import type { ProjectInvalidation, ProjectManifest, WriteResult, AssociatedSpecChange } from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
@@ -32,7 +35,7 @@ import { saveTableChanges } from '@/orchestrators/table-save.orchestrator';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
 import { ref } from 'vue';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
-import type { AssociatedSpecChange } from '@/shared/types';
+
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 
 const MOD_ROOT = 'M:\\test-mod';

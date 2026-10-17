@@ -1,4 +1,4 @@
-import { openManagedWindow } from '@/windows/managed.window';
+import { requestWindow } from '@/windows/managed.window';
 import type { FileWindowLocation } from '@/shared/types';
 import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
 import { extractFileReferenceFromError } from '@/shared/lib/errors';
@@ -54,7 +54,7 @@ export function openModOpeningFailureFileEditor(failure: ModOpeningFailure) {
 }
 
 export function openFileEditorWindow(request: OpenFileEditorWindowRequest) {
-  return openManagedWindow({
+  return requestWindow({
     identity:
       request.mode === 'recovery'
         ? { type: 'recovery', modRoot: request.modRoot, path: request.path }

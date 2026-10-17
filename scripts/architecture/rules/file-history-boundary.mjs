@@ -12,7 +12,7 @@ export const fileHistoryBoundaryRule = {
       // boundary governs production call sites only.
       if (specFile(file.rel)) continue;
       const current = classifyFrontendPath(file.rel);
-      const isFileHistoryWrite = current.layer === 'orchestrators' && current.domain === 'file-history-write';
+      const isProjectSync = current.layer === 'orchestrators' && current.domain === 'project-sync';
       const isFileHistoryReplay = current.layer === 'orchestrators' && current.domain === 'file-history-replay';
       const isFileHistoryStore = current.layer === 'stores' && current.domain === 'file-history';
 
@@ -20,8 +20,8 @@ export const fileHistoryBoundaryRule = {
         failures.push(`${file.rel}: file history changesets must come from write results, not ad hoc empty arrays`);
       }
 
-      if (/\bpushSavedWriteEntry\s*\(/.test(file.text) && !isFileHistoryWrite && !isFileHistoryStore) {
-        failures.push(`${file.rel}: saved write completion must enter file history through File History Write`);
+      if (/\bpushSavedWriteEntry\s*\(/.test(file.text) && !isProjectSync && !isFileHistoryStore) {
+        failures.push(`${file.rel}: saved write completion must enter file history through Write Commit`);
       }
 
       if (/\bcommitReplay(?:Undo|Redo)\s*\(/.test(file.text) && !isFileHistoryReplay && !isFileHistoryStore) {

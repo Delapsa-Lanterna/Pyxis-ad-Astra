@@ -62,6 +62,8 @@ export function createReadTicket<T, TIdentity extends object>(
 export function createReadTicketOwner() {
   const requests = new Map<string, ReadTicket<unknown>>();
   const scheduled = new Map<string, () => void>();
+  const replay = new Map<string, () => void>();
+  let paused = false;
   function revoke(reason: ReadEndReason = 'consumer', lane?: string) {
     const entries = lane ? [[lane, requests.get(lane)] as const] : [...requests.entries()];
     for (const [key, ticket] of entries) {
@@ -74,8 +76,9 @@ export function createReadTicketOwner() {
   function schedule(lane: string, callback: () => void) {
     const queued = scheduled.has(lane);
     scheduled.set(lane, callback);
-    if (!queued)
+    if (!queued && !paused)
       queueMicrotask(() => {
+        if (paused) return;
         const current = scheduled.get(lane);
         scheduled.delete(lane);
         current?.();
@@ -87,6 +90,7 @@ export function createReadTicketOwner() {
     load: (signal: AbortSignal) => T | Promise<T>,
     handlers: { ready: (value: T) => void; error?: (error: unknown) => void; settled?: () => void },
   ): Promise<boolean> {
+    if (paused) return false;
     requests.get(lane)?.invalidate('consumer');
     let synchronous = false;
     const ticket = createReadTicket(identity, load, (value) => {
@@ -94,6 +98,9 @@ export function createReadTicketOwner() {
       handlers.ready(value);
     });
     requests.set(lane, ticket as ReadTicket<unknown>);
+    replay.set(lane, () => {
+      void consume(lane, identity, load, handlers);
+    });
     try {
       const value = await ticket.promise;
       ticket.accept();
@@ -109,10 +116,23 @@ export function createReadTicketOwner() {
       if (requests.get(lane) === ticket) {
         if (!ticket.signal.aborted) handlers.settled?.();
         requests.delete(lane);
+        replay.delete(lane);
       }
     }
   }
-  return { consume, revoke, schedule };
+  function pause() {
+    const pending = [...scheduled, ...replay];
+    revoke();
+    paused = true;
+    for (const [lane, callback] of pending) schedule(lane, callback);
+  }
+  function resume() {
+    paused = false;
+    const pending = [...scheduled];
+    scheduled.clear();
+    for (const [lane, callback] of pending) schedule(lane, callback);
+  }
+  return { consume, revoke, schedule, pause, resume };
 }
 
 export function waitForRead<T>(promise: Promise<T>, identity: object, signal?: AbortSignal): Promise<T> {

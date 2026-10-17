@@ -1,6 +1,10 @@
 <template>
-  <div class="immersive-section-heading">
-    <h2 class="immersive-group-title"><ImmersiveText :text="title" font="heading" /></h2>
+  <div class="immersive-section-heading ui-layout-grid ui-layout-center ui-content-surface-muted">
+    <h2
+      class="immersive-group-title immersive-section-heading-title ui-text-small ui-text-reset ui-control-reset ui-content-surface-muted ui-layout-shrink"
+    >
+      <ImmersiveText :text="title" font="heading" />
+    </h2>
     <div v-if="$slots.default" class="immersive-section-action"><slot /></div>
   </div>
 </template>

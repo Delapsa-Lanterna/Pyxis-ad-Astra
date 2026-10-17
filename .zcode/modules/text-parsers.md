@@ -6,16 +6,28 @@
 
 ## 参考
 
-`src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文 owner。
-`src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历 owner。
-`src-tauri/src/io/text.rs`：文本读取 owner，拥有 UTF-8 BOM 剥离与已知 CP1252 字节归一化入口。
-`src-tauri/src/models/`：解析器输入输出模型与 CP1252 归一化映射 owner。
-`src-tauri/src/parsers/alex_csv.rs`：CSV-like 解析与渲染 owner，字符级行状态机对齐游戏 CSVParser（列数容忍、空行/`#` 行保留），并按最小引号规则渲染。
-`src-tauri/src/parsers/alex_json.rs`：JSON-like 字符级 tokener owner，消费游戏 org.json 与 LoadingUtils 格式语义。
-`src-tauri/src/parsers/faction_index.rs`：索引列、行位置、ID 列与引用列的格式解析 owner。
-`src-tauri/src/parsers/preserve_json.rs`：结构化 JSON 原文更新 owner，定位字段文本范围并核验写回语义。
-`src-tauri/src/parsers/tool_json.rs`：工具私有 JSON 数据的 serde 读取入口。
-`src-tauri/src/services/editor_config/`：配置与 spec 保存入口，规范化模式使用 serde JSON pretty 序列化。
+### 拥有
+
+- `src-tauri/src/parsers/`：游戏文本及工具 JSON 的解析、渲染与格式诊断。
+- `src-tauri/src/parsers/alex_csv.rs`：CSV-like 解析与渲染，字符级行状态机对齐游戏 CSVParser（列数容忍、空行/`#` 行保留），并按最小引号规则渲染。
+- `src-tauri/src/parsers/alex_json.rs`：JSON-like 字符级 tokener，消费游戏 org.json 与 LoadingUtils 格式语义。
+- `src-tauri/src/parsers/faction_index.rs`：索引列、行位置、ID 列与引用列的格式解析。
+- `src-tauri/src/parsers/preserve_json.rs`：结构化 JSON 原文更新，定位字段文本范围并核验写回语义。
+- `src-tauri/src/parsers/tool_json.rs`：工具私有 JSON 数据的 serde 读取入口。
+- `src-tauri/testdata/`：游戏 CSV 与 JSON-like 解析夹具。
+
+### 消费
+
+- `src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文。
+- `src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历。
+- `src-tauri/src/io/text.rs`：文本读取，拥有 UTF-8 BOM 剥离与已知 CP1252 字节归一化入口。
+- `src-tauri/src/models/text.rs`：Starsector 文本解码与 CP1252 标点规则。
+
+### 关联
+
+- `src-tauri/src/services/config_entity.rs`：Mod 信息与战役目录保存的格式消费者。
+- `src-tauri/src/services/config_family.rs`：装配与皮肤文件保存的格式消费者。
+- `src-tauri/src/services/spec_editor.rs`：外部规格导入的格式消费者。
 
 ## 边界
 

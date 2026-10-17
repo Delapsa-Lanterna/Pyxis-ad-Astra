@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  openManagedWindow: vi.fn(async () => {}),
+  requestWindow: vi.fn(async () => {}),
 }));
 
 vi.mock('@/windows/managed.window', () => ({
-  openManagedWindow: mocks.openManagedWindow,
+  requestWindow: mocks.requestWindow,
 }));
 
 import { openSpecEditorWindow } from './spec-editor.window';
@@ -20,7 +20,7 @@ interface ManagedWindowCall {
 }
 
 function firstWindowCall(): ManagedWindowCall {
-  const calls = mocks.openManagedWindow.mock.calls as unknown as Array<[ManagedWindowCall]>;
+  const calls = mocks.requestWindow.mock.calls as unknown as Array<[ManagedWindowCall]>;
   return calls[0]![0];
 }
 
@@ -39,7 +39,7 @@ describe('openSpecEditorWindow', () => {
 
   it('opens a singleton editor window keyed by session, kind, mod root and id', async () => {
     await openSpecEditorWindow(baseRequest);
-    expect(mocks.openManagedWindow).toHaveBeenCalledTimes(1);
+    expect(mocks.requestWindow).toHaveBeenCalledTimes(1);
     const request = firstWindowCall();
     expect(request.identity).toEqual({ type: 'spec', sessionId: 's1', kind: 'ship', modRoot: 'C:/mods/alpha', id: 'XY' });
     expect(request.title).toBe('舰船编辑器 - XY');
@@ -50,7 +50,7 @@ describe('openSpecEditorWindow', () => {
   it('opens a distinct window after the same Mod target gets a new session', async () => {
     await openSpecEditorWindow(baseRequest);
     await openSpecEditorWindow({ ...baseRequest, sessionId: 's2' });
-    const calls = mocks.openManagedWindow.mock.calls as unknown as Array<[ManagedWindowCall]>;
+    const calls = mocks.requestWindow.mock.calls as unknown as Array<[ManagedWindowCall]>;
     expect(calls[0]![0].identity).not.toEqual(calls[1]![0].identity);
     expect(calls[1]![0].identity).toMatchObject({ sessionId: 's2' });
   });

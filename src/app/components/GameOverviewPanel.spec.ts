@@ -40,6 +40,9 @@ describe('GameOverviewPanel warning file actions', () => {
     await item.get('button').trigger('click');
 
     expect(wrapper.emitted('edit-warning-file')).toEqual([[warning]]);
+    expect(item.findAll('button').map((button) => button.text())).toEqual(['打开文件', '关闭提示']);
+    await item.findAll('button')[1]!.trigger('click');
+    expect(wrapper.emitted('dismiss-warning')).toEqual([[warning]]);
   });
 
   it('renders Mod opening failures before scan warnings', () => {
@@ -56,12 +59,16 @@ describe('GameOverviewPanel warning file actions', () => {
     expect(children[2]?.classList.contains('game-warning-list')).toBe(true);
   });
 
-  it('keeps non-editable warnings without a file button', () => {
-    wrapper = mountPanel([
+  it('dismisses non-editable warnings', async () => {
+    const notices: GameScanWarning[] = [
       { code: 'scan.core_missing', location: null, path: 'D:\\game\\starsector-core', message: '缺少 starsector-core', editTarget: null },
-    ]);
+    ];
+    wrapper = mountPanel(notices);
 
-    expect(wrapper.get('.game-warning-item').find('button').exists()).toBe(false);
+    const item = wrapper.get('.game-warning-item');
+    expect(item.get('button').text()).toBe('关闭提示');
+    await item.get('button').trigger('click');
+    expect(wrapper.emitted('dismiss-warning')).toEqual([[notices[0]]]);
   });
 });
 

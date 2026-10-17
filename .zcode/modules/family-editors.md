@@ -6,21 +6,39 @@
 
 ## 参考
 
-`src-tauri/src/services/editor_config/spec_entities.rs`：后端族实体 owner，按实体类型参数化保存、创建、删除与重命名。
-`src-tauri/src/services/project/write/entity_identity.rs`：族保存消费的实体身份事务，协调实际目标与父引用。
-`src/app/components/config/ConfigEntityFamilyEditor.vue`：族编辑组件。
-`src/app/components/config/ConfigEntityFamilyList.vue`：族列表组件。
-`src/app/components/config/ConfigEntityFamilyView.vue`：族视图组合 owner。
-`src/app/composables/config/use-config-family-editor-view-model.ts`：族编辑 ViewModel owner，拥有目标 Draft Session 接线与保存。
-`src/app/composables/config/use-config-family-view-model.ts`：族列表 ViewModel owner，拥有加载、新建、删除校验与资源引用。
-`src/app/composables/config/use-config-identity-reception.ts`：两族消费配置身份事件的等待、确认与列表接纳。
-`src/domain/config/config-entity-families.ts`：族定义 owner，拥有装配与皮肤的标识字段、伴随字段、文案、图标路径与媒体面。
-`src/domain/config/config-records.ts`：两族消费统一 `ConfigFamilyRecord` 与 `ConfigFamilyFile` 的查询、保存投影。
-`src/orchestrators/config-save.orchestrator.ts`：族保存动作归属的保存编排。
+### 拥有
+
+- `src-tauri/src/commands/config_family.rs`：装配与皮肤保存、创建、删除及会话来源核对。
+- `src-tauri/src/services/config_family.rs`：后端族实体，按实体类型参数化保存、创建、删除与重命名。
+- `src/app/components/config/ConfigEntityFamilyEditor.vue`：族编辑组件。
+- `src/app/components/config/ConfigEntityFamilyList.vue`：族列表组件。
+- `src/app/components/config/ConfigEntityFamilyView.vue`：族视图组合。
+- `src/app/composables/config/use-config-family-editor-view-model.ts`：族编辑 ViewModel，拥有目标 Draft Session 接线与保存。
+- `src/app/composables/config/use-config-family-view-model.ts`：族列表 ViewModel，拥有加载、新建、删除校验与资源引用。
+- `src/domain/config/config-entity-families.ts`：族定义，消费实体 ID 字段并拥有伴随字段、文案、图标路径与媒体面。
+- `src/services/config-family.service.ts`：两族查询、保存、创建及删除的正式能力包装。
+
+### 消费
+
+- `src-tauri/src/models/config_family.rs`：两族写入、删除请求与原始文件结构。
+- `src/app/composables/config/use-config-identity-reception.ts`：两族消费配置身份事件的等待、确认与列表接纳。
+- `src/domain/config/config-records.ts`：两族消费统一 `ConfigFamilyRecord` 与 `ConfigFamilyFile` 的查询、保存投影。
+- `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/orchestrators/config-save.orchestrator.ts`：族保存动作归属的保存编排。
+- `src/shared/types/config-family.types.ts`：两族请求、原始文件结构与所属编辑文件投影。
+- `src/stores/workspace.store.ts`：当前 Mod 选择、清单与 session 的派生投影。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `src-tauri/src/services/project/write/entity_identity.rs`：规格、装配与文本身份写入及关联 CSV、父引用暂存。
 
 ## 边界
 
-- family 定义表达装配与皮肤的身份字段、伴随字段、名称、排序和可选动作。
+- family 定义消费统一实体 ID 字段，表达伴随字段、名称、排序和可选动作。
 - 保存编排装配各族能力，写入范围由当前目标及身份规则声明的父引用确定。
 - 参数化组件呈现列表与表单，列表和编辑 ViewModel 分别拥有选择、资源与目标会话。
 - 后端拥有加载身份、目标路径、扩展名、创建删除和改名规则。
@@ -70,6 +88,7 @@
 - 可选沉浸式入口必须由族定义声明，装配打开必须经过所属 ViewModel 与保存交接。
 - 同 ID 保存必须保留源文件名与目录；ID 重命名必须在源目录生成新 ID 文件名，创建必须以显式 `null` relPath 使用默认路径。
 - 外部改名期间必须保留当前编辑目标；确认跟随后必须共同接纳新目标、内容与版本，dirty 草稿与活动输入必须保留。
+- 当前展示目标必须消费工作区的当前项目投影，异步动作必须捕获并持续消费所属 Mod 根与 session。
 - 新 session 的族列表必须按所属 companion 与 ID 排序选择首项；列表内容、实际路径或基线版本凭据变化时必须通知编辑器接入，严禁只比较实体内容。
 - 新建动作才允许加载舰体引用目录；目录项严禁预取缩略图。
 - 无法解析舰船名称时必须显示 `hullId`，严禁改变装配引用或持久化数据。

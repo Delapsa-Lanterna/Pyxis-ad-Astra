@@ -1,0 +1,403 @@
+.immersive-editor-shell {
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: 100vw;
+  height: 100vh;
+  background: var(--color-bg);
+}
+.immersive-editor-scroll {
+  overflow-y: auto;
+  padding: 10px;
+  scrollbar-gutter: stable;
+}
+.immersive-editor-actions {
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.immersive-editor-actions > .immersive-editor-actions-content,
+.immersive-field-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.immersive-editor-actions > .immersive-editor-actions-content {
+  margin-left: auto;
+}
+.immersive-status {
+  padding: var(--space-4);
+  white-space: pre-wrap;
+}
+.ship-immersive-header {
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.immersive-title-row {
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+.immersive-title-row .immersive-stat-row {
+  display: block;
+}
+.immersive-title-row .immersive-stat-row > .immersive-stat-row-label,
+.ship-immersive-description .immersive-stat-row > .immersive-stat-row-label,
+.immersive-section-action .immersive-stat-row > .immersive-stat-row-label,
+.immersive-disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+.immersive-title-row .immersive-stat-value {
+  color: var(--color-primary);
+  font-size: 20px;
+}
+.ship-immersive-sprite {
+  justify-content: center;
+  min-height: 0;
+  width: 200px;
+  height: 200px;
+}
+.ship-immersive-header > div > .immersive-stat-row {
+  display: flex;
+  justify-content: flex-start;
+}
+.ship-immersive-sprite .ship-immersive-sprite-image {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.ship-immersive-description .immersive-stat-row {
+  display: block;
+  margin-top: 10px;
+}
+.ship-immersive-description .immersive-stat-value {
+  color: var(--color-text);
+  font-weight: 400;
+  text-align: left;
+  white-space: pre-wrap;
+  line-height: 0;
+}
+.ship-immersive-stats {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 9px;
+}
+.ship-immersive-logistics-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.immersive-group-title {
+  font-weight: 400;
+  line-height: 0;
+  text-align: center;
+  color: var(--color-primary);
+}
+.immersive-stat-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 3px;
+  margin-bottom: 3px;
+  font-size: 15px;
+  line-height: 0;
+}
+.immersive-stat-value {
+  max-width: 100%;
+  color: var(--color-warning);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: 0;
+  text-align: right;
+  background: transparent;
+  border: 0;
+}
+.immersive-stat-value:hover,
+.immersive-stat-value:focus-visible {
+  text-decoration: underline;
+  outline: 1px solid var(--color-primary-border);
+  outline-offset: 2px;
+}
+.immersive-stat-row.normal .immersive-stat-value {
+  color: var(--color-text);
+}
+.immersive-stat-row.crew .immersive-stat-value {
+  color: var(--color-success);
+}
+.immersive-stat-row.fuel .immersive-stat-value {
+  color: var(--color-danger-highlight);
+}
+.immersive-stat-row.inline {
+  justify-content: flex-start;
+  gap: 0;
+  margin-bottom: 10px;
+}
+.immersive-stat-row.group-gap {
+  margin-top: 18px;
+}
+.ship-immersive-stats .immersive-stat-row.group-gap {
+  margin-top: 17px;
+}
+.immersive-field-popover {
+  gap: var(--space-3);
+  width: min(400px, 75vw);
+  max-height: calc(50vh - 60px);
+  overflow-y: auto;
+}
+.immersive-field-input,
+.immersive-source-notice > .immersive-source-notice-content {
+  gap: var(--space-1);
+}
+.immersive-source-note {
+  white-space: pre-wrap;
+  font-size: 11px;
+}
+.immersive-field-actions {
+  justify-content: flex-end;
+}
+.immersive-source-notice {
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+}
+.ship-immersive-related,
+.immersive-filter-group + .immersive-filter-group {
+  margin-top: 10px;
+}
+.ship-immersive-related > .immersive-stat-row {
+  grid-template-columns: 90px minmax(0, 1fr);
+}
+.ship-immersive-related > .immersive-stat-row .immersive-stat-value {
+  justify-self: start;
+  text-align: left;
+}
+.ship-immersive-related > .ship-immersive-related-description {
+  margin: 3px 0 10px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.immersive-related-row {
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: 13px;
+}
+.immersive-related-row .immersive-related-row-value {
+  font-weight: 400;
+}
+.immersive-section-heading {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 19px;
+  position: relative;
+  margin: 10px 0 10px;
+}
+.immersive-section-heading .immersive-section-heading-title {
+  grid-area: 1/1;
+}
+.immersive-section-action {
+  grid-area: 1/1;
+  justify-self: end;
+  margin-right: 3px;
+}
+.immersive-section-action .immersive-stat-row {
+  display: block;
+  margin: 0;
+}
+.immersive-section-action .immersive-stat-value {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--color-primary);
+}
+.weapon-immersive-data {
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.weapon-immersive-data .immersive-stat-row > .immersive-stat-row-label,
+.weapon-immersive-data .immersive-stat-value,
+.immersive-damage-description .immersive-text {
+  margin-bottom: -2px;
+}
+.weapon-immersive-data .immersive-text {
+  transform: translateY(-1px);
+}
+.weapon-immersive-data .immersive-stat-row.group-gap {
+  margin-top: 21px;
+}
+.weapon-immersive-data .immersive-stat-row:last-child {
+  margin-bottom: 0;
+}
+.immersive-weapon-icon,
+.immersive-damage-icon {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.immersive-damage-description {
+  text-align: right;
+  color: var(--color-warning);
+  line-height: 0;
+}
+.immersive-custom-text {
+  white-space: pre-wrap;
+}
+.immersive-custom-text .immersive-custom-text-value {
+  color: var(--color-warning);
+}
+.immersive-editor-scroll,
+.immersive-display-surface {
+  container-type: inline-size;
+}
+@container (max-width:689px) {
+  .ship-immersive-stats,
+  .ship-immersive-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width:429px) {
+  .ship-immersive-logistics-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .immersive-editor-actions {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+}
+.immersive-meta-actions {
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.immersive-meta-status {
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+.immersive-disclosure-summary {
+  gap: var(--space-1);
+  min-height: 20px;
+  list-style: none;
+}
+.immersive-disclosure-summary::before {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+}
+details[open] > .immersive-disclosure-summary::before {
+  transform: rotate(90deg);
+}
+.immersive-resource-icon {
+  display: inline-block;
+  flex: none;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.immersive-filter-group {
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.immersive-filter-toggle {
+  height: 25px;
+  color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.67);
+}
+.immersive-filter-toggle:hover,
+.immersive-filter-toggle:focus-visible {
+  filter: brightness(1.25);
+  outline: 1px solid var(--color-primary);
+}
+.immersive-tooltip-frame,
+.immersive-game-frame {
+  position: relative;
+  padding: 7px;
+  background: #000000;
+  outline: 1px solid var(--color-border-strong);
+  outline-offset: -1px;
+}
+.immersive-tooltip-frame-content {
+  position: relative;
+  padding: 0 5px;
+}
+.immersive-tooltip-frame > .immersive-tooltip-frame-label {
+  position: absolute;
+  pointer-events: none;
+  background-repeat: repeat-y;
+}
+.immersive-tooltip-edge-w,
+.immersive-tooltip-edge-e {
+  width: 16px;
+  top: 8px;
+  bottom: 8px;
+}
+.immersive-tooltip-edge-w {
+  left: 0;
+}
+.immersive-tooltip-edge-e {
+  right: 0;
+}
+.immersive-tooltip-edge-w_top,
+.immersive-tooltip-edge-w_bot,
+.immersive-tooltip-edge-e_top,
+.immersive-tooltip-edge-e_bot {
+  width: 16px;
+  height: 8px;
+}
+.immersive-tooltip-edge-w_top {
+  left: 0;
+  top: 0;
+}
+.immersive-tooltip-edge-e_top {
+  right: 0;
+  top: 0;
+}
+.immersive-tooltip-edge-w_bot {
+  left: 0;
+  bottom: 0;
+}
+.immersive-tooltip-edge-e_bot {
+  right: 0;
+  bottom: 0;
+}
+.immersive-game-frame-content {
+  height: 100%;
+  min-height: 0;
+}
+.immersive-game-frame.textured,
+.immersive-tooltip-frame.textured {
+  outline: 0;
+}
+.immersive-game-border {
+  position: absolute;
+  inset: 0;
+  grid-template: 8px minmax(0, 1fr) 8px/8px minmax(0, 1fr) 8px;
+  pointer-events: none;
+}
+.immersive-game-border > .immersive-game-border-label {
+  background-repeat: repeat;
+  image-rendering: pixelated;
+}
+.immersive-square-toggle {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+.immersive-square-toggle .immersive-square-toggle-image {
+  display: block;
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
+}
+.immersive-square-toggle:hover,
+.immersive-square-toggle:focus-visible {
+  filter: brightness(1.25);
+  outline: 1px solid var(--color-primary);
+  outline-offset: -1px;
+}

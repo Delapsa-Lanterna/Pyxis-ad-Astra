@@ -6,13 +6,37 @@
 
 ## 参考
 
-`scripts/architecture/rules/workspace-module-boundary.mjs`：workspace 边界规则 owner。
-`src-tauri/src/services/workspace_persistence.rs`：工具私有快照读写 owner。
-`src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期 owner，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
-`src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航 owner，同步跨 store 运行态。
-`src/orchestrators/workspace-persistence.orchestrator.ts`：workspace 快照保存与启动恢复 owner。
-`src/services/workspace-state.service.ts`：workspace 持久化签名与协议装配主归属。
-`src/stores/workspace.store.ts`：运行态 owner，拥有全局页、已加载 Mod、Mod 页面上下文、概览、打开失败状态、列宽与持久化投影。
+### 拥有
+
+- `src-tauri/src/commands/workspace_persistence.rs`：工作区快照加载与保存 command。
+- `src-tauri/src/services/workspace_persistence.rs`：工具私有快照读写。
+- `src/app/components/LoadedModsPanel.vue`：已载入 Mod 及工作区动作展示。
+- `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
+- `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
+- `src/app/components/OverviewPage.vue`：工作区概览、已载入 Mod 与游戏扫描组合。
+- `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和草稿确认交接。
+- `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
+- `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
+- `src/app/composables/workspace-shell-lifecycle.spec.ts`：工作区恢复、监听及卸载行为验证。
+- `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
+- `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。
+- `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
+- `src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航，同步跨 store 运行态。
+- `src/orchestrators/workspace-persistence.orchestrator.ts`：workspace 快照保存与启动恢复。
+- `src/services/workspace-state.service.ts`：workspace 持久化签名与协议装配。
+- `src/stores/workspace-store.spec.ts`：工作区导航与持久化状态行为验证。
+- `src/stores/workspace.store.ts`：运行态，拥有当前 Mod、当前清单与 session 投影、全局页、Mod 页面上下文、概览、打开失败状态、列宽与持久化投影。
+
+### 消费
+
+- `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
+- `src/shared/types/workspace-persistence.types.ts`：工作区保存请求、目录、Mod、扫描结果及列宽快照。
+- `src/shared/types/workspace.types.ts`：工作区页面、Mod 与表格运行态契约。
+- `src/stores/project.store.ts`：按 Mod 根查询正式清单与 session，当前项目投影消费原清单引用。
+
+### 关联
+
+- `scripts/architecture/rules/workspace-module-boundary.mjs`：workspace 边界规则。
 
 ## 边界
 
@@ -22,7 +46,7 @@
 - 导航编排按 Mod 根同步 project、tables、editor 和 history 运行态，并恢复所属页面。
 - 持久化编排投影可恢复数据，Rust service 读写工具私有 workspace 文件。
 - 文件浏览模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 mod-files 页面及 Mod 页面记忆。
-- 生命周期编排拥有子窗口交接、Mod 清理、缓存释放和 session 关闭。
+- 生命周期编排消费 Rust 实际释放结果，拥有所属 Mod 清理和前端缓存释放。
 - 目录打开提供 outcome 和迟到 session 清理，工作区接纳成功建立的运行态。
 - 配置会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
 - 配置维护消费主窗口关闭动作的布尔结果，主窗口装配拥有动作交付。
@@ -40,13 +64,13 @@
 1. 用户发起移除；所属待同步提交完成后，dirty 经确认放弃。
 2. 生命周期编排按会话请求所属子窗口等待保存并处理关闭。
 3. 交接完成后执行所属模块清理用例并撤销目标 Mod 代次。
-4. 编排失效查询与资源缓存并关闭后端 session。
+4. Rust 完成会话释放，前端按 releasedSessions 失效查询与资源缓存。
 5. 页签移除后按存活页签决定回退视图。
 
 ### 关闭工作区
 
 1. 用户发起关闭；捕获关闭目标内的全部 dirty 并逐项确认。
-2. 生命周期编排逐 Mod 执行移除清理。
+2. Rust 稳定会话范围并逐窗确认销毁，前端清理实际释放的 Mod。
 3. 按捕获的游戏根批量失效核心缓存。
 4. 清空概览与失败状态，未保留活动 Mod 时显示总览。
 
@@ -67,10 +91,13 @@
 - mod-files 导航必须消费活动输入和保存交接，页面记忆必须归工作区，文件树状态必须由所属浏览模块管理。
 - workspace 缺失返回空默认；损坏时报错且严禁立即用空态覆盖。
 - 任何会卸载当前配置组件的导航或移除动作在 dirty 时必须先确认放弃；取消时严禁同步活动运行态或销毁 session。
+- 关闭工作区必须先捕获全部 session 并完成子窗口交接，再清理各 Mod 运行态；关闭范围必须由统一执行入口捕获并持有至所属关闭、移除或主窗口销毁动作结束，释放必须在同一入口完成。
+- 关闭提示必须只移除当前目标失败记录或警告；再次打开、扫描或恢复检测到的问题必须按正式结果重新显示。
 - 列宽必须使用结构化 `modRoot/table/column`，严禁拼接 key。
 - 子窗口关闭取消或保存失败必须保留所属 Mod 运行态；主窗口关闭必须等待全部会话的窗口生命周期交接。
 - 导航、窗口关闭、Mod 移除及工作区关闭必须先重试所属待同步结果；失败必须保持当前编辑面，成功后必须重新判定 dirty。
 - 工作区恢复必须同时核对工作区代次及窗口壳接纳权；关闭必须撤销所属代次，迟到快照严禁建立运行态，迟到 session 必须由目录打开 owner 清理。
+- 当前 Mod 根必须唯一归工作区，当前清单与 session 必须由项目清单按根派生；清单替换或移除必须直接更新所属投影。
 - 持久化只保存可恢复的目录、Mod 与列宽投影，严禁保存活动页签、全局视图或旧侧栏展开态。
 - 概览刷新必须按所属会话读取 Mod 信息与 data 来源、更新正式投影及已加载卡片；工作区总览必须按游戏扫描或已加载会话执行刷新，结果接纳必须消费工作区与 session 生命周期。
 - 概览成功打开 Mod 后进入该 Mod 的概览页；恢复流程严禁作为页面导航入口。

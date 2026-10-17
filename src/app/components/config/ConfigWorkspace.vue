@@ -1,5 +1,5 @@
 <template>
-  <main class="config-workspace">
+  <main class="config-workspace page-slot ui-content-contained ui-layout-row ui-layout-stack ui-layout-stretch">
     <ConfigModOverview v-if="workspace.configView === 'mod-overview'" />
     <ConfigFileHistoryView v-else-if="workspace.configView === 'file-history'" />
     <ConfigModInfoEditor v-else-if="workspace.configView === 'mod-info'" />

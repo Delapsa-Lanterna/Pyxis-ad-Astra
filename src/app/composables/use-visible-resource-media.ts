@@ -14,19 +14,26 @@ interface RegisteredMedia {
   visible: boolean;
 }
 
-export function useVisibleResourceMedia(args: { sessionId: () => string | null | undefined; surface: string; failureLabel: string }) {
+export function useVisibleResourceMedia(args: {
+  sessionId: () => string | null | undefined;
+  surface: string;
+  failureLabel: string;
+  onFailures?: (resources: readonly ResourceRef[]) => void;
+}) {
   const feedback = useAppFeedback();
   const registry = useResourceMediaRegistry({
     surface: args.surface,
     onError: (error) => feedback.error(error, args.failureLabel),
-    onFailures: (resources) =>
-      feedback.warning(
-        warningNotice(
-          `${args.failureLabel}：${resources.length} 个资源读取失败`,
-          'resource.read_failed',
-          `Resource read failed: count=${resources.length}; surface=${args.surface}`,
-        ),
-      ),
+    onFailures:
+      args.onFailures ??
+      ((resources) =>
+        feedback.warning(
+          warningNotice(
+            `${args.failureLabel}：${resources.length} 个资源读取失败`,
+            'resource.read_failed',
+            `Resource read failed: count=${resources.length}; surface=${args.surface}`,
+          ),
+        )),
   });
   const registered = new Map<string, RegisteredMedia>();
   const preload = useImagePreload(args.surface + '预读', registry);

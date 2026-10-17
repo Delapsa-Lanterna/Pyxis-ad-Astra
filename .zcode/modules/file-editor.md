@@ -6,17 +6,34 @@
 
 ## 参考
 
-`src-tauri/src/commands/file_editor.rs`：文件编辑 command 边界。
-`src-tauri/src/parsers/preserve_json.rs`：文本 ID 字段范围定位与替换 owner。
-`src-tauri/src/services/file_editor.rs`：后端编辑 service owner，消费 IO 路径授权并交付文本读写。
-`src-tauri/src/services/project/write/entity_identity.rs`：已识别规格文本与结构化保存的身份事务 owner。
-`src/app/FileEditorApp.vue`：窗口根 owner，装配唯一窗口壳与文件编辑器内容。
-`src/app/FileEditorContent.vue`：窗口内容 owner，拥有行号槽、文本域、快捷键与外部文本呈现。
-`src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel owner，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
-`src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫。
-`src/orchestrators/file-editor-window.orchestrator.ts`：窗口打开编排 owner，处理 warning 与失败目标的窗口化。
-`src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
-`src/windows/file-editor.window.ts`：窗口请求 owner，承载常规与错误恢复两种请求形状。
+### 拥有
+
+- `src-tauri/src/commands/file_editor.rs`：文件编辑 command 边界。
+- `src-tauri/src/services/file_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
+- `src/app/FileEditorContent.vue`：窗口内容，拥有行号槽、文本域、快捷键与外部文本呈现。
+- `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
+- `src/orchestrators/file-editor-window.orchestrator.ts`：窗口打开编排，处理 warning 与失败目标的窗口化。
+- `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
+- `src/windows/file-editor-window.spec.ts`：诊断文件的结构化恢复窗口交付验证。
+- `src/windows/file-editor.window.ts`：窗口请求，承载常规与错误恢复两种请求形状。
+
+### 消费
+
+- `src-tauri/src/models/file_editor.rs`：文本读取、保存、转码与身份请求协议。
+- `src-tauri/src/parsers/preserve_json.rs`：文本 ID 字段范围定位与替换。
+- `src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫。
+- `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
+- `src/shared/types/file-editor.types.ts`：文本读取、保存、转码与身份请求协议。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+
+### 装配
+
+- `src/app/FileEditorApp.vue`：窗口根，装配唯一窗口壳与文件编辑器内容。
+- `src/app/app-feedback-assembly.ts`：授权错误位置的文件打开、转码和保存回执交接。
+
+### 关联
+
+- `src-tauri/src/services/project/write/entity_identity.rs`：规格、装配与文本身份写入及关联 CSV、父引用暂存。
 
 ## 边界
 

@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { ProjectManifest, ProjectSessionId } from '@/shared/types';
-import { cell } from '@/shared/lib/starsector';
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import { TABLE_KEYS } from '@/shared/types';
 import { joinRootRelativePath } from '@/shared/lib/paths';
 
@@ -20,15 +18,6 @@ export const useProjectStore = defineStore('project', () => {
     ),
   );
 
-  // Active mod identity is owned by the workspace store; project projects it
-  // onto its manifests instead of keeping its own copy in sync.
-  const activeModRoot = computed(() => useWorkspaceStore().activeModRoot);
-  const activeManifest = computed<ProjectManifest | null>(() =>
-    activeModRoot.value ? (manifests.value.get(activeModRoot.value) ?? null) : null,
-  );
-  const activeSessionId = computed<ProjectSessionId | null>(() => activeManifest.value?.sessionId ?? null);
-  const projectName = computed(() => cell(activeManifest.value?.modInfo?.name) || '星界罗盘 [Circinus ad Astra]');
-
   function getManifest(modRoot: string): ProjectManifest | null {
     return manifests.value.get(modRoot) ?? null;
   }
@@ -39,7 +28,9 @@ export const useProjectStore = defineStore('project', () => {
 
   function removeProjectManifest(modRoot: string) {
     const sessionId = manifests.value.get(modRoot)?.sessionId;
-    if (sessionId) projectionRevisions.delete(sessionId);
+    if (sessionId) {
+      projectionRevisions.delete(sessionId);
+    }
     manifests.value.delete(modRoot);
   }
 
@@ -57,11 +48,7 @@ export const useProjectStore = defineStore('project', () => {
 
   return {
     tableWriteTargets,
-    activeManifest,
-    activeModRoot,
-    activeSessionId,
     manifests,
-    projectName,
     getManifest,
     getSessionId,
     removeProjectManifest,

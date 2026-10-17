@@ -1,6 +1,7 @@
+import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { computed, shallowRef, watch, onScopeDispose } from 'vue';
 import { querySpecWeaponEditorImages, querySpecWeaponProjectileOptions } from '@/services/spec-weapon-editor.service';
-import { subscribeQueryInvalidations, hasEntityInvalidation } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { createReadTicketOwner } from '@/shared/runtime/read-request';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';

@@ -1,13 +1,13 @@
 use crate::{
     domain::config::{path_affects_target, path_is_or_in_dir},
     errors::{AppError, AppResult},
-    models::{CsvTableKey, EditorSpecKind, EntityKind},
+    models::{CsvTableKey, EntityKind, SpecEditorKind},
 };
 
 #[derive(Clone, Copy)]
 pub struct EntitySpecDefinition {
     pub entity_kind: EntityKind,
-    pub editor_kind: Option<EditorSpecKind>,
+    pub editor_kind: Option<SpecEditorKind>,
     pub csv_table: Option<CsvTableKey>,
     pub dir: &'static str,
     pub extension: &'static str,
@@ -42,7 +42,7 @@ impl EntitySpecDefinition {
 
 pub const SHIP_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinition {
     entity_kind: EntityKind::Ship,
-    editor_kind: Some(EditorSpecKind::Ship),
+    editor_kind: Some(SpecEditorKind::Ship),
     csv_table: Some(CsvTableKey::Ships),
     dir: "data/hulls",
     extension: ".ship",
@@ -53,7 +53,7 @@ pub const SHIP_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinition {
 
 pub const WEAPON_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinition {
     entity_kind: EntityKind::Weapon,
-    editor_kind: Some(EditorSpecKind::Weapon),
+    editor_kind: Some(SpecEditorKind::Weapon),
     csv_table: Some(CsvTableKey::Weapons),
     dir: "data/weapons",
     extension: ".wpn",
@@ -64,7 +64,7 @@ pub const WEAPON_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinition {
 
 pub const PROJECTILE_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinition {
     entity_kind: EntityKind::Projectile,
-    editor_kind: Some(EditorSpecKind::Projectile),
+    editor_kind: Some(SpecEditorKind::Projectile),
     csv_table: None,
     dir: "data/weapons/proj",
     extension: ".proj",
@@ -75,7 +75,7 @@ pub const PROJECTILE_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinitio
 
 pub const SYSTEM_SPEC_DEFINITION: EntitySpecDefinition = EntitySpecDefinition {
     entity_kind: EntityKind::System,
-    editor_kind: Some(EditorSpecKind::System),
+    editor_kind: Some(SpecEditorKind::System),
     csv_table: Some(CsvTableKey::ShipSystems),
     dir: "data/shipsystems",
     extension: ".system",
@@ -145,7 +145,7 @@ pub fn entity_spec_definition(kind: EntityKind) -> Option<&'static EntitySpecDef
         .find(|definition| definition.entity_kind == kind)
 }
 
-pub fn editor_spec_definition(kind: EditorSpecKind) -> AppResult<&'static EntitySpecDefinition> {
+pub fn editor_spec_definition(kind: SpecEditorKind) -> AppResult<&'static EntitySpecDefinition> {
     ENTITY_SPEC_DEFINITIONS
         .iter()
         .find(|definition| definition.editor_kind == Some(kind))
@@ -227,14 +227,14 @@ mod tests {
             );
         }
         for spec_kind in [
-            EditorSpecKind::Ship,
-            EditorSpecKind::Weapon,
-            EditorSpecKind::Projectile,
-            EditorSpecKind::System,
+            SpecEditorKind::Ship,
+            SpecEditorKind::Weapon,
+            SpecEditorKind::Projectile,
+            SpecEditorKind::System,
         ] {
             assert!(editor_spec_definition(spec_kind).is_ok());
         }
-        assert!(editor_spec_definition(EditorSpecKind::Ship).is_ok());
+        assert!(editor_spec_definition(SpecEditorKind::Ship).is_ok());
     }
 
     #[test]

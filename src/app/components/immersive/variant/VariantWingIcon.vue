@@ -1,5 +1,5 @@
 <template>
-  <div class="variant-wing-icon" :style="{ width: size + 'px', height: size + 'px' }" :title="layout.diagnostic">
+  <div class="variant-wing-icon ui-layout-clip" :style="{ width: size + 'px', height: size + 'px' }" :title="layout.diagnostic">
     <ImmersiveHullScene
       v-if="variant && !layout.diagnostic"
       :variant="variant"

@@ -1,5 +1,5 @@
 <template>
-  <div class="config-family-view">
+  <div class="config-family-view ui-layout-row ui-layout-clip">
     <ConfigEntityFamilyList
       :family="family"
       :selected-id="selectedId"
@@ -33,7 +33,7 @@
       :discard-deleted-target="discardDeletedTarget"
       @saved="onSaved"
     />
-    <div v-else class="config-placeholder">
+    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
       <p>选择一个{{ family.displayName }}以编辑</p>
     </div>
   </div>

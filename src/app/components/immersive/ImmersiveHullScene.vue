@@ -1,6 +1,13 @@
 <template>
-  <div ref="stage" class="variant-scene" :tabindex="iconSize ? undefined : 0" @keydown.enter.prevent="activateSelected" @keydown="navigate">
+  <div
+    ref="stage"
+    class="variant-scene ui-layout-clip"
+    :tabindex="iconSize ? undefined : 0"
+    @keydown.enter.prevent="activateSelected"
+    @keydown="navigate"
+  >
     <canvas
+      class="variant-scene-canvas ui-canvas-image"
       ref="canvas"
       role="img"
       :aria-label="variant.name + ' 舰船与槽位预览'"
@@ -13,7 +20,7 @@
     />
     <div
       v-if="!iconSize && hoverWeapon"
-      class="variant-slot-label"
+      class="variant-slot-label ui-text-normal"
       :style="{ left: point(hoverWeapon.slot).x + 'px', top: point(hoverWeapon.slot).y + 20 + 'px' }"
     >
       <ImmersiveText :text="(hoverWeapon.name || '空槽') + (hoverWeapon.builtin ? '（内置）' : '')" font="slot-name" />
@@ -44,6 +51,8 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import { warningNotice } from '@/shared/lib/errors';
 import type { ResourceRef } from '@/shared/types';
 import ImmersiveText from './ImmersiveText.vue';
+import { engineFallback, loadEngineFallbacks } from '@/app/renderers/immersive/engine-fallback';
+import { createReadTicket, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
 const props = defineProps<{
   variant: ImmersiveHullProjection;
   sessionId: string;
@@ -76,14 +85,17 @@ const media = props.resourceUrl
   : useResourceMediaRegistry({
       surface: '装配网格',
       onError: (error) => feedback.error(error),
-      onFailures: (resources) =>
-        feedback.warning(
-          warningNotice(
-            '装配贴图读取失败：' + resources.map((resource) => resource.relPath).join('、'),
-            'resource.read_failed',
-            'Variant scene resource decode',
-          ),
-        ),
+      onFailures: (resources) => {
+        const missing = resources.filter((resource) => !resource.key.startsWith('engine'));
+        if (missing.length)
+          feedback.warning(
+            warningNotice(
+              '装配贴图读取失败：' + missing.map((resource) => resource.relPath).join('、'),
+              'resource.read_failed',
+              'Variant scene resource decode',
+            ),
+          );
+      },
     });
 function sceneVariants(root: ImmersiveHullProjection, visited = new Set<string>()): ImmersiveHullProjection[] {
   if (visited.has(root.key)) return [];
@@ -118,13 +130,34 @@ const imageCache = windowImageCache();
 let releaseThumbnail: (() => void) | null = null;
 const engineTints = new Map<string, { canvas: HTMLCanvasElement; release: () => void }>();
 const paintedTints = new Set<string>();
-function engineTint(resource: ResourceRef, image: HTMLImageElement, color: unknown[]) {
+let engineRead: ReadTicket<Record<string, HTMLImageElement>> | null = null;
+function engineImage(effect: string, resource: ResourceRef | undefined, image: HTMLImageElement | null, color: unknown[]) {
+  const original = Boolean(image);
+  image ??= engineFallback(effect);
+  if (!image) {
+    if (!engineRead) {
+      const request = (engineRead = createReadTicket({ lane: 'bundled-engines' }, loadEngineFallbacks));
+      void request.promise
+        .then(() => {
+          request.accept();
+          paint();
+        })
+        .catch((error) => {
+          if (!isReadInvalidated(error)) feedback.error(error, '读取引擎回退图片失败');
+        });
+    }
+    return null;
+  }
+  const width = original ? image.width : 32 * window.devicePixelRatio,
+    height = original ? image.height : width;
   const key = JSON.stringify([
-    'engine-source-atop',
-    imageCache.key(props.sessionId, resource),
-    imageCache.revision(props.sessionId, resource),
-    image.width,
-    image.height,
+    original ? 'engine-source-atop' : 'engine-fallback',
+    props.sessionId,
+    effect,
+    resource ? imageCache.key(props.sessionId, resource) : null,
+    resource ? imageCache.revision(props.sessionId, resource) : 0,
+    width,
+    height,
     color.slice(0, 3),
   ]);
   paintedTints.add(key);
@@ -135,14 +168,14 @@ function engineTint(resource: ResourceRef, image: HTMLImageElement, color: unkno
     if (tinted) release = imageCache.retainThumbnail(key);
     else {
       tinted = document.createElement('canvas');
-      tinted.width = image.width;
-      tinted.height = image.height;
+      tinted.width = width;
+      tinted.height = height;
       const paint = tinted.getContext('2d')!;
-      paint.drawImage(image, 0, 0);
+      paint.drawImage(image, 0, 0, width, height);
       paint.globalCompositeOperation = 'source-atop';
       paint.fillStyle = 'rgb(' + color.slice(0, 3).join(',') + ')';
-      paint.fillRect(0, 0, image.width, image.height);
-      release = imageCache.storeThumbnail(key, props.sessionId, [resource], tinted);
+      paint.fillRect(0, 0, width, height);
+      release = imageCache.storeThumbnail(key, props.sessionId, resource ? [resource] : [], tinted);
     }
     entry = { canvas: tinted, release };
     engineTints.set(key, entry);
@@ -315,8 +348,13 @@ function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
   const slots = Array.isArray(variant.spec.engineSlots) ? variant.spec.engineSlots.filter(isRowData) : [];
   for (const engine of slots) {
     const style = engine.style === 'CUSTOM' && isRowData(engine.styleSpec) ? engine.styleSpec : variant.engineStyles[String(engine.style)];
-    if (!isRowData(style) || !Array.isArray(style.engineColor)) continue;
-    const color = style.engineColor,
+    const color =
+        isRowData(style) && Array.isArray(style.engineColor)
+          ? style.engineColor
+          : IMMERSIVE_COLORS.primary
+              .slice(1)
+              .match(/../g)!
+              .map((hex) => parseInt(hex, 16)),
       position = immersiveHullPoint(engine.location as number[]);
     ctx.save();
     ctx.translate(position.x, position.y);
@@ -329,9 +367,9 @@ function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
     ] as const) {
       const resource = variant.engineResources[key],
         image = resource ? decoded.image(resource) : null;
-      if (!image) continue;
       ctx.globalAlpha = alpha;
-      ctx.drawImage(engineTint(resource!, image, color), key === 'engineHitGlow' ? -width / 2 : 0, -height / 2, width, height);
+      const tinted = engineImage(key, resource, image, color);
+      if (tinted) ctx.drawImage(tinted, key === 'engineHitGlow' ? -width / 2 : 0, -height / 2, width, height);
     }
     ctx.restore();
   }
@@ -408,6 +446,7 @@ onMounted(() => {
   fit();
 });
 onScopeDispose(() => {
+  engineRead?.invalidate('consumer');
   releaseThumbnail?.();
   for (const entry of engineTints.values()) entry.release();
   engineTints.clear();

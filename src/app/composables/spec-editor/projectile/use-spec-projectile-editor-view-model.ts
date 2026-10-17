@@ -64,7 +64,7 @@ export function useSpecProjectileEditorViewModel(
   const expandedSections = ref(['basic']);
   const geometry = computed(() => projectProjectileGeometry(localProjectile.value));
   const palette = useCanvasPalette(draw),
-    navigation = useCanvasNavigation(viewport, draw);
+    navigation = useCanvasNavigation(viewport, draw, 'pointer');
   const decodeError = ref('');
   const images = useEditorImages(
     () => props.spriteData ?? {},

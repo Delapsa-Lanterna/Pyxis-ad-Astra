@@ -2,7 +2,7 @@ import { computed, onScopeDispose } from 'vue';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { completeSavedWrite } from '@/orchestrators/file-history-write.orchestrator';
+import { completeSavedWrite, listenProjectSessionInvalidated } from '@/orchestrators/project-sync.orchestrator';
 import { jointWriteTargets, rebaseJointDraft, type JointIdentitySnapshot } from '@/domain/joint-edit';
 import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -10,7 +10,7 @@ import { queryJointEdit } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { listenProjectSessionInvalidated } from '@/orchestrators/project-session-refresh.orchestrator';
+
 import { normalizeFsPath } from '@/shared/lib/paths';
 
 export function useJointEditSession(
@@ -112,7 +112,7 @@ export function useJointEditSession(
           : [],
       ),
       dirty: session.dirty,
-      commitInputs: () => session.inputs.commit(),
+      draftSession: session,
       save: async () => {
         const snapshot = await session.saveDraft();
         return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };

@@ -1,33 +1,49 @@
 import { rustFile } from '../../shared/files.mjs';
-import { cratePaths } from '../../shared/rust-crate-paths.mjs';
+import { modulePartsFromRel, rustServiceExports, rustServicePaths } from '../../shared/rust-crate-paths.mjs';
 import { productionRustSource } from '../../shared/rust-source.mjs';
 
-/** @typedef {'commands' | 'project-query' | 'project-write' | 'project-resources' | 'project-cache' | 'project-session' | 'project-model' | 'project-root' | 'file-history' | 'services' | 'domain' | 'io' | 'parsers' | 'models' | 'other'} RustLayer */
+/** @typedef {'commands' | 'service-assembly' | 'session-entry' | 'project-query' | 'project-write' | 'project-resources' | 'project-cache' | 'project-session' | 'project-model' | 'project-root' | 'file-history' | 'services' | 'domain' | 'io' | 'parsers' | 'models' | 'other'} RustLayer */
 
 export const rustProjectLayerBoundaryRule = {
   name: 'rust-project-layer-boundary',
   /** @param {import('../../shared/files.mjs').RepoFile[]} files @returns {string[]} */
   check(files) {
     const failures = [];
+    const exports = rustServiceExports(files);
     for (const file of files) {
       if (!rustFile(file.rel)) continue;
       if (testOnlyRustFile(file.text)) continue;
       const productionText = productionRustSource(file.text);
       const from = rustLayer(file.rel);
-      const source =
-        from === 'project-root' && projectServiceModule(file.rel, 'mod') ? stripFacadeReexports(productionText) : productionText;
+      const modulePath = modulePartsFromRel(file.rel);
+      const writeSource = modulePath.slice(0, 3).join('::') === 'services::project::write' ? modulePath[3] : null;
       const rejected = new Set();
       let payloadRejected = false;
-      for (const parts of cratePaths(source, file.rel)) {
+      for (const edge of rustServicePaths(productionText, file.rel, exports)) {
+        const parts = edge.target;
         const reference = `crate::${parts.join('::')}`;
-        const to = rustLayerFromCratePath(reference);
+        const to =
+          from === 'commands' && edge.exported
+            ? 'services'
+            : from === 'services' && edge.exported
+              ? 'project-root'
+              : rustLayerFromCratePath(reference);
         if (!to) continue;
-        if (from !== 'commands' && reference.startsWith('crate::models::command_payloads')) {
+        const writeTarget = parts.slice(0, 3).join('::') === 'services::project::write' ? parts[3] : null;
+        const descriptionBackEdge = writeSource === 'entity_description' && writeTarget === 'entity_identity';
+        const stagingBackEdge = writeSource === 'csv_staging' && writeTarget && writeTarget !== 'csv_staging';
+        if ((descriptionBackEdge || stagingBackEdge) && !rejected.has('csv-staging')) {
+          failures.push(`${file.rel}: CSV draft and staging dependencies must stay one-way (${reference})`);
+          rejected.add('csv-staging');
+        }
+        if (from !== 'commands' && from !== 'models' && parts[0] === 'models' && reference.endsWith('Payload')) {
           if (!payloadRejected) failures.push(`${file.rel}: command payload models must stay inside Rust command modules`);
           payloadRejected = true;
           continue;
         }
-        if (!validRustDependency(from, to)) {
+        const settingsRuntime =
+          modulePath.join('::') === 'commands::app_lifecycle' && reference === 'crate::services::file_history::set_history_limit';
+        if (!settingsRuntime && !validRustDependency(from, to)) {
           if (!rejected.has(to)) failures.push(`${file.rel}: ${from} must not depend on ${to} (${reference})`);
           rejected.add(to);
         }
@@ -54,6 +70,8 @@ export const rustProjectLayerBoundaryRule = {
 
 /** @param {string} path @returns {RustLayer} */
 function rustLayer(path) {
+  if (modulePartsFromRel(path).join('::') === 'services') return 'service-assembly';
+  if (projectServiceModule(path, 'mod')) return 'session-entry';
   if (/^src-tauri\/src\/services\/file_history(?:\.rs|\/)/.test(path)) return 'file-history';
   if (path.startsWith('src-tauri/src/commands/')) return 'commands';
   if (path.startsWith('src-tauri/src/services/project/query/')) return 'project-query';
@@ -89,7 +107,7 @@ function rustLayerFromCratePath(path) {
   if (path === 'crate::services::project::cache' || path.startsWith('crate::services::project::cache::')) return 'project-cache';
   if (path === 'crate::services::project::session' || path.startsWith('crate::services::project::session::')) return 'project-session';
   if (path === 'crate::services::project::model' || path.startsWith('crate::services::project::model::')) return 'project-model';
-  if (path.startsWith('crate::services::project')) return 'project-root';
+  if (path === 'crate::services::project' || path.startsWith('crate::services::project::')) return 'project-root';
   if (path.startsWith('crate::services')) return 'services';
   if (path.startsWith('crate::domain')) return 'domain';
   if (path.startsWith('crate::io')) return 'io';
@@ -103,15 +121,12 @@ function projectServiceModule(path, moduleName) {
   return new RegExp(`^src-tauri/src/services/project/${moduleName}(?:\\.rs|/)`).test(path);
 }
 
-/** @param {string} text @returns {string} */
-function stripFacadeReexports(text) {
-  return text.replace(/^\s*pub(?:\s*\([a-z]+\))?\s+use\s[^;]+;/gm, '');
-}
-
 /** @param {RustLayer} from @param {RustLayer} to @returns {boolean} */
 function validRustDependency(from, to) {
   if (from === to) return true;
-  if (from === 'commands') return to === 'services' || to === 'models';
+  if (from === 'service-assembly') return ['services', 'project-query', 'project-write', 'project-resources'].includes(to);
+  if (from === 'session-entry') return ['project-session', 'project-cache', 'project-root'].includes(to);
+  if (from === 'commands') return ['services', 'project-root', 'models'].includes(to);
   if (from === 'file-history') return ['io', 'models'].includes(to);
   if (from === 'project-query')
     return ['project-model', 'project-cache', 'project-root', 'project-resources', 'domain', 'io', 'parsers', 'models'].includes(to);

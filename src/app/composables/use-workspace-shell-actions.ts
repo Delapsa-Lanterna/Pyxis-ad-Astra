@@ -2,9 +2,9 @@ import { computed, getCurrentScope, h, onScopeDispose, ref, type Ref } from 'vue
 import { NSelect } from 'naive-ui/es/select';
 import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/weapon-spec';
 
-import type { WeaponSpecClass } from '@/shared/types';
+import type { WeaponSpecClass, AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 import { NCheckbox } from 'naive-ui/es/checkbox';
-import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
+
 import { useSettingsStore } from '@/stores/settings.store';
 import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { openSpecEditorWindow } from '@/windows/spec-editor.window';
@@ -14,7 +14,6 @@ import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.s
 import { pendingTableSave, saveTableChanges, type TableSaveResult } from '@/orchestrators/table-save.orchestrator';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useTablesStore } from '@/stores/tables.store';
-import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 import type { TableDetailAction } from '@/domain/tables/table-detail-actions';
 import {
@@ -23,27 +22,32 @@ import {
   openModOpeningFailureFileEditor,
   type FileEditorRequest,
 } from '@/windows/file-editor.window';
-import { openDirectoryTarget, openModFromOverview, type DirectoryOpeningOutcome } from '@/orchestrators/directory-opening.orchestrator';
+import {
+  openDirectoryTarget,
+  openModFromOverview,
+  settleDirectoryOpenings,
+  type DirectoryOpeningOutcome,
+} from '@/orchestrators/directory-opening.orchestrator';
 import {
   captureWorkspaceCloseTarget,
   closeWorkspaceRuntime,
-  closeWorkspaceWindows,
   removeLoadedModRuntime,
-  type WorkspaceCloseTarget,
 } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
-import { retryPendingWritesForMod, refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
+import { retryPendingModSyncs, refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
+
+import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { pathBasename } from '@/shared/lib/paths';
 
 export function useWorkspaceShellActions(feedback: AppFeedback) {
+  const { requestClose } = useWindowLifecycleActions();
   const project = useProjectStore();
   const tables = useTablesStore();
-  const draftSessions = useDraftSessionsStore();
   const settings = useSettingsStore();
   const workspace = useWorkspaceStore();
   const saveCommands = useSaveCommandStore();
@@ -54,7 +58,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }),
     modRoot: computed(() => (tables.saving ? (pendingTableSave()?.target.modRoot ?? null) : null)),
     saving: computed(() => tables.saving),
-    pendingSynchronization: computed(() => useWriteSyncStore().pending.length > 0),
+    pendingSynchronization: computed(() => useProjectSyncStore().pending.length > 0),
     waitForSave: async () => {
       const pending = pendingTableSave();
       if (pending)
@@ -63,8 +67,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
           () => false,
         );
       try {
-        for (const modRoot of new Set(useWriteSyncStore().pending.map((entry) => entry.event.modRoot)))
-          await retryPendingWritesForMod(modRoot);
+        for (const modRoot of new Set(useProjectSyncStore().pending.map((entry) => entry.event.modRoot)))
+          await retryPendingModSyncs(modRoot);
         return true;
       } catch (error) {
         feedback.error(error, '同步已保存内容失败');
@@ -104,7 +108,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   const canRefreshOverview = computed(() =>
     workspace.currentView === 'overview'
       ? Boolean(workspace.gameOverview) || project.manifests.size > 0
-      : workspace.currentView === 'config' && workspace.configView === 'mod-overview' && Boolean(project.activeManifest),
+      : workspace.currentView === 'config' && workspace.configView === 'mod-overview' && Boolean(workspace.activeManifest),
   );
 
   async function refreshModOverview(modRoot: string) {
@@ -162,7 +166,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
 
   function confirmCloseWorkspace(notify = true) {
     if (closeIntent) return closeIntent;
-    closeIntent = requestWorkspaceClose()
+    closeIntent = closeWorkspace()
       .then((closed) => {
         if (closed && notify) feedback.success('工作区已关闭');
         return closed;
@@ -177,26 +181,10 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return closeIntent;
   }
 
-  async function requestWorkspaceClose() {
-    const pending = saveCommands.waitForSaves();
-    if ((pending && !(await pending)) || disposed) return false;
-    const target = captureWorkspaceCloseTarget();
-    const sessions = target.modRoots.map((root) => project.getSessionId(root));
-    const hasDirtyMods = target.modRoots.some((modRoot) => draftSessions.hasUnsavedWorkForMod(modRoot));
-    const choice = await feedback.choose({
-      title: '关闭工作区',
-      content: hasDirtyMods ? '当前工作区有未保存修改，关闭后这些修改将丢失。确认关闭？' : '确认关闭当前工作区？',
-      choices: [{ label: '关闭', value: 'close', type: 'warning' }],
-    });
-    if (choice === 'close' && !disposed && target.modRoots.every((root, index) => project.getSessionId(root) === sessions[index]))
-      return closeWorkspace(target);
-    return false;
-  }
-
   function confirmRemoveMod(modRoot: string) {
     const active = removeIntents.get(modRoot);
     if (active) return active;
-    const intent = requestModRemoval(modRoot)
+    const intent = removeMod(modRoot)
       .catch((error: unknown) => feedback.error(error, '移除 Mod 失败'))
       .finally(() => {
         removeIntents.delete(modRoot);
@@ -205,27 +193,12 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return intent;
   }
 
-  async function requestModRemoval(modRoot: string) {
-    const sessionId = project.getSessionId(modRoot);
-    const pending = saveCommands.waitForSaves(modRoot);
-    if ((pending && !(await pending)) || disposed) return;
-    if (draftSessions.hasUnsavedWorkForMod(modRoot)) {
-      const choice = await feedback.choose({
-        title: '移除 Mod',
-        content: '该 Mod 有未保存修改，移除后修改将丢失。确认移除？',
-        choices: [{ label: '移除', value: 'remove', type: 'warning' }],
-      });
-      if (choice !== 'remove') return;
-    }
-    if (!disposed && project.getSessionId(modRoot) === sessionId) await removeMod(modRoot);
-  }
-
   async function saveChanges() {
     if (tables.saving) return;
     try {
       const result = await saveTableChanges({
         table: tables.currentTab,
-        manifest: project.activeManifest,
+        manifest: workspace.activeManifest,
         selectAssociatedSpecs,
         feedback,
       });
@@ -288,7 +261,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   async function addNewRow() {
-    if (!project.activeManifest) return;
+    if (!workspace.activeManifest) return;
     const root = tables.activeModRoot;
     const table = tables.currentTab;
     try {
@@ -313,7 +286,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   async function deleteSelectedRow() {
-    if (!project.activeManifest || !tables.selectedRowKey) return;
+    if (!workspace.activeManifest || !tables.selectedRowKey) return;
     const root = tables.activeModRoot;
     const table = tables.currentTab;
     const rowKey = tables.selectedRowKey;
@@ -464,8 +437,11 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
-  async function removeMod(modRoot: string, showMessage = true) {
-    if (!(await removeLoadedModRuntime(modRoot))) return;
+  async function removeMod(modRoot: string) {
+    await saveCommands.settleCloseActions();
+    await settleDirectoryOpenings();
+    if (disposed) return;
+    if (!(await removeLoadedModRuntime(modRoot, requestClose))) return;
     recordLogBestEffort({
       level: 'info',
       code: 'mod.removed',
@@ -474,11 +450,14 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       line: null,
       fields: { modRoot },
     });
-    if (showMessage) feedback.success('Mod 已从工作区移除');
+    feedback.success('Mod 已从工作区移除');
   }
 
-  async function closeWorkspace(target: WorkspaceCloseTarget) {
-    if (!(await closeWorkspaceRuntime(target))) return false;
+  async function closeWorkspace() {
+    await saveCommands.settleCloseActions();
+    await settleDirectoryOpenings();
+    const target = captureWorkspaceCloseTarget();
+    if (!(await closeWorkspaceRuntime(target, requestClose))) return false;
     recordLogBestEffort({
       level: 'info',
       code: 'workspace.closed',
@@ -559,7 +538,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   return {
-    closeWorkspaceWindows,
+    settleDirectoryOpenings,
     selectAssociatedSpecs,
     addNewRow,
     confirmCloseWorkspace,

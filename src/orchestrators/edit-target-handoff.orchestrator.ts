@@ -8,7 +8,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import { deepClone } from '@/shared/lib/starsector';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { editTargetsOverlap } from '@/domain/joint-edit';
+import { editTargetsOverlap } from '@/domain/edit-session';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import type {
   AppFeedback,
@@ -115,7 +115,7 @@ async function prepareLocalTargets(
     }
     if (!isActive() || !commands.isSessionRegistered(handle)) return null;
     const expected = handle.targetKey.value;
-    if ((await handle.editing!.commitInputs()) === false || handle.targetKey.value !== expected) return null;
+    if ((await handle.editing!.draftSession.inputs.commit()) === false || handle.targetKey.value !== expected) return null;
   }
   const dirty = participants.filter((handle) => handle.editing!.dirty.value);
   if (dirty.length > 0) {

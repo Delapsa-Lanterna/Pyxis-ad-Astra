@@ -51,11 +51,11 @@ export const TABLE_KEYS = [
   'descriptions',
 ] as const;
 
-export type TableKey = (typeof TABLE_KEYS)[number];
+export type CsvTableKey = (typeof TABLE_KEYS)[number];
 
 export interface FileVersion {
   path: string;
-  fingerprint: string | null;
+  fingerprint?: string | null;
 }
 
 export interface EntityFileLocation {
@@ -65,14 +65,16 @@ export interface EntityFileLocation {
   path: string;
 }
 
-export type EntityLinkedRecord = { kind: 'csv'; table: TableKey; rowKey: string } | { kind: 'index'; path: string; rowIndex: number };
+export type EntityLinkedRecord = { kind: 'csv'; table: CsvTableKey; rowKey: string } | { kind: 'index'; path: string; rowIndex: number };
+
+export type EntityTargetState = 'existing' | 'create';
 
 export interface EntityEditTarget {
   kind: EntityKind;
   id: string;
   source: EntityFileLocation | null;
   write: EntityFileLocation;
-  state: 'existing' | 'create';
+  state: EntityTargetState;
   linkedRecord: EntityLinkedRecord | null;
 }
 
@@ -91,4 +93,10 @@ export interface EntityIdentityIntent {
 export interface EntityIdentityChange {
   before: EntityEditTarget;
   after: EntityEditTarget;
+}
+
+export interface EntityIdentityIntentPayload {
+  sessionId: string;
+  source: EntityEditTarget;
+  nextId: string;
 }

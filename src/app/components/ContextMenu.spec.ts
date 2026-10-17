@@ -12,6 +12,8 @@ import { createThemeColors } from '@/domain/settings/theme';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import { buildThemeOverrides } from '@/app/theme-overrides';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
+const closeState = ref(false);
+vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowCloseState: () => closeState }));
 const mocks = vi.hoisted(() => ({
   read: vi.fn(async () => 'paste'),
   write: vi.fn(async () => {}),
@@ -70,12 +72,27 @@ beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
   vi.clearAllMocks();
+  closeState.value = false;
 });
 afterEach(() => {
   wrapper?.unmount();
   vi.restoreAllMocks();
 });
 describe('window context menu', () => {
+  it('closes an open menu and pauses new menus while its window is closing', async () => {
+    const own = setup();
+    await open(wrapper.get('main').element);
+    expect(dropdown().exists()).toBe(true);
+    closeState.value = true;
+    await flushPromises();
+    expect(dropdown().exists()).toBe(false);
+    await open(wrapper.get('main').element);
+    expect(dropdown().exists()).toBe(false);
+    expect(own.refresh).not.toHaveBeenCalled();
+    closeState.value = false;
+    await open(wrapper.get('main').element);
+    expect(dropdown().exists()).toBe(true);
+  });
   it.each(['设置', '关于', '最小化', '退出'] as const)('dispatches titlebar %s through its existing action', async (key) => {
     wrapper = mount(ContextMenu, {
       attachTo: document.body,

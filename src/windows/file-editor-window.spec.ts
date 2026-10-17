@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const openManagedWindow = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const requestWindow = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
-vi.mock('@/windows/managed.window', () => ({ openManagedWindow }));
+vi.mock('@/windows/managed.window', () => ({ requestWindow }));
 
 import { openGameWarningFileEditor, openModOpeningFailureFileEditor } from '@/windows/file-editor.window';
 import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
@@ -13,7 +13,7 @@ describe('workspace warning file editor window', () => {
 
     await openGameWarningFileEditor(warning);
 
-    expect(openManagedWindow).toHaveBeenCalledWith(
+    expect(requestWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { type: 'recovery', modRoot: warning.editTarget?.modRoot, path: warning.editTarget?.path },
         input: {
@@ -34,7 +34,7 @@ describe('workspace warning file editor window', () => {
     });
 
     expect(result).toBeNull();
-    expect(openManagedWindow).not.toHaveBeenCalled();
+    expect(requestWindow).not.toHaveBeenCalled();
   });
 
   it('opens a Mod opening failure in recovery mode', async () => {
@@ -47,7 +47,7 @@ describe('workspace warning file editor window', () => {
 
     await openModOpeningFailureFileEditor(failure);
 
-    expect(openManagedWindow).toHaveBeenCalledWith(
+    expect(requestWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { type: 'recovery', modRoot: failure.modRoot, path: failure.file?.path },
         input: {

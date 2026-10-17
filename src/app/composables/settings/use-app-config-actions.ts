@@ -1,8 +1,10 @@
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { clearConfig, openConfigFolder } from '@/services/app-config.service';
-import { reloadCurrentWindow } from '@/windows/current.window';
+import { openConfigFolder } from '@/services/app-config.service';
 
-export function useAppConfigActions(closeWorkspace: () => Promise<boolean>) {
+export function useAppConfigActions(
+  closeWorkspace: () => Promise<boolean>,
+  maintenance: { clearConfig: () => Promise<void>; reload: () => Promise<void> },
+) {
   const feedback = useAppFeedback();
   async function openConfigFolderAction() {
     try {
@@ -19,9 +21,9 @@ export function useAppConfigActions(closeWorkspace: () => Promise<boolean>) {
       onConfirm: async () => {
         try {
           if (!(await closeWorkspace())) return;
-          await clearConfig();
+          await maintenance.clearConfig();
           feedback.success('配置文件已清空');
-          await reloadCurrentWindow();
+          await maintenance.reload();
         } catch (error) {
           feedback.error(error, '清空配置文件失败');
         }

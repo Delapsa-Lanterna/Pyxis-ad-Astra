@@ -6,20 +6,32 @@
 
 ## 参考
 
-`scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则 owner。
-`src-tauri/src/services/project/write/entity_description.rs`：默认舰船描述键的同事务行身份更新 owner。
-`src/app/components/spec-editor/ship/SpecShipEditor.vue`：舰船控件展示与事件绑定入口。
-`src/app/composables/canvas/use-canvas-editor.ts`：舰船消费的共享画布交互、选区和动作提交入口。
-`src/app/composables/editors/use-resource-reference.ts`：贴图引用选择 owner。
-`src/app/composables/spec-editor/ship/use-spec-ship-editor-view-model.ts`：舰船草稿、模式、检查器投影与编辑动作 owner。
-`src/app/composables/spec-editor/ship/use-spec-ship-weapons.ts`：内置武器只读来源、媒体集合、解码、失效与诊断 owner。
-`src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：消费共享窗口 ViewModel 的目标 Draft Session 与 bundle。
-`src/app/renderers/spec-editor/ship/spec-ship-scene.ts`：舰船场景视觉规则与绘制入口。
-`src/domain/editors/lib/geometry.ts`：舰船坐标与几何转换 owner。
-`src/domain/editors/lib/mirror.ts`：舰船消费的共享几何镜像规则。
-`src/domain/spec-editor/ship/spec-ship-editing.ts`：舰船规格归一化、槽位、甲板、引擎、几何与操作规则 owner。
-`src/domain/spec-editor/ship/spec-ship-weapons.ts`：当前内置引用集合、槽位关联、展示投影与逐项诊断 owner。
-`src/services/spec-ship-editor.service.ts`：舰船规格、草稿贴图及内置武器来源的查询入口。
+### 拥有
+
+- `src/app/components/spec-editor/ship/`：舰船画布、检查器与行为测试。
+- `src/app/components/spec-editor/ship/SpecShipEditor.vue`：舰船控件展示与事件绑定入口。
+- `src/app/composables/spec-editor/ship/`：舰船字段、动作、视口及内置武器依赖生命周期。
+- `src/app/composables/spec-editor/ship/use-spec-ship-editor-view-model.ts`：舰船草稿、模式、检查器投影与编辑动作。
+- `src/app/composables/spec-editor/ship/use-spec-ship-weapons.ts`：内置武器只读来源、媒体集合、解码、失效与诊断。
+- `src/app/renderers/spec-editor/ship/`：舰船静态场景、图层与几何绘制。
+- `src/app/renderers/spec-editor/ship/spec-ship-scene.ts`：舰船场景视觉规则与绘制入口。
+- `src/domain/spec-editor/ship/`：舰船文档、几何、点位及内置武器投影规则。
+- `src/domain/spec-editor/ship/spec-ship-editing.ts`：舰船规格归一化、槽位、甲板、引擎、几何与操作规则。
+- `src/domain/spec-editor/ship/spec-ship-weapons.ts`：当前内置引用集合、槽位关联、展示投影与逐项诊断。
+- `src/services/spec-ship-editor.service.ts`：舰船规格、草稿贴图及内置武器来源的查询入口。
+
+### 消费
+
+- `src/app/composables/canvas/use-canvas-editor.ts`：舰船消费的共享画布交互、选区和动作提交入口。
+- `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
+- `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
+- `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
+- `src/domain/editors/lib/mirror.ts`：舰船消费的共享几何镜像规则。
+
+### 关联
+
+- `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则。
+- `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
 
 ## 边界
 

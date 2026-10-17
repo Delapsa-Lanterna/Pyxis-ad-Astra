@@ -6,15 +6,32 @@
 
 ## 参考
 
-`scripts/architecture/rules/directory-opening-boundary.mjs`：目录打开边界规则 owner。
-`src-tauri/src/commands/directory_opening.rs`：目录打开 command 边界。
-`src-tauri/src/services/directory_opening/detection.rs`：目录识别 owner，判定游戏根、游戏内 Mod 与外部 Mod。
-`src-tauri/src/services/directory_opening/overview.rs`：游戏概览扫描 owner。
-`src-tauri/src/services/project_session.rs`：打开动作的 ProjectSession 建立交接能力。
-`src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
-`src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影 owner。
-`src/orchestrators/directory-opening.orchestrator.ts`：打开编排 owner，拥有识别分流、打开结果形状与失败回滚。
-`src/services/directory.service.ts`：目录选择、识别及概览协议主归属。
+### 拥有
+
+- `src-tauri/src/commands/directory_opening.rs`：目录打开 command 边界。
+- `src-tauri/src/services/directory_opening/`：目录检测、游戏 Mod 发现与诊断读取。
+- `src-tauri/src/services/directory_opening/detection.rs`：目录识别，判定游戏根、游戏内 Mod 与外部 Mod。
+- `src-tauri/src/services/directory_opening/overview.rs`：游戏概览扫描。
+- `src/app/components/GameOverviewPanel.vue`：游戏目录扫描结果、警告及打开动作展示。
+- `src/app/components/ModOpeningFailureList.vue`：Mod 打开失败诊断与文件定位展示。
+- `src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影。
+- `src/orchestrators/directory-opening-lifecycle.spec.ts`：目录读取、会话建立及迟到释放验证。
+- `src/orchestrators/directory-opening-navigation.spec.ts`：Mod 打开结果、导航与失败恢复验证。
+- `src/orchestrators/directory-opening.orchestrator.ts`：打开编排，拥有识别分流、打开结果形状与失败回滚。
+- `src/services/directory.service.ts`：目录选择、识别及概览协议。
+
+### 消费
+
+- `src-tauri/src/models/directory_opening.rs`：目录识别、游戏概览及打开诊断 wire 契约。
+- `src-tauri/src/services/project_session.rs`：打开动作的 ProjectSession 建立交接能力。
+- `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
+- `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
+- `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
+- `src/shared/types/directory-opening.types.ts`：目录请求、识别结果、游戏概览与结构化诊断。
+
+### 关联
+
+- `scripts/architecture/rules/directory-opening-boundary.mjs`：目录打开边界规则。
 
 ## 边界
 
@@ -59,6 +76,7 @@
 
 ## 规范
 
+- Mod 打开失败与游戏扫描警告必须逐条提供关闭提示按钮，关闭事件必须交付工作区拥有的状态动作。
 - loading 条目必须先于后端调用注册，避免窗口期重复触发。
 - manifest 登记、运行态水合与失败回滚必须属于发起打开时的 Mod 代次；移除后到达的成功响应必须关闭对应 session。
 - 回滚后必须回到工作区总览，严禁停留在半初始化页面。

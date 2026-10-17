@@ -6,15 +6,17 @@ import {
   acceptNativeWindowRequest,
   failNativeWindowRequest,
   failNativeWindowStartup,
-  getNativeWindowSettings,
-  publishNativeWindowSettings,
 } from '@/services/window.service';
 import { listenWindowEvent, type WindowEventErrorHandler } from './tauri.events';
 import { WINDOW_EVENTS } from './window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
-import type { DeepReadonly, AppSettings, ManagedWindowContext, WindowContextFor, WindowSettingsSnapshot } from '@/shared/types';
+import type { DeepReadonly, ManagedWindowContext, WindowContextFor } from '@/shared/types';
+let requestDrain: Promise<void> = Promise.resolve();
+export function settleWindowRequests() {
+  return requestDrain;
+}
+let restoring = false;
 const context = shallowRef<ManagedWindowContext | null>(null);
-let settingsRevision = 0;
 export const managedWindowContext = readonly(context);
 export function publishWindowContext(next: ManagedWindowContext) {
   if (context.value && next.revision < context.value.revision) return;
@@ -24,7 +26,7 @@ export async function initializeWindowContext() {
   const bootstrap = await getNativeWindowBootstrap();
   if (bootstrap.kind === 'managed') {
     publishWindowContext(bootstrap.context);
-    settingsRevision = bootstrap.settings.revision;
+    restoring = bootstrap.restoring;
   }
   return bootstrap;
 }
@@ -35,33 +37,31 @@ export function useWindowContext<K extends ManagedWindowContext['kind']>(kind: K
     return readonly(current) as DeepReadonly<WindowContextFor<K>>;
   });
 }
-export async function refreshWindowContext() {
-  publishWindowContext(await getNativeWindowContext());
-}
 export function failWindowStartup(error: unknown) {
   return failNativeWindowStartup(errorDiagnosticOf(error));
-}
-export function publishWindowSettings(settings: AppSettings) {
-  return publishNativeWindowSettings(settings);
-}
-export function readWindowSettings() {
-  return getNativeWindowSettings();
-}
-export function acceptWindowSettings(snapshot: WindowSettingsSnapshot) {
-  if (snapshot.revision <= settingsRevision) return false;
-  settingsRevision = snapshot.revision;
-  return true;
 }
 export function subscribeWindowRequests(handler: (next: ManagedWindowContext) => void | Promise<void>, onError: WindowEventErrorHandler) {
   let disposed = false,
     running = false,
     queued = false;
   let stop: (() => void) | null = null;
-  async function drain() {
+  function drain() {
+    if (running) {
+      queued = true;
+      return requestDrain;
+    }
+    requestDrain = executeDrain();
+    return requestDrain;
+  }
+  async function executeDrain() {
     queued = true;
     if (running || disposed) return;
     running = true;
     try {
+      if (restoring && context.value) {
+        restoring = false;
+        await handler(context.value);
+      }
       while (queued && !disposed) {
         queued = false;
         const request = await getNativeWindowRequest();
@@ -69,14 +69,16 @@ export function subscribeWindowRequests(handler: (next: ManagedWindowContext) =>
         try {
           await handler(request);
           if (disposed) return;
-          const accepted = await acceptNativeWindowRequest(request.requestId);
+          const accepted = await acceptNativeWindowRequest(request.requestId, request.receiverGeneration);
           if (accepted) {
             const next = await getNativeWindowContext();
             if (!disposed) publishWindowContext(next);
-          } else queued = true;
+          }
+          queued = true;
         } catch (error) {
           if (disposed) return;
-          await failNativeWindowRequest(request.requestId, errorDiagnosticOf(error));
+          await failNativeWindowRequest(request.requestId, request.receiverGeneration, errorDiagnosticOf(error));
+          queued = true;
         }
       }
     } catch (error) {

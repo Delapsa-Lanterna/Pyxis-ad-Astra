@@ -1,14 +1,16 @@
 <template>
-  <div class="config-page" :inert="handoffLocked">
+  <div class="config-page ui-content-grid" :inert="handoffLocked">
     <header class="config-page-header">
-      <h1>Mod 信息</h1>
+      <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">Mod 信息</h1>
     </header>
 
-    <div v-if="externalUpdateNotice" class="config-external-update-note">{{ externalUpdateNotice }}</div>
+    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
+      {{ externalUpdateNotice }}
+    </div>
 
     <SchemaFormRenderer v-if="schema" :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
 
-    <footer class="config-page-footer">
+    <footer class="config-page-footer ui-footer ui-layout-row">
       <n-button v-if="hasPendingExternalData" secondary type="warning" @click="loadPendingExternalData">载入外部版本</n-button>
       <n-button type="primary" :loading="saving" :disabled="!dirty" @click="save">保存</n-button>
     </footer>

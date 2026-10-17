@@ -47,7 +47,7 @@ export interface ProjectSessionInvalidatedEvent {
 
 export type { CommittedWriteEvent } from '@/shared/types';
 
-export type AppSettingsChangedEvent = import('@/shared/types').WindowSettingsSnapshot;
+export type AppSettingsChangedEvent = import('@/shared/types').SettingsSnapshot;
 
 export interface EntityIdentityAppliedEvent {
   sessionId: string;

@@ -6,27 +6,61 @@
 
 ## 参考
 
-`schemas/`：规格与配置 schema 资产。
-`schemas/csv/`：CSV 列 schema 资产。
-`schemas/well-known-labels.json`：well-known 标签资产。
-`src-tauri/src/commands/source_options.rs`：来源目录 command 主归属。
-`src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
-`src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染 owner。
-`src/app/components/schema/SchemaFormRenderer.vue`：表单渲染 owner。
-`src/app/components/schema/SchemaScalarInput.vue`：类型文本输入 owner，暂存原文并提交正式字段动作。
-`src/domain/schema/schema-core-fields.ts`：原版字段合并 owner。
-`src/domain/schema/schema-options.ts`：source 分组标签、选项与 `SelectOption` 规则 owner。
-`src/domain/schema/schema-registry.ts`：schema 资产唯一加载入口，拥有 5 个 spec 与 14 个 csv 列资产的运行时形状校验。
-`src/domain/schema/schema-runtime.ts`：runtime 上下文 owner。
-`src/domain/schema/schema-sections.ts`：section 投影与折叠标识 owner。
-`src/domain/schema/schema-values.ts`：字段值转换 owner，拥有标量、kv 条目与业务归一化规则。
-`src/domain/schema/schema.types.ts`：schema 输出类型 owner，拥有字段/控件闭合枚举与 FileSchema/FieldSchema/列 schema 形状。
-`src/services/source-options.service.ts`：来源目录协议、查询身份与性能记录主归属。
-`src/shared/lib/input-number.ts`：完整有限浮点与安全整数解析 owner。
-`src/shared/lib/json-input.ts`：字段输入消费的共享 JSON 解析、形状校验与格式化。
-`src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑 owner。
-`src/shared/ui/JsonValueInput.vue`：JSON 原始输入 owner，按声明形状解析并提交。
-`src/shared/ui/NumberValueInput.vue`：Smart 数值原文与正式值提交 owner。
+### 拥有
+
+- `schemas/csv/`：CSV 列 schema 资产。
+- `schemas/faction.schema.json`：势力字段模式资产。
+- `schemas/mission.schema.json`：任务字段模式资产。
+- `schemas/mod-info.schema.json`：Mod 信息字段模式资产。
+- `schemas/skin.schema.json`：皮肤字段模式资产。
+- `schemas/variant.schema.json`：装配字段模式资产。
+- `schemas/well-known-labels.json`：well-known 标签资产。
+- `src-tauri/src/commands/source_options.rs`：来源目录 command。
+- `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
+- `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
+- `src/app/components/schema/`：字段分派、表单、标量原文及行为测试。
+- `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染。
+- `src/app/components/schema/SchemaFormRenderer.vue`：表单渲染。
+- `src/app/components/schema/SchemaScalarInput.vue`：类型文本输入，暂存原文并提交正式字段动作。
+- `src/app/composables/editors/use-editor-row-identities.ts`：结构化输入条目的稳定行身份。
+- `src/app/composables/editors/use-schema-path-picker.ts`：所属字段文件选择、路径转换与目标接纳。
+- `src/app/composables/editors/use-schema-source-options.ts`：字段来源选项读取、失效及释放。
+- `src/app/composables/use-input-edit-mode.ts`：输入编辑模式及焦点交接。
+- `src/app/composables/use-schema-runtime-context.ts`：所属 session 的字段来源查询与失效订阅装配。
+- `src/domain/schema/`：字段模式加载、结构、来源、值及展示纯规则。
+- `src/domain/schema/schema-core-fields.ts`：原版字段合并。
+- `src/domain/schema/schema-options.ts`：source 分组标签、选项与 `SelectOption` 规则。
+- `src/domain/schema/schema-registry.ts`：schema 资产唯一加载入口，拥有 5 个 spec 与 14 个 csv 列资产的运行时形状校验。
+- `src/domain/schema/schema-runtime.ts`：runtime 上下文。
+- `src/domain/schema/schema-sections.ts`：section 投影与折叠标识。
+- `src/domain/schema/schema-values.ts`：字段值转换，拥有标量、kv 条目与业务归一化规则。
+- `src/domain/schema/schema.types.ts`：schema 输出类型，拥有字段/控件闭合枚举与 FileSchema/FieldSchema/列 schema 形状。
+- `src/domain/tables/csv-source-options.ts`：CSV 字段来源选项与分组投影。
+- `src/services/source-options.service.ts`：来源目录协议、查询身份与性能记录。
+
+### 消费
+
+- `src-tauri/src/models/schema.rs`：字段来源请求、选项与来源分组协议。
+- `src/shared/lib/input-number.ts`：完整有限浮点与安全整数解析。
+- `src/shared/lib/json-fields.ts`：额外 JSON 字段展示条目投影。
+- `src/shared/lib/json-input.ts`：字段输入消费的共享 JSON 解析、形状校验与格式化。
+- `src/shared/runtime/focus-field-input.ts`：结构化输入的焦点与选择恢复。
+- `src/shared/types/core-assets.types.ts`：字段合并消费的 Core 字段发现结果。
+- `src/shared/types/schema.types.ts`：字段来源请求、选项与来源分组协议。
+- `src/shared/ui/`：数值、JSON、额外字段与颜色输入及其行为测试。
+- `src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑。
+- `src/shared/ui/JsonValueInput.vue`：JSON 原始输入，按声明形状解析并提交。
+- `src/shared/ui/NumberValueInput.vue`：Smart 数值原文与正式值提交。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `src/shared/lib/stable-compare.ts`：结构化值的稳定序列化及相等判断。
+- `src/shared/lib/starsector/value.ts`：JSON 复制、标量转换与 Mod 版本展示。
+- `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
 
 ## 边界
 

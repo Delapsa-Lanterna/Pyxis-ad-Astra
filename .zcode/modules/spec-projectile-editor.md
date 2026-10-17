@@ -6,17 +6,29 @@
 
 ## 参考
 
-`schemas/spec-defaults.json`：弹体与导弹分支默认模板。
-`src-tauri/src/domain/editor_config_definitions.rs`：弹体实体种类、规格目录和默认路径定义。
-`src-tauri/src/services/project/definitions/entity_resources.rs`：弹体 sprite 与 bulletSprite 的资源映射。
-`src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
-`src-tauri/src/services/project/write/entity_identity.rs`：弹体实际目标和身份保存事务。
-`src/app/components/spec-editor/projectile/SpecProjectileEditor.vue`：弹体画布、检查器与事件绑定。
-`src/app/composables/spec-editor/projectile/use-spec-projectile-editor-view-model.ts`：弹体工作文档、视口、静态绘制装配、分支展示与字段动作 owner。
-`src/app/renderers/spec-editor/projectile/spec-projectile-scene.ts`：弹体静态场景与最终绘制样式。
-`src/domain/spec-editor/projectile/spec-projectile-model.ts`：弹体创建、分支转换、归一化、引擎与静态几何投影 owner。
-`src/services/spec-projectile-editor.service.ts`：弹体编辑数据与草稿图像的独立查询。
-`src/windows/spec-editor.window.ts`：弹体动作消费的 managed 规格窗口入口。
+### 拥有
+
+- `src/app/components/spec-editor/projectile/`：弹体画布、检查器与行为测试。
+- `src/app/components/spec-editor/projectile/SpecProjectileEditor.vue`：弹体画布、检查器与事件绑定。
+- `src/app/composables/spec-editor/projectile/`：弹体文档、分支字段、视口与绘制装配。
+- `src/app/composables/spec-editor/projectile/use-spec-projectile-editor-view-model.ts`：弹体工作文档、视口、静态绘制装配、分支展示与字段动作。
+- `src/app/renderers/spec-editor/projectile/`：弹体外观、碰撞与引擎静态场景。
+- `src/app/renderers/spec-editor/projectile/spec-projectile-scene.ts`：弹体静态场景与最终绘制样式。
+- `src/domain/spec-editor/projectile/`：弹体分支、引擎槽位与静态几何规则。
+- `src/domain/spec-editor/projectile/spec-projectile-model.ts`：弹体创建、分支转换、归一化、引擎与静态几何投影。
+- `src/services/spec-projectile-editor.service.ts`：弹体编辑数据与草稿图像的独立查询。
+
+### 消费
+
+- `schemas/spec-defaults.json`：四类规格创建与分支转换的默认模板资产。
+- `src-tauri/src/domain/editor_config_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/services/project/definitions/entity_resources.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
+- `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
+- `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+
+### 关联
+
+- `src-tauri/src/services/project/write/entity_identity.rs`：规格、装配与文本身份写入及关联 CSV、父引用暂存。
 
 ## 边界
 

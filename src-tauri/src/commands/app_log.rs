@@ -1,6 +1,6 @@
 use crate::{
     errors::AppError,
-    models::{AppLogStatus, command_payloads::AppendAppLogPayload},
+    models::{AppLogStatus, AppendAppLogPayload},
     services,
 };
 

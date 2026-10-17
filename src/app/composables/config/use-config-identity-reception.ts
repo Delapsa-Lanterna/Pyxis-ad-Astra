@@ -1,5 +1,5 @@
 import { onMounted, onScopeDispose, ref, shallowRef } from 'vue';
-import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
+import { listenEntityIdentityApplied } from '@/orchestrators/project-sync.orchestrator';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';

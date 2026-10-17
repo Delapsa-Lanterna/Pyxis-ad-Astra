@@ -11,7 +11,7 @@ import {
   type ModTableState,
   type ProjectManifest,
   type CsvDraftRow,
-  type TableKey,
+  type CsvTableKey,
 } from '@/shared/types';
 import { getColumns } from '@/shared/lib/starsector';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -41,24 +41,24 @@ function emptyDirtyState(): ModTableState['dirty'] {
   return emptyTableRecord(() => ({}));
 }
 
-function emptyExternalUpdateState(): Record<TableKey, boolean> {
+function emptyExternalUpdateState(): Record<CsvTableKey, boolean> {
   return emptyTableRecord(() => false);
 }
 
-function emptyTablesRecord(): Record<TableKey, CsvTableRows> {
+function emptyTablesRecord(): Record<CsvTableKey, CsvTableRows> {
   return emptyTableRecord(() => []);
 }
 
-function emptyHeadersRecord(): Record<TableKey, string[]> {
+function emptyHeadersRecord(): Record<CsvTableKey, string[]> {
   return emptyTableRecord(() => []);
 }
 
-function emptyCountRecord(): Record<TableKey, number> {
+function emptyCountRecord(): Record<CsvTableKey, number> {
   return emptyTableRecord(() => 0);
 }
 
-function emptyTableRecord<T>(createValue: () => T): Record<TableKey, T> {
-  return Object.fromEntries(TABLE_KEYS.map((key) => [key, createValue()])) as Record<TableKey, T>;
+function emptyTableRecord<T>(createValue: () => T): Record<CsvTableKey, T> {
+  return Object.fromEntries(TABLE_KEYS.map((key) => [key, createValue()])) as Record<CsvTableKey, T>;
 }
 
 function createModTableState(): ModTableState {
@@ -95,14 +95,14 @@ export const useTablesStore = defineStore('tables', () => {
   const csvEditHistory = useTablesEditHistoryStore();
   const workspace = useWorkspaceStore();
   const stateMap = reactive<Map<string, ModTableState>>(new Map());
-  const inputMap = shallowReactive(new Map<string, Map<TableKey, FieldInputs>>());
-  const readGenerations = new WeakMap<ModTableState, Map<TableKey, number>>();
+  const inputMap = shallowReactive(new Map<string, Map<CsvTableKey, FieldInputs>>());
+  const readGenerations = new WeakMap<ModTableState, Map<CsvTableKey, number>>();
   const saving = ref(false);
   const identityLocks = shallowReactive(new Map<string, { target: CsvTableTarget; owner: string }>());
-  const lockKey = (root: string, table: TableKey) => JSON.stringify([normalizeFsPath(root), table]);
+  const lockKey = (root: string, table: CsvTableKey) => JSON.stringify([normalizeFsPath(root), table]);
   const currentTableLocked = computed(() => (activeModRoot.value ? isTableLocked(activeModRoot.value, currentTab.value) : false));
 
-  function isTableLocked(root: string, table: TableKey) {
+  function isTableLocked(root: string, table: CsvTableKey) {
     return identityLocks.has(lockKey(root, table));
   }
   function lockTable(target: CsvTableTarget, owner: string) {
@@ -216,11 +216,11 @@ export const useTablesStore = defineStore('tables', () => {
 
   // --- Existing API ---
 
-  function rowsFor(tab: TableKey): CsvTableRows {
+  function rowsFor(tab: CsvTableKey): CsvTableRows {
     return getActiveState()?.tables[tab] ?? [];
   }
 
-  function switchTab(modRoot: string, tab: TableKey) {
+  function switchTab(modRoot: string, tab: CsvTableKey) {
     const state = stateMap.get(modRoot)!;
     if (state.currentTab === tab) return;
     state.currentTab = tab;
@@ -234,7 +234,7 @@ export const useTablesStore = defineStore('tables', () => {
     applyCsvTableWindowDraft(state, window, getTableInputs(target.modRoot, target.table).dirty.value);
   }
 
-  function hasTableDirtyChanges(tab: TableKey): boolean {
+  function hasTableDirtyChanges(tab: CsvTableKey): boolean {
     const state = getActiveState();
     if (!state) return false;
     return hasCsvTableDraftChanges(state, tab) || getTableInputs(activeModRoot.value!, tab).dirty.value;
@@ -265,17 +265,17 @@ export const useTablesStore = defineStore('tables', () => {
     return csvDirtyCells(dirty.value[currentTab.value][rowKey])?.[col] !== undefined;
   }
 
-  function getTableInputs(modRoot: string, table: TableKey): FieldInputs {
+  function getTableInputs(modRoot: string, table: CsvTableKey): FieldInputs {
     return inputMap.get(modRoot)!.get(table)!;
   }
 
-  function tableReadGeneration(modRoot: string, table: TableKey) {
+  function tableReadGeneration(modRoot: string, table: CsvTableKey) {
     return readGenerations.get(stateMap.get(modRoot)!)?.get(table) ?? 0;
   }
 
-  function revokeTableReads(modRoot: string, table: TableKey) {
+  function revokeTableReads(modRoot: string, table: CsvTableKey) {
     const state = stateMap.get(modRoot)!;
-    const generations = readGenerations.get(state) ?? new Map<TableKey, number>();
+    const generations = readGenerations.get(state) ?? new Map<CsvTableKey, number>();
     generations.set(table, (generations.get(table) ?? 0) + 1);
     readGenerations.set(state, generations);
   }
@@ -329,7 +329,7 @@ export const useTablesStore = defineStore('tables', () => {
     return stateMap.get(modRoot);
   }
 
-  function replaceTableForMod(modRoot: string, tab: TableKey, rows: CsvDraftRow[]) {
+  function replaceTableForMod(modRoot: string, tab: CsvTableKey, rows: CsvDraftRow[]) {
     const state = stateMap.get(modRoot);
     if (!state) return;
     revokeTableReads(modRoot, tab);
@@ -342,19 +342,19 @@ export const useTablesStore = defineStore('tables', () => {
     discardCsvTableWindowForReloadDraft(stateMap.get(target.modRoot)!, target.table);
   }
 
-  function markTableSavedForMod(modRoot: string, tab: TableKey) {
+  function markTableSavedForMod(modRoot: string, tab: CsvTableKey) {
     const state = stateMap.get(modRoot);
     if (!state) return;
     markCsvTableSavedDraft(state, tab);
   }
 
-  function applySavedRowKeyMapForMod(modRoot: string, tab: TableKey, keyMap: CsvRowKeyMapping[]) {
+  function applySavedRowKeyMapForMod(modRoot: string, tab: CsvTableKey, keyMap: CsvRowKeyMapping[]) {
     const state = stateMap.get(modRoot);
     if (!state) return;
     applySavedCsvRowKeyMapDraft(state, tab, keyMap);
   }
 
-  function pushCsvDraftResult(table: TableKey, result: CsvDraftResult, modRoot = activeModRoot.value) {
+  function pushCsvDraftResult(table: CsvTableKey, result: CsvDraftResult, modRoot = activeModRoot.value) {
     if (!modRoot || !result.historyOperation || !result.historyLabel) return;
     revokeTableReads(modRoot, table);
     csvEditHistory.pushCsvDraftOperation(modRoot, table, result.historyOperation, result.historyLabel);

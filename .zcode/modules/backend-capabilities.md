@@ -6,12 +6,26 @@
 
 ## 参考
 
-`scripts/architecture/rules/command-boundary.mjs`：command 来源与唯一 owner 检查。
-`scripts/shared/command-policy.mjs`：正式 command 实现归属表。
-`scripts/shared/frontend-source.mjs`：词法调用、绑定与源码位置事实。
-`src-tauri/src/commands/mod.rs`：command 模块注册及共享所属会话校验入口主归属。
-`src/shared/runtime/command-runtime.spec.ts`：传输与来源诊断验收。
-`src/shared/runtime/command.runtime.ts`：唯一原始 invoke owner。
+### 拥有
+
+- `src-tauri/src/commands/mod.rs`：command 模块注册及共享所属会话校验入口。
+- `src/services/application-commands.spec.ts`：应用、窗口、设置及会话的 command 参数交接验证。
+- `src/services/persistence-commands.spec.ts`：跨业务写入与回放的 wire 参数交接验证。
+- `src/services/reading-commands.spec.ts`：正式只读能力的传输、身份与查询结果验证。
+- `src/services/session-query-invalidation.spec.ts`：全部业务查询与标准失效范围的跨入口验证。
+
+### 消费
+
+- `src-tauri/src/models/mod.rs`：正式模型导出、serde 输入原语与共享去重追加函数。
+- `src-tauri/src/models/project_identity.rs`：command 消费的所属 session 与 Mod 根范围契约。
+- `src/shared/runtime/command-runtime.spec.ts`：传输与来源诊断验收。
+- `src/shared/runtime/command.runtime.ts`：唯一原始 invoke。
+
+### 关联
+
+- `scripts/architecture/rules/command-boundary.mjs`：command 来源与唯一 检查。
+- `scripts/shared/command-policy.mjs`：正式 command 实现归属表。
+- `scripts/shared/frontend-source.mjs`：词法调用、绑定与源码位置事实。
 
 ## 边界
 

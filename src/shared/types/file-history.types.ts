@@ -1,14 +1,25 @@
-export interface FileSaveHistoryEntry {
+export interface FileHistoryEntrySummary {
   id: number;
   timestamp: number;
   paths: string[];
   label: string;
 }
 
-export type FileHistoryItem = FileSaveHistoryEntry;
-
 export interface FileHistorySnapshot {
   revision: number;
-  undoStack: FileSaveHistoryEntry[];
-  redoStack: FileSaveHistoryEntry[];
+  undoStack: FileHistoryEntrySummary[];
+  redoStack: FileHistoryEntrySummary[];
+}
+
+export interface ApplyFileChangeSetPayload {
+  sessionId: string;
+  modRoot: string;
+  direction: import('@/shared/types/file-changes.types').FileChangeReplayDirection;
+  entryId: number;
+  revision: number;
+}
+
+export interface FileHistoryPayload {
+  sessionId: string;
+  modRoot: string;
 }

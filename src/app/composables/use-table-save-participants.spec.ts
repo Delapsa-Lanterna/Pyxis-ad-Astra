@@ -16,10 +16,9 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: mocks.registration }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({ listenEditTargetHandoff: async () => () => {} }));
 vi.mock('@/orchestrators/table-save.orchestrator', () => ({ saveTableChanges: mocks.save, pendingTableSave: () => null }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ retryPendingWritesForMod: mocks.retry }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ retryPendingModSyncs: mocks.retry }));
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
@@ -28,7 +27,15 @@ describe('all loaded CSV save participants', () => {
   it('registers complete wire targets and releases them when the Mod is removed', async () => {
     const wrapper = mount({
       setup() {
-        useEditTargetHandoff();
+        useEditTargetHandoff({
+          error: mocks.error,
+          success: vi.fn(),
+          info: vi.fn(),
+          warning: vi.fn(),
+          confirmWarning: vi.fn(),
+          confirmDanger: vi.fn(),
+          choose: async () => null,
+        });
         useTableSaveParticipants({} as AppFeedback, async () => []);
         return () => null;
       },
@@ -102,7 +109,7 @@ describe('all loaded CSV save participants', () => {
     });
     inputs.register({ key: 'name', label: '名称', dirty: rawDirty, commit, cancel: () => {}, focus: () => {} });
     expect(participant.editing!.dirty.value).toBe(true);
-    await participant.editing!.commitInputs();
+    await participant.editing!.draftSession.inputs.commit();
     expect(commit).toHaveBeenCalledOnce();
     expect(participant.editing!.dirty.value).toBe(false);
     const release = commands.holdParticipants([participant], 'keep-lock');

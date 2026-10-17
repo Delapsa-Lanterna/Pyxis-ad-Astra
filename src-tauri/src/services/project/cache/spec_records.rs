@@ -1,7 +1,8 @@
+use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::AppResult,
     io::{FsRootBoundary, forward_slash_path, walk_json_dir},
-    models::{EntityFileLocation, LoadedSpecRecord, ResourceSource},
+    models::{EntityFileLocation, ResourceSource},
 };
 use std::{collections::BTreeMap, path::Path};
 

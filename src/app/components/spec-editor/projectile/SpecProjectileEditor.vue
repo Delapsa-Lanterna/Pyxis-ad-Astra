@@ -1,6 +1,6 @@
 <template>
-  <div class="modal-backdrop">
-    <div class="editor-window">
+  <div class="modal-backdrop ui-layout-grid">
+    <div class="editor-window ui-content-grid ui-content-surface">
       <EditorHeader
         title="弹体编辑器"
         :subtitle="projectileId"
@@ -10,11 +10,11 @@
       >
         <n-button size="small" @click="actions.resetView">重置视图</n-button>
       </EditorHeader>
-      <div class="editor-body">
-        <div ref="stageRef" class="canvas-stage">
+      <div class="editor-body ui-content-contained">
+        <div ref="stageRef" class="canvas-stage ui-content-contained ui-content-surface-muted">
           <canvas
             ref="canvasRef"
-            class="editor-canvas"
+            class="editor-canvas ui-canvas-image"
             aria-label="弹体静态画布"
             @mousedown="canvas.onDown"
             @mousemove="canvas.onMove"
@@ -23,7 +23,13 @@
             @wheel.prevent="canvas.onWheel"
             @contextmenu.prevent
           />
-          <div v-if="view.spriteNotice" class="projectile-canvas-notice" role="status">{{ view.spriteNotice }}</div>
+          <div
+            v-if="view.spriteNotice"
+            class="projectile-canvas-notice ui-text-muted ui-text-small ui-text-wrap ui-control-border ui-content-surface"
+            role="status"
+          >
+            {{ view.spriteNotice }}
+          </div>
         </div>
         <EditorInspector
           title="弹体检查器"
@@ -33,8 +39,9 @@
         >
           <n-collapse v-model:expanded-names="view.expandedSections" :theme-overrides="editorCollapseTheme">
             <n-collapse-item title="基础属性" name="basic">
-              <div class="form-grid">
-                <label>id</label><n-input :value="projectileId" disabled /> <label>specClass</label
+              <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
+                <label class="form-grid-label ui-text-muted ui-text-small">id</label><n-input :value="projectileId" disabled />
+                <label class="form-grid-label ui-text-muted ui-text-small">specClass</label
                 ><n-select
                   :value="document.specClass"
                   :options="toOptions(['projectile', 'missile'])"
@@ -44,20 +51,22 @@
             </n-collapse-item>
             <template v-if="view.showProjectileSections">
               <n-collapse-item title="弹体外观" name="visual">
-                <div class="form-grid">
-                  <label>spawnType</label
+                <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
+                  <label class="form-grid-label ui-text-muted ui-text-small">spawnType</label
                   ><n-select
                     :options="toOptions([...PROJECTILE_SPAWN_TYPES])"
                     :value="document.spawnType"
                     @update:value="actions.setField('spawnType', $event)"
                   />
-                  <label>bulletSprite</label
-                  ><n-input :value="document.bulletSprite" @update:value="actions.setField('bulletSprite', $event)" /> <label>length</label
-                  ><NumberValueInput :value="document.length" @update:value="actions.setField('length', $event)" /> <label>width</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">bulletSprite</label
+                  ><n-input :value="document.bulletSprite" @update:value="actions.setField('bulletSprite', $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">length</label
+                  ><NumberValueInput :value="document.length" @update:value="actions.setField('length', $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">width</label
                   ><NumberValueInput :value="document.width" @update:value="actions.setField('width', $event)" />
-                  <label>textureScrollSpeed</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">textureScrollSpeed</label
                   ><NumberValueInput :value="document.textureScrollSpeed" @update:value="actions.setField('textureScrollSpeed', $event)" />
-                  <label>pixelsPerTexel</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">pixelsPerTexel</label
                   ><NumberValueInput :value="document.pixelsPerTexel" @update:value="actions.setField('pixelsPerTexel', $event)" />
                 </div>
                 <ColorPicker label="fringeColor" v-model="view.fringeColor" />
@@ -65,8 +74,8 @@
                 <n-button size="small" tertiary @click="actions.pickProjectileSprite('bulletSprite')">浏览贴图（引用 Mod 内文件）</n-button>
               </n-collapse-item>
               <n-collapse-item title="碰撞与消散" name="collision">
-                <div class="form-grid">
-                  <label>collisionClass</label
+                <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
+                  <label class="form-grid-label ui-text-muted ui-text-small">collisionClass</label
                   ><n-select
                     :options="
                       toOptions([
@@ -84,30 +93,35 @@
                     :value="document.collisionClass"
                     @update:value="actions.setField('collisionClass', $event)"
                   />
-                  <label>collisionClassByFighter</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">collisionClassByFighter</label
                   ><n-input :value="document.collisionClassByFighter" @update:value="actions.setField('collisionClassByFighter', $event)" />
-                  <label>fadeTime</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">fadeTime</label
                   ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)" />
-                  <label>hitGlowRadius</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">hitGlowRadius</label
                   ><NumberValueInput :value="document.hitGlowRadius" @update:value="actions.setField('hitGlowRadius', $event)" />
                 </div>
               </n-collapse-item>
             </template>
             <template v-else-if="view.showMissileSections">
               <n-collapse-item title="导弹外观" name="missileVisual">
-                <div class="form-grid">
-                  <label>missileType</label
+                <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
+                  <label class="form-grid-label ui-text-muted ui-text-small">missileType</label
                   ><n-select
                     :value="document.missileType"
                     :options="toOptions([...MISSILE_TYPES])"
                     @update:value="actions.setField('missileType', $event)"
                   />
-                  <label>sprite</label><n-input :value="document.sprite" @update:value="actions.setField('sprite', $event)" />
-                  <label>size W</label><NumberValueInput :value="view.size[0]" @update:value="actions.setArray('size', 0, $event)" />
-                  <label>size H</label><NumberValueInput :value="view.size[1]" @update:value="actions.setArray('size', 1, $event)" />
-                  <label>center X</label><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)" />
-                  <label>center Y</label><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)" />
-                  <label>collisionRadius</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">sprite</label
+                  ><n-input :value="document.sprite" @update:value="actions.setField('sprite', $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">size W</label
+                  ><NumberValueInput :value="view.size[0]" @update:value="actions.setArray('size', 0, $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">size H</label
+                  ><NumberValueInput :value="view.size[1]" @update:value="actions.setArray('size', 1, $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">center X</label
+                  ><NumberValueInput :value="view.center[0]" @update:value="actions.setArray('center', 0, $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">center Y</label
+                  ><NumberValueInput :value="view.center[1]" @update:value="actions.setArray('center', 1, $event)" />
+                  <label class="form-grid-label ui-text-muted ui-text-small">collisionRadius</label
                   ><NumberValueInput :value="document.collisionRadius" @update:value="actions.setField('collisionRadius', $event)" />
                 </div>
                 <ColorPicker label="explosionColor" v-model="view.explosionColor" />
@@ -117,8 +131,12 @@
                 <JsonValueInput :value="view.engineSpec" label="engineSpec" shape="object" @update="view.engineSpec = $event" />
               </n-collapse-item>
               <n-collapse-item title="引擎槽位" name="slots">
-                <div class="bounds-list">
-                  <div v-for="(slot, i) in view.engineSlots" :key="entryKey('engine-slot', slot, i)">
+                <div class="bounds-list ui-layout-grid">
+                  <div
+                    class="bounds-list-content ui-layout-grid ui-layout-center ui-control-border ui-content-surface"
+                    v-for="(slot, i) in view.engineSlots"
+                    :key="entryKey('engine-slot', slot, i)"
+                  >
                     <span>{{ i }}</span>
                     <NumberValueInput :value="view.slotLoc(slot)[0]" @update:value="actions.setSlotLoc(i, 0, $event)" />
                     <NumberValueInput :value="view.slotLoc(slot)[1]" @update:value="actions.setSlotLoc(i, 1, $event)" />
@@ -128,14 +146,14 @@
                 <n-button @click="actions.addEngineSlot">添加引擎槽</n-button>
               </n-collapse-item>
               <n-collapse-item title="爆炸与时间" name="explosion">
-                <div class="form-grid">
-                  <label>explosionRadius</label
+                <div class="form-grid ui-layout-grid ui-layout-shrink ui-layout-center">
+                  <label class="form-grid-label ui-text-muted ui-text-small">explosionRadius</label
                   ><NumberValueInput :value="document.explosionRadius" @update:value="actions.setField('explosionRadius', $event)" />
-                  <label>flameoutTime</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">flameoutTime</label
                   ><NumberValueInput :value="document.flameoutTime" @update:value="actions.setField('flameoutTime', $event)" />
-                  <label>armingTime</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">armingTime</label
                   ><NumberValueInput :value="document.armingTime" @update:value="actions.setField('armingTime', $event)" />
-                  <label>fadeTime</label
+                  <label class="form-grid-label ui-text-muted ui-text-small">fadeTime</label
                   ><NumberValueInput :value="document.fadeTime" @update:value="actions.setField('fadeTime', $event)" />
                 </div>
                 <JsonValueInput :value="view.explosionSpec" label="explosionSpec" shape="object" @update="view.explosionSpec = $event" />

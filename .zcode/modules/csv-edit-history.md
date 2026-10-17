@@ -6,12 +6,18 @@
 
 ## 参考
 
-`src/domain/edit-session.ts`：草稿历史消费的共享撤销栈结构，业务操作反演由表格领域提供。
-`src/domain/tables/csv-edit-history.ts`：操作应用与反演 owner，负责 undo/redo 时的行值与行数维护。
-`src/domain/tables/csv-table-draft.ts`：draft operation 生产 owner，拥有单元格变更、新建行与删除行操作。
-`src/orchestrators/main-history-command.orchestrator.ts`：主窗口历史分派 owner，CSV 优先于文件历史。
-`src/stores/tables-edit-history.store.ts`：历史 store owner，按 `modRoot -> tableKey` 管理双栈与 `historyLimit`。
-`src/stores/tables.store.ts`：draft 结果消费方，把操作提交与行身份清理接入运行态。
+### 拥有
+
+- `src/domain/tables/csv-edit-history.ts`：操作应用与反演，负责 undo/redo 时的行值与行数维护。
+- `src/domain/tables/csv-table-draft.ts`：draft operation 生产，拥有单元格变更、新建行与删除行操作。
+- `src/stores/tables-edit-history.store.ts`：历史 store，按 `modRoot -> tableKey` 管理双栈与 `historyLimit`。
+
+### 消费
+
+- `src/domain/edit-session.ts`：草稿历史消费的共享撤销栈结构，业务操作反演由表格领域提供。
+- `src/orchestrators/main-history-command.orchestrator.ts`：主窗口历史分派，CSV 优先于文件历史。
+- `src/shared/types/tables-edit-history.types.ts`：CSV 操作及历史条目契约。
+- `src/stores/tables.store.ts`：draft 结果消费方，把操作提交与行身份清理接入运行态。
 
 ## 边界
 

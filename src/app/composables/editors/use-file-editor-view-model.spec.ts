@@ -10,7 +10,13 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture());
 });
 
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ applyCommittedWriteCacheInvalid: vi.fn() }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
+  emitEntityIdentityApplied: vi.fn(async () => {}),
+  listenEntityIdentityApplied: vi.fn(async (handler) => {
+    mocks.identityHandler = handler;
+    return () => {};
+  }),
+}));
 
 const mocks = vi.hoisted(() => ({
   identityHandler: null as null | ((event: import('@/windows/window.events').EntityIdentityAppliedEvent) => Promise<void>),
@@ -53,13 +59,6 @@ vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
   releaseCommittedIdentityTargets: vi.fn(async () => {}),
   retargetFileWindow: vi.fn(async () => {}),
-}));
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({
-  emitEntityIdentityApplied: vi.fn(async () => {}),
-  listenEntityIdentityApplied: vi.fn(async (handler) => {
-    mocks.identityHandler = handler;
-    return () => {};
-  }),
 }));
 
 vi.mock('@/orchestrators/file-editor-window.orchestrator', () => ({
@@ -107,18 +106,13 @@ describe('useFileEditorViewModel loading', () => {
     viewModel.dispose();
   });
 
-  it('reports load failures through feedback', async () => {
+  it('delivers initial read failure through its acceptance promise', async () => {
     mocks.loadEditableFileData.mockRejectedValue(new Error('unreadable'));
-    const viewModel = await initializeViewModel(paramsFixture());
-    expect(mocks.feedback.error).toHaveBeenCalledWith(expect.anything(), '打开文件失败');
-    viewModel.dispose();
+    await expect(initializeViewModel(paramsFixture())).rejects.toThrow('unreadable');
   });
-
   it('refuses to operate without a file path', async () => {
-    const viewModel = await initializeViewModel(paramsFixture({ filePath: null }));
+    await expect(initializeViewModel(paramsFixture({ filePath: null }))).rejects.toThrow('文件目标不可用');
     expect(mocks.feedback.error).toHaveBeenCalledWith('缺少文件路径');
-    expect(viewModel.text.value).toBe('');
-    viewModel.dispose();
   });
 });
 

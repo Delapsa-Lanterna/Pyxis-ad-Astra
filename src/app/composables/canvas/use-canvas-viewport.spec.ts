@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ref, shallowRef } from 'vue';
 import { useCanvasViewport } from './use-canvas-viewport';
+import { useCanvasNavigation } from './use-canvas-navigation';
 
 function fakeCanvas(width = 400, height = 200): HTMLCanvasElement {
   return {
@@ -13,6 +14,31 @@ function fakeCanvas(width = 400, height = 200): HTMLCanvasElement {
 
 describe('useCanvasViewport', () => {
   afterEach(() => vi.unstubAllGlobals());
+  it.each([1, 1.25, 1.5, 2])('keeps the pointer world position fixed after pan and clamped zoom at DPR %s', (ratio) => {
+    vi.stubGlobal('devicePixelRatio', ratio);
+    const viewport = useCanvasViewport(shallowRef(fakeCanvas()), 1, 10);
+    viewport.resize(400, 200);
+    viewport.panBy(30, -20);
+    const draw = vi.fn(),
+      navigation = useCanvasNavigation(viewport, draw, 'pointer');
+    const anchor = { x: 73, y: 142 },
+      point = viewport.fromCanvas('ship', anchor.x, anchor.y);
+    for (const deltaY of [-1, 1, ...Array(100).fill(-1), ...Array(100).fill(1)]) {
+      navigation.wheel(new WheelEvent('wheel', { deltaY, clientX: anchor.x, clientY: anchor.y }));
+      const projected = viewport.toCanvas('ship', point.x, point.y);
+      expect(projected.x).toBeCloseTo(anchor.x);
+      expect(projected.y).toBeCloseTo(anchor.y);
+    }
+    expect(draw).toHaveBeenCalledTimes(202);
+  });
+  it('keeps the default zoom origin and pan fixed regardless of pointer position', () => {
+    const viewport = useCanvasViewport(shallowRef(fakeCanvas()), 1, 10);
+    viewport.panBy(30, -20);
+    const origin = viewport.center();
+    useCanvasNavigation(viewport, vi.fn()).wheel(new WheelEvent('wheel', { deltaY: -1, clientX: 73, clientY: 142 }));
+    expect(viewport.center()).toEqual(origin);
+    expect(viewport.scale.value).toBeCloseTo(1.1);
+  });
   it('centers on the canvas midpoint plus pan', () => {
     const canvas = shallowRef(fakeCanvas());
     const viewport = useCanvasViewport(canvas, 1, 10);

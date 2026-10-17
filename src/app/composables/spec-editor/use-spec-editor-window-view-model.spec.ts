@@ -14,9 +14,8 @@ import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceCacheByProject } from '@/services/resource-cache.service';
-import type { SpecEditorData, SpecEditorKind } from '@/shared/types/index';
+import type { SpecEditorData, SpecEditorKind, WriteResult, RowData } from '@/shared/types/index';
 import { listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
-import type { WriteResult } from '@/shared/types/index';
 
 const mocks = vi.hoisted(() => ({
   identityHandler: null as null | ((event: import('@/windows/window.events').EntityIdentityAppliedEvent) => Promise<void>),
@@ -80,12 +79,13 @@ vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
   retargetEntityWindow: vi.fn(async () => {}),
   releaseCommittedIdentityTargets: vi.fn(async () => {}),
 }));
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({
-  emitEntityIdentityApplied: vi.fn(async () => {}),
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
   listenEntityIdentityApplied: vi.fn(async (handler) => {
     mocks.identityHandler = handler;
     return () => {};
   }),
+  listenProjectSessionInvalidated: vi.fn(async () => async () => {}),
+  invalidateProjectionCaches: vi.fn(),
 }));
 
 vi.mock('@/orchestrators/editor-window.orchestrator', () => ({
@@ -94,12 +94,6 @@ vi.mock('@/orchestrators/editor-window.orchestrator', () => ({
     mocks.specSavedHandler.current = handler as never;
     return async () => {};
   }),
-}));
-
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
-  applyProjectSessionCacheInvalid: vi.fn(),
-  applyCommittedWriteCacheInvalid: vi.fn(),
-  listenProjectSessionInvalidated: vi.fn(async () => async () => {}),
 }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
@@ -122,7 +116,6 @@ vi.mock('@/windows/current.window', () => ({
 }));
 
 import { useSpecEditorWindowViewModel } from './use-spec-editor-window-view-model';
-import type { RowData } from '@/shared/types/index';
 
 function shipBundleFixture(isNew = false): SpecEditorData<'ship'> {
   return {

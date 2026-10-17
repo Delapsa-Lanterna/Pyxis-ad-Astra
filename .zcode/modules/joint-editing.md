@@ -6,24 +6,50 @@
 
 ## 参考
 
-`src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command owner。
-`src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影 owner。
-`src-tauri/src/domain/joint_hull.rs`：有效舰体字段来源、Skin 继承与有效武器槽的纯投影 owner。
-`src-tauri/src/models/joint_edit.rs`：联合根、来源记录、缺失值、冲突与提交模型 owner。
-`src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配 owner。
-`src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接 owner。
-`src-tauri/src/services/project/write/variant_identity.rs`：装配身份改名消费当前 Mod 父引用并装配同根 changeset 的写入 owner。
-`src/app/components/JointEditConflictChoices.vue`：三个来源与字段选择展示 owner。
-`src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期 owner。
-`src/app/composables/use-joint-edit-actions.ts`：确认、冲突选择和领域动作装配 owner。
-`src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
-`src/app/composables/use-table-save-participants.ts`：主窗口后台 CSV 保存交接适配器。
-`src/domain/joint-edit.ts`：物理范围比较、冲突选择与文本投影 owner。
-`src/orchestrators/edit-target-handoff.orchestrator.ts`：保存准备、跨窗口请求、预约及释放 owner。
-`src/orchestrators/joint-edit.orchestrator.ts`：联合读取、冲突确认与提交顺序 owner。
-`src/services/joint-edit.service.ts`：三个 command 的类型化协议装配 owner。
-`src/shared/types/joint-edit.types.ts`：前端联合记录、冲突及交接协议 owner。
-`src/stores/save-command.store.ts`：保存参与者、所属句柄和短暂交接锁登记 owner。
+### 拥有
+
+- `src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command。
+- `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影。
+- `src-tauri/src/domain/joint_hull.rs`：有效舰体字段来源、Skin 继承与有效武器槽的纯投影。
+- `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配。
+- `src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接。
+- `src-tauri/src/services/project/write/joint_edit_tests.rs`：联合保存、来源补全及身份写入验证。
+- `src-tauri/src/services/project/write/variant_identity.rs`：装配身份改名消费当前 Mod 父引用并装配同根 changeset 的写入。
+- `src/app/components/JointEditConflictChoices.vue`：三个来源与字段选择展示。
+- `src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期。
+- `src/app/composables/use-joint-edit-actions.ts`：确认、冲突选择和领域动作装配。
+- `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
+- `src/app/composables/use-table-save-participants.ts`：主窗口后台 CSV 保存交接适配器。
+- `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
+- `src/orchestrators/edit-target-handoff.orchestrator.ts`：保存准备、跨窗口请求、预约及释放。
+- `src/orchestrators/joint-edit.orchestrator.ts`：联合读取、冲突确认与提交顺序。
+- `src/services/joint-edit.service.ts`：三个 command 的类型化协议装配。
+
+### 消费
+
+- `src-tauri/src/models/joint_edit.rs`：联合根、来源记录、缺失值、冲突与提交模型。
+- `src-tauri/src/models/project_identity.rs`：联合来源消费的实体、CSV 表与版本身份。
+- `src-tauri/src/models/write_commit.rs`：联合提交消费的公共回执与行键映射。
+- `src-tauri/src/services/project/model.rs`：来源装配消费的已加载记录。
+- `src-tauri/src/services/project/write/csv_staging.rs`：联合表草稿、最终渲染与写盘成功后的会话接纳。
+- `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
+- `src/domain/edit-session.ts`：保存准备与跨窗口请求消费的目标重叠比较。
+- `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/shared/types/joint-edit.types.ts`：前端联合记录、冲突及交接协议。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/stores/save-command.store.ts`：保存参与者、所属句柄和短暂交接锁登记。
+- `src/test/entity-target.ts`：正式实体目标及版本的测试构造。
+- `src/test/joint-edit.ts`：联合快照与来源记录的测试构造。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `src/shared/lib/row-data.ts`：JSON 对象形状判断及错误交接。
+- `src/shared/lib/stable-compare.ts`：结构化值的稳定序列化及相等判断。
+- `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
 
 ## 边界
 
@@ -67,6 +93,7 @@
 
 ## 规范
 
+- CSV 暂存必须先合并规格身份、字段、描述及注释首列，再按最终表各渲染一次；回执与会话必须消费同一最终表和实际提交文本。
 - CSV 来源目录必须一次准备所属表的身份索引；行键匹配必须保持注释身份与 description 的 id/type 组合。
 - CSV 补列必须以明确字段提交为依据；标准列必须按已配置 Core 表头或正式列资产排序，自定义列必须保持相对顺序并位于末尾。
 - CSV、配置、文本与专项保存参与者必须登记完整物理范围，输入、dirty、saving 和历史必须保持所属会话 owner；原生目标登记只允许由窗口能力维护。

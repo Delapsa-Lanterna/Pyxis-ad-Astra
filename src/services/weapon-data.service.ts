@@ -1,4 +1,5 @@
-import { querySessionEntity, querySessionEditorDraftResources } from '@/services/entity-query.service';
+import { querySessionEntity } from '@/services/entity-query.service';
+import { querySessionDraftResources } from '@/services/resource-reference.service';
 import { queryResourceDataUrls } from '@/services/resource-cache.service';
 import { AppError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
@@ -28,7 +29,7 @@ export async function queryWeaponSpecData(
   const isNew = Object.keys(savedWeaponSpec).length === 0;
   const weaponSpec = weaponOverride ?? (isNew ? createWeaponSpec(id, inferWeaponSpecClass(weaponCsvRow)) : savedWeaponSpec);
   const resourceRefs = weaponOverride
-    ? await querySessionEditorDraftResources(sessionId, 'weapon', id, weaponOverride, signal)
+    ? await querySessionDraftResources(sessionId, 'weapon', id, weaponOverride, signal)
     : weapon.resourceRefs;
   return {
     weapon: weaponSpec,

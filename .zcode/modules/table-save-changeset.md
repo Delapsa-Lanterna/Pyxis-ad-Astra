@@ -6,17 +6,38 @@
 
 ## 参考
 
-`src-tauri/src/domain/csv_column_order.rs`：CSV 标准列资产与补列排序 owner，供联合 write 消费。
-`src-tauri/src/domain/spec_construction.rs`：关联规格创建构造与武器类型约束 owner。
-`src-tauri/src/services/project/write/`：后端写入 owner，合成 CSV 与关联目标并构建 changeset。
-`src/domain/tables/associated-spec-candidates.ts`：关联 spec 候选与动作快照 owner。
-`src/domain/tables/associated-spec-creation.ts`：CSV 到创建参数与武器评分 owner。
-`src/domain/tables/csv-dirty.ts`：dirty 行形状 owner。
-`src/orchestrators/edit-target-handoff.orchestrator.ts`：消费所属 CSV 保存参与者、短暂表锁与写结果。
-`src/orchestrators/file-history-write.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
-`src/orchestrators/table-save.orchestrator.spec.ts`：保存编排行为测试。
-`src/orchestrators/table-save.orchestrator.ts`：保存编排 owner，以 `saveTableChanges` 拥有明确 Mod／表的输入提交、快照捕获、关联选择、写入与 receipt 接纳。
-`src/services/csv-table.service.ts`：CSV 查询与保存能力包装，提交 patches、版本凭据与关联动作。
+### 拥有
+
+- `src-tauri/src/domain/csv_column_order.rs`：CSV 标准列资产与补列排序，供联合 write 消费。
+- `src-tauri/src/domain/spec_construction.rs`：关联规格创建构造与武器类型约束。
+- `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
+- `src-tauri/src/services/project/write/csv_staging.rs`：CSV 表草稿、最终文本暂存及成功写盘后的会话接纳。
+- `src/domain/tables/associated-spec-candidates.ts`：关联 spec 候选与动作快照。
+- `src/domain/tables/associated-spec-creation.ts`：CSV 到创建参数与武器评分。
+- `src/domain/tables/csv-dirty.ts`：dirty 行形状。
+- `src/orchestrators/table-save.orchestrator.ts`：保存编排，以 `saveTableChanges` 拥有明确 Mod／表的输入提交、快照捕获、关联选择、写入与 receipt 接纳。
+
+### 消费
+
+- `src-tauri/src/models/table_save.rs`：CSV 保存请求、行修改、关联规格动作与写入目标。
+- `src-tauri/src/services/project/cache/csv.rs`：按会话读取表快照并保留所属行身份与分配序列。
+- `src/orchestrators/edit-target-handoff.orchestrator.ts`：消费所属 CSV 保存参与者、短暂表锁与写结果。
+- `src/orchestrators/project-sync.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
+- `src/services/csv-table.service.ts`：CSV 查询与保存能力包装，提交 patches、版本凭据与关联动作。
+- `src/shared/types/table-save.types.ts`：CSV 保存请求、行修改、关联规格动作及正式写入目标契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
+- `src-tauri/src/services/project/write/ship_description_tests.rs`：舰船身份与描述行联合更新的集成验证。
+- `src-tauri/src/services/project/write/weapon_description_tests.rs`：武器身份与描述行联合更新的集成验证。
+- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
+- `src/orchestrators/table-save.orchestrator.spec.ts`：保存编排行为测试。
 
 ## 边界
 
@@ -59,6 +80,8 @@
 - CSV patch 保存必须原样保留文件自身表头与列集；联合字段补列必须消费明确提交意图及标准列顺序，全部 CSV 保存必须保留行序、注释身份、未知列与业务内容，并以真实格式测试验收。
 - CSV patch 必须携带读取基线与 `isComment`，恢复行必须携带 `insertAt`；正式 `rowKey` 删除必须命中实际行，未知键必须返回冲突。
 - CSV 保存必须消费正式 parser 的列数容忍、注释和空行模型，渲染必须使用最小引号规则及 LF 行。
+- CSV 新增行的 `insertAt` 必须将省略与 `null` 共同解释为末尾插入；显式位置必须沿现有插入规则处理。
+- CSV 暂存必须共同交付表身份、表头、行、分配序列及最终文本；正式表状态只允许在同根 changeset 应用成功后消费该暂存结果。
 - upsert patch 必须构造提交时的独立行快照，业务内容只允许从行记录 data 独立克隆，恢复位置必须从 `insertAt` 装配。
 - upsert 的注释标记必须与业务快照共同固定并更新实际基线；关联规格候选必须消费原始行及当前行的正式注释身份。
 - 保存入口必须显式接收 manifest 与 table，结果必须共同表达 status 与已写盘 receipt；关联表准备必须复用该动作。

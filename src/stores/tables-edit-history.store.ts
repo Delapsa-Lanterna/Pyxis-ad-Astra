@@ -14,7 +14,7 @@ import {
   setUndoStackLimit,
   type UndoStackState,
 } from '@/domain/edit-session';
-import type { CsvRowKeyMapping, ModTableState, TableKey } from '@/shared/types';
+import type { CsvRowKeyMapping, ModTableState, CsvTableKey } from '@/shared/types';
 import { applyCsvEditRedo, applyCsvEditUndo } from '@/domain/tables/csv-edit-history';
 import type { CsvDraftOperation, CsvEditHistoryEntry } from '@/shared/types';
 
@@ -25,10 +25,10 @@ function createCsvEditHistoryStack(limit: number): CsvEditHistoryStack {
 }
 
 export const useTablesEditHistoryStore = defineStore('tables-edit-history', () => {
-  const stateMap = reactive<Map<string, Map<TableKey, CsvEditHistoryStack>>>(new Map());
+  const stateMap = reactive<Map<string, Map<CsvTableKey, CsvEditHistoryStack>>>(new Map());
   const historyLimit = ref(100);
 
-  function getOrCreateStack(modRoot: string, table: TableKey): CsvEditHistoryStack {
+  function getOrCreateStack(modRoot: string, table: CsvTableKey): CsvEditHistoryStack {
     let tableStates = stateMap.get(modRoot);
     if (!tableStates) {
       tableStates = new Map();
@@ -42,27 +42,27 @@ export const useTablesEditHistoryStore = defineStore('tables-edit-history', () =
     return stack;
   }
 
-  function getStack(modRoot: string, table: TableKey): CsvEditHistoryStack | undefined {
+  function getStack(modRoot: string, table: CsvTableKey): CsvEditHistoryStack | undefined {
     return stateMap.get(modRoot)?.get(table);
   }
 
-  function pushCsvDraftOperation(modRoot: string, table: TableKey, operation: CsvDraftOperation, label: string) {
+  function pushCsvDraftOperation(modRoot: string, table: CsvTableKey, operation: CsvDraftOperation, label: string) {
     if (!modRoot) return;
     const stack = getOrCreateStack(modRoot, table);
     pushUndoEntry(stack, { id: nextUndoStackId(stack, 'csv_edit'), timestamp: Date.now(), operation, label });
   }
 
-  function canUndoCsvEdit(modRoot: string, table: TableKey): boolean {
+  function canUndoCsvEdit(modRoot: string, table: CsvTableKey): boolean {
     const stack = getStack(modRoot, table);
     return stack ? canUndoEntry(stack) : false;
   }
 
-  function canRedoCsvEdit(modRoot: string, table: TableKey): boolean {
+  function canRedoCsvEdit(modRoot: string, table: CsvTableKey): boolean {
     const stack = getStack(modRoot, table);
     return stack ? canRedoEntry(stack) : false;
   }
 
-  function undoCsvEdit(modRoot: string, table: TableKey, tableState: ModTableState | undefined): string | null {
+  function undoCsvEdit(modRoot: string, table: CsvTableKey, tableState: ModTableState | undefined): string | null {
     const stack = getStack(modRoot, table);
     const entry = stack ? peekUndoEntry(stack) : undefined;
     if (!stack || !entry) return null;
@@ -72,7 +72,7 @@ export const useTablesEditHistoryStore = defineStore('tables-edit-history', () =
     return entry.label;
   }
 
-  function redoCsvEdit(modRoot: string, table: TableKey, tableState: ModTableState | undefined): string | null {
+  function redoCsvEdit(modRoot: string, table: CsvTableKey, tableState: ModTableState | undefined): string | null {
     const stack = getStack(modRoot, table);
     const entry = stack ? peekRedoEntry(stack) : undefined;
     if (!stack || !entry) return null;
@@ -82,13 +82,13 @@ export const useTablesEditHistoryStore = defineStore('tables-edit-history', () =
     return entry.label;
   }
 
-  function clearCsvEditHistory(modRoot: string, table: TableKey) {
+  function clearCsvEditHistory(modRoot: string, table: CsvTableKey) {
     const tableStates = stateMap.get(modRoot);
     tableStates?.delete(table);
     if (tableStates?.size === 0) stateMap.delete(modRoot);
   }
 
-  function applySavedRowKeyMap(modRoot: string, table: TableKey, keyMap: CsvRowKeyMapping[]) {
+  function applySavedRowKeyMap(modRoot: string, table: CsvTableKey, keyMap: CsvRowKeyMapping[]) {
     const stack = getStack(modRoot, table);
     if (!stack) return;
     const mapped = new Map(keyMap.map((item) => [item.previousKey, item.nextKey]));
@@ -108,7 +108,7 @@ export const useTablesEditHistoryStore = defineStore('tables-edit-history', () =
     }
   }
 
-  function captureSaveHistory(modRoot: string, table: TableKey) {
+  function captureSaveHistory(modRoot: string, table: CsvTableKey) {
     const stack = getStack(modRoot, table);
     return {
       undoIds: new Set(stack?.undoStack.map((entry) => entry.id) ?? []),
@@ -116,7 +116,7 @@ export const useTablesEditHistoryStore = defineStore('tables-edit-history', () =
     };
   }
 
-  function commitSaveHistory(modRoot: string, table: TableKey, submitted: ReturnType<typeof captureSaveHistory>) {
+  function commitSaveHistory(modRoot: string, table: CsvTableKey, submitted: ReturnType<typeof captureSaveHistory>) {
     const stack = getStack(modRoot, table);
     if (!stack) return;
     stack.undoStack = stack.undoStack.filter((entry) => !submitted.undoIds.has(entry.id));

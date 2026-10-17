@@ -1,31 +1,35 @@
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { hasEntityInvalidation } from '@/services/entity-query.service';
+import {
+  refreshProjectSourcePaths,
+  invalidateProjectionCaches,
+  listenProjectSessionInvalidated,
+  listenEntityIdentityApplied,
+} from '@/orchestrators/project-sync.orchestrator';
 import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';
 import type { SpecEditorDefinition, SpecEditorTarget } from './spec-editor.types';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
 import { computed, shallowRef } from 'vue';
 import type { UnlistenFn } from '@/windows/tauri.events';
-import { loadSpecEditorImport } from '@/services/spec-editor.service';
+import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
 import type { SpecEditorKind, RowData, WriteResult, SpecEditorData } from '@/shared/types/index';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { deepClone } from '@/shared/lib/starsector/index';
-import { formatError } from '@/shared/lib/errors';
+import { AppError, formatError } from '@/shared/lib/errors';
 import { normalizeFsPath } from '@/shared/lib/paths';
-import { captureIdentityVersions, handoffTableVersions } from '@/domain/editors/entity-identity';
+import { captureIdentityVersions, handoffTableVersions } from '@/domain/project/entity-versions';
 import { emitEditorSpecSaved, listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
-import { applyProjectSessionCacheInvalid, listenProjectSessionInvalidated } from '@/orchestrators/project-session-refresh.orchestrator';
-import { saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
+
 import { reserveEntityIntent, retargetEntityWindow, releaseCommittedIdentityTargets } from '@/orchestrators/entity-identity.orchestrator';
-import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
-import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
+
+import type { EntityIdentityAppliedEvent, EditorSpecSavedEvent, ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { hasEntityInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { pickEditorSpecFile } from '@/shared/runtime/dialog.runtime';
 import { closeCurrentWindow } from '@/windows/current.window';
 import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
-import type { EditorSpecSavedEvent, ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 
 type MissingSpecChoice = { action: 'create' } | { action: 'import'; data: RowData } | { action: 'cancel' };
 
@@ -146,7 +150,7 @@ export function useSpecEditorWindowViewModel(
       }),
       label: '专项编辑器',
       dirty: draftSession.dirty,
-      commitInputs: () => draftSession.inputs.commit(),
+      draftSession: draftSession,
       save: async () => {
         const snapshot = await draftSession.saveDraft();
         return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
@@ -205,8 +209,10 @@ export function useSpecEditorWindowViewModel(
       }
     } catch (error) {
       if (isReadInvalidated(error)) return;
-      if (options.showLoading) errorText.value = formatError(error);
-      else feedback.error(error, '刷新编辑器失败');
+      if (options.showLoading) {
+        errorText.value = formatError(error);
+        throw error;
+      } else feedback.error(error, '刷新编辑器失败');
     }
   }
 
@@ -277,7 +283,14 @@ export function useSpecEditorWindowViewModel(
     confirmDiscard(draftSession.loadPendingExternal, draftSession.dirty.value, () => draftSession.currentTargetKey.value);
   }
 
+  let setup: Promise<void> | null = null;
   async function initializeEditorWindow() {
+    await (setup ??= setupEditorWindow());
+    if (disposed) return;
+    if (!draftSession.ready.value) await queryEditorData({ promptForMissing: true, showLoading: true });
+    if (!draftSession.ready.value) throw new AppError('规格接纳已取消', { action: 'accept-window' });
+  }
+  async function setupEditorWindow() {
     identityPreparation = await createEntitySavePreparation(feedback, () => draftSession.currentTargetKey.value);
     if (disposed) {
       identityPreparation.dispose();
@@ -302,7 +315,6 @@ export function useSpecEditorWindowViewModel(
       return;
     }
     stopQueryInvalidation = subscribeQueryInvalidations(handleQueryCacheInvalidated);
-    void queryEditorData({ promptForMissing: true, showLoading: true });
   }
 
   function disposeEditorWindow() {
@@ -383,7 +395,7 @@ export function useSpecEditorWindowViewModel(
       normalizeFsPath(event.manifest.modRoot) !== normalizeFsPath(target.modRoot)
     )
       return;
-    applyProjectSessionCacheInvalid(event);
+    invalidateProjectionCaches(event);
   }
 
   function handleQueryCacheInvalidated(event: QueryCacheInvalidationEvent) {

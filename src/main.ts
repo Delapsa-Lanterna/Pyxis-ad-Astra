@@ -1,27 +1,23 @@
 import { createApp, type Component } from 'vue';
 import { createPinia } from 'pinia';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
-import { loadSettings } from '@/services/app-settings.service';
+import { initializeSettings } from '@/orchestrators/settings-persistence.orchestrator';
 import { startPerformanceLogSink, recordLogBestEffort } from '@/services/app-log.service';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
-import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { showCurrentWindow } from '@/windows/current.window';
-import { initializeWindowContext, publishWindowSettings, failWindowStartup } from '@/windows/window-context.window';
-import './styles/index.css';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { showCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
+import { initializeWindowContext, failWindowStartup } from '@/windows/window-context.window';
+import './styles/style.css';
 
 async function bootstrap() {
   const bootstrap = await initializeWindowContext();
   const windowKind = bootstrap.kind === 'main' ? 'main' : bootstrap.context.kind;
   const stopLog = startPerformanceLogSink();
   window.addEventListener('pagehide', stopLog, { once: true });
-  const [Root, settings] = await Promise.all([
-    loadWindowRoot(windowKind),
-    bootstrap.kind === 'main' ? loadSettings() : Promise.resolve(bootstrap.settings.value),
-  ]);
-  initializeSettingsStore(settings);
+  const [Root, settings] = await Promise.all([loadWindowRoot(windowKind), initializeSettings()]);
+  initializeSettingsStore(settings.value);
   const pinia = createPinia();
   const app = createApp(Root).use(pinia);
-  if (bootstrap.kind === 'main') await publishWindowSettings(useSettingsStore(pinia).settingsSnapshot());
   installNaiveUi(app);
   app.mount('#app');
   await showCurrentWindow();
@@ -57,7 +53,8 @@ void bootstrap().catch((error) => {
   const target = document.querySelector('#app');
   if (target) {
     const message = error instanceof Error ? error.message : String(error);
-    target.innerHTML = `<div class="startup-error"><h1>启动失败</h1><pre>${escapeHtml(message)}</pre></div>`;
+    target.innerHTML = `<div class="startup-error"><h1 class="page-title">启动失败</h1><pre class="startup-error-code">${escapeHtml(message)}</pre><button id="startup-retry">重试</button></div>`;
+    target.querySelector('#startup-retry')?.addEventListener('click', reloadCurrentWindow);
   }
   void showCurrentWindow();
 });

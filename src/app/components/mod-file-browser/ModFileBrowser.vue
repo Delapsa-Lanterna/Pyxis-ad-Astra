@@ -1,12 +1,17 @@
 <template>
-  <main class="mod-files-page">
-    <header class="mod-files-header">
-      <div>
-        <h1>Mod 文件</h1>
-        <p :title="view.title">{{ view.title }}</p>
+  <main class="mod-files-page page-content page-slot ui-content-column ui-content-surface-muted">
+    <header class="mod-files-header page-header ui-control-between ui-layout-row ui-control-reset">
+      <div class="mod-files-header-content page-identity ui-layout-grid ui-layout-shrink">
+        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">Mod 文件</h1>
+        <p
+          class="mod-files-header-description page-path ui-text-truncate ui-text-description ui-text-muted ui-text-reset ui-text-small"
+          :title="view.title"
+        >
+          <code class="page-path-code ui-code">{{ view.title }}</code>
+        </p>
       </div>
     </header>
-    <div class="mod-files-toolbar">
+    <div class="mod-files-toolbar ui-layout-row ui-layout-center">
       <n-input
         :value="view.searchText"
         clearable
@@ -15,20 +20,22 @@
         @update:value="actions.setSearch"
         @keydown.enter.prevent="actions.submitSearch"
       />
-      <div class="mod-files-tools">
+      <div class="mod-files-tools ui-layout-row">
         <n-button :disabled="!view.searchText" @click="actions.clearSearch">清空搜索</n-button
         ><n-button :disabled="!view.expanded.length" @click="actions.collapseAll">全部收起</n-button
         ><n-button :loading="view.refreshing" @click="actions.refresh">刷新</n-button>
       </div>
     </div>
-    <p v-if="view.loading" class="mod-files-status" role="status">{{ view.searching ? '正在搜索…' : '正在读取目录…' }}</p>
-    <div v-if="view.error" class="mod-files-error">
-      <span>{{ view.error }}</span
+    <p v-if="view.loading" class="mod-files-status ui-text-muted ui-text-small ui-text-reset" role="status">
+      {{ view.searching ? '正在搜索…' : '正在读取目录…' }}
+    </p>
+    <div v-if="view.error" class="mod-files-error ui-control-between ui-text-small">
+      <span class="mod-files-error-label ui-layout-shrink ui-text-wrap">{{ view.error }}</span
       ><n-button size="small" @click="actions.refresh">重试</n-button>
     </div>
-    <div class="mod-files-table">
-      <div class="mod-files-table-content">
-        <div class="mod-files-columns" role="row">
+    <div class="mod-files-table ui-content-fill ui-control-border ui-content-surface">
+      <div class="mod-files-table-content ui-layout-row ui-layout-stack">
+        <div class="mod-files-columns ui-layout-grid ui-content-surface-muted" role="row">
           <div
             v-for="column in columns"
             :key="column.key"
@@ -36,7 +43,11 @@
             :aria-sort="view.sort.key === column.key ? (view.sort.ascending ? 'ascending' : 'descending') : 'none'"
             :class="{ 'mod-files-number': column.key === 'size' }"
           >
-            <button type="button" @click="actions.setSort(column.key)">
+            <button
+              class="ui-button mod-files-columns-button mod-files-number-button ui-control-button ui-text-soft ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
+              type="button"
+              @click="actions.setSort(column.key)"
+            >
               {{ column.label
               }}<span class="mod-files-sort" aria-hidden="true">{{
                 view.sort.key === column.key ? (view.sort.ascending ? '↑' : '↓') : ''
@@ -44,7 +55,7 @@
             </button>
           </div>
         </div>
-        <div ref="stage" class="mod-files-tree" tabindex="0" aria-label="Mod 文件树" @scroll.capture="onScroll">
+        <div ref="stage" class="mod-files-tree ui-content-contained" tabindex="0" aria-label="Mod 文件树" @scroll.capture="onScroll">
           <n-tree
             v-if="view.ready && view.nodes.length"
             ref="tree"
@@ -62,11 +73,15 @@
             @update:expanded-keys="actions.setExpanded"
             @update:selected-keys="actions.select"
           />
-          <p v-else-if="view.ready && !view.loading" class="mod-files-empty">{{ view.searching ? '未找到匹配项' : '空文件夹' }}</p>
+          <p v-else-if="view.ready && !view.loading" class="mod-files-empty ui-text-muted ui-text-small ui-text-reset">
+            {{ view.searching ? '未找到匹配项' : '空文件夹' }}
+          </p>
         </div>
       </div>
     </div>
-    <footer class="mod-files-footer">双击文件夹展开或收起，双击文本文件打开编辑器。</footer>
+    <footer class="mod-files-footer ui-footer ui-text-description ui-text-muted ui-text-small ui-text-reset">
+      双击文件夹展开或收起，双击文本文件打开编辑器。
+    </footer>
   </main>
 </template>
 <script setup lang="ts">
@@ -175,208 +190,3 @@ useShortcutDispatch({
 });
 onMounted(restoreScroll);
 </script>
-<style scoped>
-.mod-files-page {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-  min-height: 0;
-  padding: var(--space-7) var(--space-9);
-  background: var(--color-panel-muted);
-}
-.mod-files-header > div {
-  min-width: 0;
-}
-.mod-files-header h1 {
-  margin: 0 0 var(--space-1);
-  font-size: 22px;
-  font-weight: 650;
-  color: var(--color-text);
-}
-.mod-files-header p {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--color-muted);
-}
-.mod-files-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-.mod-files-toolbar > .n-input {
-  flex: 1 1 240px;
-  min-width: min(100%, 240px);
-  max-width: 560px;
-}
-.mod-files-tools {
-  display: flex;
-  flex-shrink: 0;
-  gap: var(--space-2);
-  margin-left: auto;
-}
-.mod-files-table {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-panel);
-  scrollbar-gutter: stable;
-}
-.mod-files-table-content {
-  display: flex;
-  flex-direction: column;
-  min-width: 740px;
-  height: 100%;
-}
-.mod-files-columns {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) 128px 112px 192px;
-  flex-shrink: 0;
-  padding: 0 var(--space-2);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-panel-muted);
-}
-.mod-files-columns button {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2);
-  border: 0;
-  background: transparent;
-  color: var(--color-text-soft);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-.mod-files-columns button:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-}
-.mod-files-columns button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
-}
-.mod-files-columns > .mod-files-number button {
-  justify-content: flex-end;
-}
-.mod-files-sort {
-  width: 12px;
-  color: var(--color-primary);
-}
-.mod-files-tree {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-.mod-files-tree:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
-}
-.mod-files-tree :deep(.n-tree) {
-  height: 100%;
-  padding: var(--space-2);
-  font-size: 12px;
-}
-.mod-files-tree :deep(.n-tree-node-content) {
-  flex: 1;
-  min-width: 0;
-  padding-right: 0;
-}
-.mod-files-tree :deep(.n-tree-node-content__text) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-.mod-files-tree :deep(.n-tree-node-content__suffix) {
-  flex-shrink: 0;
-  margin-left: 0;
-}
-.mod-files-tree :deep(.mod-files-metadata) {
-  display: grid;
-  grid-template-columns: 128px 112px 192px;
-  width: 432px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.mod-files-tree :deep(.mod-files-metadata > span) {
-  padding: 0 var(--space-2);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.mod-files-tree :deep(.mod-files-number) {
-  text-align: right;
-}
-.mod-files-tree :deep(.mod-files-name) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.mod-files-tree :deep(.mod-files-name-text) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mod-files-tree :deep(.mod-files-match) {
-  color: var(--color-primary);
-}
-.mod-files-tree :deep(.mod-files-node-status) {
-  color: var(--color-muted);
-  white-space: nowrap;
-}
-.mod-files-status,
-.mod-files-footer {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-.mod-files-empty {
-  margin: 0;
-  padding: var(--space-4);
-  color: var(--color-muted);
-  font-size: 12px;
-}
-.mod-files-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  color: var(--color-danger);
-  font-size: 12px;
-}
-.mod-files-error span {
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-.mod-files-tree :deep(.mod-files-retry) {
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-danger);
-  font: inherit;
-  cursor: pointer;
-}
-.mod-files-tree :deep(.mod-files-retry:focus-visible) {
-  outline: 2px solid var(--color-primary);
-}
-@media (max-width: 640px) {
-  .mod-files-page {
-    padding: var(--space-4);
-  }
-}
-</style>

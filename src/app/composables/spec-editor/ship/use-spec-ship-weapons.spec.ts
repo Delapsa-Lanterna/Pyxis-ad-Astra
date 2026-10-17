@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   listener: null as ((event: QueryCacheInvalidationEvent) => void) | null,
 }));
 vi.mock('@/services/spec-ship-editor.service', () => ({ querySpecShipWeaponSources: mocks.query }));
-vi.mock('@/services/query-cache.service', () => ({
+vi.mock('@/services/query-cache.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
   hasQueryInvalidation: () => true,
   subscribeQueryInvalidations: (listener: typeof mocks.listener) => {
     mocks.listener = listener;

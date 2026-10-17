@@ -1,4 +1,4 @@
-import { openManagedWindow } from '@/windows/managed.window';
+import { requestWindow } from '@/windows/managed.window';
 import type { SpecEditorKind, ProjectSessionId, WindowRequestReceipt } from '@/shared/types/index';
 import { specEditorWindowDefinition, specEditorWindowTitle } from '@/domain/spec-editor/spec-editor-definitions';
 export interface SpecEditorWindowRequest {
@@ -11,7 +11,7 @@ export interface SpecEditorWindowRequest {
 }
 export function openSpecEditorWindow(request: SpecEditorWindowRequest): Promise<WindowRequestReceipt> {
   const definition = specEditorWindowDefinition(request.kind);
-  return openManagedWindow({
+  return requestWindow({
     identity: { type: 'spec', sessionId: request.sessionId, kind: request.kind, modRoot: request.modRoot, id: request.id },
     title: request.title ?? specEditorWindowTitle(request.kind, request.id),
     input: { kind: 'editor', starsectorRoot: request.starsectorRoot ?? null },

@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   closeWorkspace: vi.fn(async () => true),
 }));
 
+vi.mock('@/app/composables/use-window-close-state', () => ({
+  useWindowLifecycleActions: () => ({ clearConfig: mocks.clearConfig, reload: mocks.reloadCurrentWindow }),
+}));
+
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
@@ -46,6 +50,7 @@ vi.mock('@/services/app-settings.service', () => ({ querySystemFonts: mocks.quer
 
 vi.mock('@/orchestrators/settings-persistence.orchestrator', () => ({
   saveLogDirectory: mocks.saveLogDirectory,
+  withSettingsReset: (action: () => Promise<void>) => action(),
 }));
 
 vi.mock('@/windows/current.window', () => ({

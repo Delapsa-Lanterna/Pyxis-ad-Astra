@@ -6,32 +6,49 @@
 
 ## 参考
 
-`schemas/spec-defaults.json`：规格创建与分支转换消费的共享默认模板资产。
-`src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听的 owner。
-`src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置 owner。
-`src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配 owner。
-`src/app/composables/canvas/use-canvas-selection.ts`：骨架和装配消费的距离命中、选区身份与显式选择 owner。
-`src/app/composables/canvas/use-canvas-state.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览的 owner。
-`src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移 owner。
-`src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接的 owner。
-`src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
-`src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放 owner。
-`src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放 owner。
-`src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
-`src/app/composables/use-snapshot-history.ts`：编辑文档消费的目标快照历史适配器。
-`src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
-`src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
-`src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
-`src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
-`src/app/renderers/editors/weapon-images.ts`：武器编辑、发射预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
-`src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型 owner。
-`src/domain/editors/lib/canvas-palette.ts`：应用主题到画布配色的纯投影 owner。
-`src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量 owner。
-`src/domain/editors/lib/game-spec-enums.ts`：规格字段消费的游戏枚举常量。
-`src/domain/editors/lib/mirror.ts`：镜像规则 owner，拥有对称判定、镜像角度与成对新增。
-`src/domain/editors/spec-construction.ts`：共享规格创建与必读字段补齐的纯规则入口。
-`src/shared/lib/entry-keys.ts`：稳定条目键 owner，为列表渲染提供结构化稳定 key。
-`src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
+### 拥有
+
+- `src/app/composables/canvas/`：画布表面、导航、视口、选择与指针阶段及其测试。
+- `src/app/composables/canvas/use-canvas-editor.ts`：指针阶段、输入适配、导航、快捷键与窗口监听。
+- `src/app/composables/canvas/use-canvas-navigation.ts`：骨架和装配消费的右键平移、滚轮缩放与指针位置。
+- `src/app/composables/canvas/use-canvas-palette.ts`：主题派生与重绘通知的装配。
+- `src/app/composables/canvas/use-canvas-selection.ts`：骨架和装配消费的距离命中、选区身份与显式选择。
+- `src/app/composables/canvas/use-canvas-state.ts`：完整目标身份、悬停、检查器锁定、镜像开关与候选预览。
+- `src/app/composables/canvas/use-canvas-viewport.ts`：视口缩放与平移。
+- `src/app/composables/editors/use-editor-document.ts`：工作值、动作起点、提交快照、字段与手势边界及历史交接。
+- `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
+- `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
+- `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放。
+- `src/app/renderers/editors/`：背景、几何标记、武器贴图及最终样式绘制原语。
+- `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
+- `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
+- `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
+- `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
+- `src/app/renderers/editors/weapon-images.ts`：武器编辑、发射预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
+- `src/domain/editors/lib/canvas-palette.ts`：应用主题到画布配色的纯投影。
+- `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
+- `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
+- `src/domain/editors/lib/mirror.ts`：镜像规则，拥有对称判定、镜像角度与成对新增。
+
+### 消费
+
+- `schemas/spec-defaults.json`：四类规格创建与分支转换的默认模板资产。
+- `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
+- `src/app/composables/use-snapshot-history.ts`：编辑文档消费的目标快照历史适配器。
+- `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
+- `src/domain/editors/spec-construction.ts`：规格默认模板加载、创建及分支必读字段补齐。
+- `src/shared/lib/entry-keys.ts`：稳定条目键，为列表渲染提供结构化稳定 key。
+- `src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
+- `src/shared/lib/starsector/colors.ts`：挂载类型颜色、槽位半径与 RGBA 样式投影。
+- `src/test/canvas-recorder.ts`：画布绘制调用与样式的测试记录器。
+- `src/test/canvas-stub.ts`：画布尺寸及绘制上下文的测试装配。
+
+### 关联
+
+- `src/app/components/editors/common/EditorFooter.vue`：编辑与预览共用的说明及操作插槽。
+- `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
+- `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
 
 ## 边界
 
@@ -99,6 +116,7 @@
 - 提交必须经唯一回调进入对应编辑会话，重复提交必须被会话相等语义吸收。
 - 数字原文、JSON 和颜色输入必须先完成字段转换；动作终结器必须在全部输入与复合控件提交后登记历史。
 - 检查器连续输入必须实时提交草稿，并在单行 Enter、失焦、多行 Ctrl+Enter 或保存时结束一次字段动作。
+- 滚轮缩放锚点必须由调用方选择；Spec 画布必须固定鼠标所指坐标，缩放限值必须按实际接纳比例补偿平移。
 - 视图切换、检查器选择与显式增删必须消费所属文档动作；撤销重做必须经所属输入提交边界重绘草稿。
 - 贴图运行态必须按资源键与内容增量接纳，稳定资源必须复用已解码图像和在途加载；替换与窗口释放必须撤销所属回调并释放对应图像和着色缓存。
 - 输入交接期间的短点击必须保留按下、最新位置与释放状态；指针动作必须沿同一上下文完成。

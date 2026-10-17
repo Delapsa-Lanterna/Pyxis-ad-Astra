@@ -1,4 +1,4 @@
-import { openManagedWindow } from '@/windows/managed.window';
+import { requestWindow } from '@/windows/managed.window';
 import type { JointEditRoot } from '@/shared/types';
 
 export function immersiveWindowTitle(root: JointEditRoot): string {
@@ -7,7 +7,7 @@ export function immersiveWindowTitle(root: JointEditRoot): string {
 }
 
 export function openImmersiveEditorWindow(root: JointEditRoot, rowKey?: string) {
-  return openManagedWindow({
+  return requestWindow({
     identity: { type: 'immersive', ...root },
     title: immersiveWindowTitle(root),
     input: { kind: 'immersive-editor', rowKey: rowKey ?? null },

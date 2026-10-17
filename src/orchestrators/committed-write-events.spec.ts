@@ -6,8 +6,9 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
   listeners: [] as Array<{ handler: (event: CommittedWriteEvent) => Promise<void>; phase: string | undefined }>,
 }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
   publishCommittedWrite: mocks.publish,
+  listenProjectSessionInvalidated: vi.fn(),
   listenCommittedWrites: async (handler: (event: CommittedWriteEvent) => Promise<void>, _matches?: unknown, phase?: string) => {
     const entry = { handler, phase };
     mocks.listeners.push(entry);
@@ -15,11 +16,10 @@ vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
       mocks.listeners.splice(mocks.listeners.indexOf(entry), 1);
     };
   },
-  listenProjectSessionInvalidated: vi.fn(),
 }));
+
 import { emitEditorSpecSaved, listenEditorSpecSaved } from './editor-window.orchestrator';
 import { emitFileEditorSaved, listenFileEditorTextApplied } from './file-editor-window.orchestrator';
-import { listenEntityIdentityApplied } from './entity-events.orchestrator';
 
 function event(): CommittedWriteEvent {
   return { originWindowLabel: 'peer', sessionId: 's1', modRoot: 'M:/mod', reason: 'undo', result: savedWriteFixture() };
@@ -64,17 +64,6 @@ describe('committed write domain projections', () => {
     await listenEditorSpecSaved(receive);
     await mocks.listeners[0]!.handler({ ...event(), result: receipt });
     expect(receive).not.toHaveBeenCalled();
-  });
-  it('follows replay identity before applying dependent projection consumers', async () => {
-    const receipt = savedWriteFixture();
-    receipt.identityChanges = [{ before: entityTargetFixture('variant', 'old'), after: entityTargetFixture('variant', 'next') }];
-    const receive = vi.fn();
-    const stop = await listenEntityIdentityApplied(receive);
-    expect(mocks.listeners[0]!.phase).toBe('identity');
-    await mocks.listeners[0]!.handler({ ...event(), result: receipt });
-    expect(receive).toHaveBeenCalledWith({ sessionId: 's1', modRoot: 'M:/mod', result: receipt });
-    stop();
-    expect(mocks.listeners).toHaveLength(0);
   });
   it('projects directory replay text using the actual after paths and contents', async () => {
     const receipt = savedWriteFixture();

@@ -1,6 +1,8 @@
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useShortcutDispatch } from './use-shortcut-dispatch';
+import { h } from 'vue';
+import { provideWindowCloseState } from './use-window-close-state';
 
 const wrappers: VueWrapper[] = [];
 
@@ -82,6 +84,40 @@ describe('useShortcutDispatch plain keys', () => {
 });
 
 describe('useShortcutDispatch commands', () => {
+  it('pauses business shortcuts during a window close and restores them afterwards', () => {
+    const save = vi.fn();
+    const Child = {
+      setup() {
+        useShortcutDispatch({ commands: { save } });
+        return () => null;
+      },
+    };
+    let closeState!: ReturnType<typeof provideWindowCloseState>;
+    wrappers.push(
+      mount({
+        setup() {
+          closeState = provideWindowCloseState({
+            requestClose: vi.fn(),
+            replyClose: vi.fn(),
+            readyClose: vi.fn(),
+            prepareDisplay: vi.fn(),
+            flushSettings: vi.fn(),
+            clearConfig: vi.fn(),
+            reload: vi.fn(),
+          });
+          return () => h(Child);
+        },
+      }),
+    );
+    press('s', { ctrlKey: true });
+    expect(save).toHaveBeenCalledOnce();
+    closeState.value = true;
+    press('s', { ctrlKey: true });
+    expect(save).toHaveBeenCalledOnce();
+    closeState.value = false;
+    press('s', { ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(2);
+  });
   it('routes escape to the close command', () => {
     const close = vi.fn();
     mountDispatch({ commands: { close } });

@@ -1,0 +1,27 @@
+<svg width="80" height="80" viewBox="0 0 80 80" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" color="rgb(255, 225, 131)">
+  <defs>
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="40" cy="40" r="35">
+      <stop stop-color="currentColor" />
+      <stop offset="1" stop-color="currentColor" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="beam" gradientUnits="userSpaceOnUse" x1="36" y1="42" x2="75" y2="5">
+      <stop stop-color="currentColor" />
+      <stop offset="0.65" stop-color="currentColor" />
+      <stop offset="1" stop-color="currentColor" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <path d="M70 40A30 30 0 1 1 10 40A30 30 0 1 1 70 40" fill="url(#glow)" opacity="0.7" />
+  <path
+    d="M40 5L47 18H33ZM75 40L62 47V33ZM40 75L33 62H47ZM5 40L18 33V47ZM13 13L28 19L19 28ZM67 67L52 61L61 52ZM13 67L19 52L28 61Z"
+    fill="currentColor"
+    fill-rule="evenodd"
+  />
+  <path
+    d="M48 40A8 8 0 1 1 32 40A8 8 0 1 1 48 40M53 40A13 13 0 1 1 27 40A13 13 0 1 1 53 40M59 40A19 19 0 1 1 21 40A19 19 0 1 1 59 40M40 18V28M62 40H52M40 62V52M18 40H28M24 24L31 31M56 56L49 49M24 56L31 49"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    opacity="0.6"
+  />
+  <path d="M74 6L40 40" fill="none" stroke="url(#beam)" stroke-width="5" />
+</svg>

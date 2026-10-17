@@ -20,13 +20,17 @@ vi.mock('@/app/composables/use-managed-window-requests', () => ({
     mocks.request = handler;
   },
 }));
-vi.mock('@/services/weapon-fire-preview.service', () => ({ queryWeaponFirePreviewData: mocks.query }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: mocks.listenIdentity }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
-  listenProjectSessionInvalidated: vi.fn(async () => vi.fn()),
-  applyProjectSessionCacheInvalid: vi.fn(),
+vi.mock('@/services/weapon-fire-preview.service', () => ({
+  queryWeaponFirePreviewData: mocks.query,
+  queryWeaponFirePreviewImages: vi.fn(async () => ({})),
 }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
+  listenEntityIdentityApplied: mocks.listenIdentity,
+  listenProjectSessionInvalidated: vi.fn(async () => vi.fn()),
+  invalidateProjectionCaches: vi.fn(),
+}));
+
 vi.mock('@/orchestrators/weapon-fire-preview.orchestrator', () => ({ retargetWeaponFirePreviewWindow: mocks.retarget }));
 function request(source: WeaponFirePreviewSource): WindowContextFor<'weapon-fire-preview'> {
   return {
@@ -35,6 +39,7 @@ function request(source: WeaponFirePreviewSource): WindowContextFor<'weapon-fire
     input: { kind: 'weapon-fire-preview', source },
     label: 'managed-1',
     title: '预览',
+    receiverGeneration: 0,
     requestId: 1,
     revision: 1,
   };

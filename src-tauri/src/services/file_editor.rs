@@ -5,7 +5,6 @@ use crate::{
         read_text_bytes_no_bom, read_utf8_no_bom,
     },
     models::{EditableFileData, FileChangeReplayDirection, WriteResult},
-    services::file_changes::apply_file_change_set_with_lock,
 };
 use std::path::Path;
 
@@ -21,7 +20,7 @@ pub fn load_project_editable_file(
 ) -> AppResult<EditableFileData> {
     let mut loaded = load_editable_file(mod_root, path)?;
     if let Some(session_id) = session_id {
-        loaded.entity = super::project::query_file_entity_target(session_id, &loaded.path)?;
+        loaded.entity = crate::services::query_file_entity_target(session_id, &loaded.path)?;
         if let Some(entity) = &loaded.entity {
             loaded.base_versions = entity.base_versions.clone();
         }
@@ -40,15 +39,15 @@ pub fn save_project_text_file(
         .resolve_absolute(Path::new(path), "file path")?;
     let path = path.to_string_lossy();
     if let Some(session_id) = session_id
-        && let Some(info) = super::project::query_file_entity_target(session_id, &path)?
+        && let Some(info) = crate::services::query_file_entity_target(session_id, &path)?
     {
-        super::project::require_entity_version_scope(
+        crate::services::require_entity_version_scope(
             session_id,
             info.target.kind,
             &info.target.id,
             versions,
         )?;
-        super::project::save_entity_text(session_id, &info.target, text)
+        crate::services::save_entity_text(session_id, &info.target, text)
     } else {
         Ok(save_text_file(mod_root, &path, text.clone())?
             .with_refreshed_entity(serde_json::json!({"text":text})))
@@ -72,7 +71,7 @@ pub fn query_text_identity_intent(
         .ok_or_else(|| {
             AppError::message("spec.id_missing", format!("缺少 {}", definition.id_field))
         })?;
-    super::project::query_entity_identity_intent(session_id, source, next)
+    crate::services::query_entity_identity_intent(session_id, source, next)
 }
 
 pub fn follow_text_identity(
@@ -89,19 +88,14 @@ fn save_text_file_with_lock(
     mod_root: &str,
     path: &str,
     text: String,
-    write_lock: RootWriteLock,
+    _write_lock: RootWriteLock,
 ) -> AppResult<WriteResult> {
     let path = Path::new(path);
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let path = boundary.resolve_absolute(path, "file path")?;
-    let change = build_text_change(&path, Some(text))?;
-    apply_file_change_set_with_lock(
-        mod_root,
-        FileChangeReplayDirection::Redo,
-        vec![change.clone()],
-        write_lock,
-    )?;
-    Ok(WriteResult::from_changes(vec![change]))
+    let changes = vec![build_text_change(&path, Some(text))?];
+    crate::io::apply_changes(&changes, FileChangeReplayDirection::Redo)?;
+    Ok(WriteResult::from_changes(changes))
 }
 
 pub fn load_editable_file(mod_root: &str, path: String) -> AppResult<EditableFileData> {

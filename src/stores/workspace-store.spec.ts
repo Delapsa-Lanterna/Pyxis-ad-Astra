@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { ModOpeningFailure } from '@/shared/types';
+import { useProjectStore } from './project.store';
+import { sessionUpdateFixture } from '@/test/write-result';
 
 beforeEach(() => setActivePinia(createPinia()));
 
@@ -45,3 +47,63 @@ describe('workspace Mod opening failures', () => {
 function failure(modRoot: string, message: string): ModOpeningFailure {
   return { modRoot, message, file: null, diagnostic: { code: 'unknown', message, location: null } };
 }
+
+describe('workspace active project projection', () => {
+  function register(sessionId: string, modRoot: string) {
+    const update = sessionUpdateFixture(sessionId, modRoot);
+    if (update.status !== 'ready') throw new Error('ready projection fixture');
+    useProjectStore().registerProjectManifest(update.projection.manifest);
+    return update.projection.manifest;
+  }
+  it('derives the selected manifest as it becomes available and follows session and projection replacement', () => {
+    const workspace = useWorkspaceStore();
+    const project = useProjectStore();
+    workspace.registerMod({ modRoot: 'M:/alpha', displayName: 'Alpha', version: '', status: 'loading' });
+    workspace.activateModOverview('M:/alpha');
+    expect(workspace.activeManifest).toBeNull();
+    expect(workspace.activeSessionId).toBeNull();
+    const initial = register('first', 'M:/alpha');
+    expect(workspace.activeManifest).toBe(project.getManifest('M:/alpha'));
+    expect(workspace.activeSessionId).toBe('first');
+    project.replaceProjectManifest({ ...initial, modInfo: { name: 'updated' } }, 2);
+    project.replaceProjectManifest(initial, 1);
+    expect(workspace.activeManifest?.modInfo?.name).toBe('updated');
+    register('second', 'M:/alpha');
+    project.replaceProjectManifest(initial, 3);
+    expect(workspace.activeSessionId).toBe('second');
+    project.removeProjectManifest('M:/alpha');
+    expect(workspace.activeManifest).toBeNull();
+    expect(workspace.activeSessionId).toBeNull();
+  });
+  it('switches and removes selections while retaining other project manifests', () => {
+    const workspace = useWorkspaceStore();
+    for (const name of ['alpha', 'beta']) {
+      workspace.registerMod({ modRoot: `M:/${name}`, displayName: name, version: '', status: 'ready' });
+      register(name, `M:/${name}`);
+    }
+    workspace.activateModOverview('M:/alpha');
+    expect(workspace.activeSessionId).toBe('alpha');
+    workspace.activateModFiles('M:/beta');
+    expect(workspace.activeSessionId).toBe('beta');
+    workspace.removeLoadedModEntry('M:/alpha');
+    expect(workspace.activeSessionId).toBe('beta');
+    workspace.showSettings();
+    expect(workspace.activeSessionId).toBe('beta');
+    workspace.removeLoadedModEntry('M:/beta');
+    expect(workspace.activeManifest).toBeNull();
+    expect(useProjectStore().manifests.size).toBe(2);
+  });
+  it('keeps active selection and its projection within one window', () => {
+    const first = useWorkspaceStore();
+    first.registerMod({ modRoot: 'M:/alpha', displayName: 'Alpha', version: '', status: 'ready' });
+    register('first', 'M:/alpha');
+    first.activateModOverview('M:/alpha');
+    setActivePinia(createPinia());
+    const second = useWorkspaceStore();
+    expect(second.activeModRoot).toBeNull();
+    expect(second.activeManifest).toBeNull();
+    register('second', 'M:/alpha');
+    expect(first.activeSessionId).toBe('first');
+    expect(second.activeSessionId).toBeNull();
+  });
+});

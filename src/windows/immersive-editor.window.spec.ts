@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { openImmersiveEditorWindow } from './immersive-editor.window';
 const mocks = vi.hoisted(() => ({ open: vi.fn(async () => {}) }));
-vi.mock('@/windows/managed.window', () => ({ openManagedWindow: mocks.open }));
+vi.mock('@/windows/managed.window', () => ({ requestWindow: mocks.open }));
 describe('immersive native request', () => {
   it('captures full identity, input and formal viewport constraints', async () => {
     const root = { sessionId: 's', modRoot: 'M:/mod', id: 'lasher', kind: 'ship' as const };

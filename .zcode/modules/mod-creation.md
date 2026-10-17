@@ -6,16 +6,23 @@
 
 ## 参考
 
-`src-tauri/src/commands/mod_creation.rs`：创建 command 边界。
-`src-tauri/src/domain/mod_creation.rs`：Mod ID 与路径规则 owner。
-`src-tauri/src/io/mod_creation.rs`：目录骨架与模板写入 owner。
-`src-tauri/src/services/mod_creation.rs`：创建 service 实现 owner，拥有目标校验、冲突检查与回滚。
-`src/app/composables/config/use-create-mod-view-model.ts`：创建对话框 ViewModel owner，拥有游戏根/父目录分流、表单校验与保存中状态。
-`src/domain/mod-creation/new-mod-template.ts`：模板与校验 owner，拥有 ID/名称/版本规则与 mod-info 默认值。
-`src/orchestrators/directory-opening.orchestrator.ts`：创建结果打开 owner，复用 Mod 打开链路。
-`src/orchestrators/mod-creation.orchestrator.ts`：创建编排 owner，负责创建调用、性能打点与打开结果分流。
-`src/services/mod-creation.service.ts`：类型化创建签名与 command 参数装配主归属。
-`src/shared/types/mod-creation.types.ts`：类型化创建请求与返回模型。
+### 拥有
+
+- `src-tauri/src/commands/mod_creation.rs`：创建 command 边界。
+- `src-tauri/src/domain/mod_creation.rs`：Mod ID 与路径规则。
+- `src-tauri/src/io/mod_creation.rs`：目录骨架与模板写入。
+- `src-tauri/src/services/mod_creation.rs`：创建 service 实现，拥有目标校验、冲突检查与回滚。
+- `src/app/composables/config/use-create-mod-view-model.ts`：创建对话框 ViewModel，拥有游戏根/父目录分流、表单校验与保存中状态。
+- `src/domain/mod-creation/`：新建 Mod 模板与请求投影。
+- `src/domain/mod-creation/new-mod-template.ts`：模板与校验，拥有 ID/名称/版本规则与 mod-info 默认值。
+- `src/orchestrators/mod-creation.orchestrator.ts`：创建编排，负责创建调用、性能打点与打开结果分流。
+- `src/services/mod-creation.service.ts`：类型化创建签名与 command 参数装配。
+
+### 消费
+
+- `src-tauri/src/models/mod_creation.rs`：新建目的地、模板与正式创建结果。
+- `src/orchestrators/directory-opening.orchestrator.ts`：创建结果打开，复用 Mod 打开链路。
+- `src/shared/types/mod-creation.types.ts`：类型化创建请求与返回模型。
 
 ## 边界
 

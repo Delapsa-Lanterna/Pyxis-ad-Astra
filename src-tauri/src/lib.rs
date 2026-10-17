@@ -24,10 +24,29 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let app = window.app_handle().clone();
+                let owner = window.label().to_owned();
+                tauri::async_runtime::spawn_blocking(move || {
+                    if let Err(error) = services::app_lifecycle::request_close(
+                        &app,
+                        &owner,
+                        models::CloseScope::Window,
+                    ) {
+                        diagnostics::record(format!("native close request: {error}"));
+                    }
+                });
+            }
             if matches!(event, tauri::WindowEvent::Destroyed)
                 && let Err(error) = services::windows::release_window(window.label())
             {
                 diagnostics::record(format!("release window registration: {error}"));
+            }
+            if matches!(event, tauri::WindowEvent::Destroyed)
+                && let Err(error) = services::app_lifecycle::destroyed(window.label())
+            {
+                diagnostics::record(format!("close lifecycle release: {error}"));
             }
             if matches!(event, tauri::WindowEvent::Destroyed)
                 && let Err(error) = window.app_handle().emit(
@@ -39,6 +58,8 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            #[cfg(windows)]
+            services::windows::auxiliary::install(&app.config().identifier)?;
             let handle = app.handle().clone();
             diagnostics::install(Box::new(move |message| {
                 let _ = services::app_log::append_app_log(
@@ -56,23 +77,21 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::open_managed_window,
+            commands::request_window,
+            commands::request_close,
+            commands::reply_close,
+            commands::ready_close,
             commands::get_window_bootstrap,
             commands::get_current_window_context,
             commands::get_current_window_request,
             commands::accept_window_request,
             commands::fail_window_request,
             commands::fail_window_startup,
-            commands::await_window_request,
-            commands::publish_window_settings,
-            commands::get_window_settings,
             commands::focus_managed_window,
             commands::update_edit_target_registration,
             commands::query_edit_target_owners,
             commands::reserve_edit_targets,
             commands::focus_edit_target_owner,
-            commands::request_session_window_close,
-            commands::cancel_window_close_request,
             commands::update_managed_window_status,
             commands::reserve_window_targets,
             commands::release_window_targets,
@@ -95,7 +114,7 @@ pub fn run() {
             commands::prepare_joint_edit,
             commands::save_joint_edit,
             commands::query_entity_list,
-            commands::query_editor_draft_resources,
+            commands::query_draft_resources,
             commands::query_resource_data_urls,
             commands::invalidate_project_session,
             commands::refresh_project_sources,
@@ -114,8 +133,8 @@ pub fn run() {
             commands::open_app_log_file,
             commands::clear_config_files,
             commands::clear_app_log_file,
-            commands::load_app_settings,
-            commands::save_app_settings,
+            commands::read_settings,
+            commands::save_settings,
             commands::query_system_fonts,
             commands::save_indexed_config_entity,
             commands::create_indexed_config_entity,
@@ -136,7 +155,6 @@ pub fn run() {
             commands::save_text_file,
             commands::transcode_file_to_utf8,
             commands::save_editor_spec,
-            commands::save_mod_files,
             commands::save_mod_info,
             commands::apply_file_change_set,
         ])

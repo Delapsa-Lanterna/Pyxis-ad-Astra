@@ -1,0 +1,268 @@
+.table-panel {
+  position: absolute;
+  inset: 0 280px 0 0;
+  width: auto;
+  height: auto;
+}
+.data-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.data-table .csv-header-cell,
+.data-table .csv-grid-cell {
+  height: 24px;
+  padding: 2px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+.data-table .csv-header-cell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: var(--color-text-soft);
+  font-weight: 650;
+  text-align: left;
+  background: var(--color-panel);
+  box-shadow: inset 0-1px 0 var(--color-border-strong);
+}
+.csv-th-label {
+  text-overflow: ellipsis;
+}
+.csv-th-resize {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  z-index: 2;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+}
+.csv-th-resize:hover {
+  background: var(--color-primary);
+  opacity: 0.4;
+}
+.data-table .csv-grid-row:hover .csv-grid-cell {
+  background: var(--color-surface-hover);
+}
+.data-table .csv-grid-spacer-row,
+.data-table .csv-grid-row.csv-grid-spacer-row:hover .csv-grid-cell,
+.data-table .csv-grid-placeholder-row,
+.data-table .csv-grid-row.csv-grid-placeholder-row:hover .csv-grid-cell {
+  background: transparent;
+}
+.data-table .csv-grid-row.csv-grid-spacer-row .csv-grid-cell {
+  height: auto;
+  padding: 0;
+  border: 0;
+}
+.data-table .csv-grid-row.csv-grid-placeholder-row .csv-grid-cell {
+  height: 24px;
+  padding: 0;
+}
+.data-table .csv-grid-row.selected .csv-grid-cell {
+  background: var(--color-primary-soft);
+  box-shadow: inset 0-1px 0 var(--color-primary-border);
+}
+.data-table .dirty {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  box-shadow: inset 0 0 0 1px var(--color-warning-border);
+}
+.data-table .csv-cell-active {
+  box-shadow: inset 0 0 0 1px var(--color-primary-border);
+}
+.csv-cell-frame {
+  box-sizing: border-box;
+  min-width: 36px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+.csv-cell-frame-active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary-soft);
+}
+.csv-cell-frame-select,
+.csv-cell-frame-reference,
+.csv-cell-frame-boolean,
+.csv-cell-frame-enum,
+.csv-cell-frame-tags,
+.csv-cell-frame-multi {
+  gap: var(--space-1);
+  padding-right: var(--space-1);
+  background: var(--color-panel-muted);
+}
+.csv-cell-caret {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 11px;
+}
+.csv-cell-thumb {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.csv-cell-tag {
+  max-width: 128px;
+  height: 16px;
+  padding: 0 var(--space-1);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+}
+.csv-cell-editor {
+  display: contents;
+}
+.csv-cell-input {
+  box-sizing: border-box;
+  height: 100%;
+  font: inherit;
+  line-height: inherit;
+  text-overflow: clip;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+.table-empty-note {
+  padding: 18px;
+  color: var(--color-warning);
+  font-size: 13px;
+}
+.table-external-update-note {
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-1);
+  color: var(--color-warning);
+  font-size: 13px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+}
+.csv-cell-picker {
+  position: fixed;
+  z-index: 80;
+  box-sizing: border-box;
+  max-height: 320px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-floating);
+}
+.csv-cell-picker-search,
+.csv-cell-picker-custom {
+  box-sizing: border-box;
+  height: 26px;
+  flex: 0 0 26px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  outline: none;
+}
+.csv-cell-picker-list {
+  min-height: 0;
+  max-height: 292px;
+  overflow: auto;
+  padding: var(--space-1);
+}
+.csv-cell-text-editor {
+  position: fixed;
+  z-index: 80;
+  box-sizing: border-box;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-floating);
+}
+.csv-cell-text-input {
+  flex: 1;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 5px 6px;
+  font: inherit;
+  line-height: 1.4;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: none;
+}
+.csv-cell-text-input:focus {
+  border-color: var(--color-primary);
+}
+.csv-cell-text-actions {
+  gap: var(--space-2);
+}
+.csv-cell-text-hint {
+  font-size: 11px;
+}
+.csv-cell-text-commit {
+  padding: 2px var(--space-3);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+.csv-cell-text-commit:hover {
+  background: var(--color-primary-hover);
+}
+.csv-cell-picker-clear,
+.csv-cell-picker-action {
+  display: block;
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-danger);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.csv-cell-picker-action {
+  flex: 0 0 auto;
+}
+.csv-cell-picker-clear:hover,
+.csv-cell-picker-action:hover,
+.csv-cell-picker-option:hover,
+.csv-cell-picker-option.selected {
+  background: var(--color-primary-soft);
+}
+.csv-cell-picker-group {
+  padding: 5px 6px 3px;
+  font-size: 10px;
+  font-weight: 650;
+}
+.csv-cell-picker-option {
+  box-sizing: border-box;
+  height: 24px;
+  gap: 6px;
+  padding: 0 6px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+.csv-cell-picker-check {
+  flex: 0 0 12px;
+  color: var(--color-primary);
+  font-size: 11px;
+}
+.csv-cell-picker-thumb {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.csv-cell-picker-label {
+  flex: 1 1 auto;
+}
+.csv-cell-picker-value {
+  flex: 0 0 auto;
+  max-width: 40%;
+  font-size: 11px;
+}

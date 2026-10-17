@@ -6,33 +6,57 @@
 
 ## 参考
 
-`src-tauri/src/commands/hull_reference.rs`：Hull command 主归属。
-`src-tauri/src/commands/resources.rs`：批量资源与引用 command 主归属。
-`src-tauri/src/services/project/cache/core.rs`：按游戏根维护 Core 来源目录与待持久化标记。
-`src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存 owner。
-`src-tauri/src/services/project/cache/persistent.rs`：Core 来源快照与指纹的持久化交接。
-`src-tauri/src/services/project/resources/`：资源解析与批量 data URL owner。
-`src/app/components/media/`：授权图片与配置选项消费的缩略图展示 owner。
-`src/app/composables/editors/use-resource-reference.ts`：贴图引用选择 owner。
-`src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放主归属。
-`src/app/composables/use-image-preload.ts`：可见优先与邻近预读队列的资源集合消费 owner。
-`src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳 owner。
-`src/app/composables/use-resource-media-registry.ts`：资源集合、物理引用计数、票据和超额临时结果主归属。
-`src/app/composables/use-visible-resource-media.ts`：可视区媒体解析 owner。
-`src/app/composables/use-window-image-cache.ts`：窗口图片、成品、代次、引用与预读并发 owner。
-`src/domain/config/hull-references.ts`：选项及内置槽位的纯投影主归属。
-`src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
-`src/services/hull-reference.service.ts`：Hull 查询及引用投影主归属。
-`src/services/resource-budget.service.ts`：共享 WebView 字节预算与逐出回调主归属。
-`src/services/resource-cache.service.ts`：前端资源缓存 service owner。
-`src/services/resource-media.service.ts`：通用媒体服务 owner，资源缓存之上的响应式投影视图。
-`src/services/resource-reference.service.ts`：授权引用解析能力主归属。
-`src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
-`src/shared/runtime/resident-cache.ts`：活跃与闲置分离的双重预算及 LRU 原语 owner。
+### 拥有
+
+- `src-tauri/src/commands/hull_reference.rs`：Hull command。
+- `src-tauri/src/commands/resources.rs`：批量资源与引用 command。
+- `src-tauri/src/services/project/cache/core.rs`：按游戏根维护 Core 注册表、缓存条目、来源目录、待持久化标记及失效释放。
+- `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存。
+- `src-tauri/src/services/project/definitions/entity_resources.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
+- `src-tauri/src/services/project/query/hull_references.rs`：舰体引用、槽位及来源选择查询。
+- `src-tauri/src/services/project/query/resources.rs`：草稿资源引用与授权资源批量 data URL 查询。
+- `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
+- `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和舰体引用解析。
+- `src-tauri/src/services/project/resources/sprites.rs`：贴图授权、字节读取、格式和相对路径解析。
+- `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
+- `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
+- `src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
+- `src/app/composables/use-image-preload.ts`：可见优先与邻近预读队列的资源集合消费。
+- `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
+- `src/app/composables/use-resource-media-registry.ts`：资源集合、物理引用计数、票据和超额临时结果。
+- `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
+- `src/app/composables/use-window-image-cache.ts`：窗口图片、成品、代次、引用与预读并发。
+- `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影。
+- `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
+- `src/services/resource-budget.service.ts`：共享 WebView 字节预算与逐出回调。
+- `src/services/resource-budget.spec.ts`：WebView 总字节预算、替换及逐出验证。
+- `src/services/resource-cache.service.ts`：前端资源缓存 service。
+- `src/services/resource-cache.spec.ts`：资源读取、失效、预算与接纳行为验证。
+- `src/services/resource-media.service.ts`：通用媒体服务，资源缓存之上的响应式投影视图。
+- `src/services/resource-media.spec.ts`：媒体引用、展示集合与释放行为验证。
+- `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
+
+### 消费
+
+- `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
+- `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及舰体引用请求与结果。
+- `src-tauri/src/services/project/cache/persistent.rs`：项目索引与 Core 来源快照、指纹及代次的持久化。
+- `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
+- `src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描。
+- `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
+- `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
+- `src/shared/lib/resource-ref.ts`：资源身份键、相等与集合纯规则。
+- `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
+- `src/shared/runtime/resident-cache.ts`：活跃与闲置分离的预算缓存原语。
+- `src/shared/types/resources.types.ts`：草稿资源、批量图片、路径及舰体引用请求与结果。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
 
 ## 边界
 
-- Core 目录缓存按 canonical 游戏根维护已请求类型、源指纹和待持久化标记，快照持久化由正式缓存入口完成。
+- Core 目录缓存按 canonical 游戏根维护注册表、缓存条目、已请求类型和待持久化标记，来源指纹及快照持久化由正式持久化入口交付。
 - 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
 - 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，窗口图片运行态拥有解码与成品保留，活跃引用和闲置预算分别计量。
 - 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
@@ -49,6 +73,13 @@
 2. 通用媒体服务合并同帧请求并以 single-flight 查询后端。
 3. 后端按 Mod 优先、Core fallback 解析路径并读取字节。
 4. 返回 data URL 进入前端 LRU 缓存并驱动渲染。
+
+### 草稿资源查询
+
+1. 所属编辑器交付捕获的 session、种类、ID 与正式草稿。
+2. resource-reference 通过实时请求捕获参数，调用 query_draft_resources。
+3. 后端核对所属会话就绪状态，按业务字段映射资源引用。
+4. 图像消费者通过正式媒体与图像运行态读取、接纳及释放结果。
 
 ### 贴图引用选择
 
@@ -72,6 +103,7 @@
 ## 规范
 
 - Core root 与所有资源路径必须 canonicalize，拒绝 `..` 与已有父链链接或 reparse point。
+- Core 缓存注册表、条目、加载与完整失效必须由 Core 缓存实现维护；注册表锁只允许用于登记、查找、移除与句柄复制，磁盘读取必须在释放注册表锁后执行。
 - Hull 请求身份必须使用去重排序后的 ID 集合，名称、选项与槽位必须消费所属领域纯投影。
 - Skin 实体贴图必须消费 SkinFile.data.spriteName；内置槽位必须携带最后定义该内置武器的 Mod/Core 来源并据此分组。
 - 列表缩略图只允许解析 observer 预读区内的资源。
@@ -87,6 +119,7 @@
 - 指纹不一致即丢弃快照并重建；缓存损坏或不可写只降级，严禁读取旧快照。
 - 整批返回必须先核对数量、顺序、完整资源身份与 nullable data URL，再发布所属缓存。
 - 联合配置资源必须消费 Core／Mod 的实际配置和版本，UI 图标必须从 graphics.ui 解析；展示消费者必须使用返回的 `ResourceRef`。
+- 草稿资源查询必须由资源能力交付，必须捕获当前正式草稿并消费实时请求及所属 session 的接纳与释放。
 - 表记录图片必须消费正式 sprite 引用，缺失图片的默认资源必须由后端按格式规则解析并授权。
 - 资源读取票据必须归共享媒体 registry；集合释放只结束所属等待，迟到结果严禁写入已撤销集合。
 - 选项媒体 owner 必须按集合登记菜单、已选值、摘要和键值行资源；集合替换只更新受影响资源，引用计数归零后才释放临时结果。

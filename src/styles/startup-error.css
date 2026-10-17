@@ -1,0 +1,11 @@
+.startup-error {
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.startup-error .startup-error-code {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--color-text-soft);
+}

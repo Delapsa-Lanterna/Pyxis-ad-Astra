@@ -1,4 +1,4 @@
-import type { CsvGridRowSlot, CsvLoadedRowSlot, CsvTableRows, TableKey } from '@/shared/types';
+import type { CsvGridRowSlot, CsvLoadedRowSlot, CsvTableRows, CsvTableKey } from '@/shared/types';
 import { cell } from '@/shared/lib/starsector';
 import { csvColumnSchemaFor, csvListValues } from '@/domain/tables/csv-column-schema';
 import type { CsvColumnSchema } from '@/domain/schema/schema.types';
@@ -26,12 +26,12 @@ export interface CsvGridPerformanceSample {
   ms: number;
   rows: number;
   sourceMs: number;
-  table: TableKey;
+  table: CsvTableKey;
   widthMs: number;
 }
 
 export function createCsvGridModel(
-  table: TableKey,
+  table: CsvTableKey,
   visibleColumns: string[],
   rowSlots: CsvTableRows,
   rowCount: number,
@@ -64,7 +64,7 @@ export function createCsvGridModel(
   return { columns, performanceSample, rows, sourceIndex, totalWidthPx };
 }
 
-function createCsvGridRowSlots(table: TableKey, rowSlots: CsvTableRows, rowCount: number): CsvGridRowSlot[] {
+function createCsvGridRowSlots(table: CsvTableKey, rowSlots: CsvTableRows, rowCount: number): CsvGridRowSlot[] {
   return Array.from({ length: rowCount }, (_, rowIndex) => {
     const row = rowSlots[rowIndex];
     if (row) return { ...row, kind: 'row', rowIndex };
@@ -72,7 +72,7 @@ function createCsvGridRowSlots(table: TableKey, rowSlots: CsvTableRows, rowCount
   });
 }
 
-function createCsvGridColumn(table: TableKey, key: string): CsvGridColumn {
+function createCsvGridColumn(table: CsvTableKey, key: string): CsvGridColumn {
   const schema = csvColumnSchemaFor(table, key);
   return {
     className: `schema-col-${schema?.control ?? 'text'}`,

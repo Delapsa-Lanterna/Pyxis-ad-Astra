@@ -1,7 +1,5 @@
-use crate::{
-    errors::AppResult,
-    models::{LoadedSpecRecord, ResourceSource},
-};
+use crate::services::project::model::LoadedSpecRecord;
+use crate::{errors::AppResult, models::ResourceSource};
 use std::{collections::BTreeMap, path::Path};
 
 /// Merges Mod projectile specs over core fallbacks; a Mod spec with the same

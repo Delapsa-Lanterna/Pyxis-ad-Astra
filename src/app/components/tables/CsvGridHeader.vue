@@ -3,9 +3,9 @@
     <col v-for="column in columns" :key="column.key" :class="column.className" :style="{ width: `${column.widthPx}px` }" />
   </colgroup>
   <thead>
-    <tr>
-      <th v-for="column in columns" :key="column.key" :class="column.className" :title="column.key">
-        <span class="csv-th-label">{{ column.schema?.label ?? column.key }}</span>
+    <tr class="csv-grid-row">
+      <th class="csv-header-cell" v-for="column in columns" :key="column.key" :class="column.className" :title="column.key">
+        <span class="csv-th-label ui-layout-clip">{{ column.schema?.label ?? column.key }}</span>
         <span class="csv-th-resize" @mousedown.prevent="startResize($event, column)" />
       </th>
     </tr>

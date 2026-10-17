@@ -7,11 +7,10 @@ import { csvModuleBoundaryRule } from './csv-module-boundary.mjs';
 import { directoryOpeningBoundaryRule } from './directory-opening-boundary.mjs';
 import { docsModuleMapRule } from './docs-module-map.mjs';
 import { draftSessionBoundaryRule } from './draft-session-boundary.mjs';
-import { editorConfigBackendBoundaryRule } from './editor-config-backend-boundary.mjs';
+import { saveBackendBoundaryRule } from './save-backend-boundary.mjs';
 import { editorModuleBoundaryRule } from './editor-module-boundary.mjs';
 import { errorBoundaryRule } from './error-boundary.mjs';
 import { feedbackBoundaryRule } from './feedback-boundary.mjs';
-import { fileEditorBoundaryRule } from './file-editor-boundary.mjs';
 import { fileHistoryBoundaryRule } from './file-history-boundary.mjs';
 import { frontendLayerBoundaryRule } from './frontend-layer-boundary.mjs';
 import { mainHistoryCommandBoundaryRule } from './main-history-command-boundary.mjs';
@@ -45,9 +44,8 @@ export const rules = [
   readTicketBoundaryRule,
   fileHistoryBoundaryRule,
   directoryOpeningBoundaryRule,
-  editorConfigBackendBoundaryRule,
+  saveBackendBoundaryRule,
   projectResourcesBoundaryRule,
-  fileEditorBoundaryRule,
   workspacePersistenceBoundaryRule,
   projectSessionBoundaryRule,
   parserBoundaryRule,

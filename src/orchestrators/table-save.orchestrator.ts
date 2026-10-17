@@ -1,22 +1,30 @@
-import type { AppFeedback, AssociatedSpecChange, CsvRowPatch, ModTableState, ProjectManifest, TableKey } from '@/shared/types';
+import type {
+  AppFeedback,
+  AssociatedSpecChange,
+  CsvRowPatch,
+  ModTableState,
+  ProjectManifest,
+  CsvTableKey,
+  WindowIdentity,
+} from '@/shared/types';
 import { getAssociatedSpecCandidates } from '@/domain/tables/associated-spec-candidates';
 import { isCsvDeletedRow } from '@/domain/tables/csv-dirty';
-import { saveCsvPatch } from '@/services/csv-table.service';
+import { saveCsvPatch, captureAssociatedSpecTarget } from '@/services/csv-table.service';
 import { useTablesStore } from '@/stores/tables.store';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { isLoadedCsvTableRow } from '@/domain/tables/csv-table-rows';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
-import { completeSavedWrite } from '@/orchestrators/file-history-write.orchestrator';
-import { retryPendingWritesForMod } from '@/orchestrators/project-session-refresh.orchestrator';
+import { completeSavedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
+
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { commitCsvTableSaveDraft } from '@/domain/tables/csv-table-draft';
 import { deepClone } from '@/shared/lib/starsector';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
-import { captureAssociatedSpecTarget } from '@/services/csv-table.service';
+
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';
-import type { WindowIdentity } from '@/shared/types';
+
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
 export type TableSaveResult = { status: 'saved'; receipt: import('@/shared/types').WriteResult } | { status: 'noop' | 'cancelled' };
@@ -25,11 +33,11 @@ interface CapturedTableSaveTarget {
   manifest: ProjectManifest;
   modRoot: string;
   state: ModTableState;
-  table: TableKey;
+  table: CsvTableKey;
 }
 
 interface TableSaveOptions {
-  table: TableKey;
+  table: CsvTableKey;
   manifest: ProjectManifest | null;
   selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>;
   feedback?: AppFeedback;
@@ -77,7 +85,7 @@ function captureTableSaveTarget({ manifest, table }: TableSaveOptions): Captured
 }
 
 async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOptions): Promise<TableSaveResult> {
-  const synchronization = retryPendingWritesForMod(target.modRoot);
+  const synchronization = retryPendingModSyncs(target.modRoot);
   if (synchronization) await synchronization;
   const tables = useTablesStore();
   const state = target.state;
@@ -176,7 +184,7 @@ function isTableSaveTargetCurrent(target: CapturedTableSaveTarget): boolean {
   return currentManifest?.sessionId === target.manifest.sessionId && tables.getModTableState(target.modRoot) === target.state;
 }
 
-function buildCurrentTablePatches(state: ModTableState, table: TableKey): CsvRowPatch[] {
+function buildCurrentTablePatches(state: ModTableState, table: CsvTableKey): CsvRowPatch[] {
   const dirty = state.dirty[table] ?? {};
   return Object.entries(dirty).map(([rowKey, changes]) => {
     if (isCsvDeletedRow(changes)) return { rowKey, action: 'delete', row: {}, isComment: false };

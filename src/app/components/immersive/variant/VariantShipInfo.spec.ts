@@ -35,7 +35,26 @@ describe('Variant ship read-only source and media ownership', () => {
         },
       },
     });
-    expect(media.replaceCollection).not.toHaveBeenCalled();
+    expect(media.replaceCollection).toHaveBeenCalledWith('s', 'ship-info-button', []);
+    const button = own.find('button').element;
+    const graphic = own.find('.immersive-resource-icon').element;
+    expect(own.find('.immersive-resource-icon').attributes('style')).toContain('data:image/svg+xml');
+    const resource = {
+      source: 'core' as const,
+      ownerKind: 'ship' as const,
+      ownerId: 'refit-ui',
+      key: 'icon_more_info',
+      relPath: 'info.png',
+    };
+    await own.setProps({
+      snapshot: { ...snapshot, referenceSettings: { ...snapshot.referenceSettings, resources: { icon_more_info: resource } } },
+    });
+    expect(media.replaceCollection).toHaveBeenLastCalledWith('s', 'ship-info-button', [resource]);
+    expect(own.find('.immersive-resource-icon').exists()).toBe(true);
+    expect(own.find('.immersive-resource-icon').element).toBe(graphic);
+    await own.setProps({ snapshot });
+    expect(own.find('button').element).toBe(button);
+    expect(own.find('.immersive-resource-icon').attributes('style')).toContain('data:image/svg+xml');
     await own.find('button').trigger('focus');
     await flushPromises();
     const node = own.find('article').element;

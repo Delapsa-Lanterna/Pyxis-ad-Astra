@@ -1,4 +1,4 @@
-import type { CsvSearchField, TableKey } from '@/shared/types';
+import type { CsvSearchField, CsvTableKey } from '@/shared/types';
 
 export const DEFAULT_CSV_SEARCH_FIELD: CsvSearchField = 'id-name';
 
@@ -9,7 +9,7 @@ const SEARCH_LABELS: Record<CsvSearchField, string> = {
   tags: 'tags',
 };
 
-export function csvSearchOptions(table: TableKey, header: readonly string[]): Array<{ label: string; value: CsvSearchField }> {
+export function csvSearchOptions(table: CsvTableKey, header: readonly string[]): Array<{ label: string; value: CsvSearchField }> {
   const idField = table === 'simOpponents' ? 'variant id' : 'id';
   const fields: CsvSearchField[] = [];
   if (header.includes(idField) || header.includes('name')) fields.push('id-name');

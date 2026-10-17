@@ -82,14 +82,14 @@ describe('SpecProjectileEditor', () => {
     await canvas.trigger('mousedown', { button: 2, clientX: 10, clientY: 20 });
     await canvas.trigger('mousemove', { clientX: 40, clientY: 60 });
     await canvas.trigger('mouseup');
-    await canvas.trigger('wheel', { deltaY: 1 });
-    expect(recording.calls('translate').at(-1)!.args).toEqual([280, 240]);
+    canvas.element.dispatchEvent(new WheelEvent('wheel', { deltaY: 1, clientX: 80, clientY: 100 }));
+    expect(recording.calls('translate').at(-1)!.args).toEqual([expect.closeTo(260), expect.closeTo(226)]);
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
     expect(editor.emitted('draft-changed')).toBeUndefined();
     const width = editor.findAll('input').find((input) => (input.element as HTMLInputElement).value === '8')!;
     await width.setValue('16');
     await flushPromises();
-    expect(recording.calls('translate').at(-1)!.args).toEqual([280, 240]);
+    expect(recording.calls('translate').at(-1)!.args).toEqual([expect.closeTo(260), expect.closeTo(226)]);
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
     await editor
       .findAll('button')

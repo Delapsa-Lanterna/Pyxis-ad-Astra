@@ -104,13 +104,13 @@ mod tests {
         .unwrap();
         let mut trace = super::super::PerformanceTrace::new("project.openSession");
         let manifest = super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
-        let skin = super::super::query_entity(&manifest.session_id, EntityKind::Skin, "skin")
+        let skin = crate::services::query_entity(&manifest.session_id, EntityKind::Skin, "skin")
             .unwrap()
             .unwrap();
         assert_eq!(skin.resource_refs["sprite"].rel_path, "graphics/skin.png");
         assert_eq!(skin.base_versions.len(), 1);
         assert!(skin.base_versions[0].fingerprint.is_some());
-        let mission = super::super::query_entity_edit_target(
+        let mission = crate::services::query_entity_edit_target(
             &manifest.session_id,
             EntityKind::Mission,
             "demo",

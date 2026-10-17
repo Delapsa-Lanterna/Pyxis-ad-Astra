@@ -1,16 +1,14 @@
 use super::ensure_session_mod_scope;
 use crate::{
     errors::AppError,
-    models::command_payloads::{
-        LoadEditableFilePayload, SaveTextFilePayload, TranscodeFilePayload,
-    },
     models::{EditableFileData, WriteResult},
+    models::{LoadEditableFilePayload, SaveTextFilePayload, TranscodeFilePayload},
     services,
 };
 
 #[tauri::command(async)]
 pub fn query_text_identity_intent(
-    payload: crate::models::command_payloads::TextIdentityIntentPayload,
+    payload: crate::models::TextIdentityIntentPayload,
 ) -> Result<crate::models::EntityIdentityIntent, AppError> {
     services::file_editor::query_text_identity_intent(
         &payload.session_id,
@@ -20,7 +18,7 @@ pub fn query_text_identity_intent(
 }
 #[tauri::command(async)]
 pub fn follow_text_identity(
-    payload: crate::models::command_payloads::FollowTextIdentityPayload,
+    payload: crate::models::FollowTextIdentityPayload,
 ) -> Result<String, AppError> {
     services::file_editor::follow_text_identity(payload.kind, &payload.text, &payload.next_id)
 }

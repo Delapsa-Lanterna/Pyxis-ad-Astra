@@ -1,5 +1,6 @@
 <template>
   <td
+    class="csv-grid-cell"
     :class="[column.className, { dirty, 'csv-cell-active': active }]"
     :data-column-key="column.key"
     @click.stop="$emit('activate-cell', row, column, $event)"

@@ -1,7 +1,7 @@
 <template>
   <span
     ref="surface"
-    class="font-text"
+    class="font-text ui-layout-shrink ui-text-wrap"
     :class="{ block, 'font-default': !font, outlined }"
     :style="
       font
@@ -11,8 +11,8 @@
     :title="missingTitle || undefined"
   >
     <template v-if="font"
-      ><span class="font-accessible-text">{{ original }}</span
-      ><canvas ref="canvas" aria-hidden="true"
+      ><span class="font-accessible-text ui-layout-clip">{{ original }}</span
+      ><canvas class="font-text-canvas" ref="canvas" aria-hidden="true"
     /></template>
     <template v-else
       ><span v-for="(run, index) in runs" :key="index" :style="{ color: run.color }">{{ run.text }}</span></template
@@ -55,16 +55,15 @@ const natural = computed(() => (definition.value ? layoutText(definition.value, 
 const layout = computed(() => (definition.value && width.value ? layoutText(definition.value, runs.value, width.value) : natural.value));
 const inkBounds = computed(() => layout.value?.ink);
 const displayHeight = computed(() => (layout.value ? (props.inkAligned ? inkBounds.value!.height : layout.value.height) : 0));
-const missingTitle = computed(
-  () =>
-    (layout.value?.missing ?? [])
-      .map(
-        (character) =>
-          `缺字：${character} ${Array.from(character)
-            .map((point) => 'U+' + point.codePointAt(0)!.toString(16).toUpperCase())
-            .join(' ')}`,
-      )
-      .join('；'),
+const missingTitle = computed(() =>
+  (layout.value?.missing ?? [])
+    .map(
+      (character) =>
+        `缺字：${character} ${Array.from(character)
+          .map((point) => 'U+' + point.codePointAt(0)!.toString(16).toUpperCase())
+          .join(' ')}`,
+    )
+    .join('；'),
 );
 function paint() {
   const target = canvas.value,
@@ -148,43 +147,3 @@ onScopeDispose(() => {
   window.removeEventListener('scroll', alignPixels, true);
 });
 </script>
-<style scoped>
-.font-text {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: top;
-  min-width: 0;
-}
-.font-text.block {
-  display: block;
-}
-.font-default {
-  font-family: var(--font-sans);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.2;
-}
-.font-default.outlined {
-  text-shadow:
-    -1px 0 #000,
-    1px 0 #000,
-    0 -1px #000,
-    0 1px #000;
-}
-.font-text canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  image-rendering: pixelated;
-}
-.font-accessible-text {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: pre;
-}
-</style>

@@ -1,14 +1,14 @@
-import type { RowData } from '@/shared/types/json.types';
+import type { JsonValue, RowData } from '@/shared/types/json.types';
 
 export interface SavedConfig<T> {
   entity: T;
-  receipt: import('@/shared/types/write.types').WriteResult;
+  receipt: import('@/shared/types/write-commit.types').WriteResult;
 }
 
 export interface ConfigSaveIdentity {
   id: string;
   data: RowData;
-  receipt: import('@/shared/types/write.types').WriteResult;
+  receipt: import('@/shared/types/write-commit.types').WriteResult;
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
 }
 
@@ -27,65 +27,19 @@ export interface ConfigEditTarget {
   relPath: string | null;
 }
 
-export interface ConfigFileEntityWrite {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  sessionId: string;
-  modRoot: string;
-  previousId: string | null;
-  nextId: string;
-  data: RowData;
-  relPath: string | null;
-}
-
 export type IndexedConfigKind = 'faction' | 'mission';
 
-export interface IndexedConfigEntityWrite {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  sessionId: string;
-  modRoot: string;
-  kind: IndexedConfigKind;
-  previousId: string | null;
-  nextId: string;
-  indexRow: RowData;
-  entityData: RowData;
-}
-
-export interface DeleteIndexedConfigEntityWrite {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  sessionId: string;
-  modRoot: string;
-  kind: IndexedConfigKind;
-  id: string;
-  deleteTarget: boolean;
-}
-
-export interface IndexedConfigEntityData {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+export interface IndexedConfigEntityRefresh {
   entityId: string;
   indexPath: string;
   indexHeader: string[];
   indexRows: import('@/shared/types/tables.types').CsvRow[];
+  entityData: JsonValue;
+}
+
+export interface IndexedConfigEntityData extends Omit<IndexedConfigEntityRefresh, 'entityData'> {
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   entityData: RowData | null;
-}
-
-export type VariantEntityWrite = ConfigFileEntityWrite;
-
-export interface DeleteVariantEntityWrite {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  sessionId: string;
-  modRoot: string;
-  entityId: string;
-  relPath: string;
-}
-
-export type SkinEntityWrite = ConfigFileEntityWrite;
-
-export interface DeleteSkinEntityWrite {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  sessionId: string;
-  modRoot: string;
-  entityId: string;
-  relPath: string;
 }
 
 export interface ConfigMissionEditorData {
@@ -96,11 +50,33 @@ export interface ConfigMissionEditorData {
   iconSrc: string;
 }
 
-export interface ConfigFamilyFile {
-  target: import('@/shared/types/project-identity.types').EntityEditTarget;
-  id: string;
+export interface SaveModInfoPayload {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  path: string;
-  relPath: string;
+  sessionId: string;
+  modRoot: string;
   data: RowData;
+  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  orderedJson?: string | null;
+}
+
+export interface IndexedConfigEntityPayload {
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  sessionId: string;
+  modRoot: string;
+  kind: IndexedConfigKind;
+  previousId: string | null;
+  nextId: string;
+  indexRow: RowData;
+  entityData: RowData;
+  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  orderedJson?: string | null;
+}
+
+export interface DeleteIndexedConfigEntityPayload {
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  sessionId: string;
+  modRoot: string;
+  kind: IndexedConfigKind;
+  id: string;
+  deleteTarget: boolean;
 }

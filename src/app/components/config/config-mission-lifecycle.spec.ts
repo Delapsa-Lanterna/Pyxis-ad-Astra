@@ -8,7 +8,7 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
 import { editorUiStubs } from '@/test/ui-stubs';
@@ -42,10 +42,13 @@ vi.mock('@/orchestrators/config-save.orchestrator', () => ({
   createIndexedEntityAction: mocks.create,
   deleteIndexedEntityAction: mocks.remove,
   completeConfigSave: async (modRoot: string, _session: string, result: CommittedWriteEvent['result']) => {
-    useWriteSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
+    useProjectSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
   },
 }));
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: vi.fn(async () => () => {}) }));
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  listenEntityIdentityApplied: vi.fn(async () => () => {}),
+}));
 vi.mock('@/app/composables/use-visible-resource-media', () => ({
   useVisibleResourceMedia: () => ({
     mediaRef: () => () => {},

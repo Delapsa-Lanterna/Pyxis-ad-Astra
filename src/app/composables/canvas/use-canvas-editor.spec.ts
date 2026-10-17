@@ -24,6 +24,7 @@ function mountCanvas() {
     context = ref<EditContext | null>({ targetKey: 'one', baselineGeneration: 1, handoff: 'load' });
   const inputs = createFieldInputs(ref('one')),
     state = createCanvasState<null>();
+  const viewport = useCanvasViewport(shallowRef(null), 1, 10);
   let editor!: ReturnType<typeof useCanvasEditor<null>>;
   let document!: ReturnType<typeof useEditorDocument>;
   const onDraftMutated = vi.fn((draft: RowData) => {
@@ -64,7 +65,7 @@ function mountCanvas() {
         stageRef: shallowRef(null),
         windowRef: shallowRef(null),
         expandedSections: ref([]),
-        viewport: useCanvasViewport(shallowRef(null), 1, 10),
+        viewport,
         state,
         hooks,
       });
@@ -93,10 +94,21 @@ function mountCanvas() {
     },
     { attachTo: window.document.body },
   );
-  return { wrapper, onDraftMutated, value, source, context, inputs, state, editor, document, hooks };
+  return { wrapper, onDraftMutated, value, source, context, inputs, state, editor, document, hooks, viewport };
 }
 
 describe('canvas pointer completion', () => {
+  it('anchors Spec wheel navigation at the pointer without publishing a draft', () => {
+    const { wrapper, editor, viewport, onDraftMutated } = mountCanvas();
+    viewport.panBy(20, -10);
+    const point = viewport.fromCanvas('ship', 80, 100);
+    editor.onWheel(new WheelEvent('wheel', { deltaY: -1, clientX: 80, clientY: 100 }));
+    const projected = viewport.toCanvas('ship', point.x, point.y);
+    expect(projected.x).toBeCloseTo(80);
+    expect(projected.y).toBeCloseTo(100);
+    expect(onDraftMutated).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
   it.each(['mouseup', 'mouseleave'])('commits a drag once on %s', async (boundary) => {
     const { wrapper, onDraftMutated } = mountCanvas();
     const canvas = wrapper.find('canvas');

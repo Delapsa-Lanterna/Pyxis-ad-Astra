@@ -1,19 +1,23 @@
 <template>
-  <section class="overview-grid">
+  <section class="overview-grid ui-layout-grid">
     <div
       v-for="mod in workspace.loadedModList"
       :key="mod.modRoot"
-      class="overview-mod-card"
+      class="overview-mod-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-control-pointer"
       :class="{ 'card-active': workspace.isModView && workspace.activeModRoot === mod.modRoot }"
       @click="navigateToModOverview(mod.modRoot)"
     >
-      <div class="mod-card-header">
-        <strong>{{ mod.displayName }}</strong>
-        <span class="mod-card-status" :class="mod.status">{{ modStatusLabel(mod.status) }}</span>
+      <div class="mod-card-header ui-layout-row ui-layout-center">
+        <strong class="mod-card-header-value ui-emphasis ui-text-truncate ui-text-small ui-layout-shrink">{{ mod.displayName }}</strong>
+        <span class="mod-card-status ui-text-muted ui-layout-inline ui-layout-center ui-text-path ui-control-border" :class="mod.status">{{
+          modStatusLabel(mod.status)
+        }}</span>
       </div>
-      <div class="mod-card-version">{{ mod.version || '未声明版本' }}</div>
-      <div class="mod-card-path">{{ mod.modRoot }}</div>
-      <div v-if="draftSessions.hasUnsavedWorkForMod(mod.modRoot)" class="mod-card-dirty">有未保存修改</div>
+      <div class="mod-card-version ui-text-muted ui-text-small">{{ mod.version || '未声明版本' }}</div>
+      <div class="mod-card-path ui-text-truncate ui-text-muted">{{ mod.modRoot }}</div>
+      <div v-if="draftSessions.hasUnsavedWorkForMod(mod.modRoot)" class="mod-card-dirty ui-text-muted ui-layout-inline ui-layout-center">
+        有未保存修改
+      </div>
     </div>
   </section>
 </template>

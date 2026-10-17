@@ -1,12 +1,11 @@
 import { watch, onScopeDispose } from 'vue';
-import { useAppFeedback } from '@/app/composables/use-app-feedback';
+import type { AppFeedback } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { listenEditTargetHandoff } from '@/orchestrators/edit-target-handoff.orchestrator';
 import { updateEditTargetRegistration } from '@/services/window.service';
 import { deepClone } from '@/shared/lib/starsector';
 
-export function useEditTargetHandoff() {
-  const feedback = useAppFeedback();
+export function useEditTargetHandoff(feedback: AppFeedback) {
   const commands = useSaveCommandStore();
   let disposed = false;
   let stop: (() => void) | null = null;

@@ -1,224 +1,40 @@
-/* Workspace: top Mod tabs and current Mod navigation */
-
-.mod-tabs-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-width: 0;
-  background: var(--color-panel-muted);
-  border-bottom: 1px solid var(--color-border);
+.workspace {
+  position: relative;
+  grid-template-rows: 62px 1fr;
 }
-
-.mod-tabs-list {
-  display: flex;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+.workspace-loading {
+  grid-template-rows: 1fr;
 }
-
-.mod-tab {
-  display: flex;
-  flex: 0 0 auto;
-  min-width: 116px;
-  max-width: 220px;
-  height: 37px;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-soft);
-  background: transparent;
-  border: 0;
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid transparent;
-}
-
-.mod-tab:hover,
-.mod-tab:focus-within {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-
-.mod-tab.active {
-  color: var(--color-text);
-  background: var(--color-panel);
-  border-bottom-color: var(--color-primary);
-}
-
-.mod-tab-activate {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  height: 100%;
-  align-items: center;
-  gap: 6px;
-  padding: 0 0 0 var(--space-2);
-  color: inherit;
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid transparent;
-}
-
-.mod-tab-name {
-  min-width: 0;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 550;
-}
-
-.mod-tab-status,
-.mod-tab-dirty {
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.mod-tab-status.ready {
-  background: var(--color-success);
-}
-
-.mod-tab-status.loading {
-  background: var(--color-muted);
-}
-
-.mod-tab-status.error {
-  background: var(--color-danger);
-}
-
-.mod-tab-dirty {
-  background: var(--color-warning);
-}
-
-.mod-tab-error-label {
-  overflow: hidden;
-  color: var(--color-danger);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mod-tab-close {
-  display: grid;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  padding: 0;
-  margin: 0 var(--space-2) 0 0;
-  color: var(--color-muted);
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-}
-
-.mod-tab-close:hover {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-
-.mod-tab-close:focus-visible,
-.mod-tab-activate:focus-visible,
-.mod-tabs-overview:focus-visible,
-.mod-navigation-button:focus-visible {
-  outline: none;
-  border-color: var(--color-primary-border);
-  box-shadow: inset 0 0 0 1px var(--color-primary-border);
-}
-
-.mod-tab-close svg,
-.mod-tabs-overview svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
-}
-
-.mod-tabs-overview {
-  display: grid;
-  width: 38px;
-  height: 37px;
-  place-items: center;
-  padding: 0;
-  color: var(--color-text-soft);
-  cursor: pointer;
-  background: var(--color-panel);
-  border: 0;
-  border-left: 1px solid var(--color-border);
-}
-
-.mod-tabs-overview:hover,
-.mod-tabs-overview.active {
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
-}
-
-.nav-empty-hint {
-  padding: var(--space-3);
-  color: var(--color-muted);
-  font-size: 12px;
+.workspace-loading-state {
+  place-content: center;
+  gap: var(--space-3);
   text-align: center;
 }
-
-/* --- Current Mod navigation --- */
-.mod-navigation {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+.workspace-loading-state .workspace-loading-state-description {
+  font-size: 13px;
 }
-
-.mod-navigation-separator {
-  height: 1px;
-  margin: var(--space-1) 0;
-  background: var(--color-border);
+.topbar {
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: var(--space-4);
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--color-border);
 }
-
-.mod-navigation-button {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+.top-action-group {
   gap: var(--space-2);
-  min-height: 28px;
-  padding: 0 var(--space-2);
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--color-text-soft);
-  font-size: 12px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: background 0.1s;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--color-border);
 }
-
-.mod-navigation-button > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.top-action-group:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
-
-.mod-navigation-button:hover {
-  background: var(--color-surface-hover);
+.content-grid {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 280px;
 }
-
-.mod-navigation-button.active {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-weight: 500;
+.top-search-input {
+  width: 240px;
 }
-
-.mod-navigation-count {
-  color: var(--color-muted);
-  font-size: 11px;
-  text-align: right;
-}
-
-.nav-error-hint {
-  color: var(--color-danger);
+.top-search-field-select {
+  width: 180px;
 }

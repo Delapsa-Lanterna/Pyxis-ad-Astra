@@ -17,12 +17,29 @@ export const projectSessionBoundaryRule = {
       if (specFile(file.rel)) continue;
       const current = classifyFrontendPath(file.rel);
       const isProjectStore = current.layer === 'stores' && current.domain === 'project';
+      const dependencies = file.dependencies.map((edge) => classifyFrontendPath(edge.resolved));
+      if (isProjectStore && dependencies.some((target) => target.layer === 'stores' && target.domain === 'workspace')) {
+        failures.push(`${file.rel}: project manifests must be independent of workspace selection`);
+      }
+      if (isProjectStore && /\b(?:activeModRoot|activeManifest|activeSessionId|projectName)\b/.test(file.text)) {
+        failures.push(`${file.rel}: active project projection must be owned by workspace`);
+      }
+      if (
+        current.layer === 'orchestrators' &&
+        current.domain === 'core-assets' &&
+        dependencies.some(
+          (target) =>
+            target.layer === 'stores' && (target.domain === 'project' || target.domain === 'workspace' || target.domain === 'settings'),
+        )
+      ) {
+        failures.push(`${file.rel}: Core loading must consume the root supplied by window assembly`);
+      }
       const isDirectoryOpening = current.layer === 'orchestrators' && current.domain === 'directory-opening';
-      const isProjectSessionRefresh = current.layer === 'orchestrators' && current.domain === 'project-session-refresh';
+      const isProjectSync = current.layer === 'orchestrators' && current.domain === 'project-sync';
       const isWorkspaceLifecycle = current.layer === 'orchestrators' && current.domain === 'workspace-lifecycle';
       const isWorkspaceShellActions = current.layer === 'app' && current.domain === 'workspace-shell-actions';
       const isManifestMutationOwner =
-        isProjectStore || isDirectoryOpening || isProjectSessionRefresh || isWorkspaceLifecycle || isWorkspaceShellActions;
+        isProjectStore || isDirectoryOpening || isProjectSync || isWorkspaceLifecycle || isWorkspaceShellActions;
 
       if (isProjectStore && forbiddenManifestPatchNames.some((name) => new RegExp(`\\b${name}\\b`).test(file.text))) {
         failures.push(`${file.rel}: project store must not expose partial ProjectManifest patch APIs`);

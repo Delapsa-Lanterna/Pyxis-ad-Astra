@@ -6,15 +6,42 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 
 ## 参考
 
-`src/app/SpecEditorApp.vue`：规格窗口根，消费统一窗口壳。
-`src/app/SpecEditorContent.vue`：业务组件挂载与窗口动作装配。
-`src/app/composables/spec-editor-assembly.ts`：四类查询、定义选择及依赖装配入口。
-`src/app/composables/spec-editor/spec-editor.types.ts`：目标、响应式输入及规格定义契约 owner。
-`src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳 owner。
-`src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：规格目标会话、保存与外部接纳 owner。
-`src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
-`src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
-`src/windows/spec-editor.window.ts`：结构化规格窗口打开入口。
+### 拥有
+
+- `schemas/spec-defaults.json`：舰船、武器、弹体、系统与技能规格的默认模板资产。
+- `src-tauri/src/commands/spec_editor.rs`：规格保存及外部规格导入 command。
+- `src-tauri/src/services/spec_editor.rs`：正式外部规格导入及保存链路的测试适配。
+- `src/app/composables/spec-editor/spec-editor.types.ts`：目标、响应式输入及规格定义契约。
+- `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳。
+- `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
+- `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
+- `src/domain/editors/spec-construction.ts`：规格默认模板加载、创建及分支必读字段补齐。
+- `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
+- `src/domain/spec-editor/spec-normalization.spec.ts`：四类规格的集合默认值与归一化验证。
+- `src/orchestrators/editor-window.orchestrator.ts`：规格保存结果发布与所属提交事件过滤。
+- `src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
+- `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
+
+### 消费
+
+- `src-tauri/src/models/spec_editor.rs`：规格种类、武器分支、保存及外部导入请求协议。
+- `src/app/components/editors/common/EditorFooter.vue`：编辑与预览共用的说明及操作插槽。
+- `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
+- `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
+- `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
+- `src/domain/edit-session.ts`：编辑会话与撤销栈原语，拥有 base/draft/dirty/revision/pending external 状态机与双栈状态工厂。
+- `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
+- `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、重排确认与写入重试交接。
+- `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
+- `src/shared/types/spec-editor.types.ts`：规格种类、分支、保存及导入请求与窗口业务读取投影。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+- `src/app/SpecEditorApp.vue`：规格窗口根，消费统一窗口壳。
+- `src/app/SpecEditorContent.vue`：四类规格组件、窗口会话、依赖与跨窗口动作装配。
+- `src/app/composables/spec-editor-assembly.ts`：四类查询、定义选择及依赖装配入口。
 
 ## 边界
 

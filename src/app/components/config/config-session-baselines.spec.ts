@@ -38,14 +38,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
 vi.mock('@/services/config-entity.service', () => ({
   getConfigFactionRecord: async () => (await mocks.factions())[0] ?? null,
+  listConfigFactionRecords: mocks.factions,
+  queryFactionPreviewImages: async () => ({ crestSrc: '', logoSrc: '' }),
+}));
+vi.mock('@/services/config-family.service', () => ({
   getConfigFamilyRecord: async (_session: string, kind: string) =>
     (await (kind === 'variant' ? mocks.variants() : mocks.skins()))[0] ?? null,
   listVariantRecords: mocks.variants,
   listSkinRecords: mocks.skins,
-  listConfigFactionRecords: mocks.factions,
-  queryFactionPreviewImages: async () => ({ crestSrc: '', logoSrc: '' }),
 }));
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
   listenEntityIdentityApplied: vi.fn(async (handler) => {
     mocks.identityHandler = handler;
     return () => {};

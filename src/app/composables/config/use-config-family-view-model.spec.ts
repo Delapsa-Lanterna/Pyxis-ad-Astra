@@ -1,9 +1,16 @@
+vi.mock('@/services/entity-query.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/entity-query.service')>()),
+  hasEntityInvalidation: vi.fn(() => false),
+}));
 import { entityTargetFixture } from '@/test/entity-target';
 import { savedWriteFixture } from '@/test/write-result';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { flushPromises, mount } from '@vue/test-utils';
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: vi.fn(async () => () => {}) }));
-import { createPinia, setActivePinia } from 'pinia';
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  listenEntityIdentityApplied: vi.fn(async () => () => {}),
+}));
+import { createPinia, setActivePinia, getActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigFamilyFile } from '@/shared/types';
 
@@ -32,7 +39,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/orchestrators/config-save.orchestrator', () => ({
   completeConfigSave: async (modRoot: string, _session: string, result: import('@/shared/types').WriteResult) => {
-    useWriteSyncStore().markAccepted({ modRoot, result } as import('@/shared/types').CommittedWriteEvent);
+    useProjectSyncStore().markAccepted({ modRoot, result } as import('@/shared/types').CommittedWriteEvent);
   },
   saveVariantAction: mocks.saveVariantAction,
   createVariantAction: mocks.createVariantAction,
@@ -42,7 +49,7 @@ vi.mock('@/orchestrators/config-save.orchestrator', () => ({
   deleteSkinAction: mocks.deleteSkinAction,
 }));
 
-vi.mock('@/services/config-entity.service', () => ({
+vi.mock('@/services/config-family.service', () => ({
   listVariantRecords: mocks.listVariantRecords,
   listSkinRecords: mocks.listSkinRecords,
 }));
@@ -53,8 +60,8 @@ vi.mock('@/services/hull-reference.service', () => ({
 }));
 vi.mock('@/services/window.service', () => ({ focusNativeManagedWindow: mocks.focus }));
 
-vi.mock('@/services/query-cache.service', () => ({
-  hasEntityInvalidation: vi.fn(() => false),
+vi.mock('@/services/query-cache.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
   hasQueryInvalidation: vi.fn(() => false),
   subscribeQueryInvalidations: vi.fn(() => () => {}),
 }));
@@ -75,8 +82,6 @@ function freshPinia() {
   initializeSettingsStore(createSettingsFixture());
   return getActivePinia();
 }
-
-import { getActivePinia } from 'pinia';
 
 function variantRecord(variantId: string, hullId: string) {
   const file: ConfigFamilyFile = {

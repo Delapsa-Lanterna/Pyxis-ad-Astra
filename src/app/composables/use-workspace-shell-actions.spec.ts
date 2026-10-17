@@ -1,15 +1,15 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
-import type { AssociatedSpecChange, ChooseOptions } from '@/shared/types';
+import type { AssociatedSpecChange, ChooseOptions, AppFeedback, ProjectManifest } from '@/shared/types';
 import { NSelect } from 'naive-ui/es/select';
 import { NCheckbox } from 'naive-ui/es/checkbox';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppFeedback } from '@/shared/types';
 
 type DirectoryOpeningOutcomeLike = Record<string, unknown> & { type: string };
 
 const mocks = vi.hoisted(() => ({
+  requestClose: vi.fn(),
   pickDirectory: vi.fn(),
   scanDirectoryGameOverview: vi.fn(),
   openDirectoryTarget: vi.fn(),
@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   refreshProjectSourcePaths: vi.fn(),
 }));
 
+vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: mocks.requestClose }) }));
+
 vi.mock('@/services/directory.service', () => ({
   pickDirectory: mocks.pickDirectory,
   scanDirectoryGameOverview: mocks.scanDirectoryGameOverview,
@@ -37,10 +39,11 @@ vi.mock('@/orchestrators/table-save.orchestrator', () => ({
 vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({
   openDirectoryTarget: mocks.openDirectoryTarget,
   openModFromOverview: mocks.openModFromOverview,
+  settleDirectoryOpenings: vi.fn(async () => {}),
 }));
 
 vi.mock('@/orchestrators/workspace-lifecycle.orchestrator', () => ({
-  closeWorkspaceWindows: vi.fn(async () => true),
+  closeWorkspaceWindows: vi.fn(async (finish: () => Promise<boolean>) => finish()),
   captureWorkspaceCloseTarget: mocks.captureWorkspaceCloseTarget,
   closeWorkspaceRuntime: mocks.closeWorkspaceRuntime,
   removeLoadedModRuntime: mocks.removeLoadedModRuntime,
@@ -60,18 +63,18 @@ vi.mock('@/services/app-log.service', () => ({
   recordLogBestEffort: mocks.recordLogBestEffort,
 }));
 
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
   refreshProjectSourcePaths: mocks.refreshProjectSourcePaths,
-  retryPendingWritesForMod: vi.fn(),
+  retryPendingModSyncs: vi.fn(),
 }));
+
 import { useWorkspaceShellActions } from './use-workspace-shell-actions';
 import { useProjectStore } from '@/stores/project.store';
-import type { ProjectManifest } from '@/shared/types';
+
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { useSaveCommandStore } from '@/stores/save-command.store';
 import { effectScope, ref } from 'vue';
 
 function feedbackStub(): AppFeedback {
@@ -142,8 +145,8 @@ describe('useWorkspaceShellActions', () => {
     const actions = useWorkspaceShellActions(feedback);
 
     await actions.confirmRemoveMod('M:/mod');
-    expect(feedback.choose).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(mocks.removeLoadedModRuntime).toHaveBeenCalledWith('M:/mod'));
+    expect(feedback.choose).toHaveBeenCalledTimes(0);
+    await vi.waitFor(() => expect(mocks.removeLoadedModRuntime).toHaveBeenCalledWith('M:/mod', mocks.requestClose));
     expect(feedback.success).toHaveBeenCalledWith('Mod 已从工作区移除');
   });
 
@@ -151,7 +154,7 @@ describe('useWorkspaceShellActions', () => {
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
     await actions.confirmRemoveMod('M:/clean');
-    expect(mocks.removeLoadedModRuntime).toHaveBeenCalledWith('M:/clean');
+    expect(mocks.removeLoadedModRuntime).toHaveBeenCalledWith('M:/clean', mocks.requestClose);
     expect(feedback.confirmWarning).not.toHaveBeenCalled();
   });
 
@@ -164,40 +167,26 @@ describe('useWorkspaceShellActions', () => {
     const actions = useWorkspaceShellActions(feedback);
 
     expect(await actions.confirmCloseWorkspace()).toBe(true);
-    const content = (feedback.choose as ReturnType<typeof vi.fn>).mock.calls[0]![0].content;
-    expect(content).toContain('未保存修改');
+    expect(feedback.choose).toHaveBeenCalledTimes(0);
     await vi.waitFor(() => expect(mocks.closeWorkspaceRuntime).toHaveBeenCalledTimes(1));
     expect(feedback.success).toHaveBeenCalledWith('工作区已关闭');
   });
 
-  it.each([true, false])('coalesces workspace closing while save completes with %s', async (saved) => {
+  it.each([true, false])('coalesces workspace closing until native coordination completes with %s', async (closed) => {
     mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: ['M:/mod'] });
-    const saving = ref(true),
-      dirty = ref(false);
-    let release!: (saved: boolean) => void;
-    const promise = new Promise<boolean>((resolve) => {
-      release = resolve;
-    });
-    useSaveCommandStore().registerSaveSession({ targetKey: ref('one'), modRoot: ref('M:/mod'), saving, waitForSave: () => promise });
-    useDraftSessionsStore().registerDirtySource(() => dirty.value);
-    const feedback = feedbackStub();
-    (feedback.choose as ReturnType<typeof vi.fn>).mockResolvedValue('close');
-    const actions = useWorkspaceShellActions(feedback);
-    const closing = actions.confirmCloseWorkspace();
-    expect(actions.confirmCloseWorkspace()).toBe(closing);
-    expect(feedback.choose).not.toHaveBeenCalled();
-    dirty.value = true;
-    saving.value = false;
-    release(saved);
-    expect(await closing).toBe(saved);
-    if (saved) {
-      expect(feedback.choose).toHaveBeenCalledOnce();
-      expect((feedback.choose as ReturnType<typeof vi.fn>).mock.calls[0]![0].content).toContain('未保存修改');
-      expect(mocks.closeWorkspaceRuntime).toHaveBeenCalledOnce();
-    } else {
-      expect(feedback.choose).not.toHaveBeenCalled();
-      expect(mocks.closeWorkspaceRuntime).not.toHaveBeenCalled();
-    }
+    let finish!: (value: boolean) => void;
+    mocks.closeWorkspaceRuntime.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const actions = useWorkspaceShellActions(feedbackStub());
+    const pending = actions.confirmCloseWorkspace();
+    expect(actions.confirmCloseWorkspace()).toBe(pending);
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    finish(closed);
+    expect(await pending).toBe(closed);
   });
 
   it('skips saving when there is no captured table target', async () => {
@@ -227,6 +216,7 @@ describe('useWorkspaceShellActions', () => {
     mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
+    mocks.closeWorkspaceRuntime.mockResolvedValueOnce(false);
     expect(await actions.confirmCloseWorkspace(false)).toBe(false);
     vi.mocked(feedback.choose).mockResolvedValueOnce('close');
     mocks.closeWorkspaceRuntime.mockRejectedValueOnce(new Error('session close failed'));

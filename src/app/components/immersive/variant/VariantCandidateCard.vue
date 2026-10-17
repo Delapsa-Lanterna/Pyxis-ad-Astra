@@ -1,6 +1,6 @@
 <template>
   <button
-    class="variant-candidate-card"
+    class="variant-candidate-card ui-button ui-text-normal ui-layout-grid ui-control-pointer ui-control-border"
     :class="{ 'variant-current': current }"
     :title="cardDiagnostic || undefined"
     @click="$emit('select')"
@@ -28,7 +28,7 @@
       :resource-url="mediaUrl"
     />
     <div v-else />
-    <div class="variant-card-text">
+    <div class="variant-card-text ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip">
       <ImmersiveText :text="entry.label" /><ImmersiveText
         :text="summary"
         :runs="[{ text: summary, color: '#ffd200' }]"
@@ -39,7 +39,7 @@
         font="caption"
       />
     </div>
-    <strong
+    <strong class="variant-candidate-card-value ui-layout-row ui-layout-stack"
       ><ImmersiveText
         :text="formatVariantNumber(cost)"
         :runs="[{ text: formatVariantNumber(cost), color: current ? '#9bff00' : '#ffd200' }]"

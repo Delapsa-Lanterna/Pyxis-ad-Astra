@@ -38,7 +38,7 @@ describe('JsonFieldEditor', () => {
     );
     await session.loadTarget('one');
     await flushPromises();
-    const input = wrapper.get('.json-field-row input');
+    const input = wrapper.get('.field-json-row input');
     await input.setValue('1e');
     await expect(session.saveDraft()).rejects.toMatchObject({ action: 'commit-field-inputs' });
     expect(session.draftValue.value._count).toBe(4);
@@ -52,13 +52,13 @@ describe('JsonFieldEditor', () => {
   });
   it('lists all extra business keys including underscore-prefixed names', () => {
     const editor = mountEditor({ knownKeys: ['id', 'name'], modelValue: { id: 'a', extra1: 'x', extra2: 3, __internal: true } });
-    const keys = editor.findAll('.json-field-key').map((node) => node.text());
+    const keys = editor.findAll('.field-json-key').map((node) => node.text());
     expect(keys).toEqual(['extra1', 'extra2', '__internal']);
   });
 
   it('shows the empty hint when no extra keys exist', () => {
     const editor = mountEditor({ knownKeys: ['id'], modelValue: { id: 'a' } });
-    expect(editor.get('.json-field-empty').text()).toBe('无额外字段');
+    expect(editor.get('.field-json-empty').text()).toBe('无额外字段');
   });
 
   it('updates string and number fields through the matching controls', async () => {
@@ -72,7 +72,7 @@ describe('JsonFieldEditor', () => {
 
   it('keeps incomplete JSON in the input and commits a completed object', async () => {
     const editor = mountEditor({ knownKeys: [], modelValue: { nested: { a: 1 } } });
-    const nestedInput = editor.get('.json-field-row textarea');
+    const nestedInput = editor.get('.field-json-row textarea');
     await nestedInput.setValue('{broken');
     expect(editor.emitted('update:modelValue')).toBeUndefined();
     expect((nestedInput.element as HTMLTextAreaElement).value).toBe('{broken');
@@ -86,9 +86,9 @@ describe('JsonFieldEditor', () => {
     await editor.findAll('.compact-icon-button')[1]!.trigger('click');
     expect(editor.emitted('update:modelValue')?.at(-1)).toEqual([{ keep: 1 }]);
 
-    const keyInput = editor.get('input.json-field-new-key');
+    const keyInput = editor.get('input.field-json-new-key');
     await keyInput.setValue('added');
-    await editor.findAll('.json-field-add button').at(-1)!.trigger('click');
+    await editor.findAll('.field-json-add button').at(-1)!.trigger('click');
     expect(editor.emitted('update:modelValue')?.at(-1)).toEqual([{ keep: 1, added: '' }]);
   });
 });

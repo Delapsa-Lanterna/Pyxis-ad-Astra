@@ -14,3 +14,7 @@ export interface AppLogStatus {
   path: string;
   sizeBytes: number;
 }
+
+export interface AppendAppLogPayload {
+  entry: AppLogEntry;
+}

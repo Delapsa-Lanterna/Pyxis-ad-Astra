@@ -1,3 +1,30 @@
+use std::sync::{RwLock, RwLockWriteGuard, atomic::AtomicBool};
+static OPENINGS: RwLock<()> = RwLock::new(());
+static OPENINGS_HELD: AtomicBool = AtomicBool::new(false);
+pub struct SessionOpeningPause {
+    _guard: RwLockWriteGuard<'static, ()>,
+}
+impl Drop for SessionOpeningPause {
+    fn drop(&mut self) {
+        OPENINGS_HELD.store(false, Ordering::Release);
+    }
+}
+pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
+    OPENINGS_HELD.store(true, Ordering::Release);
+    match OPENINGS.write() {
+        Ok(guard) => Ok(SessionOpeningPause { _guard: guard }),
+        Err(_) => {
+            OPENINGS_HELD.store(false, Ordering::Release);
+            Err(AppError::message(
+                "session.opening_poisoned",
+                "会话建立状态不可用",
+            ))
+        }
+    }
+}
+pub fn registered_session_ids() -> AppResult<Vec<String>> {
+    Ok(cache::lock_registry()?.keys().cloned().collect())
+}
 use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
 };
@@ -122,6 +149,21 @@ pub(crate) fn open_project_session_traced(
     starsector_root_override: Option<&Path>,
     trace: &mut PerformanceTrace,
 ) -> AppResult<ProjectManifest> {
+    if OPENINGS_HELD.load(Ordering::Acquire) {
+        return Err(AppError::message(
+            "session.application_closing",
+            "应用正在关闭",
+        ));
+    }
+    let _opening = OPENINGS
+        .read()
+        .map_err(|_| AppError::message("session.opening_poisoned", "会话建立状态不可用"))?;
+    if OPENINGS_HELD.load(Ordering::Acquire) {
+        return Err(AppError::message(
+            "session.application_closing",
+            "应用正在关闭",
+        ));
+    }
     let session = build_project_session(mod_root, starsector_root_override, trace)?;
     let manifest = session.manifest.clone();
     let mut guard = cache::lock_registry()?;
@@ -825,7 +867,9 @@ mod tests {
     #[test]
     fn concurrent_threads_on_separate_sessions_run_without_blocking_or_corruption() {
         use crate::models::{CsvRowPatch, CsvRowPatchAction, CsvSearchField, CsvTableKey};
-        use crate::services::project::{query::query_csv_table_window, write::save_csv_patch};
+
+        use crate::services::project::query::csv_window::query_csv_table_window;
+        use crate::services::project::write::csv_patch::save_csv_patch;
         use serde_json::{Map, Value};
         use std::sync::{Arc, Barrier};
 
@@ -973,7 +1017,7 @@ mod source_refresh_tests {
         crate::io::write_utf8_no_bom(&root.join("data/hulls/added.ship"), r#"{"hullId":"added"}"#)
             .unwrap();
         refresh_project_sources(&manifest.session_id, vec![source]).unwrap();
-        let added = super::super::query_entity_edit_target(
+        let added = crate::services::query_entity_edit_target(
             &manifest.session_id,
             crate::models::EntityKind::Ship,
             "added",

@@ -1,21 +1,21 @@
 <template>
-  <aside class="mission-file-list config-entity-list">
+  <aside class="mission-file-list config-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="mission-file-list-header config-entity-list-header">
-      <h3>战役列表</h3>
+      <h3 class="config-entity-list-header-title ui-text-reset">战役列表</h3>
     </header>
-    <ul :ref="setMediaRoot" class="mission-file-items config-entity-list-items">
-      <li v-if="missions.length === 0" class="mission-file-empty config-entity-list-empty">
+    <ul :ref="setMediaRoot" class="mission-file-items config-entity-list-items ui-text-reset">
+      <li v-if="missions.length === 0" class="mission-file-empty config-entity-list-empty ui-text-small">
         未找到 data/missions/mission_list.csv 或其中没有战役。
       </li>
       <li
         v-for="mission in missions"
         :key="mission.id"
         :ref="mediaRef(mission.id, props.missionIconRefs[mission.id])"
-        class="mission-file-item config-entity-list-item"
+        class="mission-file-item config-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
         :class="{ active: mission.id === selectedId }"
         @click="emit('select', mission.id)"
       >
-        <span class="mission-icon-thumb config-entity-thumb">
+        <span class="mission-icon-thumb config-entity-thumb ui-layout-grid ui-layout-clip ui-control-border">
           <ResourceThumbnail
             v-if="props.missionIconRefs[mission.id]"
             :session-id="sessionId!"
@@ -27,21 +27,21 @@
             :height="22"
           />
         </span>
-        <span class="mission-file-name config-entity-name">{{ mission.id }}</span>
+        <span class="mission-file-name config-entity-name ui-text-truncate ui-layout-shrink">{{ mission.id }}</span>
         <n-button
           size="tiny"
           quaternary
-          class="mission-delete-btn config-entity-delete compact-icon-button"
+          class="mission-delete-btn config-entity-delete compact-icon-button ui-control-reset"
           title="删除战役"
           @click.stop="confirmDeleteMission(mission.id)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 6l12 12M18 6 6 18" />
           </svg>
         </n-button>
       </li>
     </ul>
-    <footer class="mission-file-list-footer config-entity-list-footer">
+    <footer class="mission-file-list-footer config-entity-list-footer ui-footer">
       <n-button size="small" block :loading="actionRunning" @click="openCreateDialog">新建战役</n-button>
     </footer>
 

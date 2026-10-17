@@ -9,6 +9,9 @@ import VariantImmersivePanel from './VariantImmersivePanel.vue';
 import { variantJointFixture } from '@/test/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
+import { jointObject } from '@/domain/joint-edit';
+const deckMedia = vi.hoisted(() => ({ replaceCollection: vi.fn(), releaseCollection: vi.fn(), dataUrl: vi.fn(() => '') }));
+vi.mock('@/app/composables/use-resource-media-registry', () => ({ useResourceMediaRegistry: () => deckMedia }));
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[] }));
 vi.mock('@/app/composables/immersive-editor/variant/use-variant-catalog', () => ({
   useVariantCatalog: () => ({
@@ -30,6 +33,7 @@ function harness(
   costs: (number | null)[] = [],
   currentId = 'compatible',
   inPanel = false,
+  emptyDeck = false,
 ) {
   const source = { source: 'mod' as const, root: 'M:/mod', path: 'M:/mod/table.csv', relPath: 'table.csv' };
   mocks.entries = [
@@ -85,8 +89,11 @@ function harness(
   const commitManual = vi.fn(async () => true);
   const snapshot = variantJointFixture();
   const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
+  if (emptyDeck) values.variant = { state: 'present', value: { ...jointObject(values.variant), wings: [''] } };
+  const displaySnapshot = shallowRef(snapshot);
   const cancelVariantAction = vi.fn();
   const vm = {
+    displaySnapshot,
     joint: { currentTarget: ref(snapshot.root), saving: ref(false) },
     referenceChanging: ref(false),
     variantActionPending: ref(false),
@@ -146,9 +153,37 @@ function harness(
       },
     },
   );
-  return { wrapper, inputs, current, commitManual, cancelVariantAction, picker: wrapper.findComponent(VariantPicker) };
+  return { wrapper, inputs, current, commitManual, cancelVariantAction, displaySnapshot, picker: wrapper.findComponent(VariantPicker) };
 }
 describe('variant candidate picker', () => {
+  it('replaces the empty deck graphic with its source while retaining the slot button', async () => {
+    const own = harness('wings', 2, false, [], '', true, true);
+    await flushPromises();
+    const slot = own.wrapper.find('.variant-wing-tile');
+    expect(slot.find('img[alt="空甲板"]').exists()).toBe(true);
+    const resource = {
+      source: 'core' as const,
+      ownerKind: 'ship' as const,
+      ownerId: 'refit-ui',
+      key: 'fighterButtonBlank',
+      relPath: 'deck.png',
+    };
+    const snapshot = own.displaySnapshot.value;
+    deckMedia.dataUrl.mockReturnValue('deck.png');
+    own.displaySnapshot.value = {
+      ...snapshot,
+      referenceSettings: { ...snapshot.referenceSettings, resources: { fighterButtonBlank: resource } },
+    };
+    await flushPromises();
+    expect(deckMedia.replaceCollection).toHaveBeenLastCalledWith('s', 'empty-decks', [resource]);
+    expect(slot.find('img').attributes('src')).toBe('deck.png');
+    own.displaySnapshot.value = snapshot;
+    await flushPromises();
+    expect(own.wrapper.find('.variant-wing-tile').element).toBe(slot.element);
+    expect(slot.find('img[alt="空甲板"]').exists()).toBe(true);
+    own.wrapper.unmount();
+    deckMedia.dataUrl.mockReturnValue('');
+  });
   it.each(['weapons', 'wings'] as const)('closes the %s panel from an empty scene hit and cancels its pending action', async (kind) => {
     const own = harness(kind, 2, false, [], '', true);
     await flushPromises();

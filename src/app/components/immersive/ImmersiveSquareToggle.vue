@@ -1,6 +1,6 @@
 <template>
   <button
-    class="immersive-square-toggle"
+    class="immersive-square-toggle ui-button ui-control-button ui-control-reset"
     :class="{ fallback: !textured }"
     :role="role"
     :aria-checked="checked"
@@ -8,11 +8,18 @@
     :title="title"
     @click="$emit('change', $event)"
   >
-    <img v-if="textured" :src="checked ? onImage : offImage" alt="" aria-hidden="true" />
+    <img
+      class="ui-image immersive-square-toggle-image"
+      :src="checked ? (textured ? onImage : localOn) : textured ? offImage : localOff"
+      alt=""
+      aria-hidden="true"
+    />
   </button>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
+import localOn from '@/assets/immersive/controls/toggle-on.svg';
+import localOff from '@/assets/immersive/controls/toggle-off.svg';
 const props = defineProps<{
   checked: boolean;
   label: string;

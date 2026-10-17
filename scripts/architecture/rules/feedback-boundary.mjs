@@ -11,6 +11,19 @@ export const feedbackBoundaryRule = {
     for (const file of files) {
       if (!frontendFile(file.rel) || specFile(file.rel)) continue;
       const current = classifyFrontendPath(file.rel);
+      if (current.layer === 'app' && current.domain === 'app-feedback')
+        for (const edge of importedProjectPaths(file)) {
+          const target = classifyFrontendPath(edge.resolved);
+          const log = current.role === 'module' && target.layer === 'services' && target.domain === 'app-log';
+          if (!['shared', 'external'].includes(target.layer) && !log)
+            failures.push(
+              dependencyDiagnostic(
+                file,
+                edge,
+                'feedback presentation and injection must consume shared contracts; recovery belongs to application assembly',
+              ),
+            );
+        }
       if (
         current.layer === 'shared' &&
         current.domain === 'types' &&

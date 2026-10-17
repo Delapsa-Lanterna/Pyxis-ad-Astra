@@ -1,15 +1,15 @@
 import { h } from 'vue';
-import type { AppFeedback } from '@/shared/types';
+import type { AppFeedback, FileChangeReplayDirection, FileHistoryEntrySummary } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { useTablesStore } from '@/stores/tables.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
-import { replayFileChangeSet } from '@/services/file-history.service';
-import { publishCommittedWrite, retryPendingWritesForMod } from '@/orchestrators/project-session-refresh.orchestrator';
-import type { FileChangeReplayDirection, FileSaveHistoryEntry } from '@/shared/types';
+import { replayFileChangeSet, loadFileHistory } from '@/services/file-history.service';
+import { publishCommittedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
+
 import { AppError } from '@/shared/lib/errors';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
-import { loadFileHistory } from '@/services/file-history.service';
 
 type ProjectStore = ReturnType<typeof useProjectStore>;
 type TablesStore = ReturnType<typeof useTablesStore>;
@@ -35,7 +35,7 @@ export async function refreshLoadedFileHistory(accepts: () => boolean): Promise<
 export interface FileHistoryReplayPlan {
   actionText: string;
   direction: FileHistoryReplayDirection;
-  entry: FileSaveHistoryEntry;
+  entry: FileHistoryEntrySummary;
   modRoot: string;
   sessionId: string;
   revision: number;
@@ -43,7 +43,7 @@ export interface FileHistoryReplayPlan {
 
 interface FileHistoryReplayBehavior {
   actionText: string;
-  peekEntry: (modRoot: string) => FileSaveHistoryEntry | null;
+  peekEntry: (modRoot: string) => FileHistoryEntrySummary | null;
 }
 
 export function replayNextFileUndo(project: ProjectStore, tables: TablesStore, feedback: AppFeedback) {
@@ -57,7 +57,7 @@ export function replayNextFileRedo(project: ProjectStore, tables: TablesStore, f
 export function createFileReplayPlan(
   project: ProjectStore,
   direction: FileHistoryReplayDirection,
-  modRoot = project.activeModRoot,
+  modRoot: string | null,
 ): FileHistoryReplayPlan | null {
   if (!modRoot) return null;
   const sessionId = project.getSessionId(modRoot);
@@ -77,13 +77,13 @@ export function createFileReplayPlan(
 
 export async function executeFileReplayPlan(plan: FileHistoryReplayPlan, project: ProjectStore, tables: TablesStore): Promise<void> {
   const tableTarget = { sessionId: plan.sessionId, modRoot: plan.modRoot, table: tables.currentTab };
-  await retryPendingWritesForMod(plan.modRoot);
+  await retryPendingModSyncs(plan.modRoot);
   assertReplayPlanStillCurrent(plan, project);
   const result = await replayFileChangeSet(plan.sessionId, plan.modRoot, plan.direction, plan.entry.id, plan.revision);
   if (project.getSessionId(plan.modRoot) !== plan.sessionId) return;
   useFileHistoryStore().applySnapshot(plan.modRoot, result.history);
   await publishCommittedWrite(plan.modRoot, result, plan.sessionId, plan.direction);
-  if (project.activeModRoot === plan.modRoot && result.sessionUpdates.some((update) => update.modRoot === plan.modRoot))
+  if (useWorkspaceStore().activeModRoot === plan.modRoot && result.sessionUpdates.some((update) => update.modRoot === plan.modRoot))
     tables.selectRowByKey(tableTarget, null);
   recordLogBestEffort({
     level: 'info',
@@ -108,7 +108,7 @@ async function replayNextFileHistoryEntry(
   tables: TablesStore,
   feedback: AppFeedback,
 ) {
-  const root = project.activeModRoot;
+  const root = useWorkspaceStore().activeModRoot;
   const session = root ? project.getSessionId(root) : null;
   if (root && session) {
     try {
@@ -142,7 +142,7 @@ function confirmFileHistoryReplay(feedback: AppFeedback, plan: FileHistoryReplay
   });
 }
 
-function renderConfirmContent(entry: FileSaveHistoryEntry, action: string) {
+function renderConfirmContent(entry: FileHistoryEntrySummary, action: string) {
   const paths = historyEntryPaths(entry);
   return h('div', { class: 'file-history-confirm' }, [
     h('p', `${action}会直接写回磁盘。`),
@@ -156,7 +156,7 @@ function renderConfirmContent(entry: FileSaveHistoryEntry, action: string) {
   ]);
 }
 
-function historyEntryPaths(entry: FileSaveHistoryEntry): string[] {
+function historyEntryPaths(entry: FileHistoryEntrySummary): string[] {
   return entry.paths;
 }
 

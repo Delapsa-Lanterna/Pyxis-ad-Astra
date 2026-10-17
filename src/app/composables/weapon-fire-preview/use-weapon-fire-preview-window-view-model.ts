@@ -1,15 +1,20 @@
+import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import {
+  refreshProjectSourcePaths,
+  listenEntityIdentityApplied,
+  listenProjectSessionInvalidated,
+  invalidateProjectionCaches,
+} from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, onScopeDispose } from 'vue';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
-import { createReadTicketOwner } from '@/shared/runtime/read-request';
+import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { queryWeaponFirePreviewData } from '@/services/weapon-fire-preview.service';
-import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
-import { listenProjectSessionInvalidated, applyProjectSessionCacheInvalid } from '@/orchestrators/project-session-refresh.orchestrator';
+import { queryWeaponFirePreviewData, queryWeaponFirePreviewImages } from '@/services/weapon-fire-preview.service';
+
 import { retargetWeaponFirePreviewWindow } from '@/orchestrators/weapon-fire-preview.orchestrator';
-import { subscribeQueryInvalidations, hasEntityInvalidation } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { subscribeResourceInvalidations, hasResourceInvalidation } from '@/services/resource-cache.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { normalizeFsPath } from '@/shared/lib/paths';
@@ -22,13 +27,13 @@ export function useWeaponFirePreviewWindowViewModel() {
   const data = shallowRef<WeaponFirePreviewData | null>(null),
     loading = ref(false),
     errorText = ref('');
-  const reads = createReadTicketOwner(),
+  const reads = useQueryReadOwner(),
     feedback = useAppFeedback();
   const stops: Array<() => void> = [];
   let disposed = false,
     identityPending = false,
     identityCommit = -1;
-  async function refresh() {
+  async function refresh(required = false) {
     if (disposed || identityPending) return;
     const captured = target.value;
     loading.value = true;
@@ -40,10 +45,22 @@ export function useWeaponFirePreviewWindowViewModel() {
       {
         ready: (next) => {
           data.value = next;
+          void reads.consume(
+            'images',
+            { ...captured, refs: next.resourceRefs },
+            (signal) => queryWeaponFirePreviewImages(captured.sessionId, next.resourceRefs, signal),
+            {
+              ready: (images) => {
+                if (data.value === next) data.value = { ...next, weaponSpriteData: images };
+              },
+              error: (error) => feedback.error(error, '读取预览贴图失败'),
+            },
+          );
         },
         error: (error) => {
-          if (data.value) feedback.error(error, '刷新发射预览失败');
+          if (data.value && !required) feedback.error(error, '刷新发射预览失败');
           else errorText.value = formatError(error);
+          if (required) throw error;
         },
         settled: () => {
           loading.value = false;
@@ -54,15 +71,24 @@ export function useWeaponFirePreviewWindowViewModel() {
   function scheduleRefresh() {
     reads.schedule('data', () => void refresh());
   }
-  useManagedWindowRequests((request) => {
+  useManagedWindowRequests(async (request) => {
     if (request.kind !== 'weapon-fire-preview') return;
     reads.revoke();
     loading.value = false;
     target.value = cloneQuerySnapshot(request.identity);
     source.value = cloneQuerySnapshot(request.input.source);
-    scheduleRefresh();
+    await ensureListeners();
+    await refresh(true);
   });
+  let initialization: Promise<void> | null = null;
+  function ensureListeners() {
+    return (initialization ??= install());
+  }
   async function initialize() {
+    await ensureListeners();
+    await refresh();
+  }
+  async function install() {
     const identityStop = await listenEntityIdentityApplied(async (event) => {
       const before = target.value;
       if (
@@ -99,7 +125,7 @@ export function useWeaponFirePreviewWindowViewModel() {
         event.manifest.sessionId === target.value.sessionId &&
         normalizeFsPath(event.manifest.modRoot) === normalizeFsPath(target.value.modRoot)
       )
-        applyProjectSessionCacheInvalid(event);
+        invalidateProjectionCaches(event);
     });
     if (disposed) {
       invalidationStop();
@@ -128,7 +154,6 @@ export function useWeaponFirePreviewWindowViewModel() {
           scheduleRefresh();
       }),
     );
-    scheduleRefresh();
   }
   useContextMenuScope({
     identity: () => JSON.stringify(target.value),

@@ -15,15 +15,16 @@ use std::{
     sync::{Arc, LazyLock, Mutex},
 };
 
-use super::model::{CoreCache, ProjectSession};
+use super::model::ProjectSession;
 
+pub(super) use core::invalidate_core_cache;
 pub(crate) use core::{
     flush_core_cache, load_core_csv_table, load_core_projectile_specs, load_core_ship_files,
     load_core_skin_files, load_core_source_data, load_core_variant_files,
 };
 pub(crate) use csv::{
     ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
-    loaded_registered_csv_rows, registered_session_table, registered_session_table_mut,
+    loaded_registered_csv_rows, registered_session_table,
 };
 pub(super) use media::clear_sprite_media_for_session;
 
@@ -34,13 +35,6 @@ pub(super) struct RegisteredSession {
 }
 
 static PROJECT_SESSIONS: LazyLock<Mutex<BTreeMap<ProjectSessionId, RegisteredSession>>> =
-    LazyLock::new(|| Mutex::new(BTreeMap::new()));
-pub(super) struct CoreCacheEntry {
-    pub data: CoreCache,
-    pub dirty: bool,
-}
-
-static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 pub(super) fn sessions() -> &'static Mutex<BTreeMap<ProjectSessionId, RegisteredSession>> {
@@ -54,18 +48,6 @@ pub(super) fn lock_registry()
     sessions()
         .lock()
         .map_err(|_| AppError::message("session.lock_poisoned", "project session lock poisoned"))
-}
-
-/// Lock the core-cache registry; poison maps to the shared AppError form.
-pub(crate) fn lock_core_caches()
--> AppResult<std::sync::MutexGuard<'static, BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> {
-    core_caches()
-        .lock()
-        .map_err(|_| AppError::message("cache.lock_poisoned", "core cache lock poisoned"))
-}
-
-pub(crate) fn core_caches() -> &'static Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>> {
-    &CORE_CACHES
 }
 
 /// The registry lock is only ever held for map insert/remove/get plus the Arc
@@ -103,15 +85,4 @@ pub(crate) fn lock_ready_session(
         ));
     }
     Ok(session)
-}
-
-pub(super) fn invalidate_core_cache(starsector_root: &str) -> AppResult<()> {
-    let cache_key = core::core_cache_key(starsector_root)?;
-    // Persist what was built in memory before dropping, so the next open
-    // reuses it (the content fingerprint still guards against stale sources).
-    if let Err(error) = core::flush_core_cache(starsector_root) {
-        crate::diagnostics::record(format!("core cache flush failed: {error}"));
-    }
-    lock_core_caches()?.remove(&cache_key);
-    persistent::invalidate_core_fingerprint(&cache_key)
 }

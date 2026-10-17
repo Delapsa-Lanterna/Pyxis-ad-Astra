@@ -5,7 +5,7 @@ import type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel } from '@/
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
 import { generalFontFamily } from '@/domain/settings/fonts';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { readCacheLimits } from '@/domain/settings/rules';
+import { readCacheLimits } from '@/domain/cache-limits';
 import { deepClone } from '@/shared/lib/starsector';
 import {
   assertValidSettings,

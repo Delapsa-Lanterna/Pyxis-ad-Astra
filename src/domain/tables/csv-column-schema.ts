@@ -1,4 +1,4 @@
-import type { TableKey } from '@/shared/types';
+import type { CsvTableKey } from '@/shared/types';
 import type { SelectOption } from '@/domain/schema/schema-options';
 import type { CsvColumnControl, CsvColumnSchema } from '@/domain/schema/schema.types';
 import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
@@ -10,11 +10,11 @@ const CSV_BOOLEAN_OPTIONS: SelectOption[] = [
 
 const EMPTY_SCHEMAS: CsvColumnSchema[] = [];
 
-export function csvColumnSchemasForTable(table: TableKey): CsvColumnSchema[] {
+export function csvColumnSchemasForTable(table: CsvTableKey): CsvColumnSchema[] {
   return getCsvColumnSchemas(table) || EMPTY_SCHEMAS;
 }
 
-export function csvColumnSchemaFor(table: TableKey, column: string): CsvColumnSchema | null {
+export function csvColumnSchemaFor(table: CsvTableKey, column: string): CsvColumnSchema | null {
   return csvColumnSchemasForTable(table).find((schema) => schema.key === column) ?? null;
 }
 

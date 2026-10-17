@@ -16,8 +16,8 @@ const mocks = vi.hoisted(() => ({
   historyScope: vi.fn(),
   loadFileHistory: vi.fn(async () => ({
     revision: 0,
-    undoStack: [] as import('@/shared/types').FileHistoryItem[],
-    redoStack: [] as import('@/shared/types').FileHistoryItem[],
+    undoStack: [] as import('@/shared/types').FileHistoryEntrySummary[],
+    redoStack: [] as import('@/shared/types').FileHistoryEntrySummary[],
   })),
   replayNextFileUndo: vi.fn(),
   replayNextFileRedo: vi.fn(),

@@ -6,16 +6,27 @@
 
 ## 参考
 
-`src-tauri/src/commands/file_changes.rs`：变更 command 边界。
-`src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文 owner。
-`src-tauri/src/io/faction_index.rs`：索引引用的实际根与父链授权 owner。
-`src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放 owner。
-`src-tauri/src/io/file_versions.rs`：规范路径版本采集与指纹核对 owner。
-`src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历 owner。
-`src-tauri/src/io/paths.rs`：磁盘路径展开、父链授权与改名目标解析 owner。
-`src-tauri/src/io/text.rs`：UTF-8 文本读取 owner，拥有 BOM 剥离与 CP1252 归一化入口。
-`src-tauri/src/models/`：CP1252 归一化映射与 `FileChangeRecord` 模型 owner。
-`src-tauri/src/services/file_changes.rs`：变更服务实现 owner。
+### 拥有
+
+- `src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文。
+- `src-tauri/src/io/faction_index.rs`：索引引用的实际根与父链授权。
+- `src-tauri/src/io/faction_index_test.rs`：势力索引路径授权和读入行为验证。
+- `src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放。
+- `src-tauri/src/io/file_versions.rs`：规范路径版本采集与指纹核对。
+- `src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历。
+- `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
+- `src-tauri/src/io/paths.rs`：磁盘路径展开、父链授权与改名目标解析。
+- `src-tauri/src/io/text.rs`：UTF-8 文本读取，拥有 BOM 剥离与 CP1252 归一化入口。
+
+### 消费
+
+- `src-tauri/src/models/file_changes.rs`：文件变更、目录内容快照及统一回放方向。
+- `src/shared/types/file-changes.types.ts`：文件变更、目录快照与回放方向的基础契约。
+
+### 关联
+
+- `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
+- `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
 
 ## 边界
 
@@ -53,6 +64,7 @@
 ## 规范
 
 - `FileChangeRecord` 必须共同承载 `beforePath`、`afterPath` 与前后内容；普通写入必须使用相同路径，文件或目录改名必须使用源与目标路径。
+- IO 与历史回放必须共同消费 `FileChangeReplayDirection`，方向处理必须保留路径反转、内容反转与逆序应用。
 - Windows 仅大小写改名必须按同一物理文件检查占用，并且必须由正式文件改名原语交接实际名称。
 - `write_utf8_no_bom` 必须按调用方提供的文本原样写入 UTF-8 字节；换行、缩进与序列化规则归各格式 renderer。
 - 写入必须携带读取版本凭据并在出队执行时比较；冲突必须返回 `write.version_conflict` 和目标路径，严禁写入或推进历史。

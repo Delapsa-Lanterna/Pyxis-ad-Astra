@@ -3,14 +3,14 @@
     <input
       v-if="usesNativeInput"
       ref="inputRef"
-      class="csv-cell-input"
+      class="csv-cell-input ui-input ui-text-normal ui-layout-shrink ui-layout-clip ui-layout-stretch ui-control-reset"
       :value="raw"
       @blur="commitAndClose"
       @input="handleNativeInput"
       @keydown.enter.prevent="commitAndClose"
     />
     <template v-else-if="isTextControl">
-      <span class="csv-cell-value">{{ displayValue }}</span>
+      <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       <CsvCellTextEditor
         v-if="pickerAnchor"
         :anchor="pickerAnchor"
@@ -22,7 +22,13 @@
     </template>
     <template v-else>
       <template v-if="isListControl">
-        <span v-for="value in listValue" :key="value" class="csv-cell-tag" :title="listValueDescription(value)">{{ value }}</span>
+        <span
+          v-for="value in listValue"
+          :key="value"
+          class="csv-cell-tag ui-text-truncate ui-text-note ui-text-normal ui-control-border"
+          :title="listValueDescription(value)"
+          >{{ value }}</span
+        >
       </template>
       <template v-else-if="isReferenceControl">
         <ResourceThumbnail
@@ -35,12 +41,12 @@
           :width="16"
           :height="16"
         />
-        <span class="csv-cell-value">{{ displayValue }}</span>
+        <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       </template>
       <template v-else>
-        <span class="csv-cell-value">{{ displayValue }}</span>
+        <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       </template>
-      <span class="csv-cell-caret">⌄</span>
+      <span class="csv-cell-caret ui-text-muted">⌄</span>
       <CsvCellPicker
         ref="pickerRef"
         v-if="pickerAnchor"

@@ -1,7 +1,7 @@
-import type { ConfigView, ProjectManifest, TableKey, WorkspaceView } from '@/shared/types';
+import type { ConfigView, ProjectManifest, CsvTableKey, WorkspaceView } from '@/shared/types';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
 
-export type ModNavigationTarget = { type: 'config'; view: ConfigView } | { type: 'table'; table: TableKey } | { type: 'mod-files' };
+export type ModNavigationTarget = { type: 'config'; view: ConfigView } | { type: 'table'; table: CsvTableKey } | { type: 'mod-files' };
 
 export interface ModNavigationItem {
   id: string;
@@ -15,8 +15,8 @@ export interface ModNavigationSection {
   items: ModNavigationItem[];
 }
 
-const PRIMARY_TABLE_KEYS: TableKey[] = ['ships', 'weapons', 'wings', 'hullmods', 'shipSystems'];
-const SECONDARY_TABLE_KEYS: TableKey[] = [
+const PRIMARY_TABLE_KEYS: CsvTableKey[] = ['ships', 'weapons', 'wings', 'hullmods', 'shipSystems'];
+const SECONDARY_TABLE_KEYS: CsvTableKey[] = [
   'industries',
   'skills',
   'abilities',
@@ -65,7 +65,7 @@ export function isModNavigationItemActive(
   item: ModNavigationItem,
   currentView: WorkspaceView,
   configView: ConfigView,
-  currentTable: TableKey,
+  currentTable: CsvTableKey,
 ): boolean {
   if (item.target.type === 'mod-files') return currentView === 'mod-files';
   if (item.target.type === 'config') return currentView === 'config' && configView === item.target.view;
@@ -81,7 +81,7 @@ function configItem(view: ConfigView, label: string, count: number | null = null
   };
 }
 
-function tableItem(table: TableKey, manifest: ProjectManifest | null | undefined): ModNavigationItem {
+function tableItem(table: CsvTableKey, manifest: ProjectManifest | null | undefined): ModNavigationItem {
   return {
     id: `table:${table}`,
     label: MODULE_LABELS[table],

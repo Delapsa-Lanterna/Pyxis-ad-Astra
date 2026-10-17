@@ -4,16 +4,32 @@ export type {
   EntityEditInfo,
   EntityFileLocation,
   EntityLinkedRecord,
+  EntityTargetState,
   EntityIdentityChange,
   EntityIdentityIntent,
   FileVersion,
-  TableKey,
+  CsvTableKey,
   EntityKind,
   ProjectSessionId,
   ResourceOwnerKind,
   ResourceRef,
   ResourceSource,
+  EntityIdentityIntentPayload,
 } from '@/shared/types/project-identity.types';
+export type {
+  DraftResourceEntityKind,
+  HullReferenceGroup,
+  HullReferenceKind,
+  HullReferenceOption,
+  HullReferencesResult,
+  ResourceDataUrlBatchEntry,
+  ResourceDataUrlBatchResult,
+  DraftResourcesPayload,
+  ResourceDataUrlBatchPayload,
+  ResolveModRelativePathPayload,
+  HullReferencesPayload,
+  HullWeaponSlot,
+} from '@/shared/types/resources.types';
 export type {
   ModFileEntry,
   ModDirectory,
@@ -26,74 +42,97 @@ export type {
   ModFileSortKey,
   ModFileSort,
 } from '@/shared/types/mod-file-browser.types';
-export type { JsonInputShape, JsonInputValue, JsonValue, RowData } from '@/shared/types/json.types';
-export type { FontId, OriginalFontPage, OriginalFontResult } from '@/shared/types/font.types';
-export type { EditContext } from '@/shared/types/edit-context.types';
 export type {
   DeepReadonly,
   ReadonlyJsonValue,
-  QueryIdentity,
-  QueryKind,
-  QueryCacheKind,
-  QueryParameters,
-  QueryResults,
-  QueryValue,
-} from '@/shared/types/query-cache.types';
+  ReadonlyJsonArray,
+  ReadonlyJsonObject,
+  JsonInputShape,
+  JsonInputValue,
+  JsonValue,
+  RowData,
+} from '@/shared/types/json.types';
+export type { FontId, OriginalFontPage, OriginalFontResult, QueryOriginalFontPayload } from '@/shared/types/font.types';
+export type { EditContext } from '@/shared/types/edit-context.types';
+export type { SessionQueryIdentity } from '@/shared/types/query-cache.types';
+export type { CacheLimits, CacheSize, ResourceCacheLimits, FontCacheLimits, QueryCacheKey } from '@/shared/types/cache-limits.types';
+export { QUERY_CACHE_KEYS } from '@/shared/types/cache-limits.types';
 export type { ErrorDiagnostic, ErrorLocation, FeedbackNotice } from '@/shared/types/error.types';
 
 export type {
   WindowIdentity,
+  CloseScope,
+  ClosePhase,
+  CloseResult,
   WindowCloseIntent,
   NativeWindowRequest,
-  ManagedWindowOpened,
   ManagedWindowStatus,
   ManagedWindowInput,
   ManagedWindowContext,
   WindowContextFor,
   FileWindowLocation,
   WindowBootstrap,
-  WindowSettingsSnapshot,
   WindowRequestReceipt,
+  WindowRequestResult,
 } from '@/shared/types/window.types';
 export type { CreatedMod, CreateModRequest, NewModDestination, NewModTemplate } from '@/shared/types/mod-creation.types';
-export type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel, CacheLimits, CacheSize } from '@/shared/types/settings.types';
-export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shared/types/settings.types';
-export type { AppLogEntry, AppLogLevel, AppLogStatus } from '@/shared/types/app-log.types';
-export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
-export type { FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot } from '@/shared/types/history.types';
-export type { CsvDraftOperation, CsvEditHistoryEntry } from '@/shared/types/tables-edit-history.types';
-export type { FileHistoryItem, FileSaveHistoryEntry, FileHistorySnapshot } from '@/shared/types/file-history.types';
 export type {
-  AssociatedFileChange,
+  AccentPreset,
+  AppSettings,
+  AppTheme,
+  EditMode,
+  LogLevel,
+  SaveAppSettingsPayload,
+  SettingsSnapshot,
+} from '@/shared/types/app-settings.types';
+export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shared/types/app-settings.types';
+export type { AppLogEntry, AppLogLevel, AppLogStatus, AppendAppLogPayload } from '@/shared/types/app-log.types';
+export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
+export type { FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot } from '@/shared/types/file-changes.types';
+export type { CsvDraftOperation, CsvEditHistoryEntry } from '@/shared/types/tables-edit-history.types';
+export type {
+  FileHistoryEntrySummary,
+  FileHistorySnapshot,
+  ApplyFileChangeSetPayload,
+  FileHistoryPayload,
+} from '@/shared/types/file-history.types';
+export type {
   AssociatedSpecChange,
   AssociatedSpecWrite,
   AssociatedSpecCreateParams,
-  AssociatedSpecChangeAction,
-  CsvRowKeyMapping,
   CsvRowPatch,
   CsvRowPatchAction,
+  SaveCsvPatchPayload,
+} from '@/shared/types/table-save.types';
+export type {
+  CsvRowKeyMapping,
   JsonSourceConfirmation,
   JsonWriteOptions,
   WriteResult,
   CommittedSessionUpdate,
+  CommittedProjection,
   CommittedWriteEvent,
-} from '@/shared/types/write.types';
+  SynchronizeCommittedWritePayload,
+} from '@/shared/types/write-commit.types';
 export type {
-  ConfigFileEntityWrite,
   ConfigFamilyFile,
+  ConfigFamilyEntityPayload,
+  DeleteConfigFamilyEntityPayload,
+  VariantFile,
+  SkinFile,
+} from '@/shared/types/config-family.types';
+export type {
   ConfigSaveIdentity,
   ConfigIdentityHandoff,
   SavedConfig,
   ConfigEditTarget,
   ConfigMissionEditorData,
-  DeleteIndexedConfigEntityWrite,
-  DeleteSkinEntityWrite,
-  DeleteVariantEntityWrite,
   IndexedConfigEntityData,
+  IndexedConfigEntityRefresh,
   IndexedConfigKind,
-  IndexedConfigEntityWrite,
-  SkinEntityWrite,
-  VariantEntityWrite,
+  SaveModInfoPayload,
+  IndexedConfigEntityPayload,
+  DeleteIndexedConfigEntityPayload,
 } from '@/shared/types/config-entity.types';
 export type {
   CsvDirtyRow,
@@ -111,23 +150,14 @@ export type {
   CsvTableRows,
   CsvTableWindow,
   CsvWindowRow,
+  CsvTableWindowPayload,
+  CsvRowPreviewPayload,
 } from '@/shared/types/tables.types';
 
+export type { DiscoveredField, DiscoveredFieldType, CoreScanPayload, InvalidateCoreCachePayload } from '@/shared/types/core-assets.types';
+export type { EntityData, QueryEntityPayload, QueryEntityListPayload } from '@/shared/types/entity-query.types';
 export type {
-  DiscoveredField,
-  DiscoveredFieldType,
-  EntityData,
   EntitySummaries,
-  GameModSummary,
-  GameOverviewData,
-  GameScanWarning,
-  GameWarningEditTarget,
-  HullReferenceGroup,
-  HullReferenceKind,
-  HullReferenceOption,
-  HullReferencesResult,
-  OpenDirectoryKind,
-  OpenDirectoryResult,
   InvalidatedEntityRef,
   InvalidatedQueryKind,
   InvalidatedQueryScope,
@@ -135,14 +165,33 @@ export type {
   ProjectInvalidation,
   ProjectManifest,
   ProjectSessionInvalidationResult,
-  ResourceDataUrlBatchEntry,
-  ResourceDataUrlBatchResult,
-  SourceOption,
-  SourceOptionGroup,
   TableSummary,
-} from '@/shared/types/query.types';
+  OpenProjectSessionPayload,
+  CloseProjectSessionPayload,
+  InvalidateProjectSessionPayload,
+  RefreshProjectSourcesPayload,
+} from '@/shared/types/project-session.types';
+export type {
+  GameModSummary,
+  GameOverviewData,
+  GameScanWarning,
+  GameWarningEditTarget,
+  OpenDirectoryKind,
+  OpenDirectoryResult,
+  DetectDirectoryPayload,
+  ScanGameOverviewPayload,
+} from '@/shared/types/directory-opening.types';
 
-export type { EditableFileData, EditorResourceKind, WeaponSpecClass, ProjectileSpecClass } from '@/shared/types/editor.types';
+export type { SourceOption, SourceOptionGroup, CsvSourceOptionsPayload } from '@/shared/types/schema.types';
+
+export type {
+  EditableFileData,
+  SaveTextFilePayload,
+  TranscodeFilePayload,
+  LoadEditableFilePayload,
+  TextIdentityIntentPayload,
+  FollowTextIdentityPayload,
+} from '@/shared/types/file-editor.types';
 export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';
 export type {
   ConfigView,
@@ -150,14 +199,26 @@ export type {
   ModOpeningFailure,
   ModOpeningFailureFile,
   ModTableState,
+  WorkspaceView,
+} from '@/shared/types/workspace.types';
+export type {
   PersistedMod,
   PersistedWorkspace,
   WorkspaceColumnWidths,
-  WorkspaceView,
-} from '@/shared/types/workspace.types';
+  SaveWorkspacePayload,
+} from '@/shared/types/workspace-persistence.types';
 export type { AppFeedback, ChooseOptions, ConfirmOptions } from '@/shared/types/feedback.types';
 export type * from '@/shared/types/joint-edit.types';
 
 export type { WeaponFirePreviewSource, WeaponFirePreviewData } from '@/shared/types/weapon-fire-preview.types';
 
-export type { SpecEditorKind, SpecEditorData, SpecWeaponEditorData, SpecProjectileEditorData } from '@/shared/types/spec-editor.types';
+export type {
+  SpecEditorKind,
+  WeaponSpecClass,
+  ProjectileSpecClass,
+  SpecEditorData,
+  SpecWeaponEditorData,
+  SpecProjectileEditorData,
+  LoadImportedEditorSpecPayload,
+  SaveEditorSpecPayload,
+} from '@/shared/types/spec-editor.types';

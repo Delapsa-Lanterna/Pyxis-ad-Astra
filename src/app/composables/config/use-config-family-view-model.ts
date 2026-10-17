@@ -1,5 +1,6 @@
+import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
@@ -24,17 +25,17 @@ import {
   type ConfigEntityFamilyDefinition,
   type ConfigFamilyFile,
 } from '@/domain/config/config-entity-families';
-import { listSkinRecords, listVariantRecords, getConfigFamilyRecord } from '@/services/config-entity.service';
+import { listSkinRecords, listVariantRecords, getConfigFamilyRecord } from '@/services/config-family.service';
 import { useConfigIdentityReception } from '@/app/composables/config/use-config-identity-reception';
 import { querySessionHullReferences, queryHullReferenceOptions } from '@/services/hull-reference.service';
-import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { ResourceRef, RowData, SavedConfig } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useConfigListSelection } from '@/app/composables/config/use-config-list-selection';
 import { warningNotice } from '@/shared/lib/errors';
 import type { SelectOption } from '@/domain/schema/schema-options';
-import { hasEntityInvalidation, hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { focusEntityWindowTarget } from '@/orchestrators/window-target-focus.orchestrator';
 
@@ -45,12 +46,12 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
   const hullOptions = ref<SelectOption[]>([]);
   const dataRevision = ref(0);
   const listLoadStartedAt = ref(0);
-  const project = useProjectStore();
+  const workspace = useWorkspaceStore();
   const settings = useSettingsStore();
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
-  const modRoot = computed(() => project.activeManifest?.modRoot ?? null);
-  const sessionId = computed(() => project.activeManifest?.sessionId ?? null);
+  const modRoot = computed(() => workspace.activeManifest?.modRoot ?? null);
+  const sessionId = computed(() => workspace.activeManifest?.sessionId ?? null);
   const selection = useConfigListSelection({ modRoot, sessionId, label: family.displayName });
   const selectedId = selection.selectedId;
   const heldFile = ref<ConfigFamilyFile | null>(null);
@@ -97,7 +98,7 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
   }
 
   async function loadFiles() {
-    const activeSessionId = project.activeSessionId;
+    const activeSessionId = workspace.activeSessionId;
     const key = sessionKey();
     if (key !== listSessionKey) {
       reads.revoke();
@@ -163,7 +164,7 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
   }
 
   async function loadHullOptions() {
-    const activeSessionId = project.activeSessionId;
+    const activeSessionId = workspace.activeSessionId;
     reads.revoke('consumer', 'options');
     if (!activeSessionId || settings.isPlainEditMode) {
       hullOptions.value = [];
@@ -267,7 +268,7 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
     current: ConfigFamilyFile,
     data: RowData,
   ): Promise<SavedConfig<ConfigFamilyFile> | null> {
-    const manifest = project.activeManifest;
+    const manifest = workspace.activeManifest;
     if (disposed || !manifest || manifest.modRoot !== saveModRoot || manifest.sessionId !== saveSessionId) return null;
     const currentId = familyFileId(current);
     const nextId = trimmedConfigStringField(data, family.idField);
@@ -323,7 +324,7 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
       savingSessions.delete(saveSessionId);
     }
     if (!saved) return null;
-    if (disposed || project.activeManifest?.modRoot !== saveModRoot || project.activeManifest.sessionId !== saveSessionId) return saved;
+    if (disposed || workspace.activeManifest?.modRoot !== saveModRoot || workspace.activeManifest.sessionId !== saveSessionId) return saved;
     feedback.success(`${family.displayName} "${nextId}" 已保存`);
     return saved;
   }
@@ -346,7 +347,7 @@ export function useConfigFamilyViewModel(family: ConfigEntityFamilyDefinition) {
     },
   );
   const stopQueryInvalidation = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== project.activeSessionId) return;
+    if (event.sessionId !== workspace.activeSessionId) return;
     if (event.scope === 'session') {
       reads.revoke();
       return;

@@ -26,7 +26,7 @@ vi.mock('@/services/mod-file-browser.service', () => ({
 }));
 vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ listenCommittedWrites: mocks.listen }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ listenCommittedWrites: mocks.listen }));
 const frames = new Map<number, FrameRequestCallback>();
 let frameId = 0;
 async function paint() {
@@ -90,6 +90,31 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('mod file browser actions and read lifetime', () => {
+  it.each(['resolve', 'reject'] as const)(
+    'revokes directory reads when its active manifest is removed before a late %s',
+    async (completion) => {
+      const { vm } = await open();
+      let resolve!: (result: ModDirectory) => void;
+      let reject!: (error: Error) => void;
+      mocks.directory.mockImplementationOnce(
+        () =>
+          new Promise((yes, no) => {
+            resolve = yes;
+            reject = no;
+          }),
+      );
+      const pending = vm.actions.load(null);
+      useProjectStore().removeProjectManifest('M:/A');
+      if (completion === 'resolve') resolve({ directory: null, entries: [entry('obsolete')] });
+      else reject(new Error('obsolete directory'));
+      expect(await pending).toBe(false);
+      await flushPromises();
+      expect(vm.view.nodes).toEqual([]);
+      expect(vm.view.title).toBe('');
+      expect(vm.view.loading).toBe(false);
+      expect(mocks.error).not.toHaveBeenCalled();
+    },
+  );
   it('loads expanded directories and navigates nested folders with the keyboard', async () => {
     const { vm } = await open();
     expect(mocks.directory).toHaveBeenCalledExactlyOnceWith('s1', null);

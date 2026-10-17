@@ -1,4 +1,31 @@
-import { splitTopLevel } from './rust-source.mjs';
+import { productionRustSource, splitTopLevel } from './rust-source.mjs';
+import { singleFileByRel } from './files.mjs';
+
+/** @param {import('./files.mjs').RepoFile[]} files @returns {Map<string, string[]>} */
+export function rustServiceExports(files) {
+  const file = singleFileByRel(files, 'src-tauri/src/services/mod.rs');
+  const exports = new Map();
+  for (const match of productionRustSource(file?.text ?? '').matchAll(/\bpub(?:\([^)]*\))?\s+use\s+([^;]+);/g))
+    for (const parts of expandUseTree(match[1])) {
+      const target = resolveParts(['services'], ['self', ...parts]);
+      exports.set(target.at(-1), target);
+    }
+  return exports;
+}
+
+/** @param {string} text @param {string} moduleRelPath @param {Map<string, string[]>} exports @returns {{path: string[], target: string[], exported: boolean}[]} */
+export function rustServicePaths(text, moduleRelPath, exports) {
+  let qualified = text;
+  for (const match of text.matchAll(/\bservices\s+as\s+([A-Za-z0-9_]+)/g))
+    qualified = qualified.replace(new RegExp('\\b' + match[1] + '::', 'g'), 'crate::services::');
+  qualified = qualified
+    .replace(/(?<!::)\bservices::/g, 'crate::services::')
+    .replace(/(\bpub(?:\([^)]*\))?\s+use\s+)(project::)/g, '$1self::$2');
+  return cratePaths(qualified, moduleRelPath).map((path) => {
+    const target = path[0] === 'services' ? exports.get(path[1]) : undefined;
+    return { path, target: target ? [...target, ...path.slice(2)] : path, exported: !!target };
+  });
+}
 
 /** @param {string} text @param {string} [moduleRelPath] @returns {string[][]} */
 export function cratePaths(text, moduleRelPath = '') {

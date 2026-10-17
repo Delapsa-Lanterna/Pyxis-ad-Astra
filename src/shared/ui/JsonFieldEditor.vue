@@ -1,7 +1,7 @@
 <template>
-  <div class="json-field-editor">
-    <div v-for="key in extraKeys" :key="key" class="json-field-row">
-      <span class="json-field-key">{{ key }}</span>
+  <div class="field-json">
+    <div v-for="key in extraKeys" :key="key" class="field-json-row ui-layout-grid ui-layout-shrink">
+      <span class="field-json-key ui-text-truncate ui-text-muted">{{ key }}</span>
       <n-input
         v-if="typeof model[key] === 'string' || model[key] === null || model[key] === undefined"
         :value="String(model[key] ?? '')"
@@ -33,15 +33,15 @@
         :shape="Array.isArray(model[key]) ? 'array' : 'object'"
         @update="updateField(key, $event)"
       />
-      <n-button class="compact-icon-button" size="tiny" quaternary title="删除字段" @click="removeField(key)">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
+      <n-button class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除字段" @click="removeField(key)">
+        <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 6l12 12M18 6 6 18" />
         </svg>
       </n-button>
     </div>
-    <div v-if="extraKeys.length === 0" class="json-field-empty">无额外字段</div>
-    <div class="json-field-add">
-      <n-input v-model:value="newKey" class="json-field-new-key" size="small" placeholder="新字段名" />
+    <div v-if="extraKeys.length === 0" class="field-json-empty ui-text-muted ui-text-small">无额外字段</div>
+    <div class="field-json-add ui-layout-row ui-layout-center">
+      <n-input v-model:value="newKey" class="field-json-new-key" size="small" placeholder="新字段名" />
       <n-button size="small" :disabled="!newKey.trim()" @click="addField">添加</n-button>
     </div>
   </div>

@@ -6,13 +6,26 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 
 ## 参考
 
-`src-tauri/src/commands/core_assets.rs`：Core command 主归属。
-`src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描主归属。
-`src-tauri/src/services/schema/core_fields.rs`：字段索引扫描主归属。
-`src/app/composables/use-core-assets.ts`：schema/graphics 门面与窗口生命周期主归属。
-`src/orchestrators/core-assets.orchestrator.ts`：根代次、共享 Promise、接纳与失败日志。
-`src/services/core-assets.service.ts`：Core 读取与缓存清理协议。
-`src/stores/core-assets.store.ts`：根与两类状态主归属。
+### 拥有
+
+- `src-tauri/src/commands/core_assets.rs`：Core command。
+- `src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描。
+- `src-tauri/src/services/schema/`：Core 字段扫描及其公开入口。
+- `src-tauri/src/services/schema/core_fields.rs`：字段索引扫描。
+- `src/app/composables/use-core-assets.ts`：schema/graphics 门面与显式根输入的窗口生命周期。
+- `src/orchestrators/core-assets.orchestrator.ts`：显式响应式根输入、根代次、共享 Promise、接纳与失败日志。
+- `src/services/core-assets.service.ts`：Core 读取与缓存清理协议。
+- `src/stores/core-assets.store.ts`：根与两类状态。
+
+### 消费
+
+- `src-tauri/src/models/core_assets.rs`：Core 扫描、失效请求与发现字段协议。
+- `src/shared/types/core-assets.types.ts`：Core 扫描、失效请求与发现字段协议。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+- `src/app/WindowShell.vue`：设置根优先、当前项目根回退的计算及唯一 Core 生命周期装配。
 
 ## 边界
 
@@ -20,7 +33,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 - WindowShell 装配加载生命周期，工作区生命周期消费缓存清理能力。
 - schema 合并归领域纯投影，编辑面消费静态 schema 与当前 Core 字段。
 - 加载编排拥有根代次、共享 Promise、结果接纳与失败日志。
-- 根输入由 settings 优先、manifest 补充，路径授权归后端；字体读取以所属 session 补充来源并由字体运行态消费逐项结果。
+- 窗口壳提供响应式根输入，路径授权归后端；字体读取以所属 session 补充来源并由字体运行态消费逐项结果。
 
 ## 链路
 
@@ -39,6 +52,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 - fields 与 graphics 必须独立就绪、加载和失败；一类失败严禁阻断另一类。
 - 业务编辑草稿严禁写入 Core 加载运行态。
 - 内存 Core 清理必须共同清理所属指纹缓存，持久化快照必须按根与源指纹校验。
+- 加载运行态必须消费窗口交付的响应式根，首次读取必须由消费者触发，根变化必须独立启动字段和图形读取。
 - 同类重复调用必须等待所属在途请求自然结束。
 
 ## 陷阱

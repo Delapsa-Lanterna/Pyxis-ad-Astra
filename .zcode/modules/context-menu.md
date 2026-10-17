@@ -6,10 +6,19 @@
 
 ## 参考
 
-`src/app/TitleBar.vue`：标题栏菜单登记及导航与窗口动作交接。
-`src/app/components/ContextMenu.vue`：菜单展示与操作回调消费。
-`src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
-`src/shared/runtime/clipboard.runtime.ts`：官方文字剪贴板能力包装。
+### 拥有
+
+- `src/app/components/ContextMenu.vue`：菜单展示与操作回调消费。
+- `src/app/composables/use-context-menu.ts`：窗口菜单状态、目标操作、事件生命周期与业务根登记。
+
+### 消费
+
+- `src/app/composables/use-window-close-state.ts`：窗口关闭期间的菜单收起及操作暂停状态。
+- `src/shared/runtime/clipboard.runtime.ts`：官方文字剪贴板能力包装。
+
+### 装配
+
+- `src/app/TitleBar.vue`：标题栏菜单登记及导航与窗口动作交接。
 
 ## 边界
 
@@ -31,6 +40,7 @@
 
 ## 规范
 
+- 关闭操作锁生效时必须收起菜单并暂停打开及动作分派，释放后必须恢复所属菜单能力。
 - 剪切必须在剪贴板写入成功后删除原选区。
 - 可编辑位置必须依次展示复制、粘贴、剪切、分隔线、清空和全选；只读文本必须提供复制和全选。
 - 普通区域只允许提供刷新，普通文字选区必须在刷新前提供复制与分隔线；无刷新能力时必须禁用刷新。

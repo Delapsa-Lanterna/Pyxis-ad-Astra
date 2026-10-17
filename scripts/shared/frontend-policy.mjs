@@ -10,6 +10,32 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 /** @type {CapabilityRule[]} */
 export const frontendCapabilities = [
   {
+    role: 'orchestrator',
+    domain: 'project-sync',
+    names: ['pauseProjectDisplay'],
+    capability: 'close-display',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'settings-persistence',
+    names: ['initializeSettings'],
+    capability: 'settings-start',
+    owners: [{ path: 'src/main.ts', layer: 'app' }],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'settings-persistence',
+    names: ['withSettingsReset'],
+    capability: 'settings-reset',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+  },
+  ...[
+    { domain: 'entity-query', name: 'hasEntityInvalidation' },
+    { domain: 'source-options', name: 'hasSourceInvalidation' },
+    { domain: 'csv-table', name: 'hasTableInvalidation' },
+  ].map(({ domain, name }) => ({ role: 'service', domain, names: [name], capability: 'cache-observe', owners: readOwners })),
+  {
     role: 'service',
     domain: 'resource-budget',
     names: ['mediaBudgetLimit', 'mediaBudgetBytes', 'registerMediaBudgetEntry', 'removeMediaBudgetEntry', 'touchMediaBudgetEntry'],
@@ -64,7 +90,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'weapon-fire-preview',
-    names: ['queryWeaponFirePreviewData'],
+    names: ['queryWeaponFirePreviewData', 'queryWeaponFirePreviewImages'],
     capability: 'weapon-fire-preview-read',
     owners: [{ layer: 'app', role: 'composable', domain: 'weapon-fire-preview-window-view-model' }],
   },
@@ -130,9 +156,9 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'app-settings',
-    names: ['loadSettings'],
+    names: ['readSettings'],
     capability: 'settings-read',
-    owners: [{ path: 'src/main.ts', layer: 'app' }],
+    owners: [{ layer: 'orchestrators', domain: 'settings-persistence' }],
   },
   {
     role: 'service',
@@ -175,9 +201,16 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'app-config',
-    names: ['openConfigFolder', 'clearConfig'],
+    names: ['openConfigFolder'],
     capability: 'config-maintenance',
     owners: [{ layer: 'app', role: 'composable', domain: 'app-config-actions' }],
+  },
+  {
+    role: 'service',
+    domain: 'app-config',
+    names: ['clearConfig'],
+    capability: 'config-clear',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
   },
   {
     role: 'service',
@@ -205,7 +238,7 @@ export const frontendCapabilities = [
     domain: 'project-projection',
     names: ['markProjectionPending'],
     capability: 'projection-state',
-    owners: [{ layer: 'orchestrators', domain: 'project-session-refresh' }],
+    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
   },
   {
     role: 'service',
@@ -213,7 +246,7 @@ export const frontendCapabilities = [
     names: ['markProjectionReady'],
     capability: 'projection-state',
     owners: [
-      { layer: 'orchestrators', domain: 'project-session-refresh' },
+      { layer: 'orchestrators', domain: 'project-sync' },
       { layer: 'orchestrators', domain: 'workspace-lifecycle' },
     ],
   },
@@ -226,18 +259,18 @@ export const frontendCapabilities = [
   },
   {
     role: 'orchestrator',
-    domain: 'project-session-refresh',
+    domain: 'project-sync',
     names: ['publishCommittedWrite'],
     capability: 'commit-synchronize',
-    owners: ['file-history-write', 'file-history-replay', 'editor-window', 'file-editor-window'].map((domain) => ({
+    owners: ['file-history-replay', 'editor-window', 'file-editor-window'].map((domain) => ({
       layer: 'orchestrators',
       domain,
     })),
   },
   {
     role: 'orchestrator',
-    domain: 'project-session-refresh',
-    names: ['retryPendingWritesForMod'],
+    domain: 'project-sync',
+    names: ['retryPendingModSyncs'],
     capability: 'commit-retry',
     owners: [
       { layer: 'orchestrators', domain: 'table-save' },
@@ -251,35 +284,52 @@ export const frontendCapabilities = [
   },
   {
     role: 'orchestrator',
-    domain: 'project-session-refresh',
+    domain: 'project-sync',
     names: ['refreshProjectSourcePaths'],
     capability: 'source-refresh',
     owners: [{ layer: 'app', role: 'composable' }],
   },
   {
     role: 'orchestrator',
-    domain: 'project-session-refresh',
-    names: ['retryPendingProjectSessionWrites'],
+    domain: 'project-sync',
+    names: ['retryPendingSessionSyncs'],
     capability: 'commit-retry',
     owners: [{ layer: 'app', role: 'composable', domain: 'write-sync-view-model' }],
   },
   {
     role: 'orchestrator',
-    domain: 'project-session-refresh',
-    names: ['listenCommittedWrites', 'listenProjectSessionInvalidated', 'applyProjectSessionCacheInvalid'],
+    domain: 'project-sync',
+    names: ['invalidateProjectionCaches'],
     capability: 'commit-observe',
     owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
   },
   {
     role: 'orchestrator',
-    domain: 'project-session-refresh',
-    names: ['applyCommittedWriteCacheInvalid'],
-    capability: 'commit-accept',
+    domain: 'project-sync',
+    names: ['listenCommittedWrites'],
+    capability: 'commit-observe',
+    owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'project-sync',
+    names: ['listenProjectSessionInvalidated', 'listenEntityIdentityApplied'],
+    capability: 'commit-observe',
+    owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
+  },
+
+  {
+    role: 'orchestrator',
+    domain: 'project-sync',
+    names: ['completeSavedWrite'],
+    capability: 'commit-complete',
     owners: [
-      { layer: 'orchestrators', domain: 'edit-target-handoff' },
-      { layer: 'orchestrators', domain: 'entity-identity' },
+      { layer: 'orchestrators', domain: 'config-save' },
+      { layer: 'orchestrators', domain: 'table-save' },
+      { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
     ],
   },
+
   {
     role: 'service',
     domain: 'window',
@@ -293,7 +343,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'window',
-    names: ['openNativeManagedWindow', 'awaitNativeWindowRequest'],
+    names: ['requestNativeWindow'],
     capability: 'window-open',
     owners: [{ layer: 'windows', domain: 'managed' }],
   },
@@ -307,8 +357,6 @@ export const frontendCapabilities = [
       'acceptNativeWindowRequest',
       'failNativeWindowRequest',
       'failNativeWindowStartup',
-      'publishNativeWindowSettings',
-      'getNativeWindowSettings',
     ],
     capability: 'window-context',
     owners: [{ layer: 'windows', domain: 'window-context' }],
@@ -316,16 +364,23 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'window',
-    names: ['updateNativeWindowStatus', 'cancelNativeWindowClose'],
+    names: ['updateNativeWindowStatus'],
     capability: 'window-lifecycle-guard',
     owners: [{ layer: 'app', role: 'composable', domain: 'dirty-window-close-guard' }],
   },
   {
     role: 'service',
-    domain: 'window',
-    names: ['closeNativeSessionWindows'],
-    capability: 'session-window-close',
-    owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
+    domain: 'app-lifecycle',
+    names: ['requestClose'],
+    capability: 'scope-close',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+  },
+  {
+    role: 'service',
+    domain: 'app-lifecycle',
+    names: ['replyNativeClose', 'readyNativeClose'],
+    capability: 'close-participant',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
   },
   {
     role: 'service',
@@ -356,7 +411,79 @@ export const frontendCapabilities = [
     domain: 'app-feedback',
     names: ['createAppFeedback'],
     capability: 'feedback-factory',
-    owners: [{ layer: 'app', domain: 'app-feedback', role: 'composable' }],
+    owners: [{ path: 'src/app/app-feedback-assembly.ts', layer: 'app' }],
+  },
+  {
+    path: 'src/app/app-feedback-assembly.ts',
+    layer: 'app',
+    role: 'module',
+    domain: 'app-feedback-assembly',
+    names: ['createWindowFeedback'],
+    capability: 'window-feedback-assembly',
+    owners: [{ path: 'src/app/WindowRuntime.vue', layer: 'app' }],
+  },
+  {
+    path: 'src/app/composables/use-app-feedback.ts',
+    layer: 'app',
+    role: 'composable',
+    domain: 'app-feedback',
+    names: ['provideAppFeedback'],
+    capability: 'window-feedback-provider',
+    owners: [{ path: 'src/app/WindowRuntime.vue', layer: 'app' }],
+  },
+  {
+    path: 'src/app/composables/use-app-feedback.ts',
+    layer: 'app',
+    role: 'composable',
+    domain: 'app-feedback',
+    names: ['useAppFeedback'],
+    capability: 'window-feedback-consume',
+    owners: [
+      { layer: 'app', role: 'composable' },
+      { layer: 'app', role: 'component' },
+    ],
+  },
+  {
+    path: 'src/app/composables/use-window-close-state.ts',
+    layer: 'app',
+    role: 'composable',
+    domain: 'window-close-state',
+    names: ['provideWindowCloseState'],
+    capability: 'window-close-provider',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+  },
+  {
+    path: 'src/app/composables/use-window-close-state.ts',
+    layer: 'app',
+    role: 'composable',
+    domain: 'window-close-state',
+    names: ['useWindowCloseState', 'useWindowLifecycleActions'],
+    capability: 'window-close-consume',
+    owners: [
+      { layer: 'app', role: 'composable' },
+      { layer: 'app', role: 'component' },
+    ],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'settings-persistence',
+    names: ['startSettingsPersistence', 'startSettingsMirror'],
+    capability: 'settings-lifecycle',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'settings-persistence',
+    names: ['saveLogDirectory'],
+    capability: 'settings-log-directory',
+    owners: [{ layer: 'app', role: 'composable', domain: 'settings-view-model' }],
+  },
+  {
+    role: 'orchestrator',
+    domain: 'settings-persistence',
+    names: ['flushSettings'],
+    capability: 'settings-close-flush',
+    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
   },
   {
     role: 'external',
@@ -370,12 +497,12 @@ export const frontendCapabilities = [
     domain,
     names: ['useMessage', 'useDialog', 'createDiscreteApi'],
     capability: 'feedback-runtime',
-    owners: [{ layer: 'app', domain: 'app-feedback', role: 'composable' }],
+    owners: [{ path: 'src/app/WindowRuntime.vue', layer: 'app' }],
   })),
   {
     role: 'service',
     domain: 'entity-query',
-    names: ['querySessionEntity', 'querySessionEntityIdentityIntent', 'querySessionEntityList', 'querySessionEditorDraftResources'],
+    names: ['querySessionEntity', 'querySessionEntityIdentityIntent', 'querySessionEntityList'],
     capability: 'session-query-load',
     owners: [{ layer: 'services' }],
   },
@@ -398,6 +525,13 @@ export const frontendCapabilities = [
     names: ['querySourceOptionCatalog'],
     capability: 'source-query',
     owners: readOwners,
+  },
+  {
+    role: 'service',
+    domain: 'resource-reference',
+    names: ['querySessionDraftResources'],
+    capability: 'draft-resource-query',
+    owners: [{ layer: 'services' }],
   },
   {
     role: 'service',
@@ -430,18 +564,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'config-entity',
-    names: [
-      'saveModInfo',
-      'saveIndexedConfigEntity',
-      'createIndexedConfigEntity',
-      'deleteIndexedConfigEntity',
-      'saveVariantEntity',
-      'createVariantEntity',
-      'deleteVariantEntity',
-      'saveSkinEntity',
-      'createSkinEntity',
-      'deleteSkinEntity',
-    ],
+    names: ['saveModInfo', 'saveIndexedConfigEntity', 'createIndexedConfigEntity', 'deleteIndexedConfigEntity'],
     capability: 'config-write',
     owners: [{ layer: 'orchestrators', domain: 'config-save' }],
   },
@@ -452,14 +575,25 @@ export const frontendCapabilities = [
       'captureConfigIdentityIntent',
       'listConfigFactionRecords',
       'listConfigMissionRecords',
-      'listVariantRecords',
-      'getConfigFamilyRecord',
       'getConfigFactionRecord',
-      'listSkinRecords',
       'queryFactionPreviewImages',
       'queryMissionDraftIcon',
       'getConfigMissionEditorData',
     ],
+    capability: 'config-query',
+    owners: readOwners,
+  },
+  {
+    role: 'service',
+    domain: 'config-family',
+    names: ['saveVariantEntity', 'createVariantEntity', 'deleteVariantEntity', 'saveSkinEntity', 'createSkinEntity', 'deleteSkinEntity'],
+    capability: 'config-write',
+    owners: [{ layer: 'orchestrators', domain: 'config-save' }],
+  },
+  {
+    role: 'service',
+    domain: 'config-family',
+    names: ['listVariantRecords', 'getConfigFamilyRecord', 'listSkinRecords'],
     capability: 'config-query',
     owners: readOwners,
   },
@@ -508,9 +642,9 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'files',
-    names: ['writeEditableFileText', 'transcodeFileToUtf8', 'saveModFiles'],
+    names: ['writeEditableFileText', 'transcodeFileToUtf8'],
     capability: 'text-write',
-    owners: readOwners.concat([{ layer: 'app', domain: 'app-feedback' }]),
+    owners: readOwners.concat([{ path: 'src/app/app-feedback-assembly.ts', layer: 'app' }]),
   },
   {
     role: 'service',
@@ -536,7 +670,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'query-cache',
-    names: ['queryCached', 'queryLive'],
+    names: ['createCachedSessionQuery', 'createLiveSessionQuery'],
     capability: 'query-cache-load',
     owners: ['entity-query', 'csv-table', 'source-options', 'hull-reference', 'resource-reference', 'joint-edit'].map((domain) => ({
       layer: 'services',
@@ -546,13 +680,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'query-cache',
-    names: [
-      'subscribeQueryInvalidations',
-      'hasQueryInvalidation',
-      'hasEntityInvalidation',
-      'hasSourceInvalidation',
-      'hasTableInvalidation',
-    ],
+    names: ['subscribeQueryInvalidations', 'hasQueryInvalidation'],
     capability: 'cache-observe',
     owners: readOwners,
   },
@@ -568,14 +696,14 @@ export const frontendCapabilities = [
     domain: 'query-cache',
     names: ['invalidateQueryCacheByProject'],
     capability: 'project-cache-invalidate',
-    owners: [{ layer: 'orchestrators', domain: 'project-session-refresh' }],
+    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
   },
   {
     role: 'service',
     domain: 'resource-cache',
     names: ['invalidateResourceCacheByProject'],
     capability: 'project-cache-invalidate',
-    owners: [{ layer: 'orchestrators', domain: 'project-session-refresh' }],
+    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
   },
   {
     role: 'service',
@@ -619,10 +747,17 @@ export const frontendCapabilities = [
   },
   {
     role: 'service',
-    domain: 'project-session',
-    names: ['requestProjectSessionRefresh', 'synchronizeSessionCommit', 'refreshProjectSources'],
+    domain: 'project-sync',
+    names: ['requestProjectSessionRefresh', 'refreshProjectSources'],
     capability: 'session-refresh',
-    owners: [{ layer: 'orchestrators', domain: 'project-session-refresh' }],
+    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
+  },
+  {
+    role: 'service',
+    domain: 'project-sync',
+    names: ['synchronizeSessionCommit'],
+    capability: 'commit-recovery',
+    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
   },
   {
     role: 'service',
@@ -683,6 +818,48 @@ export function capabilityOrigins(edge, nodes) {
 export function frontendDependencyFailure(current, target, edge) {
   if (current.role === 'bootstrap' && target.layer === 'styles') return null;
   if (!validFrontendDependency(current.layer, target.layer)) return `${current.layer} must not import ${target.layer}`;
+  const queryKernel = current.path === 'src/services/query-cache.service.ts' || current.path === 'src/shared/types/query-cache.types.ts';
+  const businessQuery = [
+    'src/services/entity-query.service.ts',
+    'src/services/csv-table.service.ts',
+    'src/services/source-options.service.ts',
+    'src/services/hull-reference.service.ts',
+    'src/services/resource-reference.service.ts',
+    'src/services/joint-edit.service.ts',
+    'src/shared/types/entity-query.types.ts',
+    'src/shared/types/tables.types.ts',
+    'src/shared/types/schema.types.ts',
+    'src/shared/types/resources.types.ts',
+    'src/shared/types/joint-edit.types.ts',
+  ];
+  if (queryKernel && businessQuery.includes(target.path)) return 'session query foundations must be consumed by business queries';
+  const budgetFoundation = [
+    'src/shared/runtime/cache-limits.ts',
+    'src/shared/types/cache-limits.types.ts',
+    'src/domain/cache-limits.ts',
+  ].includes(current.path);
+  if (
+    budgetFoundation &&
+    (target.domain === 'settings' ||
+      target.domain === 'app-settings' ||
+      target.path === 'src/shared/types/app-settings.types.ts' ||
+      target.path === 'src/shared/types/query-cache.types.ts')
+  )
+    return 'cache budgets must be consumed by settings and session queries';
+  const foundation =
+    (current.layer === 'services' &&
+      [
+        'project-session',
+        'project-projection',
+        'query-cache',
+        'resource-cache',
+        'resource-media',
+        'resource-reference',
+        'resource-budget',
+      ].includes(current.domain ?? '')) ||
+    (current.layer === 'stores' && current.domain === 'project');
+  if (foundation && target.domain === 'project-sync')
+    return 'session, query and resource foundations must be consumed by project synchronization';
   if (!edge.typeOnly && current.role === 'component' && ['service', 'orchestrator'].includes(target.role))
     return 'components must consume ViewModel/composable state and actions';
   if (!edge.typeOnly && current.layer === 'services' && target.layer === 'services' && !allowedServiceEdge(current, target))
@@ -720,9 +897,15 @@ const serviceEdges = new Set([
   'source-options -> query-cache',
   'hull-reference -> query-cache',
   'resource-reference -> query-cache',
+  'weapon-data -> resource-reference',
+  'spec-weapon-editor -> resource-reference',
+  'spec-projectile-editor -> resource-reference',
+  'spec-ship-editor -> resource-reference',
+  'config-entity -> resource-reference',
   'resource-media -> resource-cache',
   'config-entity -> config-resource',
   'config-entity -> entity-query',
+  'config-family -> entity-query',
   'config-resource -> resource-cache',
   'csv-table -> entity-query',
   'csv-table -> resource-cache',

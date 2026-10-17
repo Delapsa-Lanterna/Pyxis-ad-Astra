@@ -11,47 +11,89 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{
-        Mutex,
-        atomic::{AtomicBool, Ordering},
+        LazyLock, Mutex,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
+use tauri::Emitter;
 
 const SETTINGS_FILE: &str = "settings.json";
 mod system_fonts;
 pub use system_fonts::query_system_fonts;
 static ALLOW_CORE_EDITING: AtomicBool = AtomicBool::new(false);
+static SETTINGS_REVISION: AtomicU64 = AtomicU64::new(0);
 static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static SETTINGS_SNAPSHOT: LazyLock<Mutex<Option<crate::models::SettingsSnapshot>>> =
+    LazyLock::new(|| Mutex::new(None));
 
-pub fn load_app_settings(app_handle: tauri::AppHandle) -> AppResult<AppSettings> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
-    let settings = load_settings(&app_data)?;
-    super::project::configure_media_cache(&settings.cache_limits.backend_media)?;
-    ALLOW_CORE_EDITING.store(settings.allow_core_editing, Ordering::Release);
-    super::file_history::set_history_limit(settings.file_history_limit as usize)?;
-    Ok(settings)
+fn snapshot_state()
+-> AppResult<std::sync::MutexGuard<'static, Option<crate::models::SettingsSnapshot>>> {
+    SETTINGS_SNAPSHOT.lock().map_err(|_| {
+        AppError::message(
+            "settings.snapshot_poisoned",
+            "settings snapshot unavailable",
+        )
+    })
 }
 
-pub fn save_app_settings(
-    app_handle: tauri::AppHandle,
-    mut settings: AppSettings,
-) -> AppResult<AppSettings> {
+pub fn read_settings(
+    app: &tauri::AppHandle,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<()>,
+) -> AppResult<crate::models::SettingsSnapshot> {
     let _guard = SETTINGS_WRITE_LOCK
         .lock()
         .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
-    let app_data = app_paths::app_data_dir(app_handle)?;
-    fs::create_dir_all(&app_data).map_err(|error| {
-        AppError::context(
-            format!("创建配置目录失败 ({})", app_data.display()),
-            error.into(),
-        )
-    })?;
+    if let Some(snapshot) = snapshot_state()?.clone() {
+        return Ok(snapshot);
+    }
+    let value = load_settings(&app_paths::app_data_dir(app.clone())?)?;
+    commit_settings(app, value, apply_runtime)
+}
+fn commit_settings(
+    app: &tauri::AppHandle,
+    value: AppSettings,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<()>,
+) -> AppResult<crate::models::SettingsSnapshot> {
+    ALLOW_CORE_EDITING.store(value.allow_core_editing, Ordering::Release);
+    apply_runtime(&value)?;
+    let snapshot = crate::models::SettingsSnapshot {
+        revision: SETTINGS_REVISION.fetch_add(1, Ordering::Relaxed) + 1,
+        value,
+    };
+    *snapshot_state()? = Some(snapshot.clone());
+    if let Err(error) = app.emit("app-settings-changed", &snapshot) {
+        crate::diagnostics::record(format!("settings notification failed: {error}"));
+    }
+    Ok(snapshot)
+}
+pub fn save_settings_snapshot(
+    app: &tauri::AppHandle,
+    window: &str,
+    mut settings: AppSettings,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<()>,
+) -> AppResult<crate::models::SettingsSnapshot> {
+    if window != "main" {
+        return Err(AppError::message(
+            "settings.owner_mismatch",
+            "设置只允许由主窗口保存",
+        ));
+    }
+    let _guard = SETTINGS_WRITE_LOCK
+        .lock()
+        .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
+    let app_data = app_paths::app_data_dir(app.clone())?;
     prepare_log_directory(&app_data, &mut settings)?;
     save_settings(&app_data, &settings)?;
-    ALLOW_CORE_EDITING.store(settings.allow_core_editing, Ordering::Release);
-    super::file_history::set_history_limit(settings.file_history_limit as usize)?;
-    Ok(settings)
+    commit_settings(app, settings, apply_runtime)
 }
-
+pub fn clear_settings(clear: impl FnOnce() -> AppResult<()>) -> AppResult<()> {
+    let _guard = SETTINGS_WRITE_LOCK
+        .lock()
+        .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
+    clear()?;
+    *snapshot_state()? = None;
+    Ok(())
+}
 pub fn ensure_core_editing_allowed(mod_root: &str) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let is_core = boundary.root().ancestors().any(|root| {
@@ -103,9 +145,7 @@ fn validate_settings_limits(settings: &AppSettings) -> AppResult<()> {
         .cache_limits
         .queries
         .keys()
-        .ne(crate::models::app_settings::CacheLimits::default()
-            .queries
-            .keys())
+        .ne(crate::models::CacheLimits::default().queries.keys())
     {
         return Err(AppError::message(
             "settings.limit_invalid",

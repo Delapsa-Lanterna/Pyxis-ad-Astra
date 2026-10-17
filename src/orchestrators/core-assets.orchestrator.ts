@@ -1,7 +1,5 @@
-import { computed, watch } from 'vue';
+import { watch, type Ref } from 'vue';
 import { useCoreAssetsStore, type CoreAssetState } from '@/stores/core-assets.store';
-import { useSettingsStore } from '@/stores/settings.store';
-import { useProjectStore } from '@/stores/project.store';
 import { queryCoreFields, queryCoreGraphics } from '@/services/core-assets.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
@@ -14,11 +12,8 @@ interface CoreLoader {
 
 const loaders = new WeakMap<ReturnType<typeof useCoreAssetsStore>, CoreLoader>();
 
-export function startCoreAssetsLoading(): () => void {
+export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () => void {
   const store = useCoreAssetsStore();
-  const settings = useSettingsStore();
-  const project = useProjectStore();
-  const root = computed(() => settings.starsectorRoot ?? project.activeManifest?.starsectorRoot ?? null);
   let generation = 0;
   let disposed = false;
 

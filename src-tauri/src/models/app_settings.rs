@@ -1,7 +1,6 @@
+use super::CacheLimits;
 use crate::models::{AppLogLevel, optional_non_empty_string};
 use serde::{Deserialize, Serialize};
-mod cache_limits;
-pub use cache_limits::{CacheLimits, CacheSize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -131,6 +130,19 @@ fn default_preserve_original_json() -> bool {
 
 fn default_log_level() -> AppLogLevel {
     AppLogLevel::Info
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAppSettingsPayload {
+    pub settings: AppSettings,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsSnapshot {
+    pub revision: u64,
+    pub value: AppSettings,
 }
 
 #[cfg(test)]

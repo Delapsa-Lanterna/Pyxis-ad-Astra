@@ -1,0 +1,16 @@
+.joint-conflict-list {
+  max-height: 60vh;
+  overflow: auto;
+  gap: var(--space-3);
+}
+.joint-conflict-row {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+.joint-conflict-row .joint-conflict-row-details {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.joint-conflict-row .joint-conflict-row-code {
+  white-space: pre-wrap;
+}

@@ -1,5 +1,5 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths, listenEntityIdentityApplied } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, queryFileTextIdentityIntent, followFileTextIdentity } from '@/services/files.service';
@@ -21,13 +21,12 @@ import {
   releaseCommittedIdentityTargets,
 } from '@/orchestrators/entity-identity.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
-import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
+
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
-import type { EntityIdentityChange } from '@/shared/types';
-import { formatError, errorDiagnosticOf } from '@/shared/lib/errors';
-import { AppError } from '@/shared/lib/errors';
-import { captureIdentityVersions, handoffTableVersions } from '@/domain/editors/entity-identity';
-import type { WriteResult, EntityEditInfo } from '@/shared/types';
+import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
+import { formatError, errorDiagnosticOf, AppError } from '@/shared/lib/errors';
+
+import { captureIdentityVersions, handoffTableVersions } from '@/domain/project/entity-versions';
 
 export interface FileEditorViewModelParams {
   mode: 'session' | 'recovery';
@@ -189,7 +188,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       }),
       label: '文件编辑器',
       dirty: draftSession.dirty,
-      commitInputs: () => draftSession.inputs.commit(),
+      draftSession: draftSession,
       save: async () => {
         const snapshot = await draftSession.saveDraft();
         return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
@@ -214,14 +213,18 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     () => identityNotice.value || (draftSession.hasPendingExternalValue.value ? '外部文本已更新，当前未保存草稿已保留。' : ''),
   );
 
+  let setup: Promise<void> | null = null;
   async function initialize() {
+    await (setup ??= setupFile());
+    if (!draftSession.ready.value) await loadFile();
+  }
+  async function setupFile() {
     disposed = false;
     identityPreparation = await createEntitySavePreparation(feedback, () => draftSession.currentTargetKey.value);
     if (disposed) {
       identityPreparation.dispose();
       return;
     }
-    await loadFile();
     if (disposed) return;
     unlistenIdentity = await listenEntityIdentityApplied(handleIdentityApplied);
     if (disposed) {
@@ -289,12 +292,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
 
   async function loadFile() {
     const target = fileEditorTarget();
-    if (!target) return;
+    if (!target) throw new AppError('文件目标不可用', { action: 'accept-window' });
     try {
-      const loaded = await draftSession.loadTarget(target);
-      if (loaded) return;
+      if (!(await draftSession.loadTarget(target))) throw new AppError('文件读取已结束', { action: 'accept-window' });
     } catch (error) {
-      feedback.error(error, '打开文件失败');
+      contextMessage.value = formatError(error);
+      contextSeverity.value = 'error';
+      throw error;
     }
   }
 
@@ -468,6 +472,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     targetColumn.value = normalizeEventLine(location.column);
   }
   return {
+    contentReady: draftSession.ready,
     filePath: currentPath,
     title,
     contextLabel,

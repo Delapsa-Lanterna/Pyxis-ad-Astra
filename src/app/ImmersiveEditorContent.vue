@@ -14,7 +14,7 @@
     @undo="vm.undo"
     @redo="vm.redo"
     @close="closeWindow"
-    @retry="vm.initialize"
+    @retry="reloadCurrentWindow"
     @load-external="vm.loadExternal"
   >
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
@@ -48,7 +48,7 @@ import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/compos
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { closeCurrentWindow } from '@/windows/current.window';
+import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import ImmersiveEditorShell from '@/app/components/immersive/ImmersiveEditorShell.vue';
 import ShipImmersivePanel from '@/app/components/immersive/ship/ShipImmersivePanel.vue';
 import WeaponImmersivePanel from '@/app/components/immersive/weapon/WeaponImmersivePanel.vue';
@@ -67,8 +67,11 @@ const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowK
   kind,
   ...(rowKey ? { rowKey } : {}),
 };
-useManagedWindowRequests(() => {});
 const vm = useImmersiveEditorViewModel(root);
+useManagedWindowRequests(async (request) => {
+  if (!(await vm.joint.waitForSave())) throw new Error('所属保存尚未完成');
+  if (request.kind === 'immersive-editor') await vm.initialize(request.input.rowKey);
+});
 const label = vm.label;
 const render = editableRenderContext(vm);
 const { joint, panel, errorText, history } = vm;
@@ -99,7 +102,6 @@ useShortcutDispatch({
 });
 onMounted(async () => {
   await closeGuard.install();
-  await vm.initialize();
 });
 onUnmounted(closeGuard.dispose);
 </script>

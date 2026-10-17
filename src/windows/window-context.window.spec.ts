@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
-import type { ManagedWindowContext, WindowSettingsSnapshot } from '@/shared/types';
+import type { ManagedWindowContext } from '@/shared/types';
 const api = vi.hoisted(() => ({
   listen: vi.fn(),
   request: vi.fn(),
@@ -18,8 +18,10 @@ vi.mock('@/services/window.service', () => ({
   acceptNativeWindowRequest: api.accept,
   failNativeWindowRequest: api.fail,
   failNativeWindowStartup: api.startup,
-  getNativeWindowSettings: vi.fn(),
-  publishNativeWindowSettings: vi.fn(),
+}));
+vi.mock('@/services/app-settings.service', () => ({
+  readSettings: vi.fn(),
+  publishSettingsSnapshot: vi.fn(),
 }));
 function request(id: number): ManagedWindowContext {
   return {
@@ -28,6 +30,7 @@ function request(id: number): ManagedWindowContext {
     input: { kind: 'weapon-fire-preview', source: { kind: 'draft', weapon: { id: 'w', value: id } } },
     label: 'managed-1',
     revision: id,
+    receiverGeneration: 0,
     requestId: id,
     title: '预览',
   };
@@ -69,7 +72,7 @@ describe('window context request reception', () => {
     expect(api.accept).not.toHaveBeenCalled();
     completeHandoff();
     await flushPromises();
-    expect(api.accept).toHaveBeenCalledWith(1);
+    expect(api.accept).toHaveBeenCalledWith(1, 0);
     expect(runtime.managedWindowContext.value).toEqual(request(1));
   });
   it('drains a newer notification while the previous handoff is pending', async () => {
@@ -94,7 +97,7 @@ describe('window context request reception', () => {
       }, vi.fn()),
     );
     await flushPromises();
-    await notify();
+    void notify();
     first();
     await flushPromises();
     expect(handled).toEqual([1, 2]);
@@ -111,7 +114,7 @@ describe('window context request reception', () => {
       }, onError),
     );
     await flushPromises();
-    expect(api.fail).toHaveBeenCalledWith(1, expect.objectContaining({ message: '交接失败' }));
+    expect(api.fail).toHaveBeenCalledWith(1, 0, expect.objectContaining({ message: '交接失败' }));
     expect(api.accept).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });
@@ -166,8 +169,5 @@ describe('window context request reception', () => {
     await runtime.initializeWindowContext();
     runtime.publishWindowContext(request(3));
     expect(runtime.managedWindowContext.value?.revision).toBe(4);
-    expect(runtime.acceptWindowSettings({ revision: 5 } as WindowSettingsSnapshot)).toBe(false);
-    expect(runtime.acceptWindowSettings({ revision: 7 } as WindowSettingsSnapshot)).toBe(true);
-    expect(runtime.acceptWindowSettings({ revision: 6 } as WindowSettingsSnapshot)).toBe(false);
   });
 });

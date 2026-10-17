@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   writeDeleteSkinEntity: vi.fn(),
 }));
 
-vi.mock('@/orchestrators/file-history-write.orchestrator', () => ({ completeSavedWrite: mocks.completeSavedWrite }));
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  completeSavedWrite: mocks.completeSavedWrite,
+}));
 vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({ reserveFileIdentityIntent: vi.fn(async () => {}) }));
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 
@@ -34,6 +37,8 @@ vi.mock('@/services/config-entity.service', async () => ({
   saveIndexedConfigEntity: mocks.writeIndexedConfigEntity,
   createIndexedConfigEntity: mocks.writeCreateIndexedConfigEntity,
   deleteIndexedConfigEntity: mocks.writeDeleteIndexedConfigEntity,
+}));
+vi.mock('@/services/config-family.service', () => ({
   saveVariantEntity: mocks.writeVariantEntity,
   createVariantEntity: mocks.writeCreateVariantEntity,
   deleteVariantEntity: mocks.writeDeleteVariantEntity,

@@ -1,9 +1,15 @@
 <template>
   <template v-if="mode === 'plain'">
-    <span class="csv-cell-value">{{ rawValue }}</span>
+    <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ rawValue }}</span>
   </template>
   <template v-else-if="isListControl">
-    <span v-for="value in listValues" :key="value" class="csv-cell-tag" :title="listValueDescription(value)">{{ value }}</span>
+    <span
+      v-for="value in listValues"
+      :key="value"
+      class="csv-cell-tag ui-text-truncate ui-text-note ui-text-normal ui-control-border"
+      :title="listValueDescription(value)"
+      >{{ value }}</span
+    >
   </template>
   <template v-else-if="isReferenceControl">
     <ResourceThumbnail
@@ -16,15 +22,15 @@
       :width="16"
       :height="16"
     />
-    <span class="csv-cell-value">{{ displayValue }}</span>
-    <span class="csv-cell-caret">⌄</span>
+    <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
+    <span class="csv-cell-caret ui-text-muted">⌄</span>
   </template>
   <template v-else-if="showsPickerCaret">
-    <span class="csv-cell-value">{{ displayValue }}</span>
-    <span class="csv-cell-caret">⌄</span>
+    <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
+    <span class="csv-cell-caret ui-text-muted">⌄</span>
   </template>
   <template v-else>
-    <span class="csv-cell-value">{{ rawValue }}</span>
+    <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ rawValue }}</span>
   </template>
 </template>
 

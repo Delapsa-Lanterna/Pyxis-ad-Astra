@@ -1,15 +1,17 @@
 <template>
-  <div class="weapon-immersive-panel">
-    <div class="immersive-title-row"><ImmersivePanelRow :stat="panel.heading[0]!" :render="render" /></div>
+  <div class="weapon-immersive-panel ui-layout-shrink ui-layout-stretch">
+    <div class="immersive-title-row ui-layout-row"><ImmersivePanelRow :stat="panel.heading[0]!" :render="render" /></div>
     <ImmersivePanelRow :stat="panel.heading[1]!" :render="render" />
     <div class="ship-immersive-description"><ImmersivePanelRow :stat="description" :render="render" /></div>
     <ImmersivePanelSources :render="render" />
-    <p v-if="panel.diagnostic" class="immersive-source-note"><ImmersiveText :text="panel.diagnostic" block /></p>
-    <section>
+    <p v-if="panel.diagnostic" class="immersive-source-note ui-text-muted ui-text-wrap ui-text-reset">
+      <ImmersiveText :text="panel.diagnostic" block />
+    </p>
+    <section class="weapon-immersive-panel-section ui-layout-shrink">
       <ImmersiveSection title="主数据"
         ><ImmersivePanelRow v-if="render.mode === 'editable'" :stat="panel.primarySettings" :render="render"
       /></ImmersiveSection>
-      <div class="weapon-immersive-data">
+      <div class="weapon-immersive-data ui-layout-grid">
         <ImmersiveWeaponIcon
           :session-id="render.root.sessionId"
           :layers="panel.iconLayers"
@@ -19,34 +21,37 @@
           :mount-size="panel.mountSize"
           :loaded-missile="panel.loadedMissile"
         />
-        <div><ImmersivePanelRow v-for="stat in panel.primary" :key="stat.id" :stat="stat" :render="render" /></div>
+        <div class="weapon-immersive-data-content ui-layout-shrink">
+          <ImmersivePanelRow v-for="stat in panel.primary" :key="stat.id" :stat="stat" :render="render" />
+        </div>
       </div>
       <ImmersiveHighlightedText v-if="panel.customPrimary" :text="panel.customPrimary" :highlights="panel.customPrimaryHL" />
     </section>
-    <section>
+    <section class="weapon-immersive-panel-section ui-layout-shrink">
       <ImmersiveSection title="辅助数据"
         ><ImmersivePanelRow v-if="render.mode === 'editable'" :stat="panel.ancillarySettings" :render="render"
       /></ImmersiveSection>
-      <div class="weapon-immersive-data">
-        <div>
+      <div class="weapon-immersive-data ui-layout-grid">
+        <div class="weapon-immersive-data-content ui-layout-shrink">
           <img
             v-if="render.mediaUrl(panel.damageIcon)"
-            class="immersive-damage-icon"
+            class="immersive-damage-icon ui-image"
             :src="render.mediaUrl(panel.damageIcon)"
             alt="伤害类型图标"
           />
-          <ImmersiveText v-else text="伤害图标来源未提供" block />
+          <ImmersiveFallbackIcon v-else :kind="panel.damageType" :size="80" label="伤害类型图标" />
         </div>
-        <div>
+        <div class="weapon-immersive-data-content ui-layout-shrink">
           <template v-for="stat in panel.ancillary" :key="stat.id"
             ><ImmersivePanelRow :stat="stat" :render="render" />
-            <p v-if="stat.id === 'damage-type'" class="immersive-damage-description"><ImmersiveText :text="panel.damageDescription" /></p
+            <p v-if="stat.id === 'damage-type'" class="immersive-damage-description ui-text-small ui-text-reset">
+              <ImmersiveText :text="panel.damageDescription" /></p
           ></template>
         </div>
       </div>
       <ImmersiveHighlightedText v-if="panel.customAncillary" :text="panel.customAncillary" :highlights="panel.customAncillaryHL" />
     </section>
-    <section class="weapon-immersive-sources">
+    <section class="weapon-immersive-sources weapon-immersive-panel-section ui-layout-shrink">
       <ImmersiveSection title="来源与分支"><ImmersivePanelRow :stat="panel.branch" :render="render" /></ImmersiveSection
       ><template v-if="panel.projectile"
         ><ImmersivePanelRow :stat="panel.projectile" :render="render" /><n-button
@@ -69,6 +74,7 @@ import ImmersiveHighlightedText from '../ImmersiveHighlightedText.vue';
 import ImmersiveWeaponIcon from '../ImmersiveWeaponIcon.vue';
 import ImmersiveSection from '../ImmersiveSection.vue';
 import ImmersiveText from '../ImmersiveText.vue';
+import ImmersiveFallbackIcon from '../ImmersiveFallbackIcon.vue';
 import { computed } from 'vue';
 import { jointObject } from '@/domain/joint-edit';
 import { schemaStringValue } from '@/domain/schema/schema-values';

@@ -1,4 +1,4 @@
-import type { TableKey } from '@/shared/types';
+import type { CsvTableKey } from '@/shared/types';
 import { validateSchemaCsvSources } from '@/domain/schema/schema-sources';
 import {
   CSV_COLUMN_CONTROL_SET,
@@ -42,7 +42,7 @@ const SCHEMAS: Record<string, FileSchema> = {
   variant: parseFileSchema('variant', variantSchemaRaw),
 };
 
-const CSV_COLUMN_SCHEMAS: Record<TableKey, CsvColumnSchema[]> = {
+const CSV_COLUMN_SCHEMAS: Record<CsvTableKey, CsvColumnSchema[]> = {
   abilities: parseCsvColumnSchemas('abilities', abilitiesColumnsRaw),
   commodities: parseCsvColumnSchemas('commodities', commoditiesColumnsRaw),
   descriptions: parseCsvColumnSchemas('descriptions', descriptionsColumnsRaw),
@@ -63,7 +63,7 @@ export function getSchema(id: string): FileSchema | null {
   return Object.hasOwn(SCHEMAS, id) ? SCHEMAS[id]! : null;
 }
 
-export function getCsvColumnSchemas(table: TableKey): CsvColumnSchema[] {
+export function getCsvColumnSchemas(table: CsvTableKey): CsvColumnSchema[] {
   return CSV_COLUMN_SCHEMAS[table] ?? [];
 }
 

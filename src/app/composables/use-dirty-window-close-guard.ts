@@ -1,110 +1,165 @@
-import { watch, type Ref } from 'vue';
+import { pauseQueryReads } from '@/app/composables/use-query-read-owner';
+import { nextTick, watch, type Ref } from 'vue';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { destroyCurrentWindow, listenCurrentWindowCloseRequest, currentWindowLabel } from '@/windows/current.window';
+import { listenCurrentWindowCloseRequest } from '@/windows/current.window';
 import { listenWindowEvent, type UnlistenFn } from '@/windows/tauri.events';
 import { WINDOW_EVENTS } from '@/windows/window.events';
-import { cancelNativeWindowClose, updateNativeWindowStatus } from '@/services/window.service';
+import { updateNativeWindowStatus } from '@/services/window.service';
+import { settleWindowRequests } from '@/windows/window-context.window';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
-import type { WindowCloseIntent } from '@/shared/types';
-
+import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
+import { useWindowCloseState, useWindowLifecycleActions } from './use-window-close-state';
+import type { CloseScope, WindowCloseIntent } from '@/shared/types';
 interface DirtyWindowCloseGuardOptions {
-  beforeClose?: () => Promise<boolean>;
-  content: string;
+  settle?: () => Promise<void>;
   dirty: Readonly<Ref<boolean>>;
+  dirtyForScope?: (scope: CloseScope) => boolean;
   title: string;
+  content: string;
 }
-
 export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) {
-  const feedback = useAppFeedback();
-  const commands = useSaveCommandStore();
-  let disposed = false;
-  let pendingClose: Promise<boolean> | null = null;
-  let unlisten: UnlistenFn | null = null;
-  let unlistenIntent: UnlistenFn | null = null;
-  let stopStatus: (() => void) | null = null;
-
-  async function install(): Promise<void> {
-    const nextUnlisten = await listenCurrentWindowCloseRequest(handleCloseRequested);
-    if (disposed) {
-      nextUnlisten();
+  const feedback = useAppFeedback(),
+    commands = useSaveCommandStore(),
+    closing = useWindowCloseState()!;
+  const actions = useWindowLifecycleActions();
+  const stops: UnlistenFn[] = [];
+  let disposed = false,
+    operation = 0;
+  let focused: Element | null = null;
+  const parents: number[] = [];
+  let stages = Promise.resolve();
+  let pending: Promise<boolean> | null = null;
+  let accepts = () => true;
+  const resume: Array<() => Promise<void>> = [];
+  async function handle(intent: WindowCloseIntent) {
+    if (intent.phase === 'hold') {
+      if (operation) parents.push(operation);
+      operation = intent.operationId;
+      focused = document.activeElement;
+      closing.value = true;
+    }
+    if (intent.operationId !== operation) {
+      await actions.replyClose(intent.operationId, intent.phase, true, null);
       return;
     }
-    unlisten?.();
-    unlisten = nextUnlisten;
-    const intentListener = await listenWindowEvent<WindowCloseIntent>(
-      WINDOW_EVENTS.windowCloseIntent,
-      async (intent) => {
-        if (!intent.labels.includes(currentWindowLabel())) return;
-        if (intent.onlyIfClean && (options.dirty.value || commands.hasPendingSave())) {
-          await cancelNativeWindowClose(intent.requestId);
-          return;
+    let accepted = true;
+    let diagnostic = null;
+    try {
+      switch (intent.phase) {
+        case 'hold':
+          break;
+        case 'settle':
+          await settleWindowRequests();
+          await options.settle?.();
+          await commands.settleCloseActions();
+          while (commands.hasPendingSave()) {
+            if (!(await commands.waitForSaves())) throw new AppError('保存或提交同步尚未完成', { action: 'close-prepare' });
+          }
+          break;
+        case 'prepare':
+          resume.push(pauseQueryReads(), actions.prepareDisplay(), ...commands.closePreparations.map((prepare) => prepare()));
+          commands.closePrepared = true;
+          await nextTick();
+          accepts = commands.captureCloseState();
+          break;
+        case 'confirm':
+          if (!accepts()) throw new AppError('关闭准备内容已变化', { action: 'close-confirm' });
+          if (options.dirtyForScope?.(intent.scope) ?? options.dirty.value) {
+            if (intent.onlyIfClean) {
+              accepted = false;
+              break;
+            }
+            accepted =
+              (await feedback.choose({
+                choices: [{ label: '放弃修改并关闭', value: 'discard', type: 'warning' }],
+                content: options.content,
+                title: options.title,
+              })) === 'discard';
+          }
+          accepted = accepted && accepts();
+          break;
+        case 'flush':
+          await actions.flushSettings();
+          break;
+        case 'resume': {
+          commands.closePrepared = false;
+          operation = parents.pop() ?? 0;
+          closing.value = operation !== 0;
+          let releaseError: unknown;
+          for (const release of resume.splice(0)) {
+            try {
+              await release();
+            } catch (error) {
+              releaseError ??= error;
+            }
+          }
+          await nextTick();
+          if (focused instanceof HTMLElement && focused.isConnected) focused.focus();
+          if (releaseError) throw releaseError;
+          break;
         }
-        if (!(await requestClose())) await cancelNativeWindowClose(intent.requestId);
+      }
+    } catch (error) {
+      accepted = false;
+      diagnostic = errorDiagnosticOf(error);
+    }
+    if (!disposed) await actions.replyClose(intent.operationId, intent.phase, accepted, diagnostic);
+  }
+  async function install() {
+    const stop = await listenCurrentWindowCloseRequest((event) => {
+      event.preventDefault();
+      void requestWindowClose();
+    });
+    if (disposed) {
+      stop();
+      return;
+    }
+    stops.push(stop);
+    const unlisten = await listenWindowEvent<WindowCloseIntent>(
+      WINDOW_EVENTS.windowCloseIntent,
+      (intent) => {
+        stages = stages.then(() => handle(intent)).catch((error) => recordWindowEventHandlerError(error, WINDOW_EVENTS.windowCloseIntent));
+        return stages;
       },
       recordWindowEventHandlerError,
     );
     if (disposed) {
-      intentListener();
+      unlisten();
       return;
     }
-    unlistenIntent?.();
-    unlistenIntent = intentListener;
-    stopStatus?.();
-    stopStatus = watch(
-      () => [options.dirty.value, commands.hasPendingSave()] as const,
-      ([dirty, saving]) => {
-        void updateNativeWindowStatus({ dirty, saving }).catch((error) => feedback.error(error, '同步窗口状态失败'));
-      },
-      { immediate: true, flush: 'sync' },
+    stops.push(
+      unlisten,
+      watch(
+        () => [options.dirty.value, commands.hasPendingSave()] as const,
+        ([dirty, saving]) => {
+          void updateNativeWindowStatus({ dirty, saving }).catch((error) => feedback.error(error));
+        },
+        { immediate: true, flush: 'sync' },
+      ),
     );
+    await actions.readyClose();
   }
-
-  function dispose(): void {
+  function requestWindowClose(): Promise<boolean> {
+    if (pending) return pending;
+    pending = actions
+      .requestClose({ kind: 'window' })
+      .then((result) => {
+        if (result.diagnostic) feedback.error(result.diagnostic, '关闭失败');
+        return result.status === 'closed';
+      })
+      .catch((error) => {
+        feedback.error(error, '关闭失败');
+        return false;
+      })
+      .finally(() => {
+        pending = null;
+      });
+    return pending;
+  }
+  function dispose() {
     disposed = true;
-    unlisten?.();
-    unlistenIntent?.();
-    stopStatus?.();
-    unlisten = null;
-    unlistenIntent = null;
-    stopStatus = null;
+    stops.splice(0).forEach((stop) => stop());
   }
-
-  function handleCloseRequested(event: { preventDefault: () => void }): void {
-    if (disposed || (!options.beforeClose && !options.dirty.value && !commands.hasPendingSave())) return;
-    event.preventDefault();
-    void requestClose();
-  }
-
-  function requestClose(): Promise<boolean> {
-    if (pendingClose) return pendingClose;
-    pendingClose = completeClose().finally(() => {
-      pendingClose = null;
-    });
-    return pendingClose;
-  }
-
-  async function completeClose(): Promise<boolean> {
-    try {
-      const pending = commands.waitForSaves();
-      if (pending && !(await pending)) return false;
-      if (disposed) return false;
-      if (options.dirty.value) {
-        const choice = await feedback.choose({
-          choices: [{ label: '放弃修改并关闭', value: 'discard', type: 'warning' }],
-          content: options.content,
-          title: options.title,
-        });
-        if (choice !== 'discard' || disposed) return false;
-      }
-      if (options.beforeClose && !(await options.beforeClose())) return false;
-      await destroyCurrentWindow();
-      return true;
-    } catch (error) {
-      feedback.error(error, '确认关闭编辑器失败');
-      return false;
-    }
-  }
-
-  return { dispose, install };
+  return { install, requestClose: requestWindowClose, dispose };
 }

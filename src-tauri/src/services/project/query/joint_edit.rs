@@ -1,6 +1,6 @@
 use super::super::{
     cache,
-    model::{ProjectSession, csv_table_spec, string_field},
+    model::{LoadedSpecRecord, ProjectSession, csv_table_spec, string_field},
     query::entity_targets::{EntityTargetProjection, prepare_entity_targets},
 };
 use crate::{

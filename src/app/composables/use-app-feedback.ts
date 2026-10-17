@@ -1,7 +1,10 @@
-import { useDialog } from 'naive-ui/es/dialog';
-import { useMessage } from 'naive-ui/es/message';
-import { createAppFeedback } from '@/app/app-feedback';
+import { inject, provide, type InjectionKey } from 'vue';
+import type { AppFeedback } from '@/shared/types';
 
-export function useAppFeedback() {
-  return createAppFeedback(useMessage(), useDialog());
+const feedbackKey: InjectionKey<AppFeedback> = Symbol('app-feedback');
+export function provideAppFeedback(feedback: AppFeedback) {
+  provide(feedbackKey, feedback);
+}
+export function useAppFeedback(): AppFeedback {
+  return inject(feedbackKey)!;
 }

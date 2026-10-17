@@ -40,6 +40,12 @@ pub fn open_project_session_with_root(
     result
 }
 
+pub fn release_project_session(session_id: String) -> AppResult<()> {
+    super::write_transactions::release_session_commits(&session_id)?;
+    super::project::close_project_session(session_id.clone())?;
+    super::windows::release_session(&session_id)
+}
+
 fn write_performance_trace(
     app_handle: tauri::AppHandle,
     trace: &PerformanceTrace,

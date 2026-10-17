@@ -1,18 +1,29 @@
 <template>
-  <header class="titlebar" @pointerdown="startDrag" @dblclick="toggleMaximize">
-    <div class="titlebar-brand">
-      <img class="titlebar-mark" :src="appIcon" alt="星界罗盘 [Circinus ad Astra]" draggable="false" />
-      <div class="titlebar-text">
-        <strong>星界罗盘 [Circinus ad Astra]</strong>
-        <span :title="project.activeManifest?.modRoot ?? ''">{{ workspace.activeMod?.displayName || '尚未打开项目' }}</span>
+  <header
+    class="titlebar ui-text-normal ui-layout-row ui-layout-center ui-content-surface ui-layout-grid"
+    @pointerdown="startDrag"
+    @dblclick="toggleMaximize"
+  >
+    <div class="titlebar-brand ui-control-row ui-control-reset">
+      <img class="titlebar-mark ui-image" :src="appIcon" alt="星界罗盘 [Circinus ad Astra]" draggable="false" />
+      <div class="titlebar-text ui-layout-grid ui-layout-shrink">
+        <strong class="titlebar-text-value ui-emphasis ui-text-truncate ui-text-small">星界罗盘 [Circinus ad Astra]</strong>
+        <span class="titlebar-text-label ui-text-truncate ui-text-meta ui-text-muted" :title="workspace.activeManifest?.modRoot ?? ''">{{
+          workspace.activeMod?.displayName || '尚未打开项目'
+        }}</span>
       </div>
     </div>
 
-    <div class="titlebar-controls" @pointerdown.stop @dblclick.stop>
+    <div class="titlebar-controls ui-layout-row ui-layout-center" @pointerdown.stop @dblclick.stop>
       <n-popover v-model:show="workspaceMenuVisible" placement="bottom-end" trigger="click">
         <template #trigger>
-          <button class="titlebar-button" type="button" title="工作区菜单" aria-label="工作区菜单">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+          <button
+            class="titlebar-button ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
+            type="button"
+            title="工作区菜单"
+            aria-label="工作区菜单"
+          >
+            <svg class="titlebar-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M10.3 3.48 9.7 5.6a6.77 6.77 0 0 0-1.64.95l-2.1-.63-1.5 2.6 1.53 1.56a6.8 6.8 0 0 0 0 1.9L4.46 13.54l1.5 2.6 2.1-.63c.5.39 1.05.7 1.64.95l.6 2.12h3l.6-2.12c.59-.25 1.14-.56 1.64-.95l2.1.63 1.5-2.6-1.53-1.56a6.8 6.8 0 0 0 0-1.9l1.53-1.56-1.5-2.6-2.1.63a6.77 6.77 0 0 0-1.64-.95l-.6-2.12h-3Z"
               />
@@ -20,30 +31,66 @@
             </svg>
           </button>
         </template>
-        <div class="titlebar-workspace-menu">
-          <button type="button" :class="{ active: workspace.currentView === 'settings' }" @click="showSettings">设置</button>
-          <button type="button" :class="{ active: workspace.currentView === 'about' }" @click="showAbout">关于</button>
+        <div class="titlebar-workspace-menu ui-layout-grid ui-control-reset">
+          <button
+            class="ui-button titlebar-workspace-menu-button ui-control-button ui-text-soft ui-text-small ui-control-pointer ui-layout-stretch"
+            type="button"
+            :class="{ active: workspace.currentView === 'settings' }"
+            @click="showSettings"
+          >
+            设置
+          </button>
+          <button
+            class="ui-button titlebar-workspace-menu-button ui-control-button ui-text-soft ui-text-small ui-control-pointer ui-layout-stretch"
+            type="button"
+            :class="{ active: workspace.currentView === 'about' }"
+            @click="showAbout"
+          >
+            关于
+          </button>
         </div>
       </n-popover>
-      <button class="titlebar-button" type="button" :title="settings.isDark ? '切换到浅色' : '切换到暗色'" @click="settings.toggleTheme">
-        <svg v-if="settings.isDark" viewBox="0 0 24 24" aria-hidden="true">
+      <button
+        class="titlebar-button ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
+        type="button"
+        :title="settings.isDark ? '切换到浅色' : '切换到暗色'"
+        @click="settings.toggleTheme"
+      >
+        <svg class="titlebar-button-icon ui-control-icon" v-if="settings.isDark" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M12 4.75V3m0 18v-1.75M5.81 5.81 4.58 4.58m14.84 14.84-1.23-1.23M4.75 12H3m18 0h-1.75M5.81 18.19l-1.23 1.23M19.42 4.58l-1.23 1.23M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
           />
         </svg>
-        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+        <svg class="titlebar-button-icon ui-control-icon" v-else viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20.25 14.3A7.78 7.78 0 0 1 9.7 3.75 8.5 8.5 0 1 0 20.25 14.3Z" />
         </svg>
       </button>
-      <button class="titlebar-button" type="button" title="最小化" @click="minimizeWindow">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+      <button
+        class="titlebar-button ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
+        type="button"
+        title="最小化"
+        @click="minimizeWindow"
+      >
+        <svg class="titlebar-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
       </button>
-      <button class="titlebar-button" type="button" :title="isMaximized ? '还原' : '最大化'" @click="toggleMaximize">
-        <svg v-if="isMaximized" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h9v9H8zM6 15H5V5h10v1" /></svg>
-        <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" /></svg>
+      <button
+        class="titlebar-button ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
+        type="button"
+        :title="isMaximized ? '还原' : '最大化'"
+        @click="toggleMaximize"
+      >
+        <svg class="titlebar-button-icon ui-control-icon" v-if="isMaximized" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 8h9v9H8zM6 15H5V5h10v1" />
+        </svg>
+        <svg class="titlebar-button-icon ui-control-icon" v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" /></svg>
       </button>
-      <button class="titlebar-button close" type="button" title="关闭" @click="closeWindow">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg>
+      <button
+        class="titlebar-button close ui-button ui-control-button ui-text-soft ui-layout-grid ui-control-reset"
+        type="button"
+        title="关闭"
+        @click="closeWindow"
+      >
+        <svg class="titlebar-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg>
       </button>
     </div>
   </header>
@@ -54,7 +101,6 @@ import { onMounted, ref } from 'vue';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import appIcon from '@/assets/app-icon.svg';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
-import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import {
@@ -64,8 +110,6 @@ import {
   startCurrentWindowDrag,
   toggleMaximizeCurrentWindow,
 } from '@/windows/current.window';
-
-const project = useProjectStore();
 const workspace = useWorkspaceStore();
 const settings = useSettingsStore();
 const isMaximized = ref(false);

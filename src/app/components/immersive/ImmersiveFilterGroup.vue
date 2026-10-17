@@ -1,5 +1,5 @@
 <template>
-  <div class="immersive-filter-group" :aria-label="label">
+  <div class="immersive-filter-group ui-layout-row" :aria-label="label">
     <ImmersiveFilterToggle
       v-for="option in displayed"
       :key="option.value ?? 'all'"

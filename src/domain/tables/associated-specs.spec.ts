@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { SpecEditorKind, TableKey } from '@/shared/types';
+import type { SpecEditorKind, CsvTableKey } from '@/shared/types';
 import { associatedSpecEditorKinds, associatedSpecKind } from './associated-specs';
 
-const TABLE_WITHOUT_SPECS: TableKey[] = ['wings', 'hullmods', 'industries', 'skills', 'descriptions'];
+const TABLE_WITHOUT_SPECS: CsvTableKey[] = ['wings', 'hullmods', 'industries', 'skills', 'descriptions'];
 
 describe('associatedSpecEditorKinds', () => {
   it('maps ships to the ship editor only', () => {

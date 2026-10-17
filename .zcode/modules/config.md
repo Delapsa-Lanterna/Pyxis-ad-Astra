@@ -6,27 +6,63 @@
 
 ## 参考
 
-`scripts/architecture/rules/frontend-layer-boundary.mjs`：配置组件的正式依赖边界 owner。
-`scripts/architecture/rules/write-boundary.mjs`：配置写入能力归属的检查 owner。
-`src-tauri/src/commands/editor_config.rs`：配置实体 command 边界。
-`src-tauri/src/domain/editor_config_definitions.rs`：实体定义与目录规则 owner。
-`src-tauri/src/io/faction_index.rs`：势力索引引用的所属根授权 owner。
-`src-tauri/src/services/editor_config/`：任务索引、任务目录及族实体创建删除的保存 owner。
-`src-tauri/src/services/project/write/entity_identity.rs`：配置装配保存的身份事务 owner，协调目标、父引用与实际记录。
-`src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除 owner。
-`src/app/components/config/`：势力、战役与 Mod 信息的展示及事件入口。
-`src/app/components/config/ConfigTargetNotice.vue`：目标交接与外部删除提示的展示入口。
-`src/app/components/config/ConfigWorkspace.vue`：配置页组合入口，消费所属实体视图与文件历史展示。
-`src/app/composables/config/use-config-faction-view-model.ts`：势力列表与新建 ViewModel。
-`src/app/composables/config/use-config-identity-reception.ts`：配置身份读取、确认、记录接纳与释放主归属。
-`src/app/composables/config/use-config-list-selection.ts`：列表选择、草稿确认、动作锁定及提交接纳 owner。
-`src/app/composables/config/use-config-mission-view-model.ts`：战役列表与编辑 ViewModel。
-`src/app/composables/config/use-config-mod-info-view-model.ts`：Mod 信息 ViewModel。
-`src/domain/config/config-entities.ts`：配置默认值、ID 与装配 modules 格式及改名纯规则 owner。
-`src/domain/config/config-records.ts`：配置记录与可写快照转换主归属。
-`src/orchestrators/config-save.orchestrator.ts`：配置保存编排 owner，拥有十个写动作族。
-`src/services/config-entity.service.ts`：配置实体读 service。
-`src/services/config-resource.service.ts`：配置资源 service。
+### 拥有
+
+- `src-tauri/src/commands/config_entity.rs`：Mod 信息、势力与战役保存、创建和删除 command。
+- `src-tauri/src/domain/config.rs`：配置 ID、实体路径及装配、皮肤文件构造。
+- `src-tauri/src/services/config_entity.rs`：Mod 信息保存、战役索引及任务目录的保存、创建和删除。
+- `src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除。
+- `src/app/components/config/ConfigFactionEditor.vue`：势力目标字段与保存展示。
+- `src/app/components/config/ConfigFactionList.vue`：势力列表选择、创建与删除展示。
+- `src/app/components/config/ConfigFactionView.vue`：势力列表与目标编辑组合。
+- `src/app/components/config/ConfigMissionEditor.vue`：任务字段、文件与保存展示。
+- `src/app/components/config/ConfigMissionList.vue`：任务列表及创建、删除展示。
+- `src/app/components/config/ConfigMissionView.vue`：任务列表与目标编辑组合。
+- `src/app/components/config/ConfigModInfoEditor.vue`：Mod 信息目标字段与保存展示。
+- `src/app/components/config/ConfigModOverview.vue`：Mod 信息、诊断与概览组合。
+- `src/app/components/config/ConfigTargetNotice.vue`：目标交接与外部删除提示的展示入口。
+- `src/app/components/config/ConfigWorkspace.vue`：配置页组合入口，消费所属实体视图与文件历史展示。
+- `src/app/components/config/config-draft-form.spec.ts`：配置草稿与字段表单集成验证。
+- `src/app/components/config/config-mission-lifecycle.spec.ts`：任务列表、目标与保存生命周期验证。
+- `src/app/components/config/config-session-baselines.spec.ts`：配置 session 与基线隔离验证。
+- `src/app/composables/config/config-target-boundaries.spec.ts`：配置目标切换、保存与输入交接验证。
+- `src/app/composables/config/use-config-editor-draft-session.ts`：配置目标 Draft Session 组合。
+- `src/app/composables/config/use-config-faction-editor-view-model.ts`：势力目标草稿、保存和外部基线接纳。
+- `src/app/composables/config/use-config-faction-view-model.ts`：势力列表与新建 ViewModel。
+- `src/app/composables/config/use-config-identity-reception.ts`：配置身份读取、确认、记录接纳与释放。
+- `src/app/composables/config/use-config-list-selection.ts`：列表选择、草稿确认、动作锁定及提交接纳。
+- `src/app/composables/config/use-config-mission-editor-view-model.ts`：任务文档、关联文件、保存与目标生命周期。
+- `src/app/composables/config/use-config-mission-view-model.ts`：战役列表与编辑 ViewModel。
+- `src/app/composables/config/use-config-mod-info-view-model.ts`：Mod 信息 ViewModel。
+- `src/domain/config/config-entities.ts`：配置默认值、ID 与装配 modules 格式及改名纯规则。
+- `src/domain/config/config-records.ts`：配置记录与可写快照转换。
+- `src/domain/config/mod-overview.ts`：Mod 概览、诊断与目标文件的纯投影。
+- `src/orchestrators/config-save.orchestrator.ts`：配置保存编排，拥有十个写动作族。
+- `src/services/config-entity.service.ts`：Mod 信息、势力与战役的查询和写入参数装配。
+- `src/services/config-resource.service.ts`：配置资源 service。
+
+### 消费
+
+- `src-tauri/src/domain/editor_config_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/io/faction_index.rs`：势力索引引用的所属根授权。
+- `src-tauri/src/models/config_entity.rs`：Mod 信息与索引实体请求、刷新内容及势力索引结构。
+- `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
+- `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、重排确认与写入重试交接。
+- `src/shared/types/config-entity.types.ts`：Mod 信息与索引实体保存请求、刷新内容及编辑投影契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
+- `src/stores/workspace.store.ts`：当前 Mod 选择、清单与 session 的派生投影。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `scripts/architecture/rules/frontend-layer-boundary.mjs`：配置组件的正式依赖边界。
+- `scripts/architecture/rules/write-boundary.mjs`：配置写入能力归属的检查。
+- `src-tauri/src/services/project/write/entity_identity.rs`：规格、装配与文本身份写入及关联 CSV、父引用暂存。
+- `src/shared/lib/row-data.ts`：JSON 对象形状判断及错误交接。
 
 ## 边界
 
@@ -105,12 +141,14 @@
 - 同 session 刷新必须共同接纳内容和版本凭据；dirty 草稿必须共同暂存外部内容与凭据，载入外部版本必须共同交接。
 - 外部删除当前 dirty 目标时必须保留编辑面并呈现删除提示；确认放弃后必须交接到所属首项。
 - 外部版本载入与实体选择必须等待所属保存，成功后必须按最新 dirty 确认；确认必须绑定发起目标并取消所属输入。
+- 当前展示目标必须消费工作区的当前项目投影，异步动作必须捕获并持续消费所属 Mod 根与 session。
 - 改变目标的配置动作必须短暂锁定当前编辑面；按钮与保存快捷键必须共同消费锁定，结束后必须释放。
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
 - 结构化 JSON 保存必须使用设置快照选择原样更新或规范化写入；原样更新无法安全完成时必须在写入前确认影响文件。
 - 表单双向绑定必须经统一 Draft Session setter 提交；校验拒绝与保存取消必须返回 `null`，严禁提交成功基线或触发保存成功回调。
 - 装配 modules 读取、设置和改名必须消费实体纯规则，必须保留对象或有序条目数组的格式、顺序和未知业务字段。
 - 装配改名必须协调父引用的活动输入、相关保存及实际版本；主文件与全部父装配 modules 引用必须原子提交并共同回放，后续同步必须消费完整 receipt。
+- 配置保存的传输内容必须消费 `IndexedConfigEntityRefresh`；编辑数据必须由所属投影共同接纳回执版本。
 - 配置列表必须以 `sessionId` 与 `modRoot` 共同归属数据、版本凭据、资源引用和选择；身份切换必须同步清空这些状态，新列表到达后才允许建立编辑目标。
 - 配置编辑会话必须登记实际版本覆盖的文件范围及所属保存动作；联合交接必须保留配置身份和动作 owner。
 - 配置编辑器生命周期必须按 session 与 Mod 隔离；同名实体切换必须加载目标基线，保存回调严禁读取其他 Mod 的活动目标。

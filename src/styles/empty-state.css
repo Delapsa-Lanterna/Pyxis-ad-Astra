@@ -1,0 +1,5 @@
+.empty-state {
+  gap: 14px;
+  place-content: center;
+  text-align: center;
+}

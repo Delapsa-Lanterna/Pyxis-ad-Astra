@@ -6,24 +6,57 @@
 
 ## 参考
 
-`src-tauri/src/commands/tables.rs`：CSV 读取与 patch command 主归属。
-`src/app/components/tables/CsvGrid.vue`：表格网格 owner，拥有滚动窗口、列宽与行虚拟化。
-`src/app/components/tables/CsvGridBody.vue`：表体 owner，拥有可见行窗口与选中行传递。
-`src/app/components/tables/CsvGridCellEditor.vue`：单元格编辑 owner，按列控件类型分派编辑器。
-`src/app/components/tables/CsvGridRow.vue`：行渲染与选中态 owner。
-`src/app/components/tables/DataTable.vue`：表格工作区组合 owner。
-`src/app/composables/tables/use-csv-floating-panel.ts`：浮层视口 owner，统一位置、宽度、上下翻转与 resize 释放。
-`src/app/composables/tables/use-csv-grid-media.ts`：网格持有媒体结果到单元格展示的交接接口。
-`src/app/composables/tables/use-csv-row-preview.ts`：详情行预览、读取票据、失效重读与释放主归属。
-`src/app/composables/tables/use-csv-table-inputs.ts`：表格输入上下文 owner，连接所属输入集合、活动单元格与值提交。
-`src/app/composables/tables/use-csv-table-view-model.ts`：表格 ViewModel owner，连接 query、store、列 schema 与网格。
-`src/domain/schema/schema-registry.ts`：表格消费的列 schema 加载入口。
-`src/domain/tables/csv-grid-model.ts`：网格列模型 owner。
-`src/domain/tables/csv-search.ts`：搜索项选项与输入提示的纯投影 owner。
-`src/domain/tables/table-row-key.ts`：行身份规则 owner。
-`src/services/csv-table.service.ts`：窗口、行预览、资源装配和关联实际目标准备主归属。
-`src/stores/tables.store.ts`：表格运行态 owner，拥有窗口行、选择、dirty、当前表与保存中状态；`initializeModTables` 按 session、Mod 和 manifest 一次建立表格状态与输入集合。
-`src/stores/workspace.store.ts`：按 Mod、表与列持有持久化列宽的 owner。
+### 拥有
+
+- `src-tauri/src/commands/tables.rs`：CSV 读取与 patch command。
+- `src-tauri/src/services/project/definitions/table_definitions.rs`：表格实体列、摘要、图标及来源选项映射。
+- `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
+- `src/app/components/TableWorkspace.vue`：表格列表、详情及保存状态组合。
+- `src/app/components/tables/`：虚拟表格、单元格输入、行详情及其行为测试。
+- `src/app/components/tables/CsvGrid.vue`：表格网格，拥有滚动窗口、列宽与行虚拟化。
+- `src/app/components/tables/CsvGridBody.vue`：表体，拥有可见行窗口与选中行传递。
+- `src/app/components/tables/CsvGridCellEditor.vue`：单元格编辑，按列控件类型分派编辑器。
+- `src/app/components/tables/CsvGridRow.vue`：行渲染与选中态。
+- `src/app/components/tables/DataTable.vue`：表格工作区组合。
+- `src/app/composables/tables/csv-target-ownership.spec.ts`：CSV 显式目标、搜索输入与列状态归属验证。
+- `src/app/composables/tables/use-csv-floating-panel.ts`：浮层视口，统一位置、宽度、上下翻转与 resize 释放。
+- `src/app/composables/tables/use-csv-grid-media.ts`：网格持有媒体结果到单元格展示的交接接口。
+- `src/app/composables/tables/use-csv-grid-viewport.ts`：虚拟行范围、容器尺寸及滚动投影。
+- `src/app/composables/tables/use-csv-row-preview.ts`：详情行预览、读取票据、失效重读与释放。
+- `src/app/composables/tables/use-csv-table-inputs.ts`：表格输入上下文，连接所属输入集合、活动单元格与值提交。
+- `src/app/composables/tables/use-csv-table-view-model.ts`：表格 ViewModel，连接 query、store、列 schema 与网格。
+- `src/domain/tables/associated-specs.ts`：表格对应规格的打开类型与标识投影。
+- `src/domain/tables/csv-column-schema.ts`：CSV 列 schema 与显示顺序投影。
+- `src/domain/tables/csv-comment-row.ts`：CSV 注释行标记投影。
+- `src/domain/tables/csv-grid-model.ts`：网格列模型。
+- `src/domain/tables/csv-search.ts`：搜索项选项与输入提示的纯投影。
+- `src/domain/tables/csv-table-rows.ts`：可编辑 CSV 行提取。
+- `src/domain/tables/table-detail-actions.ts`：行详情动作与只读预览入口选择。
+- `src/domain/tables/table-row-key.ts`：行身份规则。
+- `src/services/csv-table.service.ts`：窗口、行预览、资源装配和关联实际目标准备。
+- `src/stores/tables.store.ts`：表格运行态，拥有窗口行、选择、dirty、当前表与保存中状态；`initializeModTables` 按 session、Mod 和 manifest 一次建立表格状态与输入集合。
+
+### 消费
+
+- `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
+- `src/domain/schema/schema-registry.ts`：表格消费的列 schema 加载入口。
+- `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
+- `src/shared/lib/starsector/tables.ts`：游戏表格标准列、模块名称及列排序。
+- `src/shared/types/tables.types.ts`：CSV 行、单元格目标、窗口与预览契约。
+- `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
+- `src/stores/workspace.store.ts`：当前 Mod、清单与 session 投影，以及按 Mod、表与列持有的持久化列宽。
+- `src/test/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
+- `src/test/csv-row.ts`：CSV 草稿行的测试构造。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `src/shared/lib/starsector/index.ts`：游戏值、颜色与表格规则的转导出入口。
+- `src/shared/lib/starsector/value.ts`：JSON 复制、标量转换与 Mod 版本展示。
+- `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
 
 ## 边界
 
@@ -69,6 +102,7 @@
 ## 规范
 
 - CSV native 输入必须逐字符保留空串、前导零与数字表示，领域转换必须归所属消费者。
+- CSV 保存参与者必须交付所属表草稿与现有输入集合；窗口关闭必须经保存注册表核对目标、草稿、dirty 与输入生命周期。
 - Esc 必须取消本次输入；文本浮层、native 输入与选择器必须共用所属集合的保存提交入口。
 - 下划线开头的文件列必须按普通业务列显示、编辑和保存；行身份只允许消费记录的 `rowKey`。
 - 业务 CSV 字段必须归 `CsvDraftRow.data`；`rowKey`、`sourceRowIndex` 与 `insertAt` 必须分别归所属行记录，严禁写入业务字典。
@@ -79,6 +113,7 @@
 - 单元格编辑必须在动作提交边界一次性写值与登记历史；中间输入必须参与未保存判定，行脏标记只允许表达已提交行差异。
 - 同值同版本的窗口接纳必须按 `rowKey` 更新来源位置投影，并保留正式草稿、dirty 与活动输入。
 - 固定枚举选项必须与目标 Starsector 版本的加载器枚举完全一致。
+- 当前展示目标必须消费工作区的当前项目投影，异步动作必须捕获并持续消费所属 Mod 根与 session。
 - 搜索必须去除首尾空白并忽略大小写进行包含匹配；空关键词必须返回全部行，注释行必须按所属业务字段参与搜索。
 - 搜索必须属于选择器界面状态；自定义值必须使用显式输入入口并登记待提交状态；多选必须以整个编辑动作一次提交。
 - 搜索项切换必须保留关键词并提交活动输入；同 Mod 切表必须恢复 id-name 并清空关键词，返回同一当前表必须保留搜索上下文。

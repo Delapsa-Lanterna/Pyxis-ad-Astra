@@ -1,4 +1,4 @@
-import type { ConfigView, TableKey } from '@/shared/types';
+import type { ConfigView, CsvTableKey } from '@/shared/types';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
@@ -23,7 +23,7 @@ export function navigateToModOverview(modRoot: string) {
   workspace.activateModOverview(modRoot);
 }
 
-export function navigateToModTable(modRoot: string, tab: TableKey) {
+export function navigateToModTable(modRoot: string, tab: CsvTableKey) {
   const workspace = useWorkspaceStore();
   const tables = useTablesStore();
   if (!workspace.mods.has(modRoot)) return;
@@ -54,7 +54,7 @@ export function activateModTab(modRoot: string) {
   workspace.activateModTab(modRoot);
 }
 
-function isActiveTableTarget(modRoot: string, tab: TableKey): boolean {
+function isActiveTableTarget(modRoot: string, tab: CsvTableKey): boolean {
   const workspace = useWorkspaceStore();
   const tables = useTablesStore();
   return (

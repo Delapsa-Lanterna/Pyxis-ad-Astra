@@ -6,7 +6,7 @@ import { weaponJointFixture } from '@/test/weapon-joint-edit';
 
 const mocks = vi.hoisted(() => ({
   querySessionEntity: vi.fn(),
-  querySessionEditorDraftResources: vi.fn(async () => ({})),
+  querySessionDraftResources: vi.fn(async () => ({})),
   queryResourceDataUrls: vi.fn(async () => [] as (string | null)[]),
   invokeCommand: vi.fn(),
   queryJointCandidate: vi.fn(),
@@ -18,7 +18,9 @@ vi.mock('@/services/entity-query.service', () => ({
     baseVersions: [],
   })),
   querySessionEntity: mocks.querySessionEntity,
-  querySessionEditorDraftResources: mocks.querySessionEditorDraftResources,
+}));
+vi.mock('@/services/resource-reference.service', () => ({
+  querySessionDraftResources: mocks.querySessionDraftResources,
 }));
 
 vi.mock('@/services/resource-cache.service', () => ({
@@ -141,7 +143,7 @@ describe('editor dependencies', () => {
 
   it('queries ship images from the submitted draft reference', async () => {
     const sprite: ResourceRef = { key: 'sprite', source: 'mod', relPath: 'graphics/ship.png', ownerKind: 'ship', ownerId: 'XY' };
-    mocks.querySessionEditorDraftResources.mockResolvedValueOnce({ sprite });
+    mocks.querySessionDraftResources.mockResolvedValueOnce({ sprite });
     mocks.queryResourceDataUrls.mockResolvedValueOnce(['data:image/png;base64,BBB']);
     const data = await querySpecShipEditorImages('s1', 'XY', { hullId: 'XY', spriteName: 'graphics/ship.png' });
     expect(data).toEqual({ resourceRefs: [sprite], spriteData: 'data:image/png;base64,BBB', diagnostic: '' });

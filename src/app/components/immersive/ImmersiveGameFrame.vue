@@ -1,8 +1,9 @@
 <template>
   <div class="immersive-game-frame" :class="{ textured }">
     <div class="immersive-game-frame-content"><slot /></div>
-    <div v-if="textured" class="immersive-game-border" aria-hidden="true">
+    <div v-if="textured" class="immersive-game-border ui-layout-grid" aria-hidden="true">
       <span
+        class="immersive-game-border-label"
         v-for="(edge, index) in edges"
         :key="edge"
         :style="{ gridArea: areas[index], backgroundImage: 'url(' + images['ui_border1_' + edge] + ')' }"

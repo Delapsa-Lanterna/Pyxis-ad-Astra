@@ -1,21 +1,50 @@
+use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, read_csv_data},
-    models::{CsvTableKey, LoadedSpecRecord, ResourceSource, SkinFile, VariantFile},
+    models::{CsvTableKey, ResourceSource, SkinFile, VariantFile},
 };
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, LazyLock, Mutex, MutexGuard},
 };
 
 use super::super::model::{
     CoreCache, CoreSourceData, SessionCsvRow, SessionCsvTable, csv_table_spec,
 };
 use super::{
-    CoreCacheEntry, lock_core_caches, persistent,
+    persistent,
     spec_files::{load_skin_files, load_variant_files},
+    spec_records::load_spec_records,
 };
+
+struct CoreCacheEntry {
+    data: CoreCache,
+    dirty: bool,
+}
+
+static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> =
+    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+
+/// Lock the core-cache registry; poison maps to the shared AppError form.
+fn lock_core_caches() -> AppResult<MutexGuard<'static, BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>>
+{
+    CORE_CACHES
+        .lock()
+        .map_err(|_| AppError::message("cache.lock_poisoned", "core cache lock poisoned"))
+}
+
+pub(in crate::services::project) fn invalidate_core_cache(starsector_root: &str) -> AppResult<()> {
+    let cache_key = core_cache_key(starsector_root)?;
+    // Persist what was built in memory before dropping, so the next open
+    // reuses it (the content fingerprint still guards against stale sources).
+    if let Err(error) = flush_core_cache(starsector_root) {
+        crate::diagnostics::record(format!("core cache flush failed: {error}"));
+    }
+    lock_core_caches()?.remove(&cache_key);
+    persistent::invalidate_core_fingerprint(&cache_key)
+}
 
 /// Persists the in-memory core cache once, and only when something loaded
 /// since the last flush; a save failure is recorded and never propagated.
@@ -82,7 +111,7 @@ where
     Ok(value)
 }
 
-pub(super) fn core_cache_key(starsector_root: &str) -> AppResult<String> {
+fn core_cache_key(starsector_root: &str) -> AppResult<String> {
     let root = FsRootBoundary::new(Path::new(starsector_root), "starsector root")?;
     Ok(root
         .root()
@@ -145,7 +174,7 @@ pub(crate) fn load_core_ship_files(
         |cache| cache.ship_files.as_ref(),
         |cache, files| cache.ship_files = Some(files),
         |core_dir| {
-            super::load_spec_records(
+            load_spec_records(
                 core_dir,
                 "data/hulls",
                 "ship",
@@ -163,9 +192,7 @@ pub(crate) fn load_core_weapon_specs(
         starsector_root,
         |cache| cache.weapon_specs.as_ref(),
         |cache, specs| cache.weapon_specs = Some(specs),
-        |core_dir| {
-            super::load_spec_records(core_dir, "data/weapons", "wpn", "id", ResourceSource::Core)
-        },
+        |core_dir| load_spec_records(core_dir, "data/weapons", "wpn", "id", ResourceSource::Core),
     )
 }
 
@@ -177,7 +204,7 @@ pub(crate) fn load_core_projectile_specs(
         |cache| cache.projectile_specs.as_ref(),
         |cache, specs| cache.projectile_specs = Some(specs),
         |core_dir| {
-            super::load_spec_records(
+            load_spec_records(
                 core_dir,
                 "data/weapons/proj",
                 "proj",
@@ -279,6 +306,74 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn core_catalogs_share_root_identity_and_reopen_independently() {
+        let root = temp_dir("core_catalog_root_identity");
+        let first_root = root.join("first");
+        let second_root = root.join("second");
+        for (game_root, id) in [(&first_root, "first"), (&second_root, "second")] {
+            let hull_dir = game_root.join("starsector-core/data/hulls");
+            fs::create_dir_all(&hull_dir).unwrap();
+            fs::write(
+                hull_dir.join("demo.ship"),
+                format!(r#"{{"hullId":"{id}"}}"#),
+            )
+            .unwrap();
+        }
+        let first = load_core_ship_files(&first_root.to_string_lossy()).unwrap();
+        let same = load_core_ship_files(&first_root.join(".").to_string_lossy()).unwrap();
+        let second = load_core_ship_files(&second_root.to_string_lossy()).unwrap();
+        assert!(Arc::ptr_eq(&first, &same));
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert!(first.contains_key("first"));
+        assert!(second.contains_key("second"));
+
+        invalidate_core_cache(&first_root.to_string_lossy()).unwrap();
+        let reopened = load_core_ship_files(&first_root.to_string_lossy()).unwrap();
+        let unaffected = load_core_ship_files(&second_root.to_string_lossy()).unwrap();
+        assert!(!Arc::ptr_eq(&first, &reopened));
+        assert!(reopened.contains_key("first"));
+        assert!(Arc::ptr_eq(&second, &unaffected));
+
+        invalidate_core_cache(&first_root.to_string_lossy()).unwrap();
+        invalidate_core_cache(&second_root.to_string_lossy()).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn source_invalidation_reloads_affected_catalog_and_preserves_other_types() {
+        let root = temp_dir("core_catalog_source_invalidation");
+        let hull_dir = root.join("starsector-core/data/hulls");
+        let projectile_dir = root.join("starsector-core/data/weapons/proj");
+        fs::create_dir_all(&hull_dir).unwrap();
+        fs::create_dir_all(&projectile_dir).unwrap();
+        let hull_path = hull_dir.join("demo.ship");
+        fs::write(&hull_path, r#"{"hullId":"demo","spriteName":"before"}"#).unwrap();
+        fs::write(projectile_dir.join("demo.proj"), r#"{"id":"demo"}"#).unwrap();
+        let root_text = root.to_string_lossy();
+        let ships = load_core_ship_files(&root_text).unwrap();
+        let projectiles = load_core_projectile_specs(&root_text).unwrap();
+        fs::write(&hull_path, r#"{"hullId":"demo","spriteName":"after"}"#).unwrap();
+
+        invalidate_core_sources(
+            &root_text,
+            &[crate::models::InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "data/hulls/demo.ship".to_string(),
+            }],
+        )
+        .unwrap();
+        let refreshed = load_core_ship_files(&root_text).unwrap();
+        let unaffected = load_core_projectile_specs(&root_text).unwrap();
+        assert!(!Arc::ptr_eq(&ships, &refreshed));
+        assert_eq!(ships["demo"].data["spriteName"], "before");
+        assert_eq!(refreshed["demo"].data["spriteName"], "after");
+        assert!(Arc::ptr_eq(&projectiles, &unaffected));
+
+        invalidate_core_cache(&root_text).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn overlapping_family_loads_preserve_each_loaded_catalog() {
         let root = temp_dir("core_overlapping_catalogs");
         let projectile_dir = root.join("starsector-core/data/weapons/proj");
@@ -313,7 +408,7 @@ mod tests {
                     .is_some_and(|value| value.contains_key("demo"))
             );
         }
-        super::super::invalidate_core_cache(&root_text).unwrap();
+        invalidate_core_cache(&root_text).unwrap();
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -327,7 +422,7 @@ mod tests {
             |cache| cache.ship_files.as_ref(),
             |cache, files| cache.ship_files = Some(files),
             |_| {
-                super::super::invalidate_core_cache(&root_text)?;
+                invalidate_core_cache(&root_text)?;
                 load_core_projectile_specs(&root_text)?;
                 Ok(BTreeMap::<String, LoadedSpecRecord>::new())
             },
@@ -339,7 +434,7 @@ mod tests {
             assert!(snapshot.data.ship_files.is_none());
             assert!(snapshot.data.projectile_specs.is_some());
         }
-        super::super::invalidate_core_cache(&root_text).unwrap();
+        invalidate_core_cache(&root_text).unwrap();
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -408,7 +503,7 @@ mod tests {
             "#quoted"
         );
         assert!(!stored_table.rows.as_ref().unwrap()[1].is_comment);
-        super::super::invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        invalidate_core_cache(&root.to_string_lossy()).unwrap();
         let restored = load_core_csv_table(&root.to_string_lossy(), CsvTableKey::Ships)
             .unwrap()
             .unwrap();
@@ -427,7 +522,7 @@ mod tests {
             r#"{"hullId":"demo","spriteName":"after"}"#,
         )
         .unwrap();
-        super::super::invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        invalidate_core_cache(&root.to_string_lossy()).unwrap();
         let changed = load_core_ship_files(&root.to_string_lossy()).unwrap();
 
         let _ = fs::remove_dir_all(root);

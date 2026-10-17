@@ -5,10 +5,7 @@
   "windows": ["main", "managed-*"],
   "permissions": [
     "core:default",
-    "core:webview:allow-create-webview-window",
     "core:window:allow-close",
-    "core:window:allow-destroy",
-    "core:window:allow-create",
     "core:window:allow-minimize",
     "core:window:allow-set-focus",
     "core:window:allow-show",

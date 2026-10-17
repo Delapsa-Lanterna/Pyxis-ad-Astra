@@ -2,10 +2,10 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import WriteSyncNotice from './WriteSyncNotice.vue';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { savedWriteFixture } from '@/test/write-result';
 const mocks = vi.hoisted(() => ({ retry: vi.fn(), error: vi.fn() }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ retryPendingProjectSessionWrites: mocks.retry }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ retryPendingSessionSyncs: mocks.retry }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 
 beforeEach(() => {
@@ -13,7 +13,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 function mountNotice() {
-  const sync = useWriteSyncStore();
+  const sync = useProjectSyncStore();
   const entry = sync.enqueue({
     originWindowLabel: 'main',
     sessionId: 's1',

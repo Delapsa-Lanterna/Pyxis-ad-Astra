@@ -1,5 +1,6 @@
+import { hasSourceInvalidation } from '@/services/source-options.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths, listenEntityIdentityApplied } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
 import { useJointEditSession } from '../use-joint-edit-session';
@@ -16,13 +17,13 @@ import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
 import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
-import { subscribeQueryInvalidations, hasSourceInvalidation } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
-import { listenEntityIdentityApplied } from '@/orchestrators/entity-events.orchestrator';
+
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { formatError, warningNotice } from '@/shared/lib/errors';
+import { AppError, formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/config/hull-references';
@@ -102,14 +103,17 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   const media = useResourceMediaRegistry({
     surface: '沉浸式贴图',
     onError: (error) => feedback.error(error),
-    onFailures: (resources) =>
-      feedback.warning(
-        warningNotice(
-          `贴图读取失败：${resources.map((resource) => resource.relPath).join('、')}`,
-          'resource.read_failed',
-          `Resource read failed: count=${resources.length}; surface=immersive`,
-        ),
-      ),
+    onFailures: (resources) => {
+      const missing = resources.filter((resource) => resource.ownerId !== 'damage-type');
+      if (missing.length)
+        feedback.warning(
+          warningNotice(
+            `贴图读取失败：${missing.map((resource) => resource.relPath).join('、')}`,
+            'resource.read_failed',
+            `Resource read failed: count=${missing.length}; surface=immersive`,
+          ),
+        );
+    },
   });
   const mediaUrl = (resource: import('@/shared/types').ResourceRef | null | undefined) => media.dataUrl(root.sessionId, resource) ?? '';
   watch(
@@ -289,7 +293,19 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       feedback.error(error);
     }
   }
-  async function initialize() {
+  let initialization: Promise<void> | null = null;
+  function initialize(rowKey?: string | null) {
+    if (rowKey && rowKey !== root.rowKey) {
+      if (joint.dirty.value) return Promise.reject(new AppError('请先保存当前行的编辑，再接纳新的行身份', { action: 'accept-window' }));
+      root.rowKey = rowKey;
+      joint.clearTarget();
+    }
+    if (joint.ready.value) return Promise.resolve();
+    return (initialization ??= loadInitial().finally(() => {
+      initialization = null;
+    }));
+  }
+  async function loadInitial() {
     stopIdentity?.();
     stopIdentity = null;
     const stop = await listenEntityIdentityApplied(async (event) => {
@@ -374,10 +390,11 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     stopIdentity = stop;
     errorText.value = '';
     try {
-      await joint.loadTarget(root);
+      if (!(await joint.loadTarget(root)) && !joint.ready.value) throw new AppError('联合编辑读取已结束', { action: 'accept-window' });
       if (root.kind === 'wing' && snapshot.value && snapshot.value.root.id !== root.id) await retargetImmersiveWindow(snapshot.value);
     } catch (error) {
       errorText.value = formatError(error);
+      throw error;
     }
   }
   onScopeDispose(() => {

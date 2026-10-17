@@ -1,8 +1,10 @@
 import { ref, shallowReactive, type Ref } from 'vue';
 import { defineStore } from 'pinia';
 import { computed } from 'vue';
+import { stableStringify } from '@/shared/lib/stable-compare';
+import type { FieldInputs } from '@/shared/runtime/field-inputs';
 import type { EditWriteTarget } from '@/shared/types';
-import { editTargetsOverlap } from '@/domain/joint-edit';
+import { editTargetsOverlap } from '@/domain/edit-session';
 
 type SaveHandler = () => void | Promise<void>;
 
@@ -19,7 +21,7 @@ export interface EditParticipant {
   targets: Readonly<Ref<EditWriteTarget[]>>;
   label: string;
   dirty: Readonly<Ref<boolean>>;
-  commitInputs: () => Promise<boolean> | boolean | undefined;
+  draftSession: { draftValue: Readonly<Ref<unknown>>; inputs: FieldInputs; prepareClose?: () => () => Promise<void> };
   save: () => Promise<{ saved: boolean; receipt: import('@/shared/types').WriteResult<unknown> | null }>;
   hold?: (requestId: string) => () => void;
 }
@@ -33,6 +35,19 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   const preparingParticipants = new Set<SaveSessionHandle>();
   const editTargets = computed(() => [...sessions].flatMap((handle) => handle.editing?.targets.value ?? []));
   let transitionSequence = 0;
+  const closePrepared = ref(false);
+  const closePreparations = computed(() =>
+    [...sessions].flatMap((handle) => (handle.editing?.draftSession.prepareClose ? [handle.editing.draftSession.prepareClose] : [])),
+  );
+  const closeActions = new Set<Promise<unknown>>();
+  function trackCloseAction<T>(action: Promise<T>): Promise<T> {
+    closeActions.add(action);
+    void action.finally(() => closeActions.delete(action)).catch(() => {});
+    return action;
+  }
+  async function settleCloseActions() {
+    while (closeActions.size) await Promise.all([...closeActions]);
+  }
 
   function registerSaveSession(handle: SaveSessionHandle) {
     sessions.add(handle);
@@ -91,6 +106,16 @@ export const useSaveCommandStore = defineStore('save-command', () => {
     if (pending.length === 0) return;
     return Promise.all(pending.map((handle) => handle.waitForSave())).then((outcomes) => outcomes.every(Boolean));
   }
+  function captureCloseState() {
+    const capture = () =>
+      stableStringify(
+        [...sessions].map((handle) => [handle.targetKey.value, handle.editing?.draftSession.draftValue.value, handle.editing?.dirty.value]),
+      );
+    const handles = [...sessions];
+    const snapshot = capture();
+    const accepts = [...sessions].flatMap((handle) => (handle.editing ? [handle.editing.draftSession.inputs.captureContext()] : []));
+    return () => handles.every((handle) => sessions.has(handle)) && snapshot === capture() && accepts.every((accept) => accept());
+  }
   function beginTransition() {
     return ++transitionSequence;
   }
@@ -115,6 +140,11 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   }
 
   return {
+    closePreparations,
+    closePrepared,
+    trackCloseAction,
+    settleCloseActions,
+    captureCloseState,
     editTargets,
     holdParticipants,
     isEditTargetLocked,

@@ -1,6 +1,6 @@
 <template>
   <button
-    class="variant-info-button"
+    class="variant-info-button ui-button ui-control-button ui-control-center ui-control-reset"
     aria-label="查看舰船信息"
     aria-haspopup="dialog"
     @mouseenter="show"
@@ -10,12 +10,12 @@
     @blur="hover.leave"
     @keydown.esc.stop.prevent="hover.close(true)"
   >
-    <ImmersiveText text="?" font="ship-title" ink-aligned />
+    <ImmersiveResourceIcon :source="infoIcon" fallback="icon_more_info" :color="IMMERSIVE_COLORS.primary" :size="26" label="查看舰船信息" />
   </button>
   <div
     v-if="hover.selected.value"
     :ref="(element) => (hover.surface.value = element as HTMLElement | null)"
-    class="variant-ship-tooltip immersive-display-surface"
+    class="variant-ship-tooltip immersive-display-surface ui-content-surface"
     role="dialog"
     aria-label="舰船只读信息"
     tabindex="-1"
@@ -40,7 +40,8 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { warningNotice } from '@/shared/lib/errors';
 import ShipImmersivePanel from '../ship/ShipImmersivePanel.vue';
-import ImmersiveText from '../ImmersiveText.vue';
+import ImmersiveResourceIcon from '../ImmersiveResourceIcon.vue';
+import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 const props = defineProps<{
   variant: VariantProjection;
   snapshot: JointEditSnapshot;
@@ -56,9 +57,21 @@ const feedback = useAppFeedback();
 const media = useResourceMediaRegistry({
   surface: '装配舰船详情',
   onError: feedback.error,
-  onFailures: (items) =>
-    feedback.warning(warningNotice('舰船详情图片读取失败：' + items.length, 'resource.read_failed', 'Variant ship information')),
+  onFailures: (items) => {
+    const missing = items.filter((resource) => resource.key !== 'icon_more_info');
+    if (missing.length)
+      feedback.warning(warningNotice('舰船详情图片读取失败：' + missing.length, 'resource.read_failed', 'Variant ship information'));
+  },
 });
+const infoRef = computed(() => props.snapshot.referenceSettings.resources.icon_more_info);
+const infoIcon = computed(() => (infoRef.value ? (media.dataUrl(props.root.sessionId, infoRef.value) ?? '') : ''));
+watch(
+  [() => props.root.sessionId, infoRef],
+  ([session, resource]) => {
+    void media.replaceCollection(session, 'ship-info-button', resource ? [resource] : []);
+  },
+  { immediate: true },
+);
 const render = computed<ImmersiveRenderContext>(() => ({
   mode: 'readonly',
   root: props.root,

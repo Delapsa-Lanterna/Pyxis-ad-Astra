@@ -1,4 +1,4 @@
-import type { AssociatedSpecCreateParams, RowData, TableKey, WeaponSpecClass } from '@/shared/types';
+import type { AssociatedSpecCreateParams, RowData, CsvTableKey, WeaponSpecClass } from '@/shared/types';
 import { cell } from '@/shared/lib/starsector';
 
 const PROJECTILE_SCORE_FIELDS = [
@@ -20,7 +20,7 @@ export function inferWeaponSpecClass(row: RowData): WeaponSpecClass {
   return score(BEAM_SCORE_FIELDS) > score(PROJECTILE_SCORE_FIELDS) ? 'beam' : 'projectile';
 }
 
-export function associatedSpecCreateParams(table: TableKey, id: string, row: RowData): AssociatedSpecCreateParams {
+export function associatedSpecCreateParams(table: CsvTableKey, id: string, row: RowData): AssociatedSpecCreateParams {
   switch (table) {
     case 'ships': {
       const name = cell(row.name);

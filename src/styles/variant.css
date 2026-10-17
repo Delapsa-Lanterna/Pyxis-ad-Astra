@@ -1,0 +1,686 @@
+.variant-modal-mask {
+  background: rgba(0, 0, 0, 0.66);
+}
+.variant-dialog-fields {
+  gap: var(--space-3);
+}
+.variant-window-shell {
+  position: relative;
+  display: block;
+}
+.variant-window-shell .immersive-editor-scroll {
+  position: absolute;
+  inset: 0;
+  scrollbar-gutter: auto;
+}
+.variant-immersive-panel {
+  position: relative;
+  height: 100%;
+}
+.variant-refit-header {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  z-index: 2;
+  max-width: calc(100% - 400px);
+}
+.variant-refit-header .immersive-stat-row > .immersive-stat-row-label,
+.variant-flux-controls .immersive-stat-row > .immersive-stat-row-label {
+  display: none;
+}
+.variant-refit-header .immersive-stat-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0;
+}
+.variant-refit-tools {
+  align-items: flex-start;
+  gap: 3px;
+  margin-top: 3px;
+}
+.variant-refit-tools .immersive-meta-actions {
+  flex-wrap: nowrap;
+}
+.variant-refit-tools > .n-select {
+  width: 180px;
+}
+.variant-cut-button,
+.variant-add-mod {
+  justify-content: center;
+  color: var(--color-primary);
+  border: 0;
+  padding: var(--space-1) var(--space-2);
+  clip-path: polygon(
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px),
+    0 6px
+  );
+}
+.variant-cut-button:hover,
+.variant-add-mod:hover {
+  background: var(--color-surface-hover);
+}
+.variant-cut-button:disabled,
+.variant-add-mod:disabled,
+.variant-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.variant-refit-actions {
+  position: absolute;
+  left: 7px;
+  bottom: 9px;
+  gap: 3px;
+  z-index: 3;
+}
+.variant-refit-actions > .variant-refit-actions-button {
+  width: 190px;
+  height: 25px;
+}
+.variant-wing-list {
+  position: absolute;
+  left: 7px;
+  top: 207px;
+  z-index: 2;
+  max-height: calc(100% - 250px);
+  overflow: auto;
+  overflow-x: hidden;
+  max-width: 240px;
+}
+.variant-wing-bays {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, 64px);
+  grid-auto-columns: 64px;
+  gap: 10px;
+  margin-top: 10px;
+}
+.variant-wing-tile {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(100, 200, 255, 0.5);
+  color: var(--color-warning);
+  background: #000000;
+}
+.variant-wing-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid #000000;
+  pointer-events: none;
+}
+.variant-wing-tile:disabled {
+  background: #142833;
+}
+.variant-wing-tile > .variant-wing-tile-value {
+  position: absolute;
+  right: 1px;
+  top: 0;
+}
+.variant-wing-icon {
+  position: relative;
+  pointer-events: none;
+  flex: none;
+}
+.variant-wing-icon .variant-scene,
+.variant-scene {
+  position: absolute;
+  inset: 0;
+}
+.variant-slot-label {
+  position: absolute;
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.variant-refit-stats {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 390px;
+  max-height: calc(100% - 6px);
+  overflow: auto;
+  overflow-x: hidden;
+  z-index: 2;
+}
+.variant-op-display {
+  width: 326px;
+  height: 30px;
+  gap: 3px;
+  margin-left: auto;
+}
+.variant-info-button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  color: var(--color-primary);
+}
+.variant-op-budget {
+  position: relative;
+  width: 297px;
+  height: 30px;
+  border: 1px solid var(--color-primary);
+  color: var(--color-warning);
+}
+.variant-op-fill {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.variant-stat-stack {
+  width: 370px;
+  margin-top: 3px;
+  margin-left: auto;
+}
+.variant-base-stats,
+.variant-defense-stats {
+  grid-template-columns: repeat(3, 93px);
+  justify-content: end;
+  gap: 3px;
+}
+.variant-stat-cell {
+  height: 30px;
+  width: 93px;
+  align-items: flex-end;
+  justify-content: space-between;
+  white-space: nowrap;
+}
+.variant-stat-cell > .immersive-text:first-child {
+  color: var(--color-primary);
+  margin-right: 3px;
+}
+.variant-defense-stats > .variant-defense-stats-content:last-child {
+  grid-column: 3;
+}
+.variant-flux-row {
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 3px;
+  margin-top: 3px;
+  margin-bottom: 3px;
+}
+.variant-flux-controls {
+  justify-content: flex-end;
+  gap: 3px;
+}
+.variant-flux-controls .immersive-stat-row {
+  display: flex;
+  margin: 0;
+  width: 36px;
+  justify-content: center;
+}
+.variant-flux-controls .immersive-stat-value {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  color: var(--color-warning);
+}
+.variant-step {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  color: var(--color-primary);
+  clip-path: polygon(25%0, 75%0, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0 75%, 0 25%);
+}
+.variant-mod-widget {
+  width: 390px;
+  margin-top: 9px;
+  text-align: right;
+}
+.variant-mod-list {
+  max-height: 260px;
+  overflow: auto;
+  margin-top: 3px;
+}
+.variant-mod-row {
+  justify-content: flex-end;
+  height: 34px;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+.variant-mod-name {
+  justify-content: flex-end;
+  height: 34px;
+  flex: 1;
+  text-align: right;
+}
+.variant-mod-name > .variant-mod-name-label {
+  max-width: 100%;
+}
+.variant-mod-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+}
+.variant-mod-icon > .variant-mod-icon-image {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.variant-mod-edit {
+  width: 300px;
+}
+.variant-add-mod {
+  width: 150px;
+  height: 25px;
+  margin-top: 3px;
+  color: var(--color-warning);
+}
+.variant-diagnostic {
+  color: var(--color-warning);
+  margin: var(--space-2) 0;
+}
+.variant-source-details {
+  position: absolute;
+  z-index: 8;
+  inset: 50px 400px 50px 7px;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel);
+}
+.variant-source-details > .variant-source-details-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.variant-picker {
+  position: fixed;
+  z-index: 10;
+  width: 397px;
+  max-height: calc(100vh - 14px);
+  border: 1px solid var(--color-border-strong);
+  padding: 5px;
+}
+.variant-picker > .variant-picker-heading {
+  gap: 3px;
+  flex: none;
+}
+.variant-current-title {
+  flex: none;
+  min-height: 19px;
+  margin-top: 3px;
+  color: var(--color-primary);
+}
+.variant-picker-filters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 375px;
+  height: 25px;
+  gap: 1px;
+  margin: 3px 0;
+  flex: none;
+}
+.variant-picker-filters.weapon-filter-grid {
+  height: 52px;
+  grid-template-rows: repeat(2, 25px);
+}
+.variant-picker-list {
+  width: 385px;
+  overflow-y: auto;
+  min-height: 75px;
+  max-height: 543px;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  flex: 0 1 auto;
+}
+.variant-candidate-card {
+  position: relative;
+  grid-template-columns: 69px minmax(0, 1fr) 60px;
+  width: 375px;
+  height: 75px;
+  gap: 10px;
+  padding: 3px;
+  margin-bottom: 3px;
+  background: var(--color-bg);
+  text-align: left;
+  flex: none;
+}
+.variant-candidate-card > .variant-scene {
+  pointer-events: none;
+  position: relative;
+  width: 69px;
+  height: 69px;
+}
+.variant-candidate-card:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+.variant-card-text {
+  gap: 3px;
+  align-self: stretch;
+}
+.variant-card-text > .immersive-text {
+  flex: none;
+  white-space: nowrap;
+}
+.variant-card-text > .variant-card-origin {
+  margin-top: auto;
+  margin-bottom: 3px;
+}
+.variant-candidate-card > .variant-candidate-card-value {
+  align-items: flex-end;
+  align-self: end;
+  text-align: right;
+  color: var(--color-warning);
+  padding-right: var(--space-2);
+}
+.variant-candidate-card > .immersive-weapon-icon {
+  width: 69px;
+  height: 69px;
+}
+.variant-current {
+  margin-top: 3px;
+}
+.variant-picker-extra {
+  padding-top: 3px;
+  flex: none;
+}
+.variant-picker-extra .n-select {
+  margin-bottom: 3px;
+}
+.variant-picker-extra > .variant-picker-extra-footer {
+  gap: 3px;
+}
+.variant-picker-tooltip {
+  position: fixed;
+  z-index: 11;
+  align-items: flex-start;
+  gap: 3px;
+  max-height: calc(100vh - 14px);
+  overflow: auto;
+}
+.variant-candidate-details {
+  width: 422px;
+  flex: none;
+  padding: 10px;
+  border: 1px solid var(--color-border-strong);
+}
+.variant-candidate-details > .weapon-immersive-panel,
+.variant-candidate-details > .wing-immersive-panel {
+  width: 400px;
+}
+.variant-ship-tooltip {
+  position: fixed;
+  z-index: 12;
+  width: 832px;
+  max-height: calc(100vh - 14px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--color-border-strong);
+}
+.variant-ship-content {
+  width: 800px;
+}
+.variant-hullmod-dialog {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  padding: 6px 6px 6px 7px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.5);
+  outline: 1px solid var(--color-border);
+}
+.variant-hullmod-dialog .variant-add-mod {
+  width: 150px;
+  height: 24px;
+  margin-left: auto;
+}
+.variant-hullmod-table {
+  --hullmod-columns: 353px 251px 117px 137px;
+  width: calc(100% - 400px);
+  height: 100%;
+  min-height: 0;
+}
+.variant-hullmod-table .variant-hullmod-columns,
+.variant-hullmod-table .variant-hullmod-row {
+  grid-template-columns: var(--hullmod-columns);
+  column-gap: 3px;
+}
+.variant-hullmod-columns {
+  flex: none;
+  height: 20px;
+  margin-bottom: 3px;
+}
+.variant-hullmod-columns > .variant-hullmod-columns-button {
+  position: relative;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.67);
+  color: var(--color-primary);
+}
+.variant-hullmod-columns .immersive-resource-icon {
+  position: absolute;
+  right: 3px;
+}
+.variant-hullmod-columns .ascending {
+  transform: rotate(180deg);
+}
+.variant-hullmod-columns > .variant-hullmod-columns-button:hover,
+.variant-hullmod-columns > .variant-hullmod-columns-button:focus-visible {
+  filter: brightness(1.25);
+}
+.variant-hullmod-list {
+  min-height: 36px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: none;
+  padding-left: var(--space-1);
+}
+.variant-hullmod-row {
+  height: 36px;
+  color: var(--color-primary);
+  text-align: left;
+}
+.variant-hullmod-row.installed {
+  background: rgba(0, 0, 0, 0.67);
+}
+.variant-hullmod-row.unavailable {
+  background: color-mix(in srgb, var(--color-panel-muted) 33%, transparent);
+}
+.variant-hullmod-row:hover,
+.variant-hullmod-row:focus-visible {
+  background: var(--color-surface-hover);
+  outline: none;
+}
+.variant-hullmod-row > .variant-hullmod-row-label {
+  justify-content: center;
+  height: 36px;
+}
+.variant-hullmod-row > .variant-hullmod-name {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-left: 2px;
+}
+.variant-hullmod-icon,
+.variant-hullmod-icon > .variant-hullmod-icon-image,
+.variant-hullmod-image-placeholder {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: none;
+  image-rendering: pixelated;
+}
+.variant-hullmod-name > .immersive-text,
+.variant-group-weapon-name > .immersive-text,
+.variant-group-weapon-name .variant-group-weapon-name-icon {
+  flex: none;
+}
+.variant-hullmod-design {
+  filter: brightness(0.53);
+}
+.variant-hullmod-filters {
+  flex: none;
+  max-height: 150px;
+  overflow-y: auto;
+  margin-top: 15px;
+  padding-left: var(--space-2);
+}
+.variant-hullmod-auxiliary {
+  flex: none;
+  margin-top: 10px;
+  gap: 3px;
+}
+.variant-hullmod-extra {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+}
+.variant-hullmod-tooltip {
+  position: fixed;
+  z-index: 3;
+  max-height: calc(100vh - 14px);
+  overflow: auto;
+}
+.variant-hullmod-details {
+  width: 393px;
+  max-width: calc(100vw - 14px);
+}
+.variant-hullmod-details .variant-hullmod-details-heading {
+  color: #cbf5ff;
+}
+.variant-hullmod-details .variant-hullmod-details-description,
+.variant-hullmod-details .variant-hullmod-details-section {
+  margin: 10px 0 0;
+}
+.variant-weapon-groups {
+  width: 842px;
+  max-height: calc(100vh - 20px);
+}
+.variant-group-content {
+  height: 100%;
+  padding: 10px;
+  outline: none;
+}
+.variant-group-content > .variant-group-content-heading {
+  height: 19px;
+  flex: none;
+  margin-bottom: 7px;
+  color: var(--color-primary);
+}
+.variant-group-autofire,
+.variant-group-table-header,
+.variant-group-weapon-row {
+  grid-template-columns: 330px repeat(7, 20px) 6px;
+  column-gap: 3px;
+  width: 500px;
+}
+.variant-group-autofire {
+  height: 21px;
+  flex: none;
+  margin-bottom: 3px;
+  color: var(--color-primary);
+}
+.variant-group-autofire > .immersive-text {
+  justify-self: end;
+}
+.variant-group-tables {
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+}
+.variant-group-matrix {
+  width: 500px;
+  flex: none;
+  min-height: 0;
+  max-height: 100%;
+}
+.variant-group-table-header,
+.variant-group-summary-header {
+  height: 20px;
+  flex: none;
+  color: var(--color-primary);
+  margin-bottom: 3px;
+}
+.variant-group-table-header > .variant-group-table-header-label,
+.variant-group-summary-header > .variant-group-summary-header-label {
+  height: 20px;
+}
+.variant-group-weapon-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  flex: 1;
+}
+.variant-group-weapon-row {
+  width: 496px;
+  height: 21px;
+  border-bottom: 1px solid #000000;
+}
+.variant-group-weapon-row.highlighted,
+.variant-group-summary-row:hover,
+.variant-group-summary-row:focus-visible {
+  filter: brightness(1.4);
+}
+.variant-group-weapon-name {
+  justify-content: flex-end;
+  gap: 3px;
+  padding-right: 3px;
+  height: 21px;
+}
+.variant-group-summary {
+  width: 297px;
+  flex: none;
+}
+.variant-group-summary-header,
+.variant-group-summary-row {
+  grid-template-columns: 130px 100px 61px;
+  column-gap: 3px;
+}
+.variant-group-summary-list {
+  outline: 1px solid var(--color-border);
+  padding-left: var(--space-1);
+}
+.variant-group-summary-row {
+  height: 21px;
+  border: 0;
+  border-bottom: 1px solid #000000;
+  color: var(--color-primary);
+  text-align: left;
+  grid-template-columns: 126px 100px 61px;
+}
+.variant-group-summary-row > .immersive-text:first-child {
+  margin-left: 10px;
+}
+.variant-group-summary-value {
+  justify-self: center;
+  color: var(--color-warning);
+}
+.variant-group-summary-row.empty,
+.variant-group-summary-row.empty > .immersive-text {
+  color: #808080;
+}
+.variant-group-budget {
+  margin-top: 20px;
+  margin-left: 20px;
+}
+.variant-group-budget > .variant-group-budget-content {
+  height: 18px;
+}
+.variant-group-budget > div > .immersive-text:last-child {
+  color: var(--color-warning);
+}
+.variant-group-actions {
+  gap: 11px;
+  justify-content: flex-end;
+  padding-top: 10px;
+  flex: none;
+}
+.variant-group-actions > .variant-group-actions-button {
+  width: 143px;
+  height: 25px;
+  min-width: 143px;
+}
+.variant-source-creation {
+  width: 400px;
+  padding: var(--space-3);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+}

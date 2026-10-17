@@ -22,7 +22,7 @@ test('saved history and replay state remain owned by their respective orchestrat
       commitReplayUndo(receipt);
       replayFileChangeSet(receipt);
     `,
-    'src/orchestrators/file-history-write.orchestrator.ts': 'pushSavedWriteEntry(receipt);',
+    'src/orchestrators/project-sync.orchestrator.ts': 'pushSavedWriteEntry(receipt);',
     'src/orchestrators/file-history-replay.orchestrator.ts': 'commitReplayUndo(receipt); replayFileChangeSet(receipt);',
   });
   assert.equal(fileHistoryBoundaryRule.check(files).length, 3);

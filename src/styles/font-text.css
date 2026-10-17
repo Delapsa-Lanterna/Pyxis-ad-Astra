@@ -1,0 +1,35 @@
+.font-text {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+.font-text.block {
+  display: block;
+}
+.font-text.font-default {
+  font-family: var(--font-sans);
+  white-space: pre-wrap;
+  line-height: 1.2;
+}
+.font-text.font-default.outlined {
+  text-shadow:
+    -1px 0#000,
+    1px 0#000,
+    0-1px #000,
+    0 1px #000;
+}
+.font-text .font-text-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.font-accessible-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: pre;
+}

@@ -1,13 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { variantJointFixture } from '@/test/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import ImmersiveHullScene from './ImmersiveHullScene.vue';
+import { loadEngineFallbacks } from '@/app/renderers/immersive/engine-fallback';
 import { windowImageCache } from '@/app/composables/use-window-image-cache';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
-const mocks = vi.hoisted(() => ({ images: new Map<string, HTMLImageElement>() }));
+const mocks = vi.hoisted(() => ({ images: new Map<string, HTMLImageElement>(), engines: {} as Record<string, HTMLImageElement> }));
+vi.mock('@/app/renderers/immersive/engine-fallback', () => ({
+  engineFallback: (key: string) => mocks.engines[key] ?? null,
+  loadEngineFallbacks: vi.fn(async () => mocks.engines),
+}));
 vi.mock('@/app/composables/use-resource-images', () => ({
   useResourceImages: () => ({ image: (resource: { relPath: string }) => mocks.images.get(resource.relPath) ?? null, ready: () => true }),
 }));
@@ -19,14 +24,45 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
 afterEach(() => {
   windowImageCache().clearSession('s');
   mocks.images.clear();
+  mocks.engines = {};
   initializeCacheLimits(createSettingsFixture().cacheLimits);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('variant scene pointer dismissal', () => {
-  it('reuses engine tint products across repaints and releases replaced colors and the scene', async () => {
+  it('shares three bundled SVG decodes and returns their ready images synchronously', async () => {
+    const actual = await vi.importActual<typeof import('@/app/renderers/immersive/engine-fallback')>(
+      '@/app/renderers/immersive/engine-fallback',
+    );
+    const images: HTMLImageElement[] = [];
+    vi.stubGlobal(
+      'Image',
+      class extends Image {
+        constructor() {
+          super();
+          images.push(this);
+        }
+      },
+    );
+    const first = actual.loadEngineFallbacks();
+    expect(actual.loadEngineFallbacks()).toBe(first);
+    expect(images).toHaveLength(3);
+    for (const image of images) {
+      expect(image.src).toContain('data:image/svg+xml');
+      image.onload!(new Event('load'));
+    }
+    const ready = await first;
+    for (const [key, image] of Object.entries(ready)) expect(actual.engineFallback(key)).toBe(image);
+  });
+  it.each([0, 1, 3])('reuses engine products with %i source images and releases replaced colors and the scene', async (ready) => {
     installCanvas2DStub();
+    const context = document.createElement('canvas').getContext('2d')!;
+    Object.defineProperty(context, 'createImageData', {
+      configurable: true,
+      value: (width: number, height: number) => ({ width, data: new Uint8ClampedArray(width * height * 4) }),
+    });
+    Object.defineProperty(context, 'createRadialGradient', { configurable: true, value: () => context.createLinearGradient(0, 0, 1, 1) });
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -54,16 +90,25 @@ describe('variant scene pointer dismissal', () => {
     const engine = { location: [0, 0], angle: 180, width: 6, length: 10, style: 'CUSTOM', styleSpec: { engineColor: [30, 60, 90, 255] } };
     variant.spec = { ...variant.spec, engineSlots: [engine, { ...engine, location: [10, 0] }] };
     variant.engineResources = Object.fromEntries(
-      ['engineGlow', 'engineFlame', 'engineHitGlow'].map((key) => {
+      ['engineGlow', 'engineFlame', 'engineHitGlow'].map((key, index) => {
         const image = new Image();
         image.width = 16;
         image.height = 8;
-        mocks.images.set(key + '.png', image);
+        mocks.engines[key] = image;
+        if (index < ready) mocks.images.set(key + '.png', image);
         return [key, { source: 'core' as const, ownerKind: 'ship' as const, ownerId: 'sample', key, relPath: key + '.png' }];
       }),
     );
     const creates = vi.spyOn(document, 'createElement');
+    const fallback = { ...mocks.engines };
+    mocks.engines = {};
+    vi.mocked(loadEngineFallbacks).mockImplementation(async () => (mocks.engines = fallback));
     const own = mount(ImmersiveHullScene, { props: { variant, sessionId: 's' }, global: { stubs: { ImmersiveText: true } } });
+    await flushPromises();
+    expect(windowImageCache().stats().thumbnails.activeEntries).toBe(3);
+    const other = mount(ImmersiveHullScene, { props: { variant, sessionId: 'other' }, global: { stubs: { ImmersiveText: true } } });
+    expect(windowImageCache().stats().thumbnails.activeEntries).toBe(6);
+    other.unmount();
     expect(windowImageCache().stats().thumbnails.activeEntries).toBe(3);
     const allocated = creates.mock.calls.filter(([tag]) => tag === 'canvas').length;
     await own.find('canvas').trigger('mousemove', { clientX: 20, clientY: 20 });
@@ -76,6 +121,12 @@ describe('variant scene pointer dismissal', () => {
     expect(windowImageCache().stats().thumbnails).toMatchObject({ activeEntries: 3, idleEntries: 0 });
     own.unmount();
     expect(windowImageCache().stats().thumbnails).toMatchObject({ activeEntries: 0, idleEntries: 0 });
+    mocks.engines = {};
+    const late = mount(ImmersiveHullScene, { props: { variant, sessionId: 's' }, global: { stubs: { ImmersiveText: true } } });
+    late.unmount();
+    const released = creates.mock.calls.length;
+    await flushPromises();
+    expect(creates.mock.calls).toHaveLength(released);
   });
   it('distinguishes a blank left click from a weapon hit and right-button navigation', async () => {
     installCanvas2DStub();

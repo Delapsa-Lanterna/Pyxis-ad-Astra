@@ -14,6 +14,34 @@ import WeaponImmersivePanel from './weapon/WeaponImmersivePanel.vue';
 import WingImmersivePanel from './wing/WingImmersivePanel.vue';
 
 describe('shared immersive content renderers', () => {
+  it.each(['KINETIC', 'HIGH_EXPLOSIVE', 'FRAGMENTATION', 'ENERGY', 'OTHER'])(
+    'switches %s damage display from a local graphic to its source',
+    async (type) => {
+      const snapshot = weaponJointFixture();
+      const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
+      values.csv = { state: 'present', value: { ...jointObject(values.csv), type } };
+      const panel = projectWeaponPanel(snapshot, values);
+      const render: ImmersiveRenderContext = { mode: 'readonly', root: snapshot.root, records: snapshot.records, mediaUrl: () => '' };
+      const own = mount(WeaponImmersivePanel, {
+        props: { panel, render },
+        global: {
+          stubs: {
+            ImmersivePanelRow: true,
+            ImmersivePanelSources: true,
+            ImmersiveSection: true,
+            ImmersiveWeaponIcon: true,
+            ImmersiveText: true,
+            NButton: true,
+          },
+        },
+      });
+      expect(panel.damageType).toBe(type);
+      expect(own.find('img[alt="伤害类型图标"]').attributes('width')).toBe('80');
+      await own.setProps({ render: { ...render, mediaUrl: () => 'damage.png' } });
+      expect(own.find('img.immersive-damage-icon').attributes('src')).toBe('damage.png');
+      own.unmount();
+    },
+  );
   it.each(['ship', 'weapon', 'wing'] as const)('shares %s technical content while applying the readonly summary', async (kind) => {
     const snapshot = kind === 'ship' ? shipJointFixture() : kind === 'weapon' ? weaponJointFixture() : wingJointFixture();
     const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));

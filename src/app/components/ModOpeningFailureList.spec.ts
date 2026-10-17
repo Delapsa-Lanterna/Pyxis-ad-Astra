@@ -20,9 +20,12 @@ describe('ModOpeningFailureList', () => {
     expect(wrapper.get('button').text()).toBe('打开文件');
     await wrapper.get('button').trigger('click');
     expect(wrapper.emitted('edit-failure-file')).toEqual([[failure]]);
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['打开文件', '关闭提示']);
+    await wrapper.findAll('button')[1]!.trigger('click');
+    expect(wrapper.emitted('dismiss-failure')).toEqual([[failure.modRoot]]);
   });
 
-  it('renders an error without a file action', () => {
+  it('dismisses an error without a file action', async () => {
     wrapper = mountList([
       {
         modRoot: 'D:\\mods\\demo',
@@ -32,7 +35,9 @@ describe('ModOpeningFailureList', () => {
       },
     ]);
     expect(wrapper.get('.mod-opening-failure-item').text()).toContain('打开失败');
-    expect(wrapper.find('button').exists()).toBe(false);
+    expect(wrapper.get('button').text()).toBe('关闭提示');
+    await wrapper.get('button').trigger('click');
+    expect(wrapper.emitted('dismiss-failure')).toEqual([['D:\\mods\\demo']]);
   });
 });
 

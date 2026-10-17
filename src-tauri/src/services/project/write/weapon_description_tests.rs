@@ -35,37 +35,34 @@ fn rename(
     manifest: &ProjectManifest,
     mode: &str,
 ) -> crate::errors::AppResult<WriteResult<serde_json::Value>> {
-    let info = project::query_entity_edit_target(&manifest.session_id, EntityKind::Weapon, "old")?;
+    let info =
+        crate::services::query_entity_edit_target(&manifest.session_id, EntityKind::Weapon, "old")?;
     let mut data = read_json_file(&root.join("data/weapons/old.wpn"))?;
     data["id"] = json!("new");
     match mode {
-        "spec" => crate::commands::save_editor_spec(
-            crate::models::command_payloads::SaveEditorSpecPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: info.target,
-                base_versions: info.base_versions,
-                data,
-                json_write: Default::default(),
-                ordered_json: None,
-            },
-        ),
-        "text" => {
-            crate::commands::save_text_file(crate::models::command_payloads::SaveTextFilePayload {
-                session_id: Some(manifest.session_id.clone()),
-                mod_root: manifest.mod_root.clone(),
-                path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
-                base_versions: info.base_versions,
-                text: data.to_string(),
-            })
-        }
+        "spec" => crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            target: info.target,
+            base_versions: info.base_versions,
+            data,
+            json_write: Default::default(),
+            ordered_json: None,
+        }),
+        "text" => crate::commands::save_text_file(crate::models::SaveTextFilePayload {
+            session_id: Some(manifest.session_id.clone()),
+            mod_root: manifest.mod_root.clone(),
+            path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
+            base_versions: info.base_versions,
+            text: data.to_string(),
+        }),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
                 info.target.linked_record.clone().unwrap()
             else {
                 unreachable!()
             };
-            crate::commands::save_csv_patch(crate::models::command_payloads::SaveCsvPatchPayload {
+            crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 table: CsvTableKey::Weapons,
@@ -95,7 +92,7 @@ fn rename(
             .map(|receipt| receipt.with_refreshed_entity(json!(null)))
         }
         "joint" => {
-            let baseline = project::query_joint_edit_request(&JointEditQuery {
+            let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
                 catalog: None,
                 root: JointEditRoot {
                     session_id: manifest.session_id.clone(),
@@ -114,7 +111,7 @@ fn rename(
                 .find(|record| record.key == baseline.bindings["description"])
                 .unwrap();
             assert!(matches!(&description.value,JointValue::Present(value) if value["id"]=="old"));
-            let prepared = project::prepare_joint_edit(&JointEditDraft {
+            let prepared = crate::services::prepare_joint_edit(&JointEditDraft {
                 baseline,
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
@@ -138,7 +135,13 @@ fn rename(
 fn weapon_description_replay() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(false);
+        super::csv_staging::take_render_counts();
         let receipt = rename(&root, &manifest, mode).unwrap();
+        assert_eq!(
+            super::csv_staging::take_render_counts(),
+            BTreeMap::from([(CsvTableKey::Weapons, 1), (CsvTableKey::Descriptions, 1)]),
+            "{mode}"
+        );
         let rows = read_csv_data(&root.join("data/strings/descriptions.csv")).unwrap();
         assert!(rows.rows[0].is_comment);
         assert_eq!(

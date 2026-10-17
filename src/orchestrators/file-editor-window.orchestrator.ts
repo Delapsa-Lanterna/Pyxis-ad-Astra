@@ -1,10 +1,7 @@
 import { type FileEditorSavedEvent, type FileEditorTextAppliedEvent, type ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 import { type WindowEventHandler } from '@/windows/tauri.events';
-import {
-  publishCommittedWrite,
-  listenCommittedWrites,
-  listenProjectSessionInvalidated,
-} from '@/orchestrators/project-session-refresh.orchestrator';
+import { publishCommittedWrite, listenCommittedWrites, listenProjectSessionInvalidated } from '@/orchestrators/project-sync.orchestrator';
+
 import { joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 
 export function emitFileEditorSaved(event: FileEditorSavedEvent) {

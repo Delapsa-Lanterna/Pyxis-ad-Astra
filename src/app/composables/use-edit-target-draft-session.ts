@@ -61,6 +61,7 @@ export interface EditTargetDraftSession<TValue, TTarget, TMeta = unknown> {
     handoff?: 'external' | 'save' | 'identity',
   ) => boolean;
   loadBaseForTarget: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
+  prepareClose: () => () => Promise<void>;
   clearTarget: () => void;
   dispose: () => void;
   loadPendingExternal: () => void;
@@ -105,6 +106,19 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
   let lastCommitId = -1;
   let pendingSave: Promise<Snapshot | null> | null = null;
   let refreshQueued = false;
+  let prepared = false;
+  function prepareClose() {
+    prepared = true;
+    refreshQueued ||= loading.value;
+    revokeReads();
+    return async () => {
+      prepared = false;
+      if (refreshQueued && currentTarget.value && !disposed) {
+        refreshQueued = false;
+        await refreshTarget(currentTarget.value);
+      }
+    };
+  }
 
   function revokeReads() {
     reads.revoke('consumer');
@@ -166,7 +180,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
 
   function applyExternalForTarget(snapshot: Snapshot, fromSaveRefresh = false): SnapshotAcceptance {
     if (disposed || !sameTarget(snapshot.target)) return 'obsolete';
-    if (saving.value && !fromSaveRefresh) {
+    if ((saving.value || prepared) && !fromSaveRefresh) {
       refreshQueued = true;
       return 'obsolete';
     }
@@ -199,6 +213,10 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
   }
 
   async function readTarget(target: TTarget, mode: 'load' | 'external', fromSaveRefresh = false): Promise<Snapshot | null> {
+    if (prepared) {
+      refreshQueued = true;
+      return null;
+    }
     const key = options.targetKey(target);
     if (mode === 'load' && key !== currentTargetKey.value) {
       lastCommitId = -1;
@@ -358,6 +376,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     inputs.release();
   }
   return {
+    prepareClose,
     currentTarget,
     currentTargetKey,
     baselineSnapshot,

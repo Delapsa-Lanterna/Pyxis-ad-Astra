@@ -25,12 +25,22 @@ export const draftSessionBoundaryRule = {
       if (current.layer === 'test') continue;
 
       for (const imported of importedProjectPaths(file)) {
-        if (imported.typeOnly) continue;
         const target = classifyFrontendPath(imported.resolved);
+        if (
+          (isEditSessionPrimitive(current) || (current.layer === 'stores' && current.domain === 'save-command')) &&
+          target.domain === 'joint-edit'
+        ) {
+          failures.push(`${file.rel}: edit session foundations must own target comparison and must not depend on joint editing`);
+        }
+        if (imported.typeOnly) continue;
         if (target.domain === 'draft-session' && current.domain !== 'edit-target-draft-session') {
           failures.push(`${file.rel}: business editing modules must use edit target draft session, not draft session primitive`);
         }
-        if (isEditSessionPrimitive(target) && !isEditSessionAdapter(current)) {
+        const overlapConsumer =
+          (current.layer === 'stores' && current.domain === 'save-command') ||
+          (current.layer === 'orchestrators' && current.domain === 'edit-target-handoff');
+        const onlyTargetComparison = imported.bindings.every((binding) => binding.importedName === 'editTargetsOverlap');
+        if (isEditSessionPrimitive(target) && !isEditSessionAdapter(current) && !(overlapConsumer && onlyTargetComparison)) {
           failures.push(
             `${file.rel}: edit session primitives must be consumed through their adapters (use-draft-session, use-snapshot-history, file-history store, tables-edit-history store)`,
           );

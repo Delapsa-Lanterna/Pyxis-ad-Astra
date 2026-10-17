@@ -1,6 +1,6 @@
 <template>
   <button
-    class="immersive-filter-toggle"
+    class="immersive-filter-toggle ui-button ui-control-center ui-control-pointer ui-control-reset ui-control-border ui-content-surface-muted"
     role="checkbox"
     :aria-checked="checked"
     :aria-label="label"

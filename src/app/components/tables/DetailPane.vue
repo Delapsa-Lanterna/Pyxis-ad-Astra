@@ -1,62 +1,85 @@
 <template>
-  <aside class="detail-pane">
-    <div class="pane-title">上下文</div>
+  <aside class="detail-pane ui-content-scroll ui-content-surface-muted">
+    <div class="pane-title ui-text-muted ui-text-small">上下文</div>
     <template v-if="tables.selectedRow">
-      <section class="panel-card detail-card record-card">
-        <div class="detail-thumbnail">
-          <img v-if="previewState.src" :src="previewState.src" :alt="previewState.alt" />
-          <div v-else class="thumbnail-placeholder">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <section class="panel-card detail-card record-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
+        <div class="detail-thumbnail ui-control-center ui-layout-clip ui-layout-stretch ui-control-border">
+          <img
+            class="ui-image detail-thumbnail-image ui-layout-stretch"
+            v-if="previewState.src"
+            :src="previewState.src"
+            :alt="previewState.alt"
+          />
+          <div v-else class="thumbnail-placeholder ui-layout-row ui-layout-center ui-layout-stack">
+            <svg class="thumbnail-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <circle cx="8.5" cy="8.5" r="1.5" />
               <path d="M21 15l-5-5L5 21" />
             </svg>
-            <strong>{{ previewState.title }}</strong>
-            <span>{{ previewState.detail }}</span>
+            <strong class="thumbnail-placeholder-value ui-emphasis ui-text-soft ui-text-small">{{ previewState.title }}</strong>
+            <span class="thumbnail-placeholder-label ui-text-wrap">{{ previewState.detail }}</span>
           </div>
         </div>
-        <div class="detail-id">{{ selectedDisplayId }}</div>
-        <div class="detail-name">{{ displayName }}</div>
+        <div class="detail-id ui-text-wrap">{{ selectedDisplayId }}</div>
+        <div class="detail-name ui-text-soft ui-text-small">{{ displayName }}</div>
       </section>
-      <section class="panel-card detail-card">
-        <div class="panel-section-title">操作</div>
-        <div class="detail-actions">
+      <section class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
+        <div class="panel-section-title ui-text-soft ui-text-small">操作</div>
+        <div class="detail-actions ui-layout-grid">
           <n-button v-for="action in detailActions" :key="detailActionKey(action)" block secondary @click="$emit('detail-action', action)">
             {{ detailActionLabel(action) }}
           </n-button>
         </div>
-        <div v-if="isCommentRow" class="muted">注释行只允许编辑 CSV 内容。</div>
-        <div v-else-if="!hasActions" class="muted">当前模块没有专用编辑器。</div>
+        <div v-if="isCommentRow" class="muted ui-text-muted">注释行只允许编辑 CSV 内容。</div>
+        <div v-else-if="!hasActions" class="muted ui-text-muted">当前模块没有专用编辑器。</div>
       </section>
-      <section class="panel-card detail-card">
-        <div class="panel-section-title">字段速览</div>
-        <div class="schema-preview-list">
-          <div v-for="item in summaryItems" :key="item.key" class="schema-preview-row">
-            <span class="schema-preview-label" :title="item.key">{{ item.label }}</span>
-            <div class="schema-preview-value">
+      <section class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
+        <div class="panel-section-title ui-text-soft ui-text-small">字段速览</div>
+        <div class="schema-preview-list ui-layout-grid">
+          <div v-for="item in summaryItems" :key="item.key" class="schema-preview-row ui-layout-grid">
+            <span class="schema-preview-label ui-text-muted" :title="item.key">{{ item.label }}</span>
+            <div class="schema-preview-value ui-control-row">
               <template v-if="item.kind === 'tags' || item.kind === 'multi'">
-                <span v-for="tag in item.values" :key="tag" class="schema-preview-tag" :title="previewTagTitle(item, tag)">
+                <span
+                  v-for="tag in item.values"
+                  :key="tag"
+                  class="schema-preview-tag ui-text-soft ui-text-wrap ui-control-border"
+                  :title="previewTagTitle(item, tag)"
+                >
                   {{ tag }}
                 </span>
-                <span v-if="item.values.length === 0" class="schema-preview-empty">-</span>
+                <span v-if="item.values.length === 0" class="schema-preview-empty ui-text-muted ui-text-small">-</span>
               </template>
               <template v-else-if="item.kind === 'color'">
-                <span class="schema-preview-swatch" :style="{ background: item.value }"></span>
-                <strong :title="previewValueTitle(item)">{{ item.value || '-' }}</strong>
+                <span class="schema-preview-swatch ui-control-border" :style="{ background: item.value }"></span>
+                <strong
+                  class="schema-preview-value-value ui-emphasis ui-text-small ui-layout-shrink ui-text-wrap"
+                  :title="previewValueTitle(item)"
+                  >{{ item.value || '-' }}</strong
+                >
               </template>
               <template v-else>
-                <img v-if="showReferenceDecorations && item.sprite" class="schema-preview-sprite" :src="item.sprite" :alt="item.display" />
-                <strong :title="previewValueTitle(item)">{{ item.display || '-' }}</strong>
-                <small v-if="showReferenceDecorations && item.meta">{{ item.meta }}</small>
+                <img
+                  v-if="showReferenceDecorations && item.sprite"
+                  class="schema-preview-sprite ui-image ui-control-border"
+                  :src="item.sprite"
+                  :alt="item.display"
+                />
+                <strong
+                  class="schema-preview-value-value ui-emphasis ui-text-small ui-layout-shrink ui-text-wrap"
+                  :title="previewValueTitle(item)"
+                  >{{ item.display || '-' }}</strong
+                >
+                <small class="schema-preview-value-meta ui-text-muted" v-if="showReferenceDecorations && item.meta">{{ item.meta }}</small>
               </template>
             </div>
           </div>
         </div>
       </section>
     </template>
-    <div v-else class="panel-empty detail-empty">
-      <strong>未选择记录</strong>
-      <span>点击一行查看上下文操作，双击单元格编辑 CSV。</span>
+    <div v-else class="panel-empty detail-empty ui-text-muted ui-layout-grid ui-content-surface">
+      <strong class="detail-empty-value ui-emphasis ui-text-soft">未选择记录</strong>
+      <span class="detail-empty-label ui-text-small">点击一行查看上下文操作，双击单元格编辑 CSV。</span>
     </div>
   </aside>
 </template>
@@ -65,7 +88,6 @@
 import { computed, watch } from 'vue';
 import { useCsvRowPreview } from '@/app/composables/tables/use-csv-row-preview';
 import { useTablesStore } from '@/stores/tables.store';
-import { useProjectStore } from '@/stores/project.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSchemaSelectMedia } from '@/app/composables/tables/use-schema-select-media';
@@ -83,7 +105,7 @@ import {
 import type { CsvColumnSchema } from '@/domain/schema/schema.types';
 import { sourceValue, type CsvSourceIndex } from '@/domain/tables/csv-source-options';
 import type { SelectOption } from '@/domain/schema/schema-options';
-import type { CsvRowPreviewTarget, RowData, TableKey } from '@/shared/types';
+import type { CsvRowPreviewTarget, RowData, CsvTableKey } from '@/shared/types';
 
 const props = defineProps<{
   queryRowPreview: (target: CsvRowPreviewTarget, signal?: AbortSignal) => Promise<string>;
@@ -95,7 +117,6 @@ defineEmits<{
 }>();
 
 const tables = useTablesStore();
-const project = useProjectStore();
 const { schemaSelectSprite, replaceSchemaSelectSprites } = useSchemaSelectMedia();
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
@@ -112,8 +133,8 @@ const hasActions = computed(() => detailActions.value.length > 0);
 const schemaColumns = computed(() => csvColumnSchemasForTable(tables.currentTab));
 const previewSrc = useCsvRowPreview({
   target: () =>
-    project.activeSessionId && tables.selectedRowKey && tables.selectedRow && !isCommentRow.value
-      ? { sessionId: project.activeSessionId, table: tables.currentTab, rowKey: tables.selectedRowKey }
+    workspace.activeSessionId && tables.selectedRowKey && tables.selectedRow && !isCommentRow.value
+      ? { sessionId: workspace.activeSessionId, table: tables.currentTab, rowKey: tables.selectedRowKey }
       : null,
   query: (target, signal) => props.queryRowPreview(target, signal),
 });
@@ -127,7 +148,7 @@ const summaryItems = computed<SchemaPreviewItem[]>(() => {
 });
 const detailActions = computed<TableDetailAction[]>(() => {
   const row = tables.selectedRowRecord;
-  const data = project.activeManifest;
+  const data = workspace.activeManifest;
   return data
     ? detailActionsForRow(
         {
@@ -187,14 +208,14 @@ const summaryResources = computed(() => {
     : [];
 });
 watch(
-  () => [project.activeSessionId, summaryResources.value] as const,
+  () => [workspace.activeSessionId, summaryResources.value] as const,
   ([sessionId, resources]) => {
     void replaceSchemaSelectSprites(sessionId, 'summary', resources);
   },
   { immediate: true },
 );
 
-function noPreview(tab: TableKey): PreviewState {
+function noPreview(tab: CsvTableKey): PreviewState {
   return {
     alt: MODULE_LABELS[tab],
     detail: `${MODULE_LABELS[tab]}当前没有可用缩略图。`,
@@ -231,7 +252,7 @@ function schemaPreviewItem(schema: CsvColumnSchema, row: RowData): SchemaPreview
     if (match.option) {
       base.display = match.option.label;
       base.meta = match.group ? `${csvColumnControlLabel(schema.control)} · ${match.group}` : csvColumnControlLabel(schema.control);
-      const sid = project.activeSessionId ?? undefined;
+      const sid = workspace.activeSessionId ?? undefined;
       if (match.option.resourceRef && sid) {
         base.sprite = schemaSelectSprite(sid, match.option.resourceRef) ?? '';
       }

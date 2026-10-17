@@ -1,19 +1,19 @@
 <template>
-  <aside class="config-entity-list config-family-list">
+  <aside class="config-entity-list config-family-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="config-entity-list-header">
-      <h3>{{ family.displayName }}列表</h3>
+      <h3 class="config-entity-list-header-title ui-text-reset">{{ family.displayName }}列表</h3>
     </header>
-    <ul :ref="setMediaRoot" class="config-entity-list-items">
-      <li v-if="sortedFiles.length === 0" class="config-entity-list-empty">{{ family.directoryHint }}</li>
+    <ul :ref="setMediaRoot" class="config-entity-list-items ui-text-reset">
+      <li v-if="sortedFiles.length === 0" class="config-entity-list-empty ui-text-small">{{ family.directoryHint }}</li>
       <li
         v-for="file in sortedFiles"
         :key="fileId(file)"
         :ref="mediaRef(fileId(file), props.spriteRefs[fileId(file)])"
-        class="config-entity-list-item"
+        class="config-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
         :class="{ active: fileId(file) === selectedId }"
         @click="emit('select', fileId(file))"
       >
-        <span class="config-entity-thumb">
+        <span class="config-entity-thumb ui-layout-grid ui-layout-clip ui-control-border">
           <ResourceThumbnail
             v-if="props.spriteRefs[fileId(file)]"
             :session-id="sessionId!"
@@ -24,28 +24,28 @@
             :width="22"
             :height="22"
           />
-          <svg v-else class="config-entity-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <svg v-else class="config-entity-icon ui-text-muted" viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in family.listIconPaths" :key="path" :d="path" />
           </svg>
         </span>
-        <span class="config-entity-text">
-          <span class="config-entity-name">{{ fileTitle(file) }}</span>
-          <small>{{ fileId(file) }}</small>
+        <span class="config-entity-text ui-layout-grid ui-layout-shrink">
+          <span class="config-entity-name ui-text-truncate ui-layout-shrink">{{ fileTitle(file) }}</span>
+          <small class="config-entity-text-meta ui-text-truncate ui-text-muted ui-layout-shrink">{{ fileId(file) }}</small>
         </span>
         <n-button
           size="tiny"
           quaternary
-          class="config-entity-delete compact-icon-button"
+          class="config-entity-delete compact-icon-button ui-control-reset"
           :title="`删除${family.displayName}`"
           @click.stop="confirmDelete(file)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 6l12 12M18 6 6 18" />
           </svg>
         </n-button>
       </li>
     </ul>
-    <footer class="config-entity-list-footer">
+    <footer class="config-entity-list-footer ui-footer">
       <n-button size="small" block :loading="openingCreateDialog || actionRunning" @click="openCreateDialog">{{
         family.createLabel
       }}</n-button>
@@ -60,7 +60,7 @@
       :positive-button-props="{ loading: actionRunning, disabled: actionRunning }"
       @positive-click="submitCreate"
     >
-      <div class="variant-dialog-fields">
+      <div class="variant-dialog-fields ui-layout-grid">
         <n-input v-if="settings.isPlainEditMode" v-model:value="newCompanionId" :placeholder="family.companionLabel" />
         <n-select v-else v-model:value="newCompanionId" :options="hullOptions" filterable tag :placeholder="family.companionLabel" />
         <n-input v-model:value="newId" :placeholder="family.idField" />

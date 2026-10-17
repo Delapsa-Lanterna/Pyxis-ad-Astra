@@ -6,11 +6,26 @@
 
 ## 参考
 
-`src/app/components/immersive/variant/`：装配、候选、插件及武器组交互组件。
-`src/app/composables/immersive-editor/variant/use-immersive-variant-editor.ts`：装配动作、确认、在途状态及动作历史。
-`src/app/composables/immersive-editor/variant/use-variant-candidate.ts`：武器与联队候选详情读取和媒体接纳。
-`src/app/composables/immersive-editor/variant/use-variant-catalog.ts`：按所属种类读取候选目录。
-`src/domain/immersive/variant/`：预算、装备、插件、筛选和分组纯规则。
+### 拥有
+
+- `src/app/components/immersive/ImmersiveFilterGroup.vue`：装配候选筛选分组。
+- `src/app/components/immersive/ImmersiveFilterToggle.vue`：装配候选筛选开关。
+- `src/app/components/immersive/ImmersiveGameFrame.vue`：装配场景与候选的游戏外观容器。
+- `src/app/components/immersive/ImmersiveResourceIcon.vue`：装配候选资源图标。
+- `src/app/components/immersive/ImmersiveSquareToggle.vue`：装配开关控件。
+- `src/app/components/immersive/ImmersiveTooltipFrame.vue`：装配候选悬浮信息容器。
+- `src/app/components/immersive/variant/`：装配、候选、插件及武器组交互组件。
+- `src/app/composables/immersive-editor/variant/`：装配动作、候选目录及候选详情读取。
+- `src/app/composables/immersive-editor/variant/use-immersive-variant-editor.ts`：装配动作、确认、在途状态及动作历史。
+- `src/app/composables/immersive-editor/variant/use-variant-candidate.ts`：武器与联队候选详情读取和媒体接纳。
+- `src/app/composables/immersive-editor/variant/use-variant-catalog.ts`：按所属种类读取候选目录。
+- `src/app/composables/use-immersive-hover.ts`：装配候选悬浮目标、延时与释放。
+- `src/assets/immersive/controls/`：装配控件的本地回退资产。
+- `src/domain/immersive/variant/`：预算、装备、插件、筛选和分组纯规则。
+
+### 消费
+
+- `src/test/variant-joint-edit.ts`：装配、模块与装备来源的测试构造。
 
 ## 边界
 

@@ -1,3 +1,4 @@
+import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, ref, onScopeDispose } from 'vue';
 import { pickDirectoryDialog } from '@/shared/runtime/dialog.runtime';
@@ -16,7 +17,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const logPath = ref('');
   const formattedLogSize = computed(() => formatBytes(logSizeBytes.value));
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
-  const configActions = useAppConfigActions(closeWorkspace);
+  const configActions = useAppConfigActions(closeWorkspace, useWindowLifecycleActions());
   const reads = useQueryReadOwner();
   let active = true;
   onScopeDispose(() => {

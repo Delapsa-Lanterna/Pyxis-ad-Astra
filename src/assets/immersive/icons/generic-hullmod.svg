@@ -1,0 +1,9 @@
+<svg width="80" height="80" viewBox="0 0 80 80" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" color="rgb(168, 177, 181)">
+  <path
+    d="M72 40A32 32 0 1 1 8 40A32 32 0 1 1 72 40M66 40A26 26 0 1 1 14 40A26 26 0 1 1 66 40M28 19H52V61H28ZM20"
+    fill="currentColor"
+    fill-rule="evenodd"
+    stroke="none"
+    stroke-width="1.5"
+  ></path>
+</svg>

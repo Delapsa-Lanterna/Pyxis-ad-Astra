@@ -41,7 +41,7 @@ export function useConfigEditorDraftSession<TValue, TTarget extends { sessionId:
         }),
         label: '配置编辑器',
         dirty: draftSession.dirty,
-        commitInputs: () => draftSession.inputs.commit(),
+        draftSession: draftSession,
         save: async () => {
           const snapshot = await draftSession.saveDraft();
           return { saved: Boolean(snapshot), receipt: snapshot ? options.receiptOf(snapshot.meta) : null };

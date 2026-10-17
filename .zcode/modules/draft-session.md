@@ -6,19 +6,34 @@
 
 ## 参考
 
-`src/app/composables/config/use-config-editor-draft-session.ts`：配置目标 Draft Session 组合 owner。
-`src/app/composables/editors/use-object-field.ts`：共享编辑字段适配器，绑定所属草稿对象字段并交付提交回调。
-`src/app/composables/use-draft-session.ts`：通用 Draft Session 适配器 owner，保持 Ref API。
-`src/app/composables/use-edit-action-context.ts`：保存连续性与异步编辑动作接纳 owner。
-`src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文 owner。
-`src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史 owner。
-`src/domain/edit-session.ts`：编辑会话与撤销栈原语 owner，拥有 base/draft/dirty/revision/pending external 状态机与双栈状态工厂。
-`src/orchestrators/table-save.orchestrator.spec.ts`：表保存编排行为测试。
-`src/shared/runtime/field-inputs.ts`：目标输入集合 owner，拥有登记顺序、提交接纳、取消与释放。
-`src/shared/runtime/raw-field-input.ts`：原始文本输入 owner，拥有原文、输入基线、转换与非法状态。
-`src/shared/types/edit-context.types.ts`：目标键、基线代次与交接类型 owner。
-`src/stores/draft-sessions.store.ts`：未保存工作注册表 owner，按 `modRoot` 聚合会话登记与判定源。
-`src/stores/save-command.store.ts`：保存句柄、等待与交接意图登记 owner。
+### 拥有
+
+- `src/app/composables/editors/use-object-field.ts`：共享编辑字段适配器，绑定所属草稿对象字段并交付提交回调。
+- `src/app/composables/use-draft-session.ts`：通用 Draft Session 适配器，保持 Ref API。
+- `src/app/composables/use-draft-transition-confirmation.ts`：草稿离开确认、保存等待及动作序号接纳。
+- `src/app/composables/use-edit-action-context.ts`：保存连续性与异步编辑动作接纳。
+- `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
+- `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
+- `src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史。
+- `src/domain/edit-session.ts`：目标物理范围比较、编辑会话状态机与撤销双栈原语。
+- `src/stores/draft-sessions.store.ts`：未保存工作注册表，按 `modRoot` 聚合会话登记与判定源。
+- `src/stores/save-command.store.ts`：保存句柄、等待与交接意图登记。
+
+### 消费
+
+- `src/app/composables/config/use-config-editor-draft-session.ts`：配置目标 Draft Session 组合。
+- `src/shared/lib/paths.ts`：目标根与物理路径的规范化及目录包含判定。
+- `src/shared/runtime/field-inputs.ts`：目标输入集合，拥有登记顺序、提交接纳、取消与释放。
+- `src/shared/runtime/raw-field-input.ts`：原始文本输入，拥有原文、输入基线、转换与非法状态。
+- `src/shared/types/edit-context.types.ts`：目标键、基线代次与交接类型。
+- `src/shared/types/joint-edit.types.ts`：目标比较消费的 session、Mod 根与写入路径协议。
+
+### 关联
+
+- `src/orchestrators/table-save.orchestrator.spec.ts`：表保存编排行为测试。
+- `src/shared/lib/stable-compare.ts`：结构化值的稳定序列化及相等判断。
+- `src/shared/lib/starsector/value.ts`：JSON 复制、标量转换与 Mod 版本展示。
+- `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
 
 ## 边界
 
@@ -74,6 +89,7 @@
 - 保存必须提交发起保存时的独立草稿快照，严禁提交可变引用。
 - 保存操作必须覆盖输入准备、动作结束、独立捕获、写入、基线接纳与后续同步；重复保存必须复用唯一 Promise。
 - 保存期间刷新必须合并为一次后续权威读取；同值同版本刷新只允许原子更新元数据，值或版本变化必须推进基线代次。
+- 保存注册表必须直接消费编辑参与者的已有草稿和输入集合，关闭捕获必须共同核对登记身份、目标、业务值、dirty 与输入生命周期。
 - 保存登记必须提供实际写入范围、原 dirty、输入提交、所属保存和等待能力；联合交接锁只允许表达短暂动作占用。
 - 再次保存必须先完成 `pendingSynchronization`，再于同一保存操作中提交后续输入并捕获新快照。
 - 原始输入提交必须按登记顺序执行，每项成功后必须等待消费者投影；失败必须保留原文、定位字段并以 `commit-field-inputs` 动作上抛一次错误。
@@ -89,6 +105,7 @@
 - 注册表严禁暴露内部会话结构，只暴露按 `modRoot` 的判定与登记能力。
 - 目标、业务值、版本和元数据必须通过同一响应式快照发布；身份交接必须原子接纳基线并映射草稿，dirty 外部快照必须暂存。
 - 目标必须捕获 `sessionId`、`modRoot`、实体种类、ID 与实际路径；保存必须消费捕获目标，重命名必须在同一会话交接目标并保留后续输入。
+- 目标重叠必须由编辑会话领域规则比较相同 session、规范化 Mod 根及双向目录包含关系；保存注册与目标交接必须消费同一入口。
 - 自有身份事务推进基线时必须保留编辑连续性；外部身份交接必须清理旧快照历史，同时必须保留确认后的草稿与活动输入。
 - 草稿只允许保存在所属编辑会话内，严禁直接持久化、query 或 write；对外判定必须消费未保存注册表。
 - 表单双向绑定必须经唯一适配器 setter 提交 draft，严禁直接替换投影状态或以深度 watch 同步业务副作用。

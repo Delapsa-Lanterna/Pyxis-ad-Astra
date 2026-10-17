@@ -8,10 +8,9 @@ import type {
   DeepReadonly,
   RowData,
 } from '@/shared/types';
-import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { deepClone } from '@/shared/lib/starsector';
 import { formatJsonInput } from '@/shared/lib/json-input';
-import { entityContentIdField } from '@/domain/editors/entity-identity';
+import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { renameVariantModules } from '@/domain/config/config-entities';
@@ -142,14 +141,6 @@ function rebaseValue(base: JointValue, local: JointValue, current: JointValue): 
     return { state: 'present', value: data };
   }
   return deepClone(local);
-}
-
-export function editTargetsOverlap(left: EditWriteTarget, right: EditWriteTarget): boolean {
-  return (
-    left.sessionId === right.sessionId &&
-    normalizeFsPath(left.modRoot) === normalizeFsPath(right.modRoot) &&
-    (pathBelongsToRoot(left.path, right.path) || pathBelongsToRoot(right.path, left.path))
-  );
 }
 
 export function applyJointConflictChoices(prepared: JointEditPrepared, choices: JointConflictChoice[]): Record<string, JointValue> {

@@ -1,3 +1,11 @@
+import type {
+  ResourceDataUrlBatchPayload,
+  ProjectInvalidation,
+  ProjectSessionId,
+  ResourceDataUrlBatchEntry,
+  ResourceDataUrlBatchResult,
+  ResourceRef,
+} from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { requireProjectionReady } from '@/services/project-projection.service';
 import { normalizeFsPath } from '@/shared/lib/paths';
@@ -12,13 +20,6 @@ import {
   mediaBudgetLimit,
 } from '@/services/resource-budget.service';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
-import type {
-  ProjectInvalidation,
-  ProjectSessionId,
-  ResourceDataUrlBatchEntry,
-  ResourceDataUrlBatchResult,
-  ResourceRef,
-} from '@/shared/types';
 
 interface CachedResourceDataUrl {
   dataUrl: string | null;
@@ -170,12 +171,12 @@ function loadMissingResources(
   missing: { key: string; resource: ResourceRef }[],
 ): Promise<readonly [string, string | null]>[] {
   const resources = missing.map((entry) => entry.resource);
-  const batch = invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', { payload: { sessionId, resources } }).then(
-    (result) => {
-      validateResourceBatch(resources, result.entries);
-      return result.entries;
-    },
-  );
+  const batch = invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', {
+    payload: { sessionId, resources } satisfies ResourceDataUrlBatchPayload,
+  }).then((result) => {
+    validateResourceBatch(resources, result.entries);
+    return result.entries;
+  });
   return missing.map((entry, index) => {
     const request = createReadTicket({ sessionId, resource: entry.resource }, () => batch.then((entries) => entries[index]!.dataUrl));
     const promise = request.promise

@@ -1,19 +1,19 @@
 <template>
-  <aside class="faction-list config-entity-list">
+  <aside class="faction-list config-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="faction-list-header config-entity-list-header">
-      <h3>势力列表</h3>
+      <h3 class="config-entity-list-header-title ui-text-reset">势力列表</h3>
     </header>
 
-    <ul :ref="setMediaRoot" class="faction-list-items config-entity-list-items">
+    <ul :ref="setMediaRoot" class="faction-list-items config-entity-list-items ui-text-reset">
       <li
         v-for="faction in factions"
         :key="faction.id"
         :ref="mediaRef(faction.id, props.factionCrestRefs[faction.id])"
-        class="faction-list-item config-entity-list-item"
+        class="faction-list-item config-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
         :class="{ active: faction.id === selectedId }"
         @click="selectFaction(faction.id)"
       >
-        <span class="faction-list-preview config-entity-thumb">
+        <span class="faction-list-preview config-entity-thumb ui-layout-grid ui-layout-clip ui-control-border">
           <ResourceThumbnail
             v-if="props.factionCrestRefs[faction.id]"
             :session-id="sessionId!"
@@ -24,24 +24,24 @@
             :width="22"
             :height="22"
           />
-          <span v-else class="color-swatch" :style="{ backgroundColor: faction.colorCss }" />
+          <span v-else class="color-swatch ui-control-border" :style="{ backgroundColor: faction.colorCss }" />
         </span>
-        <span class="faction-name config-entity-name">{{ faction.displayName || faction.id }}</span>
+        <span class="faction-name config-entity-name ui-text-truncate ui-layout-shrink">{{ faction.displayName || faction.id }}</span>
         <n-button
           size="tiny"
           quaternary
-          class="faction-delete-btn config-entity-delete compact-icon-button"
+          class="faction-delete-btn config-entity-delete compact-icon-button ui-control-reset"
           title="删除势力"
           @click.stop="confirmDelete(faction.id)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 6l12 12M18 6 6 18" />
           </svg>
         </n-button>
       </li>
     </ul>
 
-    <footer class="faction-list-footer config-entity-list-footer">
+    <footer class="faction-list-footer config-entity-list-footer ui-footer">
       <n-button size="small" block :loading="actionRunning" @click="openCreateDialog">新建势力</n-button>
     </footer>
 

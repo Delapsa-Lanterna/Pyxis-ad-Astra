@@ -1,5 +1,9 @@
+vi.mock('@/services/entity-query.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/entity-query.service')>()),
+  hasEntityInvalidation: mocks.hasEntityInvalidation,
+}));
 import { mount } from '@vue/test-utils';
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: vi.fn(async () => () => {}) }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ listenEntityIdentityApplied: vi.fn(async () => () => {}) }));
 import { createPinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileSchema } from '@/domain/schema/schema.types';
@@ -33,9 +37,9 @@ vi.mock('@/services/config-entity.service', () => ({
   queryFactionPreviewImages: mocks.queryFactionPreviewImages,
 }));
 
-vi.mock('@/services/query-cache.service', () => ({
+vi.mock('@/services/query-cache.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
   subscribeQueryInvalidations: mocks.subscribeQueryInvalidations,
-  hasEntityInvalidation: mocks.hasEntityInvalidation,
 }));
 
 vi.mock('@/services/resource-cache.service', () => ({

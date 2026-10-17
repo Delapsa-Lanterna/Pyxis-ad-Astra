@@ -6,17 +6,30 @@ Mod 文件浏览器模块提供已加载 Mod 的目录浏览及文本文件打�
 
 ## 参考
 
-`src-tauri/src/commands/mod_file_browser.rs`：目录与文本目标查询的 IPC 装配。
-`src-tauri/src/models/mod_file_browser.rs`：目录条目、种类与文本窗口目标的 wire 模型。
-`src-tauri/src/services/project/query/mod_file_browser.rs`：会话根目录读取、受限条目识别与内容判定 owner。
-`src/app/components/mod-file-browser/ModFileBrowser.vue`：受控文件树、虚拟滚动、焦点及节点反馈展示。
-`src/app/composables/mod-file-browser/use-mod-directory-reads.ts`：目录读取优先队列、在途合并、并发及票据接纳 owner。
-`src/app/composables/mod-file-browser/use-mod-file-browser-view-model.ts`：刷新、显示后预载、选择、键盘导航与打开动作 owner。
-`src/domain/mod-file-browser/file-tree.ts`：元数据展示、同级排序、普通与搜索树、可见节点及目录影响的纯投影。
-`src/services/mod-file-browser.service.ts`：目录、搜索及文本目标的类型化传输入口。
-`src/shared/types/mod-file-browser.types.ts`：前端条目与浏览状态交接模型。
-`src/stores/mod-file-browser.store.ts`：按 session 隔离的目录、搜索、排序及两组浏览状态 owner。
-`src/windows/file-editor.window.ts`：浏览动作消费的文本窗口创建与复用入口。
+### 拥有
+
+- `src-tauri/src/commands/mod_file_browser.rs`：目录与文本目标查询的 IPC 装配。
+- `src-tauri/src/services/project/query/mod_file_browser.rs`：会话根目录读取、受限条目识别与内容判定。
+- `src/app/components/mod-file-browser/`：受控文件树、元数据列与工具栏及其测试。
+- `src/app/components/mod-file-browser/ModFileBrowser.vue`：受控文件树、虚拟滚动、焦点及节点反馈展示。
+- `src/app/composables/mod-file-browser/`：目录读取、预载、搜索和文本打开生命周期。
+- `src/app/composables/mod-file-browser/use-mod-directory-reads.ts`：目录读取优先队列、在途合并、并发及票据接纳。
+- `src/app/composables/mod-file-browser/use-mod-file-browser-view-model.ts`：刷新、显示后预载、选择、键盘导航与打开动作。
+- `src/domain/mod-file-browser/`：文件树、同级排序与元数据展示纯投影。
+- `src/domain/mod-file-browser/file-tree.ts`：元数据展示、同级排序、普通与搜索树、可见节点及目录影响的纯投影。
+- `src/services/mod-file-browser.service.ts`：目录、搜索及文本目标的类型化传输入口。
+- `src/stores/mod-file-browser.store.ts`：按 session 隔离的目录、搜索、排序及两组浏览状态。
+
+### 消费
+
+- `src-tauri/src/models/mod_file_browser.rs`：目录条目、种类与文本窗口目标的 wire 模型。
+- `src/shared/types/mod-file-browser.types.ts`：前端条目与浏览状态交接模型。
+- `src/stores/workspace.store.ts`：当前 Mod 选择、清单与 session 的派生投影。
+- `src/windows/file-editor.window.ts`：浏览动作消费的文本窗口创建与复用入口。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
 
 ## 边界
 
@@ -64,6 +77,7 @@ Mod 文件浏览器模块提供已加载 Mod 的目录浏览及文本文件打�
 - 二进制结果必须结束打开动作；未命中二进制特征的解码失败必须保留实际路径及 text.invalid_utf8 诊断。
 - 展开、选择和滚动必须按 session 隔离并保存在本次运行的内存中，Mod 移除必须释放所属状态。
 - 已交付的文件窗口请求必须由所属窗口反馈终结错误，浏览页面释放必须结束所属查询接纳。
+- 当前展示目标必须消费工作区的当前项目投影，异步动作必须捕获并持续消费所属 Mod 根与 session。
 - 排序必须在各层同级条目内执行并保持目录优先，相等值必须消费名称自然排序，缺失值必须置于所属分组末尾。
 - 搜索必须按名称进行忽略大小写的子串匹配并返回匹配项与祖先，递归只允许遍历所属授权根。
 - 搜索输入必须按 250 ms 防抖或 Enter 立即提交，较早查询必须失效；清空搜索必须恢复普通浏览状态。

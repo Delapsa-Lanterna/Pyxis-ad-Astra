@@ -7,14 +7,13 @@ import {
   querySessionEntityList,
   querySessionEntityEditTarget,
   querySessionEntityIdentityIntent,
-  querySessionEditorDraftResources,
 } from './entity-query.service';
+import { querySessionDraftResources, resolveModImageReference } from './resource-reference.service';
 import { queryResourceDataUrls, invalidateResourceCacheForSession } from './resource-cache.service';
-import { resolveModImageReference } from './resource-reference.service';
 import { invalidateQueryCacheForSession } from './query-cache.service';
 import { entityTargetFixture } from '@/test/entity-target';
 import { toConfigFamilyRecord } from '@/domain/config/config-records';
-import type { EntityData, ResourceRef, QueryIdentity, QueryValue } from '@/shared/types';
+import type { EntityData, ResourceRef, DeepReadonly, CsvRowPreviewPayload } from '@/shared/types';
 import { expectTypeOf } from 'vitest';
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -58,8 +57,8 @@ const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
     { destinationVersion: {} },
   ],
   [
-    'query_editor_draft_resources',
-    () => querySessionEditorDraftResources(sessionId, 'ship', 'demo', draft),
+    'query_draft_resources',
+    () => querySessionDraftResources(sessionId, 'ship', 'demo', draft),
     { sessionId, kind: 'ship', id: 'demo', draft },
     {},
   ],
@@ -106,12 +105,35 @@ describe('formal reading protocols', () => {
       },
     };
     invoke.mockResolvedValue({});
-    const pending = querySessionEditorDraftResources(sessionId, 'ship', 'demo', input);
+    const pending = querySessionDraftResources(sessionId, 'ship', 'demo', input);
     nested.path = 'graphics/later.png';
     const args = invoke.mock.lastCall![1] as { payload: { draft: { sprite: { path: string } } } };
     expect(args.payload.draft.sprite.path).toBe('graphics/original.png');
     expect(reads).toBe(1);
     await pending;
+  });
+  it.each(['success', 'error'] as const)('ends draft resources on session release before a late %s', async (outcome) => {
+    let resolve!: (value: object) => void;
+    let reject!: (error: Error) => void;
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((done, fail) => {
+          resolve = done;
+          reject = fail;
+        }),
+    );
+    const read = querySessionDraftResources(sessionId, 'projectile', 'demo', { sprite: 'graphics/old.png' });
+    const ended = expect(read).rejects.toMatchObject({ code: 'query.invalidated', cause: { reason: 'session' } });
+    invalidateQueryCacheForSession(sessionId);
+    await ended;
+    invoke.mockResolvedValueOnce({ sprite: resource });
+    await expect(querySessionDraftResources(sessionId, 'projectile', 'demo', { sprite: 'graphics/new.png' })).resolves.toEqual({
+      sprite: resource,
+    });
+    if (outcome === 'success') resolve({});
+    else reject(new Error('late resource error'));
+    await Promise.resolve();
+    expect(invoke).toHaveBeenCalledTimes(2);
   });
   it.each([
     ['csv-table-window', 80],
@@ -179,9 +201,9 @@ describe('formal reading protocols', () => {
     expect(repeated?.data).toEqual({ nested: { title: 'Original' } });
     expect(repeated?.baseVersions[0]?.fingerprint).toBe('v1');
     expect(invoke).toHaveBeenCalledOnce();
-    expectTypeOf<ReturnType<typeof querySessionEntity>>().toEqualTypeOf<Promise<QueryValue<'entity-detail'>>>();
-    expectTypeOf<QueryIdentity<'csv-row-preview'>['parameters']>().toEqualTypeOf<{
-      table: import('@/shared/types').TableKey;
+    expectTypeOf<ReturnType<typeof querySessionEntity>>().toEqualTypeOf<Promise<DeepReadonly<EntityData | null>>>();
+    expectTypeOf<Omit<CsvRowPreviewPayload, 'sessionId'>>().toEqualTypeOf<{
+      table: import('@/shared/types').CsvTableKey;
       rowKey: string;
     }>();
   });

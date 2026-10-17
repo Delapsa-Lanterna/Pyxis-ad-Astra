@@ -1,5 +1,5 @@
 <template>
-  <div v-if="current" class="variant-immersive-panel">
+  <div v-if="current" class="variant-immersive-panel ui-layout-clip ui-layout-stretch">
     <ImmersiveHullScene
       ref="scene"
       :variant="current"
@@ -10,23 +10,23 @@
     />
     <header class="variant-refit-header">
       <ImmersivePanelRow :stat="current.fields[0]!" :render="render" />
-      <div class="variant-refit-tools">
+      <div class="variant-refit-tools ui-layout-row ui-layout-stack">
         <slot name="meta" />
         <n-button size="small" title="滚轮缩放 · 右键平移 · 点击槽位装配" @click="scene!.fit()">居中</n-button>
         <n-select v-if="panel.variants.length > 1" :value="current.key" :options="moduleOptions" @update:value="selectModule" />
       </div>
     </header>
-    <div class="variant-refit-actions">
+    <div class="variant-refit-actions ui-layout-row">
       <button
         ref="groupsButton"
-        class="variant-cut-button"
+        class="variant-cut-button ui-button variant-refit-actions-button ui-layout-inline ui-layout-center ui-control-pointer ui-content-surface-muted ui-control-reset"
         :disabled="!current.editable || vm.joint.saving.value || vm.referenceChanging.value"
         @click="openGroups"
       >
         <ImmersiveText text="调整武器组" font="picker-title" ink-aligned />
       </button>
       <button
-        class="variant-cut-button"
+        class="variant-cut-button ui-button variant-refit-actions-button ui-layout-inline ui-layout-center ui-control-pointer ui-content-surface-muted ui-control-reset"
         :disabled="vm.joint.saving.value || vm.referenceChanging.value || vm.variantActionPending.value"
         @click="clearVariant"
       >
@@ -35,18 +35,21 @@
     </div>
     <aside v-if="current.wings.length" class="variant-wing-list">
       <ImmersiveText text="战机甲板" font="ship-title" />
-      <div class="variant-wing-bays">
+      <div class="variant-wing-bays ui-layout-grid">
         <button
           v-for="wing in current.wings"
           :key="wing.index"
-          class="variant-wing-tile"
+          class="variant-wing-tile ui-button ui-control-center ui-layout-clip ui-control-pointer ui-control-reset"
           :disabled="wing.builtin"
           :aria-label="wing.name + ' · 甲板 ' + (wing.index + 1)"
           @click="openWingPicker(wing.index, $event)"
         >
           <VariantWingIcon v-if="wing.id" :root="vm.joint.currentTarget.value!" :id="wing.id" :size="64" :renderer-size="72" />
-          <ImmersiveText v-else text="+" font="ship-title" />
-          <strong v-if="wing.id && !wing.builtin"><ImmersiveText :text="formatVariantNumber(wing.cost)" font="heading" /></strong>
+          <img class="ui-image" v-else-if="deckIcon" :src="deckIcon" width="64" height="64" alt="空甲板" />
+          <ImmersiveFallbackIcon v-else kind="fighter" :size="64" label="空甲板" />
+          <strong class="variant-wing-tile-value" v-if="wing.id && !wing.builtin"
+            ><ImmersiveText :text="formatVariantNumber(wing.cost)" font="heading"
+          /></strong>
         </button>
       </div>
     </aside>
@@ -77,6 +80,7 @@
       v-if="picker?.kind === 'hullmods'"
       :show="true"
       :mask-closable="false"
+      :mask-props="{ class: 'variant-modal-mask' }"
       :auto-focus="false"
       :close-on-esc="false"
       @update:show="closePicker"
@@ -104,6 +108,7 @@
       v-if="groupsOpen"
       :show="true"
       :mask-closable="false"
+      :mask-props="{ class: 'variant-modal-mask' }"
       :auto-focus="false"
       :close-on-esc="false"
       class="variant-groups-modal"
@@ -134,6 +139,9 @@ import VariantRefitStats from './VariantRefitStats.vue';
 import VariantWingIcon from './VariantWingIcon.vue';
 import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
 import type { ImmersiveRenderContext } from '../immersive-render-context';
+import ImmersiveFallbackIcon from '../ImmersiveFallbackIcon.vue';
+import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
+import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = defineProps<{ panel: VariantPanel; render: ImmersiveRenderContext; vm: ReturnType<typeof useImmersiveVariantEditor> }>();
 for (const kind of ['weapons', 'wings', 'hullmods'] as const) {
   useVariantCatalog(
@@ -151,6 +159,18 @@ const selectedKey = ref(''),
   groupsOpen = ref(false);
 const current = computed(
   () => props.panel.variants.find((variant) => variant.key === selectedKey.value) ?? props.panel.variants[0] ?? null,
+);
+const deckMedia = useResourceMediaRegistry({ surface: '空甲板', onError: useAppFeedback().error, onFailures: () => undefined });
+const deckRef = computed(() => props.vm.displaySnapshot.value?.referenceSettings.resources.fighterButtonBlank);
+const deckIcon = computed(() =>
+  deckRef.value ? (deckMedia.dataUrl(props.vm.joint.currentTarget.value!.sessionId, deckRef.value) ?? '') : '',
+);
+watch(
+  () => [props.vm.joint.currentTarget.value!.sessionId, current.value?.wings.some((wing) => !wing.id) ? deckRef.value : undefined] as const,
+  ([session, resource]) => {
+    void deckMedia.replaceCollection(session, 'empty-decks', resource ? [resource] : []);
+  },
+  { immediate: true },
 );
 const moduleOptions = computed(() =>
   props.panel.variants.map((variant, index) => ({ label: (index ? '模块 · ' : '主舰 · ') + variant.name, value: variant.key })),

@@ -2,9 +2,9 @@ import { computed, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue'
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { completeConfigSave } from '@/orchestrators/config-save.orchestrator';
-import { retryPendingWritesForMod } from '@/orchestrators/project-session-refresh.orchestrator';
+import { retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
 import type { WriteResult } from '@/shared/types';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
 
@@ -29,7 +29,7 @@ export function useConfigListSelection(options: {
   const feedback = useAppFeedback();
   const commands = useSaveCommandStore();
   const drafts = useDraftSessionsStore();
-  const sync = useWriteSyncStore();
+  const sync = useProjectSyncStore();
   const handoff = shallowRef<ListHandoff | null>(null);
   let ids: string[] = [];
   let disposed = false;
@@ -71,7 +71,7 @@ export function useConfigListSelection(options: {
     const saving = commands.waitForSaves(modRoot);
     if (saving && !(await saving)) return false;
     if (disposed || captured !== key.value || !commands.isTransitionCurrent(sequence)) return false;
-    await retryPendingWritesForMod(modRoot);
+    await retryPendingModSyncs(modRoot);
     await acceptHandoff();
     const capturedId = selectedId.value;
     const current = () => !disposed && captured === key.value && capturedId === selectedId.value && commands.isTransitionCurrent(sequence);
@@ -226,7 +226,7 @@ export function useConfigListSelection(options: {
       waitForSave: async () => {
         if (operation) return operation;
         try {
-          await retryPendingWritesForMod(options.modRoot.value!);
+          await retryPendingModSyncs(options.modRoot.value!);
           await acceptHandoff();
           return handoff.value === null;
         } catch (error) {

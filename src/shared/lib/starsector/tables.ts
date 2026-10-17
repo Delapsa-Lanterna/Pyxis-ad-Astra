@@ -1,6 +1,6 @@
-import type { TableKey } from '@/shared/types';
+import type { CsvTableKey } from '@/shared/types';
 
-export const TABLE_COLUMNS: Record<TableKey, string[]> = {
+export const TABLE_COLUMNS: Record<CsvTableKey, string[]> = {
   ships: [
     'name',
     'id',
@@ -123,7 +123,7 @@ export const TABLE_COLUMNS: Record<TableKey, string[]> = {
   descriptions: ['id', 'type', 'text1', 'text2', 'text3', 'text4', 'text5', 'notes'],
 };
 
-export const MODULE_LABELS: Record<TableKey, string> = {
+export const MODULE_LABELS: Record<CsvTableKey, string> = {
   ships: '舰船',
   weapons: '武器',
   wings: '联队',
@@ -140,7 +140,7 @@ export const MODULE_LABELS: Record<TableKey, string> = {
   descriptions: '描述文本',
 };
 
-export function getColumns(tab: TableKey, headers: string[]): string[] {
+export function getColumns(tab: CsvTableKey, headers: string[]): string[] {
   const priority = TABLE_COLUMNS[tab] || [];
   const seen = new Set<string>();
   const result: string[] = [];

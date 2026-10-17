@@ -1,6 +1,7 @@
 import { singleFileByRel } from '../../shared/files.mjs';
 
 const SECTION_ORDER = ['定义', '参考', '边界', '链路', '规范', '陷阱'];
+const REFERENCE_GROUPS = ['拥有', '消费', '装配', '关联'];
 /** @type {Record<string, number>} */
 const MIN_SECTION_LINES = { 参考: 3, 边界: 5, 规范: 5, 陷阱: 3 };
 const MAX_DOC_LINES = 300;
@@ -20,6 +21,7 @@ export const docsModuleMapRule = {
 
     const indexed = readModuleIndex(moduleMap, failures);
     const paths = moduleMap.repositoryPaths;
+    const shared = readSharedPaths(moduleMap, paths, failures);
     const onDisk = [...paths].filter((rel) => rel.startsWith(MODULE_DIRECTORY) && rel !== MODULE_DIRECTORY);
     for (const rel of onDisk) {
       if (!MODULE_NAME.test(rel.slice(MODULE_DIRECTORY.length))) {
@@ -32,9 +34,81 @@ export const docsModuleMapRule = {
     for (const file of files.filter((file) => file.rel.startsWith(MODULE_DIRECTORY) && file.rel.endsWith('.md'))) {
       failures.push(...checkDocStructure(file, indexed.get(file.rel)?.title, paths));
     }
+    const owners = new Map();
+    for (const file of files.filter((file) => file.rel.startsWith(MODULE_DIRECTORY) && file.rel.endsWith('.md'))) {
+      let section = '',
+        group = '';
+      for (const [line, text] of file.text.split(/\r?\n/).entries()) {
+        if (/\bcss\b/i.test(text)) failures.push(`${file.rel}:${line + 1}: module documents must not contain CSS references or rules`);
+        if (text.startsWith('## ')) {
+          section = text.slice(3);
+          group = '';
+        }
+        if (section !== '参考') continue;
+        if (text.startsWith('### ')) group = text.slice(4);
+        const match = /^- `([^`]+)`：/.exec(text);
+        if (group !== '拥有' || !match) continue;
+        const target = match[1].replace(/\/$/, '');
+        for (const candidate of paths) {
+          const path = candidate.replace(/\/$/, '');
+          if (path !== target && !path.startsWith(target + '/')) continue;
+          if (shared.has(path)) {
+            failures.push(`${file.rel}:${line + 1}: public file ${path} cannot have module ownership`);
+            continue;
+          }
+          const previous = owners.get(path);
+          if (previous && previous !== file.rel) failures.push(`${file.rel}:${line + 1}: ownership of ${path} conflicts with ${previous}`);
+          owners.set(path, file.rel);
+        }
+      }
+    }
+    for (const [path, owner] of owners) {
+      const paired = /\.spec\.[cm]?[jt]sx?$/.test(path)
+        ? [path.replace(/\.spec(\.[cm]?[jt]sx?)$/, '$1'), path.replace(/\.spec\.[cm]?[jt]sx?$/, '.vue')]
+        : /_tests?\.rs$/.test(path)
+          ? [path.replace(/_tests?\.rs$/, '.rs')]
+          : [];
+      for (const source of paired)
+        if (owners.has(source) && owners.get(source) !== owner)
+          failures.push(`${path}:1: test ownership conflicts with ${source} in ${owners.get(source)}`);
+    }
     return failures;
   },
 };
+
+/** @param {import('../../shared/files.mjs').RepoFile} map @param {ReadonlySet<string>} paths @param {string[]} failures */
+function readSharedPaths(map, paths, failures) {
+  const shared = new Set([...paths].filter((path) => /(?:^|\/)shared\//.test(path)));
+  let section = '',
+    previous = '';
+  for (const [index, line] of map.text.split(/\r?\n/).entries()) {
+    if (line.startsWith('## ')) section = line.slice(3);
+    if (section !== '公共文件' || !line || line.startsWith('## ')) continue;
+    const match = /^- `([^`]+)`：(\S.*)$/.exec(line);
+    if (
+      !match ||
+      /[\\:*?"<>|]/.test(match[1]) ||
+      match[1].split('/').some((part, i, all) => (!part && i !== all.length - 1) || part === '.' || part === '..')
+    ) {
+      failures.push(`${map.rel}:${index + 1}: public files require a literal path and responsibility`);
+      continue;
+    }
+    const target = match[1].replace(/\/$/, '');
+    if (!paths.has(target) && !paths.has(target + '/')) failures.push(`${map.rel}:${index + 1}: public path does not exist: ${target}`);
+    if (previous && previous >= target) failures.push(`${map.rel}:${index + 1}: public paths must be unique and sorted`);
+    previous = target;
+    for (const path of paths) if (path === target || path.startsWith(target + '/')) shared.add(path.replace(/\/$/, ''));
+  }
+  for (const path of paths) {
+    const paired = /\.spec\.[cm]?[jt]sx?$/.test(path)
+      ? [path.replace(/\.spec(\.[cm]?[jt]sx?)$/, '$1'), path.replace(/\.spec\.[cm]?[jt]sx?$/, '.vue')]
+      : /_tests?\.rs$/.test(path)
+        ? [path.replace(/_tests?\.rs$/, '.rs')]
+        : [];
+    if (paired.some((source) => shared.has(source))) shared.add(path);
+  }
+  return shared;
+}
 
 /** @param {import('../../shared/files.mjs').RepoFile} file @param {string[]} failures @returns {Map<string, {title: string, line: number}>} */
 function readModuleIndex(file, failures) {
@@ -118,14 +192,15 @@ function checkDocStructure(file, title, paths) {
     if (lines[index - 1] !== '' || lines[index + 1] !== '') report(index, 'H2 must have one blank line before and after');
     if (section < headings.length - 1 && lines[end - 1] !== '') report(end, 'H2 must have one blank line before');
     const body = lines.slice(index + 2, section < headings.length - 1 ? end - 1 : end);
-    if (name === '链路') checkChains(body, index + 2, report);
-    else checkFlatSection(name, body, index + 2, paths, report);
+    if (name === '参考') checkReferences(body, index + 2, paths, report);
+    else if (name === '链路') checkChains(body, index + 2, report);
+    else checkFlatSection(name, body, index + 2, report);
   }
   return failures;
 }
 
-/** @param {string} name @param {string[]} body @param {number} start @param {ReadonlySet<string>} paths @param {(index: number, message: string) => void} report */
-function checkFlatSection(name, body, start, paths, report) {
+/** @param {string} name @param {string[]} body @param {number} start @param {(index: number, message: string) => void} report */
+function checkFlatSection(name, body, start, report) {
   if (name === '定义') {
     if (body.length !== 1 || !plainLine(body[0])) report(start, '定义 must contain exactly one plain text line');
     return;
@@ -133,40 +208,69 @@ function checkFlatSection(name, body, start, paths, report) {
   const min = MIN_SECTION_LINES[name];
   if (body.filter(Boolean).length < min) report(start, `${name} must contain at least ${min} entries`);
   let previous = null;
+  for (let index = 0; index < body.length; index++) {
+    const line = body[index];
+    if (!/^- \S.*$/.test(line) || !plainLine(line.slice(2))) {
+      report(start + index, `${name} must contain only a compact - unordered list`);
+      continue;
+    }
+    const key = line.slice(2).replace(/`/g, '');
+    if (previous !== null && previous >= key) report(start + index, `${name} entries must be unique and in dictionary order`);
+    previous = key;
+  }
+}
+
+/** @param {string[]} body @param {number} start @param {ReadonlySet<string>} paths @param {(index: number, message: string) => void} report */
+function checkReferences(body, start, paths, report) {
+  let group = -1,
+    count = 0,
+    entries = 0;
+  /** @type {string | null} */
+  let previous = null;
   const references = new Set();
   for (let index = 0; index < body.length; index++) {
     const line = body[index];
-    if (name === '参考') {
-      const match = /^`([^`]+)`：(\S.*)$/.exec(line);
-      if (!match || !plainLine(match[2])) {
-        report(start + index, '参考 must contain compact `directory/file`：remark lines');
-        continue;
-      }
-      const path = match[1];
-      const parts = path.replace(/\/$/, '').split('/');
-      if (
-        path !== path.trim() ||
-        /[\\:*?"<>|]/.test(path) ||
-        [...path].some((character) => character.charCodeAt(0) < 32) ||
-        parts.some((part) => !part || part === '.' || part === '..')
-      ) {
-        report(start + index, 'reference must use one literal repository-relative file or directory path');
-      } else if (!paths.has(path) && !paths.has(path + '/')) report(start + index, `reference path does not exist: ${path}`);
-      const identity = path.replace(/\/$/, '');
-      if (references.has(identity)) report(start + index, '参考 paths must be unique');
-      references.add(identity);
-      if (previous !== null && previous > path) report(start + index, '参考 paths must be in dictionary order');
-      previous = path;
-    } else {
-      if (!/^- \S.*$/.test(line) || !plainLine(line.slice(2))) {
-        report(start + index, `${name} must contain only a compact - unordered list`);
-        continue;
-      }
-      const key = line.slice(2).replace(/`/g, '');
-      if (previous !== null && previous >= key) report(start + index, `${name} entries must be unique and in dictionary order`);
-      previous = key;
+    if (line.startsWith('### ')) {
+      const next = REFERENCE_GROUPS.indexOf(line.slice(4));
+      if (next < 0 || next <= group) report(start + index, 'reference H3 must be unique and ordered: 拥有、消费、装配、关联');
+      if (group >= 0 && !count) report(start + index, 'each reference H3 must have a nonempty compact list');
+      if (index && body[index - 1] !== '') report(start + index, 'reference H3 must have one blank line before');
+      if (body[index + 1] !== '') report(start + index, 'reference H3 must have one blank line after');
+      group = next;
+      count = 0;
+      previous = null;
+      continue;
     }
+    if (line === '') {
+      if (!body[index - 1]?.startsWith('### ') && !body[index + 1]?.startsWith('### '))
+        report(start + index, 'reference lists must be compact');
+      continue;
+    }
+    const match = /^- `([^`]+)`：(\S.*)$/.exec(line);
+    if (group < 0 || !match || !plainLine(match[2])) {
+      report(start + index, '参考 must contain H3 groups and compact - `path`：remark entries');
+      continue;
+    }
+    count++;
+    entries++;
+    const path = match[1],
+      identity = path.replace(/\/$/, '');
+    const parts = identity.split('/');
+    if (
+      path !== path.trim() ||
+      /[\\:*?"<>|]/.test(path) ||
+      [...path].some((character) => character.charCodeAt(0) < 32) ||
+      parts.some((part) => !part || part === '.' || part === '..')
+    )
+      report(start + index, 'reference must use one literal repository-relative file or directory path');
+    else if (!paths.has(path) && !paths.has(path + '/')) report(start + index, `reference path does not exist: ${path}`);
+    if (references.has(identity)) report(start + index, '参考 paths must be unique across groups');
+    references.add(identity);
+    if (previous !== null && previous >= path) report(start + index, 'reference group paths must be unique and in dictionary order');
+    previous = path;
   }
+  if (!count) report(start, 'each reference H3 must have a nonempty compact list');
+  if (entries < MIN_SECTION_LINES.参考) report(start, `参考 must contain at least ${MIN_SECTION_LINES.参考} entries`);
 }
 
 /** @param {string[]} body @param {number} start @param {(index: number, message: string) => void} report */

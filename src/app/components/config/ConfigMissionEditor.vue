@@ -1,14 +1,14 @@
 <template>
-  <main v-if="schema" class="mission-editor" :inert="actionsLocked || handoffLocked">
+  <main v-if="schema" class="mission-editor ui-content-column ui-content-surface-muted" :inert="actionsLocked || handoffLocked">
     <ConfigTargetNotice
       label="战役"
       :deleted-target="deletedTarget"
       :actions-locked="actionsLocked"
       :discard-deleted-target="discardDeletedTarget"
     />
-    <header class="mission-editor-header">
-      <h3>{{ editingMissionId || missionId }}</h3>
-      <div class="config-editor-actions">
+    <header class="mission-editor-header ui-control-between ui-content-surface">
+      <h3 class="mission-editor-header-title ui-text-reset">{{ editingMissionId || missionId }}</h3>
+      <div class="config-editor-actions ui-layout-row ui-layout-center">
         <n-button v-if="hasPendingExternalData" size="small" secondary type="warning" @click="loadPendingExternalData">
           载入外部版本
         </n-button>
@@ -16,10 +16,12 @@
         <n-button type="primary" size="small" :loading="saving" @click="save">保存</n-button>
       </div>
     </header>
-    <div v-if="externalUpdateNotice" class="config-external-update-note">{{ externalUpdateNotice }}</div>
-    <div class="mission-editor-body">
-      <div v-if="iconSrc" class="mission-icon-preview">
-        <img :src="iconSrc" alt="" />
+    <div v-if="externalUpdateNotice" class="config-external-update-note ui-text-small ui-layout-row ui-layout-center">
+      {{ externalUpdateNotice }}
+    </div>
+    <div class="mission-editor-body ui-layout-grid">
+      <div v-if="iconSrc" class="mission-icon-preview ui-layout-clip ui-control-border">
+        <img class="ui-image mission-icon-preview-image ui-canvas-image" :src="iconSrc" alt="" />
       </div>
       <SchemaFormRenderer :schema="schema" v-model="draftData" :runtime-context="schemaRuntimeContext" />
     </div>

@@ -1,6 +1,7 @@
 import type { AppFeedback } from '@/shared/types';
 import { replayNextFileRedo, replayNextFileUndo } from '@/orchestrators/file-history-replay.orchestrator';
 import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
 import { useTablesStore } from '@/stores/tables.store';
 
@@ -9,7 +10,8 @@ export async function dispatchMainUndoCommand(feedback: AppFeedback) {
   if (tables.currentTableLocked) return;
   const currentTableCsvHistory = useTablesEditHistoryStore();
   const project = useProjectStore();
-  const modRoot = project.activeModRoot;
+  const workspace = useWorkspaceStore();
+  const modRoot = workspace.activeModRoot;
   const currentTable = tables.currentTab;
 
   if (modRoot && currentTableCsvHistory.canUndoCsvEdit(modRoot, currentTable)) {
@@ -27,7 +29,8 @@ export async function dispatchMainRedoCommand(feedback: AppFeedback) {
   if (tables.currentTableLocked) return;
   const currentTableCsvHistory = useTablesEditHistoryStore();
   const project = useProjectStore();
-  const modRoot = project.activeModRoot;
+  const workspace = useWorkspaceStore();
+  const modRoot = workspace.activeModRoot;
   const currentTable = tables.currentTab;
 
   if (modRoot && currentTableCsvHistory.canRedoCsvEdit(modRoot, currentTable)) {

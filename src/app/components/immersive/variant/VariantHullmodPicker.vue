@@ -1,7 +1,7 @@
 <template>
   <div
     ref="surface"
-    class="variant-hullmod-dialog"
+    class="variant-hullmod-dialog ui-text-reset"
     role="dialog"
     aria-modal="true"
     aria-label="调整插件"
@@ -12,11 +12,12 @@
   >
     <section
       ref="table"
-      class="variant-hullmod-table"
+      class="variant-hullmod-table ui-layout-row ui-layout-stack"
       :style="{ '--hullmod-columns': columnWidths.map((value) => value + 'px').join(' ') }"
     >
-      <header class="variant-hullmod-columns">
+      <header class="variant-hullmod-columns ui-layout-grid ui-layout-center">
         <button
+          class="ui-button variant-hullmod-columns-button ui-control-center ui-control-pointer ui-control-reset ui-control-border"
           v-for="column in columns"
           :key="column.key"
           :aria-label="column.label + '排序'"
@@ -33,7 +34,7 @@
           />
         </button>
       </header>
-      <div ref="list" class="variant-hullmod-list" :style="{ height: listHeight + 'px' }" @scroll="scroll">
+      <div ref="list" class="variant-hullmod-list ui-control-border" :style="{ height: listHeight + 'px' }" @scroll="scroll">
         <ImmersiveText v-if="loading" text="正在读取插件目录" />
         <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
         <template v-else>
@@ -42,7 +43,7 @@
             v-for="entry in viewport.visibleItems.value"
             :key="entry.id"
             :data-entry-id="entry.id"
-            class="variant-hullmod-row"
+            class="variant-hullmod-row ui-button ui-control-button ui-layout-grid ui-layout-center ui-layout-stretch ui-control-reset"
             :class="{
               installed: Boolean(installed(entry.id)),
               unavailable: installed(entry.id)?.category === 'builtin' || Boolean(state(entry).diagnostic),
@@ -54,27 +55,29 @@
             @focus="showDetails(entry)"
             @click="choose(entry.id)"
           >
-            <span class="variant-hullmod-name" :title="entry.label" :style="{ color: state(entry).color }"
+            <span
+              class="variant-hullmod-name variant-hullmod-row-label ui-control-row ui-layout-clip"
+              :title="entry.label"
+              :style="{ color: state(entry).color }"
               ><span :ref="visible.mediaRef('icon/' + entry.id, entry.resourceRefs.icon)" class="variant-hullmod-icon"
-                ><ResourceThumbnail
-                  v-if="entry.resourceRefs.icon"
+                ><ImmersiveHullmodIcon
                   :session-id="root.sessionId"
                   :resource="entry.resourceRefs.icon"
                   :url="visible.mediaSrc(entry.resourceRefs.icon)"
                   :active="visible.mediaVisible('icon/' + entry.id)"
                   :label="entry.label"
-                  :width="32"
-                  :height="32" /><span
-                  v-else
-                  class="variant-hullmod-image-placeholder"
-                  :title="entry.resourceRefs.icon ? '正在读取图片' : '插件图片来源缺失'" /></span
+                  :size="32" /></span
               ><ImmersiveText :text="abbreviate(entry.label, columnWidths[0]! - 56)" ink-aligned outlined
             /></span>
-            <span class="variant-hullmod-design" :style="{ color: designTypeColor(reference, hullmodDesign(entry)) }"
+            <span
+              class="variant-hullmod-design variant-hullmod-row-label ui-control-row ui-layout-clip"
+              :style="{ color: designTypeColor(reference, hullmodDesign(entry)) }"
               ><ImmersiveText :text="abbreviate(hullmodDesign(entry), columnWidths[1]! - 6)" ink-aligned outlined
             /></span>
-            <span :style="{ color: state(entry).costColor }"><ImmersiveText :text="state(entry).costText" ink-aligned outlined /></span>
-            <span
+            <span class="variant-hullmod-row-label ui-control-row ui-layout-clip" :style="{ color: state(entry).costColor }"
+              ><ImmersiveText :text="state(entry).costText" ink-aligned outlined
+            /></span>
+            <span class="variant-hullmod-row-label ui-control-row ui-layout-clip"
               ><ImmersiveResourceIcon
                 v-if="installed(entry.id)"
                 :source="uiImages[state(entry).iconKey] || ''"
@@ -96,11 +99,13 @@
           :total="availableEntries.length"
         /><ImmersiveFilterGroup v-model="tags" :options="tagOptions" label="全部类型" :total="availableEntries.length" />
       </div>
-      <div ref="auxiliary" class="variant-hullmod-auxiliary">
+      <div ref="auxiliary" class="variant-hullmod-auxiliary ui-layout-row ui-layout-stack">
         <n-input v-model:value="search" placeholder="搜索 ID／名称" clearable />
         <details @toggle="measure">
-          <summary class="immersive-disclosure-summary"><ImmersiveText text="来源与安装选项" font="caption" ink-aligned /></summary>
-          <div class="variant-hullmod-extra">
+          <summary class="immersive-disclosure-summary ui-layout-row ui-layout-center ui-control-pointer">
+            <ImmersiveText text="来源与安装选项" font="caption" ink-aligned />
+          </summary>
+          <div class="variant-hullmod-extra ui-layout-grid">
             <n-select v-model:value="origin" :options="origins" /><n-select v-model:value="category" :options="categories" /><n-input
               v-model:value="manualId"
               placeholder="手动填写 ID"
@@ -137,7 +142,7 @@ import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/us
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
-import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
+import ImmersiveHullmodIcon from './ImmersiveHullmodIcon.vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useFontMeasurement } from '@/app/composables/use-original-fonts';
@@ -209,6 +214,7 @@ const visible = useVisibleResourceMedia({
   sessionId: () => props.root.sessionId,
   surface: '插件选择列表',
   failureLabel: '插件图片读取失败',
+  onFailures: () => undefined,
 });
 const feedback = useAppFeedback(),
   inputs = useFieldInputs()!,

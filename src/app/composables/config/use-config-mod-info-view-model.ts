@@ -1,7 +1,8 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { computed, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { completeConfigSave, saveModInfoAction } from '@/orchestrators/config-save.orchestrator';
 import { deepClone } from '@/shared/lib/starsector';
 import type { FileSchema } from '@/domain/schema/schema.types';
@@ -16,13 +17,14 @@ type ModInfoTarget = Pick<ProjectManifest, 'modRoot' | 'sessionId'>;
 
 export function useConfigModInfoViewModel() {
   const project = useProjectStore();
+  const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
   const { getMergedSchema } = useCoreSchema();
-  const schemaRuntimeContext = useSchemaRuntimeContext(() => project.activeManifest);
+  const schemaRuntimeContext = useSchemaRuntimeContext(() => workspace.activeManifest);
   const draftSession = useConfigEditorDraftSession<RowData, ModInfoTarget, import('@/shared/types').WriteResult | null>({
     emptyValue: {},
     receiptOf: (meta) => meta,
-    modRoot: computed(() => project.activeManifest?.modRoot ?? null),
+    modRoot: computed(() => workspace.activeManifest?.modRoot ?? null),
     load: (target) => {
       const manifest = project.getManifest(target.modRoot)!;
       return {
@@ -52,7 +54,7 @@ export function useConfigModInfoViewModel() {
   let pendingSaveSchema: FileSchema | null = null;
 
   watch(
-    () => project.activeManifest,
+    () => workspace.activeManifest,
     (manifest) => {
       if (!manifest) {
         draftSession.clearTarget();
@@ -71,7 +73,7 @@ export function useConfigModInfoViewModel() {
       await draftSession.waitForSave();
       return;
     }
-    const manifest = project.activeManifest;
+    const manifest = workspace.activeManifest;
     if (!manifest || !schema) return;
     pendingSaveSchema = schema;
     try {
@@ -87,9 +89,9 @@ export function useConfigModInfoViewModel() {
 
   useContextMenuScope({
     identity: () => draftSession.currentTargetKey.value ?? '',
-    canRefresh: () => Boolean(project.activeManifest),
+    canRefresh: () => Boolean(workspace.activeManifest),
     refresh: () => {
-      const manifest = project.activeManifest!;
+      const manifest = workspace.activeManifest!;
       return refreshProjectSourcePaths(
         manifest.sessionId,
         manifest.modRoot,

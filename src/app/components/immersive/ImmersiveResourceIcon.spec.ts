@@ -1,19 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import ImmersiveResourceIcon from './ImmersiveResourceIcon.vue';
+import locked from '@/assets/immersive/controls/checkmark-locked.svg?raw';
+import unlocked from '@/assets/immersive/controls/checkmark-unlocked.svg?raw';
 
 describe('tinted resource presentation', () => {
-  it.each(['checkmark', 'checkmark_locked', 'checkmark_unlocked', 'sortIcon'])(
+  it('keeps the same outer lock body for both states', () => {
+    const body = (svg: string) =>
+      new DOMParser().parseFromString(svg, 'image/svg+xml').querySelector('path')!.getAttribute('d')!.split('Z')[0];
+    expect(body(locked)).toBe(body(unlocked));
+  });
+  it.each(['checkmark', 'checkmark_locked', 'checkmark_unlocked', 'sortIcon', 'icon_more_info'])(
     'draws %s locally until media is available',
     async (fallback) => {
       const own = mount(ImmersiveResourceIcon, { props: { source: '', color: '#aadeff', size: 20, label: 'Status', fallback } });
       const element = own.element;
-      expect(own.find('svg path').attributes('d')).toBeTruthy();
+      const fallbackStyle = own.attributes('style');
+      expect(fallbackStyle).toContain('data:image/svg+xml');
       await own.setProps({ source: 'ready.png' });
-      expect(own.find('svg').exists()).toBe(false);
       expect(own.attributes('style')).toContain('ready.png');
       await own.setProps({ source: '' });
-      expect(own.find('svg path').exists()).toBe(true);
+      expect(own.attributes('style')).toBe(fallbackStyle);
       expect(own.element).toBe(element);
       own.unmount();
     },

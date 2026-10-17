@@ -1,12 +1,16 @@
 <template>
   <div class="wing-immersive-panel">
-    <div class="immersive-title-row"><ImmersivePanelRow :stat="panel.heading[0]!" :render="render" /></div>
+    <div class="immersive-title-row ui-layout-row"><ImmersivePanelRow :stat="panel.heading[0]!" :render="render" /></div>
     <ImmersivePanelRow :stat="panel.heading[1]!" :render="render" />
     <div class="ship-immersive-description"><ImmersivePanelRow :stat="description" :render="render" /></div>
     <section>
       <ImmersiveSection title="技术数据" />
-      <div class="weapon-immersive-data">
-        <div class="variant-wing-icon" :style="{ width: '80px', height: '80px' }" :title="layout.diagnostic">
+      <div class="weapon-immersive-data ui-layout-grid">
+        <div
+          class="variant-wing-icon weapon-immersive-data-content ui-layout-shrink ui-layout-clip"
+          :style="{ width: '80px', height: '80px' }"
+          :title="layout.diagnostic"
+        >
           <ImmersiveHullScene
             v-if="panel.preview && !layout.diagnostic"
             :variant="panel.preview"
@@ -15,20 +19,26 @@
             :wing-layout="layout"
           />
         </div>
-        <div><ImmersivePanelRow v-for="stat in panel.technical" :key="stat.id" :stat="stat" :render="render" /></div>
+        <div class="weapon-immersive-data-content ui-layout-shrink">
+          <ImmersivePanelRow v-for="stat in panel.technical" :key="stat.id" :stat="stat" :render="render" />
+        </div>
       </div>
     </section>
     <section class="ship-immersive-related">
       <ImmersivePanelRow :stat="panel.system" :render="render" />
-      <p><ImmersiveText :runs="panel.systemRuns" block /></p>
-      <div class="immersive-related-row">
+      <p class="ship-immersive-related-description ui-text-soft"><ImmersiveText :runs="panel.systemRuns" block /></p>
+      <div class="immersive-related-row ui-layout-grid">
         <span><ImmersiveText text="武装" /></span
-        ><strong><ImmersiveText :text="panel.armaments" :runs="panel.armamentRuns.length ? panel.armamentRuns : undefined" /></strong>
+        ><strong class="immersive-related-row-value ui-text-normal"
+          ><ImmersiveText :text="panel.armaments" :runs="panel.armamentRuns.length ? panel.armamentRuns : undefined"
+        /></strong>
       </div>
     </section>
     <section>
       <ImmersiveSection title="来源与补全" />
-      <p class="immersive-source-note"><ImmersiveText :text="'联队 ID：' + render.root.id" block /></p>
+      <p class="immersive-source-note ui-text-muted ui-text-wrap ui-text-reset">
+        <ImmersiveText :text="'联队 ID：' + render.root.id" block />
+      </p>
       <ImmersivePanelRow v-for="stat in panel.sources" :key="stat.id" :stat="stat" :render="render" />
       <n-button
         v-if="render.mode === 'editable' && panel.defaultDescription"

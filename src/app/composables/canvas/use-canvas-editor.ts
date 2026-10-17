@@ -53,7 +53,7 @@ export function useCanvasEditor<TPreview>(options: {
   const phase = shallowRef<PointerPhase>({ kind: 'idle' });
   const inside = ref(false),
     revealing = ref(false);
-  const navigation = useCanvasNavigation(viewport, hooks.draw);
+  const navigation = useCanvasNavigation(viewport, hooks.draw, 'pointer');
   const selection = useCanvasSelection(state, hooks.targets, hooks.radius);
   const pointerInput = (event: MouseEvent): CanvasInput => ({
     point: { x: event.offsetX, y: event.offsetY },

@@ -2,7 +2,7 @@
   <slot />
   <n-dropdown
     v-if="menu"
-    class="window-context-menu"
+    class="window-context-menu ui-control-border"
     size="small"
     :theme-overrides="menuTheme"
     trigger="manual"
@@ -34,12 +34,3 @@ const menuTheme = computed(() => ({
   peers: { Popover: { boxShadow: 'none' } },
 }));
 </script>
-<style scoped>
-:global(.window-context-menu) {
-  min-width: 160px;
-  border: 1px solid var(--color-border);
-}
-:global(.window-context-menu .context-menu-danger) {
-  color: var(--color-danger) !important;
-}
-</style>

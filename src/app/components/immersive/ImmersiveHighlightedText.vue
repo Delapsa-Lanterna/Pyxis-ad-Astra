@@ -1,5 +1,5 @@
 <template>
-  <p class="immersive-custom-text">
+  <p class="immersive-custom-text ui-text-normal ui-text-wrap">
     <ImmersiveText :runs="parts.map((part) => ({ text: part.text, color: part.highlight ? '#ffd200' : undefined }))" block />
   </p>
 </template>

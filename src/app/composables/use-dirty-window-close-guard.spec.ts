@@ -1,257 +1,147 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { h, ref, type Ref } from 'vue';
-import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
-import JsonValueInput from '@/shared/ui/JsonValueInput.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
-
-const mocks = vi.hoisted(() => {
-  let closeRequestHandler: ((event: { preventDefault: () => void }) => void | Promise<void>) | null = null;
-  return {
-    destroyCurrentWindow: vi.fn(async () => {}),
-    closeRequestHandler: {
-      get: () => closeRequestHandler,
-      set: (handler: ((event: { preventDefault: () => void }) => void | Promise<void>) | null) => {
-        closeRequestHandler = handler;
-      },
-    },
-    listenCurrentWindowCloseRequest: vi.fn(async (handler: (event: { preventDefault: () => void }) => void | Promise<void>) => {
-      closeRequestHandler = handler;
-      return () => {
-        closeRequestHandler = null;
-      };
-    }),
-    feedback: {
-      success: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-      error: vi.fn(),
-      confirmDanger: vi.fn(),
-      confirmWarning: vi.fn(),
-      choose: vi.fn(async () => null as string | null),
-    },
-  };
-});
-
+import { mount, flushPromises } from '@vue/test-utils';
+import { ref } from 'vue';
+import type { WindowCloseIntent, CloseResult } from '@/shared/types';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+const api = vi.hoisted(() => ({
+  listener: vi.fn(),
+  native: vi.fn(),
+  reply: vi.fn(),
+  ready: vi.fn(),
+  choose: vi.fn(),
+  error: vi.fn(),
+  prepare: vi.fn(),
+  resume: vi.fn(),
+  close: vi.fn(),
+  flush: vi.fn(),
+}));
 vi.mock('@/windows/current.window', () => ({
-  currentWindowLabel: () => 'managed-1',
-  destroyCurrentWindow: mocks.destroyCurrentWindow,
-  listenCurrentWindowCloseRequest: mocks.listenCurrentWindowCloseRequest,
+  listenCurrentWindowCloseRequest: async (handler: (...args: unknown[]) => unknown) => {
+    api.close.mockImplementation(handler);
+    return vi.fn();
+  },
+}));
+vi.mock('@/windows/tauri.events', () => ({
+  listenWindowEvent: async (_event: string, handler: (intent: WindowCloseIntent) => unknown) => {
+    api.listener.mockImplementation(handler);
+    return vi.fn();
+  },
 }));
 vi.mock('@/services/window.service', () => ({
   updateNativeWindowStatus: vi.fn(async () => {}),
-  cancelNativeWindowClose: vi.fn(async () => {}),
 }));
-vi.mock('@/windows/tauri.events', () => ({ listenWindowEvent: vi.fn(async () => () => {}) }));
-
-vi.mock('@/app/composables/use-app-feedback', () => ({
-  useAppFeedback: () => mocks.feedback,
+vi.mock('@/windows/window-context.window', () => ({ settleWindowRequests: async () => {} }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: api.choose, error: api.error }) }));
+vi.mock('./use-window-close-state', () => ({
+  useWindowCloseState: () => ref(false),
+  useWindowLifecycleActions: () => ({
+    requestClose: api.native,
+    replyClose: api.reply,
+    readyClose: api.ready,
+    flushSettings: api.flush,
+    prepareDisplay: () => {
+      api.prepare();
+      return api.resume;
+    },
+  }),
 }));
-
 import { useDirtyWindowCloseGuard } from './use-dirty-window-close-guard';
-import { useSaveCommandStore } from '@/stores/save-command.store';
-
-function mountGuard(dirty: Ref<boolean>) {
+const intent = (phase: WindowCloseIntent['phase']): WindowCloseIntent => ({
+  operationId: 7,
+  phase,
+  scope: { kind: 'window' },
+  onlyIfClean: false,
+});
+async function setup(dirty = ref(false), flushSettings = async () => {}) {
   let guard!: ReturnType<typeof useDirtyWindowCloseGuard>;
-  mount({
+  const wrapper = mount({
     setup() {
-      guard = useDirtyWindowCloseGuard({ content: '未保存', dirty, title: '关闭？' });
+      api.flush.mockImplementation(flushSettings);
+      guard = useDirtyWindowCloseGuard({ dirty, title: 'fixture', content: 'fixture' });
       return () => null;
     },
   });
-  return guard;
+  await guard.install();
+  return { guard, wrapper };
 }
-
-function closeRequest(): { prevented: boolean } {
-  let prevented = false;
-  const handler = mocks.closeRequestHandler.get();
-  if (!handler) return { prevented: false };
-  handler({
-    preventDefault: () => {
-      prevented = true;
-    },
-  });
-  return { prevented };
-}
-
-describe('useDirtyWindowCloseGuard', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia());
-    vi.clearAllMocks();
-    mocks.feedback.choose.mockResolvedValue(null);
-  });
-
-  it('installs the close request listener', async () => {
-    const guard = mountGuard(ref(false));
-    await guard.install();
-    expect(mocks.listenCurrentWindowCloseRequest).toHaveBeenCalledTimes(1);
-    guard.dispose();
-  });
-
-  it('lets the window close when the draft is clean', async () => {
-    const guard = mountGuard(ref(false));
-    await guard.install();
-    const { prevented } = closeRequest();
-    expect(prevented).toBe(false);
-    expect(mocks.feedback.choose).not.toHaveBeenCalled();
-    guard.dispose();
-  });
-
-  it('intercepts the close and asks for confirmation when dirty', async () => {
-    mocks.feedback.choose.mockResolvedValue('discard');
-    const guard = mountGuard(ref(true));
-    await guard.install();
-    const { prevented } = closeRequest();
-    expect(prevented).toBe(true);
-    await vi.waitFor(() => expect(mocks.feedback.choose).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(mocks.destroyCurrentWindow).toHaveBeenCalledTimes(1));
-    guard.dispose();
-  });
-
-  it('keeps the window open when the user cancels the confirmation', async () => {
-    mocks.feedback.choose.mockResolvedValue(null);
-    const guard = mountGuard(ref(true));
-    await guard.install();
-    closeRequest();
-    await vi.waitFor(() => expect(mocks.feedback.choose).toHaveBeenCalledTimes(1));
-    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
-    guard.dispose();
-  });
-
-  it('reports confirmation failures instead of closing silently', async () => {
-    mocks.feedback.choose.mockRejectedValue(new Error('dialog broken'));
-    const guard = mountGuard(ref(true));
-    await guard.install();
-    closeRequest();
-    await vi.waitFor(() => expect(mocks.feedback.error).toHaveBeenCalledTimes(1));
-    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
-    guard.dispose();
-  });
-
-  it('does not reopen the confirmation while one is pending', async () => {
-    let resolveChoice: (value: string | null) => void = () => {};
-    mocks.feedback.choose.mockReturnValue(
-      new Promise<string | null>((resolve) => {
-        resolveChoice = resolve;
-      }),
-    );
-    const guard = mountGuard(ref(true));
-    await guard.install();
-    closeRequest();
-    closeRequest();
-    resolveChoice('discard');
-    await vi.waitFor(() => expect(mocks.destroyCurrentWindow).toHaveBeenCalledTimes(1));
-    expect(mocks.feedback.choose).toHaveBeenCalledTimes(1);
-    guard.dispose();
-  });
-
-  it('ignores close requests after disposal', async () => {
-    mocks.feedback.choose.mockResolvedValue('discard');
-    const guard = mountGuard(ref(true));
-    await guard.install();
-    guard.dispose();
-    const { prevented } = closeRequest();
-    expect(prevented).toBe(false);
-    expect(mocks.feedback.choose).not.toHaveBeenCalled();
-  });
-
-  it.each([true, false])('retries an idle committed synchronization before closing with %s', async (synchronized) => {
-    const pendingSynchronization = ref(true);
-    const waitForSave = vi.fn(async () => {
-      if (synchronized) pendingSynchronization.value = false;
-      return synchronized;
-    });
-    useSaveCommandStore().registerSaveSession({
-      targetKey: ref('one'),
-      modRoot: ref('M:/mod'),
-      saving: ref(false),
-      pendingSynchronization,
-      waitForSave,
-    });
-    const guard = mountGuard(ref(false));
-    await guard.install();
-    expect(closeRequest().prevented).toBe(true);
-    await flushPromises();
-    expect(waitForSave).toHaveBeenCalledOnce();
-    if (synchronized) expect(mocks.destroyCurrentWindow).toHaveBeenCalledOnce();
-    else expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
-    guard.dispose();
-  });
-
-  it.each([true, false])('immediately intercepts close and coalesces requests while save completes with %s', async (saved) => {
-    const dirty = ref(true);
-    const saving = ref(true);
-    let release!: (saved: boolean) => void;
-    const promise = new Promise<boolean>((resolve) => {
-      release = resolve;
-    });
-    useSaveCommandStore().registerSaveSession({ targetKey: ref('one'), modRoot: ref('M:/mod'), saving, waitForSave: () => promise });
-    const guard = mountGuard(dirty);
-    await guard.install();
-    expect(closeRequest().prevented).toBe(true);
-    expect(closeRequest().prevented).toBe(true);
-    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
-    expect(mocks.feedback.choose).not.toHaveBeenCalled();
-    if (saved) dirty.value = false;
-    saving.value = false;
-    release(saved);
-    await flushPromises();
-    if (saved) await vi.waitFor(() => expect(mocks.destroyCurrentWindow).toHaveBeenCalledOnce());
-    else {
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
-      expect(mocks.feedback.choose).not.toHaveBeenCalled();
-      closeRequest();
-      await vi.waitFor(() => expect(mocks.feedback.choose).toHaveBeenCalledOnce());
-    }
-    guard.dispose();
-  });
-
-  it('confirms fresh editing made while the close intent waits for a successful save', async () => {
+beforeEach(() => {
+  setActivePinia(createPinia());
+  vi.clearAllMocks();
+  api.choose.mockResolvedValue('discard');
+  api.reply.mockResolvedValue(undefined);
+  api.resume.mockResolvedValue(undefined);
+});
+describe('window close preparation', () => {
+  it('waits for executing actions and saves before capturing the latest dirty content', async () => {
     const dirty = ref(false),
       saving = ref(true);
-    let release!: (saved: boolean) => void;
-    const promise = new Promise<boolean>((resolve) => {
-      release = resolve;
+    let finish!: () => void;
+    const pending = new Promise<boolean>((resolve) => {
+      finish = () => {
+        saving.value = false;
+        dirty.value = true;
+        resolve(true);
+      };
     });
-    useSaveCommandStore().registerSaveSession({ targetKey: ref('one'), modRoot: ref('M:/mod'), saving, waitForSave: () => promise });
-    const guard = mountGuard(dirty);
-    await guard.install();
-    expect(closeRequest().prevented).toBe(true);
-    dirty.value = true;
-    saving.value = false;
-    release(true);
-    await vi.waitFor(() => expect(mocks.feedback.choose).toHaveBeenCalledOnce());
-    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    useSaveCommandStore().registerSaveSession({ targetKey: ref('a'), modRoot: ref('M:/fixture'), saving, waitForSave: () => pending });
+    const { guard, wrapper } = await setup(dirty);
+    await api.listener(intent('hold'));
+    const settling = api.listener(intent('settle'));
+    await flushPromises();
+    expect(api.choose).toHaveBeenCalledTimes(0);
+    finish();
+    await settling;
+    await api.listener(intent('prepare'));
+    await api.listener(intent('confirm'));
+    expect(api.choose).toHaveBeenCalledOnce();
+    expect(api.reply).toHaveBeenLastCalledWith(7, 'confirm', true, null);
+    await api.listener(intent('resume'));
+    expect(api.resume).toHaveBeenCalledOnce();
     guard.dispose();
+    wrapper.unmount();
   });
-
-  it('guards an unfinished JSON input while the formal draft still equals its baseline', async () => {
-    mocks.feedback.choose.mockResolvedValue(null);
-    let guard!: ReturnType<typeof useDirtyWindowCloseGuard>;
-    const wrapper = mount(
-      {
-        setup() {
-          const session = useEditTargetDraftSession({
-            emptyValue: {},
-            load: () => ({ target: 'one', baseVersions: [], meta: null, value: {} }),
-            targetKey: (key: string) => key,
-          });
-          session.loadBaseForTarget({ target: 'one', value: {}, baseVersions: [], meta: null });
-          guard = useDirtyWindowCloseGuard({ content: '未提交输入', title: '关闭？', dirty: session.dirty });
-          return () =>
-            h(JsonValueInput<'object'>, { value: session.draftValue.value, shape: 'object', label: '规格', onUpdate: session.setDraft });
-        },
-      },
-      { global: { stubs: editorUiStubs } },
+  it.each(['cancel', 'failure'])('delivers %s to the native operation and resumes surviving owners', async (outcome) => {
+    const { guard, wrapper } = await setup(ref(true));
+    if (outcome === 'cancel') api.choose.mockResolvedValue(null);
+    else api.choose.mockRejectedValue(new Error('fixture failure'));
+    for (const phase of ['hold', 'settle', 'prepare', 'confirm'] as const) await api.listener(intent(phase));
+    expect(api.reply).toHaveBeenLastCalledWith(
+      7,
+      'confirm',
+      false,
+      outcome === 'cancel' ? null : expect.objectContaining({ message: 'fixture failure' }),
     );
-    await guard.install();
-    await wrapper.get('textarea').setValue('{');
-    expect(closeRequest().prevented).toBe(true);
-    await vi.waitFor(() => expect(mocks.feedback.choose).toHaveBeenCalledTimes(1));
-    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    await api.listener(intent('resume'));
+    expect(useSaveCommandStore().closePrepared).toBe(false);
+    expect(api.resume).toHaveBeenCalledOnce();
+    guard.dispose();
+    wrapper.unmount();
+  });
+  it('holds a close request until the native result and coalesces repeated requests', async () => {
+    let finish!: (result: CloseResult) => void;
+    api.native.mockImplementation(
+      () =>
+        new Promise<CloseResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { guard, wrapper } = await setup();
+    const pending = guard.requestClose();
+    expect(guard.requestClose()).toBe(pending);
+    expect(api.native).toHaveBeenCalledExactlyOnceWith({ kind: 'window' });
+    finish({ status: 'closed', destroyedWindows: ['managed-1'], releasedSessions: [], diagnostic: null });
+    expect(await pending).toBe(true);
+    guard.dispose();
+    wrapper.unmount();
+  });
+  it('reports a settings failure as a structured flush result', async () => {
+    const { guard, wrapper } = await setup(ref(false), async () => {
+      throw new Error('disk failure');
+    });
+    await api.listener(intent('hold'));
+    await api.listener(intent('flush'));
+    expect(api.reply).toHaveBeenLastCalledWith(7, 'flush', false, expect.objectContaining({ message: 'disk failure' }));
     guard.dispose();
     wrapper.unmount();
   });

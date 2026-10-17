@@ -1,11 +1,11 @@
-import type { SpecEditorKind, TableKey } from '@/shared/types';
+import type { SpecEditorKind, CsvTableKey } from '@/shared/types';
 
 interface AssociatedSpecDefinition {
   kind: 'ship' | 'weapon' | 'system' | 'skill';
   editorKinds: SpecEditorKind[];
 }
 
-const ASSOCIATED_SPEC_DEFINITIONS: Partial<Record<TableKey, AssociatedSpecDefinition>> = {
+const ASSOCIATED_SPEC_DEFINITIONS: Partial<Record<CsvTableKey, AssociatedSpecDefinition>> = {
   ships: {
     kind: 'ship',
     editorKinds: ['ship'],
@@ -24,9 +24,9 @@ const ASSOCIATED_SPEC_DEFINITIONS: Partial<Record<TableKey, AssociatedSpecDefini
   },
 };
 
-export function associatedSpecEditorKinds(table: TableKey): SpecEditorKind[] {
+export function associatedSpecEditorKinds(table: CsvTableKey): SpecEditorKind[] {
   return [...(ASSOCIATED_SPEC_DEFINITIONS[table]?.editorKinds ?? [])];
 }
-export function associatedSpecKind(table: TableKey) {
+export function associatedSpecKind(table: CsvTableKey) {
   return ASSOCIATED_SPEC_DEFINITIONS[table]?.kind ?? null;
 }

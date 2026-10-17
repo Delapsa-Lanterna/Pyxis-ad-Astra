@@ -1,0 +1,6 @@
+.window-runtime {
+  height: 100%;
+}
+body .window-runtime-overlays {
+  display: none;
+}

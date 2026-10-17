@@ -21,7 +21,7 @@ pub enum WindowIdentity {
     },
     Spec {
         session_id: String,
-        kind: super::EditorSpecKind,
+        kind: super::SpecEditorKind,
         mod_root: String,
         id: String,
     },
@@ -43,51 +43,29 @@ pub enum WindowIdentity {
 }
 impl WindowIdentity {
     pub fn comparison_key(&self) -> Self {
+        let mut key = self.clone();
+        match &mut key {
+            Self::File { mod_root, path, .. } => {
+                *mod_root = windows_path_key(mod_root);
+                *path = windows_path_key(path);
+            }
+            Self::Recovery { mod_root, path } => {
+                *mod_root = mod_root.as_deref().map(windows_path_key);
+                *path = windows_path_key(path);
+            }
+            Self::Spec { mod_root, .. }
+            | Self::Immersive { mod_root, .. }
+            | Self::WeaponFirePreview { mod_root, .. } => *mod_root = windows_path_key(mod_root),
+        }
+        key
+    }
+    pub fn mod_root(&self) -> Option<&str> {
         match self {
-            Self::Immersive {
-                session_id,
-                kind,
-                mod_root,
-                id,
-            } => Self::Immersive {
-                session_id: session_id.clone(),
-                kind: *kind,
-                mod_root: windows_path_key(mod_root),
-                id: id.clone(),
-            },
-            Self::Spec {
-                session_id,
-                kind,
-                mod_root,
-                id,
-            } => Self::Spec {
-                session_id: session_id.clone(),
-                kind: *kind,
-                mod_root: windows_path_key(mod_root),
-                id: id.clone(),
-            },
-            Self::WeaponFirePreview {
-                session_id,
-                mod_root,
-                id,
-            } => Self::WeaponFirePreview {
-                session_id: session_id.clone(),
-                mod_root: windows_path_key(mod_root),
-                id: id.clone(),
-            },
-            Self::File {
-                session_id,
-                mod_root,
-                path,
-            } => Self::File {
-                session_id: session_id.clone(),
-                mod_root: windows_path_key(mod_root),
-                path: windows_path_key(path),
-            },
-            Self::Recovery { mod_root, path } => Self::Recovery {
-                mod_root: mod_root.as_deref().map(windows_path_key),
-                path: windows_path_key(path),
-            },
+            Self::Spec { mod_root, .. }
+            | Self::Immersive { mod_root, .. }
+            | Self::WeaponFirePreview { mod_root, .. }
+            | Self::File { mod_root, .. } => Some(mod_root),
+            Self::Recovery { mod_root, .. } => mod_root.as_deref(),
         }
     }
     pub fn session_id(&self) -> Option<&str> {
@@ -218,27 +196,15 @@ pub struct ManagedWindowRequest {
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ManagedWindowOpened {
-    pub label: String,
-    pub request_id: u64,
-    pub reused: bool,
-}
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ManagedWindowContext {
     pub kind: &'static str,
     pub label: String,
     pub revision: u64,
     pub request_id: u64,
+    pub receiver_generation: u64,
     pub identity: WindowIdentity,
     pub title: String,
     pub input: ManagedWindowInput,
-}
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WindowSettingsSnapshot {
-    pub revision: u64,
-    pub value: super::AppSettings,
 }
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -246,7 +212,7 @@ pub enum WindowBootstrap {
     Main,
     Managed {
         context: Box<ManagedWindowContext>,
-        settings: WindowSettingsSnapshot,
+        restoring: bool,
     },
 }
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -269,10 +235,61 @@ pub struct ManagedWindowStatus {
     pub dirty: bool,
     pub saving: bool,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum CloseScope {
+    Window,
+    Sessions { session_ids: Vec<String> },
+    Application,
+}
+impl CloseScope {
+    pub fn overlaps(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Application, _) | (_, Self::Application) => true,
+            (Self::Sessions { session_ids: a }, Self::Sessions { session_ids: b }) => {
+                a.iter().any(|id| b.contains(id))
+            }
+            _ => false,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ClosePhase {
+    Hold,
+    Settle,
+    Prepare,
+    Confirm,
+    Flush,
+    Resume,
+}
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WindowCloseIntent {
-    pub request_id: u64,
-    pub labels: Vec<String>,
+pub struct CloseIntent {
     pub only_if_clean: bool,
+    pub operation_id: u64,
+    pub phase: ClosePhase,
+    pub scope: CloseScope,
+}
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CloseResult {
+    pub status: CloseStatus,
+    pub destroyed_windows: Vec<String>,
+    pub released_sessions: Vec<String>,
+    pub diagnostic: Option<crate::errors::ErrorDiagnostic>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum CloseStatus {
+    Closed,
+    #[default]
+    Cancelled,
+    Failed,
 }

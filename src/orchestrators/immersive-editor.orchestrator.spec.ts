@@ -58,6 +58,7 @@ describe('immersive window structured handoff', () => {
       identity: { type: 'immersive', ...snapshot.root },
       input: { kind: 'immersive-editor', rowKey: 'latest-wing-row' },
       label: 'managed-1',
+      receiverGeneration: 0,
       requestId: 9,
       revision: 12,
       title: '联队',

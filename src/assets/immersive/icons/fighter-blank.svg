@@ -1,0 +1,9 @@
+<svg width="64" height="64" viewBox="0 0 80 80" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" color="rgb(59, 152, 178)">
+  <defs>
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="40" cy="41.25" r="35">
+      <stop stop-color="currentColor" />
+      <stop offset="1" stop-color="currentColor" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <path d="M35 10L45 10L40 16Z" fill="currentColor" />
+</svg>

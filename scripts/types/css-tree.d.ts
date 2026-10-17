@@ -20,6 +20,10 @@ declare module 'css-tree' {
     prelude: SelectorList | { type: 'Raw' };
     block: Block;
   }
+  interface Atrule extends NodeBase {
+    type: 'Atrule';
+    name: string;
+  }
   interface SelectorList extends NodeBase {
     type: 'SelectorList';
     children: List<Selector>;
@@ -45,6 +49,15 @@ declare module 'css-tree' {
     type: 'Identifier';
     name: string;
   }
+  interface ClassSelector extends NodeBase {
+    type: 'ClassSelector';
+    name: string;
+  }
+  interface PseudoClassSelector extends NodeBase {
+    type: 'PseudoClassSelector';
+    name: string;
+    children: List<SelectorList>;
+  }
   interface Dimension extends NodeBase {
     type: 'Dimension';
     value: string;
@@ -53,8 +66,22 @@ declare module 'css-tree' {
   interface OtherNode extends NodeBase {
     type: 'StyleSheet' | 'Raw' | 'Operator' | 'Number' | 'Percentage' | 'Hash' | 'String' | 'Combinator';
   }
-  export type CssNode = Declaration | Rule | SelectorList | Selector | Block | Value | FunctionNode | Identifier | Dimension | OtherNode;
-  export function parse(source: string, options?: { positions?: boolean; parseCustomProperty?: boolean }): CssNode;
+  export type CssNode =
+    | Declaration
+    | Rule
+    | Atrule
+    | SelectorList
+    | Selector
+    | Block
+    | Value
+    | FunctionNode
+    | Identifier
+    | ClassSelector
+    | PseudoClassSelector
+    | Dimension
+    | OtherNode;
+  export function parse(source: string, options: { context: 'selector' }): Selector;
+  export function parse(source: string, options?: { context?: string; positions?: boolean; parseCustomProperty?: boolean }): CssNode;
   export function generate(node: CssNode): string;
   export function walk<T extends CssNode['type']>(
     node: CssNode,

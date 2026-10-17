@@ -40,8 +40,8 @@ vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => ({ error: mocks.error, success: vi.fn(), choose: mocks.choose }),
 }));
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: mocks.listen }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
+  listenEntityIdentityApplied: mocks.listen,
   listenProjectSessionInvalidated: async (
     listener: (event: import('@/windows/window.events').ProjectSessionInvalidatedEvent) => Promise<void>,
   ) => {
@@ -50,13 +50,14 @@ vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({
       mocks.projectUpdates.splice(mocks.projectUpdates.indexOf(listener), 1);
     };
   },
-  publishCommittedWrite: async () => {},
+  completeSavedWrite: async () => {},
 }));
+
 vi.mock('@/orchestrators/immersive-editor.orchestrator', () => ({ retargetImmersiveWindow: mocks.retarget }));
 vi.mock('@/windows/spec-editor.window', () => ({ openSpecProjectileEditorWindow: mocks.openProjectile }));
-vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: vi.fn() }));
-vi.mock('@/services/query-cache.service', () => ({
-  hasSourceInvalidation: () => false,
+vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: vi.fn(), hasSourceInvalidation: () => false }));
+vi.mock('@/services/query-cache.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
   subscribeQueryInvalidations: (listener: (event: unknown) => void) => {
     mocks.invalidations.push(listener);
     return () => {
@@ -1014,13 +1015,13 @@ describe('immersive ship lifecycle and reference channels', () => {
     expect(vm.joint.draftValue.value.spec).toMatchObject({ state: 'present', value: { hullId: 'renamed' } });
     wrapper.unmount();
   });
-  it('replaces the identity listener on retry and releases it on unmount', async () => {
+  it('keeps the initialized listener and releases it on unmount', async () => {
     const { vm, wrapper } = editor();
     await vm.initialize();
     await vm.initialize();
-    expect(mocks.stop).toHaveBeenCalledTimes(1);
+    expect(mocks.stop).toHaveBeenCalledTimes(0);
     wrapper.unmount();
-    expect(mocks.stop).toHaveBeenCalledTimes(2);
+    expect(mocks.stop).toHaveBeenCalledTimes(1);
     expect(mocks.invalidations).toHaveLength(0);
   });
   it('keeps associated sources readonly and records numeric field history without rereading references', async () => {

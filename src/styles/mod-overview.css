@@ -1,0 +1,59 @@
+.mod-overview-page {
+  align-content: start;
+  gap: var(--space-3);
+  flex: 1;
+  padding: var(--space-7) var(--space-9);
+  overflow-y: auto;
+}
+.mod-overview-header {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.mod-overview-status {
+  padding: 3px var(--space-2);
+  color: var(--color-muted);
+  font-size: 11px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.mod-overview-status.ready {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.mod-overview-grid {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+.mod-overview-card {
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+}
+.mod-overview-card.wide {
+  grid-column: 1/-1;
+}
+.mod-overview-card .mod-overview-card-value {
+  font-size: 22px;
+  font-weight: 650;
+}
+.mod-overview-breakdown {
+  width: min(520px, 100%);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+}
+.mod-overview-breakdown-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.mod-overview-breakdown-row:last-child {
+  border-bottom: 0;
+}
+.mod-overview-breakdown-row .mod-overview-breakdown-row-value {
+  font-weight: 650;
+}

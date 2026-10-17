@@ -2,9 +2,9 @@ import { computed, onScopeDispose, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { saveTableChanges, pendingTableSave } from '@/orchestrators/table-save.orchestrator';
-import { retryPendingWritesForMod } from '@/orchestrators/project-session-refresh.orchestrator';
+import { retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
 import { TABLE_KEYS, type AppFeedback, type AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 
@@ -36,14 +36,14 @@ export function useTableSaveParticipants(
               targetKey,
               modRoot: computed(() => modRoot),
               saving: computed(() => ownsSave()),
-              pendingSynchronization: computed(() => useWriteSyncStore().pending.some((entry) => entry.event.modRoot === modRoot)),
+              pendingSynchronization: computed(() => useProjectSyncStore().pending.some((entry) => entry.event.modRoot === modRoot)),
               waitForSave: async () => {
                 const pending = pendingTableSave();
                 if (pending && ownsSave()) {
                   const result = await pending.promise;
                   if (result.status === 'cancelled') return false;
                 }
-                await retryPendingWritesForMod(modRoot);
+                await retryPendingModSyncs(modRoot);
                 return true;
               },
               editing: {
@@ -54,7 +54,7 @@ export function useTableSaveParticipants(
                 },
                 label: `${manifest.modInfo?.name ?? modRoot} / ${table}`,
                 dirty,
-                commitInputs: () => inputs.commit(),
+                draftSession: { draftValue: computed(() => state.tables[table]), inputs },
                 save: async () => {
                   const result = await saveTableChanges({ table, manifest, selectAssociatedSpecs, feedback });
                   return { saved: result.status !== 'cancelled', receipt: result.status === 'saved' ? result.receipt : null };

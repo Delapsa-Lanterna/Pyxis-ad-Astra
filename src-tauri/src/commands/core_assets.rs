@@ -1,23 +1,9 @@
 use crate::{
     errors::AppError,
-    models::{
-        DiscoveredField,
-        command_payloads::{CoreScanPayload, InvalidateCoreCachePayload},
-    },
+    models::{CoreScanPayload, DiscoveredField, InvalidateCoreCachePayload},
     services,
 };
 use std::collections::BTreeMap;
-
-#[tauri::command(async)]
-pub fn query_original_font(
-    payload: crate::models::command_payloads::QueryOriginalFontPayload,
-) -> Result<crate::models::font::OriginalFontResult, AppError> {
-    services::project::query_original_font(
-        &payload.session_id,
-        payload.starsector_root.as_deref(),
-        payload.font_id,
-    )
-}
 
 #[tauri::command(async)]
 pub fn scan_core_fields(
@@ -28,7 +14,7 @@ pub fn scan_core_fields(
 
 #[tauri::command(async)]
 pub fn scan_core_graphics(payload: CoreScanPayload) -> Result<Vec<String>, AppError> {
-    services::project::scan_core_graphics(&payload.starsector_root)
+    services::scan_core_graphics(&payload.starsector_root)
 }
 
 #[tauri::command(async)]

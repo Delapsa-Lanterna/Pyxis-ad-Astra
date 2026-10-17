@@ -1,9 +1,13 @@
 <template>
-  <div class="ship-immersive-sprite" :style="{ width: size + 'px', height: size + 'px' }">
-    <img v-if="url" :src="url" :alt="label" :style="{ width: width + 'px', height: height + 'px' }" @load="loaded" /><ImmersiveText
-      v-else
-      text="贴图暂无可用内容"
-    />
+  <div class="ship-immersive-sprite ui-control-row ui-text-muted" :style="{ width: size + 'px', height: size + 'px' }">
+    <img
+      class="ui-image ship-immersive-sprite-image"
+      v-if="url"
+      :src="url"
+      :alt="label"
+      :style="{ width: width + 'px', height: height + 'px' }"
+      @load="loaded"
+    /><ImmersiveText v-else text="贴图暂无可用内容" />
   </div>
 </template>
 <script setup lang="ts">

@@ -88,7 +88,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     await first.setValue('AX');
     expect(wrapper.get('input').element).toBe(first.element);
     expect(document.activeElement).toBe(first.element);
-    expect(wrapper.findAll('.array-item')).toHaveLength(2);
+    expect(wrapper.findAll('.field-collection-item')).toHaveLength(2);
   });
 
   it('keeps key-value expansion attached to the surviving row', async () => {
@@ -108,7 +108,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     );
     wrapper.findAllComponents(nSelect)[1]!.vm.$emit('update:show', true);
     await nextTick();
-    await wrapper.findAll('.kv-row')[0]!.get('button').trigger('click');
+    await wrapper.findAll('.field-map-row')[0]!.get('button').trigger('click');
     const selects = wrapper.findAllComponents(nSelect);
     expect(selects.map((select) => select.props('value'))).toEqual(['B', 'C']);
     expect(selects[0]!.props('show')).toBe(true);

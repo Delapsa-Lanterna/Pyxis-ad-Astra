@@ -4,7 +4,7 @@ use crate::{
         FsRootBoundary, read_utf8_no_bom, validate_safe_relative_path, validate_walk_entry,
         write_utf8_no_bom,
     },
-    models::{FileChangeKind, FileChangeRecord, FileSnapshot},
+    models::{FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot},
 };
 use base64::{Engine as _, engine::general_purpose};
 use std::{
@@ -204,27 +204,21 @@ impl FileChangeSetBuilder {
     }
 
     pub fn apply(self) -> AppResult<Vec<FileChangeRecord>> {
-        apply_changes(&self.changes, ChangeDirection::Redo)?;
+        apply_changes(&self.changes, FileChangeReplayDirection::Redo)?;
         Ok(self.changes)
     }
-}
-
-#[derive(Clone, Copy)]
-pub enum ChangeDirection {
-    Undo,
-    Redo,
 }
 
 pub fn resolve_change_paths(
     root: &str,
     mut changes: Vec<FileChangeRecord>,
-    direction: ChangeDirection,
+    direction: FileChangeReplayDirection,
 ) -> AppResult<Vec<FileChangeRecord>> {
     let boundary = FsRootBoundary::new(Path::new(root), "changeset root")?;
     for change in &mut changes {
         let (source, target) = match direction {
-            ChangeDirection::Redo => (&mut change.before_path, &mut change.after_path),
-            ChangeDirection::Undo => (&mut change.after_path, &mut change.before_path),
+            FileChangeReplayDirection::Redo => (&mut change.before_path, &mut change.after_path),
+            FileChangeReplayDirection::Undo => (&mut change.after_path, &mut change.before_path),
         };
         let resolved = boundary.resolve_absolute(Path::new(source), "changeset source")?;
         let destination = if source == target {
@@ -338,17 +332,20 @@ pub fn build_directory_replace_change(
     })
 }
 
-pub fn apply_changes(changes: &[FileChangeRecord], direction: ChangeDirection) -> AppResult<()> {
+pub fn apply_changes(
+    changes: &[FileChangeRecord],
+    direction: FileChangeReplayDirection,
+) -> AppResult<()> {
     let directed: Vec<_> = match direction {
-        ChangeDirection::Redo => changes.to_vec(),
-        ChangeDirection::Undo => changes
+        FileChangeReplayDirection::Redo => changes.to_vec(),
+        FileChangeReplayDirection::Undo => changes
             .iter()
             .rev()
             .map(FileChangeRecord::reversed)
             .collect(),
     };
     let changes = &directed;
-    let direction = ChangeDirection::Redo;
+    let direction = FileChangeReplayDirection::Redo;
     let rollback = changes
         .iter()
         .map(|change| {
@@ -413,29 +410,32 @@ fn validate_relative_path(path: &str) -> AppResult<&Path> {
     validate_safe_relative_path(Path::new(path), "relative file")
 }
 
-fn apply_one(change: &FileChangeRecord, direction: ChangeDirection) -> AppResult<()> {
+fn apply_one(change: &FileChangeRecord, direction: FileChangeReplayDirection) -> AppResult<()> {
     match change.kind {
         FileChangeKind::File => apply_file_change(change, direction),
         FileChangeKind::Directory => apply_directory_change(change, direction),
     }
 }
 
-fn apply_file_change(change: &FileChangeRecord, direction: ChangeDirection) -> AppResult<()> {
+fn apply_file_change(
+    change: &FileChangeRecord,
+    direction: FileChangeReplayDirection,
+) -> AppResult<()> {
     let (exists, text, data_base64) = match direction {
-        ChangeDirection::Undo => (
+        FileChangeReplayDirection::Undo => (
             change.before_exists,
             change.before_text.as_deref(),
             change.before_data_base64.as_deref(),
         ),
-        ChangeDirection::Redo => (
+        FileChangeReplayDirection::Redo => (
             change.after_exists,
             change.after_text.as_deref(),
             change.after_data_base64.as_deref(),
         ),
     };
     let (source, target) = match direction {
-        ChangeDirection::Undo => (&change.after_path, &change.before_path),
-        ChangeDirection::Redo => (&change.before_path, &change.after_path),
+        FileChangeReplayDirection::Undo => (&change.after_path, &change.before_path),
+        FileChangeReplayDirection::Redo => (&change.before_path, &change.after_path),
     };
     let path = Path::new(target);
     if path.exists() {
@@ -471,10 +471,13 @@ fn apply_file_change(change: &FileChangeRecord, direction: ChangeDirection) -> A
     Ok(())
 }
 
-fn apply_directory_change(change: &FileChangeRecord, direction: ChangeDirection) -> AppResult<()> {
+fn apply_directory_change(
+    change: &FileChangeRecord,
+    direction: FileChangeReplayDirection,
+) -> AppResult<()> {
     let (exists, files) = match direction {
-        ChangeDirection::Undo => (change.before_exists, &change.before_files),
-        ChangeDirection::Redo => (change.after_exists, &change.after_files),
+        FileChangeReplayDirection::Undo => (change.before_exists, &change.before_files),
+        FileChangeReplayDirection::Redo => (change.after_exists, &change.after_files),
     };
     let path = Path::new(&change.after_path);
     if change.before_path != change.after_path && Path::new(&change.before_path).exists() {
@@ -544,7 +547,7 @@ fn build_current_state(path: &Path) -> AppResult<FileChangeRecord> {
 fn rollback_changes(changes: &[FileChangeRecord]) -> Vec<String> {
     let mut errors = Vec::new();
     for change in changes.iter().rev() {
-        if let Err(error) = apply_one(change, ChangeDirection::Redo) {
+        if let Err(error) = apply_one(change, FileChangeReplayDirection::Redo) {
             errors.push(format!("{}: {}", change.after_path, error));
         }
     }
@@ -632,7 +635,7 @@ fn restore_snapshot_file(path: &Path, file: &FileSnapshot) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::testutil::{temp_dir, temp_linked_dir};
     use std::{fs, sync::mpsc, thread, time::Duration};
 
     #[test]
@@ -658,10 +661,10 @@ mod tests {
         );
         assert!(!old.exists());
         assert_eq!(fs::read_to_string(&next).unwrap(), "after");
-        apply_changes(&changes, ChangeDirection::Undo).unwrap();
+        apply_changes(&changes, FileChangeReplayDirection::Undo).unwrap();
         assert!(!next.exists());
         assert_eq!(fs::read_to_string(&old).unwrap(), "before");
-        apply_changes(&changes, ChangeDirection::Redo).unwrap();
+        apply_changes(&changes, FileChangeReplayDirection::Redo).unwrap();
         assert_eq!(fs::read_to_string(&next).unwrap(), "after");
         fs::remove_dir_all(root).unwrap();
     }
@@ -678,7 +681,7 @@ mod tests {
         let mut failed = renamed.clone();
         failed.before_path = root.join("blocked").to_string_lossy().into();
         failed.after_path = failed.before_path.clone();
-        assert!(apply_changes(&[renamed, failed], ChangeDirection::Redo).is_err());
+        assert!(apply_changes(&[renamed, failed], FileChangeReplayDirection::Redo).is_err());
         assert_eq!(fs::read_to_string(root.join("old.spec")).unwrap(), "before");
         assert!(!root.join("new.spec").exists());
         fs::remove_dir_all(root).unwrap();
@@ -703,13 +706,13 @@ mod tests {
                 .file_name()
         };
         assert_eq!(filename(), "demo.spec");
-        apply_changes(&changes, ChangeDirection::Undo).unwrap();
+        apply_changes(&changes, FileChangeReplayDirection::Undo).unwrap();
         assert_eq!(filename(), "Demo.spec");
         assert_eq!(
             fs::read_to_string(root.join("Demo.spec")).unwrap(),
             "before"
         );
-        apply_changes(&changes, ChangeDirection::Redo).unwrap();
+        apply_changes(&changes, FileChangeReplayDirection::Redo).unwrap();
         assert_eq!(filename(), "demo.spec");
         fs::remove_dir_all(root).unwrap();
     }
@@ -727,7 +730,7 @@ mod tests {
         let changes = super::resolve_change_paths(
             &root.to_string_lossy(),
             vec![change],
-            ChangeDirection::Redo,
+            FileChangeReplayDirection::Redo,
         )
         .unwrap();
         assert_eq!(
@@ -744,7 +747,7 @@ mod tests {
                 .join("original.spec")
                 .to_string_lossy()
         );
-        apply_changes(&changes, ChangeDirection::Redo).unwrap();
+        apply_changes(&changes, FileChangeReplayDirection::Redo).unwrap();
         assert_eq!(
             fs::read_dir(&root)
                 .unwrap()
@@ -757,10 +760,10 @@ mod tests {
         let undo = super::resolve_change_paths(
             &short_root.to_string_lossy(),
             changes,
-            ChangeDirection::Undo,
+            FileChangeReplayDirection::Undo,
         )
         .unwrap();
-        apply_changes(&undo, ChangeDirection::Undo).unwrap();
+        apply_changes(&undo, FileChangeReplayDirection::Undo).unwrap();
         assert_eq!(
             fs::read_dir(&root)
                 .unwrap()
@@ -846,7 +849,7 @@ mod tests {
             .share_mode(0)
             .open(&second)
             .unwrap();
-        let result = apply_changes(&changes, ChangeDirection::Redo);
+        let result = apply_changes(&changes, FileChangeReplayDirection::Redo);
         let first_after = fs::read_to_string(&first).unwrap();
         drop(locked);
         fs::remove_dir_all(root).unwrap();
@@ -894,5 +897,328 @@ mod tests {
         assert!(error.contains("apply failed"));
         assert!(error.contains("first rollback failed"));
         assert!(error.contains("second rollback failed"));
+    }
+
+    #[test]
+    fn directory_delete_change_roundtrips_text_snapshot() {
+        let root = temp_dir("directory_delete_roundtrip");
+        let dir = root.join("data/missions/demo");
+        fs::create_dir_all(dir.join("nested")).unwrap();
+        write_utf8_no_bom(&dir.join("descriptor.json"), "{\"title\":\"Demo\"}").unwrap();
+        write_utf8_no_bom(&dir.join("nested/readme.txt"), "details").unwrap();
+        fs::write(dir.join("icon.bin"), [0, 159, 146, 150]).unwrap();
+
+        let change = build_directory_delete_change(&dir).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change.clone()],
+        )
+        .unwrap();
+        assert!(!dir.exists());
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            vec![change],
+        )
+        .unwrap();
+
+        let descriptor = read_utf8_no_bom(&dir.join("descriptor.json")).unwrap();
+        let nested = read_utf8_no_bom(&dir.join("nested/readme.txt")).unwrap();
+        let icon = fs::read(dir.join("icon.bin")).unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(descriptor, "{\"title\":\"Demo\"}");
+        assert_eq!(nested, "details");
+        assert_eq!(icon, vec![0, 159, 146, 150]);
+    }
+
+    #[test]
+    fn binary_file_change_can_create_undo_and_redo() {
+        let root = temp_dir("binary_file_create_history");
+        let path = root.join("graphics/ships/demo.png");
+        let change = build_file_change(
+            &path,
+            None,
+            Some(general_purpose::STANDARD.encode([1, 2, 3])),
+        )
+        .unwrap();
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change.clone()],
+        )
+        .unwrap();
+        assert_eq!(fs::read(&path).unwrap(), vec![1, 2, 3]);
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            vec![change.clone()],
+        )
+        .unwrap();
+        assert!(!path.exists());
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(bytes, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn binary_file_change_can_overwrite_and_restore() {
+        let root = temp_dir("binary_file_overwrite_history");
+        let path = root.join("graphics/ships/demo.png");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, [9, 8, 7]).unwrap();
+        let change = build_file_change(
+            &path,
+            None,
+            Some(general_purpose::STANDARD.encode([1, 2, 3])),
+        )
+        .unwrap();
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change.clone()],
+        )
+        .unwrap();
+        assert_eq!(fs::read(&path).unwrap(), vec![1, 2, 3]);
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            vec![change.clone()],
+        )
+        .unwrap();
+        assert_eq!(fs::read(&path).unwrap(), vec![9, 8, 7]);
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(bytes, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn binary_file_change_can_delete_and_restore() {
+        let root = temp_dir("binary_file_delete_history");
+        let path = root.join("graphics/ships/demo.png");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, [9, 8, 7]).unwrap();
+        let change = build_file_change(&path, None, None).unwrap();
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change.clone()],
+        )
+        .unwrap();
+        assert!(!path.exists());
+
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            vec![change],
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+        let _ = fs::remove_dir_all(root);
+        assert_eq!(bytes, vec![9, 8, 7]);
+    }
+
+    #[test]
+    fn replay_rejects_changeset_path_outside_mod_root() {
+        let root = temp_dir("changeset_rejects_external_path");
+        let outside = temp_dir("changeset_rejects_external_outside");
+        let change =
+            build_file_change(&outside.join("outside.txt"), Some("bad".to_string()), None).unwrap();
+
+        let result = apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        );
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(outside);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn replay_rejects_parent_dir_escape() {
+        let root = temp_dir("changeset_rejects_parent_dir_escape");
+        let mut change =
+            build_file_change(&root.join("inside.txt"), Some("bad".to_string()), None).unwrap();
+        change.before_path = root.join("..").join("outside.txt").to_string_lossy().into();
+        change.after_path = change.before_path.clone();
+
+        let result = apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        );
+
+        let _ = fs::remove_dir_all(root);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn replay_rejects_link_parent_escape() {
+        let Some((root, outside, linked)) = temp_linked_dir("replay_link_escape", "linked") else {
+            return;
+        };
+        let change = FileChangeRecord {
+            kind: FileChangeKind::File,
+            before_path: linked.join("outside.txt").to_string_lossy().to_string(),
+            after_path: linked.join("outside.txt").to_string_lossy().to_string(),
+            before_exists: false,
+            before_text: None,
+            before_data_base64: None,
+            before_files: vec![],
+            after_exists: true,
+            after_text: Some("bad".to_string()),
+            after_data_base64: None,
+            after_files: vec![],
+        };
+
+        let result = apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        );
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(outside);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn replay_rejects_link_directory_delete() {
+        let Some((root, outside, linked)) =
+            temp_linked_dir("replay_link_directory_delete", "linked")
+        else {
+            return;
+        };
+        let change = FileChangeRecord {
+            kind: FileChangeKind::Directory,
+            before_path: linked.to_string_lossy().to_string(),
+            after_path: linked.to_string_lossy().to_string(),
+            before_exists: true,
+            before_text: None,
+            before_data_base64: None,
+            before_files: vec![],
+            after_exists: false,
+            after_text: None,
+            after_data_base64: None,
+            after_files: vec![],
+        };
+
+        let result = apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        );
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(outside);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn replay_rejects_directory_snapshot_parent_dir_before_apply() {
+        let root = temp_dir("changeset_rejects_snapshot_parent_dir");
+        let dir = root.join("data/missions/demo");
+        fs::create_dir_all(&dir).unwrap();
+        write_utf8_no_bom(&dir.join("mission_text.txt"), "keep").unwrap();
+        let change = FileChangeRecord {
+            kind: FileChangeKind::Directory,
+            before_path: dir.to_string_lossy().to_string(),
+            after_path: dir.to_string_lossy().to_string(),
+            before_exists: true,
+            before_text: None,
+            before_data_base64: None,
+            before_files: vec![],
+            after_exists: true,
+            after_text: None,
+            after_data_base64: None,
+            after_files: vec![FileSnapshot {
+                rel_path: "../outside.txt".to_string(),
+                text: Some("bad".to_string()),
+                data_base64: None,
+            }],
+        };
+
+        let result = apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            vec![change],
+        );
+        let text = read_utf8_no_bom(&dir.join("mission_text.txt")).unwrap();
+
+        let _ = fs::remove_dir_all(root);
+        assert!(result.is_err());
+        assert_eq!(text, "keep");
+    }
+
+    #[test]
+    fn replay_rejects_invalid_directory_snapshot_relative_paths_before_apply() {
+        let root = temp_dir("changeset_rejects_invalid_snapshot_rel_path");
+        let dir = root.join("data/missions/demo");
+        fs::create_dir_all(&dir).unwrap();
+        write_utf8_no_bom(&dir.join("mission_text.txt"), "keep").unwrap();
+
+        for rel_path in ["", ".", "nested/./bad.txt", "C:outside.txt"] {
+            let change = FileChangeRecord {
+                kind: FileChangeKind::Directory,
+                before_path: dir.to_string_lossy().to_string(),
+                after_path: dir.to_string_lossy().to_string(),
+                before_exists: true,
+                before_text: None,
+                before_data_base64: None,
+                before_files: vec![],
+                after_exists: true,
+                after_text: None,
+                after_data_base64: None,
+                after_files: vec![FileSnapshot {
+                    rel_path: rel_path.to_string(),
+                    text: Some("bad".to_string()),
+                    data_base64: None,
+                }],
+            };
+
+            let result = apply_file_change_set(
+                &root.to_string_lossy(),
+                FileChangeReplayDirection::Redo,
+                vec![change],
+            );
+            let text = read_utf8_no_bom(&dir.join("mission_text.txt")).unwrap();
+
+            assert!(result.is_err(), "{rel_path}");
+            assert_eq!(text, "keep", "{rel_path}");
+        }
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    fn apply_file_change_set(
+        root: &str,
+        direction: FileChangeReplayDirection,
+        changes: Vec<FileChangeRecord>,
+    ) -> AppResult<()> {
+        let _lease = acquire_root_write_lock(Path::new(root))?;
+        let changes = resolve_change_paths(root, changes, direction)?;
+        apply_changes(&changes, direction)
     }
 }

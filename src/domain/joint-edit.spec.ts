@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editTargetsOverlap, applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft } from './joint-edit';
+import { applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft } from './joint-edit';
 import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
 import type { JointEditPrepared, JointValue, JointEditSnapshot } from '@/shared/types';
 const present = (value: import('@/shared/types').JsonValue): JointValue => ({ state: 'present', value });
@@ -66,12 +66,6 @@ describe('joint edit field and physical target projection', () => {
     const dirty = rebaseJointDraft(values, before, after, [], []);
     expect(dirty['new-description']).toEqual(present({ id: 'renamed', type: 'SHIP', text1: 'My edited description' }));
     expect(dirty).not.toHaveProperty('description');
-  });
-  it('matches physical scope using session, normalized roots and directory boundaries', () => {
-    const target = { sessionId: 's', modRoot: 'M:/mod', path: 'M:/mod/data/ships.csv' };
-    expect(editTargetsOverlap(target, { ...target, path: 'm:\\MOD\\data' })).toBe(true);
-    expect(editTargetsOverlap(target, { ...target, sessionId: 'new' })).toBe(false);
-    expect(editTargetsOverlap(target, { ...target, path: 'M:/mod/data/ships.csv.copy' })).toBe(false);
   });
   it('applies independent field choices while preserving raw text, arrays, absent and null values', () => {
     const snapshot = {

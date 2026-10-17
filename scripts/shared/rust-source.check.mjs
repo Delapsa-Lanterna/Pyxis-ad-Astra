@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { productionRustSource } from './rust-source.mjs';
-import { cratePaths } from './rust-crate-paths.mjs';
+import { cratePaths, rustServiceExports, rustServicePaths } from './rust-crate-paths.mjs';
+import { architectureFixtures } from './check-fixtures.mjs';
 
 test('external test modules and test reexports preserve subsequent production dependencies', () => {
   for (const item of ['mod tests;', 'pub use tests::fixture;']) {
@@ -23,4 +24,27 @@ test('test function signatures with array lengths and nested bodies leave produc
   `);
   assert.equal(production.includes('hidden'), false);
   assert.ok(cratePaths(production).some((path) => path.join('::') === 'io::read_utf8_no_bom'));
+});
+
+test('service exports retain actual definitions through grouped imports and local aliases', () => {
+  const files = architectureFixtures({
+    'src-tauri/src/services/mod.rs':
+      'pub(crate) use project::query::entities::{query_entity, query_entity_list}; #[cfg(test)] pub use tests::fixture;',
+  });
+  const exports = rustServiceExports(files);
+  assert.equal(exports.size, 2);
+  for (const source of [
+    'crate::services::query_entity();',
+    'use crate::services::{query_entity as read}; read();',
+    'use crate::services as backend; backend::query_entity();',
+    'use crate::{services as backend}; backend::query_entity();',
+  ]) {
+    const paths = rustServicePaths(source, 'src-tauri/src/commands/example.rs', exports);
+    assert.ok(paths.some((edge) => edge.exported && edge.target.join('::') === 'services::project::query::entities::query_entity'));
+  }
+  assert.deepEqual(rustServicePaths('crate::services::project::close_project_session();', '', exports)[0].target, [
+    'services',
+    'project',
+    'close_project_session',
+  ]);
 });

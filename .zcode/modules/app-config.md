@@ -6,14 +6,23 @@
 
 ## 参考
 
-`src-tauri/src/commands/app_config.rs`：配置维护 command。
-`src-tauri/src/services/app_config.rs`：实际工具配置清理范围。
-`src-tauri/src/services/app_paths.rs`：工具 app-data 根解析主归属。
-`src/app/AppContent.vue`：主窗口关闭动作向配置维护的装配交付。
-`src/app/components/SettingsPage.vue`：设置页面接收所属关闭动作。
-`src/app/composables/settings/use-app-config-actions.ts`：维护动作、危险确认和完成接纳主归属。
-`src/app/composables/settings/use-settings-view-model.ts`：设置页消费配置维护动作。
-`src/services/app-config.service.ts`：配置目录与清理 command 装配。
+### 拥有
+
+- `src-tauri/src/commands/app_config.rs`：配置维护 command。
+- `src-tauri/src/services/app_config.rs`：实际工具配置清理范围。
+- `src-tauri/src/services/app_paths.rs`：工具 app-data 根解析。
+- `src/app/composables/settings/use-app-config-actions.ts`：维护动作、危险确认和完成接纳。
+- `src/services/app-config.service.ts`：配置目录与清理 command 装配。
+
+### 消费
+
+- `src-tauri/src/services/system_open.rs`：系统文件管理器路径打开适配。
+- `src/app/components/SettingsPage.vue`：设置页面接收所属关闭动作。
+- `src/app/composables/settings/use-settings-view-model.ts`：设置页消费配置维护动作。
+
+### 装配
+
+- `src/app/AppContent.vue`：主窗口关闭动作向配置维护的装配交付。
 
 ## 边界
 
@@ -36,7 +45,7 @@
 
 1. 设置页提交危险确认。
 2. 主窗口关闭动作完成保存等待、工作区确认、子窗口关闭及 session 释放。
-3. 配置维护在关闭成功后调用 `clear_config_files`。
+3. 应用装配完成设置 flush 后调用 `clear_config_files`，Rust 串行清理磁盘及正式设置缓存。
 4. Rust 枚举工具根内容，保留正式日志文件并清理其余文件与子目录。
 5. 动作成功后呈现完成反馈并重载窗口。
 
@@ -45,7 +54,7 @@
 - 打开目录必须通过系统能力，严禁前端拼接 app-data 路径。
 - 正式 LOG_FILE 必须保留，工具目录缺失必须按空清理结果完成。
 - 清理严禁触及 Mod、Core 或用户指定的外部日志目录。
-- 清理失败必须保留原始诊断并呈现一次错误，重载必须在成功后执行。
+- 清理失败必须保留原始诊断并呈现一次错误，重载必须在成功后消费装配动作执行。
 - 清理必须等待工作区与所属子窗口关闭成功，取消或关闭失败必须结束本次清理；最终成功反馈必须由配置维护动作呈现。
 - 清理范围必须包括工具根内 settings、workspace 及派生工具子目录，确认必须表达该实际范围。
 

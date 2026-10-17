@@ -1,6 +1,6 @@
 <template>
-  <div class="immersive-editor-shell" :class="{ 'variant-window-shell': compact }" :inert="locked">
-    <main class="immersive-editor-scroll">
+  <div class="immersive-editor-shell ui-content-grid ui-text-normal" :class="{ 'variant-window-shell': compact }" :inert="locked">
+    <main class="immersive-editor-scroll ui-layout-contained ui-layout-clip ui-control-reset">
       <div v-if="loading" class="immersive-status"><ImmersiveText text="正在读取联合来源" /></div>
       <div v-else-if="error" class="immersive-status">
         <strong><ImmersiveText text="读取失败" /></strong>
@@ -9,7 +9,7 @@
       </div>
       <slot v-else />
     </main>
-    <footer v-if="!compact" class="immersive-editor-actions">
+    <footer v-if="!compact" class="immersive-editor-actions ui-footer ui-layout-row ui-layout-center">
       <ImmersiveEditorActions
         :can-undo="canUndo"
         :can-redo="canRedo"

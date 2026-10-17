@@ -736,7 +736,7 @@ fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Op
 pub(in crate::services::project) enum EntityRefresh {
     Specs {
         kind: EntityKind,
-        records: BTreeMap<String, crate::models::LoadedSpecRecord>,
+        records: BTreeMap<String, crate::services::project::model::LoadedSpecRecord>,
     },
     Variant {
         files: Vec<VariantFile>,
@@ -747,7 +747,7 @@ pub(in crate::services::project) enum EntityRefresh {
         warnings: Vec<crate::models::GameScanWarning>,
     },
     Faction {
-        files: BTreeMap<String, crate::models::LoadedSpecRecord>,
+        files: BTreeMap<String, crate::services::project::model::LoadedSpecRecord>,
         tags: std::collections::HashMap<String, String>,
     },
     Mission(usize),

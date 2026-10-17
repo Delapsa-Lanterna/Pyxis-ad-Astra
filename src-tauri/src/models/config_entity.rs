@@ -1,0 +1,162 @@
+use super::{JsonWriteOptions, ProjectSessionId, required_nullable};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum IndexedConfigKind {
+    Faction,
+    Mission,
+}
+
+impl From<IndexedConfigKind> for crate::models::EntityKind {
+    fn from(kind: IndexedConfigKind) -> Self {
+        match kind {
+            IndexedConfigKind::Faction => Self::Faction,
+            IndexedConfigKind::Mission => Self::Mission,
+        }
+    }
+}
+
+/// Refreshed-entity payload of the indexed config chains (faction, mission):
+/// the changed index table plus the entity content, returned as the typed
+/// `refreshedEntity` of a `WriteResult`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexedConfigEntityRefresh {
+    pub entity_id: String,
+    pub index_path: String,
+    pub index_header: Vec<String>,
+    pub index_rows: Vec<crate::models::CsvRow>,
+    pub entity_data: Value,
+}
+
+#[derive(Debug)]
+pub struct FactionIndexRow {
+    pub reference: String,
+    pub row_index: usize,
+    pub id_column: String,
+    pub file_column: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveModInfoPayload {
+    pub base_versions: Vec<crate::models::FileVersion>,
+    pub session_id: ProjectSessionId,
+    pub mod_root: String,
+    pub data: Value,
+    #[serde(default)]
+    pub json_write: JsonWriteOptions,
+    #[serde(default)]
+    pub ordered_json: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexedConfigEntityPayload {
+    pub base_versions: Vec<crate::models::FileVersion>,
+    pub session_id: ProjectSessionId,
+    pub mod_root: String,
+    pub kind: IndexedConfigKind,
+    #[serde(deserialize_with = "required_nullable")]
+    pub previous_id: Option<String>,
+    pub next_id: String,
+    pub index_row: Map<String, Value>,
+    pub entity_data: Value,
+    #[serde(default)]
+    pub json_write: JsonWriteOptions,
+    #[serde(default)]
+    pub ordered_json: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteIndexedConfigEntityPayload {
+    pub base_versions: Vec<crate::models::FileVersion>,
+    pub session_id: ProjectSessionId,
+    pub mod_root: String,
+    pub kind: IndexedConfigKind,
+    pub id: String,
+    pub delete_target: bool,
+}
+
+super::project_identity::impl_session_mod_scope_required!(
+    SaveModInfoPayload,
+    IndexedConfigEntityPayload,
+    DeleteIndexedConfigEntityPayload
+);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn indexed_config_entity_payload_uses_entity_data_wire_field() {
+        let payload: IndexedConfigEntityPayload = serde_json::from_value(json!({
+            "baseVersions": [],
+            "sessionId": "session-1",
+            "modRoot": "D:/mods/demo",
+            "kind": "faction",
+            "previousId": null,
+            "nextId": "demo",
+            "indexRow": {"id": "demo"},
+            "entityData": {"file": {"id": "demo"}}
+        }))
+        .unwrap();
+
+        assert_eq!(payload.entity_data["file"]["id"], "demo");
+    }
+
+    #[test]
+    fn indexed_config_entity_payload_requires_explicit_nullable_source_identity() {
+        let result = serde_json::from_value::<IndexedConfigEntityPayload>(json!({
+            "baseVersions": [],
+            "sessionId": "session-1",
+            "modRoot": "D:/mods/demo",
+            "kind": "faction",
+            "nextId": "demo",
+            "indexRow": {"id": "demo"},
+            "entityData": {"file": {"id": "demo"}}
+        }));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_indexed_config_entity_payload_requires_explicit_delete_flag() {
+        let result = serde_json::from_value::<DeleteIndexedConfigEntityPayload>(json!({
+            "baseVersions": [],
+            "sessionId": "session-1",
+            "modRoot": "D:/mods/demo",
+            "kind": "faction",
+            "id": "demo"
+        }));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn mod_info_requests_keep_json_defaults_and_nullable_ordered_json() {
+        let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","data":{"id":"demo"}});
+        for value in [value.clone(), {
+            let mut value = value;
+            value["orderedJson"] = Value::Null;
+            value
+        }] {
+            let payload: SaveModInfoPayload = serde_json::from_value(value).unwrap();
+            assert!(!payload.json_write.preserve_original_json);
+            assert!(payload.json_write.confirmed_sources.is_empty());
+            assert!(payload.ordered_json.is_none());
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FactionIndexEntry {
+    pub path: std::path::PathBuf,
+    pub row_index: usize,
+    pub id_column: String,
+    pub file_column: Option<String>,
+}

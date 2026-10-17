@@ -1,6 +1,6 @@
 use crate::{
     errors::AppError,
-    models::{HullReferencesResult, command_payloads::HullReferencesPayload},
+    models::{HullReferencesPayload, HullReferencesResult},
     services,
 };
 
@@ -8,5 +8,5 @@ use crate::{
 pub fn query_hull_references(
     payload: HullReferencesPayload,
 ) -> Result<HullReferencesResult, AppError> {
-    services::project::query_hull_references(&payload.session_id, &payload.reference_ids)
+    services::query_hull_references(&payload.session_id, &payload.reference_ids)
 }

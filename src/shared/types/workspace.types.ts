@@ -1,9 +1,5 @@
-import type { TableKey } from '@/shared/types/project-identity.types';
-import type { GameModSummary, GameScanWarning } from '@/shared/types/query.types';
-import type { CsvDirtyRow, CsvSearchField, CsvTableRows } from '@/shared/types/tables.types';
-import type { CsvCellTarget } from '@/shared/types/tables.types';
-
-export type WorkspaceColumnWidths = Record<string, Partial<Record<TableKey, Record<string, number>>>>;
+import type { CsvTableKey } from '@/shared/types/project-identity.types';
+import type { CsvDirtyRow, CsvSearchField, CsvTableRows, CsvCellTarget } from '@/shared/types/tables.types';
 
 /** Metadata for one imported Mod in the workspace */
 export interface ModEntry {
@@ -29,15 +25,15 @@ export interface ModOpeningFailure {
 
 /** Per-Mod table state — fully isolated from other Mods */
 export interface ModTableState {
-  baseVersions: Record<TableKey, import('@/shared/types/project-identity.types').FileVersion[]>;
-  tables: Record<TableKey, CsvTableRows>;
-  originalTables: Record<TableKey, CsvTableRows>;
-  headers: Record<TableKey, string[]>;
-  totalRows: Record<TableKey, number>;
-  filteredRows: Record<TableKey, number>;
-  dirty: Record<TableKey, Record<string, CsvDirtyRow>>;
-  pendingExternalTableUpdates: Record<TableKey, boolean>;
-  currentTab: TableKey;
+  baseVersions: Record<CsvTableKey, import('@/shared/types/project-identity.types').FileVersion[]>;
+  tables: Record<CsvTableKey, CsvTableRows>;
+  originalTables: Record<CsvTableKey, CsvTableRows>;
+  headers: Record<CsvTableKey, string[]>;
+  totalRows: Record<CsvTableKey, number>;
+  filteredRows: Record<CsvTableKey, number>;
+  dirty: Record<CsvTableKey, Record<string, CsvDirtyRow>>;
+  pendingExternalTableUpdates: Record<CsvTableKey, boolean>;
+  currentTab: CsvTableKey;
   searchField: CsvSearchField;
   searchText: string;
   selectedRowKey: string | null;
@@ -50,19 +46,3 @@ export type WorkspaceView = 'overview' | 'table' | 'settings' | 'config' | 'abou
 
 /** Which config sub-view is shown when currentView === 'config' */
 export type ConfigView = 'mod-overview' | 'file-history' | 'mod-info' | 'factions' | 'skins' | 'variants' | 'mission';
-
-/** Persisted mod entry (stored to disk) */
-export interface PersistedMod {
-  modRoot: string;
-  displayName: string;
-  version: string;
-}
-
-/** Persisted workspace state (stored to disk via Rust backend) */
-export interface PersistedWorkspace {
-  mods: PersistedMod[];
-  starsectorRoot: string | null;
-  gameMods: GameModSummary[];
-  gameWarnings: GameScanWarning[];
-  columnWidths: WorkspaceColumnWidths;
-}

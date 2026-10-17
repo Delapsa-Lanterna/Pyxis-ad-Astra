@@ -6,15 +6,26 @@
 
 ## 参考
 
-`scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则 owner。
-`src/app/components/spec-editor/system/SpecSystemEditor.vue`：系统表单展示与事件绑定入口。
-`src/app/composables/editors/use-editor-fields.ts`：系统消费的文档字段、颜色与对象绑定入口。
-`src/app/composables/spec-editor/system/use-spec-system-editor-view-model.ts`：系统草稿、条件投影、字段转换与显式动作 owner。
-`src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：共享窗口 ViewModel 交接，消费战术系统目标 Draft Session。
-`src/domain/schema/schema.types.ts`：系统表单消费的正式 schema 类型。
-`src/domain/spec-editor/system/spec-system-fields.ts`：系统结构化字段与规格归一化 owner。
-`src/services/spec-system-editor.service.ts`：战术系统规格与实际目标的查询入口。
-`src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑 owner。
+### 拥有
+
+- `src/app/components/spec-editor/system/`：战术系统字段表单与行为测试。
+- `src/app/components/spec-editor/system/SpecSystemEditor.vue`：系统表单展示与事件绑定入口。
+- `src/app/composables/spec-editor/system/`：战术系统工作文档与条件字段动作。
+- `src/app/composables/spec-editor/system/use-spec-system-editor-view-model.ts`：系统草稿、条件投影、字段转换与显式动作。
+- `src/domain/spec-editor/system/`：战术系统字段及规格归一化规则。
+- `src/domain/spec-editor/system/spec-system-fields.ts`：系统结构化字段与规格归一化。
+- `src/services/spec-system-editor.service.ts`：战术系统规格与实际目标的查询入口。
+
+### 消费
+
+- `src/app/composables/editors/use-editor-fields.ts`：系统消费的文档字段、颜色与对象绑定入口。
+- `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
+- `src/domain/schema/schema.types.ts`：系统表单消费的正式 schema 类型。
+- `src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑。
+
+### 关联
+
+- `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则。
 
 ## 边界
 

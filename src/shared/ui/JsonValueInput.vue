@@ -1,5 +1,5 @@
 <template>
-  <div class="json-value-input">
+  <div class="field-json-input">
     <label v-if="showLabel">{{ label }}</label>
     <n-input
       ref="input"

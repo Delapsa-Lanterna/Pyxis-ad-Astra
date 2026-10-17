@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({ entity: vi.fn(), target: vi.fn(), resources: v
 vi.mock('@/services/entity-query.service', () => ({
   querySessionEntity: mocks.entity,
   querySessionEntityEditTarget: mocks.target,
-  querySessionEditorDraftResources: mocks.resources,
+}));
+vi.mock('@/services/resource-reference.service', () => ({
+  querySessionDraftResources: mocks.resources,
 }));
 vi.mock('@/services/resource-cache.service', () => ({ queryResourceDataUrls: mocks.images }));
 beforeEach(() => vi.resetAllMocks());

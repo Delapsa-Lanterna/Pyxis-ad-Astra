@@ -1,5 +1,6 @@
+import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { listConfigFactionRecords, queryFactionPreviewImages, getConfigFactionRecord } from '@/services/config-entity.service';
@@ -15,12 +16,12 @@ import {
   isConfigEntityId,
 } from '@/domain/config/config-entities';
 import type { FileSchema } from '@/domain/schema/schema.types';
-import type { RowData } from '@/shared/types';
-import type { ResourceRef } from '@/shared/types';
-import { useProjectStore } from '@/stores/project.store';
+import type { RowData, ResourceRef } from '@/shared/types';
+
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
-import { hasEntityInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 
@@ -32,12 +33,12 @@ export function useConfigFactionViewModel() {
   const factionCrestRefs = ref<Record<string, ResourceRef | null>>({});
   const factionCrestResourceRefs = ref<ResourceRef[]>([]);
   const listLoadStartedAt = ref(0);
-  const project = useProjectStore();
+  const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
-  const schemaRuntimeContext = useSchemaRuntimeContext(() => project.activeManifest);
-  const modRoot = computed(() => project.activeManifest?.modRoot ?? null);
-  const sessionId = computed(() => project.activeManifest?.sessionId ?? null);
+  const schemaRuntimeContext = useSchemaRuntimeContext(() => workspace.activeManifest);
+  const modRoot = computed(() => workspace.activeManifest?.modRoot ?? null);
+  const sessionId = computed(() => workspace.activeManifest?.sessionId ?? null);
   const selection = useConfigListSelection({ modRoot, sessionId, label: '势力' });
   const selectedFaction = selection.selectedId;
   const heldFaction = ref<{ id: string; data: RowData; baseVersions: import('@/shared/types').FileVersion[] } | null>(null);
@@ -92,7 +93,7 @@ export function useConfigFactionViewModel() {
   }
 
   async function loadFactions(options: { reloadEditorData: boolean } = { reloadEditorData: true }) {
-    const sessionId = project.activeSessionId;
+    const sessionId = workspace.activeSessionId;
     const key = sessionKey();
     if (key !== listSessionKey) {
       reads.revoke();
@@ -238,7 +239,7 @@ export function useConfigFactionViewModel() {
 
   watch([sessionId, modRoot], () => void loadFactions({ reloadEditorData: true }), { immediate: true, flush: 'sync' });
   const stopQueryInvalidation = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== project.activeSessionId) return;
+    if (event.sessionId !== workspace.activeSessionId) return;
     if (event.scope === 'session') {
       reads.revoke();
       return;
@@ -250,7 +251,7 @@ export function useConfigFactionViewModel() {
       });
   });
   const stopResourceInvalidation = subscribeResourceInvalidations((event) => {
-    if (event.sessionId !== project.activeSessionId) return;
+    if (event.sessionId !== workspace.activeSessionId) return;
     if (!hasResourceInvalidation(event, factionCrestResourceRefs.value)) return;
     factionPreviewRevision.value += 1;
   });

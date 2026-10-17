@@ -1,4 +1,5 @@
-import { querySessionEntity, querySessionEntityEditTarget, querySessionEditorDraftResources } from '@/services/entity-query.service';
+import { querySessionEntity, querySessionEntityEditTarget } from '@/services/entity-query.service';
+import { querySessionDraftResources } from '@/services/resource-reference.service';
 import { queryResourceDataUrls } from '@/services/resource-cache.service';
 import { str } from '@/shared/lib/starsector/index';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
@@ -29,7 +30,7 @@ export async function querySpecProjectileEditorImages(
   draft: import('@/shared/types/index').RowData,
   signal?: AbortSignal,
 ) {
-  const refs = await querySessionEditorDraftResources(sessionId, 'projectile', id, draft, signal);
+  const refs = await querySessionDraftResources(sessionId, 'projectile', id, draft, signal);
   const field = draft.specClass === 'missile' ? 'sprite' : 'bulletSprite';
   const resource = refs[field];
   if (!resource) return { resourceRefs: [], spriteData: {} as Record<string, string> };

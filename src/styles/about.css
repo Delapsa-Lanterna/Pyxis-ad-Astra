@@ -1,0 +1,78 @@
+.about-header .about-header-description {
+  font-size: 13px;
+}
+.about-info-list {
+  gap: var(--space-1);
+}
+.about-info-list .about-info-list-value {
+  font-weight: 600;
+}
+.about-content {
+  padding-top: var(--space-1);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.about-node {
+  max-width: 100%;
+}
+.about-node:first-child {
+  margin-top: 0;
+}
+.about-node:last-child {
+  margin-bottom: 0;
+}
+.about-content .about-h1 {
+  display: none;
+}
+.about-content .about-h2,
+.about-content .about-h3,
+.about-content .about-strong {
+  color: var(--color-text);
+}
+.about-content .about-h2 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.about-content .about-h3 {
+  margin: 10px 0 var(--space-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+.about-content .about-h4 {
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.about-content .about-p {
+  margin: 5px 0;
+}
+.about-content .about-ul {
+  padding-left: var(--space-4);
+  margin: 5px 0 var(--space-2);
+}
+.about-content .about-li {
+  margin: 3px 0;
+}
+.about-content .about-a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.about-content .about-a:hover {
+  text-decoration: underline;
+}
+.about-content .about-code {
+  padding: 1px var(--space-1);
+  color: var(--color-text);
+  font-size: 0.9em;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.about-content .about-hr {
+  height: 1px;
+  margin: var(--space-3) 0;
+  background: var(--color-border);
+  border: 0;
+}

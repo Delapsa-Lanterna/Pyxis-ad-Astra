@@ -1,5 +1,5 @@
 <template>
-  <div class="mission-view">
+  <div class="mission-view ui-layout-row ui-layout-clip">
     <ConfigMissionList
       :selected-id="selectedMission"
       :action-running="actionRunning"
@@ -30,7 +30,7 @@
       :identity-handoff="identityHandoff"
       @saved="handleSaved"
     />
-    <div v-else class="config-placeholder">
+    <div v-else class="config-placeholder ui-control-center ui-text-muted ui-layout-grid">
       <p>选择一个战役以编辑</p>
     </div>
   </div>

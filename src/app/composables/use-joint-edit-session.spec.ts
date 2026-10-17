@@ -1,17 +1,21 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { savedWriteFixture } from '@/test/write-result';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
 import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
-import { sessionUpdateFixture } from '@/test/write-result';
+
 import type { ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn(), error: vi.fn(), projection: vi.fn() }));
-vi.mock('@/orchestrators/project-session-refresh.orchestrator', () => ({ listenProjectSessionInvalidated: mocks.projection }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
+  listenProjectSessionInvalidated: mocks.projection,
+  completeSavedWrite: mocks.complete,
+}));
+
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.open, save: mocks.save }) }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointEdit: (root: unknown) => mocks.open(root) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
-vi.mock('@/orchestrators/file-history-write.orchestrator', () => ({ completeSavedWrite: mocks.complete }));
+
 import { useJointEditSession } from './use-joint-edit-session';
 const root = { sessionId: 's', modRoot: 'M:/mod', kind: 'ship' as const, id: 'a' };
 const snapshot: JointEditSnapshot = {

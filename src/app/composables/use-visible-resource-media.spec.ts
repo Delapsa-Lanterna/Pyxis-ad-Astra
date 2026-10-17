@@ -109,6 +109,21 @@ describe('useVisibleResourceMedia', () => {
     expect(observer.options?.rootMargin).toBe('240px 0px 240px 0px');
     expect(mocks.ensure).not.toHaveBeenCalled();
   });
+  it('hands expected missing resources to the caller while retaining the default warning', async () => {
+    mocks.ensure.mockImplementation(async (_session, resources) => ({ failedResources: resources, uncachedDataUrls: new Map() }));
+    const failures = vi.fn();
+    const own = mountHarness(failures);
+    activeObserver().trigger([{ target: own.findAll('[data-row]')[0]!.element, isIntersecting: true }]);
+    await flushPromises();
+    expect(failures).toHaveBeenCalledWith([resource(1)]);
+    expect(mocks.warning).not.toHaveBeenCalled();
+    own.unmount();
+    const ordinary = mountHarness();
+    activeObserver().trigger([{ target: ordinary.findAll('[data-row]')[0]!.element, isIntersecting: true }]);
+    await flushPromises();
+    expect(mocks.warning).toHaveBeenCalledOnce();
+    ordinary.unmount();
+  });
 
   it('merges rows from one observer callback into one visible ensure', async () => {
     const wrapper = mountHarness();
@@ -236,12 +251,17 @@ describe('useVisibleResourceMedia', () => {
   });
 });
 
-function mountHarness() {
+function mountHarness(onFailures?: (resources: readonly ResourceRef[]) => void) {
   return mount(
     defineComponent({
       props: { session: { type: String, default: 'session-a' } },
       setup(props) {
-        const media = useVisibleResourceMedia({ sessionId: () => props.session, surface: 'test-list', failureLabel: '读取失败' });
+        const media = useVisibleResourceMedia({
+          sessionId: () => props.session,
+          surface: 'test-list',
+          failureLabel: '读取失败',
+          onFailures,
+        });
         return () =>
           h('div', { ref: media.setMediaRoot, 'data-root': '' }, [
             h('div', { ref: media.mediaRef('row-1', resource(1)), 'data-row': '1' }),

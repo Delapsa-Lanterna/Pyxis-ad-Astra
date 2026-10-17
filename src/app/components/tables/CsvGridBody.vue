@@ -1,7 +1,7 @@
 <template>
   <tbody>
-    <tr v-if="beforeHeight > 0" class="csv-grid-spacer-row" :style="{ height: `${beforeHeight}px` }">
-      <td :colspan="columns.length"></td>
+    <tr v-if="beforeHeight > 0" class="csv-grid-spacer-row csv-grid-row" :style="{ height: `${beforeHeight}px` }">
+      <td class="csv-grid-cell" :colspan="columns.length"></td>
     </tr>
     <template v-for="row in visibleRows" :key="row.kind === 'row' ? rowRenderKey(row) : row.slotKey">
       <CsvGridRow
@@ -16,12 +16,12 @@
         @close-active-cell="$emit('close-active-cell')"
         @select-row="selectRow"
       />
-      <tr v-else class="csv-grid-placeholder-row">
-        <td :colspan="columns.length"></td>
+      <tr v-else class="csv-grid-placeholder-row csv-grid-row">
+        <td class="csv-grid-cell" :colspan="columns.length"></td>
       </tr>
     </template>
-    <tr v-if="afterHeight > 0" class="csv-grid-spacer-row" :style="{ height: `${afterHeight}px` }">
-      <td :colspan="columns.length"></td>
+    <tr v-if="afterHeight > 0" class="csv-grid-spacer-row csv-grid-row" :style="{ height: `${afterHeight}px` }">
+      <td class="csv-grid-cell" :colspan="columns.length"></td>
     </tr>
   </tbody>
 </template>

@@ -1,6 +1,6 @@
-import type { EntityEditTarget, EntityFileLocation, TableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
+import type { EntityEditTarget, EntityFileLocation, CsvTableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
 import type { JsonValue } from './json.types';
-import type { JsonWriteOptions, WriteResult } from './write.types';
+import type { JsonWriteOptions, WriteResult } from './write-commit.types';
 
 export type JointEditKind = 'ship' | 'weapon' | 'wing' | 'variant';
 export interface JointEditRoot {
@@ -64,7 +64,7 @@ export interface EditWriteTarget {
 }
 export type JointRecordTarget =
   | { kind: 'spec'; target: EntityEditTarget }
-  | { kind: 'csv'; table: TableKey; rowKey: string; identity: Record<string, string>; write: EntityFileLocation }
+  | { kind: 'csv'; table: CsvTableKey; rowKey: string; identity: Record<string, string>; write: EntityFileLocation }
   | { kind: 'text'; write: EntityFileLocation };
 export type JointValue = { state: 'missing' } | { state: 'present'; value: JsonValue };
 export interface JointEditRecord {

@@ -117,15 +117,14 @@ describe('original hullmod picker', () => {
     };
     await flushPromises();
     const status = own.wrapper.find('[data-entry-id=mod_1] .immersive-resource-icon');
-    expect(status.find('svg path').exists()).toBe(true);
+    expect(status.attributes('style')).toContain('data:image/svg+xml');
     const key = { normal: 'checkmark', permanent: 'checkmark_locked', s: 'checkmark_unlocked' }[category];
     expect(mocks.media).toHaveBeenLastCalledWith('s', 'hullmod-ui', [expect.objectContaining({ key })]);
     mocks.dataUrl.mockImplementation((_session, resource?: { key: string }) => (resource ? resource.key + '.png' : ''));
     own.variant.value = { ...own.variant.value, mods: [...own.variant.value.mods] };
     await flushPromises();
-    expect(status.find('svg').exists()).toBe(false);
     expect(status.attributes('style')).toContain(key + '.png');
-    expect(own.wrapper.findAll('.variant-hullmod-columns svg')).toHaveLength(4);
+    expect(own.wrapper.findAll('.variant-hullmod-columns .immersive-resource-icon')).toHaveLength(4);
     own.wrapper.unmount();
   });
   it('shows details only for a hovered candidate when the catalogue contains an empty ID row', async () => {

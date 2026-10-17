@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted } from 'vue';
+import { useWindowCloseState } from './use-window-close-state';
 import { isEditableKeyTarget, shortcutCommandFromKeyEvent, type ShortcutCommand } from '@/domain/workspace/main-window-commands';
 
 export interface ShortcutDispatchHandlers {
@@ -15,7 +16,9 @@ export interface ShortcutDispatchHandlers {
 // (shortcutCommandFromKeyEvent); this composable only owns the window listener,
 // command routing and plain-key table dispatch.
 export function useShortcutDispatch(handlers: ShortcutDispatchHandlers) {
+  const closing = useWindowCloseState();
   function onKeyDown(event: KeyboardEvent) {
+    if (closing?.value) return;
     if (event.defaultPrevented) return;
     if (handlers.priority?.(event)) {
       event.preventDefault();

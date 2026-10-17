@@ -14,7 +14,8 @@ for (const file of await collectRepoPaths(root, (rel, extension) => textExtensio
     continue;
   }
   try {
-    utf8Decoder.decode(bytes);
+    const value = utf8Decoder.decode(bytes);
+    if (value.includes('\uFFFD')) failures.push(`${file.rel}: contains a Unicode replacement character`);
   } catch {
     failures.push(`${file.rel}: is not valid UTF-8`);
   }
@@ -23,6 +24,6 @@ for (const file of await collectRepoPaths(root, (rel, extension) => textExtensio
 if (failures.length > 0) {
   console.error(failures.join('\n'));
   process.exitCode = 1;
+} else {
+  console.log('Encoding check passed: UTF-8 without BOM or replacement characters.');
 }
-
-console.log('Encoding check passed: UTF-8 without BOM.');

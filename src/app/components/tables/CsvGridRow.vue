@@ -1,5 +1,5 @@
 <template>
-  <tr :data-row-key="row.rowKey" :class="{ selected }" @click="$emit('select-row', row.rowKey, $event)">
+  <tr class="csv-grid-row" :data-row-key="row.rowKey" :class="{ selected }" @click="$emit('select-row', row.rowKey, $event)">
     <CsvGridCell
       v-for="column in columns"
       :key="column.key"

@@ -3,14 +3,16 @@ import { computed, ref } from 'vue';
 import type {
   ConfigView,
   GameOverviewData,
+  GameScanWarning,
   ModEntry,
   ModOpeningFailure,
   PersistedWorkspace,
-  TableKey,
+  CsvTableKey,
   WorkspaceColumnWidths,
   WorkspaceView,
 } from '@/shared/types';
 import { gameModsDirectoryPath } from '@/shared/lib/paths';
+import { useProjectStore } from '@/stores/project.store';
 
 interface ModNavigationContext {
   configView: ConfigView;
@@ -22,6 +24,7 @@ function createDefaultModNavigationContext(): ModNavigationContext {
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
+  const project = useProjectStore();
   const mods = ref<Map<string, ModEntry>>(new Map());
   const modGenerations = new Map<string, number>();
   let nextModGeneration = 0;
@@ -35,6 +38,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const columnWidths = ref<WorkspaceColumnWidths>({});
 
   const activeMod = computed(() => (activeModRoot.value ? (mods.value.get(activeModRoot.value) ?? null) : null));
+  const activeManifest = computed(() => (activeModRoot.value ? project.getManifest(activeModRoot.value) : null));
+  const activeSessionId = computed(() => activeManifest.value?.sessionId ?? null);
   const isModView = computed(() => currentView.value === 'config' || currentView.value === 'table' || currentView.value === 'mod-files');
   const loadedModList = computed(() => [...mods.value.values()]);
   const loadedModCount = computed(() => mods.value.size);
@@ -75,6 +80,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function clearModOpeningFailures() {
     modOpeningFailures.value.clear();
+  }
+
+  function clearGameScanWarning(warning: GameScanWarning) {
+    gameOverview.value!.warnings = gameOverview.value!.warnings.filter((item) => item !== warning);
   }
 
   function updateModStatus(modRoot: string, status: ModEntry['status'], error?: string) {
@@ -191,11 +200,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     };
   }
 
-  function getColumnWidths(modRoot: string, table: TableKey): Record<string, number> | undefined {
+  function getColumnWidths(modRoot: string, table: CsvTableKey): Record<string, number> | undefined {
     return columnWidths.value[modRoot]?.[table];
   }
 
-  function setColumnWidths(modRoot: string, table: TableKey, widths: Record<string, number>) {
+  function setColumnWidths(modRoot: string, table: CsvTableKey, widths: Record<string, number>) {
     columnWidths.value = {
       ...columnWidths.value,
       [modRoot]: {
@@ -220,6 +229,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   return {
     activeModRoot,
     activeMod,
+    activeManifest,
+    activeSessionId,
     activateModTab,
     configView,
     currentView,
@@ -238,6 +249,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activateModOverview,
     activateModTable,
     applyPersistedWorkspaceSnapshot,
+    clearGameScanWarning,
     clearModOpeningFailure,
     clearModOpeningFailures,
     getColumnWidths,

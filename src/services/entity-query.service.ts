@@ -1,28 +1,70 @@
+import { matchesEntityQueryScope } from '@/domain/project/query-scopes';
+import type {
+  EntityData,
+  EntityEditInfo,
+  EntityIdentityIntent,
+  QueryEntityPayload,
+  QueryEntityListPayload,
+  EntityIdentityIntentPayload,
+  EntityKind,
+  EntityEditTarget,
+  DeepReadonly,
+} from '@/shared/types';
+import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
+
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { queryCached, queryLive } from '@/services/query-cache.service';
-import type { EntityKind, EntityEditTarget, EditorResourceKind, RowData } from '@/shared/types';
-import type { QueryValue } from '@/shared/types';
+import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
+
+const readEntity = createCachedSessionQuery<Omit<QueryEntityPayload, 'sessionId'>, EntityData | null>({
+  queryKind: 'entity-detail',
+  load: ({ sessionId, parameters }) =>
+    invokeCommand<EntityData | null>('query_entity', { payload: { sessionId, ...parameters } satisfies QueryEntityPayload }),
+  invalidates: (parameters, invalidation) =>
+    invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-detail', parameters.kind, parameters.id)),
+});
+
+const readEntityList = createCachedSessionQuery<Omit<QueryEntityListPayload, 'sessionId'>, EntityData[]>({
+  queryKind: 'entity-list',
+  load: ({ sessionId, parameters }) =>
+    invokeCommand<EntityData[]>('query_entity_list', { payload: { sessionId, ...parameters } satisfies QueryEntityListPayload }),
+  invalidates: (parameters, invalidation) =>
+    invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-list', parameters.kind, null)),
+});
+
+const readEditTarget = createLiveSessionQuery<Omit<QueryEntityPayload, 'sessionId'>, EntityEditInfo>({
+  queryKind: 'entity-edit-target',
+  load: ({ sessionId, parameters }) =>
+    invokeCommand<EntityEditInfo>('query_entity_edit_target', { payload: { sessionId, ...parameters } satisfies QueryEntityPayload }),
+  invalidates: (parameters, invalidation) =>
+    invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-detail', parameters.kind, parameters.id)),
+});
+
+const readIdentityIntent = createLiveSessionQuery<Omit<EntityIdentityIntentPayload, 'sessionId'>, EntityIdentityIntent>({
+  queryKind: 'entity-identity-intent',
+  load: ({ sessionId, parameters }) =>
+    invokeCommand<EntityIdentityIntent>('query_entity_identity_intent', {
+      payload: { sessionId, ...parameters } satisfies EntityIdentityIntentPayload,
+    }),
+  invalidates: (parameters, invalidation) =>
+    invalidation.queryScopes.some(
+      (scope) =>
+        matchesEntityQueryScope(scope, 'entity-detail', parameters.source.kind, parameters.source.id) ||
+        matchesEntityQueryScope(scope, 'entity-detail', parameters.source.kind, parameters.nextId),
+    ),
+});
 
 export function querySessionEntity(
   sessionId: string,
   kind: EntityKind,
   id: string,
   signal?: AbortSignal,
-): Promise<QueryValue<'entity-detail'>> {
+): Promise<DeepReadonly<EntityData | null>> {
   const parameters = { kind, id };
-  return queryCached(
-    { sessionId, queryKind: 'entity-detail', parameters },
-    () => invokeCommand('query_entity', { payload: { sessionId, ...parameters } }),
-    signal,
-  );
+  return readEntity(sessionId, parameters, signal);
 }
 
-export function querySessionEntityList(sessionId: string, kind: EntityKind, signal?: AbortSignal): Promise<QueryValue<'entity-list'>> {
-  return queryCached(
-    { sessionId, queryKind: 'entity-list', parameters: { kind } },
-    () => invokeCommand('query_entity_list', { payload: { sessionId, kind } }),
-    signal,
-  );
+export function querySessionEntityList(sessionId: string, kind: EntityKind, signal?: AbortSignal): Promise<DeepReadonly<EntityData[]>> {
+  return readEntityList(sessionId, { kind }, signal);
 }
 
 export function querySessionEntityEditTarget(
@@ -30,12 +72,8 @@ export function querySessionEntityEditTarget(
   kind: EntityKind,
   id: string,
   signal?: AbortSignal,
-): Promise<QueryValue<'entity-edit-target'>> {
-  return queryLive(
-    { sessionId, queryKind: 'entity-edit-target', parameters: { kind, id } },
-    (captured) => invokeCommand('query_entity_edit_target', { payload: { sessionId: captured.sessionId, ...captured.parameters } }),
-    signal,
-  );
+): Promise<DeepReadonly<EntityEditInfo>> {
+  return readEditTarget(sessionId, { kind, id }, signal);
 }
 
 export function querySessionEntityIdentityIntent(
@@ -43,26 +81,18 @@ export function querySessionEntityIdentityIntent(
   source: EntityEditTarget,
   nextId: string,
   signal?: AbortSignal,
-): Promise<QueryValue<'entity-identity-intent'>> {
+): Promise<DeepReadonly<EntityIdentityIntent>> {
   const parameters = { source, nextId };
-  return queryLive(
-    { sessionId, queryKind: 'entity-identity-intent', parameters },
-    (captured) => invokeCommand('query_entity_identity_intent', { payload: { sessionId: captured.sessionId, ...captured.parameters } }),
-    signal,
-  );
+  return readIdentityIntent(sessionId, parameters, signal);
 }
 
-export function querySessionEditorDraftResources(
-  sessionId: string,
-  kind: EditorResourceKind,
-  id: string,
-  draft: RowData,
-  signal?: AbortSignal,
-): Promise<QueryValue<'editor-draft-resources'>> {
-  const parameters = { kind, id, draft };
-  return queryLive<'editor-draft-resources'>(
-    { sessionId, queryKind: 'editor-draft-resources', parameters },
-    (captured) => invokeCommand('query_editor_draft_resources', { payload: { sessionId: captured.sessionId, ...captured.parameters } }),
-    signal,
+export function hasEntityInvalidation(
+  event: QueryCacheInvalidationEvent,
+  queryKind: 'entity-detail' | 'entity-list',
+  kind: EntityKind,
+  id: string | null = null,
+): boolean {
+  return (
+    event.scope === 'session' || !!event.invalidation?.queryScopes.some((scope) => matchesEntityQueryScope(scope, queryKind, kind, id))
   );
 }

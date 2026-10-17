@@ -1,19 +1,25 @@
 <template>
-  <div class="joint-conflict-list">
-    <section v-for="(conflict, index) in conflicts" :key="JSON.stringify([conflict.recordKey, conflict.path])" class="joint-conflict-row">
-      <strong>{{ conflict.recordKey }} / {{ conflict.path.join('.') || '整条记录' }}</strong>
-      <dl>
+  <div class="joint-conflict-list ui-layout-grid">
+    <section
+      v-for="(conflict, index) in conflicts"
+      :key="JSON.stringify([conflict.recordKey, conflict.path])"
+      class="joint-conflict-row ui-control-border"
+    >
+      <strong class="joint-conflict-row-value ui-emphasis ui-text-wrap"
+        >{{ conflict.recordKey }} / {{ conflict.path.join('.') || '整条记录' }}</strong
+      >
+      <dl class="joint-conflict-row-details ui-layout-grid">
         <dt>原基线</dt>
-        <dd>
-          <pre>{{ conflictValueText(conflict.baseline) }}</pre>
+        <dd class="joint-conflict-row-detail ui-layout-shrink ui-text-reset">
+          <pre class="joint-conflict-row-code ui-code ui-text-wrap ui-text-reset">{{ conflictValueText(conflict.baseline) }}</pre>
         </dd>
         <dt>当前磁盘</dt>
-        <dd>
-          <pre>{{ conflictValueText(conflict.disk) }}</pre>
+        <dd class="joint-conflict-row-detail ui-layout-shrink ui-text-reset">
+          <pre class="joint-conflict-row-code ui-code ui-text-wrap ui-text-reset">{{ conflictValueText(conflict.disk) }}</pre>
         </dd>
         <dt>本窗口</dt>
-        <dd>
-          <pre>{{ conflictValueText(conflict.draft) }}</pre>
+        <dd class="joint-conflict-row-detail ui-layout-shrink ui-text-reset">
+          <pre class="joint-conflict-row-code ui-code ui-text-wrap ui-text-reset">{{ conflictValueText(conflict.draft) }}</pre>
         </dd>
       </dl>
       <n-select :value="choices[index]?.choice" :options="choiceOptions" @update:value="choose(index, $event)" />
@@ -40,33 +46,3 @@ function choose(index: number, choice: 'disk' | 'draft') {
   );
 }
 </script>
-<style scoped>
-.joint-conflict-list {
-  max-height: 60vh;
-  overflow: auto;
-  display: grid;
-  gap: var(--space-3);
-}
-.joint-conflict-row {
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-.joint-conflict-row strong {
-  overflow-wrap: anywhere;
-}
-.joint-conflict-row dl {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-2);
-}
-.joint-conflict-row dd {
-  margin: 0;
-  min-width: 0;
-}
-.joint-conflict-row pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-</style>

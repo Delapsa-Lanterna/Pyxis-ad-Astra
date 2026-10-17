@@ -1,7 +1,8 @@
+import type { SaveEditorSpecPayload, LoadImportedEditorSpecPayload } from '@/shared/types';
 import { querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { entityContentId } from '@/domain/editors/entity-identity';
+import { entityContentId } from '@/domain/project/entity-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import type { EntityEditTarget, SpecEditorKind, RowData, WriteResult } from '@/shared/types';
@@ -39,7 +40,7 @@ export function saveSpecEditorSpec(
       target,
       data,
       ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(data) } : {}),
-    },
+    } satisfies SaveEditorSpecPayload,
   });
 }
 
@@ -50,7 +51,7 @@ export function querySpecEditorIdentityIntent(sessionId: string, source: EntityE
 }
 
 export async function loadSpecEditorImport(kind: SpecEditorKind, path: string): Promise<RowData> {
-  return invokeCommand('load_imported_editor_spec_file', { payload: { kind, path } });
+  return invokeCommand('load_imported_editor_spec_file', { payload: { kind, path } satisfies LoadImportedEditorSpecPayload });
 }
 
 function ensureSpecContext(modRoot: string, id: string) {

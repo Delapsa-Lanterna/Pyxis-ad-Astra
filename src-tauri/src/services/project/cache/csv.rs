@@ -119,13 +119,6 @@ pub(crate) fn session_table_mut<'a>(
         .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {table}")))
 }
 
-pub(crate) fn registered_session_table_mut(
-    session: &mut ProjectSession,
-    table: CsvTableKey,
-) -> AppResult<&mut SessionCsvTable> {
-    session_table_mut(session, table.as_str())
-}
-
 pub(crate) fn ensure_session_table_rows(
     session: &mut ProjectSession,
     table: &str,

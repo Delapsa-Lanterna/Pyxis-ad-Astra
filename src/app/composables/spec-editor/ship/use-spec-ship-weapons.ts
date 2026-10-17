@@ -1,5 +1,5 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecShipWeaponSources } from '@/services/spec-ship-editor.service';

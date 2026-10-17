@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TableKey } from '@/shared/types';
+import type { CsvTableKey } from '@/shared/types';
 import {
   csvBooleanDisplayValue,
   csvBooleanOptions,
@@ -26,7 +26,7 @@ describe('table column schemas', () => {
 
   it('returns null for unregistered columns and empty schemas for unknown tables', () => {
     expect(csvColumnSchemaFor('ships', 'nope')).toBeNull();
-    expect(csvColumnSchemasForTable('nope' as TableKey)).toEqual([]);
+    expect(csvColumnSchemasForTable('nope' as CsvTableKey)).toEqual([]);
   });
 });
 

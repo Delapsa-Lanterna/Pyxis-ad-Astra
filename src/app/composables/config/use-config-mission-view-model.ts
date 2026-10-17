@@ -1,9 +1,10 @@
+import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-session-refresh.orchestrator';
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { getConfigMissionEditorData, listConfigMissionRecords, queryMissionDraftIcon } from '@/services/config-entity.service';
-import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { ConfigMissionEditorData, ResourceRef, RowData } from '@/shared/types';
 import { createIndexedEntityAction, deleteIndexedEntityAction, saveIndexedEntityAction } from '@/orchestrators/config-save.orchestrator';
 import {
@@ -21,7 +22,7 @@ import { useConfigListSelection } from '@/app/composables/config/use-config-list
 import { useConfigIdentityReception } from '@/app/composables/config/use-config-identity-reception';
 import { warningNotice } from '@/shared/lib/errors';
 import type { FileSchema } from '@/domain/schema/schema.types';
-import { hasEntityInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 
@@ -33,12 +34,12 @@ export function useConfigMissionViewModel() {
   const missionIconRefs = ref<Record<string, ResourceRef | null>>({});
   const missionIconResourceRefs = ref<ResourceRef[]>([]);
   const listLoadStartedAt = ref(0);
-  const project = useProjectStore();
+  const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
 
-  const modRoot = computed(() => project.activeManifest?.modRoot ?? null);
-  const sessionId = computed(() => project.activeManifest?.sessionId ?? null);
+  const modRoot = computed(() => workspace.activeManifest?.modRoot ?? null);
+  const sessionId = computed(() => workspace.activeManifest?.sessionId ?? null);
   const selection = useConfigListSelection({ modRoot, sessionId, label: '战役' });
   const selectedMission = selection.selectedId;
   const identity = useConfigIdentityReception({

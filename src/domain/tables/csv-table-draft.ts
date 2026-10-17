@@ -6,7 +6,7 @@ import type {
   ModTableState,
   CsvDraftRow,
   RowData,
-  TableKey,
+  CsvTableKey,
 } from '@/shared/types';
 import { cell, deepClone, rowDisplayId } from '@/shared/lib/starsector';
 import { createCsvDeletedRow, createCsvDirtyCells, csvDirtyCells, hasCsvDirtyCells } from '@/domain/tables/csv-dirty';
@@ -78,19 +78,19 @@ export function applyCsvTableWindowDraft(
   return { changed: true };
 }
 
-export function hasCsvTableDraftChanges(state: ModTableState, table: TableKey): boolean {
+export function hasCsvTableDraftChanges(state: ModTableState, table: CsvTableKey): boolean {
   return Object.keys(state.dirty[table]).length > 0;
 }
 
-export function markCsvTableExternalUpdateDraft(state: ModTableState, table: TableKey): void {
+export function markCsvTableExternalUpdateDraft(state: ModTableState, table: CsvTableKey): void {
   state.pendingExternalTableUpdates[table] = true;
 }
 
-export function clearCsvTableExternalUpdateDraft(state: ModTableState, table: TableKey): void {
+export function clearCsvTableExternalUpdateDraft(state: ModTableState, table: CsvTableKey): void {
   state.pendingExternalTableUpdates[table] = false;
 }
 
-export function setCsvCellValueDraft(state: ModTableState, tab: TableKey, rowKey: string, col: string, value: string): CsvDraftResult {
+export function setCsvCellValueDraft(state: ModTableState, tab: CsvTableKey, rowKey: string, col: string, value: string): CsvDraftResult {
   const row = findLoadedRow(state, tab, rowKey);
   if (!row) return { changed: false };
   const previousValue = cell(row.data[col]);
@@ -193,7 +193,7 @@ export function applyCsvDraftOperation(
     : removeCsvRowForReplay(state, operation.tab, operation.rowKey);
 }
 
-export function discardCsvTableWindowDraft(state: ModTableState, tab: TableKey): void {
+export function discardCsvTableWindowDraft(state: ModTableState, tab: CsvTableKey): void {
   state.tables[tab] = [];
   state.originalTables[tab] = [];
   state.dirty[tab] = {};
@@ -203,18 +203,18 @@ export function discardCsvTableWindowDraft(state: ModTableState, tab: TableKey):
   }
 }
 
-export function discardCsvTableWindowForReloadDraft(state: ModTableState, tab: TableKey): void {
+export function discardCsvTableWindowForReloadDraft(state: ModTableState, tab: CsvTableKey): void {
   discardCsvTableWindowDraft(state, tab);
   state.pendingExternalTableUpdates[tab] = false;
 }
 
-export function markCsvTableSavedDraft(state: ModTableState, tab: TableKey): void {
+export function markCsvTableSavedDraft(state: ModTableState, tab: CsvTableKey): void {
   state.originalTables[tab] = deepClone(state.tables[tab]);
   state.dirty[tab] = {};
   state.pendingExternalTableUpdates[tab] = false;
 }
 
-export function commitCsvTableSaveDraft(state: ModTableState, tab: TableKey, patches: CsvRowPatch[], keyMap: CsvRowKeyMapping[]): void {
+export function commitCsvTableSaveDraft(state: ModTableState, tab: CsvTableKey, patches: CsvRowPatch[], keyMap: CsvRowKeyMapping[]): void {
   const removedPositions = patches
     .filter((patch) => patch.action === 'delete')
     .flatMap((patch) => {
@@ -276,14 +276,14 @@ export function commitCsvTableSaveDraft(state: ModTableState, tab: TableKey, pat
   state.pendingExternalTableUpdates[tab] = false;
 }
 
-export function replaceCsvTableDraft(state: ModTableState, tab: TableKey, rows: CsvDraftRow[]): void {
+export function replaceCsvTableDraft(state: ModTableState, tab: CsvTableKey, rows: CsvDraftRow[]): void {
   state.tables[tab] = deepClone(rows);
   state.originalTables[tab] = deepClone(state.tables[tab]);
   state.dirty[tab] = {};
   state.pendingExternalTableUpdates[tab] = false;
 }
 
-export function applySavedCsvRowKeyMapDraft(state: ModTableState, tab: TableKey, keyMap: CsvRowKeyMapping[]): void {
+export function applySavedCsvRowKeyMapDraft(state: ModTableState, tab: CsvTableKey, keyMap: CsvRowKeyMapping[]): void {
   if (keyMap.length === 0) return;
   const mapped = new Map(keyMap.map((item) => [item.previousKey, item.nextKey]));
   for (const row of state.tables[tab]) applySavedRowKey(row, mapped);
@@ -306,7 +306,7 @@ export function applySavedCsvRowKeyMapDraft(state: ModTableState, tab: TableKey,
 
 function setCsvCellValueForReplay(
   state: ModTableState,
-  tab: TableKey,
+  tab: CsvTableKey,
   rowKey: string,
   col: string,
   value: string,
@@ -320,7 +320,7 @@ function setCsvCellValueForReplay(
   return true;
 }
 
-function insertCsvRowForReplay(state: ModTableState, tab: TableKey, rowIndex: number, rowKey: string, row: CsvDraftRow): boolean {
+function insertCsvRowForReplay(state: ModTableState, tab: CsvTableKey, rowIndex: number, rowKey: string, row: CsvDraftRow): boolean {
   if (state.tables[tab].some((candidate) => isLoadedCsvTableRow(candidate) && candidate.rowKey === rowKey)) return true;
   const next = deepClone(row);
   next.rowKey = rowKey;
@@ -330,7 +330,7 @@ function insertCsvRowForReplay(state: ModTableState, tab: TableKey, rowIndex: nu
   return true;
 }
 
-function removeCsvRowForReplay(state: ModTableState, tab: TableKey, rowKey: string): boolean {
+function removeCsvRowForReplay(state: ModTableState, tab: CsvTableKey, rowKey: string): boolean {
   const index = findLoadedRowIndex(state, tab, rowKey);
   if (index < 0) return false;
   state.tables[tab].splice(index, 1);
@@ -341,12 +341,12 @@ function removeCsvRowForReplay(state: ModTableState, tab: TableKey, rowKey: stri
   return true;
 }
 
-function adjustCsvTableRowCounts(state: ModTableState, tab: TableKey, delta: number): void {
+function adjustCsvTableRowCounts(state: ModTableState, tab: CsvTableKey, delta: number): void {
   state.totalRows[tab] = Math.max(0, state.totalRows[tab] + delta);
   state.filteredRows[tab] = Math.max(0, state.filteredRows[tab] + delta);
 }
 
-function refreshCsvCellDirty(state: ModTableState, tab: TableKey, row: CsvDraftRow, col: string, value: string): void {
+function refreshCsvCellDirty(state: ModTableState, tab: CsvTableKey, row: CsvDraftRow, col: string, value: string): void {
   const rowKey = row.rowKey;
   const original = findOriginalRow(state, tab, rowKey);
   const originalValue = cell(original?.data[col]);
@@ -360,7 +360,7 @@ function refreshCsvCellDirty(state: ModTableState, tab: TableKey, row: CsvDraftR
   if (!hasCsvDirtyCells(state.dirty[tab][rowKey])) delete state.dirty[tab][rowKey];
 }
 
-function rebuildCsvDirty(state: ModTableState, tab: TableKey): void {
+function rebuildCsvDirty(state: ModTableState, tab: CsvTableKey): void {
   state.dirty[tab] = {};
   const dirty = state.dirty[tab];
   const originalByKey = new Map(state.originalTables[tab].flatMap((row) => (isLoadedCsvTableRow(row) ? [[row.rowKey, row] as const] : [])));
@@ -386,7 +386,7 @@ function rebuildCsvDirty(state: ModTableState, tab: TableKey): void {
   }
 }
 
-function markCsvRowDirty(state: ModTableState, tab: TableKey, rowKey: string, row: CsvDraftRow): void {
+function markCsvRowDirty(state: ModTableState, tab: CsvTableKey, rowKey: string, row: CsvDraftRow): void {
   const original = findOriginalRow(state, tab, rowKey);
   delete state.dirty[tab][rowKey];
   if (!original) {
@@ -406,26 +406,26 @@ function markCsvRowDirty(state: ModTableState, tab: TableKey, rowKey: string, ro
   }
 }
 
-function markCsvRowDeleted(state: ModTableState, tab: TableKey, rowKey: string): void {
+function markCsvRowDeleted(state: ModTableState, tab: CsvTableKey, rowKey: string): void {
   const originalExists = Boolean(findOriginalRow(state, tab, rowKey));
   if (originalExists) state.dirty[tab][rowKey] = createCsvDeletedRow();
   else delete state.dirty[tab][rowKey];
 }
 
-function ensureCsvDirtyCells(state: ModTableState, tab: TableKey, rowKey: string): Record<string, string> {
+function ensureCsvDirtyCells(state: ModTableState, tab: CsvTableKey, rowKey: string): Record<string, string> {
   const existingCells = csvDirtyCells(state.dirty[tab][rowKey]);
   if (existingCells) return existingCells;
   state.dirty[tab][rowKey] = createCsvDirtyCells();
   return csvDirtyCells(state.dirty[tab][rowKey]) ?? {};
 }
 
-function findLoadedRow(state: ModTableState, tab: TableKey, rowKey: string): CsvDraftRow | null {
+function findLoadedRow(state: ModTableState, tab: CsvTableKey, rowKey: string): CsvDraftRow | null {
   return (
     state.tables[tab].find((candidate): candidate is CsvDraftRow => isLoadedCsvTableRow(candidate) && candidate.rowKey === rowKey) ?? null
   );
 }
 
-function findOriginalRow(state: ModTableState, tab: TableKey, rowKey: string): CsvDraftRow | null {
+function findOriginalRow(state: ModTableState, tab: CsvTableKey, rowKey: string): CsvDraftRow | null {
   return (
     state.originalTables[tab].find(
       (candidate): candidate is CsvDraftRow => isLoadedCsvTableRow(candidate) && candidate.rowKey === rowKey,
@@ -433,7 +433,7 @@ function findOriginalRow(state: ModTableState, tab: TableKey, rowKey: string): C
   );
 }
 
-function findLoadedRowIndex(state: ModTableState, tab: TableKey, rowKey: string): number {
+function findLoadedRowIndex(state: ModTableState, tab: CsvTableKey, rowKey: string): number {
   return state.tables[tab].findIndex((candidate) => isLoadedCsvTableRow(candidate) && candidate.rowKey === rowKey);
 }
 

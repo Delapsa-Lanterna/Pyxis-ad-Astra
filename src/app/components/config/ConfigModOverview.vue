@@ -1,39 +1,59 @@
 <template>
-  <section class="mod-overview-page">
-    <header class="mod-overview-header">
-      <div>
-        <h1>{{ modName }}</h1>
-        <p>{{ modVersion || '未声明版本' }}</p>
+  <section class="mod-overview-page page-content ui-content-column ui-content-grid ui-content-surface-muted">
+    <header class="mod-overview-header page-header ui-control-between ui-layout-row ui-control-reset">
+      <div class="page-identity ui-layout-grid ui-layout-shrink">
+        <h1 class="page-title ui-text-reset ui-layout-shrink ui-text-wrap ui-text-normal">{{ modName }}</h1>
+        <p class="mod-overview-header-description page-description ui-text-description ui-text-muted ui-text-reset ui-text-small">
+          {{ modVersion || '未声明版本' }}
+        </p>
       </div>
     </header>
 
-    <div class="mod-overview-grid">
-      <article class="mod-overview-card">
-        <span>数据表</span>
-        <strong>{{ tableTotal }}</strong>
-        <p>舰船、武器、联队、舰船插件、工业和技能记录</p>
+    <div class="mod-overview-grid ui-layout-grid">
+      <article class="mod-overview-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
+        <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">数据表</span>
+        <strong class="mod-overview-card-value ui-emphasis ui-text-truncate ui-text-wrap ui-text-normal ui-layout-shrink">{{
+          tableTotal
+        }}</strong>
+        <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">
+          舰船、武器、联队、舰船插件、工业和技能记录
+        </p>
       </article>
-      <article class="mod-overview-card">
-        <span>配置</span>
-        <strong>{{ configTotal }}</strong>
-        <p>势力与战役配置项</p>
+      <article class="mod-overview-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
+        <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">配置</span>
+        <strong class="mod-overview-card-value ui-emphasis ui-text-truncate ui-text-wrap ui-text-normal ui-layout-shrink">{{
+          configTotal
+        }}</strong>
+        <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">势力与战役配置项</p>
       </article>
-      <article class="mod-overview-card wide">
-        <span>目录</span>
-        <strong>{{ overview.modRootText }}</strong>
-        <p>当前工作区会原位读写该 Mod 目录下的数据文件</p>
+      <article class="mod-overview-card wide ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
+        <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">目录</span>
+        <strong
+          class="mod-overview-card-value wide-value ui-emphasis ui-text-truncate ui-text-wrap ui-text-body ui-text-normal ui-layout-shrink"
+          >{{ overview.modRootText }}</strong
+        >
+        <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">
+          当前工作区会原位读写该 Mod 目录下的数据文件
+        </p>
       </article>
-      <article class="mod-overview-card wide">
-        <span>原版资源</span>
-        <strong>{{ overview.coreAvailable ? '可用' : '不可用' }}</strong>
-        <p>{{ coreResourceText }}</p>
+      <article class="mod-overview-card wide ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
+        <span class="mod-overview-card-label ui-text-description ui-text-reset ui-text-muted ui-text-small">原版资源</span>
+        <strong
+          class="mod-overview-card-value wide-value ui-emphasis ui-text-truncate ui-text-wrap ui-text-body ui-text-normal ui-layout-shrink"
+          >{{ overview.coreAvailable ? '可用' : '不可用' }}</strong
+        >
+        <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">{{ coreResourceText }}</p>
       </article>
     </div>
 
-    <div class="mod-overview-breakdown">
-      <div v-for="item in breakdown" :key="item.label" class="mod-overview-breakdown-row">
+    <div class="mod-overview-breakdown ui-layout-clip ui-control-border ui-layout-grid ui-content-surface">
+      <div
+        v-for="item in breakdown"
+        :key="item.label"
+        class="mod-overview-breakdown-row ui-text-small ui-layout-row ui-text-soft ui-layout-grid ui-layout-center"
+      >
         <span>{{ item.label }}</span>
-        <strong>{{ item.count }}</strong>
+        <strong class="mod-overview-breakdown-row-value ui-emphasis ui-text-muted">{{ item.count }}</strong>
       </div>
     </div>
   </section>
@@ -41,11 +61,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useProjectStore } from '@/stores/project.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { buildConfigModOverview } from '@/domain/config/mod-overview';
 
-const project = useProjectStore();
-const overview = computed(() => buildConfigModOverview(project.activeManifest));
+const workspace = useWorkspaceStore();
+const overview = computed(() => buildConfigModOverview(workspace.activeManifest));
 
 const modName = computed(() => overview.value.modName);
 const modVersion = computed(() => overview.value.modVersion);

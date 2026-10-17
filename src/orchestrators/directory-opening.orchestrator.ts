@@ -1,3 +1,7 @@
+const openings = new Set<Promise<unknown>>();
+export async function settleDirectoryOpenings() {
+  while (openings.size) await Promise.all([...openings]);
+}
 import type { CreatedMod, ModEntry, ProjectManifest, FeedbackNotice, GameScanWarning } from '@/shared/types';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { pathBasename } from '@/shared/lib/paths';
@@ -12,7 +16,7 @@ import { measurePerformance } from '@/shared/runtime/performance';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { navigateToModOverview } from '@/orchestrators/workspace-navigation.orchestrator';
-import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
+import { removeModRuntimeState } from '@/orchestrators/workspace-lifecycle.orchestrator';
 
 export type DirectoryOpeningOutcome =
   | { type: 'game-overview'; root: string; availableModCount: number }
@@ -125,13 +129,27 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
   } catch (error) {
     if (workspace.getModGeneration(modRoot) === generation) {
       workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
-      await rollbackFailedModOpening(modRoot);
+      workspace.showOverview();
+      const sessionId = useProjectStore().getSessionId(modRoot);
+      if (sessionId) await closeProject(sessionId);
+      removeModRuntimeState(modRoot);
     }
     throw error;
   }
 }
 
-export async function openModProjectManifest(
+export function openModProjectManifest(
+  modRoot: string,
+  starsectorRoot: string | null,
+  generation: number,
+  accepts: () => boolean = () => true,
+): Promise<ProjectManifest | null> {
+  const operation = openManifest(modRoot, starsectorRoot, generation, accepts);
+  openings.add(operation);
+  void operation.finally(() => openings.delete(operation)).catch(() => {});
+  return operation;
+}
+async function openManifest(
   modRoot: string,
   starsectorRoot: string | null,
   generation: number,
@@ -187,12 +205,6 @@ function updateLoadedEntry(modRoot: string, loaded: ProjectManifest): string {
   workspace.updateModStatus(modRoot, 'ready');
   workspace.clearModOpeningFailure(modRoot);
   return displayName;
-}
-
-async function rollbackFailedModOpening(modRoot: string) {
-  const workspace = useWorkspaceStore();
-  workspace.showOverview();
-  await removeLoadedModRuntime(modRoot);
 }
 
 function mergeOpeningWarnings(detectedWarnings: GameScanWarning[], manifestWarnings: FeedbackNotice[]): FeedbackNotice[] {

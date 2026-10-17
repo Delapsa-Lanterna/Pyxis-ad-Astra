@@ -1,5 +1,4 @@
 import type { SpecEditorKind } from './spec-editor.types';
-import type { AppSettings } from './settings.types';
 import type { JointEditKind } from './joint-edit.types';
 import type { WeaponFirePreviewSource } from './weapon-fire-preview.types';
 export type WindowIdentity =
@@ -29,14 +28,11 @@ export interface NativeWindowRequest {
   minWidth: number;
   minHeight: number;
 }
-export interface WindowSettingsSnapshot {
-  revision: number;
-  value: AppSettings;
-}
 interface WindowContextMeta {
   label: string;
   revision: number;
   requestId: number;
+  receiverGeneration: number;
   title: string;
 }
 export type ManagedWindowContext = WindowContextMeta &
@@ -59,23 +55,28 @@ export type ManagedWindowContext = WindowContextMeta &
       }
   );
 export type WindowContextFor<K extends ManagedWindowContext['kind']> = Extract<ManagedWindowContext, { kind: K }>;
-export type WindowBootstrap = { kind: 'main' } | { kind: 'managed'; context: ManagedWindowContext; settings: WindowSettingsSnapshot };
-export interface ManagedWindowOpened {
-  label: string;
-  requestId: number;
-  reused: boolean;
-}
+export type WindowBootstrap = { kind: 'main' } | { kind: 'managed'; context: ManagedWindowContext; restoring: boolean };
 export interface WindowRequestReceipt {
   label: string;
   requestId: number;
   status: 'accepted' | 'superseded' | 'cancelled';
 }
+export type WindowRequestResult = WindowRequestReceipt;
 export interface ManagedWindowStatus {
   dirty: boolean;
   saving: boolean;
 }
+export type CloseScope = { kind: 'window' } | { kind: 'sessions'; sessionIds: string[] } | { kind: 'application' };
+export type ClosePhase = 'hold' | 'settle' | 'prepare' | 'confirm' | 'flush' | 'resume';
 export interface WindowCloseIntent {
-  requestId: number;
-  labels: string[];
   onlyIfClean: boolean;
+  operationId: number;
+  phase: ClosePhase;
+  scope: CloseScope;
+}
+export interface CloseResult {
+  status: 'closed' | 'cancelled' | 'failed';
+  destroyedWindows: string[];
+  releasedSessions: string[];
+  diagnostic: import('./error.types').ErrorDiagnostic | null;
 }

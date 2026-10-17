@@ -6,29 +6,45 @@
 
 ## 参考
 
-`src-tauri/src/models/font.rs`：原版字体身份、逐字体结果与图集页 wire 模型。
-`src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取 owner。
-`src/app/components/fonts/FontText.spec.ts`：默认文本、位图多页、问号替代与 DPI 的行为测试。
-`src/app/components/fonts/FontText.vue`：默认 DOM、位图画布、缺字诊断与尺寸监听 owner。
-`src/app/composables/use-original-fonts.spec.ts`：独立字体状态、共享读取、切换接纳和测量验证。
-`src/app/composables/use-original-fonts.ts`：窗口字体运行态、读取票据、逐项接纳、日志与响应式测量 owner。
-`src/app/composables/use-query-read-owner.ts`：字体读取消费的票据与通道释放入口。
-`src/app/fonts/font-provider.spec.ts`：多页解码、失败路径与字形缓存验证。
-`src/app/fonts/font-provider.ts`：外部 FNT 接入、图集解码与字形栅格缓存 owner。
-`src/domain/fonts/bitmap-font.spec.ts`：FNT 度量、字形与 kerning 的行为测试。
-`src/domain/fonts/bitmap-font.ts`：FNT 格式解析 owner。
-`src/domain/fonts/font-styles.ts`：实际字体身份对应的默认字号与字重。
-`src/domain/fonts/font.types.ts`：字体身份、文本片段、位图对象与排布结果的纯类型 owner。
-`src/domain/fonts/text-layout.spec.ts`：混排、字素、换行与墨迹范围的行为测试。
-`src/domain/fonts/text-layout.ts`：文本分段、排布与墨迹范围计算 owner。
-`src/services/font.service.ts`：逐字体只读 command 的参数与结果交接。
-`src/shared/runtime/cache.ts`：字形缓存消费的容量与访问顺序原语。
-`src/shared/types/font.types.ts`：字体身份、加载结果与图集页协议。
-`src/test/font.ts`：自主构造的精简 FNT 与外部加载结果夹具。
+### 拥有
+
+- `src-tauri/src/commands/font.rs`：原版字体查询 command。
+- `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
+- `src/app/components/fonts/`：原版字体 DOM、位图画布与行为测试。
+- `src/app/components/fonts/FontText.spec.ts`：默认文本、位图多页、问号替代与 DPI 的行为测试。
+- `src/app/components/fonts/FontText.vue`：默认 DOM、位图画布、缺字诊断与尺寸监听。
+- `src/app/composables/use-original-fonts.ts`：窗口字体运行态、读取票据、逐项接纳、日志与响应式测量。
+- `src/app/fonts/`：字体页解码、字形缓存与行为测试。
+- `src/app/fonts/font-provider.spec.ts`：多页解码、失败路径与字形缓存验证。
+- `src/app/fonts/font-provider.ts`：外部 FNT 接入、图集解码与字形栅格缓存。
+- `src/domain/fonts/`：FNT 解析、字形、排布与字体样式纯规则。
+- `src/domain/fonts/bitmap-font.spec.ts`：FNT 度量、字形与 kerning 的行为测试。
+- `src/domain/fonts/bitmap-font.ts`：FNT 格式解析。
+- `src/domain/fonts/font-styles.ts`：实际字体身份对应的默认字号与字重。
+- `src/domain/fonts/font.types.ts`：字体身份、文本片段、位图对象与排布结果的纯类型。
+- `src/domain/fonts/text-layout.spec.ts`：混排、字素、换行与墨迹范围的行为测试。
+- `src/domain/fonts/text-layout.ts`：文本分段、排布与墨迹范围计算。
+- `src/services/font.service.ts`：逐字体只读 command 的参数与结果交接。
+
+### 消费
+
+- `src-tauri/src/models/font.rs`：原版字体身份、逐字体结果与图集页 wire 模型。
+- `src/app/composables/use-query-read-owner.ts`：字体读取消费的票据与通道释放入口。
+- `src/shared/runtime/cache.ts`：字形缓存消费的容量与访问顺序原语。
+- `src/shared/types/font.types.ts`：字体身份、加载结果与图集页协议。
+- `src/test/font.ts`：自主构造的精简 FNT 与外部加载结果夹具。
+
+### 装配
+
+- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+
+### 关联
+
+- `src/app/composables/use-original-fonts.spec.ts`：独立字体状态、共享读取、切换接纳和测量验证。
 
 ## 边界
 
-- FontText 拥有默认文字 DOM、位图 canvas、DPI、缺字提示与监听；基础样式限定在组件内。
+- FontText 拥有默认文字 DOM、位图 canvas、DPI、缺字提示与监听。
 - 业务领域拥有字体角色到实际字体的映射，页面拥有字号角色选择、强调色与布局。
 - 后端字体读取拥有安全路径和 session 根补充，FNT 格式解析拥有页声明与字形度量的转换。
 - 字体提供入口拥有图集解码与按图集身份的栅格缓存，窗口运行态按字体身份拥有状态与共享请求。

@@ -1,4 +1,5 @@
-import { querySessionEntity, querySessionEntityEditTarget, querySessionEditorDraftResources } from '@/services/entity-query.service';
+import { querySessionEntity, querySessionEntityEditTarget } from '@/services/entity-query.service';
+import { querySessionDraftResources } from '@/services/resource-reference.service';
 import { queryResourceDataUrls } from '@/services/resource-cache.service';
 import { queryJointCandidate } from '@/services/joint-edit.service';
 import { jointObject } from '@/domain/joint-edit';
@@ -72,7 +73,7 @@ export async function querySpecShipEditorData(
 }
 
 export async function querySpecShipEditorImages(sessionId: string, id: string, draft: RowData, signal?: AbortSignal) {
-  const refs = await querySessionEditorDraftResources(sessionId, 'ship', id, draft, signal);
+  const refs = await querySessionDraftResources(sessionId, 'ship', id, draft, signal);
   const spriteData = await querySpriteData(sessionId, refs.sprite ?? null, signal);
   return {
     resourceRefs: Object.values(refs),

@@ -6,9 +6,18 @@
 
 ## 参考
 
-`src/app/components/immersive/wing/WingImmersivePanel.vue`：联队内容及来源字段展示。
-`src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全及联队身份跟随。
-`src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
+### 拥有
+
+- `src/app/components/immersive/wing/`：联队信息与来源展示。
+- `src/app/components/immersive/wing/WingImmersivePanel.vue`：联队内容及来源字段展示。
+- `src/app/composables/immersive-editor/wing/`：联队 rowKey、来源补全和业务动作。
+- `src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全及联队身份跟随。
+- `src/domain/immersive/wing/`：联队来源、字段和编队纯投影。
+- `src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
+
+### 消费
+
+- `src/test/wing-joint-edit.ts`：联队联合来源及行键的测试构造。
 
 ## 边界
 

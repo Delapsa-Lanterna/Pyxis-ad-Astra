@@ -1,6 +1,6 @@
 import { type EditorSpecSavedEvent } from '@/windows/window.events';
 import { type WindowEventHandler } from '@/windows/tauri.events';
-import { publishCommittedWrite, listenCommittedWrites } from '@/orchestrators/project-session-refresh.orchestrator';
+import { publishCommittedWrite, listenCommittedWrites } from '@/orchestrators/project-sync.orchestrator';
 import { isRowData } from '@/shared/lib/row-data';
 
 export function emitEditorSpecSaved(event: EditorSpecSavedEvent) {

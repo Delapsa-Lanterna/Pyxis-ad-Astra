@@ -1,7 +1,14 @@
+vi.mock('@/services/entity-query.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/entity-query.service')>()),
+  hasEntityInvalidation: vi.fn(() => false),
+}));
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { savedWriteFixture } from '@/test/write-result';
-import { useWriteSyncStore } from '@/stores/write-sync.store';
-vi.mock('@/orchestrators/entity-events.orchestrator', () => ({ listenEntityIdentityApplied: vi.fn(async () => () => {}) }));
+import { useProjectSyncStore } from '@/stores/project-sync.store';
+vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  listenEntityIdentityApplied: vi.fn(async () => () => {}),
+}));
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigMissionRecord } from '@/domain/config/config-records';
@@ -33,7 +40,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/orchestrators/config-save.orchestrator', () => ({
   completeConfigSave: async (modRoot: string, _session: string, result: import('@/shared/types').WriteResult) => {
-    useWriteSyncStore().markAccepted({ modRoot, result } as import('@/shared/types').CommittedWriteEvent);
+    useProjectSyncStore().markAccepted({ modRoot, result } as import('@/shared/types').CommittedWriteEvent);
   },
   createIndexedEntityAction: mocks.createIndexedEntityAction,
   deleteIndexedEntityAction: mocks.deleteIndexedEntityAction,
@@ -46,8 +53,8 @@ vi.mock('@/services/config-entity.service', () => ({
   queryMissionDraftIcon: vi.fn(async () => ''),
 }));
 
-vi.mock('@/services/query-cache.service', () => ({
-  hasEntityInvalidation: vi.fn(() => false),
+vi.mock('@/services/query-cache.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
   subscribeQueryInvalidations: vi.fn(() => () => {}),
 }));
 
