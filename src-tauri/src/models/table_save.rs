@@ -22,6 +22,13 @@ pub enum CsvRowPatchAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CsvRowOrderEntry {
+    Source(usize),
+    New(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -101,6 +108,8 @@ impl AssociatedSpecChange {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveCsvPatchPayload {
+    #[serde(deserialize_with = "super::required_nullable")]
+    pub row_order: Option<Vec<CsvRowOrderEntry>>,
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
@@ -214,7 +223,7 @@ mod tests {
 
     #[test]
     fn table_save_requests_keep_explicit_actions_and_default_json_options() {
-        let payload: SaveCsvPatchPayload = serde_json::from_value(json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","table":"ships","patches":[],"associatedSpecs":[]})).unwrap();
+        let payload: SaveCsvPatchPayload = serde_json::from_value(json!({"rowOrder":null,"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","table":"ships","patches":[],"associatedSpecs":[]})).unwrap();
         assert_eq!(payload.table, CsvTableKey::Ships);
         assert!(!payload.json_write.preserve_original_json);
         assert!(payload.json_write.confirmed_sources.is_empty());

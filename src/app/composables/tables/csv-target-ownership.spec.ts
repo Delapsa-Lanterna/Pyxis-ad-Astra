@@ -12,13 +12,13 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import type { CsvTableTarget, CsvTableWindow } from '@/shared/types';
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn(), choose: vi.fn<() => Promise<string | null>>(async () => null) }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableWindow: mocks.query,
   querySourceOptionCatalog: async () => [],
   queryTableRowPreviewDataUrl: async () => '',
 }));
-vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
+vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error, choose: mocks.choose }) }));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: async () => [] }));
 let wrapper: VueWrapper;
 const a: CsvTableTarget = { sessionId: 'sA', modRoot: 'M:/A', table: 'ships' };
@@ -34,11 +34,11 @@ function windowRecord(): CsvTableWindow {
     rows: [{ rowKey: 'row', isComment: false, data: { id: 'demo', name: 'Name' }, sourceRowIndex: 0 }],
   };
 }
-function harness() {
+function harness(saveBeforeSearch = async () => true) {
   let vm!: ReturnType<typeof useCsvTableViewModel>;
   wrapper = mount({
     setup() {
-      vm = useCsvTableViewModel();
+      vm = useCsvTableViewModel(saveBeforeSearch);
       return () => null;
     },
   });
@@ -69,6 +69,105 @@ beforeEach(() => {
 afterEach(() => wrapper?.unmount());
 
 describe('CSV explicit targets and column ownership', () => {
+  async function orderedHarness(save = async () => true) {
+    const record = windowRecord();
+    record.totalRows = record.filteredRows = 2;
+    record.rows.push({ ...record.rows[0]!, rowKey: 'second', sourceRowIndex: 1, data: { id: 'second' } });
+    mocks.query.mockResolvedValue(record);
+    const vm = harness(save);
+    await flushPromises();
+    useTablesStore().moveRow(a, 'second', 0);
+    return vm;
+  }
+  it('maps a newly visible window through an existing order draft', async () => {
+    mocks.query.mockImplementation(async (_session: string, _table: string, start: number, count: number) => ({
+      ...windowRecord(),
+      start,
+      totalRows: 500,
+      filteredRows: 500,
+      rows: Array.from({ length: Math.min(count, 500 - start) }, (_, offset) => ({
+        rowKey: `row-${start + offset}`,
+        sourceRowIndex: start + offset,
+        isComment: false,
+        data: { id: String(start + offset) },
+      })),
+    }));
+    const vm = harness();
+    await flushPromises();
+    await vm.loadTableWindow(400, 80);
+    await flushPromises();
+    const tables = useTablesStore();
+    tables.moveRow(a, 'row-400', 0);
+    tables.updateCellValue({ ...a, rowKey: 'row-0', column: 'id' }, 'local');
+    await vm.loadTableWindow(240, 80);
+    await flushPromises();
+    expect(mocks.query).toHaveBeenLastCalledWith(a.sessionId, 'ships', 240, 159, '', 'id-name', expect.any(AbortSignal));
+    expect(tables.rows[0]?.rowKey).toBe('row-400');
+    expect(tables.rows[1]?.data.id).toBe('local');
+    expect(tables.rows[241]?.rowKey).toBe('row-240');
+    expect(tables.hasCurrentTableExternalUpdate).toBe(false);
+  });
+  it.each(['save', 'discard', null])('settles the complete ordered draft using %s before searching', async (choice) => {
+    const tables = useTablesStore();
+    const save = vi.fn(async () => {
+      tables.markTableSavedForMod(a.modRoot, a.table);
+      return true;
+    });
+    const vm = await orderedHarness(save);
+    tables.updateCellValue({ ...a, rowKey: 'row', column: 'name' }, 'draft');
+    mocks.choose.mockResolvedValueOnce(choice);
+    await vm.setSearchText('second');
+    await flushPromises();
+    expect(mocks.choose).toHaveBeenCalledOnce();
+    if (choice === null) {
+      expect(tables.searchText).toBe('');
+      expect(tables.hasCurrentRowOrderChanges).toBe(true);
+      expect(tables.rows.find((row) => row?.rowKey === 'row')?.data.name).toBe('draft');
+    } else {
+      expect(tables.searchText).toBe('second');
+      expect(tables.hasCurrentTableChanges).toBe(false);
+      expect(vm.reorderDisabledReason.value).toBe('清空搜索和筛选后可调整行序');
+    }
+    expect(save).toHaveBeenCalledTimes(choice === 'save' ? 1 : 0);
+  });
+  it('keeps an ordered draft when saving is cancelled and allows an empty search-field selection', async () => {
+    const vm = await orderedHarness(async () => false);
+    await vm.setSearchField('name');
+    await vm.setSearchText('   ');
+    await flushPromises();
+    expect(mocks.choose).not.toHaveBeenCalled();
+    expect(vm.reorderDisabledReason.value).toBe('');
+    mocks.choose.mockResolvedValueOnce('save');
+    await vm.setSearchText('value');
+    await flushPromises();
+    expect(useTablesStore().searchText).toBe('   ');
+    expect(useTablesStore().hasCurrentRowOrderChanges).toBe(true);
+  });
+  it('owns a single search intent and revokes it across an A-B-A target handoff', async () => {
+    const vm = await orderedHarness();
+    let finish!: (choice: string) => void;
+    mocks.choose.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const searching = vm.setSearchText('first');
+    await flushPromises();
+    await vm.setSearchText('second');
+    expect(mocks.choose).toHaveBeenCalledOnce();
+    navigateToModTable(b.modRoot, 'ships');
+    await flushPromises();
+    navigateToModTable(a.modRoot, 'ships');
+    await flushPromises();
+    finish('discard');
+    await searching;
+    await flushPromises();
+    expect(useTablesStore().searchText).toBe('');
+    expect(useTablesStore().hasCurrentRowOrderChanges).toBe(true);
+    expect(vm.searchPending.value).toBe(false);
+  });
+
   it('reloads the first window with the selected search field and retains the text', async () => {
     const vm = harness();
     await flushPromises();

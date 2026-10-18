@@ -115,6 +115,276 @@ function hydrateActiveTable() {
 describe('table-save orchestrator', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
+  it.each(['none', 'undo', 'edit', 'create', 'delete'] as const)(
+    'saves the captured order while preserving a later %s action',
+    async (later) => {
+      const manifest = buildManifest();
+      manifest.associatedSpecTables = [];
+      useProjectStore().manifests.set(MOD_ROOT, manifest);
+      const state = hydrateActiveTable(),
+        tables = useTablesStore();
+      state.tables.ships = ['a', 'b', 'c'].map((id, index) => csvDraftRow({ id }, `ships:row:${index}`, index));
+      state.originalTables.ships = deepClone(state.tables.ships);
+      state.totalRows.ships = state.filteredRows.ships = 3;
+      const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+      tables.moveRow(target, 'ships:row:2', 0);
+      let finish!: (result: WriteResult) => void;
+      writeCsvPatch.mockImplementationOnce(
+        () =>
+          new Promise<WriteResult>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const saving = saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+      expect(writeCsvPatch.mock.lastCall![7]).toEqual([2, 0, 1]);
+      if (later === 'undo') tables.undoCurrentTableEdit();
+      if (later === 'edit') tables.updateCellValue({ ...target, rowKey: 'ships:row:1', column: 'id' }, 'edited');
+      if (later === 'create') tables.addNewRow();
+      if (later === 'delete') {
+        tables.selectRowByKey(target, 'ships:row:0');
+        tables.deleteSelected();
+      }
+      finish(writeResult());
+      await saving;
+      expect(state.originalTables.ships.map((row) => row?.data.id)).toEqual(['c', 'a', 'b']);
+      expect(state.originalTables.ships.map((row) => row?.sourceRowIndex)).toEqual([0, 1, 2]);
+      if (later === 'none') expect(tables.hasCurrentTableChanges).toBe(false);
+      else expect(tables.hasCurrentTableChanges).toBe(true);
+      if (later === 'undo') {
+        expect(state.rowOrders.ships).toEqual([1, 2, 0]);
+        tables.redoCurrentTableEdit();
+        expect(tables.hasCurrentTableChanges).toBe(false);
+      }
+      if (later === 'edit') expect(state.tables.ships[2]?.data.id).toBe('edited');
+      if (later === 'create') expect(state.tables.ships[1]).toMatchObject({ sourceRowIndex: null, insertAt: 1 });
+      if (later === 'delete') expect(state.dirty.ships['ships:row:0']).toEqual({ action: 'delete' });
+    },
+  );
+
+  it('rebases a newly saved row and its later undo without replacing its identity', async () => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable(),
+      tables = useTablesStore();
+    state.tables.ships = ['a', 'b'].map((id, index) => csvDraftRow({ id }, `ships:row:${index}`, index));
+    state.originalTables.ships = deepClone(state.tables.ships);
+    state.totalRows.ships = state.filteredRows.ships = 2;
+    tables.moveRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:row:1', 0);
+    const added = tables.addNewRow()!;
+    let finish!: (result: WriteResult) => void;
+    writeCsvPatch.mockImplementationOnce(
+      () =>
+        new Promise<WriteResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saving = saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    tables.undoCurrentTableEdit();
+    finish(writeResult({ keyMap: [{ previousKey: added.rowKey, nextKey: 'ships:row:2', rowIndex: 1 }] }));
+    await saving;
+    expect(state.rowOrders.ships).toEqual([0, 2]);
+    expect(state.dirty.ships['ships:row:2']).toEqual({ action: 'delete' });
+    tables.redoCurrentTableEdit();
+    expect(state.rowOrders.ships).toEqual([0, 1, 2]);
+    expect(tables.hasCurrentTableChanges).toBe(false);
+  });
+
+  it('restores a submitted deletion as a new row when its undo also reverses the submitted order', async () => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable(),
+      tables = useTablesStore();
+    state.tables.ships = ['a', 'b', 'c'].map((id, index) => csvDraftRow({ id }, `ships:row:${index}`, index));
+    state.originalTables.ships = deepClone(state.tables.ships);
+    state.totalRows.ships = state.filteredRows.ships = 3;
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+    tables.selectRowByKey(target, 'ships:row:0');
+    tables.deleteSelected();
+    tables.moveRow(target, 'ships:row:2', 0);
+    let finish!: (result: WriteResult) => void;
+    writeCsvPatch.mockImplementationOnce(
+      () =>
+        new Promise<WriteResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saving = saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    tables.undoCurrentTableEdit();
+    tables.undoCurrentTableEdit();
+    finish(writeResult());
+    await saving;
+    const restored = state.tables.ships[0]!;
+    expect(restored.rowKey).toContain(':new:');
+    expect(restored).toMatchObject({ sourceRowIndex: null, insertAt: 1, data: { id: 'a' } });
+    expect(state.rowOrders.ships).toEqual([restored.rowKey, 1, 0]);
+    tables.redoCurrentTableEdit();
+    tables.redoCurrentTableEdit();
+    expect(state.rowOrders.ships).toEqual([0, 1]);
+    expect(tables.hasCurrentTableChanges).toBe(false);
+  });
+
+  it('keeps the insertion boundary of a later undone creation after an ordered save', async () => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable(),
+      tables = useTablesStore();
+    state.tables.ships = ['a', 'b', 'c'].map((id, index) => csvDraftRow({ id }, `ships:row:${index}`, index));
+    state.originalTables.ships = deepClone(state.tables.ships);
+    state.totalRows.ships = state.filteredRows.ships = 3;
+    tables.moveRow({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:row:2', 0);
+    let finish!: (result: WriteResult) => void;
+    writeCsvPatch.mockImplementationOnce(
+      () =>
+        new Promise<WriteResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saving = saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    const pending = tables.addNewRow()!;
+    tables.undoCurrentTableEdit();
+    finish(writeResult());
+    await saving;
+    tables.redoCurrentTableEdit();
+    expect(state.tables.ships[1]).toMatchObject({ rowKey: pending.rowKey, insertAt: 1 });
+    expect(state.rowOrders.ships).toEqual([0, pending.rowKey, 1, 2]);
+  });
+
+  it('saves middle insertions in displayed order after earlier rows are deleted', async () => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    state.headers.ships = ['id'];
+    state.tables.ships = ['first', 'second', 'third'].map((id, index) => csvDraftRow({ id }, `ships:row:${index}`, index));
+    state.originalTables.ships = deepClone(state.tables.ships);
+    const tables = useTablesStore();
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+    tables.selectRowByKey(target, 'ships:row:1');
+    const first = tables.addNewRow()!;
+    tables.selectRowByKey(target, 'ships:row:1');
+    const second = tables.addNewRow()!;
+    tables.selectRowByKey(target, 'ships:row:0');
+    tables.deleteSelected();
+    writeCsvPatch.mockResolvedValueOnce(
+      writeResult({
+        keyMap: [
+          { previousKey: second.rowKey, nextKey: 'ships:row:3', rowIndex: 1 },
+          { previousKey: first.rowKey, nextKey: 'ships:row:4', rowIndex: 2 },
+        ],
+      }),
+    );
+    await saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    expect(writeCsvPatch.mock.lastCall![3].map((patch: { rowKey: string; insertAt?: number }) => [patch.rowKey, patch.insertAt])).toEqual([
+      ['ships:row:0', undefined],
+      [second.rowKey, 1],
+      [first.rowKey, 2],
+    ]);
+    expect(state.tables.ships.map((row) => row?.rowKey)).toEqual(['ships:row:1', 'ships:row:3', 'ships:row:4', 'ships:row:2']);
+    expect(state.tables.ships.map((row) => row?.sourceRowIndex)).toEqual([0, 1, 2, 3]);
+    expect(state.dirty.ships).toEqual({});
+  });
+
+  it('saves a filtered insertion after its physical source row', async () => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    state.headers.ships = ['id'];
+    state.tables.ships = [csvDraftRow({ id: 'match' }, 'ships:row:7', 7), csvDraftRow({ id: 'later' }, 'ships:row:12', 12)];
+    state.originalTables.ships = deepClone(state.tables.ships);
+    const tables = useTablesStore();
+    tables.selectRowByKey({ sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' }, 'ships:row:7');
+    const created = tables.addNewRow()!;
+    writeCsvPatch.mockResolvedValueOnce(writeResult({ keyMap: [{ previousKey: created.rowKey, nextKey: 'ships:row:20', rowIndex: 8 }] }));
+    await saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    expect(writeCsvPatch.mock.lastCall![3][0]).toMatchObject({ rowKey: created.rowKey, insertAt: 8 });
+    expect(state.tables.ships.map((row) => row?.sourceRowIndex)).toEqual([7, 8, 13]);
+  });
+
+  it('preserves consecutive restored rows when multiple deletions are undone during saving', async () => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    state.headers.ships = ['id'];
+    state.tables.ships = ['first', 'second', 'third'].map((id, index) => csvDraftRow({ id }, `ships:row:${index}`, index));
+    state.originalTables.ships = deepClone(state.tables.ships);
+    const tables = useTablesStore();
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+    for (const rowKey of ['ships:row:0', 'ships:row:1']) {
+      tables.selectRowByKey(target, rowKey);
+      tables.deleteSelected();
+    }
+    let finish!: (result: WriteResult) => void;
+    writeCsvPatch.mockImplementationOnce(
+      () =>
+        new Promise<WriteResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saving = saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    tables.undoCurrentTableEdit();
+    tables.undoCurrentTableEdit();
+    finish(writeResult());
+    await saving;
+    expect(state.tables.ships.slice(0, 2).map((row) => row?.insertAt)).toEqual([0, 0]);
+    const restored = state.tables.ships.slice(0, 2);
+    writeCsvPatch.mockResolvedValueOnce(
+      writeResult({
+        keyMap: restored.map((row, index) => ({ previousKey: row!.rowKey, nextKey: `ships:row:${index + 3}`, rowIndex: index })),
+      }),
+    );
+    await saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    expect(writeCsvPatch.mock.lastCall![3].map((patch: { insertAt: number }) => patch.insertAt)).toEqual([0, 1]);
+    expect(state.tables.ships.map((row) => row?.data.id)).toEqual(['first', 'second', 'third']);
+    expect(state.tables.ships.map((row) => row?.sourceRowIndex)).toEqual([0, 1, 2]);
+  });
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])('rebases a later insertion across saving, before: %s, undone: %s', async (before, undone) => {
+    const manifest = buildManifest();
+    manifest.associatedSpecTables = [];
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    state.headers.ships = ['id'];
+    state.originalTables.ships = deepClone(state.tables.ships);
+    const tables = useTablesStore();
+    const target = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const };
+    tables.selectRowByKey(target, 'ships:r1');
+    const submitted = tables.addNewRow()!;
+    let finish!: (result: WriteResult) => void;
+    writeCsvPatch.mockImplementationOnce(
+      () =>
+        new Promise<WriteResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saving = saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    if (before) tables.selectRowByKey(target, 'ships:r1');
+    const pending = tables.addNewRow()!;
+    if (undone) tables.undoCurrentTableEdit();
+    finish(writeResult({ keyMap: [{ previousKey: submitted.rowKey, nextKey: 'ships:row:2', rowIndex: 1 }] }));
+    await saving;
+    if (undone) tables.redoCurrentTableEdit();
+    expect(state.tables.ships.find((row) => row?.rowKey === pending.rowKey)?.insertAt).toBe(before ? 1 : 2);
+    tables.undoCurrentTableEdit();
+    tables.redoCurrentTableEdit();
+    expect(state.tables.ships.find((row) => row?.rowKey === pending.rowKey)?.insertAt).toBe(before ? 1 : 2);
+    writeCsvPatch.mockResolvedValueOnce(
+      writeResult({ keyMap: [{ previousKey: pending.rowKey, nextKey: 'ships:row:3', rowIndex: before ? 1 : 2 }] }),
+    );
+    await saveTableChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] });
+    expect(writeCsvPatch.mock.lastCall![3][0]).toMatchObject({ rowKey: pending.rowKey, insertAt: before ? 1 : 2 });
+    expect(state.tables.ships.map((row) => row?.sourceRowIndex)).toEqual([0, 1, 2]);
+  });
+
   it('captures the parser flag with the row and retains later comment changes through save and undo', async () => {
     const project = useProjectStore();
     const manifest = buildManifest();
@@ -299,6 +569,7 @@ describe('table-save orchestrator', () => {
       [],
       { preserveOriginalJson: false, confirmedSources: [] },
       [],
+      null,
     );
     expect(completeSavedWrite).toHaveBeenCalledWith({
       modRoot: MOD_ROOT,
@@ -333,6 +604,7 @@ describe('table-save orchestrator', () => {
         confirmedSources: [],
       },
       [],
+      null,
     );
   });
 

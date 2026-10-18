@@ -9,7 +9,7 @@
         <div class="top-action-group action-group">
           <n-input
             :value="tables.searchText"
-            :disabled="tables.currentTableLocked"
+            :disabled="tables.currentTableLocked || csvTable.searchPending.value"
             class="top-search-input"
             clearable
             :placeholder="csvSearchPlaceholder(tables.searchField)"
@@ -17,7 +17,7 @@
           />
           <n-select
             :value="tables.searchField"
-            :disabled="tables.currentTableLocked"
+            :disabled="tables.currentTableLocked || csvTable.searchPending.value"
             @update:value="csvTable.setSearchField"
             class="top-search-field-select"
             :options="searchOptions"
@@ -91,8 +91,11 @@ import { csvSearchOptions, csvSearchPlaceholder } from '@/domain/tables/csv-sear
 const tables = useTablesStore();
 const sidebarExpanded = defineModel<boolean>('sidebarExpanded', { default: true });
 const workspace = useWorkspaceStore();
-const csvTable = useCsvTableViewModel();
 const actions = useWorkspaceShellActions(useAppFeedback());
+const csvTable = useCsvTableViewModel(async () => {
+  const result = await actions.saveCurrentTable();
+  return result?.status === 'saved' || result?.status === 'noop';
+});
 
 const searchOptions = computed(() => csvSearchOptions(tables.currentTab, tables.currentHeader));
 </script>

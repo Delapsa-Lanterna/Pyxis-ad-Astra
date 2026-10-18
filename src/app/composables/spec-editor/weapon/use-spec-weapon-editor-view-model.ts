@@ -105,13 +105,14 @@ export function useSpecWeaponEditorViewModel(
   const fromCanvas = (x: number, y: number) => weaponPointFromCanvas({ x, y }, viewport.center(), viewport.scale.value);
   function setView(mode: WeaponViewMode) {
     void document.run(() => {
+      canvas.cancelInspectorReveal();
       viewMode.value = mode;
       state.reset();
       refreshRendering();
     });
   }
   function selectBarrel(mode: WeaponViewMode, i: number) {
-    void document.run(() => {
+    void canvas.revealInspector(() => {
       viewMode.value = mode;
       state.select({ kind: 'barrel', i }, true);
       refreshRendering();
@@ -119,6 +120,7 @@ export function useSpecWeaponEditorViewModel(
   }
   function addBarrelFor(mode: WeaponViewMode) {
     void document.command((weapon) => {
+      canvas.cancelInspectorReveal();
       const added = addWeaponBarrel(weapon, mode, { x: 0, y: 0 }, state.mirrorMode.value);
       viewMode.value = mode;
       state.select({ kind: 'barrel', i: added.i });
@@ -187,12 +189,12 @@ export function useSpecWeaponEditorViewModel(
       previewTakesOver: (input) => input.shiftKey || input.ctrlKey,
       deleteSelected: () => deleteBarrelFor(viewMode.value),
       shortcuts: { u: () => setView('turret'), h: () => setView('hardpoint') },
-      inspector: () => ({
-        section: viewMode.value === 'turret' ? 'turretBarrels' : 'hardpointBarrels',
-        selector:
-          state.selected.value === null ? '' : '[data-inspector-target="' + viewMode.value + '-barrel-' + state.selected.value + '"]',
-        lock: state.hovered.value,
-      }),
+      inspector: () =>
+        state.target.value && {
+          section: viewMode.value === 'turret' ? 'turretBarrels' : 'hardpointBarrels',
+          selector: `[data-inspector-target="${viewMode.value}-barrel-${state.target.value.i}"]`,
+          lock: state.target.value,
+        },
       draw,
     },
   });

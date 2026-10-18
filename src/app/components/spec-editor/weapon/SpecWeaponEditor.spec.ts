@@ -205,12 +205,13 @@ describe('SpecWeaponEditor', () => {
     expect(editor.find('canvas.editor-canvas').exists()).toBe(true);
   });
 
-  it('numbers the inspector from one while edits still address the first barrel', async () => {
-    const editor = mountEditor({ id: 'railgun', specClass: 'projectile', turretOffsets: [1, 2], turretAngleOffsets: [0] });
-    const first = editor.get('[data-inspector-target="turret-barrel-0"]');
+  it.each(['turret', 'hardpoint'])('locks the first %s barrel at its coordinate editor', async (mode) => {
+    const editor = mountEditor({ id: 'railgun', specClass: 'projectile', [`${mode}Offsets`]: [1, 2], [`${mode}AngleOffsets`]: [0] });
+    const first = editor.get(`[data-name="${mode}Barrels"] .item-list-button`);
     expect(first.text()).toContain('发射点 1');
     await first.trigger('click');
     expect(first.classes()).toContain('selected');
+    expect(editor.get(`[data-inspector-target="${mode}-barrel-0"] .field-label-key`).text()).toBe('X');
   });
 
   it.each(['projectile', 'beam'])('groups glow separately after sprites for a %s weapon', (specClass) => {

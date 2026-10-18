@@ -63,6 +63,7 @@ fn rename(
                 unreachable!()
             };
             crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+                row_order: None,
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 table: CsvTableKey::Weapons,

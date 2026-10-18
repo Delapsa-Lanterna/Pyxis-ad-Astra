@@ -46,6 +46,7 @@ pub fn save_csv_patch(payload: SaveCsvPatchPayload) -> Result<WriteResult, AppEr
         payload.patches,
         payload.associated_specs,
         payload.json_write,
+        payload.row_order,
     )?;
     transaction.commit(result, "保存 CSV")
 }

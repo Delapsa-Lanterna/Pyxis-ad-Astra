@@ -193,6 +193,7 @@ export function useSpecShipEditorViewModel(
   const absolutePoint = (input: CanvasInput) => shipPointFromCanvas(input.point, viewport.center(), viewport.scale.value);
   function setMode(next: ShipEditorMode) {
     void document.run(() => {
+      canvas.cancelInspectorReveal();
       mode.value = next;
       state.reset();
       draw();
@@ -273,21 +274,15 @@ export function useSpecShipEditorViewModel(
       shortcuts: Object.fromEntries(modes.map((item) => [item.shortcut.toLowerCase(), () => setMode(item.value)])),
       inspector: () => {
         const section = modeToSection[mode.value],
-          target = state.hovered.value;
-        if (!section) return null;
+          target = state.target.value;
+        if (!section || !target) return null;
         const selector =
           mode.value === 'ranges'
-            ? target
-              ? '[data-inspector-field="' + (target.kind === 'center' ? 'center-x' : 'shield-x') + '"]'
-              : ''
-            : state.selected.value !== null
-              ? '[data-inspector-target="' +
-                (mode.value === 'launchBay' ? 'launchBay' : mode.value === 'bounds' ? 'bound' : mode.value) +
-                '-' +
-                state.selected.value +
-                '"]'
-              : '';
-        return selector ? { section, selector, lock: target } : null;
+            ? `[data-inspector-field="${target.kind === 'center' ? 'center-x' : 'shield-x'}"]`
+            : target.kind === 'launchBayPort'
+              ? `[data-inspector-target="launchBay-${target.i}-port-${target.port}"]`
+              : `[data-inspector-target="${mode.value === 'bounds' ? 'bound' : mode.value}-${target.i}"]`;
+        return { section, selector, lock: target };
       },
       draw,
     },
@@ -375,7 +370,7 @@ export function useSpecShipEditorViewModel(
     });
   }
   function selectInspectorItem(next: ShipEditorMode, i: number, kind: string) {
-    void document.run(() => {
+    void canvas.revealInspector(() => {
       mode.value = next;
       state.select({ kind, i }, true);
       draw();
@@ -383,6 +378,7 @@ export function useSpecShipEditorViewModel(
   }
   function addElement(kind: 'weapon' | 'launchBay' | 'engine' | 'bound') {
     void document.command((ship) => {
+      canvas.cancelInspectorReveal();
       const added = addShipElement(ship, kind, kind === 'engine' ? [-50, 0] : [0, 0], kind === 'engine' && state.mirrorMode.value);
       mode.value = kind === 'bound' ? 'bounds' : kind;
       state.select(added.target);
@@ -479,8 +475,8 @@ export function useSpecShipEditorViewModel(
           state.selectPort(ports.length);
         }),
       selectBayPort: (port: number) =>
-        document.run(() => {
-          state.selectPort(port);
+        canvas.revealInspector(() => {
+          state.select({ kind: 'launchBayPort', i: state.selected.value!, port }, true);
           draw();
         }),
       addWeaponSlot: () => addElement('weapon'),

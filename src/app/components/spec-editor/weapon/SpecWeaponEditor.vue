@@ -156,7 +156,6 @@
                 class="ui-button item-list-button ui-text-normal ui-control-pointer ui-content-surface ui-layout-row"
                 v-for="(_, i) in actions.barrelCountFor('turret')"
                 :key="`barrel-turret-${i}`"
-                :data-inspector-target="`turret-barrel-${i}`"
                 :class="{ selected: view.viewMode === 'turret' && view.selected === i }"
                 @click="actions.selectBarrel('turret', i)"
               >
@@ -167,7 +166,11 @@
                 >
               </button>
             </div>
-            <div v-if="view.viewMode === 'turret' && view.selected !== null" class="ui-field-stack">
+            <div
+              v-if="view.viewMode === 'turret' && view.selected !== null"
+              class="ui-field-stack"
+              :data-inspector-target="`turret-barrel-${view.selected}`"
+            >
               <FieldRow :label="fieldNames['X'] ?? 'X'" field-key="X" :path="`${view.viewMode}Offsets[${view.selected! * 2}]`"
                 ><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)"
               /></FieldRow>
@@ -189,7 +192,6 @@
                 class="ui-button item-list-button ui-text-normal ui-control-pointer ui-content-surface ui-layout-row"
                 v-for="(_, i) in actions.barrelCountFor('hardpoint')"
                 :key="`barrel-hardpoint-${i}`"
-                :data-inspector-target="`hardpoint-barrel-${i}`"
                 :class="{ selected: view.viewMode === 'hardpoint' && view.selected === i }"
                 @click="actions.selectBarrel('hardpoint', i)"
               >
@@ -200,7 +202,11 @@
                 >
               </button>
             </div>
-            <div v-if="view.viewMode === 'hardpoint' && view.selected !== null" class="ui-field-stack">
+            <div
+              v-if="view.viewMode === 'hardpoint' && view.selected !== null"
+              class="ui-field-stack"
+              :data-inspector-target="`hardpoint-barrel-${view.selected}`"
+            >
               <FieldRow :label="fieldNames['X'] ?? 'X'" field-key="X" :path="`${view.viewMode}Offsets[${view.selected! * 2}]`"
                 ><NumberValueInput :value="view.offsets[view.selected * 2]" @update:value="actions.setOffset(0, $event)"
               /></FieldRow>

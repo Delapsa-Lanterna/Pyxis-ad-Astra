@@ -194,6 +194,10 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   async function saveChanges() {
+    await saveCurrentTable();
+  }
+
+  async function saveCurrentTable() {
     if (tables.saving) return;
     try {
       const result = await saveTableChanges({
@@ -203,6 +207,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
         feedback,
       });
       showSaveResult(result);
+      return result;
     } catch (err) {
       feedback.error(err, '保存 CSV 失败');
     }
@@ -554,6 +559,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     refreshModOverview,
     canRefreshOverview,
     saveChanges,
+    saveCurrentTable,
     undoCurrentTableEdit,
   };
 }

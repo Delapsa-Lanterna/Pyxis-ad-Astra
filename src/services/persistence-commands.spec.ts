@@ -61,7 +61,7 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   [
     'save_csv_patch',
     () => csvTable.saveCsvPatch(sessionId, modRoot, 'ships', [], [], jsonWrite),
-    { sessionId, modRoot, table: 'ships', patches: [], associatedSpecs: [], jsonWrite, baseVersions: [] },
+    { rowOrder: null, sessionId, modRoot, table: 'ships', patches: [], associatedSpecs: [], jsonWrite, baseVersions: [] },
   ],
   [
     'save_text_file',
@@ -130,7 +130,7 @@ describe('query and persistence transport protocols', () => {
     [
       'save_csv_patch',
       () => csvTable.saveCsvPatch(sessionId, modRoot, 'ships', [], []),
-      { baseVersions: [], sessionId, modRoot, table: 'ships', patches: [], associatedSpecs: [] },
+      { rowOrder: null, baseVersions: [], sessionId, modRoot, table: 'ships', patches: [], associatedSpecs: [] },
     ],
   ] as const)('%s preserves omitted JSON options', async (command, action, payload) => {
     await action();

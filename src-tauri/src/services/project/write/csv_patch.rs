@@ -11,7 +11,7 @@ use crate::{
     io::{FileChangeSetBuilder, JsonWriteBatch, acquire_root_write_lock, read_json_file},
     models::{
         AssociatedSpecChange, AssociatedSpecCreateParams, AssociatedSpecWrite, CsvRowKeyMapping,
-        CsvRowPatch, CsvRowPatchAction, CsvTableKey, WriteResult,
+        CsvRowOrderEntry, CsvRowPatch, CsvRowPatchAction, CsvTableKey, WriteResult,
     },
 };
 use serde_json::Value;
@@ -61,7 +61,7 @@ pub fn save_csv_patch_with_json_options(
             })
         })
         .collect::<AppResult<Vec<_>>>()?;
-    save_csv_patch_snapshot(session_id, table, patches, associated, options)
+    save_csv_patch_snapshot(session_id, table, patches, associated, options, None)
 }
 
 pub fn save_csv_patch_snapshot(
@@ -70,6 +70,7 @@ pub fn save_csv_patch_snapshot(
     patches: Vec<CsvRowPatch>,
     associated_specs: Vec<AssociatedSpecWrite>,
     options: crate::models::JsonWriteOptions,
+    row_order: Option<Vec<CsvRowOrderEntry>>,
 ) -> AppResult<WriteResult> {
     let handle = session_handle(session_id)?;
     let root = lock_session(&handle)?.manifest.mod_root.clone();
@@ -86,7 +87,30 @@ pub fn save_csv_patch_snapshot(
             table_data.next_row_seq,
         )
     };
-    let key_map = apply_csv_row_patches(table, &mut rows, &mut next_row_seq, patches)?;
+    let source_keys = row_order.as_ref().map(|_| {
+        rows.iter()
+            .map(|row| row.row_key.clone())
+            .collect::<Vec<_>>()
+    });
+    let mut key_map = apply_csv_row_patches(table, &mut rows, &mut next_row_seq, patches)?;
+    if let Some(order) = row_order {
+        apply_csv_row_order(
+            &mut rows,
+            source_keys
+                .as_ref()
+                .expect("ordered write captured its source"),
+            &key_map,
+            order,
+        )?;
+        let positions: std::collections::HashMap<_, _> = rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| (row.row_key.as_str(), index))
+            .collect();
+        for mapping in &mut key_map {
+            mapping.row_index = positions[mapping.next_key.as_str()];
+        }
+    }
     let mut builder = FileChangeSetBuilder::new_with_lock(Path::new(&mod_root), write_lock)?;
     let mut json = JsonWriteBatch::new(options);
     let csv = CsvTableDraft {
@@ -245,6 +269,37 @@ fn apply_csv_row_patches(
             .expect("inserted row survives the submitted patch");
     }
     Ok(key_map)
+}
+
+fn apply_csv_row_order(
+    rows: &mut Vec<SessionCsvRow>,
+    sources: &[String],
+    key_map: &[CsvRowKeyMapping],
+    order: Vec<CsvRowOrderEntry>,
+) -> AppResult<()> {
+    let invalid = || AppError::message("table.row_order_invalid", "CSV 行序与当前保存的记录不一致");
+    if order.len() != rows.len() {
+        return Err(invalid());
+    }
+    let added: std::collections::HashMap<_, _> = key_map
+        .iter()
+        .map(|mapping| (mapping.previous_key.as_str(), mapping.next_key.as_str()))
+        .collect();
+    let mut available: std::collections::HashMap<_, _> = std::mem::take(rows)
+        .into_iter()
+        .map(|row| (row.row_key.clone(), row))
+        .collect();
+    for entry in order {
+        let key = match &entry {
+            CsvRowOrderEntry::Source(index) => sources
+                .get(*index)
+                .map(String::as_str)
+                .ok_or_else(invalid)?,
+            CsvRowOrderEntry::New(key) => *added.get(key.as_str()).ok_or_else(invalid)?,
+        };
+        rows.push(available.remove(key).ok_or_else(invalid)?);
+    }
+    Ok(())
 }
 
 fn is_new_csv_row_key(table_key: &str, row_key: &str) -> bool {
@@ -541,6 +596,7 @@ mod tests {
                 base_versions.push(intent.destination_version);
             }
             let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+                row_order: None,
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions,
@@ -680,6 +736,107 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    fn ordered_csv_command_preserves_keys_comments_and_file_history() {
+        use crate::models::FileChangeReplayDirection;
+        let root = temp_dir("csv_order_command");
+        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let path = root.join("data/hulls/ship_data.csv");
+        let before = "id,name,custom\na,Alpha,001\n#note,Comment,002\n,,\nb,Beta,003\n";
+        write_utf8_no_bom(&path, before).unwrap();
+        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let window = query_csv_table_window(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            0,
+            20,
+            None,
+            CsvSearchField::IdName,
+        )
+        .unwrap();
+        let keys: Vec<_> = window.rows.iter().map(|row| row.row_key.clone()).collect();
+        for order in [vec![0, 0, 2, 3], vec![0, 1, 2], vec![0, 1, 2, 9]] {
+            let result = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+                row_order: Some(order.into_iter().map(CsvRowOrderEntry::Source).collect()),
+                base_versions: window.base_versions.clone(),
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                table: CsvTableKey::Ships,
+                patches: vec![],
+                associated_specs: vec![],
+                json_write: Default::default(),
+            });
+            assert!(result.is_err());
+            assert_eq!(read_utf8_no_bom(&path).unwrap(), before);
+        }
+        let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+            row_order: Some(vec![
+                CsvRowOrderEntry::Source(3),
+                CsvRowOrderEntry::New("ships:new:1".into()),
+                CsvRowOrderEntry::Source(1),
+                CsvRowOrderEntry::Source(2),
+                CsvRowOrderEntry::Source(0),
+            ]),
+            base_versions: window.base_versions.clone(),
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            table: CsvTableKey::Ships,
+            patches: vec![CsvRowPatch {
+                row_key: "ships:new:1".into(),
+                insert_at: None,
+                action: CsvRowPatchAction::Upsert,
+                row: serde_json::json!({"id":"new","name":"New","custom":"004"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+                is_comment: false,
+            }],
+            associated_specs: vec![],
+            json_write: Default::default(),
+        })
+        .unwrap();
+        let text = read_utf8_no_bom(&path).unwrap();
+        assert_eq!(
+            text,
+            "id,name,custom\nb,Beta,003\nnew,New,004\n#note,Comment,002\n,,\na,Alpha,001\n"
+        );
+        assert_eq!(saved.key_map[0].row_index, 1);
+        let reordered = query_csv_table_window(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            0,
+            20,
+            None,
+            CsvSearchField::IdName,
+        )
+        .unwrap();
+        assert_eq!(reordered.rows[0].row_key, keys[3]);
+        assert_eq!(reordered.rows[4].row_key, keys[0]);
+        assert!(reordered.rows[2].is_comment);
+        let entry = saved.history.undo_stack.last().unwrap().id;
+        let undone = crate::services::write_transactions::replay(
+            &manifest.session_id,
+            &manifest.mod_root,
+            FileChangeReplayDirection::Undo,
+            entry,
+            saved.history.revision,
+        )
+        .unwrap();
+        assert_eq!(read_utf8_no_bom(&path).unwrap(), before);
+        crate::services::write_transactions::replay(
+            &manifest.session_id,
+            &manifest.mod_root,
+            FileChangeReplayDirection::Redo,
+            entry,
+            undone.history.revision,
+        )
+        .unwrap();
+        assert_eq!(read_utf8_no_bom(&path).unwrap(), text);
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn command_preserves_comment_identity_through_queries_save_and_replay() {
         use crate::models::{EntityKind, FileChangeReplayDirection};
         use crate::services::{project, write_transactions};
@@ -760,6 +917,7 @@ mod tests {
         let mut data = window.rows[1].data.clone();
         data.insert("name".into(), Value::String("#edited".into()));
         let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+            row_order: None,
             session_id: manifest.session_id.clone(),
             mod_root: manifest.mod_root.clone(),
             base_versions: window.base_versions,

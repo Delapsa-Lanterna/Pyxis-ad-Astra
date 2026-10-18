@@ -120,6 +120,10 @@ const showReferenceDecorations = computed(() => settings.editMode === 'smart');
 
 const displayName = computed(() => {
   if (!tables.selectedRow) return '';
+  if (tables.currentTab === 'wings' && !isCommentRow.value) {
+    const variant = cell(tables.selectedRow.variant);
+    return findSourceOption('csv:variants.variantId', variant).option?.label || variant || '未指定装配';
+  }
   return cell(tables.selectedRow.name) || cell(tables.selectedRow.designation) || '未命名记录';
 });
 

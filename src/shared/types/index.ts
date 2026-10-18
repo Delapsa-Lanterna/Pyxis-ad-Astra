@@ -102,6 +102,7 @@ export type {
   AssociatedSpecCreateParams,
   CsvRowPatch,
   CsvRowPatchAction,
+  CsvRowOrderEntry,
   SaveCsvPatchPayload,
 } from '@/shared/types/table-save.types';
 export type {

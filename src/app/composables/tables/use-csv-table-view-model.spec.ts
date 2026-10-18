@@ -132,6 +132,7 @@ describe('useCsvTableViewModel', () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     Object.keys(tablesState).forEach((key) => delete tablesState[key]);
+    tablesState.rowOrders = {};
   });
 
   function mountViewModel() {
@@ -139,7 +140,7 @@ describe('useCsvTableViewModel', () => {
     mount(
       {
         setup() {
-          vm = useCsvTableViewModel();
+          vm = useCsvTableViewModel(async () => true);
           return () => null;
         },
       },

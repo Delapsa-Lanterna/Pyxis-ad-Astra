@@ -51,8 +51,8 @@ export function useCanvasEditor<TPreview>(options: {
   const inputs = useFieldInputs();
   const feedback = useAppFeedback();
   const phase = shallowRef<PointerPhase>({ kind: 'idle' });
-  const inside = ref(false),
-    revealing = ref(false);
+  const inside = ref(false);
+  let revealRevision = 0;
   const navigation = useCanvasNavigation(viewport, hooks.draw, 'pointer');
   const selection = useCanvasSelection(state, hooks.targets, hooks.radius);
   const pointerInput = (event: MouseEvent): CanvasInput => ({
@@ -156,17 +156,46 @@ export function useCanvasEditor<TPreview>(options: {
     const rect = stageRef.value?.getBoundingClientRect();
     if (viewport.resize(rect?.width, rect?.height)) hooks.draw();
   }
-  async function revealInspector() {
-    const reveal = hooks.inspector();
-    if (!reveal) return;
-    if (reveal.lock) state.lock(reveal.lock);
-    revealing.value = true;
-    expandedSections.value = [reveal.section];
+  function cancelInspectorReveal() {
+    revealRevision++;
+  }
+  function revealInspector(select?: () => void) {
+    const revision = ++revealRevision;
+    const accepts = document.captureActionContext();
+    return document.run(() => {
+      if (revision !== revealRevision || !accepts()) return;
+      select?.();
+      const reveal = hooks.inspector();
+      if (!reveal) return;
+      if (reveal.lock) state.select(reveal.lock, true);
+      expandedSections.value = [reveal.section];
+      void scrollInspector(reveal, () => revision === revealRevision && accepts()).catch((error: unknown) => feedback.error(error));
+    });
+  }
+  async function scrollInspector(reveal: CanvasInspectorReveal, accepts: () => boolean) {
     await nextTick();
-    revealing.value = false;
-    windowRef.value?.querySelector<HTMLElement>(reveal.selector)?.scrollIntoView({ block: 'nearest' });
+    if (!accepts()) return;
+    const scroll = windowRef.value?.querySelector<HTMLElement>('.editor-scroll');
+    if (!scroll) return;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (!accepts()) return;
+    await Promise.allSettled(
+      scroll
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation instanceof CSSTransition && ['height', 'max-height'].includes(animation.transitionProperty))
+        .map((animation) => animation.finished),
+    );
+    await nextTick();
+    if (!accepts()) return;
+    const target = scroll.querySelector<HTMLElement>(reveal.selector);
+    if (target)
+      scroll.scrollTo({
+        top: scroll.scrollTop + target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12,
+        behavior: 'instant',
+      });
   }
   function reset() {
+    cancelInspectorReveal();
     idle();
     state.reset();
   }
@@ -209,8 +238,11 @@ export function useCanvasEditor<TPreview>(options: {
     onLeave,
     onWheel: navigation.wheel,
     onExpandedSectionsUpdate: () => {
-      if (!revealing.value) state.lock(null);
+      cancelInspectorReveal();
+      state.lock(null);
     },
+    revealInspector,
+    cancelInspectorReveal,
     reset,
     pointerState: (): Readonly<{ inside: boolean; x: number; y: number }> => ({ inside: inside.value, ...navigation.last }),
     dragKind: computed(() => (phase.value.kind === 'gesture' ? phase.value.gesture.kind : null)),

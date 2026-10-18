@@ -22,8 +22,10 @@ import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
+import { csvDraftSourceRanges, prepareCsvRowOrder } from '@/domain/tables/csv-table-draft';
+import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
 
-export function useCsvTableViewModel() {
+export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   const tables = useTablesStore();
   const project = useProjectStore();
   const workspace = useWorkspaceStore();
@@ -32,9 +34,26 @@ export function useCsvTableViewModel() {
   const loadedWindowKeys = ref(new Set<string>());
   const loadedSourceOptions = ref(new Map<string, SelectOption[]>());
   const columnWidthOverrides = ref<Record<string, number>>({});
+  const searchPending = ref(false),
+    windowReady = ref(false);
+  const reorderDisabledReason = computed(() =>
+    tables.hasCurrentTableFilter
+      ? '清空搜索和筛选后可调整行序'
+      : tables.saving
+        ? '保存期间无法调整行序'
+        : tables.currentTableLocked
+          ? '身份交接期间无法调整行序'
+          : searchPending.value || !windowReady.value
+            ? '数据准备完成后可调整行序'
+            : '',
+  );
+  const reorderContext = computed(() =>
+    JSON.stringify([targetKey.value, tables.getModTableState(tables.activeModRoot!)?.baseVersions[tables.currentTab]]),
+  );
   let lastWidthTarget = '';
   let disposed = false;
   let refreshAfterSave = false;
+  let searchRevision = 0;
   const target = computed(() =>
     workspace.activeSessionId && tables.activeModRoot
       ? {
@@ -45,6 +64,13 @@ export function useCsvTableViewModel() {
       : null,
   );
   const targetKey = computed(() => (target.value ? JSON.stringify(target.value) : ''));
+  watch(
+    targetKey,
+    () => {
+      searchRevision++;
+    },
+    { flush: 'sync' },
+  );
   const { confirmDiscard } = useFieldInputActions(null);
   useContextMenuScope({
     identity: () => targetKey.value,
@@ -79,16 +105,41 @@ export function useCsvTableViewModel() {
   }
 
   async function setSearchText(text: string) {
+    if (searchPending.value) return;
     const captured = target.value;
     const key = targetKey.value;
+    const revision = searchRevision;
+    const accepts = () => !disposed && key === targetKey.value && revision === searchRevision;
+    searchPending.value = true;
     try {
-      if (captured && (await commitTableInput()) && key === targetKey.value) tables.setSearchText(captured, text);
+      if (!captured || !(await commitTableInput()) || !accepts()) return;
+      if (text.trim() && tables.hasCurrentRowOrderChanges) {
+        const choice = await feedback.choose({
+          title: '处理当前表未保存修改后搜索？',
+          content: '此操作将处理当前表全部未保存修改，包括行序、字段内容、新建与删除。',
+          choices: [
+            { label: '保存并搜索', value: 'save', type: 'primary' },
+            { label: '放弃修改并搜索', value: 'discard', type: 'warning' },
+          ],
+        });
+        if (!accepts()) return;
+        if (choice === 'save') {
+          if (!(await saveBeforeSearch()) || !accepts() || tables.hasTableDirtyChanges(captured.table)) return;
+        } else if (choice === 'discard') {
+          tables.discardTableDraftForReload(captured);
+          useTablesEditHistoryStore().clearCsvEditHistory(captured.modRoot, captured.table);
+        } else return;
+      }
+      if (accepts()) tables.setSearchText(captured, text);
     } catch (error) {
       feedback.error(error);
+    } finally {
+      searchPending.value = false;
     }
   }
 
   async function setSearchField(value: CsvSearchField) {
+    if (searchPending.value) return;
     const captured = target.value;
     const key = targetKey.value;
     try {
@@ -135,6 +186,12 @@ export function useCsvTableViewModel() {
         lastWidthTarget = identity;
       }
       if (tables.saving || tables.currentTableLocked || tables.hasTableDirtyChanges(captured.table)) {
+        if (tables.getModTableState(captured.modRoot)!.rowOrders[captured.table] && !tables.searchText.trim()) {
+          windowReady.value = true;
+          await loadTableWindow(0, 240);
+          await reloadVisibleSourceOptions();
+          return;
+        }
         tables.markTableExternalUpdate(captured);
         return;
       }
@@ -220,6 +277,7 @@ export function useCsvTableViewModel() {
   });
 
   function clearLocalQueryState() {
+    windowReady.value = false;
     reads.revoke();
     loadedWindowKeys.value = new Set();
     loadedSourceOptions.value = new Map();
@@ -266,6 +324,18 @@ export function useCsvTableViewModel() {
   }
 
   async function loadTableWindow(start: number, count: number) {
+    const current = target.value;
+    if (!current || count <= 0) return;
+    const state = tables.getModTableState(current.modRoot)!;
+    if (!tables.hasCurrentTableFilter && tables.hasTableDirtyChanges(current.table)) prepareCsvRowOrder(state, current.table);
+    const alignedStart = Math.max(0, Math.floor(start / 80) * 80);
+    const windowCount = Math.max(160, Math.ceil(count / 80) * 80);
+    await Promise.all(
+      csvDraftSourceRanges(state, current.table, alignedStart, windowCount).map((range) => loadSourceWindow(range.start, range.count)),
+    );
+  }
+
+  async function loadSourceWindow(start: number, count: number) {
     const sessionId = workspace.activeSessionId;
     if (!sessionId || count <= 0) return;
     const table = tables.currentTab;
@@ -274,8 +344,8 @@ export function useCsvTableViewModel() {
     const tableState = tables.getModTableState(modRoot);
     const searchText = tables.searchText;
     const searchField = tables.searchField;
-    const alignedStart = Math.max(0, Math.floor(start / 80) * 80);
-    const windowCount = Math.max(160, Math.ceil(count / 80) * 80);
+    const alignedStart = start;
+    const windowCount = count;
     const key = stableStringify([sessionId, table, searchText, searchField, alignedStart, windowCount, generation]);
     if (loadedWindowKeys.value.has(key)) return;
     loadedWindowKeys.value.add(key);
@@ -291,6 +361,7 @@ export function useCsvTableViewModel() {
           }
           if (generation !== tables.tableReadGeneration(modRoot, table) || tableState !== tables.getModTableState(modRoot)) return;
           tables.applyTableWindow({ sessionId, modRoot, table }, window);
+          windowReady.value = true;
         },
         error: (error) => {
           loadedWindowKeys.value.delete(key);
@@ -371,6 +442,9 @@ export function useCsvTableViewModel() {
     target,
     targetKey,
     setSearchText,
+    searchPending,
+    reorderDisabledReason,
+    reorderContext,
     setSearchField,
     gridModel,
     effectiveColumns,

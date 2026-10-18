@@ -150,7 +150,6 @@
                 class="ui-button item-list-button ui-text-normal ui-control-pointer ui-content-surface ui-layout-row"
                 v-for="item in view.normalWeaponSlots"
                 :key="item.index"
-                :data-inspector-target="`weapon-${item.index}`"
                 :class="{ selected: view.mode === 'weapon' && view.selected === item.index }"
                 @click="actions.selectInspectorItem('weapon', item.index, 'weapon')"
               >
@@ -158,7 +157,11 @@
                 <span class="item-list-label ui-text-muted">{{ item.slot.size }} {{ item.slot.type }}</span>
               </button>
             </div>
-            <div v-if="view.mode === 'weapon' && view.selectedSlot" class="ui-field-stack">
+            <div
+              v-if="view.mode === 'weapon' && view.selectedSlot"
+              class="ui-field-stack"
+              :data-inspector-target="`weapon-${view.selected}`"
+            >
               <FieldRow :label="fieldNames['id'] ?? 'id'" field-key="id" :path="`weaponSlots[${view.selected}].id`"
                 ><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)"
               /></FieldRow>
@@ -230,7 +233,6 @@
                 class="ui-button item-list-button ui-text-normal ui-control-pointer ui-content-surface ui-layout-row"
                 v-for="item in view.launchBaySlots"
                 :key="item.index"
-                :data-inspector-target="`launchBay-${item.index}`"
                 :class="{ selected: view.mode === 'launchBay' && view.selected === item.index }"
                 @click="actions.selectInspectorItem('launchBay', item.index, 'weapon')"
               >
@@ -238,7 +240,11 @@
                 <span class="item-list-label ui-text-muted">甲板 · {{ bayPorts(item.slot.locations).length }}</span>
               </button>
             </div>
-            <div v-if="view.mode === 'launchBay' && view.selectedSlot" class="ui-field-stack">
+            <div
+              v-if="view.mode === 'launchBay' && view.selectedSlot"
+              class="ui-field-stack"
+              :data-inspector-target="`launchBay-${view.selected}`"
+            >
               <FieldRow :label="fieldNames['id'] ?? 'id'" field-key="id" :path="`weaponSlots[${view.selected}].id`"
                 ><n-input :value="view.selectedSlot.id" @update:value="actions.setSlotField('id', $event)"
               /></FieldRow>
@@ -248,6 +254,7 @@
                 v-for="(port, portIndex) in view.selectedBayPorts"
                 :key="portIndex"
                 class="port-row ui-layout-grid ui-layout-center ui-control-pointer ui-control-border ui-content-surface"
+                :data-inspector-target="`launchBay-${view.selected}-port-${portIndex}`"
                 :class="{ selected: portIndex === view.selectedPort }"
                 @click="actions.selectBayPort(portIndex)"
               >
@@ -269,14 +276,17 @@
                 class="ui-button item-list-button ui-text-normal ui-control-pointer ui-content-surface ui-layout-row"
                 v-for="(eng, i) in view.engineSlots"
                 :key="entryKey('engine-slot', eng, i)"
-                :data-inspector-target="`engine-${i}`"
                 :class="{ selected: view.mode === 'engine' && view.selected === i }"
                 @click="actions.selectInspectorItem('engine', i, 'engine')"
               >
                 引擎 {{ i }} <span class="item-list-label ui-text-muted">{{ eng.width }}x{{ eng.length }}</span>
               </button>
             </div>
-            <div v-if="view.mode === 'engine' && view.selectedEngine" class="ui-field-stack">
+            <div
+              v-if="view.mode === 'engine' && view.selectedEngine"
+              class="ui-field-stack"
+              :data-inspector-target="`engine-${view.selected}`"
+            >
               <FieldRow :label="fieldNames['angle'] ?? 'angle'" field-key="angle" :path="`engineSlots[${view.selected}].angle`"
                 ><NumberValueInput :value="view.selectedEngine.angle" @update:value="actions.setEngineField('angle', $event)"
               /></FieldRow>

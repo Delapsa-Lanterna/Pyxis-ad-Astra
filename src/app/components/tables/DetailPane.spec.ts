@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
@@ -9,6 +9,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { TABLE_KEYS } from '@/shared/types';
 import type { CsvTableWindow, ProjectManifest } from '@/shared/types';
 import DetailPane from './DetailPane.vue';
+import { createCsvSourceIndex } from '@/domain/tables/csv-source-options';
 
 function tableSummariesFixture(): ProjectManifest['tableSummaries'] {
   const summaries = {} as ProjectManifest['tableSummaries'];
@@ -123,6 +124,71 @@ describe('DetailPane', () => {
     const pane = mountPane();
     expect(pane.exists()).toBe(true);
   });
+
+  it.each(['smart', 'plain'] as const)(
+    'tracks wing names through source loading, selection and reference edits in %s mode',
+    async (mode) => {
+      const { tables } = activateProject();
+      useSettingsStore().setEditMode(mode);
+      const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'wings' as const };
+      tables.switchTab(target.modRoot, target.table);
+      tables.applyTableWindow(target, {
+        baseVersions: [],
+        table: 'wings',
+        start: 0,
+        header: ['id', 'variant'],
+        totalRows: 2,
+        filteredRows: 2,
+        rows: [
+          { rowKey: 'wing-a', sourceRowIndex: 0, isComment: false, data: { id: 'wing-a', variant: 'fighter-a' } },
+          { rowKey: 'wing-b', sourceRowIndex: 1, isComment: false, data: { id: 'wing-b', variant: 'fighter-b' } },
+        ],
+      });
+      tables.selectRowByKey(target, 'wing-a');
+      const pane = mountPane();
+      expect(pane.get('.detail-name').text()).toBe('fighter-a');
+      const sources = (label: string) =>
+        createCsvSourceIndex(
+          ['csv:variants.variantId'],
+          new Map([
+            [
+              'csv:variants.variantId',
+              [
+                {
+                  type: 'group',
+                  value: 'mod',
+                  label: '当前 Mod',
+                  children: [
+                    { value: 'fighter-a', label },
+                    { value: 'fighter-b', label: '轰炸机 (fighter-b)' },
+                  ],
+                },
+              ],
+            ],
+          ]),
+        );
+      await pane.setProps({ sourceIndex: sources('截击机 (fighter-a)') });
+      expect(pane.get('.detail-name').text()).toBe('截击机 (fighter-a)');
+      tables.selectRowByKey(target, 'wing-b');
+      await pane.vm.$nextTick();
+      expect(pane.get('.detail-id').text()).toBe('wing-b');
+      expect(pane.get('.detail-name').text()).toBe('轰炸机 (fighter-b)');
+      tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, 'fighter-a');
+      await pane.vm.$nextTick();
+      expect(pane.get('.detail-name').text()).toBe('截击机 (fighter-a)');
+      await pane.setProps({ sourceIndex: sources('战斗机 (fighter-a)') });
+      expect(pane.get('.detail-name').text()).toBe('战斗机 (fighter-a)');
+      tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, 'unresolved');
+      await pane.vm.$nextTick();
+      expect(pane.get('.detail-name').text()).toBe('unresolved');
+      tables.updateCellValue({ ...target, rowKey: 'wing-b', column: 'variant' }, '');
+      await pane.vm.$nextTick();
+      expect(pane.get('.detail-name').text()).toBe('未指定装配');
+      tables.switchTab(target.modRoot, 'ships');
+      await pane.vm.$nextTick();
+      expect(pane.get('.detail-empty-value').text()).toBe('未选择记录');
+    },
+  );
 
   it('exposes the editor actions for a registered spec table', async () => {
     activateProject();

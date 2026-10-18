@@ -25,6 +25,7 @@ export interface ModOpeningFailure {
 
 /** Per-Mod table state — fully isolated from other Mods */
 export interface ModTableState {
+  rowOrders: Partial<Record<CsvTableKey, import('./table-save.types').CsvRowOrderEntry[]>>;
   baseVersions: Record<CsvTableKey, import('@/shared/types/project-identity.types').FileVersion[]>;
   tables: Record<CsvTableKey, CsvTableRows>;
   originalTables: Record<CsvTableKey, CsvTableRows>;

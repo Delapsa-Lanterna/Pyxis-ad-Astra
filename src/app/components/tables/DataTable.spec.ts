@@ -23,6 +23,8 @@ function tableVmFixture(overrides: { tables?: Record<string, unknown>; loadExter
     gridModel: ref({ columns: [], rows: [], totalWidthPx: 0, performanceSample: {}, sourceIndex: {} }),
     effectiveColumns: ref([]),
     effectiveTotalWidthPx: ref(0),
+    reorderDisabledReason: ref(''),
+    reorderContext: ref('fixture'),
     loadExternalTableUpdate: overrides.loadExternalTableUpdate ?? vi.fn(),
     tables: {
       hasCurrentTableExternalUpdate: false,

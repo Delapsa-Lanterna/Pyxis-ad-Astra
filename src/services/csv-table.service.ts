@@ -47,9 +47,11 @@ export function saveCsvPatch(
   associatedSpecs: AssociatedSpecWrite[],
   jsonWrite?: JsonWriteOptions,
   baseVersions: import('@/shared/types').FileVersion[] = [],
+  rowOrder: import('@/shared/types').CsvRowOrderEntry[] | null = null,
 ): Promise<WriteResult> {
   return invokeCommand('save_csv_patch', {
     payload: {
+      rowOrder,
       baseVersions,
       sessionId,
       modRoot,

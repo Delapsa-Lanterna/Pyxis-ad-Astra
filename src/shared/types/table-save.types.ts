@@ -17,6 +17,7 @@ export interface AssociatedSpecWrite {
 }
 
 export type CsvRowPatchAction = 'upsert' | 'delete';
+export type CsvRowOrderEntry = number | string;
 
 export interface CsvRowPatch {
   isComment: boolean;
@@ -27,6 +28,7 @@ export interface CsvRowPatch {
 }
 
 export interface SaveCsvPatchPayload {
+  rowOrder: CsvRowOrderEntry[] | null;
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;

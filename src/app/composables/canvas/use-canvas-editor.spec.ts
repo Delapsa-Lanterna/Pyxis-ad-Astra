@@ -1,9 +1,9 @@
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { deepClone } from '@/shared/lib/starsector';
 import { createPinia, setActivePinia } from 'pinia';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent, h, nextTick, ref, shallowRef, type Ref } from 'vue';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useCanvasEditor } from './use-canvas-editor';
 import { createCanvasState } from './use-canvas-state';
 import { useEditorDocument } from '@/app/composables/editors/use-editor-document';
@@ -15,7 +15,7 @@ import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 
-function mountCanvas() {
+function mountCanvas(withInspector = false) {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
   installCanvas2DStub();
@@ -25,6 +25,8 @@ function mountCanvas() {
   const inputs = createFieldInputs(ref('one')),
     state = createCanvasState<null>();
   const viewport = useCanvasViewport(shallowRef(null), 1, 10);
+  const windowRef = shallowRef<HTMLElement | null>(null),
+    expandedSections = ref<string[]>([]);
   let editor!: ReturnType<typeof useCanvasEditor<null>>;
   let document!: ReturnType<typeof useEditorDocument>;
   const onDraftMutated = vi.fn((draft: RowData) => {
@@ -63,14 +65,19 @@ function mountCanvas() {
       editor = useCanvasEditor({
         document,
         stageRef: shallowRef(null),
-        windowRef: shallowRef(null),
-        expandedSections: ref([]),
+        windowRef,
+        expandedSections,
         viewport,
         state,
         hooks,
       });
       return () =>
-        h('section', [
+        h('section', { ref: withInspector ? windowRef : undefined, tabindex: 0 }, [
+          h(
+            'div',
+            { class: 'editor-scroll' },
+            expandedSections.value.map((name) => h('div', { 'data-edit': name })),
+          ),
           h('input', {
             value: value.value.x,
             onFocusin: document.beginField,
@@ -94,8 +101,124 @@ function mountCanvas() {
     },
     { attachTo: window.document.body },
   );
-  return { wrapper, onDraftMutated, value, source, context, inputs, state, editor, document, hooks, viewport };
+  return { wrapper, onDraftMutated, value, source, context, inputs, state, editor, document, hooks, viewport, expandedSections };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('explicit inspector locking', () => {
+  function openInspector() {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      queueMicrotask(() => callback(0));
+      return 1;
+    });
+    const fixture = mountCanvas(true);
+    fixture.hooks.inspector = () => ({
+      section: `slot-${fixture.state.selected.value}`,
+      selector: `[data-edit="slot-${fixture.state.selected.value}"]`,
+      lock: fixture.state.target.value,
+    });
+    const scroll = fixture.wrapper.get('.editor-scroll').element;
+    const animations = vi.fn((): Animation[] => []),
+      scrollTo = vi.fn();
+    Object.assign(scroll, { getAnimations: animations, scrollTo });
+    return { ...fixture, animations, scrollTo, query: vi.spyOn(scroll, 'querySelector') };
+  }
+
+  it('locks with T, mounts only the target section, preserves focus and repeats the reveal', async () => {
+    const { wrapper, state, expandedSections, scrollTo, query } = openInspector();
+    await flushPromises();
+    await wrapper.get('canvas').trigger('mousemove', { clientX: 0 });
+    expect(scrollTo).not.toHaveBeenCalled();
+    const focused = window.document.activeElement;
+    await wrapper.get('section').trigger('keydown', { key: 't' });
+    await flushPromises();
+    expect(state.inspectorLock.value).toEqual({ kind: 'slot', i: 0 });
+    expect(expandedSections.value).toEqual(['slot-0']);
+    expect(query).toHaveBeenCalledWith('[data-edit="slot-0"]');
+    expect(window.document.activeElement).toBe(focused);
+    await wrapper.get('section').trigger('keydown', { key: 't' });
+    await flushPromises();
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('retains invalid input and its target until a lock can commit', async () => {
+    const { wrapper, editor, inputs, state, scrollTo } = openInspector();
+    state.select({ kind: 'slot', i: 0 }, true);
+    const dirty = ref(true),
+      select = vi.fn(() => state.select({ kind: 'slot', i: 1 }, true));
+    inputs.register({ key: 'raw', label: 'Raw', dirty, commit: () => 'Incomplete', cancel: vi.fn(), focus: vi.fn() });
+    await editor.revealInspector(select);
+    await flushPromises();
+    expect(select).not.toHaveBeenCalled();
+    expect(dirty.value).toBe(true);
+    expect(state.inspectorLock.value).toEqual({ kind: 'slot', i: 0 });
+    expect(scrollTo).not.toHaveBeenCalled();
+    dirty.value = false;
+    await editor.revealInspector(select);
+    await flushPromises();
+    expect(state.inspectorLock.value).toEqual({ kind: 'slot', i: 1 });
+    expect(scrollTo).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
+
+  it('accepts only the newest lock while input finalization is pending', async () => {
+    const { wrapper, editor, inputs, state, scrollTo } = openInspector();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    inputs.registerFinalizer(() => pending);
+    const first = vi.fn(() => state.select({ kind: 'slot', i: 0 }, true));
+    const initial = editor.revealInspector(first);
+    const latest = editor.revealInspector(() => state.select({ kind: 'slot', i: 1 }, true));
+    finish();
+    await Promise.all([initial, latest]);
+    await flushPromises();
+    expect(first).not.toHaveBeenCalled();
+    expect(state.inspectorLock.value).toEqual({ kind: 'slot', i: 1 });
+    expect(scrollTo).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
+
+  it.each(['latest', 'mode', 'reset', 'baseline', 'unmount'])(
+    'waits for collapse completion and revokes pending work on %s',
+    async (boundary) => {
+      let finish!: () => void;
+      class HeightTransition {
+        transitionProperty = 'max-height';
+        finished = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      }
+      vi.stubGlobal('CSSTransition', HeightTransition);
+      const { wrapper, editor, state, context, animations, scrollTo, query } = openInspector();
+      const transition = new HeightTransition();
+      animations.mockReturnValue([transition as unknown as Animation]);
+      await editor.revealInspector(() => state.select({ kind: 'slot', i: 0 }, true));
+      await flushPromises();
+      expect(animations).toHaveBeenCalledWith({ subtree: true });
+      expect(scrollTo).not.toHaveBeenCalled();
+      if (boundary === 'latest') await editor.revealInspector(() => state.select({ kind: 'slot', i: 1 }, true));
+      if (boundary === 'mode') editor.cancelInspectorReveal();
+      if (boundary === 'reset') editor.reset();
+      if (boundary === 'baseline') context.value = { targetKey: 'one', baselineGeneration: 2, handoff: 'external' };
+      if (boundary === 'unmount') wrapper.unmount();
+      await flushPromises();
+      finish();
+      await flushPromises();
+      if (boundary === 'latest') {
+        expect(query).toHaveBeenCalledExactlyOnceWith('[data-edit="slot-1"]');
+        expect(scrollTo).toHaveBeenCalledOnce();
+      } else expect(scrollTo).not.toHaveBeenCalled();
+      if (boundary !== 'unmount') wrapper.unmount();
+    },
+  );
+});
 
 describe('canvas pointer completion', () => {
   it('anchors Spec wheel navigation at the pointer without publishing a draft', () => {

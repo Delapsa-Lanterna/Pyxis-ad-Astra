@@ -1,6 +1,15 @@
 <template>
-  <div ref="panelRef" class="table-panel ui-content-fill ui-content-scroll ui-content-surface" @scroll="handleScroll">
-    <table class="data-table ui-text-small" :style="{ width: `${model.totalWidthPx}px`, minWidth: `${model.totalWidthPx}px` }">
+  <div
+    ref="panelRef"
+    class="table-panel ui-content-fill ui-content-scroll ui-content-surface"
+    :class="{ 'csv-grid-dragging': drag.dragging.value }"
+    @scroll="handleScroll"
+    @pointermove="drag.onMove"
+    @pointerup="drag.onUp"
+    @pointercancel="drag.cancel"
+    @lostpointercapture="drag.cancel"
+  >
+    <table class="data-table ui-text-small" :style="{ width: `${model.totalWidthPx + 28}px`, minWidth: `${model.totalWidthPx + 28}px` }">
       <CsvGridHeader :columns="model.columns" @resize-column="forwardResizeColumn" />
       <CsvGridBody
         :active-cell="activeCellKey"
@@ -11,6 +20,9 @@
         :selected-row-key="selectedRowKey"
         :source-index="model.sourceIndex"
         :visible-rows="visibleRows"
+        :reorder-disabled-reason="reorderDisabledReason"
+        :insertion="drag.insertion.value"
+        @start-row-drag="drag.start"
         @activate-cell="activateCell"
         @close-active-cell="clearActiveCell"
         @select-row="forwardSelectRow"
@@ -33,8 +45,11 @@ import { useImagePreload } from '@/app/composables/use-image-preload';
 import { sourceValue } from '@/domain/tables/csv-source-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { provideCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
+import { useCsvRowDrag } from '@/app/composables/tables/use-csv-row-drag';
 
 const props = defineProps<{
+  reorderDisabledReason?: string;
+  reorderContext?: string;
   editing: ModTableState['editing'];
   isDirty: (rowKey: string, column: string) => boolean;
   model: CsvGridModel;
@@ -45,6 +60,7 @@ const emit = defineEmits<{
   'request-window': [start: number, count: number];
   'resize-column': [key: string, width: number];
   'select-row': [rowKey: string];
+  'move-row': [rowKey: string, index: number];
 }>();
 
 const panelRef = useTemplateRef<HTMLDivElement>('panelRef');
@@ -87,6 +103,16 @@ function preloadImages() {
 const afterHeight = computed(() => viewport.afterHeight.value);
 const beforeHeight = computed(() => viewport.beforeHeight.value);
 const visibleRows = computed<CsvGridRowSlot[]>(() => viewport.visibleItems.value);
+const drag = useCsvRowDrag({
+  panel: panelRef,
+  rows,
+  inputs: context.inputs,
+  disabled: () => props.reorderDisabledReason ?? '',
+  context: () => props.reorderContext ?? JSON.stringify(context.target),
+  select: (rowKey) => emit('select-row', rowKey),
+  move: (rowKey, index) => emit('move-row', rowKey, index),
+  scrolled: syncViewportMetrics,
+});
 
 watch(
   () => props.model,

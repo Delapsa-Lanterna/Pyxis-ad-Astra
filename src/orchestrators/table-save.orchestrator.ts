@@ -19,7 +19,7 @@ import { completeSavedWrite, retryPendingModSyncs } from '@/orchestrators/projec
 
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { commitCsvTableSaveDraft } from '@/domain/tables/csv-table-draft';
+import { commitCsvTableSaveDraft, hasCsvTableDraftChanges } from '@/domain/tables/csv-table-draft';
 import { deepClone } from '@/shared/lib/starsector';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
 
@@ -93,11 +93,12 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   if (pending && !(await pending)) return { status: 'cancelled' };
   if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
   const { manifest, modRoot, table } = target;
-  if (Object.keys(state.dirty[table]).length === 0) return { status: 'noop' };
+  if (!hasCsvTableDraftChanges(state, table)) return { status: 'noop' };
 
   const csvEditHistory = useTablesEditHistoryStore();
   const submittedHistory = csvEditHistory.captureSaveHistory(modRoot, table);
   const patches = buildCurrentTablePatches(state, table);
+  const rowOrder = state.rowOrders[table] ? [...state.rowOrders[table]!] : null;
   const baseVersions = deepClone(state.baseVersions[table]);
   const candidates = deepClone(getAssociatedSpecCandidates(state, table, manifest.associatedSpecTables));
   const sourceTargets = new Map(
@@ -143,7 +144,7 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   });
   if (reservations.length > 0) await reserveNativeWindowTargets(reservations);
   const result = await runConfirmedJsonWrite(options.feedback, (writeOptions) =>
-    saveCsvPatch(manifest.sessionId, modRoot, table, patches, writes, writeOptions, baseVersions),
+    saveCsvPatch(manifest.sessionId, modRoot, table, patches, writes, writeOptions, baseVersions, rowOrder),
   );
   if (!result) return { status: 'cancelled' };
   recordLogBestEffort({
@@ -164,14 +165,13 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   if (!isTableSaveTargetCurrent(target)) return { status: 'saved', receipt: result };
   tables.revokeTableReads(modRoot, table);
   const keyMap = deepClone(result.keyMap);
-  commitCsvTableSaveDraft(state, table, patches, keyMap);
+  const rebaseRow = commitCsvTableSaveDraft(state, table, patches, keyMap, rowOrder);
   const tablePath = normalizeFsPath(joinRootRelativePath(modRoot, manifest.tableSummaries[table].path));
   state.baseVersions[table] = result.baseVersions.filter(
     (version) => normalizeFsPath(isAbsoluteFsPath(version.path) ? version.path : joinRootRelativePath(modRoot, version.path)) === tablePath,
   );
-  csvEditHistory.applySavedRowKeyMap(modRoot, table, keyMap);
+  csvEditHistory.applySavedRowKeyMap(modRoot, table, keyMap, rebaseRow);
   csvEditHistory.commitSaveHistory(modRoot, table, submittedHistory);
-  if (Object.keys(state.dirty[table]).length === 0) csvEditHistory.clearCsvEditHistory(modRoot, table);
   await releaseNativeWindowTargets();
   await completeSavedWrite({ modRoot, result, label: `保存 ${table} CSV`, sessionId: manifest.sessionId });
   return { status: 'saved', receipt: result };
@@ -186,16 +186,25 @@ function isTableSaveTargetCurrent(target: CapturedTableSaveTarget): boolean {
 
 function buildCurrentTablePatches(state: ModTableState, table: CsvTableKey): CsvRowPatch[] {
   const dirty = state.dirty[table] ?? {};
-  return Object.entries(dirty).map(([rowKey, changes]) => {
-    if (isCsvDeletedRow(changes)) return { rowKey, action: 'delete', row: {}, isComment: false };
-    const row = state.tables[table].find((candidate) => isLoadedCsvTableRow(candidate) && candidate.rowKey === rowKey)!;
-    const cleanRow = deepClone(row.data);
-    return {
-      rowKey,
+  const deletedKeys = new Set(Object.keys(dirty).filter((key) => isCsvDeletedRow(dirty[key])));
+  const deletedPositions = state.originalTables[table]
+    .filter(isLoadedCsvTableRow)
+    .filter((row) => deletedKeys.has(row.rowKey))
+    .map((row) => row.sourceRowIndex!);
+  const patches: CsvRowPatch[] = [...deletedKeys].map((rowKey) => ({ rowKey, action: 'delete', row: {}, isComment: false }));
+  let inserted = 0;
+  for (const row of state.tables[table]) {
+    if (!isLoadedCsvTableRow(row) || !Object.hasOwn(dirty, row.rowKey) || deletedKeys.has(row.rowKey)) continue;
+    patches.push({
+      rowKey: row.rowKey,
       action: 'upsert',
-      row: cleanRow,
+      row: deepClone(row.data),
       isComment: row.isComment,
-      ...(row.insertAt !== null ? { insertAt: row.insertAt } : {}),
-    };
-  });
+      ...(row.insertAt !== null
+        ? { insertAt: row.insertAt - deletedPositions.filter((position) => position < row.insertAt!).length + inserted }
+        : {}),
+    });
+    if (row.rowKey.includes(':new:')) inserted++;
+  }
+  return patches;
 }

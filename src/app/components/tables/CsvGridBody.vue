@@ -1,7 +1,7 @@
 <template>
   <tbody>
     <tr v-if="beforeHeight > 0" class="csv-grid-spacer-row csv-grid-row" :style="{ height: `${beforeHeight}px` }">
-      <td class="csv-grid-cell" :colspan="columns.length"></td>
+      <td class="csv-grid-cell" :colspan="columns.length + 1"></td>
     </tr>
     <template v-for="row in visibleRows" :key="row.kind === 'row' ? rowRenderKey(row) : row.slotKey">
       <CsvGridRow
@@ -12,16 +12,19 @@
         :row="row"
         :selected="row.rowKey === selectedRowKey"
         :source-index="sourceIndex"
+        :reorder-disabled-reason="reorderDisabledReason"
+        :insertion="insertion"
+        @start-row-drag="(rowKey, event) => $emit('start-row-drag', rowKey, event)"
         @activate-cell="forwardActivateCell"
         @close-active-cell="$emit('close-active-cell')"
         @select-row="selectRow"
       />
       <tr v-else class="csv-grid-placeholder-row csv-grid-row">
-        <td class="csv-grid-cell" :colspan="columns.length"></td>
+        <td class="csv-grid-cell" :colspan="columns.length + 1"></td>
       </tr>
     </template>
     <tr v-if="afterHeight > 0" class="csv-grid-spacer-row csv-grid-row" :style="{ height: `${afterHeight}px` }">
-      <td class="csv-grid-cell" :colspan="columns.length"></td>
+      <td class="csv-grid-cell" :colspan="columns.length + 1"></td>
     </tr>
   </tbody>
 </template>
@@ -43,6 +46,8 @@ function rowRenderKey(row: CsvRowRecord) {
 }
 
 defineProps<{
+  reorderDisabledReason?: string;
+  insertion?: { rowKey: string; after: boolean } | null;
   activeCell: { columnKey: string; rowKey: string } | null;
   afterHeight: number;
   beforeHeight: number;
@@ -54,6 +59,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
+  'start-row-drag': [rowKey: string, event: PointerEvent];
   'activate-cell': [row: CsvRowRecord, column: CsvGridColumn, event: MouseEvent];
   'close-active-cell': [];
   'select-row': [rowKey: string, event: MouseEvent];

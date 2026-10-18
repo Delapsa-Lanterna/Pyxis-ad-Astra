@@ -34,6 +34,8 @@ import {
   csvRowTargetOf,
   type CsvDraftResult,
   type CsvRowTarget,
+  moveCsvRowDraft,
+  hasCsvRowOrderChanges,
 } from '@/domain/tables/csv-table-draft';
 import { isLoadedCsvTableRow } from '@/domain/tables/csv-table-rows';
 
@@ -63,6 +65,7 @@ function emptyTableRecord<T>(createValue: () => T): Record<CsvTableKey, T> {
 
 function createModTableState(): ModTableState {
   return {
+    rowOrders: {},
     baseVersions: emptyTableRecord(() => []),
     tables: emptyTablesRecord(),
     originalTables: emptyTablesRecord(),
@@ -148,6 +151,9 @@ export const useTablesStore = defineStore('tables', () => {
   });
   const filteredRows = computed(() => rows.value);
   const filteredRowCount = computed(() => getActiveState()?.filteredRows[currentTab.value] ?? 0);
+  const hasCurrentTableFilter = computed(
+    () => Boolean(searchText.value.trim()) || filteredRowCount.value !== (getActiveState()?.totalRows[currentTab.value] ?? 0),
+  );
   const selectedRowRecord = computed(() =>
     rows.value.find((row): row is CsvDraftRow => isLoadedCsvTableRow(row) && row.rowKey === selectedRowKey.value),
   );
@@ -157,7 +163,14 @@ export const useTablesStore = defineStore('tables', () => {
     if (!state) return '显示 0 / 0 行';
     return `显示 ${state.filteredRows[state.currentTab]} / ${state.totalRows[state.currentTab]} 行`;
   });
-  const hasAnyTableDirtyChanges = computed(() => TABLE_KEYS.some((key) => Object.keys(dirty.value[key]).length > 0));
+  const hasAnyTableDirtyChanges = computed(() => {
+    const state = getActiveState();
+    return state ? TABLE_KEYS.some((key) => hasCsvTableDraftChanges(state, key)) : false;
+  });
+  const hasCurrentRowOrderChanges = computed(() => {
+    const state = getActiveState();
+    return state ? hasCsvRowOrderChanges(state, currentTab.value) : false;
+  });
   const hasCurrentTableChanges = computed(() => {
     const state = getActiveState();
     if (!state) return false;
@@ -208,7 +221,7 @@ export const useTablesStore = defineStore('tables', () => {
   function hasModDirtyChanges(modRoot: string): boolean {
     const state = stateMap.get(modRoot);
     if (!state) return false;
-    return TABLE_KEYS.some((key) => Object.keys(state.dirty[key]).length > 0 || inputMap.get(modRoot)?.get(key)?.dirty.value);
+    return TABLE_KEYS.some((key) => hasCsvTableDraftChanges(state, key) || inputMap.get(modRoot)?.get(key)?.dirty.value);
   }
 
   // Table unsaved state joins the unsaved-work registry for unified Mod-level queries.
@@ -312,6 +325,18 @@ export const useTablesStore = defineStore('tables', () => {
     return csvRowTargetOf(result);
   }
 
+  function moveRow(target: CsvTableTarget, rowKey: string, nextIndex: number) {
+    const state = stateMap.get(target.modRoot)!;
+    if (
+      saving.value ||
+      isTableLocked(target.modRoot, target.table) ||
+      state.searchText.trim() ||
+      state.filteredRows[target.table] !== state.totalRows[target.table]
+    )
+      return;
+    pushCsvDraftResult(target.table, moveCsvRowDraft(state, target.table, rowKey, nextIndex), target.modRoot);
+  }
+
   function deleteSelected(): CsvRowTarget | null {
     if (currentTableLocked.value) return null;
     const state = getActiveState();
@@ -380,6 +405,9 @@ export const useTablesStore = defineStore('tables', () => {
     filteredRowCount,
     filteredRows,
     hasCurrentTableChanges,
+    hasCurrentTableFilter,
+    hasCurrentRowOrderChanges,
+    moveRow,
     hasCurrentTableExternalUpdate,
     hasAnyTableChanges,
     hasAnyTableDirtyChanges,

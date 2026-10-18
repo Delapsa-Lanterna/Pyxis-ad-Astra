@@ -28,7 +28,15 @@ export interface CsvRowDeletedOperation {
   row: CsvDraftRow;
 }
 
-export type CsvDraftOperation = CsvCellValueSetOperation | CsvRowCreatedOperation | CsvRowDeletedOperation;
+export interface CsvRowMovedOperation {
+  type: 'row-moved';
+  tab: CsvTableKey;
+  rowKey: string;
+  previousIndex: number;
+  nextIndex: number;
+}
+
+export type CsvDraftOperation = CsvCellValueSetOperation | CsvRowCreatedOperation | CsvRowDeletedOperation | CsvRowMovedOperation;
 
 export interface CsvEditHistoryEntry {
   id: string;

@@ -88,14 +88,20 @@ export const useTablesEditHistoryStore = defineStore('tables-edit-history', () =
     if (tableStates?.size === 0) stateMap.delete(modRoot);
   }
 
-  function applySavedRowKeyMap(modRoot: string, table: CsvTableKey, keyMap: CsvRowKeyMapping[]) {
+  function applySavedRowKeyMap(
+    modRoot: string,
+    table: CsvTableKey,
+    keyMap: CsvRowKeyMapping[],
+    rebaseRow: (row: import('@/shared/types').CsvDraftRow, rowIndex: number) => void,
+  ) {
     const stack = getStack(modRoot, table);
     if (!stack) return;
     const mapped = new Map(keyMap.map((item) => [item.previousKey, item.nextKey]));
     for (const entry of [...stack.undoStack, ...stack.redoStack]) {
       entry.operation.rowKey = mapped.get(entry.operation.rowKey) ?? entry.operation.rowKey;
-      if (entry.operation.type !== 'cell-value-set') {
+      if (entry.operation.type === 'row-created' || entry.operation.type === 'row-deleted') {
         entry.operation.row.rowKey = entry.operation.rowKey;
+        rebaseRow(entry.operation.row, entry.operation.rowIndex);
         const mapping = keyMap.find((mapping) => mapping.nextKey === entry.operation.rowKey);
         if (mapping) {
           if (mapping.nextKey.includes(':new:')) entry.operation.row.insertAt = mapping.rowIndex;

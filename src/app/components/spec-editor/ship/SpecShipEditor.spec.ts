@@ -59,7 +59,61 @@ const shortcut = async (editor: ReturnType<typeof mount>, key: string, ctrl = fa
   editor.get('.editor-window').element.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: ctrl, bubbles: true }));
   await flushPromises();
 };
+function observeReveal(editor: ReturnType<typeof mount>) {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queueMicrotask(() => callback(0));
+    return 1;
+  });
+  const scroll = editor.get('.editor-scroll').element;
+  Object.assign(scroll, { getAnimations: () => [], scrollTo: vi.fn() });
+  return vi.spyOn(scroll, 'querySelector');
+}
 describe('ship pointer and inspector actions', () => {
+  it.each([
+    ['weapons', 'weapon-0', 'id'],
+    ['launchBays', 'launchBay-1', 'id'],
+    ['engines', 'engine-0', 'angle'],
+  ])('locks %s at the selected field editor', async (section, target, firstKey) => {
+    const editor = openShip({
+      ship: {
+        hullId: 'ship',
+        weaponSlots: [
+          { id: 'A', locations: [1, 2] },
+          { id: 'B', type: 'LAUNCH_BAY', locations: [3, 4, 5, 6] },
+        ],
+        engineSlots: [{ angle: 30, location: [7, 8] }],
+      },
+    });
+    const query = observeReveal(editor),
+      item = editor.get(`[data-name="${section}"] .item-list-button`);
+    await item.trigger('click');
+    await flushPromises();
+    expect(query).toHaveBeenLastCalledWith(`[data-inspector-target="${target}"]`);
+    expect(item.classes()).toContain('selected');
+    expect(editor.get(`[data-inspector-target="${target}"] .field-label-key`).text()).toBe(firstKey);
+    if (section === 'launchBays') {
+      const port = editor.get('[data-inspector-target="launchBay-1-port-1"]');
+      await port.trigger('click');
+      await flushPromises();
+      expect(query).toHaveBeenLastCalledWith('[data-inspector-target="launchBay-1-port-1"]');
+      expect(port.classes()).toContain('selected');
+    }
+  });
+
+  it.each([
+    ['c', 250, 250, 'center-x'],
+    ['c', 270, 260, 'shield-x'],
+    ['b', 251, 248, 'bound-0'],
+  ])('locks the hovered %s target at its own input row', async (mode, clientX, clientY, target) => {
+    const editor = openShip({ ship: { hullId: 'ship', center: [0, 0], shieldCenter: [20, -10], bounds: [1, 2] } });
+    const query = observeReveal(editor);
+    await shortcut(editor, mode);
+    await editor.get('canvas').trigger('mousemove', { clientX, clientY });
+    await shortcut(editor, 't');
+    expect(editor.find(`[data-inspector-field="${target}"], [data-inspector-target="${target}"]`).exists()).toBe(true);
+    expect(query).toHaveBeenLastCalledWith(`[data-inspector-${mode === 'b' ? 'target' : 'field'}="${target}"]`);
+  });
+
   it('places the center action above dimension sync and disables both without a loaded image', () => {
     const editor = openShip();
     const buttons = editor.findAll('.sprite-actions button');
