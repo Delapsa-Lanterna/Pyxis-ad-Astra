@@ -7,6 +7,7 @@
     :block="block"
     :ink-aligned="inkAligned"
     :outlined="outlined"
+    :active="active"
   />
 </template>
 <script setup lang="ts">
@@ -22,6 +23,7 @@ withDefaults(
     block?: boolean;
     inkAligned?: boolean;
     outlined?: boolean;
+    active?: boolean;
   }>(),
   {
     text: '',
@@ -30,6 +32,7 @@ withDefaults(
     block: false,
     inkAligned: false,
     outlined: false,
+    active: true,
   },
 );
 </script>

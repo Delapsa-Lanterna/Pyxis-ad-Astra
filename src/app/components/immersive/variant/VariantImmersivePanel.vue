@@ -13,7 +13,13 @@
       <div class="variant-refit-tools ui-layout-row ui-layout-stack">
         <slot name="meta" />
         <n-button size="small" title="滚轮缩放 · 右键平移 · 点击槽位装配" @click="scene!.fit()">居中</n-button>
-        <n-select v-if="panel.variants.length > 1" :value="current.key" :options="moduleOptions" @update:value="selectModule" />
+        <n-select
+          :virtual-scroll="false"
+          v-if="panel.variants.length > 1"
+          :value="current.key"
+          :options="moduleOptions"
+          @update:value="selectModule"
+        />
       </div>
     </header>
     <div class="variant-refit-actions ui-layout-row">

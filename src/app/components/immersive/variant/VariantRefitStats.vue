@@ -119,6 +119,7 @@
             <div class="variant-mod-edit">
               <ImmersiveText :text="mod.id + ' · ' + categoryLabel(mod.category) + (mod.strengthened ? ' · S强化' : '')" block />
               <n-select
+                :virtual-scroll="false"
                 v-if="mod.category !== 'builtin'"
                 :value="mod.category"
                 :options="categories"

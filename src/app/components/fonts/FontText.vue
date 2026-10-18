@@ -26,6 +26,7 @@ import { useOriginalFont } from '@/app/composables/use-original-fonts';
 import { fontDefaultStyles } from '@/domain/fonts/font-styles';
 import { layoutText } from '@/domain/fonts/text-layout';
 import type { TextRun, FontId } from '@/domain/fonts/font.types';
+import { queueTextPaint, registerTextSurface, type TextSurface } from '@/app/fonts/text-surface-scheduler';
 const props = withDefaults(
   defineProps<{
     text?: string;
@@ -34,6 +35,7 @@ const props = withDefaults(
     block?: boolean;
     inkAligned?: boolean;
     outlined?: boolean;
+    active?: boolean;
   }>(),
   {
     text: '',
@@ -41,6 +43,7 @@ const props = withDefaults(
     block: false,
     inkAligned: false,
     outlined: false,
+    active: true,
   },
 );
 const surface = ref<HTMLElement | null>(null),
@@ -65,7 +68,11 @@ const missingTitle = computed(() =>
     )
     .join('；'),
 );
+let textSurface: TextSurface | null = null;
 function paint() {
+  if (textSurface && props.active) queueTextPaint(textSurface);
+}
+function paintNow() {
   const target = canvas.value,
     element = surface.value,
     loaded = font.value;
@@ -81,7 +88,6 @@ function paint() {
   target.height = Math.ceil((bottom - offsetY + padding * 2) * pixelRatio);
   target.style.width = target.width / pixelRatio + 'px';
   target.style.height = target.height / pixelRatio + 'px';
-  alignPixels();
   const context = target.getContext('2d')!;
   context.imageSmoothingEnabled = false;
   for (const item of layout.value!.placements) {
@@ -118,32 +124,32 @@ function alignPixels() {
   const padding = props.outlined ? Math.max(1, Math.round(ratio)) / ratio : 0;
   const left = Math.min(0, inkBounds.value.left),
     top = props.inkAligned ? 0 : Math.min(0, inkBounds.value.top);
-  canvas.value.style.left = Math.round((bounds.left + left) * ratio) / ratio - bounds.left - padding + 'px';
-  canvas.value.style.top = Math.round((bounds.top + top) * ratio) / ratio - bounds.top - padding + 'px';
+  const horizontal = Math.round((bounds.left + left) * ratio) / ratio - bounds.left - padding + 'px';
+  const vertical = Math.round((bounds.top + top) * ratio) / ratio - bounds.top - padding + 'px';
+  return () => {
+    canvas.value!.style.left = horizontal;
+    canvas.value!.style.top = vertical;
+  };
 }
-let observer: ResizeObserver;
-let measureFrame: number | null = null;
+let release: (() => void) | null = null;
 onMounted(() => {
-  observer = new ResizeObserver((entries) => {
-    const nextWidth = entries[0]!.contentRect.width;
-    if (nextWidth === width.value) return;
-    if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
-    measureFrame = window.requestAnimationFrame(() => {
-      measureFrame = null;
-      width.value = nextWidth;
-      paint();
-    });
-  });
-  observer.observe(surface.value!);
-  paint();
+  textSurface = {
+    element: surface.value!,
+    resize: (next) => {
+      if (next !== width.value) width.value = next;
+    },
+    paint: paintNow,
+    align: alignPixels,
+  };
+  watch(
+    () => props.active,
+    (active) => {
+      release?.();
+      release = active ? registerTextSurface(textSurface!) : null;
+    },
+    { immediate: true, flush: 'sync' },
+  );
 });
 watch([layout, font, () => props.inkAligned, () => props.outlined], paint, { flush: 'post' });
-window.addEventListener('resize', paint);
-window.addEventListener('scroll', alignPixels, true);
-onScopeDispose(() => {
-  observer?.disconnect();
-  if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
-  window.removeEventListener('resize', paint);
-  window.removeEventListener('scroll', alignPixels, true);
-});
+onScopeDispose(() => release?.());
 </script>

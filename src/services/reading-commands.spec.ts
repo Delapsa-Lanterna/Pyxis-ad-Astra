@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { queryTableWindow, querySessionCsvRowPreview } from './csv-table.service';
+import { queryTableIndex, querySessionCsvRowPreview } from './csv-table.service';
 import { querySourceOptionCatalog } from './source-options.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import {
@@ -24,9 +24,9 @@ const draft = { hullId: 'demo' };
 const resource: ResourceRef = { source: 'mod', relPath: 'graphics/demo.png', ownerKind: 'ship', ownerId: 'demo', key: 'sprite' };
 const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
   [
-    'query_csv_table_window',
-    () => queryTableWindow(sessionId, 'ships', 0, 240, null, 'id-name'),
-    { sessionId, table: 'ships', start: 0, count: 240, search: null, searchField: 'id-name' },
+    'query_csv_table_index',
+    () => queryTableIndex(sessionId, 'ships', 240, null, 'id-name'),
+    { sessionId, table: 'ships', initialCount: 240, search: null, searchField: 'id-name' },
     { rows: [] },
   ],
   [
@@ -86,12 +86,12 @@ describe('formal reading protocols', () => {
   it('isolates search fields in the cache and shares identical searches', async () => {
     invoke.mockResolvedValue({ rows: [] });
     for (const field of ['id-name', 'id', 'name', 'tags'] as const) {
-      await queryTableWindow(sessionId, 'ships', 0, 240, 'Alpha', field);
-      await queryTableWindow(sessionId, 'ships', 0, 240, 'Alpha', field);
+      await queryTableIndex(sessionId, 'ships', 240, 'Alpha', field);
+      await queryTableIndex(sessionId, 'ships', 240, 'Alpha', field);
     }
     expect(invoke).toHaveBeenCalledTimes(4);
     expect(invoke.mock.calls.map((call) => call[1].payload.searchField)).toEqual(['id-name', 'id', 'name', 'tags']);
-    await queryTableWindow(sessionId, 'ships', 0, 240, 'Beta', 'id');
+    await queryTableIndex(sessionId, 'ships', 240, 'Beta', 'id');
     expect(invoke).toHaveBeenCalledTimes(5);
   });
   it('captures live draft parameters once and sends that captured snapshot to the command', async () => {
@@ -146,7 +146,7 @@ describe('formal reading protocols', () => {
     const read = (session: string) => {
       switch (kind) {
         case 'csv-table-window':
-          return queryTableWindow(session, 'ships', 0, 240, null, 'id-name');
+          return queryTableIndex(session, 'ships', 240, null, 'id-name');
         case 'csv-source-options':
           return querySourceOptionCatalog(session, 'csv:ships.id');
         case 'csv-row-preview':

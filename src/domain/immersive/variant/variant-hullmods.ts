@@ -1,5 +1,5 @@
 import { immersiveNumber } from '../fields';
-import type { JointVariantEntry, RowData } from '@/shared/types';
+import type { ReadonlyVariantEntry, RowData } from '@/shared/types';
 import type { VariantHullmod } from './variant-panel';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue, parseSchemaPlainBoolean } from '@/domain/schema/schema-values';
@@ -11,10 +11,10 @@ export interface HullmodFilterOption {
   label: string;
   count: number;
 }
-export const hullmodData = (entry: JointVariantEntry): RowData => (isRowData(entry.data) ? entry.data : {});
-export const hullmodString = (entry: JointVariantEntry, key: string): string => schemaStringValue(hullmodData(entry)[key]);
-export const hullmodDesign = (entry: JointVariantEntry): string => hullmodString(entry, 'tech/manufacturer') || 'Common';
-export const hullmodTags = (entry: JointVariantEntry): string[] => [
+export const hullmodData = (entry: ReadonlyVariantEntry): RowData => (isRowData(entry.data) ? entry.data : {});
+export const hullmodString = (entry: ReadonlyVariantEntry, key: string): string => schemaStringValue(hullmodData(entry)[key]);
+export const hullmodDesign = (entry: ReadonlyVariantEntry): string => hullmodString(entry, 'tech/manufacturer') || 'Common';
+export const hullmodTags = (entry: ReadonlyVariantEntry): string[] => [
   ...new Set(
     hullmodString(entry, 'uiTags')
       .split(',')
@@ -22,9 +22,9 @@ export const hullmodTags = (entry: JointVariantEntry): string[] => [
       .filter(Boolean),
   ),
 ];
-export const visibleHullmod = (entry: JointVariantEntry): boolean =>
+export const visibleHullmod = (entry: ReadonlyVariantEntry): boolean =>
   Boolean(entry.id) && !['hidden', 'hiddenEverywhere'].some((key) => parseSchemaPlainBoolean(hullmodString(entry, key)) === true);
-export function hullmodCost(entry: JointVariantEntry, hullSize: string): number {
+export function hullmodCost(entry: ReadonlyVariantEntry, hullSize: string): number {
   const key =
     ({ FRIGATE: 'cost_frigate', DESTROYER: 'cost_dest', CRUISER: 'cost_cruiser', CAPITAL_SHIP: 'cost_capital' } as Record<string, string>)[
       hullSize
@@ -55,7 +55,7 @@ export function hullmodColumns(width: number): number[] {
 export function hullmodListHeight(height: number, filters: number, auxiliary: number): number {
   return Math.max(36, Math.floor((height - 23 - filters - auxiliary - 25 - 2) / 36) * 36) + 2;
 }
-export function hullmodFilterOptions(entries: readonly JointVariantEntry[], kind: 'design' | 'tags'): HullmodFilterOption[] {
+export function hullmodFilterOptions(entries: readonly ReadonlyVariantEntry[], kind: 'design' | 'tags'): HullmodFilterOption[] {
   const counts = new Map<string, number>();
   for (const entry of entries)
     for (const value of kind === 'design' ? [hullmodDesign(entry)] : hullmodTags(entry)) counts.set(value, (counts.get(value) ?? 0) + 1);
@@ -75,18 +75,18 @@ export function toggleHullmodFilter(
   if (!additive) return [value];
   return next.length === all.length ? null : next;
 }
-export function hullmodMatches(entry: JointVariantEntry, designs: readonly string[] | null, tags: readonly string[] | null): boolean {
+export function hullmodMatches(entry: ReadonlyVariantEntry, designs: readonly string[] | null, tags: readonly string[] | null): boolean {
   return (
     (designs === null || designs.includes(hullmodDesign(entry))) && (tags === null || hullmodTags(entry).some((tag) => tags.includes(tag)))
   );
 }
 export function sortHullmods(
-  entries: JointVariantEntry[],
+  entries: ReadonlyVariantEntry[],
   key: HullmodSort,
   ascending: boolean,
   hullSize: string,
   installed: (id: string) => VariantHullmod | undefined,
-): JointVariantEntry[] {
+): ReadonlyVariantEntry[] {
   return entries.sort((a, b) => {
     if (key === 'cost') {
       const left = hullmodCost(a, hullSize),
@@ -94,13 +94,13 @@ export function sortHullmods(
       if (Number.isNaN(left) || Number.isNaN(right)) return Number.isNaN(left) === Number.isNaN(right) ? 0 : Number.isNaN(left) ? 1 : -1;
       return ascending ? left - right : right - left;
     }
-    const value = (entry: JointVariantEntry) =>
+    const value = (entry: ReadonlyVariantEntry) =>
       key === 'design' ? hullmodDesign(entry) : key === 'installed' ? (installed(entry.id)?.category ?? '') : entry.label;
     const comparison = value(a).localeCompare(value(b));
     return ascending ? comparison : -comparison;
   });
 }
-export function hullmodRowState(entry: JointVariantEntry, installed: VariantHullmod | undefined, hullSize: string, available: number) {
+export function hullmodRowState(entry: ReadonlyVariantEntry, installed: VariantHullmod | undefined, hullSize: string, available: number) {
   const cost = hullmodCost(entry, hullSize),
     special = installed?.category !== undefined && installed.category !== 'normal';
   const color = installed?.category === 's' || installed?.strengthened ? '#cc99ff' : installed ? '#ffd200' : '#aadeff';

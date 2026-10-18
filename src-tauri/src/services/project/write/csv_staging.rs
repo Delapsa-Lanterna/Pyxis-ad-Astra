@@ -71,6 +71,7 @@ impl StagedCsvWrite {
             .expect("staged CSV table is registered");
         state.header = self.draft.header;
         state.rows = Some(self.draft.rows);
+        state.row_index = None;
         state.next_row_seq = self.draft.next_row_seq;
         state.saved_text = Some(self.text);
     }

@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, useTemplateRef } from 'vue';
-import { useCsvFloatingPanel } from '@/app/composables/tables/use-csv-floating-panel';
+import { useCsvFloatingPanel, useCsvFloatingViewport } from '@/app/composables/tables/use-csv-floating-panel';
 
 const props = defineProps<{
   anchor: { height: number; left: number; top: number; width: number };
@@ -35,6 +35,7 @@ const emit = defineEmits<{
   cancel: [];
   commit: [value: string];
 }>();
+const floating = useCsvFloatingViewport();
 
 // Mirrors the .csv-cell-text-editor height in tables.css.
 const EDITOR_HEIGHT = 260;
@@ -62,23 +63,29 @@ function updateText(event: Event) {
   emit('update', (event.target as HTMLTextAreaElement).value);
 }
 
+function focusText() {
+  const area = textRef.value;
+  if (!area) return;
+  area.focus({ preventScroll: true });
+  area.setSelectionRange(area.value.length, area.value.length);
+}
+
 function handleDocumentMouseDown(event: MouseEvent) {
+  if (event.target === floating?.panel.value) return;
   const target = event.target as { closest?: (selector: string) => unknown } | null;
+  if (target?.closest?.('.csv-grid-cell')) return;
   if (target?.closest?.('.csv-cell-text-editor')) return;
   commit();
 }
 
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentMouseDown, true);
-  nextTick(() => {
-    const area = textRef.value;
-    if (!area) return;
-    area.focus();
-    area.setSelectionRange(area.value.length, area.value.length);
-  });
+  void nextTick(focusText);
 });
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleDocumentMouseDown, true);
 });
+
+defineExpose({ focus: focusText });
 </script>

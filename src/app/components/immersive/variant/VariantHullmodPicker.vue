@@ -38,56 +38,62 @@
         <ImmersiveText v-if="loading" text="正在读取插件目录" />
         <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
         <template v-else>
-          <div :style="{ height: viewport.beforeHeight.value + 'px' }" aria-hidden="true" />
-          <button
-            v-for="entry in viewport.visibleItems.value"
-            :key="entry.id"
-            :data-entry-id="entry.id"
-            class="variant-hullmod-row ui-button ui-control-button ui-layout-grid ui-layout-center ui-layout-stretch ui-control-reset"
-            :class="{
-              installed: Boolean(installed(entry.id)),
-              unavailable: installed(entry.id)?.category === 'builtin' || Boolean(state(entry).diagnostic),
-            }"
-            :aria-disabled="installed(entry.id)?.category === 'builtin'"
-            :title="state(entry).label + (state(entry).diagnostic ? '\n' + state(entry).diagnostic : '')"
-            @mouseenter="showDetails(entry)"
-            @mouseleave="leaveRow"
-            @focus="showDetails(entry)"
-            @click="choose(entry.id)"
-          >
-            <span
-              class="variant-hullmod-name variant-hullmod-row-label ui-control-row ui-layout-clip"
-              :title="entry.label"
-              :style="{ color: state(entry).color }"
-              ><span :ref="visible.mediaRef('icon/' + entry.id, entry.resourceRefs.icon)" class="variant-hullmod-icon"
-                ><ImmersiveHullmodIcon
-                  :session-id="root.sessionId"
-                  :resource="entry.resourceRefs.icon"
-                  :url="visible.mediaSrc(entry.resourceRefs.icon)"
-                  :active="visible.mediaVisible('icon/' + entry.id)"
-                  :label="entry.label"
-                  :size="32" /></span
-              ><ImmersiveText :text="abbreviate(entry.label, columnWidths[0]! - 56)" ink-aligned outlined
-            /></span>
-            <span
-              class="variant-hullmod-design variant-hullmod-row-label ui-control-row ui-layout-clip"
-              :style="{ color: designTypeColor(reference, hullmodDesign(entry)) }"
-              ><ImmersiveText :text="abbreviate(hullmodDesign(entry), columnWidths[1]! - 6)" ink-aligned outlined
-            /></span>
-            <span class="variant-hullmod-row-label ui-control-row ui-layout-clip" :style="{ color: state(entry).costColor }"
-              ><ImmersiveText :text="state(entry).costText" ink-aligned outlined
-            /></span>
-            <span class="variant-hullmod-row-label ui-control-row ui-layout-clip"
-              ><ImmersiveResourceIcon
-                v-if="installed(entry.id)"
-                :source="uiImages[state(entry).iconKey] || ''"
-                :fallback="state(entry).iconKey"
-                :color="state(entry).iconColor"
-                :size="20"
-                :label="state(entry).label"
-            /></span>
-          </button>
-          <div :style="{ height: viewport.afterHeight.value + 'px' }" aria-hidden="true" />
+          <template v-for="view in viewport.entries.value" :key="view.key">
+            <div v-if="view.kind === 'gap'" :style="{ height: view.height + 'px' }" data-retained-gap aria-hidden="true" />
+            <button
+              v-else
+              v-show="!view.hidden"
+              :data-entry-id="view.item.id"
+              class="variant-hullmod-row ui-button ui-control-button ui-layout-grid ui-layout-center ui-layout-stretch ui-control-reset"
+              :class="{
+                installed: Boolean(installed(view.item.id)),
+                'variant-list-active': view.active,
+                unavailable: installed(view.item.id)?.category === 'builtin' || Boolean(state(view.item).diagnostic),
+              }"
+              :aria-disabled="installed(view.item.id)?.category === 'builtin'"
+              :title="state(view.item).label + (state(view.item).diagnostic ? '\n' + state(view.item).diagnostic : '')"
+              @mouseenter="showDetails(view.item)"
+              @mouseleave="leaveRow"
+              @focus="showDetails(view.item)"
+              @click="choose(view.item.id)"
+            >
+              <span
+                class="variant-hullmod-name variant-hullmod-row-label ui-control-row ui-layout-clip"
+                :title="view.item.label"
+                :style="{ color: state(view.item).color }"
+                ><span :ref="visible.mediaRef('icon/' + view.item.id, view.item.resourceRefs.icon)" class="variant-hullmod-icon"
+                  ><ImmersiveHullmodIcon
+                    :session-id="root.sessionId"
+                    :resource="view.item.resourceRefs.icon"
+                    :url="visible.mediaSrc(view.item.resourceRefs.icon)"
+                    :active="view.active"
+                    :label="view.item.label"
+                    :size="32" /></span
+                ><ImmersiveText :active="view.active" :text="abbreviate(view.item.label, columnWidths[0]! - 56)" ink-aligned outlined
+              /></span>
+              <span
+                class="variant-hullmod-design variant-hullmod-row-label ui-control-row ui-layout-clip"
+                :style="{ color: designTypeColor(reference, hullmodDesign(view.item)) }"
+                ><ImmersiveText
+                  :active="view.active"
+                  :text="abbreviate(hullmodDesign(view.item), columnWidths[1]! - 6)"
+                  ink-aligned
+                  outlined
+              /></span>
+              <span class="variant-hullmod-row-label ui-control-row ui-layout-clip" :style="{ color: state(view.item).costColor }"
+                ><ImmersiveText :active="view.active" :text="state(view.item).costText" ink-aligned outlined
+              /></span>
+              <span class="variant-hullmod-row-label ui-control-row ui-layout-clip"
+                ><ImmersiveResourceIcon
+                  v-if="installed(view.item.id)"
+                  :source="uiImages[state(view.item).iconKey] || ''"
+                  :fallback="state(view.item).iconKey"
+                  :color="state(view.item).iconColor"
+                  :size="20"
+                  :label="state(view.item).label"
+              /></span>
+            </button>
+          </template>
           <ImmersiveText v-if="!filtered.length" text="没有匹配插件" block />
         </template>
       </div>
@@ -106,11 +112,13 @@
             <ImmersiveText text="来源与安装选项" font="caption" ink-aligned />
           </summary>
           <div class="variant-hullmod-extra ui-layout-grid">
-            <n-select v-model:value="origin" :options="origins" /><n-select v-model:value="category" :options="categories" /><n-input
-              v-model:value="manualId"
-              placeholder="手动填写 ID"
-              @keydown.enter.stop.prevent="manual"
-            /><n-button @click="manual">提交 ID</n-button>
+            <n-select :virtual-scroll="false" v-model:value="origin" :options="origins" /><n-select
+              :virtual-scroll="false"
+              v-model:value="category"
+              :options="categories"
+            /><n-input v-model:value="manualId" placeholder="手动填写 ID" @keydown.enter.stop.prevent="manual" /><n-button @click="manual"
+              >提交 ID</n-button
+            >
           </div>
         </details>
       </div>
@@ -141,7 +149,7 @@ import { designTypeColor } from '@/domain/immersive/design-type';
 import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
-import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
+import { useRetainedList } from '@/shared/runtime/retained-list';
 import ImmersiveHullmodIcon from './ImmersiveHullmodIcon.vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -185,7 +193,7 @@ const availableEntries = computed(() => entries.value.filter(visibleHullmod));
 const designOptions = computed(() => hullmodFilterOptions(availableEntries.value, 'design')),
   tagOptions = computed(() => hullmodFilterOptions(availableEntries.value, 'tags'));
 const installed = (id: string) => props.variant.mods.find((mod) => mod.id === id);
-const state = (entry: import('@/shared/types').JointVariantEntry) =>
+const state = (entry: import('@/shared/types').ReadonlyVariantEntry) =>
   hullmodRowState(entry, installed(entry.id), String(props.variant.spec.hullSize), props.variant.opTotal - props.variant.opUsed);
 const columnWidths = computed(() => hullmodColumns(width.value));
 const columns: Array<{ key: HullmodSort; label: string }> = [
@@ -209,7 +217,14 @@ const filtered = computed(() => {
     installed,
   );
 });
-const viewport = useCsvGridViewport(filtered, { editingIndex: ref(null), rowHeight: 36, overscan: 2 });
+const entryById = computed(() => new Map(entries.value.map((entry) => [entry.id, entry])));
+const viewport = useRetainedList(
+  () => filtered.value.map((entry) => entry.id),
+  (key) => entryById.value.get(key),
+  (entry) => entry.id,
+  36,
+);
+watch(() => JSON.stringify([props.root.sessionId, props.root.modRoot]), viewport.reset, { flush: 'sync' });
 const visible = useVisibleResourceMedia({
   sessionId: () => props.root.sessionId,
   surface: '插件选择列表',
@@ -232,7 +247,9 @@ const uiKeys = computed(() => [
   'ui_border1b_w',
   'ui_border1b_w_bot',
   'ui_border1b_w_top',
-  ...new Set(viewport.visibleItems.value.map((entry) => state(entry).iconKey).filter(Boolean)),
+  'checkmark',
+  'checkmark_locked',
+  'checkmark_unlocked',
 ]);
 const uiImages = computed(() =>
   Object.fromEntries(
@@ -284,7 +301,7 @@ function cancel() {
   inputs.cancel(prefix);
   emit('close');
 }
-function showDetails(entry: import('@/shared/types').JointVariantEntry) {
+function showDetails(entry: import('@/shared/types').ReadonlyVariantEntry) {
   hovered.value = entry.id;
   void nextTick(positionDetails);
 }
@@ -312,8 +329,8 @@ function positionDetails() {
   const left = bounds.right + detail.width <= window.innerWidth - 7 ? bounds.right : Math.max(7, bounds.left - detail.width);
   tooltipPosition.value = { left: left + 'px', top: Math.max(7, Math.min(bounds.top, window.innerHeight - detail.height - 7)) + 'px' };
 }
-function scroll(event: Event) {
-  viewport.onScroll(event);
+function scroll() {
+  viewport.setViewportMetrics({ scrollTop: list.value!.scrollTop, clientHeight: list.value!.clientHeight });
   positionDetails();
 }
 watch(
@@ -383,11 +400,10 @@ function navigate(event: KeyboardEvent) {
         : Math.max(0, Math.min(filtered.value.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
   list.value!.scrollTop = Math.max(0, next * 36 - list.value!.clientHeight / 2);
   measure();
-  void nextTick(() =>
-    [...list.value!.querySelectorAll<HTMLElement>('[data-entry-id]')]
-      .find((element) => element.dataset.entryId === filtered.value[next]!.id)!
-      .focus(),
-  );
+  const id = filtered.value[next]!.id;
+  void viewport.ensure(next).then((ready) => {
+    if (ready) [...list.value!.querySelectorAll<HTMLElement>('[data-entry-id]')].find((element) => element.dataset.entryId === id)!.focus();
+  });
 }
 let observer: ResizeObserver;
 watch(

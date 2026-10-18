@@ -1,7 +1,9 @@
 import type {
-  CsvTableWindow,
+  CsvTableIndex,
+  CsvTableRowsRead,
   CsvRowPreview,
-  CsvTableWindowPayload,
+  CsvTableIndexPayload,
+  CsvTableRowsPayload,
   CsvRowPreviewPayload,
   SaveCsvPatchPayload,
   AssociatedSpecChange,
@@ -16,17 +18,25 @@ import type {
 
 import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createCachedSessionQuery } from '@/services/query-cache.service';
+import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
 import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
 import { queryResourceDataUrls } from '@/services/resource-cache.service';
 
 import { associatedSpecKind } from '@/domain/tables/associated-specs';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
-const readTableWindow = createCachedSessionQuery<Omit<CsvTableWindowPayload, 'sessionId'>, CsvTableWindow>({
+const readTableIndex = createCachedSessionQuery<Omit<CsvTableIndexPayload, 'sessionId'>, CsvTableIndex>({
   queryKind: 'csv-table-window',
   load: ({ sessionId, parameters }) =>
-    invokeCommand<CsvTableWindow>('query_csv_table_window', { payload: { sessionId, ...parameters } satisfies CsvTableWindowPayload }),
+    invokeCommand<CsvTableIndex>('query_csv_table_index', { payload: { sessionId, ...parameters } satisfies CsvTableIndexPayload }),
+  invalidates: (parameters, invalidation) =>
+    invalidation.queryScopes.some((scope) => scope.kind === 'csv-table-window' && (!scope.table || scope.table === parameters.table)),
+});
+
+const readTableRows = createLiveSessionQuery<Omit<CsvTableRowsPayload, 'sessionId'>, CsvTableRowsRead>({
+  queryKind: 'csv-table-rows',
+  load: ({ sessionId, parameters }) =>
+    invokeCommand<CsvTableRowsRead>('query_csv_table_rows', { payload: { sessionId, ...parameters } satisfies CsvTableRowsPayload }),
   invalidates: (parameters, invalidation) =>
     invalidation.queryScopes.some((scope) => scope.kind === 'csv-table-window' && (!scope.table || scope.table === parameters.table)),
 });
@@ -81,17 +91,24 @@ export async function captureAssociatedSpecTarget(sessionId: string, table: CsvT
   };
 }
 
-export function queryTableWindow(
+export function queryTableIndex(
   sessionId: string,
   table: CsvTableKey,
-  start: number,
-  count: number,
+  initialCount: number,
   search: string | null,
   searchField: CsvSearchField,
   signal?: AbortSignal,
-): Promise<DeepReadonly<CsvTableWindow>> {
-  const parameters = { table, start, count, search, searchField };
-  return readTableWindow(sessionId, parameters, signal);
+): Promise<DeepReadonly<CsvTableIndex>> {
+  return readTableIndex(sessionId, { table, initialCount, search, searchField }, signal);
+}
+
+export function queryTableRows(
+  sessionId: string,
+  table: CsvTableKey,
+  rowKeys: string[],
+  signal?: AbortSignal,
+): Promise<DeepReadonly<CsvTableRowsRead>> {
+  return readTableRows(sessionId, { table, rowKeys }, signal);
 }
 
 export function querySessionCsvRowPreview(

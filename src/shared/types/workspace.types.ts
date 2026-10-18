@@ -1,5 +1,5 @@
 import type { CsvTableKey } from '@/shared/types/project-identity.types';
-import type { CsvDirtyRow, CsvSearchField, CsvTableRows, CsvCellTarget } from '@/shared/types/tables.types';
+import type { CsvDirtyRow, CsvSearchField, CsvDraftRow, CsvCellTarget } from '@/shared/types/tables.types';
 
 /** Metadata for one imported Mod in the workspace */
 export interface ModEntry {
@@ -25,10 +25,12 @@ export interface ModOpeningFailure {
 
 /** Per-Mod table state — fully isolated from other Mods */
 export interface ModTableState {
-  rowOrders: Partial<Record<CsvTableKey, import('./table-save.types').CsvRowOrderEntry[]>>;
+  rowOrders: Record<CsvTableKey, string[]>;
+  originalRowOrders: Record<CsvTableKey, string[]>;
+  queryRowKeys: Partial<Record<CsvTableKey, string[]>>;
   baseVersions: Record<CsvTableKey, import('@/shared/types/project-identity.types').FileVersion[]>;
-  tables: Record<CsvTableKey, CsvTableRows>;
-  originalTables: Record<CsvTableKey, CsvTableRows>;
+  tables: Record<CsvTableKey, Record<string, CsvDraftRow>>;
+  originalTables: Record<CsvTableKey, Record<string, CsvDraftRow>>;
   headers: Record<CsvTableKey, string[]>;
   totalRows: Record<CsvTableKey, number>;
   filteredRows: Record<CsvTableKey, number>;

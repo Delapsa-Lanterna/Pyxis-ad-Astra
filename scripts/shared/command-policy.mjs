@@ -37,7 +37,13 @@ export const commandOwners = {
   'src/services/resource-cache.service.ts': ['query_resource_data_urls'],
   'src/services/resource-reference.service.ts': ['resolve_mod_relative_path', 'query_draft_resources'],
   'src/services/entity-query.service.ts': ['query_entity', 'query_entity_edit_target', 'query_entity_identity_intent', 'query_entity_list'],
-  'src/services/csv-table.service.ts': ['save_csv_patch', 'query_csv_table_window', 'query_csv_row_preview'],
+  'src/services/csv-table.service.ts': [
+    'save_csv_patch',
+    'query_csv_table_index',
+    'query_csv_table_rows',
+    'query_csv_table_window',
+    'query_csv_row_preview',
+  ],
   'src/services/files.service.ts': [
     'load_editable_file',
     'query_text_identity_intent',

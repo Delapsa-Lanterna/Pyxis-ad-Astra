@@ -1,43 +1,64 @@
 <template>
-  <div
-    ref="panelRef"
-    class="table-panel ui-content-fill ui-content-scroll ui-content-surface"
-    :class="{ 'csv-grid-dragging': drag.dragging.value }"
-    @scroll="handleScroll"
-    @pointermove="drag.onMove"
-    @pointerup="drag.onUp"
-    @pointercancel="drag.cancel"
-    @lostpointercapture="drag.cancel"
-  >
-    <table class="data-table ui-text-small" :style="{ width: `${model.totalWidthPx + 28}px`, minWidth: `${model.totalWidthPx + 28}px` }">
-      <CsvGridHeader :columns="model.columns" @resize-column="forwardResizeColumn" />
-      <CsvGridBody
-        :active-cell="activeCellKey"
-        :after-height="afterHeight"
-        :before-height="beforeHeight"
-        :columns="model.columns"
-        :is-dirty="isDirty"
-        :selected-row-key="selectedRowKey"
-        :source-index="model.sourceIndex"
-        :visible-rows="visibleRows"
-        :reorder-disabled-reason="reorderDisabledReason"
-        :insertion="drag.insertion.value"
-        @start-row-drag="drag.start"
-        @activate-cell="activateCell"
-        @close-active-cell="clearActiveCell"
-        @select-row="forwardSelectRow"
+  <div class="csv-grid ui-content-fill ui-content-contained">
+    <div
+      ref="panelRef"
+      class="table-panel ui-content-fill ui-content-scroll ui-content-surface"
+      :class="{ 'csv-grid-dragging': drag.dragging.value }"
+      @scroll="handleScroll"
+      @pointermove="drag.onMove"
+      @pointerup="drag.onUp"
+      @pointercancel="drag.cancel"
+      @lostpointercapture="drag.cancel"
+    >
+      <div
+        class="data-table ui-text-small"
+        role="grid"
+        :aria-rowcount="model.rowKeys.length + 1"
+        :aria-colcount="model.columns.length + 1"
+        :style="tableStyle"
+      >
+        <CsvGridHeader :columns="model.columns" @resize-column="forwardResizeColumn" />
+        <CsvGridBody
+          :entries="viewport.entries.value"
+          :columns="model.columns"
+          :is-dirty="isDirty"
+          :selected-row-key="selectedRowKey"
+          :source-index="model.sourceIndex"
+          :reorder-disabled-reason="reorderDisabledReason"
+          @start-row-drag="drag.start"
+          @activate-cell="activateCell"
+          @select-row="forwardSelectRow"
+        />
+      </div>
+    </div>
+    <CsvGridEditorHost
+      :target="editorTarget"
+      :row="editorRow"
+      :column="editorColumn"
+      :source-index="model.sourceIndex"
+      :anchor-element="editorAnchor"
+      :initial-anchor="editorInitialAnchor"
+      @close="clearActiveCell"
+    />
+    <div ref="overlayRef" class="csv-grid-overlay">
+      <div
+        v-if="drag.insertion.value"
+        class="csv-grid-insertion"
+        :style="{ top: 24 + (drag.insertion.value.index + Number(drag.insertion.value.after)) * 24 - scrollTop + 'px' }"
       />
-    </table>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'vue';
-import type { CsvGridRowSlot, CsvRowRecord, ModTableState } from '@/shared/types';
+import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import type { CsvCellTarget, CsvRowRecord, ModTableState } from '@/shared/types';
 import type { CsvGridColumn, CsvGridModel } from '@/domain/tables/csv-grid-model';
-import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
+import { useRetainedList } from '@/shared/runtime/retained-list';
+import { provideCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/composables/tables/use-csv-floating-panel';
 import CsvGridBody from '@/app/components/tables/CsvGridBody.vue';
 import CsvGridHeader from '@/app/components/tables/CsvGridHeader.vue';
+import CsvGridEditorHost from '@/app/components/tables/CsvGridEditorHost.vue';
 import { measurePerformance } from '@/shared/runtime/performance';
 import { useCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
@@ -66,15 +87,82 @@ const emit = defineEmits<{
 const panelRef = useTemplateRef<HTMLDivElement>('panelRef');
 const context = useCsvTableInputs();
 const { commitBefore } = useFieldInputActions(context.inputs);
-const activeCellKey = computed(() => (props.editing ? { columnKey: props.editing.column, rowKey: props.editing.rowKey } : null));
-const editingIndex = computed(() => {
-  const rowKey = props.editing?.rowKey;
-  if (!rowKey) return null;
-  const index = props.model.rows.findIndex((row) => row.kind === 'row' && row.rowKey === rowKey);
-  return index >= 0 ? index : null;
-});
-const rows = computed(() => props.model.rows);
-const viewport = useCsvGridViewport(rows, { editingIndex });
+const editorTarget = ref<CsvCellTarget | null>(props.editing ? { ...props.editing } : null);
+const editorAnchor = ref<HTMLElement | null>(null);
+const editorInitialAnchor = shallowRef<CsvFloatingAnchor | null>(null);
+const rows = computed(() => props.model.rowKeys);
+const tableStyle = computed(() => ({
+  width: props.model.totalWidthPx + 16 + 'px',
+  minWidth: props.model.totalWidthPx + 16 + 'px',
+  height: (props.model.rowKeys.length + 1) * 24 + 'px',
+  '--csv-columns': '16px ' + props.model.columns.map((column) => column.widthPx + 'px').join(' '),
+}));
+const viewport = useRetainedList(
+  () => props.model.rowKeys,
+  (key) => props.model.rowsByKey[key],
+  (row) => row.rowKey,
+  24,
+);
+const overlayRef = useTemplateRef<HTMLDivElement>('overlayRef');
+const scrollTop = ref(0);
+provideCsvFloatingViewport(panelRef, overlayRef);
+
+function targetKey(target: CsvCellTarget | null): string {
+  return target ? JSON.stringify([target.sessionId, target.modRoot, target.table, target.rowKey, target.column]) : '';
+}
+
+const editorRow = computed(() => (editorTarget.value ? (props.model.rowsByKey[editorTarget.value.rowKey] ?? null) : null));
+const editorColumn = computed(() =>
+  editorTarget.value ? (props.model.columns.find((column) => column.key === editorTarget.value!.column) ?? null) : null,
+);
+
+let anchorGeneration = 0;
+function setEditorAnchor(anchor: HTMLElement | null) {
+  if (anchor === editorAnchor.value) return;
+  editorInitialAnchor.value = anchor?.getBoundingClientRect() ?? null;
+  editorAnchor.value = anchor;
+}
+async function locateEditorAnchor() {
+  const generation = ++anchorGeneration;
+  const target = editorTarget.value;
+  if (!target) {
+    setEditorAnchor(null);
+    return;
+  }
+  const panel = panelRef.value;
+  const findAnchor = () => {
+    const row = [...(panel?.querySelectorAll<HTMLElement>('[data-row-key]') ?? [])].find(
+      (element) => element.dataset.rowKey === target.rowKey,
+    );
+    const cell = [...(row?.querySelectorAll<HTMLElement>('[data-column-key]') ?? [])].find(
+      (element) => element.dataset.columnKey === target.column,
+    );
+    return cell?.querySelector<HTMLElement>('.csv-cell-frame') ?? null;
+  };
+  let anchor = findAnchor();
+  if (!anchor) {
+    const index = props.model.rowKeys.indexOf(target.rowKey);
+    if (index >= 0) {
+      await viewport.ensure(index);
+      await nextTick();
+      if (generation !== anchorGeneration) return;
+      anchor = findAnchor();
+    }
+  }
+  if (generation === anchorGeneration) setEditorAnchor(anchor);
+}
+
+watch(
+  () => targetKey(props.editing),
+  () => {
+    const nextTarget = props.editing ? { ...props.editing } : null;
+    if (targetKey(editorTarget.value) !== targetKey(nextTarget)) {
+      editorTarget.value = nextTarget;
+    }
+  },
+  { immediate: true },
+);
+watch([editorRow, editorColumn], locateEditorAnchor, { flush: 'post', immediate: true });
 const mode = useInputEditMode(),
   preload = useImagePreload('CSV 网格');
 provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource) });
@@ -83,16 +171,17 @@ function preloadImages() {
   if (!panel) return;
   const start = Math.floor(panel.scrollTop / 24),
     count = Math.ceil(panel.clientHeight / 24);
-  const resources = (items: CsvGridRowSlot[]) =>
+  const resources = (keys: string[]) =>
     mode.value === 'smart'
-      ? items.flatMap((row) =>
-          row.kind === 'row'
+      ? keys.flatMap((key) => {
+          const row = props.model.rowsByKey[key];
+          return row
             ? props.model.columns.flatMap((column) => {
                 const option = sourceValue(props.model.sourceIndex, column.schema?.source, String(row.data[column.key] ?? ''));
                 return option?.option.resourceRef ? [option.option.resourceRef] : [];
               })
-            : [],
-        )
+            : [];
+        })
       : [];
   preload.prepare(
     context.target.sessionId,
@@ -100,12 +189,9 @@ function preloadImages() {
     resources(rows.value.slice(Math.max(0, start - count), start + count * 2)),
   );
 }
-const afterHeight = computed(() => viewport.afterHeight.value);
-const beforeHeight = computed(() => viewport.beforeHeight.value);
-const visibleRows = computed<CsvGridRowSlot[]>(() => viewport.visibleItems.value);
 const drag = useCsvRowDrag({
   panel: panelRef,
-  rows,
+  rowKeys: rows,
   inputs: context.inputs,
   disabled: () => props.reorderDisabledReason ?? '',
   context: () => props.reorderContext ?? JSON.stringify(context.target),
@@ -115,7 +201,7 @@ const drag = useCsvRowDrag({
 });
 
 watch(
-  () => props.model,
+  () => [props.model.rowKeys, props.model.columns],
   () => {
     nextTick(syncViewportMetrics);
   },
@@ -128,34 +214,42 @@ onMounted(() => {
 });
 onScopeDispose(() => resizeObserver.disconnect());
 
-function handleScroll(event: Event) {
-  const panel = event.currentTarget as HTMLDivElement;
-  const metrics = { clientHeight: panel.clientHeight, scrollTop: panel.scrollTop };
-  void commitBefore(() => {
-    viewport.setViewportMetrics(metrics);
-    preloadImages();
-    clearActiveCell();
-    emit('request-window', viewport.startIndex.value, Math.max(0, viewport.endIndex.value - viewport.startIndex.value));
-  });
+let scrollFrame = 0;
+function handleScroll() {
+  if (!scrollFrame)
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      syncViewportMetrics();
+    });
 }
+onScopeDispose(() => cancelAnimationFrame(scrollFrame));
 
-function activateCell(row: CsvRowRecord, column: CsvGridColumn) {
+function activateCell(row: CsvRowRecord, column: CsvGridColumn, event: MouseEvent) {
+  const anchor = (event.target as Element).closest('[data-column-key]')?.querySelector<HTMLElement>('.csv-cell-frame') ?? null;
   measurePerformance('frontend.csvGrid.activateCell', { column: column.key, rowKey: row.rowKey }, () => {
     void commitBefore(() => {
-      forwardSelectRow(row.rowKey);
-      context.activate({ ...context.target, rowKey: row.rowKey, column: column.key });
+      if (props.selectedRowKey !== row.rowKey) emit('select-row', row.rowKey);
+      const target = { ...context.target, rowKey: row.rowKey, column: column.key };
+      editorTarget.value = target;
+      setEditorAnchor(anchor);
+      context.activate(target);
     });
   });
 }
 
 function syncViewportMetrics() {
   const panel = panelRef.value;
-  viewport.setViewportMetrics({ clientHeight: panel?.clientHeight ?? 0, scrollTop: panel?.scrollTop ?? 0 });
+  scrollTop.value = panel?.scrollTop ?? 0;
+  viewport.setViewportMetrics({ clientHeight: panel?.clientHeight ?? 0, scrollTop: scrollTop.value });
   preloadImages();
   emit('request-window', viewport.startIndex.value, Math.max(0, viewport.endIndex.value - viewport.startIndex.value));
 }
+watch(() => viewport.activeItems.value, preloadImages, { flush: 'post' });
 
 function clearActiveCell() {
+  anchorGeneration++;
+  editorTarget.value = null;
+  setEditorAnchor(null);
   context.activate(null);
 }
 

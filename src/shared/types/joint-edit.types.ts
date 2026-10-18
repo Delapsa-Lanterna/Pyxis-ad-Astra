@@ -1,5 +1,5 @@
 import type { EntityEditTarget, EntityFileLocation, CsvTableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
-import type { JsonValue } from './json.types';
+import type { JsonValue, DeepReadonly } from './json.types';
 import type { JsonWriteOptions, WriteResult } from './write-commit.types';
 
 export type JointEditKind = 'ship' | 'weapon' | 'wing' | 'variant';
@@ -31,6 +31,7 @@ export interface JointVariantEntry {
   projectile: JointPreviewSpec | null;
   primaryRole: string | null;
 }
+export type ReadonlyVariantEntry = DeepReadonly<JointVariantEntry>;
 export interface JointPreviewSpec {
   kind: import('@/shared/types/project-identity.types').EntityKind;
   id: string;

@@ -1,4 +1,5 @@
-import type { JointEditSnapshot } from '@/shared/types';
+import type { JointEditSnapshot, DeepReadonly } from '@/shared/types';
+import { isRowData } from '@/shared/lib/row-data';
 const ORIGINAL_COLORS: Record<string, string> = {
   Common: '#bec8c8',
   'Low Tech': '#d16e5b',
@@ -25,8 +26,8 @@ const ORIGINAL_COLORS: Record<string, string> = {
   Threat: '#829b91',
   'Shrouded Dweller': '#960a1e',
 };
-export function designTypeColor(snapshot: Pick<JointEditSnapshot, 'referenceSettings'>, name: string): string {
+export function designTypeColor(snapshot: DeepReadonly<Pick<JointEditSnapshot, 'referenceSettings'>>, name: string): string {
   const colors = snapshot.referenceSettings.values.designTypeColors;
-  const value = colors && typeof colors === 'object' && !Array.isArray(colors) ? colors[name] : undefined;
+  const value = isRowData(colors) ? colors[name] : undefined;
   return Array.isArray(value) ? `rgba(${value.slice(0, 3).join(',')},${Number(value[3]) / 255})` : (ORIGINAL_COLORS[name] ?? '#bec8c8');
 }

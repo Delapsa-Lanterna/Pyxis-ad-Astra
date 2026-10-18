@@ -283,6 +283,8 @@ pub(super) struct SessionCsvTable {
     pub header: Vec<String>,
     pub path: String,
     pub rows: Option<Vec<SessionCsvRow>>,
+    #[serde(skip)]
+    pub row_index: Option<std::collections::HashMap<String, usize>>,
     /// Sole allocator state for `{table}:row:{seq}` keys; survives refresh of
     /// the table's own save so deletes cannot recycle surviving row identities.
     pub next_row_seq: u64,

@@ -19,7 +19,11 @@ pub mod windows;
 pub mod workspace_persistence;
 pub mod write_transactions;
 
-pub(crate) use project::query::csv_window::{query_csv_row_preview, query_csv_table_window};
+#[cfg(test)]
+pub(crate) use project::query::csv_window::query_csv_table_window;
+pub(crate) use project::query::csv_window::{
+    query_csv_row_preview, query_csv_table_index, query_csv_table_rows,
+};
 pub(crate) use project::query::entities::{query_entity, query_entity_list};
 pub(crate) use project::query::entity_targets::{
     query_entity_edit_target, query_entity_identity_intent, query_file_entity_target,

@@ -1,11 +1,12 @@
+import { csvTableIndex } from '@/test/csv-row';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { computed, h, nextTick } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CsvGrid from './CsvGrid.vue';
-import { createCsvGridModel } from '@/domain/tables/csv-grid-model';
+import { createCsvGridColumns } from '@/domain/tables/csv-grid-model';
 import { provideCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -16,7 +17,12 @@ import { editorUiStubs } from '@/test/ui-stubs';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -28,7 +34,7 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
 });
 
-function mountTable() {
+function mountTable(control: 'number' | 'enum' = 'number') {
   const root = 'M:/A';
   const target = { sessionId: 'sA', modRoot: root, table: 'ships' as const };
   const tables = useTablesStore();
@@ -40,20 +46,24 @@ function mountTable() {
     tableSummaries: Object.fromEntries(TABLE_KEYS.map((table) => [table, { header: ['width'], totalRows: 1 }])),
   } as ProjectManifest;
   tables.initializeModTables({ sessionId: tableManifest.sessionId, modRoot: root, manifest: tableManifest });
-  tables.applyTableWindow(target, {
-    table: 'ships',
-    baseVersions: [],
-    header: ['width'],
-    start: 0,
-    filteredRows: 1,
-    totalRows: 1,
-    rows: [{ rowKey: 'ships:new:0', isComment: false, sourceRowIndex: 0, data: { width: '1' } }],
-  });
+  tables.applyTableIndex(
+    target,
+    csvTableIndex([{ rowKey: 'ships:new:0', isComment: false, data: { width: '1' } }], {
+      table: 'ships',
+      baseVersions: [],
+      header: ['width'],
+      totalRows: 1,
+    }),
+  );
   const inputs = tables.getTableInputs(root, 'ships');
   const grid = computed(() => {
-    const model = createCsvGridModel('ships', ['width'], tables.rows, 1);
-    model.columns[0]!.schema = { key: 'width', control: 'number' };
-    return model;
+    const model = createCsvGridColumns(
+      'ships',
+      ['width'],
+      tables.rows.filter((row) => row !== null),
+    );
+    model.columns[0]!.schema = { key: 'width', control };
+    return { ...model, rowKeys: tables.rowKeys, rowsByKey: tables.rowsByKey };
   });
   const wrapper = mount(
     {
@@ -75,10 +85,50 @@ function mountTable() {
 }
 
 describe('CSV input, target and row lifecycle', () => {
+  it('commits the previous raw input before another row takes the single editor', async () => {
+    const { root, tables, inputs, wrapper } = mountTable();
+    tables.applySavedRowKeyMapForMod(root, 'ships', [{ previousKey: 'ships:new:0', nextKey: 'ships:row:9', rowIndex: 9 }]);
+    await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
+    await wrapper.get('[data-row-key="ships:row:9"] [data-column-key="width"]').trigger('click');
+    const input = wrapper.get('input.csv-cell-input');
+    const editor = wrapper.get('.csv-cell-editor').element;
+    await input.setValue('0012');
+    const next = tables.addNewRow()!;
+    await vi.waitFor(() => expect(wrapper.find(`[data-row-key="${next.rowKey}"]`).exists()).toBe(true));
+    await wrapper.get(`[data-row-key="${next.rowKey}"] [data-column-key="width"]`).trigger('click');
+    await vi.waitFor(() => expect(tables.editing?.rowKey).toBe(next.rowKey));
+    expect(tables.rowsByKey['ships:row:9']?.data.width).toBe('0012');
+    expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
+    expect(wrapper.get('.csv-cell-editor').element).toBe(editor);
+    expect(wrapper.findAll('.csv-cell-editor')).toHaveLength(1);
+    expect(inputs.dirty.value).toBe(false);
+    await wrapper.get('input.csv-cell-input').setValue('canceled');
+    await wrapper.get('input.csv-cell-input').trigger('keydown', { key: 'Escape' });
+    expect(tables.rowsByKey[next.rowKey]?.data.width).toBe('');
+    expect(wrapper.find('.csv-cell-editor').exists()).toBe(false);
+    expect(inputs.commit()).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('keeps the editor and its anchor when the effective input mode changes', async () => {
+    const { wrapper } = mountTable('enum');
+    await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
+    await wrapper.get('[data-column-key="width"]').trigger('click');
+    const anchor = wrapper.get('.csv-cell-frame').element;
+    const editor = wrapper.get('.csv-cell-editor').element;
+    useSettingsStore().setEditMode('smart');
+    await nextTick();
+    await nextTick();
+    expect(wrapper.get('.csv-cell-frame').element).toBe(anchor);
+    expect(anchor.querySelector('.csv-cell-editor')).toBe(editor);
+    expect(wrapper.find('.csv-cell-picker').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
   it('keeps the same raw control across rowKey mapping and commits to the saved identity', async () => {
     const { root, tables, inputs, wrapper } = mountTable();
-    await nextTick();
-    await wrapper.get('td[data-column-key="width"]').trigger('click');
+    await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
+    await wrapper.get('[data-column-key="width"]').trigger('click');
     const input = wrapper.get('input.csv-cell-input');
     await input.setValue('0012');
     expect(useDraftSessionsStore().hasUnsavedWorkForMod(root)).toBe(true);
@@ -88,39 +138,42 @@ describe('CSV input, target and row lifecycle', () => {
     expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
     expect((input.element as HTMLInputElement).value).toBe('0012');
     await inputs.commit();
+    expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
+    expect(wrapper.get('[data-column-key="width"]').classes()).toContain('dirty');
     expect(tables.rows[0]?.rowKey).toBe('ships:row:9');
     expect(tables.rows[0]?.data.width).toBe('0012');
     expect(tables.undoCurrentTableEdit()).toBeTruthy();
+    await nextTick();
+    expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
+    expect((input.element as HTMLInputElement).value).toBe('1');
+    expect(wrapper.get('[data-column-key="width"]').classes()).not.toContain('dirty');
     expect(tables.rows[0]?.data.width).toBe('1');
     expect(useTablesEditHistoryStore().canUndoCsvEdit(root, 'ships')).toBe(false);
     wrapper.unmount();
   });
 
-  it('commits before scroll releases the active editor and preserves external updates while raw input is dirty', async () => {
+  it('retains the active raw editor while scrolling and preserves external updates while raw input is dirty', async () => {
     const { tables, inputs, wrapper } = mountTable();
-    await nextTick();
-    await wrapper.get('td[data-column-key="width"]').trigger('click');
+    await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
+    await wrapper.get('[data-column-key="width"]').trigger('click');
     await wrapper.get('input.csv-cell-input').setValue('later');
-    tables.applyTableWindow(
+    tables.applyTableIndex(
       { sessionId: 'sA', modRoot: 'M:/A', table: 'ships' },
-      {
+      csvTableIndex([{ rowKey: 'ships:new:0', isComment: false, data: { width: 'external' } }], {
         table: 'ships',
         baseVersions: [],
         header: ['width'],
-        start: 0,
-        filteredRows: 1,
         totalRows: 1,
-        rows: [{ rowKey: 'ships:new:0', isComment: false, sourceRowIndex: 0, data: { width: 'external' } }],
-      },
+      }),
     );
     expect(tables.rows[0]?.data.width).toBe('1');
     expect(tables.hasCurrentTableExternalUpdate).toBe(true);
     await wrapper.get('.table-panel').trigger('scroll');
     await nextTick();
-    expect(tables.rows[0]?.data.width).toBe('later');
-    expect(tables.editing).toBeNull();
-    expect(inputs.dirty.value).toBe(false);
-    expect(wrapper.find('input.csv-cell-input').exists()).toBe(false);
+    expect(tables.rows[0]?.data.width).toBe('1');
+    expect(tables.editing?.column).toBe('width');
+    expect(inputs.dirty.value).toBe(true);
+    expect((wrapper.get('input.csv-cell-input').element as HTMLInputElement).value).toBe('later');
     wrapper.unmount();
   });
 });

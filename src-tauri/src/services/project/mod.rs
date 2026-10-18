@@ -3,6 +3,8 @@ mod definitions;
 mod invalidation;
 mod model;
 mod performance;
+#[cfg(test)]
+mod performance_retained_tests;
 pub(in crate::services) mod query;
 pub(in crate::services) mod resources;
 mod root;

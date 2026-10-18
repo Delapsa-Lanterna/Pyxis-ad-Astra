@@ -21,12 +21,7 @@ pub enum CsvRowPatchAction {
     Delete,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CsvRowOrderEntry {
-    Source(usize),
-    New(String),
-}
+pub type CsvRowOrderEntry = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(

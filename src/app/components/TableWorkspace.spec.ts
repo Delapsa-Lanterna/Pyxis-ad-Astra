@@ -1,3 +1,4 @@
+import { csvTableIndex } from '@/test/csv-row';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, ref } from 'vue';
@@ -11,26 +12,27 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { sessionUpdateFixture } from '@/test/write-result';
 import { editorUiStubs, nInput } from '@/test/ui-stubs';
-import type { CsvTableWindow } from '@/shared/types';
+import type { CsvTableIndex } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));
-vi.mock('@/services/csv-table.service', () => ({ queryTableWindow: mocks.query, queryTableRowPreviewDataUrl: async () => '' }));
+vi.mock('@/services/csv-table.service', () => ({
+  queryTableIndex: mocks.query,
+  queryTableRows: vi.fn(),
+  queryTableRowPreviewDataUrl: async () => '',
+}));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: async () => [] }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/app/composables/use-workspace-shell-actions', () => ({ useWorkspaceShellActions: () => ({}) }));
 
 let wrapper: VueWrapper;
 const target = { sessionId: 'search-session', modRoot: 'M:/search', table: 'ships' as const };
-function record(header = ['id', 'name', 'tags']): CsvTableWindow {
-  return {
+function record(header = ['id', 'name', 'tags']): CsvTableIndex {
+  return csvTableIndex([{ rowKey: 'row', isComment: false, data: { id: 'Alpha', name: '银河', tags: 'demo_bp' } }], {
     table: 'ships',
     header,
-    start: 0,
     totalRows: 1,
-    filteredRows: 1,
     baseVersions: [],
-    rows: [{ rowKey: 'row', isComment: false, sourceRowIndex: 0, data: { id: 'Alpha', name: '银河', tags: 'demo_bp' } }],
-  };
+  });
 }
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -51,13 +53,13 @@ async function mountWorkspace() {
   await flushPromises();
 }
 describe('table workspace search controls', () => {
-  it('toggles the sidebar without replacing the table, selection or mounted detail pane', async () => {
+  it('toggles the detail pane without replacing the table, selection or mounted detail pane', async () => {
     await mountWorkspace();
     const table = wrapper.getComponent({ name: 'DataTable' }).element;
     const pane = wrapper.getComponent({ name: 'DetailPane' }).element;
     const tables = useTablesStore();
     tables.selectRowByKey(target, 'row');
-    await wrapper.get('[aria-controls="csv-sidebar-panel"]').trigger('click');
+    await wrapper.get('[aria-controls="csv-detail-panel"]').trigger('click');
     expect(wrapper.get('[aria-controls]').attributes('aria-expanded')).toBe('false');
     expect(wrapper.getComponent({ name: 'DetailPane' }).isVisible()).toBe(false);
     expect(wrapper.getComponent({ name: 'DataTable' }).element).toBe(table);
@@ -68,7 +70,7 @@ describe('table workspace search controls', () => {
     expect(wrapper.getComponent({ name: 'DetailPane' }).isVisible()).toBe(true);
   });
 
-  it('retains the window-owned sidebar choice when the table page is reopened', async () => {
+  it('retains the window-owned detail pane choice when the table page is reopened', async () => {
     const expanded = ref(true),
       shown = ref(true);
     wrapper = mount(
@@ -76,8 +78,8 @@ describe('table workspace search controls', () => {
         setup: () => () =>
           shown.value
             ? h(TableWorkspace, {
-                sidebarExpanded: expanded.value,
-                'onUpdate:sidebarExpanded': (value: boolean) => {
+                detailPaneExpanded: expanded.value,
+                'onUpdate:detailPaneExpanded': (value: boolean) => {
                   expanded.value = value;
                 },
               })
@@ -114,7 +116,7 @@ describe('table workspace search controls', () => {
       expect(useTablesStore().searchField).toBe(field);
       expect(useTablesStore().searchText).toBe('Alpha');
       expect(wrapper.getComponent(nInput).props('placeholder')).toBe(`搜索 ${label}`);
-      expect(mocks.query).toHaveBeenLastCalledWith(target.sessionId, 'ships', 0, 240, 'Alpha', field, expect.any(AbortSignal));
+      expect(mocks.query).toHaveBeenLastCalledWith(target.sessionId, 'ships', 0, 'Alpha', field, expect.any(AbortSignal));
     }
   });
   it('offers options from the authoritative header as it loads', async () => {

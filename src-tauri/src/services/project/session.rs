@@ -385,6 +385,7 @@ pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionC
                 (
                     definition.spec.key.as_str().to_string(),
                     SessionCsvTable {
+                        row_index: None,
                         header: Vec::new(),
                         path: definition.spec.rel_path.to_string(),
                         rows: None,
@@ -397,6 +398,7 @@ pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionC
     tables.insert(
         MISSION_LIST_TABLE_KEY.to_string(),
         SessionCsvTable {
+            row_index: None,
             header: super::model::mission_list_default_header(),
             path: MISSION_LIST_REL_PATH.to_string(),
             rows: None,

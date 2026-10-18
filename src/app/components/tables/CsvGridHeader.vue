@@ -1,17 +1,18 @@
 <template>
-  <colgroup>
-    <col class="csv-row-handle-column" />
-    <col v-for="column in columns" :key="column.key" :class="column.className" :style="{ width: `${column.widthPx}px` }" />
-  </colgroup>
-  <thead>
-    <tr class="csv-grid-row">
-      <th class="csv-header-cell csv-row-handle-cell" aria-label="行排序"></th>
-      <th class="csv-header-cell" v-for="column in columns" :key="column.key" :class="column.className" :title="column.key">
-        <span class="csv-th-label ui-layout-clip">{{ column.schema?.label ?? column.key }}</span>
-        <span class="csv-th-resize" @mousedown.prevent="startResize($event, column)" />
-      </th>
-    </tr>
-  </thead>
+  <div class="csv-grid-header csv-grid-row" role="row">
+    <div class="csv-header-cell csv-row-handle-cell" role="columnheader" aria-label="行排序"></div>
+    <div
+      class="csv-header-cell"
+      v-for="column in columns"
+      :key="column.key"
+      :class="column.className"
+      :title="column.key"
+      role="columnheader"
+    >
+      <span class="csv-th-label ui-layout-clip">{{ column.schema?.label ?? column.key }}</span>
+      <span class="csv-th-resize" @mousedown.prevent="startResize($event, column)" />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">

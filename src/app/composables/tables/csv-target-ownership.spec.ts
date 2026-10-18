@@ -1,3 +1,4 @@
+import { csvTableIndex } from '@/test/csv-row';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
@@ -10,11 +11,17 @@ import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchest
 import { sessionUpdateFixture } from '@/test/write-result';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
-import type { CsvTableTarget, CsvTableWindow } from '@/shared/types';
+import type { CsvTableTarget, CsvTableIndex } from '@/shared/types';
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn(), choose: vi.fn<() => Promise<string | null>>(async () => null) }));
+const mocks = vi.hoisted(() => ({
+  query: vi.fn(),
+  rows: vi.fn(),
+  error: vi.fn(),
+  choose: vi.fn<() => Promise<string | null>>(async () => null),
+}));
 vi.mock('@/services/csv-table.service', () => ({
-  queryTableWindow: mocks.query,
+  queryTableIndex: mocks.query,
+  queryTableRows: mocks.rows,
   querySourceOptionCatalog: async () => [],
   queryTableRowPreviewDataUrl: async () => '',
 }));
@@ -23,16 +30,13 @@ vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: 
 let wrapper: VueWrapper;
 const a: CsvTableTarget = { sessionId: 'sA', modRoot: 'M:/A', table: 'ships' };
 const b: CsvTableTarget = { sessionId: 'sB', modRoot: 'M:/B', table: 'ships' };
-function windowRecord(): CsvTableWindow {
-  return {
+function windowRecord(): CsvTableIndex {
+  return csvTableIndex([{ rowKey: 'row', isComment: false, data: { id: 'demo', name: 'Name' } }], {
     table: 'ships',
     baseVersions: [],
-    start: 0,
     header: ['id', 'name'],
     totalRows: 1,
-    filteredRows: 1,
-    rows: [{ rowKey: 'row', isComment: false, data: { id: 'demo', name: 'Name' }, sourceRowIndex: 0 }],
-  };
+  });
 }
 function harness(saveBeforeSearch = async () => true) {
   let vm!: ReturnType<typeof useCsvTableViewModel>;
@@ -71,37 +75,36 @@ afterEach(() => wrapper?.unmount());
 describe('CSV explicit targets and column ownership', () => {
   async function orderedHarness(save = async () => true) {
     const record = windowRecord();
-    record.totalRows = record.filteredRows = 2;
-    record.rows.push({ ...record.rows[0]!, rowKey: 'second', sourceRowIndex: 1, data: { id: 'second' } });
+    record.totalRows = 2;
+    record.rowKeys.push('second');
+    record.rows.push({ ...record.rows[0]!, rowKey: 'second', data: { id: 'second' } });
     mocks.query.mockResolvedValue(record);
     const vm = harness(save);
     await flushPromises();
     useTablesStore().moveRow(a, 'second', 0);
     return vm;
   }
-  it('maps a newly visible window through an existing order draft', async () => {
-    mocks.query.mockImplementation(async (_session: string, _table: string, start: number, count: number) => ({
-      ...windowRecord(),
-      start,
-      totalRows: 500,
-      filteredRows: 500,
-      rows: Array.from({ length: Math.min(count, 500 - start) }, (_, offset) => ({
-        rowKey: `row-${start + offset}`,
-        sourceRowIndex: start + offset,
-        isComment: false,
-        data: { id: String(start + offset) },
-      })),
+  it('reads the identities currently occupying the requested range after reordering', async () => {
+    const rows = Array.from({ length: 500 }, (_, index) => ({ rowKey: 'row-' + index, isComment: false, data: { id: String(index) } }));
+    mocks.query.mockResolvedValue(csvTableIndex(rows.slice(0, 240), { rowKeys: rows.map((row) => row.rowKey), totalRows: 500 }));
+    mocks.rows.mockImplementation(async (_session: string, _table: string, keys: string[]) => ({
+      table: 'ships',
+      baseVersions: [],
+      rows: keys.map((key) => rows[Number(key.slice(4))]!),
     }));
     const vm = harness();
     await flushPromises();
     await vm.loadTableWindow(400, 80);
-    await flushPromises();
     const tables = useTablesStore();
     tables.moveRow(a, 'row-400', 0);
     tables.updateCellValue({ ...a, rowKey: 'row-0', column: 'id' }, 'local');
     await vm.loadTableWindow(240, 80);
-    await flushPromises();
-    expect(mocks.query).toHaveBeenLastCalledWith(a.sessionId, 'ships', 240, 159, '', 'id-name', expect.any(AbortSignal));
+    expect(mocks.rows).toHaveBeenLastCalledWith(
+      a.sessionId,
+      'ships',
+      Array.from({ length: 79 }, (_, index) => 'row-' + (240 + index)),
+      expect.any(AbortSignal),
+    );
     expect(tables.rows[0]?.rowKey).toBe('row-400');
     expect(tables.rows[1]?.data.id).toBe('local');
     expect(tables.rows[241]?.rowKey).toBe('row-240');
@@ -178,7 +181,7 @@ describe('CSV explicit targets and column ownership', () => {
     await flushPromises();
     expect(tables.searchText).toBe('Alpha');
     expect(tables.searchField).toBe('name');
-    expect(mocks.query).toHaveBeenLastCalledWith(a.sessionId, 'ships', 0, 240, 'Alpha', 'name', expect.any(AbortSignal));
+    expect(mocks.query).toHaveBeenLastCalledWith(a.sessionId, 'ships', 0, 'Alpha', 'name', expect.any(AbortSignal));
     navigateToModTable(a.modRoot, 'weapons');
     await flushPromises();
     expect(tables.searchText).toBe('');
@@ -239,7 +242,7 @@ describe('CSV explicit targets and column ownership', () => {
   });
 
   it.each(['resolve', 'reject'] as const)('revokes a previous search-field request on late %s', async (completion) => {
-    let resolve!: (window: CsvTableWindow) => void;
+    let resolve!: (window: CsvTableIndex) => void;
     let reject!: (error: Error) => void;
     mocks.query.mockImplementationOnce(
       () =>
@@ -278,7 +281,7 @@ describe('CSV explicit targets and column ownership', () => {
     const vm = harness();
     await flushPromises();
     const tables = useTablesStore();
-    tables.applyTableWindow(b, windowRecord());
+    tables.applyTableIndex(b, windowRecord());
     if (dirty) tables.updateCellValue({ ...b, rowKey: 'row', column: 'name' }, 'B draft');
     expect(vm.effectiveColumns.value.find((column) => column.key === 'name')?.widthPx).toBe(120);
     navigateToModTable(b.modRoot, 'ships');
@@ -296,7 +299,7 @@ describe('CSV explicit targets and column ownership', () => {
     tables.setSearchField(a, 'name');
     tables.selectRowByKey(a, 'A row');
     navigateToModTable(b.modRoot, 'ships');
-    tables.applyTableWindow(a, windowRecord());
+    tables.applyTableIndex(a, windowRecord());
     tables.markTableExternalUpdate(a);
     expect(tables.searchText).toBe('');
     expect(tables.searchField).toBe('id-name');
@@ -308,7 +311,7 @@ describe('CSV explicit targets and column ownership', () => {
   });
 
   it.each(['resolve', 'reject'] as const)('releases the prior Mod window %s after switching to a same-name table', async (completion) => {
-    let resolve!: (window: CsvTableWindow) => void;
+    let resolve!: (window: CsvTableIndex) => void;
     let reject!: (error: Error) => void;
     mocks.query.mockImplementationOnce(
       () =>

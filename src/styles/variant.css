@@ -328,6 +328,8 @@
   flex: 0 1 auto;
 }
 .variant-candidate-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 75px;
   position: relative;
   grid-template-columns: 69px minmax(0, 1fr) 60px;
   width: 375px;
@@ -471,6 +473,8 @@
   padding-left: var(--space-1);
 }
 .variant-hullmod-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 36px;
   height: 36px;
   color: var(--color-primary);
   text-align: left;
@@ -680,4 +684,8 @@
   padding: var(--space-3);
   background: var(--color-panel);
   border: 1px solid var(--color-border);
+}
+
+.variant-list-active {
+  content-visibility: visible;
 }

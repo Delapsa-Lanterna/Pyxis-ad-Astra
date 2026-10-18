@@ -14,7 +14,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
-function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; inView?: boolean } = { inView: false }) {
+function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; active?: boolean } = { active: false }) {
   const snapshot = wingJointFixture();
   const source = snapshot.records[0]!.source!;
   const entry: JointVariantEntry = {
@@ -38,16 +38,16 @@ function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; inV
     global: {
       stubs: {
         ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
-        ImmersiveWeaponIcon: { name: 'ImmersiveWeaponIcon', props: ['layers', 'mountType', 'mountSize'], template: '<canvas/>' },
-        ImmersiveHullScene: { name: 'ImmersiveHullScene', props: ['variant', 'wingLayout'], template: '<canvas/>' },
+        ImmersiveWeaponIcon: { name: 'ImmersiveWeaponIcon', props: ['layers', 'mountType', 'mountSize', 'active'], template: '<canvas/>' },
+        ImmersiveHullThumbnail: { name: 'ImmersiveHullThumbnail', props: ['variant', 'wingLayout', 'active'], template: '<canvas/>' },
       },
     },
   });
   return {
     wrapper,
     entry,
-    show: (value: boolean) => wrapper.setProps({ inView: value }),
-    showBatch: (values: boolean[]) => wrapper.setProps({ inView: values.at(-1)! }),
+    show: (value: boolean) => wrapper.setProps({ active: value }),
+    showBatch: (values: boolean[]) => wrapper.setProps({ active: values.at(-1)! }),
   };
 }
 describe('catalog-driven candidate cards', () => {
@@ -63,7 +63,10 @@ describe('catalog-driven candidate cards', () => {
     expect(own.wrapper.find('canvas').exists()).toBe(true);
     own.showBatch([true, false]);
     await flushPromises();
-    expect(own.wrapper.find('canvas').exists()).toBe(false);
+    expect(own.wrapper.find('canvas').exists()).toBe(true);
+    expect(own.wrapper.findComponent({ name: kind === 'weapons' ? 'ImmersiveWeaponIcon' : 'ImmersiveHullThumbnail' }).props('active')).toBe(
+      false,
+    );
     own.showBatch([false, true, false, true]);
     await flushPromises();
     expect(own.wrapper.find('canvas').exists()).toBe(true);
@@ -88,7 +91,7 @@ describe('catalog-driven candidate cards', () => {
     const own = harness('wings');
     own.show(true);
     await flushPromises();
-    const scene = own.wrapper.findComponent({ name: 'ImmersiveHullScene' });
+    const scene = own.wrapper.findComponent({ name: 'ImmersiveHullThumbnail' });
     expect(scene.props('wingLayout').points).toHaveLength(3);
     expect(scene.props('wingLayout').points[0].y).toBeCloseTo(11.88);
     expect(scene.props('variant').spec.hullId).toBe('sarissa');

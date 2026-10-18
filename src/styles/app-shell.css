@@ -1,6 +1,7 @@
 .app-shell {
+  --navigation-width: 176px;
   position: relative;
-  grid-template-columns: 176px minmax(0, 1fr);
+  grid-template-columns: var(--navigation-width) minmax(0, 1fr);
   transition: grid-template-columns var(--ui-motion-duration) var(--ui-motion-easing);
 }
 .page-content {

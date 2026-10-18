@@ -43,6 +43,8 @@ function paint() {
     ]);
   const cached = cache.thumbnail(key),
     hold = cached ? cache.retainThumbnail(key) : null;
+  const image = decoded.image(props.resource);
+  if (!cached && !image) return;
   release?.();
   release = hold;
   canvas.width = Math.round(props.width * ratio);
@@ -53,7 +55,6 @@ function paint() {
     context.drawImage(cached, 0, 0);
     return;
   }
-  const image = decoded.image(props.resource);
   if (!image) return;
   const scale = Math.min(canvas.width / image.width, canvas.height / image.height),
     width = Math.round(image.width * scale),

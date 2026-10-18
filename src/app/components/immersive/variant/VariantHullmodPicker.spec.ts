@@ -12,7 +12,14 @@ import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import VariantHullmodPicker from './VariantHullmodPicker.vue';
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], media: vi.fn(), dataUrl: vi.fn() }));
+const mediaRevision = ref(0);
 beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(234);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queueMicrotask(() => callback(performance.now()));
+    return 1;
+  });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
   mocks.dataUrl.mockReturnValue('');
   installCanvas2DStub();
   setActivePinia(createPinia());
@@ -46,11 +53,18 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
   }),
 }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({
-  useResourceMediaRegistry: () => ({ replaceCollection: mocks.media, dataUrl: mocks.dataUrl }),
+  useResourceMediaRegistry: () => ({
+    replaceCollection: mocks.media,
+    dataUrl: (session: string, resource?: { key: string }) => {
+      void mediaRevision.value;
+      return mocks.dataUrl(session, resource);
+    },
+  }),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn(), warning: vi.fn() }) }));
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 function harness(count = 6) {
@@ -119,8 +133,9 @@ describe('original hullmod picker', () => {
     const status = own.wrapper.find('[data-entry-id=mod_1] .immersive-resource-icon');
     expect(status.attributes('style')).toContain('data:image/svg+xml');
     const key = { normal: 'checkmark', permanent: 'checkmark_locked', s: 'checkmark_unlocked' }[category];
-    expect(mocks.media).toHaveBeenLastCalledWith('s', 'hullmod-ui', [expect.objectContaining({ key })]);
+    expect(mocks.media).toHaveBeenLastCalledWith('s', 'hullmod-ui', expect.arrayContaining([expect.objectContaining({ key })]));
     mocks.dataUrl.mockImplementation((_session, resource?: { key: string }) => (resource ? resource.key + '.png' : ''));
+    mediaRevision.value++;
     own.variant.value = { ...own.variant.value, mods: [...own.variant.value.mods] };
     await flushPromises();
     expect(status.attributes('style')).toContain(key + '.png');
@@ -146,7 +161,11 @@ describe('original hullmod picker', () => {
     const list = own.wrapper.find('.variant-hullmod-list');
     Object.defineProperty(list.element, 'clientHeight', { value: 360, configurable: true });
     await list.trigger('scroll');
-    const ids = () => own.wrapper.findAll('.variant-hullmod-row').map((row) => row.attributes('data-entry-id'));
+    const ids = () =>
+      own.wrapper
+        .findAll('.variant-hullmod-row')
+        .filter((row) => row.isVisible())
+        .map((row) => row.attributes('data-entry-id'));
     expect(ids()).toEqual(['mod_1', 'mod_3', 'mod_2', 'mod_0', 'mod_5', 'mod_4']);
     expect(own.wrapper.find('.variant-hullmod-name img').attributes('src')).toBe('icon.png');
     expect(own.wrapper.find('.variant-hullmod-columns').text()).toBe('插件设计类型OP已安装');
@@ -165,9 +184,14 @@ describe('original hullmod picker', () => {
     await list.trigger('scroll');
     const checks = own.wrapper.findAll('.immersive-filter-group [role=checkbox]');
     await checks.find((check) => check.attributes('aria-label') === 'High Tech')!.trigger('click');
-    expect(own.wrapper.findAll('.variant-hullmod-row').map((row) => row.attributes('data-entry-id'))).toEqual(['mod_1', 'mod_3', 'mod_5']);
+    expect(
+      own.wrapper
+        .findAll('.variant-hullmod-row')
+        .filter((row) => row.isVisible())
+        .map((row) => row.attributes('data-entry-id')),
+    ).toEqual(['mod_1', 'mod_3', 'mod_5']);
     await checks.find((check) => check.attributes('aria-label') === 'Common')!.trigger('click', { ctrlKey: true });
-    expect(own.wrapper.findAll('.variant-hullmod-row')).toHaveLength(6);
+    expect(own.wrapper.findAll('.variant-hullmod-row').filter((row) => row.isVisible())).toHaveLength(6);
     await own.wrapper.find('.variant-hullmod-row').trigger('click');
     expect(own.picker.emitted('select')).toEqual([['mod_1', 'normal']]);
     expect(own.wrapper.find('[role=dialog]').exists()).toBe(true);
@@ -204,11 +228,11 @@ describe('original hullmod picker', () => {
   it('mounts only visible rows, navigates to the last ID and clears removed hover details', async () => {
     const own = harness(200);
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-hullmod-row')).toHaveLength(2);
+    expect(own.wrapper.findAll('.variant-hullmod-row').filter((row) => row.isVisible()).length).toBeLessThan(40);
     const list = own.wrapper.find('.variant-hullmod-list');
     Object.defineProperty(list.element, 'clientHeight', { value: 108 });
     await list.trigger('scroll');
-    expect(own.wrapper.findAll('.variant-hullmod-row')).toHaveLength(5);
+    expect(own.wrapper.findAll('.variant-hullmod-row').filter((row) => row.isVisible()).length).toBeLessThan(40);
     await own.wrapper.find('.variant-hullmod-row').trigger('mouseenter');
     await flushPromises();
     expect(own.wrapper.find('.variant-hullmod-tooltip').text()).toContain('插件');

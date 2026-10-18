@@ -21,7 +21,7 @@
       v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest"
     /><TableWorkspace
       v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
-      v-model:sidebar-expanded="sidebarExpanded"
+      v-model:detail-pane-expanded="detailPaneExpanded"
     /><ConfigWorkspace v-else-if="workspace.currentView === 'config' && workspace.activeManifest" />
     <section v-else class="empty-state ui-content-scroll ui-text-normal ui-layout-grid">
       <n-spin size="large" />
@@ -58,7 +58,7 @@ const TableWorkspace = defineAsyncComponent(() => import('@/app/components/Table
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const ConfigWorkspace = defineAsyncComponent(() => import('@/app/components/config/ConfigWorkspace.vue'));
 const contentNavigation = createContentNavigation();
-const sidebarExpanded = ref(true);
+const detailPaneExpanded = ref(true);
 provide(contentNavigationKey, contentNavigation);
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();

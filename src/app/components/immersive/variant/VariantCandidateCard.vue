@@ -1,7 +1,7 @@
 <template>
   <button
     class="variant-candidate-card ui-button ui-text-normal ui-layout-grid ui-control-pointer ui-control-border"
-    :class="{ 'variant-current': current }"
+    :class="{ 'variant-current': current, 'variant-list-active': active }"
     :title="cardDiagnostic || undefined"
     @click="$emit('select')"
     @mouseenter="$emit('hover', $event)"
@@ -10,30 +10,34 @@
     @blur="$emit('leave', $event)"
   >
     <ImmersiveWeaponIcon
-      v-if="kind === 'weapons' && visible"
+      v-if="kind === 'weapons'"
       :session-id="root.sessionId"
       :layers="layers"
       :url="mediaUrl"
       :label="entry.label"
       :mount-type="String(spec.mountTypeOverride || spec.type || '')"
       :mount-size="String(spec.size ?? '')"
+      :active="active"
       :loaded-missile="loadedMissile"
     />
-    <ImmersiveHullScene
-      v-else-if="scene && visible && !wingLayout.diagnostic"
+    <ImmersiveHullThumbnail
+      v-else-if="scene && !wingLayout.diagnostic"
       :variant="scene"
       :session-id="root.sessionId"
-      :icon-size="69"
+      :size="69"
       :wing-layout="wingLayout"
+      :active="active"
       :resource-url="mediaUrl"
     />
     <div v-else />
     <div class="variant-card-text ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip">
-      <ImmersiveText :text="entry.label" /><ImmersiveText
+      <ImmersiveText :active="active" :text="entry.label" /><ImmersiveText
+        :active="active"
         :text="summary"
         :runs="[{ text: summary, color: '#ffd200' }]"
         block
-      /><ImmersiveText v-if="current" text="点击卸下" font="caption" block /><ImmersiveText
+      /><ImmersiveText :active="active" v-if="current" text="点击卸下" font="caption" block /><ImmersiveText
+        :active="active"
         class="variant-card-origin"
         :text="entry.source.source === 'mod' ? '当前 Mod' : 'Core'"
         font="caption"
@@ -41,15 +45,16 @@
     </div>
     <strong class="variant-candidate-card-value ui-layout-row ui-layout-stack"
       ><ImmersiveText
+        :active="active"
         :text="formatVariantNumber(cost)"
         :runs="[{ text: formatVariantNumber(cost), color: current ? '#9bff00' : '#ffd200' }]"
-        font="op" /><ImmersiveText text="装配点" font="caption"
+        font="op" /><ImmersiveText :active="active" text="装配点" font="caption"
     /></strong>
   </button>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { JointVariantEntry, JointEditRoot, ResourceRef } from '@/shared/types';
+import type { ReadonlyVariantEntry, JointEditRoot, ResourceRef } from '@/shared/types';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { immersiveCatalogScene } from '@/domain/immersive/hull-scene';
 import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';
@@ -60,22 +65,21 @@ import { immersiveNumber } from '@/domain/immersive/fields';
 import { WING_ROLE_LABELS } from '@/domain/immersive/wing/wing-panel';
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveWeaponIcon from '../ImmersiveWeaponIcon.vue';
-import ImmersiveHullScene from '../ImmersiveHullScene.vue';
+import ImmersiveHullThumbnail from '../ImmersiveHullThumbnail.vue';
 const props = withDefaults(
   defineProps<{
     root: JointEditRoot;
     kind: 'weapons' | 'wings';
-    entry: JointVariantEntry;
+    entry: ReadonlyVariantEntry;
     cost: number;
     diagnostic: string;
     current?: boolean;
-    inView?: boolean;
+    active?: boolean;
     mediaUrl: (resource: ResourceRef) => string;
   }>(),
-  { inView: true },
+  { active: true },
 );
 defineEmits<{ select: []; hover: [event: MouseEvent | FocusEvent]; leave: [event: MouseEvent | FocusEvent] }>();
-const visible = computed(() => props.inView);
 const spec = computed(() => (isRowData(props.entry.spec) ? props.entry.spec : {}));
 const data = computed(() => (isRowData(props.entry.data) ? props.entry.data : {}));
 const layers = computed(() => weaponImageLayers(spec.value, props.entry.resourceRefs, 'turret'));

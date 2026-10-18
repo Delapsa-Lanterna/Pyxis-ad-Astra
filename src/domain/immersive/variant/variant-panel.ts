@@ -1,7 +1,7 @@
 import { immersiveNumber } from '../fields';
 import { variantEditableRecords } from '../source-records';
 import { immersiveCatalogScene } from '../hull-scene';
-import type { JointEditSnapshot, JointValue, JointHullProjection, ResourceRef, RowData, JointVariantEntry } from '@/shared/types';
+import type { JointEditSnapshot, JointValue, JointHullProjection, ResourceRef, RowData, ReadonlyVariantEntry } from '@/shared/types';
 import { jointObject } from '@/domain/joint-edit';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
@@ -77,7 +77,7 @@ export interface VariantPanel {
   resources: ResourceRef[];
 }
 
-export function variantCandidateResources(entry: JointVariantEntry, kind: 'weapons' | 'wings'): ResourceRef[] {
+export function variantCandidateResources(entry: ReadonlyVariantEntry, kind: 'weapons' | 'wings'): ResourceRef[] {
   if (kind === 'wings') {
     const scene = immersiveCatalogScene(entry);
     return scene

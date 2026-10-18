@@ -12,16 +12,16 @@
 - `src-tauri/src/services/project/definitions/table_definitions.rs`：表格实体列、摘要、图标及来源选项映射。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
 - `src/app/components/TableWorkspace.vue`：表格列表、详情及保存状态组合。
-- `src/app/components/tables/`：虚拟表格、单元格输入、行详情及其行为测试。
-- `src/app/components/tables/CsvGrid.vue`：表格网格，拥有滚动窗口、列宽与行虚拟化。
-- `src/app/components/tables/CsvGridBody.vue`：表体，拥有可见行窗口与选中行传递。
+- `src/app/components/tables/`：按需挂载表格、单元格输入、行详情及其行为测试。
+- `src/app/components/tables/CsvGrid.vue`：表格网格，拥有可视区调度、列宽与驻留行展示。
+- `src/app/components/tables/CsvGridBody.vue`：表体，拥有提前量挂载、屏外隐藏与选中行传递。
 - `src/app/components/tables/CsvGridCellEditor.vue`：单元格编辑，按列控件类型分派编辑器。
 - `src/app/components/tables/CsvGridRow.vue`：行渲染与选中态。
 - `src/app/components/tables/DataTable.vue`：表格工作区组合。
 - `src/app/composables/tables/csv-target-ownership.spec.ts`：CSV 显式目标、搜索输入与列状态归属验证。
 - `src/app/composables/tables/use-csv-floating-panel.ts`：浮层视口，统一位置、宽度、上下翻转与 resize 释放。
 - `src/app/composables/tables/use-csv-grid-media.ts`：网格持有媒体结果到单元格展示的交接接口。
-- `src/app/composables/tables/use-csv-grid-viewport.ts`：虚拟行范围、容器尺寸及滚动投影。
+- `src/app/composables/tables/use-csv-grid-viewport.ts`：按需挂载范围、容器尺寸及滚动投影。
 - `src/app/composables/tables/use-csv-row-drag.ts`：固定行头拖动、指针捕获、插入目标与边缘滚动。
 - `src/app/composables/tables/use-csv-row-preview.ts`：详情行预览、读取票据、失效重读与释放。
 - `src/app/composables/tables/use-csv-table-inputs.ts`：表格输入上下文，连接所属输入集合、活动单元格与值提交。
@@ -74,10 +74,10 @@
 
 ### 打开表格窗口
 
-1. 表格进入时按需请求当前表的窗口行。
+1. 表格进入时按需请求当前表的首批行，并在可视区及提前量范围内继续读取。
 2. ViewModel 按完整目标接纳列宽并处理所属草稿保护。
 3. CSV 读取能力装配 query identity 与 command，后端返回窗口与源索引。
-4. store 按捕获目标写入行、表头与总数，网格按可视区渲染。
+4. store 按捕获目标写入行、表头与总数，网格按可视区调度并保留已挂载行。
 
 ### 编辑单元格
 
@@ -132,8 +132,8 @@
 - 草稿与 dirty 单元格字典必须保留全部自有列键；缺失列必须以空值展示，严禁消费对象原型上的属性。
 - 行预览必须消费捕获的 session、表和 `rowKey`，目标变化及卸载必须释放等待；资源或行预览失效必须合并后读取当前目标。
 - 表格窗口、来源集合与行预览必须分别经所属通道接纳结果和错误；来源集合必须在全部目录返回后共同发布。
-- 表格窗口必须按可视区请求行，严禁一次加载全表。
-- 表格缩略图必须由网格管理可见与邻近资源集合；行组件必须消费窗口驻留图像，虚拟行销毁只允许释放所属展示引用与输入登记。
+- 表格窗口必须按可视区及上下各一个视口的提前量请求行，严禁一次加载全表。
+- 表格缩略图必须由网格管理可见与邻近资源集合；行组件首次进入提前量时挂载，已访问行必须在当前表内持续驻留，切表、目标替换或卸载时释放所属展示引用与输入登记。
 - 选择、编辑与 dirty 只允许消费正式行，严禁把虚拟间隔和占位作为业务记录。
 - 选择与文本浮层必须共用视口计算；浮层宽度与水平位置必须服从当前窗口，resize 监听必须随控件释放。
 - 顺序草稿必须通过基线源位置与新增行键表达，窗口读取必须映射实际源区间并按当前顺序接纳；同基线的新窗口必须保留已编辑行，外部基线必须进入更新保护。

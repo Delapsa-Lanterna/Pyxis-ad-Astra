@@ -87,21 +87,9 @@ pub fn save_csv_patch_snapshot(
             table_data.next_row_seq,
         )
     };
-    let source_keys = row_order.as_ref().map(|_| {
-        rows.iter()
-            .map(|row| row.row_key.clone())
-            .collect::<Vec<_>>()
-    });
     let mut key_map = apply_csv_row_patches(table, &mut rows, &mut next_row_seq, patches)?;
     if let Some(order) = row_order {
-        apply_csv_row_order(
-            &mut rows,
-            source_keys
-                .as_ref()
-                .expect("ordered write captured its source"),
-            &key_map,
-            order,
-        )?;
+        apply_csv_row_order(&mut rows, &key_map, order)?;
         let positions: std::collections::HashMap<_, _> = rows
             .iter()
             .enumerate()
@@ -273,7 +261,6 @@ fn apply_csv_row_patches(
 
 fn apply_csv_row_order(
     rows: &mut Vec<SessionCsvRow>,
-    sources: &[String],
     key_map: &[CsvRowKeyMapping],
     order: Vec<CsvRowOrderEntry>,
 ) -> AppResult<()> {
@@ -290,13 +277,7 @@ fn apply_csv_row_order(
         .map(|row| (row.row_key.clone(), row))
         .collect();
     for entry in order {
-        let key = match &entry {
-            CsvRowOrderEntry::Source(index) => sources
-                .get(*index)
-                .map(String::as_str)
-                .ok_or_else(invalid)?,
-            CsvRowOrderEntry::New(key) => *added.get(key.as_str()).ok_or_else(invalid)?,
-        };
+        let key = added.get(entry.as_str()).copied().unwrap_or(entry.as_str());
         rows.push(available.remove(key).ok_or_else(invalid)?);
     }
     Ok(())
@@ -757,7 +738,16 @@ mod tests {
         let keys: Vec<_> = window.rows.iter().map(|row| row.row_key.clone()).collect();
         for order in [vec![0, 0, 2, 3], vec![0, 1, 2], vec![0, 1, 2, 9]] {
             let result = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
-                row_order: Some(order.into_iter().map(CsvRowOrderEntry::Source).collect()),
+                row_order: Some(
+                    order
+                        .into_iter()
+                        .map(|index| {
+                            keys.get(index)
+                                .cloned()
+                                .unwrap_or_else(|| "ships:row:unknown".into())
+                        })
+                        .collect(),
+                ),
                 base_versions: window.base_versions.clone(),
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -771,11 +761,11 @@ mod tests {
         }
         let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
             row_order: Some(vec![
-                CsvRowOrderEntry::Source(3),
-                CsvRowOrderEntry::New("ships:new:1".into()),
-                CsvRowOrderEntry::Source(1),
-                CsvRowOrderEntry::Source(2),
-                CsvRowOrderEntry::Source(0),
+                keys[3].clone(),
+                "ships:new:1".into(),
+                keys[1].clone(),
+                keys[2].clone(),
+                keys[0].clone(),
             ]),
             base_versions: window.base_versions.clone(),
             session_id: manifest.session_id.clone(),

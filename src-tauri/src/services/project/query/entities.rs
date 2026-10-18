@@ -197,6 +197,7 @@ mod tests {
         csv_tables.insert(
             MISSION_LIST_TABLE_KEY.to_string(),
             super::super::super::model::SessionCsvTable {
+                row_index: None,
                 header: vec!["mission".to_string()],
                 path: "data/missions/mission_list.csv".to_string(),
                 rows: None,

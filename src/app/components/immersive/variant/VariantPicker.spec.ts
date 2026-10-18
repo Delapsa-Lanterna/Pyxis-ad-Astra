@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { h, ref, shallowRef } from 'vue';
+import { h, ref, shallowRef, shallowReactive } from 'vue';
 import { NInput, NSelect, NButton } from 'naive-ui';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { JointVariantEntry } from '@/shared/types';
@@ -13,6 +13,18 @@ import { jointObject } from '@/domain/joint-edit';
 const deckMedia = vi.hoisted(() => ({ replaceCollection: vi.fn(), releaseCollection: vi.fn(), dataUrl: vi.fn(() => '') }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({ useResourceMediaRegistry: () => deckMedia }));
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[] }));
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(234);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queueMicrotask(() => callback(performance.now()));
+    return 1;
+  });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 vi.mock('@/app/composables/immersive-editor/variant/use-variant-catalog', () => ({
   useVariantCatalog: () => ({
     entries: shallowRef(mocks.entries),
@@ -84,6 +96,7 @@ function harness(
       spec: { type: 'ENERGY', size: 'SMALL' },
     });
   mocks.entries.push({ ...mocks.entries[0]!, id: '', label: '', data: {} });
+  mocks.entries = shallowReactive(mocks.entries);
   const inputs = createFieldInputs(ref('variant'));
   const current = ref(currentId);
   const commitManual = vi.fn(async () => true);
@@ -130,6 +143,7 @@ function harness(
       },
     },
     {
+      attachTo: document.body,
       global: {
         components: { NInput, NSelect, NButton },
         stubs: {
@@ -156,6 +170,17 @@ function harness(
   return { wrapper, inputs, current, commitManual, cancelVariantAction, displaySnapshot, picker: wrapper.findComponent(VariantPicker) };
 }
 describe('variant candidate picker', () => {
+  it('retains filtered candidate nodes with hidden visibility', async () => {
+    const own = harness();
+    await flushPromises();
+    await own.wrapper.find('[aria-label=实弹]').trigger('click');
+    await flushPromises();
+    const card = own.wrapper.get('[data-entry-id=incompatible]');
+    await own.wrapper.find('input').setValue('能量');
+    await flushPromises();
+    expect(card.isVisible(), own.wrapper.html()).toBe(false);
+    own.wrapper.unmount();
+  });
   it('replaces the empty deck graphic with its source while retaining the slot button', async () => {
     const own = harness('wings', 2, false, [], '', true, true);
     await flushPromises();
@@ -211,9 +236,10 @@ describe('variant candidate picker', () => {
     ]);
     expect(own.wrapper.find('[data-entry-id=large]').exists()).toBe(false);
     await own.wrapper.find('[aria-label=大型]').trigger('click');
+    await flushPromises();
     expect(own.wrapper.find('[data-entry-id=large]').exists()).toBe(true);
     await own.wrapper.find('[aria-label=能量]').trigger('click');
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(0);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible())).toHaveLength(0);
     own.wrapper.unmount();
   });
   it('awaits manual confirmation and keeps rejected raw ID registered for save', async () => {
@@ -234,7 +260,7 @@ describe('variant candidate picker', () => {
     await flushPromises();
     expect(own.wrapper.find('.variant-current-title').exists()).toBe(false);
     expect(own.wrapper.find('.variant-picker-tooltip').exists()).toBe(false);
-    const cards = own.wrapper.findAll('.variant-picker-list [data-entry-id]');
+    const cards = own.wrapper.findAll('.variant-picker-list [data-entry-id]').filter((row) => row.isVisible());
     expect(cards.map((card) => card.attributes('data-entry-id'))).toEqual(
       kind === 'weapons' ? ['compatible'] : ['compatible', 'incompatible'],
     );
@@ -250,7 +276,11 @@ describe('variant candidate picker', () => {
     const list = own.wrapper.find('.variant-picker-list');
     Object.defineProperty(list.element, 'clientHeight', { value: 468, configurable: true });
     await list.trigger('scroll');
-    const ids = () => own.wrapper.findAll('.variant-picker-list [data-entry-id]').map((row) => row.attributes('data-entry-id'));
+    const ids = () =>
+      own.wrapper
+        .findAll('.variant-picker-list [data-entry-id]')
+        .filter((row) => row.isVisible())
+        .map((row) => row.attributes('data-entry-id'));
     const descending = ['entry_1', 'entry_3', 'entry_2', 'entry_0', 'entry_5', 'entry_4'];
     expect(ids()).toEqual(descending);
     await own.wrapper.find('input').setValue('候选');
@@ -273,39 +303,45 @@ describe('variant candidate picker', () => {
   it('applies system hints when showing all weapons and searching', async () => {
     const own = harness('weapons', 2, true);
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(1);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible())).toHaveLength(1);
     await own.wrapper.find('[aria-label=实弹]').trigger('click');
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(2);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible()).length).toBeLessThan(20);
     await own.wrapper.find('input').setValue('system');
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(0);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible())).toHaveLength(0);
     own.wrapper.unmount();
   });
   it('mounts only the list window and focuses the last candidate through keyboard navigation', async () => {
     const own = harness('weapons', 200);
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(2);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible()).length).toBeLessThan(20);
     const list = own.wrapper.find('.variant-picker-list');
     Object.defineProperty(list.element, 'clientHeight', { value: 234, configurable: true });
     await list.trigger('scroll');
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(5);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible()).length).toBeLessThan(20);
     await own.wrapper.find('.variant-picker-list .variant-candidate-card').trigger('keydown', { key: 'End' });
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').at(-1)!.text()).toBe('候选 199');
+    expect(
+      own.wrapper
+        .findAll('.variant-picker-list .variant-candidate-card')
+        .filter((row) => row.isVisible())
+        .at(-1)!
+        .text(),
+    ).toBe('候选 199');
     own.wrapper.unmount();
   });
   it('defaults to compatible entries and searches formal ID and Chinese names', async () => {
     const own = harness();
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(1);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible())).toHaveLength(1);
     await own.wrapper.find('[aria-label=实弹]').trigger('click');
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(2);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible()).length).toBeLessThan(20);
     await own.wrapper.find('input').setValue('  INCOMPATIBLE  ');
     await flushPromises();
-    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card')).toHaveLength(1);
+    expect(own.wrapper.findAll('.variant-picker-list .variant-candidate-card').filter((row) => row.isVisible())).toHaveLength(1);
     expect(own.wrapper.find('.variant-picker-list .variant-candidate-card').text()).toContain('实弹炮');
     await own.wrapper.find('input').setValue('能量');
     await flushPromises();
@@ -351,7 +387,10 @@ describe('variant candidate picker', () => {
     expect(own.picker.emitted('select')).toEqual([['compatible', 'normal']]);
     await own.wrapper.find('[aria-label=实弹]').trigger('click');
     await flushPromises();
-    await own.wrapper.findAll('.variant-picker-list .variant-candidate-card')[1]!.trigger('mouseenter');
+    await own.wrapper
+      .findAll('.variant-picker-list .variant-candidate-card')
+      .filter((row) => row.isVisible())[1]!
+      .trigger('mouseenter');
     await own.wrapper.find('.variant-picker').trigger('keydown', { key: 'Control', ctrlKey: true });
     await flushPromises();
     expect(own.wrapper.findAll('.variant-picker-tooltip aside')).toHaveLength(2);

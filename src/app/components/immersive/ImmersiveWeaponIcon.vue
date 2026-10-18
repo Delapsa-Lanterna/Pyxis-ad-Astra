@@ -7,15 +7,19 @@ import { useResourceImages } from '@/app/composables/use-resource-images';
 import { windowImageCache } from '@/app/composables/use-window-image-cache';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';
-const props = defineProps<{
-  layers: Array<{ resource: ResourceRef; origin: { x: number; y: number } }>;
-  url: (resource: ResourceRef) => string;
-  label: string;
-  mountType: string;
-  mountSize: string;
-  loadedMissile?: LoadedWeaponMissile | null;
-  sessionId: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    layers: Array<{ resource: ResourceRef; origin: { x: number; y: number } }>;
+    url: (resource: ResourceRef) => string;
+    label: string;
+    mountType: string;
+    mountSize: string;
+    loadedMissile?: LoadedWeaponMissile | null;
+    sessionId: string;
+    active?: boolean;
+  }>(),
+  { active: true, loadedMissile: null },
+);
 const canvas = ref<HTMLCanvasElement | null>(null),
   feedback = useAppFeedback(),
   cache = windowImageCache();
@@ -38,6 +42,7 @@ const { image, ready } = useResourceImages(
   sources,
   () => paint(),
   (error) => feedback.error(error, '读取武器图标失败'),
+  () => props.active,
 );
 let releaseThumbnail: (() => void) | null = null;
 const signature = computed(() =>
@@ -69,19 +74,23 @@ function thumbnailKey() {
 }
 function paint() {
   const surface = canvas.value;
-  if (!surface) return;
+  if (!surface || !props.active) return;
   const ratio = window.devicePixelRatio;
-  surface.width = Math.round(80 * ratio);
-  surface.height = Math.round(80 * ratio);
-  const ctx = surface.getContext('2d')!;
   const key = thumbnailKey(),
     cached = cache.thumbnail(key);
+  if (!cached && !ready()) return;
+  const finished = document.createElement('canvas');
+  finished.width = Math.round(80 * ratio);
+  finished.height = Math.round(80 * ratio);
+  const ctx = finished.getContext('2d')!;
   const nextRelease = cached ? cache.retainThumbnail(key) : null;
   releaseThumbnail?.();
   releaseThumbnail = null;
   if (cached) {
     releaseThumbnail = nextRelease;
-    ctx.drawImage(cached, 0, 0);
+    surface.width = cached.width;
+    surface.height = cached.height;
+    surface.getContext('2d')!.drawImage(cached, 0, 0);
     return;
   }
   ctx.scale(ratio, ratio);
@@ -115,10 +124,6 @@ function paint() {
       );
   }
   if (ready() && props.layers.length) {
-    const finished = document.createElement('canvas');
-    finished.width = surface.width;
-    finished.height = surface.height;
-    finished.getContext('2d')!.drawImage(surface, 0, 0);
     releaseThumbnail = cache.storeThumbnail(
       key,
       props.sessionId,
@@ -126,10 +131,14 @@ function paint() {
       finished,
     );
   }
+  surface.width = finished.width;
+  surface.height = finished.height;
+  surface.getContext('2d')!.drawImage(finished, 0, 0);
 }
 watch(
   () => [
     canvas.value,
+    props.active,
     props.mountType,
     props.mountSize,
     props.loadedMissile,
@@ -138,6 +147,15 @@ watch(
   ],
   paint,
   { flush: 'post' },
+);
+watch(
+  () => props.active,
+  (active) => {
+    if (!active) {
+      releaseThumbnail?.();
+      releaseThumbnail = null;
+    }
+  },
 );
 window.addEventListener('resize', paint);
 onScopeDispose(() => {

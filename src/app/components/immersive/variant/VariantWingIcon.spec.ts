@@ -21,7 +21,7 @@ function harness() {
     props: { root: candidate.snapshot.root, id: 'sarissa_wing', size: 64, rendererSize: 72 },
     global: {
       stubs: {
-        ImmersiveHullScene: { name: 'ImmersiveHullScene', props: ['wingLayout', 'iconSize'], template: '<canvas />' },
+        ImmersiveHullThumbnail: { name: 'ImmersiveHullThumbnail', props: ['wingLayout', 'size'], template: '<canvas />' },
         ImmersiveText: true,
       },
     },
@@ -30,11 +30,11 @@ function harness() {
 describe('wing bay and candidate formation consumer', () => {
   it('reads the actual wing record formation and scales identically in the bay and card', async () => {
     const wrapper = harness();
-    const scene = wrapper.findComponent({ name: 'ImmersiveHullScene' });
+    const scene = wrapper.findComponent({ name: 'ImmersiveHullThumbnail' });
     expect(scene.props('wingLayout').points[0].y).toBeCloseTo(11.88);
     expect(scene.props('wingLayout').spriteHeight).toBeCloseTo(21.6);
     await wrapper.setProps({ size: 69 });
-    expect(scene.props('iconSize')).toBe(69);
+    expect(scene.props('size')).toBe(69);
     expect(scene.props('wingLayout').spriteHeight).toBeCloseTo(21.6);
     wrapper.unmount();
   });
@@ -46,7 +46,7 @@ describe('wing bay and candidate formation consumer', () => {
     record.value = { state: 'present', value: data };
     const wrapper = mount(VariantWingIcon, {
       props: { root: candidate.snapshot.root, id: 'sarissa_wing', size: 64, rendererSize: 72 },
-      global: { stubs: { ImmersiveHullScene: true, ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' } } },
+      global: { stubs: { ImmersiveHullThumbnail: true, ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' } } },
     });
     await flushPromises();
     expect(wrapper.text()).toBe('编队来源缺失');

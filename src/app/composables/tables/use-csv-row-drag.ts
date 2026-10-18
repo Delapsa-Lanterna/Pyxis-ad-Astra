@@ -1,12 +1,11 @@
 import { onScopeDispose, shallowRef, watch, type Ref } from 'vue';
-import type { CsvGridRowSlot } from '@/shared/types';
 import type { FieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 
 export function useCsvRowDrag(options: {
   panel: Readonly<Ref<HTMLElement | null>>;
-  rows: Readonly<Ref<CsvGridRowSlot[]>>;
+  rowKeys: Readonly<Ref<string[]>>;
   disabled: () => string;
   context: () => string;
   inputs: FieldInputs;
@@ -36,9 +35,9 @@ export function useCsvRowDrag(options: {
       panel = options.panel.value;
     if (!current || !panel) return;
     const y = current.latestY - panel.getBoundingClientRect().top + panel.scrollTop - 24;
-    const index = Math.max(0, Math.min(options.rows.value.length - 1, Math.floor(y / 24)));
-    const row = options.rows.value[index];
-    insertion.value = row?.kind === 'row' ? { rowKey: row.rowKey, after: y >= index * 24 + 12, index } : null;
+    const index = Math.max(0, Math.min(options.rowKeys.value.length - 1, Math.floor(y / 24)));
+    const rowKey = options.rowKeys.value[index];
+    insertion.value = rowKey ? { rowKey, after: y >= index * 24 + 12, index } : null;
   }
   function animate(time: number) {
     const current = request,
@@ -114,7 +113,7 @@ export function useCsvRowDrag(options: {
       active = dragging.value;
     cancel();
     if (!current.ready || !active || !drop || options.disabled()) return;
-    const from = options.rows.value.findIndex((row) => row.kind === 'row' && row.rowKey === current.rowKey);
+    const from = options.rowKeys.value.indexOf(current.rowKey);
     const boundary = drop.index + Number(drop.after);
     const to = boundary - Number(from < boundary);
     if (from >= 0 && from !== to) options.move(current.rowKey, to);

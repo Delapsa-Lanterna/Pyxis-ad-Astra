@@ -40,7 +40,7 @@ import { useCanvasSelection } from '@/app/composables/canvas/use-canvas-selectio
 import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { drawWeaponSlotVisual } from '@/app/renderers/editors/canvas-visuals';
-import { renderMountedWeapons } from '@/app/renderers/editors/weapon-images';
+import { paintImmersiveHull } from '@/app/renderers/immersive/hull-scene';
 import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';
 import { immersiveHullPoint, type ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
@@ -290,36 +290,15 @@ function paint() {
   }
 }
 function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, parents: Set<string>) {
-  if (parents.has(variant.key)) return;
-  const nextParents = new Set([...parents, variant.key]);
-  const sprite = variant.hull.sprite,
-    image = sprite ? decoded.image(sprite) : null;
-  const hullCenter = Array.isArray(variant.spec.center) ? variant.spec.center : [0, 0];
-  if (!props.iconSize) drawEngines(ctx, variant);
-  if (image) drawPixelImage(ctx, image, -Number(hullCenter[0]), -(image.height - Number(hullCenter[1])), image.width, image.height);
-  // ShipDisplayPanel refit passes differ from the ship editor's combat order.
-  renderMountedWeapons(ctx, {
-    weapons: variant.weapons,
-    image: (resource) => decoded.image(resource) ?? undefined,
-    point: (slot) => immersiveHullPoint((Array.isArray(slot.locations) ? slot.locations : [0, 0]).map(Number)),
-    rotation: (slot) => (-Number(slot.angle ?? 0) * Math.PI) / 180,
-    scale: 1,
-    context: 'refit',
-    renderModules: () => {
-      for (const module of variant.modules) {
-        const location = Array.isArray(module.slot.locations) ? module.slot.locations : [0, 0];
-        const anchor = Array.isArray(module.variant.spec.moduleAnchor) ? module.variant.spec.moduleAnchor : [0, 0];
-        ctx.save();
-        const position = immersiveHullPoint(location.map(Number));
-        ctx.translate(position.x, position.y);
-        ctx.rotate((-Number(module.slot.angle ?? 0) * Math.PI) / 180);
-        const attachment = immersiveHullPoint(anchor.map(Number));
-        ctx.translate(-attachment.x, -attachment.y);
-        drawVariant(ctx, module.variant, nextParents);
-        ctx.restore();
-      }
-    },
-  });
+  paintImmersiveHull(
+    ctx,
+    variant,
+    decoded.image,
+    { beforeHull: props.iconSize ? undefined : drawEngines, afterWeapons: drawSlots },
+    parents,
+  );
+}
+function drawSlots(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection) {
   for (const [index, weapon] of variant.weapons.entries()) {
     const location = Array.isArray(weapon.slot.locations) ? weapon.slot.locations : [0, 0];
     const p = immersiveHullPoint(location.map(Number)),

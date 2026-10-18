@@ -7,36 +7,34 @@ use super::super::{
     model::SessionCsvRow,
 };
 use crate::{
-    errors::AppResult,
-    models::{CsvRowPreview, CsvSearchField, CsvTableKey, CsvTableWindow, CsvWindowRow},
+    errors::{AppError, AppResult},
+    models::{
+        CsvRowPreview, CsvRowRecord, CsvSearchField, CsvTableIndex, CsvTableKey, CsvTableRowsRead,
+    },
 };
 
-pub fn query_csv_table_window(
+pub fn query_csv_table_index(
     session_id: &str,
     table: CsvTableKey,
-    start: usize,
-    count: usize,
+    initial_count: usize,
     search: Option<String>,
     search_field: CsvSearchField,
-) -> AppResult<CsvTableWindow> {
+) -> AppResult<CsvTableIndex> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     ensure_registered_table_rows(&mut session, table)?;
     let table_data = registered_session_table(&session, table)?;
     let rows_ref = loaded_registered_csv_rows(&session, table)?;
     let search = search.unwrap_or_default().trim().to_lowercase();
-    let filtered: Vec<(usize, &SessionCsvRow)> = rows_ref
+    let filtered: Vec<&SessionCsvRow> = rows_ref
         .iter()
-        .enumerate()
-        .filter(|(_, row)| csv_row_matches(row, &search, search_field, table))
+        .filter(|row| csv_row_matches(row, &search, search_field, table))
         .collect();
     let rows = filtered
         .iter()
-        .skip(start)
-        .take(count)
-        .map(|(index, row)| CsvWindowRow {
+        .take(initial_count)
+        .map(|row| CsvRowRecord {
             row_key: row.row_key.clone(),
-            source_row_index: *index,
             data: row.data.clone(),
             is_comment: row.is_comment,
         })
@@ -57,15 +55,75 @@ pub fn query_csv_table_window(
                 .map(|(_, version)| version.clone()),
         );
     }
-    Ok(CsvTableWindow {
+    Ok(CsvTableIndex {
         base_versions,
         table,
         header: table_data.header.clone(),
         total_rows: rows_ref.len(),
-        filtered_rows: filtered.len(),
-        start,
+        row_keys: filtered.iter().map(|row| row.row_key.clone()).collect(),
         rows,
     })
+}
+
+pub fn query_csv_table_rows(
+    session_id: &str,
+    table: CsvTableKey,
+    row_keys: Vec<String>,
+) -> AppResult<CsvTableRowsRead> {
+    let handle = session_handle(session_id)?;
+    let mut session = lock_ready_session(&handle)?;
+    ensure_registered_table_rows(&mut session, table)?;
+    let state = session
+        .csv_tables
+        .get_mut(table.as_str())
+        .expect("registered CSV table");
+    let rows = state.rows.as_ref().expect("CSV rows have been loaded");
+    let positions = state.row_index.get_or_insert_with(|| {
+        rows.iter()
+            .enumerate()
+            .map(|(index, row)| (row.row_key.clone(), index))
+            .collect()
+    });
+    let rows = row_keys
+        .into_iter()
+        .map(|row_key| {
+            let index = *positions.get(&row_key).ok_or_else(|| {
+                AppError::message(
+                    "table.row_key_unknown",
+                    format!("CSV row key does not exist: {row_key}"),
+                )
+            })?;
+            let row = &rows[index];
+            Ok(CsvRowRecord {
+                row_key,
+                data: row.data.clone(),
+                is_comment: row.is_comment,
+            })
+        })
+        .collect::<AppResult<Vec<_>>>()?;
+    let base_versions = vec![super::super::versions::version_for_path(
+        &session,
+        &registered_session_table(&session, table)?.path,
+    )];
+    Ok(CsvTableRowsRead {
+        base_versions,
+        table,
+        rows,
+    })
+}
+
+#[cfg(test)]
+pub fn query_csv_table_window(
+    session_id: &str,
+    table: CsvTableKey,
+    start: usize,
+    count: usize,
+    search: Option<String>,
+    search_field: CsvSearchField,
+) -> AppResult<CsvTableIndex> {
+    let mut index = query_csv_table_index(session_id, table, start + count, search, search_field)?;
+    index.rows = index.rows.into_iter().skip(start).collect();
+    Ok(index)
 }
 
 pub fn query_csv_row_preview(
@@ -114,6 +172,81 @@ fn csv_row_matches(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn index_and_keyed_batches_preserve_identity_and_refresh_the_lookup_after_a_write() {
+        let root = crate::testutil::temp_dir("csv_keyed_batches");
+        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        crate::io::write_utf8_no_bom(
+            &root.join("data/hulls/ship_data.csv"),
+            "id,name\na,Alpha\n#comment,Comment\n,,\nb,Beta\n",
+        )
+        .unwrap();
+        let mut trace = super::super::super::PerformanceTrace::new("project.openSession");
+        let manifest =
+            super::super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
+        let index = query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            1,
+            None,
+            CsvSearchField::IdName,
+        )
+        .unwrap();
+        assert_eq!(index.rows.len(), 1);
+        assert_eq!(index.row_keys.len(), 4);
+        let requested = vec![
+            index.row_keys[3].clone(),
+            index.row_keys[1].clone(),
+            index.row_keys[2].clone(),
+        ];
+        let batch =
+            query_csv_table_rows(&manifest.session_id, CsvTableKey::Ships, requested.clone())
+                .unwrap();
+        assert_eq!(
+            batch
+                .rows
+                .iter()
+                .map(|row| row.row_key.clone())
+                .collect::<Vec<_>>(),
+            requested
+        );
+        assert_eq!(batch.rows[0].data["id"], "b");
+        assert!(batch.rows[1].is_comment);
+        assert_eq!(batch.rows[2].data["id"], "");
+        let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            table: CsvTableKey::Ships,
+            base_versions: index.base_versions.clone(),
+            patches: vec![],
+            associated_specs: vec![],
+            json_write: Default::default(),
+            row_order: Some(index.row_keys.iter().rev().cloned().collect()),
+        })
+        .unwrap();
+        assert_eq!(saved.changes.len(), 1);
+        let batch =
+            query_csv_table_rows(&manifest.session_id, CsvTableKey::Ships, requested).unwrap();
+        assert_eq!(batch.rows[0].data["id"], "b");
+        assert!(batch.rows[1].is_comment);
+        let too_many = crate::commands::query_csv_table_rows(crate::models::CsvTableRowsPayload {
+            session_id: manifest.session_id.clone(),
+            table: CsvTableKey::Ships,
+            row_keys: vec![index.row_keys[0].clone(); 161],
+        });
+        assert!(too_many.is_err());
+        assert!(
+            query_csv_table_rows(
+                &manifest.session_id,
+                CsvTableKey::Ships,
+                vec!["unknown".into()]
+            )
+            .is_err()
+        );
+        super::super::super::close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn search_fields_only_match_their_business_columns() {
@@ -217,7 +350,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(window.total_rows, 3);
-            assert_eq!(window.filtered_rows, count);
+            assert_eq!(window.row_keys.len(), count);
             assert_eq!(window.rows.len(), count);
         }
         super::super::super::close_project_session(manifest.session_id).unwrap();

@@ -1,3 +1,4 @@
+import { csvTableIndex } from '@/test/csv-row';
 import { mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +8,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { TABLE_KEYS } from '@/shared/types';
-import type { CsvTableWindow, ProjectManifest } from '@/shared/types';
+import type { CsvTableIndex, ProjectManifest } from '@/shared/types';
 import DetailPane from './DetailPane.vue';
 import { createCsvSourceIndex } from '@/domain/tables/csv-source-options';
 
@@ -102,16 +103,13 @@ describe('DetailPane', () => {
     const tables = useTablesStore();
     const manifest = useProjectStore().getManifest('M:/mod')!;
     // Seed one ship row through the table state store.
-    const window = {
+    const window = csvTableIndex([{ rowKey: 'key-XY', isComment: false, data: { id: 'XY', name: 'Ruler' } }], {
       baseVersions: [],
       table: 'ships',
-      start: 0,
       header: ['id', 'name'],
       totalRows: 1,
-      filteredRows: 1,
-      rows: [{ rowKey: 'key-XY', isComment: false, sourceRowIndex: 0, data: { id: 'XY', name: 'Ruler' } }],
-    } satisfies CsvTableWindow;
-    tables.applyTableWindow({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, window);
+    }) satisfies CsvTableIndex;
+    tables.applyTableIndex({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, window);
     tables.selectRowByKey({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, 'key-XY');
     void manifest;
 
@@ -132,18 +130,16 @@ describe('DetailPane', () => {
       useSettingsStore().setEditMode(mode);
       const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'wings' as const };
       tables.switchTab(target.modRoot, target.table);
-      tables.applyTableWindow(target, {
-        baseVersions: [],
-        table: 'wings',
-        start: 0,
-        header: ['id', 'variant'],
-        totalRows: 2,
-        filteredRows: 2,
-        rows: [
-          { rowKey: 'wing-a', sourceRowIndex: 0, isComment: false, data: { id: 'wing-a', variant: 'fighter-a' } },
-          { rowKey: 'wing-b', sourceRowIndex: 1, isComment: false, data: { id: 'wing-b', variant: 'fighter-b' } },
-        ],
-      });
+      tables.applyTableIndex(
+        target,
+        csvTableIndex(
+          [
+            { rowKey: 'wing-a', isComment: false, data: { id: 'wing-a', variant: 'fighter-a' } },
+            { rowKey: 'wing-b', isComment: false, data: { id: 'wing-b', variant: 'fighter-b' } },
+          ],
+          { baseVersions: [], table: 'wings', header: ['id', 'variant'], totalRows: 2 },
+        ),
+      );
       tables.selectRowByKey(target, 'wing-a');
       const pane = mountPane();
       expect(pane.get('.detail-name').text()).toBe('fighter-a');
@@ -193,16 +189,13 @@ describe('DetailPane', () => {
   it('exposes the editor actions for a registered spec table', async () => {
     activateProject();
     const tables = useTablesStore();
-    const window = {
+    const window = csvTableIndex([{ rowKey: 'key-XY', isComment: false, data: { id: 'XY', name: '#quoted' } }], {
       baseVersions: [],
       table: 'ships',
-      start: 0,
       header: ['id'],
       totalRows: 1,
-      filteredRows: 1,
-      rows: [{ rowKey: 'key-XY', isComment: false, sourceRowIndex: 0, data: { id: 'XY', name: '#quoted' } }],
-    } satisfies CsvTableWindow;
-    tables.applyTableWindow({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, window);
+    }) satisfies CsvTableIndex;
+    tables.applyTableIndex({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, window);
     tables.selectRowByKey({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, 'key-XY');
 
     const pane = mountPane();
@@ -214,16 +207,13 @@ describe('DetailPane', () => {
   it('marks comment rows in the detail header', async () => {
     activateProject();
     const tables = useTablesStore();
-    const window = {
+    const window = csvTableIndex([{ rowKey: 'key-c', isComment: true, data: { id: '#note' } }], {
       baseVersions: [],
       table: 'ships',
-      start: 0,
       header: ['id'],
       totalRows: 1,
-      filteredRows: 1,
-      rows: [{ rowKey: 'key-c', isComment: true, sourceRowIndex: 0, data: { id: '#note' } }],
-    } satisfies CsvTableWindow;
-    tables.applyTableWindow({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, window);
+    }) satisfies CsvTableIndex;
+    tables.applyTableIndex({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, window);
     tables.selectRowByKey({ sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' }, 'key-c');
 
     const pane = mountPane();

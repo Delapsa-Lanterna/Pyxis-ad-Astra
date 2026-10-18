@@ -1,22 +1,32 @@
 use crate::{
     errors::AppError,
     models::{
-        CsvRowPreview, CsvRowPreviewPayload, CsvTableWindow, CsvTableWindowPayload,
-        SaveCsvPatchPayload, WriteResult,
+        CsvRowPreview, CsvRowPreviewPayload, CsvTableIndex, CsvTableIndexPayload,
+        CsvTableRowsPayload, CsvTableRowsRead, SaveCsvPatchPayload, WriteResult,
     },
     services,
 };
 
 #[tauri::command(async)]
-pub fn query_csv_table_window(payload: CsvTableWindowPayload) -> Result<CsvTableWindow, AppError> {
-    services::query_csv_table_window(
+pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIndex, AppError> {
+    services::query_csv_table_index(
         &payload.session_id,
         payload.table,
-        payload.start,
-        payload.count,
+        payload.initial_count,
         payload.search,
         payload.search_field,
     )
+}
+
+#[tauri::command(async)]
+pub fn query_csv_table_rows(payload: CsvTableRowsPayload) -> Result<CsvTableRowsRead, AppError> {
+    if payload.row_keys.len() > 160 {
+        return Err(AppError::message(
+            "table.row_batch_too_large",
+            "CSV 单批读取超过 160 行",
+        ));
+    }
+    services::query_csv_table_rows(&payload.session_id, payload.table, payload.row_keys)
 }
 
 #[tauri::command(async)]

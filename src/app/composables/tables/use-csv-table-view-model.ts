@@ -10,19 +10,19 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useProjectStore } from '@/stores/project.store';
 import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { createCsvGridModel } from '@/domain/tables/csv-grid-model';
+import { createCsvGridColumns } from '@/domain/tables/csv-grid-model';
 import { csvColumnSchemaFor } from '@/domain/tables/csv-column-schema';
 import { sourceGroupLabel } from '@/domain/schema/schema-options';
 import { recordPerformance } from '@/shared/runtime/performance';
 import { stableStringify } from '@/shared/lib/stable-compare';
-import { queryTableRowPreviewDataUrl, queryTableWindow } from '@/services/csv-table.service';
+import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { queryTableRowPreviewDataUrl, queryTableIndex, queryTableRows } from '@/services/csv-table.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import type { SelectOption } from '@/domain/schema/schema-options';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
-import { csvDraftSourceRanges, prepareCsvRowOrder } from '@/domain/tables/csv-table-draft';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
 
 export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
@@ -31,7 +31,11 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
   const reads = useQueryReadOwner();
-  const loadedWindowKeys = ref(new Set<string>());
+  let pendingRows = new Set<string>();
+  const rowQueue: Array<{ run: () => Promise<void>; cancel: () => void }> = [];
+  let rowReads = 0;
+  let lastRange = { start: 0, count: 240 };
+  const widthSample = ref<import('@/shared/types').CsvDraftRow[]>([]);
   const loadedSourceOptions = ref(new Map<string, SelectOption[]>());
   const columnWidthOverrides = ref<Record<string, number>>({});
   const searchPending = ref(false),
@@ -50,7 +54,6 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   const reorderContext = computed(() =>
     JSON.stringify([targetKey.value, tables.getModTableState(tables.activeModRoot!)?.baseVersions[tables.currentTab]]),
   );
-  let lastWidthTarget = '';
   let disposed = false;
   let refreshAfterSave = false;
   let searchRevision = 0;
@@ -149,15 +152,21 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     }
   }
 
-  const gridModel = computed(() =>
-    createCsvGridModel(tables.currentTab, tables.visibleColumns, tables.filteredRows, tables.filteredRowCount, loadedSourceOptions.value),
+  const columnModel = computed(() =>
+    createCsvGridColumns(tables.currentTab, tables.visibleColumns, widthSample.value, loadedSourceOptions.value),
   );
-  const sourceIndex = computed(() => gridModel.value.sourceIndex);
+  const sourceIndex = computed(() => columnModel.value.sourceIndex);
+  const gridModel = computed(() => ({
+    ...columnModel.value,
+    rowKeys: tables.rowKeys,
+    rowsByKey: tables.rowsByKey,
+    sourceIndex: sourceIndex.value,
+  }));
 
   const lockedColumnWidths = ref<Record<string, number>>({});
 
   const effectiveColumns = computed(() =>
-    gridModel.value.columns.map((col) => ({
+    columnModel.value.columns.map((col) => ({
       ...col,
       widthPx: Object.hasOwn(columnWidthOverrides.value, col.key)
         ? columnWidthOverrides.value[col.key]!
@@ -169,43 +178,31 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   const effectiveTotalWidthPx = computed(() => effectiveColumns.value.reduce((sum, col) => sum + col.widthPx, 0));
 
   watch(
-    () => [targetKey.value, tables.searchText, tables.searchField] as const,
+    targetKey,
     async () => {
-      const captured = target.value;
-      const identity = targetKey.value;
+      const captured = target.value,
+        identity = targetKey.value;
       clearLocalQueryState();
-      if (!captured) {
-        lockedColumnWidths.value = {};
-        columnWidthOverrides.value = {};
-        lastWidthTarget = '';
-        return;
-      }
-      if (identity !== lastWidthTarget) {
-        lockedColumnWidths.value = {};
-        columnWidthOverrides.value = workspace.getColumnWidths(captured.modRoot, captured.table) ?? {};
-        lastWidthTarget = identity;
-      }
-      if (tables.saving || tables.currentTableLocked || tables.hasTableDirtyChanges(captured.table)) {
-        if (tables.getModTableState(captured.modRoot)!.rowOrders[captured.table] && !tables.searchText.trim()) {
-          windowReady.value = true;
-          await loadTableWindow(0, 240);
-          await reloadVisibleSourceOptions();
-          return;
-        }
-        tables.markTableExternalUpdate(captured);
-        return;
-      }
-      tables.discardTableDraftForReload(captured);
-      await loadTableWindow(0, 240);
-      if (identity !== targetKey.value || disposed) return;
+      if (!captured) return;
+      lockedColumnWidths.value = {};
+      columnWidthOverrides.value = workspace.getColumnWidths(captured.modRoot, captured.table) ?? {};
+      await initializeIndex();
+      if (disposed || identity !== targetKey.value) return;
       await reloadVisibleSourceOptions();
       lockColumnWidthsForLoadedModel();
     },
     { immediate: true },
   );
+  watch(
+    () => [tables.searchText, tables.searchField] as const,
+    () => {
+      if (windowReady.value) void loadIndex(Boolean(tables.searchText.trim()), 0);
+      else void initializeIndex();
+    },
+  );
 
   watch(
-    () => stableStringify(gridModel.value.columns.map((column) => column.key)),
+    () => stableStringify(columnModel.value.columns.map((column) => column.key)),
     () => {
       lockColumnWidthsForLoadedModel();
     },
@@ -251,14 +248,16 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   watch(
     () => tables.saving || tables.currentTableLocked,
     (saving) => {
-      loadedWindowKeys.value = new Set();
+      clearRowQueue();
       if (saving) {
+        reads.revoke();
         refreshAfterSave = true;
         return;
       }
       if (!disposed && refreshAfterSave) {
         refreshAfterSave = false;
-        void loadTableWindow(0, 240);
+        if (windowReady.value) void loadTableWindow(lastRange.start, lastRange.count);
+        else void loadIndex(false, 240);
       }
     },
     { flush: 'sync' },
@@ -272,6 +271,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   });
   onUnmounted(() => {
     disposed = true;
+    clearRowQueue();
+    lastRange = { start: 0, count: 240 };
     stopQueryInvalidation();
     stopResourceInvalidation();
   });
@@ -279,7 +280,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   function clearLocalQueryState() {
     windowReady.value = false;
     reads.revoke();
-    loadedWindowKeys.value = new Set();
+    clearRowQueue();
+    lastRange = { start: 0, count: 240 };
     loadedSourceOptions.value = new Map();
   }
 
@@ -288,7 +290,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     const identity = targetKey.value;
     clearLocalQueryState();
     tables.discardTableDraftForReload(captured);
-    await loadTableWindow(0, 240);
+    await initializeIndex();
     if (disposed || identity !== targetKey.value) return;
     await reloadVisibleSourceOptions();
     lockColumnWidthsForLoadedModel();
@@ -307,69 +309,133 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   }
 
   function lockColumnWidthsForLoadedModel() {
-    const model = gridModel.value;
-    const hasLoadedRows = model.rows.some((row) => row.kind === 'row');
+    const model = columnModel.value;
+    const hasLoadedRows = widthSample.value.length > 0;
     if (!hasLoadedRows && tables.filteredRowCount > 0) return;
+    if ([...visibleSourceIds()].some((source) => !loadedSourceOptions.value.has(source))) return;
     const hasLocked = Object.keys(lockedColumnWidths.value).length > 0;
     if (!hasLocked) {
       lockedColumnWidths.value = Object.fromEntries(model.columns.map((col) => [col.key, col.widthPx]));
       return;
     }
-    lockedColumnWidths.value = {
-      ...lockedColumnWidths.value,
-      ...Object.fromEntries(
-        model.columns.filter((col) => !Object.hasOwn(lockedColumnWidths.value, col.key)).map((col) => [col.key, col.widthPx]),
-      ),
-    };
+    const missing = model.columns.filter((col) => !Object.hasOwn(lockedColumnWidths.value, col.key));
+    if (missing.length)
+      lockedColumnWidths.value = { ...lockedColumnWidths.value, ...Object.fromEntries(missing.map((col) => [col.key, col.widthPx])) };
   }
 
-  async function loadTableWindow(start: number, count: number) {
-    const current = target.value;
-    if (!current || count <= 0) return;
-    const state = tables.getModTableState(current.modRoot)!;
-    if (!tables.hasCurrentTableFilter && tables.hasTableDirtyChanges(current.table)) prepareCsvRowOrder(state, current.table);
-    const alignedStart = Math.max(0, Math.floor(start / 80) * 80);
-    const windowCount = Math.max(160, Math.ceil(count / 80) * 80);
-    await Promise.all(
-      csvDraftSourceRanges(state, current.table, alignedStart, windowCount).map((range) => loadSourceWindow(range.start, range.count)),
-    );
-  }
-
-  async function loadSourceWindow(start: number, count: number) {
-    const sessionId = workspace.activeSessionId;
-    if (!sessionId || count <= 0) return;
-    const table = tables.currentTab;
-    const modRoot = tables.activeModRoot!;
-    const generation = tables.tableReadGeneration(modRoot, table);
-    const tableState = tables.getModTableState(modRoot);
-    const searchText = tables.searchText;
-    const searchField = tables.searchField;
-    const alignedStart = start;
-    const windowCount = count;
-    const key = stableStringify([sessionId, table, searchText, searchField, alignedStart, windowCount, generation]);
-    if (loadedWindowKeys.value.has(key)) return;
-    loadedWindowKeys.value.add(key);
+  async function loadIndex(filtered: boolean, initialCount: number) {
+    const captured = target.value;
+    if (!captured) return;
+    const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
+    const state = tables.getModTableState(captured.modRoot);
+    const search = filtered ? tables.searchText : null;
+    const field = tables.searchField;
+    let accepted = false;
     await reads.consume(
-      `window:${key}`,
-      { sessionId, modRoot, table, key },
-      (signal) => queryTableWindow(sessionId, table, alignedStart, windowCount, searchText, searchField, signal),
+      'index',
+      { ...captured, search, field, generation },
+      (signal) => queryTableIndex(captured.sessionId, captured.table, initialCount, search, field, signal),
       {
-        ready: (window) => {
-          if (tables.saving || tables.currentTableLocked) {
-            loadedWindowKeys.value.delete(key);
+        ready: (index) => {
+          if (
+            generation !== tables.tableReadGeneration(captured.modRoot, captured.table) ||
+            state !== tables.getModTableState(captured.modRoot) ||
+            tables.saving ||
+            tables.currentTableLocked
+          )
             return;
-          }
-          if (generation !== tables.tableReadGeneration(modRoot, table) || tableState !== tables.getModTableState(modRoot)) return;
-          tables.applyTableWindow({ sessionId, modRoot, table }, window);
+          tables.applyTableIndex(captured, index, filtered);
+          if (initialCount) widthSample.value = cloneQuerySnapshot<import('@/shared/types').CsvDraftRow[]>(index.rows);
           windowReady.value = true;
+          accepted = true;
+          lockColumnWidthsForLoadedModel();
         },
         error: (error) => {
-          loadedWindowKeys.value.delete(key);
-          if (generation === tables.tableReadGeneration(modRoot, table) && tableState === tables.getModTableState(modRoot))
-            feedback.error(error, '加载表格数据失败');
+          if (
+            generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
+            state === tables.getModTableState(captured.modRoot)
+          )
+            feedback.error(error, '加载表格索引失败');
         },
       },
     );
+    return accepted;
+  }
+  async function initializeIndex() {
+    const identity = targetKey.value;
+    const accepted = await loadIndex(false, 240);
+    if (accepted && !disposed && identity === targetKey.value && tables.searchText.trim()) await loadIndex(true, 0);
+  }
+  function drainRows() {
+    while (rowReads < 2 && rowQueue.length) {
+      rowReads++;
+      void rowQueue
+        .shift()!
+        .run()
+        .finally(() => {
+          rowReads--;
+          drainRows();
+        });
+    }
+  }
+  function loadTableWindow(start: number, count: number): Promise<void> {
+    lastRange = { start, count };
+    const captured = target.value;
+    if (!captured || count <= 0 || !windowReady.value) return Promise.resolve();
+    const state = tables.getModTableState(captured.modRoot)!;
+    const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
+    const missing = tables.rowKeys.slice(start, start + count).filter((key) => !state.tables[captured.table][key] && !pendingRows.has(key));
+    const pending = pendingRows;
+    const waits: Promise<void>[] = [];
+    for (let offset = 0; offset < missing.length; offset += 160) {
+      const keys = missing.slice(offset, offset + 160);
+      keys.forEach((key) => pending.add(key));
+      waits.push(
+        new Promise<void>((resolve) => {
+          rowQueue.push({
+            cancel: resolve,
+            run: async () => {
+              try {
+                await reads.consume(
+                  'rows:' + keys[0],
+                  { ...captured, generation, keys },
+                  (signal) => queryTableRows(captured.sessionId, captured.table, keys, signal),
+                  {
+                    ready: (rows) => {
+                      if (
+                        generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
+                        state === tables.getModTableState(captured.modRoot) &&
+                        !tables.saving &&
+                        !tables.currentTableLocked
+                      )
+                        tables.applyTableRows(captured, rows);
+                    },
+                    error: (error) => {
+                      if (
+                        generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
+                        state === tables.getModTableState(captured.modRoot)
+                      )
+                        feedback.error(error, '加载表格内容失败');
+                    },
+                  },
+                );
+              } finally {
+                keys.forEach((key) => pending.delete(key));
+                resolve();
+              }
+            },
+          });
+        }),
+      );
+    }
+    drainRows();
+    return Promise.all(waits).then(() => undefined);
+  }
+
+  function clearRowQueue() {
+    for (const job of rowQueue) job.cancel();
+    rowQueue.length = 0;
+    pendingRows = new Set();
   }
 
   async function reloadVisibleSourceOptions() {
@@ -401,6 +467,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
       {
         ready: (entries) => {
           loadedSourceOptions.value = new Map(entries);
+          lockColumnWidthsForLoadedModel();
         },
         error: (error) => feedback.error(error, '加载来源选项失败'),
       },

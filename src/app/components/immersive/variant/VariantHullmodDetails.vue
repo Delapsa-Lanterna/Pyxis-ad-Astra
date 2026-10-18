@@ -29,14 +29,14 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { JointVariantEntry, JointVariantCatalogRead } from '@/shared/types';
+import type { ReadonlyVariantEntry, JointVariantCatalogRead, DeepReadonly } from '@/shared/types';
 import { hullmodString, hullmodDesign, hullmodDescription } from '@/domain/immersive/variant/variant-hullmods';
 import { designTypeColor } from '@/domain/immersive/design-type';
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveTooltipFrame from '../ImmersiveTooltipFrame.vue';
 const props = defineProps<{
-  entry: JointVariantEntry;
-  reference: Pick<JointVariantCatalogRead, 'referenceSettings'>;
+  entry: ReadonlyVariantEntry;
+  reference: DeepReadonly<Pick<JointVariantCatalogRead, 'referenceSettings'>>;
   images: Record<string, string>;
 }>();
 const design = computed(() => hullmodDesign(props.entry));

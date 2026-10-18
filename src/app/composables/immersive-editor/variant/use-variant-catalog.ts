@@ -1,13 +1,12 @@
 import { ref, shallowRef, watch, onScopeDispose } from 'vue';
-import type { JointEditRoot, JointVariantCatalogKind, JointVariantEntry, JointVariantCatalogRead } from '@/shared/types';
+import type { JointEditRoot, JointVariantCatalogKind, ReadonlyVariantEntry, JointVariantCatalogRead, DeepReadonly } from '@/shared/types';
 import { queryJointVariantCatalog } from '@/services/joint-edit.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
-import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { formatError } from '@/shared/lib/errors';
 import { subscribeQueryInvalidations, hasQueryInvalidation } from '@/services/query-cache.service';
 export function useVariantCatalog(root: () => JointEditRoot, kind: () => JointVariantCatalogKind, enabled: () => boolean = () => true) {
-  const snapshot = shallowRef<JointVariantCatalogRead | null>(null),
-    entries = shallowRef<JointVariantEntry[]>([]),
+  const snapshot = shallowRef<DeepReadonly<JointVariantCatalogRead> | null>(null),
+    entries = shallowRef<readonly ReadonlyVariantEntry[]>([]),
     loading = ref(false),
     errorText = ref(''),
     reads = useQueryReadOwner();
@@ -16,7 +15,7 @@ export function useVariantCatalog(root: () => JointEditRoot, kind: () => JointVa
     errorText.value = '';
     await reads.consume('catalog', { root: root(), kind: kind() }, (signal) => queryJointVariantCatalog(root(), kind(), signal), {
       ready: (value) => {
-        snapshot.value = cloneQuerySnapshot<JointVariantCatalogRead>(value);
+        snapshot.value = value;
         entries.value = snapshot.value.catalog.entries;
       },
       error: (error) => {

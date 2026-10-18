@@ -215,4 +215,17 @@ describe('CsvGridCellEditor', () => {
     await fixture.inputs.commit();
     expect(fixture.updates[0]).toEqual({ target: { ...fixture.target, rowKey: 'ships:row:9', column: 'size' }, value: 'later' });
   });
+
+  it('accepts authoritative cell updates when settled and preserves pending raw text', async () => {
+    const editor = mountEditor({ column: columnFixture('number') });
+    fixture.props.value = { ...fixture.props.value, row: { rowKey: 'key-0', isComment: false, data: { size: 'LARGE' } } };
+    await editor.vm.$nextTick();
+    expect(editor.get<HTMLInputElement>('input').element.value).toBe('LARGE');
+    await editor.get('input').setValue('0012');
+    fixture.props.value = { ...fixture.props.value, row: { rowKey: 'key-0', isComment: false, data: { size: 'SMALL' } } };
+    await editor.vm.$nextTick();
+    expect(editor.get<HTMLInputElement>('input').element.value).toBe('0012');
+    await fixture.inputs.commit();
+    expect(fixture.updates[0]?.value).toBe('0012');
+  });
 });

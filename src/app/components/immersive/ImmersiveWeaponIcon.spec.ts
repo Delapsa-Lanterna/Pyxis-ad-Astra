@@ -81,13 +81,20 @@ describe('static weapon icon and owned decode lifetime', () => {
   it('uses the projectile center, dimensions and formal barrel positions', async () => {
     const own = harness();
     await flushPromises();
+    own.images.forEach((image) => image.onload());
+    await flushPromises();
     await own.wrapper.setProps({
       loadedMissile: { resource: own.resource('missile'), size: [12, 24], center: [6, 12], offsets: [10, 2], angles: [15] },
     });
     own.images.slice(2).forEach((image) => image.onload());
     await flushPromises();
     expect(own.context.translate).toHaveBeenCalledWith(-2, -10);
-    expect(own.context.drawImage.mock.calls.at(-1)!.slice(1)).toEqual([-6, -12, 12, 24]);
+    expect(
+      own.context.drawImage.mock.calls
+        .filter((call) => call[0] instanceof Image)
+        .at(-1)!
+        .slice(1),
+    ).toEqual([-6, -12, 12, 24]);
     own.wrapper.unmount();
   });
   it('composes complete first-frame images in the formal layer order', async () => {

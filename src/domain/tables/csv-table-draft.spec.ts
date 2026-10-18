@@ -1,310 +1,231 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useTablesStore } from '@/stores/tables.store';
-import { TABLE_KEYS, type CsvTableWindow, type ProjectManifest, type TableSummary } from '@/shared/types';
+import { sessionUpdateFixture } from '@/test/write-result';
+import { csvDraftRow, csvTableIndex } from '@/test/csv-row';
 import {
   applyCsvDraftOperation,
-  applyCsvTableWindowDraft,
+  applyCsvTableIndexDraft,
+  applyCsvTableRowsDraft,
   commitCsvTableSaveDraft,
   createCsvRowDraft,
   setCsvCellValueDraft,
   moveCsvRowDraft,
   hasCsvRowOrderChanges,
   hasCsvTableDraftChanges,
-  csvDraftSourceRanges,
   deleteSelectedCsvRowDraft,
+  replaceCsvTableDraft,
 } from './csv-table-draft';
 import { getAssociatedSpecCandidates } from './associated-spec-candidates';
-
+import type { CsvRowKeyMapping } from '@/shared/types';
 beforeEach(() => setActivePinia(createPinia()));
-
-function fixture() {
-  const tables = useTablesStore();
-  const manifest: ProjectManifest = {
-    sessionId: 'session',
-    modRoot: 'M:/mod',
-    baseVersions: [],
-    starsectorRoot: null,
-    coreAvailable: false,
-    associatedSpecTables: [],
-    modInfo: {},
-    warnings: [],
-    tableSummaries: Object.fromEntries(
-      TABLE_KEYS.map<[string, TableSummary]>((key) => [key, { path: `${key}.csv`, header: [], available: true, totalRows: 0 }]),
-    ) as ProjectManifest['tableSummaries'],
-    tableEntitySummaries: Object.fromEntries(TABLE_KEYS.map((key) => [key, 0])) as ProjectManifest['tableEntitySummaries'],
-    entitySummaries: { ships: 0, weapons: 0, projectiles: 0, variants: 0, skins: 0, systems: 0, skills: 0, factions: 0, missions: 0 },
-  };
-  tables.initializeModTables({ sessionId: manifest.sessionId, modRoot: 'M:/mod', manifest });
-  const state = tables.getModTableState('M:/mod')!;
-  const window: CsvTableWindow = {
-    table: 'ships',
-    baseVersions: [{ path: 'ship_data.csv', fingerprint: 'base' }],
-    header: ['id', '_rowKey', '_faction', '_insertAt', '_sourceRowIndex'],
-    totalRows: 1,
-    filteredRows: 1,
-    start: 0,
-    rows: [
-      {
-        rowKey: 'ships:row:0',
-        isComment: false,
-        sourceRowIndex: 0,
-
-        data: { id: 'ship', _rowKey: 'business-key', _faction: 'business-faction', _insertAt: '001', _sourceRowIndex: '02' },
-      },
-    ],
-  };
-  applyCsvTableWindowDraft(state, window);
-  return { state, window };
+const key = (index: number) => 'ships:row:' + index;
+function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) => index)) {
+  const tables = useTablesStore(),
+    manifest = sessionUpdateFixture('session', 'M:/mod').projection.manifest;
+  tables.initializeModTables({ sessionId: manifest.sessionId, modRoot: manifest.modRoot, manifest });
+  const state = tables.getModTableState(manifest.modRoot)!;
+  const index = csvTableIndex(
+    loaded.map((position) => csvDraftRow({ id: 'row-' + position, name: 'Name ' + position }, key(position), position === 1)),
+    {
+      header: ['id', 'name'],
+      rowKeys: Array.from({ length: count }, (_, index) => key(index)),
+      totalRows: count,
+      baseVersions: [{ path: 'ships.csv', fingerprint: 'base' }],
+    },
+  );
+  applyCsvTableIndexDraft(state, index);
+  return { state, index };
 }
-
-describe('CSV business content and metadata acceptance', () => {
-  function orderedFixture(count = 6, loaded = Array.from({ length: count }, (_, index) => index)) {
-    const { state, window } = fixture();
-    window.totalRows = window.filteredRows = count;
-    window.rows = loaded.map((index) => ({
-      rowKey: `ships:row:${index}`,
-      sourceRowIndex: index,
-      isComment: index === 1,
-      data: { id: index === 2 ? '' : `row-${index}` },
-    }));
-    state.tables.ships = [];
-    state.originalTables.ships = [];
-    for (const row of window.rows) applyCsvTableWindowDraft(state, { ...window, start: row.sourceRowIndex, rows: [row] });
-    return { state, window };
-  }
-
+describe('CSV keyed baseline, order and draft acceptance', () => {
   it.each([
     [0, 5],
     [5, 0],
     [2, 4],
-  ])('moves %i to %i and reverses the same row identity', (from, to) => {
-    const { state } = orderedFixture();
-    const row = state.tables.ships[from]!;
-    const operation = moveCsvRowDraft(state, 'ships', row.rowKey, to).historyOperation!;
-    expect(state.tables.ships[to]).toBe(row);
-    expect(state.selectedRowKey).toBe(row.rowKey);
-    expect(hasCsvRowOrderChanges(state, 'ships')).toBe(true);
+  ])('moves %i to %i and reverses the same record', (from, to) => {
+    const { state } = fixture(),
+      row = state.tables.ships[key(from)];
+    const operation = moveCsvRowDraft(state, 'ships', key(from), to).historyOperation!;
+    expect(state.tables.ships[key(from)]).toBe(row);
+    expect(state.rowOrders.ships[to]).toBe(key(from));
+    expect(state.selectedRowKey).toBe(key(from));
     expect(hasCsvTableDraftChanges(state, 'ships')).toBe(true);
     expect(state.dirty.ships).toEqual({});
     applyCsvDraftOperation(state, operation, 'undo');
-    expect(state.rowOrders.ships).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(state.rowOrders.ships).toEqual(Array.from({ length: 6 }, (_, index) => key(index)));
     expect(hasCsvTableDraftChanges(state, 'ships')).toBe(false);
     applyCsvDraftOperation(state, operation, 'redo');
-    expect(state.tables.ships[to]).toBe(row);
-    expect(moveCsvRowDraft(state, 'ships', row.rowKey, to).changed).toBe(false);
+    expect(state.rowOrders.ships[to]).toBe(key(from));
+    expect(moveCsvRowDraft(state, 'ships', key(from), to).changed).toBe(false);
   });
-
-  it('loads source windows into reordered placeholders while preserving local content and rejecting an external baseline', () => {
-    const { state, window } = orderedFixture(6, [0, 5]);
-    moveCsvRowDraft(state, 'ships', 'ships:row:5', 0);
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', 'draft');
-    expect(csvDraftSourceRanges(state, 'ships', 0, 6)).toEqual([{ start: 1, count: 4 }]);
-    const row = { rowKey: 'ships:row:2', sourceRowIndex: 2, isComment: false, data: { id: '' } };
-    applyCsvTableWindowDraft(state, { ...window, start: 2, rows: [row] });
-    expect(state.tables.ships[3]).toMatchObject(row);
-    expect(state.tables.ships[1]?.data.id).toBe('draft');
-    applyCsvTableWindowDraft(state, { ...window, baseVersions: [], rows: [row] });
+  it('accepts unloaded records by identity after moving them and preserves edited content', () => {
+    const { state, index } = fixture(6, [0, 5]);
+    moveCsvRowDraft(state, 'ships', key(5), 0);
+    setCsvCellValueDraft(state, 'ships', key(0), 'id', 'draft');
+    const rows = [csvDraftRow({ id: '' }, key(2)), index.rows[0]!];
+    applyCsvTableRowsDraft(state, { table: 'ships', baseVersions: index.baseVersions, rows });
+    expect(state.tables.ships[key(2)]?.data.id).toBe('');
+    expect(state.tables.ships[key(0)]?.data.id).toBe('draft');
+    expect(state.rowOrders.ships).toEqual([5, 0, 1, 2, 3, 4].map(key));
+    applyCsvTableRowsDraft(state, { table: 'ships', baseVersions: [{ path: 'ships.csv', fingerprint: 'external' }], rows });
     expect(state.pendingExternalTableUpdates.ships).toBe(true);
-    expect(state.rowOrders.ships).toEqual([5, 0, 1, 2, 3, 4]);
   });
-
-  it('combines moves, creation and deletion through one reversible order', () => {
-    const { state } = orderedFixture();
-    const moved = moveCsvRowDraft(state, 'ships', 'ships:row:4', 0).historyOperation!;
+  it('keeps filtered identities separate from the full draft and retains cached records', () => {
+    const { state, index } = fixture();
+    const first = state.tables.ships[key(0)];
+    applyCsvTableIndexDraft(state, { ...index, rowKeys: [key(3)], rows: [] }, true);
+    expect(state.queryRowKeys.ships).toEqual([key(3)]);
+    expect(state.rowOrders.ships).toHaveLength(6);
+    expect(state.tables.ships[key(0)]).toBe(first);
+    applyCsvTableIndexDraft(state, { ...index, rows: [] });
+    expect(state.queryRowKeys.ships).toBeUndefined();
+    expect(state.tables.ships[key(0)]).toBe(first);
+  });
+  it('combines move, create and delete through one reversible identity sequence', () => {
+    const { state } = fixture();
+    const moved = moveCsvRowDraft(state, 'ships', key(4), 0).historyOperation!;
     const created = createCsvRowDraft(state, 1).historyOperation!;
-    state.selectedRowKey = 'ships:row:1';
+    state.selectedRowKey = key(1);
     const deleted = deleteSelectedCsvRowDraft(state).historyOperation!;
-    expect(state.rowOrders.ships).toEqual([4, created.rowKey, 0, 2, 3, 5]);
+    expect(state.rowOrders.ships).toEqual([key(4), created.rowKey, key(0), key(2), key(3), key(5)]);
     for (const operation of [deleted, created, moved]) applyCsvDraftOperation(state, operation, 'undo');
-    expect(state.rowOrders.ships).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(state.rowOrders.ships).toEqual(Array.from({ length: 6 }, (_, index) => key(index)));
     expect(hasCsvTableDraftChanges(state, 'ships')).toBe(false);
     for (const operation of [moved, created, deleted]) applyCsvDraftOperation(state, operation, 'redo');
-    expect(state.rowOrders.ships).toEqual([4, created.rowKey, 0, 2, 3, 5]);
+    expect(state.rowOrders.ships).toEqual([key(4), created.rowKey, key(0), key(2), key(3), key(5)]);
   });
-
-  it('accepts additional query dependencies against the saved CSV version scope', () => {
-    const { state, window } = orderedFixture(6, [0, 5]);
-    moveCsvRowDraft(state, 'ships', 'ships:row:5', 0);
-    commitCsvTableSaveDraft(state, 'ships', [], [], [...state.rowOrders.ships!]);
-    const row = { rowKey: 'ships:row:2', sourceRowIndex: 3, isComment: false, data: { id: '' } };
-    applyCsvTableWindowDraft(state, {
-      ...window,
-      rows: [row],
-      baseVersions: [...window.baseVersions, { path: 'data/hulls/extra.ship', fingerprint: 'spec' }],
-    });
-    expect(state.tables.ships[3]?.rowKey).toBe(row.rowKey);
+  it('accepts source dependencies against a saved CSV version without replacing local content', () => {
+    const { state, index } = fixture(6, [0, 5]);
+    moveCsvRowDraft(state, 'ships', key(5), 0);
+    commitCsvTableSaveDraft(state, 'ships', [], [], [...state.rowOrders.ships]);
+    setCsvCellValueDraft(state, 'ships', key(0), 'id', 'later');
+    const next = {
+      ...index,
+      rowKeys: [...state.originalRowOrders.ships],
+      baseVersions: [...index.baseVersions, { path: 'extra.ship', fingerprint: 'spec' }],
+    };
+    applyCsvTableIndexDraft(state, next);
     expect(state.pendingExternalTableUpdates.ships).toBe(false);
-    applyCsvTableWindowDraft(state, { ...window, rows: [row], baseVersions: [{ path: 'ship_data.csv', fingerprint: 'changed' }] });
+    expect(state.tables.ships[key(0)]?.data.id).toBe('later');
+    applyCsvTableIndexDraft(state, { ...next, baseVersions: [{ path: 'ships.csv', fingerprint: 'changed' }] });
     expect(state.pendingExternalTableUpdates.ships).toBe(true);
   });
-
-  it('accepts a captured permutation while retaining a later undo and edits', () => {
-    const { state } = orderedFixture();
-    const moved = moveCsvRowDraft(state, 'ships', 'ships:row:5', 0).historyOperation!;
-    const submitted = [...state.rowOrders.ships!];
+  it('accepts a captured permutation while retaining a later undo and field edit', () => {
+    const { state } = fixture();
+    const moved = moveCsvRowDraft(state, 'ships', key(5), 0).historyOperation!;
+    const submitted = [...state.rowOrders.ships];
     applyCsvDraftOperation(state, moved, 'undo');
-    setCsvCellValueDraft(state, 'ships', 'ships:row:3', 'id', 'later');
+    setCsvCellValueDraft(state, 'ships', key(3), 'id', 'later');
     commitCsvTableSaveDraft(state, 'ships', [], [], submitted);
-    expect(state.originalTables.ships.map((row) => row?.rowKey)).toEqual([
-      'ships:row:5',
-      'ships:row:0',
-      'ships:row:1',
-      'ships:row:2',
-      'ships:row:3',
-      'ships:row:4',
-    ]);
-    expect(state.rowOrders.ships).toEqual([1, 2, 3, 4, 5, 0]);
-    expect(state.tables.ships.map((row) => row?.sourceRowIndex)).toEqual([1, 2, 3, 4, 5, 0]);
-    expect(state.dirty.ships['ships:row:3']).toMatchObject({ cells: { id: 'later' } });
+    expect(state.originalRowOrders.ships).toEqual([5, 0, 1, 2, 3, 4].map(key));
+    expect(state.rowOrders.ships).toEqual([0, 1, 2, 3, 4, 5].map(key));
+    expect(state.dirty.ships[key(3)]).toMatchObject({ cells: { id: 'later' } });
     expect(hasCsvRowOrderChanges(state, 'ships')).toBe(true);
   });
-
-  it.each([
-    { selected: null, source: 0, expectedIndex: 2, boundary: null },
-    { selected: 'ships:row:0', source: 0, expectedIndex: 1, boundary: 1 },
-    { selected: 'ships:row:1', source: 0, expectedIndex: 2, boundary: 2 },
-    { selected: 'ships:row:0', source: 7, expectedIndex: 1, boundary: 8 },
-  ])('inserts after $selected using source position $source', ({ selected, source, expectedIndex, boundary }) => {
-    const { state, window } = fixture();
-    window.rows = [
-      { ...window.rows[0]!, sourceRowIndex: source },
-      { ...window.rows[0]!, rowKey: 'ships:row:1', sourceRowIndex: source + 4, data: { id: 'second' } },
-    ];
-    if (source === 0) window.rows[1]!.sourceRowIndex = 1;
-    window.totalRows = source + 5;
-    window.filteredRows = 2;
-    applyCsvTableWindowDraft(state, window);
-    state.selectedRowKey = selected;
-    const result = createCsvRowDraft(state, 1);
-    const rowKey = state.selectedRowKey;
-    expect(state.tables.ships[expectedIndex]).toMatchObject({ rowKey, sourceRowIndex: null, insertAt: boundary });
-    expect(result.historyOperation).toMatchObject({ rowIndex: expectedIndex });
-    expect(state.filteredRows.ships).toBe(3);
-    expect(state.totalRows.ships).toBe(source + 6);
-    applyCsvDraftOperation(state, result.historyOperation!, 'undo');
-    expect(state.tables.ships.map((row) => row?.rowKey)).toEqual(window.rows.map((row) => row.rowKey));
-    applyCsvDraftOperation(state, result.historyOperation!, 'redo');
-    expect(state.tables.ships[expectedIndex]).toMatchObject({ rowKey, insertAt: boundary });
+  it.each([null, 0, 1])('inserts below selection %s and restores the sequence through history', (selected) => {
+    const { state } = fixture(3);
+    state.selectedRowKey = selected === null ? null : key(selected);
+    const created = createCsvRowDraft(state, 1).historyOperation!;
+    const position = selected === null ? 3 : selected + 1;
+    expect(state.rowOrders.ships[position]).toBe(created.rowKey);
+    expect(state.totalRows.ships).toBe(4);
+    expect(hasCsvRowOrderChanges(state, 'ships')).toBe(true);
+    applyCsvDraftOperation(state, created, 'undo');
+    expect(state.rowOrders.ships).toEqual([0, 1, 2].map(key));
+    applyCsvDraftOperation(state, created, 'redo');
+    expect(state.rowOrders.ships[position]).toBe(created.rowKey);
   });
-
-  it('inserts consecutive rows below the new selection while retaining unloaded slots', () => {
-    const { state, window } = fixture();
-    window.start = 3;
-    window.totalRows = window.filteredRows = 6;
-    window.rows[0]!.sourceRowIndex = 3;
-    state.tables.ships = [];
-    state.originalTables.ships = [];
-    applyCsvTableWindowDraft(state, window);
-    state.selectedRowKey = 'ships:row:0';
-    const first = createCsvRowDraft(state, 1).historyOperation!;
-    const second = createCsvRowDraft(state, 2).historyOperation!;
-    expect(state.tables.ships.slice(3, 6).map((row) => row?.rowKey)).toEqual(['ships:row:0', first.rowKey, second.rowKey]);
-    expect(state.tables.ships.slice(4, 6).map((row) => row?.insertAt)).toEqual([4, 4]);
-    expect(state.tables.ships[6]).toBeNull();
+  it('inserts consecutive rows after a selected record while unloaded identities retain their positions', () => {
+    const { state } = fixture(6, [3]);
+    state.selectedRowKey = key(3);
+    const first = createCsvRowDraft(state, 1).historyOperation!,
+      second = createCsvRowDraft(state, 2).historyOperation!;
+    expect(state.rowOrders.ships.slice(3, 7)).toEqual([key(3), first.rowKey, second.rowKey, key(4)]);
+    expect(state.tables.ships[key(4)]).toBeUndefined();
     expect(state.selectedRowKey).toBe(second.rowKey);
   });
-
-  it('edits prototype-named business columns and records their dirty cells as own keys', () => {
-    const { state, window } = fixture();
-    window.header = ['id', '__proto__', 'constructor'];
-    window.rows[0]!.data = JSON.parse('{"id":"ship","__proto__":"original"}');
-    applyCsvTableWindowDraft(state, window);
-    expect(state.tables.ships[0]!.data.constructor).toBeUndefined();
-    const edit = setCsvCellValueDraft(state, 'ships', 'ships:row:0', '__proto__', 'edited');
-    expect(Object.hasOwn(state.tables.ships[0]!.data, '__proto__')).toBe(true);
-    expect(state.tables.ships[0]!.data.__proto__).toBe('edited');
-    expect(state.dirty.ships['ships:row:0']).toEqual({ action: 'upsert', cells: JSON.parse('{"__proto__":"edited"}') });
-    applyCsvDraftOperation(state, edit.historyOperation!, 'undo');
-    expect(state.tables.ships[0]!.data.__proto__).toBe('original');
-    expect(state.dirty.ships).toEqual({});
+  it('retains the record and data object when its temporary identity is accepted', () => {
+    const { state } = fixture(1);
+    const created = createCsvRowDraft(state, 1).historyOperation!;
+    const row = state.tables.ships[created.rowKey]!,
+      data = row.data;
+    const order = [...state.rowOrders.ships];
+    const patches = [{ rowKey: created.rowKey, action: 'upsert' as const, row: { ...data }, isComment: false }];
+    commitCsvTableSaveDraft(state, 'ships', patches, [{ previousKey: created.rowKey, nextKey: key(9), rowIndex: 1 }], order);
+    expect(state.tables.ships[key(9)]).toBe(row);
+    expect(row.data).toBe(data);
+    expect(state.rowOrders.ships).toEqual([key(0), key(9)]);
+    expect(hasCsvTableDraftChanges(state, 'ships')).toBe(false);
   });
-  it('retains quoted hash data during other edits and restores its exact flag through history', () => {
-    const { state, window } = fixture();
-    window.rows[0]!.data.id = '#quoted';
-    applyCsvTableWindowDraft(state, window);
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', '_rowKey', '#other-column');
-    expect(state.tables.ships[0]?.isComment).toBe(false);
-    const edit = setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', '#disabled');
-    expect(state.tables.ships[0]?.isComment).toBe(true);
-    applyCsvDraftOperation(state, edit.historyOperation!, 'undo');
-    expect(state.tables.ships[0]).toMatchObject({ data: { id: '#quoted' }, isComment: false });
-    expect(state.dirty.ships['ships:row:0']).toEqual({ action: 'upsert', cells: { _rowKey: '#other-column' } });
-    applyCsvDraftOperation(state, edit.historyOperation!, 'redo');
-    expect(state.tables.ships[0]?.isComment).toBe(true);
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', '#quoted');
-    expect(state.tables.ships[0]?.isComment).toBe(false);
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', ' #space');
-    expect(state.tables.ships[0]?.isComment).toBe(false);
-  });
-
-  it('retains a later comment edit against the captured saved baseline', () => {
-    const { state, window } = fixture();
-    window.rows[0]!.data.id = '#quoted';
-    applyCsvTableWindowDraft(state, window);
-    const edit = setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', '#comment');
+  it('retains a submitted creation undone during saving as a deletion against the saved baseline', () => {
+    const { state } = fixture(1);
+    const created = createCsvRowDraft(state, 1).historyOperation!;
+    if (created.type !== 'row-created') throw Error('fixture creates a row');
+    const order = [...state.rowOrders.ships];
+    applyCsvDraftOperation(state, created, 'undo');
     commitCsvTableSaveDraft(
       state,
       'ships',
-      [{ rowKey: 'ships:row:0', action: 'upsert', row: { ...window.rows[0]!.data }, isComment: false }],
+      [{ rowKey: created.rowKey, action: 'upsert', row: created.row.data, isComment: false }],
+      [{ previousKey: created.rowKey, nextKey: key(9), rowIndex: 1 }],
+      order,
+    );
+    expect(state.originalRowOrders.ships).toEqual([key(0), key(9)]);
+    expect(state.rowOrders.ships).toEqual([key(0)]);
+    expect(state.dirty.ships[key(9)]).toEqual({ action: 'delete' });
+  });
+  it('rebases a deletion undone during saving into a new identity at the retained position', () => {
+    const { state } = fixture(3);
+    state.selectedRowKey = key(1);
+    const deletion = deleteSelectedCsvRowDraft(state).historyOperation!;
+    const order = [...state.rowOrders.ships];
+    applyCsvDraftOperation(state, deletion, 'undo');
+    const mapped: CsvRowKeyMapping[] = [];
+    commitCsvTableSaveDraft(state, 'ships', [{ rowKey: key(1), action: 'delete', row: {}, isComment: false }], mapped, order);
+    expect(state.rowOrders.ships[1]).toContain(':new:');
+    expect(state.tables.ships[state.rowOrders.ships[1]!]!.data.id).toBe('row-1');
+    expect(mapped).toEqual([{ previousKey: key(1), nextKey: state.rowOrders.ships[1], rowIndex: 1 }]);
+    expect(state.originalRowOrders.ships).toEqual([key(0), key(2)]);
+  });
+  it('edits prototype-named business columns and keeps their exact dirty keys', () => {
+    const { state } = fixture(1);
+    replaceCsvTableDraft(state, 'ships', [csvDraftRow(JSON.parse('{"id":"ship","__proto__":"original"}'), key(0))]);
+    state.headers.ships = ['id', '__proto__', 'constructor'];
+    expect(state.tables.ships[key(0)]!.data.constructor).toBeUndefined();
+    const edit = setCsvCellValueDraft(state, 'ships', key(0), '__proto__', 'edited');
+    expect(Object.hasOwn(state.tables.ships[key(0)]!.data, '__proto__')).toBe(true);
+    expect(state.dirty.ships[key(0)]).toEqual({ action: 'upsert', cells: JSON.parse('{"__proto__":"edited"}') });
+    applyCsvDraftOperation(state, edit.historyOperation!, 'undo');
+    expect(state.tables.ships[key(0)]!.data.__proto__).toBe('original');
+    expect(state.dirty.ships).toEqual({});
+  });
+  it('preserves quoted hash data, comment semantics and associated spec decisions', () => {
+    const { state } = fixture(1);
+    replaceCsvTableDraft(state, 'ships', [csvDraftRow({ id: '#quoted', name: 'Name' }, key(0))]);
+    const edit = setCsvCellValueDraft(state, 'ships', key(0), 'id', '#disabled').historyOperation!;
+    expect(state.tables.ships[key(0)]!.isComment).toBe(true);
+    applyCsvDraftOperation(state, edit, 'undo');
+    expect(state.tables.ships[key(0)]!.isComment).toBe(false);
+    expect(state.dirty.ships).toEqual({});
+    applyCsvDraftOperation(state, edit, 'redo');
+    expect(getAssociatedSpecCandidates(state, 'ships', ['ships'])).toEqual([]);
+    commitCsvTableSaveDraft(
+      state,
+      'ships',
+      [{ rowKey: key(0), action: 'upsert', row: { id: '#quoted', name: 'Name' }, isComment: false }],
       [],
     );
-    expect(state.originalTables.ships[0]).toMatchObject({ data: { id: '#quoted' }, isComment: false });
-    expect(state.tables.ships[0]).toMatchObject({ data: { id: '#comment' }, isComment: true });
-    applyCsvDraftOperation(state, edit.historyOperation!, 'undo');
-    expect(state.tables.ships[0]?.isComment).toBe(false);
-    expect(state.dirty.ships).toEqual({});
-    applyCsvDraftOperation(state, edit.historyOperation!, 'redo');
-    expect(state.dirty.ships['ships:row:0']).toEqual({ action: 'upsert', cells: { id: '#comment' } });
+    expect(state.tables.ships[key(0)]!.isComment).toBe(true);
+    expect(state.originalTables.ships[key(0)]!.isComment).toBe(false);
   });
-
-  it('compares comment semantics in external baselines and associated spec candidates', () => {
-    const { state, window } = fixture();
-    window.header = ['name', 'id'];
-    window.rows[0]!.data = { name: '#note', id: 'ship' };
-    window.rows[0]!.isComment = true;
-    applyCsvTableWindowDraft(state, window);
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', 'renamed');
-    expect(getAssociatedSpecCandidates(state, 'ships', ['ships'])).toEqual([]);
-    state.dirty.ships['ships:row:0'] = { action: 'delete' };
-    expect(getAssociatedSpecCandidates(state, 'ships', ['ships'])).toEqual([]);
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'name', 'active');
-    expect(getAssociatedSpecCandidates(state, 'ships', ['ships'])[0]?.change).toMatchObject({
-      action: 'create',
-      create: { id: 'renamed' },
-    });
-    const refreshed = { ...window, rows: [{ ...window.rows[0]!, isComment: false }] };
-    applyCsvTableWindowDraft(state, refreshed, true);
+  it('marks an external update while a raw input owns the original baseline', () => {
+    const { state, index } = fixture(1);
+    applyCsvTableRowsDraft(
+      state,
+      { table: 'ships', baseVersions: index.baseVersions, rows: [csvDraftRow({ id: 'changed' }, key(0))] },
+      true,
+    );
     expect(state.pendingExternalTableUpdates.ships).toBe(true);
-    expect(state.tables.ships[0]?.data.name).toBe('active');
-  });
-
-  it('keeps colliding business columns editable under their formal row identity', () => {
-    const { state } = fixture();
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', '_rowKey', 'changed-business');
-    expect(state.tables.ships[0]).toMatchObject({
-      rowKey: 'ships:row:0',
-
-      sourceRowIndex: 0,
-      insertAt: null,
-      data: { _rowKey: 'changed-business', _faction: 'business-faction', _insertAt: '001', _sourceRowIndex: '02' },
-    });
-    expect(state.dirty.ships['ships:row:0']).toEqual({ action: 'upsert', cells: { _rowKey: 'changed-business' } });
-  });
-
-  it('accepts same-version metadata while keeping committed edits and pending input', () => {
-    const { state, window } = fixture();
-    setCsvCellValueDraft(state, 'ships', 'ships:row:0', 'id', 'draft');
-    const refreshed = { ...window, rows: window.rows.map((row) => ({ ...row, sourceRowIndex: 3 })) };
-    applyCsvTableWindowDraft(state, refreshed, true);
-    expect(state.tables.ships[0]?.data.id).toBe('draft');
-    expect(state.tables.ships[0]?.sourceRowIndex).toBe(3);
-    expect(state.originalTables.ships[0]?.sourceRowIndex).toBe(3);
-    expect(state.originalTables.ships[0]?.data.id).toBe('ship');
-    expect(state.dirty.ships['ships:row:0']).toEqual({ action: 'upsert', cells: { id: 'draft' } });
-    expect(state.pendingExternalTableUpdates.ships).toBe(false);
-    applyCsvTableWindowDraft(state, { ...refreshed, baseVersions: [{ path: 'ship_data.csv', fingerprint: 'external' }] }, true);
-    expect(state.pendingExternalTableUpdates.ships).toBe(true);
-    expect(state.tables.ships[0]?.data.id).toBe('draft');
+    expect(state.tables.ships[key(0)]!.data.id).toBe('row-0');
   });
 });

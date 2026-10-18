@@ -155,6 +155,7 @@ pub(crate) fn load_core_csv_table(
                 .collect();
             let next_row_seq = rows.len() as u64;
             Ok(SessionCsvTable {
+                row_index: None,
                 header: csv.header,
                 path: rel.to_string(),
                 rows: Some(rows),

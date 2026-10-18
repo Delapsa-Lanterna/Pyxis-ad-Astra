@@ -1,16 +1,14 @@
 <template>
   <nav class="mod-tabs-bar ui-control-row ui-content-surface-muted ui-layout-grid ui-layout-shrink" aria-label="已打开 Mod">
     <button
-      v-if="workspace.isModView"
-      class="mod-tabs-navigation-toggle ui-button ui-control-button ui-text-muted ui-layout-grid ui-control-reset ui-text-reset"
+      class="mod-tabs-overview ui-button ui-control-button ui-text-muted ui-layout-grid ui-control-reset ui-text-reset ui-text-soft ui-control-pointer ui-content-surface"
+      :class="{ active: workspace.currentView === 'overview' }"
       type="button"
-      title="切换内容导航"
-      aria-label="切换内容导航"
-      aria-controls="mod-navigation-content"
-      :aria-expanded="contentNavigation.expanded.value"
-      @click="contentNavigation.toggle"
+      title="打开工作区总览"
+      aria-label="打开工作区总览"
+      @click="navigation.showOverview()"
     >
-      <svg class="mod-tabs-navigation-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      <svg class="mod-tabs-overview-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
     </button>
     <div class="mod-tabs-list ui-control-row ui-layout-row ui-layout-shrink" role="tablist">
       <div
@@ -42,21 +40,9 @@
         </button>
       </div>
     </div>
-
-    <button
-      class="mod-tabs-overview ui-button ui-control-button ui-text-muted ui-layout-grid ui-control-reset ui-text-reset ui-text-soft ui-control-pointer ui-content-surface"
-      :class="{ active: workspace.currentView === 'overview' }"
-      type="button"
-      title="打开工作区总览"
-      aria-label="打开工作区总览"
-      @click="navigation.showOverview()"
-    >
-      <svg class="mod-tabs-overview-icon ui-control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-    </button>
   </nav>
 </template>
 <script setup lang="ts">
-import { useContentNavigation } from '@/app/composables/use-content-navigation';
 import { modStatusLabel } from '@/domain/workspace/mod-status';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
@@ -64,7 +50,6 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 
 defineEmits<{ 'remove-mod': [modRoot: string] }>();
 
-const contentNavigation = useContentNavigation();
 const workspace = useWorkspaceStore();
 const draftSessions = useDraftSessionsStore();
 const navigation = useWorkspaceNavigationActions();

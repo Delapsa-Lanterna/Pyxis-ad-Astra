@@ -25,39 +25,38 @@ export interface CsvRowRecord extends CsvRow {
   rowKey: string;
 }
 
-export interface CsvDraftRow extends CsvRowRecord {
-  sourceRowIndex: number | null;
-  insertAt: number | null;
-}
+export type CsvDraftRow = CsvRowRecord;
 
 export type CsvTableRows = Array<CsvDraftRow | null>;
 
-export interface CsvTableWindow {
+export interface CsvTableIndex {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   table: CsvTableKey;
   header: string[];
   totalRows: number;
-  filteredRows: number;
-  start: number;
-  rows: CsvWindowRow[];
+  rowKeys: string[];
+  rows: CsvRowRecord[];
 }
 
-export interface CsvWindowRow extends CsvRowRecord {
-  sourceRowIndex: number;
+export interface CsvTableRowsRead {
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  table: CsvTableKey;
+  rows: CsvRowRecord[];
 }
 
-export interface CsvPlaceholderRowSlot {
-  kind: 'placeholder';
-  rowIndex: number;
-  slotKey: string;
+export interface CsvTableIndexPayload {
+  sessionId: ProjectSessionId;
+  table: CsvTableKey;
+  initialCount: number;
+  search: string | null;
+  searchField: CsvSearchField;
 }
 
-export interface CsvLoadedRowSlot extends CsvDraftRow {
-  kind: 'row';
-  rowIndex: number;
+export interface CsvTableRowsPayload {
+  sessionId: ProjectSessionId;
+  table: CsvTableKey;
+  rowKeys: string[];
 }
-
-export type CsvGridRowSlot = CsvLoadedRowSlot | CsvPlaceholderRowSlot;
 
 export interface CsvRowPreview {
   resourceRef: ResourceRef | null;
@@ -67,15 +66,6 @@ export interface CsvRowPreviewTarget {
   rowKey: string;
   sessionId: ProjectSessionId;
   table: CsvTableKey;
-}
-
-export interface CsvTableWindowPayload {
-  sessionId: string;
-  table: import('@/shared/types/project-identity.types').CsvTableKey;
-  start: number;
-  count: number;
-  search: string | null;
-  searchField: CsvSearchField;
 }
 
 export interface CsvRowPreviewPayload {

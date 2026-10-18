@@ -7,7 +7,7 @@ describe('hullmod default graphic', () => {
     const own = mount(ImmersiveHullmodIcon, {
       props: {
         sessionId: 's',
-        resource: { source: 'mod', ownerKind: 'hullmods', ownerId: 'sample', key: 'icon', relPath: 'sample.png' },
+        resource: null,
         url: '',
         active: true,
         size,
@@ -21,7 +21,10 @@ describe('hullmod default graphic', () => {
     });
     expect(own.find('img').attributes('width')).toBe(String(size));
     expect(own.find('img').attributes('src')).toContain('data:image/svg+xml');
-    await own.setProps({ url: 'ready.png' });
+    await own.setProps({
+      resource: { source: 'mod', ownerKind: 'hullmods', ownerId: 'sample', key: 'icon', relPath: 'sample.png' },
+      url: 'ready.png',
+    });
     expect(own.find('canvas').attributes('data-url')).toBe('ready.png');
     expect(own.find('img').exists()).toBe(false);
     await own.setProps({ resource: null, url: '' });

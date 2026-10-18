@@ -172,6 +172,7 @@ pub(crate) fn ensure_session_table_rows(
         table_state.header = csv.header;
     }
     table_state.rows = Some(rows);
+    table_state.row_index = None;
     table_state.next_row_seq = next_row_seq;
     table_state.saved_text = None;
     session
@@ -279,6 +280,7 @@ mod tests {
                 (
                     CsvTableKey::Ships.as_str().to_string(),
                     SessionCsvTable {
+                        row_index: None,
                         header: Vec::new(),
                         path: "data/hulls/ship_data.csv".to_string(),
                         rows: None,
@@ -289,6 +291,7 @@ mod tests {
                 (
                     CsvTableKey::Skills.as_str().to_string(),
                     SessionCsvTable {
+                        row_index: None,
                         header: Vec::new(),
                         path: "data/characters/skills/skill_data.csv".to_string(),
                         rows: None,

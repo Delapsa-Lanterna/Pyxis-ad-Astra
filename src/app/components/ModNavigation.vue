@@ -3,7 +3,7 @@
     ><button
       v-if="workspace.isModView && contentNavigation.state.narrow && contentNavigation.state.narrowExpanded"
       class="mod-navigation-backdrop ui-button"
-      aria-label="关闭内容导航"
+      aria-label="收起导航栏"
       @click="contentNavigation.close"
   /></Transition>
   <Transition name="mod-navigation-slide" :css="contentNavigation.state.narrow">
@@ -52,6 +52,18 @@
       </aside>
     </div></Transition
   >
+  <button
+    v-if="workspace.isModView"
+    class="mod-navigation-toggle ui-panel-toggle ui-button ui-control-button ui-control-reset"
+    :class="{ 'is-collapsed': !contentNavigation.expanded.value }"
+    type="button"
+    :title="contentNavigation.expanded.value ? '收起导航栏' : '展开导航栏'"
+    :aria-label="contentNavigation.expanded.value ? '收起导航栏' : '展开导航栏'"
+    :aria-expanded="contentNavigation.expanded.value"
+    aria-controls="mod-navigation-content"
+    @click="contentNavigation.toggle"
+    @keydown.esc="contentNavigation.close"
+  />
 </template>
 
 <script setup lang="ts">

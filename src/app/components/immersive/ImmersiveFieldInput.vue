@@ -2,6 +2,7 @@
   <label class="immersive-field-input ui-layout-grid ui-layout-shrink">
     <span><ImmersiveText :text="field.schema.label" /></span>
     <n-select
+      :virtual-scroll="false"
       v-if="mode === 'smart' && (field.schema.options || field.schema.source)"
       ref="input"
       :value="raw"

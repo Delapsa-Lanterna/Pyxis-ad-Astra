@@ -51,23 +51,23 @@
     </header>
     <section
       class="content-grid ui-content-contained ui-layout-grid ui-layout-stretch"
-      :class="{ 'workspace-sidebar-collapsed': !sidebarExpanded }"
+      :class="{ 'workspace-detail-collapsed': !detailPaneExpanded }"
     >
       <div class="table-content ui-content-column ui-content-contained">
         <DataTable :key="csvTable.targetKey.value" :csv-table="csvTable" />
       </div>
       <button
-        class="workspace-sidebar-toggle ui-button ui-control-button ui-control-reset"
+        class="workspace-detail-toggle ui-panel-toggle ui-button ui-control-button ui-control-reset"
         type="button"
-        :title="sidebarExpanded ? '收起侧边栏' : '展开侧边栏'"
-        :aria-label="sidebarExpanded ? '收起侧边栏' : '展开侧边栏'"
-        :aria-expanded="sidebarExpanded"
-        aria-controls="csv-sidebar-panel"
-        @click="sidebarExpanded = !sidebarExpanded"
+        :title="detailPaneExpanded ? '收起详情栏' : '展开详情栏'"
+        :aria-label="detailPaneExpanded ? '收起详情栏' : '展开详情栏'"
+        :aria-expanded="detailPaneExpanded"
+        aria-controls="csv-detail-panel"
+        @click="detailPaneExpanded = !detailPaneExpanded"
       />
       <DetailPane
-        id="csv-sidebar-panel"
-        v-show="sidebarExpanded"
+        id="csv-detail-panel"
+        v-show="detailPaneExpanded"
         :query-row-preview="csvTable.querySelectedRowPreview"
         :source-index="csvTable.sourceIndex.value"
         @detail-action="actions.handleDetailAction"
@@ -89,7 +89,7 @@ import { MODULE_LABELS } from '@/shared/lib/starsector';
 import { csvSearchOptions, csvSearchPlaceholder } from '@/domain/tables/csv-search';
 
 const tables = useTablesStore();
-const sidebarExpanded = defineModel<boolean>('sidebarExpanded', { default: true });
+const detailPaneExpanded = defineModel<boolean>('detailPaneExpanded', { default: true });
 const workspace = useWorkspaceStore();
 const actions = useWorkspaceShellActions(useAppFeedback());
 const csvTable = useCsvTableViewModel(async () => {

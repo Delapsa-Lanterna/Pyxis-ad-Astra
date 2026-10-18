@@ -34,6 +34,7 @@ beforeEach(() => {
         resize = callback;
       }
       observe() {}
+      unobserve() {}
       disconnect() {
         disconnect();
       }
@@ -102,7 +103,7 @@ describe('font text presentation', () => {
     vi.stubGlobal('devicePixelRatio', 2);
     const own = mount(FontText, { props: { font: 'insignia15LTaa', text: '舰船名称舰船名称', block: true } });
     await flushPromises();
-    resize([{ contentRect: { width: 30 } }] as ResizeObserverEntry[], {} as ResizeObserver);
+    resize([{ target: own.element, contentRect: { width: 30 } }] as ResizeObserverEntry[], {} as ResizeObserver);
     await flushPromises();
     expect(own.get('canvas').element.width).toBe(60);
     expect(Number.parseFloat(own.element.style.height)).toBeGreaterThan(10);
@@ -111,7 +112,8 @@ describe('font text presentation', () => {
       'requestAnimationFrame',
       vi.fn(() => 7),
     );
-    resize([{ contentRect: { width: 20 } }] as ResizeObserverEntry[], {} as ResizeObserver);
+    resize([{ target: own.element, contentRect: { width: 20 } }] as ResizeObserverEntry[], {} as ResizeObserver);
+    await own.vm.$nextTick();
     own.unmount();
     expect(cancelAnimationFrame).toHaveBeenCalledWith(7);
     expect(disconnect).toHaveBeenCalledOnce();
@@ -143,6 +145,7 @@ describe('font text presentation', () => {
       left = 10.625;
       top = 10.125;
       window.dispatchEvent(new Event('scroll'));
+      await flushPromises();
       aligned();
       own.unmount();
       bounds.mockClear();

@@ -8,7 +8,11 @@ import {
   type ProjectManifest,
 } from '@/shared/types';
 
-export function sessionUpdateFixture(sessionId: string, modRoot: string, commitId = 1): CommittedSessionUpdate {
+export function sessionUpdateFixture(
+  sessionId: string,
+  modRoot: string,
+  commitId = 1,
+): Extract<CommittedSessionUpdate, { status: 'ready' }> {
   const tableSummaries = Object.fromEntries(
     TABLE_KEYS.map((key): [CsvTableKey, TableSummary] => [key, { path: key + '.csv', header: [], available: false, totalRows: 0 }]),
   ) as ProjectManifest['tableSummaries'];

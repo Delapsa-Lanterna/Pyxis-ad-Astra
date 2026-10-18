@@ -5,6 +5,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { saveTableChanges, pendingTableSave } from '@/orchestrators/table-save.orchestrator';
 import { retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
+import { hasCsvTableDraftChanges } from '@/domain/tables/csv-table-draft';
 import { TABLE_KEYS, type AppFeedback, type AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 
@@ -29,7 +30,7 @@ export function useTableSaveParticipants(
           const writeTarget = project.tableWriteTargets.find((target) => target.modRoot === modRoot && target.table === table)!;
           const inputs = tables.getTableInputs(modRoot, table);
           const targetKey = computed(() => JSON.stringify([manifest.sessionId, modRoot, table]));
-          const dirty = computed(() => Object.keys(state.dirty[table]).length > 0 || inputs.dirty.value);
+          const dirty = computed(() => hasCsvTableDraftChanges(state, table) || inputs.dirty.value);
           const ownsSave = () => pendingTableSave()?.target.modRoot === modRoot && pendingTableSave()?.target.table === table;
           releases.push(
             commands.registerSaveSession({
@@ -54,7 +55,7 @@ export function useTableSaveParticipants(
                 },
                 label: `${manifest.modInfo?.name ?? modRoot} / ${table}`,
                 dirty,
-                draftSession: { draftValue: computed(() => state.tables[table]), inputs },
+                draftSession: { draftValue: computed(() => ({ rows: state.tables[table], order: state.rowOrders[table] })), inputs },
                 save: async () => {
                   const result = await saveTableChanges({ table, manifest, selectAssociatedSpecs, feedback });
                   return { saved: result.status !== 'cancelled', receipt: result.status === 'saved' ? result.receipt : null };

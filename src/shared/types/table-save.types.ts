@@ -17,7 +17,7 @@ export interface AssociatedSpecWrite {
 }
 
 export type CsvRowPatchAction = 'upsert' | 'delete';
-export type CsvRowOrderEntry = number | string;
+export type CsvRowOrderEntry = string;
 
 export interface CsvRowPatch {
   isComment: boolean;

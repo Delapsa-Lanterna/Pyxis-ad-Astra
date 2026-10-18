@@ -82,7 +82,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 
 import { groupSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
-import { useCsvFloatingPanel } from '@/app/composables/tables/use-csv-floating-panel';
+import { useCsvFloatingPanel, useCsvFloatingViewport } from '@/app/composables/tables/use-csv-floating-panel';
 
 const props = defineProps<{
   anchor: { height: number; left: number; top: number; width: number };
@@ -98,6 +98,7 @@ const emit = defineEmits<{
   'pending-custom': [dirty: boolean];
   update: [values: string[]];
 }>();
+const floating = useCsvFloatingViewport();
 
 const visible = useVisibleResourceMedia({ sessionId: () => props.sessionId, surface: 'CSV 选项', failureLabel: '读取选项图片失败' });
 
@@ -125,12 +126,16 @@ const filteredGroups = computed(() => {
 
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentMouseDown, true);
-  nextTick(() => searchRef.value?.focus());
+  void nextTick(focusSearch);
 });
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleDocumentMouseDown, true);
 });
+
+function focusSearch() {
+  searchRef.value?.focus({ preventScroll: true });
+}
 
 function clearValue() {
   emit('commit', ['']);
@@ -180,10 +185,12 @@ function cancelCustom() {
   emit('pending-custom', false);
 }
 
-defineExpose({ captureValues, cancelCustom });
+defineExpose({ captureValues, cancelCustom, focus: focusSearch });
 
 function handleDocumentMouseDown(event: MouseEvent) {
+  if (event.target === floating?.panel.value) return;
   const target = event.target as { closest?: (selector: string) => unknown } | null;
+  if (target?.closest?.('.csv-grid-cell')) return;
   if (target?.closest?.('.csv-cell-picker')) return;
   emit('commit', captureValues());
 }

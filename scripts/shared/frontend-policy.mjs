@@ -550,7 +550,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'csv-table',
-    names: ['queryTableWindow', 'querySessionCsvRowPreview', 'queryTableRowPreviewDataUrl'],
+    names: ['queryTableIndex', 'queryTableRows', 'querySessionCsvRowPreview', 'queryTableRowPreviewDataUrl'],
     capability: 'table-query',
     owners: readOwners,
   },

@@ -1,24 +1,33 @@
 <template>
-  <div class="csv-cell-editor" @mousedown.stop @click.stop @keydown.esc.stop.prevent="cancelAndClose">
+  <div
+    class="csv-cell-editor"
+    :class="{ 'csv-cell-editor-picker': !usesNativeInput && !isTextControl }"
+    @mousedown.stop
+    @click.stop
+    @keydown.esc.stop.prevent="cancelAndClose"
+  >
     <input
       v-if="usesNativeInput"
       ref="inputRef"
       class="csv-cell-input ui-input ui-text-normal ui-layout-shrink ui-layout-clip ui-layout-stretch ui-control-reset"
       :value="raw"
-      @blur="commitAndClose"
+      @blur="handleNativeBlur"
       @input="handleNativeInput"
       @keydown.enter.prevent="commitAndClose"
     />
     <template v-else-if="isTextControl">
       <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
-      <CsvCellTextEditor
-        v-if="pickerAnchor"
-        :anchor="pickerAnchor"
-        :value="raw"
-        @update="update"
-        @cancel="cancelAndClose"
-        @commit="commitAndClose"
-      />
+      <Teleport :to="floating?.overlay.value ?? 'body'" :disabled="!floating?.overlay.value"
+        ><CsvCellTextEditor
+          ref="textEditorRef"
+          :key="inputKey"
+          v-if="pickerAnchor"
+          :anchor="pickerAnchor"
+          :value="raw"
+          @update="update"
+          @cancel="cancelAndClose"
+          @commit="commitAndClose"
+      /></Teleport>
     </template>
     <template v-else>
       <template v-if="isListControl">
@@ -47,25 +56,28 @@
         <span class="csv-cell-value ui-text-truncate ui-layout-shrink">{{ displayValue }}</span>
       </template>
       <svg class="csv-cell-caret ui-control-icon ui-text-muted" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
-      <CsvCellPicker
-        ref="pickerRef"
-        v-if="pickerAnchor"
-        :anchor="pickerAnchor"
-        :multiple="isListControl"
-        :options="pickerOptions"
-        :session-id="context.target.sessionId"
-        :values="pickerValues"
-        @cancel="cancelAndClose"
-        @commit="handlePickerCommit"
-        @pending-custom="customDirty = $event"
-        @update="handlePickerUpdate"
-      />
+      <Teleport :to="floating?.overlay.value ?? 'body'" :disabled="!floating?.overlay.value"
+        ><CsvCellPicker
+          ref="pickerRef"
+          :key="inputKey"
+          v-if="pickerAnchor"
+          :anchor="pickerAnchor"
+          :multiple="isListControl"
+          :options="pickerOptions"
+          :session-id="context.target.sessionId"
+          :values="pickerValues"
+          @cancel="cancelAndClose"
+          @commit="handlePickerCommit"
+          @pending-custom="customDirty = $event"
+          @update="handlePickerUpdate"
+      /></Teleport>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { useCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/composables/tables/use-csv-floating-panel';
 import { cell } from '@/shared/lib/starsector';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/tables/csv-grid-model';
@@ -91,6 +103,7 @@ import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 
 const props = defineProps<{
   anchorElement: HTMLElement | null;
+  initialAnchor?: CsvFloatingAnchor | null;
   column: CsvGridColumn;
   row: CsvRowRecord;
   sourceIndex: CsvSourceIndex;
@@ -103,16 +116,22 @@ const emit = defineEmits<{
 const mode = useInputEditMode();
 const context = useCsvTableInputs();
 const media = useCsvGridMedia();
+const floating = useCsvFloatingViewport();
 const inputRef = useTemplateRef<HTMLInputElement>('inputRef');
-const pickerAnchor = ref<{ height: number; left: number; top: number; width: number } | null>(null);
+const textEditorRef = ref<InstanceType<typeof CsvCellTextEditor> | null>(null);
+const pickerAnchor = shallowRef<CsvFloatingAnchor | null>(props.initialAnchor ?? null);
 
 const raw = ref(cell(props.row.data[props.column.key]));
 const baseline = ref(raw.value);
 const customDirty = ref(false);
 const pickerRef = ref<InstanceType<typeof CsvCellPicker> | null>(null);
 const dirty = computed(() => raw.value !== baseline.value || customDirty.value);
+const inputKey = ref(0);
 
 const rawValue = computed(() => cell(props.row.data[props.column.key]));
+watch(rawValue, (value) => {
+  if (!dirty.value) raw.value = baseline.value = value;
+});
 const control = computed(() => csvColumnControl(props.column.schema));
 const isTextControl = computed(() => control.value === 'text');
 const usesNativeInput = computed(() => {
@@ -141,17 +160,61 @@ const sprite = computed(() => {
   return media.url(match.option.resourceRef);
 });
 
-onMounted(() => {
-  nextTick(() => {
-    if (usesNativeInput.value) {
-      inputRef.value?.focus();
-      inputRef.value?.select();
-      return;
+watch(
+  () => [props.row, props.row.rowKey, props.column.key],
+  ([row, rowKey, column], previous) => {
+    const [previousRow, previousRowKey, previousColumn] = previous ?? [];
+    const sameInput = column === previousColumn && (row === previousRow || rowKey === previousRowKey || dirty.value);
+    if (!sameInput) {
+      raw.value = cell(props.row.data[props.column.key]);
+      baseline.value = raw.value;
+      customDirty.value = false;
+      inputKey.value++;
     }
-    const rect = props.anchorElement?.getBoundingClientRect();
-    if (!rect) return;
-    pickerAnchor.value = { height: rect.height, left: rect.left, top: rect.top, width: rect.width };
-  });
+  },
+  { flush: 'post' },
+);
+
+function focusActive() {
+  if (usesNativeInput.value) {
+    inputRef.value?.focus({ preventScroll: true });
+    inputRef.value?.select();
+    return;
+  }
+  updateAnchor();
+}
+
+function updateAnchor() {
+  if (usesNativeInput.value) return;
+  const rect = props.anchorElement?.getBoundingClientRect();
+  if (rect) pickerAnchor.value = { height: rect.height, left: rect.left, top: rect.top, width: rect.width };
+}
+const anchorObserver = new ResizeObserver(updateAnchor);
+onMounted(() => {
+  if (props.anchorElement && !usesNativeInput.value) anchorObserver.observe(props.anchorElement);
+  if (usesNativeInput.value || !pickerAnchor.value) focusActive();
+});
+watch(
+  () => props.initialAnchor,
+  (anchor) => {
+    pickerAnchor.value = anchor ?? null;
+  },
+);
+watch(
+  [() => props.anchorElement, usesNativeInput],
+  ([element, native], [previous, previousNative]) => {
+    if (previous && !previousNative) anchorObserver.unobserve(previous);
+    if (element && !native) anchorObserver.observe(element);
+    focusActive();
+  },
+  { flush: 'post' },
+);
+window.addEventListener('scroll', updateAnchor, true);
+window.addEventListener('resize', updateAnchor);
+onScopeDispose(() => {
+  anchorObserver.disconnect();
+  window.removeEventListener('scroll', updateAnchor, true);
+  window.removeEventListener('resize', updateAnchor);
 });
 
 function handleNativeInput(event: Event) {
@@ -181,6 +244,10 @@ function commitAndClose() {
   emit('close');
 }
 
+function handleNativeBlur() {
+  if (!props.anchorElement || props.anchorElement.contains(inputRef.value)) commitAndClose();
+}
+
 function cancelAndClose() {
   cancel();
   emit('close');
@@ -203,6 +270,13 @@ function cancel() {
   pickerRef.value?.cancelCustom();
 }
 
+async function focus() {
+  await focusActive();
+  await nextTick();
+  textEditorRef.value?.focus();
+  pickerRef.value?.focus();
+}
+
 registerFieldInput({
   get key() {
     return JSON.stringify([props.row.rowKey, props.column.key]);
@@ -212,11 +286,16 @@ registerFieldInput({
   },
   dirty,
   commit,
-  focus: () => focusFieldInput(inputRef.value),
+  focus: () => {
+    focusFieldInput(inputRef.value);
+    return focus();
+  },
   cancel,
 });
 
 function listValueDescription(value: string): string | undefined {
   return sourceValue(props.sourceIndex, props.column.schema?.source, value)?.option.description ?? undefined;
 }
+
+defineExpose({ focus });
 </script>

@@ -1,6 +1,6 @@
 <template>
   <ResourceThumbnail
-    v-if="resource && url"
+    v-if="resource"
     :session-id="sessionId"
     :resource="resource"
     :url="url"

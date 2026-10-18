@@ -121,6 +121,7 @@ fn invalidate_files(
                 .any(|file| file.path == state.path && file.after_text == state.saved_text);
         if !retained {
             state.rows = None;
+            state.row_index = None;
         }
     }
     for (table, (header, rows, next_seq)) in refreshed_rows {
@@ -130,6 +131,7 @@ fn invalidate_files(
             .expect("registered table");
         state.header = header;
         state.rows = Some(rows);
+        state.row_index = None;
         state.next_row_seq = next_seq;
         state.saved_text = None;
         let summary = session

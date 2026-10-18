@@ -1,4 +1,4 @@
-import type { CsvGridRowSlot, CsvLoadedRowSlot, CsvTableRows, CsvTableKey } from '@/shared/types';
+import type { CsvRowRecord, CsvTableKey } from '@/shared/types';
 import { cell } from '@/shared/lib/starsector';
 import { csvColumnSchemaFor, csvListValues } from '@/domain/tables/csv-column-schema';
 import type { CsvColumnSchema } from '@/domain/schema/schema.types';
@@ -13,10 +13,14 @@ export interface CsvGridColumn {
   widthPx: number;
 }
 
-export interface CsvGridModel {
+export interface CsvGridModel extends CsvGridColumns {
+  rowKeys: string[];
+  rowsByKey: Record<string, CsvRowRecord>;
+}
+
+export interface CsvGridColumns {
   columns: CsvGridColumn[];
   performanceSample: CsvGridPerformanceSample;
-  rows: CsvGridRowSlot[];
   sourceIndex: CsvSourceIndex;
   totalWidthPx: number;
 }
@@ -30,17 +34,14 @@ export interface CsvGridPerformanceSample {
   widthMs: number;
 }
 
-export function createCsvGridModel(
+export function createCsvGridColumns(
   table: CsvTableKey,
   visibleColumns: string[],
-  rowSlots: CsvTableRows,
-  rowCount: number,
+  loadedRows: CsvRowRecord[],
   loadedSourceOptions: Map<string, SelectOption[]> = new Map(),
-): CsvGridModel {
+): CsvGridColumns {
   const startedAt = performance.now();
   const columns = visibleColumns.map((key) => createCsvGridColumn(table, key));
-  const rows = createCsvGridRowSlots(table, rowSlots, rowCount);
-  const loadedRows = rows.filter((row): row is CsvLoadedRowSlot => row.kind === 'row');
   const sourceStartedAt = performance.now();
   const sourceIndex = createCsvSourceIndex(
     columns.map((column) => column.schema?.source),
@@ -56,20 +57,12 @@ export function createCsvGridModel(
   const performanceSample = {
     columns: columns.length,
     ms: Math.round(performance.now() - startedAt),
-    rows: rows.length,
+    rows: loadedRows.length,
     sourceMs: Math.round(sourceMs),
     table,
     widthMs: Math.round(widthMs),
   };
-  return { columns, performanceSample, rows, sourceIndex, totalWidthPx };
-}
-
-function createCsvGridRowSlots(table: CsvTableKey, rowSlots: CsvTableRows, rowCount: number): CsvGridRowSlot[] {
-  return Array.from({ length: rowCount }, (_, rowIndex) => {
-    const row = rowSlots[rowIndex];
-    if (row) return { ...row, kind: 'row', rowIndex };
-    return { kind: 'placeholder', rowIndex, slotKey: `${table}:slot:${rowIndex}` };
-  });
+  return { columns, performanceSample, sourceIndex, totalWidthPx };
 }
 
 function createCsvGridColumn(table: CsvTableKey, key: string): CsvGridColumn {
@@ -83,7 +76,7 @@ function createCsvGridColumn(table: CsvTableKey, key: string): CsvGridColumn {
   };
 }
 
-function columnWidthPx(column: CsvGridColumn, rows: CsvLoadedRowSlot[], sourceIndex: CsvSourceIndex): number {
+function columnWidthPx(column: CsvGridColumn, rows: CsvRowRecord[], sourceIndex: CsvSourceIndex): number {
   const headerText = column.schema?.label ?? column.key;
   const headerWidth = textWidthPx(headerText, 'header');
   const control = column.schema?.control ?? 'text';
@@ -104,7 +97,7 @@ function columnWidthPx(column: CsvGridColumn, rows: CsvLoadedRowSlot[], sourceIn
   return clamp(Math.max(headerWidth, contentWidth) + 24, 64, textColumnMaxPx(column.key));
 }
 
-function maxColumnContentWidthPx(key: string, rows: CsvLoadedRowSlot[]): number {
+function maxColumnContentWidthPx(key: string, rows: CsvRowRecord[]): number {
   let maxWidth = 0;
   for (const row of rows) {
     maxWidth = Math.max(maxWidth, textWidthPx(cell(row.data[key]), 'cell'));
@@ -120,7 +113,7 @@ function textColumnMaxPx(key: string): number {
   return 220;
 }
 
-function tagColumnWidthPx(key: string, rows: CsvLoadedRowSlot[]): number {
+function tagColumnWidthPx(key: string, rows: CsvRowRecord[]): number {
   const rowWidths = rows
     .map((row) => tagRowWidthPx(cell(row.data[key])))
     .filter((width) => width > 0)

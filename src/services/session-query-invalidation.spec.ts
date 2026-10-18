@@ -6,7 +6,7 @@ import {
   querySessionEntityIdentityIntent,
   hasEntityInvalidation,
 } from './entity-query.service';
-import { queryTableWindow, querySessionCsvRowPreview, hasTableInvalidation } from './csv-table.service';
+import { queryTableIndex, querySessionCsvRowPreview, hasTableInvalidation } from './csv-table.service';
 import { querySourceOptionCatalog, hasSourceInvalidation } from './source-options.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import { querySessionDraftResources, resolveModImageReference } from './resource-reference.service';
@@ -77,7 +77,7 @@ const cases: Array<{
   },
   {
     name: 'csv-table-window',
-    read: () => queryTableWindow(session, 'ships', 0, 50, null, 'id-name'),
+    read: () => queryTableIndex(session, 'ships', 50, null, 'id-name'),
     matching: scope('csv-table-window', { table: 'ships' }),
     unrelated: scope('csv-table-window', { table: 'weapons' }),
     value: { rows: [] },

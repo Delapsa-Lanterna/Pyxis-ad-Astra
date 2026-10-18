@@ -1,6 +1,6 @@
 <template>
   <aside class="detail-pane ui-layout-grid ui-content-scroll ui-content-surface-muted">
-    <div class="panel-section-title ui-text-muted">侧边栏</div>
+    <div class="panel-section-title ui-text-muted">详情栏</div>
     <template v-if="tables.selectedRow">
       <section class="panel-card detail-card record-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
         <div class="detail-thumbnail ui-control-center ui-layout-clip ui-layout-stretch ui-control-border">
@@ -75,7 +75,7 @@
     </template>
     <div v-else class="panel-empty detail-empty ui-text-muted ui-layout-grid ui-content-surface">
       <strong class="detail-empty-value ui-emphasis ui-text-soft">未选择记录</strong>
-      <span class="detail-empty-label ui-text-small">点击一行查看侧边栏详情与操作，双击单元格编辑 CSV。</span>
+      <span class="detail-empty-label ui-text-small">点击一行在详情栏查看记录与操作，双击单元格编辑 CSV。</span>
     </div>
   </aside>
 </template>

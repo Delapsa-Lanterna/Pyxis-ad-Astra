@@ -321,6 +321,17 @@ body,
   border: 0;
   cursor: pointer;
 }
+.ui-panel-toggle {
+  padding-left: 6px;
+  color: var(--color-border-strong);
+}
+.ui-panel-toggle::after {
+  content: '';
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+}
 .ui-content-column {
   display: flex;
   flex-direction: column;

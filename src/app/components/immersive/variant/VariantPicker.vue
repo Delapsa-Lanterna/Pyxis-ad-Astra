@@ -48,26 +48,24 @@
       <ImmersiveText v-if="loading" text="正在读取候选目录" />
       <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
       <template v-else>
-        <div :style="{ height: viewport.beforeHeight.value + 'px' }" aria-hidden="true" />
-        <template v-for="(entry, index) in viewport.visibleItems.value" :key="entry.id">
+        <template v-for="view in viewport.entries.value" :key="view.key">
+          <div v-if="view.kind === 'gap'" :style="{ height: view.height + 'px' }" data-retained-gap aria-hidden="true" />
           <VariantCandidateCard
-            :data-entry-id="entry.id"
+            v-else
+            v-show="!view.hidden"
+            :data-entry-id="view.item.id"
             :root="root"
             :kind="kind"
-            :entry="entry"
+            :entry="view.item"
             :media-url="(resource) => preload.url(root.sessionId, resource)"
-            :in-view="
-              viewport.startIndex.value + index >= viewport.firstVisibleIndex.value &&
-              viewport.startIndex.value + index < viewport.lastVisibleIndex.value
-            "
-            :cost="cost(entry)"
-            :diagnostic="diagnostic(entry)"
-            @select="choose(entry.id)"
-            @hover="showCandidate(entry.id, $event)"
+            :active="view.active"
+            :cost="cost(view.item)"
+            :diagnostic="diagnostic(view.item)"
+            @select="choose(view.item.id)"
+            @hover="showCandidate(view.item.id, $event)"
             @leave="hover.leave"
           />
         </template>
-        <div :style="{ height: viewport.afterHeight.value + 'px' }" aria-hidden="true" />
         <ImmersiveText v-if="!filtered.length" text="没有匹配候选" block />
       </template>
     </div>
@@ -75,7 +73,7 @@
       <summary class="immersive-disclosure-summary ui-layout-row ui-layout-center ui-control-pointer">
         <ImmersiveText text="来源与 ID" font="caption" ink-aligned />
       </summary>
-      <n-select v-model:value="origin" :options="origins" />
+      <n-select :virtual-scroll="false" v-model:value="origin" :options="origins" />
       <footer class="variant-picker-extra-footer ui-footer ui-layout-row">
         <n-input v-model:value="manualId" placeholder="手动填写 ID" @keydown.enter.stop.prevent="manual" /><n-button @click="manual"
           >提交 ID</n-button
@@ -108,10 +106,10 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, onMounted, onScopeDispose, watch, nextTick } from 'vue';
+import { computed, ref, onMounted, onScopeDispose, watch } from 'vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import type { JointVariantEntry, JointEditRoot, RowData } from '@/shared/types';
+import type { ReadonlyVariantEntry, JointEditRoot, RowData } from '@/shared/types';
 import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
@@ -123,7 +121,7 @@ import ImmersiveText from '../ImmersiveText.vue';
 import VariantCandidateDetails from './VariantCandidateDetails.vue';
 import VariantCandidateCard from './VariantCandidateCard.vue';
 import ImmersiveFilterToggle from '../ImmersiveFilterToggle.vue';
-import { useCsvGridViewport } from '@/app/composables/tables/use-csv-grid-viewport';
+import { useRetainedList } from '@/shared/runtime/retained-list';
 import { useImmersiveHover } from '@/app/composables/use-immersive-hover';
 import { useImagePreload } from '@/app/composables/use-image-preload';
 import { variantCandidateResources } from '@/domain/immersive/variant/variant-panel';
@@ -164,9 +162,9 @@ const origins = [
   { label: '当前 Mod', value: 'mod' },
   { label: 'Core', value: 'core' },
 ];
-const data = (entry: JointVariantEntry) => (isRowData(entry.data) ? entry.data : {});
-const string = (entry: JointVariantEntry, key: string) => schemaStringValue(data(entry)[key]);
-const label = (entry: JointVariantEntry) => entry.label;
+const data = (entry: ReadonlyVariantEntry) => (isRowData(entry.data) ? entry.data : {});
+const string = (entry: ReadonlyVariantEntry, key: string) => schemaStringValue(data(entry)[key]);
+const label = (entry: ReadonlyVariantEntry) => entry.label;
 const filterOptions = computed(() =>
   props.kind === 'weapons'
     ? [
@@ -189,10 +187,10 @@ function toggleFilter(option: { value: string; group: string }) {
     ? selected.value.filter((value) => value !== option.value)
     : [...selected.value, option.value];
 }
-function cost(entry: JointVariantEntry) {
+function cost(entry: ReadonlyVariantEntry) {
   return immersiveNumber(data(entry), props.kind === 'weapons' ? 'OPs' : 'op cost', NaN);
 }
-function diagnostic(entry: JointVariantEntry) {
+function diagnostic(entry: ReadonlyVariantEntry) {
   return props.kind === 'weapons' && props.weaponSlot
     ? !isRowData(entry.spec)
       ? '武器规格来源缺失'
@@ -234,14 +232,21 @@ const filtered = computed(() => {
   });
   return items;
 });
-const viewport = useCsvGridViewport(filtered, { editingIndex: ref(null), rowHeight: VARIANT_CARD_STEP, overscan: 2 });
+const entryById = computed(() => new Map(entries.value.map((entry) => [entry.id, entry])));
+const viewport = useRetainedList(
+  () => filtered.value.map((entry) => entry.id),
+  (key) => entryById.value.get(key),
+  (entry) => entry.id,
+  VARIANT_CARD_STEP,
+);
+watch(() => JSON.stringify([props.root.sessionId, props.root.modRoot, props.kind]), viewport.reset, { flush: 'sync' });
 const preload = useImagePreload('装配候选预读');
-const candidateResources = new WeakMap<JointVariantEntry, import('@/shared/types').ResourceRef[]>();
+const candidateResources = new WeakMap<ReadonlyVariantEntry, import('@/shared/types').ResourceRef[]>();
 function preloadImages() {
   const list = listSurface.value!,
     start = Math.floor(list.scrollTop / VARIANT_CARD_STEP),
     count = Math.ceil(list.clientHeight / VARIANT_CARD_STEP),
-    resources = (entries: JointVariantEntry[]) =>
+    resources = (entries: ReadonlyVariantEntry[]) =>
       entries.flatMap((entry) => {
         let resources = candidateResources.get(entry);
         if (!resources) {
@@ -261,11 +266,16 @@ function measureList() {
   viewport.setViewportMetrics({ clientHeight: list.clientHeight, scrollTop: list.scrollTop });
   preloadImages();
 }
-function scrollList(event: Event) {
+let scrollFrame = 0;
+function scrollList() {
   hover.close();
-  viewport.onScroll(event);
-  preloadImages();
+  if (!scrollFrame)
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      measureList();
+    });
 }
+onScopeDispose(() => cancelAnimationFrame(scrollFrame));
 watch(
   filtered,
   () => {
@@ -332,10 +342,10 @@ function compareKey(event: KeyboardEvent) {
   const height = VARIANT_CARD_STEP;
   listSurface.value!.scrollTop = Math.max(0, next * height - listSurface.value!.clientHeight / 2);
   measureList();
-  void nextTick(() => {
-    [...listSurface.value!.querySelectorAll<HTMLElement>('[data-entry-id]')]
-      .find((item) => item.dataset.entryId === filtered.value[next]!.id)!
-      .focus();
+  const id = filtered.value[next]!.id;
+  void viewport.ensure(next).then((ready) => {
+    if (!ready) return;
+    [...listSurface.value!.querySelectorAll<HTMLElement>('[data-entry-id]')].find((item) => item.dataset.entryId === id)!.focus();
   });
 }
 onMounted(() => {

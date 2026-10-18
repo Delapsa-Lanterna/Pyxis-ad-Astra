@@ -41,29 +41,25 @@
   font: 400 12px/18px var(--font-sans);
 }
 .mod-tab-close,
-.mod-tabs-overview,
-.mod-tabs-navigation-toggle {
+.mod-tabs-overview {
   place-items: center;
   flex: 0 0 auto;
   width: 24px;
   height: 24px;
   border-radius: 4px;
 }
-.mod-tabs-overview,
-.mod-tabs-navigation-toggle {
+.mod-tabs-overview {
   width: 28px;
   height: 28px;
   border-radius: 6px;
 }
 .mod-tab-close:hover,
-.mod-tabs-overview:hover,
-.mod-tabs-navigation-toggle:hover {
+.mod-tabs-overview:hover {
   background: var(--color-surface-hover);
   color: var(--color-text);
 }
 .mod-tab-close .mod-tab-close-icon,
-.mod-tabs-overview .mod-tabs-overview-icon,
-.mod-tabs-navigation-toggle .mod-tabs-navigation-toggle-icon {
+.mod-tabs-overview .mod-tabs-overview-icon {
   width: 12px;
   height: 12px;
   fill: none;

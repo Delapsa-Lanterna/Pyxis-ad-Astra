@@ -27,41 +27,54 @@ pub struct CsvRow {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CsvTableWindow {
-    pub base_versions: Vec<crate::models::FileVersion>,
-    pub table: CsvTableKey,
-    pub header: Vec<String>,
-    pub total_rows: usize,
-    pub filtered_rows: usize,
-    pub start: usize,
-    pub rows: Vec<CsvWindowRow>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct CsvWindowRow {
+pub struct CsvRowRecord {
     pub row_key: String,
-    pub source_row_index: usize,
     pub data: Map<String, Value>,
     pub is_comment: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CsvRowPreview {
-    pub resource_ref: Option<ResourceRef>,
+pub struct CsvTableIndex {
+    pub base_versions: Vec<crate::models::FileVersion>,
+    pub table: CsvTableKey,
+    pub header: Vec<String>,
+    pub total_rows: usize,
+    pub row_keys: Vec<String>,
+    pub rows: Vec<CsvRowRecord>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CsvTableWindowPayload {
+pub struct CsvTableRowsRead {
+    pub base_versions: Vec<crate::models::FileVersion>,
+    pub table: CsvTableKey,
+    pub rows: Vec<CsvRowRecord>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvTableIndexPayload {
     pub session_id: ProjectSessionId,
     pub table: CsvTableKey,
-    pub start: usize,
-    pub count: usize,
+    pub initial_count: usize,
     #[serde(deserialize_with = "required_nullable")]
     pub search: Option<String>,
     pub search_field: CsvSearchField,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvTableRowsPayload {
+    pub session_id: ProjectSessionId,
+    pub table: CsvTableKey,
+    pub row_keys: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvRowPreview {
+    pub resource_ref: Option<ResourceRef>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -78,13 +91,12 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn csv_table_window_payload_requires_explicit_nullable_filters() {
-        let result = serde_json::from_value::<CsvTableWindowPayload>(json!({
+    fn csv_table_index_payload_requires_explicit_nullable_filters() {
+        let result = serde_json::from_value::<CsvTableIndexPayload>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "table": "ships",
-            "start": 0,
-            "count": 50,
+            "initialCount": 50,
             "search": null
         }));
 
@@ -92,13 +104,12 @@ mod tests {
     }
 
     #[test]
-    fn csv_table_window_payload_uses_explicit_search_field() {
+    fn csv_table_index_payload_uses_explicit_search_field() {
         for field in ["id-name", "id", "name", "tags"] {
-            let payload = serde_json::from_value::<CsvTableWindowPayload>(json!({
+            let payload = serde_json::from_value::<CsvTableIndexPayload>(json!({
                 "sessionId": "session-1",
                 "table": "ships",
-                "start": 0,
-                "count": 50,
+                "initialCount": 50,
                 "search": null,
                 "searchField": field
             }))
@@ -108,11 +119,11 @@ mod tests {
     }
 
     #[test]
-    fn csv_table_window_payload_requires_search_even_when_it_is_null() {
-        let mut value = json!({"sessionId": "table-session", "table": "ships", "start": 5, "count": 20, "searchField": "id-name"});
-        assert!(serde_json::from_value::<CsvTableWindowPayload>(value.clone()).is_err());
+    fn csv_table_index_payload_requires_search_even_when_it_is_null() {
+        let mut value = json!({"sessionId": "table-session", "table": "ships", "initialCount": 20, "searchField": "id-name"});
+        assert!(serde_json::from_value::<CsvTableIndexPayload>(value.clone()).is_err());
         value["search"] = Value::Null;
-        let payload = serde_json::from_value::<CsvTableWindowPayload>(value.clone()).unwrap();
+        let payload = serde_json::from_value::<CsvTableIndexPayload>(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(payload).unwrap(), value);
     }
 }

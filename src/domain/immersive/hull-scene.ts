@@ -5,7 +5,7 @@ import type {
   JointHullProjection,
   RowData,
   ResourceRef,
-  JointVariantEntry,
+  ReadonlyVariantEntry,
   JointPreviewSpec,
   DeepReadonly,
 } from '@/shared/types';
@@ -18,24 +18,24 @@ export interface ImmersiveHullProjection {
   key: string;
   name: string;
   spec: DeepReadonly<RowData>;
-  hull: Pick<JointHullProjection, 'sprite' | 'modules'>;
+  hull: DeepReadonly<Pick<JointHullProjection, 'sprite' | 'modules'>>;
   weapons: Array<MountedWeaponImages & { id: string; name: string; builtin: boolean }>;
   modules: Array<{ slot: DeepReadonly<RowData>; variant: ImmersiveHullProjection }>;
   engineStyles: Readonly<RowData>;
   engineResources: Record<string, ResourceRef>;
 }
 
-export function immersiveCatalogScene(entry: JointVariantEntry): ImmersiveHullProjection | null {
+export function immersiveCatalogScene(entry: ReadonlyVariantEntry): ImmersiveHullProjection | null {
   const preview = entry.preview;
   if (!preview || !isRowData(preview.spec)) return null;
   return variantHullScene(preview.hull, preview.spec, entry.label, preview.specs);
 }
 
 function variantHullScene(
-  hull: JointHullProjection,
+  hull: DeepReadonly<JointHullProjection>,
   spec: DeepReadonly<RowData>,
   name: string,
-  specs: DeepReadonly<JointPreviewSpec>[],
+  specs: readonly DeepReadonly<JointPreviewSpec>[],
 ): ImmersiveHullProjection {
   return {
     key: hull.variantKey,

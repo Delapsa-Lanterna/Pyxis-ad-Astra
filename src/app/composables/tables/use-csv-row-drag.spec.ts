@@ -3,7 +3,6 @@ import { defineComponent, h, ref, shallowRef } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useCsvRowDrag } from './use-csv-row-drag';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
-import type { CsvGridRowSlot } from '@/shared/types';
 
 const error = vi.hoisted(() => vi.fn());
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error }) }));
@@ -18,17 +17,7 @@ function fixture() {
   const panel = shallowRef<HTMLElement | null>(null),
     disabled = ref(''),
     context = ref('one');
-  const rows = ref<CsvGridRowSlot[]>(
-    Array.from({ length: 8 }, (_, index) => ({
-      kind: 'row',
-      rowIndex: index,
-      rowKey: `row-${index}`,
-      sourceRowIndex: index,
-      insertAt: null,
-      data: { id: String(index) },
-      isComment: false,
-    })),
-  );
+  const rowKeys = ref(Array.from({ length: 8 }, (_, index) => 'row-' + index));
   const inputs = createFieldInputs(ref('one')),
     move = vi.fn(),
     select = vi.fn(),
@@ -45,7 +34,16 @@ function fixture() {
   wrapper = mount(
     defineComponent({
       setup() {
-        drag = useCsvRowDrag({ panel, rows, disabled: () => disabled.value, context: () => context.value, inputs, move, select, scrolled });
+        drag = useCsvRowDrag({
+          panel,
+          rowKeys,
+          disabled: () => disabled.value,
+          context: () => context.value,
+          inputs,
+          move,
+          select,
+          scrolled,
+        });
         return () => h('div', { ref: panel }, [h('input')]);
       },
     }),
@@ -67,7 +65,7 @@ function fixture() {
     frames.delete(id);
     callback(time);
   };
-  return { drag, inputs, disabled, context, rows, move, select, scrolled, event, frames, advance };
+  return { drag, inputs, disabled, context, rowKeys, move, select, scrolled, event, frames, advance };
 }
 
 describe('CSV row drag lifecycle', () => {
@@ -142,13 +140,13 @@ describe('CSV row drag lifecycle', () => {
     drag.cancel();
     expect(frames.size).toBe(0);
   });
-  it('waits for an actual row at a placeholder drop position', async () => {
-    const { drag, rows, move, event } = fixture();
-    rows.value[2] = { kind: 'placeholder', rowIndex: 2, slotKey: 'empty' };
+  it('accepts an unloaded target identity at its drop position', async () => {
+    const { drag, rowKeys, move, event } = fixture();
+    rowKeys.value[2] = 'unloaded';
     drag.start('row-0', event(30));
     await flushPromises();
     drag.onMove(event(90));
     drag.onUp(event(90));
-    expect(move).not.toHaveBeenCalled();
+    expect(move).toHaveBeenCalledExactlyOnceWith('row-0', 2);
   });
 });
