@@ -2,7 +2,7 @@ import type { JointEditSnapshot, JointValue, ResourceRef, JointHullProjection, D
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { jointObject } from '@/domain/joint-edit';
 import { immersiveSourceRecords } from '../source-records';
-import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { designTypeColor } from '../design-type';

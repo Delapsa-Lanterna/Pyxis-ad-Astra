@@ -83,7 +83,7 @@ vi.mock('@/app/composables/use-schema-runtime-context', () => ({
   useSchemaRuntimeContext: () => null,
   createSchemaRuntimeContext: () => ({ querySourceOptions: async () => [], subscribeSourceOptionInvalidation: () => () => {} }),
 }));
-vi.mock('@/domain/schema/schema-registry', () => ({
+vi.mock('@/domain/schema/config-schema-registry', () => ({
   getSchema: (id: string) => ({
     id,
     sections: [
@@ -100,6 +100,8 @@ vi.mock('@/domain/schema/schema-registry', () => ({
 }));
 vi.mock('@/app/composables/use-core-assets', () => ({
   useCoreGraphics: () => ({ graphicsPaths: ref([]), loadGraphics: async () => {} }),
+}));
+vi.mock('@/app/composables/use-core-schema', () => ({
   useCoreSchema: () => ({
     loadCoreFields: async () => {},
     getMergedSchema: () => ({

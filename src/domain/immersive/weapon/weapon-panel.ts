@@ -4,7 +4,7 @@ import type { JointEditSnapshot, JointValue, ResourceRef } from '@/shared/types'
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { immersiveSourceRecords } from '../source-records';
 import { jointObject } from '@/domain/joint-edit';
-import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics, weaponAccuracy, weaponTurnRate, weaponMissileSpeed, weaponMissileTracking } from './weapon-statistics';
 import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';

@@ -1,7 +1,7 @@
 import type { CsvTableKey } from '@/shared/types';
 import type { SelectOption } from '@/domain/schema/schema-options';
 import type { CsvColumnControl, CsvColumnSchema } from '@/domain/schema/schema.types';
-import { getCsvColumnSchemas } from '@/domain/schema/schema-registry';
+import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 
 const CSV_BOOLEAN_OPTIONS: SelectOption[] = [
   { label: 'TRUE', value: 'TRUE' },

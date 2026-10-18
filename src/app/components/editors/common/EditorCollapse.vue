@@ -9,6 +9,5 @@
   </NCollapse>
 </template>
 <script setup lang="ts">
-import { NCollapse } from 'naive-ui/es/collapse';
 defineOptions({ inheritAttrs: false });
 </script>

@@ -40,7 +40,7 @@
 ### 消费
 
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
-- `src/domain/schema/schema-registry.ts`：表格消费的列 schema 加载入口。
+- `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
 - `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
 - `src/shared/lib/starsector/tables.ts`：游戏表格标准列、模块名称及列排序。
 - `src/shared/types/tables.types.ts`：CSV 行、单元格目标、窗口与预览契约。

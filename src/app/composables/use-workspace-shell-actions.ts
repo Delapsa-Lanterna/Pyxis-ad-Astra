@@ -1,9 +1,5 @@
-import { computed, getCurrentScope, h, onScopeDispose, ref, type Ref } from 'vue';
-import { NSelect } from 'naive-ui/es/select';
-import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/weapon-spec';
-
-import type { WeaponSpecClass, AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
-import { NCheckbox } from 'naive-ui/es/checkbox';
+import { computed, getCurrentScope, h, onScopeDispose, ref } from 'vue';
+import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 import { useSettingsStore } from '@/stores/settings.store';
 import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
@@ -214,11 +210,23 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   async function selectAssociatedSpecs(candidates: AssociatedSpecCandidate[]) {
+    const { default: AssociatedSpecSaveDialog } = await import('@/app/components/AssociatedSpecSaveDialog.vue');
     const choices = ref(candidates);
     const selectedKeys = ref(new Set(candidates.map((candidate) => candidate.key)));
     const choice = await feedback.choose({
       title: '保存 CSV',
-      content: () => renderAssociatedSpecDialog(choices.value, selectedKeys),
+      content: () =>
+        h(AssociatedSpecSaveDialog, {
+          candidates: choices.value,
+          selectedKeys: selectedKeys.value,
+          'onUpdate:candidates': (value) => {
+            choices.value = value;
+          },
+          onSelect: (key, checked) => {
+            if (checked) selectedKeys.value.add(key);
+            else selectedKeys.value.delete(key);
+          },
+        }),
       choices: [{ label: '保存', value: 'save', type: 'primary' }],
     });
     if (choice !== 'save') return null;
@@ -480,47 +488,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     } else if (result.status === 'noop') {
       feedback.info('没有需要保存的修改');
     }
-  }
-
-  function renderAssociatedSpecDialog(candidates: AssociatedSpecCandidate[], selectedKeys: Ref<Set<string>>) {
-    return h('div', { class: 'associated-save-dialog' }, [
-      h('p', '勾选的关联 spec 动作随本次 CSV 一起保存，并形成一次文件历史。武器类型用于新建及重命名来源缺失时的创建。'),
-      candidates.some((candidate) => candidate.change.action !== 'delete' && candidate.change.create.kind === 'weapon')
-        ? h('p', WEAPON_SPEC_CLASS_NOTE)
-        : null,
-      h(
-        'div',
-        { class: 'associated-save-list' },
-        candidates.map((candidate) => {
-          const change = candidate.change;
-          const weaponCreate = change.action !== 'delete' && change.create.kind === 'weapon' ? change.create : null;
-          return h('div', { class: 'associated-save-item' }, [
-            h(
-              NCheckbox,
-              {
-                checked: selectedKeys.value.has(candidate.key),
-                'onUpdate:checked': (checked: boolean) => {
-                  const next = new Set(selectedKeys.value);
-                  if (checked) next.add(candidate.key);
-                  else next.delete(candidate.key);
-                  selectedKeys.value = next;
-                },
-              },
-              { default: () => candidate.label },
-            ),
-            weaponCreate
-              ? h(NSelect, {
-                  value: weaponCreate.specClass,
-                  options: WEAPON_SPEC_CLASSES.map((specClass) => ({ label: specClass, value: specClass })),
-                  'onUpdate:value': (specClass: WeaponSpecClass) => {
-                    weaponCreate.specClass = specClass;
-                  },
-                })
-              : null,
-          ]);
-        }),
-      ),
-    ]);
   }
 
   function openRequestedEditorWindow(action: Extract<TableDetailAction, { type: 'editor-window' }>) {

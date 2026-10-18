@@ -31,14 +31,14 @@
 </template>
 
 <script setup lang="ts">
-import { NCheckbox } from 'naive-ui/es/checkbox';
+import ConfigDeleteSourceDialog from '@/app/components/config/ConfigDeleteSourceDialog.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 
 import { h, ref, computed, onMounted, onUnmounted, toRef } from 'vue';
 import type { ConfigMissionEditorData, RowData } from '@/shared/types';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import ConfigTargetNotice from '@/app/components/config/ConfigTargetNotice.vue';
-import { getSchema } from '@/domain/schema/schema-registry';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import type { FileSchema } from '@/domain/schema/schema.types';
@@ -114,19 +114,14 @@ function confirmDeleteMission() {
   feedback.confirmDanger({
     title: '删除战役',
     content: () =>
-      h('div', [
-        h('p', `确定要从列表移除 "${id}" 吗？`),
-        h(
-          NCheckbox,
-          {
-            checked: removeSource.value,
-            'onUpdate:checked': (checked: boolean) => {
-              removeSource.value = checked;
-            },
-          },
-          { default: () => '同时删除战役目录' },
-        ),
-      ]),
+      h(ConfigDeleteSourceDialog, {
+        id,
+        label: '同时删除战役目录',
+        checked: removeSource.value,
+        'onUpdate:checked': (checked: boolean) => {
+          removeSource.value = checked;
+        },
+      }),
     actionText: '删除',
     onConfirm: async () => {
       await deleteMissionTarget(deleteSessionId, deleteModRoot, id, removeSource.value);

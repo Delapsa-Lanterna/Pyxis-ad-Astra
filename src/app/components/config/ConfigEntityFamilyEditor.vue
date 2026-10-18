@@ -33,7 +33,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import type { RowData, SavedConfig, ConfigIdentityHandoff } from '@/shared/types';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import ConfigTargetNotice from '@/app/components/config/ConfigTargetNotice.vue';
-import { getSchema } from '@/domain/schema/schema-registry';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 import { useConfigFamilyEditorViewModel } from '@/app/composables/config/use-config-family-editor-view-model';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { ConfigEntityFamilyDefinition, ConfigFamilyFile } from '@/domain/config/config-entity-families';

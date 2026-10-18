@@ -4,8 +4,6 @@ import { NConfigProvider } from 'naive-ui/es/config-provider';
 import { NDialogProvider } from 'naive-ui/es/dialog';
 import { NMessageProvider } from 'naive-ui/es/message';
 
-const asyncNaiveComponentLoaders: Array<() => Promise<Component>> = [];
-
 export function installNaiveUi(app: App): void {
   app.component('NConfigProvider', NConfigProvider);
   app.component('NDialogProvider', NDialogProvider);
@@ -30,12 +28,5 @@ export function installNaiveUi(app: App): void {
 }
 
 function registerAsyncNaiveComponent(app: App, name: string, loader: () => Promise<Component>): void {
-  asyncNaiveComponentLoaders.push(loader);
   app.component(name, defineAsyncComponent(loader));
-}
-
-export function preloadNaiveComponents(): void {
-  for (const loader of asyncNaiveComponentLoaders) {
-    void loader().catch(() => {});
-  }
 }

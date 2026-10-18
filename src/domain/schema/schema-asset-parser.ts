@@ -1,4 +1,3 @@
-import type { CsvTableKey } from '@/shared/types';
 import { validateSchemaCsvSources } from '@/domain/schema/schema-sources';
 import {
   CSV_COLUMN_CONTROL_SET,
@@ -11,65 +10,12 @@ import {
   type SectionSchema,
 } from '@/domain/schema/schema.types';
 
-import modInfoSchemaRaw from '../../../schemas/mod-info.schema.json';
-import factionSchemaRaw from '../../../schemas/faction.schema.json';
-import missionSchemaRaw from '../../../schemas/mission.schema.json';
-import skinSchemaRaw from '../../../schemas/skin.schema.json';
-import variantSchemaRaw from '../../../schemas/variant.schema.json';
-import abilitiesColumnsRaw from '../../../schemas/csv/abilities.schema.json';
-import commoditiesColumnsRaw from '../../../schemas/csv/commodities.schema.json';
-import descriptionsColumnsRaw from '../../../schemas/csv/descriptions.schema.json';
-import hullmodsColumnsRaw from '../../../schemas/csv/hullmods.schema.json';
-import industriesColumnsRaw from '../../../schemas/csv/industries.schema.json';
-import marketConditionsColumnsRaw from '../../../schemas/csv/marketConditions.schema.json';
-import shipSystemsColumnsRaw from '../../../schemas/csv/shipSystems.schema.json';
-import shipsColumnsRaw from '../../../schemas/csv/ships.schema.json';
-import simOpponentsColumnsRaw from '../../../schemas/csv/simOpponents.schema.json';
-import skillsColumnsRaw from '../../../schemas/csv/skills.schema.json';
-import specialItemsColumnsRaw from '../../../schemas/csv/specialItems.schema.json';
-import submarketsColumnsRaw from '../../../schemas/csv/submarkets.schema.json';
-import weaponsColumnsRaw from '../../../schemas/csv/weapons.schema.json';
-import wingsColumnsRaw from '../../../schemas/csv/wings.schema.json';
-
 const FIELD_SCHEMA_VERSION = 'circinus-ad-astra/field-schema/v1';
 const CSV_COLUMNS_VERSION = 'circinus-ad-astra/csv-columns/v1';
 
-const SCHEMAS: Record<string, FileSchema> = {
-  'mod-info': parseFileSchema('mod-info', modInfoSchemaRaw),
-  faction: parseFileSchema('faction', factionSchemaRaw),
-  mission: parseFileSchema('mission', missionSchemaRaw),
-  skin: parseFileSchema('skin', skinSchemaRaw),
-  variant: parseFileSchema('variant', variantSchemaRaw),
-};
-
-const CSV_COLUMN_SCHEMAS: Record<CsvTableKey, CsvColumnSchema[]> = {
-  abilities: parseCsvColumnSchemas('abilities', abilitiesColumnsRaw),
-  commodities: parseCsvColumnSchemas('commodities', commoditiesColumnsRaw),
-  descriptions: parseCsvColumnSchemas('descriptions', descriptionsColumnsRaw),
-  hullmods: parseCsvColumnSchemas('hullmods', hullmodsColumnsRaw),
-  industries: parseCsvColumnSchemas('industries', industriesColumnsRaw),
-  marketConditions: parseCsvColumnSchemas('marketConditions', marketConditionsColumnsRaw),
-  shipSystems: parseCsvColumnSchemas('shipSystems', shipSystemsColumnsRaw),
-  ships: parseCsvColumnSchemas('ships', shipsColumnsRaw),
-  simOpponents: parseCsvColumnSchemas('simOpponents', simOpponentsColumnsRaw),
-  skills: parseCsvColumnSchemas('skills', skillsColumnsRaw),
-  specialItems: parseCsvColumnSchemas('specialItems', specialItemsColumnsRaw),
-  submarkets: parseCsvColumnSchemas('submarkets', submarketsColumnsRaw),
-  weapons: parseCsvColumnSchemas('weapons', weaponsColumnsRaw),
-  wings: parseCsvColumnSchemas('wings', wingsColumnsRaw),
-};
-
-export function getSchema(id: string): FileSchema | null {
-  return Object.hasOwn(SCHEMAS, id) ? SCHEMAS[id]! : null;
-}
-
-export function getCsvColumnSchemas(table: CsvTableKey): CsvColumnSchema[] {
-  return CSV_COLUMN_SCHEMAS[table] ?? [];
-}
-
 // Runtime shape validation: schema assets become typed output only through this entry.
 
-function parseFileSchema(id: string, raw: unknown): FileSchema {
+export function parseFileSchema(id: string, raw: unknown): FileSchema {
   const asset = asRecord(raw, `schema ${id}`);
   if (asset.$schema !== FIELD_SCHEMA_VERSION) {
     throw new Error(`schema ${id}: $schema 必须是 ${FIELD_SCHEMA_VERSION}`);
@@ -189,7 +135,7 @@ function parseSources(id: string, raw: unknown): FileSchema['sources'] {
   });
 }
 
-function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSchema[] {
+export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSchema[] {
   const asset = asRecord(raw, `csv column schema ${table}`);
   if (asset.$schema !== CSV_COLUMNS_VERSION) {
     throw new Error(`csv column schema ${table}: $schema 必须是 ${CSV_COLUMNS_VERSION}`);

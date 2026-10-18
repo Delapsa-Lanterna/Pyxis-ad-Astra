@@ -12,7 +12,7 @@ vi.mock('@/orchestrators/workspace-persistence.orchestrator', () => ({
   restorePersistedWorkspace: mocks.restore,
   watchWorkspacePersistence: () => ({ beginRestore: vi.fn(), finishRestore: vi.fn(), stop: mocks.stopPersistence }),
 }));
-vi.mock('@/app/composables/use-core-assets', () => ({ useCoreSchema: () => ({ loadCoreFields: vi.fn() }) }));
+vi.mock('@/orchestrators/core-assets.orchestrator', () => ({ loadCoreFields: vi.fn() }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 beforeEach(() => {
   vi.clearAllMocks();

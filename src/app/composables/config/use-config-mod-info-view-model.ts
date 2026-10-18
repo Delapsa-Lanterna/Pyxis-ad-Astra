@@ -11,7 +11,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { configModInfoEditorModel, configModInfoSaveData } from '@/domain/config/config-entities';
 import { useConfigEditorDraftSession } from '@/app/composables/config/use-config-editor-draft-session';
-import { useCoreSchema } from '@/app/composables/use-core-assets';
+import { useCoreSchema } from '@/app/composables/use-core-schema';
 import type { ProjectManifest, RowData } from '@/shared/types';
 
 type ModInfoTarget = Pick<ProjectManifest, 'modRoot' | 'sessionId'>;

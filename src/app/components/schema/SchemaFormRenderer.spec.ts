@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import type { RowData } from '@/shared/types';
 import type { FileSchema } from '@/domain/schema/schema.types';
-import { NCollapseItem } from 'naive-ui/es/collapse';
+import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 import SchemaFormRenderer from './SchemaFormRenderer.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
 import { createPinia, setActivePinia } from 'pinia';
 import { vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -28,13 +27,8 @@ function mountForm(modelValue: RowData) {
   return mount(SchemaFormRenderer, {
     props: { schema, modelValue },
     global: {
-      components: { NCollapseItem },
+      components: { NCollapse, NCollapseItem },
       stubs: {
-        ...editorUiStubs,
-        NCollapse: false,
-        NCollapseItem: false,
-        'n-collapse': false,
-        'n-collapse-item': false,
         SchemaFieldRenderer: {
           name: 'SchemaFieldRenderer',
           props: ['field', 'value'],

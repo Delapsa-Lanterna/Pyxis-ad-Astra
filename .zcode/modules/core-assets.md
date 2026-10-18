@@ -12,7 +12,8 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 - `src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描。
 - `src-tauri/src/services/schema/`：Core 字段扫描及其公开入口。
 - `src-tauri/src/services/schema/core_fields.rs`：字段索引扫描。
-- `src/app/composables/use-core-assets.ts`：schema/graphics 门面与显式根输入的窗口生命周期。
+- `src/app/composables/use-core-assets.ts`：图形门面与显式根输入的窗口生命周期。
+- `src/app/composables/use-core-schema.ts`：配置 schema 与当前 Core 字段的响应式合并门面。
 - `src/orchestrators/core-assets.orchestrator.ts`：显式响应式根输入、根代次、共享 Promise、接纳与失败日志。
 - `src/services/core-assets.service.ts`：Core 读取与缓存清理协议。
 - `src/stores/core-assets.store.ts`：根与两类状态。
@@ -54,6 +55,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 - 内存 Core 清理必须共同清理所属指纹缓存，持久化快照必须按根与源指纹校验。
 - 加载运行态必须消费窗口交付的响应式根，首次读取必须由消费者触发，根变化必须独立启动字段和图形读取。
 - 同类重复调用必须等待所属在途请求自然结束。
+- 窗口生命周期与图形门面只允许消费 Core 运行态和加载能力；配置资产及字段合并必须由 schema 门面的消费者加载。
 
 ## 陷阱
 

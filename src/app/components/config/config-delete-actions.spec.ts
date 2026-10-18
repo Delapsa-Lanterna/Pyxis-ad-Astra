@@ -1,14 +1,16 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import { ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import ConfigFactionEditor from './ConfigFactionEditor.vue';
 import ConfigMissionEditor from './ConfigMissionEditor.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
+import { installNaiveUi } from '@/app/naive-ui.runtime';
+import { NCheckbox } from 'naive-ui/es/checkbox';
 
 const feedback = vi.hoisted(() => ({ confirmDanger: vi.fn(), error: vi.fn() }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => feedback }));
-vi.mock('@/app/composables/use-core-assets', () => ({ useCoreSchema: () => ({ getMergedSchema: () => ({}), loadCoreFields: vi.fn() }) }));
+vi.mock('@/app/composables/use-core-schema', () => ({ useCoreSchema: () => ({ getMergedSchema: () => ({}), loadCoreFields: vi.fn() }) }));
 vi.mock('@/app/composables/config/use-config-faction-editor-view-model', () => ({
   useConfigFactionEditorViewModel: () => ({
     dirty: ref(false),
@@ -89,13 +91,16 @@ describe('configuration deletion options', () => {
         .find((button) => button.text() === '删除')!
         .trigger('click');
       const confirmation = feedback.confirmDanger.mock.lastCall![0];
-      const content = confirmation.content();
-      const checkbox = content.children[1];
-      expect(checkbox.props.checked).toBe(false);
-      checkbox.props['onUpdate:checked'](removeSource);
-      expect(confirmation.content().children[1].props.checked).toBe(removeSource);
+      const content = mount({ render: confirmation.content }, { global: { plugins: [installNaiveUi] } });
+      await flushPromises();
+      const checkbox = content.getComponent(NCheckbox);
+      expect(checkbox.props('checked')).toBe(false);
+      checkbox.vm.$emit('update:checked', removeSource);
+      await flushPromises();
+      expect(checkbox.props('checked')).toBe(removeSource);
       await confirmation.onConfirm();
       expect(remove).toHaveBeenLastCalledWith('sample-session', 'M:/sample', 'sample', removeSource);
+      content.unmount();
     }
     view.unmount();
   });

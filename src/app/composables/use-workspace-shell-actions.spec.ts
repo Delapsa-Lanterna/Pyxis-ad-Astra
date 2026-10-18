@@ -4,6 +4,7 @@ import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-ca
 import type { AssociatedSpecChange, ChooseOptions, AppFeedback, ProjectManifest } from '@/shared/types';
 import { NSelect } from 'naive-ui/es/select';
 import { NCheckbox } from 'naive-ui/es/checkbox';
+import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type DirectoryOpeningOutcomeLike = Record<string, unknown> & { type: string };
@@ -248,8 +249,9 @@ describe('useWorkspaceShellActions', () => {
     ) => Promise<AssociatedSpecChange[] | null>;
     (feedback.choose as ReturnType<typeof vi.fn>).mockImplementationOnce(async (options: ChooseOptions) => {
       const content = options.content as () => import('vue').VNode;
-      const wrapper = mount({ render: content });
+      const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
       try {
+        await flushPromises();
         expect(wrapper.text()).toContain('pulse 在原版中无法正常处理');
         wrapper.findComponent(NSelect).vm.$emit('update:value', 'beam');
         wrapper.findAllComponents(NCheckbox)[1]!.vm.$emit('update:checked', false);
@@ -270,6 +272,12 @@ describe('useWorkspaceShellActions', () => {
       { key: 'delete', table: 'weapons', label: '删除武器', change: { action: 'delete', id: 'old' } },
     ]);
     expect(chosen).toEqual([{ action: 'create', create: { kind: 'weapon', id: 'weapon', specClass: 'beam' } }]);
+  });
+
+  it('cancels the associated actions when the confirmation is dismissed', async () => {
+    const feedback = feedbackStub();
+    vi.mocked(feedback.choose).mockResolvedValueOnce(null);
+    expect(await useWorkspaceShellActions(feedback).selectAssociatedSpecs([])).toBeNull();
   });
 
   it('informs when there is nothing to save', async () => {

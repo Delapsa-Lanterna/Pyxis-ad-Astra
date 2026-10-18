@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { NCheckbox } from 'naive-ui/es/checkbox';
+import ConfigDeleteSourceDialog from '@/app/components/config/ConfigDeleteSourceDialog.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 
 import { h, ref, computed, onMounted, onUnmounted, toRef } from 'vue';
@@ -47,7 +47,7 @@ import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import ConfigTargetNotice from '@/app/components/config/ConfigTargetNotice.vue';
-import { useCoreSchema } from '@/app/composables/use-core-assets';
+import { useCoreSchema } from '@/app/composables/use-core-schema';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useConfigFactionEditorViewModel } from '@/app/composables/config/use-config-faction-editor-view-model';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -121,19 +121,14 @@ function confirmDeleteFaction() {
   feedback.confirmDanger({
     title: '删除势力',
     content: () =>
-      h('div', [
-        h('p', `确定要从列表移除 "${deleteId}" 吗？`),
-        h(
-          NCheckbox,
-          {
-            checked: removeSource.value,
-            'onUpdate:checked': (checked: boolean) => {
-              removeSource.value = checked;
-            },
-          },
-          { default: () => '同时删除势力文件' },
-        ),
-      ]),
+      h(ConfigDeleteSourceDialog, {
+        id: deleteId,
+        label: '同时删除势力文件',
+        checked: removeSource.value,
+        'onUpdate:checked': (checked: boolean) => {
+          removeSource.value = checked;
+        },
+      }),
     actionText: '删除',
     onConfirm: async () => {
       await deleteFactionTarget(deleteSessionId, deleteModRoot, deleteId, removeSource.value);

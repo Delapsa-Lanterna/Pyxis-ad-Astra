@@ -3,7 +3,8 @@ import { effectScope, ref, type Ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics } from '@/orchestrators/core-assets.orchestrator';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
-import { useCoreGraphics, useCoreSchema } from './use-core-assets';
+import { useCoreGraphics } from './use-core-assets';
+import { useCoreSchema } from './use-core-schema';
 import type { DiscoveredField } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));

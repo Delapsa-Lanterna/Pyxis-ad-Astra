@@ -29,9 +29,12 @@
 - `src/app/composables/use-input-edit-mode.ts`：输入编辑模式及焦点交接。
 - `src/app/composables/use-schema-runtime-context.ts`：所属 session 的字段来源查询与失效订阅装配。
 - `src/domain/schema/`：字段模式加载、结构、来源、值及展示纯规则。
+- `src/domain/schema/config-schema-registry.ts`：配置 schema 的同步查询入口。
+- `src/domain/schema/csv-schema-registry.ts`：CSV 列 schema 的同步查询入口。
+- `src/domain/schema/mod-info-schema.ts`：配置与新建 Mod 消费的 Mod 信息资产入口。
+- `src/domain/schema/schema-asset-parser.ts`：字段与列资产的版本、形状及来源校验。
 - `src/domain/schema/schema-core-fields.ts`：原版字段合并。
 - `src/domain/schema/schema-options.ts`：source 分组标签、选项与 `SelectOption` 规则。
-- `src/domain/schema/schema-registry.ts`：schema 资产唯一加载入口，拥有 5 个 spec 与 14 个 csv 列资产的运行时形状校验。
 - `src/domain/schema/schema-runtime.ts`：runtime 上下文。
 - `src/domain/schema/schema-sections.ts`：section 投影与折叠标识。
 - `src/domain/schema/schema-values.ts`：字段值转换，拥有标量、kv 条目与业务归一化规则。
@@ -108,6 +111,7 @@
 - Smart 下拉的选项菜单与已选标签必须共用同一 `SelectOption`。
 - `plain` editMode 只允许文本或 JSON 文本；`smart` editMode 才允许增强控件；含换行字符串必须使用 textarea。
 - schema 组件严禁写盘或直连 IPC。
+- schema 资产必须按配置、CSV 列与 Mod 信息入口加载，资产解析必须复用所属版本、形状与来源校验。
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
 - 分组必须消费 EditorCollapse 与 Naive 折叠项，默认折叠必须按 schema 身份初始化，首次展开后的隐藏必须保留所属输入。
 - 字段名称、字段键与完整路径必须显式交给共同标签，值控件必须消费原文登记与正式提交接口。

@@ -3,6 +3,7 @@ import { defineComponent, h, ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import { NCollapseItem } from 'naive-ui/es/collapse';
 import EditorCollapse from './EditorCollapse.vue';
+import { installNaiveUi } from '@/app/naive-ui.runtime';
 
 describe('EditorCollapse', () => {
   it('mounts on first expansion and retains the input across later collapses', async () => {
@@ -21,9 +22,10 @@ describe('EditorCollapse', () => {
           ),
       }),
       {
-        global: { stubs: { transition: false, 'transition-group': false } },
+        global: { plugins: [installNaiveUi], stubs: { transition: false, 'transition-group': false } },
       },
     );
+    await flushPromises();
     expect(view.find('input').exists()).toBe(false);
     expanded.value = ['field'];
     await flushPromises();

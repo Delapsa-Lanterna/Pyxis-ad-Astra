@@ -2,7 +2,7 @@ import { variantModuleEntries, setVariantModule, renameVariantModules } from './
 import { describe, expect, it } from 'vitest';
 import { configEntityIdInvalidMessage, createDefaultFaction, createDefaultSkin } from '@/domain/config/config-entities';
 import { configFactionSaveDraft, configMissionSaveDraft, configModInfoSaveData } from '@/domain/config/config-entities';
-import { getSchema } from '@/domain/schema/schema-registry';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 
 describe('configuration business content boundaries', () => {
   it('creates a Skin with the game default description identity and independent collection values', () => {

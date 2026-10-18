@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CSV_COLUMN_CONTROLS, FIELD_TYPE_SET, type FileSchema } from './schema.types';
-import { getCsvColumnSchemas, getSchema } from './schema-registry';
+import { getSchema } from './config-schema-registry';
+import { getCsvColumnSchemas } from './csv-schema-registry';
 import { TABLE_KEYS } from '@/shared/types';
 
-const SPEC_IDS = ['mod-info', 'faction', 'mission', 'skin', 'variant'];
+const CONFIG_SCHEMA_IDS = ['mod-info', 'faction', 'mission', 'skin', 'variant'];
 
-describe('schema registry', () => {
+describe('schema asset registries', () => {
   it('offers only game weapon group modes in variant editing', () => {
     const weaponGroups = getSchema('variant')!
       .sections!.flatMap((section) => section.fields)
@@ -42,8 +43,8 @@ describe('schema registry', () => {
     expect(removeEngineSlots.type).toBe('array');
     expect(removeEngineSlots.item).toMatchObject({ type: 'integer', min: 0 });
   });
-  it('loads every bundled spec schema in the unified field-schema/v1 shape', () => {
-    for (const id of SPEC_IDS) {
+  it('loads every bundled config schema in the unified field-schema/v1 shape', () => {
+    for (const id of CONFIG_SCHEMA_IDS) {
       const schema = getSchema(id);
       expect(schema, id).not.toBeNull();
       expect(schema?.$schema).toBe('circinus-ad-astra/field-schema/v1');
@@ -66,7 +67,7 @@ describe('schema registry', () => {
   });
 
   it('keeps every field inside the closed field type set', () => {
-    for (const id of SPEC_IDS) {
+    for (const id of CONFIG_SCHEMA_IDS) {
       const schema: FileSchema | null = getSchema(id);
       for (const section of schema?.sections ?? []) {
         for (const field of section.fields) {

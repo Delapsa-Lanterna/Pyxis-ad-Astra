@@ -24,7 +24,7 @@ import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 
 import { computed, onMounted, onUnmounted } from 'vue';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
-import { useCoreSchema } from '@/app/composables/use-core-assets';
+import { useCoreSchema } from '@/app/composables/use-core-schema';
 import { useConfigModInfoViewModel } from '@/app/composables/config/use-config-mod-info-view-model';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 

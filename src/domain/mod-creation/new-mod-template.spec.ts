@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultNewModTemplate, validateNewModTemplate } from './new-mod-template';
-import { getSchema } from '@/domain/schema/schema-registry';
+import { MOD_INFO_SCHEMA } from '@/domain/schema/mod-info-schema';
 
 describe('createDefaultNewModTemplate', () => {
   it('seeds version and gameVersion from the mod-info schema defaults', () => {
@@ -8,9 +8,7 @@ describe('createDefaultNewModTemplate', () => {
     expect(template.id).toBe('');
     expect(template.name).toBe('');
 
-    const schema = getSchema('mod-info');
-    expect(schema).not.toBeNull();
-    const fields = (schema?.sections ?? []).flatMap((section) => section.fields);
+    const fields = (MOD_INFO_SCHEMA.sections ?? []).flatMap((section) => section.fields);
     const versionField = fields.find((field) => field.key === 'file.version');
     const gameVersionField = fields.find((field) => field.key === 'file.gameVersion');
     expect(template.version).toBe(versionField?.default);

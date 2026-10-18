@@ -12,6 +12,7 @@
 - `src-tauri/src/domain/spec_construction.rs`：关联规格创建构造与武器类型约束。
 - `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
 - `src-tauri/src/services/project/write/csv_staging.rs`：CSV 表草稿、最终文本暂存及成功写盘后的会话接纳。
+- `src/app/components/AssociatedSpecSaveDialog.vue`：关联规格选择与武器创建类型的异步确认内容。
 - `src/domain/tables/associated-spec-candidates.ts`：关联 spec 候选与动作快照。
 - `src/domain/tables/associated-spec-creation.ts`：CSV 到创建参数与武器评分。
 - `src/domain/tables/csv-dirty.ts`：dirty 行形状。
@@ -61,7 +62,7 @@
 ### 提交保存
 
 1. 目标为空或当前表无 dirty 时返回 noop；进行中的保存由同一 Promise 表达。
-2. app 层选择回调展示快照中的关联候选与创建类型，返回选定动作或取消。
+2. app 层选择回调按需加载确认内容，经所属反馈入口展示快照中的关联候选与创建类型，返回选定动作或取消。
 3. 编排复核目标并消费同一快照中的 patches、关联动作与版本。
 4. 调用排他写提交 patches 与关联动作。
 5. 后端校验 session/root 与关联种类，按创建参数构造规格或解析已有来源更新 ID，构建并应用原子 changeset。
