@@ -1,6 +1,6 @@
 use crate::models::{
-    CsvTableKey, EntityFileLocation, EntitySummaries, GameScanWarning, ProjectManifest, SkinFile,
-    VariantFile,
+    CsvTableKey, DiscoveredField, EntityFileLocation, EntitySummaries, GameScanWarning,
+    ProjectManifest, SkinFile, VariantFile,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -329,6 +329,8 @@ pub(super) struct ProjectSession {
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct CoreCache {
     pub csv_tables: BTreeMap<String, Arc<SessionCsvTable>>,
+    pub fields: Option<Arc<BTreeMap<String, Vec<DiscoveredField>>>>,
+    pub graphics: Option<Arc<Vec<String>>>,
     pub ship_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
     pub variant_files: Option<Arc<Vec<VariantFile>>>,
     pub skin_files: Option<Arc<Vec<SkinFile>>>,
@@ -340,6 +342,8 @@ impl CoreCache {
     pub(super) fn empty() -> Self {
         Self {
             csv_tables: BTreeMap::new(),
+            fields: None,
+            graphics: None,
             ship_files: None,
             variant_files: None,
             skin_files: None,

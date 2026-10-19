@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 pub fn scan_core_fields(
     payload: CoreScanPayload,
 ) -> Result<BTreeMap<String, Vec<DiscoveredField>>, AppError> {
-    services::schema::scan_core_fields(&payload.starsector_root)
+    services::scan_core_fields(&payload.starsector_root)
 }
 
 #[tauri::command(async)]

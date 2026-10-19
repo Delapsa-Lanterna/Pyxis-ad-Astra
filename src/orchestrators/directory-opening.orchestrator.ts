@@ -1,4 +1,5 @@
 const openings = new Set<Promise<unknown>>();
+const openingByWorkspace = new WeakMap<ReturnType<typeof useWorkspaceStore>, Map<string, Promise<ProjectManifest | null>>>();
 export async function settleDirectoryOpenings() {
   while (openings.size) await Promise.all([...openings]);
 }
@@ -104,13 +105,28 @@ export async function openCreatedModTarget(created: CreatedMod): Promise<Directo
 async function openModProject(modRoot: string, starsectorRoot: string | null, afterOpenView: AfterOpenView): Promise<OpenModResult> {
   const workspace = useWorkspaceStore();
   if (workspace.isModImported(modRoot)) {
+    const entry = workspace.mods.get(modRoot);
+    if (entry?.status === 'loading') {
+      const generation = workspace.getModGeneration(modRoot)!;
+      const loaded = await openModProjectManifest(modRoot, starsectorRoot, generation);
+      if (!loaded || workspace.getModGeneration(modRoot) !== generation) return null;
+      if (workspace.mods.get(modRoot)?.status === 'ready') {
+        return { alreadyLoaded: true, displayName: workspace.mods.get(modRoot)?.displayName ?? modFolderDisplayName(modRoot) };
+      }
+      const displayName = updateLoadedEntry(modRoot, loaded);
+      const stillActive = workspace.activeModRoot === modRoot;
+      measurePerformance('frontend.hydrateDirectoryOpenedModRuntime', { modRoot, activate: stillActive }, () =>
+        hydrateOpenedModRuntime(modRoot, loaded, stillActive),
+      );
+      return { alreadyLoaded: false, displayName, warnings: formatLoadWarnings(loaded) };
+    }
     if (afterOpenView === 'overview') {
       workspace.showOverview();
     } else {
       navigateToModOverview(modRoot);
     }
-    const entry = workspace.mods.get(modRoot);
-    return { alreadyLoaded: true, displayName: entry?.displayName ?? modFolderDisplayName(modRoot) };
+    const loadedEntry = workspace.mods.get(modRoot);
+    return { alreadyLoaded: true, displayName: loadedEntry?.displayName ?? modFolderDisplayName(modRoot) };
   }
 
   const generation = workspace.registerMod(createLoadingEntry(modRoot));
@@ -144,9 +160,21 @@ export function openModProjectManifest(
   generation: number,
   accepts: () => boolean = () => true,
 ): Promise<ProjectManifest | null> {
+  const workspace = useWorkspaceStore();
+  const registry = openingByWorkspace.get(workspace) ?? new Map<string, Promise<ProjectManifest | null>>();
+  openingByWorkspace.set(workspace, registry);
+  const key = `${modRoot.toLowerCase()}|${starsectorRoot?.toLowerCase() ?? ''}|${workspace.getWorkspaceGeneration()}|${generation}`;
+  const existing = registry.get(key);
+  if (existing) return existing;
   const operation = openManifest(modRoot, starsectorRoot, generation, accepts);
+  registry.set(key, operation);
   openings.add(operation);
-  void operation.finally(() => openings.delete(operation)).catch(() => {});
+  void operation
+    .finally(() => {
+      openings.delete(operation);
+      if (registry.get(key) === operation) registry.delete(key);
+    })
+    .catch(() => {});
   return operation;
 }
 async function openManifest(

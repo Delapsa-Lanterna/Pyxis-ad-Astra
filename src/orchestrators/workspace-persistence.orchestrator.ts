@@ -14,7 +14,6 @@ import { loadPersistedWorkspace, savePersistedWorkspace } from '@/services/works
 interface RestoreWorkspaceOptions {
   isCurrent?: () => boolean;
   knownStarsectorRoot: string | null;
-  loadCoreFields?: () => void | Promise<void>;
   onModRestoreError: (modRoot: string, displayName: string, error: unknown) => void | Promise<void>;
   onModRestoreWarnings?: (displayName: string, warnings: FeedbackNotice[]) => void;
 }
@@ -98,7 +97,6 @@ export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions
 
   if (!current()) return;
   workspace.showOverview();
-  await options.loadCoreFields?.();
 }
 
 export type WorkspacePersistenceWatcher = ReturnType<typeof watchWorkspacePersistence>;

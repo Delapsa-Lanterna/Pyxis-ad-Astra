@@ -1,4 +1,4 @@
-pub(in crate::services) mod core_graphics;
+pub(in crate::services) mod core_assets;
 pub(in crate::services) mod fonts;
 mod refs;
 pub(in crate::services) mod sprites;

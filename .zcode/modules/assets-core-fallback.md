@@ -40,7 +40,6 @@
 - `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
 - `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及舰体引用请求与结果。
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
-- `src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
 - `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
 - `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。

@@ -12,7 +12,6 @@ import {
   type WorkspacePersistenceWatcher,
 } from '@/orchestrators/workspace-persistence.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { loadCoreFields } from '@/orchestrators/core-assets.orchestrator';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
 import { useTableSaveParticipants } from '@/app/composables/use-table-save-participants';
@@ -72,7 +71,6 @@ export function useWorkspaceShellLifecycle(
         restorePersistedWorkspace({
           isCurrent: () => !disposed,
           knownStarsectorRoot: settings.starsectorRoot,
-          loadCoreFields,
           onModRestoreError: async (modRoot, displayName, error) => {
             if (disposed) return;
             await removeLoadedModRuntime(modRoot, requestClose);

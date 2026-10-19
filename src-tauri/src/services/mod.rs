@@ -13,7 +13,6 @@ pub mod file_history;
 pub mod mod_creation;
 pub mod project;
 pub mod project_session;
-pub mod schema;
 pub mod system_open;
 pub mod windows;
 pub mod workspace_persistence;
@@ -38,7 +37,7 @@ pub(crate) use project::query::mod_file_browser::{
 };
 pub(crate) use project::query::resources::{query_draft_resources, query_resource_data_urls};
 pub(crate) use project::query::source_options::query_csv_source_options;
-pub(crate) use project::resources::core_graphics::scan_core_graphics;
+pub(crate) use project::resources::core_assets::{scan_core_fields, scan_core_graphics};
 pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;

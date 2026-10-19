@@ -111,6 +111,16 @@ impl SourceReader {
     pub fn root(&self) -> &Path {
         self.boundary.root()
     }
+
+    pub fn fork_loaded(&self) -> Self {
+        let mut fork = Self::empty(self.boundary.clone(), self.records.clone());
+        fork.loaded = self.loaded.clone();
+        fork.paths = self.paths.clone();
+        fork.versions = self.versions.clone();
+        fork.tables = self.tables.clone();
+        fork.reused = self.reused;
+        fork
+    }
     pub fn path(&self, relative: &str) -> AppResult<PathBuf> {
         self.boundary.resolve_relative(relative, "source file")
     }

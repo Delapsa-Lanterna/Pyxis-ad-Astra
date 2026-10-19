@@ -77,4 +77,19 @@ describe('window Core root assembly', () => {
     await nextTick();
     expect(core.root).toBeNull();
   });
+
+  it('uses the restored game overview root before an active Mod exists', async () => {
+    mountWindow('main');
+    useWorkspaceStore().setGameOverview({
+      starsectorRoot: 'D:/restored-game',
+      coreAvailable: true,
+      modsDir: 'D:/restored-game/mods',
+      mods: [],
+      warnings: [],
+    });
+    expect(useCoreAssetsStore().root).toBe('D:/restored-game');
+    await flushPromises();
+    expect(mocks.fields).toHaveBeenCalledWith('D:/restored-game');
+    expect(mocks.graphics).toHaveBeenCalledWith('D:/restored-game');
+  });
 });

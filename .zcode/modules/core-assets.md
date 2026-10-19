@@ -9,9 +9,6 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 ### 拥有
 
 - `src-tauri/src/commands/core_assets.rs`：Core command。
-- `src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描。
-- `src-tauri/src/services/schema/`：Core 字段扫描及其公开入口。
-- `src-tauri/src/services/schema/core_fields.rs`：字段索引扫描。
 - `src/app/composables/use-core-assets.ts`：图形门面与显式根输入的窗口生命周期。
 - `src/app/composables/use-core-schema.ts`：配置 schema 与当前 Core 字段的响应式合并门面。
 - `src/orchestrators/core-assets.orchestrator.ts`：显式响应式根输入、根代次、共享 Promise、接纳与失败日志。
@@ -21,6 +18,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 ### 消费
 
 - `src-tauri/src/models/core_assets.rs`：Core 扫描、失效请求与发现字段协议。
+- `src-tauri/src/services/project/sources/core.rs`：按游戏根交付 Core 来源、字段、图形和文档缓存。
 - `src/shared/types/core-assets.types.ts`：Core 扫描、失效请求与发现字段协议。
 
 ### 装配
@@ -31,9 +29,11 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 ## 边界
 
 - Core store 持有根、fields、graphics、各自状态和结构化错误。
+- Core 来源 owner 持有规范化游戏根、产品代次、共享来源记录和各产品单飞任务。
 - WindowShell 装配加载生命周期，工作区生命周期消费缓存清理能力。
 - schema 合并归领域纯投影，编辑面消费静态 schema 与当前 Core 字段。
 - 加载编排拥有根代次、共享 Promise、结果接纳与失败日志。
+- 后端 Core 读取在缓存锁外执行，结果接纳前复核根和产品代次。
 - 窗口壳提供响应式根输入，路径授权归后端；字体读取以所属 session 补充来源并由字体运行态消费逐项结果。
 
 ## 链路
@@ -55,6 +55,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 - 内存 Core 清理必须共同清理所属指纹缓存，持久化快照必须按根与源指纹校验。
 - 加载运行态必须消费窗口交付的响应式根，首次读取必须由消费者触发，根变化必须独立启动字段和图形读取。
 - 同类重复调用必须等待所属在途请求自然结束。
+- 多窗口对同一游戏根的同类请求必须复用后端 Core 产品结果。
 - 窗口生命周期与图形门面只允许消费 Core 运行态和加载能力；配置资产及字段合并必须由 schema 门面的消费者加载。
 
 ## 陷阱

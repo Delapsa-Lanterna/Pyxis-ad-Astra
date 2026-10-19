@@ -17,21 +17,17 @@ export const projectResourcesBoundaryRule = {
         failures.push(`${file.rel}: config and spec backends must not own project resource behavior`);
       }
       if (rustCommandModule(rel)) {
-        for (const body of commandBodies(file.text, ['upload_sprite', 'scan_core_graphics'])) {
+        for (const body of commandBodies(file.text, ['upload_sprite', 'scan_core_graphics', 'scan_core_fields'])) {
           if (
-            !rustServicePaths(body, rel, exports).some(
-              (edge) => edge.target.slice(0, 4).join('::') === 'services::project::resources::core_graphics',
-            )
+            !rustServicePaths(body, rel, exports).some((edge) => {
+              const target = edge.target.join('::');
+              return target.startsWith('services::project::resources::core_assets');
+            })
           ) {
-            failures.push(`${file.rel}: project resource commands must route to Project Resources`);
+            failures.push(`${file.rel}: Core asset commands must route to Project Resources`);
           }
           if (body.includes('services::schema::')) {
-            failures.push(`${file.rel}: project resource commands must not route through Schema backend`);
-          }
-        }
-        for (const body of commandBodies(file.text, ['scan_core_fields'])) {
-          if (!body.includes('services::schema::')) {
-            failures.push(`${file.rel}: schema core field commands must route to Schema backend`);
+            failures.push(`${file.rel}: Core asset commands must not route through Schema backend`);
           }
         }
       }

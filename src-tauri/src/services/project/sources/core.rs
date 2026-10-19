@@ -1,13 +1,16 @@
 use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
-    io::FsRootBoundary,
-    models::{CsvTableKey, ResourceSource, SkinFile, VariantFile},
+    io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry},
+    models::{
+        CsvTableKey, DiscoveredField, DiscoveredFieldType, ResourceSource, SkinFile, VariantFile,
+    },
 };
+use serde_json::Value;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, MutexGuard},
+    sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard},
 };
 
 use super::super::model::{
@@ -26,6 +29,41 @@ struct CoreCacheEntry {
 
 static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
+static CORE_FLIGHTS: LazyLock<Mutex<BTreeMap<String, Arc<CoreFlight>>>> =
+    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+
+struct CoreFlight {
+    result: Mutex<Option<Result<(), SharedCoreError>>>,
+    ready: Condvar,
+}
+
+#[derive(Clone)]
+struct SharedCoreError {
+    code: &'static str,
+    message: String,
+    location: Option<crate::errors::ErrorLocation>,
+}
+
+impl SharedCoreError {
+    fn from_error(error: &AppError) -> Self {
+        Self {
+            code: error.code(),
+            message: error.to_string(),
+            location: error.location().cloned(),
+        }
+    }
+
+    fn into_error(self) -> AppError {
+        let base = AppError::message(self.code, self.message);
+        match self.location {
+            Some(location) => AppError::Located {
+                location,
+                source: Box::new(base),
+            },
+            None => base,
+        }
+    }
+}
 
 /// Lock the core-cache registry; poison maps to the shared AppError form.
 fn lock_core_caches() -> AppResult<MutexGuard<'static, BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>>
@@ -83,11 +121,58 @@ fn lock_core_cache(handle: &Mutex<CoreCacheEntry>) -> AppResult<MutexGuard<'_, C
         .map_err(|_| AppError::message("cache.lock_poisoned", "core cache lock poisoned"))
 }
 
+fn begin_core_flight(key: String) -> AppResult<(Arc<CoreFlight>, bool)> {
+    let mut flights = CORE_FLIGHTS
+        .lock()
+        .map_err(|_| AppError::message("cache.lock_poisoned", "core flight lock poisoned"))?;
+    if let Some(flight) = flights.get(&key) {
+        return Ok((flight.clone(), false));
+    }
+    let flight = Arc::new(CoreFlight {
+        result: Mutex::new(None),
+        ready: Condvar::new(),
+    });
+    flights.insert(key, flight.clone());
+    Ok((flight, true))
+}
+
+fn finish_core_flight(key: &str, flight: &Arc<CoreFlight>, result: Result<(), SharedCoreError>) {
+    if let Ok(mut state) = flight.result.lock() {
+        *state = Some(result);
+        flight.ready.notify_all();
+    }
+    if let Ok(mut flights) = CORE_FLIGHTS.lock()
+        && flights
+            .get(key)
+            .is_some_and(|current| Arc::ptr_eq(current, flight))
+    {
+        flights.remove(key);
+    }
+}
+
+fn wait_core_flight(flight: &Arc<CoreFlight>) -> AppResult<()> {
+    let mut state = flight
+        .result
+        .lock()
+        .map_err(|_| AppError::message("cache.lock_poisoned", "core flight result poisoned"))?;
+    while state.is_none() {
+        state = flight
+            .ready
+            .wait(state)
+            .map_err(|_| AppError::message("cache.lock_poisoned", "core flight wait poisoned"))?;
+    }
+    match state.as_ref().expect("completed core flight") {
+        Ok(()) => Ok(()),
+        Err(error) => Err(error.clone().into_error()),
+    }
+}
+
 /// Hit path clones the `Arc` (no deep copy); a miss loads the asset from disk,
 /// stores an `Arc` into the in-memory cache and marks it dirty for the next
 /// flush. Persistence never happens inside a query.
 fn get_or_load_core<T, G, S, L>(
     starsector_root: &str,
+    product: &'static str,
     get: G,
     store: S,
     load: L,
@@ -98,16 +183,36 @@ where
     L: FnOnce(&mut super::super::sources::SourceReader) -> AppResult<T>,
 {
     let cache = core_cache_handle(starsector_root)?;
-    if let Some(value) = get(&lock_core_cache(&cache)?.data) {
-        return Ok(value.clone());
+    let mut load = Some(load);
+    let flight_key = format!("{}:{product}", core_cache_key(starsector_root)?);
+    loop {
+        if let Some(value) = get(&lock_core_cache(&cache)?.data) {
+            return Ok(value.clone());
+        }
+        let (flight, leader) = begin_core_flight(flight_key.clone())?;
+        if !leader {
+            wait_core_flight(&flight)?;
+            continue;
+        }
+        let result = (|| {
+            let mut sources = lock_core_cache(&cache)?.sources.fork_loaded();
+            let value = Arc::new(load.take().expect("core loader")(&mut sources)?);
+            let mut entry = lock_core_cache(&cache)?;
+            store(&mut entry.data, value.clone());
+            entry.sources.absorb(sources);
+            entry.dirty = true;
+            Ok(value)
+        })();
+        match &result {
+            Ok(_) => finish_core_flight(&flight_key, &flight, Ok(())),
+            Err(error) => finish_core_flight(
+                &flight_key,
+                &flight,
+                Err(SharedCoreError::from_error(error)),
+            ),
+        }
+        return result;
     }
-    let mut sources = super::super::sources::SourceReader::new(&core_dir(starsector_root)?)?;
-    let value = Arc::new(load(&mut sources)?);
-    let mut entry = lock_core_cache(&cache)?;
-    store(&mut entry.data, value.clone());
-    entry.sources.absorb(sources);
-    entry.dirty = true;
-    Ok(value)
 }
 
 fn core_cache_key(starsector_root: &str) -> AppResult<String> {
@@ -124,6 +229,157 @@ pub(crate) fn core_dir(starsector_root: &str) -> AppResult<PathBuf> {
     Ok(root.root().join("starsector-core"))
 }
 
+pub(crate) fn load_core_fields(
+    starsector_root: &str,
+) -> AppResult<BTreeMap<String, Vec<DiscoveredField>>> {
+    get_or_load_core(
+        starsector_root,
+        "fields",
+        |cache| cache.fields.as_ref(),
+        |cache, fields| cache.fields = Some(fields),
+        load_core_fields_from,
+    )
+    .map(|fields| (*fields).clone())
+}
+
+fn load_core_fields_from(
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<BTreeMap<String, Vec<DiscoveredField>>> {
+    let mut result = BTreeMap::new();
+    for (key, directory, extension) in [
+        ("faction", "data/world/factions", "faction"),
+        ("ship", "data/hulls", "ship"),
+        ("weapon", "data/weapons", "wpn"),
+    ] {
+        let mut fields = BTreeMap::<String, DiscoveredFieldType>::new();
+        for (path, value) in sources.walk(directory, extension)? {
+            let Value::Object(object) = value else {
+                return Err(AppError::message(
+                    "schema.field_source_not_object",
+                    format!(
+                        "core field source must be a JSON object: {}",
+                        path.display()
+                    ),
+                ));
+            };
+            for (field, value) in &object {
+                fields
+                    .entry(field.clone())
+                    .or_insert_with(|| infer_core_field_type(value));
+            }
+        }
+        if !fields.is_empty() {
+            result.insert(
+                key.to_string(),
+                fields
+                    .into_iter()
+                    .map(|(key, field_type)| DiscoveredField {
+                        key,
+                        field_type,
+                        origin: ResourceSource::Core,
+                    })
+                    .collect(),
+            );
+        }
+    }
+    Ok(result)
+}
+
+fn infer_core_field_type(value: &Value) -> DiscoveredFieldType {
+    match value {
+        Value::Bool(_) => DiscoveredFieldType::Boolean,
+        Value::Number(number) => {
+            if number.is_i64() || number.is_u64() {
+                DiscoveredFieldType::Integer
+            } else {
+                DiscoveredFieldType::Float
+            }
+        }
+        Value::String(value) => {
+            if value.starts_with("graphics/") {
+                DiscoveredFieldType::PathImage
+            } else {
+                DiscoveredFieldType::String
+            }
+        }
+        Value::Array(values) => {
+            if values.is_empty() {
+                return DiscoveredFieldType::StringArray;
+            }
+            if (values.len() == 3 || values.len() == 4)
+                && values.iter().all(|value| value.is_i64() || value.is_u64())
+                && values.iter().all(|value| {
+                    value
+                        .as_i64()
+                        .is_some_and(|number| (0..=255).contains(&number))
+                })
+            {
+                return DiscoveredFieldType::ColorRgba;
+            }
+            if values.iter().all(Value::is_string) {
+                DiscoveredFieldType::StringArray
+            } else if values.iter().all(Value::is_object) {
+                DiscoveredFieldType::ArrayOfObject
+            } else {
+                DiscoveredFieldType::StringArray
+            }
+        }
+        Value::Object(object) => {
+            if object.get("tags").is_some_and(Value::is_array) {
+                DiscoveredFieldType::TagSelect
+            } else {
+                DiscoveredFieldType::Object
+            }
+        }
+        Value::Null => DiscoveredFieldType::String,
+    }
+}
+
+pub(crate) fn load_core_graphics(starsector_root: &str) -> AppResult<Vec<String>> {
+    get_or_load_core(
+        starsector_root,
+        "graphics",
+        |cache| cache.graphics.as_ref(),
+        |cache, graphics| cache.graphics = Some(graphics),
+        load_core_graphics_from,
+    )
+    .map(|graphics| (*graphics).clone())
+}
+
+fn load_core_graphics_from(
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<Vec<String>> {
+    let dir = sources.path("graphics")?;
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut paths = Vec::new();
+    for entry in walkdir::WalkDir::new(&dir) {
+        let entry = entry.map_err(|error| {
+            AppError::message("io.walk_failed", format!("遍历原版图片目录失败: {error}"))
+        })?;
+        validate_walk_entry(entry.path(), "core graphics")?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if !matches!(
+            entry
+                .path()
+                .extension()
+                .and_then(|extension| extension.to_str()),
+            Some("png" | "jpg" | "jpeg" | "gif")
+        ) {
+            continue;
+        }
+        paths.push(entry.into_path());
+    }
+    paths.sort();
+    Ok(paths
+        .iter()
+        .map(|path| forward_slash_relative_path(sources.root(), path))
+        .collect())
+}
+
 pub(crate) fn load_core_csv_table(
     starsector_root: &str,
     table: CsvTableKey,
@@ -136,6 +392,7 @@ pub(crate) fn load_core_csv_table(
     }
     get_or_load_core(
         starsector_root,
+        "csv",
         |cache| cache.csv_tables.get(table_key),
         |cache, csv| {
             cache.csv_tables.insert(table_key.to_string(), csv);
@@ -171,6 +428,7 @@ pub(crate) fn load_core_ship_files(
 ) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
     get_or_load_core(
         starsector_root,
+        "ships",
         |cache| cache.ship_files.as_ref(),
         |cache, files| cache.ship_files = Some(files),
         |sources| {
@@ -190,6 +448,7 @@ pub(crate) fn load_core_weapon_specs(
 ) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
     get_or_load_core(
         starsector_root,
+        "weapons",
         |cache| cache.weapon_specs.as_ref(),
         |cache, specs| cache.weapon_specs = Some(specs),
         |sources| {
@@ -203,6 +462,7 @@ pub(crate) fn load_core_projectile_specs(
 ) -> AppResult<Arc<BTreeMap<String, LoadedSpecRecord>>> {
     get_or_load_core(
         starsector_root,
+        "projectiles",
         |cache| cache.projectile_specs.as_ref(),
         |cache, specs| cache.projectile_specs = Some(specs),
         |sources| {
@@ -220,6 +480,7 @@ pub(crate) fn load_core_projectile_specs(
 pub(crate) fn load_core_variant_files(starsector_root: &str) -> AppResult<Arc<Vec<VariantFile>>> {
     get_or_load_core(
         starsector_root,
+        "variants",
         |cache| cache.variant_files.as_ref(),
         |cache, files| cache.variant_files = Some(files),
         |sources| Ok(load_variant_files_from(sources)?.0),
@@ -229,6 +490,7 @@ pub(crate) fn load_core_variant_files(starsector_root: &str) -> AppResult<Arc<Ve
 pub(crate) fn load_core_skin_files(starsector_root: &str) -> AppResult<Arc<Vec<SkinFile>>> {
     get_or_load_core(
         starsector_root,
+        "skins",
         |cache| cache.skin_files.as_ref(),
         |cache, files| cache.skin_files = Some(files),
         |sources| Ok(load_skin_files_from(sources)?.0),
@@ -277,6 +539,12 @@ pub(in crate::services::project) fn invalidate_core_sources(
                 || crate::domain::config::path_affects_target(path, &source.rel_path)
         };
         data.csv_tables.retain(|_, table| !matches(&table.path));
+        if matches("data/world/factions") || matches("data/hulls") || matches("data/weapons") {
+            data.fields = None;
+        }
+        if matches("graphics") {
+            data.graphics = None;
+        }
         if matches("data/hulls") {
             data.ship_files = None;
         }
@@ -308,7 +576,81 @@ pub(in crate::services::project) fn invalidate_core_sources(
 mod tests {
     use super::*;
     use crate::testutil::temp_dir;
-    use std::fs;
+    use std::{
+        fs,
+        sync::{
+            Arc, Barrier,
+            atomic::{AtomicUsize, Ordering},
+        },
+        thread,
+        time::Duration,
+    };
+
+    #[test]
+    fn fields_and_graphics_are_cached_with_the_core_root() {
+        let root = temp_dir("core_shared_products");
+        let core = root.join("starsector-core");
+        fs::create_dir_all(core.join("data/hulls")).unwrap();
+        fs::create_dir_all(core.join("graphics/ships")).unwrap();
+        fs::write(
+            core.join("data/hulls/demo.ship"),
+            r#"{"hullId":"demo","width":20,"spriteName":"graphics/ships/demo.png"}"#,
+        )
+        .unwrap();
+        fs::write(core.join("graphics/ships/demo.png"), [1u8, 2, 3]).unwrap();
+
+        let fields = load_core_fields(&root.to_string_lossy()).unwrap();
+        let graphics = load_core_graphics(&root.to_string_lossy()).unwrap();
+        let repeated_fields = load_core_fields(&root.to_string_lossy()).unwrap();
+        let repeated_graphics = load_core_graphics(&root.to_string_lossy()).unwrap();
+        let handle = core_cache_handle(&root.to_string_lossy()).unwrap();
+        let cache = lock_core_cache(&handle).unwrap();
+
+        assert!(fields.contains_key("ship"));
+        assert_eq!(
+            serde_json::to_string(&fields).unwrap(),
+            serde_json::to_string(&repeated_fields).unwrap()
+        );
+        assert_eq!(graphics, vec!["graphics/ships/demo.png"]);
+        assert_eq!(graphics, repeated_graphics);
+        assert!(cache.data.fields.is_some());
+        assert!(cache.data.graphics.is_some());
+        drop(cache);
+        invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn concurrent_core_product_loads_share_one_loader() {
+        let root = temp_dir("core_single_flight");
+        fs::create_dir_all(root.join("starsector-core")).unwrap();
+        let root_text = root.to_string_lossy().to_string();
+        let barrier = Arc::new(Barrier::new(2));
+        let loads = Arc::new(AtomicUsize::new(0));
+        let worker = |root_text: String, barrier: Arc<Barrier>, loads: Arc<AtomicUsize>| {
+            thread::spawn(move || {
+                barrier.wait();
+                get_or_load_core(
+                    &root_text,
+                    "single-flight-test",
+                    |cache| cache.graphics.as_ref(),
+                    |cache, graphics| cache.graphics = Some(graphics),
+                    |_| {
+                        loads.fetch_add(1, Ordering::Relaxed);
+                        thread::sleep(Duration::from_millis(20));
+                        Ok(vec!["graphics/demo.png".to_string()])
+                    },
+                )
+            })
+        };
+        let first = worker(root_text.clone(), barrier.clone(), loads.clone());
+        let second = worker(root_text.clone(), barrier, loads.clone());
+        assert!(first.join().unwrap().is_ok());
+        assert!(second.join().unwrap().is_ok());
+        assert_eq!(loads.load(Ordering::Relaxed), 1);
+        invalidate_core_cache(&root_text).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn core_catalogs_share_root_identity_and_reopen_independently() {
@@ -387,6 +729,7 @@ mod tests {
         let root_text = root.to_string_lossy();
         let ships = get_or_load_core(
             &root_text,
+            "test-ships",
             |cache| cache.ship_files.as_ref(),
             |cache, files| cache.ship_files = Some(files),
             |_| {
@@ -424,6 +767,7 @@ mod tests {
         let root_text = root.to_string_lossy();
         get_or_load_core(
             &root_text,
+            "test-ships",
             |cache| cache.ship_files.as_ref(),
             |cache, files| cache.ship_files = Some(files),
             |_| {

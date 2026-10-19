@@ -38,7 +38,9 @@ const props = withDefaults(defineProps<{ mode?: 'main' | 'child'; appearance?: '
 
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
-const coreRoot = computed(() => settings.starsectorRoot ?? workspace.activeManifest?.starsectorRoot ?? null);
+const coreRoot = computed(
+  () => settings.starsectorRoot ?? workspace.gameOverview?.starsectorRoot ?? workspace.activeManifest?.starsectorRoot ?? null,
+);
 useWindowImageCacheLifetime();
 useCoreAssetsLifecycle(coreRoot);
 useAppSettings(props.mode);
