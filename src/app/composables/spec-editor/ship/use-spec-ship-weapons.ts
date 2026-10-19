@@ -4,7 +4,7 @@ import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecShipWeaponSources } from '@/services/spec-ship-editor.service';
 import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { mediaResourceKey } from '@/services/resource-cache.service';
+import { mediaResourceKey } from '@/services/resource-media.service';
 import { projectShipWeapons, type ShipWeaponSources } from '@/domain/spec-editor/ship/spec-ship-weapons';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
@@ -41,7 +41,6 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
       : next;
   });
   const media = useResourceMediaRegistry({
-    surface: '舰船内置武器',
     onError: (error) => feedback.error(error, '读取内置武器贴图失败'),
     onFailures: (items) => {
       mediaFailures.value = items;

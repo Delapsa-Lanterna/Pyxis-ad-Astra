@@ -21,6 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   wrapper?.unmount();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 async function flush() {
@@ -32,7 +33,7 @@ async function flush() {
   }
   await nextTick();
 }
-function fixture() {
+function fixture(maxBatchSize = Infinity) {
   const keys = ref(Array.from({ length: 200 }, (_, index) => String(index)));
   const records = shallowReactive(new Map(keys.value.map((id) => [id, shallowReactive({ id, value: id })])));
   let list!: ReturnType<typeof useRetainedList<Item>>;
@@ -44,6 +45,7 @@ function fixture() {
           (key) => records.get(key),
           (item) => item.id,
           24,
+          maxBatchSize,
         );
         return () =>
           h(
@@ -56,6 +58,9 @@ function fixture() {
                     'data-id': view.item.id,
                     style: view.hidden ? 'display:none' : undefined,
                     value: view.item.value,
+                    onVnodeMounted: () => {
+                      time++;
+                    },
                     onInput: (event: Event) => {
                       view.item.value = (event.target as HTMLInputElement).value;
                     },
@@ -70,6 +75,20 @@ function fixture() {
   return { keys, records, list, scroll };
 }
 describe('retained list lifecycle', () => {
+  it('yields between bounded updates and completes its requested viewport', async () => {
+    vi.spyOn(performance, 'now').mockImplementation(() => time);
+    const own = fixture(4);
+    own.list.setViewportMetrics({ clientHeight: 720, scrollTop: 0 });
+    const [id, callback] = [...frames][0]!;
+    frames.delete(id);
+    callback((time += 16));
+    await flushPromises();
+    expect(wrapper.findAll('input').length).toBeGreaterThan(0);
+    expect(wrapper.findAll('input').length).toBeLessThanOrEqual(4);
+    expect(frames.size).toBeGreaterThan(0);
+    await flush();
+    expect(wrapper.findAll('input')).toHaveLength(60);
+  });
   it('mounts a nearby first visit and retains its nodes, input and focus across a round trip', async () => {
     const own = fixture();
     own.scroll(0);

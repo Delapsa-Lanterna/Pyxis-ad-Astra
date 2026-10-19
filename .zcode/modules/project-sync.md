@@ -26,7 +26,7 @@
 - `src-tauri/src/services/write_transactions.rs`：指定提交恢复能力。
 - `src/services/project-projection.service.ts`：pending 提交对应的读取门控。
 - `src/services/query-cache.service.ts`：查询缓存失效与 session 等待结束信号。
-- `src/services/resource-cache.service.ts`：所属资源缓存失效。
+- `src/services/resource-media.service.ts`：所属资源缓存失效。
 - `src/shared/types/project-session.types.ts`：与 Rust 对应的刷新请求及投影结果。
 - `src/shared/types/write-commit.types.ts`：保存回执、通知与指定提交恢复请求。
 - `src/stores/file-history.store.ts`：历史摘要投影。

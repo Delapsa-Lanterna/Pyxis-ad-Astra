@@ -65,20 +65,15 @@
                   ><ImmersiveHullmodIcon
                     :session-id="root.sessionId"
                     :resource="view.item.resourceRefs.icon"
-                    :url="visible.mediaSrc(view.item.resourceRefs.icon)"
                     :active="view.active"
                     :label="view.item.label"
                     :size="32" /></span
-                ><ImmersiveText :active="view.active" :text="abbreviate(view.item.label, columnWidths[0]! - 56)" ink-aligned outlined
+                ><ImmersiveText :active="view.active" :text="rowText(view.item).name" ink-aligned outlined
               /></span>
               <span
                 class="variant-hullmod-design variant-hullmod-row-label ui-control-row ui-layout-clip"
                 :style="{ color: designTypeColor(reference, hullmodDesign(view.item)) }"
-                ><ImmersiveText
-                  :active="view.active"
-                  :text="abbreviate(hullmodDesign(view.item), columnWidths[1]! - 6)"
-                  ink-aligned
-                  outlined
+                ><ImmersiveText :active="view.active" :text="rowText(view.item).design" ink-aligned outlined
               /></span>
               <span class="variant-hullmod-row-label ui-control-row ui-layout-clip" :style="{ color: state(view.item).costColor }"
                 ><ImmersiveText :active="view.active" :text="state(view.item).costText" ink-aligned outlined
@@ -130,7 +125,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onScopeDispose } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onScopeDispose, type ComputedRef } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
 import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
 import type { HullmodCategory } from '@/domain/immersive/variant/variant-actions';
@@ -235,7 +230,6 @@ const feedback = useAppFeedback(),
   inputs = useFieldInputs()!,
   prefix = 'variant-hullmod/manual';
 const media = useResourceMediaRegistry({
-  surface: '插件选择控件',
   onError: feedback.error,
   onFailures: () => undefined,
 });
@@ -269,6 +263,18 @@ watch(
 );
 const selected = computed(() => (hovered.value ? availableEntries.value.find((entry) => entry.id === hovered.value) : undefined));
 const measureText = useFontMeasurement(immersiveFontIds.body);
+const rowLabels = new WeakMap<import('@/shared/types').ReadonlyVariantEntry, ComputedRef<{ name: string; design: string }>>();
+function rowText(entry: import('@/shared/types').ReadonlyVariantEntry) {
+  let labels = rowLabels.get(entry);
+  if (!labels) {
+    labels = computed(() => ({
+      name: abbreviate(entry.label, columnWidths.value[0]! - 56),
+      design: abbreviate(hullmodDesign(entry), columnWidths.value[1]! - 6),
+    }));
+    rowLabels.set(entry, labels);
+  }
+  return labels.value;
+}
 function abbreviate(text: string, maxWidth: number) {
   if (measureText([{ text }]) <= maxWidth) return text;
   let result = '';

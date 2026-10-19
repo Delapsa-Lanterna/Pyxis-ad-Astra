@@ -1,6 +1,6 @@
 import { querySessionEntity } from '@/services/entity-query.service';
 import { querySessionDraftResources } from '@/services/resource-reference.service';
-import { queryResourceDataUrls } from '@/services/resource-cache.service';
+import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { AppError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';

@@ -13,7 +13,7 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
-import { invalidateResourceCacheByProject } from '@/services/resource-cache.service';
+import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
 import type { SpecEditorData, SpecEditorKind, WriteResult, RowData } from '@/shared/types/index';
 import { listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 
@@ -813,7 +813,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
     expect(vm.spriteData.value).toEqual(kind === 'ship' ? {} : {});
     expect(typeof vm.spriteData.value === 'string' ? vm.spriteData.value : (vm.spriteData.value[field] ?? '')).toBe('');
     expect(mocks.feedback.error).toHaveBeenCalledTimes(1);
-    invalidateResourceCacheByProject('s1', {
+    invalidateResourceMediaByProject('s1', {
       paths: [],
       tables: [],
       entities: [],

@@ -28,7 +28,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { buildThemeOverrides } from '@/app/theme-overrides';
 import { useThemeDomEffect } from '@/app/composables/settings/use-theme-dom-effect';
 import { useAppSettings } from '@/app/composables/use-app-lifecycle-assembly';
-import { useWindowImageCacheLifetime } from '@/app/composables/use-window-image-cache';
+import { useWindowImageRuntimeLifetime } from '@/app/composables/use-window-image-runtime';
 
 const props = withDefaults(defineProps<{ mode?: 'main' | 'child'; appearance?: 'application' | 'immersive'; title?: string }>(), {
   mode: 'child',
@@ -41,7 +41,7 @@ const workspace = useWorkspaceStore();
 const coreRoot = computed(
   () => settings.starsectorRoot ?? workspace.gameOverview?.starsectorRoot ?? workspace.activeManifest?.starsectorRoot ?? null,
 );
-useWindowImageCacheLifetime();
+useWindowImageRuntimeLifetime();
 useCoreAssetsLifecycle(coreRoot);
 useAppSettings(props.mode);
 const colors = computed(() => (props.appearance === 'immersive' ? IMMERSIVE_COLORS : settings.themeColors));

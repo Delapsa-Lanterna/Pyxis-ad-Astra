@@ -152,7 +152,8 @@ mod tests {
     #[test]
     fn cache_limits_defaults_and_wire_budget_names() {
         let wire = serde_json::to_value(AppSettings::default()).unwrap();
-        assert_eq!(wire["cacheLimits"]["resources"]["resourceEntries"], 2048);
+        assert_eq!(wire["cacheLimits"]["mediaData"]["entries"], 2048);
+        assert_eq!(wire["cacheLimits"]["mediaData"]["MiB"], 64);
         assert_eq!(wire["cacheLimits"]["decodedImages"]["MiB"], 96);
         assert_eq!(wire["cacheLimits"]["thumbnails"]["MiB"], 32);
         assert_eq!(

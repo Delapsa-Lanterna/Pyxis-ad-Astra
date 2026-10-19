@@ -13,6 +13,7 @@ import { jointObject } from '@/domain/joint-edit';
 const deckMedia = vi.hoisted(() => ({ replaceCollection: vi.fn(), releaseCollection: vi.fn(), dataUrl: vi.fn(() => '') }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({ useResourceMediaRegistry: () => deckMedia }));
 const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[] }));
+vi.mock('@/app/composables/use-thumbnail-preload', () => ({ useThumbnailPreload: () => ({ prepare: vi.fn(), url: () => '' }) }));
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(234);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

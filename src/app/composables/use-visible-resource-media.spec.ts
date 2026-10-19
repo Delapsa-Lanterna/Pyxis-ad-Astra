@@ -1,37 +1,21 @@
 import { defineComponent, h } from 'vue';
-import { mount, flushPromises } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
+import { mount } from '@vue/test-utils';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { useVisibleResourceMedia } from './use-visible-resource-media';
 import type { ResourceRef } from '@/shared/types';
-import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
-
-const mocks = vi.hoisted(() => ({
-  ensure: vi.fn(),
-  error: vi.fn(),
-  invalidationListener: null as ((event: ResourceCacheInvalidationEvent) => void) | null,
-  stopInvalidation: vi.fn(),
-  warning: vi.fn(),
+const mocks = vi.hoisted(() => ({ prepare: vi.fn() }));
+vi.mock('./use-app-feedback', () => ({ useAppFeedback: () => ({ warning: vi.fn(), error: vi.fn() }) }));
+vi.mock('./use-thumbnail-preload', () => ({ useThumbnailPreload: () => ({ prepare: mocks.prepare, url: () => '' }) }));
+vi.mock('./use-resource-thumbnail', () => ({
+  resourceThumbnailRequest: (session: string, resource: ResourceRef, width: number, height: number) => ({
+    key: session + '/' + resource.relPath,
+    sessionId: session,
+    resources: [resource],
+    width,
+    height,
+  }),
 }));
-
-vi.mock('@/app/composables/use-app-feedback', () => ({
-  useAppFeedback: () => ({ error: mocks.error, warning: mocks.warning }),
-}));
-
-vi.mock('@/services/resource-media.service', () => ({
-  ensureResourceMedia: mocks.ensure,
-  resourceMediaDataUrl: () => undefined,
-  subscribeResourceMediaInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
-    mocks.invalidationListener = listener;
-    return mocks.stopInvalidation;
-  },
-}));
-
-vi.mock('@/services/resource-cache.service', () => ({
-  mediaResourceKey: (sessionId: string, resource: ResourceRef) => JSON.stringify([sessionId, resource.source, resource.relPath]),
-}));
-
 vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));
-
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
   readonly observed = new Set<Element>();
@@ -80,177 +64,39 @@ class TestResizeObserver {
   }
 }
 
-describe('useVisibleResourceMedia', () => {
-  beforeEach(() => {
-    TestIntersectionObserver.instances = [];
-    TestResizeObserver.instances = [];
-    mocks.ensure.mockReset().mockResolvedValue({
-      observed: 0,
-      requested: 0,
-      cacheHits: 0,
-      resolved: 0,
-      failed: 0,
-      failedResources: [],
-      uncachedDataUrls: new Map(),
-    });
-    mocks.error.mockReset();
-    mocks.warning.mockReset();
-    mocks.stopInvalidation.mockReset();
-    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
-    vi.stubGlobal('ResizeObserver', TestResizeObserver);
-    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
-  });
-
-  it('uses the scroll container and makes zero requests for offscreen rows', () => {
-    const wrapper = mountHarness();
-    const observer = activeObserver();
-
-    expect(observer.options?.root).toBe(wrapper.get('[data-root]').element);
-    expect(observer.options?.rootMargin).toBe('240px 0px 240px 0px');
-    expect(mocks.ensure).not.toHaveBeenCalled();
-  });
-  it('hands expected missing resources to the caller while retaining the default warning', async () => {
-    mocks.ensure.mockImplementation(async (_session, resources) => ({ failedResources: resources, uncachedDataUrls: new Map() }));
-    const failures = vi.fn();
-    const own = mountHarness(failures);
-    activeObserver().trigger([{ target: own.findAll('[data-row]')[0]!.element, isIntersecting: true }]);
-    await flushPromises();
-    expect(failures).toHaveBeenCalledWith([resource(1)]);
-    expect(mocks.warning).not.toHaveBeenCalled();
-    own.unmount();
-    const ordinary = mountHarness();
-    activeObserver().trigger([{ target: ordinary.findAll('[data-row]')[0]!.element, isIntersecting: true }]);
-    await flushPromises();
-    expect(mocks.warning).toHaveBeenCalledOnce();
-    ordinary.unmount();
-  });
-
-  it('merges rows from one observer callback into one visible ensure', async () => {
-    const wrapper = mountHarness();
-    const rows = wrapper.findAll('[data-row]');
-    activeObserver().trigger(rows.map((row) => ({ target: row.element, isIntersecting: true })));
-    await Promise.resolve();
-
-    expect(mocks.ensure).toHaveBeenCalledTimes(1);
-    expect(mocks.ensure.mock.calls[0]![0]).toBe('session-a');
-    expect(mocks.ensure.mock.calls[0]![1]).toEqual([resource(1), resource(2)]);
-  });
-
-  it('handles rapid visibility changes and repeated visibility without losing resources', async () => {
-    const wrapper = mountHarness();
-    const rows = wrapper.findAll('[data-row]');
-    const observer = activeObserver();
-    observer.trigger([{ target: rows[0]!.element, isIntersecting: true }]);
-    observer.trigger([{ target: rows[0]!.element, isIntersecting: false }]);
-    observer.trigger([{ target: rows[1]!.element, isIntersecting: true }]);
-    observer.trigger([{ target: rows[1]!.element, isIntersecting: true }]);
-    await Promise.resolve();
-
-    expect(mocks.ensure.mock.calls.map((call) => call[1])).toEqual([[resource(1)], [resource(2)]]);
-  });
-
-  it('rebuilds the observer when the scroll container height changes', () => {
-    mountHarness();
-    const first = activeObserver();
-    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(480);
-    TestResizeObserver.instances[TestResizeObserver.instances.length - 1]!.trigger();
-    const second = activeObserver();
-
-    expect(first.disconnected).toBe(true);
-    expect(second.options?.rootMargin).toBe('480px 0px 480px 0px');
-  });
-
-  it('re-ensures visible resources after invalidation and uses the new session', async () => {
-    const wrapper = mountHarness();
-    const row = wrapper.findAll('[data-row]')[0]!.element;
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    await Promise.resolve();
-    mocks.invalidationListener?.({ invalidation: null, resources: [resource(1)], sessionId: 'session-a', scope: 'resources' });
-    await Promise.resolve();
-    await wrapper.setProps({ session: 'session-b' });
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    await Promise.resolve();
-
-    expect(mocks.ensure.mock.calls.map((call) => call[0])).toEqual(['session-a', 'session-a', 'session-b']);
-  });
-
-  it('reports each failed resource once and releases observers and subscriptions', async () => {
-    mocks.ensure.mockResolvedValue({
-      observed: 1,
-      requested: 1,
-      cacheHits: 0,
-      resolved: 0,
-      failed: 1,
-      failedResources: [resource(1)],
-      uncachedDataUrls: new Map(),
-    });
-    const wrapper = mountHarness();
-    const row = wrapper.findAll('[data-row]')[0]!.element;
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    await Promise.resolve();
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    await Promise.resolve();
-
-    await flushPromises();
-    expect(mocks.warning).toHaveBeenCalledTimes(1);
-    const observer = activeObserver();
-    const resizeObserver = TestResizeObserver.instances[TestResizeObserver.instances.length - 1]!;
-    wrapper.unmount();
-    expect(observer.disconnected).toBe(true);
-    expect(resizeObserver.disconnected).toBe(true);
-    expect(mocks.stopInvalidation).toHaveBeenCalledTimes(1);
-  });
-
-  it('holds uncached content only while its resource remains visible', async () => {
-    mocks.ensure.mockResolvedValue({
-      observed: 1,
-      requested: 1,
-      cacheHits: 0,
-      resolved: 1,
-      failed: 0,
-      failedResources: [],
-      uncachedDataUrls: new Map([[JSON.stringify(['session-a', 'mod', 'graphics/test/1.png']), 'data:temporary']]),
-    });
-    const wrapper = mountHarness();
-    const row = wrapper.findAll('[data-row]')[0]!.element;
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    await flushPromises();
-    expect(wrapper.get('[data-src]').attributes('data-src')).toBe('data:temporary');
-    activeObserver().trigger([{ target: row, isIntersecting: false }]);
-    await flushPromises();
-    expect(wrapper.get('[data-src]').attributes('data-src')).toBe('');
-    wrapper.unmount();
-  });
-
-  it('ends a session cleanup without initiating a replacement read', async () => {
-    const wrapper = mountHarness();
-    const row = wrapper.findAll('[data-row]')[0]!.element;
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    await flushPromises();
-    mocks.invalidationListener?.({ invalidation: null, resources: [], sessionId: 'session-a', scope: 'session' });
-    await flushPromises();
-    expect(mocks.ensure).toHaveBeenCalledOnce();
-    wrapper.unmount();
-  });
-
-  it('releases a hidden consumer and suppresses its late diagnostics', async () => {
-    let fail!: (error: unknown) => void;
-    mocks.ensure.mockReturnValueOnce(
-      new Promise((_resolve, reject) => {
-        fail = reject;
-      }),
-    );
-    const wrapper = mountHarness();
-    const row = wrapper.findAll('[data-row]')[0]!.element;
-    activeObserver().trigger([{ target: row, isIntersecting: true }]);
-    activeObserver().trigger([{ target: row, isIntersecting: false }]);
-    fail(new Error('late failure'));
-    await flushPromises();
-    expect(mocks.error).not.toHaveBeenCalled();
-    wrapper.unmount();
-  });
+beforeEach(() => {
+  TestIntersectionObserver.instances = [];
+  TestResizeObserver.instances = [];
+  vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
 });
-
+it('uses one viewport of advance space and keeps repeated DOM registrations stable', () => {
+  const wrapper = mountHarness(),
+    observer = activeObserver();
+  expect(observer.options?.root).toBe(wrapper.get('[data-root]').element);
+  expect(observer.options?.rootMargin).toBe('240px 0px 240px 0px');
+  observer.trigger(wrapper.findAll('[data-row]').map((row) => ({ target: row.element, isIntersecting: true })));
+  const prepared = mocks.prepare.mock.lastCall!;
+  expect(prepared[1].length + prepared[2].length).toBe(2);
+  expect([...prepared[1], ...prepared[2]].flatMap((request) => request.resources)).toEqual([resource(1), resource(2)]);
+  const count = mocks.prepare.mock.calls.length;
+  observer.trigger([{ target: wrapper.findAll('[data-row]')[0]!.element, isIntersecting: true }]);
+  expect(mocks.prepare).toHaveBeenCalledTimes(count + 1);
+  wrapper.unmount();
+  expect(observer.disconnected).toBe(true);
+});
+it('rebuilds resized roots and clears old range requests on session changes', async () => {
+  const wrapper = mountHarness(),
+    first = activeObserver();
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(480);
+  TestResizeObserver.instances.at(-1)!.trigger();
+  expect(first.disconnected).toBe(true);
+  expect(activeObserver().options?.rootMargin).toBe('480px 0px 480px 0px');
+  await wrapper.setProps({ session: 'session-b' });
+  expect(mocks.prepare.mock.lastCall).toEqual(['session-b', [], []]);
+  wrapper.unmount();
+});
 function mountHarness(onFailures?: (resources: readonly ResourceRef[]) => void) {
   return mount(
     defineComponent({

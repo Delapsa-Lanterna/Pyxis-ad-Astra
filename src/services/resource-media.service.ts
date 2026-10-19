@@ -1,242 +1,221 @@
-import { reactive } from 'vue';
-import {
-  queryResourceDataUrls,
-  mediaResourceKey,
-  subscribeResourceInvalidations,
-  type ResourceCacheInvalidationEvent,
-} from '@/services/resource-cache.service';
-import { recordPerformance } from '@/shared/runtime/performance';
-import {
-  mediaBudgetBytes,
-  registerMediaBudgetEntry,
-  removeMediaBudgetEntry,
-  touchMediaBudgetEntry,
-  mediaBudgetLimit,
-} from '@/services/resource-budget.service';
-import { createReadTicket, invalidatedRead, waitForRead, type ReadTicket } from '@/shared/runtime/read-request';
+import { readonly, shallowRef, type ShallowRef } from 'vue';
+import type {
+  ProjectInvalidation,
+  ProjectSessionId,
+  ResourceDataUrlBatchPayload,
+  ResourceDataUrlBatchResult,
+  ResourceRef,
+} from '@/shared/types';
+import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { requireProjectionReady } from '@/services/project-projection.service';
-import type { ProjectSessionId, ResourceRef } from '@/shared/types';
-
+import { normalizeFsPath } from '@/shared/lib/paths';
+import { sameResourceRef } from '@/shared/lib/resource-ref';
+import { AppError } from '@/shared/lib/errors';
+import { createResidentCache } from '@/shared/runtime/resident-cache';
+import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import { windowCacheLimits } from '@/shared/runtime/cache-limits';
-export const mediaCacheCapacity = () => windowCacheLimits().resources.mediaEntries;
+import { recordPerformance } from '@/shared/runtime/performance';
+
 export const RESOURCE_MEDIA_FLUSH_DELAY_MS = 25;
-
-export interface ResourceMediaBatchResult {
-  observed: number;
-  requested: number;
-  cacheHits: number;
-  resolved: number;
-  failed: number;
-  failedResources: ResourceRef[];
-  uncachedDataUrls: ReadonlyMap<string, string>;
-}
-
-interface PendingMedia {
+export const mediaIdleEntryLimit = () => windowCacheLimits().mediaData.entries;
+export const mediaIdleByteLimit = () => windowCacheLimits().mediaData.MiB * 1024 * 1024;
+export interface ResourceMediaInvalidationEvent {
+  invalidation: ProjectInvalidation | null;
+  resources: ResourceRef[];
   sessionId: ProjectSessionId;
+  scope: 'resources' | 'session';
+}
+export interface ResourceMediaLease {
+  dataUrl: Readonly<ShallowRef<string | null | undefined>>;
+  ready: Promise<string | null>;
+  release(): void;
+}
+interface MediaEntry {
+  sessionId: string;
   resource: ResourceRef;
-  ticket: ReadTicket<string | null>;
-  resolve: (value: string | null) => void;
-  reject: (error: unknown) => void;
+  key: string;
+  value: ShallowRef<string | null | undefined>;
+  references: number;
+  request: ReadTicket<string | null> | null;
 }
-
-type ResourceMediaInvalidationListener = (event: ResourceCacheInvalidationEvent) => void;
-
-const media = reactive(new Map<string, string | null>());
-const accessOrder = new Map<string, true>();
-const pending = new Map<string, PendingMedia>();
-const inFlight = new Map<string, PendingMedia>();
-const invalidationListeners = new Set<ResourceMediaInvalidationListener>();
-let flushHandle: number | null = null;
-
-export function resourceMediaDataUrl(
-  sessionId: ProjectSessionId | null | undefined,
-  resource: ResourceRef | null | undefined,
-): string | undefined {
-  if (!sessionId || !resource) return undefined;
-  const key = mediaResourceKey(sessionId, resource);
-  if (!media.has(key)) return undefined;
-  touchMedia(key);
-  touchMediaBudgetEntry(`media:${key}`);
-  return media.get(key) ?? undefined;
+interface QueuedMedia {
+  entry: MediaEntry;
+  resolve(value: string | null): void;
+  reject(error: unknown): void;
 }
+const retained = createResidentCache<MediaEntry>(() => ({ entries: mediaIdleEntryLimit(), bytes: mediaIdleByteLimit() }));
+const working = new Map<string, MediaEntry>();
+const queued = new Map<string, QueuedMedia>();
+const listeners = new Set<(event: ResourceMediaInvalidationEvent) => void>();
+let flushHandle: ReturnType<typeof setTimeout> | null = null;
 
-export async function ensureResourceMedia(
-  sessionId: ProjectSessionId,
-  resources: ResourceRef[],
-  surface: string,
-  signal?: AbortSignal,
-): Promise<ResourceMediaBatchResult> {
-  if (signal?.aborted) throw invalidatedRead({ sessionId, resources }, 'consumer');
-  requireProjectionReady(sessionId);
-  const startedAt = performance.now();
-  const unique = new Map(resources.map((resource) => [mediaResourceKey(sessionId, resource), resource]));
-  const waitFor: Promise<readonly [string, string | null]>[] = [];
-  const values = new Map<string, string | null>();
-  let cacheHits = 0;
-  let requested = 0;
-
-  for (const [key, resource] of unique) {
-    if (media.has(key)) {
-      cacheHits += 1;
-      touchMedia(key);
-      touchMediaBudgetEntry(`media:${key}`);
-      values.set(key, media.get(key)!);
-      continue;
-    }
-    const existing = pending.get(key) ?? inFlight.get(key);
-    if (existing) {
-      waitFor.push(existing.ticket.promise.then((value) => [key, value] as const));
-      continue;
-    }
-    let resolve!: (value: string | null) => void;
-    let reject!: (error: unknown) => void;
-    const ticket = createReadTicket(
-      { sessionId, resource },
-      () =>
-        new Promise<string | null>((doneResolve, doneReject) => {
-          resolve = doneResolve;
-          reject = doneReject;
-        }),
-    );
-    pending.set(key, { sessionId, resource, ticket, resolve, reject });
-    waitFor.push(ticket.promise.then((value) => [key, value] as const));
-    requested += 1;
-  }
-
-  scheduleFlush();
-  let loadError: unknown = null;
-  try {
-    for (const [key, value] of await waitForRead(Promise.all(waitFor), { sessionId, resources }, signal)) values.set(key, value);
-  } catch (error) {
-    loadError = error;
-  }
-  const failedResources = [...unique].flatMap(([key, resource]) => (values.get(key) === null ? [resource] : []));
-  const resolved = [...values.values()].filter((value) => value !== null).length;
-  const uncachedDataUrls = new Map(
-    [...values].flatMap(([key, value]) => (value !== null && !media.has(key) ? [[key, value] as const] : [])),
-  );
-  const result = {
-    observed: unique.size,
-    requested,
-    cacheHits,
-    resolved,
-    failed: failedResources.length,
-    failedResources,
-    uncachedDataUrls,
-  };
-  recordPerformance('frontend.media.visibleBatch', performance.now() - startedAt, {
-    surface,
-    observed: result.observed,
-    requested: result.requested,
-    cacheHits: result.cacheHits,
-    resolved: result.resolved,
-    failed: result.failed,
-  });
-  if (loadError) throw loadError;
-  return result;
+export function mediaResourceKey(sessionId: string, resource: Pick<ResourceRef, 'source' | 'relPath'>): string {
+  return JSON.stringify([sessionId, resource.source, normalizeFsPath(resource.relPath)]);
 }
-
-export function subscribeResourceMediaInvalidations(listener: ResourceMediaInvalidationListener): () => void {
-  invalidationListeners.add(listener);
-  return () => invalidationListeners.delete(listener);
-}
-
-function scheduleFlush(): void {
-  if (pending.size === 0 || flushHandle !== null) return;
-  flushHandle = window.setTimeout(() => {
-    flushHandle = null;
-    void flushPendingMedia();
-  }, RESOURCE_MEDIA_FLUSH_DELAY_MS);
-}
-
-async function flushPendingMedia(): Promise<void> {
-  const entries = [...pending.entries()];
-  for (const [key, item] of entries) {
-    pending.delete(key);
-    inFlight.set(key, item);
-  }
-  const sessions = new Map<ProjectSessionId, Array<[string, PendingMedia]>>();
-  for (const entry of entries) {
-    const group = sessions.get(entry[1].sessionId) ?? [];
-    group.push(entry);
-    sessions.set(entry[1].sessionId, group);
-  }
-
-  await Promise.all(
-    [...sessions].map(async ([sessionId, group]) => {
-      try {
-        const dataUrls = await queryResourceDataUrls(
-          sessionId,
-          group.map(([, item]) => item.resource),
-        );
-        group.forEach(([key, item], index) => {
-          const value = dataUrls[index] ?? null;
-          if (!item.ticket.signal.aborted) {
-            item.ticket.accept();
-            storeMedia(key, value);
-          }
-          item.resolve(value);
-        });
-      } catch (error) {
-        group.forEach(([, item]) => item.reject(error));
-      } finally {
-        group.forEach(([key, item]) => {
-          if (inFlight.get(key) === item) inFlight.delete(key);
-        });
-      }
+function request(entry: MediaEntry): Promise<string | null> {
+  if (entry.value.value !== undefined) return Promise.resolve(entry.value.value);
+  if (entry.request) return entry.request.promise;
+  const ticket = createReadTicket({ sessionId: entry.sessionId, resource: entry.resource }, (signal) =>
+    new Promise<string | null>((resolve, reject) => queued.set(entry.key, { entry, resolve, reject })).then((value) => {
+      if (signal.aborted) throw invalidatedRead({ sessionId: entry.sessionId, resource: entry.resource }, 'project');
+      requireProjectionReady(entry.sessionId);
+      entry.value.value = value;
+      retained.put(entry.key, entry, value?.length ?? 0, entry.references);
+      return value;
     }),
   );
-  scheduleFlush();
+  entry.request = ticket;
+  function settled() {
+    if (entry.request === ticket) entry.request = null;
+    if (!entry.references && working.get(entry.key) === entry) working.delete(entry.key);
+  }
+  void ticket.promise.then(settled, settled);
+  if (flushHandle === null)
+    flushHandle = setTimeout(() => {
+      flushHandle = null;
+      dispatch([...queued.values()]);
+    }, RESOURCE_MEDIA_FLUSH_DELAY_MS);
+  return ticket.promise;
 }
-
-function storeMedia(key: string, dataUrl: string | null): void {
-  if (!mediaBudgetLimit() || mediaBudgetBytes(dataUrl) > mediaBudgetLimit()) return;
-  media.set(key, dataUrl);
-  touchMedia(key);
-  registerMediaBudgetEntry(`media:${key}`, mediaBudgetBytes(dataUrl), () => removeMediaKey(key));
-  while (accessOrder.size > mediaCacheCapacity()) {
-    const oldestKey = accessOrder.keys().next().value as string | undefined;
-    if (oldestKey === undefined) return;
-    accessOrder.delete(oldestKey);
-    removeMediaKey(oldestKey);
+function dispatch(items: QueuedMedia[]) {
+  const batches = new Map<string, QueuedMedia[]>();
+  for (const item of items) {
+    queued.delete(item.entry.key);
+    const batch = batches.get(item.entry.sessionId) ?? [];
+    batch.push(item);
+    batches.set(item.entry.sessionId, batch);
+  }
+  if (!queued.size && flushHandle !== null) {
+    clearTimeout(flushHandle);
+    flushHandle = null;
+  }
+  for (const [sessionId, batch] of batches) {
+    const resources = batch.map((item) => item.entry.resource),
+      started = performance.now();
+    void invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', {
+      payload: { sessionId, resources } satisfies ResourceDataUrlBatchPayload,
+    })
+      .then((result) => {
+        if (
+          result.entries.length !== resources.length ||
+          result.entries.some(
+            (item, index) => !sameResourceRef(item, resources[index]!) || (item.dataUrl !== null && typeof item.dataUrl !== 'string'),
+          )
+        )
+          throw new AppError('资源批量查询返回内容与请求不一致', { action: 'query-resource-data-urls' });
+        recordPerformance('frontend.media.readBatch', performance.now() - started, {
+          requested: resources.length,
+          resolved: result.entries.filter((entry) => entry.dataUrl !== null).length,
+          failed: result.entries.filter((entry) => entry.dataUrl === null).length,
+        });
+        batch.forEach((item, index) => item.resolve(result.entries[index]!.dataUrl));
+      })
+      .catch((error) => batch.forEach((item) => item.reject(error)));
   }
 }
-
-function touchMedia(key: string): void {
-  accessOrder.delete(key);
-  accessOrder.set(key, true);
+export function acquireResourceMedia(sessionId: string, resource: ResourceRef): ResourceMediaLease {
+  requireProjectionReady(sessionId);
+  const key = mediaResourceKey(sessionId, resource);
+  let entry = working.get(key) ?? retained.get(key);
+  if (!entry) entry = { sessionId, resource: { ...resource }, key, value: shallowRef(undefined), references: 0, request: null };
+  working.set(key, entry);
+  entry.references++;
+  if (retained.get(key) === entry) retained.retain(key);
+  const owned = entry;
+  const consumer = owned.value.value === undefined ? createReadTicket({ sessionId, resource }, () => request(owned)) : null;
+  let released = false;
+  return {
+    dataUrl: readonly(owned.value),
+    ready: consumer?.promise ?? Promise.resolve(owned.value.value!),
+    release: () => {
+      if (released) return;
+      released = true;
+      consumer?.invalidate('consumer');
+      owned.references--;
+      if (retained.get(key) === owned) {
+        if (
+          !owned.references &&
+          (!mediaIdleEntryLimit() || !mediaIdleByteLimit() || (owned.value.value?.length ?? 0) > mediaIdleByteLimit())
+        )
+          retained.remove(key);
+        else retained.release(key);
+      }
+      if (!owned.references && queued.get(key)?.entry === owned) {
+        queued.delete(key);
+        owned.request?.invalidate('consumer');
+        owned.request = null;
+      }
+      if (!owned.references && !owned.request && working.get(key) === owned) working.delete(key);
+    },
+  };
 }
-
-function removeMediaKey(key: string): void {
-  media.delete(key);
-  accessOrder.delete(key);
-  removeMediaBudgetEntry(`media:${key}`);
-}
-
-subscribeResourceInvalidations((event) => {
-  if (event.scope === 'session' || event.invalidation?.session) {
-    const prefix = JSON.stringify([event.sessionId]).slice(0, -1);
-    const keys = new Set([...media.keys(), ...pending.keys(), ...inFlight.keys()]);
-    for (const key of keys) {
-      if (!key.startsWith(prefix)) continue;
-      invalidateMediaKey(key, event.scope === 'session' ? 'session' : 'project');
-    }
-  } else {
-    for (const resource of event.resources) {
-      const key = mediaResourceKey(event.sessionId, resource);
-      invalidateMediaKey(key);
-    }
-    for (const scope of event.invalidation?.resources ?? []) {
-      invalidateMediaKey(mediaResourceKey(event.sessionId, scope));
-    }
+export async function queryResourceDataUrls(
+  sessionId: string,
+  resources: readonly ResourceRef[],
+  signal?: AbortSignal,
+): Promise<(string | null)[]> {
+  if (signal?.aborted) throw invalidatedRead({ sessionId, resources }, 'consumer');
+  const leases = resources.map((resource) => acquireResourceMedia(sessionId, resource));
+  const keys = new Set(resources.map((resource) => mediaResourceKey(sessionId, resource)));
+  dispatch([...queued.values()].filter((item) => keys.has(item.entry.key)));
+  try {
+    const values = await waitForRead(Promise.all(leases.map((lease) => lease.ready)), { sessionId, resources }, signal);
+    requireProjectionReady(sessionId);
+    return values;
+  } finally {
+    leases.forEach((lease) => lease.release());
   }
-  for (const listener of invalidationListeners) listener(event);
-});
-
-function invalidateMediaKey(key: string, reason: 'project' | 'session' = 'project'): void {
-  removeMediaKey(key);
-  pending.get(key)?.ticket.invalidate(reason);
-  pending.delete(key);
-  inFlight.get(key)?.ticket.invalidate(reason);
-  inFlight.delete(key);
+}
+export function resourceMediaDataUrl(sessionId: string | null | undefined, resource: ResourceRef | null | undefined): string | undefined {
+  if (!sessionId || !resource) return undefined;
+  const key = mediaResourceKey(sessionId, resource);
+  return (working.get(key) ?? retained.get(key))?.value.value ?? undefined;
+}
+export function subscribeResourceInvalidations(listener: (event: ResourceMediaInvalidationEvent) => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+export function hasResourceInvalidation(event: ResourceMediaInvalidationEvent, resources: readonly ResourceRef[]): boolean {
+  if (!resources.length) return false;
+  if (event.scope === 'session' || event.invalidation?.session) return true;
+  const keys = new Set(resources.map((resource) => mediaResourceKey(event.sessionId, resource)));
+  return [...event.resources, ...(event.invalidation?.resources ?? [])].some((resource) =>
+    keys.has(mediaResourceKey(event.sessionId, resource)),
+  );
+}
+function invalidate(sessionId: string, invalidation: ProjectInvalidation | null) {
+  const all = new Map([...retained.keys()].map((key) => [key, retained.get(key)!]));
+  for (const [key, entry] of working) all.set(key, entry);
+  const scopes =
+    invalidation && !invalidation.session ? new Set(invalidation.resources.map((resource) => mediaResourceKey(sessionId, resource))) : null;
+  const resources: ResourceRef[] = [];
+  for (const [key, entry] of all) {
+    if (entry.sessionId !== sessionId || (scopes && !scopes.has(key))) continue;
+    resources.push(entry.resource);
+    entry.request?.invalidate(invalidation ? 'project' : 'session');
+    entry.value.value = undefined;
+    working.delete(key);
+    queued.delete(key);
+    retained.remove(key);
+  }
+  if (!queued.size && flushHandle !== null) {
+    clearTimeout(flushHandle);
+    flushHandle = null;
+  }
+  const event: ResourceMediaInvalidationEvent = { sessionId, resources, invalidation, scope: invalidation ? 'resources' : 'session' };
+  for (const listener of listeners) listener(event);
+}
+export function invalidateResourceMediaForSession(sessionId: string) {
+  invalidate(sessionId, null);
+}
+export function invalidateResourceMediaByProject(sessionId: string, invalidation: ProjectInvalidation) {
+  invalidate(sessionId, invalidation);
+}
+export function resourceMediaStats() {
+  return { ...retained.stats(), pending: [...working.values()].filter((entry) => entry.request).length };
+}
+export function disposeResourceMedia() {
+  const sessions = new Set([...working.values()].map((entry) => entry.sessionId));
+  for (const key of retained.keys()) sessions.add(retained.get(key)!.sessionId);
+  for (const sessionId of sessions) invalidateResourceMediaForSession(sessionId);
 }

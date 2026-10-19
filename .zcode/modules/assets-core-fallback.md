@@ -20,18 +20,16 @@
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
 - `src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
-- `src/app/composables/use-image-preload.ts`：可见优先与邻近预读队列的资源集合消费。
 - `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
-- `src/app/composables/use-resource-media-registry.ts`：资源集合、物理引用计数、票据和超额临时结果。
+- `src/app/composables/use-resource-media-registry.ts`：必须持有集合差量、业务引用、媒体租约与所属反馈。
+- `src/app/composables/use-resource-thumbnail.ts`：必须交付普通缩略图需求与静态成品展示生命周期。
+- `src/app/composables/use-thumbnail-preload.ts`：可见优先与邻近预读队列的资源集合消费。
 - `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
-- `src/app/composables/use-window-image-cache.ts`：窗口图片、成品、代次、引用与预读并发。
+- `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。
 - `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影。
 - `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
-- `src/services/resource-budget.service.ts`：共享 WebView 字节预算与逐出回调。
-- `src/services/resource-budget.spec.ts`：WebView 总字节预算、替换及逐出验证。
-- `src/services/resource-cache.service.ts`：前端资源缓存 service。
-- `src/services/resource-cache.spec.ts`：资源读取、失效、预算与接纳行为验证。
-- `src/services/resource-media.service.ts`：通用媒体服务，资源缓存之上的响应式投影视图。
+- `src/services/resource-media-query.spec.ts`：必须验证完整批次、物理共享、失效和一次性查询。
+- `src/services/resource-media.service.ts`：必须唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
 - `src/services/resource-media.spec.ts`：媒体引用、展示集合与释放行为验证。
 - `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 
@@ -56,9 +54,9 @@
 
 - Core 文档目录由来源读取按 canonical 游戏根交付，引用能力消费所属只读成果。
 - 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
-- 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，窗口图片运行态拥有解码与成品保留，活跃引用和闲置预算分别计量。
+- 各 WebView 必须由唯一媒体 owner 持有 data URL；窗口图片运行态必须分别持有解码和成品，活跃引用与闲置预算必须分别计量。
 - 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
-- 媒体服务拥有合批、single-flight 与资源失效，registry 拥有集合、引用计数及消费者等待。
+- 媒体服务必须拥有合批、single-flight、就绪数据与失效；registry 必须持有集合差量和所属租约。
 - 舰体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
 - 贴图选择归引用能力，返回后端校验的 Mod 根内正斜杠相对路径。
@@ -68,7 +66,7 @@
 ### 资源解析
 
 1. 组件或 schema 选项携带 `ResourceRef` 请求资源。
-2. 通用媒体服务合并同帧请求并以 single-flight 查询后端。
+2. 媒体服务必须直接交付就绪结果、共享在途结果，并对集合冷请求采用 25ms 合批；一次性查询必须立即交接所属排队任务。
 3. 后端批次按媒体资源键复用本次结果与缓存，按实际访问准备 Mod/Core 根边界并逐文件授权读取。
 4. 返回 data URL 进入前端 LRU 缓存并驱动渲染。
 
@@ -106,7 +104,7 @@
 - Skin 实体贴图必须消费 SkinFile.data.spriteName；内置槽位必须携带最后定义该内置武器的 Mod/Core 来源并据此分组。
 - 列表缩略图只允许解析 observer 预读区内的资源。
 - 前端严禁构造 `ResourceRef`、拼路径、逐项读图或把 data URL 写入 manifest；缺失 data URL 保持 `null`。
-- 单个 data URL 超过启动预算时必须返回本次内容并跳过共享缓存；活跃消费者必须持有所属结果，隐藏、引用切换、失效和卸载必须释放自身引用。
+- 单个 data URL 超过闲置预算时必须保留活跃租约，最后一个引用释放时必须立即逐出；隐藏、引用切换、失效和卸载必须交还所属工作引用。
 - 原版来源刷新必须按实际来源目录失效所属索引，已有无关索引必须继续由原缓存拥有。
 - 可见元素 ref 再次登记同一 DOM 时必须保持可见身份和当前资源结果。
 - 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行严禁扫描全部登记项。
@@ -118,21 +116,24 @@
 - 媒体缓存命中必须先于根边界准备，全部命中时根准备次数必须为零；关闭 session 后的迟到结果严禁写入媒体缓存。
 - 媒体读取必须优先交付实际 Mod 文件，回退或显式读取 Core 时必须校验所属 Core 根；来源目录变化必须在实际访问时核对。
 - 引用解析只接受 Mod 根内安全相对路径；绝对路径、`..` 与链接逃逸必须拒绝。
+- 成品引用交接必须先取得新引用再释放旧引用，同一资源失效必须按物理身份去重并只递增一次修订。
 - 指纹不一致即丢弃快照并重建；缓存损坏或不可写只降级，严禁读取旧快照。
 - 整批返回必须先核对数量、顺序、完整资源身份与 nullable data URL，再发布所属缓存。
+- 缺失资源的 null 结果必须与正结果共同服从闲置条数预算，资源失效或预算逐出后必须重新核对；读取异常严禁进入结果缓存，下次明确活跃请求必须重试。
 - 联合配置资源必须消费 Core／Mod 的实际配置和版本，UI 图标必须从 graphics.ui 解析；展示消费者必须使用返回的 `ResourceRef`。
 - 草稿资源查询必须由资源能力交付，必须捕获当前正式草稿并消费实时请求及所属 session 的接纳与释放。
 - 表记录图片必须消费正式 sprite 引用，缺失图片的默认资源必须由后端按格式规则解析并授权。
-- 资源读取票据必须归共享媒体 registry；集合释放只结束所属等待，迟到结果严禁写入已撤销集合。
-- 选项媒体 owner 必须按集合登记菜单、已选值、摘要和键值行资源；集合替换只更新受影响资源，引用计数归零后才释放临时结果。
+- 资源共享读取必须归媒体 owner，集合租约必须归所属 registry；释放只允许结束所属等待，迟到结果严禁写入已撤销生命周期。
+- 选项媒体 owner 必须分别登记菜单、已选值、摘要和键值行集合；集合替换必须只更新受影响资源，引用计数归零时必须交还租约。
 - 静态武器及装配绘制必须共用正式层序、原点、发射点与有效 Skin 来源，已装载导弹必须消费实际弹体资源。
+- 静态缩略图与预读必须共用成品需求和在途任务，原图工作引用必须在绘制完成后释放；返回可见区必须复用当前签名的完成画面。
 - 预读只允许请求所属视口上下各一个视口的邻近资源，窗口预读只允许四项并发；失效、session 关闭和窗口销毁必须清理所属解码及依赖成品，迟到值必须服从所属票据。
 - 驻留图片与成品必须提供同步就绪消费；成品身份必须包含 session、来源代次、实际绘制参数、尺寸和 DPR，成品只允许消费正式领域绘制。
 
 ## 陷阱
 
 - Core fallback 允许写盘会让只读边界被突破。
-- resource cache 与 media projection 分别计算预算会让同一 WebView 的 data URL 占用失控。
+- 同一物理数据的预算必须只登记一次，活跃租约与闲置保留必须分别计量。
 - 在前端按路径规则拼出 `ResourceRef` 会让资源身份脱离后端授权。
 - 指纹校验跳过会让过期派生索引冒充当前 Core 内容。
 - 缓存命中不刷新访问顺序会让 LRU 逐出策略失真。

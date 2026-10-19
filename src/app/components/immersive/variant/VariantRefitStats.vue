@@ -146,7 +146,6 @@
             ><ImmersiveHullmodIcon
               :session-id="vm.joint.currentTarget.value!.sessionId"
               :resource="mod.icon"
-              :url="media.mediaSrc(mod.icon)"
               :active="media.mediaVisible(mod.id)"
               :label="mod.name"
               :size="34"
@@ -189,6 +188,7 @@ defineExpose({ focusPicker: () => pickerButton.value!.focus({ preventScroll: tru
 const opSegments = computed(() => variantOpSegments(props.variant.opUsed, props.variant.opTotal));
 defineEmits<{ picker: []; step: [field: string, delta: number]; mod: [id: string, category: HullmodCategory | null] }>();
 const media = useVisibleResourceMedia({
+  thumbnailSize: 34,
   sessionId: () => props.vm.joint.currentTarget.value?.sessionId,
   surface: '装配插件',
   failureLabel: '装配插件图标读取失败',

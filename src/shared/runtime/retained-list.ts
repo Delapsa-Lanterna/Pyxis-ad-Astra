@@ -15,6 +15,7 @@ export function useRetainedList<T>(
   resolve: (key: string) => T | undefined,
   identity: (item: T) => string,
   rowHeight: number,
+  maxBatchSize = Infinity,
 ) {
   const mounted = shallowReactive(new Map<string, RetainedListItem<T>>());
   const scrollTop = ref(0),
@@ -64,7 +65,7 @@ export function useRetainedList<T>(
     while (queue.length && token === generation && !disposed) {
       const remaining = 4 - (performance.now() - started);
       if (remaining <= 0) break;
-      const count = Math.max(1, Math.floor(remaining / costPerItem)),
+      const count = Math.min(maxBatchSize, Math.max(1, Math.floor(remaining / costPerItem))),
         batch = queue.splice(0, count);
       const before = performance.now();
       for (const key of batch) mount(key);

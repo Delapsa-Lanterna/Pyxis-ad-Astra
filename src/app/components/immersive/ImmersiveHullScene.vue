@@ -45,7 +45,7 @@ import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';
 import { immersiveHullPoint, type ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import { useResourceImages } from '@/app/composables/use-resource-images';
-import { windowImageCache } from '@/app/composables/use-window-image-cache';
+import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { warningNotice } from '@/shared/lib/errors';
@@ -83,7 +83,6 @@ const navigation = useCanvasNavigation(
 const media = props.resourceUrl
   ? null
   : useResourceMediaRegistry({
-      surface: '装配网格',
       onError: (error) => feedback.error(error),
       onFailures: (resources) => {
         const missing = resources.filter((resource) => !resource.key.startsWith('engine'));
@@ -126,7 +125,7 @@ const decoded = useResourceImages(
   paint,
   (error) => feedback.error(error, '读取装配预览失败'),
 );
-const imageCache = windowImageCache();
+const imageCache = windowImageRuntime();
 let releaseThumbnail: (() => void) | null = null;
 const engineTints = new Map<string, { canvas: HTMLCanvasElement; release: () => void }>();
 const paintedTints = new Set<string>();

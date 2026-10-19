@@ -11,15 +11,6 @@ pub struct CacheSize {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct ResourceCacheLimits {
-    pub resource_entries: u32,
-    pub media_entries: u32,
-    #[serde(rename = "dataUrlMiB")]
-    pub data_url_mib: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct FontCacheLimits {
     pub glyph_entries_per_page: u32,
 }
@@ -27,7 +18,7 @@ pub struct FontCacheLimits {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheLimits {
-    pub resources: ResourceCacheLimits,
+    pub media_data: CacheSize,
     pub decoded_images: CacheSize,
     pub thumbnails: CacheSize,
     pub backend_media: CacheSize,
@@ -38,10 +29,9 @@ pub struct CacheLimits {
 impl Default for CacheLimits {
     fn default() -> Self {
         Self {
-            resources: ResourceCacheLimits {
-                resource_entries: 2048,
-                media_entries: 2048,
-                data_url_mib: 64,
+            media_data: CacheSize {
+                entries: 2048,
+                mib: 64,
             },
             decoded_images: CacheSize {
                 entries: 1024,
@@ -78,17 +68,8 @@ impl Default for CacheLimits {
 impl CacheLimits {
     pub fn values(&self) -> Vec<(&str, u32, u32)> {
         let mut values = vec![
-            (
-                "resources.resourceEntries",
-                self.resources.resource_entries,
-                65536,
-            ),
-            (
-                "resources.mediaEntries",
-                self.resources.media_entries,
-                65536,
-            ),
-            ("resources.dataUrlMiB", self.resources.data_url_mib, 4096),
+            ("mediaData.entries", self.media_data.entries, 65536),
+            ("mediaData.MiB", self.media_data.mib, 4096),
             ("decodedImages.entries", self.decoded_images.entries, 65536),
             ("decodedImages.MiB", self.decoded_images.mib, 4096),
             ("thumbnails.entries", self.thumbnails.entries, 65536),

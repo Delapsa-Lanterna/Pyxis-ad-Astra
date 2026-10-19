@@ -1,4 +1,4 @@
-import { queryResourceDataUrls } from '@/services/resource-cache.service';
+import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { isResourceRef } from '@/shared/lib/resource-ref';
 import type { ProjectSessionId, ResourceRef } from '@/shared/types';
 

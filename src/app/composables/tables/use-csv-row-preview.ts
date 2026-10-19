@@ -2,7 +2,7 @@ import { computed, ref, watch } from 'vue';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { subscribeResourceInvalidations } from '@/services/resource-cache.service';
+import { subscribeResourceInvalidations } from '@/services/resource-media.service';
 import { onScopeDispose } from 'vue';
 import type { CsvRowPreviewTarget } from '@/shared/types';
 

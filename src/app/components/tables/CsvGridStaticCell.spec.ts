@@ -11,8 +11,7 @@ import { editorUiStubs } from '@/test/ui-stubs';
 
 vi.mock('@/services/resource-media.service', () => ({
   resourceMediaDataUrl: vi.fn(() => 'data:image/png;base64,x'),
-  ensureResourceMedia: vi.fn(async () => ({ failedResources: [], uncachedDataUrls: new Map() })),
-  subscribeResourceMediaInvalidations: vi.fn(() => () => {}),
+  subscribeResourceInvalidations: vi.fn(() => () => {}),
 }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));

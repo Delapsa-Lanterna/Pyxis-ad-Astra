@@ -16,7 +16,7 @@ vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('./WindowRuntime.vue', () => ({ default: { template: '<div><slot /></div>' } }));
 vi.mock('@/app/components/ContextMenu.vue', () => ({ default: { template: '<div><slot /></div>' } }));
-vi.mock('@/app/composables/use-window-image-cache', () => ({ useWindowImageCacheLifetime: vi.fn() }));
+vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
 vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
   ...(await original<typeof import('@/app/composables/use-app-lifecycle-assembly')>()),
   useAppSettings: vi.fn(),

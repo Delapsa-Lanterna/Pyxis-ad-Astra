@@ -42,7 +42,7 @@ vi.mock('@/services/query-cache.service', async (importOriginal) => ({
   subscribeQueryInvalidations: mocks.subscribeQueryInvalidations,
 }));
 
-vi.mock('@/services/resource-cache.service', () => ({
+vi.mock('@/services/resource-media.service', () => ({
   subscribeResourceInvalidations: mocks.subscribeResourceInvalidations,
   hasResourceInvalidation: mocks.hasResourceInvalidation,
 }));

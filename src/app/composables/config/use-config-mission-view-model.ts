@@ -23,7 +23,7 @@ import { useConfigIdentityReception } from '@/app/composables/config/use-config-
 import { warningNotice } from '@/shared/lib/errors';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
+import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-media.service';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 
 export function useConfigMissionViewModel() {

@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
-import { createWindowImageCache } from './use-window-image-cache';
+import { createWindowImageRuntime } from './use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
 import type { ResourceRef } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
-  listener: null as ((event: import('@/services/resource-cache.service').ResourceCacheInvalidationEvent) => void) | null,
+  listener: null as ((event: import('@/services/resource-media.service').ResourceMediaInvalidationEvent) => void) | null,
 }));
 vi.mock('@/services/resource-media.service', () => ({
-  subscribeResourceMediaInvalidations: (callback: typeof mocks.listener) => {
+  mediaResourceKey: (session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath]),
+  subscribeResourceInvalidations: (callback: typeof mocks.listener) => {
     mocks.listener = callback;
     return vi.fn();
   },
@@ -33,9 +34,73 @@ function fixture() {
       }
     },
   );
-  return { images, cache: createWindowImageCache() };
+  return { images, cache: createWindowImageRuntime() };
 }
 describe('window image residence', () => {
+  it('keeps session refresh revisions newer than every physical revision', () => {
+    const { cache } = fixture();
+    const event = { scope: 'resources' as const, sessionId: 's', resources: [resource], invalidation: null };
+    mocks.listener!(event);
+    mocks.listener!(event);
+    const previous = cache.revision('s', resource);
+    cache.clearSession('s');
+    expect(cache.revision('s', resource)).toBeGreaterThan(previous);
+    cache.dispose();
+  });
+  it('shares finished products, releases original decodes and retains replacement references with zero idle budget', async () => {
+    const limits = createSettingsFixture().cacheLimits;
+    limits.decodedImages.entries = 0;
+    limits.thumbnails.entries = 0;
+    initializeCacheLimits(limits);
+    const { cache, images } = fixture(),
+      canvas = { width: 4, height: 4 } as HTMLCanvasElement;
+    const render = vi.fn(() => canvas),
+      source = { key: 'shared', sessionId: 's', resources: [resource], url: () => 'data:a', render };
+    const first = cache.acquireThumbnail(source),
+      second = cache.acquireThumbnail(source);
+    await flushPromises();
+    expect(images).toHaveLength(1);
+    images[0]!.onload!(new Event('load'));
+    await Promise.all([first.promise, second.promise]);
+    await flushPromises();
+    expect(render).toHaveBeenCalledOnce();
+    expect(cache.stats().decoded).toMatchObject({ activeEntries: 0, idleEntries: 0 });
+    const next = cache.acquireThumbnail(source);
+    first.release();
+    second.release();
+    expect(next.canvas).toBe(canvas);
+    expect(cache.stats().thumbnails.activeEntries).toBe(1);
+    expect(images).toHaveLength(1);
+    next.release();
+    expect(cache.stats().thumbnails).toMatchObject({ activeEntries: 0, idleEntries: 0 });
+    cache.dispose();
+  });
+  it('increments each physical revision once and rejects obsolete product work', async () => {
+    const { cache, images } = fixture();
+    const source = {
+      key: 'invalidated',
+      sessionId: 's',
+      resources: [resource],
+      url: () => 'data:a',
+      render: vi.fn(() => ({ width: 4, height: 4 }) as HTMLCanvasElement),
+    };
+    const held = cache.acquireThumbnail(source),
+      ended = expect(held.promise).rejects.toMatchObject({ code: 'query.invalidated' });
+    await flushPromises();
+    mocks.listener!({
+      scope: 'resources',
+      sessionId: 's',
+      resources: [resource],
+      invalidation: { resources: [{ source: resource.source, relPath: resource.relPath }] } as import('@/shared/types').ProjectInvalidation,
+    });
+    await ended;
+    images[0]!.onload!(new Event('load'));
+    await flushPromises();
+    expect(cache.revision('s', resource)).toBe(1);
+    expect(source.render).not.toHaveBeenCalled();
+    held.release();
+    cache.dispose();
+  });
   it('keeps a replaced thumbnail active when the old display releases it', () => {
     const { cache } = fixture();
     const first = { width: 4, height: 4 } as HTMLCanvasElement,

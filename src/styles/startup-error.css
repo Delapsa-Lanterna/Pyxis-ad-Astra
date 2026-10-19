@@ -1,11 +1,58 @@
 .startup-error {
-  min-height: 100vh;
-  padding: 32px;
+  height: 100%;
   background: var(--color-bg);
   color: var(--color-text);
 }
+.startup-error-body {
+  flex: 1;
+  padding: 12px;
+}
+.startup-error-content {
+  width: min(100%, 560px);
+  max-height: 100%;
+  gap: 12px;
+  padding: 24px;
+}
+.startup-error-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--color-danger);
+  stroke-width: 1.5;
+}
+.startup-error-button {
+  padding: 6px 12px;
+  color: var(--color-text);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.startup-error-button:hover {
+  background: var(--color-surface-hover);
+}
+.startup-error-button.primary {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.startup-error-button.primary:hover {
+  background: var(--color-primary-hover);
+}
+.startup-error-button:disabled {
+  opacity: 0.6;
+}
+.startup-error-details {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-soft);
+}
 .startup-error .startup-error-code {
-  margin: 0;
+  margin: 8px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+  font: 11px/18px var(--font-mono);
   color: var(--color-text-soft);
 }

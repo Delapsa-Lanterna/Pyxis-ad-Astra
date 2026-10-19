@@ -100,7 +100,12 @@ const emit = defineEmits<{
 }>();
 const floating = useCsvFloatingViewport();
 
-const visible = useVisibleResourceMedia({ sessionId: () => props.sessionId, surface: 'CSV 选项', failureLabel: '读取选项图片失败' });
+const visible = useVisibleResourceMedia({
+  sessionId: () => props.sessionId,
+  surface: 'CSV 选项',
+  failureLabel: '读取选项图片失败',
+  thumbnailSize: 18,
+});
 
 const query = ref('');
 const customMode = ref(false);

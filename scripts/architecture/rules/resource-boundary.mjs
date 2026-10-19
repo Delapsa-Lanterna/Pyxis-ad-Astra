@@ -16,7 +16,7 @@ export const resourceBoundaryRule = {
         failures.push(`${file.rel}: single resource data URL APIs are forbidden`);
       }
       if (current.layer !== 'services' && current.layer !== 'shared' && /\bqueryResourceDataUrls\b/.test(file.text)) {
-        failures.push(`${file.rel}: batch resource API must be wrapped by resource-cache service`);
+        failures.push(`${file.rel}: batch resource API must be wrapped by resource-media service`);
       }
       if (/\bPromise\.all\s*\([^)]*queryResource/s.test(file.text)) {
         failures.push(`${file.rel}: resource loading must use one batch request, not per-item promises`);

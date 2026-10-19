@@ -1,6 +1,6 @@
 import { querySessionEntity, querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { querySessionDraftResources } from '@/services/resource-reference.service';
-import { queryResourceDataUrls } from '@/services/resource-cache.service';
+import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { queryJointCandidate } from '@/services/joint-edit.service';
 import { jointObject } from '@/domain/joint-edit';
 import { createShipSpec } from '@/domain/editors/spec-construction';

@@ -20,7 +20,7 @@ import { queryTableRowPreviewDataUrl, queryTableIndex, queryTableRows } from '@/
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import type { SelectOption } from '@/domain/schema/schema-options';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
+import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-media.service';
 import type { CsvRowPreviewTarget, ResourceRef, CsvSearchField } from '@/shared/types';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';

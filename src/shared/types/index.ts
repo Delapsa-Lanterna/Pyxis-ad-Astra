@@ -55,7 +55,7 @@ export type {
 export type { FontId, OriginalFontPage, OriginalFontResult, QueryOriginalFontPayload } from '@/shared/types/font.types';
 export type { EditContext } from '@/shared/types/edit-context.types';
 export type { SessionQueryIdentity } from '@/shared/types/query-cache.types';
-export type { CacheLimits, CacheSize, ResourceCacheLimits, FontCacheLimits, QueryCacheKey } from '@/shared/types/cache-limits.types';
+export type { CacheLimits, CacheSize, FontCacheLimits, QueryCacheKey } from '@/shared/types/cache-limits.types';
 export { QUERY_CACHE_KEYS } from '@/shared/types/cache-limits.types';
 export type { ErrorDiagnostic, ErrorLocation, FeedbackNotice } from '@/shared/types/error.types';
 

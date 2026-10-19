@@ -2,7 +2,7 @@ import { hasSourceInvalidation } from '@/services/source-options.service';
 import { computed } from 'vue';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
+import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-media.service';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { ProjectManifest } from '@/shared/types';
 

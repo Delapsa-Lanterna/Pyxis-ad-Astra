@@ -166,7 +166,7 @@ const selectedKey = ref(''),
 const current = computed(
   () => props.panel.variants.find((variant) => variant.key === selectedKey.value) ?? props.panel.variants[0] ?? null,
 );
-const deckMedia = useResourceMediaRegistry({ surface: '空甲板', onError: useAppFeedback().error, onFailures: () => undefined });
+const deckMedia = useResourceMediaRegistry({ onError: useAppFeedback().error, onFailures: () => undefined });
 const deckRef = computed(() => props.vm.displaySnapshot.value?.referenceSettings.resources.fighterButtonBlank);
 const deckIcon = computed(() =>
   deckRef.value ? (deckMedia.dataUrl(props.vm.joint.currentTarget.value!.sessionId, deckRef.value) ?? '') : '',

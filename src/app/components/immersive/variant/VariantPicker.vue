@@ -24,7 +24,7 @@
       :root="root"
       :kind="kind"
       :entry="currentEntry"
-      :media-url="(resource) => preload.url(root.sessionId, resource)"
+      :media-url="mediaUrl"
       :cost="cost(currentEntry)"
       diagnostic=""
       current
@@ -44,7 +44,7 @@
         @toggle="toggleFilter(option)"
       />
     </div>
-    <div ref="listSurface" class="variant-picker-list" @scroll="scrollList">
+    <div ref="listSurface" data-media-viewport class="variant-picker-list" @scroll="scrollList">
       <ImmersiveText v-if="loading" text="正在读取候选目录" />
       <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
       <template v-else>
@@ -57,7 +57,7 @@
             :root="root"
             :kind="kind"
             :entry="view.item"
-            :media-url="(resource) => preload.url(root.sessionId, resource)"
+            :media-url="mediaUrl"
             :active="view.active"
             :cost="cost(view.item)"
             :diagnostic="diagnostic(view.item)"
@@ -106,7 +106,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, onMounted, onScopeDispose, watch } from 'vue';
+import { computed, ref, onMounted, onScopeDispose, watch, type ComputedRef } from 'vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import type { ReadonlyVariantEntry, JointEditRoot, RowData } from '@/shared/types';
@@ -123,8 +123,8 @@ import VariantCandidateCard from './VariantCandidateCard.vue';
 import ImmersiveFilterToggle from '../ImmersiveFilterToggle.vue';
 import { useRetainedList } from '@/shared/runtime/retained-list';
 import { useImmersiveHover } from '@/app/composables/use-immersive-hover';
-import { useImagePreload } from '@/app/composables/use-image-preload';
-import { variantCandidateResources } from '@/domain/immersive/variant/variant-panel';
+import { useThumbnailPreload } from '@/app/composables/use-thumbnail-preload';
+import { variantCandidateThumbnail } from '@/app/composables/immersive-editor/variant/variant-candidate-thumbnail';
 const props = defineProps<{
   root: JointEditRoot;
   kind: 'weapons' | 'wings';
@@ -208,7 +208,9 @@ function locate() {
       : Math.max(props.anchor.x, detailWidth + 10);
   const x = Math.max(7, Math.min(preferred, window.innerWidth - bounds.width - 7));
   const y = Math.max(7, Math.min(props.anchor.y - bounds.height / 2, window.innerHeight - bounds.height - 7));
-  position.value = { left: x + 'px', top: y + 'px' };
+  const left = x + 'px',
+    top = y + 'px';
+  if (position.value.left !== left || position.value.top !== top) position.value = { left, top };
   hover.locate();
   measureList();
 }
@@ -240,25 +242,28 @@ const viewport = useRetainedList(
   VARIANT_CARD_STEP,
 );
 watch(() => JSON.stringify([props.root.sessionId, props.root.modRoot, props.kind]), viewport.reset, { flush: 'sync' });
-const preload = useImagePreload('装配候选预读');
-const candidateResources = new WeakMap<ReadonlyVariantEntry, import('@/shared/types').ResourceRef[]>();
+const preload = useThumbnailPreload('装配候选预读');
+const thumbnailRequests = new WeakMap<ReadonlyVariantEntry, ComputedRef<ReturnType<typeof variantCandidateThumbnail>>>();
+const mediaUrl = (resource: import('@/shared/types').ResourceRef) => preload.url(props.root.sessionId, resource);
 function preloadImages() {
   const list = listSurface.value!,
     start = Math.floor(list.scrollTop / VARIANT_CARD_STEP),
-    count = Math.ceil(list.clientHeight / VARIANT_CARD_STEP),
-    resources = (entries: ReadonlyVariantEntry[]) =>
-      entries.flatMap((entry) => {
-        let resources = candidateResources.get(entry);
-        if (!resources) {
-          resources = variantCandidateResources(entry, props.kind);
-          candidateResources.set(entry, resources);
+    count = Math.ceil(list.clientHeight / VARIANT_CARD_STEP);
+  const requests = (items: ReadonlyVariantEntry[]) =>
+    items
+      .map((entry) => {
+        let request = thumbnailRequests.get(entry);
+        if (!request) {
+          request = computed(() => variantCandidateThumbnail(props.root.sessionId, entry, props.kind));
+          thumbnailRequests.set(entry, request);
         }
-        return resources;
-      });
+        return request.value;
+      })
+      .filter((request) => request !== null);
   preload.prepare(
     props.root.sessionId,
-    [...resources(currentEntry.value ? [currentEntry.value] : []), ...resources(filtered.value.slice(start, start + count))],
-    resources(filtered.value.slice(Math.max(0, start - count), start + count * 2)),
+    requests([...(currentEntry.value ? [currentEntry.value] : []), ...filtered.value.slice(start, start + count)]),
+    requests(filtered.value.slice(Math.max(0, start - count), start + count * 2)),
   );
 }
 function measureList() {
@@ -351,7 +356,6 @@ function compareKey(event: KeyboardEvent) {
 onMounted(() => {
   surface.value!.focus({ preventScroll: true });
   locate();
-  measureList();
   observer = new ResizeObserver(locate);
   observer.observe(surface.value!);
   window.addEventListener('resize', locate);

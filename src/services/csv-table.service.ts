@@ -20,7 +20,7 @@ import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
 import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
-import { queryResourceDataUrls } from '@/services/resource-cache.service';
+import { queryResourceDataUrls } from '@/services/resource-media.service';
 
 import { associatedSpecKind } from '@/domain/tables/associated-specs';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';

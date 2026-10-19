@@ -1,152 +1,90 @@
 import { defineComponent, h } from 'vue';
-import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { useResourceMediaRegistry } from './use-resource-media-registry';
-import type { ResourceRef } from '@/shared/types';
-import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
-
-const mocks = vi.hoisted(() => ({
-  ensure: vi.fn(),
-  key: vi.fn((session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath])),
-  invalidation: null as ((event: ResourceCacheInvalidationEvent) => void) | null,
+import { invalidateResourceMediaForSession, invalidateResourceMediaByProject, resourceMediaStats } from '@/services/resource-media.service';
+import type { ResourceRef, ProjectInvalidation } from '@/shared/types';
+const mock = vi.hoisted(() => ({
+  load: vi.fn(async (resources: ResourceRef[]) => ({
+    entries: resources.map((resource) => ({ ...resource, dataUrl: 'data:' + resource.relPath })),
+  })),
   error: vi.fn(),
   failures: vi.fn(),
 }));
-vi.mock('@/services/resource-cache.service', () => ({ mediaResourceKey: mocks.key }));
-vi.mock('@/services/resource-media.service', () => ({
-  ensureResourceMedia: mocks.ensure,
-  resourceMediaDataUrl: () => undefined,
-  subscribeResourceMediaInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
-    mocks.invalidation = listener;
-    return () => {
-      mocks.invalidation = null;
-    };
-  },
+vi.mock('@/shared/runtime/command.runtime', () => ({
+  invokeCommand: (_command: string, { payload }: { payload: { resources: ResourceRef[] } }) => mock.load(payload.resources),
 }));
-
-function resource(id: number): ResourceRef {
-  return { source: 'mod', relPath: `graphics/${id}.png`, ownerKind: 'ship', ownerId: String(id), key: 'sprite' };
-}
-
+vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));
+const resource = (id: number): ResourceRef => ({
+  source: 'mod',
+  relPath: id + '.png',
+  ownerKind: 'ship',
+  ownerId: String(id),
+  key: 'sprite',
+});
 function harness() {
   let registry!: ReturnType<typeof useResourceMediaRegistry>;
   const wrapper = mount(
     defineComponent({
       setup() {
-        registry = useResourceMediaRegistry({ surface: 'test', onError: mocks.error, onFailures: mocks.failures });
+        registry = useResourceMediaRegistry({ onError: mock.error, onFailures: mock.failures });
         return () => h('div');
       },
     }),
   );
   return { registry, wrapper };
 }
-
-describe('media collection ownership', () => {
-  beforeEach(() => {
-    mocks.error.mockReset();
-    mocks.failures.mockReset();
-    mocks.key.mockClear();
-    mocks.ensure.mockReset().mockImplementation(async (session: string, resources: ResourceRef[]) => ({
-      failedResources: [],
-      uncachedDataUrls: new Map(resources.map((ref) => [JSON.stringify([session, ref.source, ref.relPath]), `data:${ref.relPath}`])),
-    }));
-  });
-
-  it('registers 1000 rows in one linear batch and updates one row independently', async () => {
-    const { registry, wrapper } = harness();
-    const loading = registry.replaceCollections(
-      'a',
-      Array.from({ length: 1000 }, (_, id) => ({ id: `row:${id}`, resources: [resource(id)] })),
-    );
-    expect(mocks.key).toHaveBeenCalledTimes(1000);
-    expect(mocks.ensure).toHaveBeenCalledOnce();
-    await loading;
-    mocks.key.mockClear();
-    const replacing = registry.replaceCollection('a', 'row:500', [resource(1001)]);
-    expect(mocks.key).toHaveBeenCalledOnce();
-    await replacing;
-    expect(registry.dataUrl('a', resource(500))).toBeUndefined();
-    expect(registry.dataUrl('a', resource(499))).toBe('data:graphics/499.png');
-    expect(registry.dataUrl('a', resource(1001))).toBe('data:graphics/1001.png');
-    wrapper.unmount();
-  });
-
-  it('indexes 1000 missing resources once when delivering their failures', async () => {
-    mocks.ensure.mockImplementationOnce(async (_session: string, resources: ResourceRef[]) => ({
-      failedResources: resources,
-      uncachedDataUrls: new Map(),
-    }));
-    const { registry, wrapper } = harness();
-    await registry.replaceCollections(
-      'a',
-      Array.from({ length: 1000 }, (_, id) => ({ id: `row:${id}`, resources: [resource(id)] })),
-    );
-    expect(mocks.key).toHaveBeenCalledTimes(2000);
-    expect(mocks.ensure).toHaveBeenCalledOnce();
-    expect(mocks.failures.mock.lastCall![0]).toHaveLength(1000);
-    wrapper.unmount();
-  });
-
-  it('retries a failed read when an active collection explicitly requests the same resource', async () => {
-    mocks.ensure.mockRejectedValueOnce(new Error('transport failed'));
-    const { registry, wrapper } = harness();
-    await registry.replaceCollection('a', 'selected', [resource(1)]);
-    expect(mocks.error).toHaveBeenCalledOnce();
-    await registry.replaceCollection('a', 'menu', [resource(1)]);
-    expect(mocks.ensure).toHaveBeenCalledTimes(2);
-    expect(registry.dataUrl('a', resource(1))).toBe('data:graphics/1.png');
-    await registry.releaseCollection('menu');
-    expect(registry.dataUrl('a', resource(1))).toBe('data:graphics/1.png');
-    wrapper.unmount();
-  });
-
-  it('retains shared selected content while independent menus close', async () => {
-    const { registry, wrapper } = harness();
-    await registry.replaceCollection('a', 'selected', [resource(1)]);
-    await registry.replaceCollection('a', 'menu:1', [resource(1), resource(2)]);
-    await registry.replaceCollection('a', 'menu:2', [resource(2), resource(3)]);
-    expect(mocks.ensure).toHaveBeenCalledTimes(3);
-    await registry.releaseCollection('menu:1');
-    expect(registry.dataUrl('a', resource(1))).toBe('data:graphics/1.png');
-    expect(registry.dataUrl('a', resource(2))).toBe('data:graphics/2.png');
-    await registry.releaseCollection('menu:2');
-    expect(registry.dataUrl('a', resource(2))).toBeUndefined();
-    expect(registry.dataUrl('a', resource(1))).toBe('data:graphics/1.png');
-    wrapper.unmount();
-    expect(registry.dataUrl('a', resource(1))).toBeUndefined();
-  });
-
-  it('suppresses late failures after the last reference is released', async () => {
-    let reject!: (error: unknown) => void;
-    mocks.ensure.mockReturnValueOnce(
-      new Promise((_resolve, fail) => {
-        reject = fail;
-      }),
-    );
-    const { registry, wrapper } = harness();
-    const loading = registry.replaceCollection('a', 'menu', [resource(1)]);
-    await registry.releaseCollection('menu');
-    await loading;
-    reject(new Error('late'));
-    await flushPromises();
-    expect(mocks.error).not.toHaveBeenCalled();
-    wrapper.unmount();
-  });
-
-  it('replaces invalidated results and releases the closed session', async () => {
-    const { registry, wrapper } = harness();
-    await registry.replaceCollection('a', 'selected', [resource(1)]);
-    mocks.ensure.mockResolvedValueOnce({
-      failedResources: [],
-      uncachedDataUrls: new Map([[JSON.stringify(['a', 'mod', 'graphics/1.png']), 'data:new']]),
-    });
-    mocks.invalidation!({ sessionId: 'a', scope: 'resources', resources: [resource(1)], invalidation: null });
-    await flushPromises();
-    expect(registry.dataUrl('a', resource(1))).toBe('data:new');
-    mocks.invalidation!({ sessionId: 'a', scope: 'session', resources: [], invalidation: null });
-    expect(registry.dataUrl('a', resource(1))).toBeUndefined();
-    await registry.replaceCollection('b', 'selected', [resource(1)]);
-    expect(registry.dataUrl('b', resource(1))).toBe('data:graphics/1.png');
-    wrapper.unmount();
-  });
+async function settle(task: Promise<void>) {
+  await vi.advanceTimersByTimeAsync(25);
+  await task;
+}
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => {
+  invalidateResourceMediaForSession('registry');
+  vi.useRealTimers();
+});
+it('reads 1000 collections as one batch and replaces one independently', async () => {
+  const { registry, wrapper } = harness();
+  await settle(
+    registry.replaceCollections(
+      'registry',
+      Array.from({ length: 1000 }, (_, id) => ({ id: 'row:' + id, resources: [resource(id)] })),
+    ),
+  );
+  expect(mock.load).toHaveBeenCalledOnce();
+  expect(mock.load.mock.calls[0]![0]).toHaveLength(1000);
+  await settle(registry.replaceCollection('registry', 'row:500', [resource(1001)]));
+  expect(registry.dataUrl('registry', resource(499))).toBe('data:499.png');
+  expect(registry.dataUrl('registry', resource(1001))).toBe('data:1001.png');
+  expect(resourceMediaStats().activeEntries).toBe(1000);
+  wrapper.unmount();
+  expect(resourceMediaStats().activeEntries).toBe(0);
+});
+it('keeps selected content while independent menus release shared references', async () => {
+  const { registry, wrapper } = harness();
+  await settle(registry.replaceCollection('registry', 'selected', [resource(1)]));
+  await settle(registry.replaceCollection('registry', 'menu', [resource(1), resource(2)]));
+  await registry.releaseCollection('menu');
+  expect(resourceMediaStats().activeEntries).toBe(1);
+  expect(registry.dataUrl('registry', resource(1))).toBe('data:1.png');
+  wrapper.unmount();
+});
+it('retries an explicit collection after transport failure', async () => {
+  const { registry, wrapper } = harness();
+  mock.load.mockRejectedValueOnce(new Error('transport'));
+  await settle(registry.replaceCollection('registry', 'selected', [resource(1)]));
+  expect(mock.error).toHaveBeenCalledOnce();
+  await settle(registry.replaceCollection('registry', 'menu', [resource(1)]));
+  expect(registry.dataUrl('registry', resource(1))).toBe('data:1.png');
+  wrapper.unmount();
+});
+it('suppresses late errors after release and reloads invalidated active resources', async () => {
+  const { registry, wrapper } = harness();
+  await settle(registry.replaceCollection('registry', 'selected', [resource(1)]));
+  invalidateResourceMediaByProject('registry', { session: false, resources: [{ source: 'mod', relPath: '1.png' }] } as ProjectInvalidation);
+  await vi.advanceTimersByTimeAsync(25);
+  expect(mock.load).toHaveBeenCalledTimes(2);
+  invalidateResourceMediaForSession('registry');
+  expect(resourceMediaStats().activeEntries).toBe(0);
+  wrapper.unmount();
 });

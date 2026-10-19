@@ -5,7 +5,7 @@ import { variantJointFixture } from '@/test/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import ImmersiveHullScene from './ImmersiveHullScene.vue';
 import { loadEngineFallbacks } from '@/app/renderers/immersive/engine-fallback';
-import { windowImageCache } from '@/app/composables/use-window-image-cache';
+import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
 const mocks = vi.hoisted(() => ({ images: new Map<string, HTMLImageElement>(), engines: {} as Record<string, HTMLImageElement> }));
@@ -22,7 +22,7 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
   useResourceMediaRegistry: () => ({ replaceCollection: vi.fn(), dataUrl: () => '' }),
 }));
 afterEach(() => {
-  windowImageCache().clearSession('s');
+  windowImageRuntime().clearSession('s');
   mocks.images.clear();
   mocks.engines = {};
   initializeCacheLimits(createSettingsFixture().cacheLimits);
@@ -105,11 +105,11 @@ describe('variant scene pointer dismissal', () => {
     vi.mocked(loadEngineFallbacks).mockImplementation(async () => (mocks.engines = fallback));
     const own = mount(ImmersiveHullScene, { props: { variant, sessionId: 's' }, global: { stubs: { ImmersiveText: true } } });
     await flushPromises();
-    expect(windowImageCache().stats().thumbnails.activeEntries).toBe(3);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
     const other = mount(ImmersiveHullScene, { props: { variant, sessionId: 'other' }, global: { stubs: { ImmersiveText: true } } });
-    expect(windowImageCache().stats().thumbnails.activeEntries).toBe(6);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(6);
     other.unmount();
-    expect(windowImageCache().stats().thumbnails.activeEntries).toBe(3);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
     const allocated = creates.mock.calls.filter(([tag]) => tag === 'canvas').length;
     await own.find('canvas').trigger('mousemove', { clientX: 20, clientY: 20 });
     await own.find('canvas').trigger('wheel', { deltaY: -1 });
@@ -118,9 +118,9 @@ describe('variant scene pointer dismissal', () => {
       variant: { ...variant, spec: { ...variant.spec, engineSlots: [{ ...engine, styleSpec: { engineColor: [90, 60, 30, 255] } }] } },
     });
     expect(creates.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(allocated + 3);
-    expect(windowImageCache().stats().thumbnails).toMatchObject({ activeEntries: 3, idleEntries: 0 });
+    expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 3, idleEntries: 0 });
     own.unmount();
-    expect(windowImageCache().stats().thumbnails).toMatchObject({ activeEntries: 0, idleEntries: 0 });
+    expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 0, idleEntries: 0 });
     mocks.engines = {};
     const late = mount(ImmersiveHullScene, { props: { variant, sessionId: 's' }, global: { stubs: { ImmersiveText: true } } });
     late.unmount();

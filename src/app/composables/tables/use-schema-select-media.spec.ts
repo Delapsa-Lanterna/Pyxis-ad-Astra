@@ -1,28 +1,32 @@
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, shallowRef } from 'vue';
+import { createReadTicket } from '@/shared/runtime/read-request';
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { useSchemaSelectMedia } from './use-schema-select-media';
 import type { ResourceRef } from '@/shared/types';
-import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
+import type { ResourceMediaInvalidationEvent } from '@/services/resource-media.service';
 
 const mocks = vi.hoisted(() => ({
   ensure: vi.fn(),
   error: vi.fn(),
   stop: vi.fn(),
-  invalidated: null as ((event: ResourceCacheInvalidationEvent) => void) | null,
+  invalidated: null as ((event: ResourceMediaInvalidationEvent) => void) | null,
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/services/resource-media.service', () => ({
-  ensureResourceMedia: mocks.ensure,
-  resourceMediaDataUrl: () => undefined,
-  subscribeResourceMediaInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
-    mocks.invalidated = listener;
-    return mocks.stop;
-  },
-}));
-vi.mock('@/services/resource-cache.service', () => ({
   mediaResourceKey: (session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath]),
-  subscribeResourceInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
+  acquireResourceMedia: (session: string, resource: ResourceRef) => {
+    const value = shallowRef<string | null>();
+    const ticket = createReadTicket({ session, resource }, () =>
+      mocks.ensure(session, [resource]).then((result: { uncachedDataUrls: Map<string, string> }) => {
+        value.value = result.uncachedDataUrls.get(JSON.stringify([session, resource.source, resource.relPath])) ?? null;
+        return value.value;
+      }),
+    );
+    return { dataUrl: value, ready: ticket.promise, release: () => ticket.invalidate('consumer') };
+  },
+  resourceMediaDataUrl: () => undefined,
+  subscribeResourceInvalidations: (listener: (event: ResourceMediaInvalidationEvent) => void) => {
     mocks.invalidated = listener;
     return mocks.stop;
   },

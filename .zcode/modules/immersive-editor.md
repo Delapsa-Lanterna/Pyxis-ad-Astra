@@ -14,6 +14,7 @@
 - `src/app/components/immersive/ImmersiveFieldInput.vue`：所属字段能力的数值、选择与文本输入。
 - `src/app/components/immersive/ImmersiveFieldPopover.vue`：沉浸式字段弹出编辑、原文及提交交接。
 - `src/app/components/immersive/ImmersiveHullScene.vue`：舰体场景的媒体、导航与绘制装配。
+- `src/app/components/immersive/ImmersiveHullThumbnail.vue`：必须通过正式舰体绘制交付静态成品。
 - `src/app/components/immersive/ImmersivePanelRow.vue`：共同字段行及标签排布。
 - `src/app/components/immersive/ImmersivePanelSources.vue`：面板来源记录展示。
 - `src/app/components/immersive/ImmersiveRenderers.spec.ts`：多类内容布局、只读展示与正式字段协议验证。
@@ -24,6 +25,7 @@
 - `src/app/components/immersive/ImmersiveWeaponIcon.vue`：武器图层与已装载导弹的缓存图标展示。
 - `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。
 - `src/app/composables/immersive-editor/use-immersive-editor-runtime.ts`：联合会话、历史、字段与关联读取运行态。
+- `src/app/composables/immersive-editor/use-immersive-thumbnails.ts`：必须交付武器与舰体缩略图的实际绘制参数、依赖和成品需求。
 - `src/app/renderers/immersive/`：共同挂载形状与缺省引擎外观绘制。
 - `src/app/renderers/immersive/weapon-mount.ts`：挂载形状的无状态 Canvas 绘制。
 - `src/assets/immersive/damage/`：伤害类型的本地回退资产。
@@ -100,6 +102,7 @@
 - 稳定详情身份必须保持渲染实例；候选在可视区及上下各一个视口的提前量内按需挂载并在选择器内持续驻留，读取必须消费现有缓存与 single-flight，选择器关闭和身份替换必须释放所属实例、票据与媒体等待。
 - 系统引用必须消费正式来源选项，说明必须读取所属 `SHIP_SYSTEM` 静态描述；关联武装和插件必须消费有效来源投影。
 - 资源必须消费后端授权 `ResourceRef` 和所属媒体集合；场景、图标与槽位命中必须共用正式坐标、层序和有效 Skin 来源，解码接纳必须服从当前生命周期。
+- 静态武器与舰体缩略图必须向资源运行态交付成品需求，绘制必须消费所属正式 renderer；交互场景必须按实际需求持有原图。
 
 ## 陷阱
 

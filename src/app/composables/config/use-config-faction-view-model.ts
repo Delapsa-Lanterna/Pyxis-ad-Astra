@@ -22,7 +22,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-cache.service';
+import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-media.service';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 
 export function useConfigFactionViewModel() {

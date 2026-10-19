@@ -112,7 +112,7 @@ function harness(count = 6) {
       global: {
         components: { NInput, NSelect, NButton },
         stubs: {
-          ResourceThumbnail: { props: ['url', 'label'], template: '<img :src="url" :alt="label" />' },
+          ResourceThumbnail: { props: ['resource', 'label'], template: '<img :src="resource.relPath" :alt="label" />' },
           ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
           VariantHullmodDetails: { props: ['entry'], template: '<aside>{{entry.label}}</aside>' },
         },
@@ -167,7 +167,7 @@ describe('original hullmod picker', () => {
         .filter((row) => row.isVisible())
         .map((row) => row.attributes('data-entry-id'));
     expect(ids()).toEqual(['mod_1', 'mod_3', 'mod_2', 'mod_0', 'mod_5', 'mod_4']);
-    expect(own.wrapper.find('.variant-hullmod-name img').attributes('src')).toBe('icon.png');
+    expect(own.wrapper.find('.variant-hullmod-name img').attributes('src')).toBe('1.png');
     expect(own.wrapper.find('.variant-hullmod-columns').text()).toBe('插件设计类型OP已安装');
     await own.wrapper.find('input').setValue('mod_0');
     expect(ids()).toEqual(['mod_0']);

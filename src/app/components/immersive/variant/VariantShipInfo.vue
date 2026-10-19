@@ -55,7 +55,6 @@ const hover = useImmersiveHover<string>(
 const panel = computed(() => (hover.selected.value ? projectShipPanel(props.snapshot, props.values, props.snapshot, props.variant) : null));
 const feedback = useAppFeedback();
 const media = useResourceMediaRegistry({
-  surface: '装配舰船详情',
   onError: feedback.error,
   onFailures: (items) => {
     const missing = items.filter((resource) => resource.key !== 'icon_more_info');

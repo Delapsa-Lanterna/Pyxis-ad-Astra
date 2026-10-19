@@ -9,7 +9,7 @@ import {
   querySessionEntityIdentityIntent,
 } from './entity-query.service';
 import { querySessionDraftResources, resolveModImageReference } from './resource-reference.service';
-import { queryResourceDataUrls, invalidateResourceCacheForSession } from './resource-cache.service';
+import { queryResourceDataUrls, invalidateResourceMediaForSession } from './resource-media.service';
 import { invalidateQueryCacheForSession } from './query-cache.service';
 import { entityTargetFixture } from '@/test/entity-target';
 import { toConfigFamilyRecord } from '@/domain/config/config-records';
@@ -79,7 +79,7 @@ const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
 beforeEach(() => invoke.mockReset());
 afterEach(() => {
   invalidateQueryCacheForSession(sessionId);
-  invalidateResourceCacheForSession(sessionId);
+  invalidateResourceMediaForSession(sessionId);
 });
 
 describe('formal reading protocols', () => {

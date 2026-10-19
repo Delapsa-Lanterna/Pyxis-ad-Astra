@@ -96,6 +96,7 @@ const emit = defineEmits<{ select: [id: string | null] }>();
 
 const settings = useSettingsStore();
 const { mediaRef, mediaSrc, recordListFirstFrame, setMediaRoot, mediaVisible } = useVisibleResourceMedia({
+  thumbnailSize: 20,
   sessionId: () => props.sessionId,
   surface: props.family.mediaSurface,
   failureLabel: `读取${props.family.displayName}缩略图失败`,

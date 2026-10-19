@@ -2,6 +2,7 @@
   <div class="csv-grid ui-content-fill ui-content-contained">
     <div
       ref="panelRef"
+      data-media-viewport
       class="table-panel ui-content-fill ui-content-scroll ui-content-surface"
       :class="{ 'csv-grid-dragging': drag.dragging.value }"
       @scroll="handleScroll"
@@ -62,7 +63,8 @@ import CsvGridEditorHost from '@/app/components/tables/CsvGridEditorHost.vue';
 import { measurePerformance } from '@/shared/runtime/performance';
 import { useCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
-import { useImagePreload } from '@/app/composables/use-image-preload';
+import { useThumbnailPreload } from '@/app/composables/use-thumbnail-preload';
+import { resourceThumbnailRequest } from '@/app/composables/use-resource-thumbnail';
 import { sourceValue } from '@/domain/tables/csv-source-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { provideCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
@@ -102,6 +104,7 @@ const viewport = useRetainedList(
   (key) => props.model.rowsByKey[key],
   (row) => row.rowKey,
   24,
+  4,
 );
 const overlayRef = useTemplateRef<HTMLDivElement>('overlayRef');
 const scrollTop = ref(0);
@@ -164,7 +167,7 @@ watch(
 );
 watch([editorRow, editorColumn], locateEditorAnchor, { flush: 'post', immediate: true });
 const mode = useInputEditMode(),
-  preload = useImagePreload('CSV 网格');
+  preload = useThumbnailPreload('CSV 网格');
 provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource) });
 function preloadImages() {
   const panel = panelRef.value;
@@ -185,8 +188,12 @@ function preloadImages() {
       : [];
   preload.prepare(
     context.target.sessionId,
-    resources(rows.value.slice(start, start + count)),
-    resources(rows.value.slice(Math.max(0, start - count), start + count * 2)),
+    resources(rows.value.slice(start, start + count)).map((resource) =>
+      resourceThumbnailRequest(context.target.sessionId, resource, 16, 16),
+    ),
+    resources(rows.value.slice(Math.max(0, start - count), start + count * 2)).map((resource) =>
+      resourceThumbnailRequest(context.target.sessionId, resource, 16, 16),
+    ),
   );
 }
 const drag = useCsvRowDrag({

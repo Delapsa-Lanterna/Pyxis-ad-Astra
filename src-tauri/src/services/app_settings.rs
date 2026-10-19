@@ -46,8 +46,11 @@ pub fn read_settings(
     if let Some(snapshot) = snapshot_state()?.clone() {
         return Ok(snapshot);
     }
-    let value = load_settings(&app_paths::app_data_dir(app.clone())?)?;
-    commit_settings(app, value, apply_runtime)
+    let (value, diagnostics) = load_settings_report(&app_paths::app_data_dir(app.clone())?);
+    let snapshot = commit_settings(app, value, apply_runtime)?;
+    drop(_guard);
+    diagnostics.into_iter().for_each(crate::diagnostics::record);
+    Ok(snapshot)
 }
 fn commit_settings(
     app: &tauri::AppHandle,
@@ -113,20 +116,88 @@ pub fn ensure_core_editing_allowed(mod_root: &str) -> AppResult<()> {
 }
 
 pub fn load_settings(app_data_dir: &Path) -> AppResult<AppSettings> {
+    Ok(load_settings_report(app_data_dir).0)
+}
+
+fn load_settings_report(app_data_dir: &Path) -> (AppSettings, Vec<String>) {
     let path = settings_path(app_data_dir);
     if !path.exists() {
-        return Ok(AppSettings::default());
+        return (AppSettings::default(), Vec::new());
     }
-    let text = read_utf8_no_bom(&path)?;
-    let settings = crate::parsers::parse_persisted_json::<AppSettings>(&text).map_err(|error| {
-        AppError::context(format!("解析配置文件失败 ({})", path.display()), error).at_path(&path)
-    })?;
-    validate_settings_limits(&settings).map_err(|error| error.at_path(&path))?;
+    let mut diagnostics = Vec::new();
+    let source = read_utf8_no_bom(&path)
+        .and_then(|text| crate::parsers::parse_persisted_json::<serde_json::Value>(&text));
+    let mut settings = match source {
+        Ok(source) => decode_settings(source.clone()).unwrap_or_else(|_| {
+            let defaults =
+                serde_json::to_value(AppSettings::default()).expect("settings defaults serialize");
+            let mut accepted = defaults.clone();
+            recover_settings_fields(&source, &defaults, "", &mut accepted, &mut diagnostics);
+            decode_settings(accepted).expect("recovered settings contain validated fields")
+        }),
+        Err(error) => {
+            diagnostics.push(error.to_string());
+            AppSettings::default()
+        }
+    };
+    if let Some(directory) = &settings.log_directory
+        && let Err(error) = resolve_saved_log_directory(app_data_dir, directory)
+    {
+        diagnostics.push(format!("/logDirectory: {error}"));
+        settings.log_directory = None;
+    }
+    let diagnostics = diagnostics
+        .into_iter()
+        .map(|message| format!("settings recovery ({}): {message}", path.display()))
+        .collect();
+    (settings, diagnostics)
+}
+
+fn recover_settings_fields(
+    source: &serde_json::Value,
+    defaults: &serde_json::Value,
+    pointer: &str,
+    accepted: &mut serde_json::Value,
+    diagnostics: &mut Vec<String>,
+) {
+    if let Some(fields) = defaults.as_object()
+        && source.is_object()
+    {
+        for (name, default) in fields {
+            recover_settings_fields(
+                &source[name],
+                default,
+                &format!("{pointer}/{name}"),
+                accepted,
+                diagnostics,
+            );
+        }
+        return;
+    }
+    let mut candidate = accepted.clone();
+    *candidate
+        .pointer_mut(pointer)
+        .expect("default setting path exists") = source.clone();
+    match decode_settings(candidate.clone()) {
+        Ok(_) => *accepted = candidate,
+        Err(error) => diagnostics.push(format!("{pointer}: {error}")),
+    }
+}
+
+fn decode_settings(value: serde_json::Value) -> AppResult<AppSettings> {
+    if !value.is_object() {
+        return Err(AppError::message(
+            "settings.object_required",
+            "Settings must be an object",
+        ));
+    }
+    let settings = serde_json::from_value(value)?;
+    validate_settings(&settings)?;
     Ok(settings)
 }
 
 pub fn save_settings(app_data_dir: &Path, settings: &AppSettings) -> AppResult<()> {
-    validate_settings_limits(settings)?;
+    validate_settings(settings)?;
     fs::create_dir_all(app_data_dir).map_err(|error| {
         AppError::context(
             format!("创建配置目录失败 ({})", app_data_dir.display()),
@@ -140,7 +211,38 @@ pub fn save_settings(app_data_dir: &Path, settings: &AppSettings) -> AppResult<(
     Ok(())
 }
 
-fn validate_settings_limits(settings: &AppSettings) -> AppResult<()> {
+fn validate_settings(settings: &AppSettings) -> AppResult<()> {
+    let color = settings.custom_accent.trim();
+    if color.len() != 7
+        || !color.starts_with('#')
+        || !color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+    {
+        return Err(AppError::message(
+            "settings.color_invalid",
+            "Invalid custom accent",
+        ));
+    }
+    if !matches!(
+        settings.log_level,
+        crate::models::AppLogLevel::Info | crate::models::AppLogLevel::Debug
+    ) {
+        return Err(AppError::message(
+            "settings.log_level_invalid",
+            "Invalid log level",
+        ));
+    }
+    for directory in [&settings.starsector_root, &settings.log_directory]
+        .into_iter()
+        .flatten()
+    {
+        validate_safe_absolute_path(Path::new(directory), "settings directory")?;
+        if directory.chars().any(char::is_control) {
+            return Err(AppError::message(
+                "settings.path_invalid",
+                "Invalid settings directory",
+            ));
+        }
+    }
     if settings
         .cache_limits
         .queries
@@ -324,14 +426,8 @@ mod tests {
                 let mut wire = serde_json::to_value(AppSettings::default()).unwrap();
                 wire[field] = value;
                 write_utf8_no_bom(&settings_path(&dir), &wire.to_string()).unwrap();
-                let error = load_settings(&dir).unwrap_err();
-                assert_eq!(
-                    error.location().unwrap().path.as_deref(),
-                    Some(settings_path(&dir).to_str().unwrap())
-                );
+                assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
                 if let Ok(settings) = serde_json::from_value::<AppSettings>(wire) {
-                    assert_eq!(error.code(), "settings.limit_invalid");
-                    assert!(error.to_string().contains(field));
                     assert!(save_settings(&dir, &settings).is_err());
                 }
             }
@@ -340,34 +436,35 @@ mod tests {
     }
 
     #[test]
-    fn load_settings_returns_default_when_missing() {
-        let dir = temp_dir("settings_missing");
-        let settings = load_settings(&dir).unwrap();
-        let _ = fs::remove_dir_all(dir);
-        assert_eq!(settings, AppSettings::default());
-    }
-    #[test]
     fn cache_limits_validate_zero_boundaries_and_exact_query_set() {
         let mut settings = AppSettings::default();
         settings.cache_limits.decoded_images.entries = 0;
         settings.cache_limits.thumbnails.mib = 0;
-        assert!(validate_settings_limits(&settings).is_ok());
+        assert!(validate_settings(&settings).is_ok());
         settings.cache_limits.decoded_images.entries = 65536;
         settings.cache_limits.thumbnails.mib = 4096;
-        assert!(validate_settings_limits(&settings).is_ok());
+        assert!(validate_settings(&settings).is_ok());
         settings.cache_limits.decoded_images.entries = 65537;
-        assert!(validate_settings_limits(&settings).is_err());
+        assert!(validate_settings(&settings).is_err());
         settings.cache_limits.decoded_images.entries = 1024;
         settings.cache_limits.queries.remove("entity-list");
-        assert!(validate_settings_limits(&settings).is_err());
+        assert!(validate_settings(&settings).is_err());
     }
 
     #[test]
-    fn font_settings_roundtrip() {
+    fn settings_values_roundtrip() {
         let dir = temp_dir("settings_fonts");
         let settings = AppSettings {
             general_font: Some("Microsoft YaHei".into()),
             immersive_game_font: false,
+            theme: Some(crate::models::AppTheme::Dark),
+            accent: crate::models::AccentPreset::Custom,
+            custom_accent: "#16a34a".into(),
+            file_history_limit: 42,
+            edit_history_limit: 350,
+            log_rotation_size_mib: 12,
+            log_backup_count: 4,
+            edit_mode: crate::models::EditMode::Plain,
             ..AppSettings::default()
         };
         save_settings(&dir, &settings).unwrap();
@@ -383,38 +480,9 @@ mod tests {
             );
             let text = serde_json::to_string(&invalid).unwrap();
             write_utf8_no_bom(&settings_path(&dir), &text).unwrap();
-            let error = load_settings(&dir).unwrap_err();
-            assert_eq!(error.code(), "settings.font_invalid");
-            assert_eq!(
-                error.location().unwrap().path.as_deref(),
-                settings_path(&dir).to_str()
-            );
+            assert_eq!(load_settings(&dir).unwrap().general_font, None);
         }
         fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn save_and_load_settings_roundtrip() {
-        let dir = temp_dir("settings_roundtrip");
-        let settings: AppSettings = serde_json::from_str(
-            r##"{
-  "theme": "dark",
-  "accent": "custom",
-  "customAccent": "#16a34a",
-  "fileHistoryLimit": 42,
-  "editHistoryLimit": 350,
-  "logRotationSizeMiB": 12,
-  "logBackupCount": 4,
-            "editMode": "plain",
-  "starsectorRoot": null,
-  "logDirectory": null
-}"##,
-        )
-        .unwrap();
-        save_settings(&dir, &settings).unwrap();
-        let loaded = load_settings(&dir).unwrap();
-        let _ = fs::remove_dir_all(dir);
-        assert_eq!(loaded, settings);
     }
 
     #[test]
@@ -489,5 +557,134 @@ mod tests {
         let _ = fs::remove_dir_all(&app_data);
         assert!(result.is_err());
         assert!(!file_path.exists());
+    }
+
+    fn setting_paths(value: &serde_json::Value, pointer: &str) -> Vec<String> {
+        let mut paths = vec![pointer.to_string()];
+        if let Some(fields) = value.as_object() {
+            for (name, child) in fields {
+                paths.extend(setting_paths(child, &format!("{pointer}/{name}")));
+            }
+        }
+        paths
+    }
+
+    #[test]
+    fn every_disk_field_recovers_independently_and_preserves_the_file() {
+        let dir = temp_dir("settings_field_recovery");
+        let defaults = serde_json::to_value(AppSettings::default()).unwrap();
+        let mut valid = defaults.clone();
+        valid["theme"] = serde_json::json!("dark");
+        valid["editHistoryLimit"] = serde_json::json!(321);
+        valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
+        let paths = setting_paths(&defaults, "");
+        assert_eq!(paths.len(), 40);
+        for pointer in paths.into_iter().skip(1) {
+            for missing in [false, true] {
+                let mut source = valid.clone();
+                if missing {
+                    let (parent, name) = pointer.rsplit_once('/').unwrap();
+                    source
+                        .pointer_mut(parent)
+                        .unwrap()
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(name);
+                } else {
+                    *source.pointer_mut(&pointer).unwrap() = serde_json::json!([]);
+                }
+                let mut expected = valid.clone();
+                *expected.pointer_mut(&pointer).unwrap() =
+                    defaults.pointer(&pointer).unwrap().clone();
+                let text = source.to_string();
+                write_utf8_no_bom(&settings_path(&dir), &text).unwrap();
+                let loaded = load_settings(&dir).unwrap();
+                assert_eq!(
+                    serde_json::to_value(loaded).unwrap(),
+                    expected,
+                    "{pointer}: {missing}"
+                );
+                assert_eq!(read_utf8_no_bom(&settings_path(&dir)).unwrap(), text);
+            }
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn invalid_values_recover_together_and_saving_stays_strict() {
+        let dir = temp_dir("settings_invalid_values");
+        let defaults = serde_json::to_value(AppSettings::default()).unwrap();
+        let mut source = defaults.clone();
+        for pointer in setting_paths(&defaults["cacheLimits"], "/cacheLimits") {
+            if defaults.pointer(&pointer).unwrap().is_number() {
+                *source.pointer_mut(&pointer).unwrap() = serde_json::json!(65537);
+            }
+        }
+        for (key, value) in [
+            ("theme", serde_json::json!("unknown")),
+            ("accent", serde_json::json!("unknown")),
+            ("editMode", serde_json::json!("unknown")),
+            ("customAccent", serde_json::json!("#xyzxyz")),
+            ("logLevel", serde_json::json!("warning")),
+            ("generalFont", serde_json::json!("A\nB")),
+            ("starsectorRoot", serde_json::json!("relative")),
+            ("logDirectory", serde_json::json!("relative")),
+            ("allowCoreEditing", serde_json::json!("true")),
+            ("immersiveGameFont", serde_json::json!(0)),
+            ("preserveOriginalJson", serde_json::json!(null)),
+        ] {
+            source[key] = value;
+        }
+        source["fileHistoryLimit"] = serde_json::json!(42);
+        write_utf8_no_bom(&settings_path(&dir), &source.to_string()).unwrap();
+        let (loaded, diagnostics) = load_settings_report(&dir);
+        let expected = AppSettings {
+            file_history_limit: 42,
+            ..AppSettings::default()
+        };
+        assert_eq!(loaded, expected);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|issue| issue.contains("/cacheLimits/mediaData/entries"))
+        );
+        for (key, value) in [
+            ("customAccent", "invalid"),
+            ("logLevel", "error"),
+            ("starsectorRoot", "relative"),
+        ] {
+            let mut wire = defaults.clone();
+            wire[key] = serde_json::json!(value);
+            assert!(save_settings(&dir, &serde_json::from_value(wire).unwrap()).is_err());
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn broken_files_and_unavailable_log_directories_allow_loading() {
+        let dir = temp_dir("settings_file_recovery");
+        assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
+        for text in ["{", "", "null", "[]", "42", "{\"cacheLimits\":null}"] {
+            write_utf8_no_bom(&settings_path(&dir), text).unwrap();
+            let (settings, diagnostics) = load_settings_report(&dir);
+            assert_eq!(settings, AppSettings::default());
+            assert!(!diagnostics.is_empty());
+        }
+        fs::write(settings_path(&dir), [0x81]).unwrap();
+        assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
+        let wire = serde_json::json!({"logDirectory": dir.join("unavailable").to_string_lossy(), "theme": "dark"});
+        write_utf8_no_bom(&settings_path(&dir), &wire.to_string()).unwrap();
+        let (settings, diagnostics) = load_settings_report(&dir);
+        assert_eq!(settings.theme, Some(crate::models::AppTheme::Dark));
+        assert_eq!(settings.log_directory, None);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|issue| issue.contains("/logDirectory"))
+        );
+        fs::remove_file(settings_path(&dir)).unwrap();
+        fs::create_dir(settings_path(&dir)).unwrap();
+        assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
+        fs::remove_dir_all(dir).unwrap();
     }
 }

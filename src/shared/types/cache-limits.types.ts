@@ -9,11 +9,6 @@ export const QUERY_CACHE_KEYS = [
   'entity-list',
 ] as const;
 export type QueryCacheKey = (typeof QUERY_CACHE_KEYS)[number];
-export interface ResourceCacheLimits {
-  resourceEntries: number;
-  mediaEntries: number;
-  dataUrlMiB: number;
-}
 export interface FontCacheLimits {
   glyphEntriesPerPage: number;
 }
@@ -22,7 +17,7 @@ export interface CacheSize {
   MiB: number;
 }
 export interface CacheLimits {
-  resources: ResourceCacheLimits;
+  mediaData: CacheSize;
   decodedImages: CacheSize;
   thumbnails: CacheSize;
   backendMedia: CacheSize;

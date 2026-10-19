@@ -147,6 +147,15 @@ describe('font text presentation', () => {
       window.dispatchEvent(new Event('scroll'));
       await flushPromises();
       aligned();
+      const painted = context.drawImage.mock.calls.length;
+      await own.setProps({ active: false });
+      await own.setProps({ active: true });
+      await flushPromises();
+      expect(context.drawImage).toHaveBeenCalledTimes(painted);
+      aligned();
+      await own.setProps({ runs: [{ text: '舰船', color: '#ffd200' }] });
+      await flushPromises();
+      expect(context.drawImage.mock.calls.length).toBeGreaterThan(painted);
       own.unmount();
       bounds.mockClear();
       window.dispatchEvent(new Event('scroll'));

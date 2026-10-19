@@ -25,7 +25,7 @@ vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({ listenEditT
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: mocks.register }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreAssetsLifecycle: vi.fn() }));
-vi.mock('@/app/composables/use-window-image-cache', () => ({ useWindowImageCacheLifetime: vi.fn() }));
+vi.mock('@/app/composables/use-window-image-runtime', () => ({ useWindowImageRuntimeLifetime: vi.fn() }));
 vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
   ...(await original<typeof import('@/app/composables/use-app-lifecycle-assembly')>()),
   useAppSettings: vi.fn(),

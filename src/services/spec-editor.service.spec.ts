@@ -23,7 +23,7 @@ vi.mock('@/services/resource-reference.service', () => ({
   querySessionDraftResources: mocks.querySessionDraftResources,
 }));
 
-vi.mock('@/services/resource-cache.service', () => ({
+vi.mock('@/services/resource-media.service', () => ({
   queryResourceDataUrls: mocks.queryResourceDataUrls,
 }));
 

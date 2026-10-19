@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   refreshProjectSources: vi.fn(),
   recordLogBestEffort: vi.fn(),
   invalidateQueryCacheByProject: vi.fn(),
-  invalidateResourceCacheByProject: vi.fn(),
+  invalidateResourceMediaByProject: vi.fn(),
   emitWindowEvent: vi.fn(),
   handler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
   refreshHandler: null as null | ((event: ProjectSessionInvalidatedEvent & { originWindowLabel: string }) => Promise<void>),
@@ -23,7 +23,7 @@ vi.mock('@/services/query-cache.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/query-cache.service')>();
   return { ...actual, invalidateQueryCacheByProject: mocks.invalidateQueryCacheByProject };
 });
-vi.mock('@/services/resource-cache.service', () => ({ invalidateResourceCacheByProject: mocks.invalidateResourceCacheByProject }));
+vi.mock('@/services/resource-media.service', () => ({ invalidateResourceMediaByProject: mocks.invalidateResourceMediaByProject }));
 vi.mock('@/windows/current.window', () => ({ currentWindowLabel: () => 'main' }));
 vi.mock('@/windows/tauri.events', () => ({
   emitWindowEvent: mocks.emitWindowEvent,
@@ -187,7 +187,7 @@ describe('committed write synchronization', () => {
     expect(mocks.synchronizeSessionCommit).not.toHaveBeenCalled();
     expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-1');
     expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(written.history);
-    expect(mocks.invalidateResourceCacheByProject.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.invalidateResourceMediaByProject.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.invalidateQueryCacheByProject.mock.invocationCallOrder[0]!,
     );
     expect(mocks.emitWindowEvent).toHaveBeenCalledWith(
@@ -432,7 +432,7 @@ describe('project source refresh', () => {
     await action;
     expect(useProjectStore().getSessionId(root)).toBe('s2');
     expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
-    expect(mocks.invalidateResourceCacheByProject).not.toHaveBeenCalled();
+    expect(mocks.invalidateResourceMediaByProject).not.toHaveBeenCalled();
   });
   it('applies one received projection only once across consumers', () => {
     invalidateProjectionCaches(projection());

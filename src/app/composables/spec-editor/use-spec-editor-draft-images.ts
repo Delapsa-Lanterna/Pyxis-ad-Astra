@@ -1,6 +1,6 @@
 import { computed, shallowRef, watch, onScopeDispose } from 'vue';
 import { createReadTicketOwner } from '@/shared/runtime/read-request';
-import { subscribeResourceInvalidations } from '@/services/resource-cache.service';
+import { subscribeResourceInvalidations } from '@/services/resource-media.service';
 import { formatError } from '@/shared/lib/errors';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { normalizeFsPath } from '@/shared/lib/paths';

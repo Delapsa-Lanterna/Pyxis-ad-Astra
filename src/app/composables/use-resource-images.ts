@@ -1,6 +1,6 @@
 import { onScopeDispose, ref, watch } from 'vue';
 import type { ResourceRef } from '@/shared/types';
-import { windowImageCache } from './use-window-image-cache';
+import { windowImageRuntime } from './use-window-image-runtime';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
 
 export interface ResourceImageSource {
@@ -14,7 +14,7 @@ export function useResourceImages(
   failed: (error: unknown) => void,
   enabled: () => boolean = () => true,
 ) {
-  const cache = windowImageCache();
+  const cache = windowImageRuntime();
   const images = new Map<string, HTMLImageElement>();
   const active = new Map<string, { url: string; revision: number; release: () => void }>();
   const revision = ref(0);

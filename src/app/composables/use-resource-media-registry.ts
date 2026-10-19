@@ -1,13 +1,18 @@
 import { onUnmounted, shallowReactive } from 'vue';
-import { ensureResourceMedia, resourceMediaDataUrl, subscribeResourceMediaInvalidations } from '@/services/resource-media.service';
-import { mediaResourceKey } from '@/services/resource-cache.service';
-import { createReadTicket, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
+import {
+  acquireResourceMedia,
+  resourceMediaDataUrl,
+  subscribeResourceInvalidations,
+  mediaResourceKey,
+  type ResourceMediaLease,
+} from '@/services/resource-media.service';
+import { isReadInvalidated } from '@/shared/runtime/read-request';
 import type { ResourceRef } from '@/shared/types';
 
 interface MediaReference {
   resource: ResourceRef;
   count: number;
-  ticket: ReadTicket<string | null> | null;
+  lease: ResourceMediaLease | null;
 }
 
 export interface MediaCollectionChange {
@@ -16,63 +21,49 @@ export interface MediaCollectionChange {
 }
 
 export function useResourceMediaRegistry(options: {
-  surface: string;
   onError: (error: unknown) => void;
   onFailures: (resources: readonly ResourceRef[]) => void;
 }) {
   const collections = new Map<string, Map<string, ResourceRef>>();
-  const references = new Map<string, MediaReference>();
-  const temporary = shallowReactive(new Map<string, string>());
+  const references = shallowReactive(new Map<string, MediaReference>());
   const reportedFailures = new Set<string>();
   let sessionId: string | null = null;
 
   function clear() {
-    for (const entry of references.values()) entry.ticket?.invalidate('consumer');
+    for (const entry of references.values()) entry.lease?.release();
     references.clear();
     collections.clear();
-    temporary.clear();
     reportedFailures.clear();
   }
 
   async function read(keys: readonly string[]): Promise<void> {
     const capturedSession = sessionId!;
-    const entries = keys.map((key) => [key, references.get(key)!] as const);
-    const batch = ensureResourceMedia(
-      capturedSession,
-      entries.map(([, entry]) => entry.resource),
-      options.surface,
-    ).then((result) => ({
-      failedKeys: new Set(result.failedResources.map((resource) => mediaResourceKey(capturedSession, resource))),
-      uncachedDataUrls: result.uncachedDataUrls,
-    }));
     let reportedError = false;
-    const failures: Array<{ key: string; entry: MediaReference }> = [];
+    const failures: ResourceRef[] = [];
     await Promise.all(
-      entries.map(async ([key, entry]) => {
-        const ticket = createReadTicket({ sessionId: capturedSession, resource: entry.resource }, () =>
-          batch.then((result) => {
-            if (result.failedKeys.has(key)) return null;
-            return result.uncachedDataUrls.get(key) ?? resourceMediaDataUrl(capturedSession, entry.resource) ?? '';
-          }),
-        );
-        entry.ticket = ticket;
+      keys.map(async (key) => {
+        const previous = references.get(key)!;
+        const lease = previous.lease ?? acquireResourceMedia(capturedSession, previous.resource);
+        const entry = previous.lease ? previous : { ...previous, lease };
+        if (entry !== previous) references.set(key, entry);
         try {
-          const value = await ticket.promise;
-          ticket.accept();
-          if (value === null) failures.push({ key, entry });
-          else if (value) temporary.set(key, value);
+          const value = await lease.ready;
+          if (references.get(key) === entry && entry.lease === lease && value === null && !reportedFailures.has(key)) {
+            reportedFailures.add(key);
+            failures.push(entry.resource);
+          }
         } catch (error) {
-          if (entry.ticket === ticket) entry.ticket = null;
-          if (!isReadInvalidated(error) && !ticket.signal.aborted && !reportedError) {
+          if (references.get(key) !== entry || entry.lease !== lease) return;
+          lease.release();
+          entry.lease = null;
+          if (!isReadInvalidated(error) && !reportedError) {
             reportedError = true;
             options.onError(error);
           }
         }
       }),
     );
-    const activeFailures = failures.filter(({ key, entry }) => references.get(key) === entry && !reportedFailures.has(key));
-    for (const { key } of activeFailures) reportedFailures.add(key);
-    if (activeFailures.length) options.onFailures(activeFailures.map(({ entry }) => entry.resource));
+    if (failures.length) options.onFailures(failures);
   }
 
   function replaceCollections(nextSession: string | null | undefined, changes: readonly MediaCollectionChange[]): Promise<void> {
@@ -83,6 +74,7 @@ export function useResourceMediaRegistry(options: {
     if (!sessionId) return Promise.resolve();
     const deltas = new Map<string, { resource: ResourceRef; count: number }>();
     const requestedKeys = new Set<string>();
+    const createdKeys = new Set<string>();
     function changeCount(key: string, resource: ResourceRef, count: number) {
       const current = deltas.get(key);
       deltas.set(key, { resource, count: (current?.count ?? 0) + count });
@@ -97,21 +89,24 @@ export function useResourceMediaRegistry(options: {
       else collections.delete(change.id);
     }
     for (const [key, delta] of deltas) {
-      const entry = references.get(key) ?? { resource: delta.resource, count: 0, ticket: null };
+      let entry = references.get(key);
+      if (!entry) {
+        entry = { resource: delta.resource, count: 0, lease: acquireResourceMedia(sessionId, delta.resource) };
+        createdKeys.add(key);
+      }
       entry.count += delta.count;
       if (entry.count === 0) {
-        entry.ticket?.invalidate('consumer');
+        entry.lease?.release();
         references.delete(key);
-        temporary.delete(key);
       } else {
         references.set(key, entry);
       }
     }
-    const missing = [...requestedKeys].filter((key) => references.has(key) && !references.get(key)!.ticket);
+    const missing = [...requestedKeys].filter((key) => references.has(key) && (createdKeys.has(key) || !references.get(key)!.lease));
     return missing.length ? read(missing) : Promise.resolve();
   }
 
-  const stopInvalidation = subscribeResourceMediaInvalidations((event) => {
+  const stopInvalidation = subscribeResourceInvalidations((event) => {
     if (event.sessionId !== sessionId) return;
     if (event.scope === 'session') {
       clear();
@@ -127,8 +122,8 @@ export function useResourceMediaRegistry(options: {
         ];
     const affected = keys.filter((key) => references.has(key));
     for (const key of affected) {
-      references.get(key)!.ticket?.invalidate('project');
-      temporary.delete(key);
+      references.get(key)!.lease?.release();
+      references.get(key)!.lease = null;
       reportedFailures.delete(key);
     }
     if (affected.length) void read(affected);
@@ -146,6 +141,7 @@ export function useResourceMediaRegistry(options: {
     releaseCollection: (id: string) => replaceCollections(sessionId, [{ id, resources: [] }]),
     clear,
     dataUrl: (session: string | null | undefined, resource: ResourceRef | null | undefined) =>
-      (session && resource ? temporary.get(mediaResourceKey(session, resource)) : undefined) ?? resourceMediaDataUrl(session, resource),
+      (session && resource ? references.get(mediaResourceKey(session, resource))?.lease?.dataUrl.value : undefined) ??
+      resourceMediaDataUrl(session, resource),
   };
 }

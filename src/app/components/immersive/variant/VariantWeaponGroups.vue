@@ -251,7 +251,6 @@ const budget = computed(() => [
 const sessionId = props.vm.joint.currentTarget.value!.sessionId;
 const resources = computed(() => props.vm.snapshot.value?.referenceSettings.resources ?? {});
 const media = useResourceMediaRegistry({
-  surface: '武器组控件',
   onError: feedback.error,
   onFailures: () => undefined,
 });

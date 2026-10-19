@@ -6,11 +6,11 @@ import type { SpecEditorTarget } from './spec-editor.types';
 import { useSpecEditorDraftImages } from './use-spec-editor-draft-images';
 const mocks = vi.hoisted(() => ({
   feedback: vi.fn(),
-  invalidated: null as null | ((event: import('@/services/resource-cache.service').ResourceCacheInvalidationEvent) => void),
+  invalidated: null as null | ((event: import('@/services/resource-media.service').ResourceMediaInvalidationEvent) => void),
   stop: vi.fn(),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.feedback }) }));
-vi.mock('@/services/resource-cache.service', () => ({
+vi.mock('@/services/resource-media.service', () => ({
   subscribeResourceInvalidations: (callback: typeof mocks.invalidated) => {
     mocks.invalidated = callback;
     return mocks.stop;

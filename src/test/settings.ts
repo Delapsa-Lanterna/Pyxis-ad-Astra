@@ -3,7 +3,7 @@ import type { AppSettings } from '@/shared/types';
 export function createSettingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
   return {
     cacheLimits: {
-      resources: { resourceEntries: 2048, mediaEntries: 2048, dataUrlMiB: 64 },
+      mediaData: { entries: 2048, MiB: 64 },
       decodedImages: { entries: 1024, MiB: 96 },
       thumbnails: { entries: 2048, MiB: 32 },
       backendMedia: { entries: 512, MiB: 64 },

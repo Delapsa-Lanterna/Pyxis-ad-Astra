@@ -6,8 +6,8 @@ describe('hidden cache settings', () => {
   it('captures an independent startup budget', () => {
     const limits = createSettingsFixture().cacheLimits;
     initializeCacheLimits(limits);
-    limits.resources.resourceEntries = 1;
-    expect(windowCacheLimits().resources.resourceEntries).toBe(2048);
+    limits.mediaData.entries = 1;
+    expect(windowCacheLimits().mediaData.entries).toBe(2048);
   });
   it.each([0, 65536])('accepts the entries boundary %s', (number) => {
     const limits = createSettingsFixture().cacheLimits;
@@ -26,9 +26,9 @@ describe('hidden cache settings', () => {
   });
   it('rejects incomplete query budgets and excessive byte limits', () => {
     const limits = createSettingsFixture().cacheLimits;
-    limits.resources.dataUrlMiB = 4097;
+    limits.mediaData.MiB = 4097;
     expect(() => readCacheLimits(limits)).toThrow();
-    limits.resources.dataUrlMiB = 64;
+    limits.mediaData.MiB = 64;
     delete (limits.queries as Record<string, number>)['entity-detail'];
     expect(() => readCacheLimits(limits)).toThrow();
   });

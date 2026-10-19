@@ -69,6 +69,10 @@ const missingTitle = computed(() =>
     .join('；'),
 );
 let textSurface: TextSurface | null = null;
+let lastPaint: { canvas: HTMLCanvasElement; signature: string } | null = null;
+watch(font, () => {
+  lastPaint = null;
+});
 function paint() {
   if (textSurface && props.active) queueTextPaint(textSurface);
 }
@@ -79,6 +83,8 @@ function paintNow() {
   if (!target || !element || !loaded) return;
   const pixelRatio = window.devicePixelRatio,
     ink = getComputedStyle(element).color;
+  const signature = JSON.stringify([runs.value, width.value, pixelRatio, ink, props.outlined, props.inkAligned]);
+  if (lastPaint?.canvas === target && lastPaint.signature === signature) return;
   const padding = props.outlined ? Math.max(1, Math.round(pixelRatio)) / pixelRatio : 0,
     offsetX = Math.min(0, inkBounds.value!.left),
     offsetY = props.inkAligned ? inkBounds.value!.top : Math.min(0, inkBounds.value!.top);
@@ -116,6 +122,7 @@ function paintNow() {
     }
     context.drawImage(fontGlyph(image, glyph, item.color ?? ink), 0, 0, glyph.width, glyph.height, left, top, glyphWidth, glyphHeight);
   }
+  lastPaint = { canvas: target, signature };
 }
 function alignPixels() {
   if (!surface.value || !canvas.value || !inkBounds.value) return;

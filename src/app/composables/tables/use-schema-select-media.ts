@@ -5,7 +5,6 @@ import { warningNotice } from '@/shared/lib/errors';
 export function useSchemaSelectMedia() {
   const feedback = useAppFeedback();
   const registry = useResourceMediaRegistry({
-    surface: 'schema-select',
     onError: (error) => feedback.error(error, '读取选项贴图失败'),
     onFailures: (resources) =>
       feedback.warning(

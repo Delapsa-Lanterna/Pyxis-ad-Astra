@@ -17,7 +17,7 @@ import type { WriteResult, InvalidatedResourceScope } from '@/shared/types';
 import { refreshProjectSources, synchronizeSessionCommit } from '@/services/project-sync.service';
 import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
 import { invalidateQueryCacheByProject, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { invalidateResourceCacheByProject } from '@/services/resource-cache.service';
+import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
 
 let displayPaused = false;
 const displayUpdates: Array<() => Promise<unknown>> = [];
@@ -247,7 +247,7 @@ export async function completeSavedWrite(completion: SavedWriteCompletion): Prom
 export function invalidateProjectionCaches(event: ProjectSessionInvalidatedEvent) {
   const sync = useProjectSyncStore();
   if (sync.wereProjectionCachesInvalidated(event.manifest.sessionId, event.projectionRevision)) return;
-  invalidateResourceCacheByProject(event.manifest.sessionId, event.invalidation);
+  invalidateResourceMediaByProject(event.manifest.sessionId, event.invalidation);
   invalidateQueryCacheByProject(event.manifest.sessionId, event.invalidation);
   sync.markProjectionCachesInvalidated(event.manifest.sessionId, event.projectionRevision);
 }

@@ -10,6 +10,20 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 /** @type {CapabilityRule[]} */
 export const frontendCapabilities = [
   {
+    role: 'service',
+    domain: 'resource-media',
+    names: [
+      'acquireResourceMedia',
+      'resourceMediaDataUrl',
+      'mediaIdleByteLimit',
+      'resourceMediaStats',
+      'disposeResourceMedia',
+      'RESOURCE_MEDIA_FLUSH_DELAY_MS',
+    ],
+    capability: 'media-residence',
+    owners: readOwners,
+  },
+  {
     role: 'orchestrator',
     domain: 'project-sync',
     names: ['pauseProjectDisplay'],
@@ -35,13 +49,6 @@ export const frontendCapabilities = [
     { domain: 'source-options', name: 'hasSourceInvalidation' },
     { domain: 'csv-table', name: 'hasTableInvalidation' },
   ].map(({ domain, name }) => ({ role: 'service', domain, names: [name], capability: 'cache-observe', owners: readOwners })),
-  {
-    role: 'service',
-    domain: 'resource-budget',
-    names: ['mediaBudgetLimit', 'mediaBudgetBytes', 'registerMediaBudgetEntry', 'removeMediaBudgetEntry', 'touchMediaBudgetEntry'],
-    capability: 'resource-budget',
-    owners: ['resource-cache', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
-  },
   {
     role: 'service',
     domain: 'mod-file-browser',
@@ -255,7 +262,7 @@ export const frontendCapabilities = [
     domain: 'project-projection',
     names: ['requireProjectionReady'],
     capability: 'projection-read',
-    owners: ['query-cache', 'resource-cache', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
+    owners: ['query-cache', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
   },
   {
     role: 'orchestrator',
@@ -686,8 +693,8 @@ export const frontendCapabilities = [
   },
   {
     role: 'service',
-    domain: 'resource-cache',
-    names: ['subscribeResourceInvalidations', 'hasResourceInvalidation', 'mediaResourceKey', 'resourceCacheCapacity'],
+    domain: 'resource-media',
+    names: ['subscribeResourceInvalidations', 'hasResourceInvalidation', 'mediaResourceKey', 'mediaIdleEntryLimit'],
     capability: 'cache-observe',
     owners: readOwners,
   },
@@ -700,8 +707,8 @@ export const frontendCapabilities = [
   },
   {
     role: 'service',
-    domain: 'resource-cache',
-    names: ['invalidateResourceCacheByProject'],
+    domain: 'resource-media',
+    names: ['invalidateResourceMediaByProject'],
     capability: 'project-cache-invalidate',
     owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
   },
@@ -714,14 +721,14 @@ export const frontendCapabilities = [
   },
   {
     role: 'service',
-    domain: 'resource-cache',
-    names: ['invalidateResourceCacheForSession'],
+    domain: 'resource-media',
+    names: ['invalidateResourceMediaForSession'],
     capability: 'session-cache-clear',
     owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
   },
   {
     role: 'service',
-    domain: 'resource-cache',
+    domain: 'resource-media',
     names: ['queryResourceDataUrls'],
     capability: 'resource-load',
     owners: ['config-resource', 'csv-table', 'spec-ship-editor', 'weapon-data', 'resource-media', 'spec-projectile-editor'].map(
@@ -848,15 +855,7 @@ export function frontendDependencyFailure(current, target, edge) {
     return 'cache budgets must be consumed by settings and session queries';
   const foundation =
     (current.layer === 'services' &&
-      [
-        'project-session',
-        'project-projection',
-        'query-cache',
-        'resource-cache',
-        'resource-media',
-        'resource-reference',
-        'resource-budget',
-      ].includes(current.domain ?? '')) ||
+      ['project-session', 'project-projection', 'query-cache', 'resource-media', 'resource-reference'].includes(current.domain ?? '')) ||
     (current.layer === 'stores' && current.domain === 'project');
   if (foundation && target.domain === 'project-sync')
     return 'session, query and resource foundations must be consumed by project synchronization';
@@ -887,10 +886,7 @@ function matchesOwner(current, owner) {
 
 const serviceEdges = new Set([
   'query-cache -> project-projection',
-  'resource-cache -> project-projection',
   'resource-media -> project-projection',
-  'resource-cache -> resource-budget',
-  'resource-media -> resource-budget',
   'entity-query -> query-cache',
   'csv-table -> query-cache',
   'joint-edit -> query-cache',
@@ -902,26 +898,25 @@ const serviceEdges = new Set([
   'spec-projectile-editor -> resource-reference',
   'spec-ship-editor -> resource-reference',
   'config-entity -> resource-reference',
-  'resource-media -> resource-cache',
   'config-entity -> config-resource',
   'config-entity -> entity-query',
   'config-family -> entity-query',
-  'config-resource -> resource-cache',
+  'config-resource -> resource-media',
   'csv-table -> entity-query',
-  'csv-table -> resource-cache',
+  'csv-table -> resource-media',
   'spec-weapon-editor -> weapon-data',
   'spec-weapon-editor -> entity-query',
   'spec-projectile-editor -> entity-query',
-  'spec-projectile-editor -> resource-cache',
+  'spec-projectile-editor -> resource-media',
   'weapon-fire-preview -> entity-query',
   'weapon-data -> entity-query',
-  'weapon-data -> resource-cache',
+  'weapon-data -> resource-media',
   'weapon-fire-preview -> weapon-data',
   'spec-editor -> files',
   'spec-editor -> entity-query',
   'spec-ship-editor -> entity-query',
   'spec-ship-editor -> joint-edit',
-  'spec-ship-editor -> resource-cache',
+  'spec-ship-editor -> resource-media',
   'spec-system-editor -> entity-query',
 ]);
 

@@ -73,6 +73,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [factionId: string | null] }>();
 
 const { mediaRef, mediaSrc, mediaVisible, recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
+  thumbnailSize: 20,
   sessionId: () => props.sessionId,
   surface: 'config-faction-list',
   failureLabel: '读取势力徽标失败',

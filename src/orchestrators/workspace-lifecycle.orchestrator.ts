@@ -6,7 +6,7 @@ import { useTablesStore } from '@/stores/tables.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { invalidateCoreCacheForRoot } from '@/services/core-assets.service';
 import { invalidateQueryCacheForSession } from '@/services/query-cache.service';
-import { invalidateResourceCacheForSession } from '@/services/resource-cache.service';
+import { invalidateResourceMediaForSession } from '@/services/resource-media.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
@@ -74,7 +74,7 @@ function removeClosedMod(modRoot: string) {
   if (sessionId) {
     markProjectionReady(sessionId);
     invalidateQueryCacheForSession(sessionId);
-    invalidateResourceCacheForSession(sessionId);
+    invalidateResourceMediaForSession(sessionId);
   }
 
   removeModRuntimeState(modRoot);

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ResourceDataUrlBatchEntry, ResourceDataUrlBatchResult, ResourceRef } from '@/shared/types';
-import * as resourceCacheService from '@/services/resource-cache.service';
-import { mediaBudgetLimit } from '@/services/resource-budget.service';
+import * as resourceMediaService from '@/services/resource-media.service';
+import { mediaIdleByteLimit } from '@/services/resource-media.service';
 
-const { queryResourceDataUrls: queryResources } = resourceCacheService;
-const { resourceCacheCapacity } = resourceCacheService;
+const { queryResourceDataUrls: queryResources } = resourceMediaService;
+const { mediaIdleEntryLimit } = resourceMediaService;
 
 const mocks = vi.hoisted(() => ({
   queryBatch: vi.fn(async (first: string | ResourceRef[], second?: ResourceRef[]): Promise<ResourceDataUrlBatchResult> => ({
@@ -27,7 +27,7 @@ vi.mock('@/shared/runtime/command.runtime', () => ({
     mocks.queryBatch(args.payload.sessionId, args.payload.resources),
 }));
 
-describe('resource data URL cache', () => {
+describe('resource media query', () => {
   it('validates the whole batch before caching any result', async () => {
     const first = resource(950),
       second = resource(951);
@@ -46,23 +46,23 @@ describe('resource data URL cache', () => {
     const first = resource(952),
       second = resource(953);
     await queryResources('oversized-resource', [first]);
-    const oversized = 'x'.repeat(mediaBudgetLimit() + 1);
+    const oversized = 'x'.repeat(mediaIdleByteLimit() + 1);
     mocks.queryBatch.mockResolvedValueOnce({ entries: [{ ...second, dataUrl: oversized }] });
     expect((await queryResources('oversized-resource', [second]))[0]).toBe(oversized);
     expect(await queryResources('oversized-resource', [first])).toEqual(['data:graphics/test/952.png']);
     expect(await queryResources('oversized-resource', [second])).toEqual(['data:graphics/test/953.png']);
     expect(mocks.queryBatch).toHaveBeenCalledTimes(3);
   });
-  it('holds 512 physical resources and refreshes LRU order on access', async () => {
+  it('retains the configured idle resources and refreshes LRU order on access', async () => {
     const sessionId = 'resource-cache-lru';
-    const initial = Array.from({ length: resourceCacheCapacity() }, (_, index) => resource(index));
+    const initial = Array.from({ length: mediaIdleEntryLimit() }, (_, index) => resource(index));
     await queryResources(sessionId, initial);
     await queryResources(sessionId, [initial[0]!]);
-    await queryResources(sessionId, [resource(resourceCacheCapacity())]);
+    await queryResources(sessionId, [resource(mediaIdleEntryLimit())]);
     await queryResources(sessionId, [initial[1]!]);
     await queryResources(sessionId, [initial[0]!]);
 
-    expect(mocks.queryBatch.mock.calls.map((call) => call[1]?.length)).toEqual([resourceCacheCapacity(), 1, 1]);
+    expect(mocks.queryBatch.mock.calls.map((call) => call[1]?.length)).toEqual([mediaIdleEntryLimit(), 1, 1]);
   });
 
   it('shares a cached data URL across owner metadata for one physical path', async () => {
@@ -87,7 +87,7 @@ describe('resource data URL cache', () => {
     );
     const old = queryResources(sessionId, [target]);
     const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
-    resourceCacheService.invalidateResourceCacheForSession(sessionId);
+    resourceMediaService.invalidateResourceMediaForSession(sessionId);
     await ended;
     await queryResources(sessionId, [target]);
     resolveOld({ entries: [{ ...target, dataUrl: 'data:stale' }] });
@@ -95,10 +95,10 @@ describe('resource data URL cache', () => {
     expect(mocks.queryBatch).toHaveBeenCalledTimes(2);
   });
 
-  it('notifies session invalidation when only media projections retain an entry', () => {
+  it('notifies session invalidation for an empty media owner', () => {
     const listener = vi.fn();
-    const unsubscribe = resourceCacheService.subscribeResourceInvalidations(listener);
-    resourceCacheService.invalidateResourceCacheForSession('projection-only');
+    const unsubscribe = resourceMediaService.subscribeResourceInvalidations(listener);
+    resourceMediaService.invalidateResourceMediaForSession('projection-only');
     expect(listener).toHaveBeenCalledWith({ invalidation: null, resources: [], sessionId: 'projection-only', scope: 'session' });
     unsubscribe();
   });

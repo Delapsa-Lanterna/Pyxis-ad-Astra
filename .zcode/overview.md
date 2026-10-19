@@ -75,7 +75,7 @@
 - `WriteResult` 接纳顺序固定为实际基线、File History、ProjectSession projection、resource/query cache、列表和窗口事件；pending 只能通过 `synchronize_committed_write` 恢复。
 - dirty 或 saving 窗口必须先拦截关闭；保存、pending 恢复和最新 dirty 判定完成前不得销毁窗口、移除 Mod 或关闭 session。
 - replay 必须重新校验当前路径、父链、版本、session 和目标；历史记录只能提供候选 changeset，不提供当前授权。
-- resource cache、media cache、visible registry 和超额 data URL 必须共同服从引用生命周期；可见媒体必须增量释放，菜单与已选值资源不得互相覆盖。
+- 媒体 owner、集合租约、图像解码和缩略图成品必须共同服从引用生命周期；可见媒体必须增量释放，菜单与已选值资源不得互相覆盖。
 - `sessionId + modRoot` 必须贯穿 ProjectSession、query、write、cache、history、window 和事件；任何调用不得使用活动 Mod、裸路径或字符串拼接补齐身份。
 - workspace、settings、日志和派生索引只允许写工具私有目录；Mod、Core 和用户外部目录必须由所属 path owner 授权。
 - 实际编辑目标只能由 `query_entity_edit_target`、`query_text_identity_intent` 或后端恢复目标提供；前端不得扫描磁盘或构造正式目标。

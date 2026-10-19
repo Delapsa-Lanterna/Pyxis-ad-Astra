@@ -17,7 +17,7 @@ const oldWorkspaceCalls = [
 ];
 const componentActivationCalls = /\bworkspace\.(?:activateModOverview|activateModTable|activateModConfig|activateModFiles)\s*\(/;
 const directoryOpeningDetails = /\b(?:openModProjectManifest|hydrateOpenedModRuntime|rollbackFailedModOpening)\b/;
-const lifecycleDetailCalls = /\b(?:invalidateQueryCacheForSession|invalidateResourceCacheForSession|closeProject)\b/;
+const lifecycleDetailCalls = /\b(?:invalidateQueryCacheForSession|invalidateResourceMediaForSession|closeProject)\b/;
 
 export const workspaceModuleBoundaryRule = {
   name: 'workspace-module-boundary',

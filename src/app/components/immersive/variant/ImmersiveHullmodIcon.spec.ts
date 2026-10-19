@@ -8,14 +8,16 @@ describe('hullmod default graphic', () => {
       props: {
         sessionId: 's',
         resource: null,
-        url: '',
         active: true,
         size,
         label: 'Sample',
       },
       global: {
         stubs: {
-          ResourceThumbnail: { props: ['url', 'width', 'height'], template: '<canvas :data-url="url" :width="width" :height="height" />' },
+          ResourceThumbnail: {
+            props: ['resource', 'width', 'height'],
+            template: '<canvas :data-resource="resource.relPath" :width="width" :height="height" />',
+          },
         },
       },
     });
@@ -23,11 +25,10 @@ describe('hullmod default graphic', () => {
     expect(own.find('img').attributes('src')).toContain('data:image/svg+xml');
     await own.setProps({
       resource: { source: 'mod', ownerKind: 'hullmods', ownerId: 'sample', key: 'icon', relPath: 'sample.png' },
-      url: 'ready.png',
     });
-    expect(own.find('canvas').attributes('data-url')).toBe('ready.png');
+    expect(own.find('canvas').attributes('data-resource')).toBe('sample.png');
     expect(own.find('img').exists()).toBe(false);
-    await own.setProps({ resource: null, url: '' });
+    await own.setProps({ resource: null });
     expect(own.find('img').attributes('width')).toBe(String(size));
     own.unmount();
   });

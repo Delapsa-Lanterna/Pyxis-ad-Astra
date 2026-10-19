@@ -15,7 +15,7 @@ import { queryWeaponFirePreviewData, queryWeaponFirePreviewImages } from '@/serv
 
 import { retargetWeaponFirePreviewWindow } from '@/orchestrators/weapon-fire-preview.orchestrator';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { subscribeResourceInvalidations, hasResourceInvalidation } from '@/services/resource-cache.service';
+import { subscribeResourceInvalidations, hasResourceInvalidation } from '@/services/resource-media.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { formatError } from '@/shared/lib/errors';

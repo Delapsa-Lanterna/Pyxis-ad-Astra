@@ -151,9 +151,9 @@ const cases = [
     'resolveModImageReference',
   ],
   ['query-observe', 'src/app/composables/use-sample.ts', 'src/services/query-cache.service.ts', 'subscribeQueryInvalidations'],
-  ['resource-observe', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'hasResourceInvalidation'],
-  ['resource-key', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'mediaResourceKey'],
-  ['resource-read', 'src/services/spec-ship-editor.service.ts', 'src/services/resource-cache.service.ts', 'queryResourceDataUrls'],
+  ['resource-observe', 'src/app/composables/use-sample.ts', 'src/services/resource-media.service.ts', 'hasResourceInvalidation'],
+  ['resource-key', 'src/app/composables/use-sample.ts', 'src/services/resource-media.service.ts', 'mediaResourceKey'],
+  ['resource-read', 'src/services/spec-ship-editor.service.ts', 'src/services/resource-media.service.ts', 'queryResourceDataUrls'],
   [
     'draft-resource-query',
     'src/services/spec-ship-editor.service.ts',
@@ -169,8 +169,8 @@ const cases = [
   [
     'resource-project-invalidate',
     'src/orchestrators/project-sync.orchestrator.ts',
-    'src/services/resource-cache.service.ts',
-    'invalidateResourceCacheByProject',
+    'src/services/resource-media.service.ts',
+    'invalidateResourceMediaByProject',
   ],
   [
     'query-session-clear',
@@ -181,8 +181,8 @@ const cases = [
   [
     'resource-session-clear',
     'src/orchestrators/workspace-lifecycle.orchestrator.ts',
-    'src/services/resource-cache.service.ts',
-    'invalidateResourceCacheForSession',
+    'src/services/resource-media.service.ts',
+    'invalidateResourceMediaForSession',
   ],
   ['session-open', 'src/orchestrators/directory-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'openProject'],
   ['session-close', 'src/orchestrators/workspace-lifecycle.orchestrator.ts', 'src/services/project-session.service.ts', 'closeProject'],

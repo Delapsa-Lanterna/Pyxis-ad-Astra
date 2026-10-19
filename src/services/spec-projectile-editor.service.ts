@@ -1,6 +1,6 @@
 import { querySessionEntity, querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { querySessionDraftResources } from '@/services/resource-reference.service';
-import { queryResourceDataUrls } from '@/services/resource-cache.service';
+import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { str } from '@/shared/lib/starsector/index';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { requireRowData } from '@/shared/lib/row-data';

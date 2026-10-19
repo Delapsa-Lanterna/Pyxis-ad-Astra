@@ -9,7 +9,7 @@ vi.mock('@/services/entity-query.service', () => ({
 vi.mock('@/services/resource-reference.service', () => ({
   querySessionDraftResources: mocks.resources,
 }));
-vi.mock('@/services/resource-cache.service', () => ({ queryResourceDataUrls: mocks.images }));
+vi.mock('@/services/resource-media.service', () => ({ queryResourceDataUrls: mocks.images }));
 beforeEach(() => vi.resetAllMocks());
 describe('projectile editor queries', () => {
   it('returns the saved projectile with independent spec and version data', async () => {

@@ -1,128 +1,148 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ResourceCacheInvalidationEvent } from '@/services/resource-cache.service';
-import type { ResourceRef } from '@/shared/types';
-import { ensureResourceMedia, mediaCacheCapacity, resourceMediaDataUrl } from '@/services/resource-media.service';
-import { mediaBudgetLimit } from '@/services/resource-budget.service';
-
-const mocks = vi.hoisted(() => ({
-  invalidationListener: null as ((event: ResourceCacheInvalidationEvent) => void) | null,
-  query: vi.fn(async (_sessionId: string, resources: ResourceRef[]) => resources.map((resource) => `data:${resource.relPath}`)),
-  recordPerformance: vi.fn(),
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import {
+  acquireResourceMedia,
+  queryResourceDataUrls,
+  mediaResourceKey,
+  resourceMediaStats,
+  resourceMediaDataUrl,
+  invalidateResourceMediaForSession,
+  invalidateResourceMediaByProject,
+} from './resource-media.service';
+import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
+import { createSettingsFixture } from '@/test/settings';
+import type { ResourceRef, ProjectInvalidation, ResourceDataUrlBatchResult } from '@/shared/types';
+const mock = vi.hoisted(() => ({
+  load: vi.fn(async (resources: ResourceRef[]): Promise<ResourceDataUrlBatchResult> => ({
+    entries: resources.map((resource) => ({ ...resource, dataUrl: 'data:' + resource.relPath })),
+  })),
 }));
-
-vi.mock('@/services/resource-cache.service', () => ({
-  queryResourceDataUrls: mocks.query,
-  mediaResourceKey: (sessionId: string, resource: ResourceRef) => JSON.stringify([sessionId, resource.source, resource.relPath]),
-  subscribeResourceInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
-    mocks.invalidationListener = listener;
-    return () => undefined;
-  },
+vi.mock('@/shared/runtime/command.runtime', () => ({
+  invokeCommand: (_command: string, { payload }: { payload: { resources: ResourceRef[] } }) => mock.load(payload.resources),
 }));
-
-vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: mocks.recordPerformance }));
-
-describe('resource media service', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => vi.useRealTimers());
-
-  it('returns oversized content as consumer-owned temporary data', async () => {
-    const target = resource(990);
-    const oversized = 'x'.repeat(mediaBudgetLimit() + 1);
-    mocks.query.mockResolvedValueOnce([oversized]);
-    const loading = ensureResourceMedia('oversized', [target], 'test');
-    await vi.runAllTimersAsync();
-    const result = await loading;
-    expect(result.resolved).toBe(1);
-    expect(result.uncachedDataUrls.get(JSON.stringify(['oversized', 'mod', target.relPath]))).toBe(oversized);
-    expect(resourceMediaDataUrl('oversized', target)).toBeUndefined();
-  });
-
-  it('batches overlapping requests and keeps sessions isolated', async () => {
-    const first = ensureResourceMedia('session-a', [resource(0), resource(1)], 'test');
-    const second = ensureResourceMedia('session-a', [resource(1), resource(2)], 'test');
-    const third = ensureResourceMedia('session-b', [resource(0)], 'test');
-    await vi.runAllTimersAsync();
-    await Promise.all([first, second, third]);
-
-    expect(mocks.query).toHaveBeenCalledTimes(2);
-    expect(mocks.query.mock.calls.map((call) => [call[0], call[1].length])).toEqual([
-      ['session-a', 3],
-      ['session-b', 1],
-    ]);
-  });
-
-  it('holds 512 entries, evicts the oldest, and refreshes access order', async () => {
-    const initial = Array.from({ length: mediaCacheCapacity() }, (_, index) => resource(index));
-    const loading = ensureResourceMedia('lru-session', initial, 'test');
-    await vi.runAllTimersAsync();
-    await loading;
-
-    expect(resourceMediaDataUrl('lru-session', initial[0])).toBe('data:graphics/test/000.png');
-    const overflow = ensureResourceMedia('lru-session', [resource(mediaCacheCapacity())], 'test');
-    await vi.runAllTimersAsync();
-    await overflow;
-
-    expect(resourceMediaDataUrl('lru-session', initial[0])).toBe('data:graphics/test/000.png');
-    expect(resourceMediaDataUrl('lru-session', initial[1])).toBeUndefined();
-    expect(resourceMediaDataUrl('lru-session', resource(mediaCacheCapacity()))).toBe('data:graphics/test/' + mediaCacheCapacity() + '.png');
-  });
-
-  it('clears invalidated resources and queries them again', async () => {
-    const target = resource(700);
-    const first = ensureResourceMedia('invalidate-session', [target], 'test');
-    await vi.runAllTimersAsync();
-    await first;
-    mocks.invalidationListener?.({
-      invalidation: null,
-      resources: [target],
-      sessionId: 'invalidate-session',
-      scope: 'resources',
-    });
-
-    const second = ensureResourceMedia('invalidate-session', [target], 'test');
-    await vi.runAllTimersAsync();
-    await second;
-    expect(mocks.query).toHaveBeenCalledTimes(2);
-  });
-
-  it('releases queued requests when their session closes before the flush', async () => {
-    const target = resource(801);
-    const queued = ensureResourceMedia('queued-close', [target], 'test');
-    const ended = expect(queued).rejects.toMatchObject({ code: 'query.invalidated' });
-    mocks.invalidationListener?.({ invalidation: null, resources: [], sessionId: 'queued-close', scope: 'session' });
-    await ended;
-    await vi.runAllTimersAsync();
-    expect(mocks.query).not.toHaveBeenCalled();
-    expect(resourceMediaDataUrl('queued-close', target)).toBeUndefined();
-  });
-
-  it('releases in-flight requests and keeps replacement results when the old request arrives', async () => {
-    const target = resource(802);
-    let finishOld!: (value: string[]) => void;
-    mocks.query.mockReturnValueOnce(
-      new Promise<string[]>((resolve) => {
-        finishOld = resolve;
-      }),
-    );
-    const old = ensureResourceMedia('inflight-close', [target], 'test');
-    const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
-    await vi.advanceTimersByTimeAsync(25);
-    mocks.invalidationListener?.({ invalidation: null, resources: [target], sessionId: 'inflight-close', scope: 'resources' });
-    await ended;
-    const current = ensureResourceMedia('inflight-close', [target], 'test');
-    await vi.advanceTimersByTimeAsync(25);
-    await current;
-    finishOld(['data:stale']);
-    await vi.runAllTimersAsync();
-    expect(resourceMediaDataUrl('inflight-close', target)).toBe('data:graphics/test/802.png');
-  });
+vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));
+const resource = (relPath = 'one.png'): ResourceRef => ({ source: 'mod', relPath, ownerKind: 'ship', ownerId: relPath, key: 'sprite' });
+const session = 'media-lease';
+beforeEach(() => {
+  vi.useFakeTimers();
+  initializeCacheLimits(createSettingsFixture().cacheLimits);
 });
-
-function resource(index: number): ResourceRef {
-  return JSON.parse(
-    `{"source":"mod","relPath":"graphics/test/${index.toString().padStart(3, '0')}.png","ownerKind":"ship","ownerId":"ship-${index}","key":"sprite"}`,
-  ) as ResourceRef;
-}
+afterEach(() => {
+  invalidateResourceMediaForSession(session);
+  vi.useRealTimers();
+});
+it('shares one physical result and budget entry across owners and direct queries', async () => {
+  const limits = createSettingsFixture().cacheLimits;
+  limits.mediaData.MiB = 1;
+  initializeCacheLimits(limits);
+  const url = 'x'.repeat(786432);
+  mock.load.mockImplementationOnce(async (resources) => ({ entries: resources.map((resource) => ({ ...resource, dataUrl: url })) }));
+  const first = acquireResourceMedia(session, resource()),
+    second = acquireResourceMedia(session, { ...resource(), ownerId: 'another' });
+  await vi.advanceTimersByTimeAsync(25);
+  await Promise.all([first.ready, second.ready]);
+  expect(mock.load).toHaveBeenCalledOnce();
+  expect(resourceMediaStats()).toMatchObject({ activeEntries: 1, activeBytes: 786432 });
+  expect(await queryResourceDataUrls(session, [resource()])).toEqual([url]);
+  first.release();
+  expect(second.dataUrl.value).toBe(url);
+  second.release();
+  expect(resourceMediaStats()).toMatchObject({ activeEntries: 0, idleBytes: 786432 });
+});
+it('takes over queued requests immediately', async () => {
+  const held = acquireResourceMedia(session, resource());
+  expect(await queryResourceDataUrls(session, [resource(), resource('two.png')])).toHaveLength(2);
+  await held.ready;
+  held.release();
+  expect(mock.load).toHaveBeenCalledOnce();
+  expect(mock.load.mock.calls[0]![0]).toHaveLength(2);
+});
+it('starts a fresh request when a queued collection is released and immediately reacquired', async () => {
+  const old = acquireResourceMedia(session, resource());
+  const ended = expect(old.ready).rejects.toMatchObject({ code: 'query.invalidated' });
+  old.release();
+  const current = acquireResourceMedia(session, resource());
+  await ended;
+  await vi.advanceTimersByTimeAsync(25);
+  expect(await current.ready).toBe('data:one.png');
+  expect(mock.load).toHaveBeenCalledOnce();
+  current.release();
+});
+it.each([0, 1])('retains active oversized media with %s MiB idle budget', async (MiB) => {
+  const limits = createSettingsFixture().cacheLimits;
+  limits.mediaData.MiB = MiB;
+  initializeCacheLimits(limits);
+  const url = 'x'.repeat(1048577);
+  mock.load.mockImplementationOnce(async (resources) => ({ entries: resources.map((resource) => ({ ...resource, dataUrl: url })) }));
+  const held = acquireResourceMedia(session, resource());
+  await vi.advanceTimersByTimeAsync(25);
+  await held.ready;
+  expect(held.dataUrl.value).toBe(url);
+  expect(resourceMediaStats().activeEntries).toBe(1);
+  held.release();
+  held.release();
+  expect(resourceMediaStats()).toMatchObject({ activeEntries: 0, idleEntries: 0, idleBytes: 0 });
+});
+it('retains null until invalidation and retries thrown failures', async () => {
+  mock.load.mockImplementationOnce(async (resources) => ({ entries: resources.map((resource) => ({ ...resource, dataUrl: null })) }));
+  expect(await queryResourceDataUrls(session, [resource()])).toEqual([null]);
+  expect(await queryResourceDataUrls(session, [resource()])).toEqual([null]);
+  expect(mock.load).toHaveBeenCalledOnce();
+  invalidateResourceMediaForSession(session);
+  mock.load.mockRejectedValueOnce(new Error('transport'));
+  await expect(queryResourceDataUrls(session, [resource()])).rejects.toThrow('transport');
+  expect(await queryResourceDataUrls(session, [resource()])).toEqual(['data:one.png']);
+});
+it('evicts missing records through the shared idle entry limit', async () => {
+  const limits = createSettingsFixture().cacheLimits;
+  limits.mediaData.entries = 1;
+  initializeCacheLimits(limits);
+  mock.load.mockImplementationOnce(async (resources) => ({ entries: resources.map((resource) => ({ ...resource, dataUrl: null })) }));
+  await queryResourceDataUrls(session, [resource()]);
+  await queryResourceDataUrls(session, [resource('two.png')]);
+  expect(await queryResourceDataUrls(session, [resource()])).toEqual(['data:one.png']);
+  expect(mock.load).toHaveBeenCalledTimes(3);
+});
+it('releases only the owning wait and cancels unused queued work', async () => {
+  const first = acquireResourceMedia(session, resource()),
+    second = acquireResourceMedia(session, resource());
+  const ended = expect(first.ready).rejects.toMatchObject({ code: 'query.invalidated' });
+  first.release();
+  await ended;
+  await vi.advanceTimersByTimeAsync(25);
+  await second.ready;
+  expect(second.dataUrl.value).toBe('data:one.png');
+  second.release();
+  const cancelled = acquireResourceMedia(session, resource('cancelled.png'));
+  const rejected = expect(cancelled.ready).rejects.toMatchObject({ code: 'query.invalidated' });
+  cancelled.release();
+  await rejected;
+  await vi.advanceTimersByTimeAsync(25);
+  expect(mock.load).toHaveBeenCalledOnce();
+});
+it('rejects old generations and discards their late results', async () => {
+  let complete!: (result: ResourceDataUrlBatchResult) => void;
+  mock.load.mockReturnValueOnce(
+    new Promise((resolve) => {
+      complete = resolve;
+    }),
+  );
+  const old = queryResourceDataUrls(session, [resource()]);
+  const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
+  invalidateResourceMediaByProject(session, { session: false, resources: [{ source: 'mod', relPath: 'one.png' }] } as ProjectInvalidation);
+  await ended;
+  expect(await queryResourceDataUrls(session, [resource()])).toEqual(['data:one.png']);
+  complete({ entries: [{ ...resource(), dataUrl: 'data:stale' }] });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(resourceMediaDataUrl(session, resource())).toBe('data:one.png');
+});
+it('separates Mod and Core physical identities', () => {
+  expect(mediaResourceKey(session, resource('Graphics/ONE.png/'))).toBe(mediaResourceKey(session, resource('graphics/one.png')));
+  expect(mediaResourceKey(session, { ...resource(), source: 'core' })).not.toBe(mediaResourceKey(session, resource()));
+});
+it('serves retained results before the cold batch interval', async () => {
+  await queryResourceDataUrls(session, [resource()]);
+  const held = acquireResourceMedia(session, resource());
+  expect(await held.ready).toBe('data:one.png');
+  held.release();
+  expect(mock.load).toHaveBeenCalledOnce();
+});

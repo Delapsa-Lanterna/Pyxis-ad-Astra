@@ -3,7 +3,7 @@
     v-if="resource"
     :session-id="sessionId"
     :resource="resource"
-    :url="url"
+    url=""
     :active="active"
     :label="label"
     :width="size"
@@ -15,5 +15,5 @@
 import type { ResourceRef } from '@/shared/types';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import ImmersiveFallbackIcon from '../ImmersiveFallbackIcon.vue';
-defineProps<{ sessionId: string; resource: ResourceRef | null | undefined; url: string; active: boolean; label: string; size: number }>();
+defineProps<{ sessionId: string; resource: ResourceRef | null | undefined; active: boolean; label: string; size: number }>();
 </script>

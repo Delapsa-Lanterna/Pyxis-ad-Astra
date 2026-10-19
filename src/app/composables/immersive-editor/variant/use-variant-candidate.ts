@@ -26,7 +26,6 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
     panel.value?.kind === 'weapon' ? [...panel.value.primary, ...panel.value.ancillary] : (panel.value?.technical ?? []),
   );
   const media = useResourceMediaRegistry({
-    surface: '装配候选详情',
     onError: (error) => feedback.error(error),
     onFailures: (items) => {
       const missing = items.filter((resource) => resource.ownerId !== 'damage-type');

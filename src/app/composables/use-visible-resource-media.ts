@@ -1,11 +1,11 @@
 import { nextTick, onUnmounted, watch, shallowReactive, type ComponentPublicInstance } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useResourceMediaRegistry, type MediaCollectionChange } from '@/app/composables/use-resource-media-registry';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
 import type { ResourceRef } from '@/shared/types';
 import { recordPerformance } from '@/shared/runtime/performance';
 import { warningNotice } from '@/shared/lib/errors';
-import { useImagePreload } from './use-image-preload';
+import { useThumbnailPreload } from './use-thumbnail-preload';
+import { resourceThumbnailRequest } from './use-resource-thumbnail';
 
 interface RegisteredMedia {
   id: string;
@@ -19,24 +19,15 @@ export function useVisibleResourceMedia(args: {
   surface: string;
   failureLabel: string;
   onFailures?: (resources: readonly ResourceRef[]) => void;
+  thumbnailSize?: number;
 }) {
   const feedback = useAppFeedback();
-  const registry = useResourceMediaRegistry({
-    surface: args.surface,
-    onError: (error) => feedback.error(error, args.failureLabel),
-    onFailures:
-      args.onFailures ??
-      ((resources) =>
-        feedback.warning(
-          warningNotice(
-            `${args.failureLabel}：${resources.length} 个资源读取失败`,
-            'resource.read_failed',
-            `Resource read failed: count=${resources.length}; surface=${args.surface}`,
-          ),
-        )),
-  });
   const registered = new Map<string, RegisteredMedia>();
-  const preload = useImagePreload(args.surface + '预读', registry);
+  const preload = useThumbnailPreload(
+    args.surface,
+    args.onFailures ??
+      ((resources) => feedback.warning(warningNotice(args.failureLabel + '：' + resources.length, 'resource.read_failed', args.surface))),
+  );
   const elementEntries = new Map<Element, RegisteredMedia>();
   const callbacks = new Map<string, (element: Element | ComponentPublicInstance | null) => void>();
   const visibleIds = shallowReactive(new Set<string>());
@@ -50,8 +41,10 @@ export function useVisibleResourceMedia(args: {
   function setMediaRoot(element: Element | ComponentPublicInstance | null): void {
     const nextRoot = element instanceof HTMLElement ? element : null;
     if (root === nextRoot) return;
+    root?.removeAttribute('data-media-viewport');
     resizeObserver?.disconnect();
     root = nextRoot;
+    root?.setAttribute('data-media-viewport', '');
     rootHeight = -1;
     if (root) {
       resizeObserver = new ResizeObserver(() => rebuildObserverWhenHeightChanges());
@@ -65,7 +58,7 @@ export function useVisibleResourceMedia(args: {
     const changed = current.resource ? !resource || !sameResourceRef(current.resource, resource) : Boolean(resource);
     current.resource = resource ?? null;
     registered.set(id, current);
-    if (changed && current.visible) void registry.replaceCollection(args.sessionId(), id, current.resource ? [current.resource] : []);
+    if (changed && current.visible) prepareImages();
     let callback = callbacks.get(id);
     if (!callback) {
       callback = (element) => registerElement(id, element);
@@ -75,7 +68,7 @@ export function useVisibleResourceMedia(args: {
   }
 
   function mediaSrc(resource: ResourceRef | null | undefined): string {
-    return registry.dataUrl(args.sessionId(), resource) ?? '';
+    return resource && args.sessionId() ? preload.url(args.sessionId()!, resource) : '';
   }
 
   async function recordListFirstFrame(startedAt: number, entities: number): Promise<void> {
@@ -101,7 +94,6 @@ export function useVisibleResourceMedia(args: {
       observer?.unobserve(entry.element);
       elementEntries.delete(entry.element);
     }
-    if (entry.visible) void registry.releaseCollection(id);
     entry.element = nextElement;
     entry.visible = false;
     visibleIds.delete(id);
@@ -124,7 +116,7 @@ export function useVisibleResourceMedia(args: {
   function rebuildObserver(): void {
     observer?.disconnect();
     observer = null;
-    registry.clear();
+    preload.prepare(args.sessionId() ?? '', [], []);
     visibleIds.clear();
     rootHeight = root?.clientHeight ?? 0;
     if (!root || typeof IntersectionObserver === 'undefined') return;
@@ -140,16 +132,17 @@ export function useVisibleResourceMedia(args: {
   }
 
   function handleIntersections(entries: IntersectionObserverEntry[]): void {
-    const changes: MediaCollectionChange[] = [];
     for (const observed of entries) {
       const entry = elementEntries.get(observed.target);
       if (!entry || entry.visible === observed.isIntersecting) continue;
       entry.visible = observed.isIntersecting;
       if (entry.visible) visibleIds.add(entry.id);
       else visibleIds.delete(entry.id);
-      changes.push({ id: entry.id, resources: entry.visible && entry.resource ? [entry.resource] : [] });
     }
-    if (changes.length) void registry.replaceCollections(args.sessionId(), changes);
+    prepareImages();
+  }
+
+  function prepareImages() {
     const session = args.sessionId();
     if (session && root) {
       const bounds = root.getBoundingClientRect(),
@@ -161,7 +154,9 @@ export function useVisibleResourceMedia(args: {
         const item = entry.element.getBoundingClientRect();
         (item.bottom > bounds.top && item.top < bounds.bottom ? active : near).push(entry.resource);
       }
-      preload.prepare(session, active, near);
+      const request = (resource: ResourceRef) =>
+        resourceThumbnailRequest(session, resource, args.thumbnailSize ?? 32, args.thumbnailSize ?? 32);
+      preload.prepare(session, active.map(request), near.map(request));
     }
   }
 
@@ -169,6 +164,7 @@ export function useVisibleResourceMedia(args: {
 
   onUnmounted(() => {
     disposed = true;
+    root?.removeAttribute('data-media-viewport');
     observer?.disconnect();
     resizeObserver?.disconnect();
     registered.clear();

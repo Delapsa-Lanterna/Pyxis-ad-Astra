@@ -101,7 +101,6 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       }),
   }));
   const media = useResourceMediaRegistry({
-    surface: '沉浸式贴图',
     onError: (error) => feedback.error(error),
     onFailures: (resources) => {
       const missing = resources.filter((resource) => resource.ownerId !== 'damage-type');
