@@ -27,7 +27,7 @@ vi.mock('@/services/resource-media.service', () => ({
 }));
 
 vi.mock('@/services/resource-cache.service', () => ({
-  resourceCacheKey: (sessionId: string, resource: ResourceRef) => JSON.stringify([sessionId, resource.source, resource.relPath]),
+  mediaResourceKey: (sessionId: string, resource: ResourceRef) => JSON.stringify([sessionId, resource.source, resource.relPath]),
 }));
 
 vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));

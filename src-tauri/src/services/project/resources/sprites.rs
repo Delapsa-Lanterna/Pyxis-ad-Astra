@@ -7,6 +7,8 @@ use base64::{Engine as _, engine::general_purpose};
 use serde_json::Value;
 #[cfg(test)]
 use std::collections::BTreeMap;
+#[cfg(test)]
+use std::sync::{LazyLock, Mutex};
 use std::{
     fs,
     path::{Component, Path, PathBuf},
@@ -103,6 +105,8 @@ fn read_sprite_bytes(path: &Path) -> AppResult<Option<SpriteBytes>> {
             error.into(),
         )
     })?;
+    #[cfg(test)]
+    record_sprite_read(path);
     let bytes = fs::read(path).map_err(|error| {
         AppError::context(
             format!("读取贴图文件失败 ({})", path.display()),
@@ -123,6 +127,28 @@ fn read_sprite_bytes(path: &Path) -> AppResult<Option<SpriteBytes>> {
             general_purpose::STANDARD.encode(bytes)
         ),
     }))
+}
+
+#[cfg(test)]
+static SPRITE_READ_COUNTS: LazyLock<Mutex<BTreeMap<PathBuf, usize>>> =
+    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+
+#[cfg(test)]
+fn record_sprite_read(path: &Path) {
+    let mut counts = SPRITE_READ_COUNTS.lock().unwrap();
+    let key = std::fs::canonicalize(path).unwrap();
+    *counts.entry(key).or_default() += 1;
+}
+
+#[cfg(test)]
+pub(in crate::services::project) fn sprite_read_count(path: &Path) -> usize {
+    let key = std::fs::canonicalize(path).unwrap();
+    SPRITE_READ_COUNTS
+        .lock()
+        .unwrap()
+        .get(&key)
+        .copied()
+        .unwrap_or_default()
 }
 
 fn validate_sprite_relative_path(sprite: &str) -> AppResult<Option<String>> {

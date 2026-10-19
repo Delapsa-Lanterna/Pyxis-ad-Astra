@@ -1,4 +1,4 @@
-use super::super::resources::{resource_cache_key, sprite_resource_bytes, sprite_source_context};
+use super::super::resources::{media_resource_key, sprite_resource_bytes, sprite_source_context};
 use super::super::{
     cache::{lock_ready_session, session_handle},
     definitions::entity_resources::{
@@ -22,12 +22,12 @@ pub fn query_resource_data_urls(
     let mut loaded: BTreeMap<String, Option<String>> = BTreeMap::new();
     let mut entries = Vec::with_capacity(resources.len());
     for resource in resources {
-        let cache_key = resource_cache_key(&resource);
-        let data_url = if let Some(data_url) = loaded.get(&cache_key) {
+        let resource_key = media_resource_key(&resource);
+        let data_url = if let Some(data_url) = loaded.get(&resource_key) {
             data_url.clone()
         } else {
             let bytes = sprite_resource_bytes(&context, &resource)?;
-            loaded.insert(cache_key, bytes.data_url.clone());
+            loaded.insert(resource_key, bytes.data_url.clone());
             bytes.data_url
         };
         entries.push(ResourceDataUrlBatchEntry {
@@ -62,6 +62,7 @@ pub fn query_draft_resources(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::resources::sprites::sprite_read_count;
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
@@ -115,6 +116,106 @@ mod tests {
         assert_eq!(result.entries[1].owner_kind, ResourceOwnerKind::Ship);
         assert_eq!(result.entries[1].owner_id, "missing");
         assert!(result.entries[1].data_url.is_none());
+    }
+
+    #[test]
+    fn batch_resource_query_reads_shared_physical_media_once() {
+        let root = temp_dir("batch_resource_query_physical_key");
+        let sprite = root.join("graphics/shared/icon.png");
+        std::fs::create_dir_all(sprite.parent().unwrap()).unwrap();
+        std::fs::write(&sprite, [137, 80, 78, 71]).unwrap();
+
+        let mut trace =
+            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        let before = sprite_read_count(&sprite);
+        let result = query_resource_data_urls(
+            &manifest.session_id,
+            vec![
+                ResourceRef {
+                    source: ResourceSource::Mod,
+                    rel_path: " graphics\\shared\\ICON.PNG/ ".to_string(),
+                    owner_kind: ResourceOwnerKind::Ship,
+                    owner_id: "ship".to_string(),
+                    key: "icon".to_string(),
+                },
+                ResourceRef {
+                    source: ResourceSource::Mod,
+                    rel_path: "graphics/shared/icon.png".to_string(),
+                    owner_kind: ResourceOwnerKind::Weapon,
+                    owner_id: "weapon".to_string(),
+                    key: "thumbnail".to_string(),
+                },
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(sprite_read_count(&sprite) - before, 1);
+        assert_eq!(result.entries.len(), 2);
+        assert_eq!(result.entries[0].owner_id, "ship");
+        assert_eq!(result.entries[1].owner_id, "weapon");
+        assert_eq!(result.entries[0].key, "icon");
+        assert_eq!(result.entries[1].key, "thumbnail");
+        assert_eq!(result.entries[0].owner_kind, ResourceOwnerKind::Ship);
+        assert_eq!(result.entries[1].owner_kind, ResourceOwnerKind::Weapon);
+        assert!(result.entries[0].data_url.is_some());
+        assert_eq!(result.entries[0].data_url, result.entries[1].data_url);
+        let cached = query_resource_data_urls(
+            &manifest.session_id,
+            vec![ResourceRef {
+                source: result.entries[1].source,
+                rel_path: result.entries[1].rel_path.clone(),
+                owner_kind: result.entries[1].owner_kind,
+                owner_id: "third-owner".into(),
+                key: result.entries[1].key.clone(),
+            }],
+        )
+        .unwrap();
+        assert_eq!(cached.entries[0].data_url, result.entries[0].data_url);
+        assert_eq!(sprite_read_count(&sprite) - before, 1);
+
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn batch_resource_query_keeps_mod_and_core_media_separate() {
+        let root = temp_dir("batch_resource_query_source_key");
+        let mod_sprite = root.join("mods/demo/graphics/shared/icon.png");
+        let core_sprite = root.join("starsector-core/graphics/shared/icon.png");
+        std::fs::create_dir_all(mod_sprite.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(core_sprite.parent().unwrap()).unwrap();
+        std::fs::write(&mod_sprite, [1u8, 2, 3]).unwrap();
+        std::fs::write(&core_sprite, [4u8, 5, 6]).unwrap();
+
+        let mut trace =
+            crate::services::project::performance::PerformanceTrace::new("project.openSession");
+        let manifest =
+            open_project_session_traced(&root.join("mods/demo"), Some(&root), &mut trace).unwrap();
+        let result = query_resource_data_urls(
+            &manifest.session_id,
+            vec![
+                ResourceRef {
+                    source: ResourceSource::Mod,
+                    rel_path: "graphics/shared/icon.png".to_string(),
+                    owner_kind: ResourceOwnerKind::Ship,
+                    owner_id: "mod".to_string(),
+                    key: "icon".to_string(),
+                },
+                ResourceRef {
+                    source: ResourceSource::Core,
+                    rel_path: "graphics/shared/icon.png".to_string(),
+                    owner_kind: ResourceOwnerKind::Ship,
+                    owner_id: "core".to_string(),
+                    key: "icon".to_string(),
+                },
+            ],
+        )
+        .unwrap();
+
+        assert_ne!(result.entries[0].data_url, result.entries[1].data_url);
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -296,7 +397,7 @@ mod tests {
 
         let oldest_still_cached = cached_sprite_media_contains(
             &manifest.session_id,
-            &resource_cache_key(&ResourceRef {
+            &media_resource_key(&ResourceRef {
                 source: ResourceSource::Mod,
                 rel_path: "graphics/ships/p0000.png".to_string(),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -306,7 +407,7 @@ mod tests {
         );
         let newest_still_cached = cached_sprite_media_contains(
             &manifest.session_id,
-            &resource_cache_key(&ResourceRef {
+            &media_resource_key(&ResourceRef {
                 source: ResourceSource::Mod,
                 rel_path: format!("graphics/ships/p{:04}.png", count - 1),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -343,14 +444,14 @@ mod tests {
         query_resource_data_urls(&session_id, vec![resource.clone()]).unwrap();
         assert!(cached_sprite_media_contains(
             &session_id,
-            &resource_cache_key(&resource)
+            &media_resource_key(&resource)
         ));
 
         close_project_session(session_id.clone()).unwrap();
 
         assert!(!cached_sprite_media_contains(
             &session_id,
-            &resource_cache_key(&resource)
+            &media_resource_key(&resource)
         ));
         let _ = std::fs::remove_dir_all(root);
     }

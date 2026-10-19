@@ -687,7 +687,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'resource-cache',
-    names: ['subscribeResourceInvalidations', 'hasResourceInvalidation', 'resourceCacheKey', 'resourceCacheCapacity'],
+    names: ['subscribeResourceInvalidations', 'hasResourceInvalidation', 'mediaResourceKey', 'resourceCacheCapacity'],
     capability: 'cache-observe',
     owners: readOwners,
   },

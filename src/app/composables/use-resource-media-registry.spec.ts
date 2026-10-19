@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   failures: vi.fn(),
 }));
-vi.mock('@/services/resource-cache.service', () => ({ resourceCacheKey: mocks.key }));
+vi.mock('@/services/resource-cache.service', () => ({ mediaResourceKey: mocks.key }));
 vi.mock('@/services/resource-media.service', () => ({
   ensureResourceMedia: mocks.ensure,
   resourceMediaDataUrl: () => undefined,

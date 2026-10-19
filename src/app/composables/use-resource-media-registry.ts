@@ -1,6 +1,6 @@
 import { onUnmounted, shallowReactive } from 'vue';
 import { ensureResourceMedia, resourceMediaDataUrl, subscribeResourceMediaInvalidations } from '@/services/resource-media.service';
-import { resourceCacheKey } from '@/services/resource-cache.service';
+import { mediaResourceKey } from '@/services/resource-cache.service';
 import { createReadTicket, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
 import type { ResourceRef } from '@/shared/types';
 
@@ -42,7 +42,7 @@ export function useResourceMediaRegistry(options: {
       entries.map(([, entry]) => entry.resource),
       options.surface,
     ).then((result) => ({
-      failedKeys: new Set(result.failedResources.map((resource) => resourceCacheKey(capturedSession, resource))),
+      failedKeys: new Set(result.failedResources.map((resource) => mediaResourceKey(capturedSession, resource))),
       uncachedDataUrls: result.uncachedDataUrls,
     }));
     let reportedError = false;
@@ -89,7 +89,7 @@ export function useResourceMediaRegistry(options: {
     }
     for (const change of changes) {
       const previous = collections.get(change.id);
-      const next = new Map(change.resources.map((resource) => [resourceCacheKey(sessionId!, resource), resource]));
+      const next = new Map(change.resources.map((resource) => [mediaResourceKey(sessionId!, resource), resource]));
       for (const key of next.keys()) requestedKeys.add(key);
       for (const [key, resource] of previous ?? []) if (!next.has(key)) changeCount(key, resource, -1);
       for (const [key, resource] of next) if (!previous?.has(key)) changeCount(key, resource, 1);
@@ -122,7 +122,7 @@ export function useResourceMediaRegistry(options: {
       ? [...references.keys()]
       : [
           ...new Set(
-            [...event.resources, ...(event.invalidation?.resources ?? [])].map((resource) => resourceCacheKey(event.sessionId, resource)),
+            [...event.resources, ...(event.invalidation?.resources ?? [])].map((resource) => mediaResourceKey(event.sessionId, resource)),
           ),
         ];
     const affected = keys.filter((key) => references.has(key));
@@ -146,6 +146,6 @@ export function useResourceMediaRegistry(options: {
     releaseCollection: (id: string) => replaceCollections(sessionId, [{ id, resources: [] }]),
     clear,
     dataUrl: (session: string | null | undefined, resource: ResourceRef | null | undefined) =>
-      (session && resource ? temporary.get(resourceCacheKey(session, resource)) : undefined) ?? resourceMediaDataUrl(session, resource),
+      (session && resource ? temporary.get(mediaResourceKey(session, resource)) : undefined) ?? resourceMediaDataUrl(session, resource),
   };
 }

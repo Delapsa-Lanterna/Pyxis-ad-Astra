@@ -152,7 +152,7 @@ const cases = [
   ],
   ['query-observe', 'src/app/composables/use-sample.ts', 'src/services/query-cache.service.ts', 'subscribeQueryInvalidations'],
   ['resource-observe', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'hasResourceInvalidation'],
-  ['resource-key', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'resourceCacheKey'],
+  ['resource-key', 'src/app/composables/use-sample.ts', 'src/services/resource-cache.service.ts', 'mediaResourceKey'],
   ['resource-read', 'src/services/spec-ship-editor.service.ts', 'src/services/resource-cache.service.ts', 'queryResourceDataUrls'],
   [
     'draft-resource-query',

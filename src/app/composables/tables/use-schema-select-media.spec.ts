@@ -21,7 +21,7 @@ vi.mock('@/services/resource-media.service', () => ({
   },
 }));
 vi.mock('@/services/resource-cache.service', () => ({
-  resourceCacheKey: (session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath]),
+  mediaResourceKey: (session: string, resource: ResourceRef) => JSON.stringify([session, resource.source, resource.relPath]),
   subscribeResourceInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
     mocks.invalidated = listener;
     return mocks.stop;

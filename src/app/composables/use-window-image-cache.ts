@@ -1,6 +1,6 @@
 import { onScopeDispose, ref } from 'vue';
 import type { ResourceRef } from '@/shared/types';
-import { resourceCacheKey } from '@/services/resource-cache.service';
+import { mediaResourceKey } from '@/services/resource-cache.service';
 import { subscribeResourceMediaInvalidations } from '@/services/resource-media.service';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { windowCacheLimits } from '@/shared/runtime/cache-limits';
@@ -63,7 +63,7 @@ export function createWindowImageCache() {
     imageHits = 0,
     thumbnailHits = 0;
   function key(sessionId: string, resource: Pick<ResourceRef, 'source' | 'relPath'>) {
-    return resourceCacheKey(sessionId, resource);
+    return mediaResourceKey(sessionId, resource);
   }
   function revision(sessionId: string, resource: ResourceRef) {
     void epoch.value;

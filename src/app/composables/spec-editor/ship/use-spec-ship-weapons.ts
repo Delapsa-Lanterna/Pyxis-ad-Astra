@@ -4,7 +4,7 @@ import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecShipWeaponSources } from '@/services/spec-ship-editor.service';
 import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { resourceCacheKey } from '@/services/resource-cache.service';
+import { mediaResourceKey } from '@/services/resource-cache.service';
 import { projectShipWeapons, type ShipWeaponSources } from '@/domain/spec-editor/ship/spec-ship-weapons';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
@@ -36,7 +36,7 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
     ]);
     return previous &&
       previous.length === next.length &&
-      previous.every((resource, index) => resourceCacheKey(root().sessionId, resource) === resourceCacheKey(root().sessionId, next[index]!))
+      previous.every((resource, index) => mediaResourceKey(root().sessionId, resource) === mediaResourceKey(root().sessionId, next[index]!))
       ? previous
       : next;
   });
@@ -86,7 +86,7 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
   );
   const imageSources = computed(() =>
     Object.fromEntries(
-      resources.value.map((resource) => [resourceCacheKey(root().sessionId, resource), media.dataUrl(root().sessionId, resource) ?? '']),
+      resources.value.map((resource) => [mediaResourceKey(root().sessionId, resource), media.dataUrl(root().sessionId, resource) ?? '']),
     ),
   );
   watch(
@@ -108,9 +108,9 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
     ...projection.value.weapons.flatMap((weapon) => {
       const refs = [...weapon.layers.map((layer) => layer.resource), ...(weapon.loadedMissile ? [weapon.loadedMissile.resource] : [])];
       return refs.flatMap((resource) => {
-        const key = resourceCacheKey(root().sessionId, resource);
+        const key = mediaResourceKey(root().sessionId, resource);
         const missing =
-          mediaFailures.value.some((failure) => resourceCacheKey(root().sessionId, failure) === key) &&
+          mediaFailures.value.some((failure) => mediaResourceKey(root().sessionId, failure) === key) &&
           !media.dataUrl(root().sessionId, resource);
         return missing || decodeFailures.value.includes(key)
           ? [`槽位 ${String(weapon.slot.id)} · 武器 ${weapon.weaponId}：${resource.relPath} ${missing ? '贴图读取失败' : '贴图解码失败'}`]
@@ -122,6 +122,6 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
   return {
     weapons: computed(() => projection.value.weapons),
     diagnostics,
-    image: (resource: ResourceRef) => images.images.get(resourceCacheKey(root().sessionId, resource)),
+    image: (resource: ResourceRef) => images.images.get(mediaResourceKey(root().sessionId, resource)),
   };
 }

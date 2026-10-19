@@ -41,12 +41,14 @@ pub(in crate::services::project) fn sprite_resource_bytes(
     context: &SpriteSourceContext,
     resource: &ResourceRef,
 ) -> AppResult<SpriteResourceBytes> {
-    let cache_key = resource_cache_key(resource);
-    if let Some(data_url) = media::lookup_data_url(&context.session_id, &cache_key) {
+    let resource_key = media_resource_key(resource);
+    if let Some(data_url) = media::lookup_data_url(&context.session_id, &resource_key) {
         return Ok(SpriteResourceBytes {
             data_url: Some(data_url),
         });
     }
+    let rel_path = resource.rel_path.replace('\\', "/");
+    let rel_path = rel_path.trim().trim_end_matches('/');
     let loaded = match resource.source {
         ResourceSource::Core => {
             let root = context
@@ -59,7 +61,7 @@ pub(in crate::services::project) fn sprite_resource_bytes(
                         "core resource requires starsector root",
                     )
                 })?;
-            sprites::load_sprite_bytes_from_root(&root, &resource.rel_path)?
+            sprites::load_sprite_bytes_from_root(&root, rel_path)?
         }
         ResourceSource::Mod => {
             let mod_root = PathBuf::from(&context.mod_root);
@@ -67,7 +69,7 @@ pub(in crate::services::project) fn sprite_resource_bytes(
                 .starsector_root
                 .as_ref()
                 .map(|root| PathBuf::from(root).join("starsector-core"));
-            sprites::load_sprite_bytes(&mod_root, core_dir.as_deref(), &resource.rel_path)?
+            sprites::load_sprite_bytes(&mod_root, core_dir.as_deref(), rel_path)?
         }
     };
     let data_url = loaded.as_ref().map(|bytes| bytes.data_url.clone());
@@ -76,7 +78,7 @@ pub(in crate::services::project) fn sprite_resource_bytes(
         if registry.contains_key(&context.session_id) {
             media::insert_entry(
                 &context.session_id,
-                &cache_key,
+                &resource_key,
                 bytes.resolved_path,
                 bytes.modified,
                 bytes.length,
@@ -87,15 +89,19 @@ pub(in crate::services::project) fn sprite_resource_bytes(
     Ok(SpriteResourceBytes { data_url })
 }
 
-pub(in crate::services::project) fn resource_cache_key(resource: &ResourceRef) -> String {
+pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -> String {
     json!([
         resource.source.as_str(),
-        resource.rel_path,
-        resource.owner_kind,
-        resource.owner_id,
-        resource.key
+        normalized_media_rel_path(&resource.rel_path),
     ])
     .to_string()
+}
+
+fn normalized_media_rel_path(path: &str) -> String {
+    path.replace('\\', "/")
+        .trim()
+        .trim_end_matches('/')
+        .to_lowercase()
 }
 
 pub(in crate::services::project) struct HullReferenceResolver<'a> {
@@ -256,7 +262,7 @@ mod tests {
     use serde_json::{Map, Value};
 
     #[test]
-    fn resource_cache_key_uses_complete_resource_identity() {
+    fn media_resource_key_uses_source_and_path_only() {
         let ship = resource_ref(
             ResourceSource::Mod,
             "graphics/shared/icon.png",
@@ -272,27 +278,36 @@ mod tests {
             "icon",
         );
 
-        assert_ne!(resource_cache_key(&ship), resource_cache_key(&weapon));
+        assert_eq!(media_resource_key(&ship), media_resource_key(&weapon));
+
+        let core = resource_ref(
+            ResourceSource::Core,
+            "graphics/shared/icon.png",
+            ResourceOwnerKind::Weapon,
+            "weapon",
+            "icon",
+        );
+        assert_ne!(media_resource_key(&ship), media_resource_key(&core));
     }
 
     #[test]
-    fn resource_cache_key_preserves_structured_field_boundaries() {
+    fn media_resource_key_normalizes_path() {
         let left = resource_ref(
             ResourceSource::Mod,
-            "graphics/shared/icon.png",
+            " graphics\\shared\\ICON.png/ ",
             ResourceOwnerKind::Ship,
-            "owner:with",
-            "separator",
+            "left",
+            "icon",
         );
         let right = resource_ref(
             ResourceSource::Mod,
             "graphics/shared/icon.png",
             ResourceOwnerKind::Ship,
-            "owner",
-            "with:separator",
+            "right",
+            "thumbnail",
         );
 
-        assert_ne!(resource_cache_key(&left), resource_cache_key(&right));
+        assert_eq!(media_resource_key(&left), media_resource_key(&right));
     }
 
     #[test]

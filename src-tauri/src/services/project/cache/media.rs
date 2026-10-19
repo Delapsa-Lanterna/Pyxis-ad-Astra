@@ -82,7 +82,7 @@ pub(crate) fn configure_media_cache(
 /// any stat or modification mismatch is a miss so edits show up immediately.
 pub(in crate::services::project) fn lookup_data_url(
     session_id: &str,
-    cache_key: &str,
+    resource_key: &str,
 ) -> Option<String> {
     let mut cache = match sprite_media_cache().lock() {
         Ok(cache) => cache,
@@ -91,25 +91,25 @@ pub(in crate::services::project) fn lookup_data_url(
             return None;
         }
     };
-    let key = (session_id.to_string(), cache_key.to_string());
-    let entry = cache.entries.get(&key)?;
+    let cache_key = (session_id.to_string(), resource_key.to_string());
+    let entry = cache.entries.get(&cache_key)?;
     let current = std::fs::metadata(&entry.resolved_path)
         .ok()
         .is_some_and(|metadata| {
             metadata.modified().ok() == Some(entry.modified) && metadata.len() == entry.length
         });
     if !current {
-        cache.remove(&key);
+        cache.remove(&cache_key);
         return None;
     }
     let data_url = entry.data_url.clone();
-    cache.touch(&key);
+    cache.touch(&cache_key);
     Some(data_url)
 }
 
 pub(in crate::services::project) fn insert_entry(
     session_id: &str,
-    cache_key: &str,
+    resource_key: &str,
     resolved_path: PathBuf,
     modified: SystemTime,
     length: u64,
@@ -119,9 +119,9 @@ pub(in crate::services::project) fn insert_entry(
         crate::diagnostics::record("sprite media cache lock poisoned");
         return;
     };
-    let media_key = (session_id.to_string(), cache_key.to_string());
+    let cache_key = (session_id.to_string(), resource_key.to_string());
     cache.insert(
-        media_key,
+        cache_key,
         CachedSpriteMedia {
             resolved_path,
             modified,
@@ -150,7 +150,7 @@ pub(in crate::services::project) fn clear_sprite_media_for_session(session_id: &
 #[cfg(test)]
 pub(in crate::services::project) fn cached_sprite_media_contains(
     session_id: &str,
-    cache_key: &str,
+    resource_key: &str,
 ) -> bool {
     let Ok(cache) = sprite_media_cache().lock() else {
         crate::diagnostics::record("sprite media cache lock poisoned");
@@ -158,7 +158,7 @@ pub(in crate::services::project) fn cached_sprite_media_contains(
     };
     cache
         .entries
-        .contains_key(&(session_id.to_string(), cache_key.to_string()))
+        .contains_key(&(session_id.to_string(), resource_key.to_string()))
 }
 
 #[cfg(test)]

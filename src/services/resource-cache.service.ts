@@ -63,7 +63,7 @@ export async function queryResourceDataUrls(
 ): Promise<(string | null)[]> {
   if (signal?.aborted) throw invalidatedRead({ sessionId, resources }, 'consumer');
   requireProjectionReady(sessionId);
-  const entries = resources.map((resource) => ({ resource: { ...resource }, key: resourceCacheKey(sessionId, resource) }));
+  const entries = resources.map((resource) => ({ resource: { ...resource }, key: mediaResourceKey(sessionId, resource) }));
   const missing = new Map<string, { key: string; resource: ResourceRef }>();
   const pendingLoads: Promise<readonly [string, string | null]>[] = [];
   const resolved = new Map<string, string | null>();
@@ -162,7 +162,7 @@ export function hasResourceInvalidation(event: ResourceCacheInvalidationEvent, r
   return event.resources.some((resource) => resources.some((candidate) => sameResourceRef(candidate, resource)));
 }
 
-export function resourceCacheKey(sessionId: ProjectSessionId, resource: Pick<ResourceRef, 'source' | 'relPath'>): string {
+export function mediaResourceKey(sessionId: ProjectSessionId, resource: Pick<ResourceRef, 'source' | 'relPath'>): string {
   return JSON.stringify([sessionId, resource.source, normalizeFsPath(resource.relPath)]);
 }
 
@@ -216,7 +216,7 @@ function validateResourceBatch(request: ResourceRef[], entries: ResourceDataUrlB
 function cacheResourceResult(sessionId: string, resource: ResourceRef, dataUrl: string | null): void {
   const bytes = mediaBudgetBytes(dataUrl);
   if (bytes > mediaBudgetLimit() || !mediaBudgetLimit()) return;
-  const key = resourceCacheKey(sessionId, resource);
+  const key = mediaResourceKey(sessionId, resource);
   dataUrlCache.set(key, {
     dataUrl,
     relPath: normalizeFsPath(resource.relPath),

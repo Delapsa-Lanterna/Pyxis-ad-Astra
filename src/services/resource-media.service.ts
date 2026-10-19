@@ -1,7 +1,7 @@
 import { reactive } from 'vue';
 import {
   queryResourceDataUrls,
-  resourceCacheKey,
+  mediaResourceKey,
   subscribeResourceInvalidations,
   type ResourceCacheInvalidationEvent,
 } from '@/services/resource-cache.service';
@@ -53,7 +53,7 @@ export function resourceMediaDataUrl(
   resource: ResourceRef | null | undefined,
 ): string | undefined {
   if (!sessionId || !resource) return undefined;
-  const key = resourceCacheKey(sessionId, resource);
+  const key = mediaResourceKey(sessionId, resource);
   if (!media.has(key)) return undefined;
   touchMedia(key);
   touchMediaBudgetEntry(`media:${key}`);
@@ -69,7 +69,7 @@ export async function ensureResourceMedia(
   if (signal?.aborted) throw invalidatedRead({ sessionId, resources }, 'consumer');
   requireProjectionReady(sessionId);
   const startedAt = performance.now();
-  const unique = new Map(resources.map((resource) => [resourceCacheKey(sessionId, resource), resource]));
+  const unique = new Map(resources.map((resource) => [mediaResourceKey(sessionId, resource), resource]));
   const waitFor: Promise<readonly [string, string | null]>[] = [];
   const values = new Map<string, string | null>();
   let cacheHits = 0;
@@ -223,11 +223,11 @@ subscribeResourceInvalidations((event) => {
     }
   } else {
     for (const resource of event.resources) {
-      const key = resourceCacheKey(event.sessionId, resource);
+      const key = mediaResourceKey(event.sessionId, resource);
       invalidateMediaKey(key);
     }
     for (const scope of event.invalidation?.resources ?? []) {
-      invalidateMediaKey(resourceCacheKey(event.sessionId, scope));
+      invalidateMediaKey(mediaResourceKey(event.sessionId, scope));
     }
   }
   for (const listener of invalidationListeners) listener(event);

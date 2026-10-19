@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/services/resource-cache.service', () => ({
   queryResourceDataUrls: mocks.query,
-  resourceCacheKey: (sessionId: string, resource: ResourceRef) => JSON.stringify([sessionId, resource.source, resource.relPath]),
+  mediaResourceKey: (sessionId: string, resource: ResourceRef) => JSON.stringify([sessionId, resource.source, resource.relPath]),
   subscribeResourceInvalidations: (listener: (event: ResourceCacheInvalidationEvent) => void) => {
     mocks.invalidationListener = listener;
     return () => undefined;
