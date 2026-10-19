@@ -6,8 +6,11 @@ import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useCoreGraphics } from './use-core-assets';
 import { useCoreSchema } from './use-core-schema';
 import type { DiscoveredField } from '@/shared/types';
+import type { ProjectSessionInvalidatedEvent } from '@/windows/window.events';
+import type { WindowEventHandler } from '@/windows/tauri.events';
 
-const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn(), listen: vi.fn(), unlisten: vi.fn() }));
+vi.mock('@/windows/tauri.events', () => ({ listenWindowEvent: mocks.listen }));
 vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields, queryCoreGraphics: mocks.graphics }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 const fields: Record<string, DiscoveredField[]> = { faction: [{ key: 'bonus', type: 'string', origin: 'core' }] };
@@ -19,6 +22,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   root = ref<string | null>('D:/A');
   vi.clearAllMocks();
+  mocks.listen.mockResolvedValue(mocks.unlisten);
   mocks.fields.mockResolvedValue(fields);
   mocks.graphics.mockResolvedValue(['graphics/a.png']);
   scope = effectScope();
@@ -30,6 +34,89 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  function refresh(path: string, source = 'core', gameRoot = 'd:/a') {
+    const handler = mocks.listen.mock.calls.at(-1)![1] as WindowEventHandler<ProjectSessionInvalidatedEvent>;
+    const event = { manifest: { starsectorRoot: gameRoot }, invalidation: { resources: [{ source, relPath: path }] } };
+    return handler(event as ProjectSessionInvalidatedEvent);
+  }
+
+  it.each([
+    ['data/hulls/demo.ship', 2, 1],
+    ['data/world/factions/demo.faction', 2, 1],
+    ['data/weapons/demo.wpn', 2, 1],
+    ['graphics/ships/demo.png', 1, 2],
+    ['graphics-backup/demo.png', 1, 1],
+    ['data', 2, 1],
+  ])('refreshes the affected product for %s', async (path, fieldCalls, graphicsCalls) => {
+    await Promise.all([loadCoreFields(), loadCoreGraphics()]);
+    await refresh(path);
+    expect(mocks.fields).toHaveBeenCalledTimes(fieldCalls);
+    expect(mocks.graphics).toHaveBeenCalledTimes(graphicsCalls);
+  });
+
+  it('keeps loaded Core products through Mod and other-root refreshes', async () => {
+    await Promise.all([loadCoreFields(), loadCoreGraphics()]);
+    await refresh('data/hulls/demo.ship', 'mod');
+    await refresh('graphics/demo.png', 'core', 'D:/B');
+    expect(mocks.fields).toHaveBeenCalledTimes(1);
+    expect(mocks.graphics).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['resolve', 'reject'] as const)('revokes the prior same-root request on refresh: %s', async (completion) => {
+    let resolve!: (value: typeof fields) => void;
+    let reject!: (error: Error) => void;
+    mocks.fields.mockImplementationOnce(
+      () =>
+        new Promise((yes, no) => {
+          resolve = yes;
+          reject = no;
+        }),
+    );
+    const old = loadCoreFields();
+    await refresh('data/hulls/demo.ship');
+    if (completion === 'resolve') resolve({});
+    else reject(new Error('stale'));
+    await old;
+    expect(useCoreAssetsStore().fields).toMatchObject({ content: fields, status: 'ready' });
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it('retains content on refresh failure and retries the current product', async () => {
+    await loadCoreGraphics();
+    mocks.graphics.mockRejectedValueOnce(new Error('refresh failed'));
+    await refresh('graphics/demo.png');
+    expect(useCoreAssetsStore().graphics).toMatchObject({ content: ['graphics/a.png'], status: 'error' });
+    mocks.graphics.mockResolvedValueOnce(['graphics/b.png']);
+    await loadCoreGraphics();
+    expect(useCoreAssetsStore().graphics).toMatchObject({ content: ['graphics/b.png'], status: 'ready' });
+  });
+
+  it('releases the refresh subscription and ignores queued events after disposal', async () => {
+    stop();
+    await refresh('graphics/demo.png');
+    expect(mocks.unlisten).toHaveBeenCalledTimes(1);
+    expect(mocks.graphics).not.toHaveBeenCalled();
+  });
+
+  it('updates both window stores from the same explicit refresh event', async () => {
+    const first = useCoreAssetsStore();
+    const firstHandler = mocks.listen.mock.calls.at(-1)![1] as WindowEventHandler<ProjectSessionInvalidatedEvent>;
+    await loadCoreGraphics();
+    setActivePinia(createPinia());
+    const stopSecond = startCoreAssetsLoading(ref('D:/A'));
+    const second = useCoreAssetsStore();
+    await loadCoreGraphics();
+    mocks.graphics.mockResolvedValue(['graphics/new.png']);
+    await firstHandler({
+      manifest: { starsectorRoot: 'D:/A' },
+      invalidation: { resources: [{ source: 'core', relPath: 'graphics' }] },
+    } as ProjectSessionInvalidatedEvent);
+    await refresh('graphics');
+    expect(first.graphics.content).toEqual(['graphics/new.png']);
+    expect(second.graphics.content).toEqual(['graphics/new.png']);
+    expect(mocks.graphics).toHaveBeenCalledTimes(4);
+    stopSecond();
+  });
   it('registers the root without reading until a consumer requests each resource', async () => {
     expect(useCoreAssetsStore().root).toBe('D:/A');
     expect(mocks.fields).not.toHaveBeenCalled();

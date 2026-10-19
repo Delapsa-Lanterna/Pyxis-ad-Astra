@@ -4,6 +4,10 @@ import { queryCoreFields, queryCoreGraphics } from '@/services/core-assets.servi
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
+import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
+import { WINDOW_EVENTS, type ProjectSessionInvalidatedEvent } from '@/windows/window.events';
+import { listenWindowEvent } from '@/windows/tauri.events';
+import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 
 interface CoreLoader {
   fields: () => Promise<void>;
@@ -18,16 +22,23 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
   let disposed = false;
 
   function loader<T>(state: () => CoreAssetState<T>, query: (root: string) => Promise<T>) {
+    let revision = 0;
     let pending: { generation: number; promise: Promise<void> } | null = null;
-    return function load(): Promise<void> {
+    return function load(refresh = false): Promise<void> {
+      if (refresh) {
+        revision++;
+        pending = null;
+        state().status = 'idle';
+      }
       const capturedRoot = store.root;
       const capturedGeneration = generation;
+      const capturedRevision = revision;
       if (!capturedRoot || state().status === 'ready') return Promise.resolve();
       if (pending?.generation === capturedGeneration) return pending.promise;
       const capturedState = state();
       capturedState.status = 'loading';
       capturedState.error = null;
-      const accepts = () => !disposed && generation === capturedGeneration;
+      const accepts = () => !disposed && generation === capturedGeneration && revision === capturedRevision;
       const promise = query(capturedRoot)
         .then((content) => {
           if (!accepts()) return;
@@ -49,7 +60,7 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
           });
         })
         .finally(() => {
-          if (pending?.generation === capturedGeneration) pending = null;
+          if (accepts()) pending = null;
         });
       pending = { generation: capturedGeneration, promise };
       return promise;
@@ -62,6 +73,24 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
   };
   loaders.set(store, runtime);
   store.reset(root.value);
+  const eventName = WINDOW_EVENTS.projectSourcesRefreshed;
+  const registration = listenWindowEvent<ProjectSessionInvalidatedEvent>(
+    eventName,
+    async ({ manifest, invalidation }) => {
+      if (disposed || !store.root || !manifest.starsectorRoot || normalizeFsPath(store.root) !== normalizeFsPath(manifest.starsectorRoot))
+        return;
+      const paths = invalidation.resources.filter((source) => source.source === 'core').map((source) => source.relPath);
+      const affected = (directory: string) =>
+        paths.some((path) => pathBelongsToRoot(path, directory) || pathBelongsToRoot(directory, path));
+      await Promise.all([
+        ...(['data/world/factions', 'data/hulls', 'data/weapons'].some(affected) ? [runtime.fields(true)] : []),
+        ...(affected('graphics') ? [runtime.graphics(true)] : []),
+      ]);
+    },
+    recordWindowEventHandlerError,
+  ).catch((error: unknown) => {
+    recordWindowEventHandlerError(error, eventName);
+  });
   const stop = watch(
     root,
     (nextRoot) => {
@@ -76,6 +105,7 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
     disposed = true;
     generation++;
     stop();
+    void registration.then((unlisten) => unlisten?.());
     loaders.delete(store);
     store.reset(null);
   };

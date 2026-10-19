@@ -184,7 +184,7 @@ where
 {
     let cache = core_cache_handle(starsector_root)?;
     let mut load = Some(load);
-    let flight_key = format!("{}:{product}", core_cache_key(starsector_root)?);
+    let flight_key = format!("{:p}:{product}", Arc::as_ptr(&cache));
     loop {
         if let Some(value) = get(&lock_core_cache(&cache)?.data) {
             return Ok(value.clone());
@@ -195,6 +195,9 @@ where
             continue;
         }
         let result = (|| {
+            if let Some(value) = get(&lock_core_cache(&cache)?.data) {
+                return Ok(value.clone());
+            }
             let mut sources = lock_core_cache(&cache)?.sources.fork_loaded();
             let value = Arc::new(load.take().expect("core loader")(&mut sources)?);
             let mut entry = lock_core_cache(&cache)?;
@@ -617,6 +620,53 @@ mod tests {
         assert!(cache.data.graphics.is_some());
         drop(cache);
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn refreshed_product_loads_before_the_old_flight_finishes() {
+        let root = temp_dir("core_refresh_flight");
+        fs::create_dir_all(root.join("starsector-core/graphics")).unwrap();
+        let text = root.to_string_lossy().to_string();
+        let worker_root = text.clone();
+        let (started, ready) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let old = thread::spawn(move || {
+            get_or_load_core(
+                &worker_root,
+                "graphics",
+                |cache| cache.graphics.as_ref(),
+                |cache, value| cache.graphics = Some(value),
+                |_| {
+                    started.send(()).unwrap();
+                    released.recv().unwrap();
+                    Ok(vec!["graphics/old.png".to_string()])
+                },
+            )
+            .unwrap()
+        });
+        ready.recv().unwrap();
+        invalidate_core_sources(
+            &text,
+            &[crate::models::InvalidatedResourceScope {
+                source: ResourceSource::Core,
+                rel_path: "graphics".to_string(),
+            }],
+        )
+        .unwrap();
+        fs::write(root.join("starsector-core/graphics/new.png"), [1u8]).unwrap();
+        let new_root = text.clone();
+        let (completed, completion) = std::sync::mpsc::channel();
+        let current = thread::spawn(move || {
+            completed.send(load_core_graphics(&new_root)).unwrap();
+        });
+        let result = completion.recv_timeout(Duration::from_secs(5));
+        release.send(()).unwrap();
+        old.join().unwrap();
+        current.join().unwrap();
+        assert_eq!(result.unwrap().unwrap(), vec!["graphics/new.png"]);
+        assert_eq!(load_core_graphics(&text).unwrap(), vec!["graphics/new.png"]);
+        invalidate_core_cache(&text).unwrap();
         fs::remove_dir_all(root).unwrap();
     }
 

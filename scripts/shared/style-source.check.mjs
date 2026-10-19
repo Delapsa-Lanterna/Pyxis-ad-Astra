@@ -38,14 +38,13 @@ test('imports resolve as a graph and diagnose missing dependencies and cycles', 
   assert.ok(checkStyles(fixture('@import "./more.css";')).some((failure) => failure.includes('css.entry')));
 });
 
-test('presentation isolation follows transitive stylesheet imports', () => {
+test('stylesheet entries accept transitive shared imports', () => {
   const files = [
     { rel: 'a/style.css', text: '@import "./base.css";' },
     { rel: 'a/base.css', text: '.control{color:red}' },
     { rel: 'b/style.css', text: '@import "../a/style.css";' },
   ];
   assert.deepEqual(checkStyles(files), []);
-  assert.ok(checkStyles(files, { isolatedEntries: ['b/style.css'] }).some((failure) => failure.includes('css.isolation')));
 });
 
 test('variables resolve in their entry graph with local fallback and literal runtime assignments', () => {

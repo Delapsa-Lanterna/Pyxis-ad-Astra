@@ -8,8 +8,8 @@ import { parseFrontendSource } from './frontend-source.mjs';
 /** @typedef {{rel: string, text: string}} StyleFile */
 /** @typedef {{loc?: {start: {line: number, column: number}} | null} | null} SourceNode */
 /** @typedef {{file: StyleFile, imports: Array<{path: string, node: import('css-tree').Atrule}>, definitions: Set<string>, uses: Array<{name: string, fallback: boolean, node: import('css-tree').Declaration}>}} Sheet */
-/** @param {Array<{rel: string, text: string}>} files @param {{isolatedEntries?: string[]}} options */
-export function checkStyles(files, { isolatedEntries = [] } = {}) {
+/** @param {Array<{rel: string, text: string}>} files */
+export function checkStyles(files) {
   /** @type {string[]} */
   const failures = [];
   /** @type {Map<string, Sheet>} */
@@ -187,8 +187,6 @@ export function checkStyles(files, { isolatedEntries = [] } = {}) {
     for (const path of reachable) {
       const sheet = sheets.get(path);
       if (!sheet) continue;
-      if (isolatedEntries.includes(entry) && !path.startsWith(posix.dirname(entry) + '/'))
-        report(sheet.file, null, 'css.isolation', `stylesheet leaves its presentation: ${entry}`);
       for (const use of sheet.uses) {
         const key = path + ':' + use.node.loc?.start.offset + ':' + use.name;
         if (!definitions.has(use.name) && !use.name.startsWith('--n-') && !use.fallback && !reported.has(key)) {
