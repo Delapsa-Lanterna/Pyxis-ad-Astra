@@ -3,10 +3,11 @@ use super::super::{
     model::{LoadedSpecRecord, ProjectSession, csv_table_spec, string_field},
     query::entity_targets::{EntityTargetProjection, prepare_entity_targets},
 };
+use crate::services::project::sources;
 use crate::{
     domain::joint_hull::description_id,
     errors::{AppError, AppResult},
-    io::{FsRootBoundary, file_version, read_csv_data, read_json_file},
+    io::{FsRootBoundary, file_version},
     models::*,
 };
 use serde_json::Value;
@@ -239,7 +240,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         .collect::<BTreeSet<_>>();
     let parents = session.variant_files.clone();
     for parent in parents {
-        let content = read_json_file(Path::new(&parent.path))?;
+        let (parent_version, content) = crate::io::read_versioned_json(Path::new(&parent.path))?;
         if !crate::domain::joint_hull::module_entries(content.get("modules"))
             .iter()
             .any(|(_, id)| variant_ids.contains(id))
@@ -250,11 +251,16 @@ pub(in crate::services::project) fn query_joint_edit_values(
         if records.iter().any(|record| record.key == key) {
             continue;
         }
-        let info = super::entity_targets::describe_entity_target(
+        let mut info = super::entity_targets::describe_entity_target(
             &mut session,
             EntityKind::Variant,
             &parent.variant_id,
         )?;
+        for version in &mut info.base_versions {
+            if windows_path_key(&version.path) == windows_path_key(&parent_version.path) {
+                *version = parent_version.clone();
+            }
+        }
         let source = info.target.source.clone();
         records.push(JointEditRecord {
             key,
@@ -262,7 +268,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
                 target: info.target,
             },
             source,
-            source_version: Some(file_version(Path::new(&parent.path))?),
+            source_version: Some(parent_version),
             value: JointValue::Present(content),
             base_versions: info.base_versions,
             resource_refs: BTreeMap::new(),
@@ -280,6 +286,14 @@ pub(in crate::services::project) fn query_joint_edit_values(
     for record in &records {
         for version in &record.base_versions {
             versions.insert(windows_path_key(&version.path), version.clone());
+        }
+    }
+    for version in records
+        .iter()
+        .filter_map(|record| record.source_version.as_ref())
+    {
+        if let Some(accepted) = versions.get_mut(&windows_path_key(&version.path)) {
+            *accepted = version.clone();
         }
     }
     Ok(JointEditSnapshot {
@@ -311,7 +325,7 @@ fn variant_catalog(
         .manifest
         .starsector_root
         .as_ref()
-        .map(|root| cache::load_core_source_data(root, table))
+        .map(|root| crate::services::project::sources::core::load_core_source_data(root, table))
         .transpose()?;
     let wing_variants = if matches!(kind, JointVariantCatalogKind::Wings) {
         rows.rows
@@ -377,8 +391,9 @@ fn variant_catalog(
                 .or_else(|| core.as_ref().and_then(|data| data.weapon_specs.get(&id)));
             if let Some(source) = source {
                 spec_source = Some(source.location.clone());
-                spec_version = Some(file_version(Path::new(&source.location.path))?);
-                let content = read_json_file(Path::new(&source.location.path))?;
+                let (version, content) =
+                    crate::io::read_versioned_json(Path::new(&source.location.path))?;
+                spec_version = Some(version);
                 refs = super::super::definitions::entity_resources::weapon_resource_refs(
                     &id, &content,
                 );
@@ -427,14 +442,17 @@ fn variant_catalog(
                 .manifest
                 .starsector_root
                 .as_ref()
-                .map(|root| cache::load_core_projectile_specs(root))
+                .map(|root| {
+                    crate::services::project::sources::core::load_core_projectile_specs(root)
+                })
                 .transpose()?;
             session
                 .projectile_specs
                 .get(&id)
                 .or_else(|| core_projectiles.as_ref().and_then(|specs| specs.get(&id)))
                 .map(|source| -> AppResult<JointPreviewSpec> {
-                    let data = read_json_file(Path::new(&source.location.path))?;
+                    let (version, data) =
+                        crate::io::read_versioned_json(Path::new(&source.location.path))?;
                     let mut resource_refs =
                         super::super::definitions::entity_resources::projectile_resource_refs(
                             &id, &data,
@@ -448,7 +466,7 @@ fn variant_catalog(
                         data,
                         resource_refs,
                         source: Some(source.location.clone()),
-                        source_version: Some(file_version(Path::new(&source.location.path))?),
+                        source_version: Some(version),
                     })
                 })
                 .transpose()?
@@ -461,7 +479,7 @@ fn variant_catalog(
             }
             let root = match source {
                 ResourceSource::Mod => Path::new(&session.manifest.mod_root).to_path_buf(),
-                ResourceSource::Core => cache::core::core_dir(
+                ResourceSource::Core => sources::core::core_dir(
                     session
                         .manifest
                         .starsector_root
@@ -632,7 +650,7 @@ fn reference_settings(
     let mut roots = Vec::new();
     let mut icons = BTreeMap::new();
     if let Some(game) = &session.manifest.starsector_root {
-        roots.push((cache::core::core_dir(game)?, ResourceSource::Core));
+        roots.push((sources::core::core_dir(game)?, ResourceSource::Core));
     }
     roots.push((
         Path::new(&session.manifest.mod_root).to_path_buf(),
@@ -643,7 +661,7 @@ fn reference_settings(
         let styles_path = boundary
             .resolve_relative("data/config/engine_styles.json", "reference engine styles")?;
         if styles_path.exists() {
-            let styles = read_json_file(&styles_path)?;
+            let (styles_version, styles) = crate::io::read_versioned_json(&styles_path)?;
             result
                 .values
                 .entry("engineStyles".into())
@@ -658,7 +676,7 @@ fn reference_settings(
                         })?
                         .clone(),
                 );
-            result.versions.push(file_version(&styles_path)?);
+            result.versions.push(styles_version);
             for (key, path) in [
                 ("engineGlow", "graphics/fx/engineglow32.png"),
                 ("engineFlame", "graphics/fx/engineflame32.png"),
@@ -678,7 +696,7 @@ fn reference_settings(
         }
         let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
         if path.exists() {
-            let data = read_json_file(&path)?;
+            let (settings_version, data) = crate::io::read_versioned_json(&path)?;
             for key in [
                 "baseSensorFrigate",
                 "baseSensorDestroyer",
@@ -726,7 +744,7 @@ fn reference_settings(
                     );
                 }
             }
-            result.versions.push(file_version(&path)?);
+            result.versions.push(settings_version);
             for (group, key) in [
                 ("ui", "checkmark"),
                 ("ui", "checkmark_locked"),
@@ -981,15 +999,26 @@ impl JointGraph<'_> {
         if target.source.is_none() {
             target.source = self.core_source(kind, id)?;
         }
-        let value = target
+        let source_read = target
             .source
             .as_ref()
             .filter(|source| Path::new(&source.path).exists())
-            .map(|source| read_json_file(Path::new(&source.path)))
+            .map(|source| crate::io::read_versioned_json(Path::new(&source.path)))
             .transpose()?;
+        let source_version = source_read.as_ref().map(|(version, _)| version.clone());
+        let value = source_read.map(|(_, value)| value);
         let value = self.projected_value(&key, value);
         let source = target.source.clone();
-        let mut versions = vec![file_version(Path::new(&target.write.path))?];
+        let mut versions = vec![
+            source_version
+                .as_ref()
+                .filter(|version| {
+                    windows_path_key(&version.path) == windows_path_key(&target.write.path)
+                })
+                .cloned()
+                .map(Ok)
+                .unwrap_or_else(|| file_version(Path::new(&target.write.path)))?,
+        ];
         for version in info.base_versions {
             if !versions
                 .iter()
@@ -1033,10 +1062,6 @@ impl JointGraph<'_> {
                 resource.source = ResourceSource::Core;
             }
         }
-        let source_version = source
-            .as_ref()
-            .map(|source| file_version(Path::new(&source.path)))
-            .transpose()?;
         self.records.insert(
             key,
             JointEditRecord {
@@ -1289,45 +1314,55 @@ impl JointGraph<'_> {
         let core = Path::new(root).join("starsector-core");
         if !self.core_sources.contains_key(&kind) {
             let sources = match kind {
-                EntityKind::Ship => cache::load_core_ship_files(root)?
+                EntityKind::Ship => {
+                    crate::services::project::sources::core::load_core_ship_files(root)?
+                        .iter()
+                        .map(|(id, record)| (id.clone(), record.location.clone()))
+                        .collect()
+                }
+                EntityKind::Weapon => sources::core::load_core_weapon_specs(root)?
                     .iter()
                     .map(|(id, record)| (id.clone(), record.location.clone()))
                     .collect(),
-                EntityKind::Weapon => cache::core::load_core_weapon_specs(root)?
-                    .iter()
-                    .map(|(id, record)| (id.clone(), record.location.clone()))
-                    .collect(),
-                EntityKind::Projectile => cache::load_core_projectile_specs(root)?
-                    .iter()
-                    .map(|(id, record)| (id.clone(), record.location.clone()))
-                    .collect(),
-                EntityKind::Variant => cache::load_core_variant_files(root)?
-                    .iter()
-                    .map(|file| {
-                        (
-                            file.variant_id.clone(),
-                            location(ResourceSource::Core, &core, &file.rel_path),
-                        )
-                    })
-                    .collect(),
-                EntityKind::Skin => cache::load_core_skin_files(root)?
-                    .iter()
-                    .map(|file| {
-                        (
-                            file.skin_hull_id.clone(),
-                            location(ResourceSource::Core, &core, &file.rel_path),
-                        )
-                    })
-                    .collect(),
+                EntityKind::Projectile => {
+                    crate::services::project::sources::core::load_core_projectile_specs(root)?
+                        .iter()
+                        .map(|(id, record)| (id.clone(), record.location.clone()))
+                        .collect()
+                }
+                EntityKind::Variant => {
+                    crate::services::project::sources::core::load_core_variant_files(root)?
+                        .iter()
+                        .map(|file| {
+                            (
+                                file.variant_id.clone(),
+                                location(ResourceSource::Core, &core, &file.rel_path),
+                            )
+                        })
+                        .collect()
+                }
+                EntityKind::Skin => {
+                    crate::services::project::sources::core::load_core_skin_files(root)?
+                        .iter()
+                        .map(|file| {
+                            (
+                                file.skin_hull_id.clone(),
+                                location(ResourceSource::Core, &core, &file.rel_path),
+                            )
+                        })
+                        .collect()
+                }
                 EntityKind::System => {
                     if self.core_systems.is_none() {
-                        self.core_systems = Some(cache::load_spec_records(
-                            &core,
-                            "data/shipsystems",
-                            "system",
-                            "id",
-                            ResourceSource::Core,
-                        )?);
+                        self.core_systems = Some(
+                            crate::services::project::sources::documents::load_spec_records(
+                                &core,
+                                "data/shipsystems",
+                                "system",
+                                "id",
+                                ResourceSource::Core,
+                            )?,
+                        );
                     }
                     self.core_systems
                         .as_ref()
@@ -1360,19 +1395,19 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
         .manifest
         .starsector_root
         .as_ref()
-        .map(|root| cache::load_core_ship_files(root))
+        .map(|root| crate::services::project::sources::core::load_core_ship_files(root))
         .transpose()?;
     let core_variants = session
         .manifest
         .starsector_root
         .as_ref()
-        .map(|root| cache::load_core_variant_files(root))
+        .map(|root| crate::services::project::sources::core::load_core_variant_files(root))
         .transpose()?;
     let core_skins = session
         .manifest
         .starsector_root
         .as_ref()
-        .map(|root| cache::load_core_skin_files(root))
+        .map(|root| crate::services::project::sources::core::load_core_skin_files(root))
         .transpose()?;
     {
         let mut add = |key: String, owner: String| {
@@ -1573,8 +1608,9 @@ impl JointCsvCatalog {
         let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "joint CSV")?;
         let path = boundary.resolve_relative(relative, "joint CSV")?;
         let write = location(ResourceSource::Mod, boundary.root(), relative);
-        let version = file_version(&path)?;
-        let (_, mod_rows, _) = cache::csv::read_table_snapshot(session, table)?;
+        let (version, csv) = crate::io::read_versioned_csv(&path)?;
+        let (_, mod_rows, _) =
+            cache::csv::table_snapshot_from_csv(&session.csv_tables[table.as_str()], table, csv)?;
         let mut catalog = Self {
             write: write.clone(),
             version: version.clone(),
@@ -1582,12 +1618,11 @@ impl JointCsvCatalog {
         };
         catalog.add_rows(table, &mod_rows, &write, &version)?;
         if let Some(root) = &session.manifest.starsector_root {
-            let core = cache::core::core_dir(root)?;
+            let core = sources::core::core_dir(root)?;
             let source_path = core.join(relative);
             if source_path.exists() {
                 let source = location(ResourceSource::Core, &core, relative);
-                let source_version = file_version(&source_path)?;
-                let csv = read_csv_data(&source_path)?;
+                let (source_version, csv) = crate::io::read_versioned_csv(&source_path)?;
                 let rows = csv
                     .rows
                     .into_iter()

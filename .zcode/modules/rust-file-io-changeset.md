@@ -13,7 +13,7 @@
 - `src-tauri/src/io/faction_index_test.rs`：势力索引路径授权和读入行为验证。
 - `src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放。
 - `src-tauri/src/io/file_versions.rs`：规范路径版本采集与指纹核对。
-- `src-tauri/src/io/json_files.rs`：JSON 文件读取与目录遍历。
+- `src-tauri/src/io/json_files.rs`：JSON 文件读取及匹配版本交付。
 - `src-tauri/src/io/mod.rs`：底层文件、路径及 changeset 能力导出。
 - `src-tauri/src/io/paths.rs`：磁盘路径展开、父链授权与改名目标解析。
 - `src-tauri/src/io/text.rs`：UTF-8 文本读取，拥有 BOM 剥离与 CP1252 归一化入口。
@@ -42,7 +42,7 @@
 ### 文本读取
 
 1. 保存链路或编辑器请求读取目标文件。
-2. IO 读取字节并剥离 UTF-8 BOM。
+2. IO 读取字节并共同生成文件版本，解码入口剥离 UTF-8 BOM。
 3. 已知 CP1252 智能引号按统一映射归一化。
 4. 返回文本与路径上下文。
 
@@ -74,8 +74,10 @@
 - 新建 Mod 的 `mod_info.json` renderer 必须输出 UTF-8 无 BOM 与 CRLF；其它格式遵守各自 parser 或保存模型的输出语义。
 - 构造、应用、失败恢复、版本校验与回放必须共同消费双路径；撤销必须同时反转路径、存在状态与内容快照。
 - 每个保存入口只允许写所属模块声明的持久化目标；关联文件操作必须由同一正式保存模型显式声明。
+- 源内容与文件版本必须从同一次读取字节生成，文本解码必须继续消费正式编码入口。
 - 源记录与目标凭据必须在同一 FIFO 租约中复核；缺少所属目标的读取凭据必须以 write.version_scope_missing 拒绝写入。
 - 目录必须以正式目录事件表达，严禁让前端递归枚举。
+- 目录版本必须汇总排序后的子文件相对路径与内容版本，磁盘核对及 changeset 接纳必须消费同一算法。
 - 联合业务保存必须在同一根租约中装配全部 changeset，版本与失败恢复必须消费实际目标集合；身份渲染必须在应用前完成。
 - 路径展开与身份规范化必须归 IO；现存目标必须交付规范长路径，缺失目标必须展开现存父目录并保留剩余段，改名目标必须保留要求的末级名称；消费者只允许接纳 IO 输出。
 

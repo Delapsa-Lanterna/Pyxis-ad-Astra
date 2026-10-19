@@ -1,13 +1,13 @@
-use super::super::cache::{
-    load_core_csv_table, load_core_ship_files, load_core_skin_files, loaded_csv_rows,
-    loaded_registered_csv_rows,
-};
+use super::super::cache::{loaded_csv_rows, loaded_registered_csv_rows};
 use super::super::cache::{lock_ready_session, lock_registry, media, session_handle};
 use super::super::model::{ProjectSession, string_field, string_from_row};
 use super::sprites;
 use crate::errors::{AppError, AppResult};
 use crate::models::{CsvTableKey, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
 use crate::services::project::model::LoadedSpecRecord;
+use crate::services::project::sources::core::{
+    load_core_csv_table, load_core_ship_files, load_core_skin_files,
+};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;

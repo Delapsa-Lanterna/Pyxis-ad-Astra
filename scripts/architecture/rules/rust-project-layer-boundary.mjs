@@ -2,7 +2,7 @@ import { rustFile } from '../../shared/files.mjs';
 import { modulePartsFromRel, rustServiceExports, rustServicePaths } from '../../shared/rust-crate-paths.mjs';
 import { productionRustSource } from '../../shared/rust-source.mjs';
 
-/** @typedef {'commands' | 'service-assembly' | 'session-entry' | 'project-query' | 'project-write' | 'project-resources' | 'project-cache' | 'project-session' | 'project-model' | 'project-root' | 'file-history' | 'services' | 'domain' | 'io' | 'parsers' | 'models' | 'other'} RustLayer */
+/** @typedef {'commands' | 'service-assembly' | 'session-entry' | 'project-query' | 'project-write' | 'project-resources' | 'project-cache' | 'project-sources' | 'project-session' | 'project-model' | 'project-root' | 'file-history' | 'services' | 'domain' | 'io' | 'parsers' | 'models' | 'other'} RustLayer */
 
 export const rustProjectLayerBoundaryRule = {
   name: 'rust-project-layer-boundary',
@@ -78,6 +78,7 @@ function rustLayer(path) {
   if (path.startsWith('src-tauri/src/services/project/write/')) return 'project-write';
   if (path.startsWith('src-tauri/src/services/project/resources/')) return 'project-resources';
   if (path.startsWith('src-tauri/src/services/project/cache/')) return 'project-cache';
+  if (path.startsWith('src-tauri/src/services/project/sources/')) return 'project-sources';
   if (path.startsWith('src-tauri/src/services/project/definitions/')) return 'project-root';
   if (projectServiceModule(path, 'session')) return 'project-session';
   if (projectServiceModule(path, 'model')) return 'project-model';
@@ -105,6 +106,7 @@ function rustLayerFromCratePath(path) {
   if (path === 'crate::services::project::resources' || path.startsWith('crate::services::project::resources::'))
     return 'project-resources';
   if (path === 'crate::services::project::cache' || path.startsWith('crate::services::project::cache::')) return 'project-cache';
+  if (path === 'crate::services::project::sources' || path.startsWith('crate::services::project::sources::')) return 'project-sources';
   if (path === 'crate::services::project::session' || path.startsWith('crate::services::project::session::')) return 'project-session';
   if (path === 'crate::services::project::model' || path.startsWith('crate::services::project::model::')) return 'project-model';
   if (path === 'crate::services::project' || path.startsWith('crate::services::project::')) return 'project-root';
@@ -124,6 +126,17 @@ function projectServiceModule(path, moduleName) {
 /** @param {RustLayer} from @param {RustLayer} to @returns {boolean} */
 function validRustDependency(from, to) {
   if (from === to) return true;
+  if (to === 'project-sources')
+    return [
+      'session-entry',
+      'project-query',
+      'project-write',
+      'project-resources',
+      'project-cache',
+      'project-session',
+      'project-root',
+    ].includes(from);
+  if (from === 'project-sources') return ['project-model', 'domain', 'io', 'parsers', 'models'].includes(to);
   if (from === 'service-assembly') return ['services', 'project-query', 'project-write', 'project-resources'].includes(to);
   if (from === 'session-entry') return ['project-session', 'project-cache', 'project-root'].includes(to);
   if (from === 'commands') return ['services', 'project-root', 'models'].includes(to);

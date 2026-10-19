@@ -188,12 +188,12 @@ pub(in crate::services::project) fn prepare_entity_targets(
         std::collections::BTreeMap::<String, Vec<crate::models::FileVersion>>::new();
     if kind == EntityKind::Variant {
         for parent in &session.variant_files {
-            let content = crate::io::read_json_file(Path::new(&parent.path))?;
+            let content = &parent.data;
             for (_, id) in crate::domain::joint_hull::module_entries(content.get("modules")) {
                 parent_versions
                     .entry(id)
                     .or_default()
-                    .push(crate::io::file_version(Path::new(&parent.path))?);
+                    .push(version_for_path(session, &parent.rel_path));
             }
         }
     }

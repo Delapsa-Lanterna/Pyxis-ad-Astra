@@ -17,7 +17,14 @@ pub fn read_faction_index(root: &Path) -> AppResult<Vec<FactionIndexEntry>> {
     let table = read_csv_data(
         &boundary.resolve_relative("data/world/factions/factions.csv", "faction index")?,
     )?;
-    parse_faction_index(&table)?
+    faction_index_entries(&boundary, &table)
+}
+
+pub fn faction_index_entries(
+    boundary: &FsRootBoundary,
+    table: &crate::models::CsvTable,
+) -> AppResult<Vec<FactionIndexEntry>> {
+    parse_faction_index(table)?
         .into_iter()
         .map(|row| {
             let reference = row.reference.replace('\\', "/");

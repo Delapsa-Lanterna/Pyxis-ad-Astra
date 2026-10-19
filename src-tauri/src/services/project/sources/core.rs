@@ -1,7 +1,7 @@
 use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
-    io::{FsRootBoundary, read_csv_data},
+    io::FsRootBoundary,
     models::{CsvTableKey, ResourceSource, SkinFile, VariantFile},
 };
 use std::{
@@ -14,14 +14,14 @@ use super::super::model::{
     CoreCache, CoreSourceData, SessionCsvRow, SessionCsvTable, csv_table_spec,
 };
 use super::{
-    persistent,
-    spec_files::{load_skin_files, load_variant_files},
-    spec_records::load_spec_records,
+    documents::load_spec_records_from,
+    families::{load_skin_files_from, load_variant_files_from},
 };
 
 struct CoreCacheEntry {
     data: CoreCache,
     dirty: bool,
+    sources: super::super::sources::SourceReader,
 }
 
 static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>> =
@@ -43,7 +43,7 @@ pub(in crate::services::project) fn invalidate_core_cache(starsector_root: &str)
         crate::diagnostics::record(format!("core cache flush failed: {error}"));
     }
     lock_core_caches()?.remove(&cache_key);
-    persistent::invalidate_core_fingerprint(&cache_key)
+    Ok(())
 }
 
 /// Persists the in-memory core cache once, and only when something loaded
@@ -55,10 +55,8 @@ pub(crate) fn flush_core_cache(starsector_root: &str) -> AppResult<()> {
     };
     let mut entry = lock_core_cache(&cache)?;
     if entry.dirty {
-        match persistent::save_core_cache(starsector_root, &entry.data) {
-            Ok(()) => entry.dirty = false,
-            Err(error) => crate::diagnostics::record(format!("core cache save failed: {error}")),
-        }
+        entry.sources.flush();
+        entry.dirty = false;
     }
     Ok(())
 }
@@ -68,10 +66,10 @@ fn core_cache_handle(starsector_root: &str) -> AppResult<Arc<Mutex<CoreCacheEntr
     if let Some(cache) = lock_core_caches()?.get(&cache_key).cloned() {
         return Ok(cache);
     }
-    let cache = persistent::load_core_cache(starsector_root)?.unwrap_or_else(CoreCache::empty);
     let cache = Arc::new(Mutex::new(CoreCacheEntry {
-        data: cache,
+        data: CoreCache::empty(),
         dirty: false,
+        sources: super::super::sources::SourceReader::new(&core_dir(starsector_root)?)?,
     }));
     Ok(lock_core_caches()?
         .entry(cache_key)
@@ -97,16 +95,17 @@ fn get_or_load_core<T, G, S, L>(
 where
     G: Fn(&CoreCache) -> Option<&Arc<T>>,
     S: Fn(&mut CoreCache, Arc<T>),
-    L: FnOnce(&Path) -> AppResult<T>,
+    L: FnOnce(&mut super::super::sources::SourceReader) -> AppResult<T>,
 {
     let cache = core_cache_handle(starsector_root)?;
     if let Some(value) = get(&lock_core_cache(&cache)?.data) {
         return Ok(value.clone());
     }
-    let core_dir = core_dir(starsector_root)?;
-    let value = Arc::new(load(&core_dir)?);
+    let mut sources = super::super::sources::SourceReader::new(&core_dir(starsector_root)?)?;
+    let value = Arc::new(load(&mut sources)?);
     let mut entry = lock_core_cache(&cache)?;
     store(&mut entry.data, value.clone());
+    entry.sources.absorb(sources);
     entry.dirty = true;
     Ok(value)
 }
@@ -141,8 +140,8 @@ pub(crate) fn load_core_csv_table(
         |cache, csv| {
             cache.csv_tables.insert(table_key.to_string(), csv);
         },
-        |core_dir| {
-            let csv = read_csv_data(&core_dir.join(rel))?;
+        |sources| {
+            let csv = sources.csv(&sources.path(rel)?)?;
             let rows: Vec<SessionCsvRow> = csv
                 .rows
                 .into_iter()
@@ -174,9 +173,9 @@ pub(crate) fn load_core_ship_files(
         starsector_root,
         |cache| cache.ship_files.as_ref(),
         |cache, files| cache.ship_files = Some(files),
-        |core_dir| {
-            load_spec_records(
-                core_dir,
+        |sources| {
+            load_spec_records_from(
+                sources,
                 "data/hulls",
                 "ship",
                 "hullId",
@@ -193,7 +192,9 @@ pub(crate) fn load_core_weapon_specs(
         starsector_root,
         |cache| cache.weapon_specs.as_ref(),
         |cache, specs| cache.weapon_specs = Some(specs),
-        |core_dir| load_spec_records(core_dir, "data/weapons", "wpn", "id", ResourceSource::Core),
+        |sources| {
+            load_spec_records_from(sources, "data/weapons", "wpn", "id", ResourceSource::Core)
+        },
     )
 }
 
@@ -204,9 +205,9 @@ pub(crate) fn load_core_projectile_specs(
         starsector_root,
         |cache| cache.projectile_specs.as_ref(),
         |cache, specs| cache.projectile_specs = Some(specs),
-        |core_dir| {
-            load_spec_records(
-                core_dir,
+        |sources| {
+            load_spec_records_from(
+                sources,
                 "data/weapons/proj",
                 "proj",
                 "id",
@@ -221,7 +222,7 @@ pub(crate) fn load_core_variant_files(starsector_root: &str) -> AppResult<Arc<Ve
         starsector_root,
         |cache| cache.variant_files.as_ref(),
         |cache, files| cache.variant_files = Some(files),
-        |core_dir| Ok(load_variant_files(core_dir)?.0),
+        |sources| Ok(load_variant_files_from(sources)?.0),
     )
 }
 
@@ -230,7 +231,7 @@ pub(crate) fn load_core_skin_files(starsector_root: &str) -> AppResult<Arc<Vec<S
         starsector_root,
         |cache| cache.skin_files.as_ref(),
         |cache, files| cache.skin_files = Some(files),
-        |core_dir| Ok(load_skin_files(core_dir)?.0),
+        |sources| Ok(load_skin_files_from(sources)?.0),
     )
 }
 
@@ -292,10 +293,13 @@ pub(in crate::services::project) fn invalidate_core_sources(
             data.projectile_specs = None;
         }
     }
-    persistent::invalidate_core_fingerprint(&key)?;
     lock_core_caches()?.insert(
         key,
-        Arc::new(Mutex::new(CoreCacheEntry { data, dirty: true })),
+        Arc::new(Mutex::new(CoreCacheEntry {
+            data,
+            dirty: true,
+            sources: super::super::sources::SourceReader::new(&core_dir(root)?)?,
+        })),
     );
     Ok(())
 }
@@ -473,7 +477,7 @@ mod tests {
             r#"{"hullId":"demo","spriteName":"before"}"#,
         )
         .unwrap();
-        persistent::configure_persistent_index_cache(&cache_root).unwrap();
+        super::super::super::sources::configure_persistent_index_cache(&cache_root).unwrap();
         crate::io::write_utf8_no_bom(
             &hull_dir.join("ship_data.csv"),
             "name,id\n#disabled,demo\n\"#quoted\",demo\n #space,space\n",
@@ -497,8 +501,10 @@ mod tests {
         // Loads only dirty the in-memory cache; the flush (open/close path)
         // is what lands the build on disk.
         flush_core_cache(&root.to_string_lossy()).unwrap();
-        let persisted = persistent::load_core_cache(&root.to_string_lossy()).unwrap();
-        let stored_table = &persisted.as_ref().unwrap().csv_tables["ships"];
+        invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        let stored_table = load_core_csv_table(&root.to_string_lossy(), CsvTableKey::Ships)
+            .unwrap()
+            .unwrap();
         assert_eq!(
             stored_table.rows.as_ref().unwrap()[1].data["name"],
             "#quoted"
@@ -529,7 +535,6 @@ mod tests {
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(cache_root);
         assert_eq!(loaded["demo"].data["spriteName"], "before");
-        assert!(persisted.and_then(|cache| cache.ship_files).is_some());
         assert_eq!(changed["demo"].data["spriteName"], "after");
     }
 }

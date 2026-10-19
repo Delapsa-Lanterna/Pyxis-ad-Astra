@@ -1,8 +1,7 @@
 use super::super::{
     cache::{
-        ensure_registered_table_rows, load_core_csv_table, load_core_skin_files,
-        load_core_source_data, loaded_csv_rows, loaded_registered_csv_rows, lock_ready_session,
-        session_handle,
+        ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
+        lock_ready_session, session_handle,
     },
     definitions::{
         entity_definitions::entity_definitions,
@@ -10,6 +9,9 @@ use super::super::{
     },
     model::{CoreSourceData, ProjectSession, SessionCsvRow, string_from_row},
     resources::HullReferenceResolver,
+};
+use crate::services::project::sources::core::{
+    load_core_csv_table, load_core_skin_files, load_core_source_data,
 };
 use crate::{
     domain::well_known_labels::{

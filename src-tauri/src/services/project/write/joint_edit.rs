@@ -314,7 +314,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                             .collect::<Vec<_>>();
                         if !added.is_empty() {
                             let standard = if let Some(root) = &session.manifest.starsector_root {
-                                let core = super::super::cache::core::core_dir(root)?
+                                let core = super::super::sources::core::core_dir(root)?
                                     .join(csv_table_spec(*table).rel_path);
                                 if core.exists() {
                                     read_csv_data(&core)?.header

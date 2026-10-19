@@ -1,15 +1,13 @@
 use super::super::{
     cache::{
-        ensure_registered_table_rows, ensure_session_table_rows, load_core_variant_files,
-        loaded_csv_rows, loaded_registered_csv_rows,
-        spec_files::{load_skin_files, load_variant_files},
+        ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
+        loaded_registered_csv_rows,
     },
     model::{
         EntityProjection, MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession,
         SessionCsvRow, string_from_row,
     },
     resources::resource_ref,
-    root,
 };
 use super::{
     entity_resources::{
@@ -20,6 +18,8 @@ use super::{
     factions,
     table_definitions::csv_table_icon_resource_ref,
 };
+use crate::services::project::sources::core::load_core_variant_files;
+use crate::services::project::sources::families::{load_skin_files_from, load_variant_files_from};
 use crate::{
     domain::config::{path_affects_target, path_is_or_in_dir},
     domain::editor_config_definitions::{
@@ -54,7 +54,8 @@ pub(in crate::services::project) struct ProjectEntityDefinition {
     pub list: EntityListLoader,
     pub core_list: Option<EntityCoreListLoader>,
     pub resources: fn(&ProjectSession, &str, &Value) -> BTreeMap<String, ResourceRef>,
-    pub refresh: fn(&ProjectSession) -> AppResult<EntityRefresh>,
+    pub refresh:
+        fn(&ProjectSession, &mut super::super::sources::SourceReader) -> AppResult<EntityRefresh>,
 }
 
 pub(in crate::services::project) fn entity_definition(
@@ -676,7 +677,7 @@ fn build_mission_list_entity(
     })
 }
 
-fn build_mission_entity(session: &ProjectSession, id: &str) -> AppResult<Option<Value>> {
+fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Option<Value>> {
     let Some(row) = registered_mission_rows(session)?
         .into_iter()
         .find(|row| row.id == id)
@@ -689,14 +690,19 @@ fn build_mission_entity(session: &ProjectSession, id: &str) -> AppResult<Option<
         .join("data/missions")
         .join(clean);
     let descriptor_path = dir.join("descriptor.json");
+    let mut sources =
+        super::super::sources::SourceReader::new(Path::new(&session.manifest.mod_root))?;
     let descriptor = if descriptor_path.exists() {
-        read_json_file(&descriptor_path)?
+        sources.json(&descriptor_path)?
     } else {
         Value::Object(Map::new())
     };
     let text_path = dir.join("mission_text.txt");
     let text = if text_path.exists() {
-        crate::io::read_utf8_no_bom(&text_path)?
+        let (version, bytes) = crate::io::read_versioned_bytes(&text_path)?;
+        let text = crate::io::decode_text(&text_path, &bytes)?;
+        sources.versions.insert(sources.key(&text_path), version);
+        text
     } else {
         String::new()
     };
@@ -708,6 +714,8 @@ fn build_mission_entity(session: &ProjectSession, id: &str) -> AppResult<Option<
         "relPath".to_string(),
         Value::String(format!("data/missions/{clean}")),
     );
+    sources.capture_changed_versions(&[&format!("data/missions/{clean}")])?;
+    session.source_versions.extend(sources.versions);
     Ok(Some(Value::Object(data)))
 }
 
@@ -799,16 +807,17 @@ impl EntityRefresh {
 }
 
 fn refresh_spec_records(
-    session: &ProjectSession,
+    _session: &ProjectSession,
     kind: EntityKind,
     directory: &str,
     extension: &str,
     id_field: &str,
+    sources: &mut super::super::sources::SourceReader,
 ) -> AppResult<EntityRefresh> {
     Ok(EntityRefresh::Specs {
         kind,
-        records: super::super::cache::load_spec_records(
-            Path::new(&session.manifest.mod_root),
+        records: super::super::sources::documents::load_spec_records_from(
+            sources,
             directory,
             extension,
             id_field,
@@ -816,63 +825,102 @@ fn refresh_spec_records(
         )?,
     })
 }
-fn refresh_ship(session: &ProjectSession) -> AppResult<EntityRefresh> {
-    refresh_spec_records(session, EntityKind::Ship, "data/hulls", "ship", "hullId")
+fn refresh_ship(
+    session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
+    refresh_spec_records(
+        session,
+        EntityKind::Ship,
+        "data/hulls",
+        "ship",
+        "hullId",
+        sources,
+    )
 }
-fn refresh_weapon(session: &ProjectSession) -> AppResult<EntityRefresh> {
-    refresh_spec_records(session, EntityKind::Weapon, "data/weapons", "wpn", "id")
+fn refresh_weapon(
+    session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
+    refresh_spec_records(
+        session,
+        EntityKind::Weapon,
+        "data/weapons",
+        "wpn",
+        "id",
+        sources,
+    )
 }
-fn refresh_projectile(session: &ProjectSession) -> AppResult<EntityRefresh> {
+fn refresh_projectile(
+    session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
     let core = session
         .manifest
         .starsector_root
         .as_deref()
-        .map(super::super::cache::load_core_projectile_specs)
+        .map(super::super::sources::core::load_core_projectile_specs)
         .transpose()?;
-    let records = super::projectiles::load_projectile_specs(
-        Path::new(&session.manifest.mod_root),
-        core.as_deref(),
-    )?;
+    let records = super::projectiles::load_projectile_specs_from(sources, core.as_deref())?;
     Ok(EntityRefresh::Specs {
         kind: EntityKind::Projectile,
         records,
     })
 }
-fn refresh_system(session: &ProjectSession) -> AppResult<EntityRefresh> {
+fn refresh_system(
+    session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
     refresh_spec_records(
         session,
         EntityKind::System,
         "data/shipsystems",
         "system",
         "id",
+        sources,
     )
 }
-fn refresh_skill(session: &ProjectSession) -> AppResult<EntityRefresh> {
+fn refresh_skill(
+    session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
     refresh_spec_records(
         session,
         EntityKind::Skill,
         "data/characters/skills",
         "skill",
         "id",
+        sources,
     )
 }
-fn refresh_faction(session: &ProjectSession) -> AppResult<EntityRefresh> {
-    let root = Path::new(&session.manifest.mod_root);
-    let files = factions::load_faction_files(root)?;
+fn refresh_faction(
+    _session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
+    let files = factions::load_faction_files_from(sources)?;
     let tags = factions::faction_blueprint_tags(&files);
     Ok(EntityRefresh::Faction { files, tags })
 }
-fn refresh_mission(session: &ProjectSession) -> AppResult<EntityRefresh> {
-    Ok(EntityRefresh::Mission(root::count_mission_list_entries(
-        Path::new(&session.manifest.mod_root),
-    )?))
+fn refresh_mission(
+    _session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
+    Ok(EntityRefresh::Mission(
+        sources.count(&sources.path(MISSION_LIST_REL_PATH)?, "mission")?,
+    ))
 }
-fn refresh_variant(session: &ProjectSession) -> AppResult<EntityRefresh> {
-    let (files, warnings) = load_variant_files(Path::new(&session.manifest.mod_root))?;
+fn refresh_variant(
+    _session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
+    let (files, warnings) = load_variant_files_from(sources)?;
     Ok(EntityRefresh::Variant { files, warnings })
 }
-fn refresh_skin(session: &ProjectSession) -> AppResult<EntityRefresh> {
-    let (files, warnings) = load_skin_files(Path::new(&session.manifest.mod_root))?;
+fn refresh_skin(
+    _session: &ProjectSession,
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<EntityRefresh> {
+    let (files, warnings) = load_skin_files_from(sources)?;
     Ok(EntityRefresh::Skin { files, warnings })
 }
 

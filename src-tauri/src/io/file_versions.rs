@@ -29,12 +29,11 @@ fn version_from_path(path: &Path) -> AppResult<FileVersion> {
                             .strip_prefix(path)
                             .expect("walk entry belongs to root"),
                     ),
-                    std::fs::read(entry.path())?,
+                    fingerprint(&std::fs::read(entry.path())?),
                 ));
             }
         }
-        files.sort_by(|left, right| left.0.cmp(&right.0));
-        Some(fingerprint(&serde_json::to_vec(&files)?))
+        Some(directory_fingerprint(files)?)
     } else {
         None
     };
@@ -54,18 +53,20 @@ pub fn version_after_change(change: &crate::models::FileChangeRecord) -> AppResu
                 change.after_data_base64.as_deref(),
             )?),
             crate::models::FileChangeKind::Directory => {
-                let mut files = change
+                let files = change
                     .after_files
                     .iter()
                     .map(|file| {
                         Ok((
                             file.rel_path.replace('\\', "/"),
-                            snapshot_bytes(file.text.as_deref(), file.data_base64.as_deref())?,
+                            fingerprint(&snapshot_bytes(
+                                file.text.as_deref(),
+                                file.data_base64.as_deref(),
+                            )?),
                         ))
                     })
                     .collect::<AppResult<Vec<_>>>()?;
-                files.sort_by(|left, right| left.0.cmp(&right.0));
-                fingerprint(&serde_json::to_vec(&files)?)
+                directory_fingerprint(files)?
             }
         })
     };
@@ -84,12 +85,37 @@ fn snapshot_bytes(text: Option<&str>, binary: Option<&str>) -> AppResult<Vec<u8>
         .map_err(|error| AppError::message("changeset.invalid_data", error.to_string()))
 }
 
-fn fingerprint(bytes: &[u8]) -> String {
+pub(crate) fn fingerprint(bytes: &[u8]) -> String {
     let mut hash = 0xcbf29ce484222325u64;
     for byte in bytes {
         hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
     }
     format!("{}:{hash:016x}", bytes.len())
+}
+
+pub(crate) fn directory_fingerprint(mut files: Vec<(String, String)>) -> AppResult<String> {
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(fingerprint(&serde_json::to_vec(&files)?))
+}
+
+pub fn read_versioned_bytes(path: &Path) -> AppResult<(FileVersion, Vec<u8>)> {
+    let path = super::canonical_path(path, "source file")?;
+    read_authorized_bytes(&path)
+}
+
+pub(crate) fn read_authorized_bytes(path: &Path) -> AppResult<(FileVersion, Vec<u8>)> {
+    let bytes = std::fs::read(path).map_err(|error| {
+        AppError::context(
+            format!("读取文本文件失败 ({})", path.display()),
+            error.into(),
+        )
+        .at_path(path)
+    })?;
+    let version = FileVersion {
+        path: path.to_string_lossy().to_string(),
+        fingerprint: Some(fingerprint(&bytes)),
+    };
+    Ok((version, bytes))
 }
 
 pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {

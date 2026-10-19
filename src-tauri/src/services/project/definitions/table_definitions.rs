@@ -10,11 +10,10 @@ use super::super::{
 };
 use crate::{
     errors::AppResult,
-    io::read_csv_data,
     models::{CsvTableKey, EntitySummaries, ResourceOwnerKind, ResourceRef, ResourceSource},
 };
 use serde_json::{Map, Value};
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
 
 type CsvRowResourceExtractor = fn(
     &ProjectSession,
@@ -74,6 +73,7 @@ pub(in crate::services::project) fn csv_table_definition(
     }
 }
 
+#[cfg(test)]
 pub(in crate::services::project) fn csv_table_definition_by_key(
     table: &str,
 ) -> Option<&'static ProjectCsvTableDefinition> {
@@ -95,8 +95,8 @@ pub(in crate::services::project) fn csv_table_entity_summary(
         .map(|summary| summary(summaries))
 }
 
-pub(in crate::services::project) fn build_table_entity_summaries(
-    mod_root: &Path,
+pub(in crate::services::project) fn build_table_entity_summaries_from(
+    sources: &mut super::super::sources::SourceReader,
     entity_summaries: &EntitySummaries,
 ) -> AppResult<BTreeMap<CsvTableKey, usize>> {
     csv_table_definitions()
@@ -107,26 +107,14 @@ pub(in crate::services::project) fn build_table_entity_summaries(
             {
                 count
             } else {
-                count_valid_csv_entities(mod_root, definition.spec.key, definition.spec.rel_path)?
+                sources.count(
+                    &sources.path(definition.spec.rel_path)?,
+                    definition.spec.entity_id_field,
+                )?
             };
             Ok((definition.spec.key, count))
         })
         .collect()
-}
-
-pub(in crate::services::project) fn count_valid_csv_entities(
-    mod_root: &Path,
-    table: CsvTableKey,
-    rel_path: &str,
-) -> AppResult<usize> {
-    let id_field = csv_table_spec(table).entity_id_field;
-    let csv = read_csv_data(&mod_root.join(rel_path))?;
-    Ok(csv
-        .rows
-        .iter()
-        .filter(|row| !row.is_comment)
-        .filter(|row| string_from_row(&row.data, id_field).is_some())
-        .count())
 }
 
 pub(in crate::services::project) fn csv_table_row_resource_ref(

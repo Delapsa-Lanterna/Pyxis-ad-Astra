@@ -24,7 +24,12 @@ pub fn ensure_file_appendable(path: &Path) -> AppResult<()> {
 
 pub fn read_utf8_no_bom(path: &Path) -> AppResult<String> {
     let bytes = read_text_bytes_no_bom(path)?;
-    decode_starsector_text(&bytes).map_err(|offset| {
+    decode_text(path, &bytes)
+}
+
+pub(crate) fn decode_text(path: &Path, bytes: &[u8]) -> AppResult<String> {
+    let bytes = bytes.strip_prefix(UTF8_BOM).unwrap_or(bytes);
+    decode_starsector_text(bytes).map_err(|offset| {
         AppError::message(
             "text.invalid_utf8",
             format!("{} is not valid UTF-8 at byte {offset}", path.display()),

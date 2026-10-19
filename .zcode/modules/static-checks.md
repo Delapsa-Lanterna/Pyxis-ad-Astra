@@ -22,6 +22,7 @@
 - `scripts/architecture/capability-boundary.check.mjs`：能力授权、规则归属和真实仓库入口的行为测试。
 - `scripts/architecture/command-boundary.check.mjs`：command 来源、词法作用域与 验收。
 - `scripts/architecture/docs-module-map.check.mjs`：模块文档严格格式、参考路径与索引对应的行为测试。
+- `scripts/architecture/project-sources.check.mjs`：来源读取、表格缓存、资源消费者及业务动作依赖边界的验证。
 - `scripts/architecture/project-sync-boundary.check.mjs`：项目同步基础边界、项目选择及 Core 根输入的运行时、类型和动态引用验证。
 - `scripts/architecture/query-foundations.check.mjs`：会话查询、业务定义与预算的运行时和类型依赖验证。
 - `scripts/architecture/resource-scope.check.mjs`：资源引用构造与来源失效信号的职责验证。

@@ -1,8 +1,8 @@
-# 项目会话与清单缓存
+# 项目会话与投影
 
 ## 定义
 
-项目会话与清单缓存模块管理已打开 Mod 的实体索引、查询和写后投影。
+项目会话与投影模块管理已打开 Mod 的生命周期、清单与原子投影接纳。
 
 ## 参考
 
@@ -10,11 +10,7 @@
 
 - `src-tauri/src/commands/project_session.rs`：session 生命周期 command。
 - `src-tauri/src/domain/editor_config_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
-- `src-tauri/src/services/project/cache/csv.rs`：所属会话表格快照、行加载与注册表交接。
 - `src-tauri/src/services/project/cache/mod.rs`：session 注册表、句柄与锁入口，以及缓存模块登记和能力导出。
-- `src-tauri/src/services/project/cache/persistent.rs`：项目索引与 Core 来源快照、指纹及代次的持久化。
-- `src-tauri/src/services/project/cache/spec_files.rs`：Mod 装配与皮肤来源装载及诊断。
-- `src-tauri/src/services/project/cache/spec_records.rs`：实际来源根、相对路径、加载 ID 与业务内容的记录。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
 - `src-tauri/src/services/project/definitions/mod.rs`：会话实体与表格定义的模块登记。
@@ -23,9 +19,9 @@
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
 - `src-tauri/src/services/project/model.rs`：会话、已加载来源记录、CSV 行及 Core 缓存内部运行模型。
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
-- `src-tauri/src/services/project/root.rs`：Mod 信息、战役计数与项目打开装配。
+- `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭与投影生命周期，注册表句柄经缓存运行时交接。
-- `src-tauri/src/services/project/versions.rs`：会话文件版本采集、路径版本及变更比较。
+- `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、提交与窗口登记释放及性能记录。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
@@ -40,10 +36,11 @@
 - `src-tauri/src/models/mod.rs`：正式模型聚合、serde 输入原语及去重追加函数。
 - `src-tauri/src/models/project_identity.rs`：会话、实体、表、资源、目标及版本身份与 session 范围实现宏。
 - `src-tauri/src/models/project_session.rs`：会话请求、清单、摘要与正式失效结果。
-- `src-tauri/src/services/project/cache/core.rs`：按游戏根交付 Core 来源缓存、快照持久化交接与失效释放。
+- `src-tauri/src/services/project/cache/csv.rs`：表格 owner 的快照、稳定行身份与加载交接。
 - `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
 - `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和舰体引用解析。
+- `src-tauri/src/services/project/sources/`：成套来源内容、版本与解析成果读取。
 - `src/services/entity-query.service.ts`：实体查询能力交接。
 - `src/shared/types/project-identity.types.ts`：会话、实体、表、资源与文件版本身份的基础协议。
 - `src/shared/types/project-session.types.ts`：会话请求、清单、摘要与正式失效结果。
@@ -67,7 +64,7 @@
 - 势力及蓝图包提供 tags 元数据，来源变化参与全部相关表的失效。
 - 后端 query 消费会话索引并返回只读结果，write 发布 changeset 和结构化投影。
 - 媒体和查询等待按 session 释放，投影恢复归事务与提交同步入口。
-- 持久化索引由工具私有缓存维护，query 路径消费内存索引。
+- 持久化来源成果由来源读取交付，query 消费所属会话投影。
 - 来源目录、实体记录和草稿资源由后端定义装配，前端能力交付所属消费者。
 - 根事务拥有写入租约，session 与缓存按固定锁序协作。
 
@@ -77,7 +74,7 @@
 
 1. 目录打开编排请求打开目标 Mod。
 2. 后端计算 canonical root 并校验 Mod 结构。
-3. 加载经源指纹验证的派生索引快照，或走正式解析后落盘快照。
+3. 读取来源记录及匹配版本，构造完整索引、统计与诊断并持久化来源成果。
 4. 建立 session 与 manifest 并返回前端。
 5. 前端 project store 注册 manifest 并水合活动运行态。
 
@@ -119,7 +116,6 @@
 - Variant 与 Skin 必须分别持有索引和诊断，统计必须消费所属记录数量；manifest 诊断必须按 Variant、Skin 顺序聚合。
 - Variant 与 Skin 的业务输出必须是文件内容；加载身份、文件目标、版本与资源必须分别归正式记录。
 - `WriteResult` 必须携带 sessionUpdates；每项必须表达 `sessionId`、`modRoot`、`commitId` 与 ready 或 `pending`，ready 必须携带 manifest、invalidation 和 `projectionRevision`。
-- core 缓存命中共享 `Arc` 快照，命中路径零深拷贝；加载只写内存并标记 dirty，落盘合并为一次性 flush（打开成功后与缓存失效前执行），严禁在 query 路径内持久化。
 - detail、list 与编辑目标查询必须消费同一目标定义；规格目标必须承载实际来源、所属根、写入目标、加载身份及关联行。
 - manifest 接纳必须核对 session 与单调投影代次，缓存失效与通知必须由项目同步按所属结果交付。
 - `pending` 提交与前端同步登记必须保存稳定码、原始 message 与 nullable location，呈现必须消费所属文案投影。
@@ -134,11 +130,9 @@
 - 异步刷新提交必须验证捕获 session 和 `pending` 生命周期；已关闭 session 的响应严禁覆盖新会话 manifest。
 - 所有 Mod 缓存与索引必须按 session 隔离，严禁跨 session 复用。
 - 手动刷新必须按所属 Mod／Core 来源授权并保留 session 与 CSV 行身份；完整读取成功后必须更新正式投影和版本。
-- 打开时必须对全部索引输入计算内容指纹；路径集合、内容或格式版本任一不一致即丢弃快照。
+- 打开时必须取得全部索引来源的内容版本，业务投影必须消费匹配的来源记录。
 - 投影 `pending` 期间的新查询必须返回 session.projection_pending，当前草稿与展示必须保留。
 - 投影构造必须先完成全部受影响索引、诊断、统计与版本，再原子发布；失败必须保留原投影并登记 `pending`。
-- 持久化索引必须存于工具私有目录并按 canonical `modRoot` 分片，只允许保存可由源文件推导的规格、势力、任务和表计数。
-- 持久化缓存必须消费格式版本 8 的来源记录、正式注释行记录与两族独立结构化诊断，并按源指纹和格式标识核对恢复内容。
 - 提交投影恢复必须消费会话读取归属；Core 写入授权必须归实际写盘和回放入口，投影恢复必须保持已提交内容。
 - 来源刷新必须按捕获 session 的生命周期接纳正式投影、缓存失效与窗口通知，页面必须分别判定所属展示的接纳权。
 - 来源指纹、缓存恢复与目录加载必须经同一根边界授权实际文件及父链；索引引用必须纳入源指纹与版本范围。

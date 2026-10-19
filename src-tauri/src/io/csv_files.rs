@@ -19,6 +19,22 @@ pub fn parse_csv_text(path_label: &str, text: &str) -> AppResult<CsvTable> {
     crate::parsers::parse_csv_bytes(path_label, text.as_bytes())
 }
 
+pub fn parse_csv_data(path_label: &str, bytes: &[u8]) -> AppResult<CsvTable> {
+    crate::parsers::parse_csv_bytes(
+        path_label,
+        bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes),
+    )
+}
+
+pub fn read_versioned_csv(path: &Path) -> AppResult<(crate::models::FileVersion, CsvTable)> {
+    if !path.exists() {
+        return Ok((super::file_version(path)?, read_csv_data(path)?));
+    }
+    let (version, bytes) = super::read_versioned_bytes(path)?;
+    let table = parse_csv_data(&version.path, &bytes)?;
+    Ok((version, table))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,6 +9,7 @@
 ### 拥有
 
 - `src-tauri/src/commands/tables.rs`：CSV 读取与 patch command。
+- `src-tauri/src/services/project/cache/csv.rs`：所属表格快照、稳定行身份、加载与刷新匹配。
 - `src-tauri/src/services/project/definitions/table_definitions.rs`：表格实体列、摘要、图标及来源选项映射。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
 - `src/app/components/TableWorkspace.vue`：表格列表、详情及保存状态组合。
@@ -40,6 +41,7 @@
 ### 消费
 
 - `src-tauri/src/models/tables.rs`：CSV 查询请求、解析记录、搜索与窗口结果。
+- `src-tauri/src/services/project/sources/`：表格消费的带版本读取与已解析内容交接。
 - `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
 - `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
 - `src/shared/lib/starsector/tables.ts`：游戏表格标准列、模块名称及列排序。
@@ -104,6 +106,7 @@
 
 - CSV native 输入必须逐字符保留空串、前导零与数字表示，领域转换必须归所属消费者。
 - CSV 保存参与者必须交付所属表草稿与现有输入集合；窗口关闭必须经保存注册表核对目标、草稿、dirty 与输入生命周期。
+- CSV 窗口版本范围只允许包含表文件，关联规格版本必须由本次选择的保存目标独立交付。
 - CsvGridCell 必须直接持有所属内容容器及浮层锚点引用，活动编辑与静态展示必须消费同一单元格边界。
 - Esc 必须取消本次输入；文本浮层、native 输入与选择器必须共用所属集合的保存提交入口。
 - 下划线开头的文件列必须按普通业务列显示、编辑和保存；行身份只允许消费记录的 `rowKey`。

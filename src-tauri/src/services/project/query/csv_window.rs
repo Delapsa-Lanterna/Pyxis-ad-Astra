@@ -26,41 +26,40 @@ pub fn query_csv_table_index(
     let table_data = registered_session_table(&session, table)?;
     let rows_ref = loaded_registered_csv_rows(&session, table)?;
     let search = search.unwrap_or_default().trim().to_lowercase();
-    let filtered: Vec<&SessionCsvRow> = rows_ref
-        .iter()
-        .filter(|row| csv_row_matches(row, &search, search_field, table))
-        .collect();
-    let rows = filtered
-        .iter()
-        .take(initial_count)
-        .map(|row| CsvRowRecord {
+    let mut rows = Vec::with_capacity(initial_count.min(rows_ref.len()));
+    let mut row_keys = Vec::with_capacity(rows_ref.len());
+    if search.is_empty() {
+        row_keys.extend(rows_ref.iter().map(|row| row.row_key.clone()));
+        rows.extend(rows_ref.iter().take(initial_count).map(|row| CsvRowRecord {
             row_key: row.row_key.clone(),
             data: row.data.clone(),
             is_comment: row.is_comment,
-        })
-        .collect();
-    let mut base_versions = vec![super::super::versions::version_for_path(
+        }));
+    } else {
+        for row in rows_ref
+            .iter()
+            .filter(|row| csv_row_matches(row, &search, search_field, table))
+        {
+            row_keys.push(row.row_key.clone());
+            if rows.len() < initial_count {
+                rows.push(CsvRowRecord {
+                    row_key: row.row_key.clone(),
+                    data: row.data.clone(),
+                    is_comment: row.is_comment,
+                });
+            }
+        }
+    }
+    let base_versions = vec![super::super::versions::version_for_path(
         &session,
         &table_data.path,
     )];
-    if let Some(spec) = crate::domain::editor_config_definitions::associated_spec_definition(table)
-    {
-        base_versions.extend(
-            session
-                .source_versions
-                .iter()
-                .filter(|(path, _)| {
-                    path.starts_with(&format!("{}/", spec.dir)) && path.ends_with(spec.extension)
-                })
-                .map(|(_, version)| version.clone()),
-        );
-    }
     Ok(CsvTableIndex {
         base_versions,
         table,
         header: table_data.header.clone(),
         total_rows: rows_ref.len(),
-        row_keys: filtered.iter().map(|row| row.row_key.clone()).collect(),
+        row_keys,
         rows,
     })
 }
@@ -182,6 +181,7 @@ mod tests {
             "id,name\na,Alpha\n#comment,Comment\n,,\nb,Beta\n",
         )
         .unwrap();
+        crate::io::write_utf8_no_bom(&root.join("data/hulls/a.ship"), r#"{"hullId":"a"}"#).unwrap();
         let mut trace = super::super::super::PerformanceTrace::new("project.openSession");
         let manifest =
             super::super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
@@ -193,6 +193,15 @@ mod tests {
             CsvSearchField::IdName,
         )
         .unwrap();
+        assert_eq!(index.base_versions.len(), 1);
+        assert_eq!(
+            index.base_versions[0].path,
+            root.join("data/hulls/ship_data.csv")
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        );
         assert_eq!(index.rows.len(), 1);
         assert_eq!(index.row_keys.len(), 4);
         let requested = vec![

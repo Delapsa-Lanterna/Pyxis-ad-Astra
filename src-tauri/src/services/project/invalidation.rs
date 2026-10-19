@@ -18,7 +18,6 @@ use std::{
 use super::{
     definitions::{entity_definitions, table_definitions},
     model::ProjectSession,
-    root,
 };
 
 pub(crate) fn invalidate_session_changes(
@@ -27,13 +26,16 @@ pub(crate) fn invalidate_session_changes(
 ) -> AppResult<ProjectInvalidation> {
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let files = changed_project_files(changes, &boundary)?;
-    invalidate_files(session, files, false)
+    let mut sources = super::sources::SourceReader::from_session(session)?;
+    sources.accept_changes(changes)?;
+    invalidate_files(session, files, false, sources)
 }
 
 fn invalidate_files(
     session: &mut ProjectSession,
     files: Vec<ChangedProjectFile>,
     preserve_rows: bool,
+    mut sources: super::sources::SourceReader,
 ) -> AppResult<ProjectInvalidation> {
     let impacts = files
         .iter()
@@ -52,6 +54,15 @@ fn invalidate_files(
             invalidated_entities_for_file(&impact.target, &impact.file)?,
         );
     }
+    if !affected_kinds.is_empty() {
+        sources.retain_projection(
+            session,
+            &files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+        );
+    }
     let content_tables = tables.clone();
     let summary_tables = affected_kinds
         .iter()
@@ -64,32 +75,66 @@ fn invalidate_files(
         .collect::<BTreeSet<_>>();
     let updates = affected_kinds
         .into_iter()
-        .map(|kind| (entity_definitions::entity_definition(kind)?.refresh)(session))
+        .map(|kind| (entity_definitions::entity_definition(kind)?.refresh)(session, &mut sources))
         .collect::<AppResult<Vec<_>>>()?;
     let mut summaries = session.manifest.entity_summaries.clone();
     for update in &updates {
         update.update_summary(&mut summaries);
     }
     let mod_info = refresh_mod_info
-        .then(|| root::read_mod_info(Path::new(&session.manifest.mod_root)))
-        .transpose()?;
-    let table_counts = summary_tables
-        .iter()
-        .map(|table| {
-            table_entity_count(session, table.as_str(), &summaries).map(|count| (*table, count))
+        .then(|| {
+            let path = sources.path("mod_info.json")?;
+            path.exists().then(|| sources.json(&path)).transpose()
         })
-        .collect::<AppResult<Vec<_>>>()?;
+        .transpose()?;
     let refreshed_rows = if preserve_rows {
         content_tables
             .iter()
             .filter(|table| session.csv_tables[table.as_str()].rows.is_some())
             .map(|table| {
-                super::cache::csv::read_table_snapshot(session, *table).map(|rows| (*table, rows))
+                let state = &session.csv_tables[table.as_str()];
+                let csv = sources.csv(&sources.path(&state.path)?)?;
+                super::cache::csv::table_snapshot_from_csv(state, *table, csv)
+                    .map(|rows| (*table, rows))
             })
             .collect::<AppResult<Vec<_>>>()?
     } else {
         Vec::new()
     };
+
+    let table_counts = summary_tables
+        .iter()
+        .map(|table| {
+            let definition = table_definitions::csv_table_definition(*table);
+            let state = &session.csv_tables[table.as_str()];
+            let accepted_rows = state.rows.as_ref().filter(|_| {
+                state.saved_text.is_some()
+                    && files
+                        .iter()
+                        .any(|file| file.path == state.path && file.after_text == state.saved_text)
+            });
+            let count = table_definitions::csv_table_entity_summary(*table, &summaries)
+                .map(Ok)
+                .unwrap_or_else(|| match accepted_rows {
+                    Some(rows) => Ok(rows
+                        .iter()
+                        .filter(|row| {
+                            !row.is_comment
+                                && super::model::string_from_row(
+                                    &row.data,
+                                    definition.spec.entity_id_field,
+                                )
+                                .is_some()
+                        })
+                        .count()),
+                    None => sources.count(
+                        &sources.path(definition.spec.rel_path)?,
+                        definition.spec.entity_id_field,
+                    ),
+                });
+            count.map(|count| (*table, count))
+        })
+        .collect::<AppResult<Vec<_>>>()?;
     let resources = impacts
         .iter()
         .map(|impact| InvalidatedResourceScope {
@@ -98,6 +143,12 @@ fn invalidate_files(
         })
         .collect::<Vec<_>>();
     let tables = tables.into_iter().collect::<Vec<_>>();
+    sources.capture_changed_versions(
+        &files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect::<Vec<_>>(),
+    )?;
     let invalidation = ProjectInvalidation {
         paths: impacts
             .iter()
@@ -160,6 +211,8 @@ fn invalidate_files(
         .chain(&session.skin_warnings)
         .cloned()
         .collect();
+    sources.flush();
+    session.source_versions.extend(sources.versions);
     Ok(invalidation)
 }
 
@@ -606,26 +659,6 @@ fn affected_csv_tables(path: &str) -> Vec<CsvTableKey> {
         .collect()
 }
 
-fn table_entity_count(
-    session: &ProjectSession,
-    table_key: &str,
-    summaries: &crate::models::EntitySummaries,
-) -> AppResult<usize> {
-    let Some(definition) = table_definitions::csv_table_definition_by_key(table_key) else {
-        return Ok(0);
-    };
-    if let Some(count) = table_definitions::csv_table_entity_summary(definition.spec.key, summaries)
-    {
-        return Ok(count);
-    }
-    let table = &session.csv_tables[table_key];
-    table_definitions::count_valid_csv_entities(
-        Path::new(&session.manifest.mod_root),
-        definition.spec.key,
-        &table.path,
-    )
-}
-
 pub(super) fn refresh_sources(
     session: &mut ProjectSession,
     sources: &[InvalidatedResourceScope],
@@ -637,7 +670,7 @@ pub(super) fn refresh_sources(
         let boundary = match source.source {
             ResourceSource::Mod => mod_root.clone(),
             ResourceSource::Core => FsRootBoundary::new(
-                &super::cache::core::core_dir(
+                &super::sources::core::core_dir(
                     session.manifest.starsector_root.as_deref().ok_or_else(|| {
                         crate::errors::AppError::message(
                             "resource.core_root_required",
@@ -650,41 +683,59 @@ pub(super) fn refresh_sources(
         };
         let path = boundary.resolve_relative(&source.rel_path, "refresh source")?;
         paths.push(path.to_string_lossy().to_string());
-        files.push(ChangedProjectFile {
-            path: source.rel_path.clone(),
-            before_text: None,
-            after_text: None,
-        });
-    }
-    if let Some(root) = session.manifest.starsector_root.as_deref() {
-        super::cache::core::invalidate_core_sources(root, sources)?;
-    }
-    let mut versions = BTreeMap::new();
-    for source in sources
-        .iter()
-        .filter(|source| source.source == ResourceSource::Mod)
-    {
-        let path = mod_root.root().join(&source.rel_path);
-        versions.insert(source.rel_path.clone(), crate::io::file_version(&path)?);
-        if path.is_dir() {
-            for entry in walkdir::WalkDir::new(&path).min_depth(1) {
-                let entry = entry.map_err(|error| {
-                    crate::errors::AppError::message("refresh.walk_failed", error.to_string())
-                        .at_path(&path)
-                })?;
-                crate::io::validate_walk_entry(entry.path(), "refresh version")?;
-                let relative =
-                    crate::io::forward_slash_relative_path(mod_root.root(), entry.path());
-                versions.insert(relative, crate::io::file_version(entry.path())?);
-            }
+        if source.source == ResourceSource::Mod {
+            files.push(ChangedProjectFile {
+                path: source.rel_path.clone(),
+                before_text: None,
+                after_text: None,
+            });
         }
     }
-    let mut result = invalidate_files(session, files, true)?;
+    if let Some(root) = session.manifest.starsector_root.as_deref() {
+        super::sources::core::invalidate_core_sources(root, sources)?;
+    }
+    let core_projectiles = if sources.iter().any(|source| {
+        source.source == ResourceSource::Core
+            && (path_affects_target(&source.rel_path, "data/weapons/proj")
+                || path_affects_target("data/weapons/proj", &source.rel_path))
+    }) {
+        let core = super::sources::core::load_core_projectile_specs(
+            session
+                .manifest
+                .starsector_root
+                .as_deref()
+                .expect("authorized core root"),
+        )?;
+        let mut records = (*core).clone();
+        records.extend(
+            session
+                .projectile_specs
+                .iter()
+                .filter(|(_, record)| record.location.source == ResourceSource::Mod)
+                .map(|(id, record)| (id.clone(), record.clone())),
+        );
+        Some(records)
+    } else {
+        None
+    };
+    let mut result = invalidate_files(
+        session,
+        files,
+        true,
+        super::sources::SourceReader::from_session(session)?,
+    )?;
+    if let Some(records) = core_projectiles {
+        session.manifest.entity_summaries.projectiles = records.len();
+        session.projectile_specs = records;
+        result.entities.push(InvalidatedEntityRef {
+            kind: EntityKind::Projectile,
+            id: None,
+        });
+    }
     result.paths = paths;
     result.resources = sources.to_vec();
     result.query_scopes =
         query_scopes_for_invalidation(&result.tables, &result.entities, &result.resources)?;
-    session.source_versions.extend(versions);
     session.manifest.base_versions =
         vec![super::versions::version_for_path(session, "mod_info.json")];
     Ok(result)
@@ -696,7 +747,7 @@ mod tests {
 
     #[test]
     fn family_refresh_counts_and_diagnostics_follow_independent_owners() {
-        use super::super::cache::spec_files::take_load_counts;
+        use super::super::sources::families::take_load_counts;
         let root = crate::testutil::temp_dir("family_projection_counts");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();

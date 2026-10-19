@@ -4,6 +4,7 @@ use crate::{
     io::forward_slash_relative_path,
     models::{GameScanWarning, SkinFile, VariantFile},
 };
+#[cfg(test)]
 use std::path::Path;
 
 #[cfg(test)]
@@ -13,21 +14,27 @@ pub(in crate::services::project) fn take_load_counts() -> (usize, usize) {
     LOAD_COUNTS.with(|counts| counts.replace((0, 0)))
 }
 
+#[cfg(test)]
 pub(crate) fn load_variant_files(
     mod_root: &Path,
 ) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
+    load_variant_files_from(&mut super::super::sources::SourceReader::new(mod_root)?)
+}
+pub(in crate::services::project) fn load_variant_files_from(
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<(Vec<VariantFile>, Vec<GameScanWarning>)> {
+    let mod_root = sources.root().to_path_buf();
     #[cfg(test)]
     LOAD_COUNTS.with(|counts| {
         let (variant, skin) = counts.get();
         counts.set((variant + 1, skin));
     });
-    let dir = mod_root.join("data/variants");
     let mut seen = std::collections::HashMap::new();
     let mut files = Vec::new();
     let mut warnings = Vec::new();
-    for (path, data) in crate::io::walk_json_dir(&dir, "variant", "variant")? {
-        let rel_path = forward_slash_relative_path(mod_root, &path);
-        let file = build_variant_file(mod_root, &rel_path, &data)
+    for (path, data) in sources.walk("data/variants", "variant")? {
+        let rel_path = forward_slash_relative_path(&mod_root, &path);
+        let file = build_variant_file(&mod_root, &rel_path, &data)
             .map_err(|error| AppError::context(path.display().to_string(), error).at_path(&path))?;
         if let Some(previous) =
             seen.insert(file.variant_id.clone(), path.to_string_lossy().to_string())
@@ -54,19 +61,21 @@ pub(crate) fn load_variant_files(
     Ok((files, warnings))
 }
 
-pub(crate) fn load_skin_files(mod_root: &Path) -> AppResult<(Vec<SkinFile>, Vec<GameScanWarning>)> {
+pub(in crate::services::project) fn load_skin_files_from(
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<(Vec<SkinFile>, Vec<GameScanWarning>)> {
+    let mod_root = sources.root().to_path_buf();
     #[cfg(test)]
     LOAD_COUNTS.with(|counts| {
         let (variant, skin) = counts.get();
         counts.set((variant, skin + 1));
     });
-    let dir = mod_root.join("data/hulls/skins");
     let mut seen = std::collections::HashMap::new();
     let mut files = Vec::new();
     let mut warnings = Vec::new();
-    for (path, data) in crate::io::walk_json_dir(&dir, "skin", "skin")? {
-        let rel_path = forward_slash_relative_path(mod_root, &path);
-        let file = build_skin_file(mod_root, &rel_path, &data)
+    for (path, data) in sources.walk("data/hulls/skins", "skin")? {
+        let rel_path = forward_slash_relative_path(&mod_root, &path);
+        let file = build_skin_file(&mod_root, &rel_path, &data)
             .map_err(|error| AppError::context(path.display().to_string(), error).at_path(&path))?;
         if let Some(previous) = seen.insert(
             file.skin_hull_id.clone(),

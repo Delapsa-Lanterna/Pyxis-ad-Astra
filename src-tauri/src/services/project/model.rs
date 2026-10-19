@@ -278,6 +278,15 @@ pub(super) struct SpecBundle {
     pub skin_warnings: Vec<GameScanWarning>,
 }
 
+pub(super) struct ProjectContent {
+    pub mod_info: Option<Value>,
+    pub faction_files: BTreeMap<String, LoadedSpecRecord>,
+    pub faction_blueprint_tags: HashMap<String, String>,
+    pub mission_count: usize,
+    pub spec_bundle: SpecBundle,
+    pub table_entity_summaries: BTreeMap<CsvTableKey, usize>,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct SessionCsvTable {
     pub header: Vec<String>,

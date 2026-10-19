@@ -1,6 +1,6 @@
 use crate::{
     errors::{AppError, AppResult},
-    io::read_csv_data,
+    io::read_versioned_csv,
     models::{CsvTable, CsvTableKey},
 };
 use std::path::Path;
@@ -9,7 +9,7 @@ use super::super::model::{
     MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow, SessionCsvTable,
     mission_list_default_header,
 };
-use super::core::load_core_csv_table;
+use super::super::sources::core::load_core_csv_table;
 
 pub(in crate::services::project) fn read_table_snapshot(
     session: &ProjectSession,
@@ -18,7 +18,7 @@ pub(in crate::services::project) fn read_table_snapshot(
     let state = registered_session_table(session, table)?;
     let path = Path::new(&session.manifest.mod_root).join(&state.path);
     let csv = if path.exists() {
-        read_csv_data(&path)?
+        read_versioned_csv(&path)?.1
     } else {
         CsvTable {
             header: state.header.clone(),
@@ -26,6 +26,14 @@ pub(in crate::services::project) fn read_table_snapshot(
             path: state.path.clone(),
         }
     };
+    table_snapshot_from_csv(state, table, csv)
+}
+
+pub(in crate::services::project) fn table_snapshot_from_csv(
+    state: &SessionCsvTable,
+    table: CsvTableKey,
+    csv: CsvTable,
+) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
     let identity = super::super::model::csv_table_spec(table).entity_id_field;
     let key = |data: &serde_json::Map<String, serde_json::Value>, comment: bool| {
         serde_json::to_string(&(
@@ -129,19 +137,10 @@ pub(crate) fn ensure_session_table_rows(
     }
     let rel_path = session_table(session, table)?.path.clone();
     let path = Path::new(&session.manifest.mod_root).join(&rel_path);
-    let mut csv = if path.exists() {
-        read_csv_data(&path)?
-    } else {
-        CsvTable {
-            header: if table == MISSION_LIST_TABLE_KEY {
-                mission_list_default_header()
-            } else {
-                Vec::new()
-            },
-            rows: Vec::new(),
-            path: rel_path.clone(),
-        }
-    };
+    let (version, mut csv) = read_versioned_csv(&path)?;
+    if csv.header.is_empty() && table == MISSION_LIST_TABLE_KEY {
+        csv.header = mission_list_default_header();
+    }
     if csv.header.is_empty() {
         if let Some(root) = session.manifest.starsector_root.as_ref() {
             if let Some(table_key) = CsvTableKey::from_key(table) {
@@ -175,9 +174,7 @@ pub(crate) fn ensure_session_table_rows(
     table_state.row_index = None;
     table_state.next_row_seq = next_row_seq;
     table_state.saved_text = None;
-    session
-        .source_versions
-        .insert(rel_path, crate::io::file_version(&path)?);
+    session.source_versions.insert(rel_path, version);
     Ok(())
 }
 

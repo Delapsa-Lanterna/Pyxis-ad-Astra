@@ -86,7 +86,8 @@
 - [目录打开](modules/directory-opening.md)：说明目录选择、游戏或 Mod 识别、canonical root、ProjectSession 建立与打开 outcome。
 - [新建 Mod](modules/mod-creation.md)：说明 Mod 父目录、最小目录骨架、`mod_info.json` renderer 与创建后的受信 session 打开。
 - [工作区运行态与持久化](modules/workspace.md)：说明多 Mod 页签、导航上下文、workspace 快照、启动恢复、移除 Mod 与活动 Mod 同步。
-- [项目会话与清单缓存](modules/project-session.md)：说明 `sessionId + modRoot`、实体来源、两族诊断、原子投影、提交恢复与代次接纳。
+- [项目会话与投影](modules/project-session.md)：说明 `sessionId + modRoot`、生命周期、原子投影、提交恢复与代次接纳。
+- [项目来源读取](modules/project-sources.md)：说明授权来源、带版本读取、解析复用、来源缓存与持久化。
 - [项目同步](modules/project-sync.md)：说明来源刷新、提交接纳、同步重试、缓存失效与跨窗口通知。
 - [项目查询与缓存](modules/project-query-cache.md)：说明类型化查询定义、会话共享读取、缓存、门控与失效通知。
 - [实体查询](modules/entity-query.md)：说明实体详情、列表、编辑目标、身份意图及所属失效。

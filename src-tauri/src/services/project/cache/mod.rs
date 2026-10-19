@@ -1,10 +1,5 @@
-pub(super) mod core;
 pub(super) mod csv;
 pub(super) mod media;
-pub(super) mod persistent;
-pub(super) mod spec_files;
-pub(super) mod spec_records;
-pub(crate) use spec_records::load_spec_records;
 
 use crate::{
     errors::{AppError, AppResult},
@@ -17,11 +12,6 @@ use std::{
 
 use super::model::ProjectSession;
 
-pub(super) use core::invalidate_core_cache;
-pub(crate) use core::{
-    flush_core_cache, load_core_csv_table, load_core_projectile_specs, load_core_ship_files,
-    load_core_skin_files, load_core_source_data, load_core_variant_files,
-};
 pub(crate) use csv::{
     ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
     loaded_registered_csv_rows, registered_session_table,

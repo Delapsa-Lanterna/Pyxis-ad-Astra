@@ -1,21 +1,29 @@
 use crate::{
     errors::{AppError, AppResult, JsonRewriteFile},
-    io::{read_utf8_no_bom, validate_walk_entry},
+    io::read_utf8_no_bom,
     models::JsonWriteOptions,
     parsers::{PreserveResult, json_root_tail, parse_starsector_json, preserve_json_text},
 };
 use serde_json::Value;
 use std::{
     hash::{Hash, Hasher},
-    path::{Path, PathBuf},
+    path::Path,
 };
-use walkdir::WalkDir;
 
 pub fn read_json_file(path: &Path) -> AppResult<Value> {
     let text = read_utf8_no_bom(path)?;
     parse_starsector_json(&text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
     })
+}
+
+pub fn read_versioned_json(path: &Path) -> AppResult<(crate::models::FileVersion, Value)> {
+    let (version, bytes) = super::read_versioned_bytes(path)?;
+    let text = super::decode_text(path, &bytes)?;
+    let value = parse_starsector_json(&text).map_err(|error| {
+        AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
+    })?;
+    Ok((version, value))
 }
 
 pub struct JsonWriteBatch {
@@ -97,37 +105,6 @@ fn fingerprint(bytes: &[u8]) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     bytes.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
-}
-
-/// The single directory-walk entry for loose spec JSON: every JSON directory
-/// scan shares this error context, link validation and exact-match extension
-/// filter (case-sensitive, no dot).
-pub fn walk_json_dir(dir: &Path, ext: &str, label: &str) -> AppResult<Vec<(PathBuf, Value)>> {
-    if !dir.exists() {
-        return Ok(vec![]);
-    }
-    if !dir.is_dir() {
-        return Err(AppError::message(
-            "json.dir_not_directory",
-            format!("JSON 目录不是目录: {}", dir.display()),
-        ));
-    }
-    let mut files = Vec::new();
-    for entry in WalkDir::new(dir).into_iter() {
-        let entry = entry.map_err(|error| {
-            AppError::context(
-                format!("遍历 {label} 目录失败 ({})", dir.display()),
-                AppError::message("io.walk_failed", error.to_string()),
-            )
-        })?;
-        validate_walk_entry(entry.path(), &format!("{label} directory"))?;
-        if entry.path().extension().and_then(|s| s.to_str()) != Some(ext) {
-            continue;
-        }
-        let path = entry.path().to_path_buf();
-        files.push((path.clone(), read_json_file(&path)?));
-    }
-    Ok(files)
 }
 
 #[cfg(test)]

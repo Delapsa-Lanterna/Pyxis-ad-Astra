@@ -1,35 +1,6 @@
 use super::model::ProjectSession;
-use crate::{
-    errors::AppResult,
-    io::{FsRootBoundary, file_version},
-    models::FileVersion,
-};
-use std::{collections::BTreeMap, path::Path};
-
-pub(super) fn capture_versions(root: &Path) -> AppResult<BTreeMap<String, FileVersion>> {
-    let mut versions = BTreeMap::new();
-    for (_, path) in super::cache::persistent::session_source_files(root)? {
-        let relative = crate::io::forward_slash_path(
-            path.strip_prefix(root)
-                .expect("session source belongs to root"),
-        );
-        versions.insert(relative, file_version(&path)?);
-    }
-    let missions = root.join("data/missions");
-    if missions.is_dir() {
-        for entry in std::fs::read_dir(missions)? {
-            let path = entry?.path();
-            crate::io::validate_walk_entry(&path, "mission version")?;
-            if path.is_dir() {
-                let relative = crate::io::forward_slash_path(
-                    path.strip_prefix(root).expect("mission belongs to root"),
-                );
-                versions.insert(relative, file_version(&path)?);
-            }
-        }
-    }
-    Ok(versions)
-}
+use crate::models::FileVersion;
+use std::path::Path;
 
 pub(super) fn version_for_path(session: &ProjectSession, path: &str) -> FileVersion {
     session
@@ -43,35 +14,6 @@ pub(super) fn version_for_path(session: &ProjectSession, path: &str) -> FileVers
                 .to_string(),
             fingerprint: None,
         })
-}
-
-pub(super) fn changed_versions(
-    session: &ProjectSession,
-    changes: &[crate::models::FileChangeRecord],
-) -> AppResult<BTreeMap<String, FileVersion>> {
-    let mut versions = BTreeMap::new();
-    let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "version root")?;
-    for change in changes {
-        for path in [&change.before_path, &change.after_path] {
-            if let Some(relative) =
-                boundary.resolve_changed_path_to_relative(path, "changed version")?
-            {
-                versions.insert(
-                    relative.clone(),
-                    file_version(&boundary.root().join(&relative))?,
-                );
-                if let Some(mission) = relative
-                    .strip_prefix("data/missions/")
-                    .and_then(|suffix| suffix.split('/').next())
-                    .filter(|name| *name != "mission_list.csv")
-                {
-                    let dir = format!("data/missions/{mission}");
-                    versions.insert(dir.clone(), file_version(&boundary.root().join(dir))?);
-                }
-            }
-        }
-    }
-    Ok(versions)
 }
 
 #[cfg(test)]

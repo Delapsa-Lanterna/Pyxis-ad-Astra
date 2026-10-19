@@ -10,7 +10,6 @@
 
 - `src-tauri/src/commands/hull_reference.rs`：Hull command。
 - `src-tauri/src/commands/resources.rs`：批量资源与引用 command。
-- `src-tauri/src/services/project/cache/core.rs`：按游戏根维护 Core 注册表、缓存条目、来源目录、待持久化标记及失效释放。
 - `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存。
 - `src-tauri/src/services/project/definitions/entity_resources.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
 - `src-tauri/src/services/project/query/hull_references.rs`：舰体引用、槽位及来源选择查询。
@@ -40,10 +39,10 @@
 
 - `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
 - `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及舰体引用请求与结果。
-- `src-tauri/src/services/project/cache/persistent.rs`：项目索引与 Core 来源快照、指纹及代次的持久化。
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
 - `src-tauri/src/services/project/resources/core_graphics.rs`：图形目录扫描。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
+- `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
 - `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
 - `src/shared/lib/resource-ref.ts`：资源身份键、相等与集合纯规则。
 - `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
@@ -56,7 +55,7 @@
 
 ## 边界
 
-- Core 目录缓存按 canonical 游戏根维护注册表、缓存条目、已请求类型和待持久化标记，来源指纹及快照持久化由正式持久化入口交付。
+- Core 文档目录由来源读取按 canonical 游戏根交付，引用能力消费所属只读成果。
 - 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
 - 各 WebView 的 resource cache 与 media projection 共用 data URL 预算，窗口图片运行态拥有解码与成品保留，活跃引用和闲置预算分别计量。
 - 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
@@ -97,8 +96,8 @@
 ### 核心派生索引
 
 1. 首次访问某 Core 类型时扫描并接纳内存索引，登记所属缓存的持久化请求。
-2. 读取前以源内容指纹校验；指纹按游戏根进程内缓存。
-3. 项目打开完成或缓存失效前集中写入快照；清空内存核心缓存时一并丢弃指纹缓存。
+2. 来源读取按当前内容版本校验并复用匹配解析成果。
+3. 项目打开完成或缓存失效前集中写入来源成果，释放后由新句柄承载后续目录。
 
 ## 规范
 

@@ -1,7 +1,4 @@
-use super::super::{
-    cache,
-    model::{ProjectSession, SessionCsvRow},
-};
+use super::super::model::{ProjectSession, SessionCsvRow};
 use super::csv_staging::CsvTableDraft;
 use crate::{
     errors::{AppError, AppResult},
@@ -58,7 +55,12 @@ pub(super) fn rename_description_row(
             .manifest
             .starsector_root
             .as_ref()
-            .map(|root| cache::load_core_csv_table(root, CsvTableKey::Descriptions))
+            .map(|root| {
+                crate::services::project::sources::core::load_core_csv_table(
+                    root,
+                    CsvTableKey::Descriptions,
+                )
+            })
             .transpose()?
             .flatten()
     } else {
@@ -75,7 +77,12 @@ pub(super) fn rename_description_row(
         .manifest
         .starsector_root
         .as_ref()
-        .map(|root| cache::load_core_csv_table(root, CsvTableKey::Descriptions))
+        .map(|root| {
+            crate::services::project::sources::core::load_core_csv_table(
+                root,
+                CsvTableKey::Descriptions,
+            )
+        })
         .transpose()?
         .flatten()
         .is_some_and(|table| {

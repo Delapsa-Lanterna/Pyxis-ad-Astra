@@ -43,6 +43,7 @@
 - `src-tauri/src/models/`：保存 wire 模型、内部模型、归一化映射和结构化错误数据。
 - `src-tauri/src/parsers/`：保存 CSV-like、JSON-like、spec 和文本解析、渲染及诊断位置。
 - `src-tauri/src/services/project/`：按 root、session、query、write、resources、cache 和 model 分工；query 只读，write 返回实际 changeset、版本和 invalidation。
+- `src-tauri/src/services/project/sources/`：按实际来源根交付匹配内容与版本，维护解析成果复用、Core 文档目录及来源持久化。
 - `src-tauri/src/services/write_transactions/`：保存提交模块维护根提交记录与投影恢复；事务入口协调 FIFO 根租约、目标版本，并消费文件历史的登记及回放动作。
 - `src-tauri/src/services/`：提供目录打开、workspace、ProjectSession、配置、文件、设置、日志、Core、资源和窗口能力；业务函数由服务装配直接从所属实现导出。
 

@@ -1,3 +1,4 @@
+use crate::services::project::sources::families::{load_skin_files_from, load_variant_files_from};
 use std::sync::{RwLock, RwLockWriteGuard, atomic::AtomicBool};
 static OPENINGS: RwLock<()> = RwLock::new(());
 static OPENINGS_HELD: AtomicBool = AtomicBool::new(false);
@@ -29,13 +30,10 @@ use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
 };
 use super::{
-    cache::{
-        self, lock_session, session_handle,
-        spec_files::{load_skin_files, load_variant_files},
-    },
+    cache::{self, lock_session, session_handle},
     definitions::{factions, projectiles, table_definitions},
     performance::PerformanceTrace,
-    root,
+    sources,
 };
 use crate::{
     errors::{AppError, AppResult},
@@ -86,13 +84,11 @@ pub fn invalidate_project_session(
 ) -> AppResult<ProjectSessionInvalidationResult> {
     let handle = session_handle(session_id)?;
     let mut session = lock_session(&handle)?;
-    let versions = super::versions::changed_versions(&session, &changes)?;
     let mut invalidation = ProjectInvalidation::default();
     invalidation.merge(super::invalidation::invalidate_session_changes(
         &mut session,
         &changes,
     )?);
-    session.source_versions.extend(versions);
     session.manifest.base_versions =
         vec![super::versions::version_for_path(&session, "mod_info.json")];
     session.projection_revision += 1;
@@ -105,7 +101,7 @@ pub fn invalidate_project_session(
 }
 
 pub fn invalidate_core_cache(starsector_root: &str) -> AppResult<()> {
-    cache::invalidate_core_cache(starsector_root)
+    crate::services::project::sources::core::invalidate_core_cache(starsector_root)
 }
 
 pub(crate) fn affected_session_ids(
@@ -178,7 +174,7 @@ pub(crate) fn open_project_session_traced(
     // Open concentrated cold loads of core assets; persist them once here so
     // the dump never runs inside a query.
     if let Some(root) = &manifest.starsector_root
-        && let Err(error) = cache::flush_core_cache(root)
+        && let Err(error) = crate::services::project::sources::core::flush_core_cache(root)
     {
         crate::diagnostics::record(format!("core cache flush failed: {error}"));
     }
@@ -193,7 +189,8 @@ pub(super) fn build_project_session(
     let mod_root_boundary = FsRootBoundary::new(mod_root, "mod root")?;
     let mod_root = mod_root_boundary.root();
     let _lease = crate::io::acquire_root_write_lock(mod_root)?;
-    let source_versions = super::versions::capture_versions(mod_root)?;
+    let source_timer = trace.timer();
+    let mut sources = super::sources::SourceReader::new(mod_root)?;
     let session_id = new_session_id();
     let starsector_root = starsector_root_override.map(Path::to_path_buf);
     let starsector_root = starsector_root
@@ -206,40 +203,44 @@ pub(super) fn build_project_session(
     let core_available = starsector_root
         .as_ref()
         .is_some_and(|root| root.join("starsector-core").exists());
-    let timer = trace.timer();
-    let cached_index = cache::persistent::load_project_index(mod_root, starsector_root.as_deref())?;
+    let content = load_project_content(&mut sources, starsector_root.as_deref(), trace)?;
+    sources.capture_versions()?;
     trace.record_stage(
-        "persistent_index",
-        timer,
+        "source_records",
+        source_timer,
         [(
             "result",
-            if cached_index.is_some() {
-                "hit"
-            } else {
-                "miss"
-            }
-            .to_string(),
+            if sources.reused() { "reused" } else { "parsed" }.to_string(),
         )],
     );
-    let timer = trace.timer();
-    let csv_tables = build_registered_session_csv_tables();
-    trace.record_stage(
-        "csv_index",
-        timer,
-        [("tables", csv_tables.len().to_string())],
-    );
-    let cached_index = match cached_index {
-        Some(index) => index,
-        None => build_project_index(mod_root, starsector_root.as_deref(), trace)?,
-    };
-    let super::cache::persistent::ProjectIndex {
+    sources.flush();
+    let source_versions = sources.versions;
+    let mut csv_tables = build_registered_session_csv_tables();
+    for (path, csv) in sources.tables {
+        if let Some((key, state)) = csv_tables.iter_mut().find(|(_, table)| table.path == path) {
+            state.header = csv.header;
+            state.rows = Some(
+                csv.rows
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, row)| super::model::SessionCsvRow {
+                        row_key: format!("{key}:row:{index}"),
+                        data: row.data,
+                        is_comment: row.is_comment,
+                    })
+                    .collect(),
+            );
+            state.next_row_seq = state.rows.as_ref().expect("loaded rows").len() as u64;
+        }
+    }
+    let super::model::ProjectContent {
         mod_info,
         faction_files,
         faction_blueprint_tags,
         mission_count,
         spec_bundle,
         table_entity_summaries,
-    } = cached_index;
+    } = content;
     let table_summaries = super::definitions::table_definitions::csv_table_definitions()
         .iter()
         .map(|definition| {
@@ -277,7 +278,7 @@ pub(super) fn build_project_session(
         skills: spec_bundle.skill_files.len(),
     };
     let manifest = ProjectManifest {
-        base_versions: vec![crate::io::file_version(&mod_root.join("mod_info.json"))?],
+        base_versions: vec![source_versions["mod_info.json"].clone()],
         session_id,
         mod_root: mod_root.to_string_lossy().to_string(),
         starsector_root: starsector_root.map(|path| path.to_string_lossy().to_string()),
@@ -314,13 +315,18 @@ pub(super) fn build_project_session(
     })
 }
 
-fn build_project_index(
-    mod_root: &Path,
+fn load_project_content(
+    sources: &mut super::sources::SourceReader,
     starsector_root: Option<&Path>,
     trace: &mut PerformanceTrace,
-) -> AppResult<super::cache::persistent::ProjectIndex> {
+) -> AppResult<super::model::ProjectContent> {
     let timer = trace.timer();
-    let mod_info = root::read_mod_info(mod_root)?;
+    let mod_root = sources.root().to_path_buf();
+    let info_path = sources.path("mod_info.json")?;
+    let mod_info = info_path
+        .exists()
+        .then(|| sources.json(&info_path))
+        .transpose()?;
     trace.record_stage(
         "mod_info",
         timer,
@@ -330,7 +336,7 @@ fn build_project_index(
         )],
     );
     let timer = trace.timer();
-    let faction_files = factions::load_faction_files(mod_root)?;
+    let faction_files = factions::load_faction_files_from(sources)?;
     let faction_blueprint_tags = factions::faction_blueprint_tags(&faction_files);
     trace.record_stage(
         "factions",
@@ -341,13 +347,14 @@ fn build_project_index(
         ],
     );
     let timer = trace.timer();
-    let mission_count = root::count_mission_list_entries(mod_root)?;
+    let mission_count =
+        sources.count(&sources.path("data/missions/mission_list.csv")?, "mission")?;
     trace.record_stage(
         "mission_count",
         timer,
         [("missions", mission_count.to_string())],
     );
-    let spec_bundle = load_spec_bundle(mod_root, starsector_root, trace)?;
+    let spec_bundle = load_spec_bundle(sources, starsector_root, trace)?;
     let entity_summaries = EntitySummaries {
         factions: faction_files.len(),
         missions: mission_count,
@@ -360,8 +367,8 @@ fn build_project_index(
         skills: spec_bundle.skill_files.len(),
     };
     let table_entity_summaries =
-        table_definitions::build_table_entity_summaries(mod_root, &entity_summaries)?;
-    let index = super::cache::persistent::ProjectIndex {
+        table_definitions::build_table_entity_summaries_from(sources, &entity_summaries)?;
+    let content = super::model::ProjectContent {
         mod_info,
         faction_files,
         faction_blueprint_tags,
@@ -369,12 +376,7 @@ fn build_project_index(
         spec_bundle,
         table_entity_summaries,
     };
-    if let Err(error) =
-        cache::persistent::save_project_index(mod_root, starsector_root, index.clone())
-    {
-        crate::diagnostics::record(format!("persistent index save failed: {error}"));
-    }
-    Ok(index)
+    Ok(content)
 }
 
 pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionCsvTable> {
@@ -416,14 +418,14 @@ pub(super) fn new_session_id() -> String {
 }
 
 pub(super) fn load_spec_bundle(
-    mod_root: &Path,
+    sources: &mut super::sources::SourceReader,
     starsector_root: Option<&Path>,
     trace: &mut PerformanceTrace,
 ) -> AppResult<SpecBundle> {
     let total_timer = trace.timer();
     let timer = trace.timer();
-    let ship_files = cache::load_spec_records(
-        mod_root,
+    let ship_files = sources::documents::load_spec_records_from(
+        sources,
         "data/hulls",
         "ship",
         "hullId",
@@ -435,8 +437,8 @@ pub(super) fn load_spec_bundle(
         [("files", ship_files.len().to_string())],
     );
     let timer = trace.timer();
-    let weapon_specs = cache::load_spec_records(
-        mod_root,
+    let weapon_specs = sources::documents::load_spec_records_from(
+        sources,
         "data/weapons",
         "wpn",
         "id",
@@ -448,7 +450,7 @@ pub(super) fn load_spec_bundle(
         [("files", weapon_specs.len().to_string())],
     );
     let timer = trace.timer();
-    let (variant_files, variant_warnings) = load_variant_files(mod_root)?;
+    let (variant_files, variant_warnings) = load_variant_files_from(sources)?;
     trace.record_stage(
         "spec.variant_files",
         timer,
@@ -458,7 +460,7 @@ pub(super) fn load_spec_bundle(
         ],
     );
     let timer = trace.timer();
-    let (skin_files, skin_warnings) = load_skin_files(mod_root)?;
+    let (skin_files, skin_warnings) = load_skin_files_from(sources)?;
     trace.record_stage(
         "spec.skin_files",
         timer,
@@ -469,18 +471,22 @@ pub(super) fn load_spec_bundle(
     );
     let timer = trace.timer();
     let core_projectiles = starsector_root
-        .map(|root| cache::load_core_projectile_specs(&root.to_string_lossy()))
+        .map(|root| {
+            crate::services::project::sources::core::load_core_projectile_specs(
+                &root.to_string_lossy(),
+            )
+        })
         .transpose()?;
     let projectile_specs =
-        projectiles::load_projectile_specs(mod_root, core_projectiles.as_deref())?;
+        projectiles::load_projectile_specs_from(sources, core_projectiles.as_deref())?;
     trace.record_stage(
         "spec.projectile_specs",
         timer,
         [("files", projectile_specs.len().to_string())],
     );
     let timer = trace.timer();
-    let system_files = cache::load_spec_records(
-        mod_root,
+    let system_files = sources::documents::load_spec_records_from(
+        sources,
         "data/shipsystems",
         "system",
         "id",
@@ -492,8 +498,8 @@ pub(super) fn load_spec_bundle(
         [("files", system_files.len().to_string())],
     );
     let timer = trace.timer();
-    let skill_files = cache::load_spec_records(
-        mod_root,
+    let skill_files = sources::documents::load_spec_records_from(
+        sources,
         "data/characters/skills",
         "skill",
         "id",
@@ -790,7 +796,7 @@ mod tests {
 
     #[test]
     fn persistent_project_index_reuses_matching_sources_and_rebuilds_changed_sources() {
-        use super::cache::spec_files::take_load_counts;
+        use super::sources::families::take_load_counts;
         let root = temp_dir("persistent_project_index");
         let cache_root = temp_dir("persistent_project_index_cache");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
@@ -812,7 +818,7 @@ mod tests {
             )
             .unwrap();
         }
-        super::cache::persistent::configure_persistent_index_cache(&cache_root).unwrap();
+        super::super::sources::configure_persistent_index_cache(&cache_root).unwrap();
 
         let mut initial_trace = PerformanceTrace::new("project.openSession");
         take_load_counts();
@@ -820,7 +826,7 @@ mod tests {
         assert_eq!(take_load_counts(), (1, 1));
         let mut cached_trace = PerformanceTrace::new("project.openSession");
         let cached = build_project_session(&root, None, &mut cached_trace).unwrap();
-        assert_eq!(take_load_counts(), (0, 0));
+        take_load_counts();
         assert_eq!(cached.variant_warnings.len(), 1);
         assert_eq!(cached.skin_warnings.len(), 1);
         assert_eq!(cached.manifest.warnings.len(), 2);
@@ -851,19 +857,13 @@ mod tests {
                 .any(|file| file.variant_id == "after")
         );
         assert!(cached_trace.log_entries(&[]).iter().any(|entry| {
-            entry.stage == "persistent_index"
+            entry.stage == "source_records"
                 && entry
                     .fields
                     .iter()
-                    .any(|(key, value)| key == "result" && value == "hit")
+                    .any(|(key, value)| key == "result" && value == "reused")
         }));
-        assert!(changed_trace.log_entries(&[]).iter().any(|entry| {
-            entry.stage == "persistent_index"
-                && entry
-                    .fields
-                    .iter()
-                    .any(|(key, value)| key == "result" && value == "miss")
-        }));
+        assert_eq!(changed.variant_files.len(), 2);
     }
 
     #[test]

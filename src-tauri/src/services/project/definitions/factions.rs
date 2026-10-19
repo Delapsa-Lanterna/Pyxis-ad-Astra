@@ -1,14 +1,13 @@
 use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
-    io::{FsRootBoundary, forward_slash_path, read_faction_index, read_json_file},
+    io::{FsRootBoundary, forward_slash_path},
     models::{EntityFileLocation, FactionIndexEntry, ResourceSource},
 };
 use serde_json::{Map, Value};
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::Path,
-};
+use std::collections::{BTreeMap, HashMap};
+#[cfg(test)]
+use std::path::Path;
 
 pub(in crate::services::project) fn faction_blueprint_tags(
     files: &BTreeMap<String, LoadedSpecRecord>,
@@ -41,13 +40,21 @@ pub(in crate::services::project) fn faction_blueprint_tags(
     tags_by_faction
 }
 
+#[cfg(test)]
 pub(in crate::services::project) fn load_faction_files(
     mod_root: &Path,
 ) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
+    load_faction_files_from(&mut super::super::sources::SourceReader::new(mod_root)?)
+}
+pub(in crate::services::project) fn load_faction_files_from(
+    sources: &mut super::super::sources::SourceReader,
+) -> AppResult<BTreeMap<String, LoadedSpecRecord>> {
+    let mod_root = sources.root().to_path_buf();
+    let boundary = FsRootBoundary::new(&mod_root, "faction root")?;
+    let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
     let mut defs = BTreeMap::new();
-    for entry in read_faction_index(mod_root)? {
-        let (id, obj) = read_faction_object(&entry)?;
-        let boundary = FsRootBoundary::new(mod_root, "faction root")?;
+    for entry in crate::io::faction_index_entries(&boundary, &table)? {
+        let (id, obj) = faction_object(&entry, sources.json(&entry.path)?)?;
         let rel_path = forward_slash_path(
             entry
                 .path
@@ -71,8 +78,11 @@ pub(in crate::services::project) fn load_faction_files(
     Ok(defs)
 }
 
-fn read_faction_object(entry: &FactionIndexEntry) -> AppResult<(String, Map<String, Value>)> {
-    match read_json_file(&entry.path)? {
+fn faction_object(
+    entry: &FactionIndexEntry,
+    value: Value,
+) -> AppResult<(String, Map<String, Value>)> {
+    match value {
         Value::Object(obj) => {
             let id = obj
                 .get("id")

@@ -31,6 +31,7 @@
 - `src-tauri/src/models/project_identity.rs`：联合来源消费的实体、CSV 表与版本身份。
 - `src-tauri/src/models/write_commit.rs`：联合提交消费的公共回执与行键映射。
 - `src-tauri/src/services/project/model.rs`：来源装配消费的已加载记录。
+- `src-tauri/src/services/project/sources/`：带版本来源读取与共享 Core 文档成果。
 - `src-tauri/src/services/project/write/csv_staging.rs`：联合表草稿、最终渲染与写盘成功后的会话接纳。
 - `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
 - `src/domain/edit-session.ts`：保存准备与跨窗口请求消费的目标重叠比较。
