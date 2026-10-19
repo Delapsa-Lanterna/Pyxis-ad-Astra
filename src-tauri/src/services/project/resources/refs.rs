@@ -1,7 +1,5 @@
 use super::super::cache::{loaded_csv_rows, loaded_registered_csv_rows};
-use super::super::cache::{lock_ready_session, lock_registry, media, session_handle};
 use super::super::model::{ProjectSession, string_field, string_from_row};
-use super::sprites;
 use crate::errors::{AppError, AppResult};
 use crate::models::{CsvTableKey, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
 use crate::services::project::model::LoadedSpecRecord;
@@ -10,84 +8,7 @@ use crate::services::project::sources::core::{
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
 use std::sync::Arc;
-
-/// The session-owned inputs to sprite loading, cloned out of the session under
-/// a short lock so batch loading never holds the session (or registry) lock.
-pub(in crate::services::project) struct SpriteSourceContext {
-    session_id: String,
-    mod_root: String,
-    starsector_root: Option<String>,
-}
-
-pub(in crate::services::project) fn sprite_source_context(
-    session_id: &str,
-) -> AppResult<SpriteSourceContext> {
-    let handle = session_handle(session_id)?;
-    let session = lock_ready_session(&handle)?;
-    Ok(SpriteSourceContext {
-        session_id: session_id.to_string(),
-        mod_root: session.manifest.mod_root.clone(),
-        starsector_root: session.manifest.starsector_root.clone(),
-    })
-}
-
-pub(in crate::services::project) struct SpriteResourceBytes {
-    pub(in crate::services::project) data_url: Option<String>,
-}
-
-pub(in crate::services::project) fn sprite_resource_bytes(
-    context: &SpriteSourceContext,
-    resource: &ResourceRef,
-) -> AppResult<SpriteResourceBytes> {
-    let resource_key = media_resource_key(resource);
-    if let Some(data_url) = media::lookup_data_url(&context.session_id, &resource_key) {
-        return Ok(SpriteResourceBytes {
-            data_url: Some(data_url),
-        });
-    }
-    let rel_path = resource.rel_path.replace('\\', "/");
-    let rel_path = rel_path.trim().trim_end_matches('/');
-    let loaded = match resource.source {
-        ResourceSource::Core => {
-            let root = context
-                .starsector_root
-                .as_ref()
-                .map(|root| PathBuf::from(root).join("starsector-core"))
-                .ok_or_else(|| {
-                    AppError::message(
-                        "resource.core_root_required",
-                        "core resource requires starsector root",
-                    )
-                })?;
-            sprites::load_sprite_bytes_from_root(&root, rel_path)?
-        }
-        ResourceSource::Mod => {
-            let mod_root = PathBuf::from(&context.mod_root);
-            let core_dir = context
-                .starsector_root
-                .as_ref()
-                .map(|root| PathBuf::from(root).join("starsector-core"));
-            sprites::load_sprite_bytes(&mod_root, core_dir.as_deref(), rel_path)?
-        }
-    };
-    let data_url = loaded.as_ref().map(|bytes| bytes.data_url.clone());
-    if let Some(bytes) = loaded {
-        let registry = lock_registry()?;
-        if registry.contains_key(&context.session_id) {
-            media::insert_entry(
-                &context.session_id,
-                &resource_key,
-                bytes.resolved_path,
-                bytes.modified,
-                bytes.length,
-                bytes.data_url,
-            );
-        }
-    }
-    Ok(SpriteResourceBytes { data_url })
-}
 
 pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -> String {
     json!([

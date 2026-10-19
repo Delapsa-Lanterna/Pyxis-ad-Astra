@@ -1,3 +1,6 @@
+use super::super::cache::{lock_ready_session, lock_registry, media, session_handle};
+use super::refs::media_resource_key;
+use crate::models::{ResourceRef, ResourceSource};
 use crate::{
     errors::{AppError, AppResult},
     io::FsRootBoundary,
@@ -5,7 +8,6 @@ use crate::{
 use base64::{Engine as _, engine::general_purpose};
 #[cfg(test)]
 use serde_json::Value;
-#[cfg(test)]
 use std::collections::BTreeMap;
 #[cfg(test)]
 use std::sync::{LazyLock, Mutex};
@@ -15,11 +17,121 @@ use std::{
     time::SystemTime,
 };
 
-pub(super) struct SpriteBytes {
-    pub(super) resolved_path: PathBuf,
-    pub(super) modified: SystemTime,
-    pub(super) length: u64,
-    pub(super) data_url: String,
+struct LoadedSpriteMedia {
+    resolved_path: PathBuf,
+    modified: SystemTime,
+    length: u64,
+    data_url: String,
+}
+
+struct SpriteRoot {
+    path: PathBuf,
+    boundary: Option<FsRootBoundary>,
+}
+
+impl SpriteRoot {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            boundary: None,
+        }
+    }
+
+    fn boundary(&mut self, label: &str) -> AppResult<&FsRootBoundary> {
+        if self
+            .boundary
+            .as_ref()
+            .is_none_or(|root| !root.root().is_dir())
+        {
+            self.boundary = Some(FsRootBoundary::new(&self.path, label)?);
+        }
+        Ok(self.boundary.as_ref().expect("sprite root was prepared"))
+    }
+}
+
+pub(in crate::services::project) struct SpriteReadBatch {
+    session_id: String,
+    mod_root: SpriteRoot,
+    core_root: Option<SpriteRoot>,
+    loaded: BTreeMap<String, Option<String>>,
+}
+
+impl SpriteReadBatch {
+    pub(in crate::services::project) fn new(session_id: &str) -> AppResult<Self> {
+        let handle = session_handle(session_id)?;
+        let session = lock_ready_session(&handle)?;
+        Ok(Self {
+            session_id: session_id.to_string(),
+            mod_root: SpriteRoot::new(PathBuf::from(&session.manifest.mod_root)),
+            core_root: session
+                .manifest
+                .starsector_root
+                .as_ref()
+                .map(|root| SpriteRoot::new(PathBuf::from(root).join("starsector-core"))),
+            loaded: BTreeMap::new(),
+        })
+    }
+
+    pub(in crate::services::project) fn data_url(
+        &mut self,
+        resource: &ResourceRef,
+    ) -> AppResult<Option<String>> {
+        let resource_key = media_resource_key(resource);
+        if let Some(result) = self.loaded.get(&resource_key) {
+            return Ok(result.clone());
+        }
+        let result = if let Some(url) = media::lookup_data_url(&self.session_id, &resource_key) {
+            Some(url)
+        } else {
+            let rel_path = resource.rel_path.replace('\\', "/");
+            let loaded = self.load(resource.source, rel_path.trim().trim_end_matches('/'))?;
+            if let Some(loaded) = loaded {
+                let registry = lock_registry()?;
+                if registry.contains_key(&self.session_id) {
+                    media::insert_entry(
+                        &self.session_id,
+                        &resource_key,
+                        loaded.resolved_path,
+                        loaded.modified,
+                        loaded.length,
+                        loaded.data_url.clone(),
+                    );
+                }
+                Some(loaded.data_url)
+            } else {
+                None
+            }
+        };
+        self.loaded.insert(resource_key, result.clone());
+        Ok(result)
+    }
+
+    fn load(
+        &mut self,
+        source: ResourceSource,
+        sprite: &str,
+    ) -> AppResult<Option<LoadedSpriteMedia>> {
+        if source == ResourceSource::Mod {
+            let boundary = self.mod_root.boundary("mod resource root")?;
+            if let Some(loaded) = load_sprite_from_boundary(boundary, sprite, "sprite path")? {
+                return Ok(Some(loaded));
+            }
+            let Some(core) = self.core_root.as_mut().filter(|root| root.path.exists()) else {
+                return Ok(None);
+            };
+            let boundary = core.boundary("core resource root")?;
+            load_sprite_from_boundary(boundary, sprite, "core sprite path")
+        } else {
+            let core = self.core_root.as_mut().ok_or_else(|| {
+                AppError::message(
+                    "resource.core_root_required",
+                    "core resource requires starsector root",
+                )
+            })?;
+            let boundary = core.boundary("resource root")?;
+            load_sprite_from_boundary(boundary, sprite, "sprite path")
+        }
+    }
 }
 
 /// The single source for the project's image type universe: core graphics
@@ -33,34 +145,16 @@ pub(super) fn image_mime_type(extension: &str) -> Option<&'static str> {
     }
 }
 
-pub(super) fn load_sprite_bytes_from_root(
-    root: &Path,
-    sprite: &str,
-) -> AppResult<Option<SpriteBytes>> {
-    let boundary = FsRootBoundary::new(root, "resource root")?;
-    load_sprite_bytes_from_boundary(&boundary, None, sprite)
-}
-
-pub(super) fn load_sprite_bytes(
-    mod_root: &Path,
-    core_dir: Option<&Path>,
-    sprite: &str,
-) -> AppResult<Option<SpriteBytes>> {
-    let mod_boundary = FsRootBoundary::new(mod_root, "mod resource root")?;
-    let core_boundary = core_dir
-        .filter(|core| core.exists())
-        .map(|core| FsRootBoundary::new(core, "core resource root"))
-        .transpose()?;
-    load_sprite_bytes_from_boundary(&mod_boundary, core_boundary.as_ref(), sprite)
-}
-
 #[cfg(test)]
 pub(super) fn load_sprite_data_url(
     mod_root: &Path,
     core_dir: Option<&Path>,
     sprite: &str,
 ) -> AppResult<Option<String>> {
-    Ok(load_sprite_bytes(mod_root, core_dir, sprite)?.map(|bytes| bytes.data_url))
+    let mut batch = tests::batch_at(mod_root, core_dir);
+    Ok(batch
+        .load(ResourceSource::Mod, sprite)?
+        .map(|media| media.data_url))
 }
 
 pub fn resolve_mod_relative_path(mod_root: &str, absolute_path: &str) -> AppResult<String> {
@@ -75,30 +169,22 @@ pub fn resolve_mod_relative_path(mod_root: &str, absolute_path: &str) -> AppResu
         })
 }
 
-fn load_sprite_bytes_from_boundary(
-    mod_root: &FsRootBoundary,
-    core_dir: Option<&FsRootBoundary>,
+fn load_sprite_from_boundary(
+    boundary: &FsRootBoundary,
     sprite: &str,
-) -> AppResult<Option<SpriteBytes>> {
+    label: &str,
+) -> AppResult<Option<LoadedSpriteMedia>> {
     let Some(rel) = validate_sprite_relative_path(sprite)? else {
         return Ok(None);
     };
-    // Try mod directory first
-    let mod_path = mod_root.resolve_relative(&rel, "sprite path")?;
-    if mod_path.is_file() {
-        return read_sprite_bytes(&mod_path);
-    }
-    // Fallback: try starsector-core directory
-    if let Some(core) = core_dir {
-        let core_path = core.resolve_relative(&rel, "core sprite path")?;
-        if core_path.is_file() {
-            return read_sprite_bytes(&core_path);
-        }
+    let path = boundary.resolve_relative(&rel, label)?;
+    if path.is_file() {
+        return read_sprite_media(&path);
     }
     Ok(None)
 }
 
-fn read_sprite_bytes(path: &Path) -> AppResult<Option<SpriteBytes>> {
+fn read_sprite_media(path: &Path) -> AppResult<Option<LoadedSpriteMedia>> {
     let metadata = fs::metadata(path).map_err(|error| {
         AppError::context(
             format!("读取贴图文件失败 ({})", path.display()),
@@ -118,7 +204,7 @@ fn read_sprite_bytes(path: &Path) -> AppResult<Option<SpriteBytes>> {
         .and_then(|extension| extension.to_str())
         .and_then(image_mime_type)
         .unwrap_or("image/png");
-    Ok(Some(SpriteBytes {
+    Ok(Some(LoadedSpriteMedia {
         resolved_path: path.to_path_buf(),
         modified: metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
         length: metadata.len(),
@@ -176,6 +262,159 @@ mod tests {
     use super::*;
     use crate::testutil::temp_dir;
     use std::fs;
+
+    pub(super) fn batch_at(mod_root: &Path, core: Option<&Path>) -> SpriteReadBatch {
+        SpriteReadBatch {
+            session_id: "sprite-test".into(),
+            mod_root: SpriteRoot::new(mod_root.to_path_buf()),
+            core_root: core.map(|path| SpriteRoot::new(path.to_path_buf())),
+            loaded: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn batch_resolves_sources_when_they_are_accessed() {
+        let root = temp_dir("sprite_batch_sources");
+        let local = root.join("mod");
+        let core = root.join("core");
+        fs::create_dir(&local).unwrap();
+        fs::write(local.join("local.png"), [1]).unwrap();
+        fs::write(&core, [0]).unwrap();
+        let mut batch = batch_at(&local, Some(&core));
+        assert!(
+            batch
+                .load(ResourceSource::Mod, "local.png")
+                .unwrap()
+                .is_some()
+        );
+        assert!(batch.load(ResourceSource::Core, "local.png").is_err());
+        fs::remove_file(&core).unwrap();
+        assert!(
+            batch
+                .load(ResourceSource::Mod, "remote.png")
+                .unwrap()
+                .is_none()
+        );
+        fs::create_dir(&core).unwrap();
+        fs::write(core.join("remote.png"), [2]).unwrap();
+        let remote = batch
+            .load(ResourceSource::Mod, "remote.png")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            remote.resolved_path,
+            core.join("remote.png").canonicalize().unwrap()
+        );
+        fs::write(local.join("remote.png"), [3]).unwrap();
+        assert_eq!(
+            batch
+                .load(ResourceSource::Mod, "remote.png")
+                .unwrap()
+                .unwrap()
+                .length,
+            1
+        );
+        assert_ne!(
+            batch
+                .load(ResourceSource::Mod, "remote.png")
+                .unwrap()
+                .unwrap()
+                .data_url,
+            remote.data_url
+        );
+        fs::remove_dir_all(&core).unwrap();
+        assert!(
+            batch
+                .load(ResourceSource::Mod, "missing.png")
+                .unwrap()
+                .is_none()
+        );
+        assert!(batch.load(ResourceSource::Core, "missing.png").is_err());
+        fs::create_dir(&core).unwrap();
+        fs::write(core.join("new.png"), [4]).unwrap();
+        assert!(
+            batch
+                .load(ResourceSource::Core, "new.png")
+                .unwrap()
+                .is_some()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn batch_rechecks_removed_roots_and_new_links() {
+        let (root, outside, link) = crate::testutil::temp_junction_dir("sprite_batch_link", "late");
+        let held = root.join("held");
+        fs::rename(&link, &held).unwrap();
+        fs::write(outside.join("image.png"), [1]).unwrap();
+        let mut batch = batch_at(&root, Some(&outside));
+        assert!(
+            batch
+                .load(ResourceSource::Mod, "missing.png")
+                .unwrap()
+                .is_none()
+        );
+        fs::rename(&held, &link).unwrap();
+        assert!(batch.load(ResourceSource::Mod, "late/image.png").is_err());
+        fs::remove_dir(&link).unwrap();
+        fs::remove_dir(&root).unwrap();
+        assert!(batch.load(ResourceSource::Mod, "missing.png").is_err());
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("restored.png"), [2]).unwrap();
+        assert!(
+            batch
+                .load(ResourceSource::Mod, "restored.png")
+                .unwrap()
+                .is_some()
+        );
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
+    fn cached_batch_prepares_no_roots_and_closed_batch_keeps_no_media() {
+        use crate::models::ResourceOwnerKind;
+        use crate::services::project::{
+            PerformanceTrace, close_project_session, open_project_session_traced,
+        };
+        let root = temp_dir("sprite_batch_cache_lifetime");
+        fs::write(root.join("cached.png"), [1]).unwrap();
+        fs::write(root.join("late.png"), [2]).unwrap();
+        let manifest =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("sprite.test"))
+                .unwrap();
+        let resource = super::super::refs::resource_ref(
+            ResourceSource::Mod,
+            "cached.png",
+            ResourceOwnerKind::Ship,
+            "a",
+            "sprite",
+        );
+        let mut first = SpriteReadBatch::new(&manifest.session_id).unwrap();
+        let expected = first.data_url(&resource).unwrap();
+        let mut cached = SpriteReadBatch::new(&manifest.session_id).unwrap();
+        assert_eq!(cached.data_url(&resource).unwrap(), expected);
+        assert!(cached.mod_root.boundary.is_none());
+        assert!(cached.core_root.is_none());
+        let handle = session_handle(&manifest.session_id).unwrap();
+        super::super::super::cache::lock_session(&handle)
+            .unwrap()
+            .projection_pending = true;
+        assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
+        close_project_session(manifest.session_id.clone()).unwrap();
+        assert!(SpriteReadBatch::new(&manifest.session_id).is_err());
+        let late = ResourceRef {
+            rel_path: "late.png".into(),
+            ..resource
+        };
+        assert!(first.data_url(&late).unwrap().is_some());
+        assert!(!media::cached_sprite_media_contains(
+            &manifest.session_id,
+            &media_resource_key(&late)
+        ));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     fn load_ship_sprite_data(
         mod_root: &Path,

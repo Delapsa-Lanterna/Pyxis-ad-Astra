@@ -1,4 +1,4 @@
-use super::super::resources::{media_resource_key, sprite_resource_bytes, sprite_source_context};
+use super::super::resources::SpriteReadBatch;
 use super::super::{
     cache::{lock_ready_session, session_handle},
     definitions::entity_resources::{
@@ -18,18 +18,10 @@ pub fn query_resource_data_urls(
     session_id: &str,
     resources: Vec<ResourceRef>,
 ) -> AppResult<ResourceDataUrlBatchResult> {
-    let context = sprite_source_context(session_id)?;
-    let mut loaded: BTreeMap<String, Option<String>> = BTreeMap::new();
+    let mut batch = SpriteReadBatch::new(session_id)?;
     let mut entries = Vec::with_capacity(resources.len());
     for resource in resources {
-        let resource_key = media_resource_key(&resource);
-        let data_url = if let Some(data_url) = loaded.get(&resource_key) {
-            data_url.clone()
-        } else {
-            let bytes = sprite_resource_bytes(&context, &resource)?;
-            loaded.insert(resource_key, bytes.data_url.clone());
-            bytes.data_url
-        };
+        let data_url = batch.data_url(&resource)?;
         entries.push(ResourceDataUrlBatchEntry {
             key: resource.key,
             source: resource.source,
@@ -62,7 +54,7 @@ pub fn query_draft_resources(
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::resources::sprites::sprite_read_count;
+    use super::super::super::resources::{media_resource_key, sprites::sprite_read_count};
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};

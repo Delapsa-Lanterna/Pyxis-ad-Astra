@@ -15,8 +15,8 @@
 - `src-tauri/src/services/project/query/hull_references.rs`：舰体引用、槽位及来源选择查询。
 - `src-tauri/src/services/project/query/resources.rs`：草稿资源引用与授权资源批量 data URL 查询。
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
-- `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和舰体引用解析。
-- `src-tauri/src/services/project/resources/sprites.rs`：贴图授权、字节读取、格式和相对路径解析。
+- `src-tauri/src/services/project/resources/refs.rs`：媒体资源身份键、业务引用构造和舰体引用解析。
+- `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
 - `src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
@@ -69,7 +69,7 @@
 
 1. 组件或 schema 选项携带 `ResourceRef` 请求资源。
 2. 通用媒体服务合并同帧请求并以 single-flight 查询后端。
-3. 后端按 Mod 优先、Core fallback 解析路径并读取字节。
+3. 后端批次按媒体资源键复用本次结果与缓存，按实际访问准备 Mod/Core 根边界并逐文件授权读取。
 4. 返回 data URL 进入前端 LRU 缓存并驱动渲染。
 
 ### 草稿资源查询
@@ -111,8 +111,12 @@
 - 可见元素 ref 再次登记同一 DOM 时必须保持可见身份和当前资源结果。
 - 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行严禁扫描全部登记项。
 - 各缓存必须消费完整 settings 的启动预算；闲置结果必须同时受条数及字节限制并按 LRU 逐出，活跃工作集必须保持引用；合批必须消费共享 single-flight 与所属失效。
+- 媒体批次必须捕获就绪 session 的来源根，按来源与规范化路径复用本次结果，结束后必须释放批次状态；跨查询保留必须归媒体缓存。
 - 媒体批次的失败资源必须按物理资源键建立一次结果索引，再按键交付可见消费者；错误后的下一次活跃集合请求必须释放已失败票据并重试。
+- 媒体根边界必须按实际访问在批次内准备并复用，每次实际读取必须复核根目录状态，目标必须逐次消费正式路径与已有父链授权。
 - 媒体消费者必须分别登记场景、列表、详情及控件集合；可见图片必须优先读取，邻近预读必须在可见解码后消费窗口队列；引用替换、模块切换和关闭必须释放所属引用与等待。
+- 媒体缓存命中必须先于根边界准备，全部命中时根准备次数必须为零；关闭 session 后的迟到结果严禁写入媒体缓存。
+- 媒体读取必须优先交付实际 Mod 文件，回退或显式读取 Core 时必须校验所属 Core 根；来源目录变化必须在实际访问时核对。
 - 引用解析只接受 Mod 根内安全相对路径；绝对路径、`..` 与链接逃逸必须拒绝。
 - 指纹不一致即丢弃快照并重建；缓存损坏或不可写只降级，严禁读取旧快照。
 - 整批返回必须先核对数量、顺序、完整资源身份与 nullable data URL，再发布所属缓存。

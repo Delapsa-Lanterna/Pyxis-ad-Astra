@@ -3,7 +3,8 @@ pub(in crate::services) mod fonts;
 mod refs;
 pub(in crate::services) mod sprites;
 
-pub(super) use refs::{
-    HullReferenceResolver, media_resource_key, resource_ref, sprite_resource_bytes,
-    sprite_source_context,
-};
+#[cfg(test)]
+pub(super) use refs::media_resource_key;
+pub(super) use refs::{HullReferenceResolver, resource_ref};
+
+pub(super) use sprites::SpriteReadBatch;
