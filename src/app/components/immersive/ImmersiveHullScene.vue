@@ -49,10 +49,9 @@ import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { warningNotice } from '@/shared/lib/errors';
-import type { ResourceRef } from '@/shared/types';
 import ImmersiveText from './ImmersiveText.vue';
-import { engineFallback, loadEngineFallbacks } from '@/app/renderers/immersive/engine-fallback';
-import { createReadTicket, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
+import { useEngineRendering } from '@/app/composables/editors/use-engine-rendering';
+import { drawEngineVisual, engineColor, type EngineImages } from '@/app/renderers/editors/engine-renderer';
 const props = defineProps<{
   variant: ImmersiveHullProjection;
   sessionId: string;
@@ -104,7 +103,6 @@ function sceneVariants(root: ImmersiveHullProjection, visited = new Set<string>(
 const resources = () =>
   sceneVariants(props.variant).flatMap((variant) => [
     ...(variant.hull.sprite ? [variant.hull.sprite] : []),
-    ...Object.values(variant.engineResources).filter((resource) => resource.key.startsWith('engine')),
     ...variant.weapons.flatMap((weapon) => [
       ...weapon.layers.map((layer) => layer.resource),
       ...(weapon.loadedMissile ? [weapon.loadedMissile.resource] : []),
@@ -127,60 +125,14 @@ const decoded = useResourceImages(
 );
 const imageCache = windowImageRuntime();
 let releaseThumbnail: (() => void) | null = null;
-const engineTints = new Map<string, { canvas: HTMLCanvasElement; release: () => void }>();
-const paintedTints = new Set<string>();
-let engineRead: ReadTicket<Record<string, HTMLImageElement>> | null = null;
-function engineImage(effect: string, resource: ResourceRef | undefined, image: HTMLImageElement | null, color: unknown[]) {
-  const original = Boolean(image);
-  image ??= engineFallback(effect);
-  if (!image) {
-    if (!engineRead) {
-      const request = (engineRead = createReadTicket({ lane: 'bundled-engines' }, loadEngineFallbacks));
-      void request.promise
-        .then(() => {
-          request.accept();
-          paint();
-        })
-        .catch((error) => {
-          if (!isReadInvalidated(error)) feedback.error(error, '读取引擎回退图片失败');
-        });
-    }
-    return null;
-  }
-  const width = original ? image.width : 32 * window.devicePixelRatio,
-    height = original ? image.height : width;
-  const key = JSON.stringify([
-    original ? 'engine-source-atop' : 'engine-fallback',
-    props.sessionId,
-    effect,
-    resource ? imageCache.key(props.sessionId, resource) : null,
-    resource ? imageCache.revision(props.sessionId, resource) : 0,
-    width,
-    height,
-    color.slice(0, 3),
-  ]);
-  paintedTints.add(key);
-  let entry = engineTints.get(key);
-  if (!entry) {
-    let tinted = imageCache.thumbnail(key);
-    let release: () => void;
-    if (tinted) release = imageCache.retainThumbnail(key);
-    else {
-      tinted = document.createElement('canvas');
-      tinted.width = width;
-      tinted.height = height;
-      const paint = tinted.getContext('2d')!;
-      paint.drawImage(image, 0, 0, width, height);
-      paint.globalCompositeOperation = 'source-atop';
-      paint.fillStyle = 'rgb(' + color.slice(0, 3).join(',') + ')';
-      paint.fillRect(0, 0, width, height);
-      release = imageCache.storeThumbnail(key, props.sessionId, resource ? [resource] : [], tinted);
-    }
-    entry = { canvas: tinted, release };
-    engineTints.set(key, entry);
-  }
-  return entry.canvas;
-}
+const engines = useEngineRendering(
+  () => props.sessionId,
+  paint,
+  () =>
+    !props.iconSize &&
+    sceneVariants(props.variant).some((variant) => Array.isArray(variant.spec.engineSlots) && variant.spec.engineSlots.length > 0),
+  props.resourceUrl,
+);
 const sceneSignature = computed(() =>
   JSON.stringify([
     'scene',
@@ -222,9 +174,11 @@ const selection = useCanvasSelection(
   false,
 );
 function paint() {
+  if (canvas.value) engines.paint(paintScene);
+}
+function paintScene(engineImages: EngineImages) {
   const surface = canvas.value;
   if (!surface) return;
-  paintedTints.clear();
   const ctx = surface.getContext('2d')!,
     size = viewport.size(),
     center = viewport.center(),
@@ -266,19 +220,14 @@ function paint() {
       ctx.translate(point.x, point.y);
       ctx.scale(fighterScale, fighterScale);
       if (image) ctx.translate(Number(origin[0]) - image.width / 2, image.height / 2 - Number(origin[1]));
-      drawVariant(ctx, props.variant, new Set());
+      drawVariant(ctx, props.variant, new Set(), engineImages);
       ctx.restore();
     }
   } else {
     ctx.scale(scale, scale);
-    drawVariant(ctx, props.variant, new Set());
+    drawVariant(ctx, props.variant, new Set(), engineImages);
   }
   ctx.restore();
-  for (const [key, entry] of engineTints)
-    if (!paintedTints.has(key)) {
-      entry.release();
-      engineTints.delete(key);
-    }
   if (props.iconSize && decoded.ready() && resources().length) {
     const finished = document.createElement('canvas');
     finished.width = surface.width;
@@ -288,12 +237,12 @@ function paint() {
     releaseThumbnail = imageCache.storeThumbnail(key, props.sessionId, resources(), finished);
   }
 }
-function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, parents: Set<string>) {
+function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, parents: Set<string>, engineImages: EngineImages) {
   paintImmersiveHull(
     ctx,
     variant,
     decoded.image,
-    { beforeHull: props.iconSize ? undefined : drawEngines, afterWeapons: drawSlots },
+    { beforeHull: props.iconSize ? undefined : (ctx, variant) => drawEngines(ctx, variant, engineImages), afterWeapons: drawSlots },
     parents,
   );
 }
@@ -322,34 +271,22 @@ function drawSlots(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjecti
       });
   }
 }
-function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection) {
+function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, engineImages: EngineImages) {
   const slots = Array.isArray(variant.spec.engineSlots) ? variant.spec.engineSlots.filter(isRowData) : [];
   for (const engine of slots) {
-    const style = engine.style === 'CUSTOM' && isRowData(engine.styleSpec) ? engine.styleSpec : variant.engineStyles[String(engine.style)];
-    const color =
-        isRowData(style) && Array.isArray(style.engineColor)
-          ? style.engineColor
-          : IMMERSIVE_COLORS.primary
-              .slice(1)
-              .match(/../g)!
-              .map((hex) => parseInt(hex, 16)),
-      position = immersiveHullPoint(engine.location as number[]);
-    ctx.save();
-    ctx.translate(position.x, position.y);
-    ctx.rotate(((-Number(engine.angle) - 90) * Math.PI) / 180);
-    ctx.globalCompositeOperation = 'lighter';
-    for (const [key, width, height, alpha] of [
-      ['engineGlow', Number(engine.length) * 0.5, Number(engine.width), 0.6],
-      ['engineFlame', Number(engine.length) * 0.45, Number(engine.width), 0.6],
-      ['engineHitGlow', Number(engine.width) * 2, Number(engine.width) * 2, 0.6],
-    ] as const) {
-      const resource = variant.engineResources[key],
-        image = resource ? decoded.image(resource) : null;
-      ctx.globalAlpha = alpha;
-      const tinted = engineImage(key, resource, image, color);
-      if (tinted) ctx.drawImage(tinted, key === 'engineHitGlow' ? -width / 2 : 0, -height / 2, width, height);
-    }
-    ctx.restore();
+    drawEngineVisual(
+      ctx,
+      {
+        point: immersiveHullPoint(engine.location as number[]),
+        rotation: ((-Number(engine.angle) - 90) * Math.PI) / 180,
+        width: Number(engine.width),
+        length: Number(engine.length),
+        scale: 1,
+        alpha: 1,
+        color: engineColor(engine, engineImages.styles),
+      },
+      engineImages,
+    );
   }
 }
 function activateSelected() {
@@ -424,10 +361,7 @@ onMounted(() => {
   fit();
 });
 onScopeDispose(() => {
-  engineRead?.invalidate('consumer');
   releaseThumbnail?.();
-  for (const entry of engineTints.values()) entry.release();
-  engineTints.clear();
   observer?.disconnect();
   stopRatio?.();
   navigation.finish();

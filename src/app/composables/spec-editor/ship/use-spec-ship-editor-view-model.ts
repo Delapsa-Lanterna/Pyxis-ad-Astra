@@ -32,6 +32,7 @@ import { useResourceReference } from '../../editors/use-resource-reference';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
 import { renderSpecShipEditorScene } from '@/app/renderers/spec-editor/ship/spec-ship-scene';
+import { useEngineRendering } from '../../editors/use-engine-rendering';
 export interface SpecShipEditorProps {
   modRoot: string;
   sessionId: string;
@@ -146,6 +147,11 @@ export function useSpecShipEditorViewModel(
       .filter(({ slot }) => str(slot.type).toUpperCase() === 'LAUNCH_BAY'),
   );
   const palette = useCanvasPalette(draw);
+  const engines = useEngineRendering(
+    () => props.sessionId,
+    draw,
+    () => geometry.value.engines.length > 0,
+  );
   const images = useEditorImages(
     () => ({ sprite: props.spriteData || '' }),
     () => {
@@ -313,27 +319,30 @@ export function useSpecShipEditorViewModel(
       mode.value === 'overview' || mode.value === 'ranges'
         ? point
         : [(point[1] || 0) - (g.center[1] || 0), (g.center[0] || 0) - (point[0] || 0)].map((v) => Math.round(v * 2) / 2);
-    renderSpecShipEditorScene(c.getContext('2d')!, {
-      base: {
-        ...viewport.size(),
-        center: viewport.center(),
-        scale: viewport.scale.value,
-        palette: palette.value,
-        mirrorY: state.mirrorMode.value && ['weapon', 'launchBay', 'engine', 'bounds'].includes(mode.value) ? toCanvas(g.center).y : null,
-        cursor: pointer.inside ? { point: toCanvas(point), label: cursorLabel(coord) } : null,
-      },
-      geometry: g,
-      interaction: {
-        mode: mode.value,
-        target: state.target.value,
-        hovered: state.hovered.value,
-        dragKind: canvas.dragKind.value,
-        preview: state.preview.value,
-        mirror: state.mirrorMode.value,
-      },
-      resources: { sprite, tintedSprite: sprite ? images.tintImage(sprite, [127, 127, 127]) : null },
-      weapons: { items: builtins.weapons.value, image: builtins.image },
-    });
+    engines.paint((engineImages) =>
+      renderSpecShipEditorScene(c.getContext('2d')!, {
+        engineImages,
+        base: {
+          ...viewport.size(),
+          center: viewport.center(),
+          scale: viewport.scale.value,
+          palette: palette.value,
+          mirrorY: state.mirrorMode.value && ['weapon', 'launchBay', 'engine', 'bounds'].includes(mode.value) ? toCanvas(g.center).y : null,
+          cursor: pointer.inside ? { point: toCanvas(point), label: cursorLabel(coord) } : null,
+        },
+        geometry: g,
+        interaction: {
+          mode: mode.value,
+          target: state.target.value,
+          hovered: state.hovered.value,
+          dragKind: canvas.dragKind.value,
+          preview: state.preview.value,
+          mirror: state.mirrorMode.value,
+        },
+        resources: { sprite, tintedSprite: sprite ? images.tintImage(sprite, [127, 127, 127]) : null },
+        weapons: { items: builtins.weapons.value, image: builtins.image },
+      }),
+    );
   }
   function setField(key: string, value: RowData[string]) {
     if (key === 'spriteName') {

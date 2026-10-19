@@ -4,7 +4,6 @@ import type {
   JointValue,
   JointHullProjection,
   RowData,
-  ResourceRef,
   ReadonlyVariantEntry,
   JointPreviewSpec,
   DeepReadonly,
@@ -21,8 +20,6 @@ export interface ImmersiveHullProjection {
   hull: DeepReadonly<Pick<JointHullProjection, 'sprite' | 'modules'>>;
   weapons: Array<MountedWeaponImages & { id: string; name: string; builtin: boolean }>;
   modules: Array<{ slot: DeepReadonly<RowData>; variant: ImmersiveHullProjection }>;
-  engineStyles: Readonly<RowData>;
-  engineResources: Record<string, ResourceRef>;
 }
 
 export function immersiveCatalogScene(entry: ReadonlyVariantEntry): ImmersiveHullProjection | null {
@@ -62,8 +59,6 @@ function variantHullScene(
       };
     }),
     modules: [],
-    engineStyles: {},
-    engineResources: {},
   };
 }
 

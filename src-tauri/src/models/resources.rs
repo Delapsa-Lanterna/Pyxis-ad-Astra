@@ -5,6 +5,14 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct EngineRenderAssets {
+    pub styles: BTreeMap<String, Value>,
+    pub versions: Vec<super::FileVersion>,
+    pub resources: BTreeMap<String, ResourceRef>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ResourceDataUrlBatchEntry {
     pub key: String,
     pub source: ResourceSource,

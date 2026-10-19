@@ -45,6 +45,7 @@ function segment(path, index) {
 /** @param {string} path @returns {string | null} */
 function appDomain(path) {
   const parts = path.split('/');
+  if (parts[2] === 'renderers') return parts.at(-1)?.replace(/\.ts$/, '') ?? null;
   if (parts[2] === 'components') return parts[3] ?? null;
   if (parts[2] === 'composables') {
     // Composables may sit in domain subdirectories; the semantic domain is

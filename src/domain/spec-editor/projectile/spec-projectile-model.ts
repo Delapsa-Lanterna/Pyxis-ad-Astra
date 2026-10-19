@@ -64,6 +64,8 @@ export function projectProjectileGeometry(spec: RowData) {
       ? (spec.engineSlots as RowData[]).map((slot) => {
           const loc = arr(slot.loc, [0, 0]);
           return {
+            style: slot.style,
+            styleSpec: slot.styleSpec,
             point: { x: loc[0]!, y: -loc[1]! },
             angle: num(slot.angle, 180),
             width: num(slot.width, 8),

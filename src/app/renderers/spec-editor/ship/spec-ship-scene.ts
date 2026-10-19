@@ -1,5 +1,6 @@
 import type { ShipEditorMode, ShipHoverPreview, EditorTarget } from '@/domain/editors/editor-types';
-import { centerMarkerStyle, weaponSlotStyle, launchBayPortStyle, engineStyle } from '../../editors/canvas-styles';
+import { centerMarkerStyle, weaponSlotStyle, launchBayPortStyle, controlPointStyle } from '../../editors/canvas-styles';
+import { drawEngineVisual, engineColor, type EngineImages } from '../../editors/engine-renderer';
 import type { ShipGeometry } from '@/domain/spec-editor/ship/spec-ship-editing';
 
 import { bayPorts } from '@/domain/spec-editor/ship/spec-ship-editing';
@@ -7,7 +8,7 @@ import { shipCanvasPoint, shipRelativeToAbsolute } from '@/domain/editors/lib/ge
 import { mirrorAngleDeg, mirrorOffsetPoint, mirrorBayPort, MIRROR_EPSILON } from '@/domain/editors/lib/mirror';
 import {
   drawCrossMarker,
-  drawEngineVisual,
+  drawControlPoint,
   drawLaunchBayPortVisual,
   drawRadiusField,
   drawRadiusFill,
@@ -19,6 +20,7 @@ import { renderCanvasBounds, renderCanvasBase, renderCanvasCursor, type CanvasSc
 import { renderMountedWeapons, type MountedWeaponScene } from '../../editors/weapon-images';
 
 export interface SpecShipEditorScene {
+  engineImages: EngineImages;
   base: CanvasScene;
   geometry: ShipGeometry;
   interaction: {
@@ -130,42 +132,60 @@ function renderPreview(ctx: CanvasRenderingContext2D, scene: SpecShipEditorScene
       style: weaponSlotStyle(scene.geometry.slots[scene.interaction.target!.i]!.type, 1),
     });
   }
-  if (preview.kind === 'engineCopy' || preview.kind === 'engineMove') {
-    drawEngineVisual(ctx, {
-      angle: preview.engine.angle,
-      length: preview.engine.length,
-      point: relativeToCanvas(scene, preview.coord),
-      scale: scene.base.scale,
-      width: preview.engine.width,
-      style: engineStyle(scene.base.palette, 0.55, true, true),
-    });
-    if (scene.interaction.mirror && Math.abs(preview.coord[1] || 0) > MIRROR_EPSILON) {
-      drawEngineVisual(ctx, {
-        angle: mirrorAngleDeg(preview.engine.angle),
-        length: preview.engine.length,
-        point: relativeToCanvas(scene, mirrorOffsetPoint(preview.coord)),
-        scale: scene.base.scale,
-        width: preview.engine.width,
-        style: engineStyle(scene.base.palette, 0.55, true, true),
-      });
-    }
-  }
-
-  if (preview.kind === 'engineSize' && scene.geometry.engines[scene.interaction.target!.i]) {
-    drawEngineVisual(ctx, {
-      angle: scene.geometry.engines[scene.interaction.target!.i]!.angle,
-      length: preview.length,
-      point: relativeToCanvas(scene, scene.geometry.engines[scene.interaction.target!.i]!.location),
-      scale: scene.base.scale,
-      width: preview.width,
-      style: engineStyle(scene.base.palette, 0.55, true, true),
-    });
-  }
   ctx.restore();
   renderPreviewBounds(ctx, scene, preview);
 }
+function engineVisuals(scene: SpecShipEditorScene) {
+  const { mode, target, hovered, preview, mirror } = scene.interaction;
+  if (mode !== 'engine' && mode !== 'overview') return [];
+  const items = scene.geometry.engines
+    .map((engine, i) => ({
+      engine,
+      point: relativeToCanvas(scene, engine.location),
+      alpha: 1,
+      selected: mode === 'engine' && i === target?.i,
+      hovered: mode === 'engine' && hovered?.kind === 'engine' && hovered.i === i,
+    }))
+    .filter((_, i) => !(preview?.kind === 'engineMove' && mode === 'engine' && i === target?.i));
+  if (preview?.kind === 'engineCopy' || preview?.kind === 'engineMove') {
+    items.push({ engine: preview.engine, point: relativeToCanvas(scene, preview.coord), alpha: 0.55, selected: true, hovered: true });
+    if (mirror && Math.abs(preview.coord[1] || 0) > MIRROR_EPSILON)
+      items.push({
+        engine: { ...preview.engine, angle: mirrorAngleDeg(preview.engine.angle) },
+        point: relativeToCanvas(scene, mirrorOffsetPoint(preview.coord)),
+        alpha: 0.55,
+        selected: true,
+        hovered: true,
+      });
+  }
+  if (preview?.kind === 'engineSize') {
+    const engine = scene.geometry.engines[target!.i]!;
+    items.push({
+      engine: { ...engine, length: preview.length, width: preview.width },
+      point: relativeToCanvas(scene, engine.location),
+      alpha: 0.55,
+      selected: true,
+      hovered: true,
+    });
+  }
+  return items;
+}
 export function renderSpecShipEditorScene(ctx: CanvasRenderingContext2D, scene: SpecShipEditorScene): void {
   renderCanvasBase(ctx, scene.base);
+  const engines = engineVisuals(scene);
+  for (const { engine, point, alpha } of engines)
+    drawEngineVisual(
+      ctx,
+      {
+        ...engine,
+        point,
+        alpha,
+        rotation: (-engine.angle * Math.PI) / 180,
+        scale: scene.base.scale,
+        color: engineColor(engine, scene.engineImages.styles),
+      },
+      scene.engineImages,
+    );
   if (scene.resources.sprite) {
     const bottomLeft = shipToCanvas(scene, [0, 0]);
     const drawWidth = scene.resources.sprite.height * scene.base.scale;
@@ -252,24 +272,12 @@ export function renderSpecShipEditorScene(ctx: CanvasRenderingContext2D, scene: 
         ),
       });
     });
-  if (scene.interaction.mode === 'engine' || scene.interaction.mode === 'overview')
-    scene.geometry.engines.forEach((eng, i) => {
-      if (scene.interaction.preview?.kind === 'engineMove' && scene.interaction.mode === 'engine' && i === scene.interaction.target?.i)
-        return;
-      drawEngineVisual(ctx, {
-        angle: eng.angle,
-        length: eng.length,
-        point: relativeToCanvas(scene, eng.location),
-        scale: scene.base.scale,
-        width: eng.width,
-        style: engineStyle(
-          scene.base.palette,
-          1,
-          scene.interaction.mode === 'engine' && i === scene.interaction.target?.i,
-          scene.interaction.mode === 'engine' && scene.interaction.hovered?.kind === 'engine' && scene.interaction.hovered.i === i,
-        ),
-      });
-    });
+  for (const { point, alpha, selected, hovered } of engines) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawControlPoint(ctx, point, controlPointStyle(scene.base.palette, selected, hovered, selected || hovered ? 7 : 5));
+    ctx.restore();
+  }
   if (scene.interaction.preview) renderPreview(ctx, scene, scene.interaction.preview);
   renderCanvasCursor(ctx, scene.base);
 }

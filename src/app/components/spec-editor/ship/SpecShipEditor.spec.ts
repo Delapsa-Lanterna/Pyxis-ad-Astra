@@ -8,6 +8,10 @@ import { editorUiStubs } from '@/test/ui-stubs';
 import type { SpecShipEditorProps } from '@/app/composables/spec-editor/ship/use-spec-ship-editor-view-model';
 import type { RowData } from '@/shared/types/index';
 import SpecShipEditor from './SpecShipEditor.vue';
+vi.mock('@/services/engine-assets.service', () => ({
+  queryEngineRenderAssets: async () => ({ styles: {}, versions: [], resources: {} }),
+  hasEngineAssetsInvalidation: () => false,
+}));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ warning: vi.fn(), error: vi.fn() }) }));
 vi.mock('@/shared/runtime/dialog.runtime', () => ({ pickImageFileDialog: vi.fn(async () => null) }));
 vi.mock('@/services/spec-editor.service', () => ({

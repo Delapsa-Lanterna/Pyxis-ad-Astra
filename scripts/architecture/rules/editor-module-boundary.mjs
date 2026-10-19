@@ -19,6 +19,18 @@ export const editorModuleBoundaryRule = {
     for (const file of files) {
       if (!frontendFile(file.rel) || specFile(file.rel)) continue;
       const current = classifyFrontendPath(file.rel);
+      if (current.layer !== 'test' && current.layer === 'app') {
+        if (current.domain !== 'engine-renderer' && /['"]engine(?:Glow|Flame|HitGlow)['"]/.test(file.text))
+          failures.push(`${file.rel}: engine effects must delegate layer drawing to the engine renderer`);
+        if (current.domain !== 'engine-renderer' && /\.engineColor\b/.test(file.text))
+          failures.push(`${file.rel}: engine colors must be resolved by the engine renderer`);
+        if (
+          current.domain !== 'engine-rendering' &&
+          /['"](?:rgb\(|engine-source-atop|engine-fallback)['"]/.test(file.text) &&
+          /engine/i.test(file.text)
+        )
+          failures.push(`${file.rel}: engine tint products must belong to the engine rendering runtime`);
+      }
       if (!isEditorSurface(current)) continue;
       if (/\bqueryCsvTableWindow\s*\(/.test(file.text)) {
         failures.push(`${file.rel}: editor candidates must use source/entity query, not CSV windows`);

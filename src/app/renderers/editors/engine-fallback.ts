@@ -1,6 +1,6 @@
-import glow from '@/assets/immersive/engines/glow.svg';
-import flame from '@/assets/immersive/engines/flame.svg';
-import hitGlow from '@/assets/immersive/engines/hit-glow.svg';
+import glow from '@/assets/engines/glow.svg';
+import flame from '@/assets/engines/flame.svg';
+import hitGlow from '@/assets/engines/hit-glow.svg';
 
 let images: Promise<Record<string, HTMLImageElement>> | null = null;
 const ready: Record<string, HTMLImageElement> = {};

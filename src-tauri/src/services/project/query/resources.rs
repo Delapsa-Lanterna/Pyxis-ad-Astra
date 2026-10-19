@@ -14,6 +14,54 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+pub fn query_engine_render_assets(
+    session_id: &str,
+) -> AppResult<crate::models::EngineRenderAssets> {
+    use super::super::{resources::resource_ref, sources};
+    use crate::models::{EngineRenderAssets, ResourceOwnerKind, ResourceSource};
+    let handle = session_handle(session_id)?;
+    let (mod_root, game_root) = {
+        let session = lock_ready_session(&handle)?;
+        (
+            session.manifest.mod_root.clone(),
+            session.manifest.starsector_root.clone(),
+        )
+    };
+    let mut roots = Vec::new();
+    if let Some(root) = game_root {
+        roots.push(sources::core::core_dir(&root)?);
+    }
+    roots.push(mod_root.into());
+    let mut result = EngineRenderAssets {
+        styles: BTreeMap::new(),
+        versions: Vec::new(),
+        resources: BTreeMap::new(),
+    };
+    for root in roots {
+        let (styles, version) = sources::engine_styles::read_engine_styles(&root)?;
+        result.styles.extend(styles);
+        result.versions.push(version);
+    }
+    for (key, path) in [
+        ("engineGlow", "graphics/fx/engineglow32.png"),
+        ("engineFlame", "graphics/fx/engineflame32.png"),
+        ("engineHitGlow", "graphics/fx/hit_glow.png"),
+    ] {
+        result.resources.insert(
+            key.into(),
+            resource_ref(
+                ResourceSource::Mod,
+                path,
+                ResourceOwnerKind::Ship,
+                "engines",
+                key,
+            ),
+        );
+    }
+    drop(lock_ready_session(&handle)?);
+    Ok(result)
+}
+
 pub fn query_resource_data_urls(
     session_id: &str,
     resources: Vec<ResourceRef>,
@@ -61,6 +109,69 @@ mod tests {
     use crate::services::project::cache::media::cached_sprite_media_contains;
 
     use crate::testutil::{temp_dir, temp_linked_dir};
+
+    #[test]
+    fn engine_assets_merge_sources_and_keep_images_independent_of_styles() {
+        let root = temp_dir("engine_assets");
+        let local = root.join("mod");
+        let game = root.join("game");
+        let core = game.join("starsector-core");
+        for path in [&local, &core] {
+            std::fs::create_dir_all(path.join("data/config")).unwrap();
+        }
+        let path = local.join("data/config/engine_styles.json");
+        std::fs::write(
+            core.join("data/config/engine_styles.json"),
+            r#"{"A":{"engineColor":[1,2,3]},"B":{"engineColor":[4,5,6]}}"#,
+        )
+        .unwrap();
+        std::fs::write(&path, r#"{"A":{"engineColor":[7,8,9]}}"#).unwrap();
+        let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+        let manifest = open_project_session_traced(&local, Some(&game), &mut trace).unwrap();
+        let assets = query_engine_render_assets(&manifest.session_id).unwrap();
+        assert_eq!(
+            assets.styles["A"]["engineColor"],
+            serde_json::json!([7, 8, 9])
+        );
+        assert_eq!(
+            assets.styles["B"]["engineColor"],
+            serde_json::json!([4, 5, 6])
+        );
+        assert_eq!(assets.versions[1], crate::io::file_version(&path).unwrap());
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_file(core.join("data/config/engine_styles.json")).unwrap();
+        let empty = query_engine_render_assets(&manifest.session_id).unwrap();
+        assert!(empty.styles.is_empty());
+        assert_eq!(empty.resources.len(), 3);
+        assert!(
+            empty
+                .resources
+                .values()
+                .all(|resource| resource.source == ResourceSource::Mod)
+        );
+        std::fs::create_dir_all(local.join("graphics/fx")).unwrap();
+        std::fs::write(local.join("graphics/fx/engineglow32.png"), [1, 2, 3]).unwrap();
+        assert!(
+            query_resource_data_urls(
+                &manifest.session_id,
+                vec![empty.resources["engineGlow"].clone()]
+            )
+            .unwrap()
+            .entries[0]
+                .data_url
+                .is_some()
+        );
+        std::fs::write(&path, "[]").unwrap();
+        assert_eq!(
+            query_engine_render_assets(&manifest.session_id)
+                .unwrap_err()
+                .code(),
+            "parse.json_syntax"
+        );
+        close_project_session(manifest.session_id.clone()).unwrap();
+        assert!(query_engine_render_assets(&manifest.session_id).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     fn general_purpose_base64(bytes: &[u8]) -> String {
         use base64::{Engine as _, engine::general_purpose};

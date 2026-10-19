@@ -10,6 +10,13 @@ use crate::{
 use std::collections::BTreeMap;
 
 #[tauri::command(async)]
+pub fn query_engine_render_assets(
+    session_id: String,
+) -> Result<crate::models::EngineRenderAssets, AppError> {
+    services::query_engine_render_assets(&session_id)
+}
+
+#[tauri::command(async)]
 pub fn query_resource_data_urls(
     payload: ResourceDataUrlBatchPayload,
 ) -> Result<ResourceDataUrlBatchResult, AppError> {

@@ -4,12 +4,20 @@ import { installCanvas2DStub } from '@/test/canvas-stub';
 import { variantJointFixture } from '@/test/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import ImmersiveHullScene from './ImmersiveHullScene.vue';
-import { loadEngineFallbacks } from '@/app/renderers/immersive/engine-fallback';
+import { loadEngineFallbacks } from '@/app/renderers/editors/engine-fallback';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
-const mocks = vi.hoisted(() => ({ images: new Map<string, HTMLImageElement>(), engines: {} as Record<string, HTMLImageElement> }));
-vi.mock('@/app/renderers/immersive/engine-fallback', () => ({
+const mocks = vi.hoisted(() => ({
+  images: new Map<string, HTMLImageElement>(),
+  engines: {} as Record<string, HTMLImageElement>,
+  resources: {} as import('@/shared/types').EngineRenderAssets['resources'],
+}));
+vi.mock('@/services/engine-assets.service', () => ({
+  queryEngineRenderAssets: async () => ({ styles: {}, versions: [], resources: mocks.resources }),
+  hasEngineAssetsInvalidation: () => false,
+}));
+vi.mock('@/app/renderers/editors/engine-fallback', () => ({
   engineFallback: (key: string) => mocks.engines[key] ?? null,
   loadEngineFallbacks: vi.fn(async () => mocks.engines),
 }));
@@ -32,8 +40,8 @@ afterEach(() => {
 
 describe('variant scene pointer dismissal', () => {
   it('shares three bundled SVG decodes and returns their ready images synchronously', async () => {
-    const actual = await vi.importActual<typeof import('@/app/renderers/immersive/engine-fallback')>(
-      '@/app/renderers/immersive/engine-fallback',
+    const actual = await vi.importActual<typeof import('@/app/renderers/editors/engine-fallback')>(
+      '@/app/renderers/editors/engine-fallback',
     );
     const images: HTMLImageElement[] = [];
     vi.stubGlobal(
@@ -89,7 +97,7 @@ describe('variant scene pointer dismissal', () => {
       .variants[0]!;
     const engine = { location: [0, 0], angle: 180, width: 6, length: 10, style: 'CUSTOM', styleSpec: { engineColor: [30, 60, 90, 255] } };
     variant.spec = { ...variant.spec, engineSlots: [engine, { ...engine, location: [10, 0] }] };
-    variant.engineResources = Object.fromEntries(
+    mocks.resources = Object.fromEntries(
       ['engineGlow', 'engineFlame', 'engineHitGlow'].map((key, index) => {
         const image = new Image();
         image.width = 16;
@@ -98,7 +106,7 @@ describe('variant scene pointer dismissal', () => {
         if (index < ready) mocks.images.set(key + '.png', image);
         return [key, { source: 'core' as const, ownerKind: 'ship' as const, ownerId: 'sample', key, relPath: key + '.png' }];
       }),
-    );
+    ) as import('@/shared/types').EngineRenderAssets['resources'];
     const creates = vi.spyOn(document, 'createElement');
     const fallback = { ...mocks.engines };
     mocks.engines = {};
@@ -107,6 +115,7 @@ describe('variant scene pointer dismissal', () => {
     await flushPromises();
     expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
     const other = mount(ImmersiveHullScene, { props: { variant, sessionId: 'other' }, global: { stubs: { ImmersiveText: true } } });
+    await flushPromises();
     expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(6);
     other.unmount();
     expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
@@ -119,6 +128,13 @@ describe('variant scene pointer dismissal', () => {
     });
     expect(creates.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(allocated + 3);
     expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 3, idleEntries: 0 });
+    await own.setProps({ sessionId: 'replacement' });
+    await flushPromises();
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
+    if (ready === 0) {
+      await own.setProps({ variant: { ...variant, spec: { ...variant.spec, engineSlots: [{ ...engine, styleSpec: {} }] } } });
+      expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(0);
+    }
     own.unmount();
     expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 0, idleEntries: 0 });
     mocks.engines = {};

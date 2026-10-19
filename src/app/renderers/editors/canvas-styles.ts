@@ -53,19 +53,6 @@ export function launchBayPortStyle(alpha: number, hovered = false, accent = fals
   };
 }
 
-export function engineStyle(palette: CanvasPalette, alpha: number, selected: boolean, hovered = false) {
-  return {
-    alpha,
-    body: 'rgba(220, 230, 220, 0.08)',
-    flame: [
-      [0, 'rgba(255, 255, 255, 0.95)'],
-      [0.35, 'rgba(255, 174, 91, 0.75)'],
-      [1, 'rgba(219, 92, 37, 0)'],
-    ] as const,
-    control: controlPointStyle(palette, selected, hovered, selected || hovered ? 7 : 5),
-  };
-}
-
 export function barrelStyle(palette: CanvasPalette, selected: boolean, hovered = false, mirrored = false) {
   return {
     alpha: selected || hovered || mirrored ? 0.8 : 0.5,

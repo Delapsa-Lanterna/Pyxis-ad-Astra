@@ -1,6 +1,13 @@
 import type { ResourceRef, ResourceSource, ResourceOwnerKind } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 
+export type EngineEffect = 'engineGlow' | 'engineFlame' | 'engineHitGlow';
+export interface EngineRenderAssets {
+  styles: RowData;
+  versions: import('./project-identity.types').FileVersion[];
+  resources: Record<EngineEffect, ResourceRef>;
+}
+
 export interface ResourceDataUrlBatchEntry {
   key: string;
   source: ResourceSource;

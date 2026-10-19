@@ -240,3 +240,7 @@ describe('SpecProjectileEditor', () => {
     expect(options).toHaveLength(17);
   });
 });
+vi.mock('@/services/engine-assets.service', () => ({
+  queryEngineRenderAssets: async () => ({ styles: {}, versions: [], resources: {} }),
+  hasEngineAssetsInvalidation: () => false,
+}));

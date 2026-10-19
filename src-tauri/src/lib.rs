@@ -116,6 +116,7 @@ pub fn run() {
             commands::save_joint_edit,
             commands::query_entity_list,
             commands::query_draft_resources,
+            commands::query_engine_render_assets,
             commands::query_resource_data_urls,
             commands::invalidate_project_session,
             commands::refresh_project_sources,

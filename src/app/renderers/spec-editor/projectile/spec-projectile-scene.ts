@@ -1,11 +1,13 @@
 import type { ProjectileGeometry } from '@/domain/spec-editor/projectile/spec-projectile-model';
 import { rgba } from '@/shared/lib/starsector/index';
 import { renderCanvasBase, type CanvasScene } from '../../editors/canvas-scene';
-import { centerMarkerStyle, engineStyle, outlineStyle } from '../../editors/canvas-styles';
-import { drawCrossMarker, drawEngineVisual, drawRadiusFill, strokeCanvasOutline } from '../../editors/canvas-visuals';
+import { centerMarkerStyle, controlPointStyle, outlineStyle } from '../../editors/canvas-styles';
+import { drawCrossMarker, drawControlPoint, drawRadiusFill, strokeCanvasOutline } from '../../editors/canvas-visuals';
+import { drawEngineVisual, engineColor, type EngineImages } from '../../editors/engine-renderer';
 import { drawPixelImage } from '../../editors/canvas-drawing';
 
 export interface SpecProjectileEditorScene {
+  engineImages: EngineImages;
   base: CanvasScene;
   geometry: ProjectileGeometry;
   sprite: HTMLImageElement | null;
@@ -13,6 +15,22 @@ export interface SpecProjectileEditorScene {
 export function renderSpecProjectileEditorScene(ctx: CanvasRenderingContext2D, scene: SpecProjectileEditorScene): void {
   const { base, geometry: g, sprite } = scene;
   renderCanvasBase(ctx, base);
+  const engines = g.engines.map((engine) => ({
+    ...engine,
+    point: { x: base.center.x + engine.point.x * base.scale, y: base.center.y + engine.point.y * base.scale },
+  }));
+  for (const engine of engines)
+    drawEngineVisual(
+      ctx,
+      {
+        ...engine,
+        rotation: (-engine.angle * Math.PI) / 180,
+        scale: base.scale,
+        alpha: 1,
+        color: engineColor(engine, scene.engineImages.styles),
+      },
+      scene.engineImages,
+    );
   ctx.save();
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
@@ -42,11 +60,5 @@ export function renderSpecProjectileEditorScene(ctx: CanvasRenderingContext2D, s
     strokeCanvasOutline(ctx, outlineStyle(base.palette, 1));
   }
   drawCrossMarker(ctx, base.center, centerMarkerStyle(base.palette, false));
-  for (const engine of g.engines)
-    drawEngineVisual(ctx, {
-      ...engine,
-      point: { x: base.center.x + engine.point.x * base.scale, y: base.center.y + engine.point.y * base.scale },
-      scale: base.scale,
-      style: engineStyle(base.palette, 1, false),
-    });
+  for (const engine of engines) drawControlPoint(ctx, engine.point, controlPointStyle(base.palette, false));
 }

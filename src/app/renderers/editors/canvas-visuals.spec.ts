@@ -1,24 +1,16 @@
-import {
-  outlineStyle,
-  controlPointStyle,
-  centerMarkerStyle,
-  weaponSlotStyle,
-  launchBayPortStyle,
-  engineStyle,
-  barrelStyle,
-} from './canvas-styles';
+import { outlineStyle, controlPointStyle, centerMarkerStyle, weaponSlotStyle, launchBayPortStyle, barrelStyle } from './canvas-styles';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { describe, expect, it } from 'vitest';
 import type { Point } from '@/domain/editors/editor-types';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
 import { WEAPON_COLORS } from '@/shared/lib/starsector';
+import { drawEngineVisual, engineColor } from './engine-renderer';
 import {
   drawBarrelVisual,
   drawBoundsVisual,
   drawControlPoint,
   drawCrossMarker,
-  drawEngineVisual,
   drawLaunchBayPortVisual,
   drawRadiusField,
   drawWeaponSlotVisual,
@@ -226,18 +218,32 @@ describe('drawLaunchBayPortVisual', () => {
 });
 
 describe('drawEngineVisual', () => {
-  it('fills the engine body rectangle and a gradient flame', () => {
-    const recorder = createCanvasRecorder();
-    drawEngineVisual(recorder.ctx, { angle: 180, length: 30, point, scale: 1, width: 10, style: engineStyle(palette, 1, false, false) });
-    expect(recorder.calls('fillRect')).toHaveLength(1);
-    expect(recorder.calls('createLinearGradient')[0]!.args).toEqual([0, 0, 30, 0]);
-    expect(recorder.calls('addColorStop')).toHaveLength(3);
+  it.each([1, 0.55])('draws three additive layers with %s opacity and restores the context', (alpha) => {
+    const recorder = createCanvasRecorder(),
+      bitmap = {} as HTMLCanvasElement;
+    drawEngineVisual(
+      recorder.ctx,
+      { rotation: Math.PI, length: 30, point, scale: 2, width: 10, alpha, color: [1, 2, 3] },
+      { styles: {}, image: () => bitmap },
+    );
+    expect(recorder.calls('drawImage').map((call) => ({ args: call.args, alpha: call.alpha, composite: call.composite }))).toEqual(
+      [
+        [0, -5, 15, 10],
+        [0, -5, 13.5, 10],
+        [-10, -10, 20, 20],
+      ].map((rect) => ({ args: [bitmap, ...rect], alpha: alpha * 0.6, composite: 'lighter' })),
+    );
+    expect(recorder.calls('rotate')[0]!.args).toEqual([Math.PI]);
+    expect(recorder.calls('scale')[0]!.args).toEqual([2, 2]);
+    expect(recorder.ctx.globalAlpha).toBe(1);
+    expect(recorder.ctx.globalCompositeOperation).toBe('source-over');
   });
-
-  it('clamps tiny engines to the minimum body size', () => {
-    const recorder = createCanvasRecorder();
-    drawEngineVisual(recorder.ctx, { angle: 0, length: 1, point, scale: 1, width: 1, style: engineStyle(palette, 1, false, false) });
-    expect(recorder.calls('createLinearGradient')[0]!.args).toEqual([0, 0, 8, 0]);
+  it('uses the owning custom or named color and defaults missing colors to white', () => {
+    const styles = { TEST: { engineColor: [4, 5, 6, 7] }, CUSTOM: { engineColor: [8, 9, 10] } };
+    expect(engineColor({ style: 'TEST' }, styles)).toEqual([4, 5, 6, 7]);
+    expect(engineColor({ style: 'CUSTOM', styleSpec: { engineColor: [1, 2, 3, 4] } }, styles)).toEqual([1, 2, 3, 4]);
+    expect(engineColor({ style: 'CUSTOM', styleSpec: {} }, styles)).toEqual([255, 255, 255]);
+    expect(engineColor({ style: 'MISSING' }, styles)).toEqual([255, 255, 255]);
   });
 });
 

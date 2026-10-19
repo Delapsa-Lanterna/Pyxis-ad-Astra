@@ -22,6 +22,7 @@
 - `scripts/architecture/capability-boundary.check.mjs`：能力授权、规则归属和真实仓库入口的行为测试。
 - `scripts/architecture/command-boundary.check.mjs`：command 来源、词法作用域与 验收。
 - `scripts/architecture/docs-module-map.check.mjs`：模块文档严格格式、参考路径与索引对应的行为测试。
+- `scripts/architecture/engine-rendering.check.mjs`：必须验证引擎效果绘制与颜色解析的唯一入口约束。
 - `scripts/architecture/project-sources.check.mjs`：来源读取、表格缓存、资源消费者及业务动作依赖边界的验证。
 - `scripts/architecture/project-sync-boundary.check.mjs`：项目同步基础边界、项目选择及 Core 根输入的运行时、类型和动态引用验证。
 - `scripts/architecture/query-foundations.check.mjs`：会话查询、业务定义与预算的运行时和类型依赖验证。
@@ -127,6 +128,7 @@
 - 反馈工厂、窗口提供入口与恢复装配必须按实际路径授权；反馈展示与注入严禁依赖恢复业务。
 - 受控能力入口的公开运行时导出必须声明能力及正式消费者；读取、订阅、项目失效和会话清理必须分别授权。
 - 展示检查必须消费实际依赖图和解析结果；主题值与布局结果必须由所属行为测试和浏览器验证。
+- 引擎消费者必须通过正式 renderer 绘制图层及解析颜色，架构检查必须拒绝消费者中的独立效果图层与着色成品实现。
 - 拥有目录必须覆盖全部后代文件，跨模块的拥有声明严禁重叠。
 - 新约束必须覆盖合法与违规行为测试；命名、导入、转导出、重复诊断与真实入口必须通过正式测试命令验收。
 - 混合导入必须逐绑定表达类型与运行时属性；模块边必须按调用文件、实际目标和属性去重。

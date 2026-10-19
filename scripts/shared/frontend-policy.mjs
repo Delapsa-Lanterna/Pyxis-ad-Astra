@@ -11,6 +11,13 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 export const frontendCapabilities = [
   {
     role: 'service',
+    domain: 'engine-assets',
+    names: ['queryEngineRenderAssets', 'hasEngineAssetsInvalidation'],
+    capability: 'engine-assets-read',
+    owners: [{ layer: 'app', role: 'composable', domain: 'engine-rendering' }],
+  },
+  {
+    role: 'service',
     domain: 'resource-media',
     names: [
       'acquireResourceMedia',
@@ -679,10 +686,12 @@ export const frontendCapabilities = [
     domain: 'query-cache',
     names: ['createCachedSessionQuery', 'createLiveSessionQuery'],
     capability: 'query-cache-load',
-    owners: ['entity-query', 'csv-table', 'source-options', 'hull-reference', 'resource-reference', 'joint-edit'].map((domain) => ({
-      layer: 'services',
-      domain,
-    })),
+    owners: ['entity-query', 'csv-table', 'source-options', 'hull-reference', 'resource-reference', 'joint-edit', 'engine-assets'].map(
+      (domain) => ({
+        layer: 'services',
+        domain,
+      }),
+    ),
   },
   {
     role: 'service',
@@ -893,6 +902,7 @@ const serviceEdges = new Set([
   'source-options -> query-cache',
   'hull-reference -> query-cache',
   'resource-reference -> query-cache',
+  'engine-assets -> query-cache',
   'weapon-data -> resource-reference',
   'spec-weapon-editor -> resource-reference',
   'spec-projectile-editor -> resource-reference',

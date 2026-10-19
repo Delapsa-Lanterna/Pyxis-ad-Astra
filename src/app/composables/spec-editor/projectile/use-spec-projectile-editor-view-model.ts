@@ -18,6 +18,7 @@ import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigat
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
 import { useEditorImages } from '../../editors/use-editor-images';
+import { useEngineRendering } from '../../editors/use-engine-rendering';
 import { useResourceReference } from '@/app/composables/editors/use-resource-reference';
 
 export interface SpecProjectileEditorProps {
@@ -65,6 +66,11 @@ export function useSpecProjectileEditorViewModel(
 
   const expandedSections = ref(['basic']);
   const geometry = computed(() => projectProjectileGeometry(localProjectile.value));
+  const engines = useEngineRendering(
+    () => props.sessionId,
+    draw,
+    () => geometry.value.engines.length > 0,
+  );
   const palette = useCanvasPalette(draw),
     navigation = useCanvasNavigation(viewport, draw, 'pointer');
   const decodeError = ref('');
@@ -95,11 +101,21 @@ export function useSpecProjectileEditorViewModel(
     const ctx = canvasRef.value?.getContext('2d');
     if (!ctx) return;
     const dimensions = viewport.size();
-    renderSpecProjectileEditorScene(ctx, {
-      base: { ...dimensions, center: viewport.center(), scale: viewport.scale.value, palette: palette.value, mirrorY: null, cursor: null },
-      geometry: geometry.value,
-      sprite: images.images.get(geometry.value.spriteField) ?? null,
-    });
+    engines.paint((engineImages) =>
+      renderSpecProjectileEditorScene(ctx, {
+        engineImages,
+        base: {
+          ...dimensions,
+          center: viewport.center(),
+          scale: viewport.scale.value,
+          palette: palette.value,
+          mirrorY: null,
+          cursor: null,
+        },
+        geometry: geometry.value,
+        sprite: images.images.get(geometry.value.spriteField) ?? null,
+      }),
+    );
   }
   function resetView() {
     const dimensions = viewport.size(),

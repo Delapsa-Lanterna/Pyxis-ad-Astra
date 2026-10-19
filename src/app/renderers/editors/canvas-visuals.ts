@@ -1,6 +1,6 @@
 import type { Point } from '@/domain/editors/editor-types';
 import { SLOT_RADIUS } from '@/shared/lib/starsector';
-import type { OutlineStyle, PointStyle, MarkerStyle, engineStyle, launchBayPortStyle, barrelStyle, weaponSlotStyle } from './canvas-styles';
+import type { OutlineStyle, PointStyle, MarkerStyle, launchBayPortStyle, barrelStyle, weaponSlotStyle } from './canvas-styles';
 
 export function strokeCanvasOutline(ctx: CanvasRenderingContext2D, style: OutlineStyle) {
   ctx.strokeStyle = style.outline;
@@ -19,15 +19,6 @@ interface WeaponSlotVisualOptions {
   point: Point;
   size: string;
   type: string;
-}
-
-interface EngineVisualOptions {
-  style: ReturnType<typeof engineStyle>;
-  angle: number;
-  length: number;
-  point: Point;
-  scale: number;
-  width: number;
 }
 
 interface BarrelVisualOptions {
@@ -312,32 +303,6 @@ export function drawXMarker(ctx: CanvasRenderingContext2D, point: Point, style: 
   ctx.moveTo(point.x + style.radius, point.y - style.radius);
   ctx.lineTo(point.x - style.radius, point.y + style.radius);
   strokeCanvasOutline(ctx, style);
-}
-
-export function drawEngineVisual(ctx: CanvasRenderingContext2D, options: EngineVisualOptions) {
-  const width = Math.max(4, options.width * options.scale);
-  const length = Math.max(8, options.length * options.scale);
-
-  ctx.save();
-  ctx.globalAlpha = options.style.alpha;
-  ctx.save();
-  ctx.translate(options.point.x, options.point.y);
-  ctx.rotate((-options.angle * Math.PI) / 180);
-  ctx.fillStyle = options.style.body;
-  ctx.fillRect(0, -width / 2, length, width);
-
-  const flame = ctx.createLinearGradient(0, 0, length, 0);
-  for (const [offset, color] of options.style.flame) flame.addColorStop(offset, color);
-  ctx.fillStyle = flame;
-  ctx.beginPath();
-  ctx.moveTo(0, -width * 0.45);
-  ctx.quadraticCurveTo(length * 0.55, -width * 0.35, length, 0);
-  ctx.quadraticCurveTo(length * 0.55, width * 0.35, 0, width * 0.45);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-  drawControlPoint(ctx, options.point, options.style.control);
-  ctx.restore();
 }
 
 export function drawWeaponSpriteLayer(

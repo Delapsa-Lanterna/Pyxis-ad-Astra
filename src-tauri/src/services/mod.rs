@@ -35,7 +35,9 @@ pub(crate) use project::query::joint_edit::{
 pub(crate) use project::query::mod_file_browser::{
     query_mod_directory, query_mod_file_search, query_mod_text_file_target,
 };
-pub(crate) use project::query::resources::{query_draft_resources, query_resource_data_urls};
+pub(crate) use project::query::resources::{
+    query_draft_resources, query_engine_render_assets, query_resource_data_urls,
+};
 pub(crate) use project::query::source_options::query_csv_source_options;
 pub(crate) use project::resources::core_assets::{scan_core_fields, scan_core_graphics};
 pub(crate) use project::resources::fonts::query_original_font;

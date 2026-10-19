@@ -36,6 +36,7 @@ export const commandOwners = {
   'src/services/hull-reference.service.ts': ['query_hull_references'],
   'src/services/resource-media.service.ts': ['query_resource_data_urls'],
   'src/services/resource-reference.service.ts': ['resolve_mod_relative_path', 'query_draft_resources'],
+  'src/services/engine-assets.service.ts': ['query_engine_render_assets'],
   'src/services/entity-query.service.ts': ['query_entity', 'query_entity_edit_target', 'query_entity_identity_intent', 'query_entity_list'],
   'src/services/csv-table.service.ts': [
     'save_csv_patch',

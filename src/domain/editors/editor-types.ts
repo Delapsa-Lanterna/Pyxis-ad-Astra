@@ -46,6 +46,8 @@ export interface ShipSlotGeometry {
   locations: number[];
 }
 export interface ShipEngineGeometry {
+  style?: import('@/shared/types').RowData[string];
+  styleSpec?: import('@/shared/types').RowData[string];
   angle: number;
   length: number;
   width: number;

@@ -107,7 +107,7 @@
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。
 - [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、CSV 草稿优先级与文件 history 分派。
 - [Spec 编辑器基础](modules/spec-editor.md)：说明规格宿主、基础契约、文档交接与四类实现装配。
-- [画布编辑器骨架](modules/editor-canvas.md)：说明画布命中检测、选区同步、镜像轴、光标绘制、undo 集成与显式 draft 提交引擎。
+- [画布编辑器骨架](modules/editor-canvas.md)：说明画布交互、选区、镜像、动作提交及唯一共享引擎绘制与运行态。
 - [Mod 文件浏览器](modules/mod-file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。
 - [文件编辑器](modules/file-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
 - [配置系统](modules/config.md)：说明 mod_info、Faction、Mission、Variant、Skin、目标草稿、实体 query/write 与文件级 history。

@@ -17,6 +17,8 @@ export type {
   EntityIdentityIntentPayload,
 } from '@/shared/types/project-identity.types';
 export type {
+  EngineEffect,
+  EngineRenderAssets,
   DraftResourceEntityKind,
   HullReferenceGroup,
   HullReferenceKind,

@@ -27,6 +27,7 @@
 - `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
 - `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。
 - `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影。
+- `src/services/engine-assets.service.ts`：必须通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
 - `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
 - `src/services/resource-media-query.spec.ts`：必须验证完整批次、物理共享、失效和一次性查询。
 - `src/services/resource-media.service.ts`：必须唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
@@ -115,6 +116,8 @@
 - 媒体消费者必须分别登记场景、列表、详情及控件集合；可见图片必须优先读取，邻近预读必须在可见解码后消费窗口队列；引用替换、模块切换和关闭必须释放所属引用与等待。
 - 媒体缓存命中必须先于根边界准备，全部命中时根准备次数必须为零；关闭 session 后的迟到结果严禁写入媒体缓存。
 - 媒体读取必须优先交付实际 Mod 文件，回退或显式读取 Core 时必须校验所属 Core 根；来源目录变化必须在实际访问时核对。
+- 引擎样式必须按 Core、Mod 顺序按样式名合并；三张引擎图片必须独立按 Mod 优先与 Core 回退解析，样式文件缺失必须保持图片读取能力。
+- 引擎资源查询必须通过 session 就绪门控共享在途读取，来源刷新、会话关闭及迟到结果必须消费所属读取票据与失效。
 - 引用解析只接受 Mod 根内安全相对路径；绝对路径、`..` 与链接逃逸必须拒绝。
 - 成品引用交接必须先取得新引用再释放旧引用，同一资源失效必须按物理身份去重并只递增一次修订。
 - 指纹不一致即丢弃快照并重建；缓存损坏或不可写只降级，严禁读取旧快照。

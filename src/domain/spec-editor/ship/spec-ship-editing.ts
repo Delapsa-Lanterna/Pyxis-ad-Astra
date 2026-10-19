@@ -60,6 +60,8 @@ export function projectShipGeometry(ship: RowData) {
       };
     }),
     engines: g.engines.map((engine): ShipEngineGeometry => ({
+      style: engine.style,
+      styleSpec: engine.styleSpec,
       angle: num(engine.angle),
       length: num(engine.length, 20),
       width: num(engine.width, 10),

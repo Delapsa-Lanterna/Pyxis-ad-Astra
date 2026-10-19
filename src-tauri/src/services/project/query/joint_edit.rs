@@ -658,42 +658,6 @@ fn reference_settings(
     ));
     for (root, source) in roots {
         let boundary = FsRootBoundary::new(&root, "joint reference settings")?;
-        let styles_path = boundary
-            .resolve_relative("data/config/engine_styles.json", "reference engine styles")?;
-        if styles_path.exists() {
-            let (styles_version, styles) = crate::io::read_versioned_json(&styles_path)?;
-            result
-                .values
-                .entry("engineStyles".into())
-                .or_insert_with(|| Value::Object(Default::default()))
-                .as_object_mut()
-                .expect("engine styles are an object")
-                .extend(
-                    styles
-                        .as_object()
-                        .ok_or_else(|| {
-                            AppError::message("joint.engine_styles", "引擎样式必须为对象")
-                        })?
-                        .clone(),
-                );
-            result.versions.push(styles_version);
-            for (key, path) in [
-                ("engineGlow", "graphics/fx/engineglow32.png"),
-                ("engineFlame", "graphics/fx/engineflame32.png"),
-                ("engineHitGlow", "graphics/fx/hit_glow.png"),
-            ] {
-                result.resources.insert(
-                    key.into(),
-                    super::super::resources::resource_ref(
-                        source,
-                        path,
-                        ResourceOwnerKind::Ship,
-                        "refit-ui",
-                        key,
-                    ),
-                );
-            }
-        }
         let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
         if path.exists() {
             let (settings_version, data) = crate::io::read_versioned_json(&path)?;

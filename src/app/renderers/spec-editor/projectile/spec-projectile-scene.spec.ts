@@ -22,7 +22,12 @@ function render(spec: RowData, sprite: HTMLImageElement | null = null) {
   vi.spyOn(recording.ctx, 'fillRect').mockImplementation((...coords) => {
     fills.push({ color: recording.ctx.fillStyle, coords });
   });
-  renderSpecProjectileEditorScene(recording.ctx, { base, geometry: projectProjectileGeometry(normalizeProjectileSpec(spec)), sprite });
+  renderSpecProjectileEditorScene(recording.ctx, {
+    base,
+    geometry: projectProjectileGeometry(normalizeProjectileSpec(spec)),
+    sprite,
+    engineImages: { styles: {}, image: () => null },
+  });
   return { recording, fills };
 }
 describe('projectile static scene', () => {
@@ -62,14 +67,14 @@ describe('projectile static scene', () => {
       bitmap,
     );
     expect(recording.calls('drawImage')[0]!.args).toEqual([bitmap, -3, -22, 12, 30]);
-    expect(recording.calls('rotate')[0]!.args).toEqual([Math.PI / 2]);
+    expect(recording.calls('rotate').at(-1)!.args).toEqual([Math.PI / 2]);
     expect(recording.calls('arc')[0]!.args).toEqual([250, 200, 40, 0, Math.PI * 2]);
     expect(recording.calls('translate').map((op) => op.args)).toContainEqual([230, 188]);
     expect(recording.calls('translate').map((op) => op.args)).toContainEqual([254, 208]);
     const ops = recording.ops.map((op) => op.op);
     expect(ops.indexOf('drawImage')).toBeLessThan(ops.indexOf('arc'));
     expect(ops.indexOf('arc')).toBeLessThan(ops.findIndex((op, i) => op === 'stroke' && i > ops.indexOf('arc')));
-    expect(ops.findIndex((op) => op === 'createLinearGradient')).toBeGreaterThan(ops.indexOf('arc'));
+    expect(recording.calls('stroke').at(-1)!.alpha).toBe(1);
   });
   it('retains geometric markers for an unresolved sprite reference', () => {
     const { recording, fills } = render({ specClass: 'projectile', bulletSprite: 'missing.png', length: 10, width: 4 });

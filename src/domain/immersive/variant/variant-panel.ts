@@ -65,8 +65,6 @@ export interface VariantProjection {
   capacitors: number;
   fluxLimit: number;
   diagnostics: string[];
-  engineStyles: Readonly<RowData>;
-  engineResources: Record<string, ResourceRef>;
   modules: Array<{ slot: RowData; variant: VariantProjection }>;
 }
 export interface VariantPanel {
@@ -355,8 +353,6 @@ export function projectVariantPanel(
         capacitors,
         fluxLimit,
         diagnostics,
-        engineStyles: isRowData(graph.referenceSettings.values.engineStyles) ? graph.referenceSettings.values.engineStyles : {},
-        engineResources: graph.referenceSettings.resources,
         modules: [],
       };
     });

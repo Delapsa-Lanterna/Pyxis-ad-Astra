@@ -19,12 +19,15 @@
 - `src/app/composables/editors/use-editor-fields.ts`：所属文档字段、颜色与对象输入的绑定入口。
 - `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
 - `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放。
+- `src/app/composables/editors/use-engine-rendering.ts`：必须统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
 - `src/app/renderers/editors/`：背景、几何标记、武器贴图及最终样式绘制原语。
 - `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
 - `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
 - `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
 - `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
+- `src/app/renderers/editors/engine-renderer.ts`：必须作为 Spec 与沉浸式引擎三层尾焰的唯一绘制入口。
 - `src/app/renderers/editors/weapon-images.ts`：武器编辑、发射预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
+- `src/assets/engines/`：必须提供光柱、火焰与喷口辉光的 SVG 回退资产。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
 - `src/domain/editors/lib/canvas-palette.ts`：应用主题到画布配色的纯投影。
 - `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
@@ -112,6 +115,9 @@
 - 共享选区必须由所属状态引用承载；骨架必须保留最近目标消费，装配必须按命中半径消费实际槽位；业务动作必须归各自会话与历史。
 - 帧循环必须由所属渲染运行态启动、停止与释放。
 - 平移起点、指针位置、释放与缩放必须共同归导航原语；所属组件卸载必须结束平移和 DPI 监听。
+- 引擎尾焰必须统一消费正式 renderer，严禁在消费者新增引擎效果绘制；控制点必须消费现有标记原语。
+- 引擎着色成品必须按 session、效果、来源修订、尺寸及 RGB 复用，替换必须先取得新引用再交还旧引用，场景释放必须交还全部引用。
+- 引擎颜色必须优先消费所属 CUSTOM 样式或命名样式，缺失颜色必须采用 RGB 255、255、255；原图等待或缺失必须消费 SVG 回退。
 - 待提交输入必须保留其选区归属；自动悬停选择只允许在所属输入与字段动作完成后替换目标。
 - 拖拽必须在释放、离开或保存捕获时提交当前位置并结束动作；后续指针事件只允许消费新的动作。
 - 提交必须经唯一回调进入对应编辑会话，重复提交必须被会话相等语义吸收。

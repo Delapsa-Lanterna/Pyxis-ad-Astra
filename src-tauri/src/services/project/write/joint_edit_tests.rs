@@ -887,7 +887,7 @@ fn prepare_reports_field_conflicts() {
     cleanup(dir, &root);
 }
 #[test]
-fn reference_ui_engine_versions() {
+fn ui_and_engine_resource_versions() {
     let (dir, root) = fixture();
     std::fs::create_dir_all(dir.join("data/config")).unwrap();
     write_utf8_no_bom(&dir.join("data/config/settings.json"), r#"{"graphics":{"ui":{"checkmark":"graphics/check.png","checkmark_locked":"graphics/locked.png"}}}"#).unwrap();
@@ -897,19 +897,18 @@ fn reference_ui_engine_versions() {
     )
     .unwrap();
     let snapshot = query_joint_edit(&root).unwrap();
+    let engines = project::query::resources::query_engine_render_assets(&root.session_id).unwrap();
     assert_eq!(
         snapshot.reference_settings.resources["checkmark"].rel_path,
         "graphics/check.png"
     );
+    assert_eq!(engines.resources["engineGlow"].source, ResourceSource::Mod);
     assert_eq!(
-        snapshot.reference_settings.resources["engineGlow"].source,
-        ResourceSource::Mod
-    );
-    assert_eq!(
-        snapshot.reference_settings.values["engineStyles"]["HIGH_TECH"]["engineColor"],
+        engines.styles["HIGH_TECH"]["engineColor"],
         json!([100, 165, 255, 255])
     );
-    assert_eq!(snapshot.reference_settings.versions.len(), 2);
+    assert_eq!(snapshot.reference_settings.versions.len(), 1);
+    assert_eq!(engines.versions.len(), 1);
     cleanup(dir, &root);
 }
 
