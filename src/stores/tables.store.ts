@@ -14,7 +14,7 @@ import {
   type CsvDraftRow,
   type CsvTableKey,
 } from '@/shared/types';
-import { getColumns } from '@/shared/lib/starsector';
+import { csvColumnsForTable } from '@/domain/tables/csv-column-schema';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { csvDirtyCells } from '@/domain/tables/csv-dirty';
 import { DEFAULT_CSV_SEARCH_FIELD } from '@/domain/tables/csv-search';
@@ -140,7 +140,7 @@ export const useTablesStore = defineStore('tables', () => {
 
   const rows = computed(() => rowsFor(currentTab.value));
   const visibleColumns = computed(() => {
-    const headerColumns = getColumns(currentTab.value, getActiveState()?.headers[currentTab.value] ?? []);
+    const headerColumns = csvColumnsForTable(currentTab.value, currentHeader.value);
     if (headerColumns.length > 0) return headerColumns;
     const seen = new Set<string>();
     const inferred: string[] = [];
@@ -152,7 +152,7 @@ export const useTablesStore = defineStore('tables', () => {
         }
       }
     }
-    return inferred;
+    return csvColumnsForTable(currentTab.value, inferred);
   });
   const filteredRows = computed(() => rows.value);
   const rowKeys = computed(() => {

@@ -296,10 +296,22 @@
 .csv-cell-picker-option.selected {
   background: var(--color-primary-soft);
 }
-.csv-cell-picker-group {
+.csv-cell-picker-list .csv-cell-picker-group.n-collapse-item {
+  margin: 0;
+  border: 0;
+}
+.csv-cell-picker-list .n-collapse .csv-cell-picker-group.n-collapse-item > .n-collapse-item__header {
   padding: 6px;
-  font-size: 10px;
-  font-weight: 600;
+}
+.csv-cell-picker-list .n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item__header-main {
+  color: var(--color-muted);
+  font: 600 10px/14px var(--font-sans);
+}
+.csv-cell-picker-list .n-collapse .n-collapse-item .n-collapse-item__content-wrapper .n-collapse-item__content-inner {
+  padding: 0;
+}
+.csv-cell-picker-list .n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item-arrow {
+  font-size: 12px;
 }
 .csv-cell-picker-option {
   box-sizing: border-box;

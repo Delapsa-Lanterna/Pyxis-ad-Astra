@@ -13,6 +13,7 @@ import {
   readCustomAccent,
   readGeneralFont,
   readEditMode,
+  readExpandFieldDescriptions,
   readImmersiveGameFont,
   readHistoryLimit,
   readLogRotationSizeMiB,
@@ -48,6 +49,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const logRotationSizeMiB = ref(initialSettings.logRotationSizeMiB);
   const logBackupCount = ref(initialSettings.logBackupCount);
   const editMode = ref<EditMode>(readEditMode(initialSettings.editMode));
+  const expandFieldDescriptions = ref(initialSettings.expandFieldDescriptions);
   const immersiveGameFont = ref(initialSettings.immersiveGameFont);
   const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
@@ -111,6 +113,10 @@ export const useSettingsStore = defineStore('settings', () => {
     editMode.value = mode;
   }
 
+  function setExpandFieldDescriptions(value: boolean) {
+    expandFieldDescriptions.value = readExpandFieldDescriptions(value);
+  }
+
   function setImmersiveGameFont(value: boolean) {
     immersiveGameFont.value = readImmersiveGameFont(value);
   }
@@ -151,6 +157,7 @@ export const useSettingsStore = defineStore('settings', () => {
       logRotationSizeMiB: logRotationSizeMiB.value,
       logBackupCount: logBackupCount.value,
       editMode: editMode.value,
+      expandFieldDescriptions: expandFieldDescriptions.value,
       immersiveGameFont: immersiveGameFont.value,
       preserveOriginalJson: preserveOriginalJson.value,
       allowCoreEditing: allowCoreEditing.value,
@@ -163,6 +170,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function replaceSettings(settings: AppSettings) {
     const nextCacheLimits = readCacheLimits(settings.cacheLimits);
     const nextGeneralFont = readGeneralFont(settings.generalFont);
+    const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
     const nextFileHistoryLimit = readHistoryLimit(settings.fileHistoryLimit);
     const nextEditHistoryLimit = readHistoryLimit(settings.editHistoryLimit);
@@ -178,6 +186,7 @@ export const useSettingsStore = defineStore('settings', () => {
     logRotationSizeMiB.value = nextLogRotationSizeMiB;
     logBackupCount.value = nextLogBackupCount;
     editMode.value = readEditMode(settings.editMode);
+    expandFieldDescriptions.value = nextExpandFieldDescriptions;
     immersiveGameFont.value = nextImmersiveGameFont;
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
@@ -199,6 +208,7 @@ export const useSettingsStore = defineStore('settings', () => {
     generalFont,
     fontFamily,
     editMode,
+    expandFieldDescriptions,
     immersiveGameFont,
     preserveOriginalJson,
     allowCoreEditing,
@@ -220,6 +230,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setCustomAccent,
     setGeneralFont,
     setEditMode,
+    setExpandFieldDescriptions,
     setImmersiveGameFont,
     setPreserveOriginalJson,
     setAllowCoreEditing,

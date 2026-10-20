@@ -12,6 +12,7 @@
     :show-button="showButton"
     :disabled="disabled"
     :size="size"
+    :placeholder="placeholder"
     :status="invalid ? 'error' : undefined"
     @update:value="controlUpdated"
     @blur="commit"
@@ -39,6 +40,7 @@ const props = withDefaults(
     showButton?: boolean;
     disabled?: boolean;
     size?: 'small' | 'medium' | 'large';
+    placeholder?: string;
   }>(),
   {
     integer: false,
@@ -51,6 +53,7 @@ const props = withDefaults(
     showButton: true,
     disabled: false,
     size: 'medium',
+    placeholder: undefined,
   },
 );
 const emit = defineEmits<{ 'update:value': [value: number | null]; remove: [] }>();

@@ -9,13 +9,9 @@
 ### 拥有
 
 - `src/app/components/spec-editor/projectile/`：弹体画布、检查器与行为测试。
-- `src/app/components/spec-editor/projectile/SpecProjectileEditor.vue`：弹体画布、检查器与事件绑定。
 - `src/app/composables/spec-editor/projectile/`：弹体文档、分支字段、视口与绘制装配。
-- `src/app/composables/spec-editor/projectile/use-spec-projectile-editor-view-model.ts`：弹体工作文档、视口、静态绘制装配、分支展示与字段动作。
 - `src/app/renderers/spec-editor/projectile/`：弹体外观、碰撞与引擎静态场景。
-- `src/app/renderers/spec-editor/projectile/spec-projectile-scene.ts`：弹体静态场景与最终绘制样式。
 - `src/domain/spec-editor/projectile/`：弹体分支、引擎槽位与静态几何规则。
-- `src/domain/spec-editor/projectile/spec-projectile-model.ts`：弹体创建、分支转换、归一化、引擎与静态几何投影。
 - `src/services/spec-projectile-editor.service.ts`：弹体编辑数据与草稿图像的独立查询。
 
 ### 消费
@@ -24,6 +20,7 @@
 - `src-tauri/src/domain/editor_config_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/services/project/definitions/entity_resources.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
+- `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
 ### 关联
@@ -34,7 +31,7 @@
 
 - ProjectSession 拥有弹体实体、Mod 优先读取与 Core 回退，查询交付正式目标及版本。
 - 弹体 ViewModel 拥有文档装配、视口、静态绘制、折叠状态、字段和贴图引用选择动作。
-- 弹体场景必须消费共享本体绘制并持有检查标记，草稿图像运行态必须交付授权引用，共享图像运行态必须持有解码及成品释放。
+- 弹体场景消费共享本体绘制并持有检查标记，草稿图像运行态交付授权引用，共享图像运行态持有解码及成品释放。
 - 弹体领域拥有创建、分支转换、归一化和完整引擎默认值，编号分配消费共享纯原语。
 - 武器引用与选项目录归武器模块，开火预览拥有完整弹体读取及模拟。
 - 统一提交管线拥有历史、项目投影与失效，消费窗口分别接纳所属依赖。
@@ -84,6 +81,7 @@
 - 弹体引用必须按 projectileSpecId 交接，严禁依据显示名或选项下标关联。
 - 弹体改名必须消费正式身份事务并交接原生窗口、标题及可重载上下文。
 - 弹体编辑数据必须以单份规格值表达，目标和版本必须由正式实体查询提供。
+- 检查器必须区分必填缺失与有效默认值，图片尺寸同步必须消费当前已接纳资源；组内动作必须进入文档历史。
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
 - 视口必须归窗口运行态；缩放、平移与重置只允许修改展示状态，规格修改必须经字段动作交接。
 - 贴图选择必须捕获编辑上下文并提交授权相对路径，迟到结果严禁接管新基线。

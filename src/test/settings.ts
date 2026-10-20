@@ -28,6 +28,7 @@ export function createSettingsFixture(overrides: Partial<AppSettings> = {}): App
     logRotationSizeMiB: 5,
     logBackupCount: 1,
     editMode: 'smart',
+    expandFieldDescriptions: false,
     immersiveGameFont: true,
     preserveOriginalJson: true,
     allowCoreEditing: false,

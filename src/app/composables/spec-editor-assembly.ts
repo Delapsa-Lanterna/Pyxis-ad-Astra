@@ -45,7 +45,7 @@ export function useSpecEditorDependencies(window: ReturnType<typeof useSpecEdito
           target: window.currentTarget,
           draft: window.draftValue,
           context: window.editContext,
-          fields: ['specClass', 'bulletSprite', 'sprite'],
+          fields: ['specClass', 'bulletSprite', 'sprite', 'glowSprite', 'textureType'],
           query: querySpecProjectileEditorImages,
           errorPresentation: 'inline',
         })

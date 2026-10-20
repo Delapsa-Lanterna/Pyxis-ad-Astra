@@ -4,7 +4,6 @@ import { deepClone } from '@/shared/lib/starsector';
 import { fillRequiredFields } from './spec-construction';
 
 export const WEAPON_SPEC_CLASSES: readonly WeaponSpecClass[] = ['projectile', 'beam'];
-export const WEAPON_SPEC_CLASS_NOTE = 'pulse 在原版中无法正常处理，武器类型只允许 projectile 和 beam。';
 
 export function createWeaponSpec(id: string, specClass: WeaponSpecClass): RowData {
   return { ...deepClone(defaults.weapon[specClass]), id };

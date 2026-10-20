@@ -125,6 +125,14 @@ fn effect_resource_refs(id: &str, data: &Value, refs: &mut BTreeMap<String, Reso
             ),
         );
     }
+    if texture.is_some_and(Value::is_array) {
+        for (index, key) in ["fringeTexture", "coreTexture"].into_iter().enumerate() {
+            if let Some(mut resource) = refs.get(key).cloned() {
+                resource.key = format!("textureType[{index}]");
+                refs.insert(resource.key.clone(), resource);
+            }
+        }
+    }
 }
 
 pub(in crate::services::project) fn system_resource_refs(
@@ -256,6 +264,11 @@ mod tests {
             &json!({"spawnType":"BEAM", "textureType":["graphics/custom-a.png","graphics/custom-b.png"]}),
         );
         assert_eq!(refs["coreTexture"].rel_path, "graphics/custom-b.png");
+        assert_eq!(refs["textureType[0]"].key, "textureType[0]");
+        assert_eq!(
+            refs["textureType[1]"].rel_path,
+            refs["coreTexture"].rel_path
+        );
         assert_eq!(
             refs["coreTexture"].owner_kind,
             crate::models::EntityKind::Projectile.into()

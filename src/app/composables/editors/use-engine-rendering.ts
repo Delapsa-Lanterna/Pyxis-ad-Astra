@@ -184,6 +184,7 @@ export function useEngineRendering(
   });
   return {
     paint,
+    styleNames: computed(() => Object.keys(assets.value?.styles ?? {}).sort()),
     style: (engine: Pick<EngineShape, 'style' | 'styleId' | 'styleSpec'>) => engineStyle(engine, assets.value?.styles ?? {}),
   };
 }

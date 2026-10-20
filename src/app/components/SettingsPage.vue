@@ -14,18 +14,15 @@
           <n-button size="small" @click="pickStarsectorRoot">选择目录</n-button>
           <n-button v-if="settings.starsectorRoot" size="small" quaternary @click="settings.setStarsectorRoot(null)">清除</n-button>
         </div>
-        <template #hint
-          ><div
-            v-if="settings.starsectorRoot"
-            class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small"
-          >
-            已设置: {{ settings.starsectorRoot }}
-          </div>
-          <div v-else class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            未设置时，工具将从导入的 Mod 路径自动推断（mod_root 的上两级目录）。
-          </div></template
-        ></FieldRow
-      >
+        <template #hint>
+          <FieldHints
+            :description="
+              settings.starsectorRoot
+                ? '已设置: ' + settings.starsectorRoot
+                : '未设置时，工具将从导入的 Mod 路径自动推断（mod_root 的上两级目录）。'
+            "
+          /> </template
+      ></FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">外观</h3>
@@ -71,14 +68,8 @@
               />
             </div>
           </div>
-          <div
-            v-if="!customAccentValid"
-            class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small"
-          >
-            自定义主题色必须是 #RRGGBB。
-          </div>
-        </div></FieldRow
-      >
+          <FieldHints v-if="!customAccentValid" description="自定义主题色必须是 #RRGGBB。" /></div
+      ></FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">字体</h3>
@@ -93,33 +84,33 @@
             @update:value="settings.setGeneralFont($event || null)"
           />
         </div>
-        <template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。
-          </div></template
-        ></FieldRow
-      >
+        <template #hint><FieldHints description="选择本机已安装字体。默认字体组合为 Inter、Segoe UI、Microsoft YaHei。" /></template
+      ></FieldRow>
 
       <FieldRow label="沉浸式编辑器字体"
         ><n-switch class="tool-switch" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" /><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            从游戏安装目录加载原版字体。原版字体缺字时，以英文问号代替。
-          </div></template
-        ></FieldRow
-      >
+          ><FieldHints description="从游戏安装目录加载原版字体。原版字体缺字时，以英文问号代替。" /></template
+      ></FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
-      <h3 class="panel-section-title">编辑模式</h3>
+      <h3 class="panel-section-title">编辑</h3>
       <FieldRow label="引用式编辑"
         ><n-radio-group :value="settings.editMode" @update:value="settings.setEditMode">
           <n-radio-button value="plain">纯文本</n-radio-button>
           <n-radio-button value="smart">增强控件</n-radio-button> </n-radio-group
         ><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑。增强控件模式下，将引入更直观的编辑界面。
-          </div></template
-        ></FieldRow
-      >
+          ><FieldHints
+            description="纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑。增强控件模式下，将引入更直观的编辑界面。" /></template
+      ></FieldRow>
+      <FieldRow label="展开字段解析">
+        <n-switch class="tool-switch" :value="settings.expandFieldDescriptions" @update:value="settings.setExpandFieldDescriptions" />
+      </FieldRow>
+      <FieldRow label="允许编辑原版">
+        <n-switch class="tool-switch" :value="settings.allowCoreEditing" @update:value="settings.setAllowCoreEditing" />
+        <template #hint>
+          <FieldHints description="允许写入 Starsector 原版内容。" warning="修改原版文件可能影响游戏运行，操作前请备份并谨慎修改。" />
+        </template>
+      </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">全局限制</h3>
@@ -131,13 +122,9 @@
           :max="MAX_HISTORY_LIMIT"
           :step="1"
           :precision="0"
-          @update:value="settings.setFileHistoryLimit($event ?? settings.fileHistoryLimit)"
-        /><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。
-          </div></template
-        ></FieldRow
-      >
+          @update:value="settings.setFileHistoryLimit($event ?? settings.fileHistoryLimit)" /><template #hint
+          ><FieldHints description="每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。" /></template
+      ></FieldRow>
 
       <FieldRow label="编辑撤销步数"
         ><n-input-number
@@ -147,34 +134,17 @@
           :max="MAX_HISTORY_LIMIT"
           :step="1"
           :precision="0"
-          @update:value="settings.setEditHistoryLimit($event ?? settings.editHistoryLimit)"
-        /><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。
-          </div></template
-        ></FieldRow
-      >
+          @update:value="settings.setEditHistoryLimit($event ?? settings.editHistoryLimit)" /><template #hint
+          ><FieldHints description="各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。" /></template
+      ></FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">JSON 保存</h3>
       <FieldRow label="原样保存"
         ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
           #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。
-          </div></template
-        ></FieldRow
-      >
-    </section>
-    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
-      <h3 class="panel-section-title">原版内容</h3>
-      <FieldRow label="允许编辑原版"
-        ><n-switch class="tool-switch" :value="settings.allowCoreEditing" @update:value="settings.setAllowCoreEditing" /><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            允许写入 Starsector 原版内容。
-          </div></template
-        ></FieldRow
-      >
+          ><FieldHints description="尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。" /></template
+      ></FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">配置文件</h3>
@@ -197,13 +167,9 @@
           :max="MAX_LOG_ROTATION_SIZE_MIB"
           :step="1"
           :precision="0"
-          @update:value="settings.setLogRotationSizeMiB($event ?? settings.logRotationSizeMiB)"
-        /><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            当前日志达到该大小时，在下一次追加前轮转。
-          </div></template
-        ></FieldRow
-      >
+          @update:value="settings.setLogRotationSizeMiB($event ?? settings.logRotationSizeMiB)" /><template #hint
+          ><FieldHints description="当前日志达到该大小时，在下一次追加前轮转。" /></template
+      ></FieldRow>
 
       <FieldRow label="日志备份份数"
         ><n-input-number
@@ -213,13 +179,9 @@
           :max="MAX_LOG_BACKUP_COUNT"
           :step="1"
           :precision="0"
-          @update:value="settings.setLogBackupCount($event ?? settings.logBackupCount)"
-        /><template #hint
-          ><div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-            保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。
-          </div></template
-        ></FieldRow
-      >
+          @update:value="settings.setLogBackupCount($event ?? settings.logBackupCount)" /><template #hint
+          ><FieldHints description="保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。" /></template
+      ></FieldRow>
 
       <FieldRow readonly label="Log 文件大小"
         ><strong class="ui-emphasis">{{ formattedLogSize }}</strong></FieldRow
@@ -230,15 +192,14 @@
         <n-button size="small" type="error" secondary @click="confirmClearConfig">清空配置文件</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearLog">清除 log 文件</n-button>
       </div>
-      <div class="ui-field-hint ui-text-description ui-text-wrap ui-control-reset ui-text-muted ui-text-small">
-        {{ logPathHint }}
-      </div>
+      <FieldHints :description="logPathHint" />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import FieldRow from '@/shared/ui/FieldRow.vue';
+import FieldHints from '@/shared/ui/FieldHints.vue';
 import { onMounted, ref, watch } from 'vue';
 import type { JsonValue, LogLevel } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';

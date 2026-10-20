@@ -58,7 +58,7 @@ export async function queryWeaponSprites(
   signal?: AbortSignal,
 ): Promise<Record<string, string>> {
   const resources: { field: string; resource: ResourceRef }[] = [];
-  for (const field of WEAPON_SPRITE_FIELDS) {
+  for (const field of [...WEAPON_SPRITE_FIELDS, 'textureType[0]', 'textureType[1]']) {
     const resource = refs[field];
     if (resource) resources.push({ field, resource });
   }

@@ -1,8 +1,10 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SelectOption } from '@/domain/schema/schema-options';
 import CsvCellPicker from './CsvCellPicker.vue';
+import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
+import { installNaiveUi } from '@/app/naive-ui.runtime';
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 
 vi.mock('@/services/resource-media.service', () => ({
@@ -16,7 +18,7 @@ function mountPicker(
 ) {
   return mount(CsvCellPicker, {
     props: { anchor, sessionId: 'sess-1', multiple: false, options: [], values: [], ...props },
-    global: { plugins: [createPinia()] },
+    global: { plugins: [createPinia()], components: { NCollapse, NCollapseItem } },
   });
 }
 
@@ -109,6 +111,43 @@ describe('CsvCellPicker placement', () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.attributes('style')).toContain('left: 4px');
     expect(wrapper.attributes('style')).toContain('width: 272px');
+    wrapper.unmount();
+  });
+  it.each([false, true])('retains options and selection across independent group toggles (multiple=%s)', async (multiple) => {
+    const options: SelectOption[] = ['alpha', 'beta'].map((value) => ({
+      type: 'group',
+      label: value,
+      value,
+      children: [{ label: value, value }],
+    }));
+    const wrapper = mountPicker({ height: 30, left: 40, top: 100, width: 200 }, { multiple, options, values: ['alpha'] });
+    const groups = () => wrapper.findAll('.n-collapse-item');
+    const option = groups()[0]!.get('.csv-cell-picker-option');
+    expect(groups()[0]!.classes()).toContain('n-collapse-item--active');
+    await groups()[0]!.get('.n-collapse-item-arrow').trigger('click');
+    expect(groups()[0]!.classes()).not.toContain('n-collapse-item--active');
+    expect(groups()[1]!.classes()).toContain('n-collapse-item--active');
+    await groups()[0]!.get('.n-collapse-item__header-main').trigger('click');
+    expect(groups()[0]!.get('.csv-cell-picker-option.selected').element).toBe(option.element);
+    expect(wrapper.vm.captureValues()).toEqual(['alpha']);
+    wrapper.unmount();
+  });
+
+  it('uses the application Naive UI registration for grouped options', async () => {
+    const wrapper = mount(CsvCellPicker, {
+      props: {
+        anchor: { height: 30, left: 40, top: 100, width: 200 },
+        sessionId: 'sess-1',
+        multiple: false,
+        options: [{ type: 'group', label: 'Source', value: 'source', children: [{ label: 'Choice', value: 'choice' }] }],
+        values: [],
+      },
+      global: { plugins: [installNaiveUi] },
+    });
+    await flushPromises();
+    expect(wrapper.find('.csv-cell-picker-option').exists()).toBe(true);
+    await wrapper.get('.csv-cell-picker-option').trigger('click');
+    expect(wrapper.emitted('commit')).toEqual([[['choice']]]);
     wrapper.unmount();
   });
 });

@@ -128,8 +128,25 @@ describe('explicit inspector locking', () => {
     return { ...fixture, animations, scrollTo, query: vi.spyOn(scroll, 'querySelector') };
   }
 
-  it('locks with T, mounts only the target section, preserves focus and repeats the reveal', async () => {
+  it.each([
+    ['visible', 80, 160, 100],
+    ['below', 250, 310, 180],
+    ['above', -10, 50, 36],
+    ['top edge', 54, 130, 100],
+    ['bottom edge', 140, 230, 100],
+    ['tall covering', 20, 270, 100],
+    ['tall below', 100, 420, 146],
+    ['tall above', -200, 120, -10],
+    ['fills viewport', 54, 230, 100],
+  ] as const)('locks with T at the nearest %s position, preserves focus and repeats the reveal', async (_case, top, bottom, expected) => {
     const { wrapper, state, expandedSections, scrollTo, query } = openInspector();
+    const scroll = wrapper.get<HTMLElement>('.editor-scroll').element;
+    Object.defineProperties(scroll, { clientTop: { value: 2 }, clientHeight: { value: 200 } });
+    scroll.scrollTop = 100;
+    vi.spyOn(scroll, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 40, 300, 204));
+    const target = window.document.createElement('div');
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, top, 100, bottom - top));
+    query.mockReturnValue(target);
     await flushPromises();
     await wrapper.get('canvas').trigger('mousemove', { clientX: 0 });
     expect(scrollTo).not.toHaveBeenCalled();
@@ -139,6 +156,7 @@ describe('explicit inspector locking', () => {
     expect(state.inspectorLock.value).toEqual({ kind: 'slot', i: 0 });
     expect(expandedSections.value).toEqual(['slot-0']);
     expect(query).toHaveBeenCalledWith('[data-edit="slot-0"]');
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: expected, behavior: 'smooth' });
     expect(window.document.activeElement).toBe(focused);
     await wrapper.get('section').trigger('keydown', { key: 't' });
     await flushPromises();

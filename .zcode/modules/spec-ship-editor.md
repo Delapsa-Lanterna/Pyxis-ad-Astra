@@ -9,15 +9,9 @@
 ### 拥有
 
 - `src/app/components/spec-editor/ship/`：舰船画布、检查器与行为测试。
-- `src/app/components/spec-editor/ship/SpecShipEditor.vue`：舰船控件展示与事件绑定入口。
 - `src/app/composables/spec-editor/ship/`：舰船字段、动作、视口及内置武器依赖生命周期。
-- `src/app/composables/spec-editor/ship/use-spec-ship-editor-view-model.ts`：舰船草稿、模式、检查器投影与编辑动作。
-- `src/app/composables/spec-editor/ship/use-spec-ship-weapons.ts`：内置武器只读来源、媒体集合、解码、失效与诊断。
 - `src/app/renderers/spec-editor/ship/`：舰船静态场景、图层与几何绘制。
-- `src/app/renderers/spec-editor/ship/spec-ship-scene.ts`：舰船场景视觉规则与绘制入口。
 - `src/domain/spec-editor/ship/`：舰船文档、几何、点位及内置武器投影规则。
-- `src/domain/spec-editor/ship/spec-ship-editing.ts`：舰船规格归一化、槽位、甲板、引擎、几何与操作规则。
-- `src/domain/spec-editor/ship/spec-ship-weapons.ts`：当前内置引用集合、槽位关联、展示投影与逐项诊断。
 - `src/services/spec-ship-editor.service.ts`：舰船规格、草稿贴图及内置武器来源的查询入口。
 
 ### 消费
@@ -27,6 +21,7 @@
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/lib/mirror.ts`：舰船消费的共享几何镜像规则。
+- `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
 
 ### 关联
 
@@ -78,7 +73,7 @@
 
 1. 检查器事件进入编辑 ViewModel 的字段动作。
 2. 字段动作提交 draft，并通过舰船场景重绘画布。
-3. T 键、列表锁定与具体港口选择必须经共用画布入口展开目标分组并定位实际字段编辑区。
+3. T 键、列表锁定与具体港口选择经共用画布入口展开目标分组并定位实际字段编辑区。
 
 ### 保存
 
@@ -96,6 +91,7 @@
 - 画布与检查器必须通过编辑文档的动作入口更新所属草稿，dirty 外部内容必须暂存，保存必须提交当前指针位置并结束动作。
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
 - 目标定位必须将武器槽与甲板映射至标识符、引擎映射至角度、中心与护盾映射至首个坐标字段、港口与边界点映射至所属坐标输入行。
+- 组内增删必须捕获所属选中对象；甲板港口动作必须绑定甲板身份，引擎样式选项必须消费正式资源目录。
 - 编辑器内部显示和编辑 `.ship` 的 `hullName`；编辑器外的舰船显示名称必须优先使用 `ship_data.csv` 的 `name`，仅在该名称缺失时才允许 `hullName`。
 - 舰体引用、资源引用必须以后端 `ResourceRef` 或后端校验的相对路径表达。
 - 舰船新建与关联创建必须消费共享模板构造；ID 与 `hullName` 必须由明确创建参数装配，builtInWeapons 必须保留全部原始槽位键。

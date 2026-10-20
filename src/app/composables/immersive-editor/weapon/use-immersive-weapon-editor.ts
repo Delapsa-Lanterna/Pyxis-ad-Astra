@@ -22,7 +22,6 @@ export function useImmersiveWeaponEditor(runtime: ImmersiveEditorRuntime) {
       if (spec && jointObject(spec.value).specClass === 'pulse' && keys.includes(spec.key)) {
         const choice = await feedback.choose({
           title: '选择覆盖的武器分支',
-          content: 'pulse 在原版中无法正常处理，选择合法分支并补齐必读字段后建立当前 Mod 覆盖。',
           choices: [
             { label: '弹丸 projectile', value: 'projectile', type: 'primary' },
             { label: '光束 beam', value: 'beam' },

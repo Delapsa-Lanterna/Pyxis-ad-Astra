@@ -21,7 +21,7 @@ it('accepts current projectile image status through edits, invalidation and rele
     target = ref<SpecEditorTarget | null>({ sessionId: 's', modRoot: 'M:/mod', kind: 'projectile', id: 'p' });
   const draft = ref<RowData>({ sprite: 'first.png' }),
     context = ref<EditContext | null>({ targetKey: 'p', baselineGeneration: 1, handoff: 'load' });
-  type Result = { resourceRefs: []; spriteData: Record<string, string> };
+  type Result = { resourceRefs: import('@/shared/types').ResourceRef[]; spriteData: Record<string, string> };
   const pending: Array<{ resolve: (result: Result) => void; reject: (error: Error) => void; signal: AbortSignal }> = [];
   const query = vi.fn(
     (_s: string, _id: string, _draft: RowData, signal?: AbortSignal) =>
@@ -36,7 +36,10 @@ it('accepts current projectile image status through edits, invalidation and rele
   expect(pending[0]!.signal.aborted).toBe(true);
   await flushPromises();
   pending[0]!.resolve({ resourceRefs: [], spriteData: { sprite: 'old' } });
-  pending[1]!.resolve({ resourceRefs: [], spriteData: { sprite: 'current' } });
+  pending[1]!.resolve({
+    resourceRefs: [{ source: 'mod', relPath: 'second.png', ownerKind: 'weapon', ownerId: 'p', key: 'sprite' }],
+    spriteData: { sprite: 'current' },
+  });
   await flushPromises();
   expect(vm.value.value?.spriteData).toEqual({ sprite: 'current' });
   expect(vm.loading.value).toBe(false);

@@ -1,5 +1,5 @@
 import defaults from '../../../../schemas/spec-defaults.json';
-import { fillRequiredFields } from '@/domain/editors/spec-construction';
+import { fillRequiredFields, createSpecObject } from '@/domain/editors/spec-construction';
 import { deepClone, str, num } from '@/shared/lib/starsector';
 import type { ProjectileSpecClass, RowData } from '@/shared/types';
 import { nextFormattedId } from '@/shared/lib/next-formatted-id';
@@ -15,16 +15,7 @@ export function createProjectileEngineSlot(slots: RowData[]): RowData {
     width: 8,
     length: 20,
     style: 'CUSTOM',
-    styleSpec: {
-      mode: 'QUAD_STRIP',
-      engineColor: [255, 145, 75, 255],
-      contrailColor: [100, 100, 100, 150],
-      contrailDuration: 0.5,
-      contrailWidthMult: 2,
-      contrailMaxSpeedMult: 0,
-      contrailAngularVelocityMult: 0.5,
-      type: 'SMOKE',
-    },
+    styleSpec: createSpecObject('styleSpec'),
   };
 }
 
@@ -55,7 +46,10 @@ export function normalizeProjectileSpec(projectile: RowData): RowData {
 export function projectProjectileGeometry(spec: RowData) {
   const appearance = projectileAppearance(spec);
   const kind = str(spec.specClass, 'projectile');
-  const { size, center } = appearance;
+  const size = 'size' in spec ? appearance.size : [0, 0],
+    center = 'center' in spec ? appearance.center : [0, 0];
+  appearance.size = size;
+  appearance.center = center;
   const body =
     kind === 'missile'
       ? { x: -center[1]!, y: -center[0]!, width: size[1]!, height: size[0]! }

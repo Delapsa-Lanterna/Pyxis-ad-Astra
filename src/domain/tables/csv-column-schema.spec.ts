@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { CsvTableKey } from '@/shared/types';
+import { TABLE_KEYS, type CsvTableKey } from '@/shared/types';
 import {
   csvBooleanDisplayValue,
   csvBooleanOptions,
   csvColumnControl,
   csvColumnControlLabel,
   csvColumnSchemaFor,
+  csvColumnsForTable,
   csvColumnSchemasForTable,
   csvControlUsesNativeInput,
   csvControlUsesPicker,
@@ -17,6 +18,25 @@ import {
 import { CSV_COLUMN_CONTROLS } from '@/domain/schema/schema.types';
 
 describe('table column schemas', () => {
+  it.each(TABLE_KEYS)('orders %s by schema and appends custom columns in header order', (table) => {
+    const keys = csvColumnSchemasForTable(table).map((schema) => schema.key);
+    const header = ['custom-z', ...keys.toReversed(), 'custom-a'];
+    expect(csvColumnsForTable(table, header)).toEqual([...keys, 'custom-z', 'custom-a']);
+    expect(header).toEqual(['custom-z', ...keys.toReversed(), 'custom-a']);
+    const subset = keys.filter((_, index) => index % 2 === 0);
+    expect(csvColumnsForTable(table, subset.toReversed())).toEqual(subset);
+    expect(csvColumnsForTable(table, [])).toEqual([]);
+  });
+
+  it('keeps unique business keys and skips blank header entries', () => {
+    expect(csvColumnsForTable('ships', ['constructor', '', 'id', '__proto__', 'id', '_custom'])).toEqual([
+      'id',
+      'constructor',
+      '__proto__',
+      '_custom',
+    ]);
+  });
+
   it('returns the registered schemas of a table', () => {
     const schemas = csvColumnSchemasForTable('ships');
     expect(schemas.length).toBeGreaterThan(0);

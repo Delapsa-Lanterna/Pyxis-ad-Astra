@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -16,6 +16,8 @@ function mountEffect() {
     },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('useThemeDomEffect', () => {
   it.each(['light', 'dark'] as const)('publishes every mapped theme value for %s', (theme) => {

@@ -909,6 +909,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
                   hullId: 'XY',
                   ship: vm.editorData.value!.spec,
                   spriteData: typeof vm.spriteData.value === 'string' ? vm.spriteData.value : '',
+                  spriteSourcePath: vm.imageRefs.value[0]?.relPath,
                 })
               : h(SpecWeaponEditor, {
                   ...common,
@@ -934,7 +935,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
       expect(sources.filter(Boolean)).toEqual([]);
       expect(wrapper.find('canvas.editor-canvas').exists()).toBe(true);
       if (kind === 'ship') {
-        const sync = wrapper.findAll('button').find((button) => button.text() === '更新贴图宽高');
+        const sync = wrapper.findAll('button').find((button) => button.text() === '按图片更新宽高');
         expect(sync).toBeDefined();
         await sync!.trigger('click');
         await flushPromises();

@@ -23,6 +23,7 @@ export interface AppSettings {
   logRotationSizeMiB: number;
   logBackupCount: number;
   editMode: EditMode;
+  expandFieldDescriptions: boolean;
   immersiveGameFont: boolean;
   preserveOriginalJson?: boolean;
   allowCoreEditing?: boolean;

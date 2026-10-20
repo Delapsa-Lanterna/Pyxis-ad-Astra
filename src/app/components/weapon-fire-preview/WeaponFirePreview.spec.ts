@@ -7,7 +7,7 @@ import { createSettingsFixture } from '@/test/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
-import { disposeResourceMedia, resourceMediaStats } from '@/services/resource-media.service';
+import { disposeResourceMedia, resourceMediaStats, RESOURCE_MEDIA_FLUSH_DELAY_MS } from '@/services/resource-media.service';
 import WeaponFirePreview from './WeaponFirePreview.vue';
 const mocks = vi.hoisted(() => ({ error: vi.fn(), invoke: vi.fn() }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
@@ -35,6 +35,7 @@ afterEach(() => {
   wrapper = null;
   windowImageRuntime().clearSession('preview');
   disposeResourceMedia();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
@@ -63,9 +64,13 @@ describe('preview playback and media lifecycle', () => {
     await wrapper!.getComponent(nSwitch).trigger('click');
     await button('暂停').trigger('click');
     await button('固定视图 H').trigger('click');
+    await wrapper!.get('.n-slider-stub').setValue('2.5');
+    expect(wrapper!.get('.preview-speed-header-value').text()).toBe('2.5x');
     await wrapper!.setProps({ projectile: { id: 'shot', specClass: 'missile', size: [10, 20], center: [5, 10], engineSlots: [] } });
     expect(button('播放').exists()).toBe(true);
     expect(wrapper!.getComponent(nSwitch).props('value')).toBe(true);
+    expect(button('固定视图 H').classes()).toContain('active');
+    expect(wrapper!.get('.preview-speed-header-value').text()).toBe('2.5x');
     expect(wrapper!.get('h1').text()).toContain('fixture');
     expect(wrapper!.get('h1').text()).toContain('shot');
   });
@@ -91,6 +96,7 @@ describe('preview playback and media lifecycle', () => {
     expect(vi.mocked(requestAnimationFrame).mock.calls.length).toBe(before);
   });
   it('shares physical media across weapon and projectile roles and releases active references', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     open();
     const resource = {
       source: 'mod' as const,
@@ -105,7 +111,7 @@ describe('preview playback and media lifecycle', () => {
         projectile: { bulletSprite: { ...resource, ownerId: 'shot', key: 'bulletSprite' } },
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 35));
+    await vi.advanceTimersByTimeAsync(RESOURCE_MEDIA_FLUSH_DELAY_MS);
     await flushPromises();
     const reads = mocks.invoke.mock.calls.filter((call) => call[0] === 'query_resource_data_urls');
     expect(reads).toHaveLength(1);

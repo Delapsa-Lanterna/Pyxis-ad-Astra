@@ -1,7 +1,9 @@
 import { computed, reactive, ref, watch, type EmitFn, type ShallowRef } from 'vue';
 import type { RowData, EditContext } from '@/shared/types/index';
 import type { CanvasInput, ShipEditorMode, ShipHoverPreview } from '@/domain/editors/editor-types';
-import { arr, num, str } from '@/shared/lib/starsector/index';
+import { num, str } from '@/shared/lib/starsector/index';
+import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
+import { SHIP_SLOT_FIELDS } from '@/domain/spec-editor/ship/spec-ship-fields';
 import {
   normalizeShipSpec,
   bayPorts,
@@ -134,8 +136,6 @@ export function useSpecShipEditorViewModel(
   const selectedEngine = computed(() =>
     state.selected.value === null ? null : (localShip.value.engineSlots as RowData[])[state.selected.value],
   );
-  const slotLoc = computed(() => arr(selectedSlot.value?.locations, [0, 0])),
-    engineLoc = computed(() => arr(selectedEngine.value?.location, [0, 0]));
   const normalWeaponSlots = computed(() =>
     (localShip.value.weaponSlots as RowData[])
       .map((slot, index) => ({ slot, index }))
@@ -279,12 +279,12 @@ export function useSpecShipEditorViewModel(
       deleteSelected: () => deleteSelected(),
       shortcuts: Object.fromEntries(modes.map((item) => [item.shortcut.toLowerCase(), () => setMode(item.value)])),
       inspector: () => {
-        const section = modeToSection[mode.value],
-          target = state.target.value;
+        const target = state.target.value,
+          section = mode.value === 'ranges' ? (target?.kind === 'center' ? 'sprite' : 'props') : modeToSection[mode.value];
         if (!section || !target) return null;
         const selector =
           mode.value === 'ranges'
-            ? `[data-inspector-field="${target.kind === 'center' ? 'center-x' : 'shield-x'}"]`
+            ? `[data-field-path="${target.kind === 'center' ? 'center' : 'shieldCenter'}[0]"]`
             : target.kind === 'launchBayPort'
               ? `[data-inspector-target="launchBay-${target.i}-port-${target.port}"]`
               : `[data-inspector-target="${mode.value === 'bounds' ? 'bound' : mode.value}-${target.i}"]`;
@@ -356,30 +356,6 @@ export function useSpecShipEditorViewModel(
       ship[key] = value;
     });
   }
-  function setArray(key: string, index: number, value: number | null) {
-    document.change((ship) => {
-      if (key === 'center') centerRevision++;
-      const values = arr(ship[key], [0, 0]);
-      values[index] = value || 0;
-      ship[key] = values;
-    });
-  }
-  function setItemField(kind: 'weapon' | 'engine', key: string, value: RowData[string]) {
-    if (state.selected.value === null) return;
-    document.change((ship) => {
-      ((kind === 'weapon' ? ship.weaponSlots : ship.engineSlots) as RowData[])[state.selected.value!]![key] = value;
-    });
-  }
-  function setLocation(kind: 'weapon' | 'engine', index: number, value: number | null) {
-    if (state.selected.value === null) return;
-    document.change((ship) => {
-      const item = (kind === 'weapon' ? ship.weaponSlots : ship.engineSlots) as RowData[],
-        key = kind === 'weapon' ? 'locations' : 'location';
-      const loc = arr(item[state.selected.value!]![key], [0, 0]);
-      loc[index] = value || 0;
-      item[state.selected.value!]![key] = loc;
-    });
-  }
   function selectInspectorItem(next: ShipEditorMode, i: number, kind: string) {
     void canvas.revealInspector(() => {
       mode.value = next;
@@ -395,12 +371,44 @@ export function useSpecShipEditorViewModel(
       state.select(added.target);
     });
   }
-  function deleteSelected() {
+  function deleteSelected(owner = mode.value) {
     const target = state.target.value;
-    if (!target || !['weapon', 'launchBay', 'engine', 'bounds'].includes(mode.value)) return;
+    if (!target || owner !== mode.value || !['weapon', 'launchBay', 'engine', 'bounds'].includes(mode.value)) return;
     void document.command((ship) => {
       deleteShipElement(ship, target, state.mirrorMode.value);
       state.reset();
+    });
+  }
+  const slotKeys = [...new Set(SHIP_SLOT_FIELDS.map((field) => field[0].split('[')[0]!))];
+  const slotExtras = computed(() =>
+    Object.fromEntries(Object.entries(selectedSlot.value ?? {}).filter(([key]) => !slotKeys.includes(key))),
+  );
+  function setProperty(path: string, value: RowData[string]) {
+    if (path === 'spriteName') {
+      setField(path, value);
+      return;
+    }
+    document.change((ship) => {
+      if (path.startsWith('center[')) centerRevision++;
+      updateSpecField(ship, path, value);
+    });
+  }
+  function setCoversColor(value: RowData[string]) {
+    setField('coversColor', Array.isArray(value) ? value.join(',') : '');
+  }
+  function addBayPortFromPanel() {
+    const index = state.selected.value;
+    if (
+      mode.value !== 'launchBay' ||
+      index === null ||
+      str((localShip.value.weaponSlots as RowData[])[index]?.type).toUpperCase() !== 'LAUNCH_BAY'
+    )
+      return;
+    return document.command((ship) => {
+      const slot = (ship.weaponSlots as RowData[])[index]!,
+        ports = bayPorts(slot.locations);
+      slot.locations = appendBayPort(slot.locations, ports.at(-1) ?? [0, 0]);
+      state.selectPort(ports.length);
     });
   }
   async function pickShipSprite() {
@@ -416,6 +424,12 @@ export function useSpecShipEditorViewModel(
     document: localShip,
     view: reactive({
       mode,
+      mirror: state.mirrorMode,
+      engineStyles: engines.styleNames,
+      slotExtras,
+      coversColor: computed(() =>
+        str(localShip.value.coversColor) ? str(localShip.value.coversColor).split(',').map(Number) : [255, 255, 255, 255],
+      ),
       selected: state.selected,
       selectedPort: state.selectedPort,
       expandedSections,
@@ -428,13 +442,8 @@ export function useSpecShipEditorViewModel(
       engineSlots: computed(() => localShip.value.engineSlots as RowData[]),
       bounds: computed(() => geometry.value.bounds),
       boundPairs: computed(() => Array.from({ length: Math.floor(geometry.value.bounds.length / 2) })),
-      center: computed(() => geometry.value.center),
-      shieldCenter: computed(() => geometry.value.shieldCenter),
-      moduleAnchor: computed(() => arr(localShip.value.moduleAnchor, [0, 0])),
       selectedSlot,
       selectedEngine,
-      slotLoc,
-      engineLoc,
       selectedBayPorts: computed(() => bayPorts(selectedSlot.value?.locations)),
       builtInMods: document.field(
         'builtInMods',
@@ -446,19 +455,46 @@ export function useSpecShipEditorViewModel(
         (value) => value as string[],
         (value) => value,
       ),
-      canSyncSpriteSize: computed(() => spriteSize.value.width > 0 && spriteSize.value.height > 0),
+      canSyncSpriteSize: computed(
+        () => spriteSize.value.width > 0 && spriteSize.value.height > 0 && props.spriteSourcePath === str(localShip.value.spriteName),
+      ),
     }),
     actions: {
+      setProperty,
+      setCoversColor,
+      removeProperty: (path: string) => document.command((ship) => updateSpecField(ship, path, undefined)),
+      extrasUpdated: (value: RowData) =>
+        document.change(() => {
+          localShip.value = value;
+        }),
+      slotExtrasUpdated: (value: RowData) => {
+        const slot = selectedSlot.value!;
+        void document.command(() => {
+          for (const key of Object.keys(slot)) if (!slotKeys.includes(key)) delete slot[key];
+          Object.assign(slot, value);
+        });
+      },
+      createInlineStyle: () => {
+        const engine = selectedEngine.value!;
+        return document.command(() => {
+          engine.style = 'CUSTOM';
+          delete engine.styleId;
+          engine.styleSpec ??= createSpecObject('styleSpec');
+        });
+      },
+      toggleMirror: () =>
+        document.run(() => {
+          state.toggleMirror();
+          draw();
+        }),
+      fitView: () => {
+        viewport.pan.value = { x: 0, y: 0 };
+        viewport.scale.value = Math.min(1, 500 / Math.max(spriteSize.value.width || 1, spriteSize.value.height || 1));
+        draw();
+      },
       setMode,
-      setField,
-      setVisualField: setField,
-      setArray,
       selectInspectorItem,
       deleteSelected,
-      setSlotField: (key: string, value: RowData[string]) => setItemField('weapon', key, value),
-      setEngineField: (key: string, value: RowData[string]) => setItemField('engine', key, value),
-      setSlotLoc: (i: number, value: number | null) => setLocation('weapon', i, value),
-      setEngineLoc: (i: number, value: number | null) => setLocation('engine', i, value),
       setBound: (i: number, value: number | null) =>
         document.change((ship) => {
           (ship.bounds as number[])[i] = value || 0;
@@ -478,13 +514,7 @@ export function useSpecShipEditorViewModel(
           else
             state.selectPort(Math.min(state.selectedPort.value ?? 0, bayPorts((ship.weaponSlots as RowData[])[i]!.locations).length - 1));
         }),
-      addBayPortFromPanel: () =>
-        document.command((ship) => {
-          const slot = (ship.weaponSlots as RowData[])[state.selected.value!]!,
-            ports = bayPorts(slot.locations);
-          slot.locations = appendBayPort(slot.locations, ports.at(-1) ?? [0, 0]);
-          state.selectPort(ports.length);
-        }),
+      addBayPortFromPanel,
       selectBayPort: (port: number) =>
         canvas.revealInspector(() => {
           state.select({ kind: 'launchBayPort', i: state.selected.value!, port }, true);
@@ -503,7 +533,6 @@ export function useSpecShipEditorViewModel(
           ship.center = [spriteSize.value.width / 2, spriteSize.value.height / 2];
         }),
       syncSpriteSize: () => document.command((ship) => Object.assign(ship, spriteSize.value)),
-      save: () => emit('save-requested'),
     },
     canvas: { ...canvas, beginField: document.beginField, fieldBlur: document.fieldBlur, fieldKey: document.fieldKey },
   };

@@ -188,11 +188,16 @@ export function useCanvasEditor<TPreview>(options: {
     await nextTick();
     if (!accepts()) return;
     const target = scroll.querySelector<HTMLElement>(reveal.selector);
-    if (target)
+    if (target) {
+      const bounds = target.getBoundingClientRect();
+      const viewportTop = scroll.getBoundingClientRect().top + scroll.clientTop;
+      const alignTop = scroll.scrollTop + bounds.top - viewportTop - 12;
+      const alignBottom = scroll.scrollTop + bounds.bottom - viewportTop - scroll.clientHeight + 12;
       scroll.scrollTo({
-        top: scroll.scrollTop + target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12,
-        behavior: 'instant',
+        top: Math.max(Math.min(alignTop, alignBottom), Math.min(scroll.scrollTop, Math.max(alignTop, alignBottom))),
+        behavior: 'smooth',
       });
+    }
   }
   function reset() {
     cancelInspectorReveal();

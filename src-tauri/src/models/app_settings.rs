@@ -55,6 +55,8 @@ pub struct AppSettings {
     pub log_backup_count: u32,
     #[serde(default = "default_edit_mode")]
     pub edit_mode: EditMode,
+    #[serde(default)]
+    pub expand_field_descriptions: bool,
     #[serde(default = "default_immersive_game_font")]
     pub immersive_game_font: bool,
     #[serde(default = "default_preserve_original_json")]
@@ -82,6 +84,7 @@ impl Default for AppSettings {
             log_rotation_size_mib: default_log_rotation_size_mib(),
             log_backup_count: default_log_backup_count(),
             edit_mode: default_edit_mode(),
+            expand_field_descriptions: false,
             immersive_game_font: default_immersive_game_font(),
             preserve_original_json: default_preserve_original_json(),
             allow_core_editing: false,
@@ -193,6 +196,22 @@ mod tests {
         );
         assert!(
             serde_json::from_value::<AppSettings>(json!({"immersiveGameFont": "false"})).is_err()
+        );
+    }
+
+    #[test]
+    fn field_descriptions_default_closed_and_roundtrip() {
+        assert!(!AppSettings::default().expand_field_descriptions);
+        let settings: AppSettings =
+            serde_json::from_value(json!({"expandFieldDescriptions": true})).unwrap();
+        assert!(settings.expand_field_descriptions);
+        assert_eq!(
+            serde_json::to_value(settings).unwrap()["expandFieldDescriptions"],
+            true
+        );
+        assert!(
+            serde_json::from_value::<AppSettings>(json!({"expandFieldDescriptions": "true"}))
+                .is_err()
         );
     }
 

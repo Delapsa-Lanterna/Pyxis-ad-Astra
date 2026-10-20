@@ -20,7 +20,7 @@ export function installNaiveUi(app: App): void {
   registerAsyncNaiveComponent(app, 'NPopover', async () => (await import('naive-ui/es/popover')).NPopover);
   registerAsyncNaiveComponent(app, 'NRadioButton', async () => (await import('naive-ui/es/radio')).NRadioButton);
   registerAsyncNaiveComponent(app, 'NRadioGroup', async () => (await import('naive-ui/es/radio')).NRadioGroup);
-  registerAsyncNaiveComponent(app, 'NSelect', async () => (await import('naive-ui/es/select')).NSelect);
+  registerAsyncNaiveComponent(app, 'NSelect', async () => (await import('./components/AppSelect.vue')).default);
   registerAsyncNaiveComponent(app, 'NSlider', async () => (await import('naive-ui/es/slider')).NSlider);
   registerAsyncNaiveComponent(app, 'NSpin', async () => (await import('naive-ui/es/spin')).NSpin);
   registerAsyncNaiveComponent(app, 'NTree', async () => (await import('naive-ui/es/tree')).NTree);

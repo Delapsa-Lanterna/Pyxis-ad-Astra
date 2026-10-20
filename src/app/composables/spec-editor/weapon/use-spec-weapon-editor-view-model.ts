@@ -5,6 +5,8 @@ import type { RowData, EditContext, WeaponSpecClass } from '@/shared/types/index
 import type { WeaponOperationPreview } from '@/domain/editors/editor-types';
 import { str, deepClone } from '@/shared/lib/starsector/index';
 import { normalizeWeaponSpec, changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
+import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
+import { weaponSections, WEAPON_OBJECT_FIELDS } from '@/domain/spec-editor/weapon/spec-weapon-fields';
 
 import {
   projectWeaponBarrels,
@@ -15,12 +17,7 @@ import {
   deleteWeaponBarrel,
 } from '@/domain/spec-editor/weapon/spec-weapon-editing';
 import { findMirrorBarrelIndex } from '@/domain/editors/lib/mirror';
-import {
-  HARDPOINT_WEAPON_SPRITE_FIELDS,
-  TURRET_WEAPON_SPRITE_FIELDS,
-  type WeaponSpriteField,
-  type WeaponViewMode,
-} from '@/domain/editors/lib/weapon-sprite-fields';
+import { WEAPON_SPRITE_FIELDS, type WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
 import { useEditorDocument } from '../../editors/use-editor-document';
 import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { useCanvasEditor } from '@/app/composables/canvas/use-canvas-editor';
@@ -237,19 +234,35 @@ export function useSpecWeaponEditorViewModel(
     });
   }
 
-  function setField(key: string, value: RowData[string]) {
-    document.change((weapon) => {
-      weapon[key] = value;
-    });
-  }
-  async function pickWeaponSprite(field: WeaponSpriteField) {
+  async function pickWeaponSprite(field: string) {
     const relative = await pickModImageReference({
       sessionId: props.sessionId,
       modRoot: props.modRoot,
       title: '选择武器贴图',
       accepts: document.captureActionContext(),
     });
-    if (relative) setField(field, relative);
+    if (relative) setProperty(field, relative);
+  }
+  const sections = computed(() => weaponSections(localWeapon.value));
+  const knownKeys = computed(() => [
+    ...sections.value.flatMap((section) => section.fields.map((field) => field[0])),
+    'turretOffsets',
+    'hardpointOffsets',
+    'turretAngleOffsets',
+    'hardpointAngleOffsets',
+    ...(localWeapon.value.specClass === 'beam' ? [] : Object.keys(WEAPON_OBJECT_FIELDS)),
+  ]);
+  function setProperty(path: string, value: RowData[string]) {
+    if (path === 'specClass')
+      return document.command(() => {
+        localWeapon.value = changeWeaponSpecClass(localWeapon.value, value as WeaponSpecClass);
+      });
+    document.change((weapon) => updateSpecField(weapon, path, value));
+  }
+  function objectExtras(key: string) {
+    return Object.fromEntries(
+      Object.entries(localWeapon.value[key] as RowData).filter(([field]) => !WEAPON_OBJECT_FIELDS[key]!.some((item) => item[0] === field)),
+    );
   }
   return {
     document: localWeapon,
@@ -258,8 +271,11 @@ export function useSpecWeaponEditorViewModel(
       glowPreviewEnabled,
       expandedSections,
       selected: state.selected,
-      turretSpriteFields: TURRET_WEAPON_SPRITE_FIELDS,
-      hardpointSpriteFields: HARDPOINT_WEAPON_SPRITE_FIELDS,
+      mirror: state.mirrorMode,
+      sections,
+      knownKeys,
+      spriteFields: [...WEAPON_SPRITE_FIELDS],
+      objectExtras,
       footerNote: computed(
         () =>
           '右键 拖动画布 | 滚轮缩放 | Ctrl+Z 撤销 | Ctrl+Shift+Z 重做' +
@@ -272,37 +288,50 @@ export function useSpecWeaponEditorViewModel(
       ),
       offsets: computed(() => barrels.value.offsets),
       angles: computed(() => barrels.value.angles),
-      projectileSpecId: document.field(
-        'projectileSpecId',
-        (value) => str(value),
-        (value) => value,
-      ),
       projectileOptions: computed(() => props.projectileOptions),
-      fringeColor: fields.color('fringeColor'),
-      coreColor: fields.color('coreColor'),
-      glowColor,
-      muzzleFlashSpec: fields.object('muzzleFlashSpec'),
-      smokeSpec: fields.object('smokeSpec'),
-      showProjectileSections: computed(() => localWeapon.value.specClass === 'projectile'),
-      showBeamSection: computed(() => localWeapon.value.specClass === 'beam'),
     }),
     actions: {
+      setProperty,
+      removeProperty: (path: string) => document.command((weapon) => updateSpecField(weapon, path, undefined)),
+      extrasUpdated: (value: RowData) =>
+        document.change(() => {
+          localWeapon.value = value;
+        }),
+      addObject: (key: 'muzzleFlashSpec' | 'smokeSpec') =>
+        document.command((weapon) => {
+          weapon[key] = createSpecObject(key);
+        }),
+      objectExtrasUpdated: (key: string, value: RowData) =>
+        document.command((weapon) => {
+          const object = weapon[key] as RowData;
+          for (const field of Object.keys(objectExtras(key))) delete object[field];
+          Object.assign(object, value);
+        }),
+      toggleMirror: () =>
+        document.run(() => {
+          state.toggleMirror();
+          draw();
+        }),
+      fitView: () => {
+        viewport.pan.value = { x: 0, y: 0 };
+        const dimensions = viewport.size(),
+          extent = Math.max(
+            1,
+            ...[...images.images.values()].flatMap((image) => [image.width, image.height]),
+            ...barrels.value.offsets.map((value) => Math.abs(value) * 2),
+          );
+        viewport.scale.value = Math.min(20, Math.max(0.1, Math.min(dimensions.width, dimensions.height) / (extent + 80)));
+        draw();
+      },
       setView,
       toggleGlowPreview: () =>
         document.run(() => {
           glowPreviewEnabled.value = !glowPreviewEnabled.value;
           refreshRendering();
         }),
-      setField,
       selectBarrel,
       addBarrelFor,
       deleteBarrelFor,
-      onSpecClassChange: (kind: WeaponSpecClass) =>
-        document.command(() => {
-          localWeapon.value = changeWeaponSpecClass(localWeapon.value, kind);
-        }),
-      offsetsFor: (mode: WeaponViewMode) => projectWeaponBarrels(localWeapon.value, mode).offsets,
-      anglesFor: (mode: WeaponViewMode) => projectWeaponBarrels(localWeapon.value, mode).angles,
       barrelCountFor: (mode: WeaponViewMode) => Math.floor(projectWeaponBarrels(localWeapon.value, mode).offsets.length / 2),
       setOffset: (axis: 0 | 1, value: number | null) =>
         document.change(() => {
@@ -312,8 +341,7 @@ export function useSpecWeaponEditorViewModel(
         document.change(() => {
           barrels.value.angles[state.selected.value!] = value || 0;
         }),
-      pickWeaponSprite: (field: WeaponSpriteField) => document.run(() => void pickWeaponSprite(field)),
-      reloadSprites: () => images.reload(),
+      pickWeaponSprite: (field: string) => document.run(() => void pickWeaponSprite(field)),
       editProjectile: () =>
         document.run(() => {
           const id = str(localWeapon.value.projectileSpecId);
@@ -324,7 +352,6 @@ export function useSpecWeaponEditorViewModel(
           document.finish();
           emit('preview', deepClone(localWeapon.value));
         }),
-      save: () => emit('save-requested'),
     },
     canvas: { ...canvas, beginField: document.beginField, fieldBlur: document.fieldBlur, fieldKey: document.fieldKey },
   };

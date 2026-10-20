@@ -47,6 +47,12 @@ export const nSwitch = {
   template: `<button type="button" class="n-switch-stub" :disabled="disabled" @click="$emit('update:value', !value)" />`,
 };
 
+export const nSlider = {
+  props: ['value', 'min', 'max', 'step'],
+  emits: ['update:value'],
+  template: `<input class="n-slider-stub" type="range" :value="value" :min="min" :max="max" :step="step" @input="$emit('update:value', Number($event.target.value))" />`,
+};
+
 export const nSelect = {
   props: ['value', 'options', 'filterable', 'tag', 'clearable', 'disabled', 'size', 'show'],
   emits: ['update:value', 'update:show'],
@@ -108,6 +114,7 @@ export const editorUiStubs: GlobalStubs = {
   'n-input': nInput,
   'n-input-number': nInputNumber,
   'n-switch': nSwitch,
+  'n-slider': nSlider,
   'n-select': nSelect,
   'n-button': nButton,
   'n-checkbox': nCheckbox,

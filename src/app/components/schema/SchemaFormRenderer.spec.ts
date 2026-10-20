@@ -1,5 +1,5 @@
-import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
+import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import type { RowData } from '@/shared/types';
 import type { FileSchema } from '@/domain/schema/schema.types';
@@ -45,6 +45,8 @@ function mountForm(modelValue: RowData) {
     },
   });
 }
+
+enableAutoUnmount(afterEach);
 
 describe('SchemaFormRenderer', () => {
   it('mounts fields when their section first opens and retains them after closing', async () => {

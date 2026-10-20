@@ -465,6 +465,7 @@ mod tests {
             log_rotation_size_mib: 12,
             log_backup_count: 4,
             edit_mode: crate::models::EditMode::Plain,
+            expand_field_descriptions: true,
             ..AppSettings::default()
         };
         save_settings(&dir, &settings).unwrap();
@@ -578,7 +579,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 40);
+        assert_eq!(paths.len(), 41);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();

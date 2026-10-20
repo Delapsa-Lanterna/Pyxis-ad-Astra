@@ -75,10 +75,10 @@ export function useSpecEditorDraftImages<TImageData>(
       loading.value = false;
       return;
     }
-    const paths = options.fields
-      .map((field) => options.draft.value[field])
-      .filter((path): path is string => typeof path === 'string')
-      .map(normalizeFsPath);
+    const paths = [
+      ...(value.value?.resourceRefs ?? []).map((resource) => resource.relPath),
+      ...options.fields.flatMap((field) => options.draft.value[field] ?? []).filter((path): path is string => typeof path === 'string'),
+    ].map(normalizeFsPath);
     const resources = event.invalidation?.resources ?? event.resources;
     if (event.invalidation?.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath)))) void refresh();
   });

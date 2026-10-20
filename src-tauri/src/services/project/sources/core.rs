@@ -863,7 +863,6 @@ mod tests {
     #[test]
     fn persistent_core_cache_rejects_changed_source_content() {
         let root = temp_dir("persistent_core_cache");
-        let cache_root = temp_dir("persistent_core_cache_root");
         let hull_dir = root.join("starsector-core/data/hulls");
         fs::create_dir_all(&hull_dir).unwrap();
         crate::io::write_utf8_no_bom(
@@ -871,7 +870,10 @@ mod tests {
             r#"{"hullId":"demo","spriteName":"before"}"#,
         )
         .unwrap();
-        super::super::super::sources::configure_persistent_index_cache(&cache_root).unwrap();
+        super::super::super::sources::configure_persistent_index_cache(
+            crate::testutil::persistent_cache_directory(),
+        )
+        .unwrap();
         crate::io::write_utf8_no_bom(
             &hull_dir.join("ship_data.csv"),
             "name,id\n#disabled,demo\n\"#quoted\",demo\n #space,space\n",
@@ -927,7 +929,6 @@ mod tests {
         let changed = load_core_ship_files(&root.to_string_lossy()).unwrap();
 
         let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(cache_root);
         assert_eq!(loaded["demo"].data["spriteName"], "before");
         assert_eq!(changed["demo"].data["spriteName"], "after");
     }

@@ -11,7 +11,7 @@
 - `src-tauri/src/commands/hull_reference.rs`：Hull command。
 - `src-tauri/src/commands/resources.rs`：批量资源与引用 command。
 - `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存。
-- `src-tauri/src/services/project/definitions/entity_resources.rs`：必须解析实体贴图、光束枚举或自定义贴图对、弹体与等离子默认特效的授权资源。
+- `src-tauri/src/services/project/definitions/entity_resources.rs`：解析实体贴图、光束枚举或自定义贴图对、弹体与等离子默认特效的授权资源。
 - `src-tauri/src/services/project/query/hull_references.rs`：舰体引用、槽位及来源选择查询。
 - `src-tauri/src/services/project/query/resources.rs`：草稿资源引用与授权资源批量 data URL 查询。
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
@@ -21,16 +21,16 @@
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
 - `src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
 - `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
-- `src/app/composables/use-resource-media-registry.ts`：必须持有集合差量、业务引用、媒体租约与所属反馈。
-- `src/app/composables/use-resource-thumbnail.ts`：必须交付普通缩略图需求与静态成品展示生命周期。
+- `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
+- `src/app/composables/use-resource-thumbnail.ts`：交付普通缩略图需求与静态成品展示生命周期。
 - `src/app/composables/use-thumbnail-preload.ts`：可见优先与邻近预读队列的资源集合消费。
 - `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
 - `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。
 - `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影。
-- `src/services/engine-assets.service.ts`：必须通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
+- `src/services/engine-assets.service.ts`：通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
 - `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
-- `src/services/resource-media-query.spec.ts`：必须验证完整批次、物理共享、失效和一次性查询。
-- `src/services/resource-media.service.ts`：必须唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
+- `src/services/resource-media-query.spec.ts`：验证完整批次、物理共享、失效和一次性查询。
+- `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
 - `src/services/resource-media.spec.ts`：媒体引用、展示集合与释放行为验证。
 - `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 
@@ -55,9 +55,9 @@
 
 - Core 文档目录由来源读取按 canonical 游戏根交付，引用能力消费所属只读成果。
 - 可视区与选项媒体 owner 登记实际展示集合，资源替换和释放交还所属等待。
-- 各 WebView 必须由唯一媒体 owner 持有 data URL；窗口图片运行态必须分别持有解码和成品，活跃引用与闲置预算必须分别计量。
+- 各 WebView 由唯一媒体 owner 持有 data URL；窗口图片运行态分别持有解码和成品，活跃引用与闲置预算分别计量。
 - 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
-- 媒体服务必须拥有合批、single-flight、就绪数据与失效；registry 必须持有集合差量和所属租约。
+- 媒体服务拥有合批、single-flight、就绪数据与失效；registry 持有集合差量和所属租约。
 - 舰体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
 - 贴图选择归引用能力，返回后端校验的 Mod 根内正斜杠相对路径。
@@ -67,7 +67,7 @@
 ### 资源解析
 
 1. 组件或 schema 选项携带 `ResourceRef` 请求资源。
-2. 媒体服务必须直接交付就绪结果、共享在途结果，并对集合冷请求采用 25ms 合批；一次性查询必须立即交接所属排队任务。
+2. 媒体服务直接交付就绪结果、共享在途结果，并对集合冷请求采用 25ms 合批；一次性查询立即交接所属排队任务。
 3. 后端批次按媒体资源键复用本次结果与缓存，按实际访问准备 Mod/Core 根边界并逐文件授权读取。
 4. 返回 data URL 进入前端 LRU 缓存并驱动渲染。
 
@@ -128,6 +128,7 @@
 - 联合配置资源必须消费 Core／Mod 的实际配置和版本，UI 图标必须从 graphics.ui 解析；展示消费者必须使用返回的 `ResourceRef`。
 - 草稿资源查询必须由资源能力交付，必须捕获当前正式草稿并消费实时请求及所属 session 的接纳与释放。
 - 表记录图片必须消费正式 sprite 引用，缺失图片的默认资源必须由后端按格式规则解析并授权。
+- 规格纹理数组引用必须携带完整字段路径；失效必须依据实际授权引用接纳，引擎样式选项必须复用合并后的正式目录。
 - 资源共享读取必须归媒体 owner，集合租约必须归所属 registry；释放只允许结束所属等待，迟到结果严禁写入已撤销生命周期。
 - 选项媒体 owner 必须分别登记菜单、已选值、摘要和键值行集合；集合替换必须只更新受影响资源，引用计数归零时必须交还租约。
 - 静态武器及装配绘制必须共用正式层序、原点、发射点与有效 Skin 来源，已装载导弹必须消费实际弹体资源。
@@ -138,7 +139,7 @@
 ## 陷阱
 
 - Core fallback 允许写盘会让只读边界被突破。
-- 同一物理数据的预算必须只登记一次，活跃租约与闲置保留必须分别计量。
+- 同一物理数据的预算只登记一次，活跃租约与闲置保留分别计量。
 - 在前端按路径规则拼出 `ResourceRef` 会让资源身份脱离后端授权。
 - 指纹校验跳过会让过期派生索引冒充当前 Core 内容。
 - 缓存命中不刷新访问顺序会让 LRU 逐出策略失真。

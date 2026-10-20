@@ -12,6 +12,20 @@ beforeEach(() => {
 });
 
 describe('settings integer limits', () => {
+  it('defaults field descriptions closed and validates edits and mirrored snapshots', () => {
+    const settings = useSettingsStore();
+    expect(settings.expandFieldDescriptions).toBe(false);
+    settings.setExpandFieldDescriptions(true);
+    expect(settings.settingsSnapshot().expandFieldDescriptions).toBe(true);
+    settings.replaceSettings(createSettingsFixture());
+    expect(settings.expandFieldDescriptions).toBe(false);
+    const invalid = 'true' as unknown as boolean;
+    expect(() => initializeSettingsStore(createSettingsFixture({ expandFieldDescriptions: invalid }))).toThrow();
+    expect(() => settings.setExpandFieldDescriptions(invalid)).toThrow();
+    expect(() => settings.replaceSettings(createSettingsFixture({ theme: 'dark', expandFieldDescriptions: invalid }))).toThrow();
+    expect(settings.theme).toBe('light');
+    expect(settings.expandFieldDescriptions).toBe(false);
+  });
   it('mirrors hidden cache limits while keeping the captured startup budget', () => {
     const settings = useSettingsStore(),
       next = createSettingsFixture();

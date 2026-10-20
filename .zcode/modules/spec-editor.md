@@ -11,11 +11,12 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `schemas/spec-defaults.json`：舰船、武器、弹体、系统与技能规格的默认模板资产。
 - `src-tauri/src/commands/spec_editor.rs`：规格保存及外部规格导入 command。
 - `src-tauri/src/services/spec_editor.rs`：正式外部规格导入及保存链路的测试适配。
+- `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
 - `src/app/composables/spec-editor/spec-editor.types.ts`：目标、响应式输入及规格定义契约。
 - `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取及接纳。
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
 - `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
-- `src/domain/editors/spec-construction.ts`：规格默认模板加载、创建及分支必读字段补齐。
+- `src/domain/editors/spec-construction.ts`：规格模板、字段定义和所属路径更新。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
 - `src/domain/spec-editor/spec-normalization.spec.ts`：四类规格的集合默认值与归一化验证。
 - `src/orchestrators/editor-window.orchestrator.ts`：规格保存结果发布与所属提交事件过滤。
@@ -73,6 +74,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 ## 规范
 
 - 保存必须先提交所属活动输入，后续草稿必须按实际基线交接。
+- 可选字段的展示默认值必须保持读取性质；恢复默认必须删除所属键，嵌套更新必须保留其它业务字段。
 - 四类实现必须消费共同目标、保存及外部接纳协议。
 - 图像与依赖读取必须消费独立输入契约，严禁通过完整窗口 VM 类型取得输入。
 - 基础会话必须消费独立定义接口，具体实现选择必须归应用装配。

@@ -14,6 +14,12 @@ export function csvColumnSchemasForTable(table: CsvTableKey): CsvColumnSchema[] 
   return getCsvColumnSchemas(table) || EMPTY_SCHEMAS;
 }
 
+export function csvColumnsForTable(table: CsvTableKey, headers: string[]): string[] {
+  const present = new Set(headers.filter(Boolean));
+  const standard = csvColumnSchemasForTable(table).map((schema) => schema.key);
+  return [...new Set([...standard, ...present])].filter((key) => present.has(key));
+}
+
 export function csvColumnSchemaFor(table: CsvTableKey, column: string): CsvColumnSchema | null {
   return csvColumnSchemasForTable(table).find((schema) => schema.key === column) ?? null;
 }

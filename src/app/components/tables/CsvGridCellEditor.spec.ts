@@ -1,9 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import type { CsvSourceIndex } from '@/domain/tables/csv-source-options';
-import type { CsvGridColumn } from '@/domain/tables/csv-grid-model';
+import { createCsvGridColumns, type CsvGridColumn } from '@/domain/tables/csv-grid-model';
 import CsvGridCellEditor from './CsvGridCellEditor.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { mountCsvInputHost } from '@/test/csv-input-host';
@@ -34,6 +34,7 @@ let fixture: ReturnType<typeof mountCsvInputHost>;
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  vi.unstubAllGlobals();
 });
 
 function mountEditor(props: Record<string, unknown>) {
@@ -68,6 +69,36 @@ describe('CsvGridCellEditor', () => {
     initializeSettingsStore(createSettingsFixture());
   });
 
+  it.each(['system id', 'defense id', 'travel drive'])('edits %s through the ship-system source in each input mode', async (key) => {
+    const options = [{ label: 'Sample system', value: 'sample-system' }];
+    const model = createCsvGridColumns('ships', [key], [], new Map([['csv:shipSystems.id', options]]));
+    const column = model.columns[0]!;
+    expect(column.schema).toMatchObject({ control: 'reference', source: 'csv:shipSystems.id' });
+    for (const editMode of ['smart', 'plain'] as const) {
+      useSettingsStore().setEditMode(editMode);
+      const editor = mountEditor({
+        column,
+        sourceIndex: model.sourceIndex,
+        anchorElement: document.createElement('div'),
+        row: { rowKey: 'key-0', isComment: false, data: { [key]: '' } },
+      });
+      await editor.vm.$nextTick();
+      await editor.vm.$nextTick();
+      if (editMode === 'smart') {
+        const option = editor.get('.csv-cell-picker-option');
+        expect(option.text()).toContain('Sample system');
+        await option.trigger('click');
+      } else {
+        await editor.get('input').setValue('sample-system');
+        await editor.get('input').trigger('keydown', { key: 'Enter' });
+      }
+      expect(fixture.updates).toEqual([{ target: { ...fixture.target, rowKey: 'key-0', column: key }, value: 'sample-system' }]);
+      expect(editor.emitted('close')).toHaveLength(1);
+      wrapper!.unmount();
+      wrapper = null;
+    }
+  });
+
   it('consumes the selected image through the grid media owner', () => {
     const resource = {
       source: 'mod' as const,
@@ -90,19 +121,13 @@ describe('CsvGridCellEditor', () => {
     expect(media.replace).not.toHaveBeenCalled();
   });
 
-  it('commits edited native input on blur and on enter', async () => {
+  it.each(['blur', 'keydown.enter'])('commits edited native input on %s', async (event) => {
     const editor = mountEditor({ column: columnFixture('number') });
     const input = editor.get('input');
     await input.setValue('LARGE');
-    await input.trigger('blur');
-    expect(fixture.updates[0]).toEqual({ target: { ...fixture.target, rowKey: 'key-0', column: 'size' }, value: 'LARGE' });
+    await input.trigger(event);
+    expect(fixture.updates).toEqual([{ target: { ...fixture.target, rowKey: 'key-0', column: 'size' }, value: 'LARGE' }]);
     expect(editor.emitted('close')).toHaveLength(1);
-
-    const editor2 = mountEditor({ column: columnFixture('number') });
-    const input2 = editor2.get('input');
-    await input2.setValue('SMALL');
-    await input2.trigger('keydown', { key: 'Enter' });
-    expect(fixture.updates[0]?.value).toBe('SMALL');
   });
 
   it('does not emit when the native value is unchanged', async () => {

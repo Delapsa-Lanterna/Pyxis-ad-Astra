@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ref, shallowRef } from 'vue';
+import { shallowRef } from 'vue';
 import { useCanvasViewport } from './use-canvas-viewport';
 import { useCanvasNavigation } from './use-canvas-navigation';
 
@@ -114,7 +114,6 @@ describe('useCanvasViewport', () => {
 
   it('keeps reactive pan values readable through the exposed ref', () => {
     const viewport = useCanvasViewport(shallowRef(fakeCanvas()), 1, 10);
-    expect(viewport.pan).toBeInstanceOf(ref(0).constructor);
     viewport.panBy(5, 5);
     expect(viewport.pan.value).toEqual({ x: 5, y: 5 });
   });

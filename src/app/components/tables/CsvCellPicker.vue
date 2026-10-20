@@ -32,39 +32,55 @@
       清除当前值
     </button>
     <div :ref="visible.setMediaRoot" class="csv-cell-picker-list">
-      <template v-for="group in filteredGroups" :key="group.key">
-        <div v-if="group.label" class="csv-cell-picker-group ui-text-muted">{{ group.label }}</div>
-        <button
-          class="ui-button ui-text-normal ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
-          v-for="option in group.options"
-          :key="option.value"
-          :ref="visible.mediaRef(option.value, option.resourceRef)"
-          :class="['csv-cell-picker-option', { selected: selectedValues.has(option.value) }]"
-          :aria-pressed="multiple ? selectedValues.has(option.value) : undefined"
-          :title="option.description ?? undefined"
-          type="button"
-          @click="selectOption(option.value)"
+      <NCollapse
+        arrow-placement="right"
+        display-directive="show"
+        :expanded-names="groups.filter((group) => !collapsedGroups.has(group.key)).map((group) => group.key)"
+        @item-header-click="
+          ({ name, expanded }: { name: string | number; expanded: boolean }) =>
+            expanded ? collapsedGroups.delete(name) : collapsedGroups.add(name)
+        "
+      >
+        <component
+          v-for="group in filteredGroups"
+          :key="group.key"
+          :is="group.label ? 'NCollapseItem' : 'div'"
+          class="csv-cell-picker-group"
+          :name="group.key"
+          :title="group.label"
         >
-          <svg v-if="multiple" class="csv-cell-picker-check ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
-            <path v-if="selectedValues.has(option.value)" d="m3 8 3 3 7-6" />
-          </svg>
-          <ResourceThumbnail
-            v-if="option.resourceRef"
-            class="csv-cell-picker-thumb"
-            :session-id="sessionId"
-            :resource="option.resourceRef"
-            :url="visible.mediaSrc(option.resourceRef)"
-            :active="visible.mediaVisible(option.value)"
-            :label="option.label"
-            :width="18"
-            :height="18"
-          />
-          <span class="csv-cell-picker-label ui-text-truncate ui-layout-shrink">{{ option.label }}</span>
-          <span v-if="option.value !== option.label" class="csv-cell-picker-value ui-text-truncate ui-layout-shrink ui-text-muted">{{
-            option.value
-          }}</span>
-        </button>
-      </template>
+          <button
+            class="ui-button ui-text-normal ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
+            v-for="option in group.options"
+            :key="option.value"
+            :ref="visible.mediaRef(option.value, option.resourceRef)"
+            :class="['csv-cell-picker-option', { selected: selectedValues.has(option.value) }]"
+            :aria-pressed="multiple ? selectedValues.has(option.value) : undefined"
+            :title="option.description ?? undefined"
+            type="button"
+            @click="selectOption(option.value)"
+          >
+            <svg v-if="multiple" class="csv-cell-picker-check ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path v-if="selectedValues.has(option.value)" d="m3 8 3 3 7-6" />
+            </svg>
+            <ResourceThumbnail
+              v-if="option.resourceRef"
+              class="csv-cell-picker-thumb"
+              :session-id="sessionId"
+              :resource="option.resourceRef"
+              :url="visible.mediaSrc(option.resourceRef)"
+              :active="visible.mediaVisible(option.value)"
+              :label="option.label"
+              :width="18"
+              :height="18"
+            />
+            <span class="csv-cell-picker-label ui-text-truncate ui-layout-shrink">{{ option.label }}</span>
+            <span v-if="option.value !== option.label" class="csv-cell-picker-value ui-text-truncate ui-layout-shrink ui-text-muted">{{
+              option.value
+            }}</span>
+          </button>
+        </component>
+      </NCollapse>
     </div>
     <button
       v-if="multiple"
@@ -107,6 +123,7 @@ const visible = useVisibleResourceMedia({
   thumbnailSize: 18,
 });
 
+const collapsedGroups = ref(new Set<string | number>());
 const query = ref('');
 const customMode = ref(false);
 const customText = ref('');

@@ -1,9 +1,9 @@
 import { entityTargetFixture } from '@/test/entity-target';
 vi.mock('@/orchestrators/config-save.orchestrator', () => ({ completeConfigSave: vi.fn(async () => {}) }));
 import { savedWriteFixture } from '@/test/write-result';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref, type Ref } from 'vue';
 
 const mocks = vi.hoisted(() => ({
@@ -109,6 +109,8 @@ function mountEditor(family = variantFamily) {
   return { vm, saveFile, onSaved, selectedId, files } as EditorParams & { vm: typeof vm };
 }
 
+enableAutoUnmount(afterEach);
+
 describe('useConfigFamilyEditorViewModel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -131,8 +133,8 @@ describe('useConfigFamilyEditorViewModel', () => {
 
   it('loads the selected file data into the draft', async () => {
     const { vm } = mountEditor();
-    await vm.save(); // no-op dirty check: saving a clean draft still writes current data
-    expect(vm.selectedFile.value?.data.variantId).toBe('v1');
+    await vi.waitFor(() => expect(vm.draftData.value).toEqual({ variantId: 'v1', hullId: 'h1' }));
+    expect(vm.selectedFile.value?.id).toBe('v1');
   });
 
   it('saves the current draft through the injected save callback', async () => {
@@ -160,11 +162,15 @@ describe('useConfigFamilyEditorViewModel', () => {
   });
 
   it('switches the draft target when the selection changes', async () => {
-    const { vm, selectedId } = mountEditor();
+    const { vm, selectedId, saveFile, onSaved } = mountEditor();
+    await vi.waitFor(() => expect(vm.draftData.value.variantId).toBe('v1'));
     selectedId.value = 'v2';
-    await vi.waitFor(() => expect(vm.selectedFile.value?.data.variantId).toBe('v2'));
+    await vi.waitFor(() => expect(vm.draftData.value).toEqual({ variantId: 'v2', hullId: 'h1' }));
     await vm.save();
-    // The save targets the newly selected file.
-    expect(mocks.feedback.error).not.toHaveBeenCalled();
+    expect(saveFile).toHaveBeenCalledWith('sess-1', 'M:/mod', expect.objectContaining({ id: 'v2', relPath: 'data/variants/v2.variant' }), {
+      variantId: 'v2',
+      hullId: 'h1',
+    });
+    expect(onSaved).toHaveBeenCalledWith('v2', expect.objectContaining({ id: 'v2' }));
   });
 });

@@ -798,7 +798,6 @@ mod tests {
     fn persistent_project_index_reuses_matching_sources_and_rebuilds_changed_sources() {
         use super::sources::families::take_load_counts;
         let root = temp_dir("persistent_project_index");
-        let cache_root = temp_dir("persistent_project_index_cache");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/demo.variant"),
@@ -818,7 +817,10 @@ mod tests {
             )
             .unwrap();
         }
-        super::super::sources::configure_persistent_index_cache(&cache_root).unwrap();
+        super::super::sources::configure_persistent_index_cache(
+            crate::testutil::persistent_cache_directory(),
+        )
+        .unwrap();
 
         let mut initial_trace = PerformanceTrace::new("project.openSession");
         take_load_counts();
@@ -843,7 +845,6 @@ mod tests {
         assert_eq!(changed.skin_warnings.len(), 1);
 
         let _ = std::fs::remove_dir_all(root);
-        let _ = std::fs::remove_dir_all(cache_root);
         assert!(
             cached
                 .variant_files

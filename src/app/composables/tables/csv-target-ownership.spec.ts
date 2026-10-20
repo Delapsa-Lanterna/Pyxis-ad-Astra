@@ -11,7 +11,8 @@ import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchest
 import { sessionUpdateFixture } from '@/test/write-result';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
-import type { CsvTableTarget, CsvTableIndex } from '@/shared/types';
+import { TABLE_KEYS, type CsvTableTarget, type CsvTableIndex } from '@/shared/types';
+import { csvColumnSchemasForTable } from '@/domain/tables/csv-column-schema';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
@@ -73,6 +74,22 @@ beforeEach(() => {
 afterEach(() => wrapper?.unmount());
 
 describe('CSV explicit targets and column ownership', () => {
+  it.each(TABLE_KEYS)('projects %s schema order through stored headers and inferred row keys', (table) => {
+    const tables = useTablesStore();
+    const target = { ...a, table };
+    const keys = csvColumnSchemasForTable(table).map((schema) => schema.key);
+    const header = ['custom-z', ...keys.toReversed(), 'custom-a'];
+    const record = csvTableIndex([{ rowKey: 'ordered', isComment: false, data: Object.fromEntries(header.map((key) => [key, ''])) }], {
+      table,
+      header,
+    });
+    navigateToModTable(a.modRoot, table);
+    tables.applyTableIndex(target, record);
+    expect(tables.visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
+    expect(tables.currentHeader).toEqual(header);
+    tables.applyTableIndex(target, { ...record, header: [] });
+    expect(tables.visibleColumns).toEqual([...keys, 'custom-z', 'custom-a']);
+  });
   async function orderedHarness(save = async () => true) {
     const record = windowRecord();
     record.totalRows = 2;

@@ -352,11 +352,9 @@ export function projectWeaponPanel(
     mountSize: schemaStringValue(spec.size),
     loadedMissile,
     diagnostic:
-      spec.specClass === 'pulse'
-        ? 'pulse 在原版中无法正常处理，请选择 projectile 或 beam。'
-        : stats.diagnostics ||
-          (loadedHint && !loadedMissile ? '已装载导弹的贴图、尺寸、中心或发射点来源缺失。' : '') ||
-          (!stats.beam && !association?.source ? '弹体来源未提供，统计采用可读取的静态参数。' : ''),
+      stats.diagnostics ||
+      (loadedHint && !loadedMissile ? '已装载导弹的贴图、尺寸、中心或发射点来源缺失。' : '') ||
+      (!stats.beam && !association?.source ? '弹体来源未提供，统计采用可读取的静态参数。' : ''),
     allStats: [
       ...heading,
       desc,

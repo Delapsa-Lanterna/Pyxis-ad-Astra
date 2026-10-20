@@ -124,6 +124,15 @@ function installGlowRuntime() {
 }
 
 describe('SpecWeaponEditor', () => {
+  it('creates complete muzzle objects and edits their fields without losing unknown keys', async () => {
+    const editor = mountEditor({ id: 'fixture', specClass: 'projectile', smokeSpec: { particleSizeMin: 2, extension: true } });
+    await editor.setProps({ editContext: { targetKey: 'fixture', baselineGeneration: 1, handoff: 'load' } });
+    await editor.get('[data-field-path="muzzleFlashSpec"] button').trigger('click');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('muzzleFlashSpec.particleCount', 0);
+    await editor.get('[data-field-path="smokeSpec.particleSizeMin"] input').setValue('7');
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('smokeSpec', { particleSizeMin: 7, extension: true });
+  });
   it('creates an above-below pair through the real pointer and deletes the pair as one reversible action', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -164,6 +173,7 @@ describe('SpecWeaponEditor', () => {
     const buttons = editor.findAll('button').map((button) => button.text());
     expect(buttons).toContain('关闭');
     expect(buttons).toContain('保存');
+    expect(editor.get('[data-name="anim"] .field-description').text()).toBe('原版帧图片使用 _00.png、_01.png 等独立序列文件。');
   });
 
   it('switches the weapon type through the type select', async () => {
@@ -179,7 +189,6 @@ describe('SpecWeaponEditor', () => {
   it('switches a pulse draft to an allowed branch and records one canvas undo action', async () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'pulse', type: 'ENERGY', custom: { _slot: 'keep' } });
     await editor.setProps({ editContext: { targetKey: 'weapon', baselineGeneration: 1, handoff: 'load' } });
-    expect(editor.text()).toContain('pulse 在原版中无法正常处理');
     const type = editor.findAll('select')[0]!;
     expect(type.findAll('option').map((option) => option.text())).toEqual(['projectile', 'beam']);
     await type.setValue(JSON.stringify('beam'));
@@ -211,17 +220,25 @@ describe('SpecWeaponEditor', () => {
     expect(first.text()).toContain('发射点 1');
     await first.trigger('click');
     expect(first.classes()).toContain('selected');
-    expect(editor.get(`[data-inspector-target="${mode}-barrel-0"] .field-label-key`).text()).toBe('X');
+    expect(
+      editor
+        .get(`[data-inspector-target="${mode}-barrel-0"]`)
+        .findAll('.field-label-key')
+        .map((label) => label.text()),
+    ).toEqual([`${mode}Offsets`, `${mode}Offsets`, `${mode}AngleOffsets`]);
   });
 
-  it.each(['projectile', 'beam'])('groups glow separately after sprites for a %s weapon', (specClass) => {
+  it.each(['projectile', 'beam'])('groups glow after frame animation for a %s weapon', (specClass) => {
     const editor = mountEditor({ id: 'railgun', specClass });
     const sections = editor.findAll('.n-collapse-item-stub').map((section) => section.attributes('data-name'));
     const position = sections.indexOf('glow');
-    expect(sections.slice(position - 1, position + 2)).toEqual(['hardpointSprites', 'glow', 'turretBarrels']);
+    expect(sections.slice(position - 1, position + 2)).toEqual(['anim', 'glow', 'sound']);
     expect(editor.get('[data-name="glow"]').text()).toContain('glowColor');
+    expect(editor.get('[data-name="advanced"]').text()).toContain('mountTypeOverride');
+    expect(editor.get('[data-name="advanced"]').text()).toContain('displayArcRadius');
+    expect(editor.get('[data-field-path="glowColor"]').classes()).not.toContain('field-group');
     expect(editor.findAll('.field-label-key').filter((label) => label.text() === 'glowColor')).toHaveLength(1);
-    expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('false');
+    expect(editor.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('false');
   });
 
   it('draws only the base by default and starts and stops glow on demand', async () => {
@@ -232,7 +249,7 @@ describe('SpecWeaponEditor', () => {
     expect(tint.getImageData).toHaveBeenCalledTimes(0);
     expect(recording.calls('drawImage').every((draw) => draw.args[0] === images[0])).toBe(true);
     recording.ops.length = 0;
-    const toggle = editor.get('[aria-pressed]');
+    const toggle = editor.get('[data-name="glow"] [aria-pressed]');
     await toggle.trigger('click');
     expect(toggle.attributes('aria-pressed')).toBe('true');
     expect(frames.size).toBe(1);
@@ -267,7 +284,7 @@ describe('SpecWeaponEditor', () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'projectile', glowColor: [100, 200, 50, 128] }, { turretGlowSprite: 'glow' });
     await editor.setProps({ editContext: { targetKey: 'weapon', baselineGeneration: 1, handoff: 'load' } });
     await load();
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     recording.ops.length = 0;
     tint.getImageData.mockClear();
     const color = editor.get('[data-name="glow"] .color-picker-text-input');
@@ -276,7 +293,7 @@ describe('SpecWeaponEditor', () => {
     expect(frames.size).toBe(0);
     expect(recording.calls('drawImage')).toHaveLength(0);
     expect(tint.getImageData).toHaveBeenCalledTimes(0);
-    expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('true');
+    expect(editor.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('true');
     const window = editor.get('.editor-window');
     window.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
     await flushPromises();
@@ -299,7 +316,7 @@ describe('SpecWeaponEditor', () => {
   it('follows the current view and loaded resources and releases the preview on close', async () => {
     const { frames, load, images, tint } = installGlowRuntime();
     const editor = mountEditor({ id: 'railgun', specClass: 'projectile' }, { turretGlowSprite: 'glow' });
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     expect(frames.size).toBe(0);
     expect(tint.getImageData).toHaveBeenCalledTimes(0);
     await load();
@@ -309,7 +326,7 @@ describe('SpecWeaponEditor', () => {
       .find((button) => button.text().startsWith('固定视图'))!
       .trigger('click');
     expect(frames.size).toBe(0);
-    expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('true');
+    expect(editor.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('true');
     await editor.setProps({ spriteData: { hardpointGlowSprite: 'replacement' } });
     expect(frames.size).toBe(0);
     expect(images[0]!.onload).toBeNull();
@@ -319,10 +336,10 @@ describe('SpecWeaponEditor', () => {
     expect(frames.size).toBe(0);
     expect(images.every((image) => image.onload === null)).toBe(true);
     await editor.setProps({ spriteData: { hardpointGlowSprite: 'pending' } });
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     await load();
     expect(frames.size).toBe(0);
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     expect(frames.size).toBe(1);
     wrapper!.unmount();
     wrapper = null;
@@ -330,7 +347,7 @@ describe('SpecWeaponEditor', () => {
     expect(images.every((image) => image.onload === null)).toBe(true);
     const reopened = mountEditor({ id: 'railgun', specClass: 'projectile' }, { turretGlowSprite: 'glow' });
     await load();
-    expect(reopened.get('[aria-pressed]').attributes('aria-pressed')).toBe('false');
+    expect(reopened.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('false');
     expect(frames.size).toBe(0);
   });
 
@@ -339,18 +356,18 @@ describe('SpecWeaponEditor', () => {
     const weapon = { id: 'railgun', specClass: 'projectile', glowColor: [100, 200, 50, 128] };
     const editor = mountEditor(weapon, { turretGlowSprite: 'glow' });
     await load();
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     await editor.setProps({
       weapon: { ...weapon, glowColor: [100, 200, 50, 0] },
       editContext: { targetKey: 'weapon', baselineGeneration: 1, handoff: 'load' },
     });
     expect(frames.size).toBe(0);
-    expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('true');
+    expect(editor.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('true');
     await editor.setProps({ weapon, editContext: { targetKey: 'weapon', baselineGeneration: 2, handoff: 'save' } });
     expect(frames.size).toBe(1);
     useSettingsStore().setTheme('dark');
     await editor.vm.$nextTick();
-    expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('true');
+    expect(editor.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('true');
     expect(frames.size).toBe(1);
     expect(editor.emitted('draft-changed')).toBeUndefined();
   });
@@ -378,7 +395,7 @@ describe('SpecWeaponEditor', () => {
     const snapshot = editor.emitted('preview')!.at(-1)![0] as RowData;
     expect(snapshot).toMatchObject({ glowColor: [100, 200, 50, 128], unknown: { value: 7 } });
     await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[1, 2, 3, 255]');
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ glowColor: [1, 2, 3, 255] });
     expect(snapshot.glowColor).toEqual([100, 200, 50, 128]);
@@ -389,10 +406,10 @@ describe('SpecWeaponEditor', () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'projectile' }, { turretGlowSprite: 'glow' }, true);
     await load();
     await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 0]');
-    await editor.get('[aria-pressed]').trigger('click');
+    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ glowColor: [100, 200, 50, 0] });
-    expect(editor.get('[aria-pressed]').attributes('aria-pressed')).toBe('true');
+    expect(editor.get('[data-name="glow"] [aria-pressed]').attributes('aria-pressed')).toBe('true');
     expect(frames.size).toBe(0);
     expect(tint.getImageData).toHaveBeenCalledTimes(0);
   });

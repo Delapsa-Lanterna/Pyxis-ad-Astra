@@ -130,3 +130,8 @@ fn create_file_link(_target: &Path, _link: &Path) -> std::io::Result<()> {
         "file links are unsupported on this platform",
     ))
 }
+
+pub(crate) fn persistent_cache_directory() -> &'static Path {
+    static CACHE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-source-cache"))
+}

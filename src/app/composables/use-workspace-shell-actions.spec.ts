@@ -2,8 +2,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 import type { AssociatedSpecChange, ChooseOptions, AppFeedback, ProjectManifest } from '@/shared/types';
-import { NSelect } from 'naive-ui/es/select';
+import AppSelect from '@/app/components/AppSelect.vue';
 import { NCheckbox } from 'naive-ui/es/checkbox';
+import { NSelect } from 'naive-ui/es/select';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -252,11 +253,11 @@ describe('useWorkspaceShellActions', () => {
       const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
       try {
         await flushPromises();
-        expect(wrapper.text()).toContain('pulse 在原版中无法正常处理');
-        wrapper.findComponent(NSelect).vm.$emit('update:value', 'beam');
+        const select = wrapper.findComponent(AppSelect).findComponent(NSelect);
+        select.vm.$emit('update:value', 'beam');
         wrapper.findAllComponents(NCheckbox)[1]!.vm.$emit('update:checked', false);
         await flushPromises();
-        expect(wrapper.findComponent(NSelect).props('value')).toBe('beam');
+        expect(select.props('value')).toBe('beam');
       } finally {
         wrapper.unmount();
       }

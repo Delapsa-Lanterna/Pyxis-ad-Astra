@@ -1,8 +1,8 @@
 vi.mock('@/orchestrators/config-save.orchestrator', () => ({ completeConfigSave: vi.fn(async () => {}) }));
 import { savedWriteFixture } from '@/test/write-result';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref, type Ref } from 'vue';
 
 const mocks = vi.hoisted(() => ({
@@ -73,6 +73,8 @@ function mountEditor() {
   );
   return { vm, saveFaction, queryPreviewImages, onSaved, factionId, factions } as Harness;
 }
+
+enableAutoUnmount(afterEach);
 
 describe('useConfigFactionEditorViewModel', () => {
   beforeEach(() => {

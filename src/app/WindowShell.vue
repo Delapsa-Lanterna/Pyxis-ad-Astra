@@ -3,7 +3,7 @@
     <n-message-provider :duration="10000" closable keep-alive-on-hover>
       <n-dialog-provider>
         <WindowRuntime
-          ><ContextMenu
+          ><WindowTooltip /><ContextMenu
             ><div v-if="title" class="app-frame app-frame-child ui-content-grid ui-content-contained">
               <TitleBar :title="title" :subtitle="windowModName" /><slot />
             </div>
@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ContextMenu from '@/app/components/ContextMenu.vue';
+import WindowTooltip from '@/app/components/WindowTooltip.vue';
 import { darkTheme } from 'naive-ui/es/themes';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import WindowRuntime from '@/app/WindowRuntime.vue';

@@ -22,7 +22,7 @@
     { "key": "turn acceleration", "label": "转向加速", "control": "number", "step": 1 },
     { "key": "mass", "label": "质量", "control": "number", "step": 1 },
     { "key": "shield type", "label": "护盾类型", "control": "enum", "options": ["NONE", "FRONT", "OMNI", "PHASE"] },
-    { "key": "defense id", "label": "防御系统", "control": "text" },
+    { "key": "defense id", "label": "防御系统", "control": "reference", "source": "csv:shipSystems.id" },
     { "key": "shield arc", "label": "护盾角度", "control": "number", "step": 1 },
     { "key": "shield upkeep", "label": "护盾维持", "control": "number", "step": 0.01 },
     { "key": "shield efficiency", "label": "护盾效率", "control": "number", "step": 0.1 },
@@ -56,7 +56,7 @@
     { "key": "breakProb", "label": "损坏概率", "control": "number", "step": 0.01 },
     { "key": "minPieces", "label": "最少碎片", "control": "number", "step": 1 },
     { "key": "maxPieces", "label": "最多碎片", "control": "number", "step": 1 },
-    { "key": "travel drive", "label": "旅行引擎", "control": "text" },
+    { "key": "travel drive", "label": "旅行引擎", "control": "reference", "source": "csv:shipSystems.id" },
     { "key": "number", "label": "编号", "control": "number", "step": 1 }
   ]
 }

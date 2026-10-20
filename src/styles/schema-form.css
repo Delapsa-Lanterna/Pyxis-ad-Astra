@@ -27,6 +27,11 @@
 .field-label-multi {
   justify-content: flex-start;
 }
+.field-label-required {
+  margin-left: 2px;
+  color: #e5484d;
+  font: 600 12px/18px var(--font-sans);
+}
 .field-label-key {
   margin-top: 2px;
   font: 400 10px/12px var(--font-mono);
@@ -74,11 +79,6 @@
 }
 .ui-field-number {
   width: 120px;
-}
-.ui-field-hint,
-.field-description {
-  margin: 0;
-  font: 400 11px/16px var(--font-sans);
 }
 .schema-form,
 .n-collapse .schema-section.n-collapse-item > .n-collapse-item__content-wrapper > .n-collapse-item__content-inner {
@@ -145,12 +145,6 @@
 }
 .schema-section .n-collapse-item__content-inner > .n-button {
   align-self: flex-start;
-}
-.field-warning {
-  color: var(--color-warning);
-}
-.field-danger {
-  color: var(--color-danger);
 }
 .field-collection-item {
   display: grid;

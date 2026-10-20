@@ -42,7 +42,20 @@ describe('settings limit controls', () => {
       },
     });
     const sections = wrapper.findAll('section');
-    expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑模式', '全局限制']);
+    expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑', '全局限制']);
+    const editing = sections[3]!;
+    expect(editing.findAll('.field-label').map((label) => label.text())).toEqual(['引用式编辑', '展开字段解析', '允许编辑原版']);
+    expect(useSettingsStore().expandFieldDescriptions).toBe(false);
+    await editing.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().expandFieldDescriptions).toBe(true);
+    const core = editing.findAll('.schema-field').at(-1)!;
+    expect(core.get('.field-description').text()).toBe('允许写入 Starsector 原版内容。');
+    expect(core.get('.field-warning').text()).toBe('注意：修改原版文件可能影响游戏运行，操作前请备份并谨慎修改。');
+    await core.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().allowCoreEditing).toBe(true);
+    useSettingsStore().setStarsectorRoot('D:/fixture');
+    await wrapper.vm.$nextTick();
+    expect(sections[0]!.get('.field-description').text()).toBe('已设置: D:/fixture');
     const immersive = sections[2]!;
     expect(immersive.findAll('.schema-field > .field-label').map((label) => label.text())).toEqual(['通用字体', '沉浸式编辑器字体']);
     expect(useSettingsStore().generalFont).toBeNull();

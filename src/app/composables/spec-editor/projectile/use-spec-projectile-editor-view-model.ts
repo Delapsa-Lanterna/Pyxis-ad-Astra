@@ -1,9 +1,12 @@
 import { computed, reactive, ref, watch, onMounted, onScopeDispose, type EmitFn, type ShallowRef } from 'vue';
 import { useEditorDocument } from '../../editors/use-editor-document';
-import { useEditorFields } from '../../editors/use-editor-fields';
+import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
+import { EXPLOSION_FIELDS, projectileSections } from '@/domain/spec-editor/projectile/spec-projectile-fields';
+import { useSettingsStore } from '@/stores/settings.store';
+import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 
 import type { RowData, EditContext, ProjectileSpecClass, ResourceRef } from '@/shared/types/index';
-import { arr, str } from '@/shared/lib/starsector/index';
+import { str } from '@/shared/lib/starsector/index';
 import {
   changeProjectileSpecClass,
   createProjectileSpec,
@@ -49,21 +52,25 @@ export function useSpecProjectileEditorViewModel(
   props: Readonly<SpecProjectileEditorProps>,
   emit: EmitFn<SpecProjectileEditorEvents>,
   elements: {
+    editorWindowRef: Readonly<ShallowRef<HTMLElement | null>>;
     stageRef: Readonly<ShallowRef<HTMLElement | null>>;
     canvasRef: Readonly<ShallowRef<HTMLCanvasElement | null>>;
   },
 ) {
-  const { stageRef, canvasRef } = elements;
+  const { editorWindowRef, stageRef, canvasRef } = elements;
+  const settings = useSettingsStore();
   const viewport = useCanvasViewport(canvasRef, 1, 20);
   const document = useEditorDocument({
     source: () => props.projectile || createProjectileSpec(props.projectileId),
     normalize: normalizeProjectileSpec,
     context: computed(() => props.editContext),
     publish: (value) => emit('draft-changed', value),
+    historyLimit: computed(() => settings.editHistoryLimit),
+    contains: (element) => Boolean(editorWindowRef.value?.contains(element)),
     draw,
   });
-  const localProjectile = document.value,
-    fields = useEditorFields(document);
+  const localProjectile = document.value;
+  useShortcutDispatch({ commands: { undo: () => void document.undo(), redo: () => void document.redo() } });
 
   const expandedSections = ref(['basic']);
   const geometry = computed(() => projectProjectileGeometry(localProjectile.value));
@@ -154,50 +161,52 @@ export function useSpecProjectileEditorViewModel(
 
   const { pickModImageReference } = useResourceReference();
   const specClass = computed(() => str(localProjectile.value.specClass, 'projectile'));
-  const showProjectileSections = computed(() => specClass.value === 'projectile');
   const showMissileSections = computed(() => specClass.value === 'missile');
-  const size = computed(() => arr(localProjectile.value.size, [0, 0]));
-  const center = computed(() => arr(localProjectile.value.center, [0, 0]));
   const engineSlots = computed<RowData[]>(() =>
     Array.isArray(localProjectile.value.engineSlots) ? (localProjectile.value.engineSlots as RowData[]) : [],
   );
-  const fringeColor = fields.color('fringeColor', [255, 255, 255, 255]);
-  const coreColor = fields.color('coreColor', [255, 255, 255, 255]);
-  const explosionColor = fields.color('explosionColor', [255, 200, 50, 255]);
-  const engineSpec = fields.object('engineSpec');
-  const explosionSpec = fields.object('explosionSpec');
-
-  function setField(key: string, value: RowData[string]) {
-    fields.set(key, value);
+  const sections = computed(() => projectileSections(showMissileSections.value));
+  const knownKeys = computed(() => [
+    ...new Set(sections.value.flatMap((section) => section.fields.map((field) => field[0].split('.')[0]!.split('[')[0]!))),
+    ...(showMissileSections.value ? ['engineSlots', 'explosionSpec'] : []),
+  ]);
+  const explosionExtras = computed(() =>
+    Object.fromEntries(
+      Object.entries((localProjectile.value.explosionSpec ?? {}) as RowData).filter(
+        ([key]) => !EXPLOSION_FIELDS.some((field) => field[0] === key),
+      ),
+    ),
+  );
+  const spriteSize = computed(() => {
+    void images.ready.value;
+    const ref = props.resourceRefs?.find((item) => item.key === geometry.value.spriteField && item.relPath === geometry.value.spritePath);
+    const size = ref ? images.image(ref) : null;
+    return size ? [size.width, size.height] : [0, 0];
+  });
+  function setProperty(path: string, value: RowData[string]) {
+    if (path === 'specClass') {
+      onSpecClassChange(value as ProjectileSpecClass);
+      return;
+    }
+    document.change((projectile) => updateSpecField(projectile, path, value));
   }
+
   function onSpecClassChange(kind: ProjectileSpecClass) {
     void document.command(() => {
       localProjectile.value = changeProjectileSpecClass(localProjectile.value, kind);
     });
   }
-  function setArray(key: string, index: number, value: number | null) {
-    fields.array(key, index, value);
-  }
-  function slotLoc(slot: RowData) {
-    return arr(slot.loc, [0, 0]);
-  }
-  function setSlotLoc(i: number, axis: number, value: number | null) {
-    document.change((projectile) => {
-      const slot = (projectile.engineSlots as RowData[])[i]!,
-        loc = arr(slot.loc, [0, 0]);
-      loc[axis] = value || 0;
-      slot.loc = loc;
-    });
-  }
   function addEngineSlot() {
-    document.change((projectile) => {
+    document.command((projectile) => {
       const slots = projectile.engineSlots as RowData[];
       slots.push(createProjectileEngineSlot(slots));
     });
   }
   function removeEngineSlot(i: number) {
-    document.change((projectile) => {
-      (projectile.engineSlots as RowData[]).splice(i, 1);
+    const slot = engineSlots.value[i]!;
+    document.command((projectile) => {
+      const slots = projectile.engineSlots as RowData[];
+      slots.splice(slots.indexOf(slot), 1);
     });
   }
   function projectileUpdated(value: RowData) {
@@ -205,11 +214,11 @@ export function useSpecProjectileEditorViewModel(
       localProjectile.value = value;
     });
   }
-  async function pickProjectileSprite(field: 'bulletSprite' | 'sprite') {
+  async function pickProjectileSprite(field: string) {
     const accepts = document.captureActionContext();
     const relative = await pickModImageReference({ sessionId: props.sessionId, modRoot: props.modRoot, title: '选择弹体贴图', accepts });
     if (!relative) return;
-    setField(field, relative);
+    setProperty(field, relative);
   }
 
   return {
@@ -225,31 +234,54 @@ export function useSpecProjectileEditorViewModel(
     },
     document: localProjectile,
     view: reactive({
-      showProjectileSections,
-      showMissileSections,
-      normalizeProjectile: normalizeProjectileSpec,
       expandedSections,
-      size,
-      center,
       engineSlots,
-      fringeColor,
-      coreColor,
-      explosionColor,
-      engineSpec,
-      explosionSpec,
-      slotLoc,
       spriteNotice,
+      sections,
+      knownKeys,
+      explosionExtras,
+      spriteSize,
+      engineStyles: engines.styleNames,
+      canSyncSprite: computed(() => spriteSize.value[0]! > 0),
     }),
     actions: {
+      setProperty,
+      removeProperty: (path: string) => document.command((projectile) => updateSpecField(projectile, path, undefined)),
+      addExplosion: () =>
+        document.command((projectile) => {
+          projectile.explosionSpec = createSpecObject('explosionSpec');
+        }),
+      explosionExtrasUpdated: (value: RowData) =>
+        document.command((projectile) => {
+          const object = projectile.explosionSpec as RowData;
+          for (const key of Object.keys(explosionExtras.value)) delete object[key];
+          Object.assign(object, value);
+        }),
+      createInlineStyle: (index: number) => {
+        const slot = engineSlots.value[index]!;
+        return document.command(() => {
+          slot.style = 'CUSTOM';
+          delete slot.styleId;
+          slot.styleSpec ??= createSpecObject('styleSpec');
+        });
+      },
+      syncSize: () => {
+        const size = [...spriteSize.value];
+        return document.command((projectile) => {
+          projectile.size = size;
+        });
+      },
+      syncCenter: () => {
+        const center = spriteSize.value.map((value) => value / 2);
+        return document.command((projectile) => {
+          projectile.center = center;
+        });
+      },
       resetView,
-      setField,
-      onSpecClassChange,
-      setArray,
-      setSlotLoc,
       addEngineSlot,
       removeEngineSlot,
       projectileUpdated,
-      pickProjectileSprite,
+      pickProjectileSprite: (field: string) => document.run(() => void pickProjectileSprite(field)),
     },
   };
 }

@@ -2,10 +2,10 @@ vi.mock('@/services/entity-query.service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/entity-query.service')>()),
   hasEntityInvalidation: mocks.hasEntityInvalidation,
 }));
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ listenEntityIdentityApplied: vi.fn(async () => () => {}) }));
 import { createPinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileSchema } from '@/domain/schema/schema.types';
 import type { AppFeedback } from '@/shared/types';
 import { useConfigFactionViewModel } from './use-config-faction-view-model';
@@ -82,6 +82,8 @@ function mountViewModel(): ReturnType<typeof useConfigFactionViewModel> {
   );
   return vm;
 }
+
+enableAutoUnmount(afterEach);
 
 describe('useConfigFactionViewModel saveFaction', () => {
   beforeEach(() => {

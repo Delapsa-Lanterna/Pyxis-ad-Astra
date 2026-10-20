@@ -9,7 +9,7 @@ import type { SpecShipEditorProps } from '@/app/composables/spec-editor/ship/use
 import type { RowData } from '@/shared/types/index';
 import SpecShipEditor from './SpecShipEditor.vue';
 vi.mock('@/services/engine-assets.service', () => ({
-  queryEngineRenderAssets: async () => ({ styles: {}, versions: [], resources: {} }),
+  queryEngineRenderAssets: async () => ({ styles: { fixture_engine: {} }, versions: [], resources: {} }),
   hasEngineAssetsInvalidation: () => false,
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ warning: vi.fn(), error: vi.fn() }) }));
@@ -73,6 +73,24 @@ function observeReveal(editor: ReturnType<typeof mount>) {
   return vi.spyOn(scroll, 'querySelector');
 }
 describe('ship pointer and inspector actions', () => {
+  it('uses the formal engine catalogue and keeps deletion within the selected group', async () => {
+    const editor = openShip({
+      ship: {
+        hullId: 'fixture',
+        weaponSlots: [{ id: 'slot', locations: [0, 0] }],
+        engineSlots: [{ style: 'fixture_engine', location: [0, 0] }],
+      },
+    });
+    await editor.get('[data-name="engines"] .item-list-button').trigger('click');
+    await flushPromises();
+    expect(editor.get('[data-field-path="engineSlots[0].style"] select').text()).toContain('fixture_engine');
+    expect(editor.get('[data-field-path="engineSlots[0].style"] select').text()).not.toContain('MISSILE_HIGH_TECH');
+    expect(editor.get('[data-name="engines"] .field-description').text()).toContain('CUSTOM 优先使用 styleId');
+    const remove = editor.findAll('[data-name="weapons"] button').find((button) => button.text() === '删除')!;
+    expect(remove.attributes('disabled')).toBeDefined();
+    await remove.trigger('click');
+    expect(editor.emitted('draft-changed')).toBeUndefined();
+  });
   it.each([
     ['weapons', 'weapon-0', 'id'],
     ['launchBays', 'launchBay-1', 'id'],
@@ -105,8 +123,8 @@ describe('ship pointer and inspector actions', () => {
   });
 
   it.each([
-    ['c', 250, 250, 'center-x'],
-    ['c', 270, 260, 'shield-x'],
+    ['c', 250, 250, 'center[0]'],
+    ['c', 270, 260, 'shieldCenter[0]'],
     ['b', 251, 248, 'bound-0'],
   ])('locks the hovered %s target at its own input row', async (mode, clientX, clientY, target) => {
     const editor = openShip({ ship: { hullId: 'ship', center: [0, 0], shieldCenter: [20, -10], bounds: [1, 2] } });
@@ -114,14 +132,18 @@ describe('ship pointer and inspector actions', () => {
     await shortcut(editor, mode);
     await editor.get('canvas').trigger('mousemove', { clientX, clientY });
     await shortcut(editor, 't');
-    expect(editor.find(`[data-inspector-field="${target}"], [data-inspector-target="${target}"]`).exists()).toBe(true);
-    expect(query).toHaveBeenLastCalledWith(`[data-inspector-${mode === 'b' ? 'target' : 'field'}="${target}"]`);
+    expect(editor.find(`[data-field-path="${target}"], [data-inspector-target="${target}"]`).exists()).toBe(true);
+    expect(query).toHaveBeenLastCalledWith(`[data-${mode === 'b' ? 'inspector-target' : 'field-path'}="${target}"]`);
   });
 
-  it('places the center action above dimension sync and disables both without a loaded image', () => {
+  it('groups sprite actions and places the cover color in advanced properties', () => {
     const editor = openShip();
-    const buttons = editor.findAll('.sprite-actions button');
-    expect(buttons.map((button) => button.text())).toEqual(['更新舰船中心', '更新贴图宽高']);
+    const buttons = editor.findAll('[data-name="sprite"] .action-group button');
+    expect(editor.get('[data-name="advanced"] [data-field-path="coversColor"]').classes()).not.toContain('field-group');
+    expect(editor.findAll('[data-name="bounds"] .action-group button').map((button) => button.text())).toEqual(['添加', '删除']);
+    expect(editor.get('[data-name="sprite"] .field-description').text()).toContain('中心赋值保持附属相对坐标');
+    expect(editor.find('[data-name="engines"] .field-description').exists()).toBe(false);
+    expect(buttons.map((button) => button.text())).toEqual(['中心设为图片中心', '按图片更新宽高']);
     expect(buttons.every((button) => button.attributes('disabled') !== undefined)).toBe(true);
   });
   it.each([true, false])('syncs dimensions on user loading, centers only when initially empty: %s', async (empty) => {
@@ -155,7 +177,7 @@ describe('ship pointer and inspector actions', () => {
       loaded.at(-1)!.onload?.();
       await flushPromises();
     }
-    const path = editor.get('.sprite-field-row input');
+    const path = editor.get('[data-field-path="spriteName"] input');
     await path.setValue('new.png');
     await editor.setProps({ spriteData: 'new', spriteSourcePath: 'new.png' });
     loaded.at(-1)!.onload?.();
@@ -169,7 +191,7 @@ describe('ship pointer and inspector actions', () => {
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ width: 100, height: 150, center: [5, 6], spriteName: 'new.png' });
     await editor
       .findAll('button')
-      .find((b) => b.text() === '更新舰船中心')!
+      .find((b) => b.text() === '中心设为图片中心')!
       .trigger('click');
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ center: [50.5, 101.5] });

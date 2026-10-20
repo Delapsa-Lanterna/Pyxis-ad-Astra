@@ -91,6 +91,49 @@
       "engineSlots": []
     }
   },
+  "objects": {
+    "muzzleFlashSpec": {
+      "length": 0,
+      "spread": 0,
+      "particleSizeMin": 0,
+      "particleSizeRange": 0,
+      "particleDuration": 0,
+      "particleCount": 0,
+      "particleColor": [255, 255, 255, 255]
+    },
+    "smokeSpec": {
+      "particleSizeMin": 10,
+      "particleSizeRange": 10,
+      "cloudParticleCount": 10,
+      "cloudDuration": 1,
+      "cloudRadius": 10,
+      "blowbackParticleCount": 10,
+      "blowbackDuration": 2,
+      "blowbackLength": 40,
+      "blowbackSpread": 20,
+      "particleColor": [100, 100, 100, 100]
+    },
+    "explosionSpec": {
+      "duration": 0.1,
+      "radius": 0,
+      "coreRadius": 0,
+      "maxDamage": 0,
+      "minDamage": 0,
+      "collisionClass": "NONE",
+      "collisionClassByFighter": "NONE",
+      "particleColor": [255, 255, 255, 255]
+    },
+    "styleSpec": {
+      "mode": "QUAD_STRIP",
+      "engineColor": [255, 145, 75, 255],
+      "contrailColor": [100, 100, 100, 150],
+      "contrailDuration": 0.5,
+      "contrailWidthMult": 2,
+      "contrailMaxSpeedMult": 0,
+      "contrailAngularVelocityMult": 0.5,
+      "type": "SMOKE"
+    }
+  },
   "system": {
     "id": "",
     "type": "STAT_MOD",

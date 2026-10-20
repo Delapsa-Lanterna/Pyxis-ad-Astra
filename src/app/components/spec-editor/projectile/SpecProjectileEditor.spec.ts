@@ -65,6 +65,26 @@ function mountEditor(projectile: RowData) {
 }
 
 describe('SpecProjectileEditor', () => {
+  it('creates missing missile fields and reverses a complete engine insertion with one undo', async () => {
+    const editor = mountEditor({ id: 'fixture', specClass: 'missile', extension: { keep: true } });
+    await editor.setProps({ editContext: { targetKey: 'fixture', baselineGeneration: 1, handoff: 'load' } });
+    expect(editor.get('[data-field-path="size[0]"] input').element).toHaveProperty('value', '');
+    await editor.get('[data-field-path="engineSpec.acc"] input').setValue('12');
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ engineSpec: { acc: 12 }, extension: { keep: true } });
+    await editor
+      .findAll('button')
+      .find((button) => button.text() === '添加')!
+      .trigger('click');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('engineSlots.0.styleSpec.mode', 'QUAD_STRIP');
+    editor.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({
+      engineSlots: [],
+      engineSpec: { acc: 12 },
+      extension: { keep: true },
+    });
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
@@ -95,7 +115,7 @@ describe('SpecProjectileEditor', () => {
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
     await editor
       .findAll('button')
-      .find((button) => button.text() === '重置视图')!
+      .find((button) => button.text() === '适应视图')!
       .trigger('click');
     expect(recording.calls('translate').map((call) => call.args)).toContainEqual([250, 200]);
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(10.5);
@@ -198,6 +218,14 @@ describe('SpecProjectileEditor', () => {
   it('hides projectile-only sections for missiles', async () => {
     const editor = mountEditor({ id: 'proj1', specClass: 'missile' });
     expect(editor.html()).not.toContain('弹体外观');
+    expect(editor.get('[data-name="flight"] .field-description').text()).toContain('装备后的速度与飞行时间由武器 CSV 对应值覆盖');
+    expect(editor.get('[data-name="scripts"] .field-description').text()).toContain('behavior 支持 PROXIMITY_FUSE、MIRV、CUSTOM');
+    expect(editor.find('[data-name="slots"] .field-description').exists()).toBe(false);
+    await editor.setProps({
+      projectile: { id: 'proj1', specClass: 'missile', engineSlots: [{ id: 'engine', style: 'CUSTOM' }] },
+      editContext: { targetKey: 'proj1', baselineGeneration: 1, handoff: 'load' },
+    });
+    expect(editor.get('[data-name="slots"] .field-description').text()).toBe('styleId 优先；内联样式支持 PARTICLES 与 QUAD_STRIP。');
   });
 
   it('adds game-loadable engines with unique ids after deletion', async () => {
@@ -211,7 +239,7 @@ describe('SpecProjectileEditor', () => {
     });
     await editor
       .findAll('button')
-      .find((button) => button.text() === '添加引擎槽')!
+      .find((button) => button.text() === '添加')!
       .trigger('click');
     const draft = editor.emitted('draft-changed')!.at(-1)![0] as RowData;
     const slots = draft.engineSlots as RowData[];

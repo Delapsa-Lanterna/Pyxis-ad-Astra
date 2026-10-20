@@ -13,7 +13,7 @@ export function useSpecWeaponEditorDependencies(input: SpecEditorInput) {
     target: input.target,
     draft: input.draft,
     context: input.context,
-    fields: WEAPON_SPRITE_FIELDS,
+    fields: [...WEAPON_SPRITE_FIELDS, 'textureType'],
     query: querySpecWeaponEditorImages,
   });
   const projectileOptions = shallowRef<Array<{ label: string; value: string }>>([]);

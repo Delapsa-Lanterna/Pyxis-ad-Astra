@@ -3,6 +3,15 @@ import { h, ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import FieldRow from './FieldRow.vue';
 describe('field composition', () => {
+  it('accepts a custom label while retaining its control and hints', () => {
+    const view = mount(FieldRow, {
+      slots: { label: () => h('div', { class: 'field-label' }, 'Custom label'), default: () => h('input'), hint: () => h('p', 'Hint') },
+    });
+    expect(view.get('.field-label').text()).toBe('Custom label');
+    expect(view.find('input').exists()).toBe(true);
+    expect(view.text()).toContain('Hint');
+    view.unmount();
+  });
   it('presents an explicit label, key and full path with its hint and action', async () => {
     const action = vi.fn();
     const view = mount(FieldRow, {

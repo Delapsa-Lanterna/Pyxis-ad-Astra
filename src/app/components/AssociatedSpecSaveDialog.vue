@@ -1,7 +1,6 @@
 <template>
   <div class="associated-save-dialog">
     <p>勾选的关联 spec 动作随本次 CSV 一起保存，并形成一次文件历史。武器类型用于新建及重命名来源缺失时的创建。</p>
-    <p v-if="items.some((item) => item.weaponCreate)">{{ WEAPON_SPEC_CLASS_NOTE }}</p>
     <div class="associated-save-list">
       <div v-for="{ candidate, weaponCreate } in items" :key="candidate.key" class="associated-save-item">
         <n-checkbox :checked="selectedKeys.has(candidate.key)" @update:checked="emit('select', candidate.key, $event)">
@@ -19,7 +18,7 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
-import { WEAPON_SPEC_CLASSES, WEAPON_SPEC_CLASS_NOTE } from '@/domain/editors/weapon-spec';
+import { WEAPON_SPEC_CLASSES } from '@/domain/editors/weapon-spec';
 import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
 import type { WeaponSpecClass } from '@/shared/types';
 

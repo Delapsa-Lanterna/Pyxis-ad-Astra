@@ -80,4 +80,23 @@ describe('weapon editor queries', () => {
     expect(mocks.resources).toHaveBeenCalledExactlyOnceWith('s1', 'weapon', 'railgun', draft, signal);
     expect(mocks.images).toHaveBeenCalledExactlyOnceWith('s1', [resource], signal);
   });
+  it('reads custom texture fields with their authorized keys in the same image batch', async () => {
+    const refs = Object.fromEntries(
+      [0, 1].map((index) => [
+        `textureType[${index}]`,
+        {
+          source: 'mod',
+          ownerKind: 'weapon',
+          ownerId: 'fixture',
+          key: `textureType[${index}]`,
+          relPath: `graphics/fixture-${index}.png`,
+        },
+      ]),
+    );
+    mocks.resources.mockResolvedValue(refs);
+    mocks.images.mockResolvedValue(['first', 'second']);
+    const result = await querySpecWeaponEditorImages('s', 'fixture', { specClass: 'beam', textureType: ['a.png', 'b.png'] });
+    expect(result.spriteData).toEqual({ 'textureType[0]': 'first', 'textureType[1]': 'second' });
+    expect(mocks.images).toHaveBeenCalledExactlyOnceWith('s', Object.values(refs), undefined);
+  });
 });

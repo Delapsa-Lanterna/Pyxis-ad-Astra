@@ -31,8 +31,11 @@ describe('formal settings commits', () => {
     const { runtime, stop, settings } = await setup();
     expect(api.listen.mock.invocationCallOrder[0]).toBeLessThan(api.read.mock.invocationCallOrder[0]!);
     settings.setGeneralFont('Fixture Font');
+    settings.setExpandFieldDescriptions(true);
     await runtime.flushSettings();
-    expect(api.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ generalFont: 'Fixture Font' }));
+    expect(api.save).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ generalFont: 'Fixture Font', expandFieldDescriptions: true }),
+    );
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
     stop();
@@ -75,9 +78,10 @@ describe('formal settings commits', () => {
     await runtime.initializeSettings();
     const stop = runtime.startSettingsMirror();
     const receive = api.listen.mock.calls[0]![1];
-    receive({ revision: 4, value: createSettingsFixture({ generalFont: 'Latest Font' }) });
+    receive({ revision: 4, value: createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true }) });
     receive({ revision: 3, value: createSettingsFixture({ generalFont: 'Earlier Font' }) });
     expect(useSettingsStore().generalFont).toBe('Latest Font');
+    expect(useSettingsStore().expandFieldDescriptions).toBe(true);
     window.dispatchEvent(new Event('focus'));
     await nextTick();
     expect(api.read).toHaveBeenCalledTimes(2);

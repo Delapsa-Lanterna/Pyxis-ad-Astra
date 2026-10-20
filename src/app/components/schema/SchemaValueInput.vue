@@ -92,7 +92,7 @@
       v-else-if="field.type === 'integer'"
       :value="numVal"
       :input-key="fieldInputKey"
-      :clear-action="field.required ? 'required' : 'remove'"
+      :clear-action="field.required ? 'required' : 'null'"
       @remove="emit('update', { kind: 'remove' })"
       :min="field.min ?? undefined"
       :max="field.max ?? undefined"
@@ -107,7 +107,7 @@
       v-else-if="field.type === 'float'"
       :value="numVal"
       :input-key="fieldInputKey"
-      :clear-action="field.required ? 'required' : 'remove'"
+      :clear-action="field.required ? 'required' : 'null'"
       @remove="emit('update', { kind: 'remove' })"
       :min="field.min ?? undefined"
       :max="field.max ?? undefined"
@@ -127,13 +127,11 @@
 
     <n-select
       v-else-if="field.type === 'enum'"
-      :show="selectOpen"
       :value="strVal"
       :options="displayOptions"
       :render-label="renderSelectLabel"
       size="small"
       clearable
-      @mousedown.capture="closeOpenSelectOnFieldClick"
       @update:show="handleSelectShowUpdate"
       @update:value="emitValue($event)"
     />
@@ -151,7 +149,6 @@
     <!-- path-image: searchable dropdown + file picker -->
     <div v-else-if="field.type === 'path-image'" class="path-field ui-control-row">
       <n-select
-        :show="selectOpen"
         :value="strVal || null"
         :options="graphicsOptions"
         :render-label="renderGraphicsLabel"
@@ -161,7 +158,6 @@
         size="small"
         placeholder="搜索或输入图片路径"
         class="path-select"
-        @mousedown.capture="closeOpenSelectOnFieldClick"
         @update:show="handleSelectShowUpdate"
         @update:value="emitValue($event ?? '')"
       />
@@ -192,7 +188,6 @@
 
     <n-select
       v-else-if="field.type === 'string-array'"
-      :show="selectOpen"
       :value="arrVal"
       :options="sourceOptions.length > 0 ? listOptions : arrVal.map((v) => ({ label: v, value: v }))"
       :render-label="renderSelectLabel"
@@ -201,14 +196,12 @@
       filterable
       tag
       size="small"
-      @mousedown.capture="closeOpenSelectOnFieldClick"
       @update:show="handleSelectShowUpdate"
       @update:value="emitValue($event)"
     />
 
     <n-select
       v-else-if="field.type === 'tag-select'"
-      :show="selectOpen"
       :value="tagSelectVal"
       :options="tagDisplayOptions"
       :render-label="renderSelectLabel"
@@ -217,7 +210,6 @@
       filterable
       tag
       size="small"
-      @mousedown.capture="closeOpenSelectOnFieldClick"
       @update:show="handleSelectShowUpdate"
       @update:value="emitValue(wrapTags($event))"
     />
@@ -233,7 +225,6 @@
         class="field-map-row ui-layout-grid ui-layout-shrink ui-layout-center ui-layout-stretch"
       >
         <n-select
-          :show="kvSelectOpen[row.rowId]"
           :value="row.entry.key"
           :options="kvKeyOptions"
           :render-label="renderSelectLabel"
@@ -241,8 +232,7 @@
           tag
           size="small"
           class="field-map-key ui-layout-shrink ui-layout-stretch"
-          @mousedown.capture="closeOpenKvSelectOnFieldClick($event, row.rowId)"
-          @update:show="handleKvSelectShowUpdate(row.rowId, $event)"
+          @update:show="handleSelectShowUpdate($event, `kv:${row.rowId}`)"
           @update:value="updateKvKey(idx, $event)"
         />
         <SchemaValueInput
@@ -275,21 +265,15 @@
       v-else-if="field.type === 'object' && field.nested"
       class="nested-object ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip"
     >
-      <FieldRow
-        v-for="sub in field.nested"
-        :key="sub.key"
-        :label="sub.label"
-        :field-key="sub.key"
-        :path="`${fieldTitle}.${sub.key}`"
-        :layout="['object', 'array', 'array-of-object', 'key-value'].includes(sub.type) ? 'group' : 'row'"
+      <SchemaFieldRow v-for="sub in field.nested" :key="sub.key" :field="sub" :path="`${fieldTitle}.${sub.key}`"
         ><SchemaValueInput
           :field="sub"
           :value="getSubValue(sub.key)"
           :field-path="`${fieldTitle}.${sub.key}`"
           :runtime-context="runtimeContext"
           :input-key="`${fieldInputKey}/${sub.key}`"
-          @update="onSubUpdate(sub.key, $event)" /><template #hint><FieldHints :field="sub" /></template
-      ></FieldRow>
+          @update="onSubUpdate(sub.key, $event)"
+      /></SchemaFieldRow>
     </div>
 
     <div
@@ -309,19 +293,15 @@
             </svg>
           </n-button>
         </div>
-        <FieldRow
-          :label="field.item.label"
-          :field-key="field.item.key"
-          :path="`${fieldTitle}[${idx}]`"
-          :layout="['object', 'array', 'array-of-object', 'key-value'].includes(field.item.type) ? 'group' : 'row'"
+        <SchemaFieldRow :field="field.item" :path="`${fieldTitle}[${idx}]`"
           ><SchemaValueInput
             :field="{ ...field.item, required: true }"
             :value="genericArrayItems[idx]"
             :field-path="`${fieldTitle}[${idx}]`"
             :runtime-context="runtimeContext"
             :input-key="`${fieldInputKey}/${genericRowIds[idx]}`"
-            @update="updateGenericArrayItem(idx, $event)" /><template #hint><FieldHints :field="field.item" /></template
-        ></FieldRow>
+            @update="updateGenericArrayItem(idx, $event)"
+        /></SchemaFieldRow>
       </div>
       <n-button size="tiny" @click="addGenericArrayItem">+ 添加项</n-button>
     </div>
@@ -343,21 +323,15 @@
             </svg>
           </n-button>
         </div>
-        <FieldRow
-          v-for="sub in field.nested"
-          :key="sub.key"
-          :label="sub.label"
-          :field-key="sub.key"
-          :path="`${fieldTitle}[${idx}].${sub.key}`"
-          :layout="['object', 'array', 'array-of-object', 'key-value'].includes(sub.type) ? 'group' : 'row'"
+        <SchemaFieldRow v-for="sub in field.nested" :key="sub.key" :field="sub" :path="`${fieldTitle}[${idx}].${sub.key}`"
           ><SchemaValueInput
             :field="sub"
             :value="getArrayItemValue(idx, sub.key)"
             :field-path="`${fieldTitle}[${idx}].${sub.key}`"
             :runtime-context="runtimeContext"
             :input-key="`${fieldInputKey}/${arrayRowIds[idx]}/${sub.key}`"
-            @update="onArrayItemUpdate(idx, sub.key, $event)" /><template #hint><FieldHints :field="sub" /></template
-        ></FieldRow>
+            @update="onArrayItemUpdate(idx, sub.key, $event)"
+        /></SchemaFieldRow>
       </div>
       <n-button size="tiny" @click="addArrayItem">+ 添加项</n-button>
     </div>
@@ -367,9 +341,8 @@
 </template>
 
 <script setup lang="ts">
-import FieldRow from '@/shared/ui/FieldRow.vue';
-import FieldHints from '@/app/components/schema/FieldHints.vue';
-import { computed, h, ref, watch } from 'vue';
+import SchemaFieldRow from './SchemaFieldRow.vue';
+import { computed, h, watch } from 'vue';
 import { NTag } from 'naive-ui/es/tag';
 import type { JsonValue, ResourceRef } from '@/shared/types';
 import { useSchemaPathPicker } from '@/app/composables/editors/use-schema-path-picker';
@@ -489,10 +462,6 @@ const { pickPathFile } = useSchemaPathPicker({
   setPath: (path) => emitValue(path),
 });
 const isReferenceKeyValue = computed(() => props.field.type === 'key-value' && isCsvSource(props.field.source));
-const selectOpen = ref(false);
-const suppressNextSelectOpen = ref(false);
-const kvSelectOpen = ref<Record<number, boolean>>({});
-const suppressNextKvSelectOpen = ref<Record<number, boolean>>({});
 
 // On-demand thumbnails: resolve in batch only on dropdown open or selection change.
 
@@ -698,12 +667,7 @@ function updateKvValue(idx: number, update: SchemaFieldUpdate) {
 
 function removeKvEntry(idx: number) {
   fieldInputs?.cancel(`${fieldInputKey.value}/${kvRowIds.value[idx]}`);
-  const rowId = kvRowIds.value[idx];
-  if (rowId !== undefined) {
-    void releaseSchemaSelectSprites(`kv:${rowId}`);
-    delete kvSelectOpen.value[rowId];
-    delete suppressNextKvSelectOpen.value[rowId];
-  }
+  void releaseSchemaSelectSprites(`kv:${kvRowIds.value[idx]}`);
   const entries = [...kvEntries.value];
   entries.splice(idx, 1);
   emitKvUpdate(entries, { kind: 'remove', index: idx });
@@ -745,58 +709,8 @@ function removeGenericArrayItem(idx: number) {
   emitValue(items);
 }
 
-function closeOpenSelectOnFieldClick(event: MouseEvent) {
-  if (!selectOpen.value || shouldLetSelectClickPass(event)) return;
-  event.preventDefault();
-  event.stopPropagation();
-  suppressNextSelectOpen.value = true;
-  selectOpen.value = false;
-  window.setTimeout(() => {
-    suppressNextSelectOpen.value = false;
-  });
-}
-
-function closeOpenKvSelectOnFieldClick(event: MouseEvent, rowId: number) {
-  if (!kvSelectOpen.value[rowId] || shouldLetSelectClickPass(event)) return;
-  event.preventDefault();
-  event.stopPropagation();
-  suppressNextKvSelectOpen.value = { ...suppressNextKvSelectOpen.value, [rowId]: true };
-  kvSelectOpen.value[rowId] = false;
-  window.setTimeout(() => {
-    suppressNextKvSelectOpen.value = { ...suppressNextKvSelectOpen.value, [rowId]: false };
-  });
-}
-
-function handleSelectShowUpdate(show: boolean) {
-  if (show && suppressNextSelectOpen.value) return;
-  selectOpen.value = show;
-  if (show) {
-    ensureSelectMedia('menu');
-  } else {
-    void releaseSchemaSelectSprites('menu');
-  }
-}
-
-function handleKvSelectShowUpdate(rowId: number, show: boolean) {
-  if (show && suppressNextKvSelectOpen.value[rowId]) return;
-  kvSelectOpen.value[rowId] = show;
-  if (show) ensureSelectMedia(`kv:${rowId}`);
-  else void releaseSchemaSelectSprites(`kv:${rowId}`);
-}
-
-function shouldLetSelectClickPass(event: MouseEvent): boolean {
-  // Clicks on rendered tag close buttons and the selection clear icon must
-  // reach their own handlers instead of closing the dropdown. Naive UI marks
-  // these controls as non-button elements, so detect them via composedPath
-  // element class lists instead of DOM structure assumptions.
-  const path = event.composedPath();
-  return path.some((node) => {
-    if (!(node instanceof Element)) return false;
-    if (node.tagName === 'svg') return true;
-    const classes = (node as HTMLElement).classList;
-    return Boolean(
-      classes && (classes.contains('n-tag__close') || classes.contains('n-base-close') || classes.contains('n-base-selection__clear')),
-    );
-  });
+function handleSelectShowUpdate(show: boolean, id = 'menu') {
+  if (show) ensureSelectMedia(id);
+  else void releaseSchemaSelectSprites(id);
 }
 </script>

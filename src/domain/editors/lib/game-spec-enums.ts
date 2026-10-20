@@ -1,6 +1,27 @@
 // Starsector 0.98a-RC8 loader enums.
 export const PROJECTILE_SPAWN_TYPES = ['BEAM', 'BALLISTIC_AS_BEAM', 'BALLISTIC', 'PLASMA', 'MISSILE', 'OTHER'] as const;
 
+export const BEAM_TEXTURES = ['SMOOTH', 'MEDIUM', 'ROUGH', 'CHUNKY', 'ROUGH2', 'WEAVE', 'LASER'] as const;
+export const COLLISION_CLASSES = [
+  'NONE',
+  'RAY',
+  'RAY_FIGHTER',
+  'FIGHTER',
+  'SHIP',
+  'PROJECTILE_NO_FF',
+  'PROJECTILE_FF',
+  'MISSILE_NO_FF',
+  'MISSILE_FF',
+  'HITS_SHIPS_AND_ASTEROIDS',
+  'HITS_SHIPS_ONLY_FF',
+  'HITS_SHIPS_ONLY_NO_FF',
+  'PROJECTILE_FIGHTER',
+  'ASTEROID',
+  'PLANET',
+  'GAS_CLOUD',
+  'STAR',
+] as const;
+
 export const MISSILE_TYPES = [
   'FLARE',
   'FLARE_SEEKER',

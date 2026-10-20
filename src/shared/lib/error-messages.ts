@@ -86,7 +86,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'window.session_closing': '所属会话正在关闭，本次窗口打开已结束',
   'write.version_scope_missing': '保存缺少读取版本凭据，请重新加载目标后保存',
   'json.dir_not_directory': 'JSON 规格目录不是目录',
-  'spec.weapon_class_unsupported': 'specClass 只允许 projectile 和 beam；pulse 在原版中无法正常处理',
+  'spec.weapon_class_unsupported': 'specClass 值无效，无法执行当前操作',
   'system_open.failed': '打开路径失败',
   'table.no_associated_spec': '该表没有关联的 spec 定义',
   'table.associated_spec_kind_mismatch': '关联规格创建参数与 CSV 表不一致',

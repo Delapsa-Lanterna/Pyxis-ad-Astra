@@ -11,6 +11,7 @@
 @import './schema-select-option.css';
 @import './color-picker.css';
 @import './schema-form.css';
+@import './field-hints.css';
 @import './data-table.css';
 @import './editor-window.css';
 @import './file-editor.css';

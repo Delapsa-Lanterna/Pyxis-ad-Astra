@@ -3,6 +3,7 @@ import { normalizeShipSpec } from '@/domain/spec-editor/ship/spec-ship-editing';
 import { normalizeSystemSpec } from '@/domain/spec-editor/system/spec-system-fields';
 import { normalizeWeaponSpec } from '@/domain/editors/weapon-spec';
 import { normalizeProjectileSpec } from '@/domain/spec-editor/projectile/spec-projectile-model';
+import { createSpecObject, specFieldParent, updateSpecField } from '@/domain/editors/spec-construction';
 
 describe('normalizeShipSpec', () => {
   it('fills missing collections with empty defaults', () => {
@@ -48,6 +49,24 @@ describe('normalizeWeaponSpec', () => {
 });
 
 describe('normalizeProjectileSpec', () => {
+  it('reads missing coordinates without writing and creates complete vectors while retaining nested keys', () => {
+    const content = { extension: { keep: true }, engineSpec: { extension: 2 } };
+    expect(specFieldParent(content, 'center[0]').parent).toEqual({});
+    expect(content).not.toHaveProperty('center');
+    updateSpecField(content, 'center[1]', 9);
+    updateSpecField(content, 'engineSpec.acc', 4);
+    expect(content).toEqual({ center: [0, 9], extension: { keep: true }, engineSpec: { extension: 2, acc: 4 } });
+    updateSpecField(content, 'engineSpec.acc', undefined);
+    expect(content.engineSpec).toEqual({ extension: 2 });
+  });
+  it('creates independent complete optional objects', () => {
+    const first = createSpecObject('smokeSpec'),
+      second = createSpecObject('smokeSpec');
+    first.particleSizeMin = 99;
+    expect(second.particleSizeMin).toBe(10);
+    expect(Object.keys(createSpecObject('muzzleFlashSpec'))).toHaveLength(7);
+    expect(Object.keys(second)).toHaveLength(10);
+  });
   it('fills the engine slot array', () => {
     expect(normalizeProjectileSpec({}).engineSlots).toEqual([]);
     expect(normalizeProjectileSpec({ engineSlots: [{ angle: 0 }] }).engineSlots).toEqual([{ angle: 0 }]);

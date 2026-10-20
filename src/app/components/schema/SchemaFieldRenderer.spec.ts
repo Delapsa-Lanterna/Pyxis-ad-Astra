@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldSchema } from '@/domain/schema/schema.types';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
@@ -62,6 +62,54 @@ describe('SchemaFieldRenderer smart mode', () => {
     initializeSettingsStore(createSettingsFixture());
   });
 
+  it('expands descriptions without replacing focused input and keeps notices visible', async () => {
+    const field = mountField(
+      fieldFixture('string', { description: 'Detailed explanation', warning: 'Caution text', danger: 'Risk text' }),
+      'raw',
+    );
+    expect(field.find('.field-description').exists()).toBe(false);
+    expect(field.get('.field-warning').text()).toContain('Caution text');
+    expect(field.get('.field-danger').text()).toContain('Risk text');
+    expect(field.get('.field-label').attributes('title')).toBe('field\nDetailed explanation');
+    const input = field.get('input').element;
+    document.body.append(field.element);
+    input.focus();
+    await field.get('input').setValue('pending text');
+    const settings = useSettingsStore();
+    settings.setExpandFieldDescriptions(true);
+    await nextTick();
+    expect(field.get('.field-description').text()).toBe('Detailed explanation');
+    expect(field.get('.field-label').attributes('title')).toBe('field');
+    expect(field.get('input').element).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('pending text');
+    settings.setExpandFieldDescriptions(false);
+    await nextTick();
+    expect(field.find('.field-description').exists()).toBe(false);
+    expect(field.findAll('.field-warning, .field-danger')).toHaveLength(2);
+    field.element.remove();
+  });
+
+  it.each(['object', 'array', 'array-of-object'] as const)('applies description display to nested %s fields', async (type) => {
+    const nested = fieldFixture('string', {
+      key: 'name',
+      description: 'Nested explanation',
+      warning: 'Nested caution',
+      danger: 'Nested risk',
+    });
+    const field = mountField(
+      fieldFixture(type, type === 'array' ? { item: nested } : { nested: [nested] }),
+      type === 'object' ? { name: 'value' } : type === 'array' ? ['value'] : [{ name: 'value' }],
+    );
+    expect(field.find('.field-description').exists()).toBe(false);
+    expect(field.findAll('.field-warning, .field-danger')).toHaveLength(2);
+    expect(field.findAll('.field-label').at(-1)!.attributes('title')).toContain('\nNested explanation');
+    useSettingsStore().setExpandFieldDescriptions(true);
+    await nextTick();
+    expect(field.get('.field-description').text()).toBe('Nested explanation');
+    expect(field.findAll('.field-warning, .field-danger')).toHaveLength(2);
+  });
+
   it('preserves object-array input nodes and focus across cloned drafts', async () => {
     wrapper = mount(
       {
@@ -91,7 +139,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(wrapper.findAll('.field-collection-item')).toHaveLength(2);
   });
 
-  it('keeps key-value expansion attached to the surviving row', async () => {
+  it('keeps key-value controls attached to the surviving row', async () => {
     const values = ref({ A: 'a', B: 'b', C: 'c' });
     wrapper = mount(
       {
@@ -106,13 +154,11 @@ describe('SchemaFieldRenderer smart mode', () => {
       },
       { global: { stubs: editorUiStubs } },
     );
-    wrapper.findAllComponents(nSelect)[1]!.vm.$emit('update:show', true);
-    await nextTick();
+    const surviving = wrapper.findAllComponents(nSelect)[1]!.element;
     await wrapper.findAll('.field-map-row')[0]!.get('button').trigger('click');
     const selects = wrapper.findAllComponents(nSelect);
     expect(selects.map((select) => select.props('value'))).toEqual(['B', 'C']);
-    expect(selects[0]!.props('show')).toBe(true);
-    expect(selects[1]!.props('show')).toBeUndefined();
+    expect(selects[0]!.element).toBe(surviving);
   });
 
   it('renders strings as a single-line input and emits text', async () => {
@@ -123,14 +169,13 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: 'world' }]);
   });
 
-  it('emits typed numbers for integer and float fields', async () => {
-    const integer = mountField(fieldFixture('integer'), 3);
-    await integer.get('input').setValue('9');
-    expect(integer.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: 9 }]);
-
-    const float = mountField(fieldFixture('float'), 0.5);
-    await float.get('input').setValue('1.5');
-    expect(float.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: 1.5 }]);
+  it.each([
+    ['integer', 3, '9', 9],
+    ['float', 0.5, '1.5', 1.5],
+  ] as const)('emits typed numbers for %s fields', async (type, value, raw, expected) => {
+    const field = mountField(fieldFixture(type), value);
+    await field.get('input').setValue(raw);
+    expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: expected }]);
   });
 
   it('toggles boolean fields through the switch stub', async () => {
@@ -153,19 +198,20 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(field.find('select').exists()).toBe(true);
   });
 
-  it('keeps boolean-like plain values for text fields', async () => {
+  it('preserves multiline text and emits edits', async () => {
     const field = mountField(fieldFixture('text'), 'multi\nline');
-    expect(field.get('textarea')).toBeTruthy();
+    expect(field.get<HTMLTextAreaElement>('textarea').element.value).toBe('multi\nline');
     await field.get('textarea').setValue('changed');
     expect(field.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: 'changed' }]);
   });
 
-  it('renders path and color fields as raw inputs', async () => {
+  it('emits raw path input', async () => {
     const path = mountField(fieldFixture('path'), 'graphics/x.png');
     await path.get('input').setValue('graphics/y.png');
     expect(path.emitted('update')?.at(-1)).toEqual([{ kind: 'set', value: 'graphics/y.png' }]);
+  });
 
-    // Smart mode renders color fields through the ColorPicker text input.
+  it('commits color text as RGBA channels', async () => {
     const color = mountField(fieldFixture('color-rgba'), [255, 0, 0, 255]);
     const colorInput = color.get('.color-picker-text-input');
     expect((colorInput.element as HTMLInputElement).value).toBe('255,0,0,255');

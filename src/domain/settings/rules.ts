@@ -41,6 +41,7 @@ export function assertValidSettings(settings: AppSettings): void {
   readLogRotationSizeMiB(settings.logRotationSizeMiB);
   readLogBackupCount(settings.logBackupCount);
   readEditMode(settings.editMode);
+  readExpandFieldDescriptions(settings.expandFieldDescriptions);
   readImmersiveGameFont(settings.immersiveGameFont);
   readPreserveOriginalJson(settings.preserveOriginalJson);
   readAllowCoreEditing(settings.allowCoreEditing);
@@ -95,6 +96,11 @@ export function readEditMode(value: EditMode): EditMode {
 
 export function readImmersiveGameFont(value: boolean): boolean {
   if (typeof value !== 'boolean') throw new Error(`Invalid original fonts setting: ${value}`);
+  return value;
+}
+
+export function readExpandFieldDescriptions(value: boolean): boolean {
+  if (typeof value !== 'boolean') throw new Error(`Invalid expand field descriptions setting: ${value}`);
   return value;
 }
 

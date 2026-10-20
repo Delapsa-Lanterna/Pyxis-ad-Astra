@@ -24,8 +24,7 @@ fn source_version_matches_content() {
 #[test]
 fn source_cache_partial_reuse() {
     let root = crate::testutil::temp_dir("partial_source_cache");
-    let cache = crate::testutil::temp_dir("partial_source_cache_store");
-    configure_persistent_index_cache(&cache).unwrap();
+    configure_persistent_index_cache(crate::testutil::persistent_cache_directory()).unwrap();
     let first = root.join("first.ship");
     let second = root.join("second.ship");
     std::fs::write(&first, r#"{"hullId":"first"}"#).unwrap();
@@ -44,7 +43,6 @@ fn source_cache_partial_reuse() {
         file_version(&first).unwrap()
     );
     std::fs::remove_dir_all(root).unwrap();
-    std::fs::remove_dir_all(cache).unwrap();
 }
 
 #[test]

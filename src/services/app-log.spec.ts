@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordLogBestEffort, startPerformanceLogSink } from './app-log.service';
 import { recordPerformance } from '@/shared/runtime/performance';
@@ -37,7 +38,7 @@ describe('application log lifecycle', () => {
     expect(() =>
       recordLogBestEffort({ level: 'warning', code: 'demo', message: 'raw', path: null, line: null, fields: null }),
     ).not.toThrow();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 

@@ -10,14 +10,20 @@ import { createSettingsFixture } from '@/test/settings';
 import { sessionUpdateFixture } from '@/test/write-result';
 import { csvDraftRow, csvTableIndex } from '@/test/csv-row';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
-const mocks = vi.hoisted(() => ({ index: vi.fn(), rows: vi.fn(), error: vi.fn(), preview: vi.fn(async () => 'preview') }));
+const mocks = vi.hoisted(() => ({
+  index: vi.fn(),
+  rows: vi.fn(),
+  error: vi.fn(),
+  sources: vi.fn(),
+  preview: vi.fn(async () => 'preview'),
+}));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.index,
   queryTableRows: mocks.rows,
   queryTableRowPreviewDataUrl: mocks.preview,
   hasTableInvalidation: () => false,
 }));
-vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: async () => [], hasSourceInvalidation: () => false }));
+vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
 let wrapper: VueWrapper, rows: CsvDraftRow[];
@@ -37,6 +43,7 @@ function harness() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.sources.mockResolvedValue([]);
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   const manifest = sessionUpdateFixture(target.sessionId, target.modRoot).projection.manifest;
@@ -60,6 +67,17 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it.each(['system id', 'defense id', 'travel drive'])('loads ship-system options when %s is the only column', async (key) => {
+    mocks.index.mockResolvedValue(csvTableIndex([csvDraftRow({ [key]: '' }, 'key-0')], { header: [key] }));
+    mocks.sources.mockResolvedValue([{ origin: 'mod', options: [{ label: 'Sample system', value: 'sample-system' }] }]);
+    const vm = harness();
+    await flushPromises();
+    expect(mocks.sources).toHaveBeenCalledExactlyOnceWith('session', 'csv:shipSystems.id', expect.any(AbortSignal));
+    expect(vm.effectiveColumns.value[0]?.schema).toMatchObject({ control: 'reference', source: 'csv:shipSystems.id' });
+    expect(vm.sourceIndex.value.optionsBySource.get('csv:shipSystems.id')?.[0]?.children).toEqual([
+      expect.objectContaining({ label: 'Sample system', value: 'sample-system' }),
+    ]);
+  });
   it('accepts the complete index and first batch together and keeps the column model independent of row edits', async () => {
     const vm = harness();
     await flushPromises();

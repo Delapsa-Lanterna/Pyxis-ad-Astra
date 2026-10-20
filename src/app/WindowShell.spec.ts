@@ -10,6 +10,7 @@ import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { loadCoreFields } from '@/orchestrators/core-assets.orchestrator';
 import { createSettingsFixture } from '@/test/settings';
 import { sessionUpdateFixture } from '@/test/write-result';
+import { nPopover } from '@/test/ui-stubs';
 
 const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields, queryCoreGraphics: mocks.graphics }));
@@ -43,11 +44,36 @@ function mountWindow(mode: 'main' | 'child') {
   const provider = { template: '<div><slot /></div>' };
   wrapper = mount(WindowShell, {
     props: { mode },
-    global: { stubs: { NConfigProvider: provider, NMessageProvider: provider, NDialogProvider: provider } },
+    global: { stubs: { NConfigProvider: provider, NMessageProvider: provider, NDialogProvider: provider, NPopover: nPopover } },
   });
 }
 
 describe('window Core root assembly', () => {
+  it('shares one title tooltip, accepts updated content and restores attributes on release', async () => {
+    vi.useFakeTimers();
+    mountWindow('main');
+    const target = document.createElement('button');
+    target.title = 'field\nDescription';
+    document.body.append(target);
+    try {
+      target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      expect(target.title).toBe('');
+      await vi.advanceTimersByTimeAsync(400);
+      expect(wrapper.findAll('[role="tooltip"]')).toHaveLength(1);
+      expect(wrapper.get('[role="tooltip"]').text()).toBe('field\nDescription');
+      target.title = 'Updated';
+      await vi.advanceTimersByTimeAsync(0);
+      expect(wrapper.get('[role="tooltip"]').text()).toBe('Updated');
+      document.dispatchEvent(new Event('scroll'));
+      await nextTick();
+      expect(wrapper.find('[role="tooltip"]').exists()).toBe(false);
+      wrapper.unmount();
+      expect(target.title).toBe('Updated');
+    } finally {
+      target.remove();
+      vi.useRealTimers();
+    }
+  });
   it.each(['main', 'child'] as const)('projects settings priority and active manifest fallback in a %s window', async (mode) => {
     register('alpha', 'M:/alpha', 'D:/game-alpha');
     register('beta', 'M:/beta', 'D:/game-beta');

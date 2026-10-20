@@ -43,7 +43,9 @@
 - `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁的建立与提供，以及目标交接挂载。
 - `src/app/WindowShell.vue`：唯一窗口壳，以 main/child 模式区分设置持久化与设置镜像，统一挂载 Provider、主题与 Core 加载生命周期。
 - `src/app/app-feedback-assembly.ts`：文件会话定位、授权恢复动作、转码及保存同步。
+- `src/app/components/AppSelect.vue`：统一下拉框的展开状态、箭头收起与内部聚焦。
 - `src/app/components/MainWindowFrame.vue`：主窗口空间及主内容区域的展示框架。
+- `src/app/components/WindowTooltip.vue`：窗口统一接管原生 title 提示，持有悬浮等待、主题展示与释放。
 - `src/app/composables/immersive-editor-assembly.ts`：沉浸式实现选择、会话交接及展示协议适配。
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备、设置提交及配置清理动作装配。
@@ -123,6 +125,7 @@
 - 启动错误呈现必须 HTML 转义消息内容，严禁拼接未转义文本。
 - 应用关闭必须先完成主窗口确认和设置提交，再逐个销毁子窗口与独立恢复窗口、释放会话并最后销毁主窗口。
 - 异步 Naive 控件必须由注册表统一加载，业务模板必须消费注册控件。
+- 所有下拉框必须由统一注册入口维护箭头收起、内部聚焦及展开状态，业务方必须消费展开事件管理所属资源。
 - 文件恢复必须在提示产生时捕获所属文件与会话；转码写盘后的同步失败必须保留原提交和待同步重试。
 - 日志 sink 必须在业务挂载前显式装配，pagehide 必须撤销所属注册。
 - 每个窗口壳必须建立一次 Core 加载生命周期，释放时必须撤销所属监听及响应接纳。
@@ -131,6 +134,7 @@
 - 窗口反馈必须在消息与对话框 Provider 内建立一次，并先于菜单及业务内容提供；目标交接必须消费同一实例。
 - 窗口操作锁必须由 WindowRuntime 提供；内容区域必须消费 inert，业务浮层必须消费关闭状态的声明式命名空间，确认与结果反馈必须由所属窗口的 Provider 承载。
 - 窗口根组件必须按窗口类型懒加载，严禁建立包含全部窗口根的公共入口模块。
+- 窗口鼠标提示统一消费 title 内容，由窗口壳中的单个提示宿主展示；输入、滚动、失焦与关闭结束当前提示，离开目标或宿主释放时恢复所属属性。
 - 设置 IPC 必须由应用装配连接设置服务与运行参数 owner；正式提交顺序必须由设置服务独占。
 
 ## 陷阱

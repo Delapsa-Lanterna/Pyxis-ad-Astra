@@ -20,6 +20,7 @@
 - `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
 - `src/app/components/schema/`：字段分派、表单、标量原文及行为测试。
 - `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染。
+- `src/app/components/schema/SchemaFieldRow.vue`：共同字段行、标签提示内容、直接展示的注意及风险。
 - `src/app/components/schema/SchemaFormRenderer.vue`：表单渲染。
 - `src/app/components/schema/SchemaScalarInput.vue`：类型文本输入，暂存原文并提交正式字段动作。
 - `src/app/components/schema/SchemaValueInput.vue`：类型与模式分派、自身递归及字段更新交付。
@@ -52,11 +53,13 @@
 - `src/shared/types/core-assets.types.ts`：字段合并消费的 Core 字段发现结果。
 - `src/shared/types/schema.types.ts`：字段来源请求、选项与来源分组协议。
 - `src/shared/ui/`：数值、JSON、额外字段与颜色输入及其行为测试。
+- `src/shared/ui/FieldHints.vue`：描述、注意与风险的共同展示。
 - `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。
 - `src/shared/ui/FieldRow.vue`：字段、集合、说明与辅助动作的共同展示。
 - `src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑。
 - `src/shared/ui/JsonValueInput.vue`：JSON 原始输入，按声明形状解析并提交。
 - `src/shared/ui/NumberValueInput.vue`：Smart 数值原文与正式值提交。
+- `src/stores/settings.store.ts`：消费字段解析展开设置。
 
 ### 装配
 
@@ -116,6 +119,7 @@
 - 分组必须消费 EditorCollapse 与 Naive 折叠项，默认折叠必须按 schema 身份初始化，首次展开后的隐藏必须保留所属输入。
 - 字段名称、字段键与完整路径必须显式交给共同标签，值控件必须消费原文登记与正式提交接口。
 - 字段挂载严禁触发选项贴图批量读取；批量解析必须 single-flight 去重。
+- 字段描述由字段行按展开设置交给公共 FieldHints 或标签的统一提示；注意与风险始终经公共 FieldHints 直接展示，切换时保留输入节点、原文、焦点与校验。
 - 字段默认与数组项默认必须由所属 schema 消费语义决定；完整规格新建必须消费所属格式的共享模板构造。
 - 字符串字段只允许提交字符串；Plain 整数必须按完整十进制和安全整数范围解析，浮点必须按完整有限十进制解析，非法文本必须逐字符保留。
 - 嵌套字段与键值输出必须保留自有业务键；字段路径读取只允许消费自有属性，构造可写字典必须采用无原型对象。

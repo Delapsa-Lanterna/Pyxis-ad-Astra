@@ -5,13 +5,13 @@ vi.mock('@/services/entity-query.service', async (importOriginal) => ({
 import { entityTargetFixture } from '@/test/entity-target';
 import { savedWriteFixture } from '@/test/write-result';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { flushPromises, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
   listenEntityIdentityApplied: vi.fn(async () => () => {}),
 }));
 import { createPinia, setActivePinia, getActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigFamilyFile } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
@@ -129,6 +129,8 @@ function activateProject(modRoot = 'M:/mod', sessionId = 'sess-1') {
   });
   return project;
 }
+
+enableAutoUnmount(afterEach);
 
 describe('useConfigFamilyViewModel loading', () => {
   beforeEach(() => {

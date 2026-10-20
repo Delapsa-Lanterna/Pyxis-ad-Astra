@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { createReadTicket, createReadTicketOwner, waitForRead } from './read-request';
 
@@ -87,7 +88,7 @@ describe('read request ownership', () => {
     const error = new Error('transport failed');
     const waiting = waitForRead(Promise.reject(error), { sessionId: 'failed' }, consumer.signal);
     await expect(waiting).rejects.toBe(error);
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
     expect(remove).toHaveBeenCalledOnce();
   });
 
@@ -102,6 +103,6 @@ describe('read request ownership', () => {
     consumer.abort();
     await ended;
     reject(new Error('late transport failure'));
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
   });
 });
