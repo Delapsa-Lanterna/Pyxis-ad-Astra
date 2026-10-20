@@ -11,7 +11,7 @@
 - `src-tauri/src/commands/hull_reference.rs`：Hull command。
 - `src-tauri/src/commands/resources.rs`：批量资源与引用 command。
 - `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存。
-- `src-tauri/src/services/project/definitions/entity_resources.rs`：舰船、武器、弹体、系统及配置实体的授权资源字段映射。
+- `src-tauri/src/services/project/definitions/entity_resources.rs`：必须解析实体贴图、光束枚举或自定义贴图对、弹体与等离子默认特效的授权资源。
 - `src-tauri/src/services/project/query/hull_references.rs`：舰体引用、槽位及来源选择查询。
 - `src-tauri/src/services/project/query/resources.rs`：草稿资源引用与授权资源批量 data URL 查询。
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
@@ -107,6 +107,7 @@
 - 前端严禁构造 `ResourceRef`、拼路径、逐项读图或把 data URL 写入 manifest；缺失 data URL 保持 `null`。
 - 单个 data URL 超过闲置预算时必须保留活跃租约，最后一个引用释放时必须立即逐出；隐藏、引用切换、失效和卸载必须交还所属工作引用。
 - 原版来源刷新必须按实际来源目录失效所属索引，已有无关索引必须继续由原缓存拥有。
+- 发射特效路径必须由正式资源解析交付，武器、弹体及特效角色必须保留完整资源身份并共享物理媒体。
 - 可见元素 ref 再次登记同一 DOM 时必须保持可见身份和当前资源结果。
 - 可见媒体 owner 必须按资源登记、可见性变化、引用替换和卸载增量释放；登记单行严禁扫描全部登记项。
 - 各缓存必须消费完整 settings 的启动预算；闲置结果必须同时受条数及字节限制并按 LRU 逐出，活跃工作集必须保持引用；合批必须消费共享 single-flight 与所属失效。

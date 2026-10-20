@@ -16,11 +16,12 @@
     </div>
     <WeaponFirePreview
       v-else-if="data"
+      :session-id="data.sessionId"
       :weapon-id="target.id"
       :weapon-csv-row="data.weaponCsvRow"
       :weapon-spec="data.weapon"
-      :projectile-specs="data.projectileSpecs"
-      :sprite-data="data.weaponSpriteData"
+      :projectile="data.projectile"
+      :resources="data.resources"
       @close="closeWindow"
     />
   </div>

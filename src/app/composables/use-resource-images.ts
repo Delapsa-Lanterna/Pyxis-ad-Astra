@@ -21,12 +21,13 @@ export function useResourceImages(
   let disposed = false;
   function synchronize() {
     const items = enabled() ? source() : [],
-      next = new Map(items.map((item) => [cache.key(session(), item.resource), item]));
+      next = new Map(items.map((item) => [cache.key(session(), item.resource), item])),
+      releases: (() => void)[] = [];
     for (const [key, entry] of active) {
       const item = next.get(key),
         image = item ? cache.peek(session(), item.resource) : null;
       if (item?.url === entry.url && entry.revision === cache.revision(session(), item.resource) && (image || !images.has(key))) continue;
-      entry.release();
+      releases.push(entry.release);
       active.delete(key);
       images.delete(key);
     }
@@ -51,6 +52,7 @@ export function useResourceImages(
             }
           });
     }
+    for (const release of releases) release();
     changed();
   }
   watch(() => [enabled(), source().map((item) => [item.url, cache.revision(session(), item.resource)])], synchronize, {

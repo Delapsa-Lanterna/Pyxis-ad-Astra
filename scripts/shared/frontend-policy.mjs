@@ -11,6 +11,16 @@ const readOwners = [{ layer: 'services' }, { layer: 'orchestrators' }, { layer: 
 export const frontendCapabilities = [
   {
     role: 'service',
+    domain: 'resource-media',
+    names: ['dispatchResourceMedia'],
+    capability: 'media-dispatch',
+    owners: [
+      { layer: 'app', role: 'composable', domain: 'resource-media-registry' },
+      { layer: 'services', domain: 'resource-media' },
+    ],
+  },
+  {
+    role: 'service',
     domain: 'engine-assets',
     names: ['queryEngineRenderAssets', 'hasEngineAssetsInvalidation'],
     capability: 'engine-assets-read',
@@ -104,7 +114,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'weapon-fire-preview',
-    names: ['queryWeaponFirePreviewData', 'queryWeaponFirePreviewImages'],
+    names: ['queryWeaponFirePreviewData'],
     capability: 'weapon-fire-preview-read',
     owners: [{ layer: 'app', role: 'composable', domain: 'weapon-fire-preview-window-view-model' }],
   },

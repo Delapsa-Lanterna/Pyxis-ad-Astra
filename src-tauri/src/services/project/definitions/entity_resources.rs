@@ -44,6 +44,9 @@ pub(in crate::services::project) fn weapon_resource_refs(
             );
         }
     }
+    if data.get("specClass").and_then(Value::as_str) == Some("beam") {
+        effect_resource_refs(id, data, &mut refs);
+    }
     refs
 }
 
@@ -51,7 +54,7 @@ pub(in crate::services::project) fn projectile_resource_refs(
     id: &str,
     data: &Value,
 ) -> BTreeMap<String, ResourceRef> {
-    ["sprite", "bulletSprite"]
+    let mut refs = ["sprite", "bulletSprite", "glowSprite"]
         .into_iter()
         .filter_map(|field| {
             string_field(data, field).map(|sprite| {
@@ -67,7 +70,61 @@ pub(in crate::services::project) fn projectile_resource_refs(
                 )
             })
         })
-        .collect()
+        .collect();
+    effect_resource_refs(id, data, &mut refs);
+    refs
+}
+
+fn effect_resource_refs(id: &str, data: &Value, refs: &mut BTreeMap<String, ResourceRef>) {
+    let texture = data.get("textureType");
+    let pair = match texture.and_then(Value::as_str).unwrap_or("SMOOTH") {
+        "MEDIUM" => ("beamfringec", "beamcorec"),
+        "ROUGH" => ("beamfringe", "beamcore"),
+        "CHUNKY" => ("beam_chunky_fringe", "beam_chunky_core"),
+        "ROUGH2" => ("beam_rough2_fringe", "beam_rough2_core"),
+        "WEAVE" => ("beam_weave_fringe", "beam_weave_core"),
+        "LASER" => ("beam_laser_fringe", "beam_laser_core"),
+        _ => ("beamfringeb", "beamcoreb"),
+    };
+    let spawn = data
+        .get("spawnType")
+        .and_then(Value::as_str)
+        .unwrap_or("BALLISTIC");
+    let beam = data.get("specClass").and_then(Value::as_str) == Some("beam");
+    let mut paths = vec![("hitGlow", "graphics/fx/hit_glow.png".to_string())];
+    if beam || spawn == "BEAM" || spawn == "BALLISTIC_AS_BEAM" {
+        for (index, (key, name)) in [("fringeTexture", pair.0), ("coreTexture", pair.1)]
+            .into_iter()
+            .enumerate()
+        {
+            let path = texture
+                .and_then(Value::as_array)
+                .and_then(|items| items.get(index))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("graphics/fx/{name}.png"));
+            paths.push((key, path));
+        }
+    } else if spawn == "PLASMA" {
+        paths.push(("plasmaRay", "graphics/fx/torpedoray32.png".into()));
+    } else if data.get("specClass").and_then(Value::as_str) == Some("missile") {
+        paths.push(("contrailTexture", "graphics/fx/contrail64b.png".into()));
+    } else {
+        paths.push(("projectileTrail", "graphics/fx/projtrail.png".into()));
+        paths.push(("projectileBody", "graphics/fx/projbody.png".into()));
+    }
+    for (key, path) in paths {
+        refs.insert(
+            key.into(),
+            resource_ref(
+                ResourceSource::Mod,
+                &path,
+                ResourceOwnerKind::Weapon,
+                id,
+                key,
+            ),
+        );
+    }
 }
 
 pub(in crate::services::project) fn system_resource_refs(
@@ -169,4 +226,47 @@ pub(in crate::services::project) fn mission_resource_refs(
         );
     }
     refs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn effects_select_declared_textures_and_keep_business_identity() {
+        for (name, suffix) in [
+            ("SMOOTH", "beamfringeb"),
+            ("MEDIUM", "beamfringec"),
+            ("ROUGH", "beamfringe"),
+            ("CHUNKY", "beam_chunky_fringe"),
+            ("ROUGH2", "beam_rough2_fringe"),
+            ("WEAVE", "beam_weave_fringe"),
+            ("LASER", "beam_laser_fringe"),
+        ] {
+            let refs =
+                weapon_resource_refs("beam", &json!({"specClass":"beam","textureType":name}));
+            assert_eq!(
+                refs["fringeTexture"].rel_path,
+                format!("graphics/fx/{suffix}.png")
+            );
+            assert_eq!(refs["fringeTexture"].owner_id, "beam");
+        }
+        let refs = projectile_resource_refs(
+            "pulse",
+            &json!({"spawnType":"BEAM", "textureType":["graphics/custom-a.png","graphics/custom-b.png"]}),
+        );
+        assert_eq!(refs["coreTexture"].rel_path, "graphics/custom-b.png");
+        assert_eq!(
+            refs["coreTexture"].owner_kind,
+            crate::models::EntityKind::Projectile.into()
+        );
+        assert_eq!(refs["fringeTexture"].source, ResourceSource::Mod);
+        let refs = projectile_resource_refs("plasma", &json!({"spawnType":"PLASMA"}));
+        assert_eq!(refs["plasmaRay"].rel_path, "graphics/fx/torpedoray32.png");
+        let refs = projectile_resource_refs(
+            "missile",
+            &json!({"specClass":"missile","sprite":"graphics/missile.png","glowSprite":"graphics/glow.png"}),
+        );
+        assert_eq!(refs["glowSprite"].rel_path, "graphics/glow.png");
+    }
 }

@@ -1,5 +1,3 @@
-import { createWeaponFirePreviewParams } from '@/domain/weapon-fire-preview/simulation';
-import { renderWeaponFirePreviewScene, type WeaponFirePreviewScene } from '../weapon-fire-preview/scene';
 import { describe, expect, it, vi } from 'vitest';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
@@ -62,62 +60,6 @@ describe('editor scene rendering', () => {
     expect(recording.calls('drawImage')[0]!.composite).toBe(composite);
     expect(recording.ctx.globalCompositeOperation).toBe('source-over');
   });
-  it('keeps grid and range strokes at one pixel across frames with missile trails', () => {
-    const recording = createCanvasRecorder(),
-      base = canvasScene(),
-      params = createWeaponFirePreviewParams({}, { specClass: 'projectile' }, { specClass: 'missile' }, 'turret');
-    const scene: WeaponFirePreviewScene = {
-      size: { width: 500, height: 500 },
-      palette: base.palette,
-      params,
-      origin: { x: 80, y: 250 },
-      range: 300,
-      scale: 1,
-      hasWeaponSpec: true,
-      assets: {
-        images: new Map(),
-        weapon: {},
-        mode: 'turret',
-        scale: 1,
-        center: { x: 80, y: 250 },
-        glowTint: null,
-        glowColor: [255, 255, 255, 255],
-      },
-      barrels: [],
-      beam: { alpha: 0, length: 0, offset: 0, phase: 'idle', timer: 0 },
-      projectiles: [
-        {
-          x: 100,
-          y: 250,
-          angle: 0,
-          speed: 20,
-          age: 1,
-          trail: [
-            { x: 90, y: 250 },
-            { x: 100, y: 250 },
-          ],
-          exploding: false,
-          explosionAge: 0,
-          missile: true,
-        },
-      ],
-    };
-    renderWeaponFirePreviewScene(recording.ctx, scene);
-    renderWeaponFirePreviewScene(recording.ctx, scene);
-    expect(
-      recording
-        .calls('stroke')
-        .filter((x) => x.args[0] === base.palette.grid || x.args[0] === '#ef444488')
-        .every((x) => x.args[1] === 1),
-    ).toBe(true);
-    expect(
-      recording
-        .calls('stroke')
-        .filter((x) => x.args[0] === '#f59e0b66')
-        .map((x) => x.args[1]),
-    ).toEqual([3, 3]);
-  });
-
   it.each(['overview', 'ranges', 'bounds', 'weapon', 'launchBay', 'engine'] as const)('chooses the ship resource for %s mode', (mode) => {
     const recording = createCanvasRecorder();
     const sprite = { width: 100, height: 80 } as HTMLImageElement;

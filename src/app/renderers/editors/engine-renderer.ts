@@ -169,7 +169,7 @@ export function createEngineProduct(
 }
 export function drawEngineVisual(
   ctx: CanvasRenderingContext2D,
-  options: EngineShape & { point: { x: number; y: number }; rotation: number; scale: number },
+  options: EngineShape & { point: { x: number; y: number }; rotation: number; scale: number; opacity?: number },
   assets: EngineImages,
 ) {
   const product = assets.product(options);
@@ -179,7 +179,7 @@ export function drawEngineVisual(
   ctx.rotate(options.rotation);
   ctx.scale(options.scale, options.scale);
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = options.opacity ?? 1;
   ctx.drawImage(product.canvas, product.x, product.y, product.canvas.width / product.ratio, product.canvas.height / product.ratio);
   ctx.restore();
 }

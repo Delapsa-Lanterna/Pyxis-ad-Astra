@@ -1,9 +1,10 @@
 import defaults from '../../../../schemas/spec-defaults.json';
 import { fillRequiredFields } from '@/domain/editors/spec-construction';
-import { deepClone, str, arr, num } from '@/shared/lib/starsector';
+import { deepClone, str, num } from '@/shared/lib/starsector';
 import type { ProjectileSpecClass, RowData } from '@/shared/types';
 import { nextFormattedId } from '@/shared/lib/next-formatted-id';
 import type { Point } from '@/domain/editors/editor-types';
+import { projectileAppearance } from '@/domain/editors/projectile-appearance';
 
 export function createProjectileEngineSlot(slots: RowData[]): RowData {
   const id = nextFormattedId(new Set(slots.map((slot) => str(slot.id))), (index) => `ES${index}`);
@@ -52,28 +53,14 @@ export function normalizeProjectileSpec(projectile: RowData): RowData {
 }
 
 export function projectProjectileGeometry(spec: RowData) {
+  const appearance = projectileAppearance(spec);
   const kind = str(spec.specClass, 'projectile');
-  const size = arr(spec.size, [10, 20]),
-    center = arr(spec.center, [5, 10]);
+  const { size, center } = appearance;
   const body =
     kind === 'missile'
       ? { x: -center[1]!, y: -center[0]!, width: size[1]!, height: size[0]! }
-      : { x: -num(spec.length, 10) / 2, y: -num(spec.width, 3.5) / 2, width: num(spec.length, 10), height: num(spec.width, 3.5) };
-  const engines =
-    kind === 'missile'
-      ? (spec.engineSlots as RowData[]).map((slot) => {
-          const loc = arr(slot.loc, [0, 0]);
-          return {
-            style: slot.style,
-            styleId: slot.styleId,
-            styleSpec: slot.styleSpec,
-            point: { x: loc[0]!, y: -loc[1]! },
-            angle: num(slot.angle, 180),
-            width: num(slot.width, 8),
-            length: num(slot.length, 20),
-          };
-        })
-      : [];
+      : { x: -appearance.length / 2, y: -appearance.width / 2, width: appearance.length, height: appearance.width };
+  const engines = kind === 'missile' ? appearance.engines : [];
   const radius = kind === 'missile' ? num(spec.collisionRadius, 0) : 0;
   const points: Point[] = [
     { x: body.x, y: body.y },
@@ -91,6 +78,7 @@ export function projectProjectileGeometry(spec: RowData) {
         });
   }
   return {
+    appearance,
     kind,
     body,
     size,
@@ -99,8 +87,6 @@ export function projectProjectileGeometry(spec: RowData) {
     engines,
     spriteField: kind === 'missile' ? 'sprite' : 'bulletSprite',
     spritePath: str(spec[kind === 'missile' ? 'sprite' : 'bulletSprite']),
-    fringeColor: arr(spec.fringeColor, [255, 255, 255, 255]),
-    coreColor: arr(spec.coreColor, [255, 255, 255, 255]),
     extent: { x: Math.max(...points.map((p) => Math.abs(p.x))), y: Math.max(...points.map((p) => Math.abs(p.y))) },
   };
 }

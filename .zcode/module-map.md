@@ -116,7 +116,7 @@
 - [Spec 舰船编辑器](modules/spec-ship-editor.md)：说明 `.ship` 画布注入、槽位、引擎、shield、贴图引用选择与独立窗口保存。
 - [Spec 武器编辑器](modules/spec-weapon-editor.md)：说明武器编辑、依赖读取、资源及预览快照交付。
 - [Spec 弹体编辑器](modules/spec-projectile-editor.md)：说明弹体与导弹字段、引擎、规格查询及保存交接。
-- [武器开火预览](modules/weapon-fire-preview.md)：说明预览来源、只读查询、模拟、播放控制与独立窗口生命周期。
+- [武器开火预览](modules/weapon-fire-preview.md)：说明预览来源、只读查询、世界坐标调度、共享绘制、尾迹与独立窗口生命周期。
 - [Spec 战术系统编辑器](modules/spec-system-editor.md)：说明 `.system` spec、schema 表单、type 条件字段与独立窗口保存。
 - [资源与原版回退](modules/assets-core-fallback.md)：说明 `ResourceRef`、Mod/Core 优先级、媒体预算、可见资源集合、引擎样式与逐槽位贴图查询及 Core 来源目录缓存。
 - [后端文件读写与变更集](modules/rust-file-io-changeset.md)：说明 UTF-8 IO、canonical 路径、父链校验、文件或目录快照与 replay。

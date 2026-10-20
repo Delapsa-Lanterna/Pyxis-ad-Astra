@@ -11,7 +11,7 @@ import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { queryWeaponFirePreviewData, queryWeaponFirePreviewImages } from '@/services/weapon-fire-preview.service';
+import { queryWeaponFirePreviewData } from '@/services/weapon-fire-preview.service';
 
 import { retargetWeaponFirePreviewWindow } from '@/orchestrators/weapon-fire-preview.orchestrator';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
@@ -27,6 +27,7 @@ export function useWeaponFirePreviewWindowViewModel() {
   const data = shallowRef<WeaponFirePreviewData | null>(null),
     loading = ref(false),
     errorText = ref('');
+  const resourceRefs = computed(() => (data.value ? Object.values(data.value.resources).flatMap((group) => Object.values(group)) : []));
   const reads = useQueryReadOwner(),
     feedback = useAppFeedback();
   const stops: Array<() => void> = [];
@@ -45,17 +46,6 @@ export function useWeaponFirePreviewWindowViewModel() {
       {
         ready: (next) => {
           data.value = next;
-          void reads.consume(
-            'images',
-            { ...captured, refs: next.resourceRefs },
-            (signal) => queryWeaponFirePreviewImages(captured.sessionId, next.resourceRefs, signal),
-            {
-              ready: (images) => {
-                if (data.value === next) data.value = { ...next, weaponSpriteData: images };
-              },
-              error: (error) => feedback.error(error, '读取预览贴图失败'),
-            },
-          );
         },
         error: (error) => {
           if (data.value && !required) feedback.error(error, '刷新发射预览失败');
@@ -150,7 +140,7 @@ export function useWeaponFirePreviewWindowViewModel() {
     );
     stops.push(
       subscribeResourceInvalidations((event) => {
-        if (event.sessionId === target.value.sessionId && data.value && hasResourceInvalidation(event, data.value.resourceRefs))
+        if (event.sessionId === target.value.sessionId && data.value && hasResourceInvalidation(event, resourceRefs.value))
           scheduleRefresh();
       }),
     );
@@ -163,7 +153,7 @@ export function useWeaponFirePreviewWindowViewModel() {
         target.value.sessionId,
         target.value.modRoot,
         data.value!.baseVersions.map((version) => version.path),
-        data.value!.resourceRefs,
+        resourceRefs.value,
       ),
   });
   function dispose() {

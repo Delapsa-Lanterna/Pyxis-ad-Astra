@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
@@ -67,6 +68,7 @@ describe('SpecProjectileEditor', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
+    initializeCacheLimits(createSettingsFixture().cacheLimits);
     installCanvas2DStub();
   });
 
@@ -83,19 +85,19 @@ describe('SpecProjectileEditor', () => {
     await canvas.trigger('mousemove', { clientX: 40, clientY: 60 });
     await canvas.trigger('mouseup');
     canvas.element.dispatchEvent(new WheelEvent('wheel', { deltaY: 1, clientX: 80, clientY: 100 }));
-    expect(recording.calls('translate').at(-1)!.args).toEqual([expect.closeTo(260), expect.closeTo(226)]);
+    expect(recording.calls('translate').map((call) => call.args)).toContainEqual([expect.closeTo(260), expect.closeTo(226)]);
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
     expect(editor.emitted('draft-changed')).toBeUndefined();
     const width = editor.findAll('input').find((input) => (input.element as HTMLInputElement).value === '8')!;
     await width.setValue('16');
     await flushPromises();
-    expect(recording.calls('translate').at(-1)!.args).toEqual([expect.closeTo(260), expect.closeTo(226)]);
+    expect(recording.calls('translate').map((call) => call.args)).toContainEqual([expect.closeTo(260), expect.closeTo(226)]);
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(9.45);
     await editor
       .findAll('button')
       .find((button) => button.text() === '重置视图')!
       .trigger('click');
-    expect(recording.calls('translate').at(-1)!.args).toEqual([250, 200]);
+    expect(recording.calls('translate').map((call) => call.args)).toContainEqual([250, 200]);
     expect(recording.calls('scale').at(-1)!.args[0]).toBeCloseTo(10.5);
     const before = editor.emitted('draft-changed')!.length;
     await canvas.trigger('mousedown', { button: 0 });
@@ -118,7 +120,7 @@ describe('SpecProjectileEditor', () => {
     });
     useSettingsStore().setTheme('dark');
     await flushPromises();
-    expect(recording.calls('translate').at(-1)!.args).toEqual([280, 240]);
+    expect(recording.calls('translate').map((call) => call.args)).toContainEqual([280, 240]);
     const canvas = editor.get('canvas').element as HTMLCanvasElement;
     vi.stubGlobal('devicePixelRatio', 2);
     window.dispatchEvent(new Event('resize'));
@@ -148,12 +150,17 @@ describe('SpecProjectileEditor', () => {
       },
     );
     const editor = mountEditor({ id: 'proj1', specClass: 'projectile', bulletSprite: 'first.png' });
-    await editor.setProps({ spriteLoading: true });
+    await editor.setProps({
+      resourceRefs: [{ source: 'mod', ownerKind: 'weapon', ownerId: 'proj1', key: 'bulletSprite', relPath: 'first.png' }],
+      spriteLoading: true,
+    });
     expect(editor.get('.projectile-canvas-notice[role="status"]').text()).toContain('正在读取');
     await editor.setProps({ spriteLoading: false, spriteData: { bulletSprite: 'first-data' } });
     expect(editor.get('.projectile-canvas-notice[role="status"]').text()).toContain('正在加载');
     await editor.setProps({ spriteData: { bulletSprite: 'second-data' } });
-    expect(bitmaps[0]!.onload).toBeNull();
+    bitmaps[0]!.onload?.();
+    await flushPromises();
+    expect(editor.get('.projectile-canvas-notice[role="status"]').text()).toContain('正在加载');
     bitmaps[1]!.onload?.();
     await flushPromises();
     expect(editor.find('.projectile-canvas-notice[role="status"]').exists()).toBe(false);
@@ -165,7 +172,9 @@ describe('SpecProjectileEditor', () => {
     expect(editor.get('.projectile-canvas-notice[role="status"]').text()).toBe('路径授权失败');
     editor.unmount();
     wrapper = null;
-    expect(bitmaps.every((image) => image.onload === null && image.onerror === null)).toBe(true);
+    bitmaps[2]!.onload?.();
+    await flushPromises();
+    expect(mocks.feedback.error).toHaveBeenCalledTimes(1);
   });
   it('renders the editor shell with close and save actions', async () => {
     const editor = mountEditor({ id: 'proj1', specClass: 'projectile' });

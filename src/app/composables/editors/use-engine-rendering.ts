@@ -182,5 +182,8 @@ export function useEngineRendering(
     fallbackRead?.invalidate('consumer');
     release();
   });
-  return { paint };
+  return {
+    paint,
+    style: (engine: Pick<EngineShape, 'style' | 'styleId' | 'styleSpec'>) => engineStyle(engine, assets.value?.styles ?? {}),
+  };
 }

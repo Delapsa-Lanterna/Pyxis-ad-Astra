@@ -32,8 +32,16 @@ export async function querySpecProjectileEditorImages(
 ) {
   const refs = await querySessionDraftResources(sessionId, 'projectile', id, draft, signal);
   const field = draft.specClass === 'missile' ? 'sprite' : 'bulletSprite';
-  const resource = refs[field];
-  if (!resource) return { resourceRefs: [], spriteData: {} as Record<string, string> };
-  const [data] = await queryResourceDataUrls(sessionId, [resource], signal);
-  return { resourceRefs: [resource], spriteData: { [field]: data ?? '' }, diagnostic: data ? '' : '找不到贴图：' + str(draft[field]) };
+  const entries = Object.entries(refs),
+    data = await queryResourceDataUrls(
+      sessionId,
+      entries.map(([, resource]) => resource),
+      signal,
+    );
+  const spriteData = Object.fromEntries(entries.map(([key], index) => [key, data[index] ?? '']));
+  return {
+    resourceRefs: entries.map(([, resource]) => resource),
+    spriteData,
+    diagnostic: refs[field] && !spriteData[field] ? '找不到贴图：' + str(draft[field]) : '',
+  };
 }

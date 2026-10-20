@@ -37,3 +37,13 @@ test('weapon reads separate catalogue access from projectile detail consumption'
     'src/services/weapon-data.service.ts: projectile details belong to their consuming editor or fire preview',
   ]);
 });
+
+test('projectile effect layers have one shared drawing owner', () => {
+  const files = architectureFixtures({
+    'src/app/renderers/editors/projectile-renderer.ts': "images.image('projectileBody');",
+    'src/app/renderers/spec-editor/projectile/spec-projectile-scene.ts': "images.image('projectileBody');",
+  });
+  assert.deepEqual(editorModuleBoundaryRule.check(files), [
+    'src/app/renderers/spec-editor/projectile/spec-projectile-scene.ts: projectile effect layers must belong to the shared projectile renderer',
+  ]);
+});

@@ -630,7 +630,7 @@ mod tests {
             &draft,
         )
         .unwrap();
-        assert_eq!(resources.len(), 2);
+        assert_eq!(resources.len(), 5);
         for (field, path) in [
             ("sprite", "graphics/missile.png"),
             ("bulletSprite", "graphics/shot.png"),

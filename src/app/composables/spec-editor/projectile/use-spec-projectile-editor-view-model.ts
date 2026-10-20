@@ -2,7 +2,7 @@ import { computed, reactive, ref, watch, onMounted, onScopeDispose, type EmitFn,
 import { useEditorDocument } from '../../editors/use-editor-document';
 import { useEditorFields } from '../../editors/use-editor-fields';
 
-import type { RowData, EditContext, ProjectileSpecClass } from '@/shared/types/index';
+import type { RowData, EditContext, ProjectileSpecClass, ResourceRef } from '@/shared/types/index';
 import { arr, str } from '@/shared/lib/starsector/index';
 import {
   changeProjectileSpecClass,
@@ -17,7 +17,7 @@ import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport'
 import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
-import { useEditorImages } from '../../editors/use-editor-images';
+import { useProjectileRendering } from '../../editors/use-projectile-rendering';
 import { useEngineRendering } from '../../editors/use-engine-rendering';
 import { useResourceReference } from '@/app/composables/editors/use-resource-reference';
 
@@ -27,6 +27,7 @@ export interface SpecProjectileEditorProps {
   projectileId: string;
   projectile?: RowData;
   spriteData?: Record<string, string>;
+  resourceRefs?: readonly ResourceRef[];
   spriteLoading?: boolean;
   spriteError?: string;
   editContext: EditContext | null;
@@ -74,9 +75,11 @@ export function useSpecProjectileEditorViewModel(
   const palette = useCanvasPalette(draw),
     navigation = useCanvasNavigation(viewport, draw, 'pointer');
   const decodeError = ref('');
-  const images = useEditorImages(
-    () => props.spriteData ?? {},
+  const images = useProjectileRendering(
+    () => props.sessionId,
+    () => props.resourceRefs ?? [],
     draw,
+    (resource) => props.spriteData?.[resource.key] ?? '',
     () => {
       decodeError.value = '无法解码贴图：' + geometry.value.spritePath;
     },
@@ -89,32 +92,33 @@ export function useSpecProjectileEditorViewModel(
     { flush: 'sync' },
   );
   const spriteNotice = computed(() => {
-    void images.revision.value;
     if (props.spriteError) return props.spriteError;
     if (!geometry.value.spritePath) return '';
     if (props.spriteLoading) return '正在读取贴图…';
     if (decodeError.value) return decodeError.value;
-    if (props.spriteData?.[geometry.value.spriteField] && !images.images.has(geometry.value.spriteField)) return '正在加载贴图…';
+    if (props.spriteData?.[geometry.value.spriteField] && !images.ready.value) return '正在加载贴图…';
     return '';
   });
   function draw() {
     const ctx = canvasRef.value?.getContext('2d');
     if (!ctx) return;
     const dimensions = viewport.size();
-    engines.paint((engineImages) =>
-      renderSpecProjectileEditorScene(ctx, {
-        engineImages,
-        base: {
-          ...dimensions,
-          center: viewport.center(),
-          scale: viewport.scale.value,
-          palette: palette.value,
-          mirrorY: null,
-          cursor: null,
-        },
-        geometry: geometry.value,
-        sprite: images.images.get(geometry.value.spriteField) ?? null,
-      }),
+    images.paint((providers) =>
+      engines.paint((engineImages) =>
+        renderSpecProjectileEditorScene(ctx, {
+          engineImages,
+          base: {
+            ...dimensions,
+            center: viewport.center(),
+            scale: viewport.scale.value,
+            palette: palette.value,
+            mirrorY: null,
+            cursor: null,
+          },
+          geometry: geometry.value,
+          images: providers(Object.fromEntries((props.resourceRefs ?? []).map((resource) => [resource.key, resource]))),
+        }),
+      ),
     );
   }
   function resetView() {

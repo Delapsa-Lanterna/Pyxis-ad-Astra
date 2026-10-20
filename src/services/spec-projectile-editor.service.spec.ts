@@ -52,19 +52,24 @@ describe('projectile draft images', () => {
     const ref = { source: 'mod', relPath: 'graphics/current.png', ownerKind: 'weapon', ownerId: 'p', key: field };
     const draft = { specClass: kind, [field]: ref.relPath };
     mocks.resources.mockResolvedValue({ [field]: ref, unused: { ...ref, key: 'unused' } });
-    mocks.images.mockResolvedValue(['data:image/png;base64,CURRENT']);
+    mocks.images.mockResolvedValue(['data:image/png;base64,CURRENT', 'data:image/png;base64,FX']);
     const signal = new AbortController().signal;
     expect(await querySpecProjectileEditorImages('s1', 'p', draft, signal)).toEqual({
-      resourceRefs: [ref],
-      spriteData: { [field]: 'data:image/png;base64,CURRENT' },
+      resourceRefs: [ref, { ...ref, key: 'unused' }],
+      spriteData: { [field]: 'data:image/png;base64,CURRENT', unused: 'data:image/png;base64,FX' },
       diagnostic: '',
     });
     expect(mocks.resources).toHaveBeenCalledExactlyOnceWith('s1', 'projectile', 'p', draft, signal);
-    expect(mocks.images).toHaveBeenCalledExactlyOnceWith('s1', [ref], signal);
+    expect(mocks.images).toHaveBeenCalledExactlyOnceWith('s1', [ref, { ...ref, key: 'unused' }], signal);
   });
   it('keeps an absent sprite distinct from an unresolved reference', async () => {
     mocks.resources.mockResolvedValueOnce({});
-    expect(await querySpecProjectileEditorImages('s1', 'p', { specClass: 'projectile' })).toEqual({ resourceRefs: [], spriteData: {} });
+    mocks.images.mockResolvedValueOnce([]);
+    expect(await querySpecProjectileEditorImages('s1', 'p', { specClass: 'projectile' })).toEqual({
+      resourceRefs: [],
+      spriteData: {},
+      diagnostic: '',
+    });
     mocks.resources.mockResolvedValueOnce({
       sprite: { source: 'mod', relPath: 'missing.png', ownerKind: 'weapon', ownerId: 'p', key: 'sprite' },
     });

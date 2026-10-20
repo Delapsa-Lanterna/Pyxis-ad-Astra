@@ -22,7 +22,6 @@ vi.mock('@/app/composables/use-managed-window-requests', () => ({
 }));
 vi.mock('@/services/weapon-fire-preview.service', () => ({
   queryWeaponFirePreviewData: mocks.query,
-  queryWeaponFirePreviewImages: vi.fn(async () => ({})),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
@@ -46,12 +45,12 @@ function request(source: WeaponFirePreviewSource): WindowContextFor<'weapon-fire
 }
 function data(id = 'w'): WeaponFirePreviewData {
   return {
+    sessionId: 's',
     weapon: { id, specClass: 'beam' },
     weaponCsvRow: { id },
     baseVersions: [],
-    projectileSpecs: {},
-    weaponSpriteData: {},
-    resourceRefs: [],
+    projectile: null,
+    resources: { weapon: {}, projectile: {} },
   };
 }
 const scopes: ReturnType<typeof effectScope>[] = [];

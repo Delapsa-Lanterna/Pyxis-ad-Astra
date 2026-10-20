@@ -1,6 +1,7 @@
 import { onUnmounted, shallowReactive } from 'vue';
 import {
   acquireResourceMedia,
+  dispatchResourceMedia,
   resourceMediaDataUrl,
   subscribeResourceInvalidations,
   mediaResourceKey,
@@ -66,7 +67,11 @@ export function useResourceMediaRegistry(options: {
     if (failures.length) options.onFailures(failures);
   }
 
-  function replaceCollections(nextSession: string | null | undefined, changes: readonly MediaCollectionChange[]): Promise<void> {
+  function replaceCollections(
+    nextSession: string | null | undefined,
+    changes: readonly MediaCollectionChange[],
+    immediate = false,
+  ): Promise<void> {
     if (sessionId !== (nextSession ?? null)) {
       clear();
       sessionId = nextSession ?? null;
@@ -88,6 +93,7 @@ export function useResourceMediaRegistry(options: {
       if (next.size) collections.set(change.id, next);
       else collections.delete(change.id);
     }
+    const releases: ResourceMediaLease[] = [];
     for (const [key, delta] of deltas) {
       let entry = references.get(key);
       if (!entry) {
@@ -96,14 +102,21 @@ export function useResourceMediaRegistry(options: {
       }
       entry.count += delta.count;
       if (entry.count === 0) {
-        entry.lease?.release();
+        if (entry.lease) releases.push(entry.lease);
         references.delete(key);
       } else {
         references.set(key, entry);
       }
     }
+    for (const lease of releases) lease.release();
     const missing = [...requestedKeys].filter((key) => references.has(key) && (createdKeys.has(key) || !references.get(key)!.lease));
-    return missing.length ? read(missing) : Promise.resolve();
+    const ready = missing.length ? read(missing) : Promise.resolve();
+    if (immediate)
+      dispatchResourceMedia(
+        sessionId,
+        changes.flatMap((change) => [...change.resources]),
+      );
+    return ready;
   }
 
   const stopInvalidation = subscribeResourceInvalidations((event) => {
@@ -136,8 +149,8 @@ export function useResourceMediaRegistry(options: {
 
   return {
     replaceCollections,
-    replaceCollection: (session: string | null | undefined, id: string, resources: readonly ResourceRef[]) =>
-      replaceCollections(session, [{ id, resources }]),
+    replaceCollection: (session: string | null | undefined, id: string, resources: readonly ResourceRef[], immediate = false) =>
+      replaceCollections(session, [{ id, resources }], immediate),
     releaseCollection: (id: string) => replaceCollections(sessionId, [{ id, resources: [] }]),
     clear,
     dataUrl: (session: string | null | undefined, resource: ResourceRef | null | undefined) =>

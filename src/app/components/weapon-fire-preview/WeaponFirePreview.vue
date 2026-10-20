@@ -34,13 +34,17 @@
         <div class="preview-control-panel ui-layout-grid">
           <section class="preview-control-section ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">
             <h3 class="preview-control-section-title ui-text-soft ui-text-reset ui-text-small">武器状态</h3>
-            <div class="preview-control-actions ui-layout-grid">
-              <n-button type="primary" :disabled="view.firing" @click="actions.startFiring">开火</n-button>
-              <n-button :disabled="!view.firing" @click="actions.stopFiring">停火</n-button>
-            </div>
             <div class="preview-fire-status ui-text-small ui-layout-grid ui-layout-center">
               <span class="preview-fire-status-label ui-text-muted">开火状态</span>
-              <strong class="preview-fire-status-value ui-emphasis ui-text-normal">{{ view.firing ? '开火中' : '停火' }}</strong>
+              <n-switch
+                class="tool-switch"
+                aria-label="开火状态"
+                :value="view.firing"
+                @update:value="$event ? actions.startFiring() : actions.stopFiring()"
+              >
+                <template #checked>开火</template>
+                <template #unchecked>停火</template>
+              </n-switch>
             </div>
           </section>
           <div class="preview-control-section ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">

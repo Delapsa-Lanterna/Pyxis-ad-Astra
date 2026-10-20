@@ -66,6 +66,7 @@
       :projectile-id="target.id"
       :projectile="projectileEditorData.spec"
       :sprite-data="projectileImages?.value.value?.spriteData ?? {}"
+      :resource-refs="projectileImages?.value.value?.resourceRefs ?? []"
       :sprite-loading="projectileImages?.loading.value ?? false"
       :sprite-error="projectileImages?.errorText.value || projectileImages?.value.value?.diagnostic || ''"
       :edit-context="editContext"

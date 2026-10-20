@@ -20,12 +20,14 @@
 - `src/app/composables/editors/use-editor-frame-loop.ts`：帧循环的启动、停止与释放。
 - `src/app/composables/editors/use-editor-images.ts`：贴图加载、替换、结果接纳、解码修订、着色缓存与释放。
 - `src/app/composables/editors/use-engine-rendering.ts`：必须统一装配引擎样式查询、媒体、解码、着色成品与引用释放。
+- `src/app/composables/editors/use-projectile-rendering.ts`：必须统一持有发射图片租约、解码与着色成品。
 - `src/app/renderers/editors/`：背景、几何标记、武器贴图及最终样式绘制原语。
 - `src/app/renderers/editors/canvas-drawing.ts`：清屏、网格与像素贴图的无状态绘制入口。
 - `src/app/renderers/editors/canvas-scene.ts`：共享背景、镜像轴、边界与光标场景的绘制入口。
 - `src/app/renderers/editors/canvas-styles.ts`：场景消费的标记样式投影入口。
 - `src/app/renderers/editors/canvas-visuals.ts`：消费显式样式的实体绘制原语。
 - `src/app/renderers/editors/engine-renderer.ts`：必须作为 Spec 与沉浸式引擎静态成品的唯一样式、尺寸与绘制入口。
+- `src/app/renderers/editors/projectile-renderer.ts`：必须统一绘制 Spec 与开火预览的弹体、导弹、光束及等离子本体。
 - `src/app/renderers/editors/weapon-images.ts`：武器编辑、发射预览、舰船与装配消费的共享贴图、装备阶段及光效绘制入口。
 - `src/assets/engines/`：必须提供光柱、火焰与喷口辉光的 SVG 回退资产。
 - `src/domain/editors/editor-types.ts`：编辑坐标、模式与悬停预览的纯数据类型。
@@ -33,6 +35,7 @@
 - `src/domain/editors/lib/editor-constants.ts`：吸附步长与选项常量。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/lib/mirror.ts`：镜像规则，拥有对称判定、镜像角度与成对新增。
+- `src/domain/editors/projectile-appearance.ts`：必须投影共享弹体外观、原点、纹理参数及引擎几何。
 
 ### 消费
 
@@ -119,6 +122,7 @@
 - 引擎成品必须按 session、静态预设、实体类别、有效样式、来源修订、尺寸、RGBA、DPR 与预览透明度复用；位置、角度与缩放必须只变换成品，场景释放必须交还全部引用。
 - 引擎静态预设必须固定纹理相位及扩散，Spec 必须采用普通满推力，沉浸式必须采用装配静止状态；普通舰船、导弹、战机和 OMEGA 必须消费所属静态图层规则。
 - 引擎颜色必须优先消费所属 CUSTOM 样式或命名样式，缺失颜色必须采用 RGB 255、255、255；原图等待或缺失必须消费 SVG 回退。
+- 弹体本体必须消费共享 renderer，静态场景必须采用完整长度、满亮度及相位零；动态状态必须由所属预览交付。
 - 待提交输入必须保留其选区归属；自动悬停选择只允许在所属输入与字段动作完成后替换目标。
 - 拖拽必须在释放、离开或保存捕获时提交当前位置并结束动作；后续指针事件只允许消费新的动作。
 - 提交必须经唯一回调进入对应编辑会话，重复提交必须被会话相等语义吸收。

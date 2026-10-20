@@ -69,6 +69,15 @@ it('keeps selected content while independent menus release shared references', a
   expect(registry.dataUrl('registry', resource(1))).toBe('data:1.png');
   wrapper.unmount();
 });
+it('dispatches an immediate collection without advancing the cold batch timer', async () => {
+  const { registry, wrapper } = harness();
+  await registry.replaceCollection('registry', 'preview', [resource(1), resource(2)], true);
+  expect(mock.load).toHaveBeenCalledOnce();
+  expect(mock.load.mock.calls[0]![0]).toEqual([resource(1), resource(2)]);
+  expect(registry.dataUrl('registry', resource(2))).toBe('data:2.png');
+  wrapper.unmount();
+  expect(resourceMediaStats().activeEntries).toBe(0);
+});
 it('retries an explicit collection after transport failure', async () => {
   const { registry, wrapper } = harness();
   mock.load.mockRejectedValueOnce(new Error('transport'));

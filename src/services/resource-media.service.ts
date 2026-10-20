@@ -149,6 +149,10 @@ export function acquireResourceMedia(sessionId: string, resource: ResourceRef): 
     },
   };
 }
+export function dispatchResourceMedia(sessionId: string, resources: readonly ResourceRef[]) {
+  const keys = new Set(resources.map((resource) => mediaResourceKey(sessionId, resource)));
+  dispatch([...queued.values()].filter((item) => keys.has(item.entry.key)));
+}
 export async function queryResourceDataUrls(
   sessionId: string,
   resources: readonly ResourceRef[],
@@ -156,8 +160,7 @@ export async function queryResourceDataUrls(
 ): Promise<(string | null)[]> {
   if (signal?.aborted) throw invalidatedRead({ sessionId, resources }, 'consumer');
   const leases = resources.map((resource) => acquireResourceMedia(sessionId, resource));
-  const keys = new Set(resources.map((resource) => mediaResourceKey(sessionId, resource)));
-  dispatch([...queued.values()].filter((item) => keys.has(item.entry.key)));
+  dispatchResourceMedia(sessionId, resources);
   try {
     const values = await waitForRead(Promise.all(leases.map((lease) => lease.ready)), { sessionId, resources }, signal);
     requireProjectionReady(sessionId);

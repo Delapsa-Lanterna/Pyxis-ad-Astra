@@ -20,6 +20,8 @@ export const editorModuleBoundaryRule = {
       if (!frontendFile(file.rel) || specFile(file.rel)) continue;
       const current = classifyFrontendPath(file.rel);
       if (current.layer !== 'test' && current.layer === 'app') {
+        if (current.domain !== 'projectile-renderer' && /['"](?:projectileTrail|projectileBody|plasmaRay)['"]/.test(file.text))
+          failures.push(`${file.rel}: projectile effect layers must belong to the shared projectile renderer`);
         if (current.domain !== 'engine-renderer' && /['"]engine(?:Glow|Flame|HitGlow)['"]/.test(file.text))
           failures.push(`${file.rel}: engine effects must delegate layer drawing to the engine renderer`);
         if (current.domain !== 'engine-renderer' && /\.engineColor\b|\[['"]engineColor['"]\]/.test(file.text))

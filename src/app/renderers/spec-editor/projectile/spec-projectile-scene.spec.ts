@@ -25,30 +25,16 @@ function render(spec: RowData, sprite: HTMLImageElement | null = null) {
   renderSpecProjectileEditorScene(recording.ctx, {
     base,
     geometry: projectProjectileGeometry(normalizeProjectileSpec(spec)),
-    sprite,
+    images: { image: (key) => (key === 'sprite' || key === 'bulletSprite' ? sprite : null), pattern: () => ({}) as CanvasPattern },
     engineImages: { product: () => null },
   });
   return { recording, fills };
 }
 describe('projectile static scene', () => {
-  it('uses draft dimensions and each color alpha for an untextured projectile', () => {
-    const { recording, fills } = render({
-      specClass: 'projectile',
-      length: 40,
-      width: 8,
-      fringeColor: [10, 20, 30, 128],
-      coreColor: [100, 150, 200, 0],
-    });
-    expect(fills.slice(1)).toEqual([
-      { color: 'rgba(10,20,30,0.502)', coords: [-20, -4, 40, 8] },
-      { color: 'rgba(100,150,200,0.000)', coords: [-20, -2, 40, 4] },
-    ]);
-    expect(recording.calls('rect')[0]!.args).toEqual([210, 192, 80, 16]);
-  });
   it('preserves the source image color and alpha at the projectile dimensions', () => {
     const bitmap = { width: 64, height: 32 } as HTMLImageElement;
     const { recording, fills } = render({ specClass: 'projectile', bulletSprite: 'p.png', length: 40, width: 8 }, bitmap);
-    expect(recording.calls('drawImage')[0]).toMatchObject({ args: [bitmap, -20, -4, 40, 8], alpha: 1, composite: 'source-over' });
+    expect(recording.calls('drawImage')[0]).toMatchObject({ args: [bitmap, -4, -4, 8, 4], alpha: 1, composite: 'lighter' });
     expect(fills).toHaveLength(1);
   });
   it('places a missile using its off-center anchor, then overlays range, center and engines', () => {

@@ -1,104 +1,169 @@
 import type { Point } from '@/domain/editors/editor-types';
 import type { CanvasPalette } from '@/domain/editors/lib/canvas-palette';
+import type { WeaponFirePreviewDefinition, PreviewResources } from '@/domain/weapon-fire-preview/preview-definition';
 import type {
-  WeaponFirePreviewParams,
   WeaponFirePreviewProjectileState,
   WeaponFirePreviewBeamState,
-  WeaponFirePreviewBarrelState,
+  PreviewExplosion,
 } from '@/domain/weapon-fire-preview/simulation';
-import { rgba } from '@/shared/lib/starsector';
+import { num } from '@/shared/lib/starsector';
 import { clearCanvas } from '../editors/canvas-drawing';
 import { renderWeaponImages, type WeaponImageScene } from '../editors/weapon-images';
+import { drawBeamVisual, drawProjectileVisual, type ProjectileImages } from '../editors/projectile-renderer';
+import type { EngineImages } from '../editors/engine-renderer';
+
 export interface WeaponFirePreviewScene {
   size: { width: number; height: number };
   palette: CanvasPalette;
-  params: WeaponFirePreviewParams;
+  definition: WeaponFirePreviewDefinition;
   origin: Point;
   range: number;
   scale: number;
   hasWeaponSpec: boolean;
   assets: WeaponImageScene;
-  barrels: WeaponFirePreviewBarrelState[];
   projectiles: WeaponFirePreviewProjectileState[];
   beam: WeaponFirePreviewBeamState;
+  effects: PreviewExplosion[];
+  images(resources: PreviewResources): ProjectileImages;
+  engineImages: EngineImages;
 }
-function renderPreviewWeapon(ctx: CanvasRenderingContext2D, scene: WeaponFirePreviewScene) {
-  const origin = scene.origin;
-  if (!scene.hasWeaponSpec) {
-    ctx.fillStyle = '#374151';
-    ctx.fillRect(origin.x - 18, origin.y - 12, 36, 24);
-    ctx.strokeStyle = '#9ca3af';
-    ctx.strokeRect(origin.x - 18, origin.y - 12, 36, 24);
-    return;
+function renderTrail(ctx: CanvasRenderingContext2D, projectile: WeaponFirePreviewProjectileState, images: ProjectileImages) {
+  for (const trail of projectile.trails) {
+    ctx.save();
+    ctx.translate(projectile.x, -projectile.y);
+    ctx.rotate(-projectile.angle);
+    ctx.globalCompositeOperation = trail.style.type === 'GLOW' ? 'lighter' : 'source-over';
+    const color = trail.color,
+      strip = trail.style.mode === 'QUAD_STRIP';
+    const image = images.image(strip ? 'contrailTexture' : 'hitGlow', color);
+    const cos = Math.cos(projectile.angle),
+      sin = Math.sin(projectile.angle);
+    const position = (point: (typeof trail.points)[number]) => {
+      const dx = point.x - projectile.x,
+        dy = point.y - projectile.y;
+      return {
+        x: dx * cos + dy * sin + projectile.speed * num(trail.style.contrailMaxSpeedMult) * (projectile.age - point.time),
+        y: dx * sin - dy * cos,
+      };
+    };
+    for (let i = 0; i < trail.points.length; i++) {
+      const point = trail.points[i]!,
+        progress = (projectile.age - point.time) / trail.duration;
+      const final = num(trail.style[strip ? 'contrailWidthAddedFractionAtEnd' : 'contrailParticleFinalSizeMult'], 0.5);
+      const width = Math.max(0, trail.width * (strip ? 1 + final * progress : 1 + (final - 1) * progress));
+      ctx.globalAlpha = (1 - progress) * (Array.isArray(color) ? num(color[3], 255) / 255 : 1);
+      const { x, y } = position(point);
+      if (!strip && image) ctx.drawImage(image, x - width / 2, y - width / 2, width, width);
+      else if (i > 0 && image) {
+        const previous = position(trail.points[i - 1]!);
+        ctx.drawImage(image, previous.x, y - width / 2, x - previous.x, width);
+      }
+    }
+    ctx.restore();
   }
-  renderWeaponImages(ctx, scene.assets);
 }
 export function renderWeaponFirePreviewScene(ctx: CanvasRenderingContext2D, scene: WeaponFirePreviewScene): void {
-  const dimensions = scene.size;
-  const p = scene.params;
-  const end = scene.origin.x + scene.range;
-  clearCanvas(ctx, dimensions.width, dimensions.height, scene.palette.background);
+  clearCanvas(ctx, scene.size.width, scene.size.height, scene.palette.background);
   ctx.strokeStyle = scene.palette.grid;
   ctx.lineWidth = 1;
-  for (let x = 80; x < dimensions.width; x += 50) {
+  for (let x = 80; x < scene.size.width; x += 50) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
-    ctx.lineTo(x, dimensions.height);
+    ctx.lineTo(x, scene.size.height);
     ctx.stroke();
   }
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = '#ef444488';
   ctx.beginPath();
-  ctx.moveTo(end, 40);
-  ctx.lineTo(end, dimensions.height - 40);
+  ctx.moveTo(scene.origin.x + scene.range, 40);
+  ctx.lineTo(scene.origin.x + scene.range, scene.size.height - 40);
   ctx.stroke();
   ctx.setLineDash([]);
-  renderPreviewWeapon(ctx, scene);
-  if (p.specClass === 'beam' && scene.beam.alpha > 0) {
-    const beamLength = (p.beamSpeed > 0 ? scene.beam.length : p.range) * scene.scale;
-    const bw = Math.max(1, p.beamWidth * scene.scale * 0.15);
-    for (let i = 0; i < scene.barrels.length; i++) {
-      const barrel = scene.barrels[i];
-      if (!barrel) continue;
-      ctx.save();
-      ctx.translate(barrel.x, barrel.y);
-      ctx.rotate((-barrel.angle * Math.PI) / 180);
-      ctx.globalAlpha = scene.beam.alpha;
-      ctx.fillStyle = rgba(p.fringeColor, 0.65);
-      ctx.fillRect(0, -bw, beamLength, bw * 2);
-      ctx.fillStyle = rgba(p.coreColor, 0.9);
-      ctx.fillRect(0, -bw * 0.4, beamLength, bw * 0.8);
-      ctx.restore();
-    }
+  if (scene.hasWeaponSpec) renderWeaponImages(ctx, scene.assets);
+  else {
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(scene.origin.x - 18, scene.origin.y - 12, 36, 24);
   }
-  for (const o of scene.projectiles) {
-    if (o.exploding) {
-      ctx.beginPath();
-      ctx.arc(o.x, o.y, p.explosionRadius * scene.scale * 0.1 * o.explosionAge * 4, 0, Math.PI * 2);
-      ctx.fillStyle = rgba(p.explosionColor, 0.5);
-      ctx.fill();
-      continue;
-    }
-    if (o.trail?.length > 1) {
-      ctx.beginPath();
-      ctx.moveTo(o.trail[0]!.x, o.trail[0]!.y);
-      for (const t of o.trail) ctx.lineTo(t.x, t.y);
-      ctx.strokeStyle = '#f59e0b66';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-    ctx.save();
-    ctx.translate(o.x, o.y);
-    ctx.rotate(-o.angle);
-    ctx.fillStyle = o.missile ? '#9ca3af' : rgba(p.projFringeColor, 0.8);
-    ctx.fillRect(
-      -p.projLength * scene.scale * 0.08,
-      -Math.max(2, p.projWidth * scene.scale * 0.1),
-      p.projLength * scene.scale * 0.16,
-      Math.max(3, p.projWidth * scene.scale * 0.2),
+  ctx.save();
+  ctx.translate(scene.origin.x, scene.origin.y);
+  ctx.scale(scene.scale, scene.scale);
+  const p = scene.definition,
+    beam = scene.beam;
+  if (p.beam && beam.alpha > 0 && (!p.fullChargeOnly || beam.phase !== 'chargeup'))
+    for (const barrel of p.barrels)
+      drawBeamVisual(
+        ctx,
+        {
+          appearance: p.appearance,
+          point: { x: barrel.x, y: -barrel.y },
+          angle: (barrel.angle * Math.PI) / 180,
+          length: beam.length,
+          alpha: beam.alpha,
+          phase: beam.offset,
+          fringePhase: beam.fringeOffset,
+          age: 0,
+          engineLevel: 0,
+        },
+        scene.images(p.resources),
+      );
+  for (const projectile of scene.projectiles) {
+    const definition = projectile.definition,
+      images = scene.images(definition.resources),
+      appearance = definition.appearance;
+    renderTrail(ctx, projectile, images);
+    const fullLength =
+      appearance.spawn === 'BEAM' || appearance.spawn === 'BALLISTIC_AS_BEAM'
+        ? Math.max(appearance.length, definition.speed / 40)
+        : appearance.length;
+    const length = Math.max(
+      0,
+      Math.min(fullLength, projectile.distance) -
+        (appearance.spawn === 'BALLISTIC' ? Math.max(0, projectile.age - definition.flightTime) * projectile.speed : 0),
     );
-    ctx.fillStyle = o.missile ? '#ef4444' : rgba(p.projCoreColor, 0.95);
-    ctx.fillRect(0, -1, Math.max(4, p.projLength * scene.scale * 0.08), 2);
+    const level =
+      projectile.age < definition.flightTime
+        ? 1 - Math.max(0, projectile.age - definition.flightTime + 1) * 0.5
+        : projectile.age < definition.flightTime + definition.flameoutTime - definition.noGlowTime
+          ? 0.4
+          : 0;
+    const phase = (-projectile.age * appearance.scroll) / (appearance.kind === 'beam' ? 128 : 1);
+    drawProjectileVisual(
+      ctx,
+      {
+        appearance,
+        point: { x: projectile.x, y: -projectile.y },
+        angle: projectile.angle,
+        length,
+        alpha: appearance.kind === 'plasma' ? projectile.alpha * Math.min(1, projectile.age * 5) : projectile.alpha,
+        phase,
+        fringePhase: phase * appearance.fringeScroll,
+        age: projectile.age,
+        engineLevel: level,
+      },
+      images,
+      scene.engineImages,
+    );
+  }
+  for (const effect of scene.effects) {
+    const progress = effect.age / effect.duration,
+      images = scene.images(effect.definition.resources);
+    const glow = images.image('hitGlow', Array.isArray(effect.color) ? effect.color.map(Number) : [255, 255, 255, 255]);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1 - progress;
+    if (glow) {
+      const radius = effect.radius * progress;
+      ctx.drawImage(glow, effect.x - radius, -effect.y - radius, radius * 2, radius * 2);
+      for (const particle of effect.particles)
+        ctx.drawImage(
+          glow,
+          effect.x + particle.x * effect.radius * progress - particle.size / 2,
+          -effect.y + particle.y * effect.radius * progress - particle.size / 2,
+          particle.size,
+          particle.size,
+        );
+    }
     ctx.restore();
   }
+  ctx.restore();
 }

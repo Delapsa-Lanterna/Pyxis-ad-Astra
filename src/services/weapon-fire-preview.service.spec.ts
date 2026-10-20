@@ -4,20 +4,12 @@ import type { EntityData, ResourceRef, RowData } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   querySessionEntity: vi.fn(),
-  querySessionEntityList: vi.fn(async () => [] as { id: string }[]),
   querySessionDraftResources: vi.fn(async () => ({})),
   queryResourceDataUrls: vi.fn(async () => [] as (string | null)[]),
-  invokeCommand: vi.fn(),
-  queryJointCandidate: vi.fn(),
 }));
 
 vi.mock('@/services/entity-query.service', () => ({
-  querySessionEntityEditTarget: vi.fn(async (_session: string, kind: import('@/shared/types').EntityKind, id: string) => ({
-    target: entityTargetFixture(kind, id, 'create'),
-    baseVersions: [],
-  })),
   querySessionEntity: mocks.querySessionEntity,
-  querySessionEntityList: mocks.querySessionEntityList,
 }));
 vi.mock('@/services/resource-reference.service', () => ({
   querySessionDraftResources: mocks.querySessionDraftResources,
@@ -27,12 +19,7 @@ vi.mock('@/services/resource-media.service', () => ({
   queryResourceDataUrls: mocks.queryResourceDataUrls,
 }));
 
-vi.mock('@/shared/runtime/command.runtime', () => ({
-  invokeCommand: mocks.invokeCommand,
-}));
-vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: mocks.queryJointCandidate }));
-
-import { queryWeaponFirePreviewData, queryWeaponFirePreviewImages } from './weapon-fire-preview.service';
+import { queryWeaponFirePreviewData } from './weapon-fire-preview.service';
 
 function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityData {
   return {
@@ -76,10 +63,9 @@ describe('weapon fire preview queries', () => {
     });
 
     expect(bundle.weapon.projectileSpecId).toBe('proj_b');
-    expect(bundle.projectileSpecs).toEqual({ proj_b: { id: 'proj_b', specClass: 'projectile', length: 42 } });
-    expect(bundle.weaponSpriteData).toEqual({});
+    expect(bundle.projectile).toEqual({ id: 'proj_b', specClass: 'projectile', length: 42 });
+    expect(bundle.resources.weapon.turretSprite?.relPath).toBe('graphics/draft.png');
     expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(0);
-    expect(await queryWeaponFirePreviewImages('s1', bundle.resourceRefs)).toEqual({ turretSprite: 'data:image/png;base64,DRAFT' });
     expect(mocks.querySessionDraftResources).toHaveBeenCalledWith(
       's1',
       'weapon',
@@ -91,7 +77,7 @@ describe('weapon fire preview queries', () => {
       },
       undefined,
     );
-    expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(1);
+    expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(0);
   });
 
   it('follows saved and draft references independently on consecutive reads', async () => {
@@ -103,8 +89,8 @@ describe('weapon fire preview queries', () => {
     const source = { kind: 'draft' as const, weapon: { id: 'railgun', projectileSpecId: 'draft' } };
     const draft = await queryWeaponFirePreviewData('s1', 'railgun', source);
     const saved = await queryWeaponFirePreviewData('s1', 'railgun', { kind: 'saved' });
-    expect(draft.projectileSpecs).toEqual({ draft: { id: 'draft', specClass: 'projectile', length: 42 } });
-    expect(saved.projectileSpecs).toEqual({ saved: { id: 'saved', specClass: 'projectile', length: 10 } });
+    expect(draft.projectile).toEqual({ id: 'draft', specClass: 'projectile', length: 42 });
+    expect(saved.projectile).toEqual({ id: 'saved', specClass: 'projectile', length: 10 });
     expect(source.weapon.projectileSpecId).toBe('draft');
   });
 
@@ -114,7 +100,7 @@ describe('weapon fire preview queries', () => {
     const source = kind === 'draft' ? { kind, weapon } : { kind };
     const result = await queryWeaponFirePreviewData('s1', 'laser', source);
     expect(result.weapon).toEqual(weapon);
-    expect(result.projectileSpecs).toEqual({});
+    expect(result.projectile).toBeNull();
     expect(mocks.querySessionEntity).toHaveBeenCalledExactlyOnceWith('s1', 'weapon', 'laser', undefined);
   });
 
