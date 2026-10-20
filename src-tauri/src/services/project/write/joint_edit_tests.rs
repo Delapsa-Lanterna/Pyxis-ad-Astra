@@ -897,12 +897,16 @@ fn ui_and_engine_resource_versions() {
     )
     .unwrap();
     let snapshot = query_joint_edit(&root).unwrap();
-    let engines = project::query::resources::query_engine_render_assets(&root.session_id).unwrap();
+    let engines =
+        project::query::resources::query_engine_render_assets(&root.session_id, &[]).unwrap();
     assert_eq!(
         snapshot.reference_settings.resources["checkmark"].rel_path,
         "graphics/check.png"
     );
-    assert_eq!(engines.resources["engineGlow"].source, ResourceSource::Mod);
+    assert_eq!(
+        engines.resources["graphics/fx/engineglow32.png"].source,
+        ResourceSource::Mod
+    );
     assert_eq!(
         engines.styles["HIGH_TECH"]["engineColor"],
         json!([100, 165, 255, 255])

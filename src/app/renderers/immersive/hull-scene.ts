@@ -8,6 +8,7 @@ import { renderMountedWeapons } from '@/app/renderers/editors/weapon-images';
 type Image = (resource: ResourceRef) => HTMLImageElement | null;
 interface HullPasses {
   beforeHull?: (context: CanvasRenderingContext2D, variant: ImmersiveHullProjection) => void;
+  afterHull?: (context: CanvasRenderingContext2D, variant: ImmersiveHullProjection) => void;
   afterWeapons?: (context: CanvasRenderingContext2D, variant: ImmersiveHullProjection) => void;
 }
 export function paintImmersiveHull(
@@ -23,6 +24,7 @@ export function paintImmersiveHull(
   const center = Array.isArray(variant.spec.center) ? variant.spec.center : [0, 0];
   passes.beforeHull?.(context, variant);
   if (bitmap) drawPixelImage(context, bitmap, -Number(center[0]), -(bitmap.height - Number(center[1])), bitmap.width, bitmap.height);
+  passes.afterHull?.(context, variant);
   renderMountedWeapons(context, {
     weapons: variant.weapons,
     image: (resource) => image(resource) ?? undefined,

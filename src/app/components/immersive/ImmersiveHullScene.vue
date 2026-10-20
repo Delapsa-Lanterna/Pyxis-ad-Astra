@@ -51,7 +51,7 @@ import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-r
 import { warningNotice } from '@/shared/lib/errors';
 import ImmersiveText from './ImmersiveText.vue';
 import { useEngineRendering } from '@/app/composables/editors/use-engine-rendering';
-import { drawEngineVisual, engineColor, type EngineImages } from '@/app/renderers/editors/engine-renderer';
+import { drawEngineVisual, type EngineImages } from '@/app/renderers/editors/engine-renderer';
 const props = defineProps<{
   variant: ImmersiveHullProjection;
   sessionId: string;
@@ -129,8 +129,11 @@ const engines = useEngineRendering(
   () => props.sessionId,
   paint,
   () =>
-    !props.iconSize &&
-    sceneVariants(props.variant).some((variant) => Array.isArray(variant.spec.engineSlots) && variant.spec.engineSlots.length > 0),
+    props.iconSize
+      ? []
+      : sceneVariants(props.variant).flatMap((variant) =>
+          Array.isArray(variant.spec.engineSlots) ? variant.spec.engineSlots.filter(isRowData) : [],
+        ),
   props.resourceUrl,
 );
 const sceneSignature = computed(() =>
@@ -242,7 +245,15 @@ function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
     ctx,
     variant,
     decoded.image,
-    { beforeHull: props.iconSize ? undefined : (ctx, variant) => drawEngines(ctx, variant, engineImages), afterWeapons: drawSlots },
+    {
+      beforeHull: (ctx, variant) => {
+        if (!props.iconSize && variant.hull.hints.includes('RENDER_ENGINES_BELOW_HULL')) drawEngines(ctx, variant, engineImages);
+      },
+      afterHull: (ctx, variant) => {
+        if (!props.iconSize && !variant.hull.hints.includes('RENDER_ENGINES_BELOW_HULL')) drawEngines(ctx, variant, engineImages);
+      },
+      afterWeapons: drawSlots,
+    },
     parents,
   );
 }
@@ -277,13 +288,15 @@ function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
     drawEngineVisual(
       ctx,
       {
+        ...engine,
         point: immersiveHullPoint(engine.location as number[]),
         rotation: ((-Number(engine.angle) - 90) * Math.PI) / 180,
         width: Number(engine.width),
         length: Number(engine.length),
         scale: 1,
         alpha: 1,
-        color: engineColor(engine, engineImages.styles),
+        preset: 'refit',
+        kind: variant.spec.hullSize === 'FIGHTER' ? 'fighter' : 'ship',
       },
       engineImages,
     );

@@ -26,7 +26,7 @@ function render(spec: RowData, sprite: HTMLImageElement | null = null) {
     base,
     geometry: projectProjectileGeometry(normalizeProjectileSpec(spec)),
     sprite,
-    engineImages: { styles: {}, image: () => null },
+    engineImages: { product: () => null },
   });
   return { recording, fills };
 }
@@ -69,8 +69,8 @@ describe('projectile static scene', () => {
     expect(recording.calls('drawImage')[0]!.args).toEqual([bitmap, -3, -22, 12, 30]);
     expect(recording.calls('rotate').at(-1)!.args).toEqual([Math.PI / 2]);
     expect(recording.calls('arc')[0]!.args).toEqual([250, 200, 40, 0, Math.PI * 2]);
-    expect(recording.calls('translate').map((op) => op.args)).toContainEqual([230, 188]);
-    expect(recording.calls('translate').map((op) => op.args)).toContainEqual([254, 208]);
+    expect(recording.calls('arc').map((op) => op.args.slice(0, 2))).toContainEqual([230, 188]);
+    expect(recording.calls('arc').map((op) => op.args.slice(0, 2))).toContainEqual([254, 208]);
     const ops = recording.ops.map((op) => op.op);
     expect(ops.indexOf('drawImage')).toBeLessThan(ops.indexOf('arc'));
     expect(ops.indexOf('arc')).toBeLessThan(ops.findIndex((op, i) => op === 'stroke' && i > ops.indexOf('arc')));

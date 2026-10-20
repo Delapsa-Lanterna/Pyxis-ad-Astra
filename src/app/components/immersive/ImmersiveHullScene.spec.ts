@@ -12,9 +12,10 @@ const mocks = vi.hoisted(() => ({
   images: new Map<string, HTMLImageElement>(),
   engines: {} as Record<string, HTMLImageElement>,
   resources: {} as import('@/shared/types').EngineRenderAssets['resources'],
+  styles: {} as import('@/shared/types').RowData,
 }));
 vi.mock('@/services/engine-assets.service', () => ({
-  queryEngineRenderAssets: async () => ({ styles: {}, versions: [], resources: mocks.resources }),
+  queryEngineRenderAssets: async () => ({ styles: mocks.styles, versions: [], resources: mocks.resources }),
   hasEngineAssetsInvalidation: () => false,
 }));
 vi.mock('@/app/renderers/editors/engine-fallback', () => ({
@@ -33,6 +34,7 @@ afterEach(() => {
   windowImageRuntime().clearSession('s');
   mocks.images.clear();
   mocks.engines = {};
+  mocks.styles = {};
   initializeCacheLimits(createSettingsFixture().cacheLimits);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -99,12 +101,13 @@ describe('variant scene pointer dismissal', () => {
     variant.spec = { ...variant.spec, engineSlots: [engine, { ...engine, location: [10, 0] }] };
     mocks.resources = Object.fromEntries(
       ['engineGlow', 'engineFlame', 'engineHitGlow'].map((key, index) => {
+        const path = ['graphics/fx/engineglow32.png', 'graphics/fx/engineflame32.png', 'graphics/fx/hit_glow.png'][index]!;
         const image = new Image();
         image.width = 16;
         image.height = 8;
         mocks.engines[key] = image;
-        if (index < ready) mocks.images.set(key + '.png', image);
-        return [key, { source: 'core' as const, ownerKind: 'ship' as const, ownerId: 'sample', key, relPath: key + '.png' }];
+        if (index < ready) mocks.images.set(path, image);
+        return [path, { source: 'core' as const, ownerKind: 'ship' as const, ownerId: 'sample', key, relPath: path }];
       }),
     ) as import('@/shared/types').EngineRenderAssets['resources'];
     const creates = vi.spyOn(document, 'createElement');
@@ -113,27 +116,41 @@ describe('variant scene pointer dismissal', () => {
     vi.mocked(loadEngineFallbacks).mockImplementation(async () => (mocks.engines = fallback));
     const own = mount(ImmersiveHullScene, { props: { variant, sessionId: 's' }, global: { stubs: { ImmersiveText: true } } });
     await flushPromises();
-    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(1);
     const other = mount(ImmersiveHullScene, { props: { variant, sessionId: 'other' }, global: { stubs: { ImmersiveText: true } } });
     await flushPromises();
-    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(6);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(2);
     other.unmount();
-    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(1);
     const allocated = creates.mock.calls.filter(([tag]) => tag === 'canvas').length;
     await own.find('canvas').trigger('mousemove', { clientX: 20, clientY: 20 });
     await own.find('canvas').trigger('wheel', { deltaY: -1 });
     expect(creates.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(allocated);
+    for (const resource of Object.values(mocks.resources)) mocks.images.set(resource.relPath, new Image());
+    for (const image of mocks.images.values()) {
+      image.width = 32;
+      image.height = 32;
+    }
+    await own.find('canvas').trigger('wheel', { deltaY: 1 });
+    expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 1, idleEntries: 0 });
+    const originals = creates.mock.calls.filter(([tag]) => tag === 'canvas').length;
+    vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
+    await own.find('canvas').trigger('wheel', { deltaY: -1 });
+    expect(creates.mock.calls.filter(([tag]) => tag === 'canvas').length).toBeGreaterThan(originals);
+    expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 1, idleEntries: 0 });
     await own.setProps({
       variant: { ...variant, spec: { ...variant.spec, engineSlots: [{ ...engine, styleSpec: { engineColor: [90, 60, 30, 255] } }] } },
     });
-    expect(creates.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(allocated + 3);
-    expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 3, idleEntries: 0 });
+    await flushPromises();
+    expect(creates.mock.calls.filter(([tag]) => tag === 'canvas').length).toBeGreaterThan(allocated);
+    expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 1, idleEntries: 0 });
     await own.setProps({ sessionId: 'replacement' });
     await flushPromises();
-    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(3);
+    expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(1);
     if (ready === 0) {
       await own.setProps({ variant: { ...variant, spec: { ...variant.spec, engineSlots: [{ ...engine, styleSpec: {} }] } } });
-      expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(0);
+      await flushPromises();
+      expect(windowImageRuntime().stats().thumbnails.activeEntries).toBe(1);
     }
     own.unmount();
     expect(windowImageRuntime().stats().thumbnails).toMatchObject({ activeEntries: 0, idleEntries: 0 });

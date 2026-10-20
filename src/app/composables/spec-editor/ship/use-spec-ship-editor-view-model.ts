@@ -150,7 +150,7 @@ export function useSpecShipEditorViewModel(
   const engines = useEngineRendering(
     () => props.sessionId,
     draw,
-    () => geometry.value.engines.length > 0,
+    () => geometry.value.engines,
   );
   const images = useEditorImages(
     () => ({ sprite: props.spriteData || '' }),
@@ -322,6 +322,8 @@ export function useSpecShipEditorViewModel(
     engines.paint((engineImages) =>
       renderSpecShipEditorScene(c.getContext('2d')!, {
         engineImages,
+        engineKind: localShip.value.hullSize === 'FIGHTER' ? 'fighter' : 'ship',
+        enginesBelow: builtins.hints.value.includes('RENDER_ENGINES_BELOW_HULL'),
         base: {
           ...viewport.size(),
           center: viewport.center(),

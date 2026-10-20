@@ -120,6 +120,7 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
   watch(projection, changed, { flush: 'post' });
   return {
     weapons: computed(() => projection.value.weapons),
+    hints: computed(() => sources.value.hints),
     diagnostics,
     image: (resource: ResourceRef) => images.images.get(mediaResourceKey(root().sessionId, resource)),
   };

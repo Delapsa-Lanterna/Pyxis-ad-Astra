@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 #[tauri::command(async)]
 pub fn query_engine_render_assets(
     session_id: String,
+    inline_styles: Vec<serde_json::Value>,
 ) -> Result<crate::models::EngineRenderAssets, AppError> {
-    services::query_engine_render_assets(&session_id)
+    services::query_engine_render_assets(&session_id, &inline_styles)
 }
 
 #[tauri::command(async)]

@@ -1,6 +1,6 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createLiveSessionQuery, subscribeQueryInvalidations, type QueryCacheInvalidationEvent } from './query-cache.service';
-import type { EngineRenderAssets, ProjectInvalidation } from '@/shared/types';
+import type { EngineRenderAssets, ProjectInvalidation, RowData } from '@/shared/types';
 import { normalizeFsPath } from '@/shared/lib/paths';
 
 const pending = new Map<string, Promise<EngineRenderAssets>>();
@@ -18,20 +18,22 @@ export function hasEngineAssetsInvalidation(event: QueryCacheInvalidationEvent) 
   return event.scope === 'session' || Boolean(event.invalidation && affected(event.invalidation));
 }
 subscribeQueryInvalidations((event) => {
-  if (hasEngineAssetsInvalidation(event)) pending.delete(event.sessionId);
+  if (hasEngineAssetsInvalidation(event)) for (const key of pending.keys()) if (JSON.parse(key)[0] === event.sessionId) pending.delete(key);
 });
-const read = createLiveSessionQuery<Record<string, never>, EngineRenderAssets>({
+const read = createLiveSessionQuery<{ inlineStyles: RowData[] }, EngineRenderAssets>({
   queryKind: 'engine-render-assets',
   invalidates: (_parameters, invalidation) => affected(invalidation),
-  load: ({ sessionId }) => {
-    let request = pending.get(sessionId);
+  load: ({ sessionId, parameters }) => {
+    const key = JSON.stringify([sessionId, parameters.inlineStyles]);
+    let request = pending.get(key);
     if (!request) {
-      request = invokeCommand<EngineRenderAssets>('query_engine_render_assets', { sessionId }).finally(() => {
-        if (pending.get(sessionId) === request) pending.delete(sessionId);
+      request = invokeCommand<EngineRenderAssets>('query_engine_render_assets', { sessionId, ...parameters }).finally(() => {
+        if (pending.get(key) === request) pending.delete(key);
       });
-      pending.set(sessionId, request);
+      pending.set(key, request);
     }
     return request;
   },
 });
-export const queryEngineRenderAssets = (sessionId: string, signal?: AbortSignal) => read(sessionId, {}, signal);
+export const queryEngineRenderAssets = (sessionId: string, inlineStyles: RowData[], signal?: AbortSignal) =>
+  read(sessionId, { inlineStyles }, signal);

@@ -17,7 +17,7 @@ export interface ImmersiveHullProjection {
   key: string;
   name: string;
   spec: DeepReadonly<RowData>;
-  hull: DeepReadonly<Pick<JointHullProjection, 'sprite' | 'modules'>>;
+  hull: DeepReadonly<Pick<JointHullProjection, 'sprite' | 'modules' | 'hints'>>;
   weapons: Array<MountedWeaponImages & { id: string; name: string; builtin: boolean }>;
   modules: Array<{ slot: DeepReadonly<RowData>; variant: ImmersiveHullProjection }>;
 }

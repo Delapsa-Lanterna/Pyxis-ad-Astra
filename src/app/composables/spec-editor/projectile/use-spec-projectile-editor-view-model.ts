@@ -69,7 +69,7 @@ export function useSpecProjectileEditorViewModel(
   const engines = useEngineRendering(
     () => props.sessionId,
     draw,
-    () => geometry.value.engines.length > 0,
+    () => geometry.value.engines,
   );
   const palette = useCanvasPalette(draw),
     navigation = useCanvasNavigation(viewport, draw, 'pointer');

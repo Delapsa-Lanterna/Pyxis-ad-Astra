@@ -5,7 +5,7 @@ export type EngineEffect = 'engineGlow' | 'engineFlame' | 'engineHitGlow';
 export interface EngineRenderAssets {
   styles: RowData;
   versions: import('./project-identity.types').FileVersion[];
-  resources: Record<EngineEffect, ResourceRef>;
+  resources: Record<string, ResourceRef>;
 }
 
 export interface ResourceDataUrlBatchEntry {

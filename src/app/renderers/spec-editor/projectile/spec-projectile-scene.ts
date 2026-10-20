@@ -3,7 +3,7 @@ import { rgba } from '@/shared/lib/starsector/index';
 import { renderCanvasBase, type CanvasScene } from '../../editors/canvas-scene';
 import { centerMarkerStyle, controlPointStyle, outlineStyle } from '../../editors/canvas-styles';
 import { drawCrossMarker, drawControlPoint, drawRadiusFill, strokeCanvasOutline } from '../../editors/canvas-visuals';
-import { drawEngineVisual, engineColor, type EngineImages } from '../../editors/engine-renderer';
+import { drawEngineVisual, type EngineImages } from '../../editors/engine-renderer';
 import { drawPixelImage } from '../../editors/canvas-drawing';
 
 export interface SpecProjectileEditorScene {
@@ -19,18 +19,6 @@ export function renderSpecProjectileEditorScene(ctx: CanvasRenderingContext2D, s
     ...engine,
     point: { x: base.center.x + engine.point.x * base.scale, y: base.center.y + engine.point.y * base.scale },
   }));
-  for (const engine of engines)
-    drawEngineVisual(
-      ctx,
-      {
-        ...engine,
-        rotation: (-engine.angle * Math.PI) / 180,
-        scale: base.scale,
-        alpha: 1,
-        color: engineColor(engine, scene.engineImages.styles),
-      },
-      scene.engineImages,
-    );
   ctx.save();
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
@@ -48,6 +36,12 @@ export function renderSpecProjectileEditorScene(ctx: CanvasRenderingContext2D, s
     ctx.fillRect(g.body.x, g.body.y / 2, g.body.width, g.body.height / 2);
   }
   ctx.restore();
+  for (const engine of engines)
+    drawEngineVisual(
+      ctx,
+      { ...engine, rotation: (-engine.angle * Math.PI) / 180, scale: base.scale, alpha: 1, preset: 'full-thrust', kind: 'missile' },
+      scene.engineImages,
+    );
   if (g.kind === 'missile') drawRadiusFill(ctx, base.center, g.radius * base.scale, 'rgba(240, 230, 140, 0.15)');
   else if (g.kind === 'projectile') {
     ctx.beginPath();

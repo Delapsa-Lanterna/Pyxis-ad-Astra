@@ -23,7 +23,9 @@ function canvasScene(): CanvasScene {
 
 function shipScene(): SpecShipEditorScene {
   return {
-    engineImages: { styles: {}, image: () => null },
+    engineImages: { product: () => null },
+    engineKind: 'ship',
+    enginesBelow: false,
     base: canvasScene(),
     geometry: {
       collisionRadius: 40,
@@ -290,7 +292,12 @@ describe('editor scene rendering', () => {
     });
     renderSpecShipEditorScene(engine.ctx, {
       ...shipScene(),
-      engineImages: { styles: {}, image: () => ({}) as HTMLCanvasElement },
+      engineImages: {
+        product: (shape) => {
+          expect(shape.alpha).toBe(0.55);
+          return { canvas: {} as HTMLCanvasElement, x: 0, y: 0, ratio: 1 };
+        },
+      },
       geometry: { ...shipScene().geometry, bounds: [] },
       interaction: {
         ...shipScene().interaction,
@@ -304,20 +311,21 @@ describe('editor scene rendering', () => {
     });
     expect(slot.calls('fill').at(-1)!.alpha).toBe(1);
     expect(engine.calls('fill').every((op) => op.alpha === 0.55)).toBe(true);
-    expect(engine.calls('drawImage').map((op) => op.alpha)).toEqual([0.33, 0.33, 0.33]);
+    expect(engine.calls('drawImage').map((op) => op.alpha)).toEqual([1]);
   });
 
-  it('draws engine textures below the hull and control points above it', () => {
+  it.each([true, false])('uses the below-hull hint %s while keeping controls above', (enginesBelow) => {
     const recording = createCanvasRecorder(),
       bitmap = {} as HTMLCanvasElement,
       sprite = { width: 100, height: 100 } as HTMLImageElement;
     renderSpecShipEditorScene(recording.ctx, {
       ...shipScene(),
-      engineImages: { styles: {}, image: () => bitmap },
+      enginesBelow,
+      engineImages: { product: () => ({ canvas: bitmap, x: 0, y: 0, ratio: 1 }) },
       resources: { sprite, tintedSprite: null },
       geometry: { ...shipScene().geometry, engines: [{ angle: 90, width: 8, length: 30, location: [1, 2] }], bounds: [] },
     });
-    expect(recording.calls('drawImage').map((op) => op.args[0])).toEqual([bitmap, bitmap, bitmap, sprite]);
+    expect(recording.calls('drawImage').map((op) => op.args[0])).toEqual(enginesBelow ? [bitmap, sprite] : [sprite, bitmap]);
     expect(recording.ops.findIndex((op) => op.op === 'arc')).toBeGreaterThan(
       recording.ops.findIndex((op) => op.op === 'drawImage' && op.args[0] === sprite),
     );

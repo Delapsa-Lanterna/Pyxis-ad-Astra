@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 
 pub fn query_engine_render_assets(
     session_id: &str,
+    inline_styles: &[serde_json::Value],
 ) -> AppResult<crate::models::EngineRenderAssets> {
     use super::super::{resources::resource_ref, sources};
     use crate::models::{EngineRenderAssets, ResourceOwnerKind, ResourceSource};
@@ -39,22 +40,42 @@ pub fn query_engine_render_assets(
     };
     for root in roots {
         let (styles, version) = sources::engine_styles::read_engine_styles(&root)?;
-        result.styles.extend(styles);
+        for (key, value) in styles {
+            sources::engine_styles::merge_engine_styles(
+                result.styles.entry(key).or_insert(serde_json::Value::Null),
+                value,
+            );
+        }
         result.versions.push(version);
     }
-    for (key, path) in [
+    let mut paths = std::collections::BTreeSet::new();
+    for style in result.styles.values().chain(inline_styles) {
+        for field in ["glowSprite", "glowOutline"] {
+            if let Some(path) = style
+                .get(field)
+                .and_then(serde_json::Value::as_str)
+                .filter(|path| !path.is_empty())
+            {
+                paths.insert(path.to_string());
+            }
+        }
+    }
+    for (_, path) in [
         ("engineGlow", "graphics/fx/engineglow32.png"),
         ("engineFlame", "graphics/fx/engineflame32.png"),
         ("engineHitGlow", "graphics/fx/hit_glow.png"),
     ] {
+        paths.insert(path.into());
+    }
+    for path in paths {
         result.resources.insert(
-            key.into(),
+            path.clone(),
             resource_ref(
                 ResourceSource::Mod,
-                path,
+                &path,
                 ResourceOwnerKind::Ship,
                 "engines",
-                key,
+                &path,
             ),
         );
     }
@@ -122,13 +143,26 @@ mod tests {
         let path = local.join("data/config/engine_styles.json");
         std::fs::write(
             core.join("data/config/engine_styles.json"),
-            r#"{"A":{"engineColor":[1,2,3]},"B":{"engineColor":[4,5,6]}}"#,
+            r#"{"A":{"engineColor":[1,2,3],"glowSizeMult":2,"nested":{"a":1}},"B":{"engineColor":[4,5,6]}}"#,
         )
         .unwrap();
-        std::fs::write(&path, r#"{"A":{"engineColor":[7,8,9]}}"#).unwrap();
+        std::fs::write(&path, r#"{"A":{"engineColor":[7,8,9],"nested":{"b":2}}}"#).unwrap();
         let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&local, Some(&game), &mut trace).unwrap();
-        let assets = query_engine_render_assets(&manifest.session_id).unwrap();
+        let assets = query_engine_render_assets(
+            &manifest.session_id,
+            &[serde_json::json!({"glowSprite":"graphics/custom.png"})],
+        )
+        .unwrap();
+        assert_eq!(assets.styles["A"]["glowSizeMult"], 2);
+        assert_eq!(
+            assets.styles["A"]["nested"],
+            serde_json::json!({"a":1,"b":2})
+        );
+        assert_eq!(
+            assets.resources["graphics/custom.png"].rel_path,
+            "graphics/custom.png"
+        );
         assert_eq!(
             assets.styles["A"]["engineColor"],
             serde_json::json!([7, 8, 9])
@@ -140,7 +174,7 @@ mod tests {
         assert_eq!(assets.versions[1], crate::io::file_version(&path).unwrap());
         std::fs::remove_file(&path).unwrap();
         std::fs::remove_file(core.join("data/config/engine_styles.json")).unwrap();
-        let empty = query_engine_render_assets(&manifest.session_id).unwrap();
+        let empty = query_engine_render_assets(&manifest.session_id, &[]).unwrap();
         assert!(empty.styles.is_empty());
         assert_eq!(empty.resources.len(), 3);
         assert!(
@@ -154,7 +188,7 @@ mod tests {
         assert!(
             query_resource_data_urls(
                 &manifest.session_id,
-                vec![empty.resources["engineGlow"].clone()]
+                vec![empty.resources["graphics/fx/engineglow32.png"].clone()]
             )
             .unwrap()
             .entries[0]
@@ -163,13 +197,13 @@ mod tests {
         );
         std::fs::write(&path, "[]").unwrap();
         assert_eq!(
-            query_engine_render_assets(&manifest.session_id)
+            query_engine_render_assets(&manifest.session_id, &[])
                 .unwrap_err()
                 .code(),
             "parse.json_syntax"
         );
         close_project_session(manifest.session_id.clone()).unwrap();
-        assert!(query_engine_render_assets(&manifest.session_id).is_err());
+        assert!(query_engine_render_assets(&manifest.session_id, &[]).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
 

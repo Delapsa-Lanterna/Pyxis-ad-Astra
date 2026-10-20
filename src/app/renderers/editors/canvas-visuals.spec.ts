@@ -5,7 +5,7 @@ import type { Point } from '@/domain/editors/editor-types';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
 import { WEAPON_COLORS } from '@/shared/lib/starsector';
-import { drawEngineVisual, engineColor } from './engine-renderer';
+import { drawEngineVisual, engineStyle, engineDimensions } from './engine-renderer';
 import {
   drawBarrelVisual,
   drawBoundsVisual,
@@ -218,21 +218,22 @@ describe('drawLaunchBayPortVisual', () => {
 });
 
 describe('drawEngineVisual', () => {
-  it.each([1, 0.55])('draws three additive layers with %s opacity and restores the context', (alpha) => {
+  it.each([1, 0.55])('draws a finished product with baked %s opacity and restores the context', (alpha) => {
     const recorder = createCanvasRecorder(),
-      bitmap = {} as HTMLCanvasElement;
+      bitmap = { width: 100, height: 80 } as HTMLCanvasElement;
     drawEngineVisual(
       recorder.ctx,
-      { rotation: Math.PI, length: 30, point, scale: 2, width: 10, alpha, color: [1, 2, 3] },
-      { styles: {}, image: () => bitmap },
+      { rotation: Math.PI, length: 30, point, scale: 2, width: 10, alpha, preset: 'full-thrust', kind: 'ship' },
+      {
+        product: (shape) => {
+          expect(shape.alpha).toBe(alpha);
+          return { canvas: bitmap, x: -5, y: -10, ratio: 2 };
+        },
+      },
     );
-    expect(recorder.calls('drawImage').map((call) => ({ args: call.args, alpha: call.alpha, composite: call.composite }))).toEqual(
-      [
-        [0, -5, 15, 10],
-        [0, -5, 13.5, 10],
-        [-10, -10, 20, 20],
-      ].map((rect) => ({ args: [bitmap, ...rect], alpha: alpha * 0.6, composite: 'lighter' })),
-    );
+    expect(recorder.calls('drawImage').map((call) => ({ args: call.args, alpha: call.alpha, composite: call.composite }))).toEqual([
+      { args: [bitmap, -5, -10, 50, 40], alpha: 1, composite: 'lighter' },
+    ]);
     expect(recorder.calls('rotate')[0]!.args).toEqual([Math.PI]);
     expect(recorder.calls('scale')[0]!.args).toEqual([2, 2]);
     expect(recorder.ctx.globalAlpha).toBe(1);
@@ -240,10 +241,15 @@ describe('drawEngineVisual', () => {
   });
   it('uses the owning custom or named color and defaults missing colors to white', () => {
     const styles = { TEST: { engineColor: [4, 5, 6, 7] }, CUSTOM: { engineColor: [8, 9, 10] } };
-    expect(engineColor({ style: 'TEST' }, styles)).toEqual([4, 5, 6, 7]);
-    expect(engineColor({ style: 'CUSTOM', styleSpec: { engineColor: [1, 2, 3, 4] } }, styles)).toEqual([1, 2, 3, 4]);
-    expect(engineColor({ style: 'CUSTOM', styleSpec: {} }, styles)).toEqual([255, 255, 255]);
-    expect(engineColor({ style: 'MISSING' }, styles)).toEqual([255, 255, 255]);
+    expect(engineStyle({ style: 'TEST' }, styles)).toEqual(styles.TEST);
+    expect(engineStyle({ style: 'CUSTOM', styleSpec: { engineColor: [1, 2, 3, 4] } }, styles)).toEqual({ engineColor: [1, 2, 3, 4] });
+    expect(engineStyle({ style: 'CUSTOM', styleId: 'TEST' }, styles)).toEqual(styles.TEST);
+    expect(engineStyle({ style: 'MISSING' }, styles)).toEqual({});
+  });
+  it('uses full and refit geometry without pose-dependent state', () => {
+    const shape = { width: 10, length: 40, kind: 'ship' as const, alpha: 1 };
+    expect(engineDimensions({ ...shape, preset: 'full-thrust' })).toMatchObject({ width: 10, length: 40, level: 1 });
+    expect(engineDimensions({ ...shape, preset: 'refit' })).toMatchObject({ width: 5.05, length: 8, level: 0.4 });
   });
 });
 

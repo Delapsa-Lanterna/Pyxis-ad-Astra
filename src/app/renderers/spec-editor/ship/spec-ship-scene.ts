@@ -1,6 +1,6 @@
 import type { ShipEditorMode, ShipHoverPreview, EditorTarget } from '@/domain/editors/editor-types';
 import { centerMarkerStyle, weaponSlotStyle, launchBayPortStyle, controlPointStyle } from '../../editors/canvas-styles';
-import { drawEngineVisual, engineColor, type EngineImages } from '../../editors/engine-renderer';
+import { drawEngineVisual, type EngineImages, type EngineKind } from '../../editors/engine-renderer';
 import type { ShipGeometry } from '@/domain/spec-editor/ship/spec-ship-editing';
 
 import { bayPorts } from '@/domain/spec-editor/ship/spec-ship-editing';
@@ -20,6 +20,8 @@ import { renderCanvasBounds, renderCanvasBase, renderCanvasCursor, type CanvasSc
 import { renderMountedWeapons, type MountedWeaponScene } from '../../editors/weapon-images';
 
 export interface SpecShipEditorScene {
+  engineKind: EngineKind;
+  enginesBelow: boolean;
   engineImages: EngineImages;
   base: CanvasScene;
   geometry: ShipGeometry;
@@ -173,19 +175,23 @@ function engineVisuals(scene: SpecShipEditorScene) {
 export function renderSpecShipEditorScene(ctx: CanvasRenderingContext2D, scene: SpecShipEditorScene): void {
   renderCanvasBase(ctx, scene.base);
   const engines = engineVisuals(scene);
-  for (const { engine, point, alpha } of engines)
-    drawEngineVisual(
-      ctx,
-      {
-        ...engine,
-        point,
-        alpha,
-        rotation: (-engine.angle * Math.PI) / 180,
-        scale: scene.base.scale,
-        color: engineColor(engine, scene.engineImages.styles),
-      },
-      scene.engineImages,
-    );
+  const drawEngines = () => {
+    for (const { engine, point, alpha } of engines)
+      drawEngineVisual(
+        ctx,
+        {
+          ...engine,
+          point,
+          alpha,
+          rotation: (-engine.angle * Math.PI) / 180,
+          scale: scene.base.scale,
+          preset: 'full-thrust',
+          kind: scene.engineKind,
+        },
+        scene.engineImages,
+      );
+  };
+  if (scene.enginesBelow) drawEngines();
   if (scene.resources.sprite) {
     const bottomLeft = shipToCanvas(scene, [0, 0]);
     const drawWidth = scene.resources.sprite.height * scene.base.scale;
@@ -199,6 +205,7 @@ export function renderSpecShipEditorScene(ctx: CanvasRenderingContext2D, scene: 
     ctx.restore();
     ctx.globalAlpha = 1;
   }
+  if (!scene.enginesBelow) drawEngines();
   // Ship.render combat order; refit grouping belongs to the immersive scene.
   renderMountedWeapons(ctx, {
     weapons: scene.weapons.items,
