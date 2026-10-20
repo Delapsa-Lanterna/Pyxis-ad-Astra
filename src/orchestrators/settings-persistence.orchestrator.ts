@@ -8,6 +8,7 @@ import { listenWindowEvent } from '@/windows/tauri.events';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { AppSettings, SettingsSnapshot } from '@/shared/types';
+import { updateCacheLimits } from '@/shared/runtime/cache-limits';
 let official: SettingsSnapshot | null = null;
 let receive: ((snapshot: SettingsSnapshot) => void) | null = null;
 let queue = Promise.resolve();
@@ -33,6 +34,7 @@ function accept(snapshot: SettingsSnapshot) {
   if (paused || (official && snapshot.revision <= official.revision)) return;
   official = snapshot;
   receive?.(snapshot);
+  updateCacheLimits(snapshot.value.cacheLimits);
 }
 export async function initializeSettings(): Promise<SettingsSnapshot> {
   const stop = await listenWindowEvent<SettingsSnapshot>(WINDOW_EVENTS.appSettingsChanged, accept, report);

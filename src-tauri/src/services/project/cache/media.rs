@@ -17,13 +17,17 @@ struct CachedSpriteMedia {
 
 struct SpriteMediaCacheState {
     limits: crate::models::CacheSize,
-    configured: bool,
     entries: HashMap<(String, String), CachedSpriteMedia>,
     order: VecDeque<(String, String)>,
     bytes: usize,
 }
 
 impl SpriteMediaCacheState {
+    fn configure(&mut self, limits: &crate::models::CacheSize) {
+        self.limits = limits.clone();
+        self.trim();
+    }
+
     fn touch(&mut self, key: &(String, String)) {
         self.order.retain(|entry| entry != key);
         self.order.push_back(key.clone());
@@ -41,6 +45,10 @@ impl SpriteMediaCacheState {
         self.bytes += entry.data_url.len();
         self.entries.insert(key.clone(), entry);
         self.touch(&key);
+        self.trim();
+    }
+
+    fn trim(&mut self) {
         while self.entries.len() > self.limits.entries as usize
             || self.bytes > self.limits.mib as usize * 1024 * 1024
         {
@@ -56,7 +64,6 @@ fn sprite_media_cache() -> &'static Mutex<SpriteMediaCacheState> {
     static CACHE: LazyLock<Mutex<SpriteMediaCacheState>> = LazyLock::new(|| {
         Mutex::new(SpriteMediaCacheState {
             limits: crate::models::CacheLimits::default().backend_media,
-            configured: false,
             entries: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
@@ -71,10 +78,7 @@ pub(crate) fn configure_media_cache(
     let mut cache = sprite_media_cache().lock().map_err(|_| {
         crate::errors::AppError::message("settings.lock_poisoned", "media cache lock poisoned")
     })?;
-    if !cache.configured {
-        cache.limits = limits.clone();
-        cache.configured = true;
-    }
+    cache.configure(limits);
     Ok(())
 }
 
@@ -179,7 +183,6 @@ mod tests {
     fn state() -> SpriteMediaCacheState {
         SpriteMediaCacheState {
             limits: crate::models::CacheLimits::default().backend_media,
-            configured: false,
             entries: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
@@ -213,6 +216,14 @@ mod tests {
         cache.insert(key(2), entry(2));
         assert_eq!(cache.order.back(), Some(&key(2)));
         assert_eq!(cache.bytes, capacity + 1);
+        let delivered = cache.entries[&key(2)].data_url.clone();
+        cache.configure(&crate::models::CacheSize { entries: 1, mib: 1 });
+        assert_eq!(cache.entries.len(), 1);
+        assert!(cache.entries.contains_key(&key(2)));
+        cache.configure(&crate::models::CacheSize { entries: 4, mib: 0 });
+        assert_eq!(cache.bytes, 0);
+        assert!(cache.entries.is_empty());
+        assert_eq!(delivered, "aa");
     }
 
     #[test]

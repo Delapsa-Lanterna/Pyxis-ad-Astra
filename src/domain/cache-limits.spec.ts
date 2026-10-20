@@ -1,8 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { createSettingsFixture } from '@/test/settings';
 import { readCacheLimits } from './cache-limits';
-import { initializeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
+import { initializeCacheLimits, subscribeCacheLimits, updateCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 describe('hidden cache settings', () => {
+  it('notifies subscribed owners only on budget changes and releases their registration', () => {
+    let calls = 0;
+    const cache = { trim: () => calls++ },
+      limits = createSettingsFixture().cacheLimits;
+    initializeCacheLimits(limits);
+    const stop = subscribeCacheLimits(cache);
+    updateCacheLimits(limits);
+    expect(calls).toBe(0);
+    limits.thumbnails.entries = 1;
+    updateCacheLimits(limits);
+    expect(calls).toBe(1);
+    stop();
+    limits.thumbnails.entries = 0;
+    updateCacheLimits(limits);
+    expect(calls).toBe(1);
+  });
   it('captures an independent startup budget', () => {
     const limits = createSettingsFixture().cacheLimits;
     initializeCacheLimits(limits);

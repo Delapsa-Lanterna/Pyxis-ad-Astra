@@ -7,6 +7,7 @@ import { generalFontFamily } from '@/domain/settings/fonts';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { readCacheLimits } from '@/domain/cache-limits';
 import { deepClone } from '@/shared/lib/starsector';
+import type { CacheLimits } from '@/shared/types';
 import {
   assertValidSettings,
   readAccent,
@@ -95,6 +96,12 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function setFileHistoryLimit(limit: number) {
     fileHistoryLimit.value = readHistoryLimit(limit);
+  }
+
+  function setCacheLimit<K extends keyof CacheLimits>(section: K, key: keyof CacheLimits[K], value: number) {
+    const next = deepClone(cacheLimits.value);
+    Object.assign(next[section], { [key]: value });
+    cacheLimits.value = readCacheLimits(next);
   }
 
   function setEditHistoryLimit(limit: number) {
@@ -202,6 +209,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     cacheLimits,
+    setCacheLimit,
     accent,
     activeAccentHex,
     customAccent,

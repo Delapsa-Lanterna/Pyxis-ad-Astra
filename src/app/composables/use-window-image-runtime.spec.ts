@@ -51,7 +51,6 @@ describe('window image residence', () => {
     const limits = createSettingsFixture().cacheLimits;
     limits.decodedImages.entries = 0;
     limits.thumbnails.entries = 0;
-    initializeCacheLimits(limits);
     const { cache, images } = fixture(),
       canvas = { width: 4, height: 4 } as HTMLCanvasElement;
     const render = vi.fn(() => canvas),
@@ -64,6 +63,7 @@ describe('window image residence', () => {
     await Promise.all([first.promise, second.promise]);
     await flushPromises();
     expect(render).toHaveBeenCalledOnce();
+    initializeCacheLimits(limits);
     expect(cache.stats().decoded).toMatchObject({ activeEntries: 0, idleEntries: 0 });
     const next = cache.acquireThumbnail(source);
     first.release();

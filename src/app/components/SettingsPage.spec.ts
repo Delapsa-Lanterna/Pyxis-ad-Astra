@@ -42,7 +42,7 @@ describe('settings limit controls', () => {
       },
     });
     const sections = wrapper.findAll('section');
-    expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑', '全局限制']);
+    expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑', '缓存限制']);
     const editing = sections[3]!;
     expect(editing.findAll('.field-label').map((label) => label.text())).toEqual(['引用式编辑', '展开字段解析', '允许编辑原版']);
     expect(useSettingsStore().expandFieldDescriptions).toBe(false);
@@ -77,7 +77,7 @@ describe('settings limit controls', () => {
       },
     });
     const sections = wrapper.findAll('section');
-    const history = sections.find((section) => section.get('h3').text() === '全局限制')!;
+    const history = sections.find((section) => section.get('h3').text() === '缓存限制')!;
     const config = sections.find((section) => section.get('h3').text() === '配置文件')!;
     expect(history.text()).toContain('文件保存历史步数');
     expect(history.text()).toContain('编辑撤销步数');
@@ -86,7 +86,16 @@ describe('settings limit controls', () => {
     expect(config.text().indexOf('日志轮转大小（MiB）')).toBeGreaterThan(config.text().indexOf('日志级别'));
     expect(config.text()).toContain('日志备份份数');
     expect(config.text()).toContain('下次轮转');
-    const controls = wrapper.findAllComponents(nInputNumber);
+    const cached = wrapper.findAllComponents(nInputNumber).slice(2, 19);
+    expect(cached.map((control) => control.props('value'))).toEqual([
+      2048, 64, 1024, 96, 2048, 32, 512, 64, 16, 128, 80, 240, 400, 128, 128, 128, 512,
+    ]);
+    for (const control of cached) {
+      await control.get('input').setValue('0');
+      expect(control.props('value')).toBe(0);
+      expect(control.props('min')).toBe(0);
+    }
+    const controls = [...history.findAllComponents(nInputNumber).slice(0, 2), ...config.findAllComponents(nInputNumber)];
     expect(controls.map((control) => [control.props('value'), control.props('min'), control.props('max')])).toEqual([
       [20, 1, 1000],
       [250, 1, 1000],

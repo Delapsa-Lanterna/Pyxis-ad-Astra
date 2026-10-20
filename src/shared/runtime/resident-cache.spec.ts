@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createResidentCache } from './resident-cache';
 describe('resident cache working set and LRU', () => {
   it('keeps active content above budget and trims idle entries by access and bytes', () => {
-    const cache = createResidentCache<string>(() => ({ entries: 2, bytes: 10 }));
+    const limits = { entries: 2, bytes: 10 },
+      cache = createResidentCache<string>(() => limits);
     cache.put('active', 'active', 20, 1);
     cache.put('a', 'a', 4);
     cache.put('b', 'b', 4);
@@ -11,6 +12,12 @@ describe('resident cache working set and LRU', () => {
     expect(cache.get('b')).toBeUndefined();
     expect(cache.get('a')).toBe('a');
     expect(cache.stats()).toMatchObject({ activeBytes: 20, idleBytes: 8, evictions: 1 });
+    limits.entries = 1;
+    cache.trim();
+    expect([...cache.keys()]).toEqual(['active', 'a']);
+    limits.bytes = 0;
+    cache.trim();
+    expect(cache.stats()).toMatchObject({ activeEntries: 1, idleEntries: 0 });
     cache.release('active');
     expect(cache.get('active')).toBeUndefined();
     expect(cache.stats().idleBytes).toBeLessThanOrEqual(10);

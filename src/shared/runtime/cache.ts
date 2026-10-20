@@ -25,6 +25,7 @@ export interface RuntimeCache<TKey extends string, TValue, TPending> {
   setPending(key: TKey, pending: TPending): void;
   deletePending(key: TKey): void;
   reset(): void;
+  trim(): void;
 }
 
 export function createRuntimeCache<TKey extends string, TValue, TPending = never>(
@@ -52,6 +53,7 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
   }
 
   return {
+    trim: evictOverCapacity,
     get size() {
       return cache.size;
     },

@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fontGlyph, decodeOriginalFont } from './font-provider';
 import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
 import { originalFontFixture } from '@/test/font';
+import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
+import { createSettingsFixture } from '@/test/settings';
 
 afterEach(() => {
+  initializeCacheLimits(createSettingsFixture().cacheLimits);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -87,6 +90,10 @@ describe('glyph raster ownership', () => {
     expect(paint.fillRect).toHaveBeenCalledOnce();
     expect(fontGlyph(image, glyph, '#000000', true)).not.toBe(first);
     expect(fontGlyph(new Image(), glyph, '#ffd200')).not.toBe(first);
+    const limits = createSettingsFixture().cacheLimits;
+    limits.fonts.glyphEntriesPerPage = 0;
+    initializeCacheLimits(limits);
+    expect(fontGlyph(image, glyph, '#ffd200')).not.toBe(first);
   });
   it('evicts the oldest raster beyond 512 entries', () => {
     context();

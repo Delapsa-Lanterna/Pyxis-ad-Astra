@@ -47,6 +47,9 @@ it('shares one physical result and budget entry across owners and direct queries
   expect(second.dataUrl.value).toBe(url);
   second.release();
   expect(resourceMediaStats()).toMatchObject({ activeEntries: 0, idleBytes: 786432 });
+  limits.mediaData.MiB = 0;
+  initializeCacheLimits(limits);
+  expect(resourceMediaStats().idleEntries).toBe(0);
 });
 it('takes over queued requests immediately', async () => {
   const held = acquireResourceMedia(session, resource());

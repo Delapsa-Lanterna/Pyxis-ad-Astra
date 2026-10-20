@@ -149,8 +149,14 @@ describe('session query ownership', () => {
       expect(load).toHaveBeenCalledOnce();
       finish([]);
       await Promise.all([first, second]);
+      limits.queries['entity-list'] = 1;
+      initializeCacheLimits(limits);
+      await read('zero-query', { id: 'cached' });
+      limits.queries['entity-list'] = 0;
+      initializeCacheLimits(limits);
+      await read('zero-query', { id: 'cached' });
       await read('zero-query', { id: 'a' });
-      expect(load).toHaveBeenCalledTimes(2);
+      expect(load).toHaveBeenCalledTimes(4);
       invalidateQueryCacheForSession('zero-query');
     } finally {
       initializeCacheLimits(createSettingsFixture().cacheLimits);

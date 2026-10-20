@@ -13,7 +13,7 @@ import { sameResourceRef } from '@/shared/lib/resource-ref';
 import { AppError } from '@/shared/lib/errors';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
-import { windowCacheLimits } from '@/shared/runtime/cache-limits';
+import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { recordPerformance } from '@/shared/runtime/performance';
 
 export const RESOURCE_MEDIA_FLUSH_DELAY_MS = 25;
@@ -44,6 +44,7 @@ interface QueuedMedia {
   reject(error: unknown): void;
 }
 const retained = createResidentCache<MediaEntry>(() => ({ entries: mediaIdleEntryLimit(), bytes: mediaIdleByteLimit() }));
+subscribeCacheLimits(retained);
 const working = new Map<string, MediaEntry>();
 const queued = new Map<string, QueuedMedia>();
 const listeners = new Set<(event: ResourceMediaInvalidationEvent) => void>();

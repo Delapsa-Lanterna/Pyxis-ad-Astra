@@ -29,10 +29,14 @@ async function setup() {
 describe('formal settings commits', () => {
   it('listens before reading and flushes a same-turn edit once', async () => {
     const { runtime, stop, settings } = await setup();
+    const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
+    settings.setCacheLimit('mediaData', 'entries', 17);
+    expect(windowCacheLimits().mediaData.entries).toBe(2048);
     expect(api.listen.mock.invocationCallOrder[0]).toBeLessThan(api.read.mock.invocationCallOrder[0]!);
     settings.setGeneralFont('Fixture Font');
     settings.setExpandFieldDescriptions(true);
     await runtime.flushSettings();
+    expect(windowCacheLimits().mediaData.entries).toBe(17);
     expect(api.save).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ generalFont: 'Fixture Font', expandFieldDescriptions: true }),
     );
@@ -65,12 +69,16 @@ describe('formal settings commits', () => {
   it('retains a failed edit and retries its current snapshot', async () => {
     const { runtime, stop, settings } = await setup();
     api.save.mockRejectedValue(new Error('disk failure'));
+    const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
     settings.setGeneralFont('Retry Font');
+    settings.setCacheLimit('thumbnails', 'MiB', 8);
     await expect(runtime.flushSettings()).rejects.toThrow('disk failure');
     expect(settings.generalFont).toBe('Retry Font');
+    expect(windowCacheLimits().thumbnails.MiB).toBe(32);
     expect(api.save).toHaveBeenCalledOnce();
     api.save.mockImplementation(async (value: AppSettings) => ({ revision: 2, value }));
     await runtime.flushSettings();
+    expect(windowCacheLimits().thumbnails.MiB).toBe(8);
     stop();
   });
   it('accepts newer mirror revisions and rereads on focus', async () => {
@@ -78,10 +86,13 @@ describe('formal settings commits', () => {
     await runtime.initializeSettings();
     const stop = runtime.startSettingsMirror();
     const receive = api.listen.mock.calls[0]![1];
-    receive({ revision: 4, value: createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true }) });
+    const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true });
+    next.cacheLimits.decodedImages.entries = 7;
+    receive({ revision: 4, value: next });
     receive({ revision: 3, value: createSettingsFixture({ generalFont: 'Earlier Font' }) });
     expect(useSettingsStore().generalFont).toBe('Latest Font');
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
+    expect((await import('@/shared/runtime/cache-limits')).windowCacheLimits().decodedImages.entries).toBe(7);
     window.dispatchEvent(new Event('focus'));
     await nextTick();
     expect(api.read).toHaveBeenCalledTimes(2);

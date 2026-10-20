@@ -93,5 +93,5 @@ export function createResidentCache<T>(limits: () => ResidentCacheLimits) {
   function stats() {
     return { activeBytes, idleBytes, activeEntries, idleEntries: entries.size - activeEntries, evictions };
   }
-  return { get, put, retain, release, remove, clear, stats, keys: () => entries.keys() };
+  return { get, put, retain, release, remove, clear, trim, stats, keys: () => entries.keys() };
 }

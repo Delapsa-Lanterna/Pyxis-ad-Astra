@@ -36,6 +36,8 @@ describe('settings integer limits', () => {
     next.cacheLimits.decodedImages.entries = -1;
     expect(() => settings.replaceSettings(next)).toThrow();
     expect(settings.cacheLimits.thumbnails.MiB).toBe(64);
+    expect(() => settings.setCacheLimit('thumbnails', 'MiB', 4097)).toThrow();
+    expect(settings.cacheLimits.thumbnails.MiB).toBe(64);
   });
   it('publishes and mirrors a general font while preserving the default combination', () => {
     const settings = useSettingsStore();

@@ -1,7 +1,7 @@
 import { recordPerformance } from '@/shared/runtime/performance';
 import { requireProjectionReady } from '@/services/project-projection.service';
 import { createRuntimeCache } from '@/shared/runtime/cache';
-import { windowCacheLimits } from '@/shared/runtime/cache-limits';
+import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { deepClone } from '@/shared/lib/starsector';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
@@ -40,6 +40,7 @@ export function createCachedSessionQuery<TParameters extends object, TResult>(
   type Entry = { identity: SessionQueryIdentity<TParameters>; value: DeepReadonly<TResult> };
   type Pending = { identity: SessionQueryIdentity<TParameters>; request: ReadTicket<TResult>; promise: Promise<DeepReadonly<TResult>> };
   const cache = createRuntimeCache<string, Entry, Pending>({ capacity: () => windowCacheLimits().queries[definition.queryKind] });
+  subscribeCacheLimits(cache);
   caches.add((sessionId, invalidation, queries) => {
     const matches = (identity: SessionQueryIdentity<TParameters>) =>
       identity.sessionId === sessionId &&

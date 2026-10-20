@@ -2,6 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { createRuntimeCache } from './cache';
 
 describe('createRuntimeCache', () => {
+  it('trims changed capacity in LRU order while preserving pending work', () => {
+    let capacity = 2;
+    const cache = createRuntimeCache<string, number, number>({ capacity: () => capacity });
+    cache.set('a', 1);
+    cache.set('b', 2);
+    cache.get('a');
+    cache.setPending('pending', 3);
+    capacity = 1;
+    cache.trim();
+    expect([...cache.keys()]).toEqual(['a']);
+    capacity = 0;
+    cache.trim();
+    expect(cache.size).toBe(0);
+    expect(cache.getPending('pending')).toBe(3);
+  });
   it('stores and retrieves values', () => {
     const cache = createRuntimeCache<string, number>({ capacity: 4 });
     cache.set('a', 1);
@@ -19,16 +34,6 @@ describe('createRuntimeCache', () => {
     expect(cache.get('b')).toBe(2);
     expect(cache.get('c')).toBe(3);
     expect(cache.size).toBe(2);
-  });
-
-  it('get refreshes recency and protects entries from eviction', () => {
-    const cache = createRuntimeCache<string, number>({ capacity: 2 });
-    cache.set('a', 1);
-    cache.set('b', 2);
-    cache.get('a');
-    cache.set('c', 3);
-    expect(cache.has('a')).toBe(true);
-    expect(cache.has('b')).toBe(false);
   });
 
   it('set refreshes recency for replacement values', () => {

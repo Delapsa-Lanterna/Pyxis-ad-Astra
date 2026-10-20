@@ -4,7 +4,7 @@ import { mediaResourceKey } from '@/services/resource-media.service';
 import { subscribeResourceInvalidations } from '@/services/resource-media.service';
 import { acquireResourceMedia, disposeResourceMedia } from '@/services/resource-media.service';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
-import { windowCacheLimits } from '@/shared/runtime/cache-limits';
+import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { createReadTicket, invalidatedRead, waitForRead, type ReadTicket } from '@/shared/runtime/read-request';
 
 interface DecodedImage {
@@ -49,6 +49,8 @@ export function createWindowImageRuntime() {
     bytes: windowCacheLimits().thumbnails.MiB * 1024 * 1024,
   }));
   const pending = new Map<string, ImageLoad>();
+  const stopDecoded = subscribeCacheLimits(decoded),
+    stopThumbnails = subscribeCacheLimits(thumbnails);
   const products = new Map<string, ThumbnailLoad>();
   const revisions = new Map<string, number>();
   const sessionRevisions = new Map<string, number>();
@@ -336,6 +338,8 @@ export function createWindowImageRuntime() {
         removeImage(physicalKey);
   });
   function dispose() {
+    stopDecoded();
+    stopThumbnails();
     for (const job of preloadQueue) job.reject(invalidatedRead({ lane: 'image-preload' }, 'consumer'));
     preloadQueue.length = 0;
     stop();

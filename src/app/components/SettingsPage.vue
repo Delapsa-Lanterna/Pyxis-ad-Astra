@@ -113,30 +113,64 @@
       </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
-      <h3 class="panel-section-title">全局限制</h3>
-      <FieldRow label="文件保存历史步数"
+      <h3 class="panel-section-title">缓存限制</h3>
+      <FieldRow v-for="(row, key) in HISTORY_FIELDS" :key="key" :label="row[0]"
         ><n-input-number
           class="ui-field-number"
-          :value="settings.fileHistoryLimit"
+          :value="settings[key]"
           :min="1"
           :max="MAX_HISTORY_LIMIT"
           :step="1"
           :precision="0"
-          @update:value="settings.setFileHistoryLimit($event ?? settings.fileHistoryLimit)" /><template #hint
-          ><FieldHints description="每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。" /></template
+          @update:value="settings[row[2]]($event ?? settings[key])" /><template #hint><FieldHints :description="row[1]" /></template
       ></FieldRow>
-
-      <FieldRow label="编辑撤销步数"
-        ><n-input-number
-          class="ui-field-number"
-          :value="settings.editHistoryLimit"
-          :min="1"
-          :max="MAX_HISTORY_LIMIT"
-          :step="1"
-          :precision="0"
-          @update:value="settings.setEditHistoryLimit($event ?? settings.editHistoryLimit)" /><template #hint
-          ><FieldHints description="各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。" /></template
-      ></FieldRow>
+      <h4 class="panel-section-title">图片与媒体</h4>
+      <FieldHints description="保存成功后立即生效。0 表示不保留相应缓存；较久未用的内容优先清理，正在使用的图片继续保留。" />
+      <FieldRow v-for="(row, key) in MEDIA_CACHES" :key="key" :label="row[0]">
+        <div class="action-group">
+          <label v-for="unit in ['entries', 'MiB'] as const" :key="unit" class="action-group">
+            <n-input-number
+              class="ui-field-number"
+              :value="settings.cacheLimits[key][unit]"
+              :min="0"
+              :max="unit === 'MiB' ? 4096 : 65536"
+              :precision="0"
+              :step="1"
+              @update:value="settings.setCacheLimit(key, unit, $event ?? settings.cacheLimits[key][unit])"
+            />{{ unit === 'entries' ? '条' : 'MiB' }}
+          </label>
+        </div>
+        <template #hint><FieldHints :description="row[1]" /></template>
+      </FieldRow>
+      <h4 class="panel-section-title">查询结果</h4>
+      <FieldRow v-for="(row, key) in QUERY_CACHES" :key="key" :label="row[0]">
+        <label class="action-group"
+          ><n-input-number
+            class="ui-field-number"
+            :value="settings.cacheLimits.queries[key]"
+            :min="0"
+            :max="65536"
+            :precision="0"
+            :step="1"
+            @update:value="settings.setCacheLimit('queries', key, $event ?? settings.cacheLimits.queries[key])"
+          />条</label
+        >
+        <template #hint><FieldHints :description="row[1]" /></template>
+      </FieldRow>
+      <FieldRow label="字体字形">
+        <label class="action-group"
+          ><n-input-number
+            class="ui-field-number"
+            :value="settings.cacheLimits.fonts.glyphEntriesPerPage"
+            :min="0"
+            :max="65536"
+            :precision="0"
+            :step="1"
+            @update:value="settings.setCacheLimit('fonts', 'glyphEntriesPerPage', $event ?? settings.cacheLimits.fonts.glyphEntriesPerPage)"
+          />条／图集</label
+        >
+        <template #hint><FieldHints description="每张原版字体图集保留的着色字形成品数量。" /></template>
+      </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">JSON 保存</h3>
@@ -159,28 +193,15 @@
         ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-select :value="settings.logLevel" :options="LOG_LEVEL_OPTIONS" size="small" @update:value="updateLogLevel" /></div
       ></FieldRow>
-      <FieldRow label="日志轮转大小（MiB）"
+      <FieldRow v-for="(row, key) in LOG_FIELDS" :key="key" :label="row[0]"
         ><n-input-number
           class="ui-field-number"
-          :value="settings.logRotationSizeMiB"
+          :value="settings[key]"
           :min="1"
-          :max="MAX_LOG_ROTATION_SIZE_MIB"
+          :max="row[2]"
           :step="1"
           :precision="0"
-          @update:value="settings.setLogRotationSizeMiB($event ?? settings.logRotationSizeMiB)" /><template #hint
-          ><FieldHints description="当前日志达到该大小时，在下一次追加前轮转。" /></template
-      ></FieldRow>
-
-      <FieldRow label="日志备份份数"
-        ><n-input-number
-          class="ui-field-number"
-          :value="settings.logBackupCount"
-          :min="1"
-          :max="MAX_LOG_BACKUP_COUNT"
-          :step="1"
-          :precision="0"
-          @update:value="settings.setLogBackupCount($event ?? settings.logBackupCount)" /><template #hint
-          ><FieldHints description="保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。" /></template
+          @update:value="settings[row[3]]($event ?? settings[key])" /><template #hint><FieldHints :description="row[1]" /></template
       ></FieldRow>
 
       <FieldRow readonly label="Log 文件大小"
@@ -207,11 +228,46 @@ import { MAX_HISTORY_LIMIT, MAX_LOG_ROTATION_SIZE_MIB, MAX_LOG_BACKUP_COUNT } fr
 import { ACCENT_PRESETS } from '@/domain/settings/theme';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import { useSettingsViewModel } from '@/app/composables/settings/use-settings-view-model';
+import type { CacheLimits } from '@/shared/types';
+
+const MEDIA_CACHES = {
+  mediaData: ['媒体数据', '每个窗口保留的图片数据，可减少重复读取与传输。'],
+  decodedImages: ['解码图片', '每个窗口保留的已解码原图，可减少重复解码。'],
+  thumbnails: ['缩略图与成品', '每个窗口保留的缩略图和静态绘制成品。'],
+  backendMedia: ['后端媒体', '应用共享的图片读取结果，可减少重复文件读取与编码。'],
+} satisfies Record<Exclude<keyof CacheLimits, 'queries' | 'fonts'>, [string, string]>;
+const QUERY_CACHES = {
+  'joint-edit-catalog': ['联合编辑目录', '保留候选目录，减少重复加载列表。'],
+  'joint-edit-candidate': ['联合编辑候选', '保留候选关联数据，便于切换和预览。'],
+  'csv-table-window': ['CSV 表格索引', '保留表头和行索引，便于再次打开表格。'],
+  'csv-source-options': ['CSV 来源选项', '保留下拉框的来源选项，减少重复查询。'],
+  'csv-row-preview': ['CSV 行预览', '保留行详情，便于再次查看。'],
+  'hull-references': ['舰体引用', '保留舰体名称和引用选项。'],
+  'entity-detail': ['实体详情', '保留规格或配置详情，便于重复访问。'],
+  'entity-list': ['实体列表', '保留规格或配置列表，便于切换页面。'],
+} satisfies Record<keyof CacheLimits['queries'], [string, string]>;
 
 const LOG_LEVEL_OPTIONS: { label: string; value: LogLevel }[] = [
   { label: '默认（INFO）', value: 'info' },
   { label: '详细（DEBUG）', value: 'debug' },
 ];
+const HISTORY_FIELDS = {
+  fileHistoryLimit: [
+    '文件保存历史步数',
+    '每个 Mod 独立保留已保存文件的撤销历史。降低步数会立即裁剪较早的 undo 记录。',
+    'setFileHistoryLimit',
+  ],
+  editHistoryLimit: ['编辑撤销步数', '各表格及编辑会话独立保留草稿撤销历史。降低步数会立即裁剪较早的 undo 记录。', 'setEditHistoryLimit'],
+} as const;
+const LOG_FIELDS = {
+  logRotationSizeMiB: [
+    '日志轮转大小（MiB）',
+    '当前日志达到该大小时，在下一次追加前轮转。',
+    MAX_LOG_ROTATION_SIZE_MIB,
+    'setLogRotationSizeMiB',
+  ],
+  logBackupCount: ['日志备份份数', '保留最近的已轮转日志。降低份数在下次轮转时整理已有备份。', MAX_LOG_BACKUP_COUNT, 'setLogBackupCount'],
+} as const;
 
 function updateLogLevel(value: string) {
   const level = LOG_LEVEL_OPTIONS.find((option) => option.value === value);
