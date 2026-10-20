@@ -95,9 +95,13 @@
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">编辑</h3>
       <FieldRow label="引用式编辑"
-        ><n-radio-group :value="settings.editMode" @update:value="settings.setEditMode">
-          <n-radio-button value="plain">纯文本</n-radio-button>
-          <n-radio-button value="smart">增强控件</n-radio-button> </n-radio-group
+        ><n-switch
+          class="tool-switch"
+          :value="settings.editMode === 'smart'"
+          @update:value="settings.setEditMode($event ? 'smart' : 'plain')"
+        >
+          <template #checked>增强控件</template>
+          <template #unchecked>纯文本</template> </n-switch
         ><template #hint
           ><FieldHints
             description="纯文本模式下，CSV 表格和其它引用型编辑入口都只使用文本编辑。增强控件模式下，将引入更直观的编辑界面。" /></template

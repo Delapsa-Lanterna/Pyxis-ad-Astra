@@ -47,6 +47,10 @@ describe('settings limit controls', () => {
     expect(editing.findAll('.field-label').map((label) => label.text())).toEqual(['引用式编辑', '展开字段解析', '允许编辑原版']);
     expect(useSettingsStore().expandFieldDescriptions).toBe(false);
     await editing.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().editMode).toBe('plain');
+    await editing.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().editMode).toBe('smart');
+    await editing.findAll('.n-switch-stub')[1]!.trigger('click');
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
     const core = editing.findAll('.schema-field').at(-1)!;
     expect(core.get('.field-description').text()).toBe('允许写入 Starsector 原版内容。');
