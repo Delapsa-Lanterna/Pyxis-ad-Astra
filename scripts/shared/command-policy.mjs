@@ -53,13 +53,14 @@ export const commandOwners = {
     'transcode_file_to_utf8',
   ],
   'src/services/spec-editor.service.ts': ['load_imported_editor_spec_file', 'save_editor_spec'],
-  'src/services/config-entity.service.ts': [
+  'src/services/json-entity.service.ts': [
     'save_mod_info',
     'save_indexed_config_entity',
     'create_indexed_config_entity',
     'delete_indexed_config_entity',
   ],
-  'src/services/config-family.service.ts': [
+  'src/services/json-recovery.service.ts': ['prepare_json_source_recovery', 'recreate_json_sources'],
+  'src/services/json-file.service.ts': [
     'save_variant_entity',
     'create_variant_entity',
     'delete_variant_entity',

@@ -6,12 +6,9 @@ use serde_json::{Map, Value};
 use std::path::Path;
 
 pub fn parse_faction_index(table: &CsvTable) -> AppResult<Vec<FactionIndexRow>> {
-    let Some(id_column) = column(&table.header, &["id", "faction", "factionId"])
-        .or_else(|| table.header.first().cloned())
-    else {
+    let Some((id_column, file_column)) = faction_index_columns(&table.header) else {
         return Ok(Vec::new());
     };
-    let file_column = column(&table.header, &["file", "path", "filename", "factionFile"]);
     let mut rows = Vec::new();
     for (row_index, row) in table.rows.iter().enumerate() {
         if row.is_comment
@@ -34,6 +31,14 @@ pub fn parse_faction_index(table: &CsvTable) -> AppResult<Vec<FactionIndexRow>> 
         rows.push(parsed);
     }
     Ok(rows)
+}
+
+pub fn faction_index_columns(header: &[String]) -> Option<(String, Option<String>)> {
+    let id = column(header, &["id", "faction", "factionId"]).or_else(|| header.first().cloned())?;
+    Some((
+        id,
+        column(header, &["file", "path", "filename", "factionFile"]),
+    ))
 }
 
 fn column(header: &[String], candidates: &[&str]) -> Option<String> {

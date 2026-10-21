@@ -18,6 +18,7 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     };
     let resource_refs = (definition.resources)(&session, id, &data);
     let info = super::entity_targets::describe_entity_target(&mut session, kind, id)?;
+    super::json_recovery::remember_json_origin(&mut session, &info.target);
     Ok(Some(EntityData {
         target: info.target,
         base_versions: info.base_versions,
@@ -35,7 +36,7 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
     (definition.prepare)(&mut session)?;
     let projections = (definition.list)(&mut session)?;
     let targets = super::entity_targets::prepare_entity_targets(&mut session, kind)?;
-    Ok(projections
+    let records: Vec<EntityData> = projections
         .into_iter()
         .map(|projection| {
             let info = targets.describe(&session, &projection.id);
@@ -48,7 +49,11 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
                 resource_refs: projection.resource_refs,
             }
         })
-        .collect())
+        .collect();
+    for record in &records {
+        super::json_recovery::remember_json_origin(&mut session, &record.target);
+    }
+    Ok(records)
 }
 
 #[cfg(test)]
@@ -206,6 +211,7 @@ mod tests {
             },
         );
         let session = super::super::super::model::ProjectSession {
+            json_origins: Vec::new(),
             projection_revision: 0,
             projection_pending: false,
             source_versions: BTreeMap::new(),

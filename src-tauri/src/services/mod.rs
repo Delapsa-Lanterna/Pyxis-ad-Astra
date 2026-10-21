@@ -4,8 +4,8 @@ pub mod app_log;
 pub mod app_paths;
 pub mod app_settings;
 pub mod config_entity;
-pub mod config_family;
 pub mod directory_opening;
+pub mod json_file;
 pub mod spec_editor;
 
 pub mod file_editor;
@@ -32,6 +32,7 @@ pub(crate) use project::query::hull_references::query_hull_references;
 pub(crate) use project::query::joint_edit::{
     prepare_joint_edit, query_joint_edit_request, query_variant_catalog,
 };
+pub(crate) use project::query::json_recovery::prepare_json_source_recovery;
 pub(crate) use project::query::mod_file_browser::{
     query_mod_directory, query_mod_file_search, query_mod_text_file_target,
 };
@@ -48,3 +49,5 @@ pub(crate) use project::write::entity_identity::{
 };
 pub(crate) use project::write::faction_identity::{delete_faction_entity, save_faction_entity};
 pub(crate) use project::write::joint_edit::save_joint_edit;
+
+pub use project::write::json_recovery::recreate_json_sources;

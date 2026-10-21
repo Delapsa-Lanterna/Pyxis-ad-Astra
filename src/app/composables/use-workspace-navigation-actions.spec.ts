@@ -1,3 +1,4 @@
+import { useProjectStore } from '@/stores/project.store';
 import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,7 +17,8 @@ const mocks = vi.hoisted(() => ({
     navigateToModOverview: vi.fn(),
     navigateToModFiles: vi.fn(),
     navigateToModTable: vi.fn(),
-    navigateToModConfig: vi.fn(),
+    navigateToModJson: vi.fn(),
+    navigateToModFileHistory: vi.fn(),
     activateModTab: vi.fn(),
   },
 }));
@@ -29,7 +31,8 @@ vi.mock('@/orchestrators/workspace-navigation.orchestrator', () => ({
   navigateToModOverview: mocks.navigation.navigateToModOverview,
   navigateToModFiles: mocks.navigation.navigateToModFiles,
   navigateToModTable: mocks.navigation.navigateToModTable,
-  navigateToModConfig: mocks.navigation.navigateToModConfig,
+  navigateToModJson: mocks.navigation.navigateToModJson,
+  navigateToModFileHistory: mocks.navigation.navigateToModFileHistory,
   activateModTab: mocks.navigation.activateModTab,
 }));
 
@@ -37,7 +40,7 @@ import { useWorkspaceNavigationActions } from './use-workspace-navigation-action
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { ref } from 'vue';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import type { ProjectManifest } from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -76,7 +79,7 @@ describe('useWorkspaceNavigationActions', () => {
   it('routes file browsing through the same draft transition boundary', () => {
     const workspace = useWorkspaceStore();
     workspace.registerMod({ modRoot: 'M:/A', displayName: 'A', version: '', status: 'ready' });
-    workspace.activateModConfig('M:/A', 'mod-info');
+    workspace.activateModJson('M:/A', 'mod-info');
     useWorkspaceNavigationActions().navigateToModFiles('M:/A');
     expect(mocks.navigation.navigateToModFiles).toHaveBeenCalledWith('M:/A');
   });
@@ -88,22 +91,33 @@ describe('useWorkspaceNavigationActions', () => {
     expect(mocks.navigation.activateModTab).toHaveBeenCalledWith('C:/mods/alpha');
   });
 
-  it('switches config views through the orchestrator', () => {
+  it('switches JSON pages through the orchestrator', () => {
     const workspace = useWorkspaceStore();
     workspace.registerMod({ modRoot: 'C:/mods/alpha', displayName: 'Alpha', version: '', status: 'ready' });
     workspace.activateModTab('C:/mods/alpha');
     const actions = useWorkspaceNavigationActions();
-    actions.navigateToModConfig('C:/mods/alpha', 'factions');
-    expect(mocks.navigation.navigateToModConfig).toHaveBeenCalledWith('C:/mods/alpha', 'factions');
+    actions.navigateToModJson('C:/mods/alpha', 'factions');
+    expect(mocks.navigation.navigateToModJson).toHaveBeenCalledWith('C:/mods/alpha', 'factions');
   });
 
-  it('skips the confirmation and orchestrator when the target config view is already active', () => {
+  it('navigates to file history through its explicit workspace action', () => {
+    const workspace = useWorkspaceStore();
+    workspace.registerMod({ modRoot: 'M:/alpha', displayName: 'Alpha', version: '', status: 'ready' });
+    const actions = useWorkspaceNavigationActions();
+    actions.navigateToModFileHistory('M:/alpha');
+    expect(mocks.navigation.navigateToModFileHistory).toHaveBeenCalledExactlyOnceWith('M:/alpha');
+    workspace.activateModFileHistory('M:/alpha');
+    actions.navigateToModFileHistory('M:/alpha');
+    expect(mocks.navigation.navigateToModFileHistory).toHaveBeenCalledOnce();
+  });
+
+  it('skips the confirmation and orchestrator when the target JSON page is already active', () => {
     const workspace = useWorkspaceStore();
     workspace.registerMod({ modRoot: 'C:/mods/alpha', displayName: 'Alpha', version: '', status: 'ready' });
-    workspace.activateModConfig('C:/mods/alpha', 'factions');
+    workspace.activateModJson('C:/mods/alpha', 'factions');
     const actions = useWorkspaceNavigationActions();
-    actions.navigateToModConfig('C:/mods/alpha', 'factions');
-    expect(mocks.navigation.navigateToModConfig).not.toHaveBeenCalled();
+    actions.navigateToModJson('C:/mods/alpha', 'factions');
+    expect(mocks.navigation.navigateToModJson).not.toHaveBeenCalled();
   });
 
   it('skips tab activation when the requested tab is already active', () => {
@@ -124,7 +138,7 @@ describe('useWorkspaceNavigationActions', () => {
     expect(workspace.currentView).toBe('about');
   });
 
-  it('confirms before navigating when the active mod has dirty drafts', () => {
+  it('retains dirty drafts while navigating away from their cached pages', () => {
     const workspace = useWorkspaceStore();
     workspace.registerMod({ modRoot: 'C:/mods/alpha', displayName: 'Alpha', version: '', status: 'ready' });
     workspace.activateModTab('C:/mods/alpha');
@@ -132,36 +146,33 @@ describe('useWorkspaceNavigationActions', () => {
     draftSessions.registerDraftSession(ref('C:/mods/alpha'), ref(true));
     const actions = useWorkspaceNavigationActions();
     actions.navigateToModOverview('C:/mods/alpha');
-    expect(mocks.navigation.navigateToModOverview).not.toHaveBeenCalled();
-    expect(mocks.feedback.confirmWarning).toHaveBeenCalledTimes(1);
-    mocks.feedback.confirmWarning.mock.calls[0]![0].onConfirm();
     expect(mocks.navigation.navigateToModOverview).toHaveBeenCalledWith('C:/mods/alpha');
+    expect(draftSessions.hasUnsavedWorkForMod('C:/mods/alpha')).toBe(true);
+    expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
   });
 
   it('commits the departing table input before changing the workspace target', async () => {
     const workspace = useWorkspaceStore();
-    const tables = useTablesStore();
+    const tables = useCsvEditorStore();
     const root = 'M:/A';
     workspace.registerMod({ modRoot: root, displayName: 'A', version: '', status: 'ready' });
-    tables.initializeModTables({
-      sessionId: 'sA',
+    const tablesManifest: ProjectManifest = {
       modRoot: root,
-      manifest: {
-        modRoot: root,
-        baseVersions: [],
-        starsectorRoot: null,
-        coreAvailable: false,
-        associatedSpecTables: [],
-        modInfo: {},
-        tableEntitySummaries: Object.fromEntries(TABLE_KEYS.map((table) => [table, 0])) as ProjectManifest['tableEntitySummaries'],
-        entitySummaries: { factions: 0, missions: 0, ships: 0, weapons: 0, projectiles: 0, variants: 0, skins: 0, systems: 0, skills: 0 },
-        warnings: [],
-        sessionId: 'sA',
-        tableSummaries: Object.fromEntries(
-          TABLE_KEYS.map((table) => [table, { path: `${table}.csv`, available: table === 'ships', header: ['id'], totalRows: 0 }]),
-        ) as ProjectManifest['tableSummaries'],
-      },
-    });
+      baseVersions: [],
+      starsectorRoot: null,
+      coreAvailable: false,
+      associatedSpecTables: [],
+      modInfo: {},
+      tableEntitySummaries: Object.fromEntries(TABLE_KEYS.map((table) => [table, 0])) as ProjectManifest['tableEntitySummaries'],
+      entitySummaries: { factions: 0, missions: 0, ships: 0, weapons: 0, projectiles: 0, variants: 0, skins: 0, systems: 0, skills: 0 },
+      warnings: [],
+      sessionId: 'sA',
+      tableSummaries: Object.fromEntries(
+        TABLE_KEYS.map((table) => [table, { path: `${table}.csv`, available: table === 'ships', header: ['id'], totalRows: 0 }]),
+      ) as ProjectManifest['tableSummaries'],
+    };
+    tables.initializeModTables({ sessionId: 'sA', modRoot: root, manifest: tablesManifest });
+    useProjectStore().registerProjectManifest(tablesManifest);
     workspace.activateModTable(root);
     const dirty = ref(true);
     tables.getTableInputs(root, 'ships').register({

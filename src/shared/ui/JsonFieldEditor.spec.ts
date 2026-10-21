@@ -1,3 +1,4 @@
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import JsonFieldEditor from './JsonFieldEditor.vue';
@@ -25,6 +26,7 @@ describe('JsonFieldEditor', () => {
             load: (target) => ({ target, value: { _count: 4 }, baseVersions: [], meta: null }),
             save,
           });
+          provideFieldInputs(session.inputs);
           return () => h(JsonFieldEditor, { knownKeys: [], modelValue: session.draftValue.value, 'onUpdate:modelValue': session.setDraft });
         },
       },

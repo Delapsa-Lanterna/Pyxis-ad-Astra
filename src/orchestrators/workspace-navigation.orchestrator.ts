@@ -1,12 +1,12 @@
-import type { ConfigView, CsvTableKey } from '@/shared/types';
+import type { JsonEditorPageId, CsvTableKey } from '@/shared/types';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
 function syncActiveModRuntime(modRoot: string) {
   const project = useProjectStore();
-  const tables = useTablesStore();
+  const tables = useCsvEditorStore();
   const fileHistory = useFileHistoryStore();
   // workspace owns the active identity (set by activateMod* below); here we
   // only project per-Mod derived state onto the other stores.
@@ -23,9 +23,16 @@ export function navigateToModOverview(modRoot: string) {
   workspace.activateModOverview(modRoot);
 }
 
+export function navigateToModFileHistory(modRoot: string) {
+  const workspace = useWorkspaceStore();
+  if (!workspace.mods.has(modRoot)) return;
+  syncActiveModRuntime(modRoot);
+  workspace.activateModFileHistory(modRoot);
+}
+
 export function navigateToModTable(modRoot: string, tab: CsvTableKey) {
   const workspace = useWorkspaceStore();
-  const tables = useTablesStore();
+  const tables = useCsvEditorStore();
   if (!workspace.mods.has(modRoot)) return;
   if (isActiveTableTarget(modRoot, tab)) return;
   syncActiveModRuntime(modRoot);
@@ -40,11 +47,11 @@ export function navigateToModFiles(modRoot: string) {
   workspace.activateModFiles(modRoot);
 }
 
-export function navigateToModConfig(modRoot: string, view: ConfigView) {
+export function navigateToModJson(modRoot: string, page: JsonEditorPageId) {
   const workspace = useWorkspaceStore();
   if (!workspace.mods.has(modRoot)) return;
   syncActiveModRuntime(modRoot);
-  workspace.activateModConfig(modRoot, view);
+  workspace.activateModJson(modRoot, page);
 }
 
 export function activateModTab(modRoot: string) {
@@ -56,7 +63,7 @@ export function activateModTab(modRoot: string) {
 
 function isActiveTableTarget(modRoot: string, tab: CsvTableKey): boolean {
   const workspace = useWorkspaceStore();
-  const tables = useTablesStore();
+  const tables = useCsvEditorStore();
   return (
     workspace.activeModRoot === modRoot &&
     workspace.currentView === 'table' &&

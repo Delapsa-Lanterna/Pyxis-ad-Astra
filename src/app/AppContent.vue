@@ -13,25 +13,32 @@
       @close-workspace="actions.confirmCloseWorkspace"
       @edit-warning-file="actions.openGameWarningFile"
       @edit-failure-file="actions.openModOpeningFailureFile"
-      @load-mod="actions.loadOverviewMod"
-    /><SettingsPage
+      @load-mod="actions.loadOverviewMod" /><SettingsPage
       v-else-if="workspace.currentView === 'settings'"
-      :close-workspace="() => actions.confirmCloseWorkspace(false)"
-    /><AboutPage v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
-      v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest"
-    /><TableWorkspace
+      :close-workspace="() => actions.confirmCloseWorkspace(false)" /><AboutPage
+      v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
+      v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" /><CsvEditorWorkspace
       v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
       v-model:detail-pane-expanded="detailPaneExpanded"
-    /><ConfigWorkspace v-else-if="workspace.currentView === 'config' && workspace.activeManifest" />
-    <section v-else class="empty-state ui-content-scroll ui-text-normal ui-layout-grid">
+      :actions="csvActions" /><WorkspaceModOverview
+      v-else-if="workspace.currentView === 'mod-overview' && workspace.activeManifest" /><WorkspaceFileHistory
+      v-else-if="workspace.currentView === 'file-history' && workspace.activeManifest" />
+    <section
+      v-else-if="workspace.currentView !== 'json-editor' || !workspace.activeManifest"
+      class="empty-state ui-content-scroll ui-text-normal ui-layout-grid"
+    >
       <n-spin size="large" />
       <h1 class="page-title">正在加载 Mod</h1>
       <p class="ui-text-muted ui-text-reset ui-text-wrap">{{ loadingModLabel }}</p>
-    </section></MainWindowFrame
-  >
+    </section>
+    <JsonEditorWorkspace
+  /></MainWindowFrame>
 </template>
 
 <script setup lang="ts">
+import { useJsonEditorStore } from '@/stores/json-editor.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
+import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { createContentNavigation, contentNavigationKey } from '@/app/composables/use-content-navigation';
@@ -54,9 +61,11 @@ import { useProjectStore } from '@/stores/project.store';
 const OverviewPage = defineAsyncComponent(() => import('@/app/components/OverviewPage.vue'));
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
 const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.vue'));
-const TableWorkspace = defineAsyncComponent(() => import('@/app/components/TableWorkspace.vue'));
+const CsvEditorWorkspace = defineAsyncComponent(() => import('@/app/components/csv-editor/CsvEditorWorkspace.vue'));
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
-const ConfigWorkspace = defineAsyncComponent(() => import('@/app/components/config/ConfigWorkspace.vue'));
+const WorkspaceModOverview = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceModOverview.vue'));
+const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/file-history/WorkspaceFileHistory.vue'));
+const JsonEditorWorkspace = defineAsyncComponent(() => import('@/app/components/json-editor/JsonEditorWorkspace.vue'));
 const contentNavigation = createContentNavigation();
 const detailPaneExpanded = ref(true);
 provide(contentNavigationKey, contentNavigation);
@@ -66,12 +75,13 @@ const project = useProjectStore();
 const draftSessions = useDraftSessionsStore();
 const feedback = useAppFeedback();
 const actions = useWorkspaceShellActions(feedback);
-useWorkspaceShellLifecycle(feedback, actions.selectAssociatedSpecs);
+const csvActions = useCsvEditorActions(feedback);
+useWorkspaceShellLifecycle(feedback, csvActions.selectAssociatedSpecs);
 const saveCommand = useSaveCommandStore();
 useMainWindowShortcuts(feedback);
 const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some((mod) => draftSessions.hasUnsavedWorkForMod(mod.modRoot)));
 useContextMenuScope({
-  identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
+  identity: () => JSON.stringify([workspace.currentView, workspace.jsonPage, workspace.activeModRoot]),
   canRefresh: () => actions.canRefreshOverview.value,
   refresh: () => (workspace.currentView === 'overview' ? actions.refreshWorkspace() : actions.refreshModOverview(workspace.activeModRoot!)),
 });
@@ -87,23 +97,36 @@ const closeGuard = useDirtyWindowCloseGuard({
   dirty: hasUnsavedMainWindowChanges,
   title: '放弃未保存修改并关闭？',
 });
-const isTableView = computed(() => workspace.currentView === 'table' && Boolean(workspace.activeManifest));
+const activeDocument = computed(() =>
+  workspace.currentView === 'table'
+    ? useCsvEditorStore().activeEditor
+    : workspace.currentView === 'json-editor'
+      ? useJsonEditorStore().active
+      : null,
+);
+async function saveActiveDocument() {
+  const document = activeDocument.value;
+  if (!document) return;
+  try {
+    const result = await document.save();
+    if (result.status === 'noop') feedback.info('没有需要保存的修改');
+  } catch (error) {
+    feedback.error(error, '保存文档失败');
+  }
+}
 const loadingModLabel = computed(() => {
   const activeModRoot = workspace.activeModRoot;
   if (!activeModRoot) return '';
   return workspace.loadedModList.find((mod) => mod.modRoot === activeModRoot)?.displayName || activeModRoot;
 });
 
-// Registration follows the same onMounted/onUnmounted pattern as the config
-// editors; the table-view condition is watched so the handler is swapped the
-// moment the view changes.
 watch(
-  isTableView,
+  activeDocument,
   (active) => {
     if (active) {
-      saveCommand.registerActiveSaveHandler(actions.saveChanges);
+      saveCommand.registerActiveSaveHandler(saveActiveDocument);
     } else {
-      saveCommand.unregisterActiveSaveHandler(actions.saveChanges);
+      saveCommand.unregisterActiveSaveHandler(saveActiveDocument);
     }
   },
   { immediate: true },
@@ -111,7 +134,7 @@ watch(
 
 onUnmounted(() => {
   closeGuard.dispose();
-  saveCommand.unregisterActiveSaveHandler(actions.saveChanges);
+  saveCommand.unregisterActiveSaveHandler(saveActiveDocument);
 });
 
 onMounted(() => {

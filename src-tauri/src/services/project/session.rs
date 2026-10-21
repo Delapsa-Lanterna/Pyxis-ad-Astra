@@ -1,4 +1,6 @@
-use crate::services::project::sources::families::{load_skin_files_from, load_variant_files_from};
+use crate::services::project::sources::json_documents::{
+    load_skin_files_from, load_variant_files_from,
+};
 use std::sync::{RwLock, RwLockWriteGuard, atomic::AtomicBool};
 static OPENINGS: RwLock<()> = RwLock::new(());
 static OPENINGS_HELD: AtomicBool = AtomicBool::new(false);
@@ -296,6 +298,7 @@ pub(super) fn build_project_session(
             .collect(),
     };
     Ok(ProjectSession {
+        json_origins: Vec::new(),
         projection_revision: 0,
         projection_pending: false,
         source_versions,
@@ -796,7 +799,7 @@ mod tests {
 
     #[test]
     fn persistent_project_index_reuses_matching_sources_and_rebuilds_changed_sources() {
-        use super::sources::families::take_load_counts;
+        use super::sources::json_documents::take_load_counts;
         let root = temp_dir("persistent_project_index");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(

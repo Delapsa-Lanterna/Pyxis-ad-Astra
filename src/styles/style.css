@@ -12,7 +12,7 @@
 @import './color-picker.css';
 @import './schema-form.css';
 @import './field-hints.css';
-@import './data-table.css';
+@import './csv-grid.css';
 @import './editor-window.css';
 @import './file-editor.css';
 @import './overview-page.css';
@@ -20,15 +20,15 @@
 @import './create-mod.css';
 @import './mod-opening-failure.css';
 @import './mod-card.css';
-@import './detail-pane.css';
+@import './csv-row-details.css';
 @import './app-shell.css';
 @import './titlebar.css';
 @import './mod-tabs.css';
 @import './mod-navigation.css';
-@import './config.css';
+@import './json-editor.css';
 @import './mod-overview.css';
 @import './file-history.css';
-@import './workspace.css';
+@import './csv-editor.css';
 @import './mod-files.css';
 @import './window-context-menu.css';
 @import './immersive.css';

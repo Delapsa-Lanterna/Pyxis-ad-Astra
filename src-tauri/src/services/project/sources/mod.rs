@@ -1,7 +1,7 @@
 pub(super) mod core;
 pub(super) mod documents;
 pub(super) mod engine_styles;
-pub(super) mod families;
+pub(super) mod json_documents;
 #[cfg(test)]
 mod tests;
 
@@ -426,7 +426,7 @@ impl SourceReader {
         let mut retain = |path: &str, value: &Value| {
             if changed
                 .iter()
-                .any(|changed| crate::domain::config::path_affects_target(changed, path))
+                .any(|changed| crate::domain::entity_identity::path_affects_target(changed, path))
             {
                 return;
             }

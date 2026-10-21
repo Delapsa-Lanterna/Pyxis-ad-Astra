@@ -1,3 +1,4 @@
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -119,6 +120,7 @@ describe('SchemaFieldRenderer smart mode', () => {
             load: () => ({ target: 'one', baseVersions: [], meta: null, value: [] as { name: string }[] }),
             targetKey: (id: string) => id,
           });
+          provideFieldInputs(draft.inputs);
           return () =>
             h(SchemaFieldRenderer, {
               field: fieldFixture('array-of-object', { nested: [{ key: 'name', type: 'string', label: 'Name' }] }),
@@ -277,6 +279,7 @@ describe('SchemaFieldRenderer plain mode', () => {
             save,
             targetKey: (key: string) => key,
           });
+          provideFieldInputs(session.inputs);
           return () =>
             h(SchemaFieldRenderer, {
               field: fieldFixture('integer', { key: 'count' }),

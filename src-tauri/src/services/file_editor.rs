@@ -63,7 +63,7 @@ pub fn query_text_identity_intent(
         AppError::context(format!("解析 JSON 文件失败 ({})", source.write.path), error)
             .at_path(&source.write.path)
     })?;
-    let definition = crate::domain::editor_config_definitions::entity_spec_definition(source.kind)
+    let definition = crate::domain::entity_definitions::entity_spec_definition(source.kind)
         .expect("recognized file has spec definition");
     let next = content
         .get(definition.id_field)
@@ -79,7 +79,7 @@ pub fn follow_text_identity(
     text: &str,
     next_id: &str,
 ) -> AppResult<String> {
-    let definition = crate::domain::editor_config_definitions::entity_spec_definition(kind)
+    let definition = crate::domain::entity_definitions::entity_spec_definition(kind)
         .expect("recognized file has spec definition");
     crate::parsers::replace_root_string(text, definition.id_field, next_id)
 }

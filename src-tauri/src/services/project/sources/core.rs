@@ -18,7 +18,7 @@ use super::super::model::{
 };
 use super::{
     documents::load_spec_records_from,
-    families::{load_skin_files_from, load_variant_files_from},
+    json_documents::{load_skin_files_from, load_variant_files_from},
 };
 
 struct CoreCacheEntry {
@@ -538,8 +538,8 @@ pub(in crate::services::project) fn invalidate_core_sources(
         .filter(|source| source.source == ResourceSource::Core)
     {
         let matches = |path: &str| {
-            crate::domain::config::path_affects_target(&source.rel_path, path)
-                || crate::domain::config::path_affects_target(path, &source.rel_path)
+            crate::domain::entity_identity::path_affects_target(&source.rel_path, path)
+                || crate::domain::entity_identity::path_affects_target(path, &source.rel_path)
         };
         data.csv_tables.retain(|_, table| !matches(&table.path));
         if matches("data/world/factions") || matches("data/hulls") || matches("data/weapons") {

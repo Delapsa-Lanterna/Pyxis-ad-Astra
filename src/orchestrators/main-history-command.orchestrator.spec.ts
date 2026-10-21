@@ -1,107 +1,104 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { WorkspaceView } from '@/shared/types';
 import type { AppFeedback } from '@/shared/types';
-
-const mocks = vi.hoisted(() => ({
-  replayNextFileUndo: vi.fn(),
-  replayNextFileRedo: vi.fn(),
-  canUndoCsvEdit: vi.fn(() => false as boolean),
-  canRedoCsvEdit: vi.fn(() => false as boolean),
-  undoCsvEdit: vi.fn(() => null as string | null),
-  redoCsvEdit: vi.fn(() => null as string | null),
-  activeModRoot: vi.fn(() => 'C:/mods/alpha' as string | null),
-}));
-
-vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({
-  replayNextFileUndo: mocks.replayNextFileUndo,
-  replayNextFileRedo: mocks.replayNextFileRedo,
-}));
-
-vi.mock('@/stores/tables-edit-history.store', () => ({
-  useTablesEditHistoryStore: () => ({
-    canUndoCsvEdit: mocks.canUndoCsvEdit,
-    canRedoCsvEdit: mocks.canRedoCsvEdit,
-    undoCsvEdit: mocks.undoCsvEdit,
-    redoCsvEdit: mocks.redoCsvEdit,
-  }),
-}));
-
-vi.mock('@/stores/tables.store', () => ({
-  useTablesStore: () => ({ currentTab: 'ships', getActiveModTableState: () => undefined }),
-}));
-
-vi.mock('@/stores/project.store', () => ({
-  useProjectStore: () => ({}),
-}));
-vi.mock('@/stores/workspace.store', () => ({
-  useWorkspaceStore: () => ({
-    get activeModRoot() {
-      return mocks.activeModRoot();
-    },
-  }),
-}));
-
-import { dispatchMainRedoCommand, dispatchMainUndoCommand } from './main-history-command.orchestrator';
-
-function feedbackStub(): AppFeedback {
+function feedbackFixture(): AppFeedback {
   return {
     success: vi.fn(),
+    error: vi.fn(),
     info: vi.fn(),
     warning: vi.fn(),
-    error: vi.fn(),
-    confirmDanger: vi.fn(),
-    confirmWarning: vi.fn(),
     choose: vi.fn(async () => null),
+    confirmWarning: vi.fn(),
+    confirmDanger: vi.fn(),
   };
 }
 
+const mocks = vi.hoisted(() => ({
+  fileUndo: vi.fn(),
+  fileRedo: vi.fn(),
+  csv: { undo: vi.fn(), redo: vi.fn() },
+  json: { undo: vi.fn(), redo: vi.fn() },
+  workspace: { activeModRoot: 'M:/alpha', activeSessionId: 's1', currentView: 'table' as WorkspaceView, jsonPage: 'mod-info' },
+  tables: { currentTab: 'ships', currentTableLocked: false, activeEditor: null as unknown },
+}));
+vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({
+  replayNextFileUndo: mocks.fileUndo,
+  replayNextFileRedo: mocks.fileRedo,
+}));
+vi.mock('@/stores/csv-editor.store', () => ({ useCsvEditorStore: () => mocks.tables }));
+vi.mock('@/stores/project.store', () => ({ useProjectStore: () => ({}) }));
+vi.mock('@/stores/workspace.store', () => ({ useWorkspaceStore: () => mocks.workspace }));
+vi.mock('@/stores/json-editor.store', () => ({ useJsonEditorStore: () => ({ active: mocks.json }) }));
+import { dispatchMainRedoCommand, dispatchMainUndoCommand } from './main-history-command.orchestrator';
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  Object.assign(mocks.workspace, { activeModRoot: 'M:/alpha', activeSessionId: 's1', currentView: 'table', jsonPage: 'mod-info' });
+  Object.assign(mocks.tables, { currentTab: 'ships', currentTableLocked: false, activeEditor: mocks.csv });
 });
-
-describe('main history command dispatch', () => {
-  it('prefers the current table CSV edit history for undo', async () => {
-    mocks.canUndoCsvEdit.mockReturnValue(true);
-    mocks.undoCsvEdit.mockReturnValue('edit 1');
-    const feedback = feedbackStub();
-    await dispatchMainUndoCommand(feedback);
-    expect(mocks.undoCsvEdit).toHaveBeenCalledTimes(1);
-    expect(mocks.replayNextFileUndo).not.toHaveBeenCalled();
-    expect(feedback.error).not.toHaveBeenCalled();
+describe.each([
+  ['undo', dispatchMainUndoCommand],
+  ['redo', dispatchMainRedoCommand],
+] as const)('main %s', (direction, dispatch) => {
+  it.each(['table', 'json-editor'] as const)('dispatches only the visible %s document', async (view) => {
+    mocks.workspace.currentView = view;
+    const selected = view === 'table' ? mocks.csv : mocks.json;
+    selected[direction].mockResolvedValue(true);
+    const feedback = feedbackFixture();
+    await dispatch(feedback);
+    expect(selected[direction]).toHaveBeenCalledOnce();
+    expect((view === 'table' ? mocks.json : mocks.csv)[direction]).not.toHaveBeenCalled();
+    expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).not.toHaveBeenCalled();
   });
-
-  it('reports a failed CSV undo without touching the file history', async () => {
-    mocks.canUndoCsvEdit.mockReturnValue(true);
-    mocks.undoCsvEdit.mockReturnValue(null);
-    const feedback = feedbackStub();
-    await dispatchMainUndoCommand(feedback);
-    expect(feedback.error).toHaveBeenCalledWith('撤销 CSV 编辑失败');
-    expect(mocks.replayNextFileUndo).not.toHaveBeenCalled();
+  it.each([true, false, null] as const)('consumes the document outcome %s', async (result) => {
+    mocks.csv[direction].mockResolvedValue(result);
+    const feedback = feedbackFixture();
+    await dispatch(feedback);
+    expect(feedback.error).toHaveBeenCalledTimes(result === false ? 1 : 0);
+    expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).toHaveBeenCalledTimes(result === null ? 1 : 0);
   });
-
-  it('falls back to the file history replay without CSV entries', async () => {
-    mocks.canUndoCsvEdit.mockReturnValue(false);
-    await dispatchMainUndoCommand(feedbackStub());
-    expect(mocks.replayNextFileUndo).toHaveBeenCalledTimes(1);
+  it('reports invalid input without consuming file history', async () => {
+    const error = new Error('Invalid field');
+    mocks.csv[direction].mockRejectedValue(error);
+    const feedback = feedbackFixture();
+    await dispatch(feedback);
+    expect(feedback.error).toHaveBeenCalledWith(error, expect.any(String));
+    expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).not.toHaveBeenCalled();
   });
-
-  it('prefers the CSV redo stack and reports redo failures', async () => {
-    mocks.canRedoCsvEdit.mockReturnValue(true);
-    mocks.redoCsvEdit.mockReturnValue('edit 2');
-    const feedback = feedbackStub();
-    await dispatchMainRedoCommand(feedback);
-    expect(mocks.redoCsvEdit).toHaveBeenCalledTimes(1);
-    expect(mocks.replayNextFileRedo).not.toHaveBeenCalled();
-
-    mocks.redoCsvEdit.mockReturnValue(null);
-    const feedback2 = feedbackStub();
-    await dispatchMainRedoCommand(feedback2);
-    expect(feedback2.error).toHaveBeenCalledWith('重做 CSV 编辑失败');
-    expect(mocks.replayNextFileRedo).not.toHaveBeenCalled();
+  it.each(['mod-overview', 'file-history', 'mod-files', 'overview', 'settings', 'about'] as const)(
+    'uses file history on %s',
+    async (view) => {
+      mocks.workspace.currentView = view;
+      await dispatch(feedbackFixture());
+      expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).toHaveBeenCalledOnce();
+      expect(mocks.csv[direction]).not.toHaveBeenCalled();
+      expect(mocks.json[direction]).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['mod', 'session', 'view', 'table', 'page'] as const)('ends file fallback after a %s change', async (change) => {
+    mocks.workspace.currentView = change === 'page' ? 'json-editor' : 'table';
+    const selected = change === 'page' ? mocks.json : mocks.csv;
+    let finish!: (value: null) => void;
+    selected[direction].mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = dispatch(feedbackFixture());
+    if (change === 'mod') mocks.workspace.activeModRoot = 'M:/beta';
+    if (change === 'session') mocks.workspace.activeSessionId = 's2';
+    if (change === 'view') mocks.workspace.currentView = 'about';
+    if (change === 'table') mocks.tables.currentTab = 'weapons';
+    if (change === 'page') mocks.workspace.jsonPage = 'skins';
+    finish(null);
+    await pending;
+    expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).not.toHaveBeenCalled();
   });
-
-  it('falls back to the file history replay for redo', async () => {
-    mocks.canRedoCsvEdit.mockReturnValue(false);
-    await dispatchMainRedoCommand(feedbackStub());
-    expect(mocks.replayNextFileRedo).toHaveBeenCalledTimes(1);
+  it('holds a locked CSV identity', async () => {
+    mocks.tables.currentTableLocked = true;
+    await dispatch(feedbackFixture());
+    expect(mocks.csv[direction]).not.toHaveBeenCalled();
+    expect(direction === 'undo' ? mocks.fileUndo : mocks.fileRedo).not.toHaveBeenCalled();
   });
 });

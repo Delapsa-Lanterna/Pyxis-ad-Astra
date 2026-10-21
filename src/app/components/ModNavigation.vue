@@ -71,17 +71,17 @@ import { computed } from 'vue';
 import { useContentNavigation } from '@/app/composables/use-content-navigation';
 import { buildModNavigationSections, isModNavigationItemActive, type ModNavigationItem } from '@/domain/workspace/mod-navigation';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
 const contentNavigation = useContentNavigation();
 const workspace = useWorkspaceStore();
-const tables = useTablesStore();
+const tables = useCsvEditorStore();
 const navigation = useWorkspaceNavigationActions();
 const sections = computed(() => buildModNavigationSections(workspace.activeManifest));
 
 function isActive(item: ModNavigationItem): boolean {
-  return isModNavigationItemActive(item, workspace.currentView, workspace.configView, tables.currentTab);
+  return isModNavigationItemActive(item, workspace.currentView, workspace.jsonPage, tables.currentTab);
 }
 
 function navigate(item: ModNavigationItem) {
@@ -92,8 +92,16 @@ function navigate(item: ModNavigationItem) {
     navigation.navigateToModFiles(modRoot);
     return;
   }
-  if (item.target.type === 'config') {
-    navigation.navigateToModConfig(modRoot, item.target.view);
+  if (item.target.type === 'mod-overview') {
+    navigation.navigateToModOverview(modRoot);
+    return;
+  }
+  if (item.target.type === 'file-history') {
+    navigation.navigateToModFileHistory(modRoot);
+    return;
+  }
+  if (item.target.type === 'json-editor') {
+    navigation.navigateToModJson(modRoot, item.target.page);
     return;
   }
   navigation.navigateToModTable(modRoot, item.target.table);

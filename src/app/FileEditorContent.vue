@@ -87,6 +87,7 @@
 </template>
 
 <script setup lang="ts">
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
@@ -120,6 +121,7 @@ const lineHeight = 20;
 const textareaRef = useTemplateRef<HTMLTextAreaElement>('textareaRef');
 const lineGutterRef = useTemplateRef<HTMLElement>('lineGutterRef');
 const {
+  inputs,
   filePath,
   contentReady,
   contextLabel,
@@ -158,6 +160,7 @@ const {
   line: context.input.location.line,
   column: context.input.location.column,
 });
+provideFieldInputs(inputs);
 useManagedWindowRequests(async (request) => {
   await initialize();
   if (request.kind === 'file-editor') applyLocation(request.input.location);

@@ -23,7 +23,9 @@ pub fn query_entity_edit_target(
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     (entity_definition(kind)?.prepare)(&mut session)?;
-    describe_entity_target(&mut session, kind, id)
+    let info = describe_entity_target(&mut session, kind, id)?;
+    super::json_recovery::remember_json_origin(&mut session, &info.target);
+    Ok(info)
 }
 
 pub fn require_entity_version_scope(
@@ -123,8 +125,8 @@ pub fn query_entity_identity_intent(
             "实体目标已变化，请载入外部版本",
         ));
     }
-    let definition = crate::domain::editor_config_definitions::entity_spec_definition(source.kind);
-    let next_id = crate::domain::config::validate_config_id(
+    let definition = crate::domain::entity_definitions::entity_spec_definition(source.kind);
+    let next_id = crate::domain::entity_identity::validate_entity_id(
         next_id,
         definition
             .map(|definition| definition.invalid_id_message)
@@ -231,7 +233,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
             );
         }
     }
-    let definition = crate::domain::editor_config_definitions::entity_spec_definition(kind);
+    let definition = crate::domain::entity_definitions::entity_spec_definition(kind);
     let mut linked = std::collections::BTreeMap::new();
     let index_version = if let Some(table) = definition.and_then(|definition| definition.csv_table)
     {
@@ -338,8 +340,7 @@ impl EntityTargetProjection {
         id: &str,
     ) -> EntityEditInfo {
         let root = &session.manifest.mod_root;
-        let definition =
-            crate::domain::editor_config_definitions::entity_spec_definition(self.kind);
+        let definition = crate::domain::entity_definitions::entity_spec_definition(self.kind);
         let source = if self.kind == EntityKind::Mission {
             let relative = format!("data/missions/{id}");
             Path::new(root)

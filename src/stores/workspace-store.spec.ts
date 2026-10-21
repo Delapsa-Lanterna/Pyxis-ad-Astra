@@ -49,6 +49,35 @@ function failure(modRoot: string, message: string): ModOpeningFailure {
 }
 
 describe('workspace active project projection', () => {
+  it.each(['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'] as const)(
+    'restores the %s view independently for each Mod',
+    (view) => {
+      const workspace = useWorkspaceStore();
+      for (const name of ['alpha', 'beta'])
+        workspace.registerMod({ modRoot: `M:/${name}`, displayName: name, version: '', status: 'ready' });
+      if (view === 'mod-overview') workspace.activateModOverview('M:/alpha');
+      if (view === 'file-history') workspace.activateModFileHistory('M:/alpha');
+      if (view === 'json-editor') workspace.activateModJson('M:/alpha', 'mission');
+      if (view === 'table') workspace.activateModTable('M:/alpha');
+      if (view === 'mod-files') workspace.activateModFiles('M:/alpha');
+      expect(workspace.isModView).toBe(true);
+      workspace.activateModJson('M:/beta', 'skins');
+      workspace.showSettings();
+      expect(workspace.isModView).toBe(false);
+      workspace.activateModTab('M:/alpha');
+      expect(workspace.currentView).toBe(view);
+      if (view === 'json-editor') expect(workspace.jsonPage).toBe('mission');
+      workspace.activateModTab('M:/beta');
+      expect(workspace.currentView).toBe('json-editor');
+      expect(workspace.jsonPage).toBe('skins');
+      workspace.removeLoadedModEntry('M:/alpha');
+      workspace.registerMod({ modRoot: 'M:/alpha', displayName: 'Alpha', version: '', status: 'ready' });
+      workspace.activateModTab('M:/alpha');
+      expect(workspace.currentView).toBe('mod-overview');
+      expect(workspace.jsonPage).toBe('mod-info');
+    },
+  );
+
   function register(sessionId: string, modRoot: string) {
     const update = sessionUpdateFixture(sessionId, modRoot);
     if (update.status !== 'ready') throw new Error('ready projection fixture');

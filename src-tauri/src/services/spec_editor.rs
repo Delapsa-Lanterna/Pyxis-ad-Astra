@@ -1,7 +1,7 @@
-use crate::domain::editor_config_definitions::{EntitySpecDefinition, editor_spec_definition};
+use crate::domain::entity_definitions::{EntitySpecDefinition, editor_spec_definition};
 #[cfg(test)]
 use crate::{
-    domain::config::validate_config_id,
+    domain::entity_identity::validate_entity_id,
     models::{JsonWriteOptions, WriteResult},
 };
 use crate::{
@@ -32,7 +32,7 @@ pub fn save_editor_spec_with_json_options(
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
     let definition = editor_spec_definition(kind)?;
-    validate_config_id(id, definition.invalid_id_message)?;
+    validate_entity_id(id, definition.invalid_id_message)?;
     let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
     let manifest = crate::services::project::open_project_session_traced(
         Path::new(mod_root),

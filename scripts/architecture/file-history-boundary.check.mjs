@@ -5,9 +5,9 @@ import { fileHistoryBoundaryRule } from './rules/file-history-boundary.mjs';
 
 test('CSV save accepts the committed baseline before completing history and projection synchronization', () => {
   const files = architectureFixtures({
-    'src/orchestrators/table-save.orchestrator.ts': `
+    'src/orchestrators/csv-save.orchestrator.ts': `
       export async function acceptSavedReceipt(receipt) {
-        clearCsvEditHistory(receipt.modRoot, receipt.table);
+        clearCsvTableHistory(receipt.modRoot, receipt.table);
         await completeSavedWrite(receipt);
       }
     `,

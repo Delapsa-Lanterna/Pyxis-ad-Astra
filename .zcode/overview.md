@@ -59,7 +59,7 @@
 - workspace 生命周期：workspace action → Rust 关闭范围登记 → 内容准备与逐窗确认 → Destroyed → session 释放 → 实际释放结果 → 前端运行态清理
 - 保存事务：`EditSession` → save orchestrator → 目标与版本准备 → write service → `command.runtime` → Rust FIFO transaction → changeset、`File History` 与 `ProjectSession projection` → `WriteResult`
 - 写后接纳：`WriteResult` → 项目同步编排 → `synchronize_committed_write` → projection revision → resource/query invalidation → manifest、列表、历史和窗口接纳
-- 历史回放：main history dispatch → CSV draft history 优先 → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
+- 历史回放：main history dispatch → 当前编辑面的 JSON 或 CSV draft history → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
 - 查询与编辑目标：组件 → `ViewModel/composable` → query service → `command.runtime` → Rust `ProjectSession` query → parser/IO/cache → `EntityData`、`EntityEditTarget` 与 `ResourceRef` → 前端 query cache
 - 目录与会话：目录选择 → `directory-opening orchestrator` → `detect_directory` → canonical root → `open_project_session` → `ProjectSession` → workspace runtime
 - 窗口生命周期：业务 identity → window service → Rust native registry → 原生窗口上下文与请求 → 接纳回执 → 标题、目标和 dirty 接纳 → close guard 与释放
@@ -67,7 +67,7 @@
 
 ## 项目内关键链路
 
-- CSV draft history 与 File History 是不同 owner；当前表格 operation 必须优先，文件回放不得绕过 CSV 草稿历史。
+- JSON draft history、CSV draft history 与 File History 分别归所属 owner；当前文档快照与表格 operation 必须先于文件回放处理。
 - Core fields 与 graphics 必须由同一 WindowShell 生命周期分别加载；root、generation、A-B-A、根清空和窗口销毁是唯一接纳条件。
 - `ReadTicket` 必须同时拥有读取身份、取消信号、Promise 和接纳状态；失效或关闭只结束所属等待，迟到结果不得写入新生命周期。
 - `ResourceRef` 必须由后端授权并绑定 session、source 和规范化相对路径；Core fallback 只读，不能把 Core 内容写入 Mod。

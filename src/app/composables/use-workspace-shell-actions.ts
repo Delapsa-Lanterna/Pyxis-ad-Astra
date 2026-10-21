@@ -1,23 +1,14 @@
-import { computed, getCurrentScope, h, onScopeDispose, ref } from 'vue';
+import { computed, getCurrentScope, onScopeDispose } from 'vue';
 import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 import { useSettingsStore } from '@/stores/settings.store';
-import { openEntityImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
-import { openSpecEditorWindow } from '@/windows/spec-editor.window';
-import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
+
 import { useProjectStore } from '@/stores/project.store';
 import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.service';
-import { pendingTableSave, saveTableChanges, type TableSaveResult } from '@/orchestrators/table-save.orchestrator';
+
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useTablesStore } from '@/stores/tables.store';
-import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
-import type { TableDetailAction } from '@/domain/tables/table-detail-actions';
-import {
-  openFileEditorWindow,
-  openGameWarningFileEditor,
-  openModOpeningFailureFileEditor,
-  type FileEditorRequest,
-} from '@/windows/file-editor.window';
+
+import { openGameWarningFileEditor, openModOpeningFailureFileEditor } from '@/windows/file-editor.window';
 import {
   openDirectoryTarget,
   openModFromOverview,
@@ -32,9 +23,8 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
-import { querySessionEntityEditTarget } from '@/services/entity-query.service';
-import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { retryPendingModSyncs, refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
+
+import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 
 import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
@@ -43,42 +33,15 @@ import { pathBasename } from '@/shared/lib/paths';
 export function useWorkspaceShellActions(feedback: AppFeedback) {
   const { requestClose } = useWindowLifecycleActions();
   const project = useProjectStore();
-  const tables = useTablesStore();
   const settings = useSettingsStore();
   const workspace = useWorkspaceStore();
   const saveCommands = useSaveCommandStore();
-  const unregisterSave = saveCommands.registerSaveSession({
-    targetKey: computed(() => {
-      const target = pendingTableSave()?.target;
-      return tables.saving && target ? JSON.stringify([target.manifest.sessionId, target.modRoot, target.table]) : null;
-    }),
-    modRoot: computed(() => (tables.saving ? (pendingTableSave()?.target.modRoot ?? null) : null)),
-    saving: computed(() => tables.saving),
-    pendingSynchronization: computed(() => useProjectSyncStore().pending.length > 0),
-    waitForSave: async () => {
-      const pending = pendingTableSave();
-      if (pending)
-        return pending.promise.then(
-          (result) => result.status !== 'cancelled',
-          () => false,
-        );
-      try {
-        for (const modRoot of new Set(useProjectSyncStore().pending.map((entry) => entry.event.modRoot)))
-          await retryPendingModSyncs(modRoot);
-        return true;
-      } catch (error) {
-        feedback.error(error, '同步已保存内容失败');
-        return false;
-      }
-    },
-  });
   let disposed = false;
   let closeIntent: Promise<boolean> | null = null;
   const removeIntents = new Map<string, Promise<void>>();
   if (getCurrentScope())
     onScopeDispose(() => {
       disposed = true;
-      unregisterSave();
     });
 
   async function openDirectory() {
@@ -104,7 +67,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   const canRefreshOverview = computed(() =>
     workspace.currentView === 'overview'
       ? Boolean(workspace.gameOverview) || project.manifests.size > 0
-      : workspace.currentView === 'config' && workspace.configView === 'mod-overview' && Boolean(workspace.activeManifest),
+      : workspace.currentView === 'mod-overview' && Boolean(workspace.activeManifest),
   );
 
   async function refreshModOverview(modRoot: string) {
@@ -189,217 +152,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return intent;
   }
 
-  async function saveChanges() {
-    await saveCurrentTable();
-  }
-
-  async function saveCurrentTable() {
-    if (tables.saving) return;
-    try {
-      const result = await saveTableChanges({
-        table: tables.currentTab,
-        manifest: workspace.activeManifest,
-        selectAssociatedSpecs,
-        feedback,
-      });
-      showSaveResult(result);
-      return result;
-    } catch (err) {
-      feedback.error(err, '保存 CSV 失败');
-    }
-  }
-
-  async function selectAssociatedSpecs(candidates: AssociatedSpecCandidate[]) {
-    const { default: AssociatedSpecSaveDialog } = await import('@/app/components/AssociatedSpecSaveDialog.vue');
-    const choices = ref(candidates);
-    const selectedKeys = ref(new Set(candidates.map((candidate) => candidate.key)));
-    const choice = await feedback.choose({
-      title: '保存 CSV',
-      content: () =>
-        h(AssociatedSpecSaveDialog, {
-          candidates: choices.value,
-          selectedKeys: selectedKeys.value,
-          'onUpdate:candidates': (value) => {
-            choices.value = value;
-          },
-          onSelect: (key, checked) => {
-            if (checked) selectedKeys.value.add(key);
-            else selectedKeys.value.delete(key);
-          },
-        }),
-      choices: [{ label: '保存', value: 'save', type: 'primary' }],
-    });
-    if (choice !== 'save') return null;
-    return choices.value.filter((candidate) => selectedKeys.value.has(candidate.key)).map((candidate) => candidate.change);
-  }
-
-  function undoCurrentTableEdit() {
-    return runTableAction(applyUndo);
-  }
-
-  function applyUndo() {
-    const label = tables.undoCurrentTableEdit();
-    if (label === null) {
-      feedback.error('撤销 CSV 编辑失败');
-      return;
-    }
-    recordLogBestEffort({
-      level: 'info',
-      code: 'tables.undo_applied',
-      message: 'csv undo applied',
-      path: null,
-      line: null,
-      fields: logFields({ modRoot: tables.activeModRoot, table: tables.currentTab, label }),
-    });
-  }
-
-  function redoCurrentTableEdit() {
-    return runTableAction(applyRedo);
-  }
-
-  function applyRedo() {
-    const label = tables.redoCurrentTableEdit();
-    if (label === null) {
-      feedback.error('重做 CSV 编辑失败');
-      return;
-    }
-    recordLogBestEffort({
-      level: 'info',
-      code: 'tables.redo_applied',
-      message: 'csv redo applied',
-      path: null,
-      line: null,
-      fields: logFields({ modRoot: tables.activeModRoot, table: tables.currentTab, label }),
-    });
-  }
-
-  async function addNewRow() {
-    if (!workspace.activeManifest) return;
-    const root = tables.activeModRoot;
-    const table = tables.currentTab;
-    try {
-      if ((await commitCurrentInput()) === false || root !== tables.activeModRoot || table !== tables.currentTab) return;
-      const created = await tables.addNewRow();
-      recordLogBestEffort({
-        level: 'info',
-        code: 'tables.row_created',
-        message: 'row created',
-        path: null,
-        line: null,
-        fields: logFields({
-          modRoot: tables.activeModRoot,
-          table: tables.currentTab,
-          rowKey: created?.rowKey,
-          rowIndex: created?.rowIndex,
-        }),
-      });
-    } catch (err) {
-      feedback.error(err, '新建 CSV 行失败');
-    }
-  }
-
-  async function deleteSelectedRow() {
-    if (!workspace.activeManifest || !tables.selectedRowKey) return;
-    const root = tables.activeModRoot;
-    const table = tables.currentTab;
-    const rowKey = tables.selectedRowKey;
-    try {
-      const target = tables.editing;
-      if (target?.rowKey === tables.selectedRowKey) {
-        tables.getTableInputs(target.modRoot, target.table).cancel();
-        tables.setActiveCell(null, target.modRoot);
-      } else if ((await commitCurrentInput()) === false) return;
-      if (root !== tables.activeModRoot || table !== tables.currentTab || rowKey !== tables.selectedRowKey) return;
-      const deleted = await tables.deleteSelected();
-      recordLogBestEffort({
-        level: 'info',
-        code: 'tables.row_deleted',
-        message: 'row deleted',
-        path: null,
-        line: null,
-        fields: logFields({
-          modRoot: tables.activeModRoot,
-          table: tables.currentTab,
-          rowKey: deleted?.rowKey,
-          rowIndex: deleted?.rowIndex,
-        }),
-      });
-    } catch (err) {
-      feedback.error(err, '删除 CSV 行失败');
-    }
-  }
-
-  function commitCurrentInput() {
-    const root = tables.activeModRoot;
-    return root ? tables.getTableInputs(root, tables.currentTab).commit() : undefined;
-  }
-
-  function runTableAction(action: () => void) {
-    const pending = commitCurrentInput();
-    if (!pending) {
-      action();
-      return;
-    }
-    const root = tables.activeModRoot;
-    const table = tables.currentTab;
-    return pending
-      .then((accepted) => {
-        if (accepted && tables.activeModRoot === root && tables.currentTab === table) action();
-      })
-      .catch((error: unknown) => feedback.error(error));
-  }
-
-  function handleDetailAction(action: TableDetailAction) {
-    if (action.type === 'immersive-editor') {
-      const csvTarget = project.tableWriteTargets.find(
-        (target) =>
-          target.sessionId === action.sessionId &&
-          target.modRoot === action.modRoot &&
-          target.table === (action.kind === 'ship' ? 'ships' : action.kind === 'weapon' ? 'weapons' : 'wings'),
-      )!;
-      void openEntityImmersiveEditor(
-        {
-          root: { sessionId: action.sessionId, modRoot: action.modRoot, kind: action.kind, id: action.id },
-          rowKey: action.rowKey,
-          csvTarget,
-        },
-        feedback,
-      ).catch((error) => feedback.error(error, '打开沉浸式编辑器失败'));
-    } else if (action.type === 'weapon-fire-preview') {
-      void openWeaponFirePreviewWindow({
-        sessionId: action.sessionId,
-        modRoot: action.modRoot,
-        id: action.id,
-        source: { kind: 'saved' },
-      }).catch((error) => feedback.error(error, '打开发射预览失败'));
-    } else if (action.type === 'file-editor') {
-      void querySessionEntityEditTarget(action.sessionId, action.kind, action.id)
-        .then((info) =>
-          openRequestedFileEditor({
-            modRoot: action.modRoot,
-            sessionId: action.sessionId,
-            title: action.title,
-            path: info.target.write.path,
-          }),
-        )
-        .catch((error) => feedback.error(error, '读取规格文件目标失败'));
-    } else {
-      openRequestedEditorWindow(action);
-    }
-  }
-
-  function openRequestedFileEditor(request: FileEditorRequest) {
-    recordLogBestEffort({
-      level: 'info',
-      code: 'editor.file_opened',
-      message: 'file editor opened',
-      path: request.path,
-      line: request.line ?? null,
-      fields: logFields({ modRoot: request.modRoot, sessionId: request.sessionId }),
-    });
-    openFileEditorWindow({ ...request }).catch((error) => feedback.error(error, '打开文件编辑器失败'));
-  }
-
   function openGameWarningFile(warning: GameScanWarning) {
     openGameWarningFileEditor(warning)?.catch((error) => feedback.error(error, '打开警告文件失败'));
   }
@@ -482,51 +234,16 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return true;
   }
 
-  function showSaveResult(result: TableSaveResult) {
-    if (result.status === 'saved') {
-      feedback.success('当前 CSV 表已保存');
-    } else if (result.status === 'noop') {
-      feedback.info('没有需要保存的修改');
-    }
-  }
-
-  function openRequestedEditorWindow(action: Extract<TableDetailAction, { type: 'editor-window' }>) {
-    recordLogBestEffort({
-      level: 'info',
-      code: 'editor.window_opened',
-      message: 'editor window opened',
-      path: null,
-      line: null,
-      fields: logFields({ kind: action.kind, id: action.id, modRoot: action.modRoot, sessionId: action.sessionId }),
-    });
-    openSpecEditorWindow({
-      kind: action.kind,
-      modRoot: action.modRoot,
-      id: action.id,
-      sessionId: action.sessionId,
-
-      starsectorRoot: action.starsectorRoot,
-    }).catch((error) => feedback.error(error, '打开编辑器窗口失败'));
-  }
-
   return {
     settleDirectoryOpenings,
-    selectAssociatedSpecs,
-    addNewRow,
     confirmCloseWorkspace,
     confirmRemoveMod,
-    deleteSelectedRow,
-    handleDetailAction,
     loadOverviewMod,
     openGameWarningFile,
     openModOpeningFailureFile,
     openDirectory,
-    redoCurrentTableEdit,
     refreshWorkspace,
     refreshModOverview,
     canRefreshOverview,
-    saveChanges,
-    saveCurrentTable,
-    undoCurrentTableEdit,
   };
 }

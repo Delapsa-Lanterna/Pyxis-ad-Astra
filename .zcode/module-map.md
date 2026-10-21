@@ -66,6 +66,7 @@
 - `src-tauri/src/testutil.rs`：Rust 测试共享夹具。
 - `src/app/composables/use-query-read-owner.ts`：Vue 读取票据的作用域交接。
 - `src/domain/cache-limits.ts`：缓存预算的前端校验。
+- `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。
 - `src/shared/`：前端公共协议、原语、工具与控件。
 - `src/styles/`：按业务及关联组件组织的展示规则与样式入口。
 - `src/test/`：前端测试共享夹具。
@@ -92,10 +93,8 @@
 - [项目查询与缓存](modules/project-query-cache.md)：说明类型化查询定义、会话共享读取、缓存、门控与失效通知。
 - [实体查询](modules/entity-query.md)：说明实体详情、列表、编辑目标、身份意图及所属失效。
 - [文本与格式解析器](modules/text-parsers.md)：说明 CSV-like 与 JSON-like 解析、UTF-8 无 BOM、CP1252 规范化和格式错误上下文。
-- [表格编辑](modules/csv-tables.md)：说明窗口化表格 query、tables store、行身份、选择、列 schema 渲染与 dirty。
-- [表格草稿历史](modules/csv-edit-history.md)：说明按 Mod/表隔离的内存 operation、CSV undo/redo、rowKey 映射和 history limit。
-- [表格保存与变更集](modules/table-save-changeset.md)：说明 dirty patches、关联 spec 动作、原子 changeset、rowKey map 与保存后提交。
-- [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、保存等待、EditContext、快照历史与未保存注册表。
+- [CSV 文档编辑](modules/csv-editor.md)：说明整表运行态、行草稿、操作历史、输入、关联文件及原子保存。
+- [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、文档保存队列、EditContext、快照历史与未保存注册表。
 - [联合编辑与目标交接](modules/joint-editing.md)：说明联合来源快照、物理写入范围、跨编辑面保存准备、三方冲突选择、原子提交及释放。
 - [沉浸式编辑器基础](modules/immersive-editor.md)：说明共同运行态、字段展示、来源选择、资源与舰体场景。
 - [沉浸式舰船编辑器](modules/immersive-ship-editor.md)：说明舰船字段、基础统计与只读信息内容。
@@ -105,14 +104,13 @@
 - [字体](modules/fonts.md)：说明原版字体读取、逐字体回退、缺字问号、文字测量、共享图集和展示生命周期。
 - [保存提交](modules/write-commit.md)：说明公共保存事务、提交记录、保存回执及指定提交恢复。
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。
-- [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、CSV 草稿优先级与文件 history 分派。
+- [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、当前编辑面的 JSON／CSV 草稿与文件 history 分派。
 - [Spec 编辑器基础](modules/spec-editor.md)：说明规格宿主、基础契约、文档交接与四类实现装配。
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布交互、选区、镜像、动作提交及唯一共享引擎绘制与运行态。
 - [Mod 文件浏览器](modules/mod-file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。
 - [文件编辑器](modules/file-editor.md)：说明独立文本窗口、`sessionId + modRoot + path`、文本 Draft Session、保存和外部文本同步。
-- [配置系统](modules/config.md)：说明 mod_info、Faction、Mission、Variant、Skin、目标草稿、实体 query/write 与文件级 history。
 - [字段模式系统](modules/schema.md)：说明 schema 资产加载、runtime、字段渲染、editMode、校验、引用 source、SelectOption 与资源选择。
-- [配置实体族编辑器](modules/family-editors.md)：说明装配与皮肤两族参数化编辑、family 定义、实体 query/write 和单文件保存。
+- [JSON 文档编辑](modules/json-editor.md)：说明 Mod 信息、势力、战役、装配与皮肤的文档会话、草稿历史、共同列表与宿主、类型规则及统一保存。
 - [Spec 舰船编辑器](modules/spec-ship-editor.md)：说明 `.ship` 画布注入、槽位、引擎、shield、贴图引用选择与独立窗口保存。
 - [Spec 武器编辑器](modules/spec-weapon-editor.md)：说明武器编辑、依赖读取、资源及预览快照交付。
 - [Spec 弹体编辑器](modules/spec-projectile-editor.md)：说明弹体与导弹字段、引擎、规格查询及保存交接。

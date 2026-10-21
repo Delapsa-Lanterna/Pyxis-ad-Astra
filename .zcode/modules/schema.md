@@ -32,6 +32,7 @@
 - `src/domain/schema/`：字段模式加载、结构、来源、值及展示纯规则。
 - `src/domain/schema/config-schema-registry.ts`：配置 schema 的同步查询入口。
 - `src/domain/schema/csv-schema-registry.ts`：CSV 列 schema 的同步查询入口。
+- `src/domain/schema/csv-source-options.ts`：CSV 字段来源选项与分组投影。
 - `src/domain/schema/mod-info-schema.ts`：配置与新建 Mod 消费的 Mod 信息资产入口。
 - `src/domain/schema/schema-asset-parser.ts`：字段与列资产的版本、形状及来源校验。
 - `src/domain/schema/schema-core-fields.ts`：原版字段合并。
@@ -40,7 +41,6 @@
 - `src/domain/schema/schema-sections.ts`：section 投影与折叠标识。
 - `src/domain/schema/schema-values.ts`：字段值转换，拥有标量、kv 条目与业务归一化规则。
 - `src/domain/schema/schema.types.ts`：schema 输出类型，拥有字段/控件闭合枚举与 FileSchema/FieldSchema/列 schema 形状。
-- `src/domain/tables/csv-source-options.ts`：CSV 字段来源选项与分组投影。
 - `src/services/source-options.service.ts`：来源目录协议、查询身份与性能记录。
 
 ### 消费

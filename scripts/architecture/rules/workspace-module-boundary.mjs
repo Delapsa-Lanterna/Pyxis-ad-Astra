@@ -6,7 +6,7 @@ const oldWorkspaceNames = ['modList', 'modCount', 'hasAnyMod', 'setGameWorkspace
 const directWorkspaceWrites = [
   { name: 'activeModRoot', pattern: /\bworkspace\.activeModRoot\s*=(?!=)/ },
   { name: 'currentView', pattern: /\bworkspace\.currentView\s*=(?!=)/ },
-  { name: 'configView', pattern: /\bworkspace\.configView\s*=(?!=)/ },
+  { name: 'jsonPage', pattern: /\bworkspace\.jsonPage\s*=(?!=)/ },
 ];
 const oldWorkspaceCalls = [
   { name: 'removeMod', pattern: /\bworkspace\.removeMod\s*\(/ },
@@ -15,7 +15,8 @@ const oldWorkspaceCalls = [
   { name: 'setActiveConfig', pattern: /\bworkspace\.setActiveConfig\s*\(/ },
   { name: 'navigateTo', pattern: /\bworkspace\.navigateTo\s*\(/ },
 ];
-const componentActivationCalls = /\bworkspace\.(?:activateModOverview|activateModTable|activateModConfig|activateModFiles)\s*\(/;
+const componentActivationCalls =
+  /\bworkspace\.(?:activateModOverview|activateModTable|activateModJson|activateModFileHistory|activateModFiles)\s*\(/;
 const directoryOpeningDetails = /\b(?:openModProjectManifest|hydrateOpenedModRuntime|rollbackFailedModOpening)\b/;
 const lifecycleDetailCalls = /\b(?:invalidateQueryCacheForSession|invalidateResourceMediaForSession|closeProject)\b/;
 

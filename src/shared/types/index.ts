@@ -91,7 +91,7 @@ export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shar
 export type { AppLogEntry, AppLogLevel, AppLogStatus, AppendAppLogPayload } from '@/shared/types/app-log.types';
 export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
 export type { FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot } from '@/shared/types/file-changes.types';
-export type { CsvDraftOperation, CsvEditHistoryEntry } from '@/shared/types/tables-edit-history.types';
+export type { CsvDraftOperation, CsvTableHistoryEntry } from '@/shared/types/csv-table-history.types';
 export type {
   FileHistoryEntrySummary,
   FileHistorySnapshot,
@@ -118,18 +118,15 @@ export type {
   SynchronizeCommittedWritePayload,
 } from '@/shared/types/write-commit.types';
 export type {
-  ConfigFamilyFile,
-  ConfigFamilyEntityPayload,
-  DeleteConfigFamilyEntityPayload,
+  JsonEntityFile,
+  JsonEntityFilePayload,
+  DeleteJsonEntityFilePayload,
   VariantFile,
   SkinFile,
-} from '@/shared/types/config-family.types';
+} from '@/shared/types/json-file.types';
 export type {
-  ConfigSaveIdentity,
-  ConfigIdentityHandoff,
   SavedConfig,
   ConfigEditTarget,
-  ConfigMissionEditorData,
   IndexedConfigEntityData,
   IndexedConfigEntityRefresh,
   IndexedConfigKind,
@@ -143,6 +140,8 @@ export type {
   CsvRow,
   CsvRowRecord,
   CsvCellTarget,
+  CsvModState,
+  CsvTableState,
   CsvTableTarget,
   CsvSearchField,
   CsvRowPreview,
@@ -194,14 +193,7 @@ export type {
   FollowTextIdentityPayload,
 } from '@/shared/types/file-editor.types';
 export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';
-export type {
-  ConfigView,
-  ModEntry,
-  ModOpeningFailure,
-  ModOpeningFailureFile,
-  ModTableState,
-  WorkspaceView,
-} from '@/shared/types/workspace.types';
+export type { JsonEditorPageId, ModEntry, ModOpeningFailure, ModOpeningFailureFile, WorkspaceView } from '@/shared/types/workspace.types';
 export type {
   PersistedMod,
   PersistedWorkspace,
@@ -223,3 +215,5 @@ export type {
   LoadImportedEditorSpecPayload,
   SaveEditorSpecPayload,
 } from '@/shared/types/spec-editor.types';
+
+export type * from '@/shared/types/json-recovery.types';

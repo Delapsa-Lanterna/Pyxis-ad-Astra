@@ -3,7 +3,7 @@ import type { HullReferencesResult, HullReferencesPayload, DeepReadonly } from '
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery } from '@/services/query-cache.service';
 import { measurePerformanceAsync } from '@/shared/runtime/performance';
-import { hullReferenceOptions, builtInWeaponSlotOptions } from '@/domain/config/hull-references';
+import { hullReferenceOptions, builtInWeaponSlotOptions } from '@/domain/resources/hull-references';
 
 const readHullReferences = createCachedSessionQuery<Omit<HullReferencesPayload, 'sessionId'>, HullReferencesResult>({
   queryKind: 'hull-references',

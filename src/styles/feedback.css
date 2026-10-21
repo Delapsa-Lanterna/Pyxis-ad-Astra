@@ -5,7 +5,7 @@
     color var(--ui-feedback-duration) var(--ui-feedback-easing);
 }
 .overview-mod-card,
-.config-entity-list-item,
+.json-entity-list-item,
 .mod-tab,
 .mod-navigation-button,
 .titlebar-button,

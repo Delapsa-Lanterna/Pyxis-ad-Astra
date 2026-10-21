@@ -5,7 +5,7 @@ use super::super::{
 };
 use super::csv_staging::CsvTableDraft;
 use crate::{
-    domain::{config::validate_config_id, editor_config_definitions::entity_spec_definition},
+    domain::{entity_definitions::entity_spec_definition, entity_identity::validate_entity_id},
     errors::{AppError, AppResult},
     io::{FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, read_json_file},
     models::{
@@ -38,7 +38,7 @@ pub fn save_variant_entity(
         .get("variantId")
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::message("spec.id_mismatch", "装配数据缺少 variantId"))?;
-    if validate_config_id(content_id, "装配ID无效")? != validate_config_id(next_id, "装配ID无效")?
+    if validate_entity_id(content_id, "装配ID无效")? != validate_entity_id(next_id, "装配ID无效")?
     {
         return Err(AppError::message(
             "spec.id_mismatch",
@@ -56,7 +56,7 @@ pub fn save_variant_entity(
         .refreshed_entity
         .as_ref()
         .expect("variant save returns data");
-    let refreshed = crate::domain::config::build_variant_file(
+    let refreshed = crate::domain::json_documents::build_variant_file(
         Path::new(&after.write.root),
         &after.write.rel_path,
         content,
@@ -81,7 +81,7 @@ pub fn save_entity_text(
         .ok_or_else(|| {
             AppError::message("spec.id_missing", format!("缺少 {}", definition.id_field))
         })?;
-    let id = validate_config_id(raw_id, definition.invalid_id_message)?;
+    let id = validate_entity_id(raw_id, definition.invalid_id_message)?;
     let text = if raw_id == id {
         text
     } else {
@@ -187,7 +187,7 @@ pub(in crate::services::project) fn stage_entity_content(
         .ok_or_else(|| {
             AppError::message("spec.id_missing", format!("缺少 {}", definition.id_field))
         })?;
-    let next_id = validate_config_id(next_id, definition.invalid_id_message)?.to_string();
+    let next_id = validate_entity_id(next_id, definition.invalid_id_message)?.to_string();
     data[definition.id_field] = Value::String(next_id.clone());
     if target.kind == EntityKind::Variant {
         crate::domain::joint_hull::rename_module_reference(&mut data, &target.id, &next_id);
@@ -236,10 +236,10 @@ pub(in crate::services::project) fn stage_entity_content(
     let destination = boundary.resolve_relative_target(&next_rel, "entity target")?;
     match target.kind {
         EntityKind::Variant => {
-            crate::domain::config::build_variant_file(boundary.root(), &next_rel, &data)?;
+            crate::domain::json_documents::build_variant_file(boundary.root(), &next_rel, &data)?;
         }
         EntityKind::Skin => {
-            crate::domain::config::build_skin_file(boundary.root(), &next_rel, &data)?;
+            crate::domain::json_documents::build_skin_file(boundary.root(), &next_rel, &data)?;
         }
         _ => {}
     }
@@ -379,7 +379,7 @@ mod tests {
             EntityKind::Skill,
         ] {
             let definition =
-                crate::domain::editor_config_definitions::entity_spec_definition(kind).unwrap();
+                crate::domain::entity_definitions::entity_spec_definition(kind).unwrap();
             let table = definition.csv_table.unwrap();
             let root = temp_dir(&format!("identity_comment_{kind:?}"));
             std::fs::create_dir_all(root.join(definition.dir)).unwrap();

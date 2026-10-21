@@ -5,14 +5,14 @@ import { workspaceModuleBoundaryRule } from './rules/workspace-module-boundary.m
 
 test('workspace activation has its production navigation owner', () => {
   const files = architectureFixtures({
-    'src/app/components/tables/Surface.vue': '<script setup lang="ts">workspace.activateModTable("M:/A");</script>',
+    'src/app/components/csv-editor/Surface.vue': '<script setup lang="ts">workspace.activateModTable("M:/A");</script>',
   });
   assert.equal(workspaceModuleBoundaryRule.check(files).length, 1);
 });
 
 test('a colocated input lifecycle test may construct its workspace fixture', () => {
   const files = architectureFixtures({
-    'src/app/components/tables/input-lifecycle.spec.ts': 'workspace.activateModTable("M:/A");',
+    'src/app/components/csv-editor/input-lifecycle.spec.ts': 'workspace.activateModTable("M:/A");',
   });
   assert.deepEqual(workspaceModuleBoundaryRule.check(files), []);
 });

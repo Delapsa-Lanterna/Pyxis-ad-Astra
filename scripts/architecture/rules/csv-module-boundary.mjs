@@ -30,5 +30,8 @@ export const csvModuleBoundaryRule = {
 
 /** @param {string} text @param {import('../../shared/classify.mjs').FrontendPathClass} current @returns {boolean} */
 function isCsvGridSurface(text, current) {
-  return current.layer === 'app' && (current.domain === 'tables' || /\bCsvGrid\b/.test(text));
+  return (
+    current.layer === 'app' &&
+    ((current.domain === 'csv-editor' && current.path.split('/').at(-1)?.startsWith('CsvGrid')) || /\bCsvGrid\b/.test(text))
+  );
 }

@@ -19,14 +19,14 @@
 - `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
-- `src/app/composables/tables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
 - `src/app/composables/use-resource-images.ts`：场景与图片展示的解码引用和迟到接纳。
 - `src/app/composables/use-resource-media-registry.ts`：持有集合差量、业务引用、媒体租约与所属反馈。
 - `src/app/composables/use-resource-thumbnail.ts`：交付普通缩略图需求与静态成品展示生命周期。
+- `src/app/composables/use-schema-select-media.ts`：当前选项图片、超额结果及菜单释放。
 - `src/app/composables/use-thumbnail-preload.ts`：可见优先与邻近预读队列的资源集合消费。
 - `src/app/composables/use-visible-resource-media.ts`：可视区媒体解析。
 - `src/app/composables/use-window-image-runtime.ts`：窗口图片、成品、代次、引用与预读并发。
-- `src/domain/config/hull-references.ts`：选项及内置槽位的纯投影。
+- `src/domain/resources/hull-references.ts`：选项及内置槽位的纯投影。
 - `src/services/engine-assets.service.ts`：通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
 - `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
 - `src/services/resource-media-query.spec.ts`：验证完整批次、物理共享、失效和一次性查询。

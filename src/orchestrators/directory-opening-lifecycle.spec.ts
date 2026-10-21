@@ -41,8 +41,8 @@ vi.mock('@/services/workspace-state.service', () => ({
   loadPersistedWorkspace: mocks.loadPersistedWorkspace,
   savePersistedWorkspace: vi.fn(async () => {}),
 }));
-vi.mock('@/stores/tables.store', () => ({
-  useTablesStore: () => ({ initializeModTables: mocks.initializeModTables, removeModState: vi.fn() }),
+vi.mock('@/stores/csv-editor.store', () => ({
+  useCsvEditorStore: () => ({ initializeModTables: mocks.initializeModTables, removeModState: vi.fn() }),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 

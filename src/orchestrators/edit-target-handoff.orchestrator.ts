@@ -129,10 +129,14 @@ async function prepareLocalTargets(
   for (const handle of dirty) {
     const expected = handle.targetKey.value;
     if (!isActive() || !commands.isSessionRegistered(handle) || expected !== expectedKeys.get(handle)) return null;
-    const saved = await commands.savePreparedParticipant(handle);
-    if (!saved.saved || (handle.targetKey.value !== expected && !saved.receipt?.identityChanges.length)) return null;
+    const saved = await commands.savePreparedParticipant(handle, excludeTargetKey);
+    if (
+      saved.status === 'cancelled' ||
+      (handle.targetKey.value !== expected && (saved.status !== 'saved' || !saved.receipt.identityChanges.length))
+    )
+      return null;
     expectedKeys.set(handle, handle.targetKey.value);
-    if (saved.receipt) receipts.push(saved.receipt);
+    if (saved.status === 'saved') receipts.push(saved.receipt);
     if (handle.editing!.dirty.value)
       throw new AppError('相关编辑面在保存期间继续编辑，请完成编辑后重试', { action: 'prepare-edit-targets', code: 'joint.new_edits' });
   }

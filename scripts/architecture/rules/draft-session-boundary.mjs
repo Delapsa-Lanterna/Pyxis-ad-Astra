@@ -42,11 +42,11 @@ export const draftSessionBoundaryRule = {
         const onlyTargetComparison = imported.bindings.every((binding) => binding.importedName === 'editTargetsOverlap');
         if (isEditSessionPrimitive(target) && !isEditSessionAdapter(current) && !(overlapConsumer && onlyTargetComparison)) {
           failures.push(
-            `${file.rel}: edit session primitives must be consumed through their adapters (use-draft-session, use-snapshot-history, file-history store, tables-edit-history store)`,
+            `${file.rel}: edit session primitives must be consumed through their adapters (use-draft-session, use-snapshot-history, file-history store, csv-editor store)`,
           );
         }
-        if (target.domain === 'config-editor-draft-session' && current.role === 'component' && current.domain === 'config') {
-          failures.push(`${file.rel}: config editor components must consume editor ViewModel output, not config draft session`);
+        if (target.domain === 'json-document-session' && current.role === 'component' && current.domain === 'json-editor') {
+          failures.push(`${file.rel}: JSON editor components must consume editor ViewModel output, not JSON document session`);
         }
         if (current.domain === 'edit-target-draft-session' && ownsBusinessDependency(target)) {
           failures.push(
@@ -58,8 +58,8 @@ export const draftSessionBoundaryRule = {
       if (isBusinessEditingModule(current) && legacyDraftTerms.some((term) => file.text.includes(term))) {
         failures.push(`${file.rel}: editing modules must not keep legacy manual draft state or old draft primitive methods`);
       }
-      if (current.role === 'component' && current.domain === 'config' && targetSessionTerms.some((term) => file.text.includes(term))) {
-        failures.push(`${file.rel}: config editor components must not own edit target draft session actions`);
+      if (current.role === 'component' && current.domain === 'json-editor' && targetSessionTerms.some((term) => file.text.includes(term))) {
+        failures.push(`${file.rel}: JSON editor components must not own edit target draft session actions`);
       }
     }
     return failures;
@@ -83,7 +83,7 @@ function isEditSessionAdapter(current) {
     (current.layer === 'app' &&
       current.role === 'composable' &&
       (current.domain === 'draft-session' || current.domain === 'snapshot-history')) ||
-    (current.layer === 'stores' && (current.domain === 'file-history' || current.domain === 'tables-edit-history'))
+    (current.layer === 'stores' && (current.domain === 'file-history' || current.domain === 'csv-editor'))
   );
 }
 
@@ -91,8 +91,8 @@ function isEditSessionAdapter(current) {
 function isBusinessEditingModule(current) {
   if (current.layer !== 'app') return false;
   return (
-    current.domain === 'config' ||
-    current.domain === 'config-mod-info-view-model' ||
+    current.domain === 'json-editor' ||
+    current.domain === 'json-mod-info-view-model' ||
     current.domain === 'editor-window-view-model' ||
     current.domain === 'file-editor-view-model'
   );

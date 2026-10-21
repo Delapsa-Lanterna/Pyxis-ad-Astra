@@ -1,6 +1,3 @@
-import type { CsvTableKey } from '@/shared/types/project-identity.types';
-import type { CsvDirtyRow, CsvSearchField, CsvDraftRow, CsvCellTarget } from '@/shared/types/tables.types';
-
 /** Metadata for one imported Mod in the workspace */
 export interface ModEntry {
   modRoot: string;
@@ -23,29 +20,8 @@ export interface ModOpeningFailure {
   file: ModOpeningFailureFile | null;
 }
 
-/** Per-Mod table state — fully isolated from other Mods */
-export interface ModTableState {
-  rowOrders: Record<CsvTableKey, string[]>;
-  originalRowOrders: Record<CsvTableKey, string[]>;
-  queryRowKeys: Partial<Record<CsvTableKey, string[]>>;
-  baseVersions: Record<CsvTableKey, import('@/shared/types/project-identity.types').FileVersion[]>;
-  tables: Record<CsvTableKey, Record<string, CsvDraftRow>>;
-  originalTables: Record<CsvTableKey, Record<string, CsvDraftRow>>;
-  headers: Record<CsvTableKey, string[]>;
-  totalRows: Record<CsvTableKey, number>;
-  filteredRows: Record<CsvTableKey, number>;
-  dirty: Record<CsvTableKey, Record<string, CsvDirtyRow>>;
-  pendingExternalTableUpdates: Record<CsvTableKey, boolean>;
-  currentTab: CsvTableKey;
-  searchField: CsvSearchField;
-  searchText: string;
-  selectedRowKey: string | null;
-  editing: CsvCellTarget | null;
-  nextRowKey: number; // Per-mod row key counter to prevent collisions
-}
-
 /** Which main-content view is shown */
-export type WorkspaceView = 'overview' | 'table' | 'settings' | 'config' | 'about' | 'mod-files';
+export type WorkspaceView = 'overview' | 'table' | 'settings' | 'mod-overview' | 'file-history' | 'json-editor' | 'about' | 'mod-files';
 
-/** Which config sub-view is shown when currentView === 'config' */
-export type ConfigView = 'mod-overview' | 'file-history' | 'mod-info' | 'factions' | 'skins' | 'variants' | 'mission';
+/** Which JSON document is shown when currentView === 'json-editor' */
+export type JsonEditorPageId = 'mod-info' | 'factions' | 'skins' | 'variants' | 'mission';

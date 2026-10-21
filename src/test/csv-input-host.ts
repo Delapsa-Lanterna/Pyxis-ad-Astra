@@ -1,8 +1,8 @@
 import { h, ref, type Component } from 'vue';
 import { mount, type MountingOptions } from '@vue/test-utils';
-import { provideCsvTableInputs } from '@/app/composables/tables/use-csv-table-inputs';
+import { provideCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
-import { provideCsvGridMedia } from '@/app/composables/tables/use-csv-grid-media';
+import { provideCsvGridMedia } from '@/app/composables/csv-editor/use-csv-grid-media';
 import { resourceMediaDataUrl } from '@/services/resource-media.service';
 import type { CsvCellTarget, CsvTableTarget } from '@/shared/types';
 

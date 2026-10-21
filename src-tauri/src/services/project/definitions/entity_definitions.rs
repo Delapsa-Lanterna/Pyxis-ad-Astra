@@ -19,16 +19,18 @@ use super::{
     table_definitions::csv_table_icon_resource_ref,
 };
 use crate::services::project::sources::core::load_core_variant_files;
-use crate::services::project::sources::families::{load_skin_files_from, load_variant_files_from};
+use crate::services::project::sources::json_documents::{
+    load_skin_files_from, load_variant_files_from,
+};
 use crate::{
-    domain::config::{path_affects_target, path_is_or_in_dir},
-    domain::editor_config_definitions::{
+    domain::entity_definitions::{
         EntitySpecDefinition, FACTION_SPEC_DEFINITION, PROJECTILE_SPEC_DEFINITION,
         SHIP_SPEC_DEFINITION, SKILL_SPEC_DEFINITION, SKIN_SPEC_DEFINITION, SYSTEM_SPEC_DEFINITION,
         VARIANT_SPEC_DEFINITION, WEAPON_SPEC_DEFINITION,
         associated_spec_definition as domain_associated_spec_definition,
         associated_spec_tables as domain_associated_spec_tables,
     },
+    domain::entity_identity::{path_affects_target, path_is_or_in_dir},
     errors::{AppError, AppResult},
     io::read_json_file,
     models::{
@@ -685,7 +687,7 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
     else {
         return Ok(None);
     };
-    let clean = crate::domain::config::validate_config_id(id, "无效战役 ID")?;
+    let clean = crate::domain::entity_identity::validate_entity_id(id, "无效战役 ID")?;
     let dir = Path::new(&session.manifest.mod_root)
         .join("data/missions")
         .join(clean);
@@ -720,7 +722,7 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
 }
 
 fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Option<ResourceRef>> {
-    let clean = crate::domain::config::validate_config_id(id, "无效战役 ID")?;
+    let clean = crate::domain::entity_identity::validate_entity_id(id, "无效战役 ID")?;
     let descriptor_path = Path::new(&session.manifest.mod_root)
         .join("data/missions")
         .join(clean)

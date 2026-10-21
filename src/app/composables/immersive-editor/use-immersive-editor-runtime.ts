@@ -26,7 +26,7 @@ import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { AppError, formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { querySessionHullReferences } from '@/services/hull-reference.service';
-import { hullReferenceSourceGroups } from '@/domain/config/hull-references';
+import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
 
 export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   root: JointEditRoot & { rowKey?: string },

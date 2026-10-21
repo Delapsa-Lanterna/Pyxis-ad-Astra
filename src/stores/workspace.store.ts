@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type {
-  ConfigView,
+  JsonEditorPageId,
   GameOverviewData,
   GameScanWarning,
   ModEntry,
@@ -15,12 +15,12 @@ import { gameModsDirectoryPath } from '@/shared/lib/paths';
 import { useProjectStore } from '@/stores/project.store';
 
 interface ModNavigationContext {
-  configView: ConfigView;
-  currentView: Extract<WorkspaceView, 'config' | 'table' | 'mod-files'>;
+  jsonPage: JsonEditorPageId;
+  currentView: Extract<WorkspaceView, 'mod-overview' | 'file-history' | 'json-editor' | 'table' | 'mod-files'>;
 }
 
 function createDefaultModNavigationContext(): ModNavigationContext {
-  return { currentView: 'config', configView: 'mod-overview' };
+  return { currentView: 'mod-overview', jsonPage: 'mod-info' };
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -31,7 +31,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   let workspaceGeneration = 0;
   const activeModRoot = ref<string | null>(null);
   const currentView = ref<WorkspaceView>('overview');
-  const configView = ref<ConfigView>('mod-overview');
+  const jsonPage = ref<JsonEditorPageId>('mod-info');
   const modNavigationContexts = ref<Map<string, ModNavigationContext>>(new Map());
   const gameOverview = ref<GameOverviewData | null>(null);
   const modOpeningFailures = ref<Map<string, ModOpeningFailure>>(new Map());
@@ -40,7 +40,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeMod = computed(() => (activeModRoot.value ? (mods.value.get(activeModRoot.value) ?? null) : null));
   const activeManifest = computed(() => (activeModRoot.value ? project.getManifest(activeModRoot.value) : null));
   const activeSessionId = computed(() => activeManifest.value?.sessionId ?? null);
-  const isModView = computed(() => currentView.value === 'config' || currentView.value === 'table' || currentView.value === 'mod-files');
+  const isModView = computed(() => ['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'].includes(currentView.value));
   const loadedModList = computed(() => [...mods.value.values()]);
   const loadedModCount = computed(() => mods.value.size);
   const hasLoadedMods = computed(() => mods.value.size > 0);
@@ -108,12 +108,22 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (activeModRoot.value === modRoot) {
       activeModRoot.value = null;
       currentView.value = 'overview';
-      configView.value = 'mod-overview';
+      jsonPage.value = 'mod-info';
     }
   }
 
   function activateModOverview(modRoot: string) {
-    activateModConfig(modRoot, 'mod-overview');
+    if (!mods.value.has(modRoot)) return;
+    activeModRoot.value = modRoot;
+    currentView.value = 'mod-overview';
+    updateModNavigationContext(modRoot, { currentView: 'mod-overview' });
+  }
+
+  function activateModFileHistory(modRoot: string) {
+    if (!mods.value.has(modRoot)) return;
+    activeModRoot.value = modRoot;
+    currentView.value = 'file-history';
+    updateModNavigationContext(modRoot, { currentView: 'file-history' });
   }
 
   function activateModTable(modRoot: string) {
@@ -130,12 +140,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updateModNavigationContext(modRoot, { currentView: 'mod-files' });
   }
 
-  function activateModConfig(modRoot: string, view: ConfigView) {
+  function activateModJson(modRoot: string, page: JsonEditorPageId) {
     if (!mods.value.has(modRoot)) return;
     activeModRoot.value = modRoot;
-    currentView.value = 'config';
-    configView.value = view;
-    updateModNavigationContext(modRoot, { currentView: 'config', configView: view });
+    currentView.value = 'json-editor';
+    jsonPage.value = page;
+    updateModNavigationContext(modRoot, { currentView: 'json-editor', jsonPage: page });
   }
 
   function activateModTab(modRoot: string) {
@@ -143,7 +153,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const context = modNavigationContexts.value.get(modRoot) ?? createDefaultModNavigationContext();
     activeModRoot.value = modRoot;
     currentView.value = context.currentView;
-    configView.value = context.configView;
+    jsonPage.value = context.jsonPage;
   }
 
   function showOverview() {
@@ -175,7 +185,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
     activeModRoot.value = null;
     currentView.value = 'overview';
-    configView.value = 'mod-overview';
+    jsonPage.value = 'mod-info';
     columnWidths.value = persisted.columnWidths;
     if (persisted.starsectorRoot) {
       gameOverview.value = {
@@ -232,7 +242,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeManifest,
     activeSessionId,
     activateModTab,
-    configView,
+    jsonPage,
     currentView,
     gameOverview,
     hasGameWorkspace,
@@ -244,7 +254,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     modOpeningFailureList,
     modOpeningFailures,
     mods,
-    activateModConfig,
+    activateModFileHistory,
+    activateModJson,
     activateModFiles,
     activateModOverview,
     activateModTable,

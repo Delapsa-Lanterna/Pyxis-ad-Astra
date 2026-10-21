@@ -1,3 +1,4 @@
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { flushPromises, mount } from '@vue/test-utils';
 import { h } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +23,7 @@ async function harness(clearAction: 'remove' | 'required' = 'remove', integer = 
           load: (target) => ({ target, value: { count: 4 }, baseVersions: [], meta: null }),
           save,
         });
+        provideFieldInputs(session.inputs);
         return () =>
           h(NumberValueInput, {
             value: session.draftValue.value.count,

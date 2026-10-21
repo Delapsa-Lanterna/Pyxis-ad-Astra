@@ -26,7 +26,7 @@
 ### 关联
 
 - `src-tauri/src/services/config_entity.rs`：Mod 信息与战役目录保存的格式消费者。
-- `src-tauri/src/services/config_family.rs`：装配与皮肤文件保存的格式消费者。
+- `src-tauri/src/services/json_file.rs`：装配与皮肤文件保存的格式消费者。
 - `src-tauri/src/services/spec_editor.rs`：外部规格导入的格式消费者。
 
 ## 边界

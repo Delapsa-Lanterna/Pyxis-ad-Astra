@@ -1,6 +1,31 @@
 import type { ProjectSessionId, ResourceRef, CsvTableKey } from '@/shared/types/project-identity.types';
 import type { RowData } from '@/shared/types/json.types';
 
+export interface CsvTableState {
+  table: CsvTableKey;
+  nextRowKey: number;
+  rowOrder: string[];
+  baselineRowOrder: string[];
+  queryRowKeys?: string[];
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  rows: Record<string, CsvDraftRow>;
+  baselineRows: Record<string, CsvDraftRow>;
+  header: string[];
+  totalRowCount: number;
+  filteredRowCount: number;
+  dirty: Record<string, CsvDirtyRow>;
+  externalUpdatePending: boolean;
+}
+
+export interface CsvModState {
+  documents: Record<CsvTableKey, CsvTableState>;
+  currentTab: CsvTableKey;
+  searchField: CsvSearchField;
+  searchText: string;
+  selectedRowKey: string | null;
+  editing: CsvCellTarget | null;
+}
+
 export interface CsvTableTarget {
   sessionId: string;
   modRoot: string;

@@ -54,6 +54,13 @@ pub(in crate::services::project) fn load_faction_files_from(
     let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
     let mut defs = BTreeMap::new();
     for entry in crate::io::faction_index_entries(&boundary, &table)? {
+        if !entry.path.exists() {
+            sources.versions.insert(
+                sources.key(&entry.path),
+                crate::io::file_version(&entry.path)?,
+            );
+            continue;
+        }
         let (id, obj) = faction_object(&entry, sources.json(&entry.path)?)?;
         let rel_path = forward_slash_path(
             entry

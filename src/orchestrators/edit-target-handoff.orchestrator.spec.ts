@@ -58,7 +58,7 @@ beforeEach(() => {
   };
 });
 function participant(
-  options: { dirty?: boolean; save?: () => Promise<{ saved: boolean; receipt: ReturnType<typeof savedWriteFixture> | null }> } = {},
+  options: { dirty?: boolean; save?: () => Promise<import('@/shared/runtime/document-editor').DocumentSaveResult> } = {},
 ) {
   const dirty = ref(options.dirty ?? true),
     pending = ref(false),
@@ -70,7 +70,7 @@ function participant(
       (async () => {
         order.push('save');
         dirty.value = false;
-        return { saved: true, receipt: savedWriteFixture() };
+        return { status: 'saved' as const, receipt: savedWriteFixture() };
       }),
   );
   const commit = vi.fn(() => {
@@ -232,7 +232,7 @@ describe('edit target handoff', () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
   });
   it('ends preparation when saving produced new edits', async () => {
-    participant({ save: async () => ({ saved: true, receipt: savedWriteFixture() }) });
+    participant({ save: async () => ({ status: 'saved' as const, receipt: savedWriteFixture() }) });
     const action = vi.fn(async () => true);
     await expect(withEditTargetHandoff([target], feedback, action)).rejects.toMatchObject({ code: 'joint.new_edits' });
     expect(action).not.toHaveBeenCalled();

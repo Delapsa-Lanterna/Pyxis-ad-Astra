@@ -42,7 +42,6 @@ export function useSpecEditorWindowViewModel(
   },
   definition: SpecEditorDefinition<SpecEditorData>,
 ) {
-  const completedLocalWrites = new Set<number>();
   const feedback = useAppFeedback();
   let missingSpecIntent: object | null = null;
   let identityPreparation: Awaited<ReturnType<typeof createEntitySavePreparation>> | null = null;
@@ -113,14 +112,13 @@ export function useSpecEditorWindowViewModel(
           }
           return submit(target);
         }),
-      afterSaved: async (snapshot) => {
+      acceptSaved: async (snapshot) => {
+        await identityPreparation!.finish();
+        await retargetEntityWindow(snapshot.target.sessionId, snapshot.target.modRoot, snapshot.target.kind, snapshot.target.id);
+        await releaseCommittedIdentityTargets();
+      },
+      synchronizeSaved: async (snapshot) => {
         const result = snapshot.meta.receipt!;
-        if (!completedLocalWrites.has(result.commitId)) {
-          await identityPreparation!.finish();
-          await retargetEntityWindow(snapshot.target.sessionId, snapshot.target.modRoot, snapshot.target.kind, snapshot.target.id);
-          await releaseCommittedIdentityTargets();
-          completedLocalWrites.add(result.commitId);
-        }
         await emitEditorSpecSaved({
           kind: snapshot.target.kind,
           sessionId: snapshot.target.sessionId,
@@ -153,7 +151,7 @@ export function useSpecEditorWindowViewModel(
       draftSession: draftSession,
       save: async () => {
         const snapshot = await draftSession.saveDraft();
-        return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
+        return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
       },
     },
   });
@@ -422,6 +420,7 @@ export function useSpecEditorWindowViewModel(
   }
 
   return {
+    inputs: draftSession.inputs,
     refresh: (resources: readonly import('@/shared/types/index').InvalidatedResourceScope[]) =>
       refreshProjectSourcePaths(
         params.sessionId!,

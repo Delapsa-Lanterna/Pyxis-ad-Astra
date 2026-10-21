@@ -1,5 +1,5 @@
 import type { JointEditSnapshot, JointEditRecord } from '@/shared/types';
-import { variantModuleEntries } from '@/domain/config/config-entities';
+import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 import { jointObject } from '@/domain/joint-edit';
 
 export function immersiveSourceRecords(snapshot: JointEditSnapshot): {

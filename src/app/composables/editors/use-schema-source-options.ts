@@ -2,7 +2,7 @@ import { onUnmounted, ref, watch } from 'vue';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
-import { isCsvSource } from '@/domain/tables/csv-source-options';
+import { isCsvSource } from '@/domain/schema/csv-source-options';
 import type { ResourceRef } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';

@@ -28,19 +28,19 @@ describe('buildModNavigationSections', () => {
 
   it('keeps workspace and mod-info entries without counts', () => {
     const byId = new Map(sections().map((section) => [section.id, section]));
-    expect(byId.get('workspace')?.items.map((item) => item.id)).toEqual(['config:mod-overview', 'mod-files', 'config:file-history']);
+    expect(byId.get('workspace')?.items.map((item) => item.id)).toEqual(['mod-overview', 'mod-files', 'file-history']);
     expect(byId.get('workspace')?.items.every((item) => item.count === null)).toBe(true);
-    expect(byId.get('mod-info')?.items.map((item) => item.id)).toEqual(['config:mod-info']);
+    expect(byId.get('mod-info')?.items.map((item) => item.id)).toEqual(['json:mod-info']);
   });
 
-  it('reads config counts from the manifest entity summaries', () => {
+  it('reads JSON counts from the manifest entity summaries', () => {
     const byId = new Map(sections().map((section) => [section.id, section]));
     const combat = byId.get('combat')!;
     const campaign = byId.get('campaign')!;
-    expect(combat.items.find((item) => item.id === 'config:skins')?.count).toBe(2);
-    expect(combat.items.find((item) => item.id === 'config:variants')?.count).toBe(3);
-    expect(campaign.items.find((item) => item.id === 'config:factions')?.count).toBe(4);
-    expect(campaign.items.find((item) => item.id === 'config:mission')?.count).toBe(5);
+    expect(combat.items.find((item) => item.id === 'json:skins')?.count).toBe(2);
+    expect(combat.items.find((item) => item.id === 'json:variants')?.count).toBe(3);
+    expect(campaign.items.find((item) => item.id === 'json:factions')?.count).toBe(4);
+    expect(campaign.items.find((item) => item.id === 'json:mission')?.count).toBe(5);
   });
 
   it('reads table counts from the manifest table summaries and labels them', () => {
@@ -59,19 +59,21 @@ describe('buildModNavigationSections', () => {
 });
 
 describe('isModNavigationItemActive', () => {
-  it('activates config items only for the matching config view', () => {
+  it('activates workspace and JSON items only for their matching view', () => {
     const item = sections()[0]!.items[0]!;
-    expect(isModNavigationItemActive(item, 'config', 'mod-overview', 'ships')).toBe(true);
-    expect(isModNavigationItemActive(item, 'config', 'factions', 'ships')).toBe(false);
-    expect(isModNavigationItemActive(item, 'table', 'mod-overview', 'ships')).toBe(false);
+    expect(isModNavigationItemActive(item, 'mod-overview', 'mod-info', 'ships')).toBe(true);
+    expect(isModNavigationItemActive(item, 'file-history', 'mod-info', 'ships')).toBe(false);
+    const jsonItem = sections()[1]!.items[0]!;
+    expect(isModNavigationItemActive(jsonItem, 'json-editor', 'mod-info', 'ships')).toBe(true);
+    expect(isModNavigationItemActive(jsonItem, 'json-editor', 'factions', 'ships')).toBe(false);
   });
 
   it('activates table items only for the matching table', () => {
     const item = sections()
       .find((section) => section.id === 'combat')!
       .items.find((entry) => entry.id === 'table:ships')!;
-    expect(isModNavigationItemActive(item, 'table', 'mod-overview', 'ships')).toBe(true);
-    expect(isModNavigationItemActive(item, 'table', 'mod-overview', 'weapons')).toBe(false);
-    expect(isModNavigationItemActive(item, 'config', 'mod-overview', 'ships')).toBe(false);
+    expect(isModNavigationItemActive(item, 'table', 'mod-info', 'ships')).toBe(true);
+    expect(isModNavigationItemActive(item, 'table', 'mod-info', 'weapons')).toBe(false);
+    expect(isModNavigationItemActive(item, 'mod-overview', 'mod-info', 'ships')).toBe(false);
   });
 });

@@ -14,11 +14,13 @@
 - `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
 - `src/app/components/OverviewPage.vue`：工作区概览、已载入 Mod 与游戏扫描组合。
-- `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和草稿确认交接。
+- `src/app/components/workspace/WorkspaceModOverview.vue`：Mod 信息、目录、资源和数据摘要展示。
+- `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
 - `src/app/composables/workspace-shell-lifecycle.spec.ts`：工作区恢复、监听及卸载行为验证。
 - `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
+- `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
 - `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
 - `src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航，同步跨 store 运行态。
@@ -30,8 +32,10 @@
 ### 消费
 
 - `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
+- `src/app/components/file-history/WorkspaceFileHistory.vue`：文件历史页面与回放交互。
+- `src/app/components/json-editor/JsonEditorWorkspace.vue`：展示当前 JSON 页面并消费所属文档运行态。
 - `src/shared/types/workspace-persistence.types.ts`：工作区保存请求、目录、Mod、扫描结果及列宽快照。
-- `src/shared/types/workspace.types.ts`：工作区页面、Mod 与表格运行态契约。
+- `src/shared/types/workspace.types.ts`：工作区页面与 Mod 导航契约。
 - `src/stores/project.store.ts`：按 Mod 根查询正式清单与 session，当前项目投影消费原清单引用。
 
 ### 关联
@@ -40,6 +44,9 @@
 
 ## 边界
 
+- JSON 会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
+- JSON 文档运行态归所属模块，工作区持有当前 JSON 页面和每 Mod 导航记忆。
+- Mod 概览、文件历史和 JSON 编辑使用独立工作区视图，业务侧栏消费各自导航目标。
 - Mod 页面上下文、概览与打开失败状态归本次运行，列宽和目录进入恢复快照。
 - workspace store 拥有全局视图、Mod 页签、运行代次、页面上下文、概览、失败记录与列宽。
 - 启动恢复重建 session 与运行态，完成后显示总览。
@@ -48,7 +55,6 @@
 - 文件浏览模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 mod-files 页面及 Mod 页面记忆。
 - 生命周期编排消费 Rust 实际释放结果，拥有所属 Mod 清理和前端缓存释放。
 - 目录打开提供 outcome 和迟到 session 清理，工作区接纳成功建立的运行态。
-- 配置会话与 CSV 提供未保存判定，导航及关闭消费所属输入和保存句柄。
 - 配置维护消费主窗口关闭动作的布尔结果，主窗口装配拥有动作交付。
 
 ## 链路
@@ -87,10 +93,13 @@
 
 ## 规范
 
+- JSON 与 CSV 草稿必须随所属 session 保留；导航必须提交活动输入并等待保存，移除 session 必须按最新 dirty 确认放弃。
+- JSON 页面种类必须使用 `JsonEditorPageId`；Mod 概览、文件历史和 JSON 页面必须分别通过所属导航动作激活。
 - Mod 代次必须在注册时分配、移除时撤销，并且只允许保存在当前运行的内存中；恢复响应必须沿用捕获的代次。
+- Mod 概览统计必须消费正式 manifest 的表格和实体摘要；页面记忆必须按 Mod 根隔离。
 - mod-files 导航必须消费活动输入和保存交接，页面记忆必须归工作区，文件树状态必须由所属浏览模块管理。
 - workspace 缺失返回空默认；损坏时报错且严禁立即用空态覆盖。
-- 任何会卸载当前配置组件的导航或移除动作在 dirty 时必须先确认放弃；取消时严禁同步活动运行态或销毁 session。
+- 主窗口导航必须等待全部已登记保存及同步，连续请求必须只执行最新导航意图；输入失败必须保留原字段和焦点。
 - 关闭工作区必须先捕获全部 session 并完成子窗口交接，再清理各 Mod 运行态；关闭范围必须由统一执行入口捕获并持有至所属关闭、移除或主窗口销毁动作结束，释放必须在同一入口完成。
 - 关闭提示必须只移除当前目标失败记录或警告；再次打开、扫描或恢复检测到的问题必须按正式结果重新显示。
 - 列宽必须使用结构化 `modRoot/table/column`，严禁拼接 key。

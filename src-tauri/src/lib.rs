@@ -98,6 +98,8 @@ pub fn run() {
             commands::retarget_managed_window,
             commands::query_file_history,
             commands::query_entity_edit_target,
+            commands::prepare_json_source_recovery,
+            commands::recreate_json_sources,
             commands::query_entity_identity_intent,
             commands::clear_file_history,
             commands::open_project_session,

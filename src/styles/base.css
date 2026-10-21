@@ -152,7 +152,7 @@ body {
 .file-editor-textarea,
 .color-picker-channels .color-picker-channels-input,
 .mod-navigation-count,
-.config-entity-list-header .config-entity-list-count,
+.json-entity-list-header .json-entity-list-count,
 .file-history-summary .file-history-summary-value,
 .mod-overview-card .mod-overview-card-value,
 .mod-overview-breakdown-row .mod-overview-breakdown-row-value,
@@ -270,7 +270,7 @@ body,
   background: var(--color-primary-soft);
   color: var(--color-primary);
 }
-.config-placeholder,
+.json-placeholder,
 .empty-state {
   place-content: center;
   flex: 1;

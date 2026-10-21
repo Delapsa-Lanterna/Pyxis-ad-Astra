@@ -2,14 +2,15 @@
 import { createApp, defineComponent, h, nextTick, ref, type App } from 'vue';
 import { createPinia } from 'pinia';
 import { NConfigProvider, NMessageProvider, NDialogProvider, useMessage, useDialog } from 'naive-ui';
-import TableWorkspace from '@/app/components/TableWorkspace.vue';
+import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
+import CsvEditorWorkspace from '@/app/components/csv-editor/CsvEditorWorkspace.vue';
 import VariantPicker from '@/app/components/immersive/variant/VariantPicker.vue';
 import VariantHullmodPicker from '@/app/components/immersive/variant/VariantHullmodPicker.vue';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { provideAppFeedback } from '@/app/composables/use-app-feedback';
@@ -23,7 +24,7 @@ import '@/styles/style.css';
 
 type Kind = 'csv' | 'weapons' | 'wings' | 'hullmods';
 let app: App | null = null;
-let tables: ReturnType<typeof useTablesStore>;
+let tables: ReturnType<typeof useCsvEditorStore>;
 const controls = document.querySelector<HTMLElement>('#controls')!;
 controls.innerHTML = '<button id="run">运行全部基准</button> <button id="preview">显示样本</button><pre id="status">Ready</pre>';
 controls.style.cssText = 'height:68px;overflow:auto;padding:8px;box-sizing:border-box';
@@ -42,7 +43,9 @@ async function mount(kind: Kind, count: number, session: string) {
   prepareFixture(count, kind, session);
   const Body = defineComponent({
     setup() {
-      provideAppFeedback(createAppFeedback(useMessage(), useDialog(), () => []));
+      const feedback = createAppFeedback(useMessage(), useDialog(), () => []);
+      provideAppFeedback(feedback);
+      const actions = useCsvEditorActions(feedback);
       provideWindowCloseState({
         requestClose: async () => ({ status: 'closed', destroyedWindows: [], releasedSessions: [], diagnostic: null }),
         replyClose: async () => {},
@@ -54,7 +57,7 @@ async function mount(kind: Kind, count: number, session: string) {
       });
       provideFieldInputs(createFieldInputs(ref(session)));
       provideOriginalFonts(() => session);
-      tables = useTablesStore();
+      tables = useCsvEditorStore();
       const workspace = useWorkspaceStore();
       workspace.registerMod({ modRoot: 'M:/benchmark', displayName: 'Benchmark', version: '', status: 'ready' });
       useProjectStore().registerProjectManifest(fixture.manifest);
@@ -63,7 +66,7 @@ async function mount(kind: Kind, count: number, session: string) {
       const variant = projectVariantPanel(fixture.snapshot, {}).variants[0]!;
       return () =>
         kind === 'csv'
-          ? h(TableWorkspace, { detailPaneExpanded: false })
+          ? h(CsvEditorWorkspace, { detailPaneExpanded: false, actions })
           : kind === 'hullmods'
             ? h(VariantHullmodPicker, { root: fixture.snapshot.root, variant })
             : h(VariantPicker, {

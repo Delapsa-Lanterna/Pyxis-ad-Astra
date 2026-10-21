@@ -1,9 +1,8 @@
+import type { AppFeedback } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useFieldInputs, type FieldInputs } from '@/shared/runtime/field-inputs';
 
-export function useFieldInputActions(inputs: FieldInputs | null = useFieldInputs()) {
-  const feedback = useAppFeedback();
-
+export function useFieldInputActions(inputs: FieldInputs | null = useFieldInputs(), feedback: AppFeedback = useAppFeedback()) {
   function commitBefore(action: () => void) {
     const pending = inputs?.commit();
     if (!pending) {

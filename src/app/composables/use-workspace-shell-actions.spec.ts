@@ -1,11 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { flushPromises, mount } from '@vue/test-utils';
-import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
-import type { AssociatedSpecChange, ChooseOptions, AppFeedback, ProjectManifest } from '@/shared/types';
-import AppSelect from '@/app/components/AppSelect.vue';
-import { NCheckbox } from 'naive-ui/es/checkbox';
-import { NSelect } from 'naive-ui/es/select';
-import { installNaiveUi } from '@/app/naive-ui.runtime';
+import type { AppFeedback, ProjectManifest } from '@/shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type DirectoryOpeningOutcomeLike = Record<string, unknown> & { type: string };
@@ -16,11 +10,9 @@ const mocks = vi.hoisted(() => ({
   scanDirectoryGameOverview: vi.fn(),
   openDirectoryTarget: vi.fn(),
   openModFromOverview: vi.fn(),
-  saveTableChanges: vi.fn(),
   captureWorkspaceCloseTarget: vi.fn(),
   closeWorkspaceRuntime: vi.fn(async () => true),
   removeLoadedModRuntime: vi.fn(async () => true),
-  openSpecEditorWindow: vi.fn(async () => {}),
   openFileEditorWindow: vi.fn(async () => {}),
   recordLogBestEffort: vi.fn(),
   refreshProjectSourcePaths: vi.fn(),
@@ -31,11 +23,6 @@ vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleA
 vi.mock('@/services/directory.service', () => ({
   pickDirectory: mocks.pickDirectory,
   scanDirectoryGameOverview: mocks.scanDirectoryGameOverview,
-}));
-
-vi.mock('@/orchestrators/table-save.orchestrator', () => ({
-  saveTableChanges: mocks.saveTableChanges,
-  pendingTableSave: () => null,
 }));
 
 vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({
@@ -49,10 +36,6 @@ vi.mock('@/orchestrators/workspace-lifecycle.orchestrator', () => ({
   captureWorkspaceCloseTarget: mocks.captureWorkspaceCloseTarget,
   closeWorkspaceRuntime: mocks.closeWorkspaceRuntime,
   removeLoadedModRuntime: mocks.removeLoadedModRuntime,
-}));
-
-vi.mock('@/windows/spec-editor.window', () => ({
-  openSpecEditorWindow: mocks.openSpecEditorWindow,
 }));
 
 vi.mock('@/windows/file-editor.window', () => ({
@@ -190,14 +173,6 @@ describe('useWorkspaceShellActions', () => {
     finish(closed);
     expect(await pending).toBe(closed);
   });
-
-  it('skips saving when there is no captured table target', async () => {
-    mocks.saveTableChanges.mockResolvedValue({ status: 'noop' });
-    const feedback = feedbackStub();
-    const actions = useWorkspaceShellActions(feedback);
-    await actions.saveChanges();
-    expect(mocks.saveTableChanges).toHaveBeenCalledTimes(1);
-  });
   it('returns child-window cancellation to the config-clearing caller', async () => {
     mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
     mocks.closeWorkspaceRuntime.mockResolvedValueOnce(false);
@@ -224,81 +199,6 @@ describe('useWorkspaceShellActions', () => {
     mocks.closeWorkspaceRuntime.mockRejectedValueOnce(new Error('session close failed'));
     expect(await actions.confirmCloseWorkspace(false)).toBe(false);
     expect(feedback.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '关闭工作区失败');
-  });
-
-  it('reports the save result of the active table', async () => {
-    mocks.saveTableChanges.mockResolvedValue({ status: 'saved' });
-    const feedback = feedbackStub();
-    const actions = useWorkspaceShellActions(feedback);
-    await actions.saveChanges();
-    expect(mocks.saveTableChanges).toHaveBeenCalledWith({
-      table: 'ships',
-      manifest: null,
-      selectAssociatedSpecs: expect.any(Function),
-      feedback,
-    });
-    expect(feedback.success).toHaveBeenCalledWith('当前 CSV 表已保存');
-  });
-
-  it('returns the adjusted weapon creation branch and selected actions from the confirmation', async () => {
-    mocks.saveTableChanges.mockResolvedValue({ status: 'noop' });
-    const feedback = feedbackStub();
-    const actions = useWorkspaceShellActions(feedback);
-    await actions.saveChanges();
-    const select = mocks.saveTableChanges.mock.calls[0]![0].selectAssociatedSpecs as (
-      choices: AssociatedSpecCandidate[],
-    ) => Promise<AssociatedSpecChange[] | null>;
-    (feedback.choose as ReturnType<typeof vi.fn>).mockImplementationOnce(async (options: ChooseOptions) => {
-      const content = options.content as () => import('vue').VNode;
-      const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
-      try {
-        await flushPromises();
-        const select = wrapper.findComponent(AppSelect).findComponent(NSelect);
-        select.vm.$emit('update:value', 'beam');
-        wrapper.findAllComponents(NCheckbox)[1]!.vm.$emit('update:checked', false);
-        await flushPromises();
-        expect(select.props('value')).toBe('beam');
-      } finally {
-        wrapper.unmount();
-      }
-      return 'save';
-    });
-    const chosen = await select([
-      {
-        key: 'create',
-        table: 'weapons',
-        label: '创建武器',
-        change: { action: 'create', create: { kind: 'weapon', id: 'weapon', specClass: 'projectile' } },
-      },
-      { key: 'delete', table: 'weapons', label: '删除武器', change: { action: 'delete', id: 'old' } },
-    ]);
-    expect(chosen).toEqual([{ action: 'create', create: { kind: 'weapon', id: 'weapon', specClass: 'beam' } }]);
-  });
-
-  it('cancels the associated actions when the confirmation is dismissed', async () => {
-    const feedback = feedbackStub();
-    vi.mocked(feedback.choose).mockResolvedValueOnce(null);
-    expect(await useWorkspaceShellActions(feedback).selectAssociatedSpecs([])).toBeNull();
-  });
-
-  it('informs when there is nothing to save', async () => {
-    mocks.saveTableChanges.mockResolvedValue({ status: 'noop' });
-    const feedback = feedbackStub();
-    const actions = useWorkspaceShellActions(feedback);
-    await actions.saveChanges();
-    expect(feedback.info).toHaveBeenCalledWith('没有需要保存的修改');
-  });
-
-  it('reports undo and redo failures for the current table', () => {
-    vi.doMock('@/stores/tables.store', () => ({
-      useTablesStore: () => ({ undoCurrentTableEdit: () => null, redoCurrentTableEdit: () => null }),
-    }));
-    const feedback = feedbackStub();
-    const actions = useWorkspaceShellActions(feedback);
-    actions.undoCurrentTableEdit();
-    actions.redoCurrentTableEdit();
-    expect(feedback.error).toHaveBeenCalledWith('撤销 CSV 编辑失败');
-    expect(feedback.error).toHaveBeenCalledWith('重做 CSV 编辑失败');
   });
 
   function registerOverview(root: string, sessionId: string) {
@@ -334,7 +234,7 @@ describe('useWorkspaceShellActions', () => {
       manifest.modRoot + '/data',
     ]);
     expect(workspace.activeMod).toMatchObject({ displayName: 'After', version: '2' });
-    workspace.activateModConfig(manifest.modRoot, 'file-history');
+    workspace.activateModFileHistory(manifest.modRoot);
     expect(actions.canRefreshOverview.value).toBe(false);
   });
   it('refreshes all loaded sessions from an overview without a game root', async () => {

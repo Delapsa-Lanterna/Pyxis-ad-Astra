@@ -8,7 +8,7 @@ import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { pathBasename } from '@/shared/lib/paths';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { closeProject, openProject } from '@/services/project-session.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from '@/services/directory.service';
@@ -217,7 +217,7 @@ async function openManifest(
 }
 
 export function hydrateOpenedModRuntime(modRoot: string, loaded: ProjectManifest, activate: boolean) {
-  const tables = useTablesStore();
+  const tables = useCsvEditorStore();
   const fileHistory = useFileHistoryStore();
   tables.initializeModTables({ sessionId: loaded.sessionId, modRoot, manifest: loaded });
   if (activate) {

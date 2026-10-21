@@ -384,8 +384,8 @@ import { useCoreGraphics } from '@/app/composables/use-core-assets';
 import SchemaScalarInput from '@/app/components/schema/SchemaScalarInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
-import { isCsvSource } from '@/domain/tables/csv-source-options';
-import { useSchemaSelectMedia } from '@/app/composables/tables/use-schema-select-media';
+import { isCsvSource } from '@/domain/schema/csv-source-options';
+import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
 
 const props = defineProps<{
   field: FieldSchema;

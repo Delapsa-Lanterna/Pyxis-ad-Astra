@@ -15,8 +15,8 @@ import { jointObject } from '@/domain/joint-edit';
 import type { TextRun } from '@/domain/fonts/font.types';
 import type { ImmersiveFontRole } from './font-roles';
 import { parseInputNumber } from '@/shared/lib/input-number';
-import { createDefaultVariant, createDefaultSkin } from '@/domain/config/config-entities';
-import { variantModuleEntries, setVariantModule } from '@/domain/config/config-entities';
+import { createDefaultVariant, createDefaultSkin } from '@/domain/json-editor/json-file-defaults';
+import { setVariantModule, variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 
 export interface ImmersivePanelState {
   kind: JointEditKind;

@@ -5,20 +5,6 @@ export interface SavedConfig<T> {
   receipt: import('@/shared/types/write-commit.types').WriteResult;
 }
 
-export interface ConfigSaveIdentity {
-  id: string;
-  data: RowData;
-  receipt: import('@/shared/types/write-commit.types').WriteResult;
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-}
-
-export interface ConfigIdentityHandoff<T> {
-  sourceId: string;
-  record: T;
-  preserveDraft: boolean;
-  commitId: number;
-}
-
 export interface ConfigEditTarget {
   sessionId: string;
   modRoot: string;
@@ -40,14 +26,6 @@ export interface IndexedConfigEntityRefresh {
 export interface IndexedConfigEntityData extends Omit<IndexedConfigEntityRefresh, 'entityData'> {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   entityData: RowData | null;
-}
-
-export interface ConfigMissionEditorData {
-  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
-  list: RowData;
-  descriptor: RowData;
-  text: string;
-  iconSrc: string;
 }
 
 export interface SaveModInfoPayload {

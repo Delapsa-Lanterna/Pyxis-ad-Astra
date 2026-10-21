@@ -11,7 +11,7 @@ export const projectResourcesBoundaryRule = {
       const rel = file.rel;
       if (rel.startsWith('scripts/architecture/')) continue;
       if (
-        /^src-tauri\/src\/services\/(?:config_entity|config_family|spec_editor)(?:\.rs|\/)/.test(rel) &&
+        /^src-tauri\/src\/services\/(?:config_entity|json_file|spec_editor)(?:\.rs|\/)/.test(rel) &&
         /\b(upload_sprite|scan_core_graphics|resource_data_url|ResourceRef)\b/.test(file.text)
       ) {
         failures.push(`${file.rel}: config and spec backends must not own project resource behavior`);

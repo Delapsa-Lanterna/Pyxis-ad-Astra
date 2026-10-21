@@ -59,8 +59,8 @@ describe('target snapshots', () => {
   });
   it('waiting a pending synchronization retries its receipt while retaining newer draft edits', async () => {
     const save = vi.fn((_target: SampleTarget, value: SampleValue) => snapshot(value.a));
-    const afterSaved = vi.fn().mockRejectedValueOnce(new Error('broadcast')).mockResolvedValue(undefined);
-    const session = createSession({ save, afterSaved });
+    const synchronizeSaved = vi.fn().mockRejectedValueOnce(new Error('broadcast')).mockResolvedValue(undefined);
+    const session = createSession({ save, synchronizeSaved });
     session.setDraft({ a: 2 });
     await expect(session.saveDraft()).rejects.toMatchObject({ action: 'sync-saved-target' });
     session.setDraft({ a: 3 });
@@ -74,7 +74,7 @@ describe('target snapshots', () => {
   it('retries the persisted synchronization receipt while retaining subsequent edits', async () => {
     const save = vi.fn((_target: SampleTarget, value: SampleValue) => snapshot(value.a, 'v' + value.a));
     const synchronize = vi.fn().mockRejectedValueOnce(new Error('broadcast')).mockResolvedValueOnce(undefined);
-    const session = createSession({ save, afterSaved: synchronize });
+    const session = createSession({ save, synchronizeSaved: synchronize });
     session.setDraft({ a: 2 });
     await expect(session.saveDraft()).rejects.toMatchObject({ action: 'sync-saved-target' });
     expect(session.hasPendingSynchronization.value).toBe(true);
@@ -231,6 +231,39 @@ describe('read acceptance', () => {
 });
 
 describe('save operation', () => {
+  it.each(['accept', 'synchronize', 'refresh'] as const)('retries an unfinished %s phase and reports completion once', async (phase) => {
+    const written = snapshot(2, 'v2');
+    const write = deferred<Snapshot>();
+    const save = vi.fn(() => write.promise);
+    const acceptSaved = vi.fn(async () => {});
+    const synchronizeSaved = vi.fn(async () => {});
+    const load = vi.fn(async () => written);
+    const afterSaved = vi.fn();
+    const failure = new Error('unfinished phase');
+    if (phase === 'accept') acceptSaved.mockRejectedValueOnce(failure);
+    if (phase === 'synchronize') synchronizeSaved.mockRejectedValueOnce(failure);
+    if (phase === 'refresh') load.mockRejectedValueOnce(failure);
+    const session = createSession({ save, acceptSaved, synchronizeSaved, load, afterSaved });
+    session.setDraft({ a: 2 });
+    const pending = session.saveDraft();
+    const refresh = session.refreshTarget(target);
+    session.setDraft({ a: 3 });
+    write.resolve(written);
+    await expect(pending).rejects.toMatchObject({ action: 'sync-saved-target' });
+    await refresh;
+    expect(afterSaved).not.toHaveBeenCalled();
+    expect(session.hasPendingSynchronization.value).toBe(true);
+    expect(await session.waitForSave()).toBe(true);
+    expect(save).toHaveBeenCalledOnce();
+    expect(acceptSaved).toHaveBeenCalledTimes(phase === 'accept' ? 2 : 1);
+    expect(synchronizeSaved).toHaveBeenCalledTimes(phase === 'synchronize' ? 2 : 1);
+    expect(load).toHaveBeenCalledTimes(phase === 'refresh' ? 2 : 1);
+    expect(afterSaved).toHaveBeenCalledExactlyOnceWith(written);
+    expect(session.hasPendingSynchronization.value).toBe(false);
+    expect(session.baselineSnapshot.value).toEqual(written);
+    expect(session.draftValue.value).toEqual({ a: 3 });
+  });
+
   it('reuses one promise and keeps edits against actual persisted content', async () => {
     const write = deferred<Snapshot>();
     const save = vi.fn(() => write.promise);
@@ -265,7 +298,7 @@ describe('save operation', () => {
         if (stage === 'cancel') return;
         return snapshot(2, 'v2');
       },
-      afterSaved: () => {
+      synchronizeSaved: () => {
         if (stage === 'sync') throw new Error('sync');
       },
     });
@@ -320,13 +353,13 @@ describe('save operation', () => {
   });
   it('completes captured synchronization after consumer disposal', async () => {
     const write = deferred<Snapshot>();
-    const afterSaved = vi.fn();
-    const session = createSession({ save: () => write.promise, afterSaved });
+    const synchronizeSaved = vi.fn();
+    const session = createSession({ save: () => write.promise, synchronizeSaved });
     const pending = session.saveDraft();
     session.dispose();
     write.resolve(snapshot(2, 'v2'));
     await pending;
-    expect(afterSaved).toHaveBeenCalledWith(snapshot(2, 'v2'));
+    expect(synchronizeSaved).toHaveBeenCalledWith(snapshot(2, 'v2'));
     expect(session.baselineSnapshot.value).toBeNull();
   });
   it('recognizes the local commit echo', async () => {

@@ -172,7 +172,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 };
                 let data = &constructed;
                 let definition =
-                    crate::domain::editor_config_definitions::entity_spec_definition(target.kind)
+                    crate::domain::entity_definitions::entity_spec_definition(target.kind)
                         .expect("joint spec has format");
                 if let Some(id) = data
                     .get(definition.id_field)
@@ -435,7 +435,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     json.finish()?;
     for identity in &mut identities {
         if let Some(table) =
-            crate::domain::editor_config_definitions::entity_spec_definition(identity.after.kind)
+            crate::domain::entity_definitions::entity_spec_definition(identity.after.kind)
                 .and_then(|definition| definition.csv_table)
             && let Some(rows) = staged_tables.get(&table).map(|csv| &csv.draft.rows)
             && let Some(row) = rows.iter().find(|row| {

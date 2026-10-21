@@ -7,7 +7,7 @@ const oldDispatcherImport = /@\/orchestrators\/main-undo-redo\.orchestrator\b/;
 const keyEventDetails = /\bevent\.(?:ctrlKey|metaKey|key)\b|\bclosest\s*\(\s*['"][^'"]*(?:input|textarea|select|contenteditable)/;
 const domEventTypes = /\bKeyboardEvent\b|\bEventTarget\b|\bHTMLElement\b/;
 const vueLifecycle = /\b(?:onMounted|onUnmounted)\b/;
-const historyStoreImport = /\/stores\/(?:file-history|tables-edit-history|tables)\.store/;
+const historyStoreImport = /\/stores\/(?:file-history|csv-table-history|tables)\.store/;
 
 export const mainHistoryCommandBoundaryRule = {
   name: 'main-history-command-boundary',

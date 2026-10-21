@@ -115,7 +115,7 @@ for (const [command, backend] of [
   ['load_imported_editor_spec_file', 'spec_editor'],
   ['save_mod_info', 'config_entity'],
   ['save_indexed_config_entity', 'config_entity'],
-  ['create_skin_entity', 'config_family'],
+  ['create_skin_entity', 'json_file'],
   ['save_variant_entity', 'project'],
   ['save_text_file', 'file_editor'],
   ['apply_file_change_set', 'write_transactions'],
@@ -160,7 +160,7 @@ test('test-only consumers do not extend production command permissions', () => {
 for (const module of [
   'spec_editor',
   'config_entity',
-  'config_family',
+  'json_file',
   'file_editor',
   'file_history',
   'table_save',
@@ -187,7 +187,7 @@ for (const module of [
   });
 }
 
-for (const module of ['config_entity', 'config_family', 'spec_editor']) {
+for (const module of ['config_entity', 'json_file', 'spec_editor']) {
   test(module + ' consumes the formal parser and leaves resources at their owner', () => {
     const valid = architectureFixtures({
       ['src-tauri/src/services/' + module + '.rs']: 'use crate::parsers::render_csv_text; fn run() { render_csv_text(); }',

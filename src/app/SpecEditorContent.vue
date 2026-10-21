@@ -105,6 +105,7 @@
 </template>
 
 <script setup lang="ts">
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, onMounted, onUnmounted } from 'vue';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
@@ -131,6 +132,7 @@ const settings = useSettingsStore();
 const feedback = useAppFeedback();
 
 const windowModel = useSpecEditorWindowViewModel({ sessionId, modRoot, id, kind }, specEditorDefinition(kind));
+provideFieldInputs(windowModel.inputs);
 const {
   currentTarget: target,
   editorData,

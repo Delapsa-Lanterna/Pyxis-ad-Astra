@@ -10,7 +10,7 @@
 
 - `src-tauri/src/commands/file_history.rs`：文件历史查询、清空与按条目回放 command。
 - `src-tauri/src/services/file_history.rs`：文件历史内存状态，按 canonical Mod 根持有快照、双栈与版本。
-- `src/app/components/config/ConfigFileHistoryView.vue`：历史摘要、确认与回放动作的展示入口。
+- `src/app/components/file-history/WorkspaceFileHistory.vue`：历史摘要、确认与回放动作的展示入口。
 - `src/app/composables/editors/use-file-history-view-model.ts`：文件历史视图 ViewModel。
 - `src/orchestrators/file-history-replay.orchestrator.ts`：历史编排，拥有已加载会话摘要刷新、回放计划、确认交互、执行与确认 UI。
 - `src/services/file-history.service.ts`：历史读取、清空与按条目回放能力包装。
@@ -34,7 +34,7 @@
 ## 边界
 
 - dirty 文本窗口消费外部暂存，回放通知由统一窗口事件交付。
-- 主窗口历史命令按 CSV 草稿优先分派，settings 的 `fileHistoryLimit` 提供文件保存历史容量。
+- 主窗口历史命令按当前编辑面的草稿优先分派，settings 的 `fileHistoryLimit` 提供文件保存历史容量。
 - 保存及回放共用实际 changeset 和提交同步，目录事件逐文件展开失效范围。
 - 前端 store 持有带版本的摘要，回放编排拥有计划、影响确认和执行。
 - 后端文件历史按 canonical Mod 根持有已写盘 changeset、双栈和版本，登记、回放准备、回放接纳及清空统一归所属入口。

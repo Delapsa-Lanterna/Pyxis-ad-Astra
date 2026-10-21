@@ -31,9 +31,6 @@ export const namingBoundaryRule = {
       if (file.rel.includes('/composables/use-') && !file.rel.endsWith('.ts')) {
         failures.push(`${file.rel}: ViewModel/composable files must be TypeScript modules`);
       }
-      if (file.rel.startsWith('src/app/components/config/') && file.rel.endsWith('.vue') && !/\/Config[A-Za-z0-9]+\.vue$/.test(file.rel)) {
-        failures.push(`${file.rel}: config components must use Config* names`);
-      }
       if (file.rel.startsWith('src/domain/') && /\.(service|store|orchestrator)\.ts$/.test(file.rel)) {
         failures.push(`${file.rel}: domain files must not use responsibility suffixes`);
       }

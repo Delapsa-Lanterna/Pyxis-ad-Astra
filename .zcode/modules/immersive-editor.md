@@ -45,6 +45,8 @@
 ### 消费
 
 - `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
+- `src/domain/json-editor/json-file-defaults.ts`：装配与皮肤的初始 JSON 内容。
+- `src/domain/json-editor/json-variant-modules.ts`：装配模块字段的对象/数组读取与写回。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 
 ### 装配

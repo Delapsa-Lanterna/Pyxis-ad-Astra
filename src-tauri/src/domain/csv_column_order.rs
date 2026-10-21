@@ -13,29 +13,29 @@ struct Column {
 
 pub fn standard_csv_columns(table: CsvTableKey) -> Vec<String> {
     let asset = match table {
-        CsvTableKey::Ships => Some(include_str!("../../../schemas/csv/ships.schema.json")),
-        CsvTableKey::Weapons => Some(include_str!("../../../schemas/csv/weapons.schema.json")),
-        CsvTableKey::Wings => Some(include_str!("../../../schemas/csv/wings.schema.json")),
-        CsvTableKey::Descriptions => {
-            return [
-                "id", "type", "text1", "text2", "text3", "text4", "text5", "notes",
-            ]
-            .into_iter()
-            .map(String::from)
-            .collect();
+        CsvTableKey::Ships => include_str!("../../../schemas/csv/ships.schema.json"),
+        CsvTableKey::Weapons => include_str!("../../../schemas/csv/weapons.schema.json"),
+        CsvTableKey::Wings => include_str!("../../../schemas/csv/wings.schema.json"),
+        CsvTableKey::Hullmods => include_str!("../../../schemas/csv/hullmods.schema.json"),
+        CsvTableKey::ShipSystems => include_str!("../../../schemas/csv/shipSystems.schema.json"),
+        CsvTableKey::Industries => include_str!("../../../schemas/csv/industries.schema.json"),
+        CsvTableKey::Skills => include_str!("../../../schemas/csv/skills.schema.json"),
+        CsvTableKey::Abilities => include_str!("../../../schemas/csv/abilities.schema.json"),
+        CsvTableKey::Commodities => include_str!("../../../schemas/csv/commodities.schema.json"),
+        CsvTableKey::SpecialItems => include_str!("../../../schemas/csv/specialItems.schema.json"),
+        CsvTableKey::Submarkets => include_str!("../../../schemas/csv/submarkets.schema.json"),
+        CsvTableKey::MarketConditions => {
+            include_str!("../../../schemas/csv/marketConditions.schema.json")
         }
-        _ => None,
+        CsvTableKey::SimOpponents => include_str!("../../../schemas/csv/simOpponents.schema.json"),
+        CsvTableKey::Descriptions => include_str!("../../../schemas/csv/descriptions.schema.json"),
     };
-    asset
-        .map(|text| {
-            serde_json::from_str::<ColumnAsset>(text)
-                .expect("embedded CSV column asset must parse")
-                .columns
-                .into_iter()
-                .map(|column| column.key)
-                .collect()
-        })
-        .unwrap_or_default()
+    serde_json::from_str::<ColumnAsset>(asset)
+        .expect("embedded CSV column asset must parse")
+        .columns
+        .into_iter()
+        .map(|column| column.key)
+        .collect()
 }
 
 pub fn add_ordered_csv_columns(header: &mut Vec<String>, added: &[String], standard: &[String]) {

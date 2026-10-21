@@ -10,7 +10,7 @@ import {
   variantWeaponGroups,
   isSystemWeapon,
 } from './variant-actions';
-import { setVariantModule } from '@/domain/config/config-entities';
+import { setVariantModule } from '@/domain/json-editor/json-variant-modules';
 import { variantJointFixture } from '@/test/variant-joint-edit';
 import { jointObject } from '@/domain/joint-edit';
 import { entityTargetFixture } from '@/test/entity-target';

@@ -156,7 +156,7 @@ function showAbout() {
 
 if (!props.title)
   useContextMenuScope({
-    identity: () => JSON.stringify([workspace.currentView, workspace.configView, workspace.activeModRoot]),
+    identity: () => JSON.stringify([workspace.currentView, workspace.jsonPage, workspace.activeModRoot]),
     windowActions: { 设置: showSettings, 关于: showAbout, 最小化: minimizeWindow, 退出: closeWindow },
   });
 

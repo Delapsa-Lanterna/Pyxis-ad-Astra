@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as csvTable from '@/services/csv-table.service';
-import * as configEntity from '@/services/config-entity.service';
-import * as configFamily from '@/services/config-family.service';
+import * as configEntity from '@/services/json-entity.service';
+import * as jsonFileService from '@/services/json-file.service';
 import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as fileService from '@/services/files.service';
 import { entityTargetFixture } from '@/test/entity-target';
 import type {
   DeleteIndexedConfigEntityPayload,
-  DeleteConfigFamilyEntityPayload,
+  DeleteJsonEntityFilePayload,
   IndexedConfigEntityPayload,
-  ConfigFamilyEntityPayload,
+  JsonEntityFilePayload,
 } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -33,7 +33,7 @@ const indexed: IndexedConfigEntityPayload = {
   entityData: { descriptor: { title: 'Demo' }, text: '' },
 };
 const deleteIndexed: DeleteIndexedConfigEntityPayload = { sessionId, modRoot, baseVersions: [], kind: 'mission', id, deleteTarget: true };
-const family: ConfigFamilyEntityPayload = {
+const definition: JsonEntityFilePayload = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -42,7 +42,7 @@ const family: ConfigFamilyEntityPayload = {
   relPath: null,
   data,
 };
-const deleteFamily: DeleteConfigFamilyEntityPayload = {
+const deleteJsonEntity: DeleteJsonEntityFilePayload = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -99,14 +99,18 @@ const cases: Array<[string, () => Promise<unknown>, object]> = [
   ['delete_indexed_config_entity', () => configEntity.deleteIndexedConfigEntity(deleteIndexed), deleteIndexed],
   [
     'save_variant_entity',
-    () => configFamily.saveVariantEntity(family, jsonWrite),
-    { ...family, jsonWrite, orderedJson: JSON.stringify(data) },
+    () => jsonFileService.saveVariantEntity(definition, jsonWrite),
+    { ...definition, jsonWrite, orderedJson: JSON.stringify(data) },
   ],
-  ['create_variant_entity', () => configFamily.createVariantEntity(family), family],
-  ['delete_variant_entity', () => configFamily.deleteVariantEntity(deleteFamily), deleteFamily],
-  ['save_skin_entity', () => configFamily.saveSkinEntity(family, jsonWrite), { ...family, jsonWrite, orderedJson: JSON.stringify(data) }],
-  ['create_skin_entity', () => configFamily.createSkinEntity(family), family],
-  ['delete_skin_entity', () => configFamily.deleteSkinEntity(deleteFamily), deleteFamily],
+  ['create_variant_entity', () => jsonFileService.createVariantEntity(definition), definition],
+  ['delete_variant_entity', () => jsonFileService.deleteVariantEntity(deleteJsonEntity), deleteJsonEntity],
+  [
+    'save_skin_entity',
+    () => jsonFileService.saveSkinEntity(definition, jsonWrite),
+    { ...definition, jsonWrite, orderedJson: JSON.stringify(data) },
+  ],
+  ['create_skin_entity', () => jsonFileService.createSkinEntity(definition), definition],
+  ['delete_skin_entity', () => jsonFileService.deleteSkinEntity(deleteJsonEntity), deleteJsonEntity],
 ];
 beforeEach(() => {
   vi.clearAllMocks();
@@ -125,8 +129,8 @@ describe('query and persistence transport protocols', () => {
       { baseVersions: [], sessionId, modRoot, target, data },
     ],
     ['save_indexed_config_entity', () => configEntity.saveIndexedConfigEntity(indexed), indexed],
-    ['save_variant_entity', () => configFamily.saveVariantEntity(family), family],
-    ['save_skin_entity', () => configFamily.saveSkinEntity(family), family],
+    ['save_variant_entity', () => jsonFileService.saveVariantEntity(definition), definition],
+    ['save_skin_entity', () => jsonFileService.saveSkinEntity(definition), definition],
     [
       'save_csv_patch',
       () => csvTable.saveCsvPatch(sessionId, modRoot, 'ships', [], []),

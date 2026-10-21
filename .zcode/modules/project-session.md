@@ -9,7 +9,8 @@
 ### 拥有
 
 - `src-tauri/src/commands/project_session.rs`：session 生命周期 command。
-- `src-tauri/src/domain/editor_config_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
+- `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/services/project/cache/mod.rs`：session 注册表、句柄与锁入口，以及缓存模块登记和能力导出。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
@@ -24,7 +25,6 @@
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、提交与窗口登记释放及性能记录。
-- `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 的种类、ID 与通配匹配。
 - `src/services/project-projection.service.ts`：窗口内按 session 与提交序号维护读取门控的运行态。
@@ -41,6 +41,7 @@
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
 - `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和舰体引用解析。
 - `src-tauri/src/services/project/sources/`：成套来源内容、版本与解析成果读取。
+- `src/domain/project/entity-definitions.ts`：共享实体内容 ID 字段、可用 ID 规则与目标身份投影。
 - `src/services/entity-query.service.ts`：实体查询能力交接。
 - `src/shared/types/project-identity.types.ts`：会话、实体、表、资源与文件版本身份的基础协议。
 - `src/shared/types/project-session.types.ts`：会话请求、清单、摘要与正式失效结果。

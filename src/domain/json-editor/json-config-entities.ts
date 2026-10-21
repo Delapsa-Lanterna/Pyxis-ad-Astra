@@ -1,0 +1,199 @@
+import { cell } from '@/shared/lib/starsector';
+import { AppError } from '@/shared/lib/errors';
+import type { IndexedConfigKind, JsonValue, RowData } from '@/shared/types';
+import type { FileSchema } from '@/domain/schema/schema.types';
+import { aggregateSchemaSources, splitSchemaSources } from '@/domain/schema/schema-sources';
+
+type IndexedConfigLabelAction = 'save' | 'create' | 'delete';
+
+const INDEXED_CONFIG_LABELS: Record<IndexedConfigKind, Record<IndexedConfigLabelAction, (id: string) => string>> = {
+  faction: {
+    save: (id) => `保存 ${id}.faction`,
+    create: (id) => `创建势力 ${id}`,
+    delete: (id) => `删除势力 ${id}`,
+  },
+  mission: {
+    save: (id) => `保存战役 ${id}`,
+    create: (id) => `创建战役 ${id}`,
+    delete: (id) => `删除战役 ${id}`,
+  },
+};
+
+export function indexedConfigHistoryLabel(kind: IndexedConfigKind, action: IndexedConfigLabelAction, id: string): string {
+  return INDEXED_CONFIG_LABELS[kind][action](id);
+}
+
+export function createDefaultFaction(id: string): RowData {
+  return {
+    id,
+    displayName: id,
+    displayNameWithArticle: id,
+    displayNameLong: id,
+    logo: 'graphics/factions/neutral_traders.png',
+    color: [128, 128, 128, 255],
+    baseUIColor: [128, 128, 128, 255],
+    darkUIColor: [64, 64, 64, 255],
+    names: { modern: 1 },
+    portraits: {},
+    shipNamePrefix: '',
+    knownShips: { tags: [] },
+    knownWeapons: { tags: [] },
+    knownFighters: { tags: [] },
+  };
+}
+
+export function buildFactionIndexRow(id: string): RowData {
+  return {
+    faction: `data/world/factions/${id}.faction`,
+  };
+}
+
+export function buildMissionIndexRow(rows: RowData[], header: string[], mission: string): RowData {
+  const row = rows.find((item) => missionIdFromRow(item) === mission) ?? {};
+  const result: RowData = Object.create(null);
+  for (const col of header.length ? header : ['mission']) {
+    result[col] = row[col] ?? '';
+  }
+  for (const [key, value] of Object.entries(row)) {
+    if (!(key in result)) result[key] = value;
+  }
+  result.mission = mission;
+  return result;
+}
+
+export interface JsonMissionListItem {
+  id: string;
+}
+
+export interface JsonMissionEditorModel {
+  indexHeader: string[];
+  localMission: RowData;
+  iconSrc: string;
+}
+
+export interface ConfigMissionSaveDraft {
+  nextId: string;
+  list: RowData;
+  descriptor: RowData;
+  text: string;
+}
+
+export interface JsonFactionListItem {
+  id: string;
+  displayName: string;
+  colorCss: string;
+}
+
+export interface ConfigFactionSaveDraft {
+  nextId: string;
+  file: RowData;
+}
+
+export function configModInfoEditorModel(modInfo: RowData): RowData {
+  return aggregateSchemaSources({ file: modInfo });
+}
+
+export function configModInfoSaveData(local: RowData, schema: FileSchema): RowData {
+  const split = splitSchemaSources(local, schema);
+  return requireConfigObjectSource(split.file, 'mod_info.json 数据无效');
+}
+
+export function missionIdFromRow(row: RowData): string {
+  return trimmedConfigStringField(row, 'mission');
+}
+
+export function missionItemsFromRows(rows: RowData[]): JsonMissionListItem[] {
+  return rows
+    .map((row) => missionIdFromRow(row))
+    .filter(Boolean)
+    .map((id) => ({ id }));
+}
+
+export function configMissionEditorModel(data: {
+  list: RowData;
+  descriptor: RowData;
+  text: string;
+  iconSrc: string;
+}): JsonMissionEditorModel {
+  const list = data.list;
+  return {
+    indexHeader: Object.keys(list).length ? Object.keys(list) : ['mission'],
+    localMission: aggregateSchemaSources({
+      list,
+      descriptor: data.descriptor,
+      text: data.text,
+    }),
+    iconSrc: data.iconSrc,
+  };
+}
+
+export function configMissionEditingId(localMission: RowData): string {
+  const list = localMission.list;
+  return list && typeof list === 'object' && !Array.isArray(list) ? missionIdFromRow(list as RowData) : '';
+}
+
+export function configMissionSaveDraft(localMission: RowData, schema: FileSchema): ConfigMissionSaveDraft {
+  const split = splitSchemaSources(localMission, schema);
+  const list = requireConfigObjectSource(split.list, '战役列表项数据无效');
+  const descriptor = requireConfigObjectSource(split.descriptor, 'descriptor.json 数据无效');
+  const text = requireConfigTextSource(split.text, 'mission_text.txt 数据无效');
+  return {
+    nextId: missionIdFromRow(list),
+    list,
+    descriptor,
+    text,
+  };
+}
+
+export function configFactionListItems(files: Record<string, RowData>): JsonFactionListItem[] {
+  return Object.keys(files)
+    .sort()
+    .map((id) => ({
+      id,
+      displayName: cell(files[id]?.displayName) || id,
+      colorCss: configColorCss(files[id]?.color ?? null),
+    }));
+}
+
+export function configFactionEditorModel(file: RowData): RowData {
+  return aggregateSchemaSources({ file });
+}
+
+export function configFactionSaveDraft(local: RowData, schema: FileSchema): ConfigFactionSaveDraft {
+  const split = splitSchemaSources(local, schema);
+  const file = requireConfigObjectSource(split.file, '势力文件数据无效');
+  const nextId = trimmedConfigStringField(file, 'id');
+  if (!nextId) {
+    throw new AppError('势力 id 不能为空', { action: 'config-faction-save-draft' });
+  }
+  return {
+    nextId,
+    file,
+  };
+}
+
+export function trimmedConfigStringField(data: RowData, key: string): string {
+  const value = data[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function configColorCss(color: JsonValue): string {
+  if (Array.isArray(color) && color.length >= 3) {
+    const r = Math.round(Number(color[0]) || 0);
+    const g = Math.round(Number(color[1]) || 0);
+    const b = Math.round(Number(color[2]) || 0);
+    const a = Math.max(0, Math.min(255, Math.round(Number(color[3] ?? 255) || 0))) / 255;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return 'rgba(128, 128, 128, 1)';
+}
+
+function requireConfigObjectSource(value: unknown, errorMessage: string): RowData {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as RowData;
+  throw new AppError(errorMessage, { action: 'config-entity-source' });
+}
+
+function requireConfigTextSource(value: unknown, errorMessage: string): string {
+  if (typeof value === 'string') return value;
+  throw new AppError(errorMessage, { action: 'config-entity-source' });
+}

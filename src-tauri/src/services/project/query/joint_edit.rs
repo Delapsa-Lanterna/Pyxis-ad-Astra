@@ -86,7 +86,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         ) {
             return Err(AppError::message("joint.create_kind", "补全来源类型无效"));
         }
-        crate::domain::config::validate_config_id(&source.id, "补全来源 ID 无效")?;
+        crate::domain::entity_identity::validate_entity_id(&source.id, "补全来源 ID 无效")?;
     }
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root.mod_root))?;
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
@@ -793,16 +793,17 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
         if let (JointRecordTarget::Spec { target }, Some(JointValue::Present(data))) =
             (&record.target, values.get(&record.key))
         {
-            let definition =
-                crate::domain::editor_config_definitions::entity_spec_definition(target.kind)
-                    .expect("joint spec has format");
+            let definition = crate::domain::entity_definitions::entity_spec_definition(target.kind)
+                .expect("joint spec has format");
             if let Some(id) = data
                 .get(definition.id_field)
                 .and_then(Value::as_str)
                 .filter(|id| *id != target.id)
             {
-                let id =
-                    crate::domain::config::validate_config_id(id, definition.invalid_id_message)?;
+                let id = crate::domain::entity_identity::validate_entity_id(
+                    id,
+                    definition.invalid_id_message,
+                )?;
                 let relative = if target.state == EntityTargetState::Create {
                     definition.default_rel_path(id)
                 } else {

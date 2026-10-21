@@ -2,7 +2,7 @@ import { h } from 'vue';
 import type { AppFeedback, FileChangeReplayDirection, FileHistoryEntrySummary } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import type { useTablesStore } from '@/stores/tables.store';
+import type { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { replayFileChangeSet, loadFileHistory } from '@/services/file-history.service';
 import { publishCommittedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
@@ -12,7 +12,7 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 
 type ProjectStore = ReturnType<typeof useProjectStore>;
-type TablesStore = ReturnType<typeof useTablesStore>;
+type TablesStore = ReturnType<typeof useCsvEditorStore>;
 export type FileHistoryReplayDirection = FileChangeReplayDirection;
 
 export async function refreshLoadedFileHistory(accepts: () => boolean): Promise<void> {

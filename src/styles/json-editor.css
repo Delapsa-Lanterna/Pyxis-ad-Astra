@@ -1,0 +1,106 @@
+.json-entity-list {
+  flex: 0 0 182px;
+  border-right: 1px solid var(--color-border);
+}
+.json-entity-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 32px;
+  height: 32px;
+  padding: 0 12px;
+  font: 600 12px/16px var(--font-sans);
+  border-bottom: 1px solid var(--color-border);
+}
+.json-entity-list-header .json-entity-list-count {
+  font: 400 10px/12px var(--font-sans);
+}
+.json-entity-list-items {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.json-entity-list-item {
+  gap: 8px;
+  height: 40px;
+  padding: 4px 10px;
+  border-left: 2px solid transparent;
+  text-align: left;
+  grid-template-columns: 20px minmax(0, 1fr);
+  width: 100%;
+}
+.json-entity-list-item:hover {
+  background: var(--color-surface-hover);
+}
+.json-entity-list-item.active {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-left-color: var(--color-primary);
+}
+.json-entity-color,
+.json-entity-thumb {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+.json-entity-text {
+  gap: 2px;
+}
+.json-entity-list-item .json-entity-text .json-entity-text-value {
+  font-weight: 500;
+  line-height: 16px;
+}
+.json-entity-text .json-entity-text-meta {
+  font: 400 10px/14px var(--font-mono);
+}
+.json-entity-list-footer {
+  flex: 0 0 auto;
+  padding: 8px;
+}
+@media (max-width: 700px) {
+  .json-entity-list {
+    flex-basis: 150px;
+  }
+  .json-entity-thumb,
+  .json-entity-color {
+    flex-basis: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+@media (max-width: 460px) {
+  .json-entity-list {
+    flex-basis: 124px;
+  }
+  .json-entity-thumb,
+  .json-entity-color {
+    display: none;
+  }
+}
+.json-entity-list-header-title {
+  margin: 0;
+  font: inherit;
+}
+.json-entity-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+.json-entity-list-empty {
+  padding: 12px;
+  color: var(--color-muted);
+}
+.json-image-preview {
+  flex: 1;
+  gap: 8px;
+  align-content: start;
+}
+.json-image-preview-image {
+  max-height: 256px;
+}

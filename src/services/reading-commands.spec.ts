@@ -12,7 +12,7 @@ import { querySessionDraftResources, resolveModImageReference } from './resource
 import { queryResourceDataUrls, invalidateResourceMediaForSession } from './resource-media.service';
 import { invalidateQueryCacheForSession } from './query-cache.service';
 import { entityTargetFixture } from '@/test/entity-target';
-import { toConfigFamilyRecord } from '@/domain/config/config-records';
+import { jsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
 import type { EntityData, ResourceRef, DeepReadonly, CsvRowPreviewPayload } from '@/shared/types';
 import { expectTypeOf } from 'vitest';
 
@@ -194,9 +194,9 @@ describe('formal reading protocols', () => {
     };
     invoke.mockResolvedValue(entity);
     const shared = (await querySessionEntity(sessionId, 'ship', 'demo'))!;
-    const editable = toConfigFamilyRecord(shared);
-    editable.file.data.nested = { title: 'Edited' };
-    editable.file.baseVersions[0]!.fingerprint = 'edited';
+    const editable = jsonDocumentRecord(sessionId, 'M:/mod', shared);
+    editable.value.nested = { title: 'Edited' };
+    editable.baseVersions[0]!.fingerprint = 'edited';
     const repeated = await querySessionEntity(sessionId, 'ship', 'demo');
     expect(repeated?.data).toEqual({ nested: { title: 'Original' } });
     expect(repeated?.baseVersions[0]?.fingerprint).toBe('v1');

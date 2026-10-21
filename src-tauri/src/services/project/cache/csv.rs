@@ -138,10 +138,10 @@ pub(crate) fn ensure_session_table_rows(
     let rel_path = session_table(session, table)?.path.clone();
     let path = Path::new(&session.manifest.mod_root).join(&rel_path);
     let (version, mut csv) = read_versioned_csv(&path)?;
-    if csv.header.is_empty() && table == MISSION_LIST_TABLE_KEY {
+    if !path.exists() && table == MISSION_LIST_TABLE_KEY {
         csv.header = mission_list_default_header();
     }
-    if csv.header.is_empty() {
+    if !path.exists() {
         if let Some(root) = session.manifest.starsector_root.as_ref() {
             if let Some(table_key) = CsvTableKey::from_key(table) {
                 if let Some(core_table) = load_core_csv_table(root, table_key)? {
@@ -153,6 +153,12 @@ pub(crate) fn ensure_session_table_rows(
         } else if table == MISSION_LIST_TABLE_KEY {
             csv.header = mission_list_default_header();
         }
+    }
+    if !path.exists()
+        && csv.header.is_empty()
+        && let Some(table_key) = CsvTableKey::from_key(table)
+    {
+        csv.header = crate::domain::csv_column_order::standard_csv_columns(table_key);
     }
     let row_sequence = session_table(session, table)?.next_row_seq;
     let rows: Vec<SessionCsvRow> = csv
@@ -202,6 +208,7 @@ mod tests {
     #[test]
     fn ensure_session_table_rows_rejects_unknown_table() {
         let mut session = ProjectSession {
+            json_origins: Vec::new(),
             projection_revision: 0,
             projection_pending: false,
             source_versions: BTreeMap::new(),
@@ -255,6 +262,7 @@ mod tests {
         )
         .unwrap();
         let mut session = ProjectSession {
+            json_origins: Vec::new(),
             projection_revision: 0,
             projection_pending: false,
             source_versions: BTreeMap::new(),

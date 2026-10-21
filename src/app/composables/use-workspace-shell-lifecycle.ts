@@ -2,7 +2,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { onMounted, onUnmounted } from 'vue';
 import { useWindowLifecycleActions } from './use-window-close-state';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
-import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
+import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import { useSettingsStore } from '@/stores/settings.store';
 import { listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
@@ -14,7 +14,7 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
-import { useTableSaveParticipants } from '@/app/composables/use-table-save-participants';
+import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 
 // Main-window-only bootstrap: startup restore, workspace-state persistence and
 // window save events run once per application shell, never per page component.
@@ -22,7 +22,7 @@ export function useWorkspaceShellLifecycle(
   feedback: AppFeedback,
   selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>,
 ) {
-  useTableSaveParticipants(feedback, selectAssociatedSpecs);
+  useCsvSaveParticipants(feedback, selectAssociatedSpecs);
   const { requestClose } = useWindowLifecycleActions();
   const settings = useSettingsStore();
   const workspace = useWorkspaceStore();

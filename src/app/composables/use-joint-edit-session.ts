@@ -84,11 +84,13 @@ export function useJointEditSession(
         after.meta.receipt?.keyMap ?? [],
         submitted,
       ),
-    afterSaved: async (snapshot) => {
+    acceptSaved: async (snapshot) => {
       if (snapshot.meta.receipt && snapshot.meta.previous)
         await options.afterBaseline?.(snapshot.meta.snapshot, snapshot.meta.receipt, snapshot.meta.previous);
       await releaseHandoff?.();
       releaseHandoff = null;
+    },
+    synchronizeSaved: async (snapshot) => {
       if (snapshot.meta.receipt)
         await completeSavedWrite({
           label: '联合保存',
@@ -115,7 +117,7 @@ export function useJointEditSession(
       draftSession: session,
       save: async () => {
         const snapshot = await session.saveDraft();
-        return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
+        return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
       },
     },
   });

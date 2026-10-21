@@ -41,6 +41,7 @@
   </ImmersiveEditorShell>
 </template>
 <script setup lang="ts">
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { computed, onMounted, onUnmounted } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
 import { useWindowContext } from '@/windows/window-context.window';
@@ -69,6 +70,7 @@ const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowK
   ...(rowKey ? { rowKey } : {}),
 };
 const vm = useImmersiveEditorViewModel(root);
+provideFieldInputs(vm.joint.inputs);
 useManagedWindowRequests(async (request) => {
   if (!(await vm.joint.waitForSave())) throw new Error('所属保存尚未完成');
   if (request.kind === 'immersive-editor') await vm.initialize(request.input.rowKey);

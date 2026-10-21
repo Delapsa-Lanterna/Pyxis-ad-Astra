@@ -1,8 +1,8 @@
+import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
-import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { invalidateCoreCacheForRoot } from '@/services/core-assets.service';
 import { invalidateQueryCacheForSession } from '@/services/query-cache.service';
@@ -45,15 +45,15 @@ export function captureWorkspaceCloseTarget(): WorkspaceCloseTarget {
 export function removeModRuntimeState(modRoot: string) {
   const workspace = useWorkspaceStore();
   const project = useProjectStore();
-  const tables = useTablesStore();
+  const tables = useCsvEditorStore();
   const fileHistory = useFileHistoryStore();
-  const csvEditHistory = useTablesEditHistoryStore();
   const writeSync = useProjectSyncStore();
+  const sessionId = project.getSessionId(modRoot);
+  if (sessionId) useJsonEditorStore().releaseSession(sessionId);
   useModFileBrowserStore().removeModState(modRoot);
   workspace.removeLoadedModEntry(modRoot);
   tables.removeModState(modRoot);
   fileHistory.removeModState(modRoot);
-  csvEditHistory.clearForMod(modRoot);
   writeSync.removeModState(modRoot, project.getSessionId(modRoot));
   project.removeProjectManifest(modRoot);
 }

@@ -1,5 +1,5 @@
 use crate::{
-    domain::config::path_affects_target,
+    domain::entity_identity::path_affects_target,
     errors::AppResult,
     io::{FsRootBoundary, parse_csv_text},
     models::{
@@ -747,7 +747,7 @@ mod tests {
 
     #[test]
     fn family_refresh_counts_and_diagnostics_follow_independent_owners() {
-        use super::super::sources::families::take_load_counts;
+        use super::super::sources::json_documents::take_load_counts;
         let root = crate::testutil::temp_dir("family_projection_counts");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();

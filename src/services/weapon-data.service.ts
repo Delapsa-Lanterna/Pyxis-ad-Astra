@@ -6,7 +6,7 @@ import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { createWeaponSpec } from '@/domain/editors/weapon-spec';
 
-import { inferWeaponSpecClass } from '@/domain/tables/associated-spec-creation';
+import { inferWeaponSpecClass } from '@/domain/csv-editor/associated-spec-creation';
 import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
 import type { DeepReadonly, EntityData, EntityEditInfo, SpecEditorKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
 export interface WeaponData extends EntityEditInfo {

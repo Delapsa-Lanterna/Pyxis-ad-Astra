@@ -6,13 +6,13 @@ import { replayNextFileRedo, replayNextFileUndo } from '@/orchestrators/file-his
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { useTablesStore } from '@/stores/tables.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { clearSavedFileHistory, loadFileHistory } from '@/services/file-history.service';
 
 export function useFileHistoryViewModel() {
   const project = useProjectStore();
   const workspace = useWorkspaceStore();
-  const tables = useTablesStore();
+  const tables = useCsvEditorStore();
   const fileHistory = useFileHistoryStore();
   const feedback = useAppFeedback();
 

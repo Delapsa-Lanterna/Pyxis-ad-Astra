@@ -304,7 +304,7 @@ fn add_associated_spec_change(
         )
     })?;
     let id = change.id();
-    let id = crate::domain::config::validate_config_id(id, definition.invalid_id_message)?;
+    let id = crate::domain::entity_identity::validate_entity_id(id, definition.invalid_id_message)?;
     if target.kind != definition.entity_kind {
         return Err(AppError::message(
             "table.associated_spec_kind_mismatch",
@@ -355,7 +355,7 @@ fn add_associated_spec_change(
                     format!("关联目标已存在: {rel_path}"),
                 ));
             }
-            let previous_id = crate::domain::config::validate_config_id(
+            let previous_id = crate::domain::entity_identity::validate_entity_id(
                 previous_id,
                 definition.invalid_id_message,
             )?;

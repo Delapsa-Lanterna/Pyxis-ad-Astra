@@ -263,19 +263,18 @@ mod tests {
             "demo",
         )
         .unwrap();
-        let saved =
-            crate::commands::save_variant_entity(crate::models::ConfigFamilyEntityPayload {
-                session_id: first.session_id.clone(),
-                mod_root: first.mod_root.clone(),
-                base_versions: loaded.base_versions,
-                previous_id: Some("demo".into()),
-                next_id: "next".into(),
-                rel_path: Some(loaded.target.write.rel_path),
-                data: serde_json::json!({"variantId":"next","hullId":"hull"}),
-                json_write: Default::default(),
-                ordered_json: None,
-            })
-            .unwrap();
+        let saved = crate::commands::save_variant_entity(crate::models::JsonEntityFilePayload {
+            session_id: first.session_id.clone(),
+            mod_root: first.mod_root.clone(),
+            base_versions: loaded.base_versions,
+            previous_id: Some("demo".into()),
+            next_id: "next".into(),
+            rel_path: Some(loaded.target.write.rel_path),
+            data: serde_json::json!({"variantId":"next","hullId":"hull"}),
+            json_write: Default::default(),
+            ordered_json: None,
+        })
+        .unwrap();
         assert_eq!(saved.session_updates.len(), 2);
         for update in &saved.session_updates {
             let crate::models::CommittedProjection::Ready { projection } = &update.projection
@@ -331,19 +330,18 @@ mod tests {
         .unwrap();
         let bad = root.join("data/variants/broken.variant");
         std::fs::write(&bad, "{").unwrap();
-        let saved =
-            crate::commands::save_variant_entity(crate::models::ConfigFamilyEntityPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                base_versions: loaded.base_versions,
-                previous_id: Some("demo".into()),
-                next_id: "next".into(),
-                rel_path: Some(loaded.target.write.rel_path),
-                data: serde_json::json!({"variantId":"next","hullId":"hull"}),
-                json_write: Default::default(),
-                ordered_json: None,
-            })
-            .unwrap();
+        let saved = crate::commands::save_variant_entity(crate::models::JsonEntityFilePayload {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            base_versions: loaded.base_versions,
+            previous_id: Some("demo".into()),
+            next_id: "next".into(),
+            rel_path: Some(loaded.target.write.rel_path),
+            data: serde_json::json!({"variantId":"next","hullId":"hull"}),
+            json_write: Default::default(),
+            ordered_json: None,
+        })
+        .unwrap();
         assert!(matches!(
             saved.session_updates[0].projection,
             crate::models::CommittedProjection::Pending { .. }

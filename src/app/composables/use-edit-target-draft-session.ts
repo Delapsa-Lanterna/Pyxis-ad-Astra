@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef, type Ref } from 'vue';
-import { createFieldInputs, provideFieldInputs, type FieldInputs } from '@/shared/runtime/field-inputs';
+import { createFieldInputs, type FieldInputs } from '@/shared/runtime/field-inputs';
 import { useDraftSession, type DraftSessionOptions } from '@/app/composables/use-draft-session';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
@@ -29,7 +29,9 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
     after: EditTargetSnapshot<TValue, TTarget, TMeta>,
     submitted: TValue,
   ) => TValue;
-  afterSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
+  acceptSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
+  synchronizeSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
+  afterSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
   withSavePreparation?: (
     target: TTarget,
     submit: (prepared: TTarget) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>,
@@ -63,12 +65,16 @@ export interface EditTargetDraftSession<TValue, TTarget, TMeta = unknown> {
   loadBaseForTarget: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
   prepareClose: () => () => Promise<void>;
   clearTarget: () => void;
+  cancelRead: () => void;
   dispose: () => void;
   loadPendingExternal: () => void;
   loadTarget: (target: TTarget) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>;
   refreshTarget: (target: TTarget) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>;
   resetDraft: () => void;
-  saveDraft: () => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>;
+  saveDraft: (
+    write?: EditTargetDraftSessionOptions<TValue, TTarget, TMeta>['save'],
+    preserveDraft?: boolean,
+  ) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>;
   waitForSave: () => Promise<boolean>;
   setDraft: (value: TValue) => void;
   isTargetCurrent: (target: TTarget) => boolean;
@@ -88,10 +94,10 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
   });
   const currentTarget = shallowRef<TTarget | null>(null) as Ref<TTarget | null>;
   const currentTargetKey = ref<string | null>(null);
-  const inputs = provideFieldInputs(createFieldInputs(currentTargetKey));
+  const inputs = createFieldInputs(currentTargetKey);
   const context = shallowRef<EditContext | null>(null);
   const savedSnapshot = shallowRef<Snapshot | null>(null);
-  const pendingSynchronization = shallowRef<Snapshot | null>(null);
+  const pendingSynchronization = shallowRef<{ snapshot: Snapshot; phase: 'accept' | 'synchronize' | 'refresh' } | null>(null);
   const reads = createReadTicketOwner();
   const loading = ref(false);
   const saving = ref(false);
@@ -256,21 +262,21 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     return readTarget(target, 'external');
   }
 
-  function saveDraft(): Promise<Snapshot | null> {
+  function saveDraft(write = options.save, preserveDraft = false): Promise<Snapshot | null> {
     if (pendingSave) return pendingSave;
-    if (!options.save || !ready.value || disposed) return Promise.resolve(null);
+    if (!write || !ready.value || disposed) return Promise.resolve(null);
     saving.value = true;
     const life = lifetime;
-    const execute = (prepared: TTarget) => submit(prepared, options.targetKey(prepared), life);
+    const execute = (prepared: TTarget) => submit(prepared, options.targetKey(prepared), life, write!, preserveDraft);
     const operation = (async () => {
       if (pendingSynchronization.value) {
-        await synchronizeSaved(pendingSynchronization.value, life);
+        await synchronizeSaved(pendingSynchronization.value.snapshot, life);
         if (!dirty.value || disposed || life !== lifetime) return baselineSnapshot.value;
       }
       const latestTarget = deepClone(currentTarget.value!);
       return options.withSavePreparation
         ? options.withSavePreparation(latestTarget, execute)
-        : submit(latestTarget, currentTargetKey.value, life);
+        : submit(latestTarget, currentTargetKey.value, life, write!, preserveDraft);
     })();
     const task = operation
       .catch((error: unknown) => {
@@ -280,26 +286,32 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
       .finally(() => {
         saving.value = false;
         pendingSave = null;
-        refreshQueued = false;
+        if (!pendingSynchronization.value) refreshQueued = false;
       });
     pendingSave = task;
     return task;
   }
 
-  async function submit(target: TTarget, key: string | null, life: number): Promise<Snapshot | null> {
+  async function submit(
+    target: TTarget,
+    key: string | null,
+    life: number,
+    write: NonNullable<typeof options.save>,
+    preserveDraft: boolean,
+  ): Promise<Snapshot | null> {
     const committed = inputs.commit();
     if (committed && !(await committed)) return null;
     if (disposed || life !== lifetime || key !== currentTargetKey.value) return null;
     const submitted = clone(draftValue.value);
     const versions = deepClone(baselineSnapshot.value!.baseVersions);
     revokeReads();
-    const result = await options.save!(target, submitted, versions);
+    const result = await write(target, submitted, versions);
     if (!result) return null;
     savedSnapshot.value = copy(result);
     revokeReads();
     if (!disposed && life === lifetime && key === currentTargetKey.value) {
       lastCommitId = Math.max(lastCommitId, result.commitId ?? -1);
-      const preserve = !equals(draftValue.value, submitted) || inputs.dirty.value;
+      const preserve = preserveDraft || !equals(draftValue.value, submitted) || inputs.dirty.value;
       if (preserve && options.mapSavedDraft)
         session.commitSaved(result, {
           ...result,
@@ -311,18 +323,27 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
       currentTargetKey.value = options.targetKey(result.target);
       publishContext('save');
     }
-    pendingSynchronization.value = copy(result);
+    pendingSynchronization.value = { snapshot: copy(result), phase: 'accept' };
     return synchronizeSaved(result, life);
   }
 
   async function synchronizeSaved(result: Snapshot, life: number): Promise<Snapshot> {
     try {
-      await options.afterSaved?.(copy(result));
-      pendingSynchronization.value = null;
-      if (refreshQueued && !disposed && life === lifetime) {
-        refreshQueued = false;
-        await readTarget(currentTarget.value!, 'external', true);
+      const pending = pendingSynchronization.value!;
+      if (pending.phase === 'accept') {
+        await options.acceptSaved?.(copy(result));
+        pending.phase = 'synchronize';
       }
+      if (pending.phase === 'synchronize') {
+        await options.synchronizeSaved?.(copy(result));
+        pending.phase = 'refresh';
+      }
+      if (refreshQueued && !disposed && life === lifetime) {
+        await readTarget(currentTarget.value!, 'external', true);
+        refreshQueued = false;
+      }
+      pendingSynchronization.value = null;
+      options.afterSaved?.(copy(result));
     } catch (error) {
       throw withCause('已写盘，后续同步失败', error, 'sync-saved-target');
     }
@@ -333,7 +354,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     if (pendingSave) return pendingSave;
     if (!pendingSynchronization.value) return Promise.resolve(baselineSnapshot.value);
     saving.value = true;
-    pendingSave = synchronizeSaved(pendingSynchronization.value, lifetime).finally(() => {
+    pendingSave = synchronizeSaved(pendingSynchronization.value.snapshot, lifetime).finally(() => {
       saving.value = false;
       pendingSave = null;
     });
@@ -399,6 +420,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     adoptIdentity,
     loadBaseForTarget,
     clearTarget,
+    cancelRead: revokeReads,
     dispose,
     loadPendingExternal,
     loadTarget,

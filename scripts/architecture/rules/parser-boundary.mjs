@@ -36,7 +36,7 @@ function parserRustRole(rel) {
   if (rel.startsWith('src-tauri/src/domain/csv_column_order.')) return 'tool-json';
   if (rel.startsWith('src-tauri/src/services/app_settings')) return 'tool-json';
   if (rel.startsWith('src-tauri/src/services/workspace_persistence')) return 'tool-json';
-  if (/^src-tauri\/src\/services\/(?:config_entity|config_family|spec_editor)(?:\.rs|\/)/.test(rel)) return 'config-service';
+  if (/^src-tauri\/src\/services\/(?:config_entity|json_file|spec_editor)(?:\.rs|\/)/.test(rel)) return 'config-service';
   if (rel.startsWith('src-tauri/src/services/project/write/')) return 'project-write';
   if (rel.startsWith('src-tauri/src/services/')) return 'service';
   return 'other';

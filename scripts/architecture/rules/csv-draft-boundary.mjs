@@ -22,17 +22,8 @@ export const csvDraftBoundaryRule = {
       if (!frontendFile(file.rel)) continue;
       const current = classifyFrontendPath(file.rel);
 
-      if (
-        current.layer === 'domain' &&
-        current.domain === 'tables' &&
-        file.rel.endsWith('/csv-edit-history.ts') &&
-        draftStateWritePattern.test(file.text)
-      ) {
-        failures.push(`${file.rel}: CSV edit history must replay through CSV table draft domain, not mutate draft state`);
-      }
-
-      if (current.domain === 'tables' && current.role === 'store') {
-        if (legacyStoreDraftTerms.some((term) => file.text.includes(term))) {
+      if (current.domain === 'csv-editor' && current.role === 'store') {
+        if (legacyStoreDraftTerms.some((term) => new RegExp('\\b' + term + '\\b').test(file.text))) {
           failures.push(`${file.rel}: tables store must delegate CSV draft algorithms to csv-table-draft domain`);
         }
         if (draftStateWritePattern.test(removeLifecycleSections(file.text))) {
@@ -40,8 +31,8 @@ export const csvDraftBoundaryRule = {
         }
       }
 
-      const inTablesDomain = current.layer === 'domain' && current.domain === 'tables';
-      const inTablesStore = current.layer === 'stores' && current.domain === 'tables';
+      const inTablesDomain = current.layer === 'domain' && current.domain === 'csv-editor';
+      const inTablesStore = current.layer === 'stores' && current.domain === 'csv-editor';
       if (!inTablesDomain && !inTablesStore && draftStateWritePattern.test(file.text)) {
         failures.push(`${file.rel}: CSV draft state mutations must stay in csv-table-draft domain`);
       }
@@ -54,5 +45,5 @@ export const csvDraftBoundaryRule = {
 function removeLifecycleSections(text) {
   return text
     .replace(/function emptyDirtyState[\s\S]*?function emptyExternalUpdateState/, 'function emptyExternalUpdateState')
-    .replace(/function createModTableState[\s\S]*?function applyManifestSummaries/, 'function applyManifestSummaries');
+    .replace(/function createCsvModRuntime[\s\S]*?function applyManifestSummaries/, 'function applyManifestSummaries');
 }

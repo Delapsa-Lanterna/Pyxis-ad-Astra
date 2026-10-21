@@ -19,7 +19,6 @@
 - `src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期。
 - `src/app/composables/use-joint-edit-actions.ts`：确认、冲突选择和领域动作装配。
 - `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
-- `src/app/composables/use-table-save-participants.ts`：主窗口后台 CSV 保存交接适配器。
 - `src/domain/joint-edit.ts`：联合写入范围提取、身份映射、草稿重接与冲突选择投影。
 - `src/orchestrators/edit-target-handoff.orchestrator.ts`：保存准备、跨窗口请求、预约及释放。
 - `src/orchestrators/joint-edit.orchestrator.ts`：联合读取、冲突确认与提交顺序。
@@ -35,6 +34,7 @@
 - `src-tauri/src/services/project/write/csv_staging.rs`：联合表草稿、最终渲染与写盘成功后的会话接纳。
 - `src/app/WindowRuntime.vue`：显式交付窗口反馈并挂载目标交接。
 - `src/domain/edit-session.ts`：保存准备与跨窗口请求消费的目标重叠比较。
+- `src/domain/json-editor/json-variant-modules.ts`：装配模块对象与有序数组的身份改名映射。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/shared/types/joint-edit.types.ts`：前端联合记录、冲突及交接协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
@@ -78,7 +78,7 @@
 
 1. 请求捕获目标集合和来源窗口，定位本地与原生登记的相关参与者。
 2. 等待所属保存及 `pending` 同步，提交活动输入并核对目标。
-3. 用户确认相关未保存内容，参与者依次执行正式保存。
+3. 用户确认相关未保存内容，参与者通过共同保存登记依次执行；已排队关联文档兑现同一次保存结果。
 4. 准备完成后持有所属短暂锁，接收方返回 receipt。
 5. 编排取得原生预约并执行所属读取或提交。
 6. 实际基线接纳后释放本地锁、远端准备和原生预约。
@@ -114,6 +114,7 @@
 - `referenceSettings` 必须共同提供 Core／Mod 的幅能参数、引擎样式、UI 资源及配置版本；`ResourceRef` 必须由后端授权，展示消费者必须分别登记媒体集合。
 - variants 必须按实际装配记录键提供根与关联装配的有效投影；catalog 只允许按请求种类返回武器、联队或插件的元数据、来源、资源与版本。
 - 三方比较必须按对象字段路径与 CSV 记录内容执行，数组与文本必须整体选择；独立修改必须保留两侧业务内容。
+- 主窗口关联文档前置保存必须消费所属队列请求与正式结果；父保存等待前置文档时只允许在同一占用范围内直接兑现，严禁互相等待。
 - 交接请求必须携带 `requestId`、`ownerLabel`、`receiverLabel` 和完整目标；回复与释放必须核对同一身份。
 - 保存期间新增编辑必须保留；参与者保存后仍有 dirty 时必须结束交接并释放占用。
 - 保存确认必须绑定当前版本，确认后的来源变化必须返回版本冲突并保留草稿。

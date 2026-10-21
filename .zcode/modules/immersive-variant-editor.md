@@ -25,6 +25,7 @@
 
 ### 消费
 
+- `src/domain/json-editor/json-variant-modules.ts`：Variant 模块字段的对象/数组读取与写回。
 - `src/test/variant-joint-edit.ts`：装配、模块与装备来源的测试构造。
 
 ## 边界

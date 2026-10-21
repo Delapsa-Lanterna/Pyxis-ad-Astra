@@ -1,5 +1,5 @@
 use crate::{
-    domain::config::validate_config_id,
+    domain::entity_identity::validate_entity_id,
     errors::{AppError, AppResult},
     io::{
         FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, acquire_root_write_lock,
@@ -61,9 +61,9 @@ pub fn save_mission_with_json(
 ) -> AppResult<WriteResult<Value>> {
     let lease = acquire_root_write_lock(Path::new(root))?;
     let boundary = FsRootBoundary::new(Path::new(root), "mission root")?;
-    let next_id = validate_config_id(next_id, "无效战役 ID")?;
+    let next_id = validate_entity_id(next_id, "无效战役 ID")?;
     if let Some(previous) = previous_id {
-        validate_config_id(previous, "无效战役 ID")?;
+        validate_entity_id(previous, "无效战役 ID")?;
     }
     let mut index = read_csv_data(&boundary.resolve_relative(MISSION_INDEX, "mission index")?)?;
     if index.header.is_empty() {
@@ -259,7 +259,7 @@ pub fn delete_mission_entity(
     delete_target: bool,
 ) -> AppResult<WriteResult<Value>> {
     let lease = acquire_root_write_lock(Path::new(root))?;
-    validate_config_id(id, "无效战役 ID")?;
+    validate_entity_id(id, "无效战役 ID")?;
     let boundary = FsRootBoundary::new(Path::new(root), "mission root")?;
     let mut index = read_csv_data(&boundary.resolve_relative(MISSION_INDEX, "mission index")?)?;
     let position = index

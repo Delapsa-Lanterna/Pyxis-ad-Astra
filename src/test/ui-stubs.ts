@@ -122,4 +122,6 @@ export const editorUiStubs: GlobalStubs = {
   'n-popover': nPopover,
   'n-collapse': nCollapse,
   'n-collapse-item': nCollapseItem,
+  NCollapse: nCollapse,
+  NCollapseItem: nCollapseItem,
 };

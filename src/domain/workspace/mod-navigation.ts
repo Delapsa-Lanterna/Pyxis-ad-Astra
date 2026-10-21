@@ -1,7 +1,12 @@
-import type { ConfigView, ProjectManifest, CsvTableKey, WorkspaceView } from '@/shared/types';
+import type { JsonEditorPageId, ProjectManifest, CsvTableKey, WorkspaceView } from '@/shared/types';
 import { MODULE_LABELS } from '@/shared/lib/starsector';
 
-export type ModNavigationTarget = { type: 'config'; view: ConfigView } | { type: 'table'; table: CsvTableKey } | { type: 'mod-files' };
+export type ModNavigationTarget =
+  | { type: 'mod-overview' }
+  | { type: 'file-history' }
+  | { type: 'json-editor'; page: JsonEditorPageId }
+  | { type: 'table'; table: CsvTableKey }
+  | { type: 'mod-files' };
 
 export interface ModNavigationItem {
   id: string;
@@ -31,21 +36,21 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
     {
       id: 'workspace',
       items: [
-        configItem('mod-overview', 'Mod 概览'),
+        { id: 'mod-overview', label: 'Mod 概览', count: null, target: { type: 'mod-overview' } },
         { id: 'mod-files', label: 'Mod 文件', count: null, target: { type: 'mod-files' } },
-        configItem('file-history', '文件历史'),
+        { id: 'file-history', label: '文件历史', count: null, target: { type: 'file-history' } },
       ],
     },
     {
       id: 'mod-info',
-      items: [configItem('mod-info', 'Mod 信息')],
+      items: [jsonItem('mod-info', 'Mod 信息')],
     },
     {
       id: 'combat',
       items: [
         ...PRIMARY_TABLE_KEYS.map((key) => tableItem(key, manifest)),
-        configItem('skins', '舰船皮肤', manifest?.entitySummaries.skins ?? 0),
-        configItem('variants', '装配', manifest?.entitySummaries.variants ?? 0),
+        jsonItem('skins', '舰船皮肤', manifest?.entitySummaries.skins ?? 0),
+        jsonItem('variants', '装配', manifest?.entitySummaries.variants ?? 0),
         tableItem('simOpponents', manifest),
         tableItem('descriptions', manifest),
       ],
@@ -53,9 +58,9 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
     {
       id: 'campaign',
       items: [
-        configItem('factions', '势力', manifest?.entitySummaries.factions ?? 0),
+        jsonItem('factions', '势力', manifest?.entitySummaries.factions ?? 0),
         ...SECONDARY_TABLE_KEYS.map((key) => tableItem(key, manifest)),
-        configItem('mission', '战役', manifest?.entitySummaries.missions ?? 0),
+        jsonItem('mission', '战役', manifest?.entitySummaries.missions ?? 0),
       ],
     },
   ];
@@ -64,20 +69,22 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
 export function isModNavigationItemActive(
   item: ModNavigationItem,
   currentView: WorkspaceView,
-  configView: ConfigView,
+  jsonPage: JsonEditorPageId,
   currentTable: CsvTableKey,
 ): boolean {
   if (item.target.type === 'mod-files') return currentView === 'mod-files';
-  if (item.target.type === 'config') return currentView === 'config' && configView === item.target.view;
+  if (item.target.type === 'mod-overview') return currentView === 'mod-overview';
+  if (item.target.type === 'file-history') return currentView === 'file-history';
+  if (item.target.type === 'json-editor') return currentView === 'json-editor' && jsonPage === item.target.page;
   return currentView === 'table' && currentTable === item.target.table;
 }
 
-function configItem(view: ConfigView, label: string, count: number | null = null): ModNavigationItem {
+function jsonItem(page: JsonEditorPageId, label: string, count: number | null = null): ModNavigationItem {
   return {
-    id: `config:${view}`,
+    id: `json:${page}`,
     label,
     count,
-    target: { type: 'config', view },
+    target: { type: 'json-editor', page },
   };
 }
 

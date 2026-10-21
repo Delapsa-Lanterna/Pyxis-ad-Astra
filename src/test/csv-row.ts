@@ -1,4 +1,4 @@
-import type { CsvDraftRow, CsvTableIndex, CsvTableRows, ModTableState, RowData } from '@/shared/types';
+import type { CsvDraftRow, CsvTableIndex, CsvTableRows, CsvModState, RowData } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
 
 export function csvDraftRow(content: RowData, rowKey: string, isComment = false): CsvDraftRow {
@@ -17,8 +17,8 @@ export function csvTableIndex(rows: CsvDraftRow[], options: Partial<Omit<CsvTabl
   };
 }
 
-export function csvRows(state: ModTableState, baseline = false): CsvTableRows {
-  const keys = baseline ? state.originalRowOrders.ships : state.rowOrders.ships;
-  const rows = baseline ? state.originalTables.ships : state.tables.ships;
+export function csvRows(state: CsvModState, baseline = false): CsvTableRows {
+  const keys = baseline ? state.documents.ships.baselineRowOrder : state.documents.ships.rowOrder;
+  const rows = baseline ? state.documents.ships.baselineRows : state.documents.ships.rows;
   return keys.map((key) => rows[key] ?? null);
 }

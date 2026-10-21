@@ -50,7 +50,6 @@ interface FileEditorTarget {
 
 export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   const settings = useSettingsStore();
-  const completedLocalWrites = new Set<number>();
   const feedback = useAppFeedback();
   const currentPath = ref(params.filePath);
   let identityPreparation: Awaited<ReturnType<typeof createEntitySavePreparation>> | null = null;
@@ -137,16 +136,16 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         return submit(target);
       });
     },
-    afterSaved: async (snapshot) => {
+    acceptSaved: async (snapshot) => {
       const target = snapshot.target;
       if (target.sessionId) {
-        if (!completedLocalWrites.has(snapshot.meta.receipt!.commitId)) {
-          await identityPreparation?.finish();
-          if (snapshot.meta.entity) await retargetFileWindow(target.sessionId, target.modRoot, target.filePath, title.value);
-          await releaseCommittedIdentityTargets();
-          completedLocalWrites.add(snapshot.meta.receipt!.commitId);
-        }
+        await identityPreparation?.finish();
+        if (snapshot.meta.entity) await retargetFileWindow(target.sessionId, target.modRoot, target.filePath, title.value);
+        await releaseCommittedIdentityTargets();
       }
+    },
+    synchronizeSaved: async (snapshot) => {
+      const target = snapshot.target;
       await emitFileEditorSaved({
         modRoot: target.modRoot,
         path: target.filePath,
@@ -191,7 +190,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       draftSession: draftSession,
       save: async () => {
         const snapshot = await draftSession.saveDraft();
-        return { saved: Boolean(snapshot), receipt: snapshot?.meta.receipt ?? null };
+        return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
       },
     },
   });
@@ -472,6 +471,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     targetColumn.value = normalizeEventLine(location.column);
   }
   return {
+    inputs: draftSession.inputs,
     contentReady: draftSession.ready,
     filePath: currentPath,
     title,

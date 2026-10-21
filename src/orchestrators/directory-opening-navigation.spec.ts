@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => {
     mods: new Map<string, unknown>(),
     activateModOverview: vi.fn((modRoot: string) => {
       workspaceStore.activeModRoot = modRoot;
-      workspaceStore.currentView = 'config';
+      workspaceStore.currentView = 'mod-overview';
     }),
     clearModOpeningFailure: vi.fn(),
     clearModOpeningFailures: vi.fn(),
@@ -70,9 +70,9 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/stores/workspace.store', () => ({ useWorkspaceStore: () => mocks.workspaceStore }));
 vi.mock('@/stores/project.store', () => ({ useProjectStore: () => mocks.project }));
-vi.mock('@/stores/tables.store', () => ({ useTablesStore: () => mocks.tables }));
+vi.mock('@/stores/csv-editor.store', () => ({ useCsvEditorStore: () => mocks.tables }));
 vi.mock('@/stores/file-history.store', () => ({ useFileHistoryStore: () => mocks.fileHistory }));
-vi.mock('@/stores/tables-edit-history.store', () => ({ useTablesEditHistoryStore: () => mocks.csvHistory }));
+vi.mock('@/stores/csv-table-history.store', () => ({ useCsvEditorStore: () => mocks.csvHistory }));
 vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => mocks.writeSync }));
 vi.mock('@/stores/mod-file-browser.store', () => ({ useModFileBrowserStore: () => mocks.fileBrowser }));
 vi.mock('@/services/project-session.service', () => ({
@@ -115,7 +115,7 @@ describe('workspace Mod opening navigation', () => {
 
     expect(outcome).toEqual({ type: 'mod-loaded', modRoot, modName: 'Demo', warnings: [] });
     expect(mocks.workspaceStore.activeModRoot).toBe(modRoot);
-    expect(mocks.workspaceStore.currentView).toBe('config');
+    expect(mocks.workspaceStore.currentView).toBe('mod-overview');
     expect(mocks.workspaceStore.clearModOpeningFailure).toHaveBeenCalledWith(modRoot);
   });
 

@@ -3,7 +3,7 @@ import { stableStringify } from '@/shared/lib/stable-compare';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { readSettings, saveSettings } from '@/services/app-settings.service';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useTablesEditHistoryStore } from '@/stores/tables-edit-history.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { listenWindowEvent } from '@/windows/tauri.events';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
@@ -90,7 +90,7 @@ async function persist(snapshot: AppSettings, life: number, committed: (accepts:
   for (const pending of pendingSnapshots) Object.assign(pending, mergeNormalized(pending, snapshot, result.value));
   settings.replaceSettings(merged);
   settings.confirmSavedSettings(result.value);
-  useTablesEditHistoryStore().setHistoryLimit(result.value.editHistoryLimit);
+  useCsvEditorStore().setHistoryLimit(result.value.editHistoryLimit);
   accept(result);
   try {
     await committed(() => life === generation);
@@ -107,7 +107,7 @@ export function startSettingsPersistence(onCommitted: (accepts: () => boolean) =
   receive = (snapshot) => {
     settings.confirmSavedSettings(snapshot.value);
   };
-  useTablesEditHistoryStore().setHistoryLimit(settings.editHistoryLimit);
+  useCsvEditorStore().setHistoryLimit(settings.editHistoryLimit);
   const stop = watch(
     () => settings.settingsSnapshot(),
     (snapshot) => {
@@ -132,7 +132,7 @@ export function startSettingsMirror(): () => void {
   const settings = useSettingsStore();
   receive = (snapshot) => {
     settings.replaceSettings(snapshot.value);
-    useTablesEditHistoryStore().setHistoryLimit(snapshot.value.editHistoryLimit);
+    useCsvEditorStore().setHistoryLimit(snapshot.value.editHistoryLimit);
   };
   if (official) receive(official);
   return () => {

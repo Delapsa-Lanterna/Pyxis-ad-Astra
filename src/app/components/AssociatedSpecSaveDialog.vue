@@ -19,7 +19,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { WEAPON_SPEC_CLASSES } from '@/domain/editors/weapon-spec';
-import type { AssociatedSpecCandidate } from '@/domain/tables/associated-spec-candidates';
+import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import type { WeaponSpecClass } from '@/shared/types';
 
 const props = defineProps<{ candidates: AssociatedSpecCandidate[]; selectedKeys: Set<string> }>();

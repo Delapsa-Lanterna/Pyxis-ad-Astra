@@ -7,7 +7,7 @@ import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics } from '../weapon/weapon-statistics';
 import { weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
-import { variantModuleEntries } from '@/domain/config/config-entities';
+import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { mountedWeaponImages, weaponImageLayers, weaponLoadedMissile, type MountedWeaponImages } from '@/domain/editors/weapon-images';
 import { VARIANT_COLORS } from '../appearance';

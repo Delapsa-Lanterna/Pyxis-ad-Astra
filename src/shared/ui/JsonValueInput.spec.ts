@@ -1,3 +1,4 @@
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { mount } from '@vue/test-utils';
 import { h } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
@@ -20,6 +21,7 @@ describe('JSON field save boundary', () => {
             save,
             targetKey: (key) => key,
           });
+          provideFieldInputs(session.inputs);
           return () => h(JsonFieldEditor, { modelValue: session.draftValue.value, knownKeys: [], 'onUpdate:modelValue': session.setDraft });
         },
       },
@@ -66,6 +68,7 @@ describe('JSON field save boundary', () => {
             save,
             targetKey: (id) => id,
           });
+          provideFieldInputs(session.inputs);
           return () =>
             h(JsonFieldEditor, {
               modelValue: session.draftValue.value,
@@ -96,6 +99,7 @@ describe('JSON field save boundary', () => {
             save,
             targetKey: (id) => id,
           });
+          provideFieldInputs(session.inputs);
           return () =>
             h(JsonFieldEditor, {
               modelValue: session.draftValue.value,
