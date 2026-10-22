@@ -117,6 +117,14 @@
       </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">JSON 保存</h3>
+      <FieldRow label="原样保存"
+        ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
+          #hint
+          ><FieldHints description="尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。" /></template
+      ></FieldRow>
+    </section>
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">缓存限制</h3>
       <FieldRow v-for="(row, key) in HISTORY_FIELDS" :key="key" :label="row[0]"
         ><n-input-number
@@ -175,14 +183,6 @@
         >
         <template #hint><FieldHints description="每张原版字体图集保留的着色字形成品数量。" /></template>
       </FieldRow>
-    </section>
-    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
-      <h3 class="panel-section-title">JSON 保存</h3>
-      <FieldRow label="原样保存"
-        ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
-          #hint
-          ><FieldHints description="尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。" /></template
-      ></FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">配置文件</h3>
