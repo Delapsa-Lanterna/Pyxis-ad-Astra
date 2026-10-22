@@ -17,6 +17,7 @@
     </button>
     <input
       v-if="customMode"
+      ref="customRef"
       :value="customText"
       class="csv-cell-picker-custom ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
       placeholder="输入自定义值"
@@ -58,7 +59,7 @@
             :aria-pressed="multiple ? selectedValues.has(option.value) : undefined"
             :title="option.description ?? undefined"
             type="button"
-            @click="selectOption(option.value)"
+            @click="selectOption(option)"
           >
             <svg v-if="multiple" class="csv-cell-picker-check ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
               <path v-if="selectedValues.has(option.value)" d="m3 8 3 3 7-6" />
@@ -95,7 +96,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
-import { groupSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
+import { groupSelectOptions, type FlatSelectOption, type SelectOption } from '@/domain/schema/schema-options';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import { useCsvFloatingPanel, useCsvFloatingViewport } from '@/app/composables/csv-editor/use-csv-floating-panel';
@@ -128,6 +129,7 @@ const query = ref('');
 const customMode = ref(false);
 const customText = ref('');
 const searchRef = useTemplateRef<HTMLInputElement>('searchRef');
+const customRef = useTemplateRef<HTMLInputElement>('customRef');
 const selectedValues = computed(() => new Set(props.values));
 
 // Mirrors the .csv-cell-picker max-height in tables.css.
@@ -163,7 +165,18 @@ function clearValue() {
   emit('commit', ['']);
 }
 
-function selectOption(value: string) {
+function selectOption(option: FlatSelectOption) {
+  if (option.templateValue !== undefined) {
+    customMode.value = true;
+    customText.value = option.templateValue;
+    emit('pending-custom', true);
+    void nextTick(() => {
+      customRef.value?.focus({ preventScroll: true });
+      customRef.value?.select();
+    });
+    return;
+  }
+  const value = option.value;
   if (!props.multiple) {
     emit('commit', [value]);
     return;

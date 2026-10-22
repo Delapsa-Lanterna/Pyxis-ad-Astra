@@ -53,28 +53,14 @@ pub(crate) fn collect_webview_frames(tree: &serde_json::Value, frames: &mut BTre
 }
 
 #[cfg(windows)]
-pub(crate) fn is_main_webview_render_event(
-    event: &serde_json::Value,
-    frames: &BTreeSet<String>,
-) -> bool {
-    const RENDER: &[&str] = &[
-        "Layout",
-        "UpdateLayoutTree",
-        "PrePaint",
-        "Paint",
-        "Layerize",
-        "CompositeLayers",
-        "RasterTask",
-        "BeginFrame",
-        "DrawFrame",
-        "Commit",
-    ];
-    RENDER.contains(&event["name"].as_str().unwrap_or_default())
-        && event["args"]["beginData"]["frame"]
-            .as_str()
-            .or_else(|| event["args"]["data"]["frame"].as_str())
-            .or_else(|| event["args"]["frame"].as_str())
-            .is_some_and(|frame| frames.contains(frame))
+pub(crate) fn is_main_webview_event(event: &serde_json::Value, frames: &BTreeSet<String>) -> bool {
+    event["args"]["beginData"]["frame"]
+        .as_str()
+        .or_else(|| event["args"]["data"]["frame"].as_str())
+        .or_else(|| event["args"]["data"]["page"].as_str())
+        .or_else(|| event["args"]["frame"].as_str())
+        .or_else(|| event["args"]["page"].as_str())
+        .is_some_and(|frame| frames.contains(frame))
 }
 
 #[cfg(all(test, windows))]
@@ -83,28 +69,29 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn main_frame_ids_filter_render_events() {
+    fn main_frame_ids_filter_trace_events() {
         let tree = json!({"frame":{"id":"main"},"childFrames":[{"frame":{"id":"main-child"}}]});
         let mut frames = BTreeSet::new();
         collect_webview_frames(&tree, &mut frames);
         let event = |name, frame| json!({"name":name,"args":{"beginData":{"frame":frame}}});
-        assert!(is_main_webview_render_event(
-            &event("Layout", "main"),
-            &frames
-        ));
-        assert!(is_main_webview_render_event(
+        assert!(is_main_webview_event(&event("Layout", "main"), &frames));
+        assert!(is_main_webview_event(
             &event("Paint", "main-child"),
             &frames
         ));
-        assert!(!is_main_webview_render_event(
+        assert!(is_main_webview_event(
+            &event("FunctionCall", "main"),
+            &frames
+        ));
+        assert!(is_main_webview_event(
+            &json!({"name":"ResourceSendRequest","args":{"data":{"page":"main"}}}),
+            &frames
+        ));
+        assert!(!is_main_webview_event(
             &event("Layout", "other-window"),
             &frames
         ));
-        assert!(!is_main_webview_render_event(
-            &event("EvaluateScript", "main"),
-            &frames
-        ));
-        assert!(!is_main_webview_render_event(
+        assert!(!is_main_webview_event(
             &json!({"name":"Layout","args":{}}),
             &frames
         ));

@@ -14,14 +14,12 @@ use crate::services::project::sources::core::{
     load_core_csv_table, load_core_skin_files, load_core_source_data,
 };
 use crate::{
-    domain::well_known_labels::{
-        WellKnownLabelEntry, well_known_hint_labels, well_known_tag_labels,
-    },
+    domain::well_known_labels::{WellKnownCatalog, well_known_catalog},
     errors::{AppError, AppResult},
     models::{CsvTableKey, ResourceSource, SourceOptionGroup},
 };
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 
 struct SourceOptionRowsContext<'a> {
     core_data: Option<&'a CoreSourceData>,
@@ -54,7 +52,7 @@ pub fn query_csv_source_options(
         })?;
         ensure_source_column(&csv.header, table_key, column)?;
     }
-    let metadata_catalog = source_token_metadata_catalog(column, &mut session)?;
+    let metadata_catalog = source_token_metadata_catalog(table, column, &mut session)?;
     let csv = session
         .csv_tables
         .get(table_key)
@@ -150,6 +148,33 @@ pub fn query_csv_source_options(
             &mut seen,
         )?);
     }
+    if let Some(catalog) = metadata_catalog.as_ref().and_then(|catalog| catalog.known) {
+        for (value, entry) in &catalog.values {
+            if seen.insert(value.clone()) {
+                options.push(crate::models::SourceOption {
+                    label: format!("{value} ({})", entry.label),
+                    value: value.clone(),
+                    description: Some(entry.description.clone()),
+                    resource_ref: None,
+                    origin: ResourceSource::Core,
+                    template_value: None,
+                    template_max: None,
+                });
+            }
+        }
+        for pattern in &catalog.patterns {
+            let entry = pattern.entry(None);
+            options.push(crate::models::SourceOption {
+                label: format!("{}* ({})", pattern.prefix, entry.label),
+                value: format!("{}*", pattern.prefix),
+                description: Some(entry.description),
+                resource_ref: None,
+                origin: ResourceSource::Core,
+                template_value: Some(format!("{}0", pattern.prefix)),
+                template_max: Some(pattern.max),
+            });
+        }
+    }
     if !options.is_empty() {
         groups.push(SourceOptionGroup {
             origin: ResourceSource::Core,
@@ -211,6 +236,8 @@ fn skin_source_options(
                 origin,
                 description: source_option_description(&value, context.metadata_catalog),
                 resource_ref,
+                template_value: None,
+                template_max: None,
             });
         }
     }
@@ -279,6 +306,8 @@ fn entity_source_options(
             description: None,
             resource_ref: entity.resource_refs.values().next().cloned(),
             origin,
+            template_value: None,
+            template_max: None,
         });
     }
     options
@@ -395,6 +424,8 @@ fn source_option_from_row(
         description: source_option_description(value, context.metadata_catalog),
         resource_ref,
         origin: resource_source,
+        template_value: None,
+        template_max: None,
     })
 }
 
@@ -465,14 +496,23 @@ fn source_option_label_for_value(
 }
 
 fn source_token_metadata_catalog(
+    table: CsvTableKey,
     column: &str,
     session: &mut super::super::model::ProjectSession,
 ) -> AppResult<Option<SourceTokenMetadataCatalog>> {
-    match column {
-        "tags" => Ok(Some(build_tag_metadata_catalog(session)?)),
-        "hints" => Ok(Some(build_hint_metadata_catalog())),
-        _ => Ok(None),
+    if !matches!(column, "tags" | "hints" | "uiTags") {
+        return Ok(None);
     }
+    let mut catalog = SourceTokenMetadataCatalog {
+        values: HashMap::new(),
+        known: well_known_catalog(table, column),
+    };
+    if column == "tags" {
+        add_core_blueprint_package_metadata(&mut catalog.values, session)?;
+        add_mod_blueprint_package_metadata(&mut catalog.values, session)?;
+        add_faction_blueprint_metadata(&mut catalog.values, session);
+    }
+    Ok(Some(catalog))
 }
 
 #[derive(Clone)]
@@ -483,35 +523,18 @@ struct SourceTokenMetadata {
 
 struct SourceTokenMetadataCatalog {
     values: HashMap<String, SourceTokenMetadata>,
-    generated: Option<fn(&str) -> Option<SourceTokenMetadata>>,
+    known: Option<&'static WellKnownCatalog>,
 }
 
 impl SourceTokenMetadataCatalog {
     fn find(&self, value: &str) -> Option<SourceTokenMetadata> {
-        self.values
-            .get(value)
-            .cloned()
-            .or_else(|| self.generated.and_then(|generated| generated(value)))
-    }
-}
-
-fn build_tag_metadata_catalog(
-    session: &mut super::super::model::ProjectSession,
-) -> AppResult<SourceTokenMetadataCatalog> {
-    let mut metadata = well_known_metadata_map(well_known_tag_labels());
-    add_core_blueprint_package_metadata(&mut metadata, session)?;
-    add_mod_blueprint_package_metadata(&mut metadata, session)?;
-    add_faction_blueprint_metadata(&mut metadata, session);
-    Ok(SourceTokenMetadataCatalog {
-        values: metadata,
-        generated: Some(generated_tag_metadata),
-    })
-}
-
-fn build_hint_metadata_catalog() -> SourceTokenMetadataCatalog {
-    SourceTokenMetadataCatalog {
-        values: well_known_metadata_map(well_known_hint_labels()),
-        generated: None,
+        self.known
+            .and_then(|catalog| catalog.find(value))
+            .map(|entry| SourceTokenMetadata {
+                label: entry.label,
+                description: Some(entry.description),
+            })
+            .or_else(|| self.values.get(value).cloned())
     }
 }
 
@@ -605,125 +628,6 @@ fn add_faction_blueprint_metadata(
         );
     }
 }
-
-fn well_known_metadata_map(
-    labels: &BTreeMap<String, WellKnownLabelEntry>,
-) -> HashMap<String, SourceTokenMetadata> {
-    labels
-        .iter()
-        .map(|(value, entry)| {
-            (
-                value.clone(),
-                SourceTokenMetadata {
-                    label: entry.label.clone(),
-                    description: Some(entry.description.clone()),
-                },
-            )
-        })
-        .collect()
-}
-
-fn generated_tag_metadata(value: &str) -> Option<SourceTokenMetadata> {
-    let (prefix, index) = split_numeric_suffix(value)?;
-    let (label, description) = GENERATED_TAG_PATTERNS.iter().find_map(|pattern| {
-        (pattern.prefix == prefix).then_some((pattern.label, pattern.description))
-    })?;
-    Some(SourceTokenMetadata {
-        label: format!("{label} {index}"),
-        description: Some(description.to_string()),
-    })
-}
-
-fn split_numeric_suffix(value: &str) -> Option<(&str, u32)> {
-    let split_at = value
-        .char_indices()
-        .rev()
-        .find_map(|(index, ch)| (!ch.is_ascii_digit()).then_some(index + ch.len_utf8()))?;
-    if split_at == value.len() || split_at == 0 {
-        return None;
-    }
-    let number = value[split_at..].parse::<u32>().ok()?;
-    Some((&value[..split_at], number))
-}
-
-struct GeneratedTagPattern {
-    prefix: &'static str,
-    label: &'static str,
-    description: &'static str,
-}
-
-static GENERATED_TAG_PATTERNS: &[GeneratedTagPattern] = &[
-    GeneratedTagPattern {
-        prefix: "kinetic",
-        label: "动能武器强度",
-        description: "仅适用于武器。动能武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "he",
-        label: "高爆武器强度",
-        description: "仅适用于武器。高爆武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "energy",
-        label: "能量武器强度",
-        description: "仅适用于武器。能量武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "missile",
-        label: "导弹武器强度",
-        description: "仅适用于武器。导弹武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "beam",
-        label: "光束武器强度",
-        description: "仅适用于武器。光束武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "pd",
-        label: "点防御武器强度",
-        description: "仅适用于武器。点防御武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "strike",
-        label: "打击武器强度",
-        description: "仅适用于武器。打击武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "rocket",
-        label: "火箭武器强度",
-        description: "仅适用于武器。火箭武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "utility",
-        label: "功能武器强度",
-        description: "仅适用于武器。功能武器强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "fighter",
-        label: "战斗机强度",
-        description: "仅适用于战机联队。战斗机强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "interceptor",
-        label: "截击机强度",
-        description: "仅适用于战机联队。截击机强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "bomber",
-        label: "轰炸机强度",
-        description: "仅适用于战机联队。轰炸机强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "support",
-        label: "支援机强度",
-        description: "仅适用于战机联队。支援机强度排序标签。",
-    },
-    GeneratedTagPattern {
-        prefix: "substrate_",
-        label: "渊幕底物武器强度",
-        description: "仅适用于武器。渊幕底物武器强度排序标签。",
-    },
-];
 
 #[cfg(test)]
 mod tests {
@@ -1279,7 +1183,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
         let tag_label = source_option_label_from_groups(&tag_groups, "no_drop");
         let hint_label = source_option_label_from_groups(&hint_groups, "PD");
-        assert_eq!(tag_label.as_deref(), Some("no_drop (不可掉落)"));
+        assert_eq!(
+            tag_label.as_deref(),
+            Some("no_drop (不会作为常规战利品出现)")
+        );
         assert_eq!(hint_label.as_deref(), Some("PD (点防御)"));
     }
 
@@ -1382,23 +1289,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
         assert_eq!(
             source_option_label_from_groups(&tag_groups, "codex_unlockable").as_deref(),
-            Some("codex_unlockable (百科可解锁)")
+            Some("codex_unlockable (数据百科待解锁)")
         );
         assert_eq!(
             source_option_label_from_groups(&tag_groups, "beam999").as_deref(),
-            Some("beam999 (光束武器强度 999)")
+            Some("beam999")
         );
         assert_eq!(
             source_option_label_from_groups(&hint_groups, "DIRECT_AIM").as_deref(),
-            Some("DIRECT_AIM (直接瞄准)")
+            Some("DIRECT_AIM (导弹直线追踪目标)")
         );
         assert_eq!(
             source_option_label_from_groups(&hint_groups, "CONSERVE_5").as_deref(),
-            Some("CONSERVE_5 (节省弹药 5)")
+            Some("CONSERVE_5 (至少保留 5 轮弹药)")
         );
+        let kinetic_template = tag_groups
+            .iter()
+            .flat_map(|group| group.options.iter())
+            .find(|option| option.value == "kinetic*")
+            .unwrap();
+        assert_eq!(kinetic_template.origin, ResourceSource::Core);
+        assert_eq!(kinetic_template.template_value.as_deref(), Some("kinetic0"));
+        assert_eq!(kinetic_template.template_max, Some(99));
         assert_eq!(
             source_option_label_from_groups(&tag_groups, "energy123").as_deref(),
-            Some("energy123 (能量武器强度 123)")
+            Some("energy123")
         );
         assert_eq!(
             source_option_label_from_groups(&hint_groups, "CONSERVE_999").as_deref(),

@@ -186,33 +186,33 @@
       </n-button>
     </div>
 
-    <n-select
-      v-else-if="field.type === 'string-array'"
-      :value="arrVal"
-      :options="sourceOptions.length > 0 ? listOptions : arrVal.map((v) => ({ label: v, value: v }))"
-      :render-label="renderSelectLabel"
-      :render-tag="renderSelectTag"
-      multiple
-      filterable
-      tag
-      size="small"
-      @update:show="handleSelectShowUpdate"
-      @update:value="emitValue($event)"
-    />
-
-    <n-select
-      v-else-if="field.type === 'tag-select'"
-      :value="tagSelectVal"
-      :options="tagDisplayOptions"
-      :render-label="renderSelectLabel"
-      :render-tag="renderSelectTag"
-      multiple
-      filterable
-      tag
-      size="small"
-      @update:show="handleSelectShowUpdate"
-      @update:value="emitValue(wrapTags($event))"
-    />
+    <div v-else-if="field.type === 'string-array' || field.type === 'tag-select'" class="ui-layout-row ui-layout-stack ui-layout-stretch">
+      <n-select
+        :value="field.type === 'tag-select' ? tagSelectVal : arrVal"
+        :options="field.type === 'tag-select' ? tagDisplayOptions : listOptions"
+        :render-label="renderSelectLabel"
+        :render-tag="renderSelectTag"
+        multiple
+        filterable
+        tag
+        size="small"
+        @update:show="handleSelectShowUpdate"
+        @update:value="updateTagSelection"
+      />
+      <div v-if="customTag !== null" class="ui-control-row">
+        <n-input
+          ref="customTagInput"
+          :value="customTag"
+          size="small"
+          placeholder="输入自定义值"
+          @update:value="customTag = $event"
+          @blur="commitCustomTag"
+          @keydown.enter.prevent="commitCustomTag"
+          @keydown.esc.stop.prevent="customTag = null"
+        />
+        <n-button size="small" @click="commitCustomTag">添加</n-button>
+      </div>
+    </div>
 
     <div
       v-else-if="field.type === 'key-value'"
@@ -224,17 +224,32 @@
         :key="row.rowId"
         class="field-map-row ui-layout-grid ui-layout-shrink ui-layout-center ui-layout-stretch"
       >
-        <n-select
-          :value="row.entry.key"
-          :options="kvKeyOptions"
-          :render-label="renderSelectLabel"
-          filterable
-          tag
-          size="small"
-          class="field-map-key ui-layout-shrink ui-layout-stretch"
-          @update:show="handleSelectShowUpdate($event, `kv:${row.rowId}`)"
-          @update:value="updateKvKey(idx, $event)"
-        />
+        <div class="field-map-key-editor ui-layout-row ui-layout-stack ui-layout-shrink ui-layout-stretch">
+          <n-select
+            :value="row.entry.key"
+            :options="kvKeyOptions"
+            :render-label="renderSelectLabel"
+            filterable
+            tag
+            size="small"
+            class="field-map-key ui-layout-shrink ui-layout-stretch"
+            @update:show="handleSelectShowUpdate($event, `kv:${row.rowId}`)"
+            @update:value="updateKvKey(idx, $event)"
+          />
+          <div v-if="customKvKey?.rowId === row.rowId" class="ui-control-row">
+            <n-input
+              ref="customKvKeyInput"
+              :value="customKvKey.text"
+              size="small"
+              placeholder="输入自定义值"
+              @update:value="customKvKey.text = $event"
+              @blur="commitCustomKvKey"
+              @keydown.enter.prevent="commitCustomKvKey"
+              @keydown.esc.stop.prevent="customKvKey = null"
+            />
+            <n-button size="small" @click="commitCustomKvKey">添加</n-button>
+          </div>
+        </div>
         <SchemaValueInput
           v-if="field.valueSchema"
           :field="field.valueSchema"
@@ -342,7 +357,8 @@
 
 <script setup lang="ts">
 import SchemaFieldRow from './SchemaFieldRow.vue';
-import { computed, h, watch } from 'vue';
+import { computed, h, nextTick, ref, watch } from 'vue';
+import type { InputInst } from 'naive-ui/es/input';
 import { NTag } from 'naive-ui/es/tag';
 import type { JsonValue, ResourceRef } from '@/shared/types';
 import { useSchemaPathPicker } from '@/app/composables/editors/use-schema-path-picker';
@@ -383,7 +399,7 @@ import ResourceOptionThumbnail from '@/app/components/media/ResourceOptionThumbn
 import { useCoreGraphics } from '@/app/composables/use-core-assets';
 import SchemaScalarInput from '@/app/components/schema/SchemaScalarInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { useFieldInputs } from '@/shared/runtime/field-inputs';
+import { registerFieldInput, useFieldInputs } from '@/shared/runtime/field-inputs';
 import { isCsvSource } from '@/domain/schema/csv-source-options';
 import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
 
@@ -549,6 +565,78 @@ const displayOptions = computed(() => includeCurrentSelectOptions(enumOptions.va
 const listOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, arrVal.value));
 const tagDisplayOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, tagSelectVal.value));
 
+const customTag = ref<string | null>(null);
+const customTagInput = ref<InputInst | null>(null);
+const customKvKey = ref<{ rowId: number; text: string } | null>(null);
+const customKvKeyInput = ref<InputInst[]>([]);
+function updateTagSelection(values: string[]) {
+  const template = sourceOptions.value
+    .flatMap((group) => group.children ?? [group])
+    .find((option) => option.templateValue !== undefined && values.includes(option.value));
+  if (template) {
+    customTag.value = template.templateValue!;
+    void nextTick(() => customTagInput.value?.focus());
+  } else emitValue(props.field.type === 'tag-select' ? wrapTags(values) : values);
+}
+function commitCustomTag() {
+  const value = customTag.value?.trim();
+  customTag.value = null;
+  if (!value) return;
+  const values = [...new Set([...(props.field.type === 'tag-select' ? tagSelectVal.value : arrVal.value), value])];
+  emitValue(props.field.type === 'tag-select' ? wrapTags(values) : values);
+}
+registerFieldInput({
+  get key() {
+    return fieldInputKey.value + '/custom-tag';
+  },
+  get label() {
+    return props.field.label;
+  },
+  dirty: computed(() => !!customTag.value?.trim()),
+  commit: () => {
+    commitCustomTag();
+    return null;
+  },
+  cancel: () => {
+    customTag.value = null;
+  },
+  focus: () => customTagInput.value?.focus(),
+});
+function commitCustomKvKey() {
+  const pending = customKvKey.value;
+  const key = pending?.text.trim();
+  customKvKey.value = null;
+  if (!key || !pending) return;
+  const idx = kvRowIds.value.indexOf(pending.rowId);
+  const entries = [...kvEntries.value];
+  entries[idx] = { ...entries[idx]!, key };
+  emitKvUpdate(entries);
+}
+registerFieldInput({
+  get key() {
+    return customKvKey.value ? `${fieldInputKey.value}/${customKvKey.value.rowId}/custom-key` : `${fieldInputKey.value}/custom-key`;
+  },
+  get label() {
+    return props.field.label;
+  },
+  dirty: computed(() => !!customKvKey.value?.text.trim()),
+  commit: () => {
+    commitCustomKvKey();
+    return null;
+  },
+  cancel: () => {
+    customKvKey.value = null;
+  },
+  focus: () => customKvKeyInput.value.at(-1)?.focus(),
+});
+watch(
+  () => [fieldInputKey.value, props.field.source, props.runtimeContext?.sessionId, props.runtimeContext?.sourceContextKey],
+  () => {
+    customTag.value = null;
+    customKvKey.value = null;
+  },
+);
+
 const graphicsOptions = computed(() => {
   const options: SelectOption[] = [];
   if (props.field.pathBase === 'mission') return options;
@@ -644,6 +732,14 @@ function emitKvUpdate(entries: SchemaKeyValueEntry[], operation?: { kind: 'inser
 }
 
 function updateKvKey(idx: number, newKey: string) {
+  const template = sourceOptions.value
+    .flatMap((group) => group.children ?? [group])
+    .find((option) => option.value === newKey && option.templateValue !== undefined);
+  if (template) {
+    customKvKey.value = { rowId: kvRowIds.value[idx]!, text: template.templateValue! };
+    void nextTick(() => customKvKeyInput.value.at(-1)?.focus());
+    return;
+  }
   const entries = [...kvEntries.value];
   entries[idx] = { ...entries[idx]!, key: newKey };
   emitKvUpdate(entries);

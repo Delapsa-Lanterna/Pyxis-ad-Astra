@@ -8,6 +8,8 @@ export interface SelectOption {
   value: string;
   description?: string | null;
   resourceRef?: Readonly<ResourceRef> | null;
+  templateValue?: string;
+  templateMax?: number;
   type?: 'group';
   key?: string;
   children?: SelectOption[];
@@ -18,6 +20,8 @@ export interface FlatSelectOption {
   label: string;
   resourceRef?: Readonly<ResourceRef> | null;
   value: string;
+  templateValue?: string;
+  templateMax?: number;
 }
 
 export interface SelectOptionGroup {
@@ -37,7 +41,10 @@ export function sourceGroupLabel(origin: ResourceSource): string {
 }
 
 export function selectOptionValueExists(options: SelectOption[], value: string): boolean {
-  return options.some((option) => option.value === value || option.children?.some((child) => child.value === value));
+  return options.some(
+    (option) =>
+      (!option.templateValue && option.value === value) || option.children?.some((child) => !child.templateValue && child.value === value),
+  );
 }
 
 export function isSelectOptionGroup(option: SelectOption): boolean {
@@ -49,9 +56,9 @@ export function selectOptionText(option: SelectOption): string {
 }
 
 export function flattenSelectOptions(options: SelectOption[]): FlatSelectOption[] {
-  return options.flatMap((option) =>
-    isSelectOptionGroup(option) ? (option.children ?? []).map(flatSelectOption) : [flatSelectOption(option)],
-  );
+  return options
+    .flatMap((option) => (isSelectOptionGroup(option) ? (option.children ?? []).map(flatSelectOption) : [flatSelectOption(option)]))
+    .filter((option) => option.templateValue === undefined);
 }
 
 export function groupSelectOptions(options: SelectOption[]): SelectOptionGroup[] {
@@ -80,7 +87,7 @@ export function includeCurrentSelectOptions(options: SelectOption[], values: str
       seen.add(value);
       return true;
     })
-    .map((value) => ({ label: value, value }));
+    .map((value) => numericSelectOption(options, value) ?? { label: value, value });
   if (current.length === 0) return options;
   return [{ type: 'group', ...CURRENT_VALUE_OPTION_GROUP, children: current }, ...options];
 }
@@ -88,6 +95,18 @@ export function includeCurrentSelectOptions(options: SelectOption[], values: str
 export function schemaEnumSelectOptions(field: FieldSchema, sourceOptions: SelectOption[]): SelectOption[] {
   if (field.options && field.options.length > 0) return field.options.map((option) => ({ label: option, value: option }));
   return sourceOptions;
+}
+
+export function numericSelectOption(options: SelectOption[], value: string): SelectOption | undefined {
+  for (const option of options.flatMap((group) => group.children ?? [group])) {
+    if (option.templateValue === undefined) continue;
+    const prefix = option.templateValue.slice(0, -1);
+    if (!value.startsWith(prefix)) continue;
+    const suffix = value.slice(prefix.length);
+    if (/^\d+$/.test(suffix) && Number(suffix) <= option.templateMax!) {
+      return { label: option.label.replace(option.value, value), value, description: option.description };
+    }
+  }
 }
 
 export function fieldSourceCurrentValues(field: FieldSchema, value: unknown): string[] {
@@ -99,21 +118,42 @@ export function fieldSourceCurrentValues(field: FieldSchema, value: unknown): st
 }
 
 export function mapSourceGroupsToSelectOptions(groups: DeepReadonly<SourceOptionGroup[]>): SelectOption[] {
-  return groups.map((group) => {
-    const label = sourceGroupLabel(group.origin);
-    return {
+  const options: SelectOption[] = groups
+    .map((group): SelectOption => {
+      const label = sourceGroupLabel(group.origin);
+      return {
+        type: 'group',
+        key: `group:${label}`,
+        label,
+        value: label,
+        children: group.options
+          .filter((option) => option.templateValue === undefined)
+          .map((option) => ({
+            label: option.label,
+            value: option.value,
+            description: option.description,
+            resourceRef: option.resourceRef ?? null,
+          })),
+      };
+    })
+    .filter((group) => group.children!.length > 0);
+  const templates = groups.flatMap((group) => group.options.filter((option) => option.templateValue !== undefined));
+  if (templates.length)
+    options.push({
       type: 'group',
-      key: `group:${label}`,
-      label,
-      value: label,
-      children: group.options.map((option) => ({
+      key: 'group:numeric-tags',
+      label: '数字标签',
+      value: '__numeric-tags',
+      children: templates.map((option) => ({
         label: option.label,
         value: option.value,
         description: option.description,
-        resourceRef: option.resourceRef ?? null,
+        resourceRef: null,
+        templateValue: option.templateValue,
+        templateMax: option.templateMax,
       })),
-    };
-  });
+    });
+  return options;
 }
 
 function flatSelectOption(option: SelectOption): FlatSelectOption {
@@ -122,5 +162,7 @@ function flatSelectOption(option: SelectOption): FlatSelectOption {
     description: option.description ?? null,
     resourceRef: option.resourceRef ?? null,
     value: option.value,
+    templateValue: option.templateValue,
+    templateMax: option.templateMax,
   };
 }

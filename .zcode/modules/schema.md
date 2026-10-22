@@ -14,7 +14,7 @@
 - `schemas/mod-info.schema.json`：Mod 信息字段模式资产。
 - `schemas/skin.schema.json`：皮肤字段模式资产。
 - `schemas/variant.schema.json`：装配字段模式资产。
-- `schemas/well-known-labels.json`：well-known 标签资产。
+- `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
 - `src-tauri/src/commands/source_options.rs`：来源目录 command。
 - `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
 - `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
@@ -76,7 +76,7 @@
 - `FieldInputs` 与编辑会话接纳延迟提交和模式交接，组件保留输入、焦点和错误。
 - schema runtime 拥有字段语义、source、转换和归一化，组件渲染并交付字段动作。
 - schema 资产与加载器拥有版本和形状，列资产使用表注册表 key，游戏文件名映射归后端。
-- source 目录由后端按声明解析，CSV 来源保持行序，实体来源消费正式清单。
+- source 目录由后端按声明解析，CSV 来源保持行序，实体来源消费正式清单；原版 tags、hints 与 UI 标签按表列隔离。
 - 原始 JSON 和标量输入归共享控件，解析与形状校验归共享纯模块。
 - 嵌套路径、键值和数组身份归字段动作与稳定行原语，额外字段来自业务键集合。
 - 舰体内置槽位目录消费 session 和草稿 `baseHullId`，经有效继承投影返回。
@@ -96,7 +96,7 @@
 
 1. 字段声明 source 时渲染器经 runtime 上下文请求选项目录。
 2. 选项目录按 `(sessionId, source)` 查询并保持原表行序。
-3. 目录外非空值以原始文本同时作为标签与值进入选项。
+3. 当前 Mod 与原版候选分别分组；已登记原版值追加到原版组，目录外非空值以原始文本同时作为标签与值进入选项。
 4. 资源类选项在展开或选中时按需解析缩略图。
 
 ### 额外字段
@@ -117,6 +117,7 @@
 - schema 资产必须按配置、CSV 列与 Mod 信息入口加载，资产解析必须复用所属版本、形状与来源校验。
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
 - 分组必须消费 EditorCollapse 与 Naive 折叠项，默认折叠必须按 schema 身份初始化，首次展开后的隐藏必须保留所属输入。
+- 原版 tags、hints 与 UI 标签必须按 Starsector 版本及完整表列 source 查询；数字规则必须通过独立模板选项交付默认输入值与有效上限，选择必须填入标签或键值键的自定义输入，并经所属 FieldInputs 提交；具体数字说明必须来自匹配的来源规则。
 - 字段名称、字段键与完整路径必须显式交给共同标签，值控件必须消费原文登记与正式提交接口。
 - 字段挂载严禁触发选项贴图批量读取；批量解析必须 single-flight 去重。
 - 字段描述由字段行按展开设置交给公共 FieldHints 或标签的统一提示；注意与风险始终经公共 FieldHints 直接展示，切换时保留输入节点、原文、焦点与校验。

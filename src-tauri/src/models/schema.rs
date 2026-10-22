@@ -16,6 +16,10 @@ pub struct SourceOption {
     pub description: Option<String>,
     pub resource_ref: Option<ResourceRef>,
     pub origin: ResourceSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_max: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

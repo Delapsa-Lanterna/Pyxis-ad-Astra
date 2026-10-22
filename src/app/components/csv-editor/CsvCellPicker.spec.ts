@@ -101,6 +101,28 @@ describe('CsvCellPicker placement', () => {
     wrapper.unmount();
   });
 
+  it('puts a numeric template into the existing custom input without selecting the default', async () => {
+    const wrapper = mountPicker(
+      { height: 30, left: 40, top: 100, width: 200 },
+      {
+        options: [
+          {
+            type: 'group',
+            label: '数字标签',
+            value: 'numeric',
+            children: [{ label: 'kinetic* (动能)', value: 'kinetic*', templateValue: 'kinetic0' }],
+          },
+        ],
+      },
+    );
+    await wrapper.get('.csv-cell-picker-option').trigger('click');
+    expect((wrapper.get('.csv-cell-picker-custom').element as HTMLInputElement).value).toBe('kinetic0');
+    expect(wrapper.emitted('commit')).toBeUndefined();
+    await wrapper.get('.csv-cell-picker-custom').setValue('kinetic12');
+    expect(wrapper.vm.captureValues()).toEqual(['kinetic12']);
+    wrapper.unmount();
+  });
+
   it('keeps the floating panel inside a narrow viewport and follows resizing', async () => {
     vi.stubGlobal('innerWidth', 480);
     const wrapper = mountPicker({ height: 30, left: 420, top: 100, width: 200 });

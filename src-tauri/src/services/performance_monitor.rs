@@ -272,27 +272,55 @@ fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8)
     if let Err(error) = window.with_webview(move |platform| {
         let core = match unsafe { platform.controller().CoreWebView2() } {
             Ok(core) => core,
-            Err(error) => { trace_failed(generation, error.to_string()); return; }
+            Err(error) => {
+                trace_failed(generation, error.to_string());
+                return;
+            }
         };
         let data_name = CoTaskMemPWSTR::from("Tracing.dataCollected");
-        let data = match unsafe { core.GetDevToolsProtocolEventReceiver(*data_name.as_ref().as_pcwstr()) } {
-            Ok(receiver) => receiver,
-            Err(error) => { trace_failed(generation, error.to_string()); return; }
-        };
+        let data =
+            match unsafe { core.GetDevToolsProtocolEventReceiver(*data_name.as_ref().as_pcwstr()) }
+            {
+                Ok(receiver) => receiver,
+                Err(error) => {
+                    trace_failed(generation, error.to_string());
+                    return;
+                }
+            };
         let complete_name = CoTaskMemPWSTR::from("Tracing.tracingComplete");
-        let complete = match unsafe { core.GetDevToolsProtocolEventReceiver(*complete_name.as_ref().as_pcwstr()) } {
+        let complete = match unsafe {
+            core.GetDevToolsProtocolEventReceiver(*complete_name.as_ref().as_pcwstr())
+        } {
             Ok(receiver) => receiver,
-            Err(error) => { trace_failed(generation, error.to_string()); return; }
+            Err(error) => {
+                trace_failed(generation, error.to_string());
+                return;
+            }
         };
         let data_token = match listen_trace(&data, sender.clone(), None) {
             Ok(token) => token,
-            Err(error) => { trace_failed(generation, error.to_string()); return; }
+            Err(error) => {
+                trace_failed(generation, error.to_string());
+                return;
+            }
         };
         let tokens = Arc::new(Mutex::new(None));
-        let complete_token = match listen_trace(&complete, sender.clone(), Some((core.clone(), data.clone(), complete.clone(), tokens.clone(), generation))) {
+        let complete_token = match listen_trace(
+            &complete,
+            sender.clone(),
+            Some((
+                core.clone(),
+                data.clone(),
+                complete.clone(),
+                tokens.clone(),
+                generation,
+            )),
+        ) {
             Ok(token) => token,
             Err(error) => {
-                unsafe { let _ = data.remove_DevToolsProtocolEventReceived(data_token); }
+                unsafe {
+                    let _ = data.remove_DevToolsProtocolEventReceived(data_token);
+                }
                 trace_failed(generation, error.to_string());
                 return;
             }
@@ -302,51 +330,85 @@ fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8)
         let frame_set = frames.clone();
         let query_core = core.clone();
         let started_app = timer_app.clone();
-        let started = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, payload| {
-            if let Err(error) = result { trace_failed_with_core(generation, &query_core, error.to_string()); return Ok(()); }
-            let tree = match parse_starsector_json(&payload) {
-                Ok(tree) => tree,
-                Err(error) => { trace_failed_with_core(generation, &query_core, error.to_string()); return Ok(()); }
-            };
-            let mut frames = frame_set.lock().expect("frame lock");
-            collect_webview_frames(&tree["frameTree"], &mut frames);
-            if frames.is_empty() {
-                trace_failed_with_core(generation, &query_core, "main window frame tree is empty".into());
-                return Ok(());
-            }
-            drop(frames);
-            let start_core = query_core.clone();
-            let confirmed_app = started_app.clone();
-            let confirmed = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, _| {
-                if let Err(error) = result { trace_failed_with_core(generation, &start_core, error.to_string()); }
-                else {
-                    let active = {
-                        let mut trace = TRACE.lock().expect("trace state lock");
-                        if trace.generation == generation && trace.state == "starting" {
-                            trace.state = "recording".into();
-                            trace.started_at = now();
-                            true
-                        } else { false }
-                    };
-                    if active {
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(seconds.into()));
-                            if let Some(window) = confirmed_app.get_webview_window("main") { let _ = trace_stop_generation(window, generation); }
-                        });
+        let started =
+            CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, payload| {
+                if let Err(error) = result {
+                    trace_failed_with_core(generation, &query_core, error.to_string());
+                    return Ok(());
+                }
+                let tree = match parse_starsector_json(&payload) {
+                    Ok(tree) => tree,
+                    Err(error) => {
+                        trace_failed_with_core(generation, &query_core, error.to_string());
+                        return Ok(());
                     }
+                };
+                let mut frames = frame_set.lock().expect("frame lock");
+                collect_webview_frames(&tree["frameTree"], &mut frames);
+                if frames.is_empty() {
+                    trace_failed_with_core(
+                        generation,
+                        &query_core,
+                        "main window frame tree is empty".into(),
+                    );
+                    return Ok(());
+                }
+                drop(frames);
+                let start_core = query_core.clone();
+                let confirmed_app = started_app.clone();
+                let confirmed = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(
+                    move |result, _| {
+                        if let Err(error) = result {
+                            trace_failed_with_core(generation, &start_core, error.to_string());
+                        } else {
+                            let active = {
+                                let mut trace = TRACE.lock().expect("trace state lock");
+                                if trace.generation == generation && trace.state == "starting" {
+                                    trace.state = "recording".into();
+                                    trace.started_at = now();
+                                    true
+                                } else {
+                                    false
+                                }
+                            };
+                            if active {
+                                std::thread::spawn(move || {
+                                    std::thread::sleep(std::time::Duration::from_secs(
+                                        seconds.into(),
+                                    ));
+                                    if let Some(window) = confirmed_app.get_webview_window("main") {
+                                        let _ = trace_stop_generation(window, generation);
+                                    }
+                                });
+                            }
+                        }
+                        Ok(())
+                    },
+                ));
+                let method = CoTaskMemPWSTR::from("Tracing.start");
+                let params = CoTaskMemPWSTR::from(
+                    r#"{"categories":"*,disabled-by-default-*","transferMode":"ReportEvents"}"#,
+                );
+                if let Err(error) = unsafe {
+                    query_core.CallDevToolsProtocolMethod(
+                        *method.as_ref().as_pcwstr(),
+                        *params.as_ref().as_pcwstr(),
+                        &confirmed,
+                    )
+                } {
+                    trace_failed_with_core(generation, &query_core, error.to_string());
                 }
                 Ok(())
             }));
-            let method = CoTaskMemPWSTR::from("Tracing.start");
-            let params = CoTaskMemPWSTR::from(r#"{"categories":"devtools.timeline,blink,cc,benchmark,disabled-by-default-devtools.timeline.frame","transferMode":"ReportEvents"}"#);
-            if let Err(error) = unsafe { query_core.CallDevToolsProtocolMethod(*method.as_ref().as_pcwstr(), *params.as_ref().as_pcwstr(), &confirmed) } {
-                trace_failed_with_core(generation, &query_core, error.to_string());
-            }
-            Ok(())
-        }));
         let method = CoTaskMemPWSTR::from("Page.getFrameTree");
         let params = CoTaskMemPWSTR::from("{}");
-        if let Err(error) = unsafe { core.CallDevToolsProtocolMethod(*method.as_ref().as_pcwstr(), *params.as_ref().as_pcwstr(), &started) } {
+        if let Err(error) = unsafe {
+            core.CallDevToolsProtocolMethod(
+                *method.as_ref().as_pcwstr(),
+                *params.as_ref().as_pcwstr(),
+                &started,
+            )
+        } {
             trace_failed_with_core(generation, &core, error.to_string());
         }
     }) {
@@ -526,7 +588,7 @@ fn write_trace(
                     let value = parse_starsector_json(&raw)?;
                     let frames = frames.lock().expect("frame lock");
                     for event in value["value"].as_array().into_iter().flatten() {
-                        if is_main_webview_render_event(event, &frames) {
+                        if is_main_webview_event(event, &frames) {
                             if !first {
                                 file.write_all(b",")?;
                             }

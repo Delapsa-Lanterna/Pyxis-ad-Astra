@@ -2,6 +2,7 @@ import {
   flattenSelectOptions,
   includeCurrentSelectOptions,
   isSelectOptionGroup,
+  numericSelectOption,
   selectOptionText,
   type SelectOption,
 } from '@/domain/schema/schema-options';
@@ -65,7 +66,10 @@ export function sourceValueSet(index: CsvSourceIndex, source: string | undefined
 
 export function sourceValue(index: CsvSourceIndex, source: string | undefined | null, value: string) {
   if (!source || !value) return null;
-  return index.valueIndexBySource.get(source)?.get(value) ?? null;
+  const existing = index.valueIndexBySource.get(source)?.get(value);
+  if (existing) return existing;
+  const numeric = numericSelectOption(sourceOptions(index, source), value);
+  return numeric ? { group: '原版', option: numeric } : null;
 }
 
 export function includeCurrentValue(options: SelectOption[], existingValues: Set<string>, value: string): SelectOption[] {
@@ -83,8 +87,9 @@ function createValueIndex(options: SelectOption[]): Map<string, { group: string;
   const index = new Map<string, { group: string; option: SelectOption }>();
   for (const option of options) {
     if (isSelectOptionGroup(option)) {
-      for (const child of option.children ?? []) index.set(child.value, { group: selectOptionText(option), option: child });
-    } else {
+      for (const child of option.children ?? [])
+        if (!child.templateValue) index.set(child.value, { group: selectOptionText(option), option: child });
+    } else if (!option.templateValue) {
       index.set(option.value, { group: '', option });
     }
   }

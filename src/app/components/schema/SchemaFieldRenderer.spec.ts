@@ -1,5 +1,5 @@
-import { provideFieldInputs } from '@/shared/runtime/field-inputs';
-import { mount } from '@vue/test-utils';
+import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldSchema } from '@/domain/schema/schema.types';
@@ -198,6 +198,118 @@ describe('SchemaFieldRenderer smart mode', () => {
   it('renders string arrays as a multi picker in smart mode', () => {
     const field = mountField(fieldFixture('string-array'), ['a', 'b']);
     expect(field.find('select').exists()).toBe(true);
+  });
+
+  it('routes a numeric tag template to the field custom input and commits the edited value', async () => {
+    const inputs = createFieldInputs();
+    const value = ref<string[]>([]);
+    const runtimeContext = {
+      modRoot: 'D:/fixture/mod',
+      sessionId: 'session-1',
+      querySourceOptions: async () => [
+        {
+          origin: 'core' as const,
+          options: [
+            {
+              label: 'kinetic* (动能)',
+              value: 'kinetic*',
+              description: '武器级别',
+              resourceRef: null,
+              origin: 'core' as const,
+              templateValue: 'kinetic0',
+              templateMax: 99,
+            },
+          ],
+        },
+      ],
+    };
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () =>
+            h(SchemaFieldRenderer, {
+              field: fieldFixture('string-array', { source: 'csv:weapons.tags' }),
+              value: value.value,
+              runtimeContext,
+              onUpdate: (update) => {
+                if (update.kind === 'set') value.value = update.value as string[];
+              },
+            });
+        },
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    const field = wrapper;
+    await flushPromises();
+    await nextTick();
+    const select = field.findComponent(nSelect);
+    expect(select.props('options')).toContainEqual(expect.objectContaining({ label: '数字标签' }));
+    await select.vm.$emit('update:value', ['kinetic*']);
+    await nextTick();
+    expect(inputs.dirty.value).toBe(true);
+    inputs.cancel();
+    expect(value.value).toEqual([]);
+    expect(inputs.dirty.value).toBe(false);
+    await select.vm.$emit('update:value', ['kinetic*']);
+    await nextTick();
+    const input = field.findAll('input').at(-1)!;
+    expect((input.element as HTMLInputElement).value).toBe('kinetic0');
+    await input.setValue('kinetic7');
+    expect(await inputs.commit()).toBe(true);
+    expect(value.value).toEqual(['kinetic7']);
+    expect(inputs.dirty.value).toBe(false);
+  });
+
+  it('routes a numeric tag template to a key-value custom key and preserves the mapped value', async () => {
+    const inputs = createFieldInputs();
+    const value = ref<Record<string, number>>({ existing: 3 });
+    const runtimeContext = {
+      modRoot: 'D:/fixture/mod',
+      sessionId: 'session-1',
+      querySourceOptions: async () => [
+        {
+          origin: 'core' as const,
+          options: [
+            {
+              label: 'kinetic* (动能)',
+              value: 'kinetic*',
+              description: '武器级别',
+              resourceRef: null,
+              origin: 'core' as const,
+              templateValue: 'kinetic0',
+              templateMax: 99,
+            },
+          ],
+        },
+      ],
+    };
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () =>
+            h(SchemaFieldRenderer, {
+              field: fieldFixture('key-value', { source: 'csv:ships.tags' }),
+              value: value.value,
+              runtimeContext,
+              onUpdate: (update) => {
+                if (update.kind === 'set') value.value = update.value as Record<string, number>;
+              },
+            });
+        },
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    const field = wrapper;
+    await flushPromises();
+    await field.findComponent(nSelect).vm.$emit('update:value', 'kinetic*');
+    await nextTick();
+    const input = field.get('.field-map-key-editor input');
+    expect((input.element as HTMLInputElement).value).toBe('kinetic0');
+    await input.setValue('kinetic12');
+    expect(await inputs.commit()).toBe(true);
+    expect(value.value).toEqual({ kinetic12: 3 });
   });
 
   it('preserves multiline text and emits edits', async () => {

@@ -11,6 +11,8 @@ export interface SourceOption {
   description: string | null;
   resourceRef: ResourceRef | null;
   origin: ResourceSource;
+  templateValue?: string;
+  templateMax?: number;
 }
 
 export interface CsvSourceOptionsPayload {
