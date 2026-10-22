@@ -100,21 +100,21 @@ export function weaponAccuracy(value: number): string {
 }
 export function weaponTurnRate(value: number): string {
   return value <= 0
-    ? '无法转向'
+    ? '无'
     : value <= 5
-      ? '很慢'
+      ? '非常慢'
       : value <= 15
-        ? '慢'
+        ? '较慢'
         : value <= 25
           ? '中等'
           : value <= 35
-            ? '快'
+            ? '较快'
             : value <= 50
-              ? '很快'
+              ? '非常快'
               : '优秀';
 }
 export function weaponMissileSpeed(value: number): string {
-  return value <= 125 ? '很慢' : value <= 175 ? '慢' : value <= 225 ? '中等' : value <= 275 ? '快' : '很快';
+  return value <= 125 ? '非常慢' : value <= 175 ? '较慢' : value <= 225 ? '中等' : value <= 275 ? '较快' : '非常快';
 }
 export function weaponMissileTracking(speed: number, projectile: Readonly<RowData>): string {
   if (['BOMB', 'ROCKET', 'NO_AI', 'TORPEDO'].includes(schemaStringValue(projectile.missileType))) return '无';

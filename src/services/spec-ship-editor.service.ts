@@ -51,7 +51,7 @@ export async function querySpecShipWeaponSources(root: JointEditRoot, ship: RowD
             .filter(Boolean)
         : [],
     weapons,
-    diagnostic: hull!.status === 'rejected' ? '舰体渲染提示读取失败：' + formatError(hull!.reason) : '',
+    diagnostic: hull!.status === 'rejected' ? '船体渲染提示读取失败：' + formatError(hull!.reason) : '',
   };
 }
 

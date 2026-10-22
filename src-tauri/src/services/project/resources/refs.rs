@@ -55,7 +55,7 @@ impl<'a> HullReferenceResolver<'a> {
             if !seen.insert(current.clone()) {
                 return Err(AppError::message(
                     "skin.base_cycle",
-                    format!("循环舰体皮肤引用: {id}"),
+                    format!("循环船体皮肤引用: {id}"),
                 ));
             }
             if field == "hullName"

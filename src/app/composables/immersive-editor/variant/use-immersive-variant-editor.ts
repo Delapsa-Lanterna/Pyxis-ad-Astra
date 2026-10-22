@@ -185,7 +185,7 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
           admitted = joint.inputs.captureContext(),
           captured = snapshot.value;
         const missing = keys.find((key) => !graph.variants[key]);
-        if (missing) throw new AppError('装配缺少有效舰体来源：' + missing, { action: 'strip-variant' });
+        if (missing) throw new AppError('装配缺少有效船体来源：' + missing, { action: 'strip-variant' });
         const details = keys
           .map((key) => {
             const record = graph.records.find((record) => record.key === key)!;
@@ -200,7 +200,7 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
           content:
             '清空以下 ' +
             keys.length +
-            ' 个装配的可编辑武器、联队、普通／永久／S插件及幅能分配。确认后登记一次草稿历史，保存后写盘。\n\n' +
+            ' 个装配的可编辑武器、战机联队、普通／永久／S 插件及幅能分配。确认后登记一次草稿历史，保存后写盘。\n\n' +
             details,
           choices: [{ label: '清空草稿', value: 'strip', type: 'warning' }],
         });

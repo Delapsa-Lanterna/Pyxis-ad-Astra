@@ -81,7 +81,7 @@ export function weaponSections(weapon: RowData): SpecSection[] {
             ['autocharge', '自动充能', false],
             ['requiresFullCharge', '需要完全充能', true],
             ['interruptibleBurst', '允许中断连发', false],
-            ['unaffectedByProjectileSpeedBonuses', '忽略弹速加成', false],
+            ['unaffectedByProjectileSpeedBonuses', '忽略弹体速度加成', false],
           ],
         },
     beam
@@ -103,7 +103,7 @@ export function weaponSections(weapon: RowData): SpecSection[] {
           fields: [
             ['animationType', '炮口动画类型', '', ['NONE', 'GLOW', 'MUZZLE_FLASH', 'GLOW_AND_FLASH', 'SMOKE'], true],
             ['visualRecoil', '视觉后坐', 0],
-            ['separateRecoilForLinkedBarrels', '联动炮管独立后坐', false],
+            ['separateRecoilForLinkedBarrels', '齐射时各炮管独立后坐', false],
           ],
         },
     {

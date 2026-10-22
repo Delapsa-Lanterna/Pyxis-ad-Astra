@@ -6,7 +6,7 @@
     { "key": "id", "label": "ID", "control": "text" },
     { "key": "tags", "label": "Tags 标签", "control": "tags", "source": "csv:marketConditions.tags" },
     { "key": "planetary", "label": "行星", "control": "boolean" },
-    { "key": "decivRemove", "label": "去文明时移除", "control": "boolean" },
+    { "key": "decivRemove", "label": "文明丧失时移除", "control": "boolean" },
     { "key": "script", "label": "脚本", "control": "text" },
     { "key": "desc", "label": "描述", "control": "text" },
     { "key": "icon", "label": "图标", "control": "path-image" },

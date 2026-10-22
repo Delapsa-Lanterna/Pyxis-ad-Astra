@@ -84,7 +84,7 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
         if (session.dirty.value) await acceptPending();
         else await adopt(handoff);
       } catch (error) {
-        if (!disposed) feedback.error(error, '同步 JSON 文档身份失败');
+        if (!disposed) feedback.error(error, '同步文档重命名失败');
       }
     })
       .then((listener) => {
@@ -96,7 +96,7 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
       });
   }
   watch(active, () => {
-    void acceptPending().catch((error: unknown) => feedback.error(error, '接纳 JSON 文档身份失败'));
+    void acceptPending().catch((error: unknown) => feedback.error(error, '跟随文档重命名失败'));
   });
   onScopeDispose(() => {
     disposed = true;

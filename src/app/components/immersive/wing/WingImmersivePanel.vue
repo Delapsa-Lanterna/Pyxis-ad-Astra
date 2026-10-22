@@ -28,7 +28,7 @@
       <ImmersivePanelRow :stat="panel.system" :render="render" />
       <p class="ship-immersive-related-description ui-text-soft"><ImmersiveText :runs="panel.systemRuns" block /></p>
       <div class="immersive-related-row ui-layout-grid">
-        <span><ImmersiveText text="武装" /></span
+        <span><ImmersiveText text="军备详情" /></span
         ><strong class="immersive-related-row-value ui-text-normal"
           ><ImmersiveText :text="panel.armaments" :runs="panel.armamentRuns.length ? panel.armamentRuns : undefined"
         /></strong>
@@ -37,7 +37,7 @@
     <section>
       <ImmersiveSection title="来源与补全" />
       <p class="immersive-source-note ui-text-muted ui-text-wrap ui-text-reset">
-        <ImmersiveText :text="'联队 ID：' + render.root.id" block />
+        <ImmersiveText :text="'战机联队 ID：' + render.root.id" block />
       </p>
       <ImmersivePanelRow v-for="stat in panel.sources" :key="stat.id" :stat="stat" :render="render" />
       <n-button

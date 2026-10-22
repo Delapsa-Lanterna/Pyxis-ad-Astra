@@ -10,7 +10,7 @@
       <div
         class="variant-op-budget ui-control-center"
         :style="{ background: VARIANT_COLORS.opTrack }"
-        title="已使用／总装配点 · 基础配置口径"
+        title="已使用／总装配点数 · 基础配置口径"
       >
         <div class="variant-op-fill ui-layout-row" aria-hidden="true">
           <span :style="{ width: opSegments.within * 100 + '%', background: VARIANT_COLORS.opGradient }" />
@@ -41,11 +41,11 @@
       </div>
       <div v-for="(field, index) in ['fluxCapacitors', 'fluxVents']" :key="field" class="variant-flux-row ui-layout-row">
         <div class="variant-flux-controls ui-layout-row ui-layout-center">
-          <ImmersiveText :text="index ? '耗散器' : '容器'" font="ship-title" ink-aligned />
+          <ImmersiveText :text="index ? '耗散通道' : '幅能寄存器'" font="ship-title" ink-aligned />
           <button
             class="variant-step ui-button ui-control-center ui-control-pointer ui-control-reset ui-content-surface-muted"
             :disabled="!variant.editable || (index ? variant.vents : variant.capacitors) <= 0"
-            :aria-label="index ? '减少耗散器' : '减少容器'"
+            :aria-label="index ? '减少耗散通道' : '减少幅能寄存器'"
             @click="$emit('step', field, -1)"
           >
             <ImmersiveText text="−" font="op" />
@@ -54,7 +54,7 @@
           <button
             class="variant-step ui-button ui-control-center ui-control-pointer ui-control-reset ui-content-surface-muted"
             :disabled="!variant.editable"
-            :aria-label="index ? '增加耗散器' : '增加容器'"
+            :aria-label="index ? '增加耗散通道' : '增加幅能寄存器'"
             @click="$emit('step', field, 1)"
           >
             <ImmersiveText text="+" font="op" />
@@ -90,7 +90,7 @@
       </div>
     </div>
     <section class="variant-mod-widget">
-      <ImmersiveText text="舰体特性与插件" font="ship-title" />
+      <ImmersiveText text="船体插件" font="ship-title" />
       <div class="variant-mod-list">
         <div
           v-for="mod in variant.mods"

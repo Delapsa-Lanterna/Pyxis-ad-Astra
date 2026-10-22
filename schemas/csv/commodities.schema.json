@@ -60,7 +60,7 @@
     },
     {
       "key": "cargo space",
-      "label": "货仓空间",
+      "label": "货舱占用",
       "control": "number",
       "step": 0.1
     },

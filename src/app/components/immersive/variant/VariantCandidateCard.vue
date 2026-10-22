@@ -48,7 +48,7 @@
         :active="active"
         :text="formatVariantNumber(cost)"
         :runs="[{ text: formatVariantNumber(cost), color: current ? '#9bff00' : '#ffd200' }]"
-        font="op" /><ImmersiveText :active="active" text="装配点" font="caption"
+        font="op" /><ImmersiveText :active="active" text="装配点数" font="caption"
     /></strong>
   </button>
 </template>
@@ -96,7 +96,8 @@ const wingLayout = computed(() =>
   immersiveWingLayout(immersiveNumber(data.value, 'num', NaN), schemaStringValue(data.value.formation), 72),
 );
 const cardDiagnostic = computed(
-  () => props.diagnostic || (props.kind === 'wings' ? wingLayout.value.diagnostic || (!scene.value ? '联队装配／舰体来源缺失' : '') : ''),
+  () =>
+    props.diagnostic || (props.kind === 'wings' ? wingLayout.value.diagnostic || (!scene.value ? '战机联队装配／船体来源缺失' : '') : ''),
 );
 const mediaUrl = (resource: ResourceRef) => props.mediaUrl(resource);
 const summary = computed(() =>

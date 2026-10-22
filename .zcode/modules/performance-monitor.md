@@ -43,7 +43,7 @@
 - 对照构建采用前端 VITE_PERFORMANCE_MONITOR=0 与 Rust --no-default-features；外部采样工具 profile.mjs 连接 DevTools endpoint 并导出 cpuprofile。
 - 性能文件位于工具 app-data 的 performance-monitor 目录；业务状态与保存接纳仍归所属 owner。
 - 报告按来源及名称分别统计，包含标准完整区间事件、环境信息、窗口最后交付时间与覆盖数量。重置以新的开始时间过滤旧区间。
-- 沉浸式武器、联队和插件样本规模为 30、100、800 项。列表首帧从加载开始计至实体行挂载后的下一 animation frame；媒体就绪附带请求、命中、成功和失败规模。
+- 沉浸式武器、战机联队和插件样本规模为 30、100、800 项。列表首帧从加载开始计至实体行挂载后的下一 animation frame；媒体就绪附带请求、命中、成功和失败规模。
 
 ## 链路
 

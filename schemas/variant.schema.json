@@ -41,7 +41,7 @@
         {
           "key": "fluxVents",
           "type": "integer",
-          "label": "幅能耗散管道",
+          "label": "耗散通道",
           "min": 0
         },
         {
@@ -113,16 +113,16 @@
     },
     {
       "id": "wings",
-      "label": "联队",
+      "label": "战机联队",
       "fields": [
         {
           "key": "wings",
           "type": "array",
-          "label": "联队",
+          "label": "战机联队",
           "item": {
             "key": "wingId",
             "type": "enum",
-            "label": "联队 ID",
+            "label": "战机联队 ID",
             "source": "csv:wings.id"
           }
         }
@@ -177,7 +177,7 @@
         {
           "key": "doctrine",
           "type": "object",
-          "label": "舰船学说",
+          "label": "舰队学说",
           "nested": [
             {
               "key": "warships",
@@ -192,7 +192,7 @@
             {
               "key": "phaseShips",
               "type": "integer",
-              "label": "相位战舰"
+              "label": "相位舰"
             },
             {
               "key": "officerQuality",

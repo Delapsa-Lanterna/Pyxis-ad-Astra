@@ -131,7 +131,6 @@ mod tests {
     fn scoped_labels_and_numeric_rules_keep_original_meanings() {
         let weapons = well_known_catalog(CsvTableKey::Weapons, "tags").unwrap();
         let wings = well_known_catalog(CsvTableKey::Wings, "tags").unwrap();
-        let weapon_hints = well_known_catalog(CsvTableKey::Weapons, "hints").unwrap();
         assert_eq!(weapons.patterns.len(), 11);
         assert_eq!(wings.patterns.len(), 4);
         assert!(weapons.find("kinetic99").is_some());

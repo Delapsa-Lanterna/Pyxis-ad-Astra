@@ -89,7 +89,7 @@
     :style="hover.position.value"
     tabindex="-1"
     role="dialog"
-    :aria-label="kind === 'weapons' ? '武器只读信息' : '联队只读信息'"
+    :aria-label="kind === 'weapons' ? '武器只读信息' : '战机联队只读信息'"
     @mouseenter="hover.keep"
     @mouseleave="hover.leave"
     @focusin="hover.keep"

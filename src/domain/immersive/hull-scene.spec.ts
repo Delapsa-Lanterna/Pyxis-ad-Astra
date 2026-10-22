@@ -48,6 +48,6 @@ describe('upright variant preview coordinates', () => {
     expect(immersiveWingLayout(3, formation, 72)).toMatchObject({ points: [], diagnostic: expect.stringContaining('阵型') });
   });
   it.each([NaN, -1, 2.5])('diagnoses invalid source count %s', (count) => {
-    expect(immersiveWingLayout(count, 'CLAW', 72)).toMatchObject({ points: [], diagnostic: '联队数量缺失或无效' });
+    expect(immersiveWingLayout(count, 'CLAW', 72)).toMatchObject({ points: [], diagnostic: '战机数量缺失或无效' });
   });
 });

@@ -104,12 +104,12 @@ export function projectWeaponPanel(
     optionLabels: {
       ...WEAPON_TYPE_LABELS,
       ...WEAPON_SIZE_LABELS,
-      projectile: '弹丸 projectile',
+      projectile: '弹体 projectile',
       beam: '光束 beam',
       ALTERNATING: '交替',
       ALTERNATING_BURST: '交替连射',
       DUAL: '双发',
-      LINKED: '联动',
+      LINKED: '齐射',
       true: '启用',
       false: '关闭',
     },
@@ -140,7 +140,7 @@ export function projectWeaponPanel(
       schema: { key: 'text' + index, label: '描述 text' + index, type: 'text' },
     })),
   );
-  const primarySettings = stat('primary-settings', '主数据显示设置', '编辑', [
+  const primarySettings = stat('primary-settings', '原始数据显示设置', '编辑', [
     cf('noDPSInTooltip'),
     cf('tags'),
     cf('customPrimary'),
@@ -156,14 +156,14 @@ export function projectWeaponPanel(
     .map((tag) => tag.trim());
   const role = stat(
     'role',
-    '主要用途',
+    '战术应用',
     schemaStringValue(csv.primaryRoleStr) || schemaStringValue(description.text2) || '未提供',
     [cf('primaryRoleStr'), desc.fields[1]!],
     'primaryRoleStr 优先于 WEAPON 描述 text2。',
   );
   const mount = stat(
     'mount',
-    '挂载类型',
+    '安装类型',
     `${WEAPON_SIZE_LABELS[schemaStringValue(spec.size)] ?? schemaStringValue(spec.size)}，${WEAPON_TYPE_LABELS[schemaStringValue(spec.mountTypeOverride) || schemaStringValue(spec.type)] ?? schemaStringValue(spec.type)}`,
     [
       sf('size', '尺寸', Object.keys(WEAPON_SIZE_LABELS)),
@@ -183,7 +183,7 @@ export function projectWeaponPanel(
   const damageFields = stats.beam ? beamFields : shotFields;
   const count = stats.barrels * (spec.interruptibleBurst ? 1 : stats.burst);
   const showCount = count > 1 && stats.ammo > count && count < 1000;
-  const primary = [role, mount, num('OPs', '装配点'), num('range', '射程', 250)];
+  const primary = [role, mount, num('OPs', '装配点数'), num('range', '武器射程', 250)];
   if (!stats.beam || (stats.burstDamage >= 0 && !spec.skipIdleFrameIfZeroBurstDelay) || tags.includes('damage_special'))
     primary.push(
       stat(
@@ -200,7 +200,7 @@ export function projectWeaponPanel(
     primary.push(
       stat(
         'dps',
-        '每秒伤害',
+        '伤害 / 秒',
         format(stats.dps) + (stats.dps !== stats.sustained ? `（持续 ${format(stats.sustained)}）` : ''),
         [...damageFields, cf('ammo'), cf('ammo/sec')],
         stats.beam
@@ -213,7 +213,7 @@ export function projectWeaponPanel(
     primary.push(
       stat(
         'emp',
-        stats.beam && !burstBeam ? '每秒 EMP' : 'EMP 伤害',
+        stats.beam && !burstBeam ? 'EMP 每秒' : 'EMP 损害',
         format(burstBeam ? (stats.burstDamage * stats.empSource) / n('damage/second') : stats.empSource) +
           (!stats.beam && showCount ? ` × ${format(count)}` : ''),
         [cf('emp'), ...cycleFields],
@@ -226,23 +226,23 @@ export function projectWeaponPanel(
       primary.push(
         stat(
           'flux-second',
-          '每秒幅能',
+          '幅能 / 秒',
           format(stats.fluxPerSecond) + (stats.dps !== stats.sustained ? `（持续 ${format(stats.sustainedFlux)}）` : ''),
           fluxFields,
           '每秒幅能 = DPS × 幅能／伤害。',
         ),
       );
-    if (!stats.beam) primary.push(num('energy/shot', '每发幅能'));
+    if (!stats.beam) primary.push(num('energy/shot', '幅能 / 每发射弹'));
     primary.push(
       stat(
         'flux-damage',
-        '幅能/伤害',
+        '幅能 / 伤害',
         format(stats.fluxRatio),
         fluxFields,
-        '弹丸：充能幅能与整轮射击幅能 ÷ 整轮非 EMP 伤害；光束：使用所属光束周期。',
+        '弹体：充能幅能与整轮射击幅能 ÷ 整轮非 EMP 伤害；光束：使用所属光束周期。',
       ),
     );
-  } else primary.push(stat('no-flux', '开火幅能', '无幅能消耗', [cf('energy/shot'), cf('energy/second')]));
+  } else primary.push(stat('no-flux', '开火幅能', '不会产生幅能', [cf('energy/shot'), cf('energy/second')]));
   const damageTypeId = Object.hasOwn(DAMAGE, schemaStringValue(csv.type)) ? schemaStringValue(csv.type) : 'OTHER';
   const damageType = DAMAGE[damageTypeId]!;
   const ancillary = [stat('damage-type', '伤害类型', damageType.label, [cf('type')])];
@@ -257,15 +257,15 @@ export function projectWeaponPanel(
   if (projectile.specClass === 'missile') {
     const speed = n('proj speed');
     ancillary.push(
-      overrideStat('speed', '速度', weaponMissileSpeed(speed), [cf('proj speed'), cf('launch speed'), cf('flight time')], 'speedStr'),
+      overrideStat('speed', '飞行速度', weaponMissileSpeed(speed), [cf('proj speed'), cf('launch speed'), cf('flight time')], 'speedStr'),
     );
-    ancillary.push(overrideStat('tracking', '追踪', weaponMissileTracking(speed, projectile), [cf('proj speed')], 'trackingStr'));
-    ancillary.push(num('proj hitpoints', '弹体结构', 1));
+    ancillary.push(overrideStat('tracking', '追踪能力', weaponMissileTracking(speed, projectile), [cf('proj speed')], 'trackingStr'));
+    ancillary.push(num('proj hitpoints', '弹体结构值', 1));
   } else {
     ancillary.push(
       overrideStat(
         'accuracy',
-        '精度',
+        '精确度',
         stats.beam ? '完美' : weaponAccuracy(n('max spread')),
         [cf('min spread'), cf('max spread'), cf('spread/shot'), cf('spread decay/sec')],
         'accuracyStr',
@@ -274,28 +274,34 @@ export function projectWeaponPanel(
     ancillary.push(overrideStat('turn', '转向速度', weaponTurnRate(n('turn rate')), [cf('turn rate')], 'turnRateStr'));
   }
   if (stats.ammo < 2147483647) {
-    ancillary.push(num('ammo', schemaStringValue(spec.type) === 'ENERGY' ? '充能次数' : '备弹量', 2147483647));
+    ancillary.push(
+      num(
+        'ammo',
+        schemaStringValue(spec.type) === 'ENERGY' ? (stats.regen > 0 ? '最大充能量' : '充能') : stats.regen > 0 ? '最大备弹量' : '备弹量',
+        2147483647,
+      ),
+    );
     if (stats.regen > 0) {
       ancillary.push(
         stat(
           'reload-time',
-          '每次装填时间',
+          schemaStringValue(spec.type) === 'ENERGY' ? '秒 / 回充' : '秒 / 重装',
           format(stats.reload / stats.regen) + ' 秒',
           [cf('ammo/sec'), cf('reload size')],
           '装填时间 = reload size ÷ ammo/sec。',
         ),
       );
-      ancillary.push(num('reload size', '每次装填量', 1));
+      ancillary.push(num('reload size', schemaStringValue(spec.type) === 'ENERGY' ? '单次回充量' : '单次装填量', 1));
     }
   }
   if (!stats.beam)
     ancillary.push(
       stat(
         'refire',
-        '射击间隔',
+        '开火间隔',
         format(stats.refire) + ' 秒',
         cycleFields,
-        '弹丸使用原版充能、连射与再次射击周期；interruptibleBurst 使用 chargedown。',
+        '弹体使用原版充能、连射与再次射击周期；interruptibleBurst 使用 chargedown。',
       ),
     );
   const branch = stat('branch', '规格分支', schemaStringValue(spec.specClass) || '请选择规格分支', [

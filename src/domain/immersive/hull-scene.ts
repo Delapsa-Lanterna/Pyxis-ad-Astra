@@ -169,9 +169,9 @@ export interface ImmersiveWingLayout {
   diagnostic: string;
 }
 export function immersiveWingLayout(count: number, formation: string, rendererSize: number): ImmersiveWingLayout {
-  if (!Number.isInteger(count) || count < 0) return { points: [], spriteHeight: 0, diagnostic: '联队数量缺失或无效' };
+  if (!Number.isInteger(count) || count < 0) return { points: [], spriteHeight: 0, diagnostic: '战机数量缺失或无效' };
   if (!['V', 'BOX', 'CLAW', 'DIAMOND'].includes(formation))
-    return { points: [], spriteHeight: 0, diagnostic: '联队阵型缺失或无效：' + formation };
+    return { points: [], spriteHeight: 0, diagnostic: '战机联队阵型缺失或无效：' + formation };
   const distance = rendererSize / 2;
   return {
     points: immersiveWingFormation(count, formation).map((point) => ({ x: point.x * distance, y: point.y * distance })),

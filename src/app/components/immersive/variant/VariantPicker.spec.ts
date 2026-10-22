@@ -186,7 +186,7 @@ describe('variant candidate picker', () => {
     const own = harness('wings', 2, false, [], '', true, true);
     await flushPromises();
     const slot = own.wrapper.find('.variant-wing-tile');
-    expect(slot.find('img[alt="空甲板"]').exists()).toBe(true);
+    expect(slot.find('img[alt="空置战机甲板"]').exists()).toBe(true);
     const resource = {
       source: 'core' as const,
       ownerKind: 'ship' as const,
@@ -206,7 +206,7 @@ describe('variant candidate picker', () => {
     own.displaySnapshot.value = snapshot;
     await flushPromises();
     expect(own.wrapper.find('.variant-wing-tile').element).toBe(slot.element);
-    expect(slot.find('img[alt="空甲板"]').exists()).toBe(true);
+    expect(slot.find('img[alt="空置战机甲板"]').exists()).toBe(true);
     own.wrapper.unmount();
     deckMedia.dataUrl.mockReturnValue('');
   });

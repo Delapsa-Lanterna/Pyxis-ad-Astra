@@ -19,9 +19,9 @@ describe('ship original configuration projection', () => {
     expect(panel.combat.find((stat) => stat.id === 'flux dissipation')!.display).toBe('820');
     expect(panel.combat.find((stat) => stat.id === 'shield upkeep')!.display).toBe('400');
     expect(panel.logistics[0]!.find((stat) => stat.id === 'ordnance points')!.display).toBe('30 / 165');
-    expect(panel.equipment.find((row) => row.label === '武装')!.text).toBe('1× Assault Chaingun（内置），1× Assault Chaingun');
-    expect(panel.equipment.find((row) => row.label === '联队')!.text).toContain('甲板 1');
-    expect(panel.equipment.find((row) => row.label === '插件')!.text).toBe('Safety Overrides（永久）');
+    expect(panel.equipment.find((row) => row.label === '军备详情')!.text).toBe('1× Assault Chaingun（内置），1× Assault Chaingun');
+    expect(panel.equipment.find((row) => row.label === '战机联队')!.text).toContain('战机甲板 1');
+    expect(panel.equipment.find((row) => row.label === '船体插件')!.text).toBe('Safety Overrides（永久）');
     expect(jointObject(snapshot.records.find((record) => record.key === 'variant')!.value).fluxCapacitors).toBe(4);
   });
   it('selects module, Skin, description and logistics through their actual hull bindings', () => {
@@ -71,9 +71,9 @@ describe('ship original configuration projection', () => {
     const data = csv.value as Record<string, import('@/shared/types').JsonValue>;
     delete data['cr %/day'];
     data['repair %/day'] = '9';
-    expect(projectShipPanel(snapshot, values).logistics[0]!.find((stat) => stat.label === '每日战备恢复')!.display).toBe('9%');
+    expect(projectShipPanel(snapshot, values).logistics[0]!.find((stat) => stat.label === '战备恢复速率 (每天)')!.display).toBe('9%');
     data['cr %/day'] = '';
-    expect(projectShipPanel(snapshot, values).logistics[0]!.find((stat) => stat.label === '每日战备恢复')!.display).toBe('20%');
+    expect(projectShipPanel(snapshot, values).logistics[0]!.find((stat) => stat.label === '战备恢复速率 (每天)')!.display).toBe('20%');
     data['armor rating'] = '0';
     data['CR loss/sec'] = '-1';
     data['phase cost'] = '0.1';

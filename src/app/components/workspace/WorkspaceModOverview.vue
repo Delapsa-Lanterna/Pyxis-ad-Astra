@@ -13,7 +13,7 @@
           tableTotal
         }}</strong>
         <p class="mod-overview-card-description ui-text-description ui-text-reset ui-text-muted ui-text-small">
-          舰船、武器、联队、舰船插件、工业和技能记录
+          舰船、武器、战机联队、船体插件、工业和技能记录
         </p>
       </article>
       <article class="mod-overview-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid">

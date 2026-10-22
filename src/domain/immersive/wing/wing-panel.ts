@@ -99,11 +99,12 @@ export function projectWingPanel(
   });
   const variantKey = snapshot.bindings.variant,
     variant = data(variantKey);
+  const hullNameLabel = hull?.fields.name?.path === 'hullName' ? '船体名称' : '舰船名称';
   const name = stat(
     'name',
-    '战机名称',
-    [schemaStringValue(hv('name')) || '舰体名称未提供', schemaStringValue(variant.displayName)].filter(Boolean).join(' '),
-    [...hf('name', '舰体名称'), ...(variantKey ? [field(variantKey, 'displayName', '装配显示名称')] : [])],
+    '战机联队名称',
+    [schemaStringValue(hv('name')) || `${hullNameLabel}未提供`, schemaStringValue(variant.displayName)].filter(Boolean).join(' '),
+    [...hf('name', hullNameLabel), ...(variantKey ? [field(variantKey, 'displayName', '装配显示名称')] : [])],
   );
   name.font = 'heading';
   const manufacturer = stat(
@@ -127,25 +128,25 @@ export function projectWingPanel(
   const roleField = wf('role');
   roleField.optionLabels = WING_ROLE_LABELS;
   const technical = [
-    stat('role', '主要用途', schemaStringValue(wing['role desc']) || WING_ROLE_LABELS[role] || role, [roleField, wf('role desc')]),
+    stat('role', '战术应用', schemaStringValue(wing['role desc']) || WING_ROLE_LABELS[role] || role, [roleField, wf('role desc')]),
   ];
   const swarm = schemaStringValue(wing.tags)
     .split(',')
     .some((tag) => tag.trim() === 'swarm_fighter');
   if (!swarm) {
     technical.push(
-      wn('op cost', '装配点', 0),
-      hn('min crew', '每架乘员', 1),
+      wn('op cost', '装配点数', 0),
+      hn('min crew', '必要船员 (每架)', 1),
       wn('range', role === 'SUPPORT' ? '最大支援范围' : '最大交战范围', 0),
     );
-    technical.push(wn('num', '联队数量', 1), wn('refit', '基础整备时间（秒）', 10));
+    technical.push(wn('num', '联队战机数量', 1), wn('refit', '战机更换时间 (秒)', 10));
     technical.find((stat) => stat.id === 'num')!.gapBefore = true;
   }
-  const structure = hn('hitpoints', '结构', 1);
+  const structure = hn('hitpoints', '船体结构值', 1);
   structure.gapBefore = true;
   technical.push(structure);
   const armor = number(hv('armor rating'), 0);
-  if (!hull || armor > 1) technical.push(hn('armor rating', '装甲等级', 0));
+  if (!hull || armor > 1) technical.push(hn('armor rating', '装甲值', 0));
   const shield = schemaStringValue(hv('shield type')) || 'NONE';
   if (shield !== 'NONE') {
     const phaseId = schemaStringValue(hv('defense id')) || 'phasecloak';
@@ -154,15 +155,15 @@ export function projectWingPanel(
     );
     const phaseName =
       phaseId === 'phasecloak' && phaseCsv?.source?.source !== 'mod'
-        ? '相位斗篷'
+        ? '相位线圈'
         : schemaStringValue(jointObject(phaseCsv?.value).name) || phaseId;
     const defense =
       shield === 'PHASE'
-        ? stat('defense', phaseId === 'phasecloak' ? '防御' : '特殊', phaseName, [
+        ? stat('defense', phaseId === 'phasecloak' ? '防御方式' : '特殊系统', phaseName, [
             ...hf('shield type', '防御类型'),
             ...hf('defense id', '防御系统', 'enum'),
           ])
-        : stat('defense', shield === 'FRONT' ? '前置护盾' : '全向护盾', displayNumber(number(hv('max flux'), 10)), [
+        : stat('defense', shield === 'FRONT' ? '前盾 (幅能容量)' : '全盾 (幅能容量)', displayNumber(number(hv('max flux'), 10)), [
             ...hf('shield type', '防御类型'),
             ...hf('max flux', '幅能容量', 'integer'),
           ]);
@@ -170,12 +171,12 @@ export function projectWingPanel(
     if (selector) {
       selector.schema.type = 'enum';
       selector.schema.options = ['NONE', 'FRONT', 'OMNI', 'PHASE'];
-      selector.optionLabels = { NONE: '无', FRONT: '前置护盾', OMNI: '全向护盾', PHASE: '相位斗篷' };
+      selector.optionLabels = { NONE: '无', FRONT: '前盾', OMNI: '全盾', PHASE: '相位线圈' };
     }
     technical.push(defense);
     for (const entry of defense.fields) if (entry.schema.key === 'defense id') entry.schema.source = 'csv:shipSystems.id';
   }
-  technical.push(hn('max speed', '最高速度', 10));
+  technical.push(hn('max speed', '最高航速', 10));
   const systemKey = graph.bindings.system;
   const systemRecord = graph.records.find((record) => record.key === systemKey);
   const systemId = schemaStringValue(hv('system id'));
@@ -217,16 +218,16 @@ export function projectWingPanel(
   variantReference.schema.required = true;
   const sources = [stat('variant-reference', '装配', schemaStringValue(wing.variant) || '引用未提供', [variantReference])];
   if (variantKey) {
-    const hullReference = field(variantKey, 'hullId', '舰体/Skin引用', 'enum');
+    const hullReference = field(variantKey, 'hullId', '船体/Skin引用', 'enum');
     hullReference.schema.source = 'hull:ids';
     hullReference.schema.required = true;
     hullReference.handoff = true;
-    sources.push(stat('hull-reference', '舰体/Skin', schemaStringValue(variant.hullId) || '引用未提供', [hullReference]));
+    sources.push(stat('hull-reference', '船体/Skin', schemaStringValue(variant.hullId) || '引用未提供', [hullReference]));
   }
   const selectedHull = snapshot.records.find((record) => record.key === snapshot.bindings.hull);
   let defaultDescription: ImmersiveField | null = null;
   if (selectedHull?.target.kind === 'spec' && selectedHull.target.target.kind === 'skin') {
-    const base = field(selectedHull.key, 'baseHullId', '基础舰体/Skin', 'enum');
+    const base = field(selectedHull.key, 'baseHullId', '基础船体/Skin', 'enum');
     base.schema.source = 'hull:ids';
     base.schema.required = true;
     base.handoff = true;

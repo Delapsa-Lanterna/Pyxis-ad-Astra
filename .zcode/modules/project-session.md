@@ -39,7 +39,7 @@
 - `src-tauri/src/services/project/cache/csv.rs`：表格 owner 的快照、稳定行身份与加载交接。
 - `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
-- `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和舰体引用解析。
+- `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和船体引用解析。
 - `src-tauri/src/services/project/sources/`：成套来源内容、版本与解析成果读取。
 - `src/domain/project/entity-definitions.ts`：共享实体内容 ID 字段、可用 ID 规则与目标身份投影。
 - `src/services/entity-query.service.ts`：实体查询能力交接。
@@ -140,7 +140,7 @@
 - 缓存损坏或不可写只降级为重建，严禁读取旧快照。
 - 编辑 query 必须随数据返回 `baseVersions`；派生信息刷新必须保留 CSV 行身份，内容刷新必须按实际写盘方向处理。
 - 联合查询必须共同返回实际来源、授权目标与内容版本；联合 write 必须将同一次 changeset 的身份、行键与投影共同交给 receipt。
-- 舰体引用查询的指定 ID 结果必须包含内置武器槽目录，并按当前 Mod 优先、原版补集与皮肤继承规则计算。
+- 船体引用查询的指定 ID 结果必须包含内置武器槽目录，并按当前 Mod 优先、原版补集与皮肤继承规则计算。
 - 重命名的失效必须同时携带旧 ID 与新 ID。
 - 项目清单必须按明确 Mod 根查询，当前 Mod 选择与其清单、session 投影必须归工作区。
 

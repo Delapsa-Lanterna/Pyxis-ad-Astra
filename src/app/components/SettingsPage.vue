@@ -305,7 +305,7 @@ const QUERY_CACHES = {
   'csv-table-window': ['CSV 表格索引', '保留表头和行索引，便于再次打开表格。'],
   'csv-source-options': ['CSV 来源选项', '保留下拉框的来源选项，减少重复查询。'],
   'csv-row-preview': ['CSV 行预览', '保留行详情，便于再次查看。'],
-  'hull-references': ['舰体引用', '保留舰体名称和引用选项。'],
+  'hull-references': ['船体引用', '保留船体名称和引用选项。'],
   'entity-detail': ['实体详情', '保留规格或配置详情，便于重复访问。'],
   'entity-list': ['实体列表', '保留规格或配置列表，便于切换页面。'],
 } satisfies Record<keyof CacheLimits['queries'], [string, string]>;

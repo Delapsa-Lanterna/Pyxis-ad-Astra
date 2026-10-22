@@ -8,7 +8,7 @@
       <ImmersiveText :text="panel.diagnostic" block />
     </p>
     <section class="weapon-immersive-panel-section ui-layout-shrink">
-      <ImmersiveSection title="主数据"
+      <ImmersiveSection title="原始数据"
         ><ImmersivePanelRow v-if="render.mode === 'editable'" :stat="panel.primarySettings" :render="render"
       /></ImmersiveSection>
       <div class="weapon-immersive-data ui-layout-grid">

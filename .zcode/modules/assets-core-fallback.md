@@ -12,10 +12,10 @@
 - `src-tauri/src/commands/resources.rs`：批量资源与引用 command。
 - `src-tauri/src/services/project/cache/media.rs`：资源指纹与后端媒体缓存。
 - `src-tauri/src/services/project/definitions/entity_resources.rs`：解析实体贴图、光束枚举或自定义贴图对、弹体与等离子默认特效的授权资源。
-- `src-tauri/src/services/project/query/hull_references.rs`：舰体引用、槽位及来源选择查询。
+- `src-tauri/src/services/project/query/hull_references.rs`：船体引用、槽位及来源选择查询。
 - `src-tauri/src/services/project/query/resources.rs`：草稿资源引用与授权资源批量 data URL 查询。
 - `src-tauri/src/services/project/resources/mod.rs`：资源实现模块登记及内部引用能力。
-- `src-tauri/src/services/project/resources/refs.rs`：媒体资源身份键、业务引用构造和舰体引用解析。
+- `src-tauri/src/services/project/resources/refs.rs`：媒体资源身份键、业务引用构造和船体引用解析。
 - `src-tauri/src/services/project/resources/sprites.rs`：批次来源边界、媒体读取、缓存接纳和相对路径解析。
 - `src/app/components/media/`：授权图片与配置选项消费的缩略图展示。
 - `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
@@ -37,7 +37,7 @@
 ### 消费
 
 - `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
-- `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及舰体引用请求与结果。
+- `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及船体引用请求与结果。
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
 - `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
@@ -46,7 +46,7 @@
 - `src/shared/runtime/app-log-queue.ts`：媒体请求、解码、成品接纳和释放的详细记录。
 - `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
 - `src/shared/runtime/resident-cache.ts`：活跃与闲置分离的预算缓存原语。
-- `src/shared/types/resources.types.ts`：草稿资源、批量图片、路径及舰体引用请求与结果。
+- `src/shared/types/resources.types.ts`：草稿资源、批量图片、路径及船体引用请求与结果。
 
 ### 装配
 
@@ -59,8 +59,8 @@
 - 各 WebView 由唯一媒体 owner 持有 data URL；窗口图片运行态分别持有解码和成品，活跃引用与闲置预算分别计量。
 - 后端拥有资源授权、Mod 优先与 Core 回退；query 返回 `ResourceRef`，组件消费引用和媒体结果；字体 FNT 与图集按原版字体只读能力交给所属字体运行态。
 - 媒体服务拥有合批、single-flight、就绪数据与失效；registry 持有集合差量和所属租约。
-- 舰体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
+- 船体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
 - 贴图选择归引用能力，返回后端校验的 Mod 根内正斜杠相对路径。
 
 ## 链路
@@ -86,9 +86,9 @@
 3. 后端校验绝对路径归属并返回正斜杠相对路径。
 4. 相对路径原样写入引用字段，不复制、不改名。
 
-### 舰体引用解析
+### 船体引用解析
 
-1. 编辑器按需请求舰体引用目录或带 ID 元数据。
+1. 编辑器按需请求船体引用目录或带 ID 元数据。
 2. 空请求返回创建表单目录；带 ID 请求解析名称与引用。
 3. 名称按当前 Mod `ship_data.csv` 优先、原版补集解析。
 

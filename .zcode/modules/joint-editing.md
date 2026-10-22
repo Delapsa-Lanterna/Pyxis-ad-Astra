@@ -10,7 +10,7 @@
 
 - `src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command。
 - `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影。
-- `src-tauri/src/domain/joint_hull.rs`：有效舰体字段来源、Skin 继承与有效武器槽的纯投影。
+- `src-tauri/src/domain/joint_hull.rs`：有效船体字段来源、Skin 继承与有效武器槽的纯投影。
 - `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配。
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接。
 - `src-tauri/src/services/project/write/joint_edit_tests.rs`：联合保存、来源补全及身份写入验证。
@@ -60,7 +60,7 @@
 - 原生窗口能力拥有实例 label、登记、聚焦和预约，联合模块消费这些能力。
 - 各 CSV、配置、文本与专项会话拥有所属草稿、输入、dirty、saving 和历史。
 - 后端 query 拥有来源图、记录、授权目标和版本，write 拥有同根 changeset 与实际快照。
-- 有效舰体 hints 来自基础舰体 CSV，Skin 链按基础至有效来源依次应用 removeHints、addHints。
+- 有效船体 hints 来自基础船体 CSV，Skin 链按基础至有效来源依次应用 removeHints、addHints。
 - 窗口壳装配目标接收与登记生命周期，manifest 和会话释放交还所属登记。
 - 联合编排拥有按业务目标捕获的准备请求、参与者协调、预约与释放。
 
@@ -102,24 +102,25 @@
 - JSON 更新必须消费当前设置与指纹确认；规格身份必须消费所属定义，CSV 必须保留行序、业务值、未知列与注释身份。
 - `JointEditQuery` 必须分别承载正式根、可选 CSV `rowKey`、草稿值、`newSources` 与可选 catalog；`rowKey` 必须由后端解析已保存 ID，草稿关联投影必须消费独立捕获值。
 - `JointEditRoot` 必须完整表达 `sessionId`、`modRoot`、kind 和 id；四类根必须为 ship、weapon、wing 与 variant。
-- `JointHullProjection` 必须表达装配、基础舰体、Skin 链、实际字段绑定、逐舰体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值必须按继承顺序投影，字段提交必须消费所属 `recordKey` 与 path，展示绑定必须指向同一来源图中的实际记录键。
+- `JointHullProjection` 必须表达装配、基础船体、Skin 链、实际字段绑定、逐船体 CSV／描述／系统展示绑定、完整有效槽位、有效 hints、内置装备、模块定位与授权贴图；有效值必须按继承顺序投影，字段提交必须消费所属 `recordKey` 与 path，展示绑定必须指向同一来源图中的实际记录键。
 - `JointRecordTarget` 必须分别表达规格、CSV 与文本；CSV 必须具有 table、`rowKey`、业务 identity 和授权 write。
 - `JointValue` 必须区分 missing 与 present；`null`、删除、数组和文本原文必须保持各自语义。
 - Mod 写入版本必须保持所属根范围；Core 来源必须消费独立 `sourceVersion` 核对，授权 Mod 覆盖目标必须保留不存在凭据。
 - Skin 缺少 `descriptionId` 时必须消费 `skinHullId`，显式空引用必须呈现缺失状态；恢复默认描述必须通过明确字段移除动作提交。
 - createOverrides 必须表达明确的 Core 原样创建记录；返回目标必须接纳实际 CSV linkedRecord、`rowKey` 与身份映射。
 - `newSources` 只允许声明关联图中的 ship、variant 与 skin 创建类型及 ID；准备必须捕获新增关联的 Mod 版本，保存必须核对原目标与不存在凭据。
-- `query_joint_edit` 的 catalog 请求必须返回 `JointVariantCatalogRead`；目录必须直接读取所属类型及配置，联队预览必须在一次来源图内按实际 ID 去重并消费有效舰体投影，返回来源、版本和 `ResourceRef`。可写基线必须消费 `JointEditSnapshot` 与原权威查询。
+- `query_joint_edit` 的 catalog 请求必须返回 `JointVariantCatalogRead`；目录必须直接读取所属类型及配置，战机联队预览必须在一次来源图内按实际 ID 去重并消费有效船体投影，返回来源、版本和 `ResourceRef`。可写基线必须消费 `JointEditSnapshot` 与原权威查询。
 - receipt 同步必须消费现有 write-sync；再次保存必须先完成原 receipt，再捕获最新输入。
 - `referenceSettings` 必须共同提供 Core／Mod 的幅能参数、引擎样式、UI 资源及配置版本；`ResourceRef` 必须由后端授权，展示消费者必须分别登记媒体集合。
-- variants 必须按实际装配记录键提供根与关联装配的有效投影；catalog 只允许按请求种类返回武器、联队或插件的元数据、来源、资源与版本。
+- variants 必须按实际装配记录键提供根与关联装配的有效投影；catalog 只允许按请求种类返回武器、战机联队或插件的元数据、来源、资源与版本。
 - 三方比较必须按对象字段路径与 CSV 记录内容执行，数组与文本必须整体选择；独立修改必须保留两侧业务内容。
 - 主窗口关联文档前置保存必须消费所属队列请求与正式结果；父保存等待前置文档时只允许在同一占用范围内直接兑现，严禁互相等待。
 - 交接请求必须携带 `requestId`、`ownerLabel`、`receiverLabel` 和完整目标；回复与释放必须核对同一身份。
 - 保存期间新增编辑必须保留；参与者保存后仍有 dirty 时必须结束交接并释放占用。
 - 保存确认必须绑定当前版本，确认后的来源变化必须返回版本冲突并保留草稿。
-- 共享关系必须沿舰体、Skin 与装配反向展开至实际联队；确认必须呈现实际来源、写入文件与关联对象。
+- 共享关系必须沿船体、Skin 与装配反向展开至实际战机联队；确认必须呈现实际来源、写入文件与关联对象。
 - 异步输入 finalizer 必须完成所属确认并返回接纳结果后继续保存；取消必须阻断本次保存并保留原文，动作接纳必须交给所属编辑会话。
+- 战机联队 CSV 改名必须以原 `rowKey` 解析权威 ID，描述身份必须继续消费实际船体来源；引用提交后必须按实际磁盘重读新的来源与版本。
 - 插件目录必须保留原始描述、隐藏标记、脚本和实际版本；图标必须消费正式表资源引用，配置资源必须按 Mod 优先与 Core 补集解析 graphics.ui 并共同返回版本。
 - 根与模块改名必须共同映射实际记录键、引用定位、草稿与历史；父引用写入必须接纳实际版本并进入同一文件历史与广播。
 - 模块引用必须消费原版对象和有序条目数组的正式格式；读写必须保留加载格式、顺序、共享记录身份和未知字段。
@@ -133,7 +134,6 @@
 - 联合打开必须以所属 `ReadTicket` 接纳快照；替换和卸载必须撤销打开及交接等待。跨窗口同时发起重叠目标交接必须结束冲突请求并保持原草稿。
 - 联合提交必须只应用一次 changeset、登记一次文件历史；写后结果必须由实际 after 快照装配版本。
 - 联合武器关联投影必须按当前草稿的 `projectileSpecId` 与伤害类型返回弹体来源和配置授权图标；配置版本必须参与关联失效。
-- 联队 CSV 改名必须以原 `rowKey` 解析权威 ID，描述身份必须继续消费实际舰体来源；引用提交后必须按实际磁盘重读新的来源与版本。
 - 装配身份改名必须在同一根事务中更新当前 Mod 全部父装配 modules 引用；读取版本与交接目标必须覆盖父文件，配置、文本和联合写入必须共同消费该规则。
 - 输入错误、取消、保存失败与同步失败必须保持所属编辑面；跨窗口错误必须聚焦其 owner 并保留正式诊断。
 - 重复目标交接必须复用进行中请求；参与者释放、目标变化和窗口销毁必须撤销原响应接纳权。

@@ -163,11 +163,11 @@ export function projectVariantPanel(
       const name = vf('displayName', '装配名称');
       name.font = 'ship-title';
       name.display = [schemaStringValue(fieldValue('name')), schemaStringValue(variant.displayName)].filter(Boolean).join(' · ');
-      const hullField = vf('hullId', '舰体／Skin', 'enum');
+      const hullField = vf('hullId', '船体／Skin', 'enum');
       hullField.fields[0]!.schema.source = 'hull:ids';
       hullField.fields[0]!.schema.required = true;
       hullField.fields[0]!.handoff = true;
-      const fields = [name, hullField, vf('fluxCapacitors', '幅能容器', 'integer'), vf('fluxVents', '幅能耗散器', 'integer')];
+      const fields = [name, hullField, vf('fluxCapacitors', '幅能寄存器', 'integer'), vf('fluxVents', '耗散通道', 'integer')];
       fields[2]!.font = 'ship-title';
       fields[3]!.font = 'ship-title';
       const weapons = hull.slots.filter(isRowData).map((slot): VariantWeapon => {
@@ -219,7 +219,8 @@ export function projectVariantPanel(
         return {
           index,
           id,
-          name: [fighterName, schemaStringValue(jointObject(wingVariant?.value).displayName)].filter(Boolean).join(' ') || id || '空甲板',
+          name:
+            [fighterName, schemaStringValue(jointObject(wingVariant?.value).displayName)].filter(Boolean).join(' ') || id || '空置战机甲板',
           count: immersiveNumber(wing, 'num', 1),
           cost: builtin || !id ? 0 : immersiveNumber(wing, 'op cost', NaN),
           builtin,
@@ -279,26 +280,26 @@ export function projectVariantPanel(
         ],
       });
       const stats = [
-        stat('speed', '最高速度', number('max speed'), '有效舰体 max speed'),
-        stat('armor', '装甲', number('armor rating'), '舰船 CSV armor rating'),
-        stat('hull', '结构', number('hitpoints'), '舰船 CSV hitpoints'),
+        stat('speed', '最高航速', number('max speed'), '有效船体 max speed'),
+        stat('armor', '船体装甲', number('armor rating'), '舰船 CSV armor rating'),
+        stat('hull', '船体结构', number('hitpoints'), '舰船 CSV hitpoints'),
       ];
       stats.push(
-        stat('capacity', '幅能容量', capacity, '有效舰体 max flux + 容器 × fluxPerCapacitor'),
-        stat('dissipation', '幅能耗散', dissipation, '有效舰体 flux dissipation + 耗散器 × dissipationPerVent'),
+        stat('capacity', '幅能容量', capacity, '有效船体 max flux + 幅能寄存器 × fluxPerCapacitor'),
+        stat('dissipation', '幅能耗散', dissipation, '有效船体 flux dissipation + 耗散通道 × dissipationPerVent'),
       );
       const shield = schemaStringValue(fieldValue('shield type'));
       const shieldFlux = shield === 'FRONT' || shield === 'OMNI' ? number('shield upkeep') * number('flux dissipation') : 0;
       if (shield === 'FRONT' || shield === 'OMNI')
         stats.push(
-          stat('arc', '护盾角度', number('shield arc'), '有效舰体 shield arc'),
-          stat('upkeep', '护盾每秒幅能', shieldFlux, 'shield upkeep × 舰体基础 flux dissipation'),
-          stat('efficiency', '护盾幅能/伤害', number('shield efficiency', 1), '有效舰体 shield efficiency'),
+          stat('arc', '护盾角度', number('shield arc'), '有效船体 shield arc'),
+          stat('upkeep', '护盾维持 幅能/秒', shieldFlux, 'shield upkeep × 船体基础 flux dissipation'),
+          stat('efficiency', '护盾 幅能/伤害', number('shield efficiency', 1), '有效船体 shield efficiency'),
         );
       stats.push(
         stat(
           'weapon-flux',
-          '武器每秒幅能',
+          '武器 幅能/秒',
           weapons.reduce((sum, weapon) => sum + weapon.flux, 0),
           weapons
             .filter((weapon) => weapon.id)
@@ -320,15 +321,15 @@ export function projectVariantPanel(
       for (const recordKey of new Set([hull.hullKey, ...Object.values(hull.fields).map((field) => field.recordKey)])) {
         const source = graph.records.find((entry) => entry.key === recordKey)!;
         if (source.value.state === 'missing')
-          diagnostics.push('舰体来源缺失：' + (source.target.kind === 'spec' ? source.target.target.write.path : source.target.write.path));
+          diagnostics.push('船体来源缺失：' + (source.target.kind === 'spec' ? source.target.target.write.path : source.target.write.path));
       }
       for (const wing of wings)
-        if (wing.id && !Number.isFinite(wing.cost)) diagnostics.push('甲板 ' + (wing.index + 1) + '：联队来源缺失 ' + wing.id);
+        if (wing.id && !Number.isFinite(wing.cost)) diagnostics.push('战机甲板 ' + (wing.index + 1) + '：战机联队来源缺失 ' + wing.id);
       for (const mod of mods)
         if (!csv('hullmods', mod.id) || csv('hullmods', mod.id)!.value.state === 'missing') diagnostics.push('插件来源缺失：' + mod.id);
-      if (opUsed > opTotal) diagnostics.push(`装配点超预算：${opUsed}/${opTotal}`);
-      if (vents > fluxLimit || capacitors > fluxLimit) diagnostics.push(`幅能分配超过舰级基础上限 ${fluxLimit}`);
-      if (!Number.isFinite(opUsed)) diagnostics.push('装配点来源未确定，查看缺失装备／插件记录');
+      if (opUsed > opTotal) diagnostics.push(`装配点数超预算：${opUsed}/${opTotal}`);
+      if (vents > fluxLimit || capacitors > fluxLimit) diagnostics.push(`幅能分配超过船体级别基础上限 ${fluxLimit}`);
+      if (!Number.isFinite(opUsed)) diagnostics.push('装配点数来源未确定，查看缺失装备／插件记录');
       return {
         key,
         role,

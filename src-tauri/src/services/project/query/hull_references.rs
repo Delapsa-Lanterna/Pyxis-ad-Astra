@@ -226,7 +226,7 @@ fn resolve_built_in_weapon_slots(
                 if !seen.insert(current) {
                     return Err(crate::errors::AppError::message(
                         "skin.base_cycle",
-                        format!("循环舰体皮肤引用: {id}"),
+                        format!("循环船体皮肤引用: {id}"),
                     ));
                 }
                 let origin = if session

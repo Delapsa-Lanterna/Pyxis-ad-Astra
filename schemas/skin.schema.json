@@ -12,7 +12,7 @@
         {
           "key": "skinHullId",
           "type": "string",
-          "label": "皮肤的船体 ID",
+          "label": "皮肤 ID",
           "required": true
         },
         {
@@ -46,7 +46,7 @@
         {
           "key": "tech",
           "type": "string",
-          "label": "科技"
+          "label": "设计类型"
         },
         {
           "key": "spriteName",
@@ -113,25 +113,25 @@
         {
           "key": "suppliesToRecover",
           "type": "integer",
-          "label": "维修补给",
+          "label": "战备恢复成本 (补给)",
           "min": 0
         },
         {
           "key": "suppliesPerMonth",
           "type": "integer",
-          "label": "月维持补给",
+          "label": "维护消耗 (补给/月)",
           "min": 0
         },
         {
           "key": "fighterBays",
           "type": "integer",
-          "label": "甲板数量",
+          "label": "战机甲板数量",
           "min": 0
         },
         {
           "key": "maxSpeed",
           "type": "integer",
-          "label": "战斗内速度"
+          "label": "最高航速"
         },
         {
           "key": "shieldEfficiency",
@@ -234,7 +234,7 @@
               {
                 "key": "arc",
                 "type": "float",
-                "label": "射角"
+                "label": "射界"
               }
             ]
           }
@@ -243,16 +243,16 @@
     },
     {
       "id": "wings",
-      "label": "联队",
+      "label": "战机联队",
       "fields": [
         {
           "key": "builtInWings",
           "type": "array",
-          "label": "内置联队",
+          "label": "内置战机联队",
           "item": {
             "key": "wingId",
             "type": "enum",
-            "label": "wing",
+            "label": "战机联队 ID",
             "source": "csv:wings.id"
           }
         }

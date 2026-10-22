@@ -572,7 +572,7 @@ describe('variant joint actions', () => {
     await vm.initialize();
     vm.joint.inputs.register({
       key: 'invalid-variant',
-      label: '幅能容器',
+      label: '幅能寄存器',
       dirty: ref(true),
       commit: () => '请输入完整整数',
       cancel: () => {},

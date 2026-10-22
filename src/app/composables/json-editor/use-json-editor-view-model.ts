@@ -114,7 +114,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         ready: (names) => {
           hullNames.value = names.hullNames;
         },
-        error: (error) => feedback.error(error, '读取舰体名称失败'),
+        error: (error) => feedback.error(error, '读取船体名称失败'),
       });
     }
     return true;
@@ -125,7 +125,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       ready: (options) => {
         hullOptions.value = options;
       },
-      error: (error) => feedback.error(error, '读取舰体引用失败'),
+      error: (error) => feedback.error(error, '读取船体引用失败'),
     });
   }
   async function create(id: string, companion: string) {

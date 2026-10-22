@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ focus: vi.fn(), open: vi.fn(), retarget: vi.fn
 vi.mock('@/services/window.service', () => ({ focusNativeManagedWindow: mocks.focus, retargetNativeWindow: mocks.retarget }));
 vi.mock('@/windows/immersive-editor.window', () => ({
   openImmersiveEditorWindow: mocks.open,
-  immersiveWindowTitle: (root: { id: string }) => '联队 - ' + root.id,
+  immersiveWindowTitle: (root: { id: string }) => '战机联队 - ' + root.id,
 }));
 vi.mock('@/windows/window-context.window', () => ({ publishWindowContext: mocks.publish }));
 vi.mock('@/orchestrators/joint-edit.orchestrator', () => ({ openJointEditRowSnapshot: mocks.row, openJointEditSnapshot: mocks.query }));
@@ -61,11 +61,11 @@ describe('immersive window structured handoff', () => {
       receiverGeneration: 0,
       requestId: 9,
       revision: 12,
-      title: '联队',
+      title: '战机联队',
     };
     mocks.retarget.mockResolvedValue(context);
     await retargetImmersiveWindow(snapshot);
-    expect(mocks.retarget).toHaveBeenCalledWith({ type: 'immersive', ...snapshot.root }, '联队 - ' + snapshot.root.id, {
+    expect(mocks.retarget).toHaveBeenCalledWith({ type: 'immersive', ...snapshot.root }, '战机联队 - ' + snapshot.root.id, {
       kind: 'immersive-editor',
       rowKey: 'latest-wing-row',
     });

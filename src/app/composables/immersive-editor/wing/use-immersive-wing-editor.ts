@@ -25,7 +25,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
         .then((saved) => {
           if (saved && runtime.isActive() && joint.currentTarget.value) return refreshWingBaseline(joint.currentTarget.value);
         })
-        .catch((error) => feedback.error(error, '等待联队保存失败'));
+        .catch((error) => feedback.error(error, '等待战机联队保存失败'));
       return;
     }
     const previous = snapshot.value;
@@ -38,7 +38,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
       ready: (value) => {
         captured = cloneQuerySnapshot<JointEditSnapshot>(value);
       },
-      error: (error) => feedback.error(error, '重读联队来源失败'),
+      error: (error) => feedback.error(error, '刷新战机联队数据失败'),
     });
     if (!captured || !runtime.isActive() || !joint.isTargetCurrent(target)) return;
     const next: JointEditSnapshot = captured;
@@ -57,8 +57,8 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
     }
     if (joint.dirty.value) {
       const choice = await feedback.choose({
-        title: '跟随联队重命名？',
-        content: '保留当前草稿、活动输入和历史，并接纳新的联队身份。',
+        title: '跟随战机联队重命名？',
+        content: '保留当前草稿、活动输入和历史，并接纳新的战机联队身份。',
         choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
       });
       if (choice !== 'follow' || !runtime.isActive() || !joint.isTargetCurrent(target)) return;
@@ -77,10 +77,10 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
     if (record.target.target.kind === 'skin') return runtime.toggleStat('skin-base-reference', true);
     try {
       const choice = await feedback.choose({
-        title: '补全舰体来源',
-        content: `引用 ID：${record.target.target.id}。选择创建战机舰体或 Skin；Skin 需要选择基础舰体。`,
+        title: '补全船体来源',
+        content: `引用 ID：${record.target.target.id}。选择创建战机船体或 Skin；Skin 需要选择基础船体。`,
         choices: [
-          { label: '创建战机舰体', value: 'ship', type: 'primary' },
+          { label: '创建战机船体', value: 'ship', type: 'primary' },
           { label: '创建 Skin', value: 'skin' },
         ],
       });
@@ -133,7 +133,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
       });
       await runtime.toggleStat('skin-base-reference', true);
     } catch (error) {
-      feedback.error(error, '补全舰体失败');
+      feedback.error(error, '补全船体失败');
     } finally {
       referenceChanging.value = false;
     }

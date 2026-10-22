@@ -3,8 +3,8 @@ import type { CsvTableKey } from '@/shared/types';
 export const MODULE_LABELS: Record<CsvTableKey, string> = {
   ships: '舰船',
   weapons: '武器',
-  wings: '联队',
-  hullmods: '舰船插件',
+  wings: '战机联队',
+  hullmods: '船体插件',
   shipSystems: '战术系统',
   industries: '工业',
   skills: '技能',

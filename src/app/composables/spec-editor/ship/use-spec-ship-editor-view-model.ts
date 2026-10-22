@@ -101,7 +101,7 @@ export function useSpecShipEditorViewModel(
     { shortcut: 'C', value: 'ranges', label: '范围' },
     { shortcut: 'B', value: 'bounds', label: '边界' },
     { shortcut: 'W', value: 'weapon', label: '武器' },
-    { shortcut: 'L', value: 'launchBay', label: '甲板' },
+    { shortcut: 'L', value: 'launchBay', label: '战机甲板' },
     { shortcut: 'E', value: 'engine', label: '引擎' },
   ] as const;
   const modeToSection: Record<ShipEditorMode, string | null> = {
@@ -116,8 +116,8 @@ export function useSpecShipEditorViewModel(
     overview: '仅查看',
     ranges: '左键 拖动中心或护盾 | Shift+左键 改碰撞半径 | Ctrl+左键 改护盾半径 | T 打开中心与护盾',
     bounds: '左键 拖动边界点 | Shift+左键 追加边界点 | Ctrl+左键 插入最近边段 | T 打开碰撞边界',
-    weapon: '左键 旋转角度 | Shift+左键 复制武器槽 | Ctrl+左键 移动位置 | Alt+左键 调整射角 | T 打开武器槽',
-    launchBay: '左键 选中港口 | 拖动 移动港口 | Ctrl+左键 新建甲板 | Shift+左键 为选中甲板新增港口 | T 打开甲板',
+    weapon: '左键 旋转角度 | Shift+左键 复制武器槽 | Ctrl+左键 移动位置 | Alt+左键 调整射界 | T 打开武器槽',
+    launchBay: '左键 选中起降口 | 拖动 移动起降口 | Ctrl+左键 新建战机甲板 | Shift+左键 为选中战机甲板新增起降口 | T 打开战机甲板',
     engine: '左键 旋转角度 | Shift+左键 复制引擎 | Ctrl+左键 移动位置 | Alt+左键 调整宽高 | T 打开引擎',
   };
   const footerNote = computed(
@@ -259,7 +259,7 @@ export function useSpecShipEditorViewModel(
         if (!gesture) {
           if (operation === 'launchBayPortAdd')
             feedback.warning({
-              userMessage: '先选中甲板，再为其新增港口',
+              userMessage: '先选中战机甲板，再为其新增起降口',
               diagnostic: { code: 'ship.deck_required', message: 'A deck must be selected before adding a bay port', location: null },
             });
           return null;

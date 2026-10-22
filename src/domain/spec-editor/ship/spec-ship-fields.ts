@@ -4,10 +4,10 @@ export const SHIP_SECTIONS: SpecSection[] = [
     name: 'basic',
     title: '船体属性',
     fields: [
-      ['hullId', '舰体 ID', '', undefined, true],
-      ['hullName', '舰船名称', ''],
-      ['hullSize', '舰级', '', ['FRIGATE', 'DESTROYER', 'CRUISER', 'CAPITAL_SHIP', 'FIGHTER'], true],
-      ['style', '舰体风格', '', ['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'], true],
+      ['hullId', '船体 ID', '', undefined, true],
+      ['hullName', '船体名称', ''],
+      ['hullSize', '船体级别', '', ['FRIGATE', 'DESTROYER', 'CRUISER', 'CAPITAL_SHIP', 'FIGHTER'], true],
+      ['style', '船体风格', '', ['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'], true],
     ],
   },
   {
@@ -32,7 +32,7 @@ export const SHIP_SECTIONS: SpecSection[] = [
     ],
   },
   { name: 'weapons', title: '武器槽', fields: [] },
-  { name: 'launchBays', title: '甲板', fields: [] },
+  { name: 'launchBays', title: '战机甲板', fields: [] },
   { name: 'engines', title: '引擎', fields: [] },
   { name: 'builtins', title: '内置装备', fields: [] },
   {

@@ -1455,7 +1455,7 @@ mod tests {
         let input = ManagedWindowInput::ImmersiveEditor {
             row_key: Some("old-row".into()),
         };
-        let label = state.register(identity.clone(), "联队".into(), input.clone());
+        let label = state.register(identity.clone(), "战机联队".into(), input.clone());
         let accepted = state.receive(&label, "main", input.clone());
         state.claim(&label).unwrap();
         state.accept(&label, accepted, 0).unwrap();

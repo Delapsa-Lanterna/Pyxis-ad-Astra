@@ -371,7 +371,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     saved.root.id = data
                         .get("id")
                         .and_then(Value::as_str)
-                        .ok_or_else(|| AppError::message("joint.id_missing", "联队缺少 ID"))?
+                        .ok_or_else(|| AppError::message("joint.id_missing", "战机联队缺少 ID"))?
                         .into();
                 }
             }

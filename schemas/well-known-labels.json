@@ -7,11 +7,11 @@
       "values": {
         "auto_rec": {
           "label": "可回收的全自动舰船",
-          "description": "用于标记可回收的全自动舰船；自动舰船相关规则会据此判断舰体是否符合条件。"
+          "description": "用于标记可回收的全自动舰船；自动舰船相关规则会据此判断船体是否符合条件。"
         },
         "center_diamond_on_hull_center": {
           "label": "目标菱形居中",
-          "description": "战斗中的菱形目标标记以舰体中心定位。"
+          "description": "战斗中的菱形目标标记以船体中心定位。"
         },
         "derelict": {
           "label": "遗弃船",
@@ -59,7 +59,7 @@
         },
         "no_auto_penalty": {
           "label": "全自动舰船免惩罚",
-          "description": "免除自动舰船规则中的战备上限惩罚和技能点数计入；舰体或装配均可带有此标记。"
+          "description": "免除自动舰船规则中的战备上限惩罚和技能点数计入；船体或装配均可带有此标记。"
         },
         "no_autofit": {
           "label": "不进行自动装配",
@@ -67,7 +67,7 @@
         },
         "no_battle_salvage": {
           "label": "战后不掉落打捞物资",
-          "description": "舰船在战斗中损失后，不会从其残骸中打捞出补给、燃料、武器、舰船插件等物资。"
+          "description": "舰船在战斗中损失后，不会从其残骸中打捞出补给、燃料、武器、船体插件等物资。"
         },
         "no_derelict": {
           "label": "不生成遗弃船",
@@ -83,7 +83,7 @@
         },
         "show_in_codex_as_ship": {
           "label": "数据百科舰船条目",
-          "description": "允许战机舰体以独立舰船条目的形式出现在数据百科中。"
+          "description": "允许战机船体以独立舰船条目的形式出现在数据百科中。"
         },
         "special_allows_system_use": {
           "label": "右键与 F 键系统并用",
@@ -143,7 +143,7 @@
         },
         "retain_smods_on_recovery": {
           "label": "回收时保留内置插件",
-          "description": "舰船战后被回收时，保留已经内置的舰船插件。"
+          "description": "舰船战后被回收时，保留已经内置的船体插件。"
         },
         "no_autofit_unless_player": {
           "label": "仅玩家自动装配",
@@ -229,11 +229,11 @@
       "values": {
         "dweller": {
           "label": "渊幕原种",
-          "description": "标记渊幕原种相关的舰船、武器或舰船插件；专属 AI、物品兑换和其它相关规则会据此处理。"
+          "description": "标记渊幕原种相关的舰船、武器或船体插件；专属 AI、物品兑换和其它相关规则会据此处理。"
         },
         "fragment": {
           "label": "碎片单位",
-          "description": "标记碎片势力相关的舰船、武器或舰船插件；具体效果由相应内容决定。"
+          "description": "标记碎片势力相关的舰船、武器或船体插件；具体效果由相应内容决定。"
         }
       }
     },
@@ -251,7 +251,7 @@
       "values": {
         "merc": {
           "label": "雇佣兵装备",
-          "description": "用于把舰船、武器、战机联队或舰船插件列入雇佣兵势力的已知装备。"
+          "description": "用于把舰船、武器、战机联队或船体插件列入雇佣兵势力的已知装备。"
         }
       }
     },
@@ -291,7 +291,7 @@
       "values": {
         "swarm_fighter": {
           "label": "集群战机",
-          "description": "用于标记集群机制使用的舰体或战机联队；舰体还会按集群战机显示战斗信息。"
+          "description": "用于标记集群机制使用的船体或战机联队；船体还会按集群战机显示战斗信息。"
         }
       }
     },
@@ -300,7 +300,7 @@
       "values": {
         "threat": {
           "label": "威胁势力",
-          "description": "标记威胁势力相关的舰船、武器、舰船插件或特殊物品；舰船还会使用该势力对应的 AI。"
+          "description": "标记威胁势力相关的舰船、武器、船体插件或特殊物品；舰船还会使用该势力对应的 AI。"
         }
       }
     },
@@ -369,7 +369,7 @@
         },
         "UNDER_PARENT": {
           "label": "模块绘制在主体下方",
-          "description": "舰船模块的贴图绘制在主体舰体贴图下方。"
+          "description": "舰船模块的贴图绘制在主体船体贴图下方。"
         },
         "INDEPENDENT_ROTATION": {
           "label": "模块可独立转向",
@@ -377,19 +377,19 @@
         },
         "WEAPONS_FRONT_TO_BACK": {
           "label": "武器由前向后绘制",
-          "description": "按武器相对舰体的位置确定绘制顺序，从舰首方向排到舰尾方向。"
+          "description": "按武器相对船体的位置确定绘制顺序，从舰首方向排到舰尾方向。"
         },
         "WEAPONS_BACK_TO_FRONT": {
           "label": "武器由后向前绘制",
-          "description": "按武器相对舰体的位置确定绘制顺序，从舰尾方向排到舰首方向。"
+          "description": "按武器相对船体的位置确定绘制顺序，从舰尾方向排到舰首方向。"
         },
         "DO_NOT_SHOW_MODULES_IN_FLEET_LIST": {
           "label": "舰队列表不显示模块",
           "description": "舰队列表等舰船预览只显示主体舰船，不显示它的附属模块。"
         },
         "RENDER_ENGINES_BELOW_HULL": {
-          "label": "引擎绘制在舰体下方",
-          "description": "舰船贴图绘制完成后，引擎显示在舰体贴图下层。"
+          "label": "引擎绘制在船体下方",
+          "description": "舰船贴图绘制完成后，引擎显示在船体贴图下层。"
         },
         "MISSILE_HARDPOINTS_ROTATE": {
           "label": "导弹固定槽可以转向",
@@ -401,7 +401,7 @@
         },
         "PHASE": {
           "label": "相位舰",
-          "description": "将舰体按相位舰处理，供 AI、舰队生成和相关说明使用；是否拥有相位系统仍由舰船配置决定。"
+          "description": "将船体按相位舰处理，供 AI、舰队生成和相关说明使用；是否拥有相位系统仍由舰船配置决定。"
         },
         "PLAY_FIGHTER_OVERLOAD_SOUNDS": {
           "label": "战机播放舰船过载音效",
@@ -512,7 +512,7 @@
       "values": {
         "no_drop_salvage": {
           "label": "不会出现在打捞物中",
-          "description": "原版打捞掉落会排除带有此标记的武器和舰船插件。"
+          "description": "原版打捞掉落会排除带有此标记的武器和船体插件。"
         }
       }
     },
@@ -521,7 +521,7 @@
       "values": {
         "show_in_codex": {
           "label": "显示在数据百科中",
-          "description": "参与舰船插件、武器、技能或市场条件的数据百科收录判断；最终是否显示还取决于其它条件。"
+          "description": "参与船体插件、武器、技能或市场条件的数据百科收录判断；最终是否显示还取决于其它条件。"
         }
       }
     },
@@ -789,7 +789,7 @@
         },
         "civ_package": {
           "label": "民用插件组合",
-          "description": "用于归类原版民用舰船插件组合。"
+          "description": "用于归类原版民用船体插件组合。"
         },
         "codex_require_related": {
           "label": "需要解锁相关数据百科条目",
@@ -808,12 +808,12 @@
           "description": "生成摧毁类战损时，会将该插件加入候选，再按适用条件筛选并随机选择。"
         },
         "dmod": {
-          "label": "受损舰船插件",
+          "label": "受损船体插件",
           "description": "标记 D 插，供 D 插数量统计和相关舰船规则识别。"
         },
         "engines": {
           "label": "引擎类插件",
-          "description": "将该舰船插件归入引擎类别。"
+          "description": "将该船体插件归入引擎类别。"
         },
         "fighterBayDamage": {
           "label": "有战机甲板时可成为战损",
@@ -825,7 +825,7 @@
         },
         "non_phase": {
           "label": "相位舰不自动安装",
-          "description": "自动装配为相位舰挑选舰船插件时会跳过此插件。"
+          "description": "自动装配为相位舰挑选船体插件时会跳过此插件。"
         },
         "notAuto": {
           "label": "全自动舰船不使用",
@@ -861,23 +861,23 @@
         },
         "shields": {
           "label": "护盾类插件",
-          "description": "将该舰船插件归入护盾类别。"
+          "description": "将该船体插件归入护盾类别。"
         },
         "shrouded": {
           "label": "渊幕插件",
-          "description": "标记与渊幕内容相关的舰船插件。"
+          "description": "标记与渊幕内容相关的船体插件。"
         },
         "special": {
           "label": "特殊插件",
-          "description": "将该舰船插件归入特殊类别。"
+          "description": "将该船体插件归入特殊类别。"
         },
         "standard": {
           "label": "常规插件",
-          "description": "将该舰船插件列入原版势力已知的常规插件。"
+          "description": "将该船体插件列入原版势力已知的常规插件。"
         },
         "weapons": {
           "label": "武器类插件",
-          "description": "将该舰船插件归入武器类别。"
+          "description": "将该船体插件归入武器类别。"
         },
         "notCiv": {
           "label": "民用舰不使用",
@@ -898,11 +898,11 @@
       "values": {
         "defensive": {
           "label": "防御类",
-          "description": "将舰船插件或战术系统归入防御类别。"
+          "description": "将船体插件或战术系统归入防御类别。"
         },
         "offensive": {
           "label": "进攻类",
-          "description": "将舰船插件或战术系统归入进攻类别。"
+          "description": "将船体插件或战术系统归入进攻类别。"
         }
       }
     },
@@ -1065,7 +1065,7 @@
         },
         "spaceport": {
           "label": "太空港",
-          "description": "标记太空港类设施；舰船插件装卸等殖民地条件也会读取此标记。"
+          "description": "标记太空港类设施；船体插件装卸等殖民地条件也会读取此标记。"
         },
         "starfortress": {
           "label": "星堡",
@@ -1220,8 +1220,8 @@
           "description": "将该特殊物品归入任务物品类别。"
         },
         "modspec": {
-          "label": "舰船插件蓝图",
-          "description": "标记包含舰船插件蓝图的特殊物品；蓝图对应的插件由物品数据指定。"
+          "label": "船体插件蓝图",
+          "description": "标记包含船体插件蓝图的特殊物品；蓝图对应的插件由物品数据指定。"
         },
         "nanoforge": {
           "label": "纳米锻炉",
@@ -1284,43 +1284,43 @@
       "values": {
         "Defenses": {
           "label": "防御",
-          "description": "舰船插件界面用此标签展示和筛选防御类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选防御类插件；插件效果由自身实现决定。"
         },
         "Engines": {
           "label": "引擎",
-          "description": "舰船插件界面用此标签展示和筛选引擎类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选引擎类插件；插件效果由自身实现决定。"
         },
         "Fighters": {
           "label": "战机",
-          "description": "舰船插件界面用此标签展示和筛选战机类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选战机类插件；插件效果由自身实现决定。"
         },
         "Logistics": {
           "label": "后勤",
-          "description": "舰船插件界面用此标签展示和筛选后勤类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选后勤类插件；插件效果由自身实现决定。"
         },
         "Phase": {
           "label": "相位",
-          "description": "舰船插件界面用此标签展示和筛选相位类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选相位类插件；插件效果由自身实现决定。"
         },
         "Requires Dock": {
           "label": "需要停靠",
-          "description": "舰船插件界面用此标签展示需要停靠后才能安装或拆卸的插件。"
+          "description": "船体插件界面用此标签展示需要停靠后才能安装或拆卸的插件。"
         },
         "Shields": {
           "label": "护盾",
-          "description": "舰船插件界面用此标签展示和筛选护盾类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选护盾类插件；插件效果由自身实现决定。"
         },
         "Special": {
           "label": "特殊",
-          "description": "舰船插件界面用此标签展示和筛选特殊类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选特殊类插件；插件效果由自身实现决定。"
         },
         "Support": {
           "label": "支援",
-          "description": "舰船插件界面用此标签展示和筛选支援类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选支援类插件；插件效果由自身实现决定。"
         },
         "Weapons": {
           "label": "武器",
-          "description": "舰船插件界面用此标签展示和筛选武器类插件；插件效果由自身实现决定。"
+          "description": "船体插件界面用此标签展示和筛选武器类插件；插件效果由自身实现决定。"
         }
       }
     },

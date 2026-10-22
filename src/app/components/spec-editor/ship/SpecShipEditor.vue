@@ -116,7 +116,7 @@
                 />
                 <div v-if="view.mode === 'launchBay'" class="port-rows ui-layout-grid">
                   <div class="port-list-header coordinate-list-header ui-layout-grid ui-text-meta ui-text-muted">
-                    <span>港口</span><span>X</span><span>Y</span><span>操作</span>
+                    <span>起降口</span><span>X</span><span>Y</span><span>操作</span>
                   </div>
                   <div
                     v-for="(port, index) in view.selectedBayPorts"
@@ -129,7 +129,7 @@
                     <small class="ui-text-meta ui-text-muted">{{ index + 1 }}</small>
                     <NumberValueInput
                       :value="port[0]"
-                      :label="'甲板港口 ' + (index + 1) + ' X'"
+                      :label="'起降口 ' + (index + 1) + ' X'"
                       clear-action="required"
                       :show-button="false"
                       size="small"
@@ -138,7 +138,7 @@
                     />
                     <NumberValueInput
                       :value="port[1]"
-                      :label="'甲板港口 ' + (index + 1) + ' Y'"
+                      :label="'起降口 ' + (index + 1) + ' Y'"
                       clear-action="required"
                       :show-button="false"
                       size="small"
@@ -163,7 +163,7 @@
                   v-if="section.name === 'launchBays'"
                   :disabled="view.mode !== 'launchBay' || !view.selectedSlot"
                   @click="actions.addBayPortFromPanel"
-                  >添加港口</n-button
+                  >添加起降口</n-button
                 >
                 <n-button
                   :disabled="!view.selectedSlot || view.mode !== (section.name === 'weapons' ? 'weapon' : 'launchBay')"
@@ -266,7 +266,7 @@
                   @update="actions.builtInWeaponsUpdated"
               /></FieldRow>
               <FieldRow label="内置插件" field-key="builtInMods"><n-dynamic-tags v-model:value="view.builtInMods" /></FieldRow>
-              <FieldRow label="内置联队" field-key="builtInWings"><n-dynamic-tags v-model:value="view.builtInWings" /></FieldRow>
+              <FieldRow label="内置战机联队" field-key="builtInWings"><n-dynamic-tags v-model:value="view.builtInWings" /></FieldRow>
             </template>
             <JsonFieldEditor
               v-if="section.name === 'extra'"

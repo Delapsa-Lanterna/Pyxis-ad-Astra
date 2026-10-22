@@ -3,7 +3,7 @@
   "id": "faction",
   "fileType": ".faction",
   "displayName": "势力定义",
-  "description": "Starsector 势力配置文件，定义势力的外观、舰队组成、教条、关系等",
+  "description": "Starsector 势力配置文件，定义势力的外观、舰队组成、学说、关系等",
   "sections": [
     {
       "id": "__all",
@@ -312,7 +312,7 @@
         {
           "key": "file.knownFighters",
           "type": "object",
-          "label": "已知战机",
+          "label": "已知战机联队",
           "description": "势力已知（可生产/使用）的战机联队蓝图",
           "required": true,
           "editable": true,
@@ -330,7 +330,7 @@
             {
               "key": "fighters",
               "type": "string-array",
-              "label": "战机列表",
+              "label": "战机联队列表",
               "description": "势力已知的具体战机联队 ID",
               "required": false,
               "editable": true,
@@ -342,7 +342,7 @@
         {
           "key": "file.priorityFighters",
           "type": "object",
-          "label": "优先战机",
+          "label": "优先战机联队",
           "description": "势力优先使用的战机联队",
           "required": false,
           "editable": true,
@@ -360,7 +360,7 @@
             {
               "key": "fighters",
               "type": "string-array",
-              "label": "战机列表",
+              "label": "战机联队列表",
               "description": "优先使用的具体战机联队 ID",
               "required": false,
               "editable": true,
@@ -432,8 +432,8 @@
         {
           "key": "file.knownHullMods",
           "type": "object",
-          "label": "已知舰船插件",
-          "description": "势力已知（可使用）的舰船插件蓝图",
+          "label": "已知船体插件",
+          "description": "势力已知（可使用）的船体插件蓝图",
           "required": false,
           "editable": true,
           "nested": [
@@ -441,7 +441,7 @@
               "key": "tags",
               "type": "string-array",
               "label": "蓝图标签",
-              "description": "包含这些标签的舰船插件将被势力获知",
+              "description": "包含这些标签的船体插件将被势力获知",
               "required": false,
               "editable": true,
               "default": [],
@@ -450,8 +450,8 @@
             {
               "key": "hullMods",
               "type": "string-array",
-              "label": "舰船插件列表",
-              "description": "势力已知的具体舰船插件 ID",
+              "label": "船体插件列表",
+              "description": "势力已知的具体船体插件 ID",
               "required": false,
               "editable": true,
               "default": [],
@@ -472,7 +472,7 @@
         {
           "key": "file.fighterSellFrequency",
           "type": "key-value",
-          "label": "战机出售频率",
+          "label": "战机联队出售频率",
           "description": "势力市场上各战机联队的出售频率权重",
           "required": false,
           "editable": true,
@@ -482,8 +482,8 @@
         {
           "key": "file.hullmodSellFrequency",
           "type": "key-value",
-          "label": "舰船插件出售频率",
-          "description": "势力市场上各舰船插件的出售频率权重",
+          "label": "船体插件出售频率",
+          "description": "势力市场上各船体插件的出售频率权重",
           "required": false,
           "editable": true,
           "default": {},
@@ -492,8 +492,8 @@
         {
           "key": "file.factionDoctrine",
           "type": "object",
-          "label": "舰队教条",
-          "description": "势力舰队生成的教条参数，决定舰队组成偏好",
+          "label": "舰队学说",
+          "description": "势力舰队生成的学说参数，决定舰队组成偏好",
           "required": true,
           "editable": true,
           "nested": [
@@ -566,8 +566,8 @@
             {
               "key": "shipSize",
               "type": "integer",
-              "label": "舰船体型",
-              "description": "舰队中大型舰船的倾向性（越高越多大船）",
+              "label": "舰船规模",
+              "description": "控制舰队组建时的舰船尺寸配比；数值越高，小型舰船占比越低",
               "required": true,
               "editable": true,
               "default": 3,
@@ -577,8 +577,8 @@
             {
               "key": "aggression",
               "type": "integer",
-              "label": "攻击性",
-              "description": "AI 军官默认攻击性倾向（1=谨慎更多, 5=鲁莽更多）",
+              "label": "侵略性",
+              "description": "按此势力生成的舰队军官与舰船指挥官倾向（1=谨慎，2=沉着，3=激进，4=激进或鲁莽，5=鲁莽）",
               "required": true,
               "editable": true,
               "default": 3,
@@ -875,8 +875,8 @@
             {
               "key": "offersCommissions",
               "type": "boolean",
-              "label": "提供委托",
-              "description": "势力是否向玩家提供佣金委托",
+              "label": "提供雇佣协议",
+              "description": "势力是否向玩家提供雇佣协议",
               "required": false,
               "editable": true,
               "default": false
@@ -920,8 +920,8 @@
             {
               "key": "buysSurveyData",
               "type": "boolean",
-              "label": "收购勘探数据",
-              "description": "势力是否收购行星勘探数据",
+              "label": "收购调查数据",
+              "description": "势力是否收购行星调查数据",
               "required": false,
               "editable": true,
               "default": false
@@ -1011,7 +1011,7 @@
               "key": "allowsTransponderOffTrade",
               "type": "boolean",
               "label": "允许关闭应答器交易",
-              "description": "势力是否允许关闭应答器的船只进行交易",
+              "description": "势力是否允许关闭应答器的舰船进行交易",
               "required": false,
               "editable": true,
               "default": false

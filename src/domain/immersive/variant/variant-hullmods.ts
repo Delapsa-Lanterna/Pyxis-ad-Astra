@@ -120,9 +120,9 @@ export function hullmodRowState(entry: ReadonlyVariantEntry, installed: VariantH
       ? { normal: '普通', permanent: '永久', s: 'S 插件', builtin: '内置' }[installed.category] + (installed.strengthened ? ' · S强化' : '')
       : '未安装',
     diagnostic: !Number.isFinite(cost)
-      ? '装配点来源未确定：' + entry.id
+      ? '装配点数来源未确定：' + entry.id
       : !installed && cost > available
-        ? '装配点超预算：' + cost + '，剩余 ' + available
+        ? '装配点数超预算：' + cost + '，剩余 ' + available
         : '',
   };
 }

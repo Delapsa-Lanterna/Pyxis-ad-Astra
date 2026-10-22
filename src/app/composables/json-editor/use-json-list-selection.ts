@@ -183,7 +183,7 @@ export function useJsonListSelection(options: {
     () => sync.pending.map((entry) => [entry.id, entry.step, entry.error]),
     () => {
       void acceptHandoff().catch((error: unknown) => {
-        if (!disposed) feedback.error(error, '接纳配置列表失败');
+        if (!disposed) feedback.error(error, '更新配置列表失败');
       });
     },
   );

@@ -36,7 +36,7 @@ const definitions: Record<ImmersiveEditorKind, ImmersiveEditorDefinition<Immersi
   },
   wing: {
     retainDisplayReferences: false,
-    label: '战机',
+    label: '战机联队',
     editableRecords: immersiveEditableRecords,
     project: projectWingPanel,
     references: (_snapshot, values) => Object.entries(values),

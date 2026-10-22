@@ -57,6 +57,6 @@ describe('variant base configuration projection', () => {
     const variant = projectVariantPanel(snapshot, { variant: { state: 'present', value: { ...data, fluxCapacitors: 31 } } }).variants[0]!;
     expect(variant.wings.map((wing) => wing.id)).toEqual(['sarissa_wing', '', 'missing']);
     expect(variant.opUsed).toBeNaN();
-    expect(variant.diagnostics).toContain('幅能分配超过舰级基础上限 30');
+    expect(variant.diagnostics).toContain('幅能分配超过船体级别基础上限 30');
   });
 });

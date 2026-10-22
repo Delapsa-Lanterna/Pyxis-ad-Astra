@@ -2,7 +2,7 @@ import { requestWindow } from '@/windows/managed.window';
 import type { JointEditRoot } from '@/shared/types';
 
 export function immersiveWindowTitle(root: JointEditRoot): string {
-  const label = { ship: '舰船', weapon: '武器', wing: '战机', variant: '装配' }[root.kind];
+  const label = { ship: '舰船', weapon: '武器', wing: '战机联队', variant: '装配' }[root.kind];
   return `${label}沉浸式编辑器 - ${root.id}`;
 }
 

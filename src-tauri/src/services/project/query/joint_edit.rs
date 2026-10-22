@@ -1256,7 +1256,7 @@ impl JointGraph<'_> {
             {
                 return Err(AppError::message(
                     "skin.id_conflict",
-                    "已有舰体占用此 ID，无法建立 Skin",
+                    "已有船体占用此 ID，无法建立 Skin",
                 ));
             }
             return Ok(true);

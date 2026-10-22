@@ -47,12 +47,12 @@
           :key="wing.index"
           class="variant-wing-tile ui-button ui-control-center ui-layout-clip ui-control-pointer ui-control-reset"
           :disabled="wing.builtin"
-          :aria-label="wing.name + ' · 甲板 ' + (wing.index + 1)"
+          :aria-label="wing.name + ' · 战机甲板 ' + (wing.index + 1)"
           @click="openWingPicker(wing.index, $event)"
         >
           <VariantWingIcon v-if="wing.id" :root="vm.joint.currentTarget.value!" :id="wing.id" :size="64" :renderer-size="72" />
-          <img class="ui-image" v-else-if="deckIcon" :src="deckIcon" width="64" height="64" alt="空甲板" />
-          <ImmersiveFallbackIcon v-else kind="fighter" :size="64" label="空甲板" />
+          <img class="ui-image" v-else-if="deckIcon" :src="deckIcon" width="64" height="64" alt="空置战机甲板" />
+          <ImmersiveFallbackIcon v-else kind="fighter" :size="64" label="空置战机甲板" />
           <strong class="variant-wing-tile-value" v-if="wing.id && !wing.builtin"
             ><ImmersiveText :text="formatVariantNumber(wing.cost)" font="heading"
           /></strong>
@@ -124,7 +124,7 @@
     </n-modal>
   </div>
   <div v-else class="immersive-status">
-    <ImmersiveText text="装配舰体来源缺失，请在主窗口配置表单维护舰体或 Skin 引用。" block />
+    <ImmersiveText text="装配船体来源缺失，请在主窗口配置表单维护船体或 Skin 引用。" block />
   </div>
 </template>
 <script setup lang="ts">

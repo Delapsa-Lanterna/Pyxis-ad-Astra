@@ -26,7 +26,7 @@ pub fn project_joint_hull(
         if !seen.insert(current) {
             return Err(AppError::message(
                 "skin.base_cycle",
-                format!("循环舰体皮肤引用: {hull_id}"),
+                format!("循环船体皮肤引用: {hull_id}"),
             ));
         }
         skins.push(skin);

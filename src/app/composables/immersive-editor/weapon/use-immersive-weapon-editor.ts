@@ -23,7 +23,7 @@ export function useImmersiveWeaponEditor(runtime: ImmersiveEditorRuntime) {
         const choice = await feedback.choose({
           title: '选择覆盖的武器分支',
           choices: [
-            { label: '弹丸 projectile', value: 'projectile', type: 'primary' },
+            { label: '弹体 projectile', value: 'projectile', type: 'primary' },
             { label: '光束 beam', value: 'beam' },
           ],
         });

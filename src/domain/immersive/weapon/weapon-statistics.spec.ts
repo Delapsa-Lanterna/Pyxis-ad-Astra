@@ -60,10 +60,10 @@ describe('original weapon base statistics', () => {
     expect(weaponStatistics(csv, spec, { missileType: 'MIRV' }).diagnostics).toContain('MIRV');
   });
   it('uses original display thresholds and missile engine maneuverability', () => {
-    expect([125, 175, 225, 275, 276].map(weaponMissileSpeed)).toEqual(['很慢', '慢', '中等', '快', '很快']);
+    expect([125, 175, 225, 275, 276].map(weaponMissileSpeed)).toEqual(['非常慢', '较慢', '中等', '较快', '非常快']);
     expect(weaponMissileTracking(200, { missileType: 'MIRV', engineSpec: { acc: 200, turnRate: 180 } })).toBe('优秀');
     expect(weaponMissileTracking(200, { missileType: 'TORPEDO' })).toBe('无');
     expect([0, 2, 5, 10, 15, 20, 21].map(weaponAccuracy)).toEqual(['完美', '优秀', '良好', '中等', '较差', '很差', '极差']);
-    expect([0, 5, 15, 25, 35, 50, 51].map(weaponTurnRate)).toEqual(['无法转向', '很慢', '慢', '中等', '快', '很快', '优秀']);
+    expect([0, 5, 15, 25, 35, 50, 51].map(weaponTurnRate)).toEqual(['无', '非常慢', '较慢', '中等', '较快', '非常快', '优秀']);
   });
 });
