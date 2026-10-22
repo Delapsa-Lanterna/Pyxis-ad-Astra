@@ -210,10 +210,10 @@ export const frontendCapabilities = [
   },
   {
     role: 'service',
-    domain: 'app-log',
-    names: ['startPerformanceLogSink'],
-    capability: 'log-lifecycle',
-    owners: [{ path: 'src/main.ts', layer: 'app' }],
+    domain: 'performance-monitor',
+    names: ['deliverPerformanceBatch', 'performanceMonitorReport'],
+    capability: 'performance-monitor',
+    owners: [{ path: 'src/app/performance-monitor.ts', layer: 'app' }],
   },
   {
     role: 'service',

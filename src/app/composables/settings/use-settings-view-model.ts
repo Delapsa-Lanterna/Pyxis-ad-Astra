@@ -9,6 +9,8 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { saveLogDirectory } from '@/orchestrators/settings-persistence.orchestrator';
 import { querySystemFonts } from '@/services/app-settings.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { controlPerformanceMonitor, performanceMonitorError } from '@/app/performance-monitor';
+import type { PerformanceMonitorStatus } from '@/shared/types';
 
 export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const settings = useSettingsStore();
@@ -19,6 +21,15 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
   const configActions = useAppConfigActions(closeWorkspace, useWindowLifecycleActions());
   const reads = useQueryReadOwner();
+  const monitorStatus = ref<PerformanceMonitorStatus | null>(null);
+  async function monitorAction(action: 'status' | 'reset' | 'export') {
+    await reads.consume('monitor', { action }, () => controlPerformanceMonitor(action), {
+      ready: (status) => {
+        monitorStatus.value = status;
+      },
+      error: (error) => feedback.error(error, '性能监视操作失败'),
+    });
+  }
   let active = true;
   onScopeDispose(() => {
     active = false;
@@ -116,6 +127,9 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   }
 
   return {
+    monitorStatus,
+    monitorAction,
+    performanceMonitorError,
     fontOptions,
     fontsLoading,
     loadSystemFonts,

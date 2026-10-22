@@ -20,18 +20,8 @@ export interface CsvGridModel extends CsvGridColumns {
 
 export interface CsvGridColumns {
   columns: CsvGridColumn[];
-  performanceSample: CsvGridPerformanceSample;
   sourceIndex: CsvSourceIndex;
   totalWidthPx: number;
-}
-
-export interface CsvGridPerformanceSample {
-  columns: number;
-  ms: number;
-  rows: number;
-  sourceMs: number;
-  table: CsvTableKey;
-  widthMs: number;
 }
 
 export function createCsvGridColumns(
@@ -40,29 +30,16 @@ export function createCsvGridColumns(
   loadedRows: CsvRowRecord[],
   loadedSourceOptions: Map<string, SelectOption[]> = new Map(),
 ): CsvGridColumns {
-  const startedAt = performance.now();
   const columns = visibleColumns.map((key) => createCsvGridColumn(table, key));
-  const sourceStartedAt = performance.now();
   const sourceIndex = createCsvSourceIndex(
     columns.map((column) => column.schema?.source),
     loadedSourceOptions,
   );
-  const sourceMs = performance.now() - sourceStartedAt;
-  const widthStartedAt = performance.now();
   for (const column of columns) {
     column.widthPx = columnWidthPx(column, loadedRows, sourceIndex);
   }
-  const widthMs = performance.now() - widthStartedAt;
   const totalWidthPx = columns.reduce((sum, column) => sum + column.widthPx, 0);
-  const performanceSample = {
-    columns: columns.length,
-    ms: Math.round(performance.now() - startedAt),
-    rows: loadedRows.length,
-    sourceMs: Math.round(sourceMs),
-    table,
-    widthMs: Math.round(widthMs),
-  };
-  return { columns, performanceSample, sourceIndex, totalWidthPx };
+  return { columns, sourceIndex, totalWidthPx };
 }
 
 function createCsvGridColumn(table: CsvTableKey, key: string): CsvGridColumn {

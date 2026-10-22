@@ -219,6 +219,28 @@
       </div>
       <FieldHints :description="logPathHint" />
     </section>
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">性能调试</h3>
+      <FieldRow label="性能监视">
+        <n-switch class="tool-switch" :value="settings.performanceMonitorEnabled" @update:value="settings.setPerformanceMonitorEnabled" />
+        <template #hint><FieldHints description="默认关闭，修改后重启应用生效。开启后自动采集，报告手动导出。" /></template>
+      </FieldRow>
+      <FieldRow readonly label="本次运行"
+        ><span
+          >{{ monitorStatus?.enabled ? '已开启' : '已关闭'
+          }}{{ monitorStatus && monitorStatus.enabled !== settings.performanceMonitorEnabled ? '（重启后应用新设置）' : '' }}</span
+        ></FieldRow
+      >
+      <div class="action-group">
+        <n-button size="small" @click="monitorAction('status')">刷新状态</n-button>
+        <n-button size="small" :disabled="!monitorStatus?.enabled" @click="monitorAction('reset')">重新采集</n-button>
+        <n-button size="small" :disabled="!monitorStatus?.enabled" @click="monitorAction('export')">导出报告</n-button>
+      </div>
+      <FieldHints
+        :description="monitorStatus ? `记录 ${monitorStatus.records} 条，覆盖 ${monitorStatus.overwritten} 条。${monitorStatus.path}` : ''"
+        :warning="performanceMonitorError"
+      />
+    </section>
   </div>
 </template>
 
@@ -296,11 +318,15 @@ const {
   restoreDefaultLogDirectory,
   confirmClearConfig,
   confirmClearLog,
+  monitorStatus,
+  monitorAction,
+  performanceMonitorError,
 } = useSettingsViewModel(props.closeWorkspace);
 
 onMounted(() => {
   void loadSystemFonts();
   void refreshLogStatus();
+  void monitorAction('status');
 });
 
 watch(

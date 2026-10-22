@@ -51,3 +51,4 @@ pub(crate) use project::write::faction_identity::{delete_faction_entity, save_fa
 pub(crate) use project::write::joint_edit::save_joint_edit;
 
 pub use project::write::json_recovery::recreate_json_sources;
+pub mod performance_monitor;

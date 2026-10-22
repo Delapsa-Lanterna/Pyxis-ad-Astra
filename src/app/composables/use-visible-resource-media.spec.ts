@@ -15,7 +15,6 @@ vi.mock('./use-resource-thumbnail', () => ({
     height,
   }),
 }));
-vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
   readonly observed = new Set<Element>();

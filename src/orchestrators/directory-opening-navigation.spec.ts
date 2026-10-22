@@ -91,9 +91,6 @@ vi.mock('@/services/window.service', () => ({
   beginSessionWindowClose: vi.fn(async () => {}),
   releaseSessionWindowClose: vi.fn(async () => {}),
 }));
-vi.mock('@/shared/runtime/performance', () => ({
-  measurePerformance: (_name: string, _detail: unknown, action: () => unknown) => action(),
-}));
 vi.mock('@/orchestrators/workspace-navigation.orchestrator', () => ({ navigateToModOverview: vi.fn() }));
 
 import { openModFromOverview } from '@/orchestrators/directory-opening.orchestrator';

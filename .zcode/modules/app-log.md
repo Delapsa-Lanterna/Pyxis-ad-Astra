@@ -10,8 +10,8 @@
 
 - `src-tauri/src/commands/app_log.rs`：日志 command。
 - `src-tauri/src/services/app_log.rs`：日志路径、级别、渲染及轮转。
-- `src/services/app-log.service.ts`：四个 command 的签名与参数装配、best-effort 和性能 sink 接线。
-- `src/services/app-log.spec.ts`：日志 sink 登记、异步失败及窗口释放验证。
+- `src/services/app-log.service.ts`：日志 command 的签名、参数装配与 best-effort。
+- `src/services/app-log.spec.ts`：日志异步失败隔离验证。
 
 ### 消费
 
@@ -24,7 +24,6 @@
 ## 边界
 
 - best-effort 在日志 owner 内结束失败，向业务调用方保留原动作结果。
-- 各窗口启动装配性能 sink，pagehide 释放注册；业务调用方提供稳定码和结构化上下文。
 - 日志能力拥有条目追加、状态、打开、清空、轮转及失败隔离。
 - 目录、级别、轮转大小和备份份数来自已保存 settings，过滤与实际路径解析归后端。
 - 设置 ViewModel 消费维护能力，日志写入目标是工具日志文件。
@@ -38,12 +37,6 @@
 2. `recordLogBestEffort` 调用 `append_app_log`。
 3. Rust 按已保存设置判定级别、目录、轮转大小和备份份数。
 4. 日志 owner 取得写锁，按阈值轮转并渲染追加条目。
-
-### 性能装配
-
-1. main 在业务挂载前调用 `startPerformanceLogSink`。
-2. 性能原语调用注册的日志能力。
-3. 窗口 pagehide 释放所属 sink。
 
 ### 日志维护
 
@@ -66,10 +59,10 @@
 - 日志追加、轮转与清空必须由同一后端写锁串行协调。
 - 时间必须按后端写入时的本地时间渲染，fields 必须按键排序并清洗 CR/LF/TAB。
 - 时间戳必须采用 YYYY-MM-DD HH:mm:ss.SSS，清空日志必须保留空日志文件并返回实际状态。
-- 默认 INFO 必须过滤 DEBUG，性能条目必须采用 perf 码及 DEBUG。
+- 默认 INFO 必须过滤 DEBUG，性能采样严禁进入应用日志。
 
 ## 陷阱
 
 - 从当前页面推导目录会让同一日志动作的目标随导航变化。
 - 按日期或会话改换日志文件名会使状态、轮转与清空定位不同文件。
-- 模块导入时注册性能 sink 会让窗口释放无法准确撤销所属实例。
+- 日志写入失败由所属 best-effort 边界结束。

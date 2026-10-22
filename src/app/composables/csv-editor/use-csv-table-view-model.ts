@@ -13,7 +13,6 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { createCsvGridColumns } from '@/domain/csv-editor/csv-grid-model';
 import { csvColumnSchemaFor } from '@/domain/csv-editor/csv-column-schema';
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
-import { recordPerformance } from '@/shared/runtime/performance';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 
@@ -477,19 +476,6 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   function querySelectedRowPreview(target: CsvRowPreviewTarget, signal?: AbortSignal): Promise<string> {
     return queryTableRowPreviewDataUrl(target.sessionId, target.table, target.rowKey, signal);
   }
-
-  watch(
-    () => gridModel.value.performanceSample,
-    (sample) =>
-      recordPerformance('frontend.csvGridModel', sample.ms, {
-        columns: sample.columns,
-        rows: sample.rows,
-        sourceMs: sample.sourceMs,
-        table: sample.table,
-        widthMs: sample.widthMs,
-      }),
-    { immediate: true },
-  );
 
   return {
     tables,

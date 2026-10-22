@@ -8,18 +8,14 @@ function loadedRows(count: number, fill: (index: number) => RowData): CsvDraftRo
 }
 
 describe('createCsvGridColumns rows', () => {
-  it('reports the row count through the performance sample', () => {
+  it('preserves the row count in the grid model', () => {
     const model = createCsvGridColumns(
       'ships',
       ['id'],
       loadedRows(4, () => ({ id: 'x' })),
     );
-    expect(model.performanceSample.table).toBe('ships');
-    expect(model.performanceSample.rows).toBe(4);
-    expect(model.performanceSample.columns).toBe(1);
-    expect(model.performanceSample.ms).toBeGreaterThanOrEqual(0);
-    expect(model.performanceSample.sourceMs).toBeGreaterThanOrEqual(0);
-    expect(model.performanceSample.widthMs).toBeGreaterThanOrEqual(0);
+    expect(model.columns.map((column) => column.key)).toEqual(['id']);
+    expect(model.totalWidthPx).toBe(model.columns[0]!.widthPx);
   });
 });
 

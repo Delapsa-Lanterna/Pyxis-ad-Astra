@@ -207,14 +207,12 @@ pub(super) fn build_project_session(
         .is_some_and(|root| root.join("starsector-core").exists());
     let content = load_project_content(&mut sources, starsector_root.as_deref(), trace)?;
     sources.capture_versions()?;
-    trace.record_stage(
-        "source_records",
-        source_timer,
-        [(
+    trace.record_stage("source_records", source_timer, || {
+        vec![(
             "result",
             if sources.reused() { "reused" } else { "parsed" }.to_string(),
-        )],
-    );
+        )]
+    });
     sources.flush();
     let source_versions = sources.versions;
     let mut csv_tables = build_registered_session_csv_tables();
@@ -330,33 +328,27 @@ fn load_project_content(
         .exists()
         .then(|| sources.json(&info_path))
         .transpose()?;
-    trace.record_stage(
-        "mod_info",
-        timer,
-        [(
+    trace.record_stage("mod_info", timer, || {
+        vec![(
             "path",
             mod_root.join("mod_info.json").to_string_lossy().to_string(),
-        )],
-    );
+        )]
+    });
     let timer = trace.timer();
     let faction_files = factions::load_faction_files_from(sources)?;
     let faction_blueprint_tags = factions::faction_blueprint_tags(&faction_files);
-    trace.record_stage(
-        "factions",
-        timer,
-        [
+    trace.record_stage("factions", timer, || {
+        vec![
             ("factionFiles", faction_files.len().to_string()),
             ("tags", faction_blueprint_tags.len().to_string()),
-        ],
-    );
+        ]
+    });
     let timer = trace.timer();
     let mission_count =
         sources.count(&sources.path("data/missions/mission_list.csv")?, "mission")?;
-    trace.record_stage(
-        "mission_count",
-        timer,
-        [("missions", mission_count.to_string())],
-    );
+    trace.record_stage("mission_count", timer, || {
+        vec![("missions", mission_count.to_string())]
+    });
     let spec_bundle = load_spec_bundle(sources, starsector_root, trace)?;
     let entity_summaries = EntitySummaries {
         factions: faction_files.len(),
@@ -434,11 +426,9 @@ pub(super) fn load_spec_bundle(
         "hullId",
         crate::models::ResourceSource::Mod,
     )?;
-    trace.record_stage(
-        "spec.ship_files",
-        timer,
-        [("files", ship_files.len().to_string())],
-    );
+    trace.record_stage("spec.ship_files", timer, || {
+        vec![("files", ship_files.len().to_string())]
+    });
     let timer = trace.timer();
     let weapon_specs = sources::documents::load_spec_records_from(
         sources,
@@ -447,31 +437,25 @@ pub(super) fn load_spec_bundle(
         "id",
         crate::models::ResourceSource::Mod,
     )?;
-    trace.record_stage(
-        "spec.weapon_specs",
-        timer,
-        [("files", weapon_specs.len().to_string())],
-    );
+    trace.record_stage("spec.weapon_specs", timer, || {
+        vec![("files", weapon_specs.len().to_string())]
+    });
     let timer = trace.timer();
     let (variant_files, variant_warnings) = load_variant_files_from(sources)?;
-    trace.record_stage(
-        "spec.variant_files",
-        timer,
-        [
+    trace.record_stage("spec.variant_files", timer, || {
+        vec![
             ("files", variant_files.len().to_string()),
             ("warnings", variant_warnings.len().to_string()),
-        ],
-    );
+        ]
+    });
     let timer = trace.timer();
     let (skin_files, skin_warnings) = load_skin_files_from(sources)?;
-    trace.record_stage(
-        "spec.skin_files",
-        timer,
-        [
+    trace.record_stage("spec.skin_files", timer, || {
+        vec![
             ("files", skin_files.len().to_string()),
             ("warnings", skin_warnings.len().to_string()),
-        ],
-    );
+        ]
+    });
     let timer = trace.timer();
     let core_projectiles = starsector_root
         .map(|root| {
@@ -482,11 +466,9 @@ pub(super) fn load_spec_bundle(
         .transpose()?;
     let projectile_specs =
         projectiles::load_projectile_specs_from(sources, core_projectiles.as_deref())?;
-    trace.record_stage(
-        "spec.projectile_specs",
-        timer,
-        [("files", projectile_specs.len().to_string())],
-    );
+    trace.record_stage("spec.projectile_specs", timer, || {
+        vec![("files", projectile_specs.len().to_string())]
+    });
     let timer = trace.timer();
     let system_files = sources::documents::load_spec_records_from(
         sources,
@@ -495,11 +477,9 @@ pub(super) fn load_spec_bundle(
         "id",
         crate::models::ResourceSource::Mod,
     )?;
-    trace.record_stage(
-        "spec.system_files",
-        timer,
-        [("files", system_files.len().to_string())],
-    );
+    trace.record_stage("spec.system_files", timer, || {
+        vec![("files", system_files.len().to_string())]
+    });
     let timer = trace.timer();
     let skill_files = sources::documents::load_spec_records_from(
         sources,
@@ -508,11 +488,9 @@ pub(super) fn load_spec_bundle(
         "id",
         crate::models::ResourceSource::Mod,
     )?;
-    trace.record_stage(
-        "spec.skill_files",
-        timer,
-        [("files", skill_files.len().to_string())],
-    );
+    trace.record_stage("spec.skill_files", timer, || {
+        vec![("files", skill_files.len().to_string())]
+    });
     let bundle = SpecBundle {
         ship_files,
         variant_files,
@@ -524,10 +502,8 @@ pub(super) fn load_spec_bundle(
         variant_warnings,
         skin_warnings,
     };
-    trace.record_stage(
-        "spec_bundle",
-        total_timer,
-        [
+    trace.record_stage("spec_bundle", total_timer, || {
+        vec![
             ("shipFiles", bundle.ship_files.len().to_string()),
             ("weaponSpecs", bundle.weapon_specs.len().to_string()),
             ("projectileSpecs", bundle.projectile_specs.len().to_string()),
@@ -535,8 +511,8 @@ pub(super) fn load_spec_bundle(
             ("skillFiles", bundle.skill_files.len().to_string()),
             ("variantFiles", bundle.variant_files.len().to_string()),
             ("skinFiles", bundle.skin_files.len().to_string()),
-        ],
-    );
+        ]
+    });
     Ok(bundle)
 }
 

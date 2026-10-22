@@ -38,7 +38,7 @@ fn snapshot_state()
 
 pub fn read_settings(
     app: &tauri::AppHandle,
-    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<()>,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
 ) -> AppResult<crate::models::SettingsSnapshot> {
     let _guard = SETTINGS_WRITE_LOCK
         .lock()
@@ -55,11 +55,12 @@ pub fn read_settings(
 fn commit_settings(
     app: &tauri::AppHandle,
     value: AppSettings,
-    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<()>,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
 ) -> AppResult<crate::models::SettingsSnapshot> {
     ALLOW_CORE_EDITING.store(value.allow_core_editing, Ordering::Release);
-    apply_runtime(&value)?;
+    let performance_monitor_active = apply_runtime(&value)?;
     let snapshot = crate::models::SettingsSnapshot {
+        performance_monitor_active,
         revision: SETTINGS_REVISION.fetch_add(1, Ordering::Relaxed) + 1,
         value,
     };
@@ -73,7 +74,7 @@ pub fn save_settings_snapshot(
     app: &tauri::AppHandle,
     window: &str,
     mut settings: AppSettings,
-    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<()>,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
 ) -> AppResult<crate::models::SettingsSnapshot> {
     if window != "main" {
         return Err(AppError::message(
@@ -576,10 +577,11 @@ mod tests {
         let defaults = serde_json::to_value(AppSettings::default()).unwrap();
         let mut valid = defaults.clone();
         valid["theme"] = serde_json::json!("dark");
+        valid["performanceMonitorEnabled"] = serde_json::json!(true);
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 41);
+        assert_eq!(paths.len(), 42);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();

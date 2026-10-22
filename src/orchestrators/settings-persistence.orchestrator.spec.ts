@@ -58,7 +58,7 @@ describe('formal settings commits', () => {
     await vi.waitFor(() => expect(finish).toBeDefined());
     const submitted = api.save.mock.calls[0]![0];
     settings.setGeneralFont('Later Font');
-    finish({ revision: 2, value: { ...submitted, logDirectory: 'D:/Fixture' } });
+    finish({ revision: 2, performanceMonitorActive: false, value: { ...submitted, logDirectory: 'D:/Fixture' } });
     await runtime.flushSettings();
     expect(settings.generalFont).toBe('Later Font');
     expect(settings.logDirectory).toBe('D:/Fixture');

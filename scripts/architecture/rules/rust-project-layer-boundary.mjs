@@ -43,7 +43,9 @@ export const rustProjectLayerBoundaryRule = {
         }
         const settingsRuntime =
           modulePath.join('::') === 'commands::app_lifecycle' && reference === 'crate::services::file_history::set_history_limit';
-        if (!settingsRuntime && !validRustDependency(from, to)) {
+        const monitorRuntime =
+          modulePath.join('::') === 'services::project::performance' && parts.slice(0, 2).join('::') === 'services::performance_monitor';
+        if (!settingsRuntime && !monitorRuntime && !validRustDependency(from, to)) {
           if (!rejected.has(to)) failures.push(`${file.rel}: ${from} must not depend on ${to} (${reference})`);
           rejected.add(to);
         }

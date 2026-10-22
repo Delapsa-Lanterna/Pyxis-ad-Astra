@@ -1,17 +1,15 @@
 use crate::{
     errors::AppResult,
     io::FsRootBoundary,
-    models::{AppLogEntry, AppLogLevel, ProjectManifest},
+    models::ProjectManifest,
     services::{
-        app_log, app_paths,
+        app_paths,
         project::{
             PerformanceTrace, configure_persistent_index_cache, open_project_session_traced,
         },
     },
 };
-use std::collections::BTreeMap;
 use std::path::Path;
-
 pub fn open_project_session_with_root(
     app_handle: tauri::AppHandle,
     mod_root: String,
@@ -33,41 +31,11 @@ pub fn open_project_session_with_root(
         ),
         None => crate::services::directory_opening::infer_starsector_root(mod_root_path),
     };
-    let result = open_project_session_traced(mod_root_path, starsector_root.as_deref(), &mut trace);
-    if result.is_ok() {
-        write_performance_trace(app_handle, &trace, &[("modRoot", mod_root)]);
-    }
-    result
+    open_project_session_traced(mod_root_path, starsector_root.as_deref(), &mut trace)
 }
 
 pub fn release_project_session(session_id: String) -> AppResult<()> {
     super::write_transactions::release_session_commits(&session_id)?;
     super::project::close_project_session(session_id.clone())?;
     super::windows::release_session(&session_id)
-}
-
-fn write_performance_trace(
-    app_handle: tauri::AppHandle,
-    trace: &PerformanceTrace,
-    root_fields: &[(&str, String)],
-) {
-    for entry in trace.log_entries(root_fields) {
-        let mut fields = BTreeMap::new();
-        fields.insert("stage".to_string(), entry.stage);
-        fields.insert("ms".to_string(), entry.ms.to_string());
-        for (key, value) in entry.fields {
-            fields.insert(key, value);
-        }
-        let _ = app_log::append_app_log(
-            app_handle.clone(),
-            AppLogEntry {
-                level: AppLogLevel::Debug,
-                code: Some("perf".to_string()),
-                message: Some(format!("PERF {}", trace.name())),
-                path: None,
-                line: None,
-                fields: Some(fields),
-            },
-        );
-    }
 }

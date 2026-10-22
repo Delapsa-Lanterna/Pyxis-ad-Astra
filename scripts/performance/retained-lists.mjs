@@ -24,6 +24,7 @@ if (process.argv.includes('--serve')) {
   await build({
     configFile: resolve(root, 'vite.config.ts'),
     logLevel: 'warn',
+    define: { 'import.meta.env.VITE_PERFORMANCE_MONITOR': JSON.stringify(stage === 'monitor-removed' ? '0' : '1') },
     plugins: [
       {
         name: 'retained-production-io',
@@ -43,7 +44,11 @@ if (process.argv.includes('--serve')) {
         },
         transform(code, id) {
           const path = id.replaceAll('\\', '/');
-          if (path.endsWith('/src/shared/runtime/command.runtime.ts')) return `export {invokeCommand} from ${JSON.stringify(fixture)};`;
+          if (path.endsWith('/src/shared/runtime/command.runtime.ts'))
+            return code.replace(
+              "import { invoke } from '@tauri-apps/api/core';",
+              `import {invokeCommand as invoke} from ${JSON.stringify(fixture)};`,
+            );
           if (path.endsWith('/src/windows/current.window.ts'))
             return code.replace('return appWindow().label;', "return 'retained-benchmark';");
           if (path.endsWith('/src/windows/tauri.events.ts')) return code.replace('await emit(event, data);', 'void event;void data;');

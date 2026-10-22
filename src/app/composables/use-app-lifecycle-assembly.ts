@@ -11,6 +11,7 @@ import {
 } from '@/orchestrators/settings-persistence.orchestrator';
 import { clearConfig } from '@/services/app-config.service';
 import { provideWindowCloseState } from './use-window-close-state';
+import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
 
 export function useAppLifecycleAssembly() {
   return provideWindowCloseState({
@@ -18,7 +19,10 @@ export function useAppLifecycleAssembly() {
     readyClose: readyNativeClose,
     replyClose: replyNativeClose,
     prepareDisplay: pauseProjectDisplay,
-    flushSettings,
+    flushSettings: async () => {
+      await flushSettings();
+      await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
+    },
     clearConfig: () => withSettingsReset(clearConfig),
     reload: reloadCurrentWindow,
   });

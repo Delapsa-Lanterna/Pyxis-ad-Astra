@@ -109,6 +109,7 @@
 - `immersiveGameFont` 必须是默认开启的布尔值，并随完整设置快照持久化和镜像；字体设置框必须声明有意的缺字问号显示。
 - `logBackupCount` 默认必须为 1，整数范围必须为 1–20；`logRotationSizeMiB` 默认必须为 5，整数范围必须为 1–1024。
 - `logLevel` 只允许 `info`（默认档，丢弃 debug 条目）或 `debug`（详细档，全量保留）；缺省视为 info。
+- `performanceMonitorEnabled` 必须是默认关闭的布尔值并随完整快照保存及镜像，正式快照必须另行交付重启前固定的 `performanceMonitorActive`。
 - `preserveOriginalJson` 必须是布尔值；缺省视为 `true`。该设置必须随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作必须在开始时捕获本次使用的值。
 - `theme` 必须以 `null` 表示默认跟随系统，以 `light` 或 `dark` 表示手动选择；手动切换必须持久化明确选择，显示主题必须由选择与系统运行态派生，系统运行态严禁写入 settings snapshot。
 - 主题计算必须由 domain 纯函数执行，DOM 写入只允许由唯一主题 effect 完成；Provider 必须消费具体颜色值。

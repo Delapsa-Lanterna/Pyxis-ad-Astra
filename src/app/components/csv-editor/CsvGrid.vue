@@ -60,7 +60,6 @@ import { provideCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/compos
 import CsvGridBody from '@/app/components/csv-editor/CsvGridBody.vue';
 import CsvGridHeader from '@/app/components/csv-editor/CsvGridHeader.vue';
 import CsvGridEditorHost from '@/app/components/csv-editor/CsvGridEditorHost.vue';
-import { measurePerformance } from '@/shared/runtime/performance';
 import { useCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useThumbnailPreload } from '@/app/composables/use-thumbnail-preload';
@@ -233,14 +232,12 @@ onScopeDispose(() => cancelAnimationFrame(scrollFrame));
 
 function activateCell(row: CsvRowRecord, column: CsvGridColumn, event: MouseEvent) {
   const anchor = (event.target as Element).closest('[data-column-key]')?.querySelector<HTMLElement>('.csv-cell-frame') ?? null;
-  measurePerformance('frontend.csvGrid.activateCell', { column: column.key, rowKey: row.rowKey }, () => {
-    void commitBefore(() => {
-      if (props.selectedRowKey !== row.rowKey) emit('select-row', row.rowKey);
-      const target = { ...context.target, rowKey: row.rowKey, column: column.key };
-      editorTarget.value = target;
-      setEditorAnchor(anchor);
-      context.activate(target);
-    });
+  void commitBefore(() => {
+    if (props.selectedRowKey !== row.rowKey) emit('select-row', row.rowKey);
+    const target = { ...context.target, rowKey: row.rowKey, column: column.key };
+    editorTarget.value = target;
+    setEditorAnchor(anchor);
+    context.activate(target);
   });
 }
 
@@ -261,7 +258,7 @@ function clearActiveCell() {
 }
 
 function forwardSelectRow(rowKey: string) {
-  void commitBefore(() => measurePerformance('frontend.csvGrid.selectRow', { rowKey }, () => emit('select-row', rowKey)));
+  void commitBefore(() => emit('select-row', rowKey));
 }
 
 function forwardResizeColumn(key: string, width: number) {

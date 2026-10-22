@@ -13,7 +13,6 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { closeProject, openProject } from '@/services/project-session.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from '@/services/directory.service';
 import { buildModOpeningFailure, formatLoadWarnings, scanWarningNotice } from '@/domain/project/load-diagnostics';
-import { measurePerformance } from '@/shared/runtime/performance';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { navigateToModOverview } from '@/orchestrators/workspace-navigation.orchestrator';
@@ -115,9 +114,7 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
       }
       const displayName = updateLoadedEntry(modRoot, loaded);
       const stillActive = workspace.activeModRoot === modRoot;
-      measurePerformance('frontend.hydrateDirectoryOpenedModRuntime', { modRoot, activate: stillActive }, () =>
-        hydrateOpenedModRuntime(modRoot, loaded, stillActive),
-      );
+      hydrateOpenedModRuntime(modRoot, loaded, stillActive);
       return { alreadyLoaded: false, displayName, warnings: formatLoadWarnings(loaded) };
     }
     if (afterOpenView === 'overview') {
@@ -137,9 +134,7 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
     if (!loaded || workspace.getModGeneration(modRoot) !== generation) return null;
     const displayName = updateLoadedEntry(modRoot, loaded);
     const stillActive = workspace.activeModRoot === modRoot;
-    measurePerformance('frontend.hydrateDirectoryOpenedModRuntime', { modRoot, activate: stillActive }, () =>
-      hydrateOpenedModRuntime(modRoot, loaded, stillActive),
-    );
+    hydrateOpenedModRuntime(modRoot, loaded, stillActive);
     if (afterOpenView === 'overview') workspace.showOverview();
     return { alreadyLoaded: false, displayName, warnings: formatLoadWarnings(loaded) };
   } catch (error) {
@@ -197,7 +192,7 @@ async function openManifest(
     await closeProject(loaded.sessionId);
     return null;
   }
-  measurePerformance('frontend.project.registerProjectManifest', { modRoot }, () => project.registerProjectManifest(loaded));
+  project.registerProjectManifest(loaded);
   recordLogBestEffort({
     level: 'info',
     code: 'mod.session_opened',

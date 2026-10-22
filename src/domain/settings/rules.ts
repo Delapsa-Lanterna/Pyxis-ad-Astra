@@ -31,6 +31,7 @@ export function normalizeHex(value: string): string | null {
 }
 
 export function assertValidSettings(settings: AppSettings): void {
+  if (typeof settings.performanceMonitorEnabled !== 'boolean') throw new Error('Invalid performance monitor setting');
   readTheme(settings.theme);
   readCacheLimits(settings.cacheLimits);
   readAccent(settings.accent);

@@ -119,7 +119,9 @@ pub fn save_settings(
     )
 }
 
-fn apply_settings_runtime(value: &crate::models::AppSettings) -> Result<(), AppError> {
+fn apply_settings_runtime(value: &crate::models::AppSettings) -> Result<bool, AppError> {
     services::project::configure_media_cache(&value.cache_limits.backend_media)?;
-    services::file_history::set_history_limit(value.file_history_limit as usize)
+    services::file_history::set_history_limit(value.file_history_limit as usize)?;
+    services::performance_monitor::initialize(value.performance_monitor_enabled);
+    Ok(services::performance_monitor::enabled())
 }

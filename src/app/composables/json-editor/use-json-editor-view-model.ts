@@ -22,6 +22,7 @@ import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 import { warningNotice } from '@/shared/lib/errors';
+import { startPerformance } from '@/shared/runtime/performance';
 import type { SelectOption } from '@/domain/schema/schema-options';
 
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
@@ -78,7 +79,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       : rows.sort((a, b) => a.companion.localeCompare(b.companion) || a.key.localeCompare(b.key));
   });
   async function load() {
-    listLoadStartedAt.value = performance.now();
+    listLoadStartedAt.value = startPerformance();
     if (kind === 'mod-info') {
       const manifest = context.manifest.value!;
       formal.value = [

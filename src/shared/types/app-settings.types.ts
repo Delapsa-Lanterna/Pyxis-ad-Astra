@@ -13,6 +13,7 @@ export const LOG_LEVELS = ['info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export interface AppSettings {
+  performanceMonitorEnabled: boolean;
   cacheLimits: CacheLimits;
   theme: AppTheme | null;
   accent: AccentPreset;
@@ -37,6 +38,7 @@ export interface SaveAppSettingsPayload {
 }
 
 export interface SettingsSnapshot {
+  performanceMonitorActive: boolean;
   revision: number;
   value: AppSettings;
 }

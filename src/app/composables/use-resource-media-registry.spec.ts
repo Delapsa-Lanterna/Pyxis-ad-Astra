@@ -14,7 +14,6 @@ const mock = vi.hoisted(() => ({
 vi.mock('@/shared/runtime/command.runtime', () => ({
   invokeCommand: (_command: string, { payload }: { payload: { resources: ResourceRef[] } }) => mock.load(payload.resources),
 }));
-vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));
 const resource = (id: number): ResourceRef => ({
   source: 'mod',
   relPath: id + '.png',

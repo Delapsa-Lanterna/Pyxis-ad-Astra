@@ -2,7 +2,6 @@ import type { HullReferencesResult, HullReferencesPayload, DeepReadonly } from '
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery } from '@/services/query-cache.service';
-import { measurePerformanceAsync } from '@/shared/runtime/performance';
 import { hullReferenceOptions, builtInWeaponSlotOptions } from '@/domain/resources/hull-references';
 
 const readHullReferences = createCachedSessionQuery<Omit<HullReferencesPayload, 'sessionId'>, HullReferencesResult>({
@@ -22,9 +21,7 @@ export function querySessionHullReferences(
 }
 
 export async function queryHullReferenceOptions(sessionId: string, referenceIds: readonly string[], signal?: AbortSignal) {
-  return measurePerformanceAsync('frontend.config.hullReferenceCatalog', { references: referenceIds.length }, async () =>
-    hullReferenceOptions(await querySessionHullReferences(sessionId, referenceIds, signal)),
-  );
+  return hullReferenceOptions(await querySessionHullReferences(sessionId, referenceIds, signal));
 }
 
 export async function queryBuiltInWeaponSlotOptions(sessionId: string, hullId: string, signal?: AbortSignal) {

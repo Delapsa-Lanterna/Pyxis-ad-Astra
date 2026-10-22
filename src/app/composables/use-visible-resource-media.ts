@@ -2,7 +2,7 @@ import { nextTick, onUnmounted, watch, shallowReactive, type ComponentPublicInst
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
 import type { ResourceRef } from '@/shared/types';
-import { recordPerformance } from '@/shared/runtime/performance';
+import { recordPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
 import { warningNotice } from '@/shared/lib/errors';
 import { useThumbnailPreload } from './use-thumbnail-preload';
 import { resourceThumbnailRequest } from './use-resource-thumbnail';
@@ -72,7 +72,7 @@ export function useVisibleResourceMedia(args: {
   }
 
   async function recordListFirstFrame(startedAt: number, entities: number): Promise<void> {
-    if (startedAt <= 0) return;
+    if (!performanceMonitorEnabled || startedAt <= 0) return;
     const requestId = ++firstFrameRequestId;
     await nextTick();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

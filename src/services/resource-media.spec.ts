@@ -11,6 +11,7 @@ import {
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
 import type { ResourceRef, ProjectInvalidation, ResourceDataUrlBatchResult } from '@/shared/types';
+import { installPerformanceMonitor, type PerformanceSample } from '@/shared/runtime/performance';
 const mock = vi.hoisted(() => ({
   load: vi.fn(async (resources: ResourceRef[]): Promise<ResourceDataUrlBatchResult> => ({
     entries: resources.map((resource) => ({ ...resource, dataUrl: 'data:' + resource.relPath })),
@@ -19,7 +20,6 @@ const mock = vi.hoisted(() => ({
 vi.mock('@/shared/runtime/command.runtime', () => ({
   invokeCommand: (_command: string, { payload }: { payload: { resources: ResourceRef[] } }) => mock.load(payload.resources),
 }));
-vi.mock('@/shared/runtime/performance', () => ({ recordPerformance: vi.fn() }));
 const resource = (relPath = 'one.png'): ResourceRef => ({ source: 'mod', relPath, ownerKind: 'ship', ownerId: relPath, key: 'sprite' });
 const session = 'media-lease';
 beforeEach(() => {
@@ -29,6 +29,31 @@ beforeEach(() => {
 afterEach(() => {
   invalidateResourceMediaForSession(session);
   vi.useRealTimers();
+});
+it('observes media readiness, cache hits and failures only when enabled', async () => {
+  const clock = vi.spyOn(performance, 'now');
+  await queryResourceDataUrls(session, [resource()]);
+  expect(clock).not.toHaveBeenCalled();
+  const samples: PerformanceSample[] = [];
+  const stop = installPerformanceMonitor((sample) => samples.push(sample));
+  try {
+    await queryResourceDataUrls(session, [resource()]);
+    await queryResourceDataUrls(session, [resource('fresh.png')]);
+    mock.load.mockImplementationOnce(async (resources) => ({ entries: resources.map((resource) => ({ ...resource, dataUrl: null })) }));
+    await queryResourceDataUrls(session, [resource('missing.png')]);
+    mock.load.mockRejectedValueOnce(new Error('read failure'));
+    await expect(queryResourceDataUrls(session, [resource('failed.png')])).rejects.toThrow('read failure');
+    expect(samples.map((sample) => sample.fields)).toEqual([
+      { requested: 1, hits: 1, resolved: 1, failed: 0, status: 'ok' },
+      { requested: 1, hits: 0, resolved: 1, failed: 0, status: 'ok' },
+      { requested: 1, hits: 0, resolved: 0, failed: 1, status: 'ok' },
+      { requested: 1, hits: 0, resolved: 0, failed: 1, status: 'error' },
+    ]);
+    expect(samples.every((sample) => sample.category === 'media' && sample.name === 'resource.ready')).toBe(true);
+  } finally {
+    stop();
+    clock.mockRestore();
+  }
 });
 it('shares one physical result and budget entry across owners and direct queries', async () => {
   const limits = createSettingsFixture().cacheLimits;

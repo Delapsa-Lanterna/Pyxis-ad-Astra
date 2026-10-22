@@ -9,12 +9,54 @@ import { markProjectionPending, markProjectionReady } from './project-projection
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
 import type { DeepReadonly, ProjectInvalidation } from '@/shared/types';
+import { installPerformanceMonitor, type PerformanceSample } from '@/shared/runtime/performance';
 
 const changed: ProjectInvalidation = { paths: ['changed'], tables: [], entities: [], resources: [], queryScopes: [], session: false };
 const createReader = (load: () => Promise<Array<{ name: string }>>) =>
   createCachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
 
 describe('session query ownership', () => {
+  it('automatically records loading, sharing, cache hits, failures and invalidation', async () => {
+    const samples: PerformanceSample[] = [];
+    const stop = installPerformanceMonitor((sample) => samples.push(sample));
+    let finish!: (value: []) => void;
+    const read = createReader(
+      () =>
+        new Promise<[]>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    try {
+      const first = read('monitored-query', { id: 'a' });
+      const shared = read('monitored-query', { id: 'a' });
+      finish([]);
+      await Promise.all([first, shared]);
+      await read('monitored-query', { id: 'a' });
+      const cancelled = read('monitored-query', { id: 'b' });
+      const ended = expect(cancelled).rejects.toMatchObject({ code: 'query.invalidated' });
+      invalidateQueryCacheForSession('monitored-query');
+      await ended;
+      finish([]);
+      const live = createLiveSessionQuery({ queryKind: 'monitor-live', load: async () => [], invalidates: () => true });
+      await live('monitored-query', {});
+      const failure = createReader(async () => {
+        throw new Error('read failure');
+      });
+      await expect(failure('monitored-query', { id: 'a' })).rejects.toThrow('read failure');
+      expect(samples.map((sample) => [sample.category, sample.name, sample.fields.cache, sample.fields.status])).toEqual([
+        ['query', 'entity-list', 'load', 'ok'],
+        ['query', 'entity-list', 'shared', 'ok'],
+        ['query', 'entity-list', 'hit', 'ok'],
+        ['query', 'entity-list', 'load', 'invalidated'],
+        ['query', 'monitor-live', 'live', 'ok'],
+        ['query', 'entity-list', 'load', 'error'],
+      ]);
+      expect(samples.every((sample) => sample.duration >= 0)).toBe(true);
+    } finally {
+      stop();
+      invalidateQueryCacheForSession('monitored-query');
+    }
+  });
   it('fixes parameters and the read-only result at the query definition', async () => {
     const read = createReader(async () => [{ name: 'Original' }]);
     expectTypeOf(read).parameter(1).toEqualTypeOf<{ id: string }>();

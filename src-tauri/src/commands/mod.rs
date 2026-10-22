@@ -61,3 +61,5 @@ pub(crate) fn ensure_session_mod_scope<T: SessionModScope>(payload: &T) -> AppRe
     }
     Ok(())
 }
+mod performance_monitor;
+pub use performance_monitor::*;

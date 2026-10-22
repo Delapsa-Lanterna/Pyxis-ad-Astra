@@ -3,12 +3,15 @@ use std::time::Instant;
 #[derive(Debug, Clone)]
 pub(crate) struct PerformanceTrace {
     name: &'static str,
-    started_at: Instant,
+    #[cfg(test)]
+    started_at: Option<Instant>,
+    #[cfg(test)]
     stages: Vec<PerformanceStage>,
 }
 
 /// One structured performance record: the trace total or a single stage.
 #[derive(Debug, Clone)]
+#[cfg(test)]
 pub(crate) struct PerformanceLogEntry {
     pub(crate) stage: String,
     pub(crate) ms: u128,
@@ -16,6 +19,7 @@ pub(crate) struct PerformanceLogEntry {
 }
 
 #[derive(Debug, Clone)]
+#[cfg(test)]
 struct PerformanceStage {
     fields: Vec<(String, String)>,
     ms: u128,
@@ -24,14 +28,17 @@ struct PerformanceStage {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PerformanceTimer {
-    started_at: Instant,
+    started_at: Option<Instant>,
 }
 
 impl PerformanceTrace {
     pub(crate) fn new(name: &'static str) -> Self {
         Self {
             name,
-            started_at: Instant::now(),
+            #[cfg(test)]
+            started_at: (cfg!(test) || crate::services::performance_monitor::enabled())
+                .then(Instant::now),
+            #[cfg(test)]
             stages: Vec::new(),
         }
     }
@@ -44,8 +51,34 @@ impl PerformanceTrace {
         &mut self,
         name: &'static str,
         timer: PerformanceTimer,
-        fields: impl IntoIterator<Item = (&'static str, String)>,
+        fields: impl FnOnce() -> Vec<(&'static str, String)>,
     ) {
+        let Some(started) = timer.started_at else {
+            return;
+        };
+        let fields = fields();
+        if crate::services::performance_monitor::enabled() {
+            let duration = started.elapsed().as_secs_f64() * 1000.0;
+            crate::services::performance_monitor::record(
+                "project".into(),
+                crate::models::performance_monitor::PerformanceSample {
+                    name: format!("{}.{name}", self.name),
+                    category: "stage".into(),
+                    started_at: crate::services::performance_monitor::now() - duration,
+                    duration,
+                    fields: fields
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            value
+                                .parse::<u64>()
+                                .ok()
+                                .map(|value| (key.to_string(), value.into()))
+                        })
+                        .collect(),
+                },
+            );
+        }
+        #[cfg(test)]
         self.stages.push(PerformanceStage {
             fields: fields
                 .into_iter()
@@ -56,14 +89,16 @@ impl PerformanceTrace {
         });
     }
 
+    #[cfg(test)]
     pub(crate) fn name(&self) -> &'static str {
         self.name
     }
 
+    #[cfg(test)]
     pub(crate) fn log_entries(&self, root_fields: &[(&str, String)]) -> Vec<PerformanceLogEntry> {
         let mut entries = vec![PerformanceLogEntry {
             stage: "total".to_string(),
-            ms: self.started_at.elapsed().as_millis(),
+            ms: self.started_at.unwrap().elapsed().as_millis(),
             fields: root_fields
                 .iter()
                 .map(|(key, value)| (key.to_string(), sanitize_value(value)))
@@ -83,15 +118,18 @@ impl PerformanceTrace {
 impl PerformanceTimer {
     pub(crate) fn start() -> Self {
         Self {
-            started_at: Instant::now(),
+            started_at: (cfg!(test) || crate::services::performance_monitor::enabled())
+                .then(Instant::now),
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn elapsed_ms(&self) -> u128 {
-        self.started_at.elapsed().as_millis()
+        self.started_at.unwrap().elapsed().as_millis()
     }
 }
 
+#[cfg(test)]
 fn sanitize_value(value: impl AsRef<str>) -> String {
     value
         .as_ref()
@@ -108,14 +146,12 @@ mod tests {
     fn performance_trace_renders_total_and_stages() {
         let mut trace = PerformanceTrace::new("project.load");
         let timer = trace.timer();
-        trace.record_stage(
-            "csv_tables",
-            timer,
-            [
+        trace.record_stage("csv_tables", timer, || {
+            vec![
                 ("rows", "12".to_string()),
                 ("modRoot", "D:/Mod".to_string()),
-            ],
-        );
+            ]
+        });
 
         let entries = trace.log_entries(&[("modRoot", "D:/Mod".to_string())]);
 
@@ -126,6 +162,7 @@ mod tests {
             vec![("modRoot".to_string(), "D:/Mod".to_string())]
         );
         assert_eq!(entries[1].stage, "csv_tables");
+        assert!(entries[0].ms >= entries[1].ms);
         assert_eq!(entries[1].fields.len(), 2);
         assert_eq!(trace.name(), "project.load");
     }

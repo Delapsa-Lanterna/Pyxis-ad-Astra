@@ -1,6 +1,5 @@
 import { createReadTicket, isReadInvalidated } from '@/shared/runtime/read-request';
 import type { ReadEndReason, ReadTicket } from '@/shared/runtime/read-request';
-import { measurePerformanceAsync } from '@/shared/runtime/performance';
 import type { ModDirectory } from '@/shared/types';
 
 type Priority = 'foreground' | 'prefetch';
@@ -44,9 +43,7 @@ export function createModDirectoryReads(handlers: {
     if (prefetch) background++;
     handlers.started(task.identity);
     task.ticket = createReadTicket(task.identity, () =>
-      measurePerformanceAsync('modFiles.directoryRead', { ...task.identity, priority: task.priority }, () =>
-        handlers.load(task.identity),
-      ).finally(() => {
+      handlers.load(task.identity).finally(() => {
         active--;
         if (prefetch) background--;
         drain();

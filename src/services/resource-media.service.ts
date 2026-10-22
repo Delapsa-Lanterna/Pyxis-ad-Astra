@@ -14,7 +14,7 @@ import { AppError } from '@/shared/lib/errors';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
-import { recordPerformance } from '@/shared/runtime/performance';
+import { beginPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
 
 export const RESOURCE_MEDIA_FLUSH_DELAY_MS = 25;
 export const mediaIdleEntryLimit = () => windowCacheLimits().mediaData.entries;
@@ -91,8 +91,7 @@ function dispatch(items: QueuedMedia[]) {
     flushHandle = null;
   }
   for (const [sessionId, batch] of batches) {
-    const resources = batch.map((item) => item.entry.resource),
-      started = performance.now();
+    const resources = batch.map((item) => item.entry.resource);
     void invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', {
       payload: { sessionId, resources } satisfies ResourceDataUrlBatchPayload,
     })
@@ -104,11 +103,6 @@ function dispatch(items: QueuedMedia[]) {
           )
         )
           throw new AppError('资源批量查询返回内容与请求不一致', { action: 'query-resource-data-urls' });
-        recordPerformance('frontend.media.readBatch', performance.now() - started, {
-          requested: resources.length,
-          resolved: result.entries.filter((entry) => entry.dataUrl !== null).length,
-          failed: result.entries.filter((entry) => entry.dataUrl === null).length,
-        });
         batch.forEach((item, index) => item.resolve(result.entries[index]!.dataUrl));
       })
       .catch((error) => batch.forEach((item) => item.reject(error)));
@@ -118,16 +112,35 @@ export function acquireResourceMedia(sessionId: string, resource: ResourceRef): 
   requireProjectionReady(sessionId);
   const key = mediaResourceKey(sessionId, resource);
   let entry = working.get(key) ?? retained.get(key);
+  const fields = performanceMonitorEnabled
+    ? { requested: 1, hits: Number(entry?.value.value !== undefined), resolved: 0, failed: 0 }
+    : null;
+  const finish = fields ? beginPerformance('media', 'resource.ready', fields) : null;
   if (!entry) entry = { sessionId, resource: { ...resource }, key, value: shallowRef(undefined), references: 0, request: null };
   working.set(key, entry);
   entry.references++;
   if (retained.get(key) === entry) retained.retain(key);
   const owned = entry;
   const consumer = owned.value.value === undefined ? createReadTicket({ sessionId, resource }, () => request(owned)) : null;
+  const ready = consumer?.promise ?? Promise.resolve(owned.value.value!);
   let released = false;
   return {
     dataUrl: readonly(owned.value),
-    ready: consumer?.promise ?? Promise.resolve(owned.value.value!),
+    ready: finish
+      ? ready.then(
+          (value) => {
+            fields!.resolved = Number(value !== null);
+            fields!.failed = Number(value === null);
+            finish();
+            return value;
+          },
+          (error) => {
+            fields!.failed = 1;
+            finish('error');
+            throw error;
+          },
+        )
+      : ready,
     release: () => {
       if (released) return;
       released = true;

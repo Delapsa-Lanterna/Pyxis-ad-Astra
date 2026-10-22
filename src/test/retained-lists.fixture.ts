@@ -1,7 +1,7 @@
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/write-result';
 import { variantJointFixture } from '@/test/variant-joint-edit';
 import { bitmapFontFixture } from '@/test/font';
-import type { CsvRowRecord, JointVariantCatalogKind, JointVariantEntry } from '@/shared/types';
+import type { CsvRowRecord, JointVariantCatalogKind, JointVariantEntry, PerformanceBatch } from '@/shared/types';
 
 const source = { source: 'mod' as const, root: 'M:/benchmark', path: 'M:/benchmark/table.csv', relPath: 'table.csv' };
 const header = [
@@ -30,6 +30,7 @@ export const fixture = {
   kind: 'weapons' as JointVariantCatalogKind,
   revision: 1,
   reads: 0,
+  monitorBatches: [] as PerformanceBatch[],
   snapshot: variantJointFixture(),
   manifest: sessionUpdateFixture('retained-bench', 'M:/benchmark').projection.manifest,
 };
@@ -102,8 +103,25 @@ export function prepareFixture(count: number, kind: 'csv' | JointVariantCatalogK
         }));
 }
 type Payload = { [key: string]: unknown };
-export async function invokeCommand(command: string, args: { payload?: Payload } = {}): Promise<unknown> {
+export async function invokeCommand(
+  command: string,
+  args: { payload?: Payload; batch?: PerformanceBatch; action?: string } = {},
+): Promise<unknown> {
+  if (command === 'performance_monitor_batch') {
+    fixture.monitorBatches.push(args.batch!);
+    return;
+  }
+  if (command === 'performance_monitor_report')
+    return {
+      enabled: new URLSearchParams(location.search).get('monitor') === 'on',
+      records: fixture.monitorBatches.reduce((sum, batch) => sum + batch.samples.length, 0),
+      overwritten: 0,
+      startedAt: 0,
+      path: '',
+    };
   const payload = args.payload ?? {};
+  if (command === 'query_system_fonts') return [];
+  if (command === 'get_app_log_status') return { path: 'preview.log', sizeBytes: 0 };
   if (command === 'query_csv_source_options') return [];
   if (command === 'query_csv_row_preview') return { resourceRef: null };
   if (command === 'query_original_font')

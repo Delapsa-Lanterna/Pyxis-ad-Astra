@@ -4,7 +4,6 @@ import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery } from '@/services/query-cache.service';
-import { recordPerformance } from '@/shared/runtime/performance';
 
 const readSourceOptions = createCachedSessionQuery<Omit<CsvSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
   queryKind: 'csv-source-options',
@@ -20,14 +19,7 @@ export async function querySourceOptionCatalog(
   source: string,
   signal?: AbortSignal,
 ): Promise<DeepReadonly<SourceOptionGroup[]>> {
-  const startedAt = performance.now();
-  const groups = await readSourceOptions(sessionId, { source }, signal);
-  recordPerformance('frontend.query.sourceCatalog', performance.now() - startedAt, {
-    source,
-    groups: groups.length,
-    options: groups.reduce((sum, group) => sum + group.options.length, 0),
-  });
-  return groups;
+  return readSourceOptions(sessionId, { source }, signal);
 }
 
 export function hasSourceInvalidation(event: QueryCacheInvalidationEvent, source: string): boolean {

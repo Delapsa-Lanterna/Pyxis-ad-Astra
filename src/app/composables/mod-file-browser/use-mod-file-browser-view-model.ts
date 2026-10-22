@@ -17,7 +17,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
 import { relativePathFromRoot, pathBelongsToRoot, normalizeFsPath } from '@/shared/lib/paths';
 import { createModDirectoryReads } from './use-mod-directory-reads';
-import { measurePerformance, recordPerformance } from '@/shared/runtime/performance';
+import { recordPerformance, startPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
 import type { ModFileSortKey } from '@/shared/types';
 export function useModFileBrowserViewModel() {
   const workspace = useWorkspaceStore(),
@@ -36,9 +36,7 @@ export function useModFileBrowserViewModel() {
       ? current.search.result
         ? modFileSearchTree(current.search.result, current.sort)
         : []
-      : measurePerformance('modFiles.treeProjection', { sessionId: target.value!.sessionId }, () =>
-          tree.project(current.directories, current.expanded, current.sort),
-        );
+      : tree.project(current.directories, current.expanded, current.sort);
   });
   const root = computed(() => state.value?.directories.get(null)),
     refreshing = ref(false);
@@ -101,10 +99,8 @@ export function useModFileBrowserViewModel() {
         const sessionId = target.value!.sessionId;
         for (const [directory, sample] of pending) {
           if (!isDisplayed(directory)) continue;
-          if (sample)
+          if (performanceMonitorEnabled && sample)
             recordPerformance('modFiles.directoryFrame', performance.now() - sample.startedAt, {
-              sessionId,
-              directory,
               cached: sample.cached,
             });
         }
@@ -206,7 +202,7 @@ export function useModFileBrowserViewModel() {
     if (searching.value) return;
     for (const path of added) {
       const sample = {
-        startedAt: performance.now(),
+        startedAt: startPerformance(),
         cached: Boolean(state.value!.directories.get(path)?.entries),
       };
       if (sample.cached) afterDisplay(path, sample);

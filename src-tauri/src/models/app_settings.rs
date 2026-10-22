@@ -33,6 +33,8 @@ pub enum EditMode {
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default)]
+    pub performance_monitor_enabled: bool,
+    #[serde(default)]
     pub cache_limits: CacheLimits,
     #[serde(default)]
     pub theme: Option<AppTheme>,
@@ -74,6 +76,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            performance_monitor_enabled: false,
             cache_limits: CacheLimits::default(),
             theme: None,
             accent: default_accent(),
@@ -144,6 +147,7 @@ pub struct SaveAppSettingsPayload {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsSnapshot {
+    pub performance_monitor_active: bool,
     pub revision: u64,
     pub value: AppSettings,
 }

@@ -1,10 +1,10 @@
-import { recordPerformance } from '@/shared/runtime/performance';
+import { beginPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
 import { requireProjectionReady } from '@/services/project-projection.service';
 import { createRuntimeCache } from '@/shared/runtime/cache';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { deepClone } from '@/shared/lib/starsector';
-import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
+import { createReadTicket, waitForRead, invalidatedRead, isReadInvalidated, type ReadTicket } from '@/shared/runtime/read-request';
 import type { QueryCacheKey, SessionQueryIdentity, DeepReadonly, ProjectInvalidation } from '@/shared/types';
 
 interface SessionQueryDefinition<TParameters extends object, TResult> {
@@ -34,6 +34,33 @@ const caches = new Set<InvalidateCache>();
 const liveQueries = new Set<LiveQuery>();
 const invalidationListeners = new Set<QueryCacheInvalidationListener>();
 
+function observeSessionQuery<TParameters extends object, TResult>(
+  queryKind: string,
+  cache: string,
+  execute: (
+    sessionId: string,
+    parameters: TParameters,
+    signal?: AbortSignal,
+    observation?: { cache: string; queryKind: string },
+  ) => Promise<DeepReadonly<TResult>>,
+): SessionQuery<TParameters, TResult> {
+  return (sessionId, parameters, signal) => {
+    if (!performanceMonitorEnabled) return execute(sessionId, parameters, signal);
+    const fields = { cache, queryKind },
+      finish = beginPerformance('query', queryKind, fields);
+    return execute(sessionId, parameters, signal, fields).then(
+      (value) => {
+        finish();
+        return value;
+      },
+      (error) => {
+        finish(isReadInvalidated(error) ? 'invalidated' : 'error');
+        throw error;
+      },
+    );
+  };
+}
+
 export function createCachedSessionQuery<TParameters extends object, TResult>(
   definition: SessionQueryDefinition<TParameters, TResult> & { queryKind: QueryCacheKey },
 ): SessionQuery<TParameters, TResult> {
@@ -59,24 +86,19 @@ export function createCachedSessionQuery<TParameters extends object, TResult>(
       entry.request.invalidate(invalidation ? 'project' : 'session');
     }
   });
-  return async (sessionId, parameters, signal) => {
+  return observeSessionQuery(definition.queryKind, 'load', async (sessionId, parameters, signal, observation) => {
     const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
     if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
     requireProjectionReady(sessionId);
     const key = JSON.stringify([sessionId, definition.queryKind, stableStringify(identity.parameters)]);
-    const startedAt = performance.now();
     const cached = cache.get(key);
     if (cached) {
-      recordPerformance('frontend.queryCache', performance.now() - startedAt, { queryKind: definition.queryKind, hit: true });
+      if (observation) observation.cache = 'hit';
       return waitForRead(Promise.resolve(cached.value), identity, signal);
     }
     const pending = cache.getPending(key);
     if (pending) {
-      recordPerformance('frontend.queryCache', performance.now() - startedAt, {
-        queryKind: definition.queryKind,
-        hit: true,
-        pending: true,
-      });
+      if (observation) observation.cache = 'shared';
       return waitForRead(pending.promise, identity, signal);
     }
     const request = createReadTicket(identity, () => definition.load(identity));
@@ -92,16 +114,14 @@ export function createCachedSessionQuery<TParameters extends object, TResult>(
         if (cache.getPending(key)?.request === request) cache.deletePending(key);
       });
     cache.setPending(key, { identity, request, promise: completed });
-    const value = await waitForRead(completed, identity, signal);
-    recordPerformance('frontend.queryCache', performance.now() - startedAt, { queryKind: definition.queryKind, hit: false });
-    return value;
-  };
+    return await waitForRead(completed, identity, signal);
+  });
 }
 
 export function createLiveSessionQuery<TParameters extends object, TResult>(
   definition: SessionQueryDefinition<TParameters, TResult>,
 ): SessionQuery<TParameters, TResult> {
-  return async (sessionId, parameters, signal) => {
+  return observeSessionQuery(definition.queryKind, 'live', async (sessionId, parameters, signal) => {
     const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
     if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
     requireProjectionReady(sessionId);
@@ -120,7 +140,7 @@ export function createLiveSessionQuery<TParameters extends object, TResult>(
       })
       .finally(() => liveQueries.delete(entry));
     return waitForRead(completed, identity, signal);
-  };
+  });
 }
 
 function invalidateQueries(sessionId: string, invalidation: ProjectInvalidation | null) {

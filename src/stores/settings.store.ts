@@ -38,6 +38,10 @@ export function initializeSettingsStore(settings: AppSettings): void {
 export const useSettingsStore = defineStore('settings', () => {
   if (!initialSettings) throw new Error('Settings store used before initialization');
   const themePreference = ref(readTheme(initialSettings.theme));
+  const performanceMonitorEnabled = ref(initialSettings.performanceMonitorEnabled);
+  function setPerformanceMonitorEnabled(enabled: boolean) {
+    performanceMonitorEnabled.value = enabled;
+  }
   const cacheLimits = ref(structuredClone(initialSettings.cacheLimits));
   const systemTheme = ref<AppTheme>('light');
   const theme = computed(() => themePreference.value ?? systemTheme.value);
@@ -154,6 +158,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function settingsSnapshot() {
     return {
+      performanceMonitorEnabled: performanceMonitorEnabled.value,
       cacheLimits: deepClone(cacheLimits.value),
       theme: themePreference.value,
       accent: accent.value,
@@ -175,6 +180,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function replaceSettings(settings: AppSettings) {
+    performanceMonitorEnabled.value = settings.performanceMonitorEnabled;
     const nextCacheLimits = readCacheLimits(settings.cacheLimits);
     const nextGeneralFont = readGeneralFont(settings.generalFont);
     const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
@@ -208,6 +214,8 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return {
+    performanceMonitorEnabled,
+    setPerformanceMonitorEnabled,
     cacheLimits,
     setCacheLimit,
     accent,

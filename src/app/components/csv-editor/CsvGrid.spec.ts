@@ -42,7 +42,6 @@ function modelFixture(): CsvGridModel {
       { className: 'schema-col-text', enumOptions: [], key: 'id', schema: null, widthPx: 100 },
       { className: 'schema-col-text', enumOptions: [], key: 'name', schema: null, widthPx: 100 },
     ],
-    performanceSample: { columns: 2, ms: 0, rows: 1, sourceMs: 0, table: 'ships', widthMs: 0 },
     rowKeys: ['key-0'],
     rowsByKey: { 'key-0': csvDraftRow({ id: 's0' }, 'key-0') },
     sourceIndex: { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() },

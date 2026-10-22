@@ -9,6 +9,9 @@ import SettingsPage from './SettingsPage.vue';
 
 vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
   useSettingsViewModel: () => ({
+    monitorStatus: ref({ enabled: false, records: 0, overwritten: 0, startedAt: 0, path: '' }),
+    monitorAction: vi.fn(),
+    performanceMonitorError: ref(''),
     formattedLogSize: ref('0 B'),
     fontOptions: ref([
       { label: '默认字体组合', value: '' },
@@ -34,6 +37,32 @@ beforeEach(() => {
 });
 
 describe('settings limit controls', () => {
+  it('places default-off monitoring last and keeps the runtime state until restart', async () => {
+    const wrapper = mount(SettingsPage, {
+      props: { closeWorkspace: vi.fn(async () => true) },
+      global: {
+        stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
+      },
+    });
+    const sections = wrapper.findAll('section');
+    const monitor = sections.at(-1)!;
+    expect(monitor.get('h3').text()).toBe('性能调试');
+    expect(sections.at(-2)!.text()).toContain('日志级别');
+    expect(useSettingsStore().performanceMonitorEnabled).toBe(false);
+    expect(monitor.text()).toContain('修改后重启应用生效');
+    expect(monitor.text()).toContain('已关闭');
+    await monitor.get('.n-switch-stub').trigger('click');
+    expect(useSettingsStore().performanceMonitorEnabled).toBe(true);
+    expect(monitor.text()).toContain('已关闭');
+    expect(monitor.text()).toContain('重启后应用新设置');
+    expect(
+      monitor
+        .findAll('.action-group button')
+        .slice(1)
+        .every((button) => button.attributes('disabled') !== undefined),
+    ).toBe(true);
+    wrapper.unmount();
+  });
   it('places general and immersive fonts below appearance and applies both controls', async () => {
     const wrapper = mount(SettingsPage, {
       props: { closeWorkspace: vi.fn(async () => true) },

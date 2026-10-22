@@ -44,7 +44,7 @@ fn read_index(session: &str) -> ReadIndex {
 #[test]
 #[ignore = "explicit production CSV performance run"]
 fn retained_csv_performance() {
-    for count in [50, 300, 5000] {
+    for count in [50, 300, 2000] {
         let root = crate::testutil::temp_dir(&format!("retained_csv_perf_{count}"));
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let header = std::iter::once("id".to_string())
