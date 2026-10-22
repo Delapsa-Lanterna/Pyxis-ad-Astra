@@ -167,26 +167,10 @@ export function useCsvEditorActions(feedback: AppFeedback) {
   }
 
   function openRequestedFileEditor(request: FileEditorRequest) {
-    recordLogBestEffort({
-      level: 'info',
-      code: 'editor.file_opened',
-      message: 'file editor opened',
-      path: request.path,
-      line: request.line ?? null,
-      fields: logFields({ modRoot: request.modRoot, sessionId: request.sessionId }),
-    });
     openFileEditorWindow({ ...request }).catch((error) => feedback.error(error, '打开文件编辑器失败'));
   }
 
   function openRequestedEditorWindow(action: Extract<TableDetailAction, { type: 'editor-window' }>) {
-    recordLogBestEffort({
-      level: 'info',
-      code: 'editor.window_opened',
-      message: 'editor window opened',
-      path: null,
-      line: null,
-      fields: logFields({ kind: action.kind, id: action.id, modRoot: action.modRoot, sessionId: action.sessionId }),
-    });
     openSpecEditorWindow({
       kind: action.kind,
       modRoot: action.modRoot,

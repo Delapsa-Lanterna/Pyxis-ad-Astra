@@ -4,19 +4,21 @@ import { computed, ref, onScopeDispose } from 'vue';
 import { pickDirectoryDialog } from '@/shared/runtime/dialog.runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { clearLog, loadLogStatus, openLogFile } from '@/services/app-log.service';
+import { applicationLogError } from '@/shared/runtime/app-log-queue';
 import { useAppConfigActions } from '@/app/composables/settings/use-app-config-actions';
 import { useSettingsStore } from '@/stores/settings.store';
 import { saveLogDirectory } from '@/orchestrators/settings-persistence.orchestrator';
 import { querySystemFonts } from '@/services/app-settings.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { controlPerformanceMonitor, performanceMonitorError } from '@/app/performance-monitor';
-import type { PerformanceMonitorStatus } from '@/shared/types';
+import type { AppLogStatus, PerformanceMonitorStatus } from '@/shared/types';
 
 export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const settings = useSettingsStore();
   const feedback = useAppFeedback();
   const logSizeBytes = ref(0);
   const logPath = ref('');
+  const logStatus = ref<AppLogStatus | null>(null);
   const formattedLogSize = computed(() => formatBytes(logSizeBytes.value));
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
   const configActions = useAppConfigActions(closeWorkspace, useWindowLifecycleActions());
@@ -88,6 +90,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   async function refreshLogStatus() {
     await reads.consume('log-status', {}, loadLogStatus, {
       ready: (status) => {
+        logStatus.value = status;
         logSizeBytes.value = status.sizeBytes;
         logPath.value = status.path;
       },
@@ -117,6 +120,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
             reads.revoke('consumer', 'log-status');
             logSizeBytes.value = status.sizeBytes;
             logPath.value = status.path;
+            logStatus.value = status;
           }
           feedback.success('log 文件已清除');
         } catch (error) {
@@ -127,6 +131,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   }
 
   return {
+    applicationLogError,
     monitorStatus,
     monitorAction,
     performanceMonitorError,
@@ -135,6 +140,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
     loadSystemFonts,
     formattedLogSize,
     logPathHint,
+    logStatus,
     pickLogDirectory,
     pickStarsectorRoot,
     refreshLogStatus,

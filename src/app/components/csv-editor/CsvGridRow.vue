@@ -74,7 +74,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { CsvRowRecord } from '@/shared/types';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
@@ -113,6 +114,14 @@ function handleClick(event: MouseEvent) {
 const context = useCsvTableInputs(),
   media = useCsvGridMedia(),
   mode = useInputEditMode();
+onMounted(() =>
+  debugLog('list.item_mounted', () => ({
+    kind: 'csv',
+    rowKey: props.row.rowKey,
+    table: context.target.table,
+    sessionId: context.target.sessionId,
+  })),
+);
 const cells = computed(() =>
   props.columns.map((column) => {
     const raw = cell(props.row.data[column.key]);

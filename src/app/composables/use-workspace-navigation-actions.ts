@@ -5,6 +5,7 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import type { JsonEditorPageId, CsvTableKey } from '@/shared/types';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 export function useWorkspaceNavigationActions() {
   const workspace = useWorkspaceStore();
@@ -52,11 +53,13 @@ export function useWorkspaceNavigationActions() {
   }
 
   function confirmNavigation(action: () => void) {
+    debugLog('navigation.requested');
     const commands = useSaveCommandStore();
     const sequence = commands.beginTransition();
     const waiting = commands.waitForSaves();
     if (waiting) {
       void waiting.then((saved) => {
+        debugLog('navigation.save_settled', () => ({ saved: String(saved) }));
         if (saved && commands.isTransitionCurrent(sequence)) confirmIdleNavigation(action, sequence);
       });
       return;
@@ -72,12 +75,16 @@ export function useWorkspaceNavigationActions() {
       if (pending) {
         void pending
           .then((accepted) => {
-            if (accepted && workspace.activeModRoot === modRoot && useSaveCommandStore().isTransitionCurrent(sequence)) action();
+            if (accepted && workspace.activeModRoot === modRoot && useSaveCommandStore().isTransitionCurrent(sequence)) {
+              debugLog('navigation.accepted');
+              action();
+            }
           })
           .catch((error: unknown) => feedback.error(error));
         return;
       }
     }
+    debugLog('navigation.accepted');
     action();
   }
 

@@ -56,6 +56,15 @@ impl SpriteMediaCacheState {
                 break;
             };
             self.remove(&oldest);
+            crate::diagnostics::debug("cache.backend_evicted", || {
+                format!(
+                    "cache=media session={} resource={} remaining={} bytes={}",
+                    oldest.0,
+                    oldest.1,
+                    self.entries.len(),
+                    self.bytes
+                )
+            });
         }
     }
 }

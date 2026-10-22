@@ -201,6 +201,13 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'app-log',
+    names: ['flushApplicationLogs'],
+    capability: 'log-flush',
+    owners: [{ path: 'src/app/composables/use-app-lifecycle-assembly.ts', layer: 'app' }],
+  },
+  {
+    role: 'service',
+    domain: 'app-log',
     names: ['recordLogBestEffort'],
     capability: 'log-record',
     owners: readOwners.concat([
@@ -220,7 +227,10 @@ export const frontendCapabilities = [
     domain: 'app-log',
     names: ['loadLogStatus', 'openLogFile', 'clearLog'],
     capability: 'log-maintenance',
-    owners: [{ layer: 'app', role: 'composable', domain: 'settings-view-model' }],
+    owners: [
+      { layer: 'app', role: 'composable', domain: 'settings-view-model' },
+      { path: 'src/app/application-log.ts', layer: 'app' },
+    ],
   },
   {
     role: 'service',

@@ -7,8 +7,11 @@ import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs, nInputNumber } from '@/test/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
 
+const logUi = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
   useSettingsViewModel: () => ({
+    logStatus: ref({ recording: 'stopped', level: 'warning', pending: 0, dropped: 7, lastError: 'fixture write error' }),
+    applicationLogError: ref(''),
     monitorStatus: ref({ enabled: false, records: 0, overwritten: 0, startedAt: 0, path: '' }),
     monitorAction: vi.fn(),
     performanceMonitorError: ref(''),
@@ -22,7 +25,7 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
     logPathHint: ref('Log'),
     pickLogDirectory: vi.fn(),
     pickStarsectorRoot: vi.fn(),
-    refreshLogStatus: vi.fn(),
+    refreshLogStatus: logUi.refresh,
     openConfigFolderAction: vi.fn(),
     openLogFileAction: vi.fn(),
     restoreDefaultLogDirectory: vi.fn(),
@@ -32,11 +35,41 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
 }));
 
 beforeEach(() => {
+  logUi.refresh.mockClear();
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
 });
 
 describe('settings limit controls', () => {
+  it('offers all four minimum levels and exposes the stopped-run status', async () => {
+    const wrapper = mount(SettingsPage, {
+      props: { closeWorkspace: vi.fn(async () => true) },
+      global: { stubs: { ...editorUiStubs, ColorPicker: true } },
+    });
+    const config = wrapper.findAll('section').find((section) => section.get('h3').text() === '配置文件')!;
+    const select = config.get('select');
+    expect(config.text()).toContain('本次运行已停止记录');
+    expect(config.text()).toContain('WARNING');
+    expect(config.text()).toContain('未写入 7 条');
+    expect(config.text()).toContain('fixture write error');
+    expect(logUi.refresh).toHaveBeenCalledOnce();
+    await config
+      .findAll('button')
+      .find((button) => button.text() === '刷新日志状态')!
+      .trigger('click');
+    expect(logUi.refresh).toHaveBeenCalledTimes(2);
+    expect(select.findAll('option').map((option) => option.text())).toEqual([
+      '详细（DEBUG）',
+      '常规（INFO）',
+      '警告（WARNING）',
+      '错误（ERROR）',
+    ]);
+    for (const level of ['debug', 'warning', 'error', 'info'] as const) {
+      await select.setValue(JSON.stringify(level));
+      expect(useSettingsStore().logLevel).toBe(level);
+    }
+    wrapper.unmount();
+  });
   it('places default-off monitoring last and keeps the runtime state until restart', async () => {
     const wrapper = mount(SettingsPage, {
       props: { closeWorkspace: vi.fn(async () => true) },
@@ -71,7 +104,7 @@ describe('settings limit controls', () => {
       },
     });
     const sections = wrapper.findAll('section');
-    expect(sections.map((section) => section.get('h3').text()).slice(1, 5)).toEqual(['外观', '字体', '编辑', '缓存限制']);
+    expect(sections.map((section) => section.get('h3').text()).slice(1, 6)).toEqual(['外观', '字体', '编辑', 'JSON 保存', '缓存限制']);
     const editing = sections[3]!;
     expect(editing.findAll('.field-label').map((label) => label.text())).toEqual(['引用式编辑', '展开字段解析', '允许编辑原版']);
     expect(useSettingsStore().expandFieldDescriptions).toBe(false);

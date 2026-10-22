@@ -53,6 +53,7 @@
           <VariantCandidateCard
             v-else
             v-show="!view.hidden"
+            @vue:mounted="debugLog('list.item_mounted', () => ({ kind, id: view.item.id, sessionId: root.sessionId }))"
             :data-entry-id="view.item.id"
             :root="root"
             :kind="kind"
@@ -107,6 +108,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, onMounted, onScopeDispose, watch, type ComputedRef } from 'vue';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import type { ReadonlyVariantEntry, JointEditRoot, RowData } from '@/shared/types';

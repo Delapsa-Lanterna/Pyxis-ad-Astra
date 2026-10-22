@@ -121,7 +121,8 @@ export async function invokeCommand(
     };
   const payload = args.payload ?? {};
   if (command === 'query_system_fonts') return [];
-  if (command === 'get_app_log_status') return { path: 'preview.log', sizeBytes: 0 };
+  if (command === 'get_app_log_status')
+    return { path: 'preview.log', sizeBytes: 0, recording: 'active', level: 'info', lastError: null, dropped: 0, pending: 0 };
   if (command === 'query_csv_source_options') return [];
   if (command === 'query_csv_row_preview') return { resourceRef: null };
   if (command === 'query_original_font')

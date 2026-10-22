@@ -6,6 +6,7 @@ import { acquireResourceMedia, disposeResourceMedia } from '@/services/resource-
 import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { createReadTicket, invalidatedRead, waitForRead, type ReadTicket } from '@/shared/runtime/read-request';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 interface DecodedImage {
   sessionId: string;
@@ -40,14 +41,20 @@ interface ThumbnailLoad {
   start(): Promise<HTMLCanvasElement>;
 }
 export function createWindowImageRuntime() {
-  const decoded = createResidentCache<DecodedImage>(() => ({
-    entries: windowCacheLimits().decodedImages.entries,
-    bytes: windowCacheLimits().decodedImages.MiB * 1024 * 1024,
-  }));
-  const thumbnails = createResidentCache<Thumbnail>(() => ({
-    entries: windowCacheLimits().thumbnails.entries,
-    bytes: windowCacheLimits().thumbnails.MiB * 1024 * 1024,
-  }));
+  const decoded = createResidentCache<DecodedImage>(
+    () => ({
+      entries: windowCacheLimits().decodedImages.entries,
+      bytes: windowCacheLimits().decodedImages.MiB * 1024 * 1024,
+    }),
+    'decoded-images',
+  );
+  const thumbnails = createResidentCache<Thumbnail>(
+    () => ({
+      entries: windowCacheLimits().thumbnails.entries,
+      bytes: windowCacheLimits().thumbnails.MiB * 1024 * 1024,
+    }),
+    'thumbnails',
+  );
   const pending = new Map<string, ImageLoad>();
   const stopDecoded = subscribeCacheLimits(decoded),
     stopThumbnails = subscribeCacheLimits(thumbnails);
@@ -121,6 +128,7 @@ export function createWindowImageRuntime() {
       load = undefined;
     }
     if (!load) {
+      debugLog('media.decode_started', () => ({ sessionId, source: resource.source, relPath: resource.relPath }));
       const image = new Image();
       decodeCount++;
       const entry = { sessionId, resource, url, image };
@@ -129,11 +137,13 @@ export function createWindowImageRuntime() {
         () =>
           new Promise<HTMLImageElement>((resolve, reject) => {
             image.onload = () => {
+              debugLog('media.decoded', () => ({ sessionId, source: resource.source, relPath: resource.relPath }));
               image.onload = null;
               image.onerror = null;
               resolve(image);
             };
             image.onerror = () => {
+              debugLog('media.decode_failed', () => ({ sessionId, source: resource.source, relPath: resource.relPath }));
               image.onload = null;
               image.onerror = null;
               reject(new Error('图片解码失败'));
@@ -184,6 +194,7 @@ export function createWindowImageRuntime() {
     return item?.canvas ?? null;
   }
   function storeThumbnail(id: string, sessionId: string, resources: readonly ResourceRef[], canvas: HTMLCanvasElement) {
+    debugLog('media.product_accepted', () => ({ sessionId, id }));
     const entry = { sessionId, dependencies: new Set(resources.map((resource) => key(sessionId, resource))), canvas, missing: [] };
     thumbnails.put(id, entry, canvas.width * canvas.height * 4, 1);
     return () => {
@@ -227,6 +238,7 @@ export function createWindowImageRuntime() {
         }).then(({ canvas, missing }) => {
           if (signal.aborted) throw invalidatedRead({ sessionId: source.sessionId, thumbnail: source.key }, 'project');
           captured.canvas = canvas;
+          debugLog('media.product_accepted', () => ({ sessionId: source.sessionId, id: source.key }));
           thumbnails.put(
             source.key,
             {
@@ -310,6 +322,7 @@ export function createWindowImageRuntime() {
     }
   }
   function clearSession(sessionId: string) {
+    debugLog('media.session_released', () => ({ sessionId }));
     const prefix = JSON.stringify([sessionId]).slice(0, -1);
     for (const physicalKey of new Set([...decoded.keys(), ...pending.keys(), ...revisions.keys()]))
       if (physicalKey.startsWith(prefix)) {
@@ -338,6 +351,7 @@ export function createWindowImageRuntime() {
         removeImage(physicalKey);
   });
   function dispose() {
+    debugLog('media.runtime_released', () => ({ images: String(decoded.stats().activeEntries + decoded.stats().idleEntries) }));
     stopDecoded();
     stopThumbnails();
     for (const job of preloadQueue) job.reject(invalidatedRead({ lane: 'image-preload' }, 'consumer'));

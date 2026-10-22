@@ -12,6 +12,8 @@ import {
 import { clearConfig } from '@/services/app-config.service';
 import { provideWindowCloseState } from './use-window-close-state';
 import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
+import { flushApplicationLogs } from '@/services/app-log.service';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 export function useAppLifecycleAssembly() {
   return provideWindowCloseState({
@@ -21,6 +23,8 @@ export function useAppLifecycleAssembly() {
     prepareDisplay: pauseProjectDisplay,
     flushSettings: async () => {
       await flushSettings();
+      debugLog('window.close_prepared');
+      await flushApplicationLogs();
       await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
     },
     clearConfig: () => withSettingsReset(clearConfig),

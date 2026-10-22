@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readSettings, saveSettings, querySystemFonts } from './app-settings.service';
 import { createSettingsFixture } from '@/test/settings';
 import { clearConfig, openConfigFolder } from './app-config.service';
-import { clearLog, loadLogStatus, openLogFile, recordLogBestEffort } from './app-log.service';
+import { clearLog, loadLogStatus, openLogFile } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
@@ -46,7 +46,6 @@ const request: NativeWindowRequest = {
   minHeight: 400,
 };
 const status: ManagedWindowStatus = { dirty: false, saving: false };
-const entry = { level: 'warning' as const, code: 'demo', message: 'raw', path: null, line: null, fields: null };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
   ['read_settings', readSettings, undefined],
   ['query_system_fonts', querySystemFonts, undefined],
@@ -56,7 +55,6 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
     { payload: { sessionId: 's1', starsectorRoot: null, fontId: 'insignia15LTaa' } },
   ],
   ['save_settings', () => saveSettings(settings), { payload: { settings } }],
-  ['append_app_log', () => recordLogBestEffort(entry), { payload: { entry } }],
   ['get_app_log_status', loadLogStatus, undefined],
   ['open_app_log_file', openLogFile, undefined],
   ['clear_app_log_file', clearLog, undefined],

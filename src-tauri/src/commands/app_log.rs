@@ -1,15 +1,26 @@
 use crate::{
     errors::AppError,
-    models::{AppLogStatus, AppendAppLogPayload},
+    models::{AppLogStatus, AppendAppLogsPayload},
     services,
 };
 
 #[tauri::command(async)]
-pub fn append_app_log(
+pub fn append_app_logs(
     app_handle: tauri::AppHandle,
-    payload: AppendAppLogPayload,
+    window: tauri::WebviewWindow,
+    payload: AppendAppLogsPayload,
 ) -> Result<(), AppError> {
-    services::app_log::append_app_log(app_handle, payload.entry)
+    services::app_log::append_app_logs(app_handle, window.label(), payload.entries)
+}
+
+#[tauri::command(async)]
+pub fn stop_app_log(
+    app_handle: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    message: String,
+    dropped: u64,
+) -> Result<(), AppError> {
+    services::app_log::stop_app_log(&app_handle, window.label(), message, dropped)
 }
 
 #[tauri::command(async)]

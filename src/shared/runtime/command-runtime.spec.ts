@@ -1,12 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invokeCommand } from './command.runtime';
 import { AppError, errorContextOf, errorDiagnosticOf, formatError, withCause } from '@/shared/lib/errors';
+import { appLogQueue } from './app-log-queue';
+import type { AppLogEntry } from '@/shared/types';
 
 const mockInvoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
 beforeEach(() => vi.clearAllMocks());
 
 describe('command transport', () => {
+  it('automatically correlates success and failure and excludes log and monitor calls', async () => {
+    const records: AppLogEntry[] = [];
+    appLogQueue.install(async (entries) => {
+      records.push(...entries);
+    }, vi.fn());
+    appLogQueue.setLevel('debug');
+    try {
+      mockInvoke.mockResolvedValue({ secret: 'response' });
+      await invokeCommand('new_command', { secret: 'request' });
+      mockInvoke.mockRejectedValueOnce(new Error('private failure'));
+      await expect(invokeCommand('failed_command')).rejects.toThrow();
+      await invokeCommand('get_app_log_status');
+      await invokeCommand('append_app_logs');
+      await invokeCommand('stop_app_log');
+      await invokeCommand('performance_monitor_batch');
+      await appLogQueue.flush();
+      expect(records.map((entry) => entry.code)).toEqual(['command.started', 'command.completed', 'command.started', 'command.failed']);
+      expect(records[0]!.fields?.request).toBe(records[1]!.fields?.request);
+      expect(records[2]!.fields?.request).not.toBe(records[0]!.fields?.request);
+      expect(JSON.stringify(records)).not.toContain('secret');
+      expect(JSON.stringify(records)).not.toContain('private failure');
+    } finally {
+      appLogQueue.setLevel('info');
+    }
+  });
   it('preserves arguments and the successful result', async () => {
     const result = { target: 'loaded' };
     const args = { payload: { sessionId: null }, title: 'Demo' };

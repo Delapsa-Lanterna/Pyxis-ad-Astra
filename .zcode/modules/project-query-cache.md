@@ -15,6 +15,7 @@
 
 - `src/services/project-projection.service.ts`：缓存命中、加载及完成时的会话投影门控。
 - `src/shared/lib/stable-compare.ts`：查询参数的稳定序列化。
+- `src/shared/runtime/app-log-queue.ts`：查询开始、完成、命中、共享和失效的详细记录。
 - `src/shared/runtime/cache-limits.ts`：各缓存消费的窗口启动预算。
 - `src/shared/runtime/cache.ts`：类型化 LRU 与 pending 存储。
 - `src/shared/runtime/read-request.ts`：正式票据、失效与消费者等待。
@@ -64,6 +65,7 @@
 - 查询失败必须释放 pending，下一次读取必须重新执行所属 loader。
 - 查询容量必须消费所属启动预算，零容量必须保留在途共享并关闭就绪保留。
 - 查询结果必须通过 DeepReadonly 交付，可写快照必须由正式独立快照入口创建。
+- 查询详细记录必须保留 queryKind、session、缓存结果和完成状态，参数及结果正文严禁进入日志。
 - 缓存与查询身份协议必须只表达公共会话读取，业务字段与失效语义必须由所属定义交付。
 - 迟到成功、错误和收尾必须服从正式票据，替代请求的缓存及 pending 必须保持实际归属。
 

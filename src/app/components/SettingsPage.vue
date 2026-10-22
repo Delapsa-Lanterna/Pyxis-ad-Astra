@@ -211,13 +211,28 @@
       <FieldRow readonly label="Log 文件大小"
         ><strong class="ui-emphasis">{{ formattedLogSize }}</strong></FieldRow
       >
+      <FieldRow readonly label="日志状态"
+        ><span
+          >{{
+            applicationLogError || logStatus?.recording === 'stopped'
+              ? '本次运行已停止记录'
+              : logStatus?.recording === 'active'
+                ? '正在记录'
+                : '尚未初始化'
+          }}{{ logStatus ? ` · ${logStatus.level.toUpperCase()} · 待写 ${logStatus.pending} 条` : '' }}</span
+        ></FieldRow
+      >
       <div class="ui-field-actions action-group">
         <n-button size="small" @click="openConfigFolderAction">打开配置文件夹</n-button>
         <n-button size="small" @click="openLogFileAction">打开 log 文件</n-button>
+        <n-button size="small" @click="refreshLogStatus">刷新日志状态</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearConfig">清空配置文件</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearLog">清除 log 文件</n-button>
       </div>
-      <FieldHints :description="logPathHint" />
+      <FieldHints
+        :description="`${logPathHint}${logStatus?.dropped ? ` 未写入 ${logStatus.dropped} 条。` : ''}`"
+        :warning="applicationLogError || logStatus?.lastError || ''"
+      />
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">性能调试</h3>
@@ -274,8 +289,10 @@ const QUERY_CACHES = {
 } satisfies Record<keyof CacheLimits['queries'], [string, string]>;
 
 const LOG_LEVEL_OPTIONS: { label: string; value: LogLevel }[] = [
-  { label: '默认（INFO）', value: 'info' },
   { label: '详细（DEBUG）', value: 'debug' },
+  { label: '常规（INFO）', value: 'info' },
+  { label: '警告（WARNING）', value: 'warning' },
+  { label: '错误（ERROR）', value: 'error' },
 ];
 const HISTORY_FIELDS = {
   fileHistoryLimit: [
@@ -310,6 +327,8 @@ const {
   loadSystemFonts,
   formattedLogSize,
   logPathHint,
+  logStatus,
+  applicationLogError,
   pickLogDirectory,
   pickStarsectorRoot,
   refreshLogStatus,

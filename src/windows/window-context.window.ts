@@ -11,6 +11,7 @@ import { listenWindowEvent, type WindowEventErrorHandler } from './tauri.events'
 import { WINDOW_EVENTS } from './window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { DeepReadonly, ManagedWindowContext, WindowContextFor } from '@/shared/types';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 let requestDrain: Promise<void> = Promise.resolve();
 export function settleWindowRequests() {
   return requestDrain;
@@ -23,6 +24,7 @@ export const managedWindowContext = readonly(context);
 export function publishWindowContext(next: ManagedWindowContext) {
   if (context.value && next.revision < context.value.revision) return;
   context.value = next;
+  debugLog('window.context_accepted', () => ({ kind: next.kind, revision: String(next.revision) }));
 }
 export async function initializeWindowContext() {
   const bootstrap = await getNativeWindowBootstrap();

@@ -5,6 +5,7 @@ import { initializeSettings } from '@/orchestrators/settings-persistence.orchest
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { startPerformanceMonitor } from '@/app/performance-monitor';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
+import { startApplicationLog } from '@/app/application-log';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { showCurrentWindow } from '@/windows/current.window';
 import { initializeWindowContext, failWindowStartup } from '@/windows/window-context.window';
@@ -18,6 +19,7 @@ async function bootstrap() {
   const [Root, settings] = await Promise.all([loadWindowRoot(windowKind), initializeSettings()]);
   initializeSettingsStore(settings.value);
   const pinia = createPinia();
+  await startApplicationLog(pinia);
   startPerformanceMonitor(pinia, settings.performanceMonitorActive);
   app = createApp(Root).use(pinia);
   installNaiveUi(app);

@@ -3,7 +3,7 @@ export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 export const commandOwners = {
   'src/services/performance-monitor.service.ts': ['performance_monitor_batch', 'performance_monitor_report'],
   'src/services/app-settings.service.ts': ['read_settings', 'save_settings', 'query_system_fonts'],
-  'src/services/app-log.service.ts': ['append_app_log', 'get_app_log_status', 'open_app_log_file', 'clear_app_log_file'],
+  'src/services/app-log.service.ts': ['append_app_logs', 'stop_app_log', 'get_app_log_status', 'open_app_log_file', 'clear_app_log_file'],
   'src/services/app-config.service.ts': ['open_config_dir', 'clear_config_files'],
   'src/services/workspace-state.service.ts': ['load_workspace', 'save_workspace'],
   'src/services/mod-creation.service.ts': ['create_mod'],

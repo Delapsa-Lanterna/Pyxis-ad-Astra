@@ -4,6 +4,7 @@ import type { OriginalFontResult } from '@/shared/types';
 import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
 import { AppError } from '@/shared/lib/errors';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 const glyphs = new WeakMap<HTMLImageElement, RuntimeCache<string, HTMLCanvasElement, never>>();
 
@@ -13,6 +14,7 @@ export interface LoadedFont {
 }
 
 export async function decodeOriginalFont(source: Extract<OriginalFontResult, { status: 'available' }>): Promise<LoadedFont> {
+  debugLog('font.decode_started', () => ({ path: source.path, pages: String(source.pages.length) }));
   let definition: BitmapFont;
   try {
     definition = parseOriginalBitmapFont(source.definition);
@@ -67,13 +69,17 @@ export async function decodeOriginalFont(source: Extract<OriginalFontResult, { s
   );
   const failure = results.find((result) => result.status === 'rejected');
   if (failure?.status === 'rejected') throw failure.reason;
+  debugLog('font.decode_completed', () => ({ path: source.path, pages: String(source.pages.length) }));
   return { definition, pages: new Map(results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))) };
 }
 
 export function fontGlyph(image: HTMLImageElement, glyph: BitmapGlyph, color: string, outline = false): HTMLCanvasElement {
   let cache = glyphs.get(image);
   if (!cache) {
-    cache = createRuntimeCache<string, HTMLCanvasElement>({ capacity: () => windowCacheLimits().fonts.glyphEntriesPerPage });
+    cache = createRuntimeCache<string, HTMLCanvasElement>({
+      name: 'font-glyphs',
+      capacity: () => windowCacheLimits().fonts.glyphEntriesPerPage,
+    });
     glyphs.set(image, cache);
     subscribeCacheLimits(cache);
   }

@@ -31,6 +31,7 @@
 
 - `AppError` 保留 command 和原始 cause，领域 action 由用户动作提供。
 - `command.runtime` 拥有唯一原始 invoke 调用与透明错误包装。
+- 命令详细记录由共同传输入口生成，记录请求身份、命令名和完成状态。
 - 所属 service 拥有 command 参数装配，共享传输消费完整参数。
 - 能力矩阵维护公开操作权限，command-policy 维护实际 command 实现归属。
 - 静态检查消费共享符号来源、调用和位置事实，分别验证 command owner 与能力消费者。

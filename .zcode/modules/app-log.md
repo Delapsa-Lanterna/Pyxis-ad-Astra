@@ -2,66 +2,74 @@
 
 ## 定义
 
-应用日志模块提供工具日志的追加、状态、维护与失败隔离能力。
+应用日志模块按四档级别记录业务结果与运行过程，并管理排队写入、运行状态和日志文件。
 
 ## 参考
 
 ### 拥有
 
-- `src-tauri/src/commands/app_log.rs`：日志 command。
-- `src-tauri/src/services/app_log.rs`：日志路径、级别、渲染及轮转。
-- `src/services/app-log.service.ts`：日志 command 的签名、参数装配与 best-effort。
-- `src/services/app-log.spec.ts`：日志异步失败隔离验证。
+- `src-tauri/src/commands/app_log.rs`：批量追加、停写报告与日志维护命令。
+- `src-tauri/src/services/app_log.rs`：进程状态、原生记录队列、批量文件写入和轮转。
+- `src/app/application-log.spec.ts`：动作自动记录、跨窗口停写及启动故障隔离验证。
+- `src/app/application-log.ts`：窗口停写监听和 Pinia 动作记录装配。
+- `src/services/app-log.service.ts`：日志命令、队列交付与维护动作。
+- `src/services/app-log.spec.ts`：合批、失败停写及维护前交付验证。
 
 ### 消费
 
-- `src-tauri/src/diagnostics.rs`：后端内部诊断 sink。
-- `src-tauri/src/models/app_log.rs`：固定日志名、级别、记录、状态与追加请求协议。
-- `src-tauri/src/services/system_open.rs`：系统文件管理器路径打开适配。
-- `src/shared/lib/log-fields.ts`：结构化上下文组装。
-- `src/shared/types/app-log.types.ts`：日志 wire 模型。
+- `src-tauri/src/diagnostics.rs`：按级别交付原生诊断及惰性详细记录。
+- `src-tauri/src/models/app_log.rs`：固定文件名、四档级别、批量请求和状态协议。
+- `src-tauri/src/services/system_open.rs`：日志文件的系统打开能力。
+- `src/shared/lib/log-fields.ts`：业务记录的字符串上下文组装。
+- `src/shared/runtime/app-log-queue.ts`：窗口队列、源头过滤、惰性字段及区间记录。
+- `src/shared/types/app-log.types.ts`：日志条目与状态协议。
+
+### 装配
+
+- `src/app/composables/use-app-lifecycle-assembly.ts`：正常关闭前的队列交付。
+- `src/main.ts`：业务挂载前的窗口监听与动作记录装配。
 
 ## 边界
 
-- best-effort 在日志 owner 内结束失败，向业务调用方保留原动作结果。
-- 日志能力拥有条目追加、状态、打开、清空、轮转及失败隔离。
-- 目录、级别、轮转大小和备份份数来自已保存 settings，过滤与实际路径解析归后端。
-- 设置 ViewModel 消费维护能力，日志写入目标是工具日志文件。
-- 默认目录由后端建立，自定义目录以已存在且可写的目录为输入。
+- DEBUG 表达详细过程，INFO 表达已完成的业务事实，WARNING 表达有恢复或降级的异常，ERROR 表达失败的操作。
+- Pinia、命令、查询、缓存、列表、输入、页面、窗口、字体和媒体在所属共同能力中记录实际事件。
+- 前端队列归每个窗口实例，原生队列与停写状态归当前进程。
+- 日志状态包含有效级别、记录状态、最近错误、未写入数量、待写数量、路径及文件大小；待写数量包含当前窗口和原生队列。
+- 目录、级别、轮转大小及备份份数消费正式设置快照，保存后的级别同步各窗口。
+- 设置页展示停写原因；窗口反馈在故障发生时提示，业务操作继续完成。
 
 ## 链路
 
-### 日志追加
+### 记录与写入
 
-1. 业务动作或反馈投影日志条目。
-2. `recordLogBestEffort` 调用 `append_app_log`。
-3. Rust 按已保存设置判定级别、目录、轮转大小和备份份数。
-4. 日志 owner 取得写锁，按阈值轮转并渲染追加条目。
+1. 所属能力按当前级别判断记录，详细字段按需组装。
+2. 窗口队列补充发生时间、窗口实例及递增序号，按批次调用 append_app_logs。
+3. 原生诊断进入进程队列，由所属写入线程集中交付。
+4. 后端消费正式运行设置，在同一文件写锁内轮转并追加完整批次。
+5. 正常关闭先交付窗口队列；原生退出事件交付退出记录与原生尾批。
 
-### 日志维护
+### 故障与维护
 
-1. 设置页动作读取状态或确认清空。
-2. 所属日志能力调用状态、打开或清空 command。
-3. 返回实际路径、字节数或动作结果。
+1. 写入失败保留原始原因，释放待写记录并统计未写入数量。
+2. 后端发布 app-log-stopped，各窗口结束本次记录并报告本窗未写入总量。
+3. 设置页读取进程状态；打开和清空先交付所属待写记录。
+4. 重新启动建立新的队列和进程状态。
 
 ## 规范
 
-- Mod session 生命周期日志必须由正式打开与移除编排记录，包含 Mod 和 session。
-- 内部降级错误必须经 diagnostics sink 记录；日志失败严禁传播到业务或产生递归。
-- 动作日志必须采用正式稳定码：app.started/exited、directory.scanned/unrecognized、mod.session_opened/closed、mod.already_loaded/removed/created、tables.csv_saved/row_created/row_deleted/undo_applied/redo_applied、workspace.refreshed/closed、editor.file_opened/file_saved/window_opened/spec_saved、history.replayed、settings.saved；settings.saved 必须为 DEBUG，editor.draft_snapshot_invalid 必须为 warning。
-- 敏感信息进入日志前必须脱敏，应用启动与退出必须携带版本，Mod session 生命周期必须携带 `modRoot` 与 `sessionId`。
-- 日志 message 只允许原始诊断或英文短语；用户文案必须由反馈投影。
-- 日志备份必须按 `.log.1` 至 `.log.N` 保留最新 `logBackupCount` 份，默认必须为 1，整数范围必须为 1–20；轮转必须按编号降序移动，份数收缩必须在下次轮转清理超额备份。
-- 日志备份清理必须只消费固定日志名和规范正整数后缀；文件操作失败必须保留实际路径并交给日志错误入口。
-- 日志文件名必须固定，追加前达到 `logRotationSizeMiB` 阈值时必须轮转；阈值默认必须为 5 MiB，整数范围必须为 1–1024。
-- 日志条目必须分别携带 code、message、path、line 和字符串 fields；command 和 action 必须分别消费。
-- 日志稳定码必须采用前端域动作或后端正式错误码；fields 必须在 path/line 后按键序渲染，组装时必须丢弃空值，全空必须为 `null`。
-- 日志追加、轮转与清空必须由同一后端写锁串行协调。
-- 时间必须按后端写入时的本地时间渲染，fields 必须按键排序并清洗 CR/LF/TAB。
-- 时间戳必须采用 YYYY-MM-DD HH:mm:ss.SSS，清空日志必须保留空日志文件并返回实际状态。
+- DEBUG 字段必须在级别检查后组装，命令和动作必须自动记录开始及成功或失败结果。
+- Mod session 日志必须携带 modRoot 与 sessionId，应用开始和退出必须携带版本。
+- 列表首次挂载必须消费实际 DOM 或组件挂载完成事件，驻留节点再次可见必须保留原有身份。
+- 同一窗口必须只允许一个日志批次在途；普通队列必须在 100ms 或达到 64 条时交付，每批必须最多 64 条。
+- 成功写入必须保留完整记录；写入失败必须停止本次进程记录，设置修改必须保持停写状态。
+- 日志备份必须按规范正整数编号降序移动，并按已保存的大小与份数维护保留范围。
+- 日志字段只允许包含事件身份、目标身份、状态、必要规模和诊断；输入原文、文档正文和命令请求响应正文严禁进入详细记录。
+- 日志文件名必须固定；追加、轮转和清空必须串行协调，清空必须保留空文件。
+- 日志条目必须分别表达 code、message、path、line 和字符串 fields；事件时间必须采用 ISO 8601 UTC 毫秒时间，文本中的换行、制表符必须清洗为单行。
+- 日志维护和性能监视命令严禁产生递归记录，性能监视数据必须归独立性能报告。
 
 ## 陷阱
 
-- 从当前页面推导目录会让同一日志动作的目标随导航变化。
-- 按日期或会话改换日志文件名会使状态、轮转与清空定位不同文件。
-- 日志写入失败由所属 best-effort 边界结束。
+- 写入失败严禁改变业务动作的原始返回结果。
+- 已接纳的排队记录必须保留其产生时的过滤结果。
+- 未写入计数必须区分尚未发送的记录与在途批次的实际交付结果。

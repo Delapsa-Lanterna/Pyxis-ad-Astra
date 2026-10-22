@@ -10,7 +10,7 @@ mod services;
 #[cfg(test)]
 pub(crate) mod testutil;
 
-use models::{AppLogEntry, AppLogLevel};
+use models::AppLogEntry;
 use tauri::{Emitter, Manager};
 
 pub fn run() {
@@ -24,6 +24,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                diagnostics::debug("window.destroyed", || format!("window={}", window.label()));
+            }
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                diagnostics::debug("window.close_requested", || {
+                    format!("window={}", window.label())
+                });
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let app = window.app_handle().clone();
@@ -60,19 +68,16 @@ pub fn run() {
         .setup(|app| {
             #[cfg(windows)]
             services::windows::auxiliary::install(&app.config().identifier)?;
-            let handle = app.handle().clone();
-            diagnostics::install(Box::new(move |message| {
-                let _ = services::app_log::append_app_log(
-                    handle.clone(),
-                    AppLogEntry {
-                        level: AppLogLevel::Warning,
-                        code: Some("diagnostics".to_string()),
-                        message: Some(message.to_string()),
-                        path: None,
-                        line: None,
-                        fields: None,
-                    },
-                );
+            services::app_log::start_native_writer(app.handle().clone());
+            diagnostics::install(std::sync::Arc::new(move |level, code, message| {
+                let _ = services::app_log::append_app_log(AppLogEntry {
+                    level,
+                    code: Some(code.to_string()),
+                    message: Some(message.to_string()),
+                    path: None,
+                    line: None,
+                    fields: None,
+                });
             }));
             Ok(())
         })
@@ -135,7 +140,8 @@ pub fn run() {
                     commands::resolve_mod_relative_path,
                     commands::load_workspace,
                     commands::save_workspace,
-                    commands::append_app_log,
+                    commands::append_app_logs,
+                    commands::stop_app_log,
                     commands::get_app_log_status,
                     commands::open_config_dir,
                     commands::open_app_log_file,
@@ -191,6 +197,12 @@ pub fn run() {
                 handler(invoke)
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                diagnostics::info("app.exited", concat!("version=", env!("CARGO_PKG_VERSION")));
+                let _ = services::app_log::flush_native_logs(app.clone());
+            }
+        });
 }

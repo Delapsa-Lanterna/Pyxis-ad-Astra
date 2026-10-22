@@ -43,6 +43,7 @@
 - `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
 - `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
 - `src/shared/lib/resource-ref.ts`：资源身份键、相等与集合纯规则。
+- `src/shared/runtime/app-log-queue.ts`：媒体请求、解码、成品接纳和释放的详细记录。
 - `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
 - `src/shared/runtime/resident-cache.ts`：活跃与闲置分离的预算缓存原语。
 - `src/shared/types/resources.types.ts`：草稿资源、批量图片、路径及舰体引用请求与结果。

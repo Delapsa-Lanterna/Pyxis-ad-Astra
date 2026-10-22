@@ -81,7 +81,7 @@
 - [应用设置与主题](modules/app-settings.md)：说明 settings store、主题令牌、editMode、日志目录、persistence/mirror 与子窗口 snapshot。
 - [后端能力与 IPC 传输](modules/backend-capabilities.md)：说明最小传输、透明错误、command 归属与公开能力授权。
 - [应用反馈与错误恢复](modules/app-feedback.md)：说明反馈工厂、确认、诊断文案和授权文件恢复。
-- [应用日志](modules/app-log.md)：说明日志能力、best-effort、路径与维护。
+- [应用日志](modules/app-log.md)：说明四档记录、自动过程事件、批量写入、进程停写及文件维护。
 - [工具配置维护](modules/app-config.md)：说明工具目录、配置清理范围与危险动作接纳。
 - [Core 索引与加载](modules/core-assets.md)：说明根代次、fields/graphics 独立状态、读取与释放。
 - [目录打开](modules/directory-opening.md)：说明目录选择、游戏或 Mod 识别、canonical root、ProjectSession 建立与打开 outcome。

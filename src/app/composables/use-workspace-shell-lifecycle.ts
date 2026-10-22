@@ -13,6 +13,7 @@ import {
 } from '@/orchestrators/workspace-persistence.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { recordLogBestEffort } from '@/services/app-log.service';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 
@@ -100,14 +101,7 @@ export function useWorkspaceShellLifecycle(
 
   onUnmounted(() => {
     disposed = true;
-    recordLogBestEffort({
-      level: 'info',
-      code: 'app.exited',
-      message: 'app exited',
-      path: null,
-      line: null,
-      fields: { version: __APP_VERSION__ },
-    });
+    debugLog('window.shell_unmounted', () => ({ version: __APP_VERSION__ }));
     stopWindowSaveEvents?.();
     stopWindowSaveEvents = null;
     workspacePersistence?.stop();

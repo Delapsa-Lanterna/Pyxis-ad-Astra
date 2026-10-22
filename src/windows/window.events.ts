@@ -11,6 +11,7 @@ export const WINDOW_EVENTS = {
   managedWindowReleased: 'managed-window-released',
   managedWindowRequestAvailable: 'managed-window-request-available',
   appSettingsChanged: 'app-settings-changed',
+  appLogStopped: 'app-log-stopped',
   projectSourcesRefreshed: 'project-sources-refreshed',
 } as const;
 

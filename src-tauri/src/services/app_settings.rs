@@ -116,6 +116,7 @@ pub fn ensure_core_editing_allowed(mod_root: &str) -> AppResult<()> {
     Ok(())
 }
 
+#[cfg(test)]
 pub fn load_settings(app_data_dir: &Path) -> AppResult<AppSettings> {
     Ok(load_settings_report(app_data_dir).0)
 }
@@ -223,15 +224,6 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
             "Invalid custom accent",
         ));
     }
-    if !matches!(
-        settings.log_level,
-        crate::models::AppLogLevel::Info | crate::models::AppLogLevel::Debug
-    ) {
-        return Err(AppError::message(
-            "settings.log_level_invalid",
-            "Invalid log level",
-        ));
-    }
     for directory in [&settings.starsector_root, &settings.log_directory]
         .into_iter()
         .flatten()
@@ -287,6 +279,7 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
     Ok(())
 }
 
+#[cfg(test)]
 pub fn log_output_directory(app_data_dir: &Path, settings: &AppSettings) -> AppResult<PathBuf> {
     match &settings.log_directory {
         Some(directory) => resolve_saved_log_directory(app_data_dir, directory),
@@ -398,6 +391,25 @@ pub fn settings_path(app_data_dir: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn all_log_levels_roundtrip_through_saved_settings() {
+        use crate::models::AppLogLevel;
+        let dir = crate::testutil::temp_dir("log_level_settings");
+        for level in [
+            AppLogLevel::Debug,
+            AppLogLevel::Info,
+            AppLogLevel::Warning,
+            AppLogLevel::Error,
+        ] {
+            let settings = crate::models::AppSettings {
+                log_level: level,
+                ..Default::default()
+            };
+            super::save_settings(&dir, &settings).unwrap();
+            assert_eq!(super::load_settings(&dir).unwrap().log_level, level);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
     use super::*;
 
     use crate::testutil::temp_dir;
@@ -628,7 +640,7 @@ mod tests {
             ("accent", serde_json::json!("unknown")),
             ("editMode", serde_json::json!("unknown")),
             ("customAccent", serde_json::json!("#xyzxyz")),
-            ("logLevel", serde_json::json!("warning")),
+            ("logLevel", serde_json::json!("invalid")),
             ("generalFont", serde_json::json!("A\nB")),
             ("starsectorRoot", serde_json::json!("relative")),
             ("logDirectory", serde_json::json!("relative")),
@@ -651,15 +663,14 @@ mod tests {
                 .iter()
                 .any(|issue| issue.contains("/cacheLimits/mediaData/entries"))
         );
-        for (key, value) in [
-            ("customAccent", "invalid"),
-            ("logLevel", "error"),
-            ("starsectorRoot", "relative"),
-        ] {
+        for (key, value) in [("customAccent", "invalid"), ("starsectorRoot", "relative")] {
             let mut wire = defaults.clone();
             wire[key] = serde_json::json!(value);
             assert!(save_settings(&dir, &serde_json::from_value(wire).unwrap()).is_err());
         }
+        let mut wire = defaults;
+        wire["logLevel"] = serde_json::json!("invalid");
+        assert!(serde_json::from_value::<AppSettings>(wire).is_err());
         fs::remove_dir_all(dir).unwrap();
     }
 

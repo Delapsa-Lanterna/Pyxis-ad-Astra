@@ -1,3 +1,6 @@
+import { debugLog } from './app-log-queue';
+let nextCacheId = 0;
+
 export interface ResidentCacheLimits {
   entries: number;
   bytes: number;
@@ -8,7 +11,8 @@ interface Entry<T> {
   active: number;
 }
 
-export function createResidentCache<T>(limits: () => ResidentCacheLimits) {
+export function createResidentCache<T>(limits: () => ResidentCacheLimits, name = 'resident') {
+  const cacheId = String(++nextCacheId);
   const entries = new Map<string, Entry<T>>();
   const idle = new Map<string, Entry<T>>();
   let idleBytes = 0,
@@ -21,6 +25,13 @@ export function createResidentCache<T>(limits: () => ResidentCacheLimits) {
       const key = idle.keys().next().value!;
       remove(key);
       evictions++;
+      debugLog('cache.evicted', () => ({
+        cacheId,
+        kind: name,
+        reason: 'capacity',
+        remaining: String(entries.size),
+        idleBytes: String(idleBytes),
+      }));
     }
   }
   function get(key: string): T | undefined {
@@ -84,6 +95,7 @@ export function createResidentCache<T>(limits: () => ResidentCacheLimits) {
     }
   }
   function clear() {
+    debugLog('cache.cleared', () => ({ cacheId, kind: name, entries: String(entries.size) }));
     entries.clear();
     idle.clear();
     idleBytes = 0;

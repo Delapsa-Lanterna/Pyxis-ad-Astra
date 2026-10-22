@@ -15,6 +15,7 @@ import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { beginPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 export const RESOURCE_MEDIA_FLUSH_DELAY_MS = 25;
 export const mediaIdleEntryLimit = () => windowCacheLimits().mediaData.entries;
@@ -43,7 +44,7 @@ interface QueuedMedia {
   resolve(value: string | null): void;
   reject(error: unknown): void;
 }
-const retained = createResidentCache<MediaEntry>(() => ({ entries: mediaIdleEntryLimit(), bytes: mediaIdleByteLimit() }));
+const retained = createResidentCache<MediaEntry>(() => ({ entries: mediaIdleEntryLimit(), bytes: mediaIdleByteLimit() }), 'media-data');
 subscribeCacheLimits(retained);
 const working = new Map<string, MediaEntry>();
 const queued = new Map<string, QueuedMedia>();
@@ -56,11 +57,18 @@ export function mediaResourceKey(sessionId: string, resource: Pick<ResourceRef, 
 function request(entry: MediaEntry): Promise<string | null> {
   if (entry.value.value !== undefined) return Promise.resolve(entry.value.value);
   if (entry.request) return entry.request.promise;
+  debugLog('media.requested', () => ({ sessionId: entry.sessionId, source: entry.resource.source, relPath: entry.resource.relPath }));
   const ticket = createReadTicket({ sessionId: entry.sessionId, resource: entry.resource }, (signal) =>
     new Promise<string | null>((resolve, reject) => queued.set(entry.key, { entry, resolve, reject })).then((value) => {
       if (signal.aborted) throw invalidatedRead({ sessionId: entry.sessionId, resource: entry.resource }, 'project');
       requireProjectionReady(entry.sessionId);
       entry.value.value = value;
+      debugLog('media.received', () => ({
+        sessionId: entry.sessionId,
+        source: entry.resource.source,
+        relPath: entry.resource.relPath,
+        available: String(value !== null),
+      }));
       retained.put(entry.key, entry, value?.length ?? 0, entry.references);
       return value;
     }),
@@ -201,6 +209,7 @@ export function hasResourceInvalidation(event: ResourceMediaInvalidationEvent, r
   );
 }
 function invalidate(sessionId: string, invalidation: ProjectInvalidation | null) {
+  debugLog('media.invalidated', () => ({ sessionId, reason: invalidation ? 'project' : 'session' }));
   const all = new Map([...retained.keys()].map((key) => [key, retained.get(key)!]));
   for (const [key, entry] of working) all.set(key, entry);
   const scopes =

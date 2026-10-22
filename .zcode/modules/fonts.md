@@ -30,6 +30,7 @@
 
 - `src-tauri/src/models/font.rs`：原版字体身份、逐字体结果与图集页 wire 模型。
 - `src/app/composables/use-query-read-owner.ts`：字体读取消费的票据与通道释放入口。
+- `src/shared/runtime/app-log-queue.ts`：字体解码及字形缓存详细记录。
 - `src/shared/runtime/cache.ts`：字形缓存消费的容量与访问顺序原语。
 - `src/shared/types/font.types.ts`：字体身份、加载结果与图集页协议。
 - `src/test/font.ts`：自主构造的精简 FNT 与外部加载结果夹具。

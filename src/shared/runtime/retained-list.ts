@@ -1,4 +1,6 @@
 import { computed, nextTick, onScopeDispose, ref, shallowReactive, watch } from 'vue';
+import { debugLog } from './app-log-queue';
+let nextListId = 0;
 
 export interface RetainedListItem<T> {
   kind: 'item';
@@ -17,6 +19,7 @@ export function useRetainedList<T>(
   rowHeight: number,
   maxBatchSize = Infinity,
 ) {
+  const listId = String(++nextListId);
   const mounted = shallowReactive(new Map<string, RetainedListItem<T>>());
   const scrollTop = ref(0),
     viewportHeight = ref(0);
@@ -119,7 +122,9 @@ export function useRetainedList<T>(
           mounted.set(current, view);
         }
         view.index = positions.get(current) ?? -1;
-        view.hidden = view.index < 0;
+        const hidden = view.index < 0;
+        if (hidden !== view.hidden) debugLog(hidden ? 'list.item_hidden' : 'list.item_restored', () => ({ listId, key: current }));
+        view.hidden = hidden;
         const item = resolve(current);
         if (item) view.item = item;
       }
@@ -139,6 +144,7 @@ export function useRetainedList<T>(
     return !disposed && positions.get(key) === index;
   }
   function reset() {
+    debugLog('list.released', () => ({ listId, mounted: String(mounted.size) }));
     generation++;
     cancelAnimationFrame(frame);
     frame = 0;
@@ -147,6 +153,7 @@ export function useRetainedList<T>(
     queue = [];
   }
   onScopeDispose(() => {
+    debugLog('list.released', () => ({ listId, mounted: String(mounted.size) }));
     disposed = true;
     generation++;
     cancelAnimationFrame(frame);
@@ -154,5 +161,8 @@ export function useRetainedList<T>(
     active.clear();
     queue = [];
   });
+  watch([startIndex, endIndex], ([start, end]) =>
+    debugLog('list.range_changed', () => ({ listId, start: String(start), end: String(end) })),
+  );
   return { entries, activeItems, startIndex, endIndex, firstVisibleIndex, lastVisibleIndex, setViewportMetrics, ensure, reset };
 }

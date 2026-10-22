@@ -13,8 +13,13 @@ export interface AppLogEntry {
 export interface AppLogStatus {
   path: string;
   sizeBytes: number;
+  recording: 'active' | 'stopped' | 'uninitialized';
+  level: AppLogLevel;
+  lastError: string | null;
+  dropped: number;
+  pending: number;
 }
 
-export interface AppendAppLogPayload {
-  entry: AppLogEntry;
+export interface AppendAppLogsPayload {
+  entries: AppLogEntry[];
 }

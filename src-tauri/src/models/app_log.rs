@@ -43,12 +43,17 @@ pub struct AppLogEntry {
 pub struct AppLogStatus {
     pub path: String,
     pub size_bytes: u64,
+    pub recording: String,
+    pub level: AppLogLevel,
+    pub last_error: Option<String>,
+    pub dropped: u64,
+    pub pending: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AppendAppLogPayload {
-    pub entry: AppLogEntry,
+pub struct AppendAppLogsPayload {
+    pub entries: Vec<AppLogEntry>,
 }
 
 /// Frozen on-disk log file name; every writer and validator must share it.

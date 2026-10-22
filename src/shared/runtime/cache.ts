@@ -7,7 +7,11 @@
  * keeping this primitive framework-agnostic.
  */
 
+import { debugLog } from './app-log-queue';
+let nextCacheId = 0;
+
 export interface RuntimeCacheOptions<TKey> {
+  name?: string;
   capacity: number | (() => number);
   onEvict?: (key: TKey) => void;
 }
@@ -33,6 +37,7 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
 ): RuntimeCache<TKey, TValue, TPending> {
   const { capacity } = options;
   const onEvict = options.onEvict;
+  const cacheId = String(++nextCacheId);
   const cache = new Map<TKey, TValue>();
   const pending = new Map<TKey, TPending>();
 
@@ -49,6 +54,7 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
       if (oldest === undefined) return;
       cache.delete(oldest);
       onEvict?.(oldest);
+      debugLog('cache.evicted', () => ({ cacheId, kind: options.name ?? 'runtime', reason: 'capacity', remaining: String(cache.size) }));
     }
   }
 
@@ -75,7 +81,7 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
       evictOverCapacity();
     },
     delete(key) {
-      cache.delete(key);
+      if (cache.delete(key)) debugLog('cache.removed', () => ({ cacheId, kind: options.name ?? 'runtime' }));
     },
     keys() {
       return cache.keys();
@@ -93,6 +99,7 @@ export function createRuntimeCache<TKey extends string, TValue, TPending = never
       pending.delete(key);
     },
     reset() {
+      debugLog('cache.cleared', () => ({ cacheId, kind: options.name ?? 'runtime', entries: String(cache.size) }));
       cache.clear();
       pending.clear();
     },

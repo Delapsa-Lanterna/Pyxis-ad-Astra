@@ -43,6 +43,7 @@
             <button
               v-else
               v-show="!view.hidden"
+              @vue:mounted="debugLog('list.item_mounted', () => ({ kind: 'hullmods', id: view.item.id, sessionId: root.sessionId }))"
               :data-entry-id="view.item.id"
               class="variant-hullmod-row ui-button ui-control-button ui-layout-grid ui-layout-center ui-layout-stretch ui-control-reset"
               :class="{
@@ -126,6 +127,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onScopeDispose, type ComputedRef } from 'vue';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { JointEditRoot } from '@/shared/types';
 import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
 import type { HullmodCategory } from '@/domain/immersive/variant/variant-actions';

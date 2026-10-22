@@ -1,6 +1,7 @@
 import { nextTick, watch } from 'vue';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { recordLogBestEffort } from '@/services/app-log.service';
+import { appLogQueue, debugLog } from '@/shared/runtime/app-log-queue';
 import { readSettings, saveSettings } from '@/services/app-settings.service';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -33,6 +34,8 @@ function report(error: unknown) {
 function accept(snapshot: SettingsSnapshot) {
   if (paused || (official && snapshot.revision <= official.revision)) return;
   official = snapshot;
+  appLogQueue.setLevel(snapshot.value.logLevel);
+  debugLog('settings.saved', () => ({ revision: String(snapshot.revision), level: snapshot.value.logLevel }));
   receive?.(snapshot);
   updateCacheLimits(snapshot.value.cacheLimits);
 }

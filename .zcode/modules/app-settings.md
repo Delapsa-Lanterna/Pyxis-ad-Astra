@@ -108,7 +108,7 @@
 - `generalFont` 必须以 `null` 表达默认字体组合，以非空且不含控制字符的单个字体族名表达选择；默认组合必须为 Inter、Segoe UI、Microsoft YaHei 和 sans-serif，选择必须随完整快照持久化及镜像。
 - `immersiveGameFont` 必须是默认开启的布尔值，并随完整设置快照持久化和镜像；字体设置框必须声明有意的缺字问号显示。
 - `logBackupCount` 默认必须为 1，整数范围必须为 1–20；`logRotationSizeMiB` 默认必须为 5，整数范围必须为 1–1024。
-- `logLevel` 只允许 `info`（默认档，丢弃 debug 条目）或 `debug`（详细档，全量保留）；缺省视为 info。
+- `logLevel` 只允许 debug、info、warning 和 error，默认必须为 info；正式保存后必须立即更新当前进程与各窗口的记录级别。
 - `performanceMonitorEnabled` 必须是默认关闭的布尔值并随完整快照保存及镜像，正式快照必须另行交付重启前固定的 `performanceMonitorActive`。
 - `preserveOriginalJson` 必须是布尔值；缺省视为 `true`。该设置必须随完整 snapshot 持久化并镜像到子窗口，结构化 JSON 保存动作必须在开始时捕获本次使用的值。
 - `theme` 必须以 `null` 表示默认跟随系统，以 `light` 或 `dark` 表示手动选择；手动切换必须持久化明确选择，显示主题必须由选择与系统运行态派生，系统运行态严禁写入 settings snapshot。

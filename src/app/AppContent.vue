@@ -57,6 +57,7 @@ import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-clo
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useProjectStore } from '@/stores/project.store';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 const OverviewPage = defineAsyncComponent(() => import('@/app/components/OverviewPage.vue'));
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
@@ -128,6 +129,14 @@ watch(
     } else {
       saveCommand.unregisterActiveSaveHandler(saveActiveDocument);
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [workspace.currentView, workspace.jsonPage, workspace.activeModRoot, useCsvEditorStore().currentTab],
+  (identity, previous) => {
+    debugLog('page.entered', () => ({ identity: JSON.stringify(identity), previous: JSON.stringify(previous ?? []) }));
   },
   { immediate: true },
 );

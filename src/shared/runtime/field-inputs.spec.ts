@@ -1,12 +1,47 @@
 import { describe, expect, it, vi } from 'vitest';
 import { nextTick, ref } from 'vue';
 import { createFieldInputs, type FieldInput } from './field-inputs';
+import { appLogQueue } from './app-log-queue';
+import type { AppLogEntry } from '@/shared/types';
 
 function field(key: string, commit: FieldInput['commit']): FieldInput {
   return { key, label: key, dirty: ref(true), commit, focus: vi.fn(), cancel: vi.fn() };
 }
 
 describe('target field input lifecycle', () => {
+  it('records commit, rejection, cancellation and release without field values', async () => {
+    const records: AppLogEntry[] = [];
+    appLogQueue.install(async (entries) => {
+      records.push(...entries);
+    }, vi.fn());
+    appLogQueue.setLevel('debug');
+    try {
+      const inputs = createFieldInputs(ref('fixture'));
+      const good = field('good', () => null);
+      const remove = inputs.register(good);
+      await inputs.commit();
+      remove();
+      const bad = field('bad', () => 'private validation');
+      inputs.register(bad);
+      await expect(inputs.commit()).rejects.toThrow('private validation');
+      expect(bad.focus).toHaveBeenCalledOnce();
+      inputs.cancel();
+      inputs.release();
+      await appLogQueue.flush();
+      expect(records.map((record) => record.code)).toEqual([
+        'input.registered',
+        'input.committed',
+        'input.released',
+        'input.registered',
+        'input.validation_failed',
+        'input.cancelled',
+        'input.cancelled',
+      ]);
+      expect(JSON.stringify(records)).not.toContain('private validation');
+    } finally {
+      appLogQueue.setLevel('info');
+    }
+  });
   it('awaits finalizers and stops the save continuation on explicit rejection', async () => {
     const inputs = createFieldInputs(ref('one'));
     let finish!: (value: boolean) => void;

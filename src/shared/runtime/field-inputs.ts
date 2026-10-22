@@ -11,6 +11,7 @@ import {
   type Ref,
 } from 'vue';
 import { AppError } from '@/shared/lib/errors';
+import { debugLog } from './app-log-queue';
 
 export interface FieldInput {
   key: string;
@@ -32,7 +33,11 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
 
   function register(field: FieldInput) {
     fields.add(field);
-    return () => fields.delete(field);
+    debugLog('input.registered', () => ({ field: field.key }));
+    return () => {
+      debugLog('input.released', () => ({ field: field.key }));
+      return fields.delete(field);
+    };
   }
 
   function commit(prefix?: string): Promise<boolean> | undefined {
@@ -53,6 +58,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
       if (generation !== started || targetKey.value !== key) return false;
       if (!fields.has(field) || !field.dirty.value) continue;
       const error = field.commit();
+      debugLog(error === null ? 'input.committed' : 'input.validation_failed', () => ({ field: field.key }));
       if (error !== null) {
         await field.focus();
         if (generation !== started || targetKey.value !== key) return false;
@@ -69,6 +75,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
   }
 
   function cancel(prefix?: string) {
+    debugLog('input.cancelled', () => ({ prefix: prefix ?? '', target: targetKey.value ?? '' }));
     if (prefix === undefined) generation++;
     for (const field of fields) {
       if (prefix === undefined || field.key === prefix || field.key.startsWith(`${prefix}/`)) field.cancel();

@@ -2,6 +2,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { h, nextTick, ref, shallowReactive } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRetainedList } from './retained-list';
+import { appLogQueue } from './app-log-queue';
+import type { AppLogEntry } from '@/shared/types';
 interface Item {
   id: string;
   value: string;
@@ -75,6 +77,32 @@ function fixture(maxBatchSize = Infinity) {
   return { keys, records, list, scroll };
 }
 describe('retained list lifecycle', () => {
+  it('records range changes, hiding, restoration and owner release while retaining nodes', async () => {
+    const records: AppLogEntry[] = [];
+    appLogQueue.install(async (entries) => {
+      records.push(...entries);
+    }, vi.fn());
+    appLogQueue.setLevel('debug');
+    try {
+      const own = fixture();
+      own.scroll(0);
+      await flush();
+      const first = wrapper.get('[data-id="0"]').element;
+      const original = [...own.keys.value];
+      own.keys.value = ['100'];
+      await flush();
+      own.keys.value = original;
+      await flush();
+      expect(wrapper.get('[data-id="0"]').element).toBe(first);
+      wrapper.unmount();
+      await appLogQueue.flush();
+      for (const code of ['list.range_changed', 'list.item_hidden', 'list.item_restored', 'list.released'])
+        expect(records.some((record) => record.code === code)).toBe(true);
+      expect(new Set(records.map((record) => record.fields?.listId)).size).toBe(1);
+    } finally {
+      appLogQueue.setLevel('info');
+    }
+  });
   it('yields between bounded updates and completes its requested viewport', async () => {
     vi.spyOn(performance, 'now').mockImplementation(() => time);
     const own = fixture(4);

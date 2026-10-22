@@ -1,173 +1,353 @@
 use crate::{
     errors::{AppError, AppResult},
     io::{ensure_file_appendable, write_utf8_no_bom},
-    models::{AppLogEntry, AppLogStatus, AppSettings, LOG_FILE},
-    services::{app_paths, app_settings, system_open},
+    models::{AppLogEntry, AppLogLevel, AppLogStatus, AppSettings, LOG_FILE},
+    services::{app_paths, system_open},
 };
 use std::{
+    collections::BTreeMap,
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{LazyLock, Mutex},
 };
+use tauri::Emitter;
 
 static LOG_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static NATIVE_DRAIN: Mutex<()> = Mutex::new(());
+static NATIVE_QUEUE: LazyLock<Mutex<NativeQueue>> =
+    LazyLock::new(|| Mutex::new(NativeQueue::default()));
+static LOG_RUNTIME: LazyLock<Mutex<LogRuntime>> =
+    LazyLock::new(|| Mutex::new(LogRuntime::default()));
 
-pub fn append_app_log(app_handle: tauri::AppHandle, entry: AppLogEntry) -> AppResult<()> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
-    let settings = app_settings::load_settings(&app_data)?;
-    if entry.level < settings.log_level {
+#[derive(Default)]
+struct LogRuntime {
+    settings: Option<AppSettings>,
+    last_error: Option<String>,
+    losses: BTreeMap<String, u64>,
+}
+
+#[derive(Default)]
+struct NativeQueue {
+    entries: Vec<AppLogEntry>,
+    sequence: u64,
+    level: Option<AppLogLevel>,
+    stopped: bool,
+}
+
+impl LogRuntime {
+    fn write(
+        &mut self,
+        owner: &str,
+        count: usize,
+        write: impl FnOnce() -> AppResult<()>,
+    ) -> AppResult<()> {
+        let result = if self.last_error.is_some() {
+            Err(AppError::message(
+                "log.recording_stopped",
+                "日志记录已停止，请重新启动应用",
+            ))
+        } else {
+            write()
+        };
+        if let Err(cause) = &result {
+            *self.losses.entry(owner.to_string()).or_default() += count as u64;
+            self.last_error.get_or_insert_with(|| cause.to_string());
+        }
+        result
+    }
+}
+
+fn runtime() -> AppResult<std::sync::MutexGuard<'static, LogRuntime>> {
+    LOG_RUNTIME
+        .lock()
+        .map_err(|_| AppError::message("log.runtime_poisoned", "log runtime unavailable"))
+}
+
+pub fn configure_runtime(settings: &AppSettings) -> AppResult<()> {
+    let mut state = runtime()?;
+    crate::diagnostics::enable_debug(
+        settings.log_level == AppLogLevel::Debug && state.last_error.is_none(),
+    );
+    state.settings = Some(settings.clone());
+    NATIVE_QUEUE
+        .lock()
+        .expect("native queue lock is scoped to data changes")
+        .level = Some(settings.log_level);
+    Ok(())
+}
+
+pub fn stop_app_log(
+    app: &tauri::AppHandle,
+    owner: &str,
+    message: String,
+    dropped: u64,
+) -> AppResult<()> {
+    let mut state = runtime()?;
+    let count = state.losses.entry(owner.to_string()).or_default();
+    *count = (*count).max(dropped);
+    if state.last_error.is_some() {
         return Ok(());
     }
-    if settings.log_directory.is_none() {
-        fs::create_dir_all(&app_data).map_err(|error| {
-            AppError::context(
-                format!("创建日志目录失败 ({})", app_data.display()),
-                error.into(),
-            )
-            .at_path(&app_data)
-        })?;
+    state.last_error = Some(message.clone());
+    crate::diagnostics::enable_debug(false);
+    let pending = stop_native();
+    *state.losses.entry("native".to_string()).or_default() += pending;
+    drop(state);
+    app.emit("app-log-stopped", message).map_err(AppError::from)
+}
+
+pub fn append_app_log(mut entry: AppLogEntry) -> AppResult<()> {
+    let mut state = NATIVE_QUEUE
+        .lock()
+        .expect("native queue lock is scoped to data changes");
+    if entry.level < state.level.unwrap_or(AppLogLevel::Info) || state.stopped {
+        return Ok(());
     }
-    let log_directory = app_settings::log_output_directory(&app_data, &settings)?;
-    append_log(&log_directory, &entry, &settings)
+    state.sequence += 1;
+    let fields = entry.fields.get_or_insert_with(BTreeMap::new);
+    fields.insert("window".to_string(), "native".to_string());
+    fields.insert("sequence".to_string(), state.sequence.to_string());
+    fields.insert(
+        "timestamp".to_string(),
+        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    );
+    state.entries.push(entry);
+    Ok(())
 }
 
-pub fn app_log_status(app_handle: tauri::AppHandle) -> AppResult<AppLogStatus> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
-    let log_directory = configured_log_directory(&app_data)?;
-    log_status(&log_directory)
+pub fn start_native_writer(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if flush_native_logs(app.clone()).is_err() {
+                break;
+            }
+        }
+    });
 }
 
-pub fn open_app_log_file(app_handle: tauri::AppHandle) -> AppResult<()> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
-    let log_directory = configured_log_directory(&app_data)?;
-    ensure_log_file(&log_directory)?;
-    system_open::open_path(&log_path(&log_directory))
-}
-
-pub fn clear_app_log_file(app_handle: tauri::AppHandle) -> AppResult<AppLogStatus> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
-    let log_directory = configured_log_directory(&app_data)?;
-    clear_log_file(&log_directory)?;
-    log_status(&log_directory)
-}
-
-fn configured_log_directory(app_data_dir: &Path) -> AppResult<PathBuf> {
-    let settings = app_settings::load_settings(app_data_dir)?;
-    if settings.log_directory.is_none() {
-        fs::create_dir_all(app_data_dir).map_err(|error| {
-            AppError::context(
-                format!("创建日志目录失败 ({})", app_data_dir.display()),
-                error.into(),
-            )
-            .at_path(app_data_dir)
-        })?;
+pub fn flush_native_logs(app: tauri::AppHandle) -> AppResult<()> {
+    let _drain = NATIVE_DRAIN
+        .lock()
+        .expect("native drain does not execute callbacks");
+    let entries = std::mem::take(
+        &mut NATIVE_QUEUE
+            .lock()
+            .expect("native queue lock is scoped to data changes")
+            .entries,
+    );
+    if entries.is_empty() {
+        return Ok(());
     }
-    app_settings::log_output_directory(app_data_dir, &settings)
+    append_app_logs(app, "native", entries)
 }
 
-pub fn append_log(
-    app_data_dir: &Path,
-    entry: &AppLogEntry,
-    settings: &AppSettings,
+fn stop_native() -> u64 {
+    let mut queue = NATIVE_QUEUE
+        .lock()
+        .expect("native queue lock is scoped to data changes");
+    queue.stopped = true;
+    let pending = queue.entries.len() as u64;
+    queue.entries.clear();
+    pending
+}
+
+pub fn append_app_logs(
+    app: tauri::AppHandle,
+    owner: &str,
+    entries: Vec<AppLogEntry>,
 ) -> AppResult<()> {
+    let mut state = runtime()?;
+    append_with_runtime(app, owner, entries, &mut state)
+}
+
+fn append_with_runtime(
+    app: tauri::AppHandle,
+    owner: &str,
+    entries: Vec<AppLogEntry>,
+    state: &mut LogRuntime,
+) -> AppResult<()> {
+    let settings = state.settings.clone().unwrap_or_default();
+    let result = state.write(owner, entries.len(), || {
+        let app_data = app_paths::app_data_dir(app.clone())?;
+        let directory = configured_log_directory(&app_data, &settings);
+        if settings.log_directory.is_none() {
+            fs::create_dir_all(&directory).map_err(|cause| {
+                AppError::context("创建日志目录失败".to_string(), cause.into()).at_path(&directory)
+            })?;
+        }
+        append_logs(&directory, &entries, &settings)
+    });
+    if let Err(cause) = result {
+        let message = state
+            .last_error
+            .clone()
+            .expect("failed write retains its diagnostic");
+        crate::diagnostics::enable_debug(false);
+        let pending = stop_native();
+        *state.losses.entry("native".to_string()).or_default() += pending;
+        app.emit("app-log-stopped", message)
+            .map_err(AppError::from)?;
+        return Err(cause);
+    }
+    Ok(())
+}
+
+fn configured_log_directory(app_data: &Path, settings: &AppSettings) -> PathBuf {
+    settings
+        .log_directory
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| app_data.to_path_buf())
+}
+
+pub fn app_log_status(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
+    let state = runtime()?;
+    let settings = state.settings.clone().unwrap_or_default();
+    let directory = configured_log_directory(&app_paths::app_data_dir(app)?, &settings);
+    let mut status = log_status(&directory)?;
+    status.recording = if state.last_error.is_some() {
+        "stopped"
+    } else if state.settings.is_some() {
+        "active"
+    } else {
+        "uninitialized"
+    }
+    .to_string();
+    status.level = settings.log_level;
+    status.last_error = state.last_error.clone();
+    status.dropped = state.losses.values().sum();
+    status.pending = NATIVE_QUEUE
+        .lock()
+        .expect("native queue lock is scoped to data changes")
+        .entries
+        .len() as u64;
+    Ok(status)
+}
+
+pub fn open_app_log_file(app: tauri::AppHandle) -> AppResult<()> {
+    flush_native_logs(app.clone())?;
+    let status = app_log_status(app)?;
     let _guard = lock_log()?;
-    ensure_log_directory_writable(app_data_dir)?;
-    rotate_log_file(app_data_dir, settings)?;
-    let path = log_path(app_data_dir);
+    ensure_file_appendable(Path::new(&status.path))?;
+    system_open::open_path(Path::new(&status.path))
+}
+
+pub fn clear_app_log_file(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
+    let _ = flush_native_logs(app.clone());
+    let status = app_log_status(app.clone())?;
+    clear_log_file(
+        Path::new(&status.path)
+            .parent()
+            .expect("log path has its configured directory"),
+    )?;
+    app_log_status(app)
+}
+
+#[cfg(test)]
+pub fn append_log(directory: &Path, entry: &AppLogEntry, settings: &AppSettings) -> AppResult<()> {
+    append_logs(directory, std::slice::from_ref(entry), settings)
+}
+
+fn append_logs(directory: &Path, entries: &[AppLogEntry], settings: &AppSettings) -> AppResult<()> {
+    let _guard = lock_log()?;
+    if !directory.is_dir() {
+        return Err(AppError::message(
+            "log.dir_unavailable",
+            format!("日志目录不可用 ({})", directory.display()),
+        )
+        .at_path(directory));
+    }
+    rotate_log_file(directory, settings)?;
+    let path = log_path(directory);
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(&path)
-        .map_err(|error| {
-            AppError::context(
-                format!("打开日志文件失败 ({})", path.display()),
-                error.into(),
-            )
-            .at_path(&path)
+        .map_err(|cause| {
+            AppError::context("打开日志文件失败".to_string(), cause.into()).at_path(&path)
         })?;
-    file.write_all(render_log_entry(entry).as_bytes())
-        .map_err(|error| {
-            AppError::context(
-                format!("写入日志文件失败 ({})", path.display()),
-                error.into(),
-            )
-            .at_path(&path)
-        })?;
+    let text: String = entries.iter().map(render_log_entry).collect();
+    file.write_all(text.as_bytes()).map_err(|cause| {
+        AppError::context("写入日志文件失败".to_string(), cause.into()).at_path(&path)
+    })?;
     Ok(())
 }
 
-pub fn log_status(app_data_dir: &Path) -> AppResult<AppLogStatus> {
-    let path = log_path(app_data_dir);
+pub fn log_status(directory: &Path) -> AppResult<AppLogStatus> {
+    let path = log_path(directory);
     let size_bytes = match fs::metadata(&path) {
         Ok(metadata) => metadata.len(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
-        Err(error) => {
-            return Err(AppError::context(
-                format!("读取日志文件状态失败 ({})", path.display()),
-                error.into(),
-            )
-            .at_path(&path));
+        Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(cause) => {
+            return Err(
+                AppError::context("读取日志文件状态失败".to_string(), cause.into()).at_path(&path),
+            );
         }
     };
     Ok(AppLogStatus {
         path: path.to_string_lossy().to_string(),
         size_bytes,
+        recording: "uninitialized".to_string(),
+        level: AppLogLevel::Info,
+        last_error: None,
+        dropped: 0,
+        pending: 0,
     })
 }
 
-pub fn clear_log_file(app_data_dir: &Path) -> AppResult<()> {
+pub fn clear_log_file(directory: &Path) -> AppResult<()> {
     let _guard = lock_log()?;
-    ensure_log_directory_writable(app_data_dir)?;
-    let path = log_path(app_data_dir);
-    write_utf8_no_bom(&path, "").map_err(|error| {
-        AppError::context(format!("清除日志文件失败 ({})", path.display()), error).at_path(&path)
-    })?;
-    Ok(())
-}
-
-pub fn log_path(app_data_dir: &Path) -> PathBuf {
-    app_data_dir.join(LOG_FILE)
-}
-
-fn ensure_log_file(app_data_dir: &Path) -> AppResult<()> {
-    ensure_log_directory_writable(app_data_dir)
-}
-
-fn ensure_log_directory_writable(app_data_dir: &Path) -> AppResult<()> {
-    if !app_data_dir.is_dir() {
+    if !directory.is_dir() {
         return Err(AppError::message(
             "log.dir_unavailable",
-            format!("日志目录不可用 ({})", app_data_dir.display()),
+            format!("日志目录不可用 ({})", directory.display()),
         )
-        .at_path(app_data_dir));
+        .at_path(directory));
     }
-    ensure_file_appendable(&log_path(app_data_dir))
+    let path = log_path(directory);
+    write_utf8_no_bom(&path, "")
+        .map_err(|cause| AppError::context("清除日志文件失败".to_string(), cause).at_path(&path))
+}
+
+pub fn log_path(directory: &Path) -> PathBuf {
+    directory.join(LOG_FILE)
 }
 
 fn render_log_entry(entry: &AppLogEntry) -> String {
-    let mut line = format!("[{}] [{}]", local_timestamp(), entry.level.as_str());
+    let timestamp = entry
+        .fields
+        .as_ref()
+        .and_then(|fields| fields.get("timestamp"))
+        .cloned()
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+    let mut line = format!(
+        "[{}] [{}]",
+        sanitize_log_value(&timestamp),
+        entry.level.as_str()
+    );
     if let Some(code) = &entry.code {
-        line.push_str(&format!(" [{code}]"));
+        line.push_str(&format!(" [{}]", sanitize_log_value(code)));
     }
     if let Some(message) = &entry.message {
-        line.push(' ');
-        line.push_str(message);
+        line.push_str(&format!(" {}", sanitize_log_value(message)));
     }
     if let Some(path) = &entry.path {
-        line.push_str(" | path=");
-        line.push_str(path);
+        line.push_str(&format!(" | path={}", sanitize_log_value(path)));
     }
-    if let Some(line_number) = entry.line {
-        line.push_str(" | line=");
-        line.push_str(&line_number.to_string());
+    if let Some(number) = entry.line {
+        line.push_str(&format!(" | line={number}"));
     }
     if let Some(fields) = &entry.fields {
         for (key, value) in fields {
-            line.push(' ');
-            line.push_str(key);
-            line.push('=');
-            line.push_str(&sanitize_log_value(value));
+            if key != "timestamp" {
+                line.push_str(&format!(
+                    " {}={}",
+                    sanitize_log_value(key),
+                    sanitize_log_value(value)
+                ));
+            }
         }
     }
     line.push_str("\r\n");
@@ -176,12 +356,6 @@ fn render_log_entry(entry: &AppLogEntry) -> String {
 
 fn sanitize_log_value(value: &str) -> String {
     value.replace(['\r', '\n', '\t'], " ").trim().to_string()
-}
-
-fn local_timestamp() -> String {
-    chrono::Local::now()
-        .format("%Y-%m-%d %H:%M:%S%.3f")
-        .to_string()
 }
 
 fn lock_log() -> AppResult<std::sync::MutexGuard<'static, ()>> {
@@ -270,6 +444,124 @@ mod tests {
             line: None,
             fields: None,
         }
+    }
+
+    #[test]
+    #[ignore = "explicit log file writing measurement"]
+    fn measure_log_batch_writes() {
+        fn single(directory: &Path, item: &AppLogEntry, settings: &AppSettings) {
+            let _guard = lock_log().unwrap();
+            crate::io::ensure_file_appendable(&log_path(directory)).unwrap();
+            rotate_log_file(directory, settings).unwrap();
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_path(directory))
+                .unwrap()
+                .write_all(render_log_entry(item).as_bytes())
+                .unwrap();
+        }
+        fn summary(mut values: Vec<f64>) -> serde_json::Value {
+            values.sort_by(f64::total_cmp);
+            let n = values.len();
+            serde_json::json!({ "n": n, "min": values[0], "max": values[n-1], "mean": values.iter().sum::<f64>() / n as f64,
+                "median": (values[(n-1)/2] + values[n/2]) / 2.0, "p95": values[(n as f64 * 0.95).ceil() as usize - 1] })
+        }
+        let dir = temp_dir("log_writer_measurement");
+        let entries = vec![entry("fixture event"); 1000];
+        let settings = AppSettings::default();
+        let mut original = Vec::new();
+        let mut batch = Vec::new();
+        for round in 0..30 {
+            for mode in if round % 2 == 0 { [0, 1] } else { [1, 0] } {
+                clear_log_file(&dir).unwrap();
+                let start = std::time::Instant::now();
+                if mode == 0 {
+                    for item in &entries {
+                        single(&dir, item, &settings);
+                    }
+                } else {
+                    for items in entries.chunks(64) {
+                        append_logs(&dir, items, &settings).unwrap();
+                    }
+                }
+                let ms = start.elapsed().as_secs_f64() * 1000.0;
+                if mode == 0 {
+                    original.push(ms);
+                } else {
+                    batch.push(ms);
+                }
+                assert_eq!(
+                    read_utf8_no_bom(&log_path(&dir)).unwrap().lines().count(),
+                    1000
+                );
+            }
+        }
+        println!(
+            "LOG_WRITE_MEASUREMENT {}",
+            serde_json::json!({ "records": 1000, "single": summary(original), "batch64": summary(batch) })
+        );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_failed_writer_stops_subsequent_windows_until_a_new_runtime() {
+        let dir = temp_dir("log_runtime_stop");
+        let mut state = LogRuntime::default();
+        let records = vec![entry("first"), entry("second")];
+        state
+            .write("window-a", records.len(), || {
+                append_logs(&dir.join("unavailable"), &records, &AppSettings::default())
+            })
+            .unwrap_err();
+        assert!(state.last_error.as_ref().unwrap().contains("不可用"));
+        state.settings = Some(AppSettings {
+            log_level: AppLogLevel::Debug,
+            ..AppSettings::default()
+        });
+        let mut executed = false;
+        state
+            .write("window-b", 3, || {
+                executed = true;
+                Ok(())
+            })
+            .unwrap_err();
+        assert!(!executed);
+        assert_eq!(state.losses.values().sum::<u64>(), 5);
+        let mut fresh = LogRuntime::default();
+        fresh
+            .write("window-a", records.len(), || {
+                append_logs(&dir, &records, &AppSettings::default())
+            })
+            .unwrap();
+        assert!(fresh.last_error.is_none());
+        assert_eq!(
+            read_utf8_no_bom(&log_path(&dir)).unwrap().lines().count(),
+            2
+        );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn batch_output_preserves_event_time_order_and_single_line_records() {
+        let dir = temp_dir("log_batch_events");
+        let mut first = entry("first\nmessage");
+        first.code = Some("fixture\r\ncode".to_string());
+        first.path = Some("fixture\tpath".to_string());
+        first.fields = Some(BTreeMap::from([
+            (
+                "timestamp".to_string(),
+                "2024-01-01T00:00:00.000Z".to_string(),
+            ),
+            ("sequence".to_string(), "1".to_string()),
+            ("window".to_string(), "fixture".to_string()),
+        ]));
+        append_logs(&dir, &[first, entry("second")], &AppSettings::default()).unwrap();
+        let text = read_utf8_no_bom(&log_path(&dir)).unwrap();
+        assert_eq!(text.lines().count(), 2);
+        assert!(text.starts_with("[2024-01-01T00:00:00.000Z] [info] [fixture  code] first message | path=fixture path sequence=1 window=fixture"));
+        assert!(text.lines().nth(1).unwrap().contains("second"));
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

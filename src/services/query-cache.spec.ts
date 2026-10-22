@@ -10,12 +10,52 @@ import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/settings';
 import type { DeepReadonly, ProjectInvalidation } from '@/shared/types';
 import { installPerformanceMonitor, type PerformanceSample } from '@/shared/runtime/performance';
+import { appLogQueue } from '@/shared/runtime/app-log-queue';
+import type { AppLogEntry } from '@/shared/types';
 
 const changed: ProjectInvalidation = { paths: ['changed'], tables: [], entities: [], resources: [], queryScopes: [], session: false };
 const createReader = (load: () => Promise<Array<{ name: string }>>) =>
   createCachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
 
 describe('session query ownership', () => {
+  it('logs query loading, sharing, cache hits and invalidation without request or response bodies', async () => {
+    const records: AppLogEntry[] = [];
+    appLogQueue.install(async (entries) => {
+      records.push(...entries);
+    }, vi.fn());
+    appLogQueue.setLevel('debug');
+    let finish!: (value: Array<{ name: string }>) => void;
+    const read = createReader(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    try {
+      const first = read('debug-query', { id: 'private request' });
+      const second = read('debug-query', { id: 'private request' });
+      finish([{ name: 'private response' }]);
+      await Promise.all([first, second]);
+      await read('debug-query', { id: 'private request' });
+      const pending = read('debug-query', { id: 'other private request' });
+      const ended = expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
+      invalidateQueryCacheForSession('debug-query');
+      await ended;
+      finish([]);
+      await appLogQueue.flush();
+      expect(records.filter((entry) => entry.code === 'query.completed').map((entry) => entry.fields?.cache)).toEqual([
+        'load',
+        'shared',
+        'hit',
+      ]);
+      expect(records.some((entry) => entry.code === 'query.invalidated')).toBe(true);
+      expect(records.some((entry) => entry.code === 'query.late_result')).toBe(true);
+      expect(JSON.stringify(records)).not.toContain('private');
+    } finally {
+      appLogQueue.setLevel('info');
+      invalidateQueryCacheForSession('debug-query');
+    }
+  });
   it('automatically records loading, sharing, cache hits, failures and invalidation', async () => {
     const samples: PerformanceSample[] = [];
     const stop = installPerformanceMonitor((sample) => samples.push(sample));
