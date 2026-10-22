@@ -246,14 +246,36 @@
           }}{{ monitorStatus && monitorStatus.enabled !== settings.performanceMonitorEnabled ? '（重启后应用新设置）' : '' }}</span
         ></FieldRow
       >
+      <FieldRow label="详细录制时长">
+        <n-input-number
+          v-model:value="traceSeconds"
+          size="small"
+          :min="1"
+          :max="60"
+          :step="1"
+          :disabled="!monitorStatus?.enabled || !monitorStatus.traceAvailable || traceBusy"
+        />
+        <template #hint><FieldHints description="秒；默认 15 秒，范围 1–60 秒。" /></template>
+      </FieldRow>
       <div class="action-group">
         <n-button size="small" @click="monitorAction('status')">刷新状态</n-button>
-        <n-button size="small" :disabled="!monitorStatus?.enabled" @click="monitorAction('reset')">重新采集</n-button>
-        <n-button size="small" :disabled="!monitorStatus?.enabled" @click="monitorAction('export')">导出报告</n-button>
+        <n-button size="small" :disabled="!monitorStatus?.enabled || traceBusy" @click="monitorAction('reset')">重新采集</n-button>
+        <n-button size="small" :disabled="!monitorStatus?.enabled || traceBusy" @click="monitorAction('export')">导出报告</n-button>
+        <n-button
+          size="small"
+          :disabled="!monitorStatus?.enabled || !monitorStatus.traceAvailable || traceBusy"
+          @click="monitorAction('traceStart')"
+          >开始录制</n-button
+        >
+        <n-button size="small" :disabled="monitorStatus?.traceState !== 'recording'" @click="monitorAction('traceStop')">结束录制</n-button>
       </div>
       <FieldHints
-        :description="monitorStatus ? `记录 ${monitorStatus.records} 条，覆盖 ${monitorStatus.overwritten} 条。${monitorStatus.path}` : ''"
-        :warning="performanceMonitorError"
+        :description="
+          monitorStatus
+            ? `记录 ${monitorStatus.records} 条，覆盖 ${monitorStatus.overwritten} 条。${monitorStatus.path} 详细录制：${monitorStatus.traceState}`
+            : ''
+        "
+        :warning="performanceMonitorError || monitorStatus?.traceError"
       />
     </section>
   </div>
@@ -262,7 +284,7 @@
 <script setup lang="ts">
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import FieldHints from '@/shared/ui/FieldHints.vue';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import type { JsonValue, LogLevel } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';
 import { MAX_HISTORY_LIMIT, MAX_LOG_ROTATION_SIZE_MIB, MAX_LOG_BACKUP_COUNT } from '@/domain/settings/rules';
@@ -339,8 +361,10 @@ const {
   confirmClearLog,
   monitorStatus,
   monitorAction,
+  traceSeconds,
   performanceMonitorError,
 } = useSettingsViewModel(props.closeWorkspace);
+const traceBusy = computed(() => ['starting', 'recording', 'finishing'].includes(monitorStatus.value?.traceState ?? ''));
 
 onMounted(() => {
   void loadSystemFonts();

@@ -55,6 +55,40 @@ describe('window performance collection', () => {
     expect(api.deliver).not.toHaveBeenCalled();
     app.unmount();
   });
+  it('records numeric long-frame phases without script source details when supported', async () => {
+    (PerformanceObserver as unknown as { supportedEntryTypes: string[] }).supportedEntryTypes.push('long-animation-frame');
+    boot();
+    expect(observe).toHaveBeenCalledWith({ type: 'long-animation-frame', buffered: true });
+    callback(
+      {
+        getEntries: () => [
+          {
+            name: 'long-animation-frame',
+            entryType: 'long-animation-frame',
+            startTime: 3,
+            duration: 78,
+            blockingDuration: 48,
+            renderStart: 20,
+            styleAndLayoutStart: 30,
+            scripts: [{ duration: 25, forcedStyleAndLayoutDuration: 5, sourceURL: 'private.js' }],
+          },
+        ],
+      } as unknown as PerformanceObserverEntryList,
+      {} as PerformanceObserver,
+    );
+    await flushPerformanceMonitor();
+    const sample = (api.deliver.mock.calls[0]![0] as PerformanceBatch).samples[0]!;
+    expect(sample.fields).toEqual({
+      blockingDuration: 48,
+      renderStart: 20,
+      styleAndLayoutStart: 30,
+    });
+    expect(JSON.stringify(sample)).not.toContain('private.js');
+  });
+  it('does not observe long animation frames when the browser does not support them', () => {
+    boot();
+    expect(observe).not.toHaveBeenCalledWith({ type: 'long-animation-frame', buffered: true });
+  });
   it('automatically records synchronous, asynchronous and failing actions', async () => {
     const { pinia } = boot();
     const store = defineStore('automatic', {

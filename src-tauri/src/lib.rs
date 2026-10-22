@@ -201,6 +201,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
+                services::performance_monitor::shutdown();
                 diagnostics::info("app.exited", concat!("version=", env!("CARGO_PKG_VERSION")));
                 let _ = services::app_log::flush_native_logs(app.clone());
             }

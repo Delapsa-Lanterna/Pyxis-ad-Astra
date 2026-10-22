@@ -10,6 +10,11 @@ import { deliverPerformanceBatch, performanceMonitorReport } from '@/services/pe
 import { errorMessageOf } from '@/shared/lib/errors';
 
 export const performanceMonitorError = shallowRef('');
+interface LongAnimationFrame extends PerformanceEntry {
+  blockingDuration: number;
+  renderStart: number;
+  styleAndLayoutStart: number;
+}
 export function retainPerformanceMonitorError(error: unknown): void {
   performanceMonitorError.value = errorMessageOf(error);
 }
@@ -51,20 +56,30 @@ export function startPerformanceMonitor(pinia: Pinia, enabled: boolean): (() => 
     );
   });
   const observer = new PerformanceObserver((list) => {
-    for (const entry of list.getEntries())
+    for (const entry of list.getEntries()) {
+      const isLongFrame = entry.entryType === 'long-animation-frame',
+        frame = isLongFrame ? (entry as LongAnimationFrame) : null;
       samples.push({
         name: entry.name,
         category: entry.entryType,
         startedAt: performance.timeOrigin + entry.startTime,
         duration: entry.duration,
-        fields: {},
+        fields: frame
+          ? {
+              blockingDuration: frame.blockingDuration,
+              renderStart: frame.renderStart,
+              styleAndLayoutStart: frame.styleAndLayoutStart,
+            }
+          : {},
       });
+    }
     if (samples.length > 2048) {
       overwritten += samples.length - 2048;
       samples = samples.slice(-2048);
     }
   });
-  for (const type of ['event', 'longtask']) if (environment.supported.includes(type)) observer.observe({ type, buffered: true });
+  for (const type of ['event', 'longtask', 'long-animation-frame'])
+    if (environment.supported.includes(type)) observer.observe({ type, buffered: true });
   flush = () => {
     if (pending) return pending;
     pending = (async () => {
@@ -111,7 +126,7 @@ export function startPerformanceMonitor(pinia: Pinia, enabled: boolean): (() => 
   return release;
 }
 
-export async function controlPerformanceMonitor(action: 'status' | 'reset' | 'export') {
+export async function controlPerformanceMonitor(action: 'status' | 'reset' | 'export' | 'traceStart' | 'traceStop', traceSeconds?: number) {
   await flushPerformanceMonitor();
-  return performanceMonitorReport(action);
+  return performanceMonitorReport(action, traceSeconds);
 }

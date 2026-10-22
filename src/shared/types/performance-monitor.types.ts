@@ -11,4 +11,9 @@ export interface PerformanceMonitorStatus {
   overwritten: number;
   startedAt: number;
   path: string;
+  traceAvailable: boolean;
+  traceState: 'idle' | 'starting' | 'recording' | 'finishing' | 'ready' | 'failed';
+  traceSeconds: number;
+  traceStartedAt: number;
+  traceError: string;
 }

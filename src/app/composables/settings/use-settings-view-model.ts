@@ -24,10 +24,20 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const configActions = useAppConfigActions(closeWorkspace, useWindowLifecycleActions());
   const reads = useQueryReadOwner();
   const monitorStatus = ref<PerformanceMonitorStatus | null>(null);
-  async function monitorAction(action: 'status' | 'reset' | 'export') {
-    await reads.consume('monitor', { action }, () => controlPerformanceMonitor(action), {
+  const traceSeconds = ref(15);
+  let traceRefresh: ReturnType<typeof setTimeout> | undefined;
+  async function monitorAction(action: 'status' | 'reset' | 'export' | 'traceStart' | 'traceStop') {
+    await reads.consume('monitor', { action }, () => controlPerformanceMonitor(action, traceSeconds.value), {
       ready: (status) => {
         monitorStatus.value = status;
+        clearTimeout(traceRefresh);
+        if (active && ['starting', 'finishing'].includes(status.traceState))
+          traceRefresh = setTimeout(() => void monitorAction('status'), 300);
+        if (active && status.traceState === 'recording')
+          traceRefresh = setTimeout(
+            () => void monitorAction('status'),
+            Math.max(250, status.traceStartedAt + status.traceSeconds * 1000 - Date.now() + 200),
+          );
       },
       error: (error) => feedback.error(error, '性能监视操作失败'),
     });
@@ -35,6 +45,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   let active = true;
   onScopeDispose(() => {
     active = false;
+    clearTimeout(traceRefresh);
   });
   const systemFonts = ref<string[]>([]);
   const fontsLoading = ref(false);
@@ -134,6 +145,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
     applicationLogError,
     monitorStatus,
     monitorAction,
+    traceSeconds,
     performanceMonitorError,
     fontOptions,
     fontsLoading,

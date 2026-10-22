@@ -12,8 +12,20 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
   useSettingsViewModel: () => ({
     logStatus: ref({ recording: 'stopped', level: 'warning', pending: 0, dropped: 7, lastError: 'fixture write error' }),
     applicationLogError: ref(''),
-    monitorStatus: ref({ enabled: false, records: 0, overwritten: 0, startedAt: 0, path: '' }),
+    monitorStatus: ref({
+      enabled: false,
+      records: 0,
+      overwritten: 0,
+      startedAt: 0,
+      path: '',
+      traceAvailable: true,
+      traceState: 'idle',
+      traceSeconds: 15,
+      traceStartedAt: 0,
+      traceError: '',
+    }),
     monitorAction: vi.fn(),
+    traceSeconds: ref(15),
     performanceMonitorError: ref(''),
     formattedLogSize: ref('0 B'),
     fontOptions: ref([
@@ -81,6 +93,15 @@ describe('settings limit controls', () => {
     const monitor = sections.at(-1)!;
     expect(monitor.get('h3').text()).toBe('性能调试');
     expect(sections.at(-2)!.text()).toContain('日志级别');
+    const traceDuration = monitor.findComponent(nInputNumber);
+    expect(traceDuration.props()).toMatchObject({ min: 1, max: 60, step: 1, value: 15 });
+    expect(monitor.findAll('.action-group button').map((button) => button.text())).toEqual([
+      '刷新状态',
+      '重新采集',
+      '导出报告',
+      '开始录制',
+      '结束录制',
+    ]);
     expect(useSettingsStore().performanceMonitorEnabled).toBe(false);
     expect(monitor.text()).toContain('修改后重启应用生效');
     expect(monitor.text()).toContain('已关闭');
