@@ -1,8 +1,8 @@
 use crate::{
     errors::{AppError, AppResult},
-    io::{ensure_file_appendable, write_utf8_no_bom},
+    io::write_utf8_no_bom,
     models::{AppLogEntry, AppLogLevel, AppLogStatus, AppSettings, LOG_FILE},
-    services::{app_paths, system_open},
+    services::app_paths,
 };
 use std::{
     collections::BTreeMap,
@@ -224,14 +224,6 @@ pub fn app_log_status(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
         .entries
         .len() as u64;
     Ok(status)
-}
-
-pub fn open_app_log_file(app: tauri::AppHandle) -> AppResult<()> {
-    flush_native_logs(app.clone())?;
-    let status = app_log_status(app)?;
-    let _guard = lock_log()?;
-    ensure_file_appendable(Path::new(&status.path))?;
-    system_open::open_path(Path::new(&status.path))
 }
 
 pub fn clear_app_log_file(app: tauri::AppHandle) -> AppResult<AppLogStatus> {

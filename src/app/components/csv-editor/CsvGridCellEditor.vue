@@ -68,7 +68,6 @@
           :values="pickerValues"
           @cancel="cancelAndClose"
           @commit="handlePickerCommit"
-          @pending-custom="customDirty = $event"
           @update="handlePickerUpdate"
       /></Teleport>
     </template>
@@ -123,9 +122,8 @@ const pickerAnchor = shallowRef<CsvFloatingAnchor | null>(props.initialAnchor ??
 
 const raw = ref(cell(props.row.data[props.column.key]));
 const baseline = ref(raw.value);
-const customDirty = ref(false);
 const pickerRef = ref<InstanceType<typeof CsvCellPicker> | null>(null);
-const dirty = computed(() => raw.value !== baseline.value || customDirty.value);
+const dirty = computed(() => raw.value !== baseline.value);
 const inputKey = ref(0);
 
 const rawValue = computed(() => cell(props.row.data[props.column.key]));
@@ -168,7 +166,6 @@ watch(
     if (!sameInput) {
       raw.value = cell(props.row.data[props.column.key]);
       baseline.value = raw.value;
-      customDirty.value = false;
       inputKey.value++;
     }
   },
@@ -227,7 +224,6 @@ function update(value: string) {
 }
 
 function commit(): string | null {
-  if (pickerRef.value) handlePickerUpdate(pickerRef.value.captureValues());
   commitValue();
   return null;
 }
@@ -266,8 +262,7 @@ function handlePickerCommit(values: string[]) {
 function cancel() {
   raw.value = rawValue.value;
   baseline.value = raw.value;
-  customDirty.value = false;
-  pickerRef.value?.cancelCustom();
+  pickerRef.value?.reset();
 }
 
 async function focus() {

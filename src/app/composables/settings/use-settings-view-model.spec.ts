@@ -17,16 +17,9 @@ const mocks = vi.hoisted(() => ({
   saveLogDirectory: vi.fn(async () => {}),
   loadLogStatus: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   openConfigFolder: vi.fn(async () => {}),
-  openLogFile: vi.fn(async () => {}),
-  clearConfig: vi.fn(async () => {}),
+  resetSettings: vi.fn(async () => {}),
   clearLog: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
-  reloadCurrentWindow: vi.fn(async () => {}),
   querySystemFonts: vi.fn(async () => ['Arial', 'Microsoft YaHei']),
-  closeWorkspace: vi.fn(async () => true),
-}));
-
-vi.mock('@/app/composables/use-window-close-state', () => ({
-  useWindowLifecycleActions: () => ({ clearConfig: mocks.clearConfig, reload: mocks.reloadCurrentWindow }),
 }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
@@ -39,22 +32,15 @@ vi.mock('@/shared/runtime/dialog.runtime', () => ({
 
 vi.mock('@/services/app-log.service', () => ({
   loadLogStatus: mocks.loadLogStatus,
-  openConfigFolder: mocks.openConfigFolder,
-  openLogFile: mocks.openLogFile,
-  clearConfig: mocks.clearConfig,
   clearLog: mocks.clearLog,
 }));
 
-vi.mock('@/services/app-config.service', () => ({ openConfigFolder: mocks.openConfigFolder, clearConfig: mocks.clearConfig }));
+vi.mock('@/services/app-config.service', () => ({ openConfigFolder: mocks.openConfigFolder }));
 vi.mock('@/services/app-settings.service', () => ({ querySystemFonts: mocks.querySystemFonts }));
 
 vi.mock('@/orchestrators/settings-persistence.orchestrator', () => ({
   saveLogDirectory: mocks.saveLogDirectory,
-  withSettingsReset: (action: () => Promise<void>) => action(),
-}));
-
-vi.mock('@/windows/current.window', () => ({
-  reloadCurrentWindow: mocks.reloadCurrentWindow,
+  resetSettings: mocks.resetSettings,
 }));
 
 import { useSettingsViewModel } from './use-settings-view-model';
@@ -70,7 +56,7 @@ describe('useSettingsViewModel', () => {
 
   it('loads installed families while retaining the default combination', async () => {
     const scope = effectScope();
-    const viewModel = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
+    const viewModel = scope.run(() => useSettingsViewModel())!;
     const loading = viewModel.loadSystemFonts();
     expect(viewModel.fontsLoading.value).toBe(true);
     await loading;
@@ -94,7 +80,7 @@ describe('useSettingsViewModel', () => {
         }),
     );
     const scope = effectScope();
-    const viewModel = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
+    const viewModel = scope.run(() => useSettingsViewModel())!;
     const loading = viewModel.loadSystemFonts();
     scope.stop();
     if (result === 'success') resolve(['Arial']);
@@ -107,7 +93,7 @@ describe('useSettingsViewModel', () => {
   it('reports enumeration failures and finishes loading', async () => {
     mocks.querySystemFonts.mockRejectedValueOnce(new Error('enumeration failed'));
     const scope = effectScope();
-    const viewModel = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
+    const viewModel = scope.run(() => useSettingsViewModel())!;
     await viewModel.loadSystemFonts();
     expect(viewModel.fontsLoading.value).toBe(false);
     expect(mocks.feedback.error).toHaveBeenCalledWith(expect.any(Error), '读取系统字体失败');
@@ -115,7 +101,7 @@ describe('useSettingsViewModel', () => {
   });
 
   it('formats log sizes in bytes, kilobytes and megabytes', async () => {
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     mocks.loadLogStatus.mockResolvedValue({ path: 'C:/log/app.log', sizeBytes: 512 });
     await viewModel.refreshLogStatus();
     expect(viewModel.formattedLogSize.value).toBe('512 B');
@@ -130,7 +116,7 @@ describe('useSettingsViewModel', () => {
   });
 
   it('hints about the log path once a status is loaded', async () => {
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     expect(viewModel.logPathHint.value).toContain('尚未创建');
     mocks.loadLogStatus.mockResolvedValue({ path: 'C:/log/app.log', sizeBytes: 10 });
     await viewModel.refreshLogStatus();
@@ -139,21 +125,21 @@ describe('useSettingsViewModel', () => {
 
   it('stores a picked starsector root in the settings store', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue('D:/games/starsector');
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     await viewModel.pickStarsectorRoot();
     expect(useSettingsStore().starsectorRoot).toBe('D:/games/starsector');
   });
 
   it('ignores a cancelled starsector directory pick', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue(null);
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     await viewModel.pickStarsectorRoot();
     expect(useSettingsStore().starsectorRoot).toBeNull();
   });
   it('persists a picked log directory and refreshes the status', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue('C:/custom-log');
     mocks.loadLogStatus.mockResolvedValue({ path: 'C:/custom-log/app.log', sizeBytes: 0 });
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     await viewModel.pickLogDirectory();
     expect(mocks.saveLogDirectory).toHaveBeenCalledWith('C:/custom-log');
     expect(mocks.feedback.success).toHaveBeenCalledWith('日志输出目录已更新');
@@ -163,7 +149,7 @@ describe('useSettingsViewModel', () => {
   it('reports log directory save failures', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue('C:/custom-log');
     mocks.saveLogDirectory.mockRejectedValue(new Error('denied'));
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     await viewModel.pickLogDirectory();
     expect(mocks.feedback.error).toHaveBeenCalledTimes(1);
   });
@@ -172,59 +158,58 @@ describe('useSettingsViewModel', () => {
     mocks.pickDirectoryDialog.mockResolvedValue(null);
     mocks.loadLogStatus.mockResolvedValue({ path: 'C:/log/app.log', sizeBytes: 0 });
     mocks.saveLogDirectory.mockResolvedValue(createSettingsFixture() as never);
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     await viewModel.restoreDefaultLogDirectory();
     expect(mocks.saveLogDirectory).toHaveBeenCalledWith(null);
     expect(mocks.feedback.success).toHaveBeenCalledWith('日志输出目录已恢复默认位置');
   });
 
-  it('clears config files behind a danger confirmation and reloads', async () => {
-    let finish!: (closed: boolean) => void;
-    mocks.closeWorkspace.mockImplementationOnce(
+  it('confirms a settings reset and reports completion after leaving the page', async () => {
+    const onReset = vi.fn();
+    let finish!: () => void;
+    mocks.resetSettings.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;
         }),
     );
     const scope = effectScope();
-    const viewModel = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
-    viewModel.confirmClearConfig();
+    const viewModel = scope.run(() => useSettingsViewModel(onReset))!;
+    viewModel.confirmResetSettings();
     expect(mocks.feedback.confirmDanger).toHaveBeenCalledTimes(1);
-    expect(mocks.closeWorkspace).not.toHaveBeenCalled();
-    const clearing = mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
-    expect(mocks.clearConfig).not.toHaveBeenCalled();
-    expect(mocks.reloadCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.resetSettings).not.toHaveBeenCalled();
+    const resetting = mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
     scope.stop();
-    finish(true);
-    await clearing;
-    expect(mocks.clearConfig).toHaveBeenCalledTimes(1);
-    expect(mocks.feedback.success).toHaveBeenCalledWith('配置文件已清空');
-    expect(mocks.reloadCurrentWindow).toHaveBeenCalledTimes(1);
-    expect(mocks.closeWorkspace.mock.invocationCallOrder[0]).toBeLessThan(mocks.clearConfig.mock.invocationCallOrder[0]!);
-    expect(mocks.clearConfig.mock.invocationCallOrder[0]).toBeLessThan(mocks.reloadCurrentWindow.mock.invocationCallOrder[0]!);
+    finish();
+    await resetting;
+    expect(mocks.resetSettings).toHaveBeenCalledOnce();
+    expect(mocks.feedback.success).toHaveBeenCalledWith('已重置为默认配置');
+    expect(onReset).not.toHaveBeenCalled();
+    expect(mocks.loadLogStatus).not.toHaveBeenCalled();
   });
-  it('ends config clearing when workspace or child-window closing is cancelled', async () => {
-    mocks.closeWorkspace.mockResolvedValueOnce(false);
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
-    viewModel.confirmClearConfig();
+  it('refreshes the log location after resetting settings', async () => {
+    const scope = effectScope();
+    const viewModel = scope.run(() => useSettingsViewModel())!;
+    viewModel.confirmResetSettings();
     await mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
-    expect(mocks.clearConfig).not.toHaveBeenCalled();
-    expect(mocks.reloadCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.resetSettings).toHaveBeenCalledOnce();
+    expect(viewModel.logPathHint.value).toBe('Log 文件: C:/log/app.log');
+    scope.stop();
+  });
+  it('reports a settings reset failure', async () => {
+    mocks.resetSettings.mockRejectedValueOnce(new Error('configuration is locked'));
+    const scope = effectScope();
+    const viewModel = scope.run(() => useSettingsViewModel())!;
+    viewModel.confirmResetSettings();
+    await mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
+    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '重置配置失败');
     expect(mocks.feedback.success).not.toHaveBeenCalled();
-  });
-  it('reports a clear failure after closing and keeps the window available', async () => {
-    mocks.clearConfig.mockRejectedValueOnce(new Error('configuration is locked'));
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
-    viewModel.confirmClearConfig();
-    await mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
-    expect(mocks.closeWorkspace).toHaveBeenCalledOnce();
-    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '清空配置文件失败');
-    expect(mocks.reloadCurrentWindow).not.toHaveBeenCalled();
+    scope.stop();
   });
 
   it('clears the log file behind a danger confirmation', async () => {
     mocks.clearLog.mockResolvedValue({ path: 'C:/log/app.log', sizeBytes: 0 });
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     viewModel.confirmClearLog();
     await mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
     expect(mocks.clearLog).toHaveBeenCalledTimes(1);
@@ -232,13 +217,11 @@ describe('useSettingsViewModel', () => {
     expect(viewModel.formattedLogSize.value).toBe('0 B');
   });
 
-  it('reports open failures for config and log locations', async () => {
+  it('reports a failure to open the config directory', async () => {
     mocks.openConfigFolder.mockRejectedValue(new Error('gone'));
-    mocks.openLogFile.mockRejectedValue(new Error('gone'));
-    const viewModel = useSettingsViewModel(mocks.closeWorkspace);
+    const viewModel = useSettingsViewModel();
     await viewModel.openConfigFolderAction();
-    await viewModel.openLogFileAction();
-    expect(mocks.feedback.error).toHaveBeenCalledTimes(2);
+    expect(mocks.feedback.error).toHaveBeenCalledTimes(1);
   });
 
   it('accepts only the newest log status and releases page reads on navigation', async () => {
@@ -250,7 +233,7 @@ describe('useSettingsViewModel', () => {
         }),
     );
     const scope = effectScope();
-    const vm = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
+    const vm = scope.run(() => useSettingsViewModel())!;
     const old = vm.refreshLogStatus();
     mocks.loadLogStatus.mockResolvedValueOnce({ path: 'C:/latest/app.log', sizeBytes: 9 });
     await vm.refreshLogStatus();
@@ -283,7 +266,7 @@ describe('useSettingsViewModel', () => {
         }),
     );
     const scope = effectScope();
-    const vm = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
+    const vm = scope.run(() => useSettingsViewModel())!;
     const action = vm.pickLogDirectory();
     await flushPromises();
     scope.stop();
@@ -305,7 +288,7 @@ describe('useSettingsViewModel', () => {
         }),
     );
     const scope = effectScope();
-    const vm = scope.run(() => useSettingsViewModel(mocks.closeWorkspace))!;
+    const vm = scope.run(() => useSettingsViewModel())!;
     const old = vm.refreshLogStatus();
     vm.confirmClearLog();
     await mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();

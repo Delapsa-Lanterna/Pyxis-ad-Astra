@@ -211,18 +211,25 @@ describe('CsvGridCellEditor', () => {
     expect(fixture.inputs.commit()).toBeUndefined();
   });
 
-  it('commits multiple selections once and cancels the next editing action', async () => {
+  it('commits confirmed multiple values and keeps unconfirmed search local', async () => {
     const editor = mountEditor({
       column: { ...columnFixture('multi'), schema: { key: 'size', control: 'multi', options: [] } },
+      row: { rowKey: 'key-0', isComment: false, data: { size: '' } },
       anchorElement: document.createElement('div'),
     });
     await editor.vm.$nextTick();
     await editor.vm.$nextTick();
-    const picker = editor.findComponent({ name: 'CsvCellPicker' });
-    picker.vm.$emit('update', ['A']);
-    await editor.vm.$nextTick();
-    picker.vm.$emit('update', ['A', 'B']);
-    await editor.vm.$nextTick();
+    const input = editor.get<HTMLInputElement>('.csv-cell-picker-search');
+    await input.setValue('search only');
+    expect(fixture.inputs.dirty.value).toBe(false);
+    await fixture.inputs.commit();
+    expect(fixture.updates).toEqual([]);
+    for (const value of ['A', 'B']) {
+      await input.setValue(value);
+      await input.trigger('keydown', { key: 'Enter' });
+    }
+    expect(fixture.inputs.dirty.value).toBe(true);
+    await input.setValue('unconfirmed');
     expect(fixture.updates).toEqual([]);
     await fixture.inputs.commit();
     expect(fixture.updates).toHaveLength(1);

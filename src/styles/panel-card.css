@@ -13,6 +13,24 @@
   color: var(--color-text-soft);
   font-size: 12px;
 }
+.settings-cache-panel {
+  container-type: inline-size;
+}
+.panel-card.settings-debug-panel {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-panel));
+}
+.settings-query-grid {
+  max-width: 760px;
+  gap: 8px 12px;
+}
+@container (min-width: 640px) {
+  .settings-query-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(5, auto);
+    grid-auto-flow: column;
+  }
+}
 .panel-empty {
   gap: var(--space-1);
   padding: var(--space-3);

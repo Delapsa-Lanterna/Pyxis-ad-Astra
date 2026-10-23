@@ -87,6 +87,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'write.version_scope_missing': '保存缺少读取版本凭据，请重新加载目标后保存',
   'json.dir_not_directory': 'JSON 规格目录不是目录',
   'spec.weapon_class_unsupported': 'specClass 值无效，无法执行当前操作',
+  'spec.weapon_turret_barrel_required': '炮塔配置（turret）至少需要一个发射点',
+  'spec.weapon_hardpoint_barrel_required': '固定配置（hardpoint）至少需要一个发射点',
   'system_open.failed': '打开路径失败',
   'table.no_associated_spec': '该表没有关联的 spec 定义',
   'table.associated_spec_kind_mismatch': '关联规格创建参数与 CSV 表不一致',

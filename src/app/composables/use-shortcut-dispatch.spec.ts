@@ -102,8 +102,6 @@ describe('useShortcutDispatch commands', () => {
             readyClose: vi.fn(),
             prepareDisplay: vi.fn(),
             flushSettings: vi.fn(),
-            clearConfig: vi.fn(),
-            reload: vi.fn(),
           });
           return () => h(Child);
         },

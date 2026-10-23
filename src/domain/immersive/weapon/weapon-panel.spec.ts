@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
-import { jointFixtureValues } from '@/test/joint-edit';
+import { jointFixtureValues } from '@/test/joint-record';
 import { jointObject } from '@/domain/joint-edit';
 import { projectWeaponPanel } from './weapon-panel';
 import { updateImmersiveField } from '../fields';

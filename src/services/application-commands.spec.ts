@@ -1,9 +1,9 @@
 import { requestClose, replyNativeClose, readyNativeClose } from './app-lifecycle.service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { readSettings, saveSettings, querySystemFonts } from './app-settings.service';
+import { readSettings, readDefaultSettings, saveSettings, querySystemFonts } from './app-settings.service';
 import { createSettingsFixture } from '@/test/settings';
-import { clearConfig, openConfigFolder } from './app-config.service';
-import { clearLog, loadLogStatus, openLogFile } from './app-log.service';
+import { openConfigFolder } from './app-config.service';
+import { clearLog, loadLogStatus } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
@@ -48,6 +48,7 @@ const request: NativeWindowRequest = {
 const status: ManagedWindowStatus = { dirty: false, saving: false };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
   ['read_settings', readSettings, undefined],
+  ['read_default_settings', readDefaultSettings, undefined],
   ['query_system_fonts', querySystemFonts, undefined],
   [
     'query_original_font',
@@ -56,10 +57,8 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ],
   ['save_settings', () => saveSettings(settings), { payload: { settings } }],
   ['get_app_log_status', loadLogStatus, undefined],
-  ['open_app_log_file', openLogFile, undefined],
   ['clear_app_log_file', clearLog, undefined],
   ['open_config_dir', openConfigFolder, undefined],
-  ['clear_config_files', clearConfig, undefined],
   ['load_workspace', loadPersistedWorkspace, undefined],
   ['save_workspace', () => savePersistedWorkspace(state), { payload: { state } }],
   ['create_mod', () => createNewModProject(create), { payload: create }],

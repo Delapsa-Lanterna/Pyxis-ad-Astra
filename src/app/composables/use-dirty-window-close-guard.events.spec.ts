@@ -80,8 +80,6 @@ async function openWindow(label: string) {
           requestClose: async () => ({ status: 'closed', destroyedWindows: [], releasedSessions: [], diagnostic: null }),
           prepareDisplay: () => async () => {},
           flushSettings: async () => {},
-          clearConfig: async () => {},
-          reload: async () => {},
         });
         return () => h('main', { inert: closing.value || undefined }, h(Contents));
       },

@@ -1,0 +1,29 @@
+@import '../../styles/style.css';
+
+.browser-controls {
+  padding: 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10000;
+  background: var(--color-bg);
+}
+
+.browser-controls > nav,
+.browser-controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.browser-controls > nav {
+  margin-bottom: 8px;
+}
+
+.browser-controls a {
+  color: var(--color-primary);
+}
+
+.browser-preview #app .variant-picker {
+  max-height: calc(100% - 14px);
+}

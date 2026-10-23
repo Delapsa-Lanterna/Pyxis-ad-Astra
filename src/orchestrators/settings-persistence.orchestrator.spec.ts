@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSettingsFixture } from '@/test/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import type { AppSettings, SettingsSnapshot } from '@/shared/types';
-const api = vi.hoisted(() => ({ save: vi.fn(), read: vi.fn(), listen: vi.fn(), history: vi.fn(), stop: vi.fn() }));
-vi.mock('@/services/app-settings.service', () => ({ saveSettings: api.save, readSettings: api.read }));
+const api = vi.hoisted(() => ({ defaults: vi.fn(), save: vi.fn(), read: vi.fn(), listen: vi.fn(), history: vi.fn(), stop: vi.fn() }));
+vi.mock('@/services/app-settings.service', () => ({ readDefaultSettings: api.defaults, saveSettings: api.save, readSettings: api.read }));
 vi.mock('@/windows/tauri.events', () => ({ listenWindowEvent: api.listen }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 beforeEach(() => {
@@ -15,6 +15,7 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture());
   useSettingsStore();
   api.read.mockResolvedValue({ revision: 1, value: createSettingsFixture() });
+  api.defaults.mockResolvedValue(createSettingsFixture());
   api.listen.mockResolvedValue(api.stop);
   api.history.mockResolvedValue(undefined);
   let revision = 1;
@@ -27,6 +28,55 @@ async function setup() {
   return { runtime, stop: runtime.startSettingsPersistence(api.history), settings: useSettingsStore() };
 }
 describe('formal settings commits', () => {
+  it('saves the complete official defaults and applies committed budgets', async () => {
+    const { runtime, stop, settings } = await setup();
+    settings.setGeneralFont('Fixture Font');
+    settings.setCacheLimit('mediaData', 'entries', 17);
+    settings.setLogDirectory('D:/fixture');
+    await runtime.flushSettings();
+    api.save.mockClear();
+    await runtime.resetSettings();
+    const defaults = createSettingsFixture();
+    expect(api.defaults).toHaveBeenCalledOnce();
+    expect(api.save).toHaveBeenCalledExactlyOnceWith(defaults);
+    expect(settings.settingsSnapshot()).toEqual(defaults);
+    expect((await import('@/shared/runtime/cache-limits')).windowCacheLimits()).toEqual(defaults.cacheLimits);
+    stop();
+  });
+  it.each(['read', 'save'] as const)('reports a reset %s failure and allows retry', async (stage) => {
+    const { runtime, stop, settings } = await setup();
+    settings.setGeneralFont('Fixture Font');
+    await runtime.flushSettings();
+    const before = settings.settingsSnapshot();
+    api.save.mockClear();
+    if (stage === 'read') api.defaults.mockRejectedValueOnce(new Error('defaults unavailable'));
+    else api.save.mockRejectedValueOnce(new Error('save unavailable'));
+    await expect(runtime.resetSettings()).rejects.toThrow('unavailable');
+    expect(settings.settingsSnapshot()).toEqual(stage === 'read' ? before : createSettingsFixture());
+    await runtime.resetSettings();
+    expect(settings.settingsSnapshot()).toEqual(createSettingsFixture());
+    stop();
+  });
+  it('keeps edits made while the default snapshot is saving', async () => {
+    const { runtime, stop, settings } = await setup();
+    settings.setGeneralFont('Fixture Font');
+    await runtime.flushSettings();
+    let finish!: (snapshot: SettingsSnapshot) => void;
+    api.save.mockImplementationOnce(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const resetting = runtime.resetSettings();
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    settings.setGeneralFont('Later Font');
+    finish({ revision: 3, performanceMonitorActive: false, value: createSettingsFixture() });
+    await resetting;
+    expect(settings.generalFont).toBe('Later Font');
+    expect(api.save.mock.calls.at(-1)![0].generalFont).toBe('Later Font');
+    stop();
+  });
   it('listens before reading and flushes a same-turn edit once', async () => {
     const { runtime, stop, settings } = await setup();
     const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');

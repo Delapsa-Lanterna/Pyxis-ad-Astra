@@ -89,19 +89,30 @@ describe('CsvCellPicker placement', () => {
     wrapper.unmount();
   });
 
-  it('keeps search local and exposes custom input as pending work', async () => {
-    const wrapper = mountPicker({ height: 30, left: 40, top: 100, width: 200 }, { values: ['A'], multiple: true });
-    await wrapper.get('.csv-cell-picker-search').setValue('search only');
-    expect(wrapper.emitted('pending-custom')).toBeUndefined();
-    await wrapper.get('.csv-cell-picker-action').trigger('click');
-    await wrapper.get('.csv-cell-picker-custom').setValue(' B ');
-    expect(wrapper.emitted('pending-custom')?.at(-1)).toEqual([true]);
-    expect(wrapper.vm.captureValues()).toEqual(['A', 'B']);
-    expect(wrapper.emitted('pending-custom')?.at(-1)).toEqual([false]);
+  it.each([
+    [false, ' B ', ['B']],
+    [true, ' B ', ['A', 'B']],
+    [false, 'Known label', ['known']],
+    [true, 'Known label', ['A', 'known']],
+  ] as const)('confirms search on Enter (multiple=%s, query=%s)', async (multiple, query, values) => {
+    const wrapper = mountPicker(
+      { height: 30, left: 40, top: 100, width: 200 },
+      { values: ['A'], multiple, options: [{ label: 'Known label', value: 'known' }] },
+    );
+    const input = wrapper.get<HTMLInputElement>('.csv-cell-picker-search');
+    await input.setValue('  ');
+    await input.trigger('keydown', { key: 'Enter' });
+    await input.setValue(query);
+    await input.trigger('keydown', { key: 'Enter', isComposing: true });
+    expect(wrapper.emitted('commit')).toBeUndefined();
+    expect(wrapper.emitted('update')).toBeUndefined();
+    await input.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted(multiple ? 'update' : 'commit')).toEqual([[values]]);
+    expect(input.element.value).toBe('');
     wrapper.unmount();
   });
 
-  it('puts a numeric template into the existing custom input without selecting the default', async () => {
+  it('puts a numeric template into search and confirms the edited value on Enter', async () => {
     const wrapper = mountPicker(
       { height: 30, left: 40, top: 100, width: 200 },
       {
@@ -116,10 +127,12 @@ describe('CsvCellPicker placement', () => {
       },
     );
     await wrapper.get('.csv-cell-picker-option').trigger('click');
-    expect((wrapper.get('.csv-cell-picker-custom').element as HTMLInputElement).value).toBe('kinetic0');
+    const input = wrapper.get<HTMLInputElement>('.csv-cell-picker-search');
+    expect(input.element.value).toBe('kinetic0');
     expect(wrapper.emitted('commit')).toBeUndefined();
-    await wrapper.get('.csv-cell-picker-custom').setValue('kinetic12');
-    expect(wrapper.vm.captureValues()).toEqual(['kinetic12']);
+    await input.setValue('kinetic12');
+    await input.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('commit')).toEqual([[['kinetic12']]]);
     wrapper.unmount();
   });
 
@@ -151,7 +164,9 @@ describe('CsvCellPicker placement', () => {
     expect(groups()[1]!.classes()).toContain('n-collapse-item--active');
     await groups()[0]!.get('.n-collapse-item__header-main').trigger('click');
     expect(groups()[0]!.get('.csv-cell-picker-option.selected').element).toBe(option.element);
-    expect(wrapper.vm.captureValues()).toEqual(['alpha']);
+    await wrapper.get('.csv-cell-picker-search').setValue('unconfirmed');
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(wrapper.emitted('commit')).toEqual([[['alpha']]]);
     wrapper.unmount();
   });
 

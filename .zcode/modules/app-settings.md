@@ -8,12 +8,12 @@
 
 ### 拥有
 
-- `src-tauri/src/commands/app_settings.rs`：只允许承载字体目录 command。
+- `src-tauri/src/commands/app_settings.rs`：默认设置读取与字体目录 command。
 - `src-tauri/src/services/app_settings.rs`：必须持有正式快照、revision、串行写盘及装配传入的运行参数提交动作。
 - `src-tauri/src/services/app_settings/`：系统字体枚举及设置所属依赖。
 - `src-tauri/src/services/app_settings/system_fonts.rs`：Windows 已安装字体族枚举、去重与排序。
 - `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
-- `src/app/composables/settings/use-settings-view-model.ts`：字体与日志状态读取票据、页面投影及日志维护动作。
+- `src/app/composables/settings/use-settings-view-model.ts`：字体与日志状态读取票据、页面投影、重置确认及日志维护动作。
 - `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
 - `src/domain/settings/`：设置校验、字体、配色与主题令牌纯规则。
 - `src/domain/settings/fonts.ts`：通用字体组合与字体族投影。
@@ -98,6 +98,12 @@
 4. 主题 effect 更新 `--font-sans`，Naive provider 消费相同字体族。
 5. 默认文字测量消费响应式字体族并更新截断与布局。
 
+### 重置设置
+
+1. 设置页请求危险确认，说明全部设置恢复默认及性能监视重启生效。
+2. 持久化编排经 `read_default_settings` 取得 `AppSettings::default()`，替换主窗口编辑快照并等待正式保存队列。
+3. 设置提交按原有写盘、运行参数及快照广播流程接纳；所属窗口呈现完成结果并刷新日志状态。
+
 ## 规范
 
 - `accent` 与 `editMode` 必须是正式枚举；正式快照初始化与替换必须校验有效值。
@@ -130,6 +136,7 @@
 - 设置页在缓存限制中展示历史步数、图片与媒体的条数及 MiB、八类查询条数、每张字体图集的字形条数；配置文件分组展示日志轮转大小与备份份数。
 - 设置页释放必须撤销字体与日志展示读取的接纳；已执行日志动作必须由所属窗口反馈结果，页面投影必须由当前读取票据接纳。
 - 路径授权必须消费后端根边界，`starsectorRoot` 只允许作为默认目录提示。
+- 重置设置必须取得用户确认并消费后端完整默认值，必须通过正式保存队列提交；工作区记录、Mod 内容和已有日志必须保留。
 - 镜像监听与持久化监听释放后必须允许重新装配；迟到的监听注册必须立即解除，严禁接纳已释放窗口的设置。
 - 首次加载及保存必须由 Rust 串行执行；保存必须依次确认权限、校验和规范化、写盘、更新运行参数、提交快照、通知并返回同一快照。
 

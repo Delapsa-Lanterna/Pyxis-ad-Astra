@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import GameOverviewPanel from '@/app/components/GameOverviewPanel.vue';
-import { nButtonStub } from '@/test/stubs';
+import { nButton } from '@/test/ui-stubs';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 vi.mock('@/stores/workspace.store', () => ({
@@ -84,7 +84,7 @@ function mountPanel(warnings: GameScanWarning[], openingFailures: ModOpeningFail
     props: { openingFailures, overview },
     global: {
       stubs: {
-        'n-button': nButtonStub,
+        'n-button': nButton,
       },
     },
   });

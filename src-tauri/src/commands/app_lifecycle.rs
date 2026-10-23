@@ -92,13 +92,6 @@ pub fn fail_window_startup(
 }
 
 #[tauri::command(async)]
-pub fn clear_config_files(app_handle: tauri::AppHandle) -> Result<(), AppError> {
-    services::app_settings::clear_settings(|| {
-        services::app_config::clear_app_config_files(app_handle)
-    })
-}
-
-#[tauri::command(async)]
 pub fn read_settings(
     app_handle: tauri::AppHandle,
 ) -> Result<crate::models::SettingsSnapshot, AppError> {

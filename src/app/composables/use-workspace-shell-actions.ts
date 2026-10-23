@@ -123,11 +123,11 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
-  function confirmCloseWorkspace(notify = true) {
+  function confirmCloseWorkspace() {
     if (closeIntent) return closeIntent;
     closeIntent = closeWorkspace()
       .then((closed) => {
-        if (closed && notify) feedback.success('工作区已关闭');
+        if (closed) feedback.success('工作区已关闭');
         return closed;
       })
       .catch((error: unknown) => {

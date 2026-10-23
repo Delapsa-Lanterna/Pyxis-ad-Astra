@@ -17,15 +17,10 @@ for (const count of [50, 300]) {
     endpoint.searchParams.set('case', `csv-${count}`);
     if (mode === 'enabled') endpoint.searchParams.set('monitor', 'on');
     await page.goto(endpoint.href);
-    const cdp = await context.newCDPSession(page);
-    await cdp.send('Profiler.enable');
-    await cdp.send('Profiler.start');
     await page.locator('#run').click();
     await page.locator('#status[data-complete=true]').waitFor({ timeout: 180000 });
     const report = JSON.parse(await page.locator('#status').textContent());
-    const { profile } = await cdp.send('Profiler.stop');
     results[mode].push(...report);
-    await writeFile(`${output}/${mode}-${count}.cpuprofile`, JSON.stringify(profile), 'utf8');
     await writeFile(`${output}/${mode}.json`, JSON.stringify(results[mode], null, 2), 'utf8');
     console.log(JSON.stringify({ mode, report }));
     await browser.close();

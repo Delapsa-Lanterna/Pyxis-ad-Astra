@@ -1,30 +1,25 @@
-/// Installs a recording 2D context on HTMLCanvasElement so canvas-backed
-/// components can mount under jsdom (which has no canvas implementation).
-export function installCanvas2DStub(): void {
+import { vi } from 'vitest';
+import { createCanvasRecorder } from './canvas-recorder';
+
+export function installCanvas2DStub(dark = false): () => void {
+  const previous = window.matchMedia;
   vi.stubGlobal('matchMedia', (media: string) => ({
     media,
-    matches: true,
+    matches: media === `(prefers-color-scheme: ${dark ? 'dark' : 'light'})`,
     addEventListener: () => {},
     removeEventListener: () => {},
   }));
-  const noopContext = new Proxy(
-    {
-      canvas: { width: 300, height: 150 },
-      createLinearGradient: () => ({ addColorStop: () => {} }),
-      measureText: () => ({ width: 0 }),
-      getImageData: () => ({ data: new Uint8ClampedArray(0) }),
-    },
-    {
-      get(target, property) {
-        if (property in target) return target[property as keyof typeof target];
-        return () => {};
-      },
-      set() {
-        return true;
-      },
-    },
-  ) as unknown as CanvasRenderingContext2D;
-
-  HTMLCanvasElement.prototype.getContext = (() => noopContext) as unknown as HTMLCanvasElement['getContext'];
+  const contexts = new WeakMap<HTMLCanvasElement, CanvasRenderingContext2D>();
+  const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+    if (!contexts.has(this)) {
+      const ctx = createCanvasRecorder().ctx;
+      Object.defineProperty(ctx, 'canvas', { value: this });
+      contexts.set(this, ctx);
+    }
+    return contexts.get(this)!;
+  });
+  return () => {
+    getContext.mockRestore();
+    window.matchMedia = previous;
+  };
 }
-import { vi } from 'vitest';

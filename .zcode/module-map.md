@@ -59,7 +59,7 @@
 
 ## 公共文件
 
-- `scripts/shared/`：工程检查共享的采集、解析与规则工具。
+- `scripts/shared/`：工程检查与浏览器验收共享的采集、解析、样本统计及原生替换工具。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
@@ -69,7 +69,7 @@
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。
 - `src/shared/`：前端公共协议、原语、工具与控件。
 - `src/styles/`：按业务及关联组件组织的展示规则与样式入口。
-- `src/test/`：前端测试共享夹具。
+- `src/test/`：前端共享测试数据、控件与画布替身，以及浏览器场景和独立样本服务。
 
 ## 模块索引
 
@@ -82,7 +82,7 @@
 - [后端能力与 IPC 传输](modules/backend-capabilities.md)：说明最小传输、透明错误、command 归属与公开能力授权。
 - [应用反馈与错误恢复](modules/app-feedback.md)：说明反馈工厂、确认、诊断文案和授权文件恢复。
 - [应用日志](modules/app-log.md)：说明四档记录、自动过程事件、批量写入、进程停写及文件维护。
-- [工具配置维护](modules/app-config.md)：说明工具目录、配置清理范围与危险动作接纳。
+- [工具配置维护](modules/app-config.md)：说明工具私有目录解析、创建与系统打开。
 - [Core 索引与加载](modules/core-assets.md)：说明根代次、fields/graphics 独立状态、读取与释放。
 - [目录打开](modules/directory-opening.md)：说明目录选择、游戏或 Mod 识别、canonical root、ProjectSession 建立与打开 outcome。
 - [新建 Mod](modules/mod-creation.md)：说明 Mod 父目录、最小目录骨架、`mod_info.json` renderer 与创建后的受信 session 打开。

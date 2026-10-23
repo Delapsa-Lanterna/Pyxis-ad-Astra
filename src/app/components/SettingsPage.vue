@@ -124,8 +124,9 @@
           ><FieldHints description="尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。" /></template
       ></FieldRow>
     </section>
-    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+    <section class="settings-cache-panel panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">缓存限制</h3>
+      <h4 class="panel-section-title">撤销与历史</h4>
       <FieldRow v-for="(row, key) in HISTORY_FIELDS" :key="key" :label="row[0]"
         ><n-input-number
           class="ui-field-number"
@@ -155,34 +156,39 @@
         <template #hint><FieldHints :description="row[1]" /></template>
       </FieldRow>
       <h4 class="panel-section-title">查询结果</h4>
-      <FieldRow v-for="(row, key) in QUERY_CACHES" :key="key" :label="row[0]">
-        <label class="action-group"
-          ><n-input-number
-            class="ui-field-number"
-            :value="settings.cacheLimits.queries[key]"
-            :min="0"
-            :max="65536"
-            :precision="0"
-            :step="1"
-            @update:value="settings.setCacheLimit('queries', key, $event ?? settings.cacheLimits.queries[key])"
-          />条</label
-        >
-        <template #hint><FieldHints :description="row[1]" /></template>
-      </FieldRow>
-      <FieldRow label="字体字形">
-        <label class="action-group"
-          ><n-input-number
-            class="ui-field-number"
-            :value="settings.cacheLimits.fonts.glyphEntriesPerPage"
-            :min="0"
-            :max="65536"
-            :precision="0"
-            :step="1"
-            @update:value="settings.setCacheLimit('fonts', 'glyphEntriesPerPage', $event ?? settings.cacheLimits.fonts.glyphEntriesPerPage)"
-          />条／图集</label
-        >
-        <template #hint><FieldHints description="每张原版字体图集保留的着色字形成品数量。" /></template>
-      </FieldRow>
+      <FieldHints description="保留已读取的查询结果，减少重复加载；0 表示不保留。" />
+      <div class="settings-query-grid ui-layout-grid">
+        <FieldRow v-for="(row, key) in QUERY_CACHES" :key="key" :label="row[0]">
+          <label class="action-group"
+            ><n-input-number
+              class="ui-field-number"
+              :value="settings.cacheLimits.queries[key]"
+              :min="0"
+              :max="65536"
+              :precision="0"
+              :step="1"
+              @update:value="settings.setCacheLimit('queries', key, $event ?? settings.cacheLimits.queries[key])"
+            />条</label
+          >
+          <template #hint><FieldHints :description="row[1]" /></template>
+        </FieldRow>
+        <FieldRow label="字体字形">
+          <label class="action-group"
+            ><n-input-number
+              class="ui-field-number"
+              :value="settings.cacheLimits.fonts.glyphEntriesPerPage"
+              :min="0"
+              :max="65536"
+              :precision="0"
+              :step="1"
+              @update:value="
+                settings.setCacheLimit('fonts', 'glyphEntriesPerPage', $event ?? settings.cacheLimits.fonts.glyphEntriesPerPage)
+              "
+            />条／图集</label
+          >
+          <template #hint><FieldHints description="每张原版字体图集保留的着色字形成品数量。" /></template>
+        </FieldRow>
+      </div>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">配置文件</h3>
@@ -224,9 +230,8 @@
       >
       <div class="ui-field-actions action-group">
         <n-button size="small" @click="openConfigFolderAction">打开配置文件夹</n-button>
-        <n-button size="small" @click="openLogFileAction">打开 log 文件</n-button>
         <n-button size="small" @click="refreshLogStatus">刷新日志状态</n-button>
-        <n-button size="small" type="error" secondary @click="confirmClearConfig">清空配置文件</n-button>
+        <n-button size="small" type="error" secondary @click="confirmResetSettings">重置为默认配置</n-button>
         <n-button size="small" type="error" secondary @click="confirmClearLog">清除 log 文件</n-button>
       </div>
       <FieldHints
@@ -234,7 +239,7 @@
         :warning="applicationLogError || logStatus?.lastError || ''"
       />
     </section>
-    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+    <section class="settings-debug-panel panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">性能调试</h3>
       <FieldRow label="性能监视">
         <n-switch class="tool-switch" :value="settings.performanceMonitorEnabled" @update:value="settings.setPerformanceMonitorEnabled" />
@@ -340,7 +345,6 @@ function updateLogLevel(value: string) {
 }
 
 const settings = useSettingsStore();
-const props = defineProps<{ closeWorkspace: () => Promise<boolean> }>();
 const customAccentDraft = ref(settings.customAccent);
 const customAccentValid = ref(true);
 const {
@@ -355,15 +359,17 @@ const {
   pickStarsectorRoot,
   refreshLogStatus,
   openConfigFolderAction,
-  openLogFileAction,
   restoreDefaultLogDirectory,
-  confirmClearConfig,
+  confirmResetSettings,
   confirmClearLog,
   monitorStatus,
   monitorAction,
   traceSeconds,
   performanceMonitorError,
-} = useSettingsViewModel(props.closeWorkspace);
+} = useSettingsViewModel(() => {
+  customAccentDraft.value = settings.customAccent;
+  customAccentValid.value = true;
+});
 const traceBusy = computed(() => ['starting', 'recording', 'finishing'].includes(monitorStatus.value?.traceState ?? ''));
 
 onMounted(() => {

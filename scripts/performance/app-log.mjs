@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import ts from 'typescript';
 import { performance } from 'node:perf_hooks';
 import { runInNewContext } from 'node:vm';
+import { summarize } from '../shared/sample-statistics.mjs';
 
 /** @typedef {'debug' | 'info' | 'warning' | 'error'} LogLevel */
 /** @typedef {{ level: LogLevel, code: string, message: null, path: null, line: null, fields: null }} LogEntry */
@@ -40,18 +41,6 @@ const current = /** @type {{ createAppLogQueue(): LogQueue }} */ (
 );
 /** @param {LogLevel} level */
 const entry = (level) => ({ level, code: 'fixture', message: null, path: null, line: null, fields: null });
-/** @param {number[]} values */
-const summarize = (values) => {
-  const sorted = [...values].sort((a, b) => a - b);
-  return {
-    n: sorted.length,
-    min: sorted[0],
-    max: sorted.at(-1),
-    mean: sorted.reduce((a, b) => a + b, 0) / sorted.length,
-    median: (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) / 2,
-    p95: sorted[Math.ceil(sorted.length * 0.95) - 1],
-  };
-};
 /** @type {Record<'baseline' | 'info' | 'debug' | 'batch', number[]>} */
 const samples = { baseline: [], info: [], debug: [], batch: [] };
 for (let round = 0; round < 30; round++) {

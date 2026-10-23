@@ -21,7 +21,7 @@
         <CsvGridHeader :columns="model.columns" @resize-column="forwardResizeColumn" />
         <CsvGridBody
           :entries="viewport.entries.value"
-          :columns="model.columns"
+          :columns="renderColumns"
           :is-dirty="isDirty"
           :selected-row-key="selectedRowKey"
           :source-index="model.sourceIndex"
@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import type { CsvCellTarget, CsvRowRecord, CsvModState } from '@/shared/types';
-import type { CsvGridColumn, CsvGridModel } from '@/domain/csv-editor/csv-grid-model';
+import { csvRenderColumns, type CsvGridColumn, type CsvGridModel, type CsvRenderColumn } from '@/domain/csv-editor/csv-grid-model';
 import { useRetainedList } from '@/shared/runtime/retained-list';
 import { provideCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/composables/csv-editor/use-csv-floating-panel';
 import CsvGridBody from '@/app/components/csv-editor/CsvGridBody.vue';
@@ -106,7 +106,13 @@ const viewport = useRetainedList(
   4,
 );
 const overlayRef = useTemplateRef<HTMLDivElement>('overlayRef');
-const scrollTop = ref(0);
+const scrollTop = ref(0),
+  scrollLeft = ref(0),
+  viewportWidth = ref(0),
+  viewportHeight = ref(0);
+const renderColumns = computed<CsvRenderColumn[]>((previous) =>
+  csvRenderColumns(props.model.columns, scrollLeft.value, viewportWidth.value, editorTarget.value?.column, previous),
+);
 provideCsvFloatingViewport(panelRef, overlayRef);
 
 function targetKey(target: CsvCellTarget | null): string {
@@ -168,33 +174,32 @@ watch([editorRow, editorColumn], locateEditorAnchor, { flush: 'post', immediate:
 const mode = useInputEditMode(),
   preload = useThumbnailPreload('CSV 网格');
 provideCsvGridMedia({ url: (resource) => preload.url(context.target.sessionId, resource) });
-function preloadImages() {
-  const panel = panelRef.value;
-  if (!panel) return;
-  const start = Math.floor(panel.scrollTop / 24),
-    count = Math.ceil(panel.clientHeight / 24);
-  const resources = (keys: string[]) =>
+// Keep media demand independent of row mounting; per-batch rescans consume the 4 ms mount budget.
+const mediaRequests = computed(() => {
+  const start = Math.floor(scrollTop.value / 24),
+    count = Math.ceil(viewportHeight.value / 24);
+  const resources = (keys: string[], columns: CsvRenderColumn[]) =>
     mode.value === 'smart'
       ? keys.flatMap((key) => {
           const row = props.model.rowsByKey[key];
           return row
-            ? props.model.columns.flatMap((column) => {
-                const option = sourceValue(props.model.sourceIndex, column.schema?.source, String(row.data[column.key] ?? ''));
-                return option?.option.resourceRef ? [option.option.resourceRef] : [];
+            ? columns.flatMap(({ column }) => {
+                const resource = sourceValue(props.model.sourceIndex, column.schema?.source, String(row.data[column.key] ?? ''))?.option
+                  .resourceRef;
+                return resource ? [resourceThumbnailRequest(context.target.sessionId, resource, 16, 16)] : [];
               })
             : [];
         })
       : [];
-  preload.prepare(
-    context.target.sessionId,
-    resources(rows.value.slice(start, start + count)).map((resource) =>
-      resourceThumbnailRequest(context.target.sessionId, resource, 16, 16),
-    ),
-    resources(rows.value.slice(Math.max(0, start - count), start + count * 2)).map((resource) =>
-      resourceThumbnailRequest(context.target.sessionId, resource, 16, 16),
-    ),
+  const visible = renderColumns.value.filter(
+    (view) => view.offsetPx + view.column.widthPx > scrollLeft.value + 16 && view.offsetPx < scrollLeft.value + viewportWidth.value,
   );
-}
+  return {
+    visible: resources(rows.value.slice(start, start + count), visible),
+    near: resources(rows.value.slice(Math.max(0, start - count), start + count * 2), renderColumns.value),
+  };
+});
+watch(mediaRequests, ({ visible, near }) => preload.prepare(context.target.sessionId, visible, near), { immediate: true });
 const drag = useCsvRowDrag({
   panel: panelRef,
   rowKeys: rows,
@@ -241,14 +246,16 @@ function activateCell(row: CsvRowRecord, column: CsvGridColumn, event: MouseEven
   });
 }
 
+// Read viewport geometry at scroll/resize boundaries to keep layout work out of the mount loop.
 function syncViewportMetrics() {
   const panel = panelRef.value;
   scrollTop.value = panel?.scrollTop ?? 0;
-  viewport.setViewportMetrics({ clientHeight: panel?.clientHeight ?? 0, scrollTop: scrollTop.value });
-  preloadImages();
+  scrollLeft.value = panel?.scrollLeft ?? 0;
+  viewportWidth.value = panel?.clientWidth ?? 0;
+  viewportHeight.value = panel?.clientHeight ?? 0;
+  viewport.setViewportMetrics({ clientHeight: viewportHeight.value, scrollTop: scrollTop.value });
   emit('request-window', viewport.startIndex.value, Math.max(0, viewport.endIndex.value - viewport.startIndex.value));
 }
-watch(() => viewport.activeItems.value, preloadImages, { flush: 'post' });
 
 function clearActiveCell() {
   anchorGeneration++;

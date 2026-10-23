@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
+import { shipJointFixture } from '@/test/ship-joint-edit';
+import { jointFixtureValues, fixtureSpecRecord, fixtureCsvRecord } from '@/test/joint-record';
 import { projectShipPanel } from './ship-panel';
 import { updateImmersiveField } from '../fields';
 import { variantJointFixture } from '@/test/variant-joint-edit';
@@ -26,6 +27,10 @@ describe('ship original configuration projection', () => {
   });
   it('selects module, Skin, description and logistics through their actual hull bindings', () => {
     const snapshot = variantJointFixture();
+    snapshot.records.push(
+      fixtureSpecRecord('system', 'system', { id: 'ammofeed' }),
+      fixtureCsvRecord('system-csv', 'shipSystems', { id: 'ammofeed' }, { id: 'ammofeed', name: 'Accelerated Ammo Feeder' }),
+    );
     const hull = structuredClone(snapshot.hull!);
     const original = snapshot.records.find((record) => record.key === 'variant')!;
     const module = structuredClone(original);

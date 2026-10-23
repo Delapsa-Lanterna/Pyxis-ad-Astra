@@ -6,13 +6,20 @@
   line-height: 18px;
 }
 .n-base-selection-tags {
+  --selection-tag-height: calc(var(--n-height) - 8px);
   gap: var(--space-1);
   padding: 3px !important;
 }
+.n-base-selection-tags .n-base-selection-tag-wrapper {
+  padding: 0;
+}
 .n-base-selection-tags .n-base-selection-input-tag {
-  margin-left: 0 !important;
+  height: var(--selection-tag-height);
+  line-height: var(--selection-tag-height);
+  margin: 0 !important;
 }
 .n-base-selection-tags .n-tag {
+  height: var(--selection-tag-height);
   --n-color: var(--color-primary-soft) !important;
   --n-border: 1px solid var(--color-primary-border) !important;
   --n-text-color: var(--color-primary) !important;

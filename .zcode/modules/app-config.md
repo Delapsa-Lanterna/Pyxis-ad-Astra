@@ -2,36 +2,31 @@
 
 ## 定义
 
-工具配置维护模块提供工具私有目录的打开和配置清理能力。
+工具配置维护模块提供工具私有目录的解析、创建与系统打开能力。
 
 ## 参考
 
 ### 拥有
 
 - `src-tauri/src/commands/app_config.rs`：配置维护 command。
-- `src-tauri/src/services/app_config.rs`：实际工具配置清理范围。
+- `src-tauri/src/services/app_config.rs`：工具目录创建与系统打开交接。
 - `src-tauri/src/services/app_paths.rs`：工具 app-data 根解析。
-- `src/app/composables/settings/use-app-config-actions.ts`：维护动作、危险确认和完成接纳。
-- `src/services/app-config.service.ts`：配置目录与清理 command 装配。
+- `src/app/composables/settings/use-app-config-actions.ts`：目录打开动作与错误反馈。
+- `src/services/app-config.service.ts`：配置目录打开 command 装配。
 
 ### 消费
 
 - `src-tauri/src/services/system_open.rs`：系统文件管理器路径打开适配。
-- `src/app/components/SettingsPage.vue`：设置页面接收所属关闭动作。
+- `src/app/components/SettingsPage.vue`：设置页面的目录打开入口。
 - `src/app/composables/settings/use-settings-view-model.ts`：设置页消费配置维护动作。
-
-### 装配
-
-- `src/app/AppContent.vue`：主窗口关闭动作向配置维护的装配交付。
 
 ## 边界
 
-- 工具私有根由 app_paths 解析，后端配置能力拥有实际清理范围与执行结果。
-- 打开目录归系统能力，设置页动作消费返回的工具目录。
-- 清理确认、错误呈现与成功重载归配置维护动作 composable。
-- 现有工作区关闭动作由主窗口装配交付，配置维护消费其保存等待、确认及子窗口交接结果。
-- 设置页 ViewModel 消费维护动作，所属窗口承载完成反馈与重载。
-- 配置清理作用于 app-data；日志维护由应用日志能力提供。
+- 工具私有根由 app_paths 解析，后端配置能力拥有目录创建与打开结果。
+- 打开目录动作归配置维护 composable，所属窗口承载失败反馈。
+- 系统打开适配拥有操作系统文件管理器调用。
+- 设置持久化与默认值重置归设置能力。
+- 设置页 ViewModel 消费配置目录打开动作。
 
 ## 链路
 
@@ -41,25 +36,16 @@
 2. 能力调用 `open_config_dir`。
 3. Rust 解析并建立工具目录，调用所属系统打开能力。
 
-### 清理配置
-
-1. 设置页提交危险确认。
-2. 主窗口关闭动作完成保存等待、工作区确认、子窗口关闭及 session 释放。
-3. 应用装配完成设置 flush 后调用 `clear_config_files`，Rust 串行清理磁盘及正式设置缓存。
-4. Rust 枚举工具根内容，保留正式日志文件并清理其余文件与子目录。
-5. 动作成功后呈现完成反馈并重载窗口。
-
 ## 规范
 
-- 打开目录必须通过系统能力，严禁前端拼接 app-data 路径。
-- 正式 LOG_FILE 必须保留，工具目录缺失必须按空清理结果完成。
-- 清理严禁触及 Mod、Core 或用户指定的外部日志目录。
-- 清理失败必须保留原始诊断并呈现一次错误，重载必须在成功后消费装配动作执行。
-- 清理必须等待工作区与所属子窗口关闭成功，取消或关闭失败必须结束本次清理；最终成功反馈必须由配置维护动作呈现。
-- 清理范围必须包括工具根内 settings、workspace 及派生工具子目录，确认必须表达该实际范围。
+- 工具数据根必须由后端 app_paths 解析。
+- 打开失败必须保留原始诊断并由所属窗口呈现一次错误。
+- 打开目录必须先创建缺失目录，再调用系统打开能力。
+- 目录打开必须返回所属系统能力的实际执行结果。
+- 设置页必须通过配置维护动作发起目录打开。
 
 ## 陷阱
 
-- 从组件枚举或删除配置文件会让工具根授权与实际清理范围脱离后端能力。
-- 将工具清理当作 Mod 保存会混淆私有配置与业务文件的持久化范围。
-- 清理失败后重载窗口会使错误反馈与磁盘结果失去对应。
+- 前端拼接 app-data 路径会使工具根解析与实际目录脱离。
+- 吞掉系统打开错误会使设置页无法呈现失败原因。
+- 跳过目录创建会使首次打开工具目录失败。

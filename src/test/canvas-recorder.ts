@@ -11,18 +11,32 @@ export interface Recorder {
 }
 export function createCanvasRecorder(): Recorder {
   const ops: RecordedOp[] = [];
-  const stack: Array<{ alpha: number; composite: GlobalCompositeOperation }> = [];
+  const properties = [
+    'globalAlpha',
+    'globalCompositeOperation',
+    'imageSmoothingEnabled',
+    'strokeStyle',
+    'fillStyle',
+    'lineWidth',
+    'lineJoin',
+    'lineCap',
+    'font',
+    'textAlign',
+    'textBaseline',
+  ] as const;
+  const stack: Array<Record<string, unknown>> = [];
+  let dash: number[] = [];
   const record = (op: string, args: unknown[] = []) =>
     ops.push({ op, alpha: ctx.globalAlpha, composite: ctx.globalCompositeOperation, args });
   const ctx = {
     save: () => {
-      stack.push({ alpha: ctx.globalAlpha, composite: ctx.globalCompositeOperation });
+      stack.push({ ...Object.fromEntries(properties.map((key) => [key, ctx[key]])), dash: [...dash] });
       record('save');
     },
     restore: () => {
-      const saved = stack.pop()!;
-      ctx.globalAlpha = saved.alpha;
-      ctx.globalCompositeOperation = saved.composite;
+      const { dash: previous, ...state } = stack.pop()!;
+      dash = previous as number[];
+      Object.assign(ctx, state);
       record('restore');
     },
     beginPath: () => record('beginPath'),
@@ -38,15 +52,19 @@ export function createCanvasRecorder(): Recorder {
     translate: (...args: unknown[]) => record('translate', args),
     rotate: (...args: unknown[]) => record('rotate', args),
     scale: (...args: unknown[]) => record('scale', args),
-    quadraticCurveTo: () => record('quadraticCurveTo'),
+    quadraticCurveTo: (...args: unknown[]) => record('quadraticCurveTo', args),
     fillText: (...args: unknown[]) => record('fillText', args),
     strokeText: (...args: unknown[]) => record('strokeText', args),
-    fillRect: () => record('fillRect'),
+    fillRect: (...args: unknown[]) => record('fillRect', args),
     drawImage: (...args: unknown[]) => record('drawImage', args),
-    setLineDash: () => record('setLineDash'),
+    setLineDash: (value: number[]) => {
+      dash = [...value];
+      record('setLineDash', [value]);
+    },
+    getLineDash: () => [...dash],
     createLinearGradient: (...args: unknown[]) => {
       record('createLinearGradient', args);
-      return { addColorStop: () => record('addColorStop') };
+      return { addColorStop: (...args: unknown[]) => record('addColorStop', args) };
     },
     canvas: { width: 200, height: 200 },
     globalAlpha: 1,
@@ -60,6 +78,10 @@ export function createCanvasRecorder(): Recorder {
     font: '',
     textAlign: '',
     textBaseline: '',
+    measureText: (text: string) => ({ width: text.length * 6 }),
+    getImageData: () => ({ data: new Uint8ClampedArray(0) }),
+    putImageData: (...args: unknown[]) => record('putImageData', args),
+    clip: (...args: unknown[]) => record('clip', args),
   } as unknown as CanvasRenderingContext2D;
   return { ctx, ops, calls: (op) => ops.filter((entry) => entry.op === op) };
 }

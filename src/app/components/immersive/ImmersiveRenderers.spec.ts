@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { h, shallowRef, nextTick } from 'vue';
-import { shipJointFixture } from '@/test/joint-edit';
+import { shipJointFixture } from '@/test/ship-joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
 import { wingJointFixture } from '@/test/wing-joint-edit';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';

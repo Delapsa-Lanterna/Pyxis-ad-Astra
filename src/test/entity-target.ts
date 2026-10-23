@@ -12,9 +12,14 @@ const paths: Record<EntityKind, [string, string]> = {
   mission: ['data/missions', ''],
 };
 
-export function entityTargetFixture(kind: EntityKind, id: string, state: 'existing' | 'create' = 'existing'): EntityEditTarget {
+export function entityTargetFixture(
+  kind: EntityKind,
+  id: string,
+  state: 'existing' | 'create' = 'existing',
+  root = 'M:/mod',
+): EntityEditTarget {
   const [directory, extension] = paths[kind];
   const relPath = `${directory}/${id}${extension ? `.${extension}` : ''}`;
-  const write = { source: 'mod' as const, root: 'M:/mod', relPath, path: `M:/mod/${relPath}` };
+  const write = { source: 'mod' as const, root, relPath, path: `${root}/${relPath}` };
   return { kind, id, write, source: state === 'existing' ? { ...write } : null, state, linkedRecord: null };
 }

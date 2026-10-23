@@ -5,6 +5,10 @@ export function readSettings(): Promise<SettingsSnapshot> {
   return invokeCommand('read_settings');
 }
 
+export function readDefaultSettings(): Promise<AppSettings> {
+  return invokeCommand('read_default_settings');
+}
+
 export function saveSettings(settings: AppSettings): Promise<SettingsSnapshot> {
   return invokeCommand('save_settings', { payload: { settings } satisfies SaveAppSettingsPayload });
 }

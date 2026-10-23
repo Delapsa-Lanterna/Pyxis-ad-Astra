@@ -1,11 +1,47 @@
 import { csvDraftRow } from '@/test/csv-row';
 import { describe, expect, it } from 'vitest';
 import type { CsvDraftRow, RowData } from '@/shared/types';
-import { createCsvGridColumns } from './csv-grid-model';
+import { createCsvGridColumns, csvRenderColumns, type CsvGridColumn } from './csv-grid-model';
+import { TABLE_KEYS } from '@/shared/types';
 
 function loadedRows(count: number, fill: (index: number) => RowData): CsvDraftRow[] {
   return Array.from({ length: count }, (_, index) => csvDraftRow(fill(index), `key-${index}`));
 }
+
+describe('CSV column viewport', () => {
+  const columns = Array.from({ length: 8 }, (_, index): CsvGridColumn => ({
+    key: String(index),
+    className: '',
+    enumOptions: [],
+    schema: null,
+    widthPx: 100,
+  }));
+  it.each([
+    [0, 116, ['0', '1']],
+    [100, 116, ['0', '1', '2']],
+    [101, 116, ['0', '1', '2', '3']],
+    [600, 216, ['5', '6', '7']],
+    [0, 816, ['0', '1', '2', '3', '4', '5', '6', '7']],
+    [0, 0, []],
+  ])('projects the viewport at %s with width %s', (left, width, expected) => {
+    const views = csvRenderColumns(columns, left, width, undefined);
+    expect(views.map((view) => view.column.key)).toEqual(expected);
+    expect(views.map((view) => view.gridColumn)).toEqual(expected.map((key) => Number(key) + 2));
+    expect(views.map((view) => view.offsetPx)).toEqual(expected.map((key) => Number(key) * 100 + 16));
+  });
+  it('retains an active column and reuses an unchanged range', () => {
+    const first = csvRenderColumns(columns, 400, 100, '0');
+    expect(first.map((view) => view.column.key)).toEqual(['0', '3', '4', '5']);
+    expect(csvRenderColumns(columns, 401, 100, '0', first)).toBe(first);
+    const updated = columns.map((column) => ({ ...column, widthPx: 120 }));
+    expect(csvRenderColumns(updated, 401, 100, '0', first)).not.toBe(first);
+    expect(csvRenderColumns(columns, 400, 100, undefined, first).map((view) => view.column.key)).toEqual(['3', '4', '5']);
+  });
+  it.each(TABLE_KEYS)('uses the same projection for %s', (table) => {
+    const model = createCsvGridColumns(table, ['id', 'custom'], []);
+    expect(csvRenderColumns(model.columns, 0, model.totalWidthPx + 16, undefined).map((view) => view.column.key)).toEqual(['id', 'custom']);
+  });
+});
 
 describe('createCsvGridColumns rows', () => {
   it('preserves the row count in the grid model', () => {

@@ -173,31 +173,23 @@ describe('useWorkspaceShellActions', () => {
     finish(closed);
     expect(await pending).toBe(closed);
   });
-  it('returns child-window cancellation to the config-clearing caller', async () => {
+  it('returns child-window cancellation to the workspace caller', async () => {
     mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
     mocks.closeWorkspaceRuntime.mockResolvedValueOnce(false);
     const feedback = feedbackStub();
     vi.mocked(feedback.choose).mockResolvedValueOnce('close');
-    expect(await useWorkspaceShellActions(feedback).confirmCloseWorkspace(false)).toBe(false);
+    expect(await useWorkspaceShellActions(feedback).confirmCloseWorkspace()).toBe(false);
     expect(feedback.success).not.toHaveBeenCalled();
   });
-  it('lets configuration maintenance own the final success feedback', async () => {
-    mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
-    const feedback = feedbackStub();
-    vi.mocked(feedback.choose).mockResolvedValueOnce('close');
-    expect(await useWorkspaceShellActions(feedback).confirmCloseWorkspace(false)).toBe(true);
-    expect(mocks.closeWorkspaceRuntime).toHaveBeenCalledOnce();
-    expect(feedback.success).not.toHaveBeenCalled();
-  });
-  it('returns an explicit cancellation or failure before config clearing can proceed', async () => {
+  it('returns an explicit workspace-close cancellation or failure', async () => {
     mocks.captureWorkspaceCloseTarget.mockReturnValue({ modRoots: [] });
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
     mocks.closeWorkspaceRuntime.mockResolvedValueOnce(false);
-    expect(await actions.confirmCloseWorkspace(false)).toBe(false);
+    expect(await actions.confirmCloseWorkspace()).toBe(false);
     vi.mocked(feedback.choose).mockResolvedValueOnce('close');
     mocks.closeWorkspaceRuntime.mockRejectedValueOnce(new Error('session close failed'));
-    expect(await actions.confirmCloseWorkspace(false)).toBe(false);
+    expect(await actions.confirmCloseWorkspace()).toBe(false);
     expect(feedback.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '关闭工作区失败');
   });
 

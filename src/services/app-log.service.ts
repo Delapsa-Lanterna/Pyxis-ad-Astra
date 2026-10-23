@@ -26,11 +26,6 @@ export async function loadLogStatus(): Promise<AppLogStatus> {
   return { ...status, pending: status.pending + appLogQueue.status().pending };
 }
 
-export async function openLogFile(): Promise<void> {
-  await flushApplicationLogs();
-  return invokeCommand('open_app_log_file');
-}
-
 export async function clearLog(): Promise<AppLogStatus> {
   await flushApplicationLogs();
   return invokeCommand('clear_app_log_file');

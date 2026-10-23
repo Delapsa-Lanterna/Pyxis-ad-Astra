@@ -23,6 +23,7 @@
 - `src-tauri/src/models/performance_monitor.rs`：性能采样与报告状态协议。
 - `src/shared/runtime/performance.ts`：运行开关、区间计时与采样接收入口。
 - `src/shared/types/performance-monitor.types.ts`：批量交付与状态协议。
+- `src/test/browser/benchmark.ts`：消费共享场景准备的固定操作采样入口。
 
 ### 装配
 
@@ -61,6 +62,7 @@
 ## 规范
 
 - 性能复测必须固定样本、构建、环境及操作脚本，统计最小值、最大值、平均值、中位数与 nearest-rank P95。
+- 性能报告必须记录构建与脚本哈希、窗口、DPR、缓存条件及 profiler 状态；偶数样本中位数必须取中间两值的平均。
 - 性能监视必须默认关闭；关闭时严禁建立采集设施、读取采样时钟或组装采样字段。
 - 性能记录严禁写入应用日志，请求与响应正文严禁进入基础采样。
 - 批量交付必须保持单次在途；采集设施必须随所属窗口释放。

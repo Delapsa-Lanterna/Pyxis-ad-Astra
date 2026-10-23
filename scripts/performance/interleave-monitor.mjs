@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { summarize } from '../shared/sample-statistics.mjs';
 
 const [phase, removedUrl, disabledUrl, enabledUrl, output, playwrightPath] = process.argv.slice(2);
 const loadPackage = createRequire(playwrightPath ? pathToFileURL(playwrightPath) : import.meta.url);
@@ -14,18 +15,6 @@ const browser = await chromium.launch({
 });
 /** @type {Record<string, Array<{kind: string, count: number, metrics: Record<string, ReturnType<typeof summarize>>}>>} */
 const results = Object.fromEntries(Object.keys(modes).map((mode) => [mode, []]));
-/** @param {number[]} values */
-function summarize(values) {
-  const sorted = [...values].sort((a, b) => a - b);
-  return {
-    n: sorted.length,
-    min: sorted[0],
-    max: sorted.at(-1),
-    mean: sorted.reduce((total, value) => total + value, 0) / sorted.length,
-    median: sorted[Math.floor(sorted.length / 2)],
-    p95: sorted[Math.ceil(sorted.length * 0.95) - 1],
-  };
-}
 await mkdir(output, { recursive: true });
 try {
   for (const count of [50, 300]) {

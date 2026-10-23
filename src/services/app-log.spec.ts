@@ -42,14 +42,11 @@ describe('application log lifecycle', () => {
     expect(invoke).toHaveBeenCalledTimes(2);
   });
 
-  it.each(['openLogFile', 'clearLog'] as const)('flushes before %s', async (action) => {
+  it('flushes before clearing the log', async () => {
     const service = await import('./app-log.service');
     service.recordLogBestEffort(entry);
-    await service[action]();
-    expect(invoke.mock.calls.map(([command]) => command)).toEqual([
-      'append_app_logs',
-      action === 'clearLog' ? 'clear_app_log_file' : 'open_app_log_file',
-    ]);
+    await service.clearLog();
+    expect(invoke.mock.calls.map(([command]) => command)).toEqual(['append_app_logs', 'clear_app_log_file']);
   });
 
   it('accepts a stopped process and reports local pending state', async () => {

@@ -6,17 +6,23 @@ import CsvGrid from './CsvGrid.vue';
 import type { CsvGridModel } from '@/domain/csv-editor/csv-grid-model';
 import { mountCsvInputHost } from '@/test/csv-input-host';
 import { createPinia, setActivePinia } from 'pinia';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
+import { createCsvSourceIndex } from '@/domain/schema/csv-source-options';
+import type { ResourceRef } from '@/shared/types';
 import { createSettingsFixture } from '@/test/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
+const { prepare } = vi.hoisted(() => ({ prepare: vi.fn() }));
+vi.mock('@/app/composables/use-thumbnail-preload', () => ({ useThumbnailPreload: () => ({ prepare, url: () => '' }) }));
 let fixture: ReturnType<typeof mountCsvInputHost>;
 
 let wrapper: VueWrapper | null = null;
 let resize: () => void;
 const disconnect = vi.fn();
 beforeEach(() => {
+  prepare.mockClear();
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(240);
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -49,9 +55,9 @@ function modelFixture(): CsvGridModel {
   };
 }
 
-function mountGrid() {
+function mountGrid(model = modelFixture(), smart = false) {
   setActivePinia(createPinia());
-  initializeSettingsStore(createSettingsFixture());
+  initializeSettingsStore(createSettingsFixture({ editMode: smart ? 'smart' : 'plain' }));
   fixture = mountCsvInputHost(
     CsvGrid,
     {
@@ -71,7 +77,7 @@ function mountGrid() {
               v-for="row in entries.filter(entry => entry.kind === 'item')"
               :key="row.key"
               class="row-slot"
-              @click="$emit('activate-cell', row.item, columns[0], $event)"
+              @click="$emit('activate-cell', row.item, columns[0].column, $event)"
             >{{ row.item.rowKey }}</div>
           </div>`,
           },
@@ -79,13 +85,55 @@ function mountGrid() {
       },
       attachTo: document.body,
     },
-    { isDirty: () => false, model: reactive(modelFixture()), selectedRowKey: null },
+    { isDirty: () => false, model: reactive(model), selectedRowKey: null },
   );
   wrapper = fixture.host;
   return fixture.surface;
 }
 
 describe('CsvGrid', () => {
+  it('prepares media from data changes while row mounting keeps the same demand', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback));
+    const model = modelFixture();
+    const resource: ResourceRef = { source: 'mod', relPath: 'graphics/a.png', ownerKind: 'ship', ownerId: 'a', key: 'spriteName' };
+    model.columns[0]!.schema = { key: 'id', control: 'reference', source: 'csv:ships.id' };
+    model.rowKeys = Array.from({ length: 20 }, (_, index) => 'key-' + index);
+    model.rowsByKey = Object.fromEntries(model.rowKeys.map((key) => [key, csvDraftRow({ id: 'a' }, key)]));
+    model.sourceIndex = createCsvSourceIndex(
+      ['csv:ships.id'],
+      new Map([['csv:ships.id', [{ label: 'A', value: 'a', resourceRef: resource }]]]),
+    );
+    const grid = mountGrid(model, true);
+    await flushPromises();
+    const prepared = prepare.mock.calls.length;
+    while (frames.length) {
+      frames.shift()!(performance.now());
+      await flushPromises();
+    }
+    expect(grid.findAll('.row-slot')).toHaveLength(20);
+    expect(prepare).toHaveBeenCalledTimes(prepared);
+    const rows = (fixture.props.value.model as CsvGridModel).rowsByKey;
+    rows['key-0']!.data.id = 'b';
+    await flushPromises();
+    expect(prepare.mock.calls.at(-1)![1]).toHaveLength(9);
+    (fixture.props.value.model as CsvGridModel).sourceIndex = createCsvSourceIndex(
+      ['csv:ships.id'],
+      new Map([['csv:ships.id', [{ label: 'B', value: 'b', resourceRef: resource }]]]),
+    );
+    await flushPromises();
+    expect(prepare.mock.calls.at(-1)![1]).toHaveLength(1);
+    delete rows['key-0'];
+    await flushPromises();
+    expect(prepare.mock.calls.at(-1)![1]).toHaveLength(0);
+    rows['key-0'] = csvDraftRow({ id: 'b' }, 'key-0');
+    await flushPromises();
+    expect(prepare.mock.calls.at(-1)![1]).toHaveLength(1);
+    useSettingsStore().setEditMode('plain');
+    await flushPromises();
+    expect(prepare.mock.calls.at(-1)!.slice(1)).toEqual([[], []]);
+  });
+
   it('refreshes the requested window and releases observation', async () => {
     const grid = mountGrid();
     await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));

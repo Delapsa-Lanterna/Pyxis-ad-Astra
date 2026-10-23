@@ -6,10 +6,11 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { createSettingsFixture } from '@/test/settings';
 import { editorUiStubs, nInputNumber } from '@/test/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
+import ColorPicker from '@/shared/ui/ColorPicker.vue';
 
-const logUi = vi.hoisted(() => ({ refresh: vi.fn() }));
+const logUi = vi.hoisted(() => ({ refresh: vi.fn(), reset: vi.fn() }));
 vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
-  useSettingsViewModel: () => ({
+  useSettingsViewModel: (onReset?: () => void) => ({
     logStatus: ref({ recording: 'stopped', level: 'warning', pending: 0, dropped: 7, lastError: 'fixture write error' }),
     applicationLogError: ref(''),
     monitorStatus: ref({
@@ -39,27 +40,49 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
     pickStarsectorRoot: vi.fn(),
     refreshLogStatus: logUi.refresh,
     openConfigFolderAction: vi.fn(),
-    openLogFileAction: vi.fn(),
+    confirmResetSettings: () => {
+      logUi.reset();
+      onReset?.();
+    },
     restoreDefaultLogDirectory: vi.fn(),
-    confirmClearConfig: vi.fn(),
     confirmClearLog: vi.fn(),
   }),
 }));
 
 beforeEach(() => {
   logUi.refresh.mockClear();
+  logUi.reset.mockClear();
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
 });
 
 describe('settings limit controls', () => {
+  it('resets local invalid color input when the saved default color is unchanged', async () => {
+    const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
+    const color = wrapper.getComponent(ColorPicker);
+    color.vm.$emit('update:modelValue', 'invalid');
+    await wrapper.vm.$nextTick();
+    expect(color.props('modelValue')).toBe('invalid');
+    expect(wrapper.find('.color-picker-palette .field-description').exists()).toBe(true);
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '重置为默认配置')!
+      .trigger('click');
+    expect(color.props('modelValue')).toBe(useSettingsStore().customAccent);
+    expect(wrapper.find('.color-picker-palette .field-description').exists()).toBe(false);
+    wrapper.unmount();
+  });
   it('offers all four minimum levels and exposes the stopped-run status', async () => {
     const wrapper = mount(SettingsPage, {
-      props: { closeWorkspace: vi.fn(async () => true) },
       global: { stubs: { ...editorUiStubs, ColorPicker: true } },
     });
     const config = wrapper.findAll('section').find((section) => section.get('h3').text() === '配置文件')!;
     const select = config.get('select');
+    await config
+      .findAll('button')
+      .find((button) => button.text() === '重置为默认配置')!
+      .trigger('click');
+    expect(logUi.reset).toHaveBeenCalledOnce();
     expect(config.text()).toContain('本次运行已停止记录');
     expect(config.text()).toContain('WARNING');
     expect(config.text()).toContain('未写入 7 条');
@@ -84,7 +107,6 @@ describe('settings limit controls', () => {
   });
   it('places default-off monitoring last and keeps the runtime state until restart', async () => {
     const wrapper = mount(SettingsPage, {
-      props: { closeWorkspace: vi.fn(async () => true) },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },
@@ -119,7 +141,6 @@ describe('settings limit controls', () => {
   });
   it('places general and immersive fonts below appearance and applies both controls', async () => {
     const wrapper = mount(SettingsPage, {
-      props: { closeWorkspace: vi.fn(async () => true) },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },
@@ -158,7 +179,6 @@ describe('settings limit controls', () => {
   });
   it('places history and log settings in their sections with units and scope hints', async () => {
     const wrapper = mount(SettingsPage, {
-      props: { closeWorkspace: vi.fn(async () => true) },
       global: {
         stubs: { ...editorUiStubs, ColorPicker: true, 'n-radio-group': { template: '<div><slot /></div>' }, 'n-radio-button': true },
       },

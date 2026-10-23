@@ -18,12 +18,13 @@
 - `package-lock.json`：前端依赖的固定解析结果。
 - `package.json`：应用依赖及正式开发、检查和构建命令。
 - `rust-toolchain.toml`：Rust 工具链版本。
+- `scripts/browser-test.mjs`：浏览器快速验证的热更新启动入口。
 - `showcase/`：应用展示图标资产。
 - `src-tauri/Cargo.lock`：原生依赖的固定解析结果。
 - `src-tauri/Cargo.toml`：原生依赖、编译特性与 crate 配置。
 - `src-tauri/build.rs`：Tauri 构建入口。
 - `src-tauri/icons/`：原生应用图标资产。
-- `src-tauri/src/commands/app_lifecycle.rs`：关闭与设置 IPC、目标占用后的关闭编排、启动交接、运行参数与配置清理装配。
+- `src-tauri/src/commands/app_lifecycle.rs`：关闭与设置 IPC、目标占用后的关闭编排、启动交接及运行参数装配。
 - `src-tauri/src/domain/mod.rs`：原生领域规则的模块登记。
 - `src-tauri/src/lib.rs`：原生应用启动、插件、command、窗口事件与资源配置装配。
 - `src-tauri/src/main.rs`：原生进程入口。
@@ -48,7 +49,7 @@
 - `src/app/components/WindowTooltip.vue`：窗口统一接管原生 title 提示，持有悬浮等待、主题展示与释放。
 - `src/app/composables/immersive-editor-assembly.ts`：沉浸式实现选择、会话交接及展示协议适配。
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
-- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备、设置提交及配置清理动作装配。
+- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备及设置提交装配。
 - `src/app/naive-ui.runtime.ts`：Naive UI 按需注册。
 - `src/app/theme-overrides.ts`：Naive UI 主题覆盖构建，消费主题令牌生成 provider 覆盖。
 - `src/assets/app-icon.svg`：标题栏透明罗盘图标资源。
@@ -63,7 +64,7 @@
 
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/workspace.store.ts`：当前 Mod、正式清单与 session 的工作区派生投影。
-- `src/test/stubs.ts`：应用测试的共享组件装配。
+- `src/test/browser/`：浏览器场景、正式窗口壳与独立样本的共享验收装配。
 - `src/test/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
 - `src/windows/window-context.window.ts`：启动消费的原生 bootstrap、上下文与正式设置交接入口。
 

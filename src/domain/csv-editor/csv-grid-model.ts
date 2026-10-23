@@ -13,6 +13,37 @@ export interface CsvGridColumn {
   widthPx: number;
 }
 
+export interface CsvRenderColumn {
+  column: CsvGridColumn;
+  gridColumn: number;
+  offsetPx: number;
+}
+
+export function csvRenderColumns(
+  columns: CsvGridColumn[],
+  left: number,
+  width: number,
+  active: string | undefined,
+  previous: CsvRenderColumn[] = [],
+): CsvRenderColumn[] {
+  let offsetPx = 16;
+  const positions = columns.map((column, index) => {
+    const view = { column, gridColumn: index + 2, offsetPx };
+    offsetPx += column.widthPx;
+    return view;
+  });
+  const visible = positions.filter((view) => view.offsetPx + view.column.widthPx > left + 16 && view.offsetPx < left + width);
+  const first = visible[0]?.gridColumn ?? Infinity;
+  const last = visible.at(-1)?.gridColumn ?? -Infinity;
+  // Retain the active column so horizontal clipping preserves its editor anchor.
+  const next = positions.filter((view) => (view.gridColumn >= first - 1 && view.gridColumn <= last + 1) || view.column.key === active);
+  // Reuse unchanged projections so pixel scrolling does not rerender every retained row.
+  return next.length === previous.length &&
+    next.every((view, index) => view.column === previous[index]!.column && view.offsetPx === previous[index]!.offsetPx)
+    ? previous
+    : next;
+}
+
 export interface CsvGridModel extends CsvGridColumns {
   rowKeys: string[];
   rowsByKey: Record<string, CsvRowRecord>;

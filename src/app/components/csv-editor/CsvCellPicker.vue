@@ -10,19 +10,8 @@
       ref="searchRef"
       v-model="query"
       class="csv-cell-picker-search ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
-      placeholder="搜索选项"
-    />
-    <button class="csv-cell-picker-action ui-button ui-text-small ui-layout-stretch ui-text-normal" type="button" @click="toggleCustomMode">
-      自定义值
-    </button>
-    <input
-      v-if="customMode"
-      ref="customRef"
-      :value="customText"
-      class="csv-cell-picker-custom ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
-      placeholder="输入自定义值"
-      @input="updateCustom"
-      @keydown.enter.prevent="submitCustom"
+      placeholder="搜索或输入新值，回车确认"
+      @keydown.enter="submitQuery"
     />
     <button
       v-if="!multiple && selectedValues.size > 0"
@@ -87,7 +76,7 @@
       v-if="multiple"
       class="csv-cell-picker-action ui-button ui-text-small ui-layout-stretch ui-text-normal"
       type="button"
-      @click="$emit('commit', captureValues())"
+      @click="$emit('commit', values)"
     >
       确认选择
     </button>
@@ -112,7 +101,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   cancel: [];
   commit: [values: string[]];
-  'pending-custom': [dirty: boolean];
   update: [values: string[]];
 }>();
 const floating = useCsvFloatingViewport();
@@ -126,10 +114,7 @@ const visible = useVisibleResourceMedia({
 
 const collapsedGroups = ref(new Set<string | number>());
 const query = ref('');
-const customMode = ref(false);
-const customText = ref('');
 const searchRef = useTemplateRef<HTMLInputElement>('searchRef');
-const customRef = useTemplateRef<HTMLInputElement>('customRef');
 const selectedValues = computed(() => new Set(props.values));
 
 // Mirrors the .csv-cell-picker max-height in tables.css.
@@ -167,15 +152,14 @@ function clearValue() {
 
 function selectOption(option: FlatSelectOption) {
   if (option.templateValue !== undefined) {
-    customMode.value = true;
-    customText.value = option.templateValue;
-    emit('pending-custom', true);
+    query.value = option.templateValue;
     void nextTick(() => {
-      customRef.value?.focus({ preventScroll: true });
-      customRef.value?.select();
+      focusSearch();
+      searchRef.value?.select();
     });
     return;
   }
+  query.value = '';
   const value = option.value;
   if (!props.multiple) {
     emit('commit', [value]);
@@ -187,46 +171,22 @@ function selectOption(option: FlatSelectOption) {
   emit('update', [...next]);
 }
 
-function submitCustom() {
-  const values = captureValues();
-  if (props.multiple) emit('update', values);
-  else emit('commit', values);
+function submitQuery(event: KeyboardEvent) {
+  if (event.isComposing) return;
+  event.preventDefault();
+  const value = query.value.trim();
+  if (!value) return;
+  const option = groups.value.flatMap((group) => group.options).find((option) => option.value === value || option.label === value);
+  selectOption(option ?? { label: value, value });
 }
 
-function captureValues(): string[] {
-  const trimmed = customText.value.trim();
-  cancelCustom();
-  if (!trimmed) return props.values;
-  if (props.multiple) {
-    const next = new Set(props.values);
-    next.add(trimmed);
-    return [...next];
-  }
-  return [trimmed];
-}
-
-function updateCustom(event: Event) {
-  customText.value = (event.target as HTMLInputElement).value;
-  emit('pending-custom', customText.value.trim() !== '');
-}
-
-function toggleCustomMode() {
-  if (customMode.value) cancelCustom();
-  customMode.value = !customMode.value;
-}
-
-function cancelCustom() {
-  customText.value = '';
-  emit('pending-custom', false);
-}
-
-defineExpose({ captureValues, cancelCustom, focus: focusSearch });
+defineExpose({ reset: () => (query.value = ''), focus: focusSearch });
 
 function handleDocumentMouseDown(event: MouseEvent) {
   if (event.target === floating?.panel.value) return;
   const target = event.target as { closest?: (selector: string) => unknown } | null;
   if (target?.closest?.('.csv-grid-cell')) return;
   if (target?.closest?.('.csv-cell-picker')) return;
-  emit('commit', captureValues());
+  emit('commit', props.values);
 }
 </script>

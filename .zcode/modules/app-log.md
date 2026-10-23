@@ -19,7 +19,6 @@
 
 - `src-tauri/src/diagnostics.rs`：按级别交付原生诊断及惰性详细记录。
 - `src-tauri/src/models/app_log.rs`：固定文件名、四档级别、批量请求和状态协议。
-- `src-tauri/src/services/system_open.rs`：日志文件的系统打开能力。
 - `src/shared/lib/log-fields.ts`：业务记录的字符串上下文组装。
 - `src/shared/runtime/app-log-queue.ts`：窗口队列、源头过滤、惰性字段及区间记录。
 - `src/shared/types/app-log.types.ts`：日志条目与状态协议。
@@ -52,7 +51,7 @@
 
 1. 写入失败保留原始原因，释放待写记录并统计未写入数量。
 2. 后端发布 app-log-stopped，各窗口结束本次记录并报告本窗未写入总量。
-3. 设置页读取进程状态；打开和清空先交付所属待写记录。
+3. 设置页读取进程状态，清空日志前交付所属待写记录。
 4. 重新启动建立新的队列和进程状态。
 
 ## 规范

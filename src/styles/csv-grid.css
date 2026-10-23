@@ -218,8 +218,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-floating);
 }
-.csv-cell-picker-search,
-.csv-cell-picker-custom {
+.csv-cell-picker-search {
   box-sizing: border-box;
   height: 26px;
   flex: 0 0 26px;

@@ -56,6 +56,27 @@ pub fn validate_weapon_spec_class(content: &Value, path: &Path) -> AppResult<()>
     ))
 }
 
+pub fn validate_weapon_editor_spec(content: &Value, path: &Path) -> AppResult<()> {
+    validate_weapon_spec_class(content, path)?;
+    for (field, code) in [
+        ("turretOffsets", "spec.weapon_turret_barrel_required"),
+        ("hardpointOffsets", "spec.weapon_hardpoint_barrel_required"),
+    ] {
+        if content
+            .get(field)
+            .and_then(Value::as_array)
+            .is_none_or(|offsets| offsets.len() < 2)
+        {
+            return Err(AppError::message(
+                code,
+                format!("{field} must contain at least one firing point"),
+            )
+            .at_path(path));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,5 +142,37 @@ mod tests {
         assert_eq!(error.code(), "spec.weapon_class_unsupported");
         assert!(error.to_string().contains("specClass"));
         assert!(error.to_string().contains("demo.wpn"));
+    }
+
+    #[test]
+    fn weapon_editor_requires_a_point_for_each_mount_in_both_classes() {
+        let path = Path::new("data/weapons/fixture.wpn");
+        for spec_class in ["projectile", "beam"] {
+            let valid =
+                json!({"specClass":spec_class,"turretOffsets":[0,0],"hardpointOffsets":[2,3,4,5]});
+            validate_weapon_editor_spec(&valid, path).unwrap();
+            for (field, code) in [
+                ("turretOffsets", "spec.weapon_turret_barrel_required"),
+                ("hardpointOffsets", "spec.weapon_hardpoint_barrel_required"),
+            ] {
+                for invalid in [
+                    None,
+                    Some(Value::Null),
+                    Some(json!("")),
+                    Some(json!([])),
+                    Some(json!([0])),
+                ] {
+                    let mut content = valid.clone();
+                    content.as_object_mut().unwrap().remove(field);
+                    if let Some(value) = invalid {
+                        content[field] = value;
+                    }
+                    let error = validate_weapon_editor_spec(&content, path).unwrap_err();
+                    assert_eq!(error.code(), code);
+                    assert_eq!(error.location().unwrap().path.as_deref(), path.to_str());
+                    assert!(error.to_string().contains(field));
+                }
+            }
+        }
     }
 }

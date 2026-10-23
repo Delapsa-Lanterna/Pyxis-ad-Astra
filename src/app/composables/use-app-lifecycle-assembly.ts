@@ -1,15 +1,8 @@
 import { requestClose, readyNativeClose, replyNativeClose } from '@/services/app-lifecycle.service';
 import { onUnmounted } from 'vue';
-import { reloadCurrentWindow } from '@/windows/current.window';
 import { refreshLoadedFileHistory } from '@/orchestrators/file-history-replay.orchestrator';
 import { pauseProjectDisplay } from '@/orchestrators/project-sync.orchestrator';
-import {
-  flushSettings,
-  withSettingsReset,
-  startSettingsPersistence,
-  startSettingsMirror,
-} from '@/orchestrators/settings-persistence.orchestrator';
-import { clearConfig } from '@/services/app-config.service';
+import { flushSettings, startSettingsPersistence, startSettingsMirror } from '@/orchestrators/settings-persistence.orchestrator';
 import { provideWindowCloseState } from './use-window-close-state';
 import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
 import { flushApplicationLogs } from '@/services/app-log.service';
@@ -27,8 +20,6 @@ export function useAppLifecycleAssembly() {
       await flushApplicationLogs();
       await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
     },
-    clearConfig: () => withSettingsReset(clearConfig),
-    reload: reloadCurrentWindow,
   });
 }
 

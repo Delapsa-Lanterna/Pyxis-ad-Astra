@@ -1,19 +1,18 @@
-import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, ref, onScopeDispose } from 'vue';
 import { pickDirectoryDialog } from '@/shared/runtime/dialog.runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { clearLog, loadLogStatus, openLogFile } from '@/services/app-log.service';
+import { clearLog, loadLogStatus } from '@/services/app-log.service';
 import { applicationLogError } from '@/shared/runtime/app-log-queue';
 import { useAppConfigActions } from '@/app/composables/settings/use-app-config-actions';
 import { useSettingsStore } from '@/stores/settings.store';
-import { saveLogDirectory } from '@/orchestrators/settings-persistence.orchestrator';
+import { saveLogDirectory, resetSettings } from '@/orchestrators/settings-persistence.orchestrator';
 import { querySystemFonts } from '@/services/app-settings.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { controlPerformanceMonitor, performanceMonitorError } from '@/app/performance-monitor';
 import type { AppLogStatus, PerformanceMonitorStatus } from '@/shared/types';
 
-export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
+export function useSettingsViewModel(onReset?: () => void) {
   const settings = useSettingsStore();
   const feedback = useAppFeedback();
   const logSizeBytes = ref(0);
@@ -21,7 +20,7 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
   const logStatus = ref<AppLogStatus | null>(null);
   const formattedLogSize = computed(() => formatBytes(logSizeBytes.value));
   const logPathHint = computed(() => (logPath.value ? `Log 文件: ${logPath.value}` : 'Log 文件尚未创建。'));
-  const configActions = useAppConfigActions(closeWorkspace, useWindowLifecycleActions());
+  const configActions = useAppConfigActions();
   const reads = useQueryReadOwner();
   const monitorStatus = ref<PerformanceMonitorStatus | null>(null);
   const traceSeconds = ref(15);
@@ -109,13 +108,23 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
     });
   }
 
-  async function openLogFileAction() {
-    try {
-      await openLogFile();
-      if (active) await refreshLogStatus();
-    } catch (error) {
-      feedback.error(error, '打开 log 文件失败');
-    }
+  function confirmResetSettings() {
+    feedback.confirmDanger({
+      title: '重置为默认配置？',
+      content:
+        '游戏目录、外观、字体、编辑偏好、缓存限制、日志及性能调试设置将恢复默认值。工作区记录、Mod 内容和已有日志继续保留。性能监视开关在重启后生效。',
+      actionText: '重置',
+      onConfirm: async () => {
+        try {
+          await resetSettings();
+          if (active) onReset?.();
+          feedback.success('已重置为默认配置');
+          if (active) await refreshLogStatus();
+        } catch (error) {
+          feedback.error(error, '重置配置失败');
+        }
+      },
+    });
   }
 
   function confirmClearLog() {
@@ -157,9 +166,8 @@ export function useSettingsViewModel(closeWorkspace: () => Promise<boolean>) {
     pickStarsectorRoot,
     refreshLogStatus,
     openConfigFolderAction: configActions.openConfigFolderAction,
-    openLogFileAction,
     restoreDefaultLogDirectory,
-    confirmClearConfig: configActions.confirmClearConfig,
+    confirmResetSettings,
     confirmClearLog,
   };
 }

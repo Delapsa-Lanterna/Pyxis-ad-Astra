@@ -1,7 +1,7 @@
 import { entityTargetFixture } from '@/test/entity-target';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntityData, ResourceRef, RowData, WriteResult } from '@/shared/types/index';
-import { shipJointFixture } from '@/test/joint-edit';
+import { shipJointFixture } from '@/test/ship-joint-edit';
 import { weaponJointFixture } from '@/test/weapon-joint-edit';
 
 const mocks = vi.hoisted(() => ({

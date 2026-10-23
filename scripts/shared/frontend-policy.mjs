@@ -57,9 +57,9 @@ export const frontendCapabilities = [
   {
     role: 'orchestrator',
     domain: 'settings-persistence',
-    names: ['withSettingsReset'],
+    names: ['resetSettings'],
     capability: 'settings-reset',
-    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+    owners: [{ layer: 'app', role: 'composable', domain: 'settings-view-model' }],
   },
   ...[
     { domain: 'entity-query', name: 'hasEntityInvalidation' },
@@ -180,7 +180,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'app-settings',
-    names: ['readSettings'],
+    names: ['readSettings', 'readDefaultSettings'],
     capability: 'settings-read',
     owners: [{ layer: 'orchestrators', domain: 'settings-persistence' }],
   },
@@ -225,7 +225,7 @@ export const frontendCapabilities = [
   {
     role: 'service',
     domain: 'app-log',
-    names: ['loadLogStatus', 'openLogFile', 'clearLog'],
+    names: ['loadLogStatus', 'clearLog'],
     capability: 'log-maintenance',
     owners: [
       { layer: 'app', role: 'composable', domain: 'settings-view-model' },
@@ -238,13 +238,6 @@ export const frontendCapabilities = [
     names: ['openConfigFolder'],
     capability: 'config-maintenance',
     owners: [{ layer: 'app', role: 'composable', domain: 'app-config-actions' }],
-  },
-  {
-    role: 'service',
-    domain: 'app-config',
-    names: ['clearConfig'],
-    capability: 'config-clear',
-    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
   },
   {
     role: 'service',

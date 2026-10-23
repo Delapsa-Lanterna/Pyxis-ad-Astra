@@ -2,7 +2,7 @@ import { nextTick, watch } from 'vue';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { appLogQueue, debugLog } from '@/shared/runtime/app-log-queue';
-import { readSettings, saveSettings } from '@/services/app-settings.service';
+import { readSettings, readDefaultSettings, saveSettings } from '@/services/app-settings.service';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { listenWindowEvent } from '@/windows/tauri.events';
@@ -17,7 +17,6 @@ let saved = '';
 let failure: unknown = null;
 const pendingSnapshots = new Set<AppSettings>();
 let generation = 0;
-let paused = false;
 let stopPersistence: (() => void) | null = null;
 let committed: (accepts: () => boolean) => Promise<void>;
 function report(error: unknown) {
@@ -32,7 +31,7 @@ function report(error: unknown) {
   });
 }
 function accept(snapshot: SettingsSnapshot) {
-  if (paused || (official && snapshot.revision <= official.revision)) return;
+  if (official && snapshot.revision <= official.revision) return;
   official = snapshot;
   appLogQueue.setLevel(snapshot.value.logLevel);
   debugLog('settings.saved', () => ({ revision: String(snapshot.revision), level: snapshot.value.logLevel }));
@@ -115,7 +114,6 @@ export function startSettingsPersistence(onCommitted: (accepts: () => boolean) =
     () => settings.settingsSnapshot(),
     (snapshot) => {
       if (
-        !paused &&
         stableStringify(snapshot) !== saved &&
         ![...pendingSnapshots].some((pending) => stableStringify(pending) === stableStringify(snapshot))
       )
@@ -168,13 +166,8 @@ export async function flushSettings(): Promise<void> {
     });
   }
 }
-export async function withSettingsReset(action: () => Promise<void>) {
+export async function resetSettings(): Promise<void> {
+  const defaults = await readDefaultSettings();
+  useSettingsStore().replaceSettings(defaults);
   await flushSettings();
-  paused = true;
-  try {
-    await action();
-  } catch (error) {
-    paused = false;
-    throw error;
-  }
 }

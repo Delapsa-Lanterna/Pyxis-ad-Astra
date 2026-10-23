@@ -26,12 +26,14 @@
       </button>
     </div>
     <div
-      v-for="(column, index) in columns"
+      v-for="({ column, gridColumn }, index) in columns"
       :key="column.key"
       class="csv-grid-cell"
       role="gridcell"
       :class="[column.className, { dirty: isDirty(row.rowKey, column.key) }]"
       :data-column-key="column.key"
+      :style="{ gridColumn }"
+      :aria-colindex="gridColumn"
     >
       <div
         class="csv-cell-frame ui-text-body ui-text-normal ui-layout-row ui-layout-center ui-layout-clip ui-layout-stretch ui-content-surface-muted"
@@ -77,7 +79,7 @@
 import { computed, onMounted } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { CsvRowRecord } from '@/shared/types';
-import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
+import type { CsvGridColumn, CsvRenderColumn } from '@/domain/csv-editor/csv-grid-model';
 import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
 import { sourceValue } from '@/domain/schema/csv-source-options';
 import { csvColumnControl, csvControlUsesPicker, csvListValues, isCsvListControl } from '@/domain/csv-editor/csv-column-schema';
@@ -89,7 +91,7 @@ import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 const props = defineProps<{
   row: CsvRowRecord;
   activity: Readonly<{ active: boolean; index: number; hidden: boolean }>;
-  columns: CsvGridColumn[];
+  columns: CsvRenderColumn[];
   sourceIndex: CsvSourceIndex;
   selected: boolean;
   isDirty: (rowKey: string, column: string) => boolean;
@@ -102,13 +104,7 @@ const emit = defineEmits<{
 }>();
 function handleClick(event: MouseEvent) {
   const cell = (event.target as Element).closest<HTMLElement>('[data-column-key]');
-  if (cell)
-    emit(
-      'activate-cell',
-      props.row,
-      props.columns.find((column) => column.key === cell.dataset.columnKey)!,
-      event,
-    );
+  if (cell) emit('activate-cell', props.row, props.columns.find((view) => view.column.key === cell.dataset.columnKey)!.column, event);
   else emit('select-row', props.row.rowKey);
 }
 const context = useCsvTableInputs(),
@@ -123,7 +119,7 @@ onMounted(() =>
   })),
 );
 const cells = computed(() =>
-  props.columns.map((column) => {
+  props.columns.map(({ column }) => {
     const raw = cell(props.row.data[column.key]);
     const control = csvColumnControl(column.schema);
     const match = sourceValue(props.sourceIndex, column.schema?.source, raw);

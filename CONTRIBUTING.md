@@ -30,6 +30,29 @@ npm.cmd run tauri -- build --no-bundle
 
 产物默认位于 `src-tauri\target\release\circinus-ad-astra.exe`。不要在仍需保留的运行实例上直接使用 `build.ps1` 或 `build.bat`：这两个便捷脚本会强制关闭应用并删除前端构建目录。
 
+## 浏览器快速验证
+
+`npm.cmd run test:browser` 启动支持热更新的浏览器入口，终端显示本次地址。默认打开设置场景；工具栏提供场景切换、明暗主题、重新打开、恢复样本和关闭场景。
+
+| 场景         | 地址参数                                  | 操作                                                                 |
+| ------------ | ----------------------------------------- | -------------------------------------------------------------------- |
+| 设置         | `?case=settings`                          | 设置保存、默认值重置、目录选择、日志状态及性能调试样本               |
+| CSV          | `?case=csv`                               | 50 行、40 列，搜索、编辑、增删、排序、撤销重做及保存                 |
+| 沉浸式编辑器 | `?case=ship`、`weapon`、`wing`、`variant` | 正式字段输入、引用、历史及联合保存；装配包含武器、战机联队和插件动作 |
+| 候选列表     | `?case=weapons`、`wings`、`hullmods`      | 每类 30 项，筛选、键盘导航、详情及选择                               |
+
+数据保存在当前页面独立的内存样本中。重新打开保留已保存结果，恢复样本建立新状态，切换场景链接重新建立页面。原生目录和窗口动作交付样本结果。性能监视默认关闭。
+
+浏览器宿主消费正式前端组件、输入、查询、历史和保存编排。`src/test/browser/native.ts` 由专属 Vite 配置替换原生接口，`model.ts` 保存样本，`commands.ts` 按正式请求与响应交付结果。未支持的命令在错误中给出名称。
+
+控制台中的 `browserTest.host.model.failures` 可注入一次读取或保存失败，例如 `browserTest.host.model.failures.set('save_joint_edit', '样本保存失败')`。下一次对应命令消费该失败，随后恢复正常；`browserTest.eventListenerCount()` 提供本页事件监听数量。
+
+### 基准与调用栈
+
+`node scripts/performance/retained-lists.mjs after` 构建并启动独立基准入口；页面提供单轮流程检查和 30 轮正式采样。`?case=csv-50` 等参数选择具体规模；`before <git-ref>` 使用指定版本的生产来源，`monitor-removed` 移除监视能力，`?monitor=on` 启用采集。
+
+基准报告附带构建、脚本哈希、窗口、DPR、缓存条件、profiler 状态、原始样本和统计。统计包括最小、最大、平均、中位数与 nearest-rank P95；偶数样本中位数取中间两值的平均。CPU 调用栈由 `node scripts/performance/profile.mjs <DevTools地址> <输出.cpuprofile> <毫秒>` 独立采集。
+
 ## 改动要求
 
 - 先确认目标模块和保存 owner；组件不能直接读写磁盘，前端不能绕过 `shared/api` 与 Rust command/service 边界。

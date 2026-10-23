@@ -1,4 +1,4 @@
-import { h, ref, type Component } from 'vue';
+import { h, ref, onScopeDispose, type Component } from 'vue';
 import { mount, type MountingOptions } from '@vue/test-utils';
 import { provideCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
@@ -10,8 +10,8 @@ export function mountCsvInputHost(
   surface: Component,
   options: Pick<MountingOptions<Record<string, unknown>>, 'global' | 'attachTo'>,
   initialProps: Record<string, unknown>,
+  target: CsvTableTarget = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' },
 ) {
-  const target: CsvTableTarget = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' };
   const inputs = createFieldInputs(ref(JSON.stringify(target)));
   const activeCell = ref<CsvCellTarget | null>(null);
   const updates: Array<{ target: CsvCellTarget; value: string }> = [];
@@ -19,6 +19,7 @@ export function mountCsvInputHost(
   const host = mount(
     {
       setup() {
+        onScopeDispose(inputs.release);
         provideCsvGridMedia({ url: (resource) => resourceMediaDataUrl(target.sessionId, resource) ?? '' });
         provideCsvTableInputs({
           target,

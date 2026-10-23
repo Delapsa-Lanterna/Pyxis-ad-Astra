@@ -93,11 +93,76 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     #[test]
+    fn empty_weapon_editor_mounts_preserve_file_and_history_until_corrected() {
+        use crate::models::{AssociatedSpecCreateParams, EntityKind, WeaponSpecClass};
+        for spec_class in [WeaponSpecClass::Projectile, WeaponSpecClass::Beam] {
+            let root = temp_dir("weapon_editor_required_points");
+            fs::create_dir_all(root.join("data/weapons")).unwrap();
+            let path = root.join("data/weapons/fixture.wpn");
+            let mut valid = crate::domain::spec_construction::create_associated_spec(
+                &AssociatedSpecCreateParams::Weapon {
+                    id: "fixture".into(),
+                    spec_class,
+                },
+            );
+            write_utf8_no_bom(&path, &valid.to_string()).unwrap();
+            let original = read_utf8_no_bom(&path).unwrap();
+            let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
+            let manifest =
+                crate::services::project::open_project_session_traced(&root, None, &mut trace)
+                    .unwrap();
+            let info = crate::services::query_entity_edit_target(
+                &manifest.session_id,
+                EntityKind::Weapon,
+                "fixture",
+            )
+            .unwrap();
+            let save = |data| {
+                crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    target: info.target.clone(),
+                    base_versions: info.base_versions.clone(),
+                    data,
+                    json_write: Default::default(),
+                    ordered_json: None,
+                })
+            };
+            for (field, code) in [
+                ("turretOffsets", "spec.weapon_turret_barrel_required"),
+                ("hardpointOffsets", "spec.weapon_hardpoint_barrel_required"),
+            ] {
+                let mut empty = valid.clone();
+                empty[field] = serde_json::json!([]);
+                let error = save(empty).unwrap_err();
+                assert_eq!(error.code(), code);
+                assert_eq!(read_utf8_no_bom(&path).unwrap(), original);
+                assert!(
+                    crate::services::write_transactions::query_history(
+                        &manifest.session_id,
+                        &manifest.mod_root
+                    )
+                    .unwrap()
+                    .undo_stack
+                    .is_empty()
+                );
+            }
+            valid["turretOffsets"] = serde_json::json!([4, 5]);
+            let saved = save(valid.clone()).unwrap();
+            assert_eq!(read_json_file(&path).unwrap(), valid);
+            assert_eq!(saved.refreshed_entity, Some(valid));
+            assert_eq!(saved.history.undo_stack.len(), 1);
+            crate::services::project::close_project_session(manifest.session_id).unwrap();
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
     fn pulse_import_can_be_read_and_corrected_before_structured_save() {
         let root = temp_dir("pulse_editor_read_correct_save");
         fs::create_dir_all(root.join("data/weapons")).unwrap();
         let path = root.join("data/weapons/demo.wpn");
-        let original = r#"{"id":"demo","specClass":"pulse","builtInWeapons":{"_slot":"w"},"array":[{"_field":1}]}"#;
+        let original = r#"{"id":"demo","specClass":"pulse","turretOffsets":[0,0],"hardpointOffsets":[0,0],"builtInWeapons":{"_slot":"w"},"array":[{"_field":1}]}"#;
         write_utf8_no_bom(&path, original).unwrap();
         let mut content =
             load_imported_editor_spec_file(SpecEditorKind::Weapon, path.to_string_lossy().into())
@@ -144,6 +209,8 @@ mod tests {
             let mut data = serde_json::json!({definition.id_field: "demo", "nested": {"_slot": 2}, "_tool": true});
             if kind == SpecEditorKind::Weapon {
                 data["specClass"] = Value::String("projectile".to_string());
+                data["turretOffsets"] = serde_json::json!([0, 0]);
+                data["hardpointOffsets"] = serde_json::json!([0, 0]);
             }
             let result = save_editor_spec(&root.to_string_lossy(), kind, "demo", data).unwrap();
             let persisted = read_json_file(&target).unwrap();
@@ -180,7 +247,7 @@ mod tests {
             &root.to_string_lossy(),
             SpecEditorKind::Weapon,
             "demo",
-            serde_json::json!({"id": "demo", "specClass":"projectile", "weaponType": "ENERGY"}),
+            serde_json::json!({"id": "demo", "specClass":"projectile", "weaponType": "ENERGY", "turretOffsets":[0,0], "hardpointOffsets":[0,0]}),
         )
         .unwrap();
 
@@ -208,12 +275,12 @@ mod tests {
             &root.to_string_lossy(),
             SpecEditorKind::Weapon,
             "demo",
-            serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY"}),
+            serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
             JsonWriteOptions {
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
             },
-            Some(r#"{"weaponType":"ENERGY","id":"demo"}"#),
+            Some(r#"{"weaponType":"ENERGY","id":"demo","specClass":"projectile","turretOffsets":[0,0],"hardpointOffsets":[0,0]}"#),
         )
         .unwrap();
         let preserved = read_utf8_no_bom(&target).unwrap();
@@ -224,7 +291,7 @@ mod tests {
             &root.to_string_lossy(),
             SpecEditorKind::Weapon,
             "demo",
-            serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY"}),
+            serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
             JsonWriteOptions::default(),
             None,
         )

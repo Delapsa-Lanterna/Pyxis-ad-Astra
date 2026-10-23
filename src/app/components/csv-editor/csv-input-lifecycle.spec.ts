@@ -25,6 +25,7 @@ afterEach(() => {
 });
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240);
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(240);
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -36,7 +37,7 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
 });
 
-function mountTable(control: 'number' | 'enum' = 'number') {
+function mountTable(control: 'number' | 'enum' = 'number', extraColumns = 0) {
   const root = 'M:/A';
   const target = { sessionId: 'sA', modRoot: root, table: 'ships' as const };
   const tables = useCsvEditorStore();
@@ -44,8 +45,8 @@ function mountTable(control: 'number' | 'enum' = 'number') {
   workspace.registerMod({ modRoot: root, displayName: 'A', version: '', status: 'ready' });
   workspace.activateModTable(root);
   const tableManifest = sessionUpdateFixture('sA', root).projection.manifest;
-  for (const key of TABLE_KEYS)
-    tableManifest.tableSummaries[key] = { ...tableManifest.tableSummaries[key], header: ['width'], totalRows: 1 };
+  const header = ['width', ...Array.from({ length: extraColumns }, (_, index) => 'field' + index)];
+  for (const key of TABLE_KEYS) tableManifest.tableSummaries[key] = { ...tableManifest.tableSummaries[key], header, totalRows: 1 };
   useProjectStore().registerProjectManifest(tableManifest);
   tables.initializeModTables({ sessionId: tableManifest.sessionId, modRoot: root, manifest: tableManifest });
   tables.applyTableIndex(
@@ -61,7 +62,7 @@ function mountTable(control: 'number' | 'enum' = 'number') {
   const grid = computed(() => {
     const model = createCsvGridColumns(
       'ships',
-      ['width'],
+      header,
       tables.rows.filter((row) => row !== null),
     );
     model.columns[0]!.schema = { key: 'width', control };
@@ -87,6 +88,25 @@ function mountTable(control: 'number' | 'enum' = 'number') {
 }
 
 describe('CSV input, target and row lifecycle', () => {
+  it('keeps the active input and anchor when horizontal scrolling changes the visible columns', async () => {
+    const { inputs, wrapper } = mountTable('number', 8);
+    await vi.waitFor(() => expect(wrapper.find('[data-column-key="width"]').exists()).toBe(true));
+    await wrapper.get('[data-column-key="width"]').trigger('click');
+    const input = wrapper.get('input.csv-cell-input');
+    const anchor = wrapper.get('[data-column-key="width"]').element;
+    await input.setValue('pending');
+    const panel = wrapper.get('.table-panel');
+    panel.element.scrollLeft = 600;
+    await panel.trigger('scroll');
+    await vi.waitFor(() => expect(wrapper.find('[data-column-key="field7"]').exists()).toBe(true));
+    expect(wrapper.get('[data-column-key="width"]').element).toBe(anchor);
+    expect(wrapper.get('input.csv-cell-input').element).toBe(input.element);
+    expect(inputs.dirty.value).toBe(true);
+    expect(input.element).toHaveProperty('value', 'pending');
+    expect(wrapper.find('[data-column-key="field0"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it('commits the previous raw input before another row takes the single editor', async () => {
     const { root, tables, inputs, wrapper } = mountTable();
     const mapping = [{ previousKey: 'ships:new:0', nextKey: 'ships:row:9', rowIndex: 9 }];

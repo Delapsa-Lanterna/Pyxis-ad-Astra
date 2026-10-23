@@ -90,14 +90,6 @@ pub fn save_settings_snapshot(
     save_settings(&app_data, &settings)?;
     commit_settings(app, settings, apply_runtime)
 }
-pub fn clear_settings(clear: impl FnOnce() -> AppResult<()>) -> AppResult<()> {
-    let _guard = SETTINGS_WRITE_LOCK
-        .lock()
-        .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
-    clear()?;
-    *snapshot_state()? = None;
-    Ok(())
-}
 pub fn ensure_core_editing_allowed(mod_root: &str) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let is_core = boundary.root().ancestors().any(|root| {

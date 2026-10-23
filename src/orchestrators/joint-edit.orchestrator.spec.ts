@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { shipJointFixture, jointFixtureValues } from '@/test/joint-edit';
+import { shipJointFixture } from '@/test/ship-joint-edit';
+import { jointFixtureValues } from '@/test/joint-record';
 import { savedWriteFixture } from '@/test/write-result';
 import type { AppFeedback, JointEditDraft } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ prepare: vi.fn(), save: vi.fn() }));

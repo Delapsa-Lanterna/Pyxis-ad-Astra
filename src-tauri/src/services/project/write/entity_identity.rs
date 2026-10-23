@@ -24,6 +24,12 @@ pub fn save_entity_spec(
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
+    if target.kind == EntityKind::Weapon {
+        crate::domain::spec_construction::validate_weapon_editor_spec(
+            &data,
+            Path::new(&target.write.path),
+        )?;
+    }
     save_entity_content(session_id, target, data, options, ordered_json, None)
 }
 pub fn save_variant_entity(
@@ -384,6 +390,10 @@ mod tests {
             let root = temp_dir(&format!("identity_comment_{kind:?}"));
             std::fs::create_dir_all(root.join(definition.dir)).unwrap();
             let mut content = json!({"specClass":"beam"});
+            if kind == EntityKind::Weapon {
+                content["turretOffsets"] = json!([0, 0]);
+                content["hardpointOffsets"] = json!([0, 0]);
+            }
             content[definition.id_field] = "old".into();
             let source = root.join(definition.default_rel_path("old"));
             crate::io::write_utf8_no_bom(&source, &content.to_string()).unwrap();

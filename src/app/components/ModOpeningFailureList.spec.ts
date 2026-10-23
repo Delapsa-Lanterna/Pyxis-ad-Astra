@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
-import { nButtonStub } from '@/test/stubs';
+import { nButton } from '@/test/ui-stubs';
 import type { ModOpeningFailure } from '@/shared/types';
 
 let wrapper: VueWrapper | null = null;
@@ -46,7 +46,7 @@ function mountList(failures: ModOpeningFailure[]): VueWrapper {
     props: { failures },
     global: {
       stubs: {
-        'n-button': nButtonStub,
+        'n-button': nButton,
       },
     },
   });

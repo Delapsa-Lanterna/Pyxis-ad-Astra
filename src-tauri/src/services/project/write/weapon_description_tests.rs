@@ -14,7 +14,7 @@ fn fixture(collision: bool) -> (std::path::PathBuf, ProjectManifest) {
     std::fs::create_dir_all(root.join("data/strings")).unwrap();
     write_utf8_no_bom(
         &root.join("data/weapons/old.wpn"),
-        &json!({"id":"old","specClass":"projectile","descriptionId":"unused","custom":{"keep":1}})
+        &json!({"id":"old","specClass":"projectile","turretOffsets":[0,0],"hardpointOffsets":[0,0],"descriptionId":"unused","custom":{"keep":1}})
             .to_string(),
     )
     .unwrap();
