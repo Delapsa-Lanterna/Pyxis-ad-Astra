@@ -47,6 +47,7 @@
 </template>
 <script setup lang="ts">
 import { computed, h, ref } from 'vue';
+import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -70,6 +71,7 @@ const commands = useSaveCommandStore();
 const { previews, schemaRuntimeContext, openImmersive } = useJsonDocumentView(props.document, props.definition);
 const draft = props.document.draftValue;
 const title = computed(() => {
+  if (props.definition.kind === 'misc-config') return miscConfigFile(props.document.target.value!.id).label;
   const data = jsonDocumentContent(props.definition.kind, draft.value);
   return String(data.displayName || data.hullName || data.title || data.name || props.document.target.value!.id);
 });

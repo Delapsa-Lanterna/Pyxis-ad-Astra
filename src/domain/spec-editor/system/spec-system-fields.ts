@@ -1,5 +1,13 @@
 import type { RowData } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
+import type { SpecField } from '@/domain/editors/spec-construction';
+
+export const SYSTEM_SOUND_FIELDS: SpecField[] = [
+  ['useSound', '激活音效', '', undefined, false, 'config:sounds'],
+  ['loopSound', '循环音效', '', undefined, false, 'config:sounds'],
+  ['deactivateSound', '关闭音效', '', undefined, false, 'config:sounds'],
+  ['outOfUsesSound', '用尽音效', '', undefined, false, 'config:sounds'],
+];
 
 /// Fields the system editor renders as structured controls; every other key
 /// in a `.system` spec is treated as an extra passthrough field.

@@ -3,6 +3,8 @@ import { rustServiceExports, rustServicePaths } from '../../shared/rust-crate-pa
 import { productionRustSource } from '../../shared/rust-source.mjs';
 
 const commandServices = new Map([
+  ['save_misc_config', 'misc_config'],
+  ['delete_misc_config', 'misc_config'],
   ['load_imported_editor_spec_file', 'spec_editor'],
   ['save_editor_spec', 'project'],
   ['save_csv_patch', 'project'],

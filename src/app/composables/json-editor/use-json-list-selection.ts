@@ -11,7 +11,7 @@ import { isReadInvalidated } from '@/shared/runtime/read-request';
 interface ListHandoff {
   sessionId: string;
   modRoot: string;
-  receipt: WriteResult;
+  receipt: WriteResult<unknown>;
   sourceId: string | null;
   changesTarget: boolean;
   accept: () => Promise<boolean>;
@@ -134,7 +134,7 @@ export function useJsonListSelection(options: {
     modRoot: string;
     changesTarget: boolean;
     label: string;
-    write: () => Promise<WriteResult>;
+    write: () => Promise<WriteResult<unknown>>;
     accept: () => Promise<boolean>;
   }): Promise<boolean> {
     if (disposed || params.sessionId !== options.sessionId.value || params.modRoot !== options.modRoot.value) return false;

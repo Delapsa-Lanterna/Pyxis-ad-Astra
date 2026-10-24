@@ -1,0 +1,47 @@
+{
+  "$schema": "circinus-ad-astra/field-schema/v1",
+  "id": "game-settings",
+  "gameVersion": "0.98a-RC8",
+  "displayName": "游戏设置",
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/config/settings.json"
+    }
+  ],
+  "sections": [
+    {
+      "id": "content",
+      "label": "游戏设置",
+      "groupEntries": true,
+      "fields": [
+        {
+          "key": "file",
+          "type": "object",
+          "label": "设置",
+          "nested": [
+            {
+              "key": "designTypeColors",
+              "type": "key-value",
+              "label": "设计类型颜色",
+              "valueSchema": {
+                "key": "color",
+                "type": "color-rgba",
+                "label": "颜色",
+                "default": [255, 255, 255, 255]
+              }
+            },
+            { "key": "graphics", "type": "object", "label": "图像资源" },
+            { "key": "plugins", "type": "object", "label": "插件" }
+          ],
+          "additionalFields": {
+            "key": "other",
+            "type": "object",
+            "label": "其余设置"
+          }
+        }
+      ]
+    }
+  ]
+}

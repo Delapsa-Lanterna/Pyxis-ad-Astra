@@ -45,8 +45,9 @@
         },
         {
           "key": "tech",
-          "type": "string",
-          "label": "设计类型"
+          "type": "enum",
+          "label": "设计类型",
+          "source": "config:designTypes"
         },
         {
           "key": "spriteName",

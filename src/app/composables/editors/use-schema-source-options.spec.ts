@@ -40,32 +40,35 @@ describe('schema source query lifecycle', () => {
     wrapper.unmount();
   });
 
-  it('clears old options and reports a rejected target query once, then retries', async () => {
-    errors.mockClear();
-    const query = vi.fn(async () => [
-      { origin: 'mod' as const, options: [{ label: 'A', value: 'a', origin: 'mod' as const, description: null, resourceRef: null }] },
-    ]);
-    const context = ref<SchemaRuntimeContext>({ sessionId: 's1', modRoot: 'M:/A', querySourceOptions: query });
-    let source!: ReturnType<typeof useSchemaSourceOptions>;
-    const wrapper = mount({
-      setup() {
-        source = useSchemaSourceOptions({
-          field: () => ({ key: 'id', label: 'ID', type: 'enum', source: 'csv:weapons.id' }),
-          value: () => '',
-          runtimeContext: () => context.value,
-        });
-        return () => null;
-      },
-    });
-    await flushPromises();
-    expect(source.sourceOptions.value[0]?.children?.[0]?.value).toBe('a');
-    query.mockRejectedValueOnce(new Error('query failed'));
-    context.value = { ...context.value, sessionId: 's2', modRoot: 'M:/B' };
-    await flushPromises();
-    expect(source.sourceOptions.value).toEqual([]);
-    expect(errors).toHaveBeenCalledTimes(1);
-    await source.reloadSourceOptions();
-    expect(source.sourceOptions.value[0]?.children?.[0]?.value).toBe('a');
-    wrapper.unmount();
-  });
+  it.each(['csv:weapons.id', 'config:sounds', 'config:designTypes', 'config:hullStyles'])(
+    'reloads %s across targets, failures and retry',
+    async (catalog) => {
+      errors.mockClear();
+      const query = vi.fn(async () => [
+        { origin: 'mod' as const, options: [{ label: 'A', value: 'a', origin: 'mod' as const, description: null, resourceRef: null }] },
+      ]);
+      const context = ref<SchemaRuntimeContext>({ sessionId: 's1', modRoot: 'M:/A', querySourceOptions: query });
+      let source!: ReturnType<typeof useSchemaSourceOptions>;
+      const wrapper = mount({
+        setup() {
+          source = useSchemaSourceOptions({
+            field: () => ({ key: 'id', label: 'ID', type: 'enum', source: catalog }),
+            value: () => '',
+            runtimeContext: () => context.value,
+          });
+          return () => null;
+        },
+      });
+      await flushPromises();
+      expect(source.sourceOptions.value[0]?.children?.[0]?.value).toBe('a');
+      query.mockRejectedValueOnce(new Error('query failed'));
+      context.value = { ...context.value, sessionId: 's2', modRoot: 'M:/B' };
+      await flushPromises();
+      expect(source.sourceOptions.value).toEqual([]);
+      expect(errors).toHaveBeenCalledTimes(1);
+      await source.reloadSourceOptions();
+      expect(source.sourceOptions.value[0]?.children?.[0]?.value).toBe('a');
+      wrapper.unmount();
+    },
+  );
 });

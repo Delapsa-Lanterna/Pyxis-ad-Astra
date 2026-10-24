@@ -15,6 +15,7 @@ import { entityTargetFixture } from '@/test/entity-target';
 import { jsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
 import type { EntityData, ResourceRef, DeepReadonly, CsvRowPreviewPayload } from '@/shared/types';
 import { expectTypeOf } from 'vitest';
+import { queryMiscConfigFiles, queryMiscConfigFile } from './misc-config.service';
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
@@ -23,6 +24,13 @@ const target = entityTargetFixture('ship', 'demo');
 const draft = { hullId: 'demo' };
 const resource: ResourceRef = { source: 'mod', relPath: 'graphics/demo.png', ownerKind: 'ship', ownerId: 'demo', key: 'sprite' };
 const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
+  ['query_misc_config_files', () => queryMiscConfigFiles(sessionId, 'M:/mod'), { sessionId, modRoot: 'M:/mod' }, []],
+  [
+    'query_misc_config_file',
+    () => queryMiscConfigFile(sessionId, 'M:/mod', 'strings'),
+    { sessionId, modRoot: 'M:/mod', kind: 'strings' },
+    null,
+  ],
   [
     'query_csv_table_index',
     () => queryTableIndex(sessionId, 'ships', 240, null, 'id-name'),

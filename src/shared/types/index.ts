@@ -217,4 +217,5 @@ export type {
 } from '@/shared/types/spec-editor.types';
 
 export type * from '@/shared/types/json-recovery.types';
+export type * from '@/shared/types/misc-config.types';
 export type { PerformanceBatch, PerformanceMonitorStatus } from './performance-monitor.types';

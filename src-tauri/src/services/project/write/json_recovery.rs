@@ -26,7 +26,7 @@ pub fn recreate_json_sources(
         ));
     }
     let original = match &plan.request.origin {
-        JsonDocumentOrigin::ModInfo => None,
+        JsonDocumentOrigin::ModInfo | JsonDocumentOrigin::MiscConfig { .. } => None,
         JsonDocumentOrigin::Entity { target } => {
             Some(super::super::query::json_recovery::json_recovery_origin(
                 &supplied_plan.request.session_id,

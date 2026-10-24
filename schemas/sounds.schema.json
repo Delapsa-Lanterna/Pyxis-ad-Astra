@@ -1,0 +1,297 @@
+{
+  "$schema": "circinus-ad-astra/field-schema/v1",
+  "id": "sounds",
+  "gameVersion": "0.98a-RC8",
+  "displayName": "声音",
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/config/sounds.json"
+    }
+  ],
+  "sections": [
+    {
+      "id": "content",
+      "label": "声音",
+      "groupEntries": true,
+      "fields": [
+        {
+          "key": "file",
+          "type": "object",
+          "label": "声音",
+          "nested": [
+            {
+              "key": "music",
+              "type": "key-value",
+              "label": "音乐",
+              "valueSchema": {
+                "key": "tracks",
+                "type": "array",
+                "label": "音乐条目",
+                "default": [],
+                "item": {
+                  "key": "track",
+                  "type": "object",
+                  "label": "曲目",
+                  "nested": [
+                    {
+                      "key": "source",
+                      "type": "string",
+                      "label": "音乐来源",
+                      "description": "音乐目录或 music.bin 路径，相对 Mod 根。"
+                    },
+                    {
+                      "key": "file",
+                      "type": "string",
+                      "label": "音乐文件",
+                      "description": "相对 source 的文件名；存在时优先于 files。"
+                    },
+                    {
+                      "key": "files",
+                      "type": "array",
+                      "label": "文件列表",
+                      "description": "相对 source 的文件名列表。",
+                      "item": {
+                        "key": "filename",
+                        "type": "string",
+                        "label": "文件名",
+                        "default": ""
+                      }
+                    },
+                    {
+                      "key": "volume",
+                      "type": "float",
+                      "label": "音量",
+                      "description": "默认 1。",
+                      "numberFormat": "starsector"
+                    },
+                    {
+                      "key": "randomStart",
+                      "type": "boolean",
+                      "label": "随机起始曲目",
+                      "description": "使用 files 时生效，默认开启。"
+                    },
+                    {
+                      "key": "shuffle",
+                      "type": "boolean",
+                      "label": "随机播放",
+                      "description": "使用 files 时生效，默认关闭。"
+                    }
+                  ],
+                  "default": {
+                    "source": "sounds/music",
+                    "file": "",
+                    "volume": 1
+                  },
+                  "additionalFields": {
+                    "key": "extra",
+                    "type": "object",
+                    "label": "额外字段"
+                  }
+                }
+              }
+            }
+          ],
+          "additionalFields": {
+            "key": "effects",
+            "type": "key-value",
+            "label": "音效",
+            "reservedKeys": ["music"],
+            "valueSchema": {
+              "key": "sounds",
+              "type": "array",
+              "label": "普通音效",
+              "default": [],
+              "item": {
+                "key": "sound",
+                "type": "object",
+                "label": "音频",
+                "nested": [
+                  {
+                    "key": "file",
+                    "type": "path",
+                    "label": "音频文件",
+                    "description": "相对 Mod 根的音频路径。"
+                  },
+                  {
+                    "key": "pitch",
+                    "type": "float",
+                    "label": "音高",
+                    "description": "默认 1。",
+                    "numberFormat": "starsector"
+                  },
+                  {
+                    "key": "volume",
+                    "type": "float",
+                    "label": "音量",
+                    "description": "默认 1。",
+                    "numberFormat": "starsector"
+                  }
+                ],
+                "default": {
+                  "file": "",
+                  "pitch": 1,
+                  "volume": 1
+                },
+                "additionalFields": {
+                  "key": "extra",
+                  "type": "object",
+                  "label": "额外字段"
+                }
+              },
+              "variants": [
+                {
+                  "key": "sounds",
+                  "type": "array",
+                  "label": "普通音效",
+                  "default": [],
+                  "item": {
+                    "key": "sound",
+                    "type": "object",
+                    "label": "音频",
+                    "nested": [
+                      {
+                        "key": "file",
+                        "type": "path",
+                        "label": "音频文件",
+                        "description": "相对 Mod 根的音频路径。"
+                      },
+                      {
+                        "key": "pitch",
+                        "type": "float",
+                        "label": "音高",
+                        "description": "默认 1。",
+                        "numberFormat": "starsector"
+                      },
+                      {
+                        "key": "volume",
+                        "type": "float",
+                        "label": "音量",
+                        "description": "默认 1。",
+                        "numberFormat": "starsector"
+                      }
+                    ],
+                    "default": {
+                      "file": "",
+                      "pitch": 1,
+                      "volume": 1
+                    },
+                    "additionalFields": {
+                      "key": "extra",
+                      "type": "object",
+                      "label": "额外字段"
+                    }
+                  }
+                },
+                {
+                  "key": "group",
+                  "type": "object",
+                  "label": "声音组",
+                  "nested": [
+                    {
+                      "key": "sounds",
+                      "type": "array",
+                      "label": "音频列表",
+                      "default": [],
+                      "item": {
+                        "key": "sound",
+                        "type": "object",
+                        "label": "音频",
+                        "nested": [
+                          {
+                            "key": "file",
+                            "type": "path",
+                            "label": "音频文件",
+                            "description": "相对 Mod 根的音频路径。"
+                          },
+                          {
+                            "key": "pitch",
+                            "type": "float",
+                            "label": "音高",
+                            "description": "默认 1。",
+                            "numberFormat": "starsector"
+                          },
+                          {
+                            "key": "volume",
+                            "type": "float",
+                            "label": "音量",
+                            "description": "默认 1。",
+                            "numberFormat": "starsector"
+                          }
+                        ],
+                        "default": {
+                          "file": "",
+                          "pitch": 1,
+                          "volume": 1
+                        },
+                        "additionalFields": {
+                          "key": "extra",
+                          "type": "object",
+                          "label": "额外字段"
+                        }
+                      }
+                    }
+                  ],
+                  "default": {
+                    "sounds": []
+                  },
+                  "additionalFields": {
+                    "key": "rules",
+                    "type": "key-value",
+                    "label": "船体级别与样式规则",
+                    "reservedKeys": ["sounds"],
+                    "valueSchema": {
+                      "key": "rule",
+                      "type": "object",
+                      "label": "选择规则",
+                      "nested": [
+                        {
+                          "key": "sounds",
+                          "type": "array",
+                          "label": "音频索引",
+                          "description": "对应 sounds 列表的零起始下标；省略时使用整个音频列表。",
+                          "item": {
+                            "key": "index",
+                            "type": "integer",
+                            "label": "索引",
+                            "default": 0,
+                            "min": 0
+                          }
+                        },
+                        {
+                          "key": "pitch",
+                          "type": "float",
+                          "label": "音高倍数",
+                          "description": "在原音频音高上乘以该值。",
+                          "numberFormat": "starsector"
+                        },
+                        {
+                          "key": "volume",
+                          "type": "float",
+                          "label": "音量倍数",
+                          "description": "在原音频音量上乘以该值。",
+                          "numberFormat": "starsector"
+                        }
+                      ],
+                      "default": {
+                        "pitch": 1,
+                        "volume": 1
+                      },
+                      "additionalFields": {
+                        "key": "extra",
+                        "type": "object",
+                        "label": "额外字段"
+                      }
+                    },
+                    "source": "config:hullStyles"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

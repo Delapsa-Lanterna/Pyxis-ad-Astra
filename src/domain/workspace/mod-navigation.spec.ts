@@ -22,6 +22,11 @@ function manifestFixture(): ProjectManifest {
 const sections = () => buildModNavigationSections(manifestFixture());
 
 describe('buildModNavigationSections', () => {
+  it('places misc config directly after descriptions', () => {
+    const items = sections().flatMap((section) => section.items);
+    const index = items.findIndex((item) => item.id === 'table:descriptions');
+    expect(items[index + 1]).toMatchObject({ label: '杂项配置', target: { type: 'json-editor', page: 'misc-config' } });
+  });
   it('builds the four fixed sections in order', () => {
     expect(sections().map((section) => section.id)).toEqual(['workspace', 'mod-info', 'combat', 'campaign']);
   });

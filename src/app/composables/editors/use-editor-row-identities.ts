@@ -15,7 +15,7 @@ export function useEditorRowIdentities(rows: () => unknown[]) {
       else if (!stableDeepEqual(next, previous)) identities.value = next.map(() => ++sequence);
       previous = deepClone(next);
     },
-    { immediate: true },
+    { immediate: true, flush: 'sync' },
   );
 
   function commit(next: unknown[], operation?: { kind: 'insert' | 'remove'; index: number }) {

@@ -4,6 +4,7 @@ import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 import { parseCsvSource } from '@/domain/schema/csv-source-options';
+import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -82,13 +83,17 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
         }),
       ]);
       const targets = project.tableWriteTargets.filter((target) => target.sessionId === captured.sessionId && tables.has(target.table));
+      const configPaths = [...visibleSourceIds()].filter(isConfigSource).map((source) => CONFIG_OPTION_SOURCES[source]);
       const coreSources = workspace.activeManifest!.coreAvailable
-        ? targets.map((target) => ({ source: 'core' as const, relPath: relativePathFromRoot(captured.modRoot, target.path) }))
+        ? [...targets.map((target) => relativePathFromRoot(captured.modRoot, target.path)), ...configPaths].map((relPath) => ({
+            source: 'core' as const,
+            relPath,
+          }))
         : [];
       return refreshProjectSourcePaths(
         captured.sessionId,
         captured.modRoot,
-        targets.map((target) => target.path),
+        [...targets.map((target) => target.path), ...configPaths.map((path) => captured.modRoot + '/' + path)],
         [...loadedSourceResourceRefs(), ...coreSources],
       );
     },

@@ -1,0 +1,317 @@
+{
+  "$schema": "circinus-ad-astra/field-schema/v1",
+  "id": "hull-styles",
+  "gameVersion": "0.98a-RC8",
+  "displayName": "船体样式",
+  "sources": [
+    {
+      "id": "file",
+      "type": "json-file",
+      "path": "data/config/hull_styles.json"
+    }
+  ],
+  "sections": [
+    {
+      "id": "content",
+      "label": "船体样式",
+      "groupEntries": true,
+      "fields": [
+        {
+          "key": "file",
+          "type": "key-value",
+          "label": "样式",
+          "reservedKeys": ["sounds", "DEFAULT", "FIGHTER", "FRIGATE", "DESTROYER", "CRUISER", "CAPITAL_SHIP"],
+          "valueSchema": {
+            "key": "style",
+            "type": "object",
+            "label": "样式属性",
+            "nested": [
+              {
+                "key": "hyperspaceJitterColor",
+                "type": "color-rgba",
+                "label": "超空间抖动颜色",
+                "description": "舰船在超空间中的抖动效果颜色。"
+              },
+              {
+                "key": "baseCampaignExplosionColor",
+                "type": "color-rgba",
+                "label": "生涯爆炸颜色",
+                "description": "生涯地图中的基础爆炸颜色。"
+              },
+              {
+                "key": "baseCombatExplosionColor",
+                "type": "color-rgba",
+                "label": "战斗爆炸闪光",
+                "description": "战斗中爆炸闪光部分的基础颜色。"
+              },
+              {
+                "key": "combatExplosionNonFlashColorOverride",
+                "type": "color-rgba",
+                "label": "爆炸烟团颜色",
+                "description": "覆盖战斗中爆炸烟团部分的颜色。"
+              },
+              {
+                "key": "campaignEngineGlowColor",
+                "type": "color-rgba",
+                "label": "生涯引擎发光颜色",
+                "description": "覆盖生涯地图中的引擎发光颜色。"
+              },
+              {
+                "key": "campaignEngineTrailColor",
+                "type": "color-rgba",
+                "label": "生涯引擎尾迹颜色",
+                "description": "覆盖生涯地图中的引擎尾迹颜色。"
+              },
+              {
+                "key": "fighterRepairFlickerColor",
+                "type": "color-rgba",
+                "label": "战机维修闪光",
+                "description": "战机维修时的闪光颜色。"
+              },
+              {
+                "key": "weaponDisabledExplosionColor",
+                "type": "color-rgba",
+                "label": "武器失效火花",
+                "description": "武器被击毁时的爆炸效果颜色。"
+              },
+              {
+                "key": "shieldRingColor",
+                "type": "color-rgba",
+                "label": "护盾边缘颜色",
+                "description": "护盾边缘的颜色。"
+              },
+              {
+                "key": "shieldInnerColor",
+                "type": "color-rgba",
+                "label": "护盾内部颜色",
+                "description": "护盾内部的颜色。"
+              },
+              {
+                "key": "fluxVentCoreColor",
+                "type": "color-rgba",
+                "label": "散幅能核心颜色",
+                "description": "主动散幅能效果的核心颜色。"
+              },
+              {
+                "key": "fluxVentFringeColor",
+                "type": "color-rgba",
+                "label": "散幅能边缘颜色",
+                "description": "主动散幅能效果的边缘颜色。"
+              },
+              {
+                "key": "fighterChipIconColor",
+                "type": "color-rgba",
+                "label": "战机图标颜色",
+                "description": "战机图标的颜色；省略时沿用维修闪光颜色。"
+              },
+              {
+                "key": "overloadColor",
+                "type": "color-rgba",
+                "label": "过载颜色",
+                "description": "覆盖舰船过载效果的颜色。"
+              },
+              {
+                "key": "engineLoopSet",
+                "type": "enum",
+                "label": "引擎循环音效",
+                "description": "sounds.json 中的引擎循环声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "engineAccelerateSet",
+                "type": "enum",
+                "label": "引擎加速音效",
+                "description": "sounds.json 中的引擎加速声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "empLoopSet",
+                "type": "enum",
+                "label": "电磁循环音效",
+                "description": "sounds.json 中的电磁效果循环声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "fluxLoopSet",
+                "type": "enum",
+                "label": "幅能循环音效",
+                "description": "sounds.json 中的幅能循环声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "ventFluxSet",
+                "type": "enum",
+                "label": "散幅能音效",
+                "description": "sounds.json 中的主动散幅能声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "shieldBurnoutSet",
+                "type": "enum",
+                "label": "护盾过载音效",
+                "description": "sounds.json 中的护盾过载声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "shieldLowerSet",
+                "type": "enum",
+                "label": "关闭护盾音效",
+                "description": "sounds.json 中的关闭护盾声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "shieldRaiseSet",
+                "type": "enum",
+                "label": "开启护盾音效",
+                "description": "sounds.json 中的开启护盾声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "explosionShipSet",
+                "type": "enum",
+                "label": "舰船爆炸音效",
+                "description": "sounds.json 中的舰船爆炸声音组 ID。",
+                "source": "config:sounds"
+              },
+              {
+                "key": "damageDecalSheet",
+                "type": "path-image",
+                "label": "损伤贴图",
+                "description": "船体损伤贴图集路径。"
+              },
+              {
+                "key": "damageDecalGlowSheet",
+                "type": "path-image",
+                "label": "损伤发光贴图",
+                "description": "船体损伤发光贴图集路径。"
+              },
+              {
+                "key": "slotCoverSmallTurret",
+                "type": "path-image",
+                "label": "小型炮塔槽盖",
+                "description": "小型炮塔武器槽盖板的贴图路径。"
+              },
+              {
+                "key": "slotCoverSmallHardpoint",
+                "type": "path-image",
+                "label": "小型固定槽盖",
+                "description": "小型固定武器槽盖板的贴图路径。"
+              },
+              {
+                "key": "slotCoverMediumTurret",
+                "type": "path-image",
+                "label": "中型炮塔槽盖",
+                "description": "中型炮塔武器槽盖板的贴图路径。"
+              },
+              {
+                "key": "slotCoverMediumHardpoint",
+                "type": "path-image",
+                "label": "中型固定槽盖",
+                "description": "中型固定武器槽盖板的贴图路径。"
+              },
+              {
+                "key": "slotCoverLargeTurret",
+                "type": "path-image",
+                "label": "大型炮塔槽盖",
+                "description": "大型炮塔武器槽盖板的贴图路径。"
+              },
+              {
+                "key": "slotCoverLargeHardpoint",
+                "type": "path-image",
+                "label": "大型固定槽盖",
+                "description": "大型固定武器槽盖板的贴图路径。"
+              },
+              {
+                "key": "fluxVentTextureSheet",
+                "type": "path-image",
+                "label": "散幅能贴图集",
+                "description": "主动散幅能效果使用的贴图集路径。"
+              },
+              {
+                "key": "fluxVentRadialTexture",
+                "type": "path-image",
+                "label": "散幅能径向贴图",
+                "description": "主动散幅能径向效果的贴图路径。"
+              },
+              {
+                "key": "dHullOverlayLight",
+                "type": "path-image",
+                "label": "轻度 D 级损伤",
+                "description": "轻度 D 级船体损伤覆盖贴图路径。"
+              },
+              {
+                "key": "dHullOverlayMedium",
+                "type": "path-image",
+                "label": "中度 D 级损伤",
+                "description": "中度 D 级船体损伤覆盖贴图路径。"
+              },
+              {
+                "key": "dHullOverlayHeavy",
+                "type": "path-image",
+                "label": "重度 D 级损伤",
+                "description": "重度 D 级船体损伤覆盖贴图路径。"
+              },
+              {
+                "key": "coversMatchShipBrightness",
+                "type": "boolean",
+                "label": "槽盖匹配亮度",
+                "description": "武器槽盖板随船体亮度调整，默认开启。"
+              },
+              {
+                "key": "coversColorShiftAmount",
+                "type": "float",
+                "label": "槽盖偏色程度",
+                "description": "武器槽盖板向船体颜色偏移的程度，范围为 0～1。",
+                "numberFormat": "starsector",
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "default": {
+              "hyperspaceJitterColor": [255, 125, 45, 200],
+              "baseCampaignExplosionColor": [255, 125, 25, 255],
+              "baseCombatExplosionColor": [255, 125, 25, 255],
+              "combatExplosionNonFlashColorOverride": [255, 165, 100, 255],
+              "fighterRepairFlickerColor": [255, 125, 25, 255],
+              "fighterChipIconColor": [255, 200, 150, 255],
+              "weaponDisabledExplosionColor": [255, 125, 25, 255],
+              "shieldRingColor": [255, 255, 255, 255],
+              "shieldInnerColor": [255, 125, 125, 75],
+              "fluxVentCoreColor": [255, 255, 255, 255],
+              "fluxVentFringeColor": [125, 0, 155, 255],
+              "fluxVentTextureSheet": "graphics/fx/nebula_colorless.png",
+              "fluxVentRadialTexture": "graphics/fx/radial_fx.png",
+              "engineLoopSet": "engine_loop",
+              "engineAccelerateSet": "engine_accelerate",
+              "empLoopSet": "emp_loop",
+              "fluxLoopSet": "flux_loop",
+              "ventFluxSet": "vent_flux",
+              "shieldBurnoutSet": "shield_burnout",
+              "shieldLowerSet": "shield_lower",
+              "shieldRaiseSet": "shield_raise",
+              "explosionShipSet": "explosion_ship",
+              "damageDecalSheet": "graphics/damage/damage_decal_sheet_base.png",
+              "damageDecalGlowSheet": "graphics/damage/damage_decal_sheet_glow.png",
+              "coversColorShiftAmount": 0,
+              "coversMatchShipBrightness": true,
+              "slotCoverSmallTurret": "graphics/weapons/covers/cover_turret_lowtech_small.png",
+              "slotCoverSmallHardpoint": "graphics/weapons/covers/cover_hardpoint_lowtech_small.png",
+              "slotCoverMediumTurret": "graphics/weapons/covers/cover_turret_lowtech_medium.png",
+              "slotCoverMediumHardpoint": "graphics/weapons/covers/cover_hardpoint_lowtech_medium.png",
+              "slotCoverLargeTurret": "graphics/weapons/covers/cover_turret_lowtech_large.png",
+              "slotCoverLargeHardpoint": "graphics/weapons/covers/cover_hardpoint_lowtech_large.png",
+              "dHullOverlayLight": "graphics/damage/dmod_overlay_lowtech_light.png",
+              "dHullOverlayMedium": "graphics/damage/dmod_overlay_lowtech_medium.png",
+              "dHullOverlayHeavy": "graphics/damage/dmod_overlay_lowtech_heavy.png"
+            },
+            "additionalFields": {
+              "key": "extra",
+              "type": "object",
+              "label": "额外字段"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

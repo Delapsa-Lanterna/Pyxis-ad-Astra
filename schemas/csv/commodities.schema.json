@@ -72,12 +72,14 @@
     {
       "key": "sound id",
       "label": "获取音效",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "sound id drop",
       "label": "丢弃音效",
-      "control": "text"
+      "control": "reference",
+      "source": "config:sounds"
     },
     {
       "key": "order",

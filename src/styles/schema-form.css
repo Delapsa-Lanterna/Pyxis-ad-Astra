@@ -157,17 +157,10 @@
 .field-collection-header {
   justify-content: space-between;
 }
-.field-map-row,
 .field-collection,
 .field-map {
   gap: var(--space-1);
   max-width: 100%;
-}
-.field-map-row {
-  grid-template-columns: minmax(70px, 0.8fr) minmax(100px, 1fr) 28px;
-}
-.field-map-reference .field-map-row {
-  grid-template-columns: minmax(100px, 1fr) 70px 28px;
 }
 .field-json-add {
   gap: var(--space-2);
@@ -178,12 +171,6 @@
 .field-collection-header,
 .path-field {
   gap: var(--space-1);
-}
-@media (max-width: 700px) {
-  .field-map-row,
-  .field-map-reference .field-map-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
-  }
 }
 @media (max-width: 460px) {
   .schema-field {

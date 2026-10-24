@@ -5,6 +5,8 @@ import { nextTick } from 'vue';
 import type { RowData } from '@/shared/types/index';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { editorUiStubs } from '@/test/ui-stubs';
+import { initializeSettingsStore } from '@/stores/settings.store';
+import { createSettingsFixture } from '@/test/settings';
 
 const mocks = vi.hoisted(() => ({
   feedback: {
@@ -58,6 +60,7 @@ function mountEditor(system: RowData) {
 describe('SpecSystemEditor type switching', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
     installCanvas2DStub();
   });
 

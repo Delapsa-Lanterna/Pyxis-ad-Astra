@@ -13,6 +13,9 @@ mod hull_reference;
 mod joint_edit;
 mod json_file;
 mod json_recovery;
+mod misc_config;
+#[cfg(test)]
+mod misc_config_tests;
 mod mod_creation;
 mod mod_file_browser;
 mod project_session;
@@ -41,6 +44,7 @@ pub use hull_reference::*;
 pub use joint_edit::*;
 pub use json_file::*;
 pub use json_recovery::*;
+pub use misc_config::*;
 pub use mod_creation::*;
 pub use mod_file_browser::*;
 pub use project_session::*;

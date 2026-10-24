@@ -75,11 +75,11 @@
 - [x] 引用切换、增删武器、插件与战机联队共同更新预览和媒体集合，隐藏、卸载、失效及关闭释放所属资源等待。
 - [x] 验收完整装配操作、内置槽位、模块与 Skin、共享目标交接、Core 覆盖、预算口径、历史、原子保存、同步重试及原生窗口生命周期。
 
-## Phase 3: 外置文本 JSON 支持
+## Phase 3: 杂项配置支持
 
-- [ ] 接入 `data/strings/strings.json` 的读取与外置文本模块入口，缺文件时返回空列表。
-- [ ] 文件列表与详情复用现有基础文本编辑器或 JSON 文本编辑能力，接入现有保存、文件级 history 与回放刷新链路。
-- [ ] 验收新增、编辑、保存、撤销重做、缺文件和解析错误定位。
+- [x] 接入 `data/strings/strings.json` 的目录与独立读取，中栏保留缺文件条目，右侧提供创建。
+- [x] 文件列表与详情复用现有基础文本编辑器或 JSON 文本编辑能力，接入现有保存、文件级 history 与回放刷新链路。
+- [x] 验收新增、编辑、保存、撤销重做、缺文件和解析错误定位。
 
 ## Phase 4: 外部文件变化与会话同步
 
@@ -211,7 +211,7 @@
 
 ### Phase 10.1: 游戏全局设置
 
-- [ ] 接入 `data/config/settings.json`，提供按战斗、生涯、市场和 UI 分类的 schema 表单，覆盖已知设置项。
+- [x] 接入 `data/config/settings.json`，设计类型颜色采用颜色控件，其余内容采用统一 JSON 文本输入。
 
 ### Phase 10.2: 战斗目标配置
 
@@ -219,15 +219,15 @@
 
 ### Phase 10.3: 引擎样式配置
 
-- [ ] 接入 `data/config/engine_styles.json`，以 schema 表单编辑样式，颜色、数值和贴图字段复用已有控件。
+- [x] 接入 `data/config/engine_styles.json`，以 schema 表单编辑样式，颜色、数值和贴图字段复用已有控件。
 
 ### Phase 10.4: 船体样式配置
 
-- [ ] 接入 `data/config/hull_styles.json`，以 schema 表单编辑船体样式定义。
+- [x] 接入 `data/config/hull_styles.json`，以 schema 表单编辑船体样式定义。
 
 ### Phase 10.5: 声音配置
 
-- [ ] 接入 `data/config/sounds.json`，以 schema 表单编辑声音定义，路径字段复用文本或既有路径控件。
+- [x] 接入 `data/config/sounds.json`，以 schema 表单编辑声音定义，路径字段复用文本或既有路径控件。
 
 ## Phase 11: 禁止项：可视化逻辑编辑器（蓝图系统）
 

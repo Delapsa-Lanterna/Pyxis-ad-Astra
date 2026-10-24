@@ -6,7 +6,7 @@
     </header>
     <ul :ref="setMediaRoot" class="json-entity-list-items ui-text-reset">
       <li v-if="!items.length" class="json-entity-list-empty ui-text-small">
-        未找到 {{ definition.directory }} 下的{{ definition.label }}。
+        {{ loadFailed ? '读取失败，请通过错误提示修复文件后刷新。' : '未找到 ' + definition.directory + ' 下的' + definition.label + '。' }}
       </li>
       <li
         v-for="item in items"
@@ -33,12 +33,14 @@
         <span class="json-entity-text ui-layout-grid ui-layout-shrink"
           ><span class="json-entity-name json-entity-text-value ui-text-truncate ui-layout-shrink">{{ item.title }}</span
           ><small class="json-entity-text-meta ui-text-truncate ui-text-muted ui-layout-shrink"
-            >{{ item.id }}<span v-if="item.dirty"> · 未保存</span><span v-if="item.missing"> · 来源缺失</span></small
+            >{{ item.filename || item.id }}<span v-if="item.dirty"> · 未保存</span><span v-if="item.missing"> · 来源缺失</span
+            ><span v-else-if="item.state === 'missing'"> · 未创建</span><span v-else-if="item.state === 'present'"> · 已创建</span
+            ><span v-if="item.state === 'error'"> · 读取失败</span></small
           ></span
         >
       </li>
     </ul>
-    <footer class="json-entity-list-footer ui-footer">
+    <footer v-if="definition.kind !== 'misc-config'" class="json-entity-list-footer ui-footer">
       <n-button size="small" block :loading="opening || actionRunning" @click="openCreate">新建{{ definition.label }}</n-button>
     </footer>
     <n-modal
@@ -79,6 +81,7 @@ const props = defineProps<{
   selectedId: string | null;
   items: ReturnType<typeof useJsonEditorViewModel>['items']['value'];
   actionRunning: boolean;
+  loadFailed?: boolean;
   hullOptions: SelectOption[];
   loadHullOptions: () => Promise<void>;
   create: (id: string, companion: string) => Promise<boolean>;

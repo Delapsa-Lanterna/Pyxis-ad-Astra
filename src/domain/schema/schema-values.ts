@@ -56,12 +56,32 @@ export function convertSchemaScalarInput(raw: string, field: FieldSchema): Schem
   if (raw.trim() === '') {
     return field.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'remove' };
   }
-  const value = field.type === 'boolean' ? parseSchemaPlainBoolean(raw) : parseSchemaPlainNumber(raw, field.type === 'integer');
+  if (field.type === 'string')
+    return field.reservedKeys?.includes(raw) ? { kind: 'error', message: '名称重复或为保留名称' } : { kind: 'set', value: raw };
+  const gameLiteral = field.numberFormat === 'starsector' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[fFdD]$/.test(raw.trim());
+  const value =
+    field.type === 'boolean'
+      ? parseSchemaPlainBoolean(raw)
+      : parseSchemaPlainNumber(gameLiteral ? raw.trim().slice(0, -1) : raw, field.type === 'integer');
   if (typeof value === 'string') return { kind: 'error', message: field.type === 'boolean' ? '请输入有效布尔值' : '请输入完整有效数字' };
   if (typeof value === 'number' && ((field.min !== undefined && value < field.min) || (field.max !== undefined && value > field.max))) {
     return { kind: 'error', message: '数值超出字段允许范围' };
   }
-  return { kind: 'set', value };
+  return { kind: 'set', value: gameLiteral ? raw : value };
+}
+
+export function schemaFieldVariant(field: FieldSchema, value: unknown): FieldSchema {
+  const matches = (candidate: FieldSchema) =>
+    ['array', 'array-of-object', 'string-array'].includes(candidate.type)
+      ? Array.isArray(value)
+      : ['object', 'key-value'].includes(candidate.type)
+        ? value !== null && typeof value === 'object' && !Array.isArray(value)
+        : ['float', 'integer'].includes(candidate.type)
+          ? typeof value === 'number'
+          : candidate.type === 'boolean'
+            ? typeof value === 'boolean'
+            : typeof value === 'string';
+  return field.variants!.find(matches) ?? { key: field.key, label: field.label, type: 'object' };
 }
 
 export function applySchemaFieldUpdate(obj: RowData, key: string, update: SchemaFieldUpdate): RowData {
@@ -137,7 +157,7 @@ export function schemaKeyValueOutput(
 
   const result: Record<string, unknown> = Object.create(null);
   for (const entry of entries) {
-    if (entry.key) result[entry.key] = schemaKeyValueObjectValue(entry.val);
+    if (entry.key) result[entry.key] = entry.val;
   }
   return result;
 }
@@ -145,35 +165,9 @@ export function schemaKeyValueOutput(
 export function appendSchemaKeyValueEntry(
   entries: SchemaKeyValueEntry[],
   format: FieldSchema['format'],
+  valueSchema?: FieldSchema,
 ): Record<string, unknown> | Record<string, unknown>[] {
-  return schemaKeyValueOutput([...entries, { key: nextSchemaKeyValueKey(entries, format), val: '' }], format);
-}
-
-export function parseSchemaKeyValueText(raw: string): unknown {
-  const trimmed = raw.trim();
-  if (trimmed === '') return '';
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return raw;
-    }
-  }
-  const numberValue = Number(trimmed);
-  if (!Number.isNaN(numberValue)) return numberValue;
-  return raw;
-}
-
-export function formatSchemaKeyValueText(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object') {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-  return String(value);
+  return schemaKeyValueOutput([...entries, { key: nextSchemaKeyValueKey(entries, format), val: valueSchema?.default ?? '' }], format);
 }
 
 export function getNestedValue(obj: RowData, key: string): unknown {
@@ -205,13 +199,6 @@ export function setNestedValue(obj: RowData, key: string, value: unknown): RowDa
 
 function isObjectWithSchemaTags(value: unknown): value is Record<string, unknown> & { tags: unknown } {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'tags' in value);
-}
-
-function schemaKeyValueObjectValue(value: unknown): unknown {
-  if (typeof value === 'object' && value !== null) return value;
-  const text = String(value);
-  const numberValue = Number(text);
-  return !isNaN(numberValue) && text.trim() !== '' ? numberValue : value;
 }
 
 function nextSchemaKeyValueKey(entries: SchemaKeyValueEntry[], format: FieldSchema['format']): string {

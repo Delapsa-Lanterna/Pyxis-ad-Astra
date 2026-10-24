@@ -14,13 +14,23 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
     )?;
     let boundary = FsRootBoundary::new(Path::new(&request.mod_root), "JSON recovery root")?;
     let original = match &request.origin {
-        JsonDocumentOrigin::ModInfo => None,
+        JsonDocumentOrigin::ModInfo | JsonDocumentOrigin::MiscConfig { .. } => None,
         JsonDocumentOrigin::Entity { target } => {
             Some(json_recovery_origin(&request.session_id, target)?)
         }
     };
     let paths = match original.as_ref() {
-        None => vec![("file", "mod_info.json".to_string(), true)],
+        None => vec![(
+            "file",
+            match request.origin {
+                JsonDocumentOrigin::MiscConfig { file } => {
+                    crate::domain::misc_config::misc_config_path(file)
+                }
+                _ => "mod_info.json",
+            }
+            .to_string(),
+            true,
+        )],
         Some(target) => match target.kind {
             EntityKind::Variant | EntityKind::Skin => {
                 vec![("file", target.write.rel_path.clone(), true)]

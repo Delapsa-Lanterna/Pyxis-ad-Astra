@@ -9,8 +9,16 @@
       :required="field[4]"
       :layout="typeof field[2] === 'object' && !field[3] && (!Array.isArray(field[2]) || field[2].length !== 4) ? 'group' : 'row'"
     >
+      <SchemaValueInput
+        v-if="field[5]"
+        :field="{ key: path(field), label: field[1], type: 'enum', required: field[4], source: field[5] }"
+        :value="value(field)"
+        :input-key="path(field)"
+        :runtime-context="schemaRuntime"
+        @update="$emit('update', path(field), $event.kind === 'set' ? String($event.value ?? '') : '')"
+      />
       <n-select
-        v-if="field[3]"
+        v-else-if="field[3]"
         :value="field[0] === 'textureType' && Array.isArray(value(field)) ? '自定义' : value(field)"
         :options="toOptions([...field[3], ...(field[0] === 'textureType' ? ['自定义'] : [])])"
         filterable
@@ -76,6 +84,9 @@
   </div>
 </template>
 <script setup lang="ts">
+import { inject } from 'vue';
+import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
+import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
@@ -97,6 +108,7 @@ const props = withDefaults(
     readonlyFields: () => [],
   },
 );
+const schemaRuntime = inject(specSchemaContext, null);
 defineEmits<{ update: [path: string, value: JsonValue]; remove: [path: string]; browse: [path: string]; change: [path: string] }>();
 const path = (field: SpecField) => props.prefix + field[0];
 const stored = (field: SpecField) => {

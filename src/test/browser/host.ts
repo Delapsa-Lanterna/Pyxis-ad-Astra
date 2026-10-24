@@ -9,6 +9,8 @@ import { initializeWindowContext } from '@/windows/window-context.window';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
+import { useJsonEditorStore } from '@/stores/json-editor.store';
+import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -20,7 +22,7 @@ import { startPerformanceMonitor, flushPerformanceMonitor } from '@/app/performa
 import { installBrowserModel } from './commands';
 import { emit } from './events';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
-import { createBrowserModel, type BrowserModel } from './model';
+import type { BrowserModel } from './model';
 import './style.css';
 
 const immersiveKinds = ['ship', 'weapon', 'wing', 'variant'] as const;
@@ -46,6 +48,7 @@ export function createBrowserHost(element: HTMLElement) {
       invalidateQueryCacheForSession(model.sessionId);
     }
     tables?.removeModState(model.manifest.modRoot);
+    if (pinia && model) useJsonEditorStore(pinia).releaseSession(model.sessionId);
     if (pinia) disposePinia(pinia);
     pinia = null;
   }
@@ -67,6 +70,7 @@ export function createBrowserHost(element: HTMLElement) {
     const SceneContent = await (async () => {
       if (model.scene === 'settings') return (await import('@/app/components/SettingsPage.vue')).default;
       if (model.scene === 'csv') return (await import('@/app/components/csv-editor/CsvEditorWorkspace.vue')).default;
+      if (model.scene === 'json') return (await import('@/app/components/json-editor/JsonEditorWorkspace.vue')).default;
       if (immersiveKinds.includes(model.scene as (typeof immersiveKinds)[number]))
         return (await import('@/app/ImmersiveEditorContent.vue')).default;
       if (model.scene === 'hullmods') return (await import('@/app/components/immersive/variant/VariantHullmodPicker.vue')).default;
@@ -80,6 +84,21 @@ export function createBrowserHost(element: HTMLElement) {
         const workspace = useWorkspaceStore();
         workspace.registerMod({ modRoot: model.manifest.modRoot, displayName: '浏览器样本', version: '', status: 'ready' });
         useProjectStore().registerProjectManifest(model.manifest);
+        if (model.scene === 'json') {
+          workspace.activateModJson(model.manifest.modRoot, 'misc-config');
+          const feedback = useAppFeedback();
+          const commands = useSaveCommandStore();
+          const save = async () => {
+            try {
+              await useJsonEditorStore().active?.save();
+            } catch (error) {
+              feedback.error(error, '保存杂项配置失败');
+            }
+          };
+          commands.registerActiveSaveHandler(save);
+          onScopeDispose(() => commands.unregisterActiveSaveHandler(save));
+          return () => h(SceneContent);
+        }
         if (model.scene === 'csv') {
           tables = useCsvEditorStore();
           tables.initializeModTables({ sessionId: model.sessionId, modRoot: model.manifest.modRoot, manifest: model.manifest });
@@ -140,6 +159,5 @@ export function createBrowserHost(element: HTMLElement) {
       return tables;
     },
     setTheme: (theme: 'light' | 'dark') => settings.setTheme(theme),
-    reset: () => open(createBrowserModel(model.scene, model.count, model.sessionId)),
   };
 }

@@ -9,10 +9,15 @@
 ### 拥有
 
 - `schemas/csv/`：CSV 列 schema 资产。
+- `schemas/engine-styles.schema.json`：引擎样式的固定属性与新建初值。
 - `schemas/faction.schema.json`：势力字段模式资产。
+- `schemas/game-settings.schema.json`：设计类型颜色与按分组编辑的游戏设置。
+- `schemas/hull-styles.schema.json`：船体样式的固定属性与新建初值。
 - `schemas/mission.schema.json`：任务字段模式资产。
 - `schemas/mod-info.schema.json`：Mod 信息字段模式资产。
 - `schemas/skin.schema.json`：皮肤字段模式资产。
+- `schemas/sounds.schema.json`：音效数组、声音组对象及音乐目录字段。
+- `schemas/strings.schema.json`：按分组编辑字符串的文件表单。
 - `schemas/variant.schema.json`：装配字段模式资产。
 - `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
 - `src-tauri/src/commands/source_options.rs`：来源目录 command。
@@ -56,7 +61,6 @@
 - `src/shared/ui/FieldHints.vue`：描述、注意与风险的共同展示。
 - `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。
 - `src/shared/ui/FieldRow.vue`：字段、集合、说明与辅助动作的共同展示。
-- `src/shared/ui/JsonFieldEditor.vue`：额外字段结构化编辑。
 - `src/shared/ui/JsonValueInput.vue`：JSON 原始输入，按声明形状解析并提交。
 - `src/shared/ui/NumberValueInput.vue`：Smart 数值原文与正式值提交。
 - `src/stores/settings.store.ts`：消费字段解析展开设置。
@@ -102,22 +106,27 @@
 ### 额外字段
 
 1. 表单渲染器收集模型中未定义字段组成额外字段模型。
-2. 结构化编辑器按键类型分派输入控件并支持增删。
+2. 字段渲染器以 JSON 文本编辑未登记内容并支持增删。
 3. 更新以整体替换提交回表单模型。
 
 ## 规范
 
 - Bundled schema 注册时必须校验每个 `csv:` source 的表名属于正式 CSV 表注册表或实体注册表的 source 声明，无效 source 必须阻止注册。
+- Bundled schema 的 `config:` 来源必须属于正式配置目录登记，声音、设计类型与船体样式必须按当前 Mod 优先和原版补全交付候选。
 - Core 根切换必须立即清空所属字段与图形投影；静态 schema 合并必须消费当前根字段，失败时必须保留静态 schema。
 - Plain 数字、布尔与 Smart 数字必须登记原文；非法输入必须保留正式字段类型并阻止提交，可选具名字段清空必须删除键，必填字段清空必须定位为错误。
 - SchemaFieldRenderer 必须组合共同字段行、说明和值分派；SchemaValueInput 必须自身递归并交付 SchemaFieldUpdate。
 - Smart 下拉的选项菜单与已选标签必须共用同一 `SelectOption`。
+- `additionalFields` 必须按实际存在内容展示并通过字段递归写回原对象，未登记字段必须使用 JSON 文本输入，重复固定键必须保留原文并阻止提交。
+- `numberFormat: starsector` 必须保留未修改的游戏数值字符串，后缀数值修改必须经字段输入校验。
 - `plain` editMode 只允许文本或 JSON 文本；`smart` editMode 才允许增强控件；含换行字符串必须使用 textarea。
 - schema 组件严禁写盘或直连 IPC。
 - schema 资产必须按配置、CSV 列与 Mod 信息入口加载，资产解析必须复用所属版本、形状与来源校验。
+- `variants` 必须按实际 JSON 类型选择所属表单，新增条目必须采用所选格式初值，既有结构必须保留。
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
-- 分组必须消费 EditorCollapse 与 Naive 折叠项，默认折叠必须按 schema 身份初始化，首次展开后的隐藏必须保留所属输入。
+- 分组必须消费 EditorCollapse 与 Naive 折叠项；`groupEntries` 必须将一级对象分别成组并将其余值归入额外字段，增删改名必须保持其他组的展开状态，首次展开后的隐藏必须保留所属输入。
 - 原版 tags、hints 与 UI 标签必须按 Starsector 版本及完整表列 source 查询；数字规则必须通过独立模板选项交付默认输入值与有效上限，选择必须填入标签或键值键的自定义输入，并经所属 FieldInputs 提交；具体数字说明必须来自匹配的来源规则。
+- 字典名称必须使用原文输入，声明键来源时必须提供所属候选；键值字段必须保持所属值类型并消费其默认值，同层改名必须拦截重名与保留名称，点号、中文和下划线必须作为原始键处理。
 - 字段名称、字段键与完整路径必须显式交给共同标签，值控件必须消费原文登记与正式提交接口。
 - 字段挂载严禁触发选项贴图批量读取；批量解析必须 single-flight 去重。
 - 字段描述由字段行按展开设置交给公共 FieldHints 或标签的统一提示；注意与风险始终经公共 FieldHints 直接展示，切换时保留输入节点、原文、焦点与校验。
@@ -137,6 +146,7 @@
 - 装配模块浮层必须以正式 slotId 定位模块引用，并保留对象或有序条目数组形态；字段提交必须交给所属联合草稿。
 - 路径字段必须消费 pathBase；Mod 路径必须相对 Mod 根，Mission icon 必须相对任务目录，候选目录和选择器必须服从同一基准。
 - 选项图片必须按所属菜单可见与邻近集合登记，当前选中值必须独立持有；已接纳解码与缩略图必须消费窗口媒体运行态，关闭必须释放所属引用与等待。
+- 配置引用目录必须经现有来源查询与会话缓存读取，保存、删除、历史回放与显式刷新必须按登记路径失效，目录外原文必须保留。
 - 颜色文本与面板调整必须登记为同一字段输入；保存必须提交有效颜色，取消必须恢复已提交颜色。
 - 颜色面板数值必须先校验原文，复合字段终结器必须随后提交颜色；显式取消必须恢复正式颜色与控件显示。
 - 额外字段必须由业务内容与已声明键集合决定；下划线业务键必须完整展示与写回。

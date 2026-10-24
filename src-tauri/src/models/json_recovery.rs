@@ -10,6 +10,7 @@ use serde_json::Value;
 )]
 pub enum JsonDocumentOrigin {
     ModInfo,
+    MiscConfig { file: crate::models::MiscConfigKind },
     Entity { target: JsonSourceIdentity },
 }
 

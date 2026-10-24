@@ -12,6 +12,8 @@ import type {
   RowData,
   SaveCsvPatchPayload,
   SaveJointEditPayload,
+  MiscConfigFile,
+  ErrorDiagnostic,
 } from '@/shared/types';
 import { createSettingsFixture } from '../settings';
 import { sessionUpdateFixture, savedWriteFixture } from '../write-result';
@@ -24,7 +26,7 @@ import { jointObject } from '@/domain/joint-edit';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { variantEditableRecords } from '@/domain/immersive/source-records';
 
-export const scenarioNames = ['settings', 'csv', 'ship', 'weapon', 'wing', 'variant', 'weapons', 'wings', 'hullmods'] as const;
+export const scenarioNames = ['settings', 'json', 'csv', 'ship', 'weapon', 'wing', 'variant', 'weapons', 'wings', 'hullmods'] as const;
 export type BrowserScenario = (typeof scenarioNames)[number];
 export const sampleRoot = 'M:/browser-sample';
 const builders = { ship: shipJointFixture, weapon: weaponJointFixture, wing: wingJointFixture, variant: variantJointFixture };
@@ -72,6 +74,7 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
   manifest.modInfo = { name: '浏览器样本' };
   manifest.tableSummaries.ships = { path: 'data/hulls/ship_data.csv', header, available: scene === 'csv', totalRows: rows.length };
   const graphs = new Map<string, JointEditSnapshot>();
+  const miscFiles: MiscConfigFile[] = [];
   const catalogs = new Map<JointVariantCatalogKind, JointVariantEntry[]>();
   const commits = new Map<number, Pick<ReturnType<typeof savedWriteFixture>, 'sessionUpdates'>>();
   let settings = createSettingsFixture(),
@@ -80,7 +83,7 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
     nextRow = count,
     reads = 0;
   let context: ManagedWindowContext;
-  const failures = new Map<string, string>();
+  const failures = new Map<string, string | ErrorDiagnostic>();
   const monitor: PerformanceMonitorStatus = {
     enabled: false,
     records: 0,
@@ -357,6 +360,7 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
     manifest,
     monitor,
     failures,
+    miscFiles,
     graph,
     catalog,
     project,

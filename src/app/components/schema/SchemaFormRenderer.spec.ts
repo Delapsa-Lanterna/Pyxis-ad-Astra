@@ -35,10 +35,10 @@ function mountForm(modelValue: RowData) {
           emits: ['update'],
           template: '<div class="field-stub" @click="$emit(\'update\', $event)" />',
         },
-        JsonFieldEditor: {
-          name: 'JsonFieldEditor',
-          props: ['knownKeys', 'modelValue'],
-          emits: ['update:modelValue'],
+        SchemaValueInput: {
+          name: 'SchemaValueInput',
+          props: ['field', 'value'],
+          emits: ['update'],
           template: '<div class="json-stub" />',
         },
       },
@@ -81,22 +81,19 @@ describe('SchemaFormRenderer', () => {
 
   it('renders extra keys through the JSON editor and writes them back', async () => {
     const form = mountForm({ name: 'a', bonus: 5 });
-    const json = form.findComponent({ name: 'JsonFieldEditor' });
+    const json = form.findComponent({ name: 'SchemaValueInput' });
     expect(json.exists()).toBe(true);
-    // Non multi-source schemas hand the whole model to the JSON editor.
-    expect(json.props('modelValue')).toEqual({ name: 'a', bonus: 5 });
-    expect(json.props('knownKeys')).toEqual(['name', 'level']);
+    expect(json.props('value')).toEqual({ bonus: 5 });
+    expect(json.props('field').reservedKeys).toEqual(['name', 'level']);
 
-    json.vm.$emit('update:modelValue', { bonus: 7 });
+    json.vm.$emit('update', { kind: 'set', value: { bonus: 7 } });
     await nextTick();
-    // Non multi-source schemas replace the whole model with the JSON editor value.
-    expect(form.emitted('update:modelValue')?.at(-1)).toEqual([{ bonus: 7 }]);
+    expect(form.emitted('update:modelValue')?.at(-1)).toEqual([{ name: 'a', bonus: 7 }]);
   });
 
   it('projects underscore-prefixed business fields into the extra editor', () => {
     const form = mountForm({ name: 'a', _rowKey: 'business', nested: { _slot: 'weapon' } });
-    expect(form.findComponent({ name: 'JsonFieldEditor' }).props('modelValue')).toEqual({
-      name: 'a',
+    expect(form.findComponent({ name: 'SchemaValueInput' }).props('value')).toEqual({
       _rowKey: 'business',
       nested: { _slot: 'weapon' },
     });

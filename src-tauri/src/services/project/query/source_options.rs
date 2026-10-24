@@ -4,6 +4,7 @@ use super::super::{
         lock_ready_session, session_handle,
     },
     definitions::{
+        config_sources::CONFIG_OPTION_SOURCES,
         entity_definitions::entity_definitions,
         table_definitions::{csv_table_source_display_name, csv_table_source_resource_ref},
     },
@@ -40,6 +41,9 @@ pub fn query_csv_source_options(
 ) -> AppResult<Vec<SourceOptionGroup>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
+    if let Some(groups) = config_source_option_groups(&session, source)? {
+        return Ok(groups);
+    }
     if let Some(groups) = entity_source_option_groups(&mut session, source)? {
         return Ok(groups);
     }
@@ -182,6 +186,72 @@ pub fn query_csv_source_options(
         });
     }
     Ok(groups)
+}
+
+fn config_source_option_groups(
+    session: &ProjectSession,
+    source: &str,
+) -> AppResult<Option<Vec<SourceOptionGroup>>> {
+    let Some((_, relative, section)) = CONFIG_OPTION_SOURCES
+        .iter()
+        .find(|(id, _, _)| *id == source)
+    else {
+        return Ok(None);
+    };
+    let mut roots = vec![(
+        std::path::PathBuf::from(&session.manifest.mod_root),
+        ResourceSource::Mod,
+    )];
+    if let Some(game) = &session.manifest.starsector_root {
+        roots.push((
+            super::super::sources::core::core_dir(game)?,
+            ResourceSource::Core,
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    let mut groups = Vec::new();
+    for (root, origin) in roots {
+        let mut sources = super::super::sources::SourceReader::new(&root)?;
+        let path = sources.path(relative)?;
+        if !path.exists() {
+            continue;
+        }
+        let data = sources.json(&path)?;
+        let entries = if let Some(section) = section {
+            let Some(value) = data.get(section) else {
+                continue;
+            };
+            value.as_object().ok_or_else(|| {
+                AppError::message(
+                    "misc_config.shape_invalid",
+                    format!("{section} must be an object"),
+                )
+                .at_path(&path)
+            })?
+        } else {
+            data.as_object()
+                .expect("source parser guarantees an object")
+        };
+        let options = entries
+            .keys()
+            .filter(|key| {
+                !(source == "config:sounds" && *key == "music") && seen.insert((*key).clone())
+            })
+            .map(|key| crate::models::SourceOption {
+                label: key.clone(),
+                value: key.clone(),
+                description: None,
+                resource_ref: None,
+                origin,
+                template_value: None,
+                template_max: None,
+            })
+            .collect::<Vec<_>>();
+        if !options.is_empty() {
+            groups.push(SourceOptionGroup { origin, options });
+        }
+    }
+    Ok(Some(groups))
 }
 
 fn skin_source_options(
@@ -636,6 +706,83 @@ mod tests {
     use crate::io::write_utf8_no_bom;
 
     use crate::testutil::temp_dir;
+
+    #[test]
+    fn config_catalog_sources() {
+        let root = temp_dir("config_catalogs");
+        let local = root.join("mod");
+        let core = root.join("starsector-core");
+        for dir in [&local, &core] {
+            std::fs::create_dir_all(dir.join("data/config")).unwrap();
+        }
+        let mut trace = crate::services::project::PerformanceTrace::new("catalog.open");
+        let manifest = open_project_session_traced(&local, Some(&root), &mut trace).unwrap();
+        for &(source, relative, section) in CONFIG_OPTION_SOURCES {
+            assert!(
+                query_csv_source_options(&manifest.session_id, source)
+                    .unwrap()
+                    .is_empty()
+            );
+            let values = |modded| {
+                let mut values = serde_json::json!({"shared":{},"core_only":{}});
+                if modded {
+                    values = serde_json::json!({"shared":{},"本地.样式":{}});
+                }
+                if source == "config:sounds" {
+                    values["plain"] = serde_json::json!([]);
+                    values["music"] = serde_json::json!({"track":[]});
+                }
+                if let Some(key) = section {
+                    serde_json::json!({key:values})
+                } else {
+                    values
+                }
+            };
+            write_utf8_no_bom(&core.join(relative), &values(false).to_string()).unwrap();
+            write_utf8_no_bom(&local.join(relative), &values(true).to_string()).unwrap();
+            let groups = query_csv_source_options(&manifest.session_id, source).unwrap();
+            assert_eq!(groups.len(), 2);
+            assert_eq!(groups[0].origin, ResourceSource::Mod);
+            assert_eq!(groups[1].origin, ResourceSource::Core);
+            let all = groups
+                .iter()
+                .flat_map(|group| &group.options)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                all.iter().filter(|option| option.value == "shared").count(),
+                1
+            );
+            assert!(all.iter().any(|option| option.value == "本地.样式"));
+            assert!(!all.iter().any(|option| option.value == "music"));
+            if source == "config:sounds" {
+                assert!(all.iter().any(|option| option.value == "plain"));
+            }
+            std::fs::remove_file(local.join(relative)).unwrap();
+            let groups = query_csv_source_options(&manifest.session_id, source).unwrap();
+            assert_eq!(groups.len(), 1);
+            assert_eq!(groups[0].origin, ResourceSource::Core);
+            std::fs::remove_file(core.join(relative)).unwrap();
+        }
+        write_utf8_no_bom(
+            &local.join("data/config/settings.json"),
+            r#"{"designTypeColors":[]}"#,
+        )
+        .unwrap();
+        let error =
+            query_csv_source_options(&manifest.session_id, "config:designTypes").unwrap_err();
+        assert_eq!(error.code(), "misc_config.shape_invalid");
+        assert!(
+            error
+                .location()
+                .unwrap()
+                .path
+                .as_ref()
+                .unwrap()
+                .ends_with("settings.json")
+        );
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn source_options_return_resource_refs_without_data_urls() {

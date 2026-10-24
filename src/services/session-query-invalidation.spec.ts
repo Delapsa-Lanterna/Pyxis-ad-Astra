@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { queryMiscConfigFiles, queryMiscConfigFile } from './misc-config.service';
 import {
   querySessionEntity,
   querySessionEntityList,
@@ -53,6 +54,27 @@ const cases: Array<{
   unrelated: ProjectInvalidation;
   value: unknown;
 }> = [
+  ...['config:sounds', 'config:designTypes', 'config:hullStyles'].map((source) => ({
+    name: source,
+    read: () => querySourceOptionCatalog(session, source),
+    matching: scope('csv-source-options', { source }),
+    unrelated: scope('csv-source-options', { source: 'csv:ships.id' }),
+    value: [],
+  })),
+  {
+    name: 'misc-config',
+    read: () => queryMiscConfigFiles(session, 'M:/mod'),
+    matching: { ...empty, paths: ['M:/mod/data/strings/strings.json'] },
+    unrelated: { ...empty, paths: ['M:/other/data/strings/strings.json'] },
+    value: [],
+  },
+  {
+    name: 'misc-config-file',
+    read: () => queryMiscConfigFile(session, 'M:/mod', 'strings'),
+    matching: { ...empty, paths: ['M:/mod/data/strings/strings.json'] },
+    unrelated: { ...empty, paths: ['M:/mod/data/other.json'] },
+    value: null,
+  },
   { name: 'entity-detail', read: () => querySessionEntity(session, 'ship', 'demo'), matching: detail, unrelated, value: null },
   {
     name: 'entity-list',

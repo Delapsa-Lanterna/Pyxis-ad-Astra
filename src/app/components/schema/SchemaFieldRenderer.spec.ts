@@ -58,6 +58,39 @@ function mountField(field: FieldSchema, value: unknown, props: Record<string, un
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
+  it('edits nested text maps without converting strings or overwriting duplicate keys', async () => {
+    const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('strings')!.sections![0]!.fields[0]!;
+    const value = ref<import('@/shared/types').RowData>({ first: { line: '001' }, second: {} });
+    wrapper = mount(
+      {
+        setup: () => () =>
+          h(SchemaFieldRenderer, {
+            field: schema,
+            value: value.value,
+            onUpdate: (update) => {
+              if (update.kind === 'set') value.value = update.value as import('@/shared/types').RowData;
+            },
+          }),
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    await wrapper.get('textarea').setValue('123\n $token "text" ');
+    expect(value.value.first).toEqual({ line: '123\n $token "text" ' });
+    const names = () => wrapper!.findAll('.field-map-key-editor input');
+    await names()[0]!.setValue('second');
+    expect(Object.keys(value.value)).toEqual(['first', 'second']);
+    await names()[0]!.setValue('组.一');
+    expect(value.value['组.一']).toEqual({ line: '123\n $token "text" ' });
+    await names()[1]!.setValue('_句.子');
+    expect(value.value['组.一']).toEqual({ '_句.子': '123\n $token "text" ' });
+    const add = () => wrapper!.findAll('button').filter((button) => button.text() === '+ 添加');
+    await add().at(-1)!.trigger('click');
+    expect(value.value.newField).toEqual({});
+    await add()[0]!.trigger('click');
+    expect(value.value['组.一']).toEqual({ '_句.子': '123\n $token "text" ', newField: '' });
+    await wrapper.findAllComponents({ name: 'SchemaValueInput' })[1]!.findAll('button.compact-icon-button')[0]!.trigger('click');
+    expect(value.value['组.一']).toEqual({ newField: '' });
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
@@ -156,11 +189,11 @@ describe('SchemaFieldRenderer smart mode', () => {
       },
       { global: { stubs: editorUiStubs } },
     );
-    const surviving = wrapper.findAllComponents(nSelect)[1]!.element;
-    await wrapper.findAll('.field-map-row')[0]!.get('button').trigger('click');
-    const selects = wrapper.findAllComponents(nSelect);
-    expect(selects.map((select) => select.props('value'))).toEqual(['B', 'C']);
-    expect(selects[0]!.element).toBe(surviving);
+    const names = () => wrapper!.findAll('.field-map-key-editor input');
+    const surviving = names()[1]!.element;
+    await wrapper.findAll('.field-map .schema-field')[0]!.get('button').trigger('click');
+    expect(names().map((input) => (input.element as HTMLInputElement).value)).toEqual(['B', 'C']);
+    expect(names()[0]!.element).toBe(surviving);
   });
 
   it('renders strings as a single-line input and emits text', async () => {
@@ -251,11 +284,13 @@ describe('SchemaFieldRenderer smart mode', () => {
     inputs.cancel();
     expect(value.value).toEqual([]);
     expect(inputs.dirty.value).toBe(false);
+    await nextTick();
     await select.vm.$emit('update:value', ['kinetic*']);
     await nextTick();
     const input = field.findAll('input').at(-1)!;
     expect((input.element as HTMLInputElement).value).toBe('kinetic0');
-    await input.setValue('kinetic7');
+    (input.element as HTMLInputElement).value = 'kinetic7';
+    await input.trigger('input');
     expect(await inputs.commit()).toBe(true);
     expect(value.value).toEqual(['kinetic7']);
     expect(inputs.dirty.value).toBe(false);
@@ -307,7 +342,8 @@ describe('SchemaFieldRenderer smart mode', () => {
     await nextTick();
     const input = field.get('.field-map-key-editor input');
     expect((input.element as HTMLInputElement).value).toBe('kinetic0');
-    await input.setValue('kinetic12');
+    (input.element as HTMLInputElement).value = 'kinetic12';
+    await input.trigger('input');
     expect(await inputs.commit()).toBe(true);
     expect(value.value).toEqual({ kinetic12: 3 });
   });

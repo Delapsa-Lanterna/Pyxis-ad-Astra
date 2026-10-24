@@ -107,7 +107,10 @@
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, provide } from 'vue';
+import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
+import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
+import { CONFIG_OPTION_SOURCES } from '@/domain/schema/schema-sources';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
 import SpecWeaponEditor from '@/app/components/spec-editor/weapon/SpecWeaponEditor.vue';
 import SpecProjectileEditor from '@/app/components/spec-editor/projectile/SpecProjectileEditor.vue';
@@ -152,6 +155,10 @@ const {
   updateEditorDraft,
   loadPendingExternalSpec,
 } = windowModel;
+provide(
+  specSchemaContext,
+  computed(() => (target.value ? createSchemaRuntimeContext(target.value.modRoot, target.value.sessionId) : null)),
+);
 const shipEditorData = computed(() => (editorData.value?.kind === 'ship' ? editorData.value : null));
 const weaponEditorData = computed(() => (editorData.value?.kind === 'weapon' ? editorData.value : null));
 const projectileEditorData = computed(() => (editorData.value?.kind === 'projectile' ? editorData.value : null));
@@ -164,11 +171,15 @@ useContextMenuScope({
   identity: () => JSON.stringify(target.value),
   canRefresh: () => Boolean(editorData.value) && !editorData.value?.isNew,
   refresh: () =>
-    windowModel.refresh([
-      ...(shipImages?.value.value?.resourceRefs ?? []),
-      ...(projectileImages?.value.value?.resourceRefs ?? []),
-      ...(weaponDependencies?.resourceRefs.value ?? []),
-    ]),
+    windowModel.refresh(
+      [
+        ...(shipImages?.value.value?.resourceRefs ?? []),
+        ...(projectileImages?.value.value?.resourceRefs ?? []),
+        ...(weaponDependencies?.resourceRefs.value ?? []),
+        ...(starsectorRoot ? Object.values(CONFIG_OPTION_SOURCES).map((relPath) => ({ source: 'core' as const, relPath })) : []),
+      ],
+      Object.values(CONFIG_OPTION_SOURCES).map((path) => target.value!.modRoot + '/' + path),
+    ),
 });
 useManagedWindowRequests(async () => {
   await windowModel.initializeEditorWindow();

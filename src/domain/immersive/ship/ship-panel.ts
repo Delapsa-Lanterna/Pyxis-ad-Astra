@@ -110,7 +110,7 @@ export function projectShipPanel(
           ? 'integer'
           : column?.control === 'number'
             ? 'float'
-            : column?.control === 'enum'
+            : column?.control === 'enum' || column?.source
               ? 'enum'
               : 'string',
         options: column?.options,

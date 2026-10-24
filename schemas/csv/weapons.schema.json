@@ -43,7 +43,7 @@
     { "key": "hints", "label": "Hints 提示", "control": "tags", "source": "csv:weapons.hints" },
     { "key": "tags", "label": "Tags 标签", "control": "tags", "source": "csv:weapons.tags" },
     { "key": "groupTag", "label": "分组标签", "control": "text" },
-    { "key": "tech/manufacturer", "label": "设计类型", "control": "text" },
+    { "key": "tech/manufacturer", "label": "设计类型", "control": "reference", "source": "config:designTypes" },
     { "key": "for weapon tooltip>>", "label": "此后为提示文本", "control": "text" },
     { "key": "primaryRoleStr", "label": "战术应用", "control": "text" },
     { "key": "speedStr", "label": "飞行速度描述", "control": "text" },

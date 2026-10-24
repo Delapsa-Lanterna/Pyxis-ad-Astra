@@ -2,6 +2,16 @@ import type { JsonValue, RowData } from '@/shared/types';
 import { parseCsvSource } from '@/domain/schema/csv-source-options';
 import type { FieldSchema, FileSchema } from '@/domain/schema/schema.types';
 
+export const CONFIG_OPTION_SOURCES = {
+  'config:sounds': 'data/config/sounds.json',
+  'config:designTypes': 'data/config/settings.json',
+  'config:hullStyles': 'data/config/hull_styles.json',
+} as const;
+
+export function isConfigSource(source: string | undefined): source is keyof typeof CONFIG_OPTION_SOURCES {
+  return source !== undefined && Object.hasOwn(CONFIG_OPTION_SOURCES, source);
+}
+
 export function validateSchemaCsvSources(schema: FileSchema): void {
   const fields = (schema.sections ?? []).flatMap((section) => section.fields);
   validateSchemaFieldCsvSources(fields, 'file');
@@ -45,8 +55,13 @@ function validateSchemaFieldCsvSources(fields: FieldSchema[], parentPath: string
     if (field.source?.startsWith('csv:') && !parseCsvSource(field.source)) {
       throw new Error(`Invalid CSV source "${field.source}" at schema field "${path}"`);
     }
+    if (field.source?.startsWith('config:') && !isConfigSource(field.source)) {
+      throw new Error(`Invalid config source "${field.source}" at schema field "${path}"`);
+    }
     if (field.nested) validateSchemaFieldCsvSources(field.nested, path);
     if (field.item) validateSchemaFieldCsvSources([field.item], `${path}[]`);
     if (field.valueSchema) validateSchemaFieldCsvSources([field.valueSchema], `${path}{}`);
+    if (field.variants) validateSchemaFieldCsvSources(field.variants, path);
+    if (field.additionalFields) validateSchemaFieldCsvSources([field.additionalFields], path);
   }
 }

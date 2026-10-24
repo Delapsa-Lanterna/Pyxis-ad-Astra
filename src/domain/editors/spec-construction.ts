@@ -20,7 +20,14 @@ export function fillRequiredFields(content: RowData, template: RowData, required
   return next;
 }
 
-export type SpecField = readonly [key: string, label: string, fallback: JsonValue, options?: readonly string[], required?: boolean];
+export type SpecField = readonly [
+  key: string,
+  label: string,
+  fallback: JsonValue,
+  options?: readonly string[],
+  required?: boolean,
+  source?: string,
+];
 export type SpecSection = { name: string; title: string; fields: SpecField[] };
 export function specFieldParent(content: RowData, path: string, create = false): { parent: RowData; key: string } {
   const keys = path.replaceAll('[', '.').replaceAll(']', '').split('.');

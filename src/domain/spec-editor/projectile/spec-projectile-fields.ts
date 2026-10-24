@@ -22,7 +22,7 @@ export const EXPLOSION_FIELDS: SpecField[] = [
   ['detailedExplosionFlashDuration', '闪光持续时间', -1],
   ['detailedExplosionFlashColorFringe', '闪光外围颜色', WHITE],
   ['detailedExplosionFlashColorCore', '闪光核心颜色', WHITE],
-  ['sound', '音效', ''],
+  ['sound', '音效', '', undefined, false, 'config:sounds'],
   ['soundVolume', '音量', 1],
 ];
 export const MISSILE_ENGINE_FIELDS: SpecField[] = [

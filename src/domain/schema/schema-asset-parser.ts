@@ -1,4 +1,4 @@
-import { validateSchemaCsvSources } from '@/domain/schema/schema-sources';
+import { isConfigSource, validateSchemaCsvSources } from '@/domain/schema/schema-sources';
 import {
   CSV_COLUMN_CONTROL_SET,
   FIELD_TYPE_SET,
@@ -53,6 +53,7 @@ function parseSections(id: string, raw: unknown): SectionSchema[] {
       id: record.id,
       label: record.label,
       ...collapsed,
+      ...(record.groupEntries === true ? { groupEntries: true } : {}),
       fields: parseFields(id, `sections[${index}].fields`, record.fields),
     };
   });
@@ -93,6 +94,11 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isNumber(record.max)) field.max = record.max;
   if (isNumber(record.step)) field.step = record.step;
   if (isStringArray(record.options)) field.options = record.options;
+  if (isStringArray(record.reservedKeys)) field.reservedKeys = record.reservedKeys;
+  if (record.numberFormat !== undefined) {
+    if (record.numberFormat !== 'starsector') throw new Error(`schema ${id} ${path}: 非法 numberFormat`);
+    field.numberFormat = 'starsector';
+  }
   if (isString(record.format)) {
     if (record.format !== 'array-of-entries') {
       throw new Error(`schema ${id} ${path}: 非法 format ${record.format}`);
@@ -108,6 +114,8 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (record.valueSchema !== undefined && record.valueSchema !== null) {
     field.valueSchema = parseField(id, `${path}.valueSchema`, record.valueSchema);
   }
+  if (record.variants !== undefined) field.variants = parseFields(id, `${path}.variants`, record.variants);
+  if (record.additionalFields !== undefined) field.additionalFields = parseField(id, `${path}.additionalFields`, record.additionalFields);
   return field;
 }
 
@@ -157,6 +165,9 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
     const schema: CsvColumnSchema = { key: record.key, control: record.control as CsvColumnSchema['control'] };
     if (isString(record.label)) schema.label = record.label;
     if (isString(record.source)) schema.source = record.source;
+    if (schema.source?.startsWith('config:') && !isConfigSource(schema.source)) {
+      throw new Error(`csv column schema ${table}: 非法配置来源 ${schema.source}`);
+    }
     if (isStringArray(record.options)) schema.options = record.options;
     if (isString(record.default)) schema.default = record.default;
     if (isBoolean(record.readonly)) schema.readonly = record.readonly;

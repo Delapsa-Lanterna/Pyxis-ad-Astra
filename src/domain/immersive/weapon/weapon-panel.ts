@@ -90,10 +90,11 @@ export function projectWeaponPanel(
             ? 'float'
             : column?.control === 'boolean'
               ? 'boolean'
-              : column?.control === 'enum'
+              : column?.control === 'enum' || column?.source
                 ? 'enum'
                 : 'string',
         options: column?.options,
+        source: column?.source,
       },
     };
   };

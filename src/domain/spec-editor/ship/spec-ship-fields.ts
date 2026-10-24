@@ -7,7 +7,7 @@ export const SHIP_SECTIONS: SpecSection[] = [
       ['hullId', '船体 ID', '', undefined, true],
       ['hullName', '船体名称', ''],
       ['hullSize', '船体级别', '', ['FRIGATE', 'DESTROYER', 'CRUISER', 'CAPITAL_SHIP', 'FIGHTER'], true],
-      ['style', '船体风格', '', ['LOW_TECH', 'MIDLINE', 'HIGH_TECH', 'OMEGA', 'CUSTOM'], true],
+      ['style', '船体风格', '', undefined, true, 'config:hullStyles'],
     ],
   },
   {

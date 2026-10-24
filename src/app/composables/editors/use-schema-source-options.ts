@@ -3,6 +3,7 @@ import type { FieldSchema } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
 import { isCsvSource } from '@/domain/schema/csv-source-options';
+import { isConfigSource } from '@/domain/schema/schema-sources';
 import type { ResourceRef } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -52,7 +53,11 @@ export function useSchemaSourceOptions(args: {
     const sessionId = context?.sessionId ?? null;
     const source = args.field().source ?? null;
     reads.revoke('consumer', 'source');
-    if (!sessionId || !source || (!isCsvSource(source) && source !== 'hull:builtInWeaponSlots' && source !== 'hull:ids')) {
+    if (
+      !sessionId ||
+      !source ||
+      (!isCsvSource(source) && !isConfigSource(source) && source !== 'hull:builtInWeaponSlots' && source !== 'hull:ids')
+    ) {
       loadedOptions.value = [];
       return;
     }

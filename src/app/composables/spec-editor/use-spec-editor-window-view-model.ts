@@ -421,11 +421,11 @@ export function useSpecEditorWindowViewModel(
 
   return {
     inputs: draftSession.inputs,
-    refresh: (resources: readonly import('@/shared/types/index').InvalidatedResourceScope[]) =>
+    refresh: (resources: readonly import('@/shared/types/index').InvalidatedResourceScope[], paths: string[] = []) =>
       refreshProjectSourcePaths(
         params.sessionId!,
         params.modRoot!,
-        editorData.value!.baseVersions.map((version) => version.path),
+        [...editorData.value!.baseVersions.map((version) => version.path), ...paths],
         resources,
       ),
     currentTarget: computed(editorWindowTarget),

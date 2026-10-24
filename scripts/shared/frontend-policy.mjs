@@ -692,12 +692,19 @@ export const frontendCapabilities = [
     domain: 'query-cache',
     names: ['createCachedSessionQuery', 'createLiveSessionQuery'],
     capability: 'query-cache-load',
-    owners: ['entity-query', 'csv-table', 'source-options', 'hull-reference', 'resource-reference', 'joint-edit', 'engine-assets'].map(
-      (domain) => ({
-        layer: 'services',
-        domain,
-      }),
-    ),
+    owners: [
+      'entity-query',
+      'csv-table',
+      'source-options',
+      'hull-reference',
+      'resource-reference',
+      'joint-edit',
+      'engine-assets',
+      'misc-config',
+    ].map((domain) => ({
+      layer: 'services',
+      domain,
+    })),
   },
   {
     role: 'service',
@@ -915,6 +922,7 @@ const serviceEdges = new Set([
   'json-entity -> json-resource',
   'json-entity -> entity-query',
   'json-file -> entity-query',
+  'misc-config -> query-cache',
   'json-resource -> resource-media',
   'csv-table -> entity-query',
   'csv-table -> resource-media',

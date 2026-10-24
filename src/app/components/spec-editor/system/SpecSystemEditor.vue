@@ -89,18 +89,7 @@
 
         <n-collapse-item class="schema-section" title="音效" name="sound">
           <div class="ui-field-stack">
-            <FieldRow label="激活音效" field-key="useSound" :path="'useSound'"
-              ><n-input :value="document.useSound" @update:value="actions.setField('useSound', $event)"
-            /></FieldRow>
-            <FieldRow label="循环音效" field-key="loopSound" :path="'loopSound'"
-              ><n-input :value="document.loopSound" @update:value="actions.setField('loopSound', $event)"
-            /></FieldRow>
-            <FieldRow label="关闭音效" field-key="deactivateSound" :path="'deactivateSound'"
-              ><n-input :value="document.deactivateSound" @update:value="actions.setField('deactivateSound', $event)"
-            /></FieldRow>
-            <FieldRow label="用尽音效" field-key="outOfUsesSound" :path="'outOfUsesSound'"
-              ><n-input :value="document.outOfUsesSound" @update:value="actions.setField('outOfUsesSound', $event)"
-            /></FieldRow>
+            <SpecFieldList :content="document" :fields="SYSTEM_SOUND_FIELDS" @update="actions.setField" />
             <FieldRow label="滤波类型" field-key="soundFilterType" :path="'soundFilterType'"
               ><n-select
                 :value="document.soundFilterType"
@@ -333,6 +322,8 @@
 
 <script setup lang="ts">
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
+import SpecFieldList from '../SpecFieldList.vue';
+import { SYSTEM_SOUND_FIELDS } from '@/domain/spec-editor/system/spec-system-fields';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import { fieldNames } from '@/domain/editors/lib/field-names';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';

@@ -5,8 +5,9 @@ import { aggregateSchemaSources } from '@/domain/schema/schema-sources';
 import { configFactionListItems } from './json-config-entities';
 import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
+import { miscConfigFile } from './misc-config-files';
 
-export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin';
+export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {
   sessionId: string;
   modRoot: string;
@@ -29,6 +30,13 @@ export interface JsonDocumentDefinition {
   file?: JsonFileDefinition;
 }
 export const JSON_DOCUMENT_DEFINITIONS: Record<JsonEditorPageId, JsonDocumentDefinition> = {
+  'misc-config': {
+    kind: 'misc-config',
+    label: '杂项配置',
+    directory: 'data',
+    idField: '',
+    icon: 'M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6',
+  },
   'mod-info': { kind: 'mod-info', label: 'Mod 信息', directory: 'mod_info.json', idField: 'id', icon: '' },
   factions: {
     kind: 'faction',
@@ -96,12 +104,15 @@ export function jsonDocumentSummary(
   hullNames: Record<string, string> = {},
 ) {
   const { kind } = definition;
-  const data = jsonDocumentContent(kind, draft);
-  const id = jsonDocumentId(definition, draft);
+  const data = kind === 'mission' ? ((draft.descriptor ?? draft.list) as RowData) : jsonDocumentContent(kind, draft);
+  const id = kind === 'misc-config' ? record.target.id : jsonDocumentId(definition, draft);
   const file = definition.file;
-  const title = file
-    ? jsonFileTitle(file, { id, data }, hullNames)
-    : String(data[kind === 'mission' ? 'title' : kind === 'mod-info' ? 'name' : 'displayName'] || id || definition.label);
+  const title =
+    kind === 'misc-config'
+      ? miscConfigFile(id).label
+      : file
+        ? jsonFileTitle(file, { id, data }, hullNames)
+        : String(data[kind === 'mission' ? 'title' : kind === 'mod-info' ? 'name' : 'displayName'] || id || definition.label);
   return {
     id,
     title,

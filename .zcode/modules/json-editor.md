@@ -2,7 +2,7 @@
 
 ## 定义
 
-JSON 文档编辑模块提供 Mod 信息、势力、战役、装配与舰船皮肤的表单、草稿、历史、身份交接和保存。
+JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮肤与杂项配置的表单、草稿、历史、身份交接和保存。
 
 ## 参考
 
@@ -18,10 +18,10 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配与舰船皮�
 - `src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除。
 - `src-tauri/src/services/project/write/json_recovery.rs`：缺失基线渲染、必要索引修复和实际 changeset。
 - `src-tauri/src/services/project/write/json_recovery_tests.rs`：五类文档的缺失组合、版本冲突及历史回放。
-- `src/app/components/json-editor/`：五类 JSON 编辑页面、列表、表单与主窗口生命周期验证。
+- `src/app/components/json-editor/`：六类 JSON 编辑页面、列表、表单与主窗口生命周期验证。
 - `src/app/composables/json-editor/`：页面身份、目标会话、列表选择、输入、资源和保存装配。
 - `src/domain/json-editor/`：独立文件与索引配置的内容规则、默认值、记录投影和装配模块转换。
-- `src/orchestrators/json-save.orchestrator.ts`：配置保存编排，交付五类逻辑文档及其关联文件的写入、恢复与回执接纳。
+- `src/orchestrators/json-save.orchestrator.ts`：配置保存编排、文档来源恢复与回执接纳。
 - `src/services/json-entity.service.ts`：Mod 信息、势力与战役写入、身份准备和草稿资源查询。
 - `src/services/json-file.service.ts`：装配与皮肤的保存、创建和删除能力包装。
 - `src/services/json-recovery.service.ts`：重建准备与正式提交的 IPC 包装。
@@ -78,7 +78,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配与舰船皮�
 - JSON 保存编排拥有 Mod 信息、势力、战役、装配与皮肤的写动作和 receipt 交接。
 - JSON 文档会话拥有 base、draft、dirty、活动输入、外部基线和对象快照历史。
 - JSON 页面宿主展示当前文档，独立 effectScope 与模块登记表持有全部已访问文档直至 session 关闭。
-- 共同列表与文档宿主装配五类 JSON 页面，类型定义与能力提供 schema、内容转换、排序、媒体及关联文件规则。
+- 共同列表与文档宿主装配 JSON 页面，类型定义与能力提供 schema、内容转换、排序、媒体及关联文件规则。
 - 文档类型定义提供所属逻辑文档的身份字段并消费正式实体 ID 规则，独立文件定义提供装配与皮肤的标题、排序及引用差异。
 - 索引配置适配拥有势力索引、战役目录和 Mod 信息内容，索引与目标文件共同进入所属事务。
 - 编辑 store 持有文档登记表与当前动作；每份文档运行态拥有基线、草稿、快照历史、恢复与保存登记。
@@ -130,7 +130,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配与舰船皮�
 - JSON 页头撤销重做必须消费当前草稿历史；待提交输入必须先提交，非法输入必须保留原字段与历史。
 - JSON 页面离开必须释放列表、详情与媒体读取并撤销迟到结果接纳权；保存参与者必须保留所属目标及草稿。
 - Mission 与 Faction 的写入职责必须分别归任务目录 owner 与势力身份 owner；修改 ID 必须按所属格式执行完整改名。
-- Mission 必须消费索引顺序，Faction 必须消费 ID 排序。
+- Mission 列表必须消费索引顺序并按索引记录展示名称，所选项必须完成所属详情读取后建立文档；Faction 必须消费 ID 排序。
 - Mission 的本地改名必须由实际保存记录共同交接草稿基线、列表与选择；保存回调必须保留所属版本。
 - Variant 与 Skin 的目录、扩展名、内容 ID 和改名目标必须由后端实体定义及正式 query 结果确定。
 - Variant 改名涉及的主文件、父装配引用、版本校验与 receipt 必须共同进入同一根事务。
@@ -166,8 +166,9 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配与舰船皮�
 - 改变目标的配置动作必须短暂锁定当前编辑面；按钮与保存快捷键必须共同消费锁定，结束后必须释放。
 - 整体内容的 inert 必须由 View 合成动作锁与编辑器交接锁，所属会话与 Mod 身份必须决定编辑器生命周期。
 - 文档缓存身份必须包含 session、Mod 根、种类及实际正式目标；选择记忆必须按 session 与文档种类隔离。
+- 杂项配置必须按登记顺序保持全部文件条目及 session 选择，缺文件必须在右侧创建；正式文档必须消费所属文件投影、schema、内容与版本。
 - 来源重建必须保留草稿中的内容与 ID；现存关联文件必须保留磁盘内容，外部差异必须进入现有版本确认。
-- 来源重建必须覆盖 Mod 信息、Variant、Skin、Faction 文件及必要索引、Mission descriptor、正文及必要索引行。
+- 来源重建必须覆盖 Mod 信息、Variant、Skin、Faction 文件及必要索引、Mission descriptor、正文及必要索引行与已登记杂项配置文件。
 - 来源重建必须重新授权原目标并核对准备与事务内版本，缺失来源必须采用最后保存基线、原路径和原身份。
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
 - 结构化 JSON 保存必须使用设置快照选择原样更新或规范化写入；原样更新无法安全完成时必须在写入前确认影响文件。

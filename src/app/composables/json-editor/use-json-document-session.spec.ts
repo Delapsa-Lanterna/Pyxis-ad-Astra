@@ -39,6 +39,8 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   recreate: vi.fn(),
   complete: vi.fn(),
+  readMisc: vi.fn(),
+  saveMisc: vi.fn(),
   listeners: new Set<(event: EntityIdentityAppliedEvent) => Promise<void>>(),
 }));
 vi.mock('@/services/entity-query.service', async (original) => ({
@@ -47,6 +49,11 @@ vi.mock('@/services/entity-query.service', async (original) => ({
 }));
 vi.mock('@/app/composables/use-core-schema', () => ({ useCoreSchema: () => ({ getMergedSchema: getSchema }) }));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
+vi.mock('@/services/misc-config.service', async (original) => ({
+  ...(await original<typeof import('@/services/misc-config.service')>()),
+  queryMiscConfigFile: mocks.readMisc,
+  saveMiscConfig: mocks.saveMisc,
+}));
 vi.mock('@/orchestrators/json-save.orchestrator', () => ({
   saveVariantAction: mocks.saveFile,
   saveSkinAction: mocks.saveFile,
@@ -64,8 +71,18 @@ vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
 let feedback: AppFeedback;
 let entities: Map<string, EntityData>;
 let commit: number;
-const definitions = Object.values(JSON_DOCUMENT_DEFINITIONS);
+const definitions = Object.values(JSON_DOCUMENT_DEFINITIONS).filter(
+  (definition): definition is JsonDocumentDefinition & { kind: Exclude<JsonDocumentDefinition['kind'], 'misc-config'> } =>
+    definition.kind !== 'misc-config',
+);
 function record(definition: JsonDocumentDefinition, id = 'a', sessionId = 's1', modRoot = 'M:/one'): JsonDocumentRecord {
+  if (definition.kind === 'misc-config')
+    return {
+      target: { sessionId, modRoot, kind: definition.kind, id: 'strings', entity: null },
+      value: { file: {} },
+      baseVersions: [{ path: modRoot + '/data/strings/strings.json', fingerprint: 'v1' }],
+      resources: {},
+    };
   if (definition.kind === 'mod-info')
     return {
       target: { sessionId, modRoot, kind: definition.kind, id: 'mod-info', entity: null },
@@ -130,6 +147,16 @@ beforeEach(() => {
     confirmDanger: vi.fn(),
   };
   mocks.complete.mockResolvedValue(undefined);
+  mocks.readMisc.mockResolvedValue({
+    kind: 'strings',
+    data: {},
+    baseVersions: [{ path: 'M:/one/data/strings/strings.json', fingerprint: 'v1' }],
+  });
+  mocks.saveMisc.mockImplementation(async (payload) => ({
+    ...receipt(null, null),
+    refreshedEntity: payload.data,
+    baseVersions: payload.baseVersions.map((v: { path: string }) => ({ ...v, fingerprint: 'saved' })),
+  }));
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(session + ':' + kind + ':' + id) ?? null);
   mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest): Promise<JsonRecoveryPlan> => ({
     request,
@@ -179,6 +206,54 @@ afterEach(() => {
   useJsonEditorStore().releaseSession('s2');
 });
 describe('complete JSON document runtime', () => {
+  it('retains numeric strings, draft history and newer edits across a misc config save', async () => {
+    const doc = document(JSON_DOCUMENT_DEFINITIONS['misc-config']);
+    expect(doc.schema.value.id).toBe('strings');
+    doc.draftValue.value = { file: { 'group.一': { line: '001' } } };
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const original = mocks.saveMisc.getMockImplementation()!;
+    mocks.saveMisc.mockImplementationOnce(async (payload) => {
+      await gate;
+      return original(payload);
+    });
+    const saving = doc.save();
+    await flushPromises();
+    doc.draftValue.value = { file: { 'group.一': { line: ' 123\n$token ' } } };
+    finish();
+    expect((await saving).status).toBe('saved');
+    expect(mocks.saveMisc.mock.lastCall![0]).toMatchObject({ kind: 'strings', data: { 'group.一': { line: '001' } } });
+    expect(doc.dirty.value).toBe(true);
+    expect(doc.draftValue.value.file).toEqual({ 'group.一': { line: ' 123\n$token ' } });
+    expect(await doc.undo()).toBe(true);
+    expect(doc.dirty.value).toBe(false);
+    expect(await doc.redo()).toBe(true);
+    expect(doc.dirty.value).toBe(true);
+    expect(document(JSON_DOCUMENT_DEFINITIONS['misc-config'])).toBe(doc);
+    useJsonEditorStore().releaseSession('s1');
+    expect(useSaveCommandStore().editTargets).toHaveLength(0);
+  });
+  it('retains misc config edits on write failure and reports a missing source through recovery', async () => {
+    const doc = document(JSON_DOCUMENT_DEFINITIONS['misc-config']);
+    doc.draftValue.value = { file: { dialogue: { line: 'local' } } };
+    mocks.saveMisc.mockRejectedValueOnce(new Error('disk unavailable'));
+    await expect(doc.save()).rejects.toThrow();
+    expect(doc.dirty.value).toBe(true);
+    mocks.prepare.mockImplementation(async (request) => ({
+      request,
+      baseVersions: [],
+      missingPaths: ['data/strings/strings.json'],
+      currentSources: {},
+    }));
+    doc.active.value = true;
+    await flushPromises();
+    expect(mocks.prepare.mock.lastCall![0].origin).toEqual({ kind: 'miscConfig', file: 'strings' });
+    expect(doc.sourceMissing.value).toBe(true);
+    expect(doc.draftValue.value.file).toEqual({ dialogue: { line: 'local' } });
+    expect(await doc.undo()).toBe(true);
+  });
   it.each(definitions)(
     '$kind retains its formal target and saves its complete content and credentials through one participant',
     async (definition) => {

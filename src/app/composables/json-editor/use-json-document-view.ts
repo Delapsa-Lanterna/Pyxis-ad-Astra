@@ -43,6 +43,7 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
   });
   watch(
     () => {
+      if (definition.kind !== 'faction' && definition.kind !== 'mission') return [];
       const data = jsonDocumentContent(definition.kind, document.draftValue.value);
       return [data.logo, data.crest, data.icon, revision.value, document.active.value];
     },

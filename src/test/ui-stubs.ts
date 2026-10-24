@@ -31,6 +31,7 @@ export const nInput = {
 };
 
 export const nInputNumber = {
+  methods: nInput.methods,
   props: ['value', 'disabled', 'min', 'max', 'size', 'step', 'showButton', 'format', 'parse', 'inputProps', 'status'],
   emits: ['update:value'],
   template: `<input
@@ -104,7 +105,7 @@ export const nCollapse = {
 
 export const nCollapseItem = {
   props: ['title', 'name'],
-  template: `<div class="n-collapse-item-stub" :data-name="name"><div class="n-collapse-item-title">{{ title }}</div><slot /></div>`,
+  template: `<div class="n-collapse-item-stub" :data-name="name"><div class="n-collapse-item-title"><slot name="header">{{ title }}</slot><slot name="header-extra" /></div><slot /></div>`,
 };
 
 /// One bundle covering every Naive UI component used by the editor and table
@@ -124,4 +125,5 @@ export const editorUiStubs: GlobalStubs = {
   'n-collapse-item': nCollapseItem,
   NCollapse: nCollapse,
   NCollapseItem: nCollapseItem,
+  CollapseItem: nCollapseItem,
 };

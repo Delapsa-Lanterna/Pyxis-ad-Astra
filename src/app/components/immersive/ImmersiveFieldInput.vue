@@ -9,6 +9,8 @@
       :options="selectOptions"
       :status="invalid ? 'error' : undefined"
       :clearable="!field.schema.required"
+      :filterable="Boolean(field.schema.source)"
+      :tag="isConfigSource(field.schema.source)"
       @update:value="update($event ?? '')"
     />
     <n-input
@@ -32,6 +34,7 @@ import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-sou
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
 import { includeCurrentSelectOptions } from '@/domain/schema/schema-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
+import { isConfigSource } from '@/domain/schema/schema-sources';
 import { parseJsonInput, formatJsonInput } from '@/shared/lib/json-input';
 import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{

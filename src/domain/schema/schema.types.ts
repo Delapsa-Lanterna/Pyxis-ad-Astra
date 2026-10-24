@@ -42,6 +42,10 @@ export interface FieldSchema {
   nested?: FieldSchema[];
   item?: FieldSchema;
   valueSchema?: FieldSchema;
+  variants?: FieldSchema[];
+  additionalFields?: FieldSchema;
+  numberFormat?: 'starsector';
+  reservedKeys?: string[];
   /** Underlying key-value storage format: 'array-of-entries' means [{k:v}, ...] arrays */
   format?: 'array-of-entries';
 }
@@ -50,6 +54,7 @@ export interface SectionSchema {
   id: string;
   label: string;
   collapsed?: boolean;
+  groupEntries?: boolean;
   fields: FieldSchema[];
 }
 

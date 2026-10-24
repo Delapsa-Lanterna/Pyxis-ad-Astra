@@ -600,6 +600,11 @@ fn query_scopes_for_invalidation(
         }
     }
     for resource in resources {
+        for &(source, path, _) in super::definitions::config_sources::CONFIG_OPTION_SOURCES {
+            if path_affects_target(&resource.rel_path, path) {
+                push_source_option_query_scope(&mut scopes, source.into());
+            }
+        }
         push_query_scope(
             &mut scopes,
             InvalidatedQueryScope {
@@ -744,6 +749,45 @@ pub(super) fn refresh_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_source_invalidation() {
+        for &(source, path, _) in super::super::definitions::config_sources::CONFIG_OPTION_SOURCES {
+            for origin in [ResourceSource::Mod, ResourceSource::Core] {
+                for changed in [path, "data/config"] {
+                    let scopes = query_scopes_for_invalidation(
+                        &[],
+                        &[],
+                        &[InvalidatedResourceScope {
+                            source: origin,
+                            rel_path: changed.into(),
+                        }],
+                    )
+                    .unwrap();
+                    assert!(
+                        scopes
+                            .iter()
+                            .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions
+                                && scope.source.as_deref() == Some(source))
+                    );
+                }
+            }
+        }
+        let scopes = query_scopes_for_invalidation(
+            &[],
+            &[],
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Mod,
+                rel_path: "graphics/sample.png".into(),
+            }],
+        )
+        .unwrap();
+        assert!(
+            !scopes
+                .iter()
+                .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions)
+        );
+    }
 
     #[test]
     fn family_refresh_counts_and_diagnostics_follow_independent_owners() {

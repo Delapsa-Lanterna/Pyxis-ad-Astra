@@ -24,4 +24,4 @@ export interface ModOpeningFailure {
 export type WorkspaceView = 'overview' | 'table' | 'settings' | 'mod-overview' | 'file-history' | 'json-editor' | 'about' | 'mod-files';
 
 /** Which JSON document is shown when currentView === 'json-editor' */
-export type JsonEditorPageId = 'mod-info' | 'factions' | 'skins' | 'variants' | 'mission';
+export type JsonEditorPageId = 'mod-info' | 'factions' | 'skins' | 'variants' | 'mission' | 'misc-config';

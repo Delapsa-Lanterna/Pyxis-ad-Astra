@@ -1,4 +1,7 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { queryMiscConfigFiles, queryMiscConfigFile, hasMiscConfigInvalidation } from '@/services/misc-config.service';
+import { MISC_CONFIG_FILES, miscConfigFile, miscConfigValue } from '@/domain/json-editor/misc-config-files';
 import type { JsonEditorContext } from './json-editor-context';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -16,7 +19,7 @@ import {
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
 } from '@/domain/json-editor/json-document-definitions';
-import { querySessionEntityList, hasEntityInvalidation } from '@/services/entity-query.service';
+import { querySessionEntity, querySessionEntityList, hasEntityInvalidation } from '@/services/entity-query.service';
 import { queryHullReferenceOptions, querySessionHullReferences } from '@/services/hull-reference.service';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
@@ -24,6 +27,7 @@ import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.o
 import { warningNotice } from '@/shared/lib/errors';
 import { startPerformance } from '@/shared/runtime/performance';
 import type { SelectOption } from '@/domain/schema/schema-options';
+import type { DeepReadonly, JsonValue, MiscConfigEntry } from '@/shared/types';
 
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
   const feedback = useAppFeedback();
@@ -38,6 +42,10 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   const hullOptions = shallowRef<SelectOption[]>([]);
   const listLoadStartedAt = ref(0);
   const current = shallowRef<JsonDocumentSession | null>(null);
+  const listFailed = ref(false);
+  const directory = shallowRef<DeepReadonly<MiscConfigEntry[]>>([]);
+  const fileError = shallowRef<unknown>(null);
+  const fileLoading = ref(false);
   const selectedId = editors.selection(sessionId.value!, kind);
   const selection = useJsonListSelection({
     selectedId,
@@ -68,19 +76,52 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       return {
         record,
         key: record.target.id,
+        filename: '',
+        state: '',
         ...jsonDocumentSummary(definition, record, document?.draftValue.value, hullNames.value),
         dirty: document?.dirty.value ?? false,
         missing: document?.sourceMissing.value ?? false,
         resource: jsonDocumentMedia(record),
       };
     });
+    if (kind === 'misc-config')
+      return MISC_CONFIG_FILES.map((file) => {
+        const row = rows.find((row) => row.key === file.kind);
+        const entry = directory.value.find((entry) => entry.kind === file.kind);
+        return {
+          key: file.kind,
+          id: file.kind,
+          title: file.label,
+          filename: file.filename,
+          color: '',
+          resource: null,
+          dirty: row?.dirty ?? false,
+          missing: row?.missing ?? false,
+          state: fileError.value && selectedId.value === file.kind ? 'error' : (entry?.state ?? ''),
+          companion: '',
+        };
+      });
     return kind === 'mission' || kind === 'mod-info'
       ? rows
       : rows.sort((a, b) => a.companion.localeCompare(b.companion) || a.key.localeCompare(b.key));
   });
   async function load() {
     listLoadStartedAt.value = startPerformance();
-    if (kind === 'mod-info') {
+    if (kind === 'misc-config') {
+      const scope = { sessionId: sessionId.value!, modRoot: modRoot.value! };
+      const accepted = await reads.consume('list', scope, (signal) => queryMiscConfigFiles(scope.sessionId, scope.modRoot, signal), {
+        ready: (files) => {
+          directory.value = [...files];
+          listFailed.value = false;
+        },
+        error: (error) => {
+          listFailed.value = true;
+          fileError.value = error;
+          feedback.error(error, '读取杂项配置目录失败');
+        },
+      });
+      if (!accepted) return false;
+    } else if (kind === 'mod-info') {
       const manifest = context.manifest.value!;
       formal.value = [
         bindRecord({
@@ -94,12 +135,19 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       const accepted = await reads.consume(
         'list',
         { sessionId: sessionId.value!, kind },
-        (signal) => querySessionEntityList(sessionId.value!, kind, signal),
+        (signal) =>
+          querySessionEntityList(sessionId.value!, kind, signal).then((entities) =>
+            entities.map((entity) => jsonDocumentRecord(sessionId.value!, modRoot.value!, entity)),
+          ),
         {
-          ready: (entities) => {
-            formal.value = entities.map((entity) => bindRecord(jsonDocumentRecord(sessionId.value!, modRoot.value!, entity)));
+          ready: (records) => {
+            listFailed.value = false;
+            formal.value = records.map(bindRecord);
           },
-          error: (error) => feedback.error(error, '加载' + definition.label + '失败'),
+          error: (error) => {
+            listFailed.value = true;
+            feedback.error(error, '加载' + definition.label + '失败');
+          },
         },
       );
       if (!accepted) return false;
@@ -119,6 +167,48 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     }
     return true;
   }
+  async function loadSelectedFile() {
+    reads.revoke('consumer', 'file');
+    fileError.value = null;
+    fileLoading.value = false;
+    const id = selectedId.value;
+    if (!active.value || !id || records.value.some((record) => record.target.id === id)) return;
+    const entry = directory.value.find((entry) => entry.kind === id);
+    if (!entry || entry.state === 'missing') return;
+    if (entry.error) {
+      fileError.value = entry.error;
+      return;
+    }
+    const scope = { sessionId: sessionId.value!, modRoot: modRoot.value!, kind: miscConfigFile(id).kind };
+    fileLoading.value = true;
+    await reads.consume('file', scope, (signal) => queryMiscConfigFile(scope.sessionId, scope.modRoot, scope.kind, signal), {
+      ready: (file) => {
+        if (file)
+          formal.value = [
+            ...formal.value,
+            bindRecord({
+              target: { ...scope, kind: 'misc-config', id, entity: null },
+              value: miscConfigValue(id, cloneQuerySnapshot<JsonValue>(file.data)),
+              baseVersions: [...file.baseVersions],
+              resources: {},
+            }),
+          ];
+        else directory.value = directory.value.map((item) => (item.kind === id ? { ...item, state: 'missing', error: null } : item));
+      },
+      error: (error) => {
+        fileError.value = error;
+      },
+      settled: () => {
+        fileLoading.value = false;
+      },
+    });
+  }
+  if (kind === 'misc-config') {
+    selection.reconcile(items.value.map((item) => item.key));
+    watch([selectedId, directory, active], () => {
+      void loadSelectedFile();
+    });
+  }
   async function loadHullOptions() {
     if (!definition.file || settings.isPlainEditMode) return;
     await reads.consume('options', { sessionId: sessionId.value! }, (signal) => queryHullReferenceOptions(sessionId.value!, [], signal), {
@@ -129,7 +219,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     });
   }
   async function create(id: string, companion: string) {
-    if (items.value.some((item) => item.key === id)) {
+    if (kind !== 'misc-config' && items.value.some((item) => item.key === id)) {
       await focusExistingEntityWindow(sessionId.value!, modRoot.value!, kind as 'faction' | 'mission' | 'variant' | 'skin', id);
       feedback.warning(warningNotice(definition.label + ' "' + id + '" 已存在', 'config.entity_exists', 'JSON entity ID exists: ' + id));
       return false;
@@ -162,7 +252,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         }
         editors.releaseEntity(record.target.sessionId, kind, record.target.id);
         formal.value = formal.value.filter((item) => item.record.target.id !== record.target.id);
-        if (selectedId.value === record.target.id) selectedId.value = null;
+        if (kind !== 'misc-config' && selectedId.value === record.target.id) selectedId.value = null;
         return Boolean(await load());
       },
     });
@@ -181,19 +271,32 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         records.value.flatMap((record) => Object.values(record.resources)),
       ),
   });
+  function activateRecord(record?: JsonDocumentRecord) {
+    const next = record ? useJsonDocumentSession(definition, record, feedback) : null;
+    if (next && formal.value.some((entry) => !entry.document && entry.record.target.id === record!.target.id)) {
+      formal.value = formal.value.map((entry) => (entry.record.target.id === record!.target.id ? { ...entry, document: next } : entry));
+    }
+    if (current.value !== next) {
+      if (current.value) current.value.active.value = false;
+      current.value = next;
+    }
+    if (next) next.active.value = active.value;
+  }
   watch(
     () => [selectedId.value, ...records.value.map((record) => record.target.id)],
     () => {
+      reads.revoke('consumer', 'selected');
       const record = records.value.find((record) => record.target.id === selectedId.value);
-      const next = record ? useJsonDocumentSession(definition, record, feedback) : null;
-      if (next && formal.value.some((entry) => !entry.document && entry.record.target.id === record!.target.id)) {
-        formal.value = formal.value.map((entry) => (entry.record.target.id === record!.target.id ? { ...entry, document: next } : entry));
-      }
-      if (current.value !== next) {
-        if (current.value) current.value.active.value = false;
-        current.value = next;
-      }
-      if (next) next.active.value = active.value;
+      if (record && kind === 'mission' && !documents.value.some((document) => document.target.value!.id === record.target.id)) {
+        activateRecord();
+        const target = record.target;
+        void reads.consume('selected', target, (signal) => querySessionEntity(target.sessionId, kind, target.id, signal), {
+          ready: (entity) => {
+            if (entity) activateRecord(jsonDocumentRecord(target.sessionId, target.modRoot, entity));
+          },
+          error: (error) => feedback.error(error, '读取战役失败'),
+        });
+      } else activateRecord(record);
     },
     { immediate: true },
   );
@@ -226,7 +329,8 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       if (
         event.sessionId === sessionId.value &&
         event.scope !== 'session' &&
-        (kind === 'mod-info' || hasEntityInvalidation(event, 'entity-list', kind))
+        (kind === 'mod-info' ||
+          (kind === 'misc-config' ? hasMiscConfigInvalidation(event, modRoot.value!) : hasEntityInvalidation(event, 'entity-list', kind)))
       )
         reads.schedule('list', () => {
           void load();
@@ -240,6 +344,12 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   });
   return {
     current,
+    selectedFile: computed(() => (kind === 'misc-config' && selectedId.value ? miscConfigFile(selectedId.value) : null)),
+    fileError,
+    fileLoading: computed(() => fileLoading.value || (!directory.value.length && !listFailed.value)),
+    retryFile: load,
+    repairFile: () => feedback.error(fileError.value, '读取杂项配置失败'),
+    listFailed,
     items,
     selectedId,
     select: selection.select,

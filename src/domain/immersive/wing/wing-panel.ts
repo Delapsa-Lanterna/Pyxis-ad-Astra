@@ -69,7 +69,11 @@ export function projectWingPanel(
   };
   const hf = (key: string, label: string, type: ImmersiveField['schema']['type'] = 'string'): ImmersiveField[] => {
     const binding = hull?.fields[key];
-    return binding ? [field(binding.recordKey, binding.path, label, type)] : [];
+    if (!binding) return [];
+    const result = field(binding.recordKey, binding.path, label, type);
+    const source = getCsvColumnSchemas('ships').find((column) => column.key === key)?.source;
+    if (source) result.schema = { ...result.schema, type: 'enum', source };
+    return [result];
   };
   const hv = (key: string) => {
     const binding = hull?.fields[key];

@@ -13,10 +13,15 @@ import type {
   EngineRenderAssets,
   ManagedWindowContext,
   AppLogStatus,
+  MiscConfigWrite,
+  JsonRecoveryRequest,
 } from '@/shared/types';
 import { createSettingsFixture } from '../settings';
 import { createBrowserModel, sampleImage, type BrowserModel } from './model';
 import { emit } from './events';
+import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
+import type { RowData } from '@/shared/types';
 
 let model: BrowserModel;
 let logged = 0;
@@ -35,7 +40,7 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   const failure = model.failures.get(command);
   if (failure) {
     model.failures.delete(command);
-    throw Error(failure);
+    throw typeof failure === 'string' ? Error(failure) : failure;
   }
   return structuredClone(await dispatch(command, args)) as T;
 }
@@ -134,10 +139,74 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
     }
     case 'save_csv_patch':
       return model.saveCsv(args.payload as SaveCsvPatchPayload);
+    case 'query_misc_config_files':
+      return MISC_CONFIG_FILES.map(({ kind, path }) => ({
+        kind,
+        path: model.manifest.modRoot + '/' + path,
+        relPath: path,
+        state: model.miscFiles.some((file) => file.kind === kind) ? 'present' : 'missing',
+        error: null,
+      }));
+    case 'query_misc_config_file':
+      return model.miscFiles.find((file) => file.kind === (args.payload as { kind: string }).kind) ?? null;
+    case 'prepare_json_source_recovery': {
+      const request = args.payload as JsonRecoveryRequest;
+      if (request.origin.kind !== 'miscConfig') throw new Error('Browser fixture expects misc config recovery');
+      const definition = miscConfigFile(request.origin.file);
+      const file = model.miscFiles.find((file) => file.kind === definition.kind);
+      return {
+        request,
+        baseVersions: file?.baseVersions ?? [{ path: model.manifest.modRoot + '/' + definition.path, fingerprint: null }],
+        missingPaths: file ? [] : [definition.path],
+        currentSources: file ? { file: file.data } : {},
+      };
+    }
+    case 'save_misc_config':
+    case 'delete_misc_config': {
+      const payload = args.payload as MiscConfigWrite;
+      const result = model.receipt(command === 'save_misc_config' ? payload.data : null);
+      const definition = miscConfigFile(payload.kind);
+      const path = model.manifest.modRoot + '/' + definition.path;
+      result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(result.commitId) : null }];
+      result.invalidation.paths = [path];
+      result.invalidation.queryScopes = Object.entries(CONFIG_OPTION_SOURCES)
+        .filter(([, relative]) => relative === definition.path)
+        .map(([source]) => ({ kind: 'csv-source-options', source, table: null, entity: null, resource: null }));
+      if (result.sessionUpdates[0]!.status === 'ready') result.sessionUpdates[0]!.projection.invalidation = result.invalidation;
+      const index = model.miscFiles.findIndex((file) => file.kind === payload.kind);
+      if (index !== -1) model.miscFiles.splice(index, 1);
+      if (command === 'save_misc_config')
+        model.miscFiles.push({
+          kind: payload.kind,
+          path,
+          relPath: definition.path,
+          data: payload.data,
+          baseVersions: result.baseVersions,
+        });
+      return result;
+    }
     case 'query_csv_row_preview':
       return { resourceRef: null };
     case 'query_csv_source_options': {
       const source = (args.payload as { source: string }).source;
+      if (isConfigSource(source)) {
+        const data = model.miscFiles.find((file) => file.relPath === CONFIG_OPTION_SOURCES[source])?.data as RowData | undefined;
+        const values = Object.keys((source === 'config:designTypes' ? data?.designTypeColors : data) ?? {}).filter(
+          (key) => source !== 'config:sounds' || key !== 'music',
+        );
+        const core = { 'config:sounds': ['sample_core_effect'], 'config:designTypes': ['Low Tech'], 'config:hullStyles': ['LOW_TECH'] }[
+          source
+        ];
+        return (
+          [
+            ['mod', values],
+            ['core', core.filter((key) => !values.includes(key))],
+          ] as const
+        ).map(([origin, ids]) => ({
+          origin,
+          options: ids.map((value) => ({ value, label: value, description: null, resourceRef: null, origin })),
+        }));
+      }
       const values =
         source === 'csv:shipSystems.id'
           ? ['ammofeed', 'sample_system']

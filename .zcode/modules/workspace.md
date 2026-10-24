@@ -19,6 +19,7 @@
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
 - `src/app/composables/workspace-shell-lifecycle.spec.ts`：工作区恢复、监听及卸载行为验证。
+- `src/domain/workspace/mod-navigation.spec.ts`：导航条目与顺序验证。
 - `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
 - `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
 - `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。

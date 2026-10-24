@@ -1,4 +1,5 @@
 import { computed, shallowRef, watch, type Ref } from 'vue';
+import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
 import { recreateJsonSourcesAction } from '@/orchestrators/json-save.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -25,18 +26,20 @@ export function useJsonSourceRecovery(options: {
       sessionId: target.sessionId,
       modRoot: target.modRoot,
       origin:
-        target.kind === 'mod-info'
-          ? { kind: 'modInfo' }
-          : {
-              kind: 'entity',
-              target: {
-                sessionId: target.sessionId,
-                modRoot: target.modRoot,
-                kind: target.kind,
-                id: target.id,
-                relPath: target.entity!.write.relPath,
+        target.kind === 'misc-config'
+          ? { kind: 'miscConfig', file: miscConfigFile(target.id).kind }
+          : target.kind === 'mod-info'
+            ? { kind: 'modInfo' }
+            : {
+                kind: 'entity',
+                target: {
+                  sessionId: target.sessionId,
+                  modRoot: target.modRoot,
+                  kind: target.kind,
+                  id: target.id,
+                  relPath: target.entity!.write.relPath,
+                },
               },
-            },
     };
     await reads.consume('recovery', request, () => prepareJsonSourceRecovery(request), {
       ready: (value) => {

@@ -1,6 +1,7 @@
 export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 
 export const commandOwners = {
+  'src/services/misc-config.service.ts': ['query_misc_config_files', 'query_misc_config_file', 'save_misc_config', 'delete_misc_config'],
   'src/services/performance-monitor.service.ts': ['performance_monitor_batch', 'performance_monitor_report'],
   'src/services/app-settings.service.ts': ['read_settings', 'read_default_settings', 'save_settings', 'query_system_fonts'],
   'src/services/app-log.service.ts': ['append_app_logs', 'stop_app_log', 'get_app_log_status', 'clear_app_log_file'],

@@ -1,6 +1,8 @@
 import { createBrowserHost } from './host';
 import { createBrowserModel, scenarioNames, type BrowserScenario } from './model';
 import { listen, eventListenerCount } from './events';
+import { MISC_CONFIG_FILES } from '@/domain/json-editor/misc-config-files';
+import { miscConfigFixture } from '../misc-config';
 
 const query = new URLSearchParams(location.search);
 const scene = (query.get('case') ?? 'settings').split('-')[0] as BrowserScenario;
@@ -26,8 +28,36 @@ const busy = (value: boolean) =>
 async function show(reset = false) {
   busy(true);
   try {
-    if (reset) await host.reset();
-    else await host.open(host.model ?? createBrowserModel(scene, count));
+    const model = reset ? createBrowserModel(scene, count) : (host.model ?? createBrowserModel(scene, count));
+    if ((reset || !host.model) && scene === 'json' && query.get('state') === 'present') {
+      for (const definition of MISC_CONFIG_FILES) {
+        const path = model.manifest.modRoot + '/' + definition.path;
+        model.miscFiles.push({
+          kind: definition.kind,
+          path,
+          relPath: definition.path,
+          data: miscConfigFixture(definition.kind),
+          baseVersions: [{ path, fingerprint: 'sample' }],
+        });
+      }
+    }
+    if ((reset || !host.model) && scene === 'json' && query.get('state') === 'error') {
+      const definition = MISC_CONFIG_FILES.find((file) => file.kind === (query.get('file') ?? 'strings'))!;
+      const path = model.manifest.modRoot + '/' + definition.path;
+      model.miscFiles.push({
+        kind: definition.kind,
+        path,
+        relPath: definition.path,
+        data: miscConfigFixture(definition.kind),
+        baseVersions: [{ path, fingerprint: 'sample' }],
+      });
+      model.failures.set('query_misc_config_file', {
+        code: 'parse.json_syntax',
+        message: 'Invalid JSON token',
+        location: { path, line: 3, column: 2 },
+      });
+    }
+    await host.open(model);
     host.setTheme(dark ? 'dark' : 'light');
     status.textContent = '就绪';
     status.dataset.listeners = String(eventListenerCount());

@@ -53,6 +53,7 @@ export function buildModNavigationSections(manifest: ProjectManifest | null | un
         jsonItem('variants', '装配', manifest?.entitySummaries.variants ?? 0),
         tableItem('simOpponents', manifest),
         tableItem('descriptions', manifest),
+        jsonItem('misc-config', '杂项配置'),
       ],
     },
     {

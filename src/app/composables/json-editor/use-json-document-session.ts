@@ -1,4 +1,6 @@
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
+import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
+import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { useEditTargetDraftSession, type EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
@@ -50,7 +52,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   const commands = useSaveCommandStore();
   const editors = useJsonEditorStore();
   const settings = useSettingsStore();
-  const capabilities = jsonDocumentCapabilities(definition, feedback);
+  const capabilities = jsonDocumentCapabilities(definition, feedback, record.target.id);
   const active = ref(false);
   const reads = useQueryReadOwner();
   const modRoot = computed(() => record.target.modRoot);
@@ -86,7 +88,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     session,
     active,
     history,
-    definition.kind === 'mod-info'
+    definition.kind === 'mod-info' || definition.kind === 'misc-config'
       ? undefined
       : {
           kind: definition.kind,
@@ -194,7 +196,9 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
       if (event.sessionId !== record.target.sessionId || event.scope === 'session') return;
       if (
         definition.kind !== 'mod-info' &&
-        !hasEntityInvalidation(event, 'entity-detail', definition.kind, session.currentTarget.value!.id)
+        !(definition.kind === 'misc-config'
+          ? hasMiscConfigInvalidation(event, record.target.modRoot, miscConfigFile(record.target.id).kind)
+          : hasEntityInvalidation(event, 'entity-detail', definition.kind, session.currentTarget.value!.id))
       )
         return;
       if (active.value)

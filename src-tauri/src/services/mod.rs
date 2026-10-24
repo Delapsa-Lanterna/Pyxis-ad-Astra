@@ -6,6 +6,7 @@ pub mod app_settings;
 pub mod config_entity;
 pub mod directory_opening;
 pub mod json_file;
+pub mod misc_config;
 pub mod spec_editor;
 
 pub mod file_editor;

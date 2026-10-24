@@ -145,8 +145,8 @@ export function weaponSections(weapon: RowData): SpecSection[] {
       name: 'sound',
       title: '音效',
       fields: [
-        ['fireSoundOne', '开火音效', ''],
-        ['fireSoundTwo', '开火音效 2', ''],
+        ['fireSoundOne', '开火音效', '', undefined, false, 'config:sounds'],
+        ['fireSoundTwo', '开火音效 2', '', undefined, false, 'config:sounds'],
         ['stopPreviousFireSound', '停止上次开火音效', false],
         ...(beam
           ? [['playFullFireSoundOne', '完整播放首音效', false] as SpecField]

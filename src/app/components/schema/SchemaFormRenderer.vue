@@ -1,23 +1,38 @@
 <template>
   <EditorCollapse :expanded-names="expandedNames" @update:expanded-names="updateExpandedNames">
-    <n-collapse-item v-for="section in sections" :key="section.id" :name="section.id" :title="section.label" class="schema-section">
-      <template #header-extra
-        ><small class="section-header-meta ui-text-muted">{{ section.fields.length }} 项</small></template
-      >
-      <SchemaFieldRenderer
-        v-for="field in section.fields"
-        :key="field.key"
-        :field="field"
-        :value="getNestedValue(modelValue, field.key)"
+    <template v-for="section in sections" :key="section.id">
+      <SchemaValueInput
+        v-if="section.groupEntries"
+        :key="schema.id"
+        :field="section.fields[0]!"
+        :value="getNestedValue(modelValue, section.fields[0]!.key)"
         :runtime-context="runtimeContext"
-        @update="onFieldUpdate(field.key, $event)"
+        group-entries
+        @update="onFieldUpdate(section.fields[0]!.key, $event)"
       />
-    </n-collapse-item>
+      <n-collapse-item v-else :name="section.id" :title="section.label" class="schema-section">
+        <template #header-extra
+          ><small class="section-header-meta ui-text-muted">{{ section.fields.length }} 项</small></template
+        >
+        <SchemaFieldRenderer
+          v-for="field in section.fields"
+          :key="field.key"
+          :field="field"
+          :value="getNestedValue(modelValue, field.key)"
+          :runtime-context="runtimeContext"
+          @update="onFieldUpdate(field.key, $event)"
+        />
+      </n-collapse-item>
+    </template>
     <n-collapse-item v-if="extraKeys.length" name="__extra" title="额外字段" class="schema-section">
       <template #header-extra
         ><small class="section-header-meta ui-text-muted">{{ extraKeys.length }} 项</small></template
       >
-      <JsonFieldEditor :model-value="extraModelValue" :known-keys="extraKnownKeys" @update:model-value="onExtraUpdate" />
+      <SchemaValueInput
+        :field="{ key: '__extra', label: '额外字段', type: 'object', reservedKeys: extraKnownKeys }"
+        :value="Object.fromEntries(extraKeys.map((key) => [key, extraModelValue[key]]))"
+        @update="onExtraUpdate($event.kind === 'set' ? ($event.value as RowData) : {})"
+      />
     </n-collapse-item>
   </EditorCollapse>
 </template>
@@ -37,7 +52,7 @@ import {
 } from '@/domain/schema/schema-sections';
 import { applySchemaFieldUpdate, getNestedValue, setNestedValue } from '@/domain/schema/schema-values';
 import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
-import JsonFieldEditor from '@/shared/ui/JsonFieldEditor.vue';
+import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 
 useInputEditMode();
@@ -101,6 +116,12 @@ function onFieldUpdate(key: string, update: SchemaFieldUpdate) {
 }
 
 function onExtraUpdate(value: RowData) {
+  value = {
+    ...Object.fromEntries(
+      extraKnownKeys.value.filter((key) => Object.hasOwn(extraModelValue.value, key)).map((key) => [key, extraModelValue.value[key]!]),
+    ),
+    ...value,
+  };
   if (!isMultiSourceSchema(props.schema)) {
     modelValue.value = value;
     return;

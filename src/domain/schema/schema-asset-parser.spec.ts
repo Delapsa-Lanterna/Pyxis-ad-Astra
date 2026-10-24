@@ -104,6 +104,10 @@ describe('schema asset validation', () => {
   it.each([
     { ...fieldSchema, $schema: 'invalid' },
     { ...fieldSchema, sections: [] },
+    {
+      ...fieldSchema,
+      sections: [{ id: 'main', label: 'Main', fields: [{ key: 'x', label: 'X', type: 'enum', source: 'config:missing' }] }],
+    },
     { ...fieldSchema, sections: [{ id: 'main', label: 'Main', fields: [{ key: 'x', label: 'X', type: 'invalid' }] }] },
     {
       ...fieldSchema,
@@ -116,6 +120,11 @@ describe('schema asset validation', () => {
     { $schema: 'invalid', table: 'ships', columns: [] },
     { $schema: 'circinus-ad-astra/csv-columns/v1', table: 'other', columns: [] },
     { $schema: 'circinus-ad-astra/csv-columns/v1', table: 'ships', columns: [{ key: 'x', control: 'invalid' }] },
+    {
+      $schema: 'circinus-ad-astra/csv-columns/v1',
+      table: 'ships',
+      columns: [{ key: 'x', control: 'reference', source: 'config:missing' }],
+    },
   ])('rejects invalid column assets: %j', (asset) => {
     expect(() => parseCsvColumnSchemas('ships', asset)).toThrow();
   });

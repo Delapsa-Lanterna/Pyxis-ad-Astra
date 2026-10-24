@@ -18,6 +18,7 @@ import { sessionUpdateFixture, savedWriteFixture } from '@/test/write-result';
 import { editorUiStubs } from '@/test/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
+import * as miscConfig from '@/domain/json-editor/misc-config-files';
 import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigEntityPayload } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   listeners: new Set<(event: EntityIdentityAppliedEvent) => Promise<void>>(),
@@ -32,6 +33,10 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   slots: vi.fn(),
   previews: vi.fn(),
+  miscRead: vi.fn(),
+  miscList: vi.fn(),
+  miscSave: vi.fn(),
+  miscDelete: vi.fn(),
   feedback: {
     error: vi.fn(),
     warning: vi.fn(),
@@ -46,44 +51,47 @@ vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => moc
 vi.mock('@/app/composables/use-core-schema', () => ({
   useCoreSchema: () => ({
     loadCoreFields: async () => {},
-    getMergedSchema: (kind: string) => ({
-      ...getSchema(kind),
-      sections: [
-        {
-          id: 'main',
-          label: 'Fields',
-          fields: [
-            {
-              key:
-                kind === 'mod-info'
-                  ? 'file.name'
-                  : kind === 'faction'
-                    ? 'file.displayName'
-                    : kind === 'mission'
-                      ? 'descriptor.title'
-                      : kind === 'skin'
-                        ? 'hullName'
-                        : 'displayName',
-              label: 'Name',
-              type: 'string',
-            },
-            {
-              key:
-                kind === 'mission'
-                  ? 'list.mission'
-                  : kind === 'mod-info' || kind === 'faction'
-                    ? 'file.id'
-                    : kind === 'skin'
-                      ? 'skinHullId'
-                      : 'variantId',
-              label: 'ID',
-              type: 'string',
-            },
-            { key: 'settings', label: 'Settings', type: 'object' },
-          ],
-        },
-      ],
-    }),
+    getMergedSchema: (kind: string) =>
+      kind === 'strings'
+        ? getSchema(kind)
+        : {
+            ...getSchema(kind),
+            sections: [
+              {
+                id: 'main',
+                label: 'Fields',
+                fields: [
+                  {
+                    key:
+                      kind === 'mod-info'
+                        ? 'file.name'
+                        : kind === 'faction'
+                          ? 'file.displayName'
+                          : kind === 'mission'
+                            ? 'descriptor.title'
+                            : kind === 'skin'
+                              ? 'hullName'
+                              : 'displayName',
+                    label: 'Name',
+                    type: 'string',
+                  },
+                  {
+                    key:
+                      kind === 'mission'
+                        ? 'list.mission'
+                        : kind === 'mod-info' || kind === 'faction'
+                          ? 'file.id'
+                          : kind === 'skin'
+                            ? 'skinHullId'
+                            : 'variantId',
+                    label: 'ID',
+                    type: 'string',
+                  },
+                  { key: 'settings', label: 'Settings', type: 'object' },
+                ],
+              },
+            ],
+          },
   }),
 }));
 vi.mock('@/services/entity-query.service', async (original) => ({
@@ -112,6 +120,13 @@ vi.mock('@/orchestrators/json-save.orchestrator', () => ({
   deleteIndexedEntityAction: mocks.remove,
 }));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
+vi.mock('@/services/misc-config.service', async (original) => ({
+  ...(await original<typeof import('@/services/misc-config.service')>()),
+  queryMiscConfigFiles: mocks.miscList,
+  queryMiscConfigFile: mocks.miscRead,
+  saveMiscConfig: mocks.miscSave,
+  deleteMiscConfig: mocks.miscDelete,
+}));
 vi.mock('@/services/json-entity.service', () => ({ queryFactionPreviewImages: mocks.previews, queryMissionDraftIcon: async () => '' }));
 vi.mock('@/services/hull-reference.service', () => ({
   querySessionHullReferences: async () => ({ hullNames: {} }),
@@ -130,7 +145,7 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
 let wrapper: VueWrapper | null;
 let entities: Map<string, EntityData>;
 let serial: number;
-const pages = Object.keys(JSON_DOCUMENT_DEFINITIONS) as JsonEditorPageId[];
+const pages = (Object.keys(JSON_DOCUMENT_DEFINITIONS) as JsonEditorPageId[]).filter((page) => page !== 'misc-config');
 const key = (session: string, kind: string, id: string) => [session, kind, id].join(':');
 function manifest(session = 's1', root = 'M:/one') {
   const result = sessionUpdateFixture(session, root).projection.manifest;
@@ -185,7 +200,9 @@ beforeEach(() => {
   wrapper = null;
   register();
   mocks.list.mockImplementation(async (session: string, kind: string) =>
-    [...entities.entries()].filter(([id]) => id.startsWith(session + ':' + kind + ':')).map(([, entity]) => entity),
+    [...entities.entries()]
+      .filter(([id]) => id.startsWith(session + ':' + kind + ':'))
+      .map(([, entity]) => (entity.kind === 'mission' ? { ...entity, data: { list: (entity.data as RowData).list } } : entity)),
   );
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(key(session, kind, id)) ?? null);
   mocks.saveFile.mockImplementation(async (...args: Parameters<typeof savedFile>) => savedFile(...args));
@@ -214,14 +231,171 @@ beforeEach(() => {
   mocks.feedback.confirmWarning.mockImplementation((options) => options.onConfirm());
   mocks.previews.mockResolvedValue({ logoSrc: '', crestSrc: '' });
   mocks.slots.mockResolvedValue([]);
+  mocks.miscList.mockResolvedValue([
+    { kind: 'strings', path: 'M:/one/data/strings/strings.json', relPath: 'data/strings/strings.json', state: 'missing', error: null },
+  ]);
+  mocks.miscRead.mockResolvedValue(null);
 });
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 afterEach(() => {
   wrapper?.unmount();
   useJsonEditorStore().releaseSession('s1');
   useJsonEditorStore().releaseSession('s2');
+  vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it.each(['smart', 'plain'] as const)('consumes a file definition schema and initial content in %s mode', async (editMode) => {
+    initializeSettingsStore(createSettingsFixture({ editMode }));
+    const definition = {
+      ...miscConfig.miscConfigFile('strings'),
+      schema: 'faction',
+      initial: { id: 'fixture', displayName: 'Defined', unknown: '001' },
+    };
+    vi.spyOn(miscConfig, 'miscConfigFile').mockReturnValue(definition);
+    let saved = false;
+    const path = 'M:/one/data/strings/strings.json';
+    mocks.miscList.mockImplementation(async () => [{ kind: 'strings', state: saved ? 'present' : 'missing', error: null }]);
+    mocks.miscRead.mockImplementation(async () => ({
+      kind: 'strings',
+      data: definition.initial,
+      baseVersions: [{ path, fingerprint: 'created' }],
+    }));
+    mocks.prepare.mockImplementation(async (request) => ({
+      request,
+      baseVersions: [{ path, fingerprint: null }],
+      missingPaths: saved ? [] : [definition.path],
+      currentSources: {},
+    }));
+    mocks.miscSave.mockImplementation(async () => {
+      saved = true;
+      return { ...savedWriteFixture(), commitId: ++serial };
+    });
+    await mountPage('misc-config');
+    await wrapper!.get('.empty-state button').trigger('click');
+    await flushPromises();
+    expect(mocks.miscSave.mock.lastCall![0]).toMatchObject({ data: definition.initial, orderedJson: JSON.stringify(definition.initial) });
+    const doc = wrapper!.getComponent(JsonDocumentEditor).props('document');
+    expect(doc.schema.value.id).toBe('faction');
+    expect(doc.draftValue.value).toEqual({ file: definition.initial });
+    await wrapper!.get('[data-field-path="file.displayName"] input, [data-field-path="file.displayName"] textarea').setValue('Edited');
+    await doc.inputs.commit();
+    expect(doc.draftValue.value.file).toMatchObject({ displayName: 'Edited', unknown: '001' });
+    const projected = miscConfig.miscConfigValue('strings', ['001', { value: '123' }]);
+    expect(miscConfig.miscConfigContent('strings', projected)).toEqual(['001', { value: '123' }]);
+  });
+  it('preserves parse diagnostics and separates failure from a missing registered file', async () => {
+    const error = {
+      code: 'parse.json_syntax',
+      message: 'invalid syntax',
+      location: { path: 'M:/one/data/strings/strings.json', line: 3, column: 2 },
+    };
+    mocks.miscRead.mockRejectedValueOnce(error);
+    mocks.miscList.mockResolvedValue([{ kind: 'strings', state: 'present', error: null }]);
+    await mountPage('misc-config');
+    expect(wrapper!.get('.empty-state').text()).toContain('第 3 行，第 2 列');
+    expect(wrapper!.find('.json-entity-list-footer').exists()).toBe(false);
+    await wrapper!
+      .findAll('.empty-state button')
+      .find((button) => button.text() === '修复文件')!
+      .trigger('click');
+    expect(mocks.feedback.error.mock.lastCall![0]).toBe(error);
+    expect(mocks.miscSave).not.toHaveBeenCalled();
+    mocks.miscRead.mockResolvedValue({ kind: 'strings', data: {}, baseVersions: [{ path: error.location.path, fingerprint: 'fixed' }] });
+    await wrapper!
+      .findAll('.empty-state button')
+      .find((button) => button.text() === '重试')!
+      .trigger('click');
+    await flushPromises();
+    expect(wrapper!.findComponent(JsonDocumentEditor).exists()).toBe(true);
+  });
+  it('creates and selects a registered file, retains its draft across navigation, and confirms deletion', async () => {
+    let exists = false;
+    const path = 'M:/one/data/strings/strings.json';
+    mocks.miscList.mockImplementation(async () => [
+      { kind: 'strings', path, relPath: 'data/strings/strings.json', state: exists ? 'present' : 'missing', error: null },
+    ]);
+    mocks.miscRead.mockImplementation(async () =>
+      exists ? { kind: 'strings', data: {}, baseVersions: [{ path, fingerprint: 'v1' }] } : null,
+    );
+    mocks.prepare.mockImplementation(async (request) => ({
+      request,
+      baseVersions: [{ path, fingerprint: exists ? 'v1' : null }],
+      missingPaths: exists ? [] : ['data/strings/strings.json'],
+      currentSources: {},
+    }));
+    mocks.miscSave.mockImplementation(async () => {
+      exists = true;
+      return { ...savedWriteFixture(), commitId: ++serial, baseVersions: [{ path, fingerprint: 'v1' }] };
+    });
+    mocks.miscDelete.mockImplementation(async () => {
+      exists = false;
+      return { ...savedWriteFixture(), commitId: ++serial };
+    });
+    await mountPage('misc-config');
+    expect(wrapper!.get('.json-entity-list-item.active').text()).toContain('未创建');
+    expect(useJsonEditorStore().active).toBeNull();
+    expect(mocks.miscRead).not.toHaveBeenCalled();
+    await wrapper!.get('.empty-state button').trigger('click');
+    await flushPromises();
+    expect(wrapper!.findComponent(JsonDocumentEditor).exists()).toBe(true);
+    const doc = useJsonEditorStore().active!;
+    expect(doc.target.value!.id).toBe('strings');
+    await wrapper!.get('.schema-form button').trigger('click');
+    expect(doc.dirty.value).toBe(true);
+    const navigation = useWorkspaceNavigationActions();
+    navigation.showSettings();
+    await flushPromises();
+    navigation.navigateToModJson('M:/one', 'misc-config');
+    await flushPromises();
+    expect(useJsonEditorStore().active).toBe(doc);
+    expect(doc.dirty.value).toBe(true);
+    const editor = wrapper!.getComponent(JsonDocumentEditor);
+    await editor
+      .findAll('button')
+      .find((button) => button.text() === '删除')!
+      .trigger('click');
+    expect(mocks.feedback.confirmDanger).toHaveBeenCalledOnce();
+    await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
+    await flushPromises();
+    expect(mocks.miscDelete).toHaveBeenCalledOnce();
+    expect(wrapper!.findComponent(JsonDocumentEditor).exists()).toBe(false);
+    expect(wrapper!.get('.json-entity-list-item.active').text()).toContain('未创建');
+    expect(wrapper!.get('.empty-state button').text()).toBe('创建文件');
+    expect(useJsonEditorStore().documentStates('s1')).toHaveLength(0);
+  });
+  it.each(['success', 'failure'] as const)('rejects late file %s after switching Mod and returning to the same file', async (outcome) => {
+    let resolve!: (value: object) => void, reject!: (error: Error) => void;
+    mocks.miscList.mockResolvedValue([{ kind: 'strings', state: 'present', error: null }]);
+    mocks.miscRead.mockImplementationOnce(
+      () =>
+        new Promise((done, fail) => {
+          resolve = done;
+          reject = fail;
+        }),
+    );
+    await mountPage('misc-config');
+    expect(wrapper!.text()).toContain('正在读取');
+    const path = 'M:/two/data/strings/strings.json';
+    mocks.miscRead.mockResolvedValue({
+      kind: 'strings',
+      data: { group: { line: 'current' } },
+      baseVersions: [{ path, fingerprint: 'v1' }],
+    });
+    useWorkspaceNavigationActions().navigateToModJson('M:/two', 'misc-config');
+    await flushPromises();
+    const current = useJsonEditorStore().active!;
+    if (outcome === 'success') resolve({ kind: 'strings', data: { group: { line: 'late' } }, baseVersions: [] });
+    else reject(new Error('late failure'));
+    await flushPromises();
+    expect(useJsonEditorStore().active).toBe(current);
+    expect(current.target.value!.sessionId).toBe('s2');
+    expect(useJsonEditorStore().documentStates('s1')).toHaveLength(0);
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+    useWorkspaceNavigationActions().navigateToModJson('M:/one', 'misc-config');
+    await flushPromises();
+    expect(useJsonEditorStore().active!.target.value!.sessionId).toBe('s1');
+    expect(useJsonEditorStore().active!.target.value!.id).toBe('strings');
+  });
   it.each(pages)('%s restores its selection, draft and history after rebuilding its page and switching Mods', async (page) => {
     await mountPage(page);
     await nameInput().setValue('Local');
