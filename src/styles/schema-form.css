@@ -1,5 +1,5 @@
 .ui-code,
-.field-json-input .n-input .n-input__textarea-el {
+.field-json-input .n-input__textarea-el {
   font-family: var(--font-mono);
 }
 .schema-field {
@@ -56,6 +56,9 @@
 .field-control-line > .n-switch {
   flex: 0 0 auto;
 }
+.schema-form .field-control-line {
+  align-items: start;
+}
 .field-control-line > .ui-field-number {
   flex: 0 1 120px;
 }
@@ -90,9 +93,6 @@
 .schema-form,
 .schema-section {
   flex: 0 0 auto;
-}
-.nested-object {
-  gap: 8px;
 }
 .path-field .n-input,
 .path-select {
@@ -146,29 +146,12 @@
 .schema-section .n-collapse-item__content-inner > .n-button {
   align-self: flex-start;
 }
-.field-collection-item {
-  display: grid;
-  gap: 8px;
-  max-width: 100%;
-  padding: 8px;
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
-}
-.field-collection-header {
-  justify-content: space-between;
-}
-.field-collection,
-.field-map {
-  gap: var(--space-1);
-  max-width: 100%;
-}
 .field-json-add {
   gap: var(--space-2);
 }
 .field-json-new-key {
   width: 140px;
 }
-.field-collection-header,
 .path-field {
   gap: var(--space-1);
 }

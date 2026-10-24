@@ -176,7 +176,7 @@ async function mountPage(page: JsonEditorPageId, root = 'M:/one') {
   });
   await flushPromises();
 }
-const nameInput = () => wrapper!.get('.schema-section input');
+const nameInput = () => wrapper!.get<HTMLInputElement>('.schema-section input');
 function savedFile(session: string, root: string, id: string, data: RowData, previous: string | null, relPath: string) {
   const kind = relPath.endsWith('.skin') ? 'skin' : 'variant',
     before = entities.get(key(session, kind, previous ?? id))!;
@@ -398,6 +398,13 @@ describe('JSON common workspace and form', () => {
   });
   it.each(pages)('%s restores its selection, draft and history after rebuilding its page and switching Mods', async (page) => {
     await mountPage(page);
+    const before = JSON.stringify(wrapper!.getComponent(SchemaFormRenderer).props('modelValue'));
+    nameInput().element.value = 'L';
+    await nameInput().trigger('input');
+    nameInput().element.value = 'Loc';
+    await nameInput().trigger('input');
+    expect(JSON.stringify(wrapper!.getComponent(SchemaFormRenderer).props('modelValue'))).toBe(before);
+    expect(useJsonEditorStore().active!.inputs.dirty.value).toBe(true);
     await nameInput().setValue('Local');
     const field = nameInput().element;
     const navigation = useWorkspaceNavigationActions();

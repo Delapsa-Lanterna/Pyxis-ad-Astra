@@ -1,16 +1,14 @@
 <template>
-  <EditorCollapse :expanded-names="expandedNames" @update:expanded-names="updateExpandedNames">
+  <SchemaValueInput
+    v-if="schema.root"
+    :field="schema.root"
+    :value="getNestedValue(modelValue, schema.root.key)"
+    :runtime-context="runtimeContext"
+    @update="onFieldUpdate(schema.root!.key, $event)"
+  />
+  <EditorCollapse v-else :expanded-names="expandedNames" @update:expanded-names="updateExpandedNames">
     <template v-for="section in sections" :key="section.id">
-      <SchemaValueInput
-        v-if="section.groupEntries"
-        :key="schema.id"
-        :field="section.fields[0]!"
-        :value="getNestedValue(modelValue, section.fields[0]!.key)"
-        :runtime-context="runtimeContext"
-        group-entries
-        @update="onFieldUpdate(section.fields[0]!.key, $event)"
-      />
-      <n-collapse-item v-else :name="section.id" :title="section.label" class="schema-section">
+      <n-collapse-item :name="section.id" :title="section.label" class="schema-section">
         <template #header-extra
           ><small class="section-header-meta ui-text-muted">{{ section.fields.length }} 项</small></template
         >

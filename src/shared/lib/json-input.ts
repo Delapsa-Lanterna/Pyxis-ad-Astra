@@ -21,6 +21,6 @@ export function parseJsonInput<T extends JsonInputShape>(raw: string, shape: T):
 }
 
 export function formatJsonInput(value: unknown, shape: JsonInputShape): string {
-  const formatted = JSON.stringify(value ?? (shape === 'array' ? [] : {}), null, 2);
+  const formatted = JSON.stringify(value === undefined ? (shape === 'array' ? [] : {}) : value, null, 2);
   return formatted === undefined ? '' : formatted;
 }

@@ -34,7 +34,7 @@ describe('mergeSchemaWithCoreFields', () => {
     expect(extra.id).toBe('__core_discovered');
     expect(extra.collapsed).toBe(true);
     expect(extra.fields).toHaveLength(1);
-    expect(extra.fields[0]).toMatchObject({ key: 'fx.newField', label: 'newField', type: 'float' });
+    expect(extra.fields[0]).toMatchObject({ key: 'fx.newField', label: 'newField', type: 'json' });
     expect(extra.fields[0]!.description).toContain('starsector-core');
   });
 

@@ -2,7 +2,7 @@ import type { DiscoveredField, FieldSchema, FileSchema } from '@/domain/schema/s
 import { getExtraFieldSource, getSchemaSections } from '@/domain/schema/schema-sections';
 
 export function mergeSchemaWithCoreFields(schema: FileSchema, discoveredFields: DiscoveredField[]): FileSchema {
-  if (!discoveredFields || discoveredFields.length === 0) return schema;
+  if (!discoveredFields || discoveredFields.length === 0 || schema.root) return schema;
   const coreSourceId = getExtraFieldSource(schema) ?? schema.sources?.[0]?.id ?? null;
 
   const definedKeys = new Set<string>();
@@ -22,7 +22,7 @@ export function mergeSchemaWithCoreFields(schema: FileSchema, discoveredFields: 
     .filter((df) => !definedKeys.has(df.key))
     .map((df) => ({
       key: coreSourceId ? `${coreSourceId}.${df.key}` : df.key,
-      type: df.type as FieldSchema['type'],
+      type: 'json',
       label: df.key,
       description: '来自 starsector-core（自动发现）',
     }));

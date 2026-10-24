@@ -111,12 +111,13 @@ pub(crate) fn validate_misc_config(kind: MiscConfigKind, data: &Value) -> AppRes
 }
 
 fn config_schema(kind: MiscConfigKind) -> &'static Value {
-    static SCHEMAS: LazyLock<[Value; 4]> = LazyLock::new(|| {
+    static SCHEMAS: LazyLock<[Value; 5]> = LazyLock::new(|| {
         [
             include_str!("../../../schemas/engine-styles.schema.json"),
             include_str!("../../../schemas/hull-styles.schema.json"),
             include_str!("../../../schemas/sounds.schema.json"),
             include_str!("../../../schemas/game-settings.schema.json"),
+            include_str!("../../../schemas/strings.schema.json"),
         ]
         .map(|text| {
             crate::parsers::parse_persisted_json::<Value>(text)
@@ -128,7 +129,7 @@ fn config_schema(kind: MiscConfigKind) -> &'static Value {
         MiscConfigKind::HullStyles => 1,
         MiscConfigKind::Sounds => 2,
         MiscConfigKind::Settings => 3,
-        MiscConfigKind::Strings => return &Value::Null,
+        MiscConfigKind::Strings => 4,
     };
-    &SCHEMAS[index]["sections"][0]["fields"][0]
+    &SCHEMAS[index]["root"]
 }

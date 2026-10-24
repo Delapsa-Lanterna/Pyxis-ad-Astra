@@ -2,6 +2,21 @@ import type { JsonInputShape, RowData } from '@/shared/types';
 import { pathBasename } from '@/shared/lib/paths';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import { parseInputNumber } from '@/shared/lib/input-number';
+import { deepClone } from '@/shared/lib/starsector';
+
+export function schemaCollection(field: FieldSchema): boolean {
+  return field.type === 'object' || field.type === 'array';
+}
+
+export function schemaInitialValue(field: FieldSchema): unknown {
+  if (field.default !== undefined) return deepClone(field.default);
+  if (field.type === 'object') return {};
+  if (field.type === 'array' || field.type === 'string-array') return [];
+  if (field.type === 'integer' || field.type === 'float') return field.min ?? 0;
+  if (field.type === 'boolean') return false;
+  if (field.type === 'json') return null;
+  return field.options?.[0] ?? '';
+}
 
 export interface SchemaKeyValueEntry {
   key: string;
@@ -53,10 +68,12 @@ export function parseSchemaPlainNumber(raw: string, integer: boolean): number | 
 }
 
 export function convertSchemaScalarInput(raw: string, field: FieldSchema): SchemaFieldUpdate | { kind: 'error'; message: string } {
+  if (['string', 'text', 'enum', 'path', 'path-image'].includes(field.type) && !field.required)
+    return field.reservedKeys?.includes(raw) ? { kind: 'error', message: '名称重复或为保留名称' } : { kind: 'set', value: raw };
   if (raw.trim() === '') {
     return field.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'remove' };
   }
-  if (field.type === 'string')
+  if (['string', 'text', 'enum', 'path', 'path-image'].includes(field.type))
     return field.reservedKeys?.includes(raw) ? { kind: 'error', message: '名称重复或为保留名称' } : { kind: 'set', value: raw };
   const gameLiteral = field.numberFormat === 'starsector' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[fFdD]$/.test(raw.trim());
   const value =
@@ -72,16 +89,22 @@ export function convertSchemaScalarInput(raw: string, field: FieldSchema): Schem
 
 export function schemaFieldVariant(field: FieldSchema, value: unknown): FieldSchema {
   const matches = (candidate: FieldSchema) =>
-    ['array', 'array-of-object', 'string-array'].includes(candidate.type)
+    ['array', 'string-array'].includes(candidate.type)
       ? Array.isArray(value)
-      : ['object', 'key-value'].includes(candidate.type)
+      : candidate.type === 'object'
         ? value !== null && typeof value === 'object' && !Array.isArray(value)
         : ['float', 'integer'].includes(candidate.type)
           ? typeof value === 'number'
           : candidate.type === 'boolean'
             ? typeof value === 'boolean'
             : typeof value === 'string';
-  return field.variants!.find(matches) ?? { key: field.key, label: field.label, type: 'object' };
+  return (
+    field.variants!.find((candidate) => candidate.type === 'json' || matches(candidate)) ?? {
+      key: field.key,
+      label: field.label,
+      type: 'json',
+    }
+  );
 }
 
 export function applySchemaFieldUpdate(obj: RowData, key: string, update: SchemaFieldUpdate): RowData {
@@ -100,20 +123,6 @@ export function applySchemaFieldUpdate(obj: RowData, key: string, update: Schema
   return result;
 }
 
-export function schemaNumberControlValue(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-export function parseSchemaControlNumber(value: number | null, integer: boolean): number | string {
-  if (value === null) return '';
-  return integer ? Math.trunc(value) : value;
-}
-
 export function formatSchemaCommaList(values: string[]): string {
   return values.join(', ');
 }
@@ -130,7 +139,7 @@ export function schemaPathDisplayLabel(path: string): string {
 }
 
 export function schemaJsonInputShape(field: Pick<FieldSchema, 'type' | 'format'>): JsonInputShape {
-  return field.type === 'array' || field.type === 'array-of-object' || field.format === 'array-of-entries' ? 'array' : 'object';
+  return field.type === 'array' || field.type.startsWith('color-') || field.format === 'array-of-entries' ? 'array' : 'object';
 }
 
 export function schemaKeyValueEntries(value: unknown, format: FieldSchema['format']): SchemaKeyValueEntry[] {
@@ -153,21 +162,13 @@ export function schemaKeyValueOutput(
   entries: SchemaKeyValueEntry[],
   format: FieldSchema['format'],
 ): Record<string, unknown> | Record<string, unknown>[] {
-  if (format === 'array-of-entries') return entries.filter((entry) => entry.key).map((entry) => ({ [entry.key]: entry.val }));
+  if (format === 'array-of-entries') return entries.map((entry) => ({ [entry.key]: entry.val }));
 
   const result: Record<string, unknown> = Object.create(null);
   for (const entry of entries) {
-    if (entry.key) result[entry.key] = entry.val;
+    result[entry.key] = entry.val;
   }
   return result;
-}
-
-export function appendSchemaKeyValueEntry(
-  entries: SchemaKeyValueEntry[],
-  format: FieldSchema['format'],
-  valueSchema?: FieldSchema,
-): Record<string, unknown> | Record<string, unknown>[] {
-  return schemaKeyValueOutput([...entries, { key: nextSchemaKeyValueKey(entries, format), val: valueSchema?.default ?? '' }], format);
 }
 
 export function getNestedValue(obj: RowData, key: string): unknown {
@@ -199,13 +200,4 @@ export function setNestedValue(obj: RowData, key: string, value: unknown): RowDa
 
 function isObjectWithSchemaTags(value: unknown): value is Record<string, unknown> & { tags: unknown } {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'tags' in value);
-}
-
-function nextSchemaKeyValueKey(entries: SchemaKeyValueEntry[], format: FieldSchema['format']): string {
-  const base = format === 'array-of-entries' ? 'newEntry' : 'newField';
-  const existingKeys = new Set(entries.map((entry) => entry.key));
-  if (!existingKeys.has(base)) return base;
-  let index = 1;
-  while (existingKeys.has(`${base}${index}`)) index += 1;
-  return `${base}${index}`;
 }

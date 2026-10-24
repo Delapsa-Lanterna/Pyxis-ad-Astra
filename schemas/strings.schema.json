@@ -2,27 +2,30 @@
   "$schema": "circinus-ad-astra/field-schema/v1",
   "id": "strings",
   "displayName": "strings.json",
-  "sources": [{ "id": "file", "type": "json-file", "path": "data/strings/strings.json" }],
-  "sections": [
+  "sources": [
     {
-      "id": "strings",
-      "label": "文本分组",
-      "groupEntries": true,
-      "fields": [
-        {
-          "key": "file",
-          "type": "key-value",
-          "label": "分组",
-          "default": {},
-          "valueSchema": {
-            "key": "group",
-            "type": "key-value",
-            "label": "文本",
-            "default": {},
-            "valueSchema": { "key": "text", "type": "text", "label": "文本内容", "default": "" }
-          }
-        }
-      ]
+      "id": "file",
+      "type": "json-file",
+      "path": "data/strings/strings.json"
     }
-  ]
+  ],
+  "root": {
+    "key": "file",
+    "type": "object",
+    "label": "分组",
+    "default": {},
+    "valueSchema": {
+      "key": "group",
+      "type": "object",
+      "label": "文本",
+      "default": {},
+      "valueSchema": {
+        "key": "text",
+        "type": "text",
+        "label": "文本内容",
+        "default": ""
+      }
+    },
+    "presentation": "groups"
+  }
 }

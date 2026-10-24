@@ -21,7 +21,7 @@ describe('source option ghost values', () => {
     ['enum', ' legacy '],
     ['string-array', ['legal', ' legacy ']],
     ['tag-select', { tags: ['legal', ' legacy '] }],
-    ['key-value', { legal: 1, ' legacy ': 2 }],
+    ['object', { legal: 1, ' legacy ': 2 }],
   ] as const)('preserves exact ghost text for %s', (type, value) => {
     const field = { key: 'value', label: 'Value', type, source: 'csv:ships.id' } as FieldSchema;
     const values = fieldSourceCurrentValues(field, value);

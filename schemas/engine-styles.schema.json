@@ -10,194 +10,181 @@
       "path": "data/config/engine_styles.json"
     }
   ],
-  "sections": [
-    {
-      "id": "content",
-      "label": "引擎样式",
-      "groupEntries": true,
-      "fields": [
+  "root": {
+    "key": "file",
+    "type": "object",
+    "label": "样式",
+    "reservedKeys": ["CUSTOM"],
+    "valueSchema": {
+      "key": "style",
+      "type": "object",
+      "label": "样式属性",
+      "nested": [
         {
-          "key": "file",
-          "type": "key-value",
-          "label": "样式",
-          "reservedKeys": ["CUSTOM"],
-          "valueSchema": {
-            "key": "style",
-            "type": "object",
-            "label": "样式属性",
-            "nested": [
-              {
-                "key": "mode",
-                "type": "enum",
-                "label": "尾迹模式",
-                "description": "PARTICLES 使用粒子尾迹参数，QUAD_STRIP 使用条带尾迹参数，NONE 关闭尾迹。",
-                "options": ["NONE", "PARTICLES", "QUAD_STRIP"]
-              },
-              {
-                "key": "engineColor",
-                "type": "color-rgba",
-                "label": "尾焰颜色",
-                "description": "战斗中的引擎尾焰颜色。"
-              },
-              {
-                "key": "contrailColor",
-                "type": "color-rgba",
-                "label": "尾迹颜色",
-                "description": "战斗中的引擎尾迹颜色。"
-              },
-              {
-                "key": "contrailCampaignColor",
-                "type": "color-rgba",
-                "label": "生涯尾迹颜色",
-                "description": "生涯地图中的尾迹颜色；省略时沿用 contrailColor。"
-              },
-              {
-                "key": "glowSprite",
-                "type": "path-image",
-                "label": "发光贴图",
-                "description": "引擎发光部分的贴图路径。"
-              },
-              {
-                "key": "glowOutline",
-                "type": "path-image",
-                "label": "尾焰轮廓贴图",
-                "description": "引擎尾焰轮廓的贴图路径。"
-              },
-              {
-                "key": "omegaMode",
-                "type": "boolean",
-                "label": "欧米伽尾焰效果",
-                "description": "启用原版欧米伽引擎采用的特殊发光效果。"
-              },
-              {
-                "key": "withSpread",
-                "type": "boolean",
-                "label": "尾焰扩散",
-                "description": "控制尾焰是否扩散，默认开启。"
-              },
-              {
-                "key": "engineCampaignColor",
-                "type": "color-rgba",
-                "label": "生涯尾焰颜色",
-                "description": "生涯地图中的尾焰颜色；省略时沿用 engineColor。"
-              },
-              {
-                "key": "glowAlternateColor",
-                "type": "color-rgba",
-                "label": "交替发光颜色",
-                "description": "特殊尾焰效果使用的交替颜色。"
-              },
-              {
-                "key": "glowSizeMult",
-                "type": "float",
-                "label": "发光尺寸倍数",
-                "description": "调整引擎发光部分的大小，默认 1。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "flickerWhenMissileFlamedOut",
-                "type": "boolean",
-                "label": "熄火闪烁",
-                "description": "用于导弹引擎，控制熄火后的尾焰闪烁。"
-              },
-              {
-                "key": "contrailParticleSizeMult",
-                "type": "float",
-                "label": "粒子尺寸倍数",
-                "description": "PARTICLES 模式下的尾迹粒子尺寸倍数。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailParticleDuration",
-                "type": "float",
-                "label": "粒子持续时间",
-                "description": "PARTICLES 模式下的尾迹粒子持续时间，单位为秒。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailParticleFinalSizeMult",
-                "type": "float",
-                "label": "粒子最终尺寸倍数",
-                "description": "PARTICLES 模式下粒子消失前的尺寸倍数，默认 0.5。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailWidthMult",
-                "type": "float",
-                "label": "条带宽度倍数",
-                "description": "QUAD_STRIP 模式下的尾迹宽度倍数。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailDuration",
-                "type": "float",
-                "label": "条带持续时间",
-                "description": "QUAD_STRIP 模式下的尾迹持续时间，单位为秒。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailWidthAddedFractionAtEnd",
-                "type": "float",
-                "label": "条带末端宽度变化",
-                "description": "QUAD_STRIP 模式下末端的附加宽度比例；负值使尾迹收窄。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailMinSeg",
-                "type": "float",
-                "label": "最短条带段",
-                "description": "QUAD_STRIP 模式下条带分段的最短长度，单位为像素，默认 5。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailSpawnDistMult",
-                "type": "float",
-                "label": "条带生成距离倍数",
-                "description": "QUAD_STRIP 模式下条带分段生成距离的倍数，默认 0.7。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailMaxSpeedMult",
-                "type": "float",
-                "label": "尾迹速度倍数",
-                "description": "控制尾迹运动速度，按引擎样式使用该倍数。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "contrailAngularVelocityMult",
-                "type": "float",
-                "label": "尾迹角速度倍数",
-                "description": "控制尾迹旋转速度的倍数。",
-                "numberFormat": "starsector"
-              },
-              {
-                "key": "type",
-                "type": "enum",
-                "label": "混合方式",
-                "description": "GLOW 使用叠加发光，SMOKE 使用普通混合。",
-                "options": ["GLOW", "SMOKE"]
-              }
-            ],
-            "default": {
-              "engineColor": [255, 125, 25, 255],
-              "engineCampaignColor": [200, 90, 70, 255],
-              "contrailParticleSizeMult": 2,
-              "contrailParticleDuration": 3,
-              "contrailParticleFinalSizeMult": 2.5,
-              "contrailMaxSpeedMult": 0.5,
-              "contrailAngularVelocityMult": 0.5,
-              "contrailColor": [50, 50, 50, 50],
-              "contrailCampaignColor": [200, 90, 70, 75],
-              "type": "SMOKE"
-            },
-            "additionalFields": {
-              "key": "extra",
-              "type": "object",
-              "label": "额外字段"
-            }
-          }
+          "key": "mode",
+          "type": "enum",
+          "label": "尾迹模式",
+          "description": "PARTICLES 使用粒子尾迹参数，QUAD_STRIP 使用条带尾迹参数，NONE 关闭尾迹。",
+          "options": ["NONE", "PARTICLES", "QUAD_STRIP"]
+        },
+        {
+          "key": "engineColor",
+          "type": "color-rgba",
+          "label": "尾焰颜色",
+          "description": "战斗中的引擎尾焰颜色。"
+        },
+        {
+          "key": "contrailColor",
+          "type": "color-rgba",
+          "label": "尾迹颜色",
+          "description": "战斗中的引擎尾迹颜色。"
+        },
+        {
+          "key": "contrailCampaignColor",
+          "type": "color-rgba",
+          "label": "生涯尾迹颜色",
+          "description": "生涯地图中的尾迹颜色；省略时沿用 contrailColor。"
+        },
+        {
+          "key": "glowSprite",
+          "type": "path-image",
+          "label": "发光贴图",
+          "description": "引擎发光部分的贴图路径。"
+        },
+        {
+          "key": "glowOutline",
+          "type": "path-image",
+          "label": "尾焰轮廓贴图",
+          "description": "引擎尾焰轮廓的贴图路径。"
+        },
+        {
+          "key": "omegaMode",
+          "type": "boolean",
+          "label": "欧米伽尾焰效果",
+          "description": "启用原版欧米伽引擎采用的特殊发光效果。"
+        },
+        {
+          "key": "withSpread",
+          "type": "boolean",
+          "label": "尾焰扩散",
+          "description": "控制尾焰是否扩散，默认开启。"
+        },
+        {
+          "key": "engineCampaignColor",
+          "type": "color-rgba",
+          "label": "生涯尾焰颜色",
+          "description": "生涯地图中的尾焰颜色；省略时沿用 engineColor。"
+        },
+        {
+          "key": "glowAlternateColor",
+          "type": "color-rgba",
+          "label": "交替发光颜色",
+          "description": "特殊尾焰效果使用的交替颜色。"
+        },
+        {
+          "key": "glowSizeMult",
+          "type": "float",
+          "label": "发光尺寸倍数",
+          "description": "调整引擎发光部分的大小，默认 1。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "flickerWhenMissileFlamedOut",
+          "type": "boolean",
+          "label": "熄火闪烁",
+          "description": "用于导弹引擎，控制熄火后的尾焰闪烁。"
+        },
+        {
+          "key": "contrailParticleSizeMult",
+          "type": "float",
+          "label": "粒子尺寸倍数",
+          "description": "PARTICLES 模式下的尾迹粒子尺寸倍数。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailParticleDuration",
+          "type": "float",
+          "label": "粒子持续时间",
+          "description": "PARTICLES 模式下的尾迹粒子持续时间，单位为秒。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailParticleFinalSizeMult",
+          "type": "float",
+          "label": "粒子最终尺寸倍数",
+          "description": "PARTICLES 模式下粒子消失前的尺寸倍数，默认 0.5。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailWidthMult",
+          "type": "float",
+          "label": "条带宽度倍数",
+          "description": "QUAD_STRIP 模式下的尾迹宽度倍数。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailDuration",
+          "type": "float",
+          "label": "条带持续时间",
+          "description": "QUAD_STRIP 模式下的尾迹持续时间，单位为秒。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailWidthAddedFractionAtEnd",
+          "type": "float",
+          "label": "条带末端宽度变化",
+          "description": "QUAD_STRIP 模式下末端的附加宽度比例；负值使尾迹收窄。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailMinSeg",
+          "type": "float",
+          "label": "最短条带段",
+          "description": "QUAD_STRIP 模式下条带分段的最短长度，单位为像素，默认 5。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailSpawnDistMult",
+          "type": "float",
+          "label": "条带生成距离倍数",
+          "description": "QUAD_STRIP 模式下条带分段生成距离的倍数，默认 0.7。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailMaxSpeedMult",
+          "type": "float",
+          "label": "尾迹速度倍数",
+          "description": "控制尾迹运动速度，按引擎样式使用该倍数。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "contrailAngularVelocityMult",
+          "type": "float",
+          "label": "尾迹角速度倍数",
+          "description": "控制尾迹旋转速度的倍数。",
+          "numberFormat": "starsector"
+        },
+        {
+          "key": "type",
+          "type": "enum",
+          "label": "混合方式",
+          "description": "GLOW 使用叠加发光，SMOKE 使用普通混合。",
+          "options": ["GLOW", "SMOKE"]
         }
-      ]
-    }
-  ]
+      ],
+      "default": {
+        "engineColor": [255, 125, 25, 255],
+        "engineCampaignColor": [200, 90, 70, 255],
+        "contrailParticleSizeMult": 2,
+        "contrailParticleDuration": 3,
+        "contrailParticleFinalSizeMult": 2.5,
+        "contrailMaxSpeedMult": 0.5,
+        "contrailAngularVelocityMult": 0.5,
+        "contrailColor": [50, 50, 50, 50],
+        "contrailCampaignColor": [200, 90, 70, 75],
+        "type": "SMOKE"
+      }
+    },
+    "presentation": "groups"
+  }
 }

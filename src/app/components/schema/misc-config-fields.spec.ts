@@ -31,7 +31,7 @@ afterEach(() => {
   wrapper = undefined;
 });
 function mountConfig(kind: MiscConfigKind, realCollapse = false) {
-  const field = getSchema(miscConfigFile(kind).schema)!.sections![0]!.fields[0]!;
+  const field = getSchema(miscConfigFile(kind).schema)!.root!;
   const snapshot = { target: kind, baseVersions: [], meta: null, value: { file: miscConfigFixture(kind) } };
   let draft!: ReturnType<typeof useEditTargetDraftSession<RowData, MiscConfigKind, null>>;
   const value = computed({ get: () => draft.draftValue.value.file as RowData, set: (file) => draft.setDraft({ file }) });
@@ -73,8 +73,8 @@ describe('misc config fields', () => {
       expect(schema.sources![0]!.path).toBe(file.path);
       expect(file.initial).toEqual({});
     }
-    expect(getSchema('engine-styles')!.sections![0]!.fields[0]!.valueSchema!.nested).toHaveLength(23);
-    expect(getSchema('hull-styles')!.sections![0]!.fields[0]!.valueSchema!.nested).toHaveLength(38);
+    expect(getSchema('engine-styles')!.root!.valueSchema!.nested).toHaveLength(23);
+    expect(getSchema('hull-styles')!.root!.valueSchema!.nested).toHaveLength(38);
   });
   it.each(['0.5f', '-1f', '1D', '2.5e-2F'])('retains the game numeric literal %s when committed', (raw) => {
     expect(convertSchemaScalarInput(raw, { key: 'n', label: 'Number', type: 'float', numberFormat: 'starsector' })).toEqual({
@@ -108,8 +108,8 @@ describe('misc config fields', () => {
     ['settings', 4],
   ] as const)('groups root objects in %s independently', async (kind, count) => {
     mountConfig(kind);
-    expect(wrapper!.findAll('.schema-section')).toHaveLength(count);
-    const collapse = wrapper!.findAllComponents(EditorCollapse).at(-1)!;
+    const collapse = wrapper!.findAllComponents(EditorCollapse)[0]!;
+    expect(collapse.getComponent(nCollapse).props('expandedNames')).toHaveLength(count);
     const input = wrapper!.get('input').element;
     collapse.vm.$emit('update:expandedNames', []);
     await nextTick();
@@ -123,19 +123,27 @@ describe('misc config fields', () => {
     const colors = structuredClone(toRaw(value.value.designTypeColors));
     const plugins = wrapper!.findAll('.schema-section').find((group) => group.find('.n-collapse-item__header-main').text() === '插件')!;
     expect(value.value.plugins).toBeUndefined();
-    await plugins.get('button').trigger('click');
-    expect(value.value.plugins).toEqual({ newField: '' });
+    await plugins.findAll('button').at(-1)!.trigger('click');
+    await flushPromises();
+    expect(value.value.plugins).toEqual({ newField: null });
+    expect(wrapper!.getComponent(SchemaFormRenderer).props('modelValue').file).toHaveProperty('plugins.newField', null);
+    expect(wrapper!.findAllComponents({ name: 'SchemaCollectionInput' })[0]!.props('value')).toHaveProperty('plugins.newField', null);
+    expect(
+      wrapper!
+        .findAllComponents({ name: 'SchemaCollectionInput' })
+        .find((input) => input.props('field').key === 'plugins')!
+        .props('value'),
+    ).toEqual({ newField: null });
     expect(plugins.get('input').element.value).toBe('newField');
     await plugins.findAll('button').at(-1)!.trigger('click');
-    expect(value.value.plugins).toEqual({ newField: '', newField1: '' });
-    await plugins.get('.n-collapse-item__header-extra button').trigger('click');
-    expect(value.value.plugins).toBeUndefined();
+    await flushPromises();
+    expect(value.value.plugins).toEqual({ newField: null, newField1: null });
+    await plugins.findAll('button.compact-icon-button')[0]!.trigger('click');
+    expect(value.value.plugins).toEqual({ newField1: null });
     expect(plugins.find('button').exists()).toBe(true);
     value.value = { ...value.value, sampleOptions: { flag: false } };
     await nextTick();
-    const name = wrapper!
-      .findAll<HTMLInputElement>('.field-map-key-editor input')
-      .find((input) => input.element.value === 'sampleOptions')!;
+    const name = wrapper!.findAll<HTMLInputElement>('input.field-map-key-editor').find((input) => input.element.value === 'sampleOptions')!;
     name.element.focus();
     await name.setValue('designTypeColors');
     await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
@@ -147,7 +155,7 @@ describe('misc config fields', () => {
     await name.setValue('sample.config');
     expect(value.value['sample.config']).toHaveProperty('flag', false);
     expect(
-      wrapper!.findAll<HTMLInputElement>('.field-map-key-editor input').find((input) => input.element.value === 'sample.config')!.element,
+      wrapper!.findAll<HTMLInputElement>('input.field-map-key-editor').find((input) => input.element.value === 'sample.config')!.element,
     ).toBe(name.element);
     expect(wrapper!.findAll('.n-switch-stub')).toHaveLength(0);
     const number = wrapper!.findAll('textarea').find((input) => input.element.value === '42')!;
@@ -162,19 +170,17 @@ describe('misc config fields', () => {
   it('creates separate sound formats and preserves partial groups and music', async () => {
     const { value, field } = mountConfig('sounds');
     const originalMusic = structuredClone(toRaw(value.value.music));
-    const effects = field.additionalFields!;
-    expect(schemaFieldVariant(effects.valueSchema!, [])).toMatchObject({ type: 'array' });
-    expect(schemaFieldVariant(effects.valueSchema!, {})).toMatchObject({ type: 'object' });
+    const effects = field.valueSchema!;
+    expect(schemaFieldVariant(effects, [])).toMatchObject({ type: 'array' });
+    expect(schemaFieldVariant(effects, {})).toMatchObject({ type: 'object' });
     const add = (label: string) => wrapper!.findAll('button').find((button) => button.text() === '+ ' + label)!;
-    await add(effects.valueSchema!.variants![0]!.label).trigger('click');
+    await add(effects.variants![0]!.label).trigger('click');
     expect(value.value.newField).toEqual([]);
-    await add(effects.valueSchema!.variants![1]!.label).trigger('click');
+    await add(effects.variants![1]!.label).trigger('click');
     expect(value.value.newField1).toEqual({ sounds: [] });
     expect(value.value.engine_loop).toEqual({ SAMPLE_STYLE: { pitch: 1, volume: 0.8 } });
     expect(value.value.music).toEqual(originalMusic);
-    const name = wrapper!
-      .findAll<HTMLInputElement>('.field-map-key-editor input')
-      .find((input) => input.element.value === 'sample_effect')!;
+    const name = wrapper!.findAll<HTMLInputElement>('input.field-map-key-editor').find((input) => input.element.value === 'sample_effect')!;
     await name.setValue('music');
     expect(value.value.music).toEqual(originalMusic);
     expect(value.value.sample_effect).toBeDefined();

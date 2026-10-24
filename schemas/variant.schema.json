@@ -82,32 +82,38 @@
       "fields": [
         {
           "key": "weaponGroups",
-          "type": "array-of-object",
+          "type": "array",
           "label": "武器组",
-          "nested": [
-            {
-              "key": "mode",
-              "type": "enum",
-              "label": "模式",
-              "options": ["LINKED", "ALTERNATING"]
-            },
-            {
-              "key": "weapons",
-              "type": "key-value",
-              "label": "武器",
-              "valueSchema": {
-                "key": "weaponId",
+          "item": {
+            "key": "item",
+            "label": "武器组",
+            "type": "object",
+            "default": {},
+            "nested": [
+              {
+                "key": "mode",
                 "type": "enum",
-                "label": "武器 ID",
-                "source": "csv:weapons.id"
+                "label": "模式",
+                "options": ["LINKED", "ALTERNATING"]
+              },
+              {
+                "key": "weapons",
+                "type": "object",
+                "label": "武器",
+                "valueSchema": {
+                  "key": "weaponId",
+                  "type": "enum",
+                  "label": "武器 ID",
+                  "source": "csv:weapons.id"
+                }
+              },
+              {
+                "key": "autofire",
+                "type": "boolean",
+                "label": "自动开火"
               }
-            },
-            {
-              "key": "autofire",
-              "type": "boolean",
-              "label": "自动开火"
-            }
-          ]
+            ]
+          }
         }
       ]
     },
@@ -123,7 +129,8 @@
             "key": "wingId",
             "type": "enum",
             "label": "战机联队 ID",
-            "source": "csv:wings.id"
+            "source": "csv:wings.id",
+            "default": ""
           }
         }
       ]
@@ -134,7 +141,7 @@
       "fields": [
         {
           "key": "modules",
-          "type": "key-value",
+          "type": "object",
           "format": "array-of-entries",
           "label": "模块",
           "valueSchema": {

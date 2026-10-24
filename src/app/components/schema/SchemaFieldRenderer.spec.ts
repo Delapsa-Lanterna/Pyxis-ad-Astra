@@ -57,9 +57,31 @@ function mountField(field: FieldSchema, value: unknown, props: Record<string, un
   return wrapper!;
 }
 
+function mountBoundField(field: FieldSchema, initial: unknown) {
+  const inputs = createFieldInputs();
+  const value = ref(initial);
+  wrapper = mount(
+    {
+      setup() {
+        provideFieldInputs(inputs);
+        return () =>
+          h(SchemaFieldRenderer, {
+            field,
+            value: value.value,
+            onUpdate: (update) => {
+              if (update.kind === 'set') value.value = update.value;
+            },
+          });
+      },
+    },
+    { global: { stubs: editorUiStubs }, attachTo: document.body },
+  );
+  return { inputs, value };
+}
+
 describe('SchemaFieldRenderer smart mode', () => {
   it('edits nested text maps without converting strings or overwriting duplicate keys', async () => {
-    const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('strings')!.sections![0]!.fields[0]!;
+    const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('strings')!.root!;
     const value = ref<import('@/shared/types').RowData>({ first: { line: '001' }, second: {} });
     wrapper = mount(
       {
@@ -76,25 +98,97 @@ describe('SchemaFieldRenderer smart mode', () => {
     );
     await wrapper.get('textarea').setValue('123\n $token "text" ');
     expect(value.value.first).toEqual({ line: '123\n $token "text" ' });
-    const names = () => wrapper!.findAll('.field-map-key-editor input');
+    const names = () => wrapper!.findAll('input.field-map-key-editor');
     await names()[0]!.setValue('second');
     expect(Object.keys(value.value)).toEqual(['first', 'second']);
     await names()[0]!.setValue('组.一');
     expect(value.value['组.一']).toEqual({ line: '123\n $token "text" ' });
     await names()[1]!.setValue('_句.子');
     expect(value.value['组.一']).toEqual({ '_句.子': '123\n $token "text" ' });
-    const add = () => wrapper!.findAll('button').filter((button) => button.text() === '+ 添加');
+    const add = () => wrapper!.findAll('button').filter((button) => button.text() === '+ 添加项' || button.text() === '+ 添加分组');
     await add().at(-1)!.trigger('click');
     expect(value.value.newField).toEqual({});
     await add()[0]!.trigger('click');
     expect(value.value['组.一']).toEqual({ '_句.子': '123\n $token "text" ', newField: '' });
-    await wrapper.findAllComponents({ name: 'SchemaValueInput' })[1]!.findAll('button.compact-icon-button')[0]!.trigger('click');
+    await wrapper.findAll('.schema-section')[0]!.findAll('button.compact-icon-button')[1]!.trigger('click');
     expect(value.value['组.一']).toEqual({ newField: '' });
   });
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
   });
+
+  it.each([
+    ['string', 'before', 'after', 'after'],
+    ['text', 'before', '001\n $token "line" ', '001\n $token "line" '],
+    ['json', null, '[1,{"flag":true}]', [1, { flag: true }]],
+  ] as const)('commits %s once, preserves pending text and cancels with Escape', async (type, initial, raw, expected) => {
+    const { value, inputs } = mountBoundField(fieldFixture(type), initial);
+    const input = wrapper!.get<HTMLInputElement | HTMLTextAreaElement>(type === 'string' ? 'input' : 'textarea');
+    input.element.value = raw;
+    await input.trigger('input');
+    expect(value.value).toEqual(initial);
+    expect(inputs.dirty.value).toBe(true);
+    if (type !== 'string') {
+      await input.trigger('keydown', { key: 'Enter' });
+      expect(value.value).toEqual(initial);
+    }
+    await input.trigger('keydown', { key: 'Enter', ctrlKey: type !== 'string' });
+    expect(value.value).toEqual(expected);
+    await input.trigger('blur');
+    expect(wrapper!.getComponent(SchemaFieldRenderer).emitted('update')).toHaveLength(1);
+    input.element.value = 'pending';
+    await input.trigger('input');
+    await input.trigger('keydown', { key: 'Escape' });
+    expect(value.value).toEqual(expected);
+    expect(inputs.dirty.value).toBe(false);
+  });
+
+  it.each(['smart', 'plain'] as const)('retains undeclared nested values as JSON text in %s mode', async (mode) => {
+    useSettingsStore().setEditMode(mode);
+    const initial = { known: 'kept', 'extra.key': { enabled: true, count: 3 }, nil: null };
+    const { value, inputs } = mountBoundField(
+      fieldFixture('object', { nested: [{ key: 'known', label: 'Known', type: 'string' }] }),
+      initial,
+    );
+    if (mode === 'smart') {
+      expect(wrapper!.find('.n-switch-stub').exists()).toBe(false);
+      expect(wrapper!.findAll('textarea').some((input) => input.element.value === 'null')).toBe(true);
+      const extra = wrapper!.findAll('textarea').find((input) => input.element.value.includes('enabled'))!;
+      await extra.setValue('[1, "001", null]');
+      await inputs.commit();
+      expect(value.value).toEqual({ ...initial, 'extra.key': [1, '001', null] });
+    } else {
+      await wrapper!.get('textarea').setValue('[]');
+      await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
+      expect(value.value).toEqual(initial);
+    }
+  });
+
+  it('keeps a surviving list input and uses the declared initial value after deleting an equal item', async () => {
+    const { value } = mountBoundField(
+      fieldFixture('array', { item: { key: 'number', label: 'Number', type: 'integer', default: 7 } }),
+      [2, 2],
+    );
+    const retained = wrapper!.findAll('input')[1]!.element;
+    await wrapper!.findAll('button.compact-icon-button')[0]!.trigger('click');
+    expect(value.value).toEqual([2]);
+    expect(wrapper!.get('input').element).toBe(retained);
+    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    expect(value.value).toEqual([2, 7]);
+  });
+
+  it.each([{ slot: 'one' }, [{ slot: 'one' }, { slot: 'two' }]])(
+    'retains the stored dictionary form when renaming an entry',
+    async (initial) => {
+      const { value } = mountBoundField(
+        fieldFixture('object', { format: 'array-of-entries', valueSchema: { key: 'value', label: 'Value', type: 'string' } }),
+        initial,
+      );
+      await wrapper!.findAll('input.field-map-key-editor')[0]!.setValue('renamed.key');
+      expect(value.value).toEqual(Array.isArray(initial) ? [{ 'renamed.key': 'one' }, { slot: 'two' }] : { 'renamed.key': 'one' });
+    },
+  );
 
   it('expands descriptions without replacing focused input and keeps notices visible', async () => {
     const field = mountField(
@@ -124,7 +218,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     field.element.remove();
   });
 
-  it.each(['object', 'array', 'array-of-object'] as const)('applies description display to nested %s fields', async (type) => {
+  it.each(['object', 'array', 'object-list'] as const)('applies description display to nested %s fields', async (type) => {
     const nested = fieldFixture('string', {
       key: 'name',
       description: 'Nested explanation',
@@ -132,7 +226,14 @@ describe('SchemaFieldRenderer smart mode', () => {
       danger: 'Nested risk',
     });
     const field = mountField(
-      fieldFixture(type, type === 'array' ? { item: nested } : { nested: [nested] }),
+      fieldFixture(
+        type === 'object' ? 'object' : 'array',
+        type === 'array'
+          ? { item: nested }
+          : type === 'object'
+            ? { nested: [nested] }
+            : { item: { key: 'item', type: 'object', label: 'Item', nested: [nested] } },
+      ),
       type === 'object' ? { name: 'value' } : type === 'array' ? ['value'] : [{ name: 'value' }],
     );
     expect(field.find('.field-description').exists()).toBe(false);
@@ -156,7 +257,9 @@ describe('SchemaFieldRenderer smart mode', () => {
           provideFieldInputs(draft.inputs);
           return () =>
             h(SchemaFieldRenderer, {
-              field: fieldFixture('array-of-object', { nested: [{ key: 'name', type: 'string', label: 'Name' }] }),
+              field: fieldFixture('array', {
+                item: { key: 'item', type: 'object', label: 'Item', nested: [{ key: 'name', type: 'string', label: 'Name' }] },
+              }),
               value: draft.draftValue.value,
               onUpdate: (value) => {
                 if (value.kind === 'set') draft.draftValue.value = value.value as { name: string }[];
@@ -171,7 +274,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     await first.setValue('AX');
     expect(wrapper.get('input').element).toBe(first.element);
     expect(document.activeElement).toBe(first.element);
-    expect(wrapper.findAll('.field-collection-item')).toHaveLength(2);
+    expect(wrapper.findAll('.schema-section')).toHaveLength(2);
   });
 
   it('keeps key-value controls attached to the surviving row', async () => {
@@ -180,7 +283,7 @@ describe('SchemaFieldRenderer smart mode', () => {
       {
         setup: () => () =>
           h(SchemaFieldRenderer, {
-            field: fieldFixture('key-value'),
+            field: fieldFixture('object'),
             value: values.value,
             onUpdate: (value) => {
               if (value.kind === 'set') values.value = value.value as typeof values.value;
@@ -189,9 +292,9 @@ describe('SchemaFieldRenderer smart mode', () => {
       },
       { global: { stubs: editorUiStubs } },
     );
-    const names = () => wrapper!.findAll('.field-map-key-editor input');
+    const names = () => wrapper!.findAll('input.field-map-key-editor');
     const surviving = names()[1]!.element;
-    await wrapper.findAll('.field-map .schema-field')[0]!.get('button').trigger('click');
+    await wrapper.findAll('.schema-field')[1]!.get('button').trigger('click');
     expect(names().map((input) => (input.element as HTMLInputElement).value)).toEqual(['B', 'C']);
     expect(names()[0]!.element).toBe(surviving);
   });
@@ -296,7 +399,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(inputs.dirty.value).toBe(false);
   });
 
-  it('routes a numeric tag template to a key-value custom key and preserves the mapped value', async () => {
+  it('edits dictionary names as text and preserves their mapped value', async () => {
     const inputs = createFieldInputs();
     const value = ref<Record<string, number>>({ existing: 3 });
     const runtimeContext = {
@@ -325,7 +428,7 @@ describe('SchemaFieldRenderer smart mode', () => {
           provideFieldInputs(inputs);
           return () =>
             h(SchemaFieldRenderer, {
-              field: fieldFixture('key-value', { source: 'csv:ships.tags' }),
+              field: fieldFixture('object', { source: 'csv:ships.tags' }),
               value: value.value,
               runtimeContext,
               onUpdate: (update) => {
@@ -338,10 +441,9 @@ describe('SchemaFieldRenderer smart mode', () => {
     );
     const field = wrapper;
     await flushPromises();
-    await field.findComponent(nSelect).vm.$emit('update:value', 'kinetic*');
-    await nextTick();
-    const input = field.get('.field-map-key-editor input');
-    expect((input.element as HTMLInputElement).value).toBe('kinetic0');
+    expect(field.findComponent(nSelect).exists()).toBe(false);
+    const input = field.get('input.field-map-key-editor');
+    expect((input.element as HTMLInputElement).value).toBe('existing');
     (input.element as HTMLInputElement).value = 'kinetic12';
     await input.trigger('input');
     expect(await inputs.commit()).toBe(true);

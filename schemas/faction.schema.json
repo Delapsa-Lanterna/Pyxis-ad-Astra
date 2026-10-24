@@ -162,32 +162,48 @@
         },
         {
           "key": "file.shipNameSources",
-          "type": "key-value",
+          "type": "object",
           "label": "舰名来源",
           "description": "舰名生成器来源及其权重（如 ROMAN:2, GREEK:1）",
           "required": false,
           "editable": true,
           "default": {},
-          "source": "enum:BRITISH_NAVY,ROMAN,GREEK,NORSE,EGYPTIAN,JAPANESE,CELTIC,AZTEC,SPACE,GENERAL,MERCANTILE,PIRATES,KNIGHTS,HEGEMONY"
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          }
         },
         {
           "key": "file.names",
-          "type": "key-value",
+          "type": "object",
           "label": "人名来源",
           "description": "人物姓名生成器来源及其权重",
           "required": false,
           "editable": true,
           "default": {},
-          "source": "enum:modern,world,future,myth,old english,fringe,pirate"
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          }
         },
         {
           "key": "file.variantOverrides",
-          "type": "key-value",
+          "type": "object",
           "label": "装配覆盖",
           "description": "限制特定船体使用指定装配并调整其出现概率",
           "required": false,
           "editable": true,
-          "default": {}
+          "default": {},
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          }
         },
         {
           "key": "file.hullFrequency",
@@ -199,23 +215,33 @@
           "nested": [
             {
               "key": "tags",
-              "type": "key-value",
+              "type": "object",
               "label": "标签频率",
               "description": "按标签设置频率乘数",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "csv:ships.tags"
+              "valueSchema": {
+                "key": "weight",
+                "type": "float",
+                "label": "权重",
+                "default": 1
+              }
             },
             {
               "key": "hulls",
-              "type": "key-value",
+              "type": "object",
               "label": "船体频率",
               "description": "按具体船体 ID 设置频率乘数",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "csv:ships.id"
+              "valueSchema": {
+                "key": "weight",
+                "type": "float",
+                "label": "权重",
+                "default": 1
+              }
             }
           ]
         },
@@ -461,33 +487,48 @@
         },
         {
           "key": "file.weaponSellFrequency",
-          "type": "key-value",
+          "type": "object",
           "label": "武器出售频率",
           "description": "势力市场上各武器的出售频率权重",
           "required": false,
           "editable": true,
           "default": {},
-          "source": "csv:weapons.id"
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          }
         },
         {
           "key": "file.fighterSellFrequency",
-          "type": "key-value",
+          "type": "object",
           "label": "战机联队出售频率",
           "description": "势力市场上各战机联队的出售频率权重",
           "required": false,
           "editable": true,
           "default": {},
-          "source": "csv:wings.id"
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          }
         },
         {
           "key": "file.hullmodSellFrequency",
-          "type": "key-value",
+          "type": "object",
           "label": "船体插件出售频率",
           "description": "势力市场上各船体插件的出售频率权重",
           "required": false,
           "editable": true,
           "default": {},
-          "source": "csv:hullmods.id"
+          "valueSchema": {
+            "key": "weight",
+            "type": "float",
+            "label": "权重",
+            "default": 1
+          }
         },
         {
           "key": "file.factionDoctrine",
@@ -675,12 +716,56 @@
         },
         {
           "key": "file.shipRoles",
-          "type": "key-value",
+          "type": "object",
           "label": "舰船角色分配",
           "description": "按角色分类的舰船装配权重配置。每个角色（如 combatSmall, combatLarge）的值是一个对象，包含 includeDefault (boolean) 和若干 装配ID: 权重(number) 的键值对",
           "required": false,
           "editable": true,
-          "default": {}
+          "default": {},
+          "valueSchema": {
+            "key": "role",
+            "type": "object",
+            "label": "角色",
+            "default": {
+              "includeDefault": true
+            },
+            "nested": [
+              {
+                "key": "includeDefault",
+                "type": "boolean",
+                "label": "包含默认装配",
+                "default": true
+              },
+              {
+                "key": "fallback",
+                "type": "object",
+                "label": "备用角色",
+                "valueSchema": {
+                  "key": "weight",
+                  "type": "float",
+                  "label": "权重",
+                  "default": 1
+                }
+              },
+              {
+                "key": "fallback2",
+                "type": "object",
+                "label": "第二备用角色",
+                "valueSchema": {
+                  "key": "weight",
+                  "type": "float",
+                  "label": "权重",
+                  "default": 1
+                }
+              }
+            ],
+            "valueSchema": {
+              "key": "weight",
+              "type": "float",
+              "label": "权重",
+              "default": 1
+            }
+          }
         },
         {
           "key": "file.illegalCommodities",
@@ -804,23 +889,53 @@
           "nested": [
             {
               "key": "ranks",
-              "type": "key-value",
+              "type": "object",
               "label": "舰队军衔",
               "description": "舰队军衔 ID 到显示名称的映射（值为 {name: string} 对象）",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "enum:factionLeader,spaceAdmiral,spaceCommander,spaceCaptain,spaceLieutenant,spaceChief,spaceEnsign,groundGeneral,groundColonel,groundMajor,groundCaptain,groundLieutenant,groundSergeant,groundPrivate,citizen"
+              "valueSchema": {
+                "key": "entry",
+                "type": "object",
+                "label": "名称",
+                "default": {
+                  "name": ""
+                },
+                "nested": [
+                  {
+                    "key": "name",
+                    "type": "string",
+                    "label": "显示名称",
+                    "default": ""
+                  }
+                ]
+              }
             },
             {
               "key": "posts",
-              "type": "key-value",
+              "type": "object",
               "label": "港口职位",
               "description": "港口职位 ID 到显示名称的映射（值为 {name: string} 对象）",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "enum:factionLeader,patrolCommander,fleetCommander,baseCommander,stationCommander,portmaster,administrator,militaryAdministrator,intelligenceDirector,supplyOfficer"
+              "valueSchema": {
+                "key": "entry",
+                "type": "object",
+                "label": "名称",
+                "default": {
+                  "name": ""
+                },
+                "nested": [
+                  {
+                    "key": "name",
+                    "type": "string",
+                    "label": "显示名称",
+                    "default": ""
+                  }
+                ]
+              }
             }
           ]
         },
@@ -834,33 +949,48 @@
           "nested": [
             {
               "key": "LOW",
-              "type": "key-value",
+              "type": "object",
               "label": "低级人物",
               "description": "低重要性人物的对话人格权重",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "enum:soldier,spacer,faithful,official,business,aristo,scientist,villain"
+              "valueSchema": {
+                "key": "weight",
+                "type": "float",
+                "label": "权重",
+                "default": 1
+              }
             },
             {
               "key": "MEDIUM",
-              "type": "key-value",
+              "type": "object",
               "label": "中级人物",
               "description": "中重要性人物的对话人格权重",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "enum:soldier,spacer,faithful,official,business,aristo,scientist,villain"
+              "valueSchema": {
+                "key": "weight",
+                "type": "float",
+                "label": "权重",
+                "default": 1
+              }
             },
             {
               "key": "HIGH",
-              "type": "key-value",
+              "type": "object",
               "label": "高级人物",
               "description": "高重要性人物的对话人格权重",
               "required": false,
               "editable": true,
               "default": {},
-              "source": "enum:soldier,spacer,faithful,official,business,aristo,scientist,villain"
+              "valueSchema": {
+                "key": "weight",
+                "type": "float",
+                "label": "权重",
+                "default": 1
+              }
             }
           ]
         },
@@ -1054,11 +1184,17 @@
             },
             {
               "key": "pirateBaseStationTypes",
-              "type": "key-value",
+              "type": "object",
               "label": "海盗基地站类型",
               "description": "海盗基地使用的空间站类型及其权重",
               "required": false,
-              "editable": true
+              "editable": true,
+              "valueSchema": {
+                "key": "weight",
+                "type": "float",
+                "label": "权重",
+                "default": 1
+              }
             },
             {
               "key": "punitiveExpeditionData",
@@ -1129,13 +1265,18 @@
         },
         {
           "key": "file.fleetTypeNames",
-          "type": "key-value",
+          "type": "object",
           "label": "舰队类型名称",
           "description": "势力各类型舰队的自定义显示名称",
           "required": false,
           "editable": true,
           "default": {},
-          "source": "enum:trade,tradeLiner,tradeSmuggler,smallTrader,patrolSmall,patrolMedium,patrolLarge,inspectionFleet,taskForce,foodReliefFleet,mercScout,mercBountyHunter,mercPrivateer,mercPatrol,mercArmada"
+          "valueSchema": {
+            "key": "name",
+            "type": "string",
+            "label": "名称",
+            "default": ""
+          }
         }
       ]
     }

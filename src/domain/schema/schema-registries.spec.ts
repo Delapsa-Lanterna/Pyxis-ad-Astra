@@ -11,7 +11,7 @@ describe('schema asset registries', () => {
     const weaponGroups = getSchema('variant')!
       .sections!.flatMap((section) => section.fields)
       .find((field) => field.key === 'weaponGroups')!;
-    expect(weaponGroups.nested!.find((field) => field.key === 'mode')!.options).toEqual(['LINKED', 'ALTERNATING']);
+    expect(weaponGroups.item!.nested!.find((field) => field.key === 'mode')!.options).toEqual(['LINKED', 'ALTERNATING']);
   });
   it('offers only game fighter formations in wing editing', () => {
     const wings = getCsvColumnSchemas('wings').find((column) => column.key === 'formation');

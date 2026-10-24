@@ -20,16 +20,14 @@ pub fn misc_config_path(kind: MiscConfigKind) -> &'static str {
 }
 
 pub fn validate_misc_config(kind: MiscConfigKind, data: &Value, schema: &Value) -> AppResult<()> {
-    match kind {
-        MiscConfigKind::Strings => validate_strings(data),
-        _ => validate_field(schema, data, misc_config_path(kind)),
-    }
+    validate_field(schema, data, misc_config_path(kind))
 }
 
 fn matches_type(field: &Value, data: &Value) -> bool {
     match field["type"].as_str().expect("bundled field type") {
-        "object" | "key-value" => data.is_object(),
-        "array" | "array-of-object" | "color-rgba" | "color-rgb" => data.is_array(),
+        "json" => true,
+        "object" => data.is_object(),
+        "array" | "color-rgba" | "color-rgb" => data.is_array(),
         "boolean" => data.is_boolean(),
         "float" | "integer" => data.is_number() || data.is_string(),
         _ => data.is_string(),
@@ -55,21 +53,10 @@ fn validate_field(field: &Value, data: &Value, path: &str) -> AppResult<()> {
     }
     match field["type"].as_str().expect("bundled field type") {
         "object" => {
-            if let Some(fields) = field["nested"].as_array() {
-                let mut additional = data.as_object().expect("validated object").clone();
-                for child in fields {
-                    let key = child["key"].as_str().expect("bundled field key");
-                    if let Some(value) = additional.remove(key) {
-                        validate_field(child, &value, &format!("{path}/{key}"))?;
-                    }
-                }
-                if let Some(schema) = field.get("additionalFields") {
-                    validate_field(schema, &Value::Object(additional), path)?;
-                }
-            }
-        }
-        "key-value" => {
             for (key, value) in data.as_object().expect("validated dictionary") {
+                let fixed = field["nested"]
+                    .as_array()
+                    .and_then(|fields| fields.iter().find(|child| child["key"] == *key));
                 if field["reservedKeys"]
                     .as_array()
                     .is_some_and(|keys| keys.iter().any(|v| v.as_str() == Some(key)))
@@ -79,7 +66,7 @@ fn validate_field(field: &Value, data: &Value, path: &str) -> AppResult<()> {
                         format!("Reserved key at {path}/{key}"),
                     ));
                 }
-                if let Some(schema) = field.get("valueSchema") {
+                if let Some(schema) = fixed.or_else(|| field.get("valueSchema")) {
                     validate_field(schema, value, &format!("{path}/{key}"))?;
                 }
             }
@@ -129,31 +116,6 @@ fn validate_field(field: &Value, data: &Value, path: &str) -> AppResult<()> {
             return Err(invalid());
         }
         _ => {}
-    }
-    Ok(())
-}
-fn validate_strings(data: &Value) -> AppResult<()> {
-    let groups = data.as_object().ok_or_else(|| {
-        AppError::message(
-            "misc_config.shape_invalid",
-            "strings.json root must be an object",
-        )
-    })?;
-    for (group, entries) in groups {
-        let entries = entries.as_object().ok_or_else(|| {
-            AppError::message(
-                "misc_config.shape_invalid",
-                format!("group {group} must be an object"),
-            )
-        })?;
-        for (key, value) in entries {
-            if !value.is_string() {
-                return Err(AppError::message(
-                    "misc_config.shape_invalid",
-                    format!("{group}/{key} must be a string"),
-                ));
-            }
-        }
     }
     Ok(())
 }

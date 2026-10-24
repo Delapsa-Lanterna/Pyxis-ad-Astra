@@ -167,7 +167,7 @@
       "fields": [
         {
           "key": "builtInWeapons",
-          "type": "key-value",
+          "type": "object",
           "label": "内置武器",
           "valueSchema": {
             "key": "weaponId",
@@ -189,7 +189,7 @@
         },
         {
           "key": "weaponSlotChanges",
-          "type": "key-value",
+          "type": "object",
           "label": "改变武器槽",
           "valueSchema": {
             "key": "slot",
@@ -254,7 +254,8 @@
             "key": "wingId",
             "type": "enum",
             "label": "战机联队 ID",
-            "source": "csv:wings.id"
+            "source": "csv:wings.id",
+            "default": ""
           }
         }
       ]
@@ -288,12 +289,13 @@
             "key": "engineSlotIndex",
             "type": "integer",
             "label": "引擎槽索引",
-            "min": 0
+            "min": 0,
+            "default": 0
           }
         },
         {
           "key": "engineSlotChanges",
-          "type": "key-value",
+          "type": "object",
           "label": "改变引擎槽",
           "valueSchema": {
             "key": "engine",

@@ -13,7 +13,7 @@ export function isConfigSource(source: string | undefined): source is keyof type
 }
 
 export function validateSchemaCsvSources(schema: FileSchema): void {
-  const fields = (schema.sections ?? []).flatMap((section) => section.fields);
+  const fields = schema.root ? [schema.root] : (schema.sections ?? []).flatMap((section) => section.fields);
   validateSchemaFieldCsvSources(fields, 'file');
 }
 
@@ -62,6 +62,5 @@ function validateSchemaFieldCsvSources(fields: FieldSchema[], parentPath: string
     if (field.item) validateSchemaFieldCsvSources([field.item], `${path}[]`);
     if (field.valueSchema) validateSchemaFieldCsvSources([field.valueSchema], `${path}{}`);
     if (field.variants) validateSchemaFieldCsvSources(field.variants, path);
-    if (field.additionalFields) validateSchemaFieldCsvSources([field.additionalFields], path);
   }
 }

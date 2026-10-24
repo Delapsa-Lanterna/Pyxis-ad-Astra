@@ -13,8 +13,7 @@ export const FIELD_TYPES = [
   'tag-select',
   'object',
   'array',
-  'array-of-object',
-  'key-value',
+  'json',
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -43,9 +42,10 @@ export interface FieldSchema {
   item?: FieldSchema;
   valueSchema?: FieldSchema;
   variants?: FieldSchema[];
-  additionalFields?: FieldSchema;
   numberFormat?: 'starsector';
   reservedKeys?: string[];
+  presentation?: 'groups';
+  operations?: { add?: boolean; remove?: boolean; rename?: boolean };
   /** Underlying key-value storage format: 'array-of-entries' means [{k:v}, ...] arrays */
   format?: 'array-of-entries';
 }
@@ -54,7 +54,6 @@ export interface SectionSchema {
   id: string;
   label: string;
   collapsed?: boolean;
-  groupEntries?: boolean;
   fields: FieldSchema[];
 }
 
@@ -82,6 +81,7 @@ export interface FileSchema {
   gameVersion?: string;
   sources?: SchemaSource[];
   sections?: SectionSchema[];
+  root?: FieldSchema;
 }
 
 export const CSV_COLUMN_CONTROLS = ['text', 'number', 'boolean', 'enum', 'reference', 'tags', 'multi', 'path-image', 'color'] as const;

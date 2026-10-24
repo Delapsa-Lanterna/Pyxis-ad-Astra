@@ -443,7 +443,7 @@ fn config_field_validation() {
         ),
     ] {
         let schema = crate::parsers::parse_persisted_json::<Value>(text).unwrap();
-        let initial = &schema["sections"][0]["fields"][0]["valueSchema"]["default"];
+        let initial = &schema["root"]["valueSchema"]["default"];
         assert!(validate_misc_config(kind, &json!({"SAMPLE":initial})).is_ok());
     }
     assert!(

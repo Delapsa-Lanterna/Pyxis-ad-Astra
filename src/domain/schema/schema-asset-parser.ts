@@ -23,12 +23,13 @@ export function parseFileSchema(id: string, raw: unknown): FileSchema {
   if (typeof asset.id !== 'string' || asset.id.length === 0) {
     throw new Error(`schema ${id}: 缺少 id`);
   }
-  const sections = parseSections(id, asset.sections);
+  const sections = asset.sections === undefined ? undefined : parseSections(id, asset.sections);
   const schema: FileSchema = {
     $schema: FIELD_SCHEMA_VERSION,
     id: asset.id,
-    sections,
+    ...(sections ? { sections } : {}),
   };
+  if (asset.root !== undefined) schema.root = parseField(id, 'root', asset.root);
   if (isString(asset.fileType)) schema.fileType = asset.fileType;
   if (isString(asset.displayName)) schema.displayName = asset.displayName;
   if (isString(asset.description)) schema.description = asset.description;
@@ -53,7 +54,6 @@ function parseSections(id: string, raw: unknown): SectionSchema[] {
       id: record.id,
       label: record.label,
       ...collapsed,
-      ...(record.groupEntries === true ? { groupEntries: true } : {}),
       fields: parseFields(id, `sections[${index}].fields`, record.fields),
     };
   });
@@ -95,6 +95,20 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isNumber(record.step)) field.step = record.step;
   if (isStringArray(record.options)) field.options = record.options;
   if (isStringArray(record.reservedKeys)) field.reservedKeys = record.reservedKeys;
+  if (record.presentation !== undefined) {
+    if (record.presentation !== 'groups') throw new Error(`schema ${id} ${path}: 非法 presentation`);
+    field.presentation = 'groups';
+  }
+  if (record.operations !== undefined) {
+    const operations = asRecord(record.operations, `schema ${id} ${path}.operations`);
+    field.operations = {};
+    for (const action of ['add', 'remove', 'rename'] as const) {
+      if (operations[action] !== undefined) {
+        if (!isBoolean(operations[action])) throw new Error(`schema ${id} ${path}: 非法 ${action}`);
+        field.operations[action] = operations[action];
+      }
+    }
+  }
   if (record.numberFormat !== undefined) {
     if (record.numberFormat !== 'starsector') throw new Error(`schema ${id} ${path}: 非法 numberFormat`);
     field.numberFormat = 'starsector';
@@ -115,7 +129,6 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
     field.valueSchema = parseField(id, `${path}.valueSchema`, record.valueSchema);
   }
   if (record.variants !== undefined) field.variants = parseFields(id, `${path}.variants`, record.variants);
-  if (record.additionalFields !== undefined) field.additionalFields = parseField(id, `${path}.additionalFields`, record.additionalFields);
   return field;
 }
 

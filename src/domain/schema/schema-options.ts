@@ -112,7 +112,7 @@ export function numericSelectOption(options: SelectOption[], value: string): Sel
 export function fieldSourceCurrentValues(field: FieldSchema, value: unknown): string[] {
   if (field.type === 'string-array') return schemaArrayStringValues(value);
   if (field.type === 'tag-select') return schemaTagValues(value);
-  if (field.type === 'key-value') return schemaKeyValueEntries(value, field.format).map((entry) => entry.key);
+  if (field.type === 'object') return schemaKeyValueEntries(value, field.format).map((entry) => entry.key);
   const text = schemaStringValue(value);
   return text ? [text] : [];
 }

@@ -44,22 +44,27 @@ describe('schema asset validation', () => {
             {
               key: 'entries',
               label: 'Entries',
-              type: 'array-of-object',
-              nested: [
-                {
-                  key: 'system',
-                  label: 'System',
-                  type: 'enum',
-                  source: 'csv:shipSystems.id',
-                  options: ['sample'],
-                },
-              ],
+              type: 'array',
+              item: {
+                key: 'item',
+                type: 'object',
+                label: 'Entry',
+                nested: [
+                  {
+                    key: 'system',
+                    label: 'System',
+                    type: 'enum',
+                    source: 'csv:shipSystems.id',
+                    options: ['sample'],
+                  },
+                ],
+              },
             },
             { key: 'paths', label: 'Paths', type: 'array', item: { key: 'path', label: 'Path', type: 'path', pathBase: 'mission' } },
             {
               key: 'values',
               label: 'Values',
-              type: 'key-value',
+              type: 'object',
               format: 'array-of-entries',
               valueSchema: { key: 'value', label: 'Value', type: 'float', default: 0.5 },
             },

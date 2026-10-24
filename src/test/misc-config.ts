@@ -5,7 +5,7 @@ import type { MiscConfigKind, RowData } from '@/shared/types';
 export function miscConfigFixture(kind: MiscConfigKind): RowData {
   if (kind === 'strings') return { dialogue: { line: '001\n$sample "text"' } };
   if (kind === 'engineStyles' || kind === 'hullStyles') {
-    const defaults = getSchema(miscConfigFile(kind).schema)!.sections![0]!.fields[0]!.valueSchema!.default;
+    const defaults = getSchema(miscConfigFile(kind).schema)!.root!.valueSchema!.default;
     return {
       SAMPLE_STYLE: {
         ...structuredClone(defaults as RowData),
