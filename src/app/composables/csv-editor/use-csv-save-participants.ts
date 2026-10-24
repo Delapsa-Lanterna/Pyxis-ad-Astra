@@ -45,7 +45,7 @@ export function useCsvSaveParticipants(
           const handle: SaveSessionHandle = {
             targetKey: inputs.targetKey,
             modRoot: computed(() => modRoot),
-            saving: computed(() => tables.isTableSaving(modRoot, table)),
+            saving: computed(() => state.documents[table].saving),
             pendingSynchronization: computed(() => pendingReceipt.value !== null),
             waitForSave: async () => {
               if (pendingReceipt.value) await synchronize(pendingReceipt.value);

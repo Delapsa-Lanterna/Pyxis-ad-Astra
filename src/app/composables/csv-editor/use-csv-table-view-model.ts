@@ -325,8 +325,9 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   async function loadIndex(filtered: boolean, initialCount: number) {
     const captured = target.value;
     if (!captured) return;
-    const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
     const state = tables.getCsvModState(captured.modRoot);
+    if (!state) return;
+    const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
     const search = filtered ? tables.searchText : null;
     const field = tables.searchField;
     let accepted = false;
@@ -337,8 +338,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
       {
         ready: (index) => {
           if (
-            generation !== tables.tableReadGeneration(captured.modRoot, captured.table) ||
             state !== tables.getCsvModState(captured.modRoot) ||
+            generation !== tables.tableReadGeneration(captured.modRoot, captured.table) ||
             tables.saving ||
             tables.currentTableLocked
           )
@@ -351,8 +352,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
         },
         error: (error) => {
           if (
-            generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
-            state === tables.getCsvModState(captured.modRoot)
+            state === tables.getCsvModState(captured.modRoot) &&
+            generation === tables.tableReadGeneration(captured.modRoot, captured.table)
           )
             feedback.error(error, '加载表格索引失败');
         },
@@ -381,7 +382,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     lastRange = { start, count };
     const captured = target.value;
     if (!captured || count <= 0 || !windowReady.value) return Promise.resolve();
-    const state = tables.getCsvModState(captured.modRoot)!;
+    const state = tables.getCsvModState(captured.modRoot);
+    if (!state) return Promise.resolve();
     const generation = tables.tableReadGeneration(captured.modRoot, captured.table);
     const missing = tables.rowKeys
       .slice(start, start + count)
@@ -404,8 +406,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
                   {
                     ready: (rows) => {
                       if (
-                        generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
                         state === tables.getCsvModState(captured.modRoot) &&
+                        generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
                         !tables.saving &&
                         !tables.currentTableLocked
                       )
@@ -413,8 +415,8 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
                     },
                     error: (error) => {
                       if (
-                        generation === tables.tableReadGeneration(captured.modRoot, captured.table) &&
-                        state === tables.getCsvModState(captured.modRoot)
+                        state === tables.getCsvModState(captured.modRoot) &&
+                        generation === tables.tableReadGeneration(captured.modRoot, captured.table)
                       )
                         feedback.error(error, '加载表格内容失败');
                     },

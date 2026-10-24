@@ -176,6 +176,35 @@ describe('CSV index and keyed content owner', () => {
     expect(useCsvEditorStore().rows[0]?.data.id).toBe('local');
     expect(mocks.error).not.toHaveBeenCalled();
   });
+  it.each(['index', 'rows'] as const)('ends a late %s read after its Mod runtime is removed', async (kind) => {
+    let finishIndex!: (value: CsvTableIndex) => void;
+    let finishRows!: (value: CsvTableRowsRead) => void;
+    if (kind === 'index')
+      mocks.index.mockImplementationOnce(
+        () =>
+          new Promise<CsvTableIndex>((resolve) => {
+            finishIndex = resolve;
+          }),
+      );
+    else
+      mocks.rows.mockImplementationOnce(
+        () =>
+          new Promise<CsvTableRowsRead>((resolve) => {
+            finishRows = resolve;
+          }),
+      );
+    const vm = harness();
+    await flushPromises();
+    const loading = kind === 'rows' ? vm.loadTableWindow(600, 20) : Promise.resolve();
+    if (kind === 'rows') await flushPromises();
+    useCsvEditorStore().removeModState(target.modRoot);
+    if (kind === 'index') finishIndex(csvTableIndex(rows.slice(0, 2)));
+    else finishRows(readRows(Array.from({ length: 20 }, (_, index) => 'key-' + (600 + index))));
+    await loading;
+    await flushPromises();
+    expect(mocks.error).not.toHaveBeenCalled();
+    expect(useCsvEditorStore().getCsvModState(target.modRoot)).toBeUndefined();
+  });
   it('settles queued waits and rejects late row acceptance on unmount', async () => {
     let finish!: (value: CsvTableRowsRead) => void;
     mocks.rows.mockImplementation(

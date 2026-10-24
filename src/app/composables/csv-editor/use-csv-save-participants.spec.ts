@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCsvSaveParticipants } from './use-csv-save-participants';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -24,6 +24,41 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 describe('all loaded CSV save participants', () => {
+  it.each([1, 2])('releases %i Mods while synchronous window status reads remain valid', async (modCount) => {
+    const project = useProjectStore();
+    const tables = useCsvEditorStore();
+    const commands = useSaveCommandStore();
+    const manifests = Array.from(
+      { length: modCount },
+      (_, index) => sessionUpdateFixture('s-' + index, 'M:/mod-' + index).projection.manifest,
+    );
+    for (const manifest of manifests) {
+      project.registerProjectManifest(manifest);
+      tables.initializeModTables({ sessionId: manifest.sessionId, modRoot: manifest.modRoot, manifest });
+    }
+    const wrapper = mount({
+      setup() {
+        useCsvSaveParticipants({} as AppFeedback, async () => []);
+        watch(() => commands.hasPendingSave(), vi.fn(), { immediate: true, flush: 'sync' });
+        return () => null;
+      },
+    });
+    expect(commands.editTargets).toHaveLength(14 * modCount);
+    const target = { sessionId: manifests[0]!.sessionId, modRoot: manifests[0]!.modRoot, table: 'ships' as const };
+    tables.setSaving(target, true);
+    expect(commands.hasPendingSave()).toBe(true);
+    tables.setSaving(target, false);
+    expect(commands.hasPendingSave()).toBe(false);
+    for (const [index, manifest] of manifests.entries()) {
+      expect(() => tables.removeModState(manifest.modRoot)).not.toThrow();
+      project.removeProjectManifest(manifest.modRoot);
+      await flushPromises();
+      expect(commands.editTargets).toHaveLength(14 * (modCount - index - 1));
+      expect(commands.hasPendingSave()).toBe(false);
+      expect(tables.getCsvModState(manifest.modRoot)).toBeUndefined();
+    }
+    wrapper.unmount();
+  });
   it('registers complete wire targets and releases them when the Mod is removed', async () => {
     const wrapper = mount({
       setup() {
