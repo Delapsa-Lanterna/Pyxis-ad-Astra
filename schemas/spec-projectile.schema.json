@@ -1,0 +1,392 @@
+{
+  "$schema": "circinus-ad-astra/field-schema/v1",
+  "id": "spec-projectile",
+  "sections": [
+    {
+      "id": "basic",
+      "label": "基础属性",
+      "fields": [
+        { "key": "id", "label": "弹体 ID", "type": "string", "default": "", "required": true, "identity": true },
+        { "key": "specClass", "label": "规格类型", "type": "enum", "default": "", "options": ["projectile", "missile"], "required": true },
+        {
+          "key": "spawnType",
+          "label": "生成类型",
+          "type": "enum",
+          "default": "",
+          "options": ["BEAM", "BALLISTIC_AS_BEAM", "BALLISTIC", "PLASMA", "MISSILE", "OTHER"],
+          "required": true,
+          "visibleWhen": { "specClass": ["projectile"] }
+        },
+        {
+          "key": "missileType",
+          "label": "导弹类型",
+          "type": "enum",
+          "default": "",
+          "options": [
+            "FLARE",
+            "FLARE_SEEKER",
+            "MOTE",
+            "FLARE_JAMMER",
+            "ROCKET",
+            "MISSILE",
+            "MISSILE_TWO_STAGE_SECOND_UNGUIDED",
+            "HEATSEEKER",
+            "CIRCLE_TARGET",
+            "MIRV",
+            "TORPEDO",
+            "BOMB",
+            "BOMB_WITH_SLOW",
+            "BOMB_WITH_ACCEL",
+            "PHASE_CHARGE",
+            "PHASE_MINE",
+            "NO_AI"
+          ],
+          "required": true,
+          "visibleWhen": { "specClass": ["missile"] }
+        }
+      ]
+    },
+    {
+      "id": "missileVisual",
+      "label": "贴图与中心",
+      "visibleWhen": { "specClass": ["missile"] },
+      "fields": [
+        { "key": "sprite", "label": "贴图", "type": "string", "default": "", "required": true },
+        { "key": "size[0]", "label": "宽度", "type": "float", "default": 0, "required": true },
+        { "key": "size[1]", "label": "高度", "type": "float", "default": 0, "required": true },
+        { "key": "center[0]", "label": "中心 X", "type": "float", "default": 0, "required": true },
+        { "key": "center[1]", "label": "中心 Y", "type": "float", "default": 0, "required": true }
+      ]
+    },
+    {
+      "id": "visual",
+      "label": "弹体外观",
+      "visibleWhen": { "specClass": ["projectile"] },
+      "fields": [
+        { "key": "bulletSprite", "label": "弹体贴图", "type": "string", "default": "" },
+        { "key": "length", "label": "长度", "type": "float", "default": 10 },
+        { "key": "width", "label": "宽度", "type": "float", "default": 0, "required": true },
+        {
+          "key": "textureType",
+          "label": "纹理类型",
+          "type": "enum",
+          "default": "SMOOTH",
+          "options": ["SMOOTH", "MEDIUM", "ROUGH", "CHUNKY", "ROUGH2", "WEAVE", "LASER"],
+          "variants": [
+            { "type": "enum", "default": "SMOOTH", "options": ["SMOOTH", "MEDIUM", "ROUGH", "CHUNKY", "ROUGH2", "WEAVE", "LASER"] },
+            {
+              "type": "array",
+              "label": "自定义纹理",
+              "minEntries": 2,
+              "maxEntries": 2,
+              "item": { "key": "texture", "label": "纹理", "type": "string", "required": true }
+            }
+          ]
+        },
+        { "key": "textureScrollSpeed", "label": "纹理滚动速度", "type": "float", "default": 64 },
+        { "key": "pixelsPerTexel", "label": "纹素比例", "type": "float", "default": 1 },
+        { "key": "fringeColor", "label": "外围颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "coreColor", "label": "核心颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "darkCore", "label": "暗色核心", "type": "boolean", "default": false },
+        { "key": "darkCoreIter", "label": "暗芯绘制次数", "type": "float", "default": 1 },
+        { "key": "darkFringeIter", "label": "外围绘制次数", "type": "float", "default": 1 },
+        { "key": "coreWidthMult", "label": "核心宽度倍率", "type": "float", "default": 1 }
+      ]
+    },
+    {
+      "id": "flight",
+      "label": "飞行参数",
+      "visibleWhen": { "specClass": ["missile"] },
+      "fields": [
+        { "key": "engineSpec.turnAcc", "label": "转向加速度", "type": "float", "default": 0, "required": true },
+        { "key": "engineSpec.turnRate", "label": "最大转向速度", "type": "float", "default": 0, "required": true },
+        { "key": "engineSpec.acc", "label": "加速度", "type": "float", "default": 0, "required": true },
+        { "key": "engineSpec.dec", "label": "减速度", "type": "float", "default": 0, "required": true },
+        { "key": "engineSpec.maxSpeed", "label": "规格最大速度", "type": "float", "default": 0 },
+        { "key": "maxFlightTime", "label": "规格飞行时间", "type": "float", "default": 5 },
+        { "key": "alwaysAccelerate", "label": "持续加速", "type": "boolean", "default": false },
+        { "key": "useProjectileRangeCalculation", "label": "采用弹体射程计算", "type": "boolean", "default": false },
+        { "key": "fizzleOnReachingWeaponRange", "label": "到达武器射程后失效", "type": "boolean", "default": false },
+        { "key": "renderTargetIndicator", "label": "显示目标标记", "type": "boolean", "default": true }
+      ]
+    },
+    { "id": "slots", "label": "引擎", "visibleWhen": { "specClass": ["missile"] }, "fields": [] },
+    {
+      "id": "glow",
+      "label": "光效与消散",
+      "visibleWhen": { "specClass": ["projectile"] },
+      "fields": [
+        { "key": "glowColor", "label": "光效颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "glowRadius", "label": "光效半径", "type": "float", "default": 0 },
+        { "key": "hitGlowRadius", "label": "命中光晕半径", "type": "float", "default": 0 },
+        { "key": "fadeTime", "label": "消散时间", "type": "float", "default": 0, "required": true }
+      ]
+    },
+    {
+      "id": "collision",
+      "label": "碰撞设置",
+      "fields": [
+        {
+          "key": "collisionRadius",
+          "label": "碰撞半径",
+          "type": "float",
+          "default": 0,
+          "required": true,
+          "visibleWhen": { "specClass": ["missile"] }
+        },
+        {
+          "key": "collisionClass",
+          "label": "碰撞类型",
+          "type": "enum",
+          "default": "",
+          "required": true,
+          "ref": "spec-projectile#/definitions/enum1"
+        },
+        {
+          "key": "collisionClassByFighter",
+          "label": "战机发射时碰撞类型",
+          "type": "enum",
+          "default": "",
+          "required": true,
+          "visibleWhen": { "specClass": ["projectile"] },
+          "ref": "spec-projectile#/definitions/enum1"
+        },
+        {
+          "key": "collisionClassAfterFlameout",
+          "label": "熄火后碰撞类型",
+          "type": "enum",
+          "default": "MISSILE_FF",
+          "visibleWhen": { "specClass": ["missile"] },
+          "ref": "spec-projectile#/definitions/enum1"
+        },
+        { "key": "passThroughMissiles", "label": "穿透导弹", "type": "boolean", "default": false },
+        { "key": "passThroughFighters", "label": "穿透战机", "type": "boolean", "default": false },
+        { "key": "passThroughFightersOnlyWhenDestroyed", "label": "仅摧毁后穿透战机", "type": "boolean", "default": false },
+        { "key": "applyOnHitEffectWhenPassThrough", "label": "穿透时应用命中效果", "type": "boolean", "default": false },
+        {
+          "key": "noCollisionWhileFading",
+          "label": "消散期间关闭碰撞",
+          "type": "boolean",
+          "default": false,
+          "visibleWhen": { "specClass": ["missile"] }
+        }
+      ]
+    },
+    {
+      "id": "explosion",
+      "label": "爆炸与消散",
+      "visibleWhen": { "specClass": ["missile"] },
+      "fields": [
+        { "key": "glowSprite", "label": "光效贴图", "type": "string", "default": "" },
+        { "key": "glowColor", "label": "光效颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "glowRadius", "label": "光效半径", "type": "float", "default": 0 },
+        { "key": "explosionColor", "label": "爆炸颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "destroyedExplosionColor", "label": "摧毁时爆炸颜色", "type": "color-rgba", "default": [255, 165, 100, 255] },
+        { "key": "explosionRadius", "label": "爆炸半径", "type": "float", "default": 0 },
+        { "key": "armingTime", "label": "引信时间", "type": "float", "default": 0 },
+        { "key": "flameoutTime", "label": "熄火时间", "type": "float", "default": 4 },
+        { "key": "dudProbabilityOnFlameout", "label": "熄火后哑弹概率", "type": "float", "default": 0.5 },
+        { "key": "noEngineGlowTime", "label": "引擎光效停止时间", "type": "float", "default": 2.5 },
+        { "key": "fadeTime", "label": "消散时间", "type": "float", "default": 0.5 },
+        { "key": "reduceDamageWhileFading", "label": "消散期间降低伤害", "type": "boolean", "default": false },
+        { "key": "useHitGlowWhenDestroyed", "label": "摧毁时显示命中光效", "type": "boolean", "default": false },
+        { "key": "useHitGlowWhenDealingDamage", "label": "造成伤害时显示命中光效", "type": "boolean", "default": true },
+        { "key": "noDebrisWhenDestroyed", "label": "摧毁时关闭残骸", "type": "boolean", "default": false }
+      ]
+    },
+    {
+      "id": "sound",
+      "label": "音效",
+      "visibleWhen": { "specClass": ["projectile"] },
+      "fields": [
+        { "key": "noImpactSounds", "label": "关闭命中音效", "type": "boolean", "default": false },
+        { "key": "noShieldImpactSounds", "label": "关闭护盾命中音效", "type": "boolean", "default": false },
+        { "key": "noNonShieldImpactSounds", "label": "关闭非护盾命中音效", "type": "boolean", "default": false }
+      ]
+    },
+    {
+      "id": "scripts",
+      "label": "行为与脚本",
+      "fields": [
+        { "key": "onFireEffect", "label": "发射效果脚本", "type": "string", "default": "" },
+        { "key": "onHitEffect", "label": "命中效果脚本", "type": "string", "default": "" },
+        {
+          "key": "behaviorSpec",
+          "label": "行为配置",
+          "type": "object",
+          "default": {},
+          "allowExtraFields": true,
+          "ref": "spec-projectile#/definitions/behavior"
+        }
+      ]
+    }
+  ],
+  "definitions": {
+    "projectileReference": { "key": "projectile", "label": "弹体 ID", "type": "enum", "source": "csv:projectiles.id" },
+    "behavior": {
+      "key": "behaviorSpec",
+      "label": "行为配置",
+      "type": "object",
+      "allowExtraFields": true,
+      "nested": [
+        { "key": "behavior", "label": "行为", "type": "enum", "required": true, "options": ["PROXIMITY_FUSE", "MIRV", "CUSTOM"] },
+        {
+          "key": "delay",
+          "label": "引信延迟",
+          "type": "float",
+          "visibleWhen": { "specClass": ["missile"], "missileType": ["PHASE_MINE"] }
+        },
+        {
+          "key": "projectileSpec",
+          "label": "分裂弹体",
+          "type": "enum",
+          "ref": "spec-projectile#/definitions/projectileReference",
+          "visibleWhen": { "specClass": ["missile"], "missileType": ["MIRV"] }
+        },
+        {
+          "key": "emptySpec",
+          "label": "分裂后弹体",
+          "type": "enum",
+          "ref": "spec-projectile#/definitions/projectileReference",
+          "visibleWhen": { "specClass": ["missile"], "missileType": ["MIRV"] }
+        },
+        {
+          "key": "splitSound",
+          "label": "分裂音效",
+          "type": "enum",
+          "source": "config:sounds",
+          "visibleWhen": { "specClass": ["missile"], "missileType": ["MIRV"] }
+        },
+        {
+          "key": "pingSound",
+          "label": "提示音效",
+          "type": "enum",
+          "source": "config:sounds",
+          "visibleWhen": { "specClass": ["missile"], "missileType": ["PHASE_MINE"], "behaviorSpec.delay": { "gt": 0 } }
+        },
+        {
+          "key": "windupSound",
+          "label": "蓄势音效",
+          "type": "enum",
+          "source": "config:sounds",
+          "visibleWhen": { "specClass": ["missile"], "missileType": ["PHASE_MINE"], "behaviorSpec.delay": { "gt": 0 } }
+        },
+        {
+          "key": "explosionSpec",
+          "label": "行为爆炸",
+          "type": "object",
+          "allowExtraFields": true,
+          "visibleWhen": [
+            { "specClass": ["missile"], "missileType": ["PHASE_CHARGE", "PHASE_MINE", "BOMB", "BOMB_WITH_SLOW"] },
+            { "behaviorSpec.behavior": ["PROXIMITY_FUSE"] }
+          ],
+          "nested": [{ "key": "sound", "label": "爆炸音效", "type": "enum", "source": "config:sounds" }]
+        }
+      ]
+    },
+    "explosion": {
+      "key": "explosionSpec",
+      "label": "爆炸配置",
+      "type": "object",
+      "nested": [
+        { "key": "duration", "label": "持续时间", "type": "float", "default": 0, "required": true },
+        { "key": "radius", "label": "半径", "type": "float", "default": 0, "required": true },
+        { "key": "coreRadius", "label": "核心半径", "type": "float", "default": 0, "required": true },
+        { "key": "maxDamage", "label": "最大伤害", "type": "float", "default": 0 },
+        { "key": "minDamage", "label": "最小伤害", "type": "float", "default": 0 },
+        {
+          "key": "collisionClass",
+          "label": "碰撞类型",
+          "type": "enum",
+          "default": "",
+          "required": true,
+          "ref": "spec-projectile#/definitions/enum1"
+        },
+        {
+          "key": "collisionClassByFighter",
+          "label": "战机发射时碰撞类型",
+          "type": "enum",
+          "default": "",
+          "required": true,
+          "ref": "spec-projectile#/definitions/enum1"
+        },
+        { "key": "particleSizeMin", "label": "最小粒子尺寸", "type": "float", "default": 0 },
+        { "key": "particleSizeRange", "label": "粒子尺寸变化", "type": "float", "default": 0 },
+        { "key": "particleDuration", "label": "粒子持续时间", "type": "float", "default": 0 },
+        { "key": "particleCount", "label": "粒子数量", "type": "float", "default": 0 },
+        { "key": "particleSpawnRadius", "label": "粒子生成半径", "type": "float", "default": -1 },
+        { "key": "particleColor", "label": "粒子颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "explosionColor", "label": "爆炸颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "useDetailedExplosion", "label": "详细爆炸效果", "type": "boolean", "default": false },
+        { "key": "detailedExplosionRadius", "label": "详细爆炸半径", "type": "float", "default": -1 },
+        { "key": "detailedExplosionFlashRadius", "label": "闪光半径", "type": "float", "default": -1 },
+        { "key": "detailedExplosionFlashDuration", "label": "闪光持续时间", "type": "float", "default": -1 },
+        { "key": "detailedExplosionFlashColorFringe", "label": "闪光外围颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "detailedExplosionFlashColorCore", "label": "闪光核心颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "sound", "label": "音效", "type": "enum", "default": "", "source": "config:sounds" },
+        { "key": "soundVolume", "label": "音量", "type": "float", "default": 1 }
+      ]
+    },
+    "engine": {
+      "key": "engine",
+      "label": "引擎",
+      "type": "object",
+      "nested": [
+        { "key": "id", "label": "引擎 ID", "type": "string", "default": "", "required": true },
+        { "key": "loc[0]", "label": "位置 X", "type": "float", "default": 0, "required": true },
+        { "key": "loc[1]", "label": "位置 Y", "type": "float", "default": 0, "required": true },
+        { "key": "angle", "label": "角度", "type": "float", "default": 0, "required": true },
+        { "key": "width", "label": "宽度", "type": "float", "default": 0, "required": true },
+        { "key": "length", "label": "长度", "type": "float", "default": 0, "required": true },
+        { "key": "style", "label": "引擎风格", "type": "enum", "default": "", "options": [], "required": true }
+      ]
+    },
+    "customEngine": {
+      "key": "customEngine",
+      "label": "自定义引擎",
+      "type": "object",
+      "nested": [
+        { "key": "styleId", "label": "命名样式 ID", "type": "enum", "source": "config:engineStyles" },
+        {
+          "key": "styleSpec",
+          "label": "内联样式",
+          "type": "object",
+          "default": {},
+          "ref": "engine-styles#/root/valueSchema",
+          "requiredWhen": { "styleId": { "missing": true } },
+          "partial": false
+        }
+      ]
+    },
+    "engineSlots": {
+      "key": "engineSlots",
+      "label": "引擎",
+      "type": "array",
+      "item": { "key": "item", "label": "引擎", "type": "object", "required": true }
+    },
+    "enum1": {
+      "key": "enum1",
+      "label": "选项",
+      "type": "enum",
+      "options": [
+        "NONE",
+        "RAY",
+        "RAY_FIGHTER",
+        "FIGHTER",
+        "SHIP",
+        "PROJECTILE_NO_FF",
+        "PROJECTILE_FF",
+        "MISSILE_NO_FF",
+        "MISSILE_FF",
+        "HITS_SHIPS_AND_ASTEROIDS",
+        "HITS_SHIPS_ONLY_FF",
+        "HITS_SHIPS_ONLY_NO_FF",
+        "PROJECTILE_FIGHTER",
+        "ASTEROID",
+        "PLANET",
+        "GAS_CLOUD",
+        "STAR"
+      ]
+    }
+  }
+}

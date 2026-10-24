@@ -6,4 +6,9 @@ pub(in crate::services::project) const CONFIG_OPTION_SOURCES: &[(&str, &str, Opt
         Some("designTypeColors"),
     ),
     ("config:hullStyles", "data/config/hull_styles.json", None),
+    (
+        "config:engineStyles",
+        "data/config/engine_styles.json",
+        None,
+    ),
 ];

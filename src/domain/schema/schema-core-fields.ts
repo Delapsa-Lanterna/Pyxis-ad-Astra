@@ -2,24 +2,23 @@ import type { DiscoveredField, FieldSchema, FileSchema } from '@/domain/schema/s
 import { getExtraFieldSource, getSchemaSections } from '@/domain/schema/schema-sections';
 
 export function mergeSchemaWithCoreFields(schema: FileSchema, discoveredFields: DiscoveredField[]): FileSchema {
-  if (!discoveredFields || discoveredFields.length === 0 || schema.root) return schema;
+  if (!discoveredFields || discoveredFields.length === 0 || schema.root || schema.allowExtraFields !== true) return schema;
   const coreSourceId = getExtraFieldSource(schema) ?? schema.sources?.[0]?.id ?? null;
 
-  const definedKeys = new Set<string>();
+  const definedFields = new Map<string, FieldSchema>();
   const sections = getSchemaSections(schema);
-  for (const section of sections) {
-    for (const field of section.fields) {
-      definedKeys.add(coreFieldKey(field.key, coreSourceId));
-      if (field.nested) {
-        for (const sub of field.nested) {
-          definedKeys.add(coreFieldKey(`${field.key}.${sub.key}`, coreSourceId));
-        }
-      }
-    }
+  function collect(field: FieldSchema, key: string) {
+    definedFields.set(coreFieldKey(key, coreSourceId), field);
+    for (const child of field.nested ?? []) collect(child, `${key}.${child.key}`);
   }
+  for (const section of sections) for (const field of section.fields) collect(field, field.key);
 
   const newFields: FieldSchema[] = discoveredFields
-    .filter((df) => !definedKeys.has(df.key))
+    .filter(
+      (df) =>
+        !definedFields.has(df.key) &&
+        [...definedFields].every(([key, field]) => !df.key.startsWith(`${key}.`) || field.allowExtraFields === true),
+    )
     .map((df) => ({
       key: coreSourceId ? `${coreSourceId}.${df.key}` : df.key,
       type: 'json',

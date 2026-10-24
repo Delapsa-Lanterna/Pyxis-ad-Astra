@@ -1,4 +1,4 @@
-import { ref, type ShallowRef } from 'vue';
+import { ref, readonly, type ShallowRef } from 'vue';
 import type { Point } from '@/domain/editors/editor-types';
 import { useCanvasSurface } from '@/app/composables/canvas/use-canvas-surface';
 export type { Point } from '@/domain/editors/editor-types';
@@ -8,6 +8,7 @@ type CoordinateSpace = 'ship' | 'weapon';
 export function useCanvasViewport(canvasRef: Readonly<ShallowRef<HTMLCanvasElement | null>>, initialScale: number, maxScale: number) {
   const scale = ref(initialScale);
   const pan = ref<Point>({ x: 0, y: 0 });
+  const fitted = ref(false);
   const surface = useCanvasSurface(canvasRef);
 
   function center(): Point {
@@ -16,12 +17,21 @@ export function useCanvasViewport(canvasRef: Readonly<ShallowRef<HTMLCanvasEleme
   }
 
   function panBy(dx: number, dy: number) {
+    if (dx || dy) fitted.value = false;
     pan.value.x += dx;
     pan.value.y += dy;
   }
 
   function zoom(deltaY: number) {
-    scale.value = Math.max(0.1, Math.min(maxScale, scale.value * (deltaY < 0 ? 1.1 : 0.9)));
+    const next = Math.max(0.1, Math.min(maxScale, scale.value * (deltaY < 0 ? 1.1 : 0.9)));
+    if (next !== scale.value) fitted.value = false;
+    scale.value = next;
+  }
+
+  function fit(nextScale: number) {
+    pan.value = { x: 0, y: 0 };
+    scale.value = nextScale;
+    fitted.value = true;
   }
 
   function toCanvas(space: CoordinateSpace, x: number, y: number): Point {
@@ -41,6 +51,8 @@ export function useCanvasViewport(canvasRef: Readonly<ShallowRef<HTMLCanvasEleme
   }
 
   return {
+    fit,
+    fitted: readonly(fitted),
     center,
     fromCanvas,
     pan,

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { SYSTEM_STRUCTURED_FIELD_KEYS } from '@/domain/spec-editor/system/spec-system-fields';
 import { SYSTEM_TYPES } from '@/domain/editors/lib/game-spec-enums';
 
 describe('system field registries', () => {
@@ -17,11 +16,5 @@ describe('system field registries', () => {
       'DRONE_LAUNCHER',
       'EMP',
     ]);
-  });
-
-  it('keeps the core structured keys every system spec shares', () => {
-    for (const key of ['id', 'type', 'aiType', 'weaponTypes', 'aiHints', 'droneBehavior']) {
-      expect(SYSTEM_STRUCTURED_FIELD_KEYS.has(key)).toBe(true);
-    }
   });
 });

@@ -21,7 +21,7 @@ beforeEach(() => {
 afterEach(() => wrapper?.unmount());
 
 describe('child window titlebar', () => {
-  it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '发射预览'])(
+  it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '开火预览'])(
     'presents %s and its owning Mod with native window actions',
     async (title) => {
       const pinia = createPinia();

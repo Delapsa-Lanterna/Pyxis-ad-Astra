@@ -48,7 +48,7 @@ export function useWeaponFirePreviewWindowViewModel() {
           data.value = next;
         },
         error: (error) => {
-          if (data.value && !required) feedback.error(error, '刷新发射预览失败');
+          if (data.value && !required) feedback.error(error, '刷新开火预览失败');
           else errorText.value = formatError(error);
           if (required) throw error;
         },

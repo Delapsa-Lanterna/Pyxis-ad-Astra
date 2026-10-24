@@ -1,4 +1,5 @@
-import { computed, onScopeDispose, shallowRef, watch } from 'vue';
+import { computed, onScopeDispose, shallowRef, shallowReactive, watch } from 'vue';
+import { formatError } from '@/shared/lib/errors';
 import { queryEngineRenderAssets, hasEngineAssetsInvalidation } from '@/services/engine-assets.service';
 import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -30,6 +31,11 @@ export function useEngineRendering(
     reads = useQueryReadOwner(),
     feedback = useAppFeedback();
   const notify = () => reads.schedule('paint', changed);
+  const notices = shallowReactive(new Map<string, string>());
+  function report(error: unknown, action: string) {
+    notices.set(action, formatError(error));
+    feedback.error(error, action);
+  }
   const inlineStyles = computed(() =>
     JSON.stringify([
       ...new Map(
@@ -43,7 +49,12 @@ export function useEngineRendering(
     const paths = new Set(source().flatMap((engine) => Object.values(enginePaths(engineStyle(engine, assets.value?.styles ?? {})))));
     return [...paths].flatMap((path) => (assets.value?.resources[path] ? [assets.value.resources[path]!] : []));
   });
-  const media = useResourceMediaRegistry({ onError: (error) => feedback.error(error, '读取引擎图片失败'), onFailures: () => {} });
+  const media = useResourceMediaRegistry({
+    onError: (error) => report(error, '读取引擎图片失败'),
+    onFailures: (failures) => {
+      if (!failures.length) notices.delete('读取引擎图片失败');
+    },
+  });
   watch(
     () => [session(), resources.value],
     () => {
@@ -55,7 +66,7 @@ export function useEngineRendering(
     session,
     () => resources.value.map((resource) => ({ resource, url: url ? url(resource) : (media.dataUrl(session(), resource) ?? '') })),
     notify,
-    (error) => feedback.error(error, '解码引擎图片失败'),
+    (error) => report(error, '解码引擎图片失败'),
   );
   const cache = windowImageRuntime(),
     products = new Map<string, { product: EngineProduct; release: () => void }>(),
@@ -68,15 +79,17 @@ export function useEngineRendering(
     void request.promise
       .then(() => {
         request.accept();
+        notices.delete('读取引擎回退图片失败');
         notify();
       })
       .catch((error) => {
-        if (!isReadInvalidated(error)) feedback.error(error, '读取引擎回退图片失败');
+        if (!isReadInvalidated(error)) report(error, '读取引擎回退图片失败');
       });
   }
   async function refresh() {
     reads.revoke();
     if (!source().length) {
+      notices.clear();
       assets.value = null;
       return;
     }
@@ -86,10 +99,11 @@ export function useEngineRendering(
       (signal) => queryEngineRenderAssets(session(), JSON.parse(inlineStyles.value) as RowData[], signal),
       {
         ready: (value) => {
+          notices.delete('读取引擎样式失败');
           assets.value = value;
           notify();
         },
-        error: (error) => feedback.error(error, '读取引擎样式失败'),
+        error: (error) => report(error, '读取引擎样式失败'),
       },
     );
   }
@@ -99,6 +113,7 @@ export function useEngineRendering(
       closed = false;
       if (!previous || next[0] !== previous[0] || !next[1]) {
         assets.value = null;
+        notices.clear();
         fallbackRead?.invalidate('consumer');
         fallbackRead = null;
         release();
@@ -183,6 +198,9 @@ export function useEngineRendering(
     release();
   });
   return {
+    notices: computed(() =>
+      [...notices].filter(([action]) => action !== '解码引擎图片失败' || !decoded.ready()).map(([, message]) => message),
+    ),
     paint,
     styleNames: computed(() => Object.keys(assets.value?.styles ?? {}).sort()),
     style: (engine: Pick<EngineShape, 'style' | 'styleId' | 'styleSpec'>) => engineStyle(engine, assets.value?.styles ?? {}),

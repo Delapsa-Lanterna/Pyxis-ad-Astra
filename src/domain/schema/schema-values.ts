@@ -1,11 +1,32 @@
 import type { JsonInputShape, RowData } from '@/shared/types';
 import { pathBasename } from '@/shared/lib/paths';
-import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
+import type { FieldSchema, SchemaFieldUpdate, SchemaVisibility } from '@/domain/schema/schema.types';
 import { parseInputNumber } from '@/shared/lib/input-number';
 import { deepClone } from '@/shared/lib/starsector';
 
 export function schemaCollection(field: FieldSchema): boolean {
   return field.type === 'object' || field.type === 'array';
+}
+
+export function schemaFieldVisible(condition: SchemaVisibility | undefined, content: RowData): boolean {
+  return (
+    !condition ||
+    (Array.isArray(condition) ? condition : [condition]).some((branch) =>
+      Object.entries(branch).every(([key, expected]) => {
+        const value = getNestedValue(content, key);
+        return Array.isArray(expected) ? expected.includes(String(value)) : Number(value) > expected.gt;
+      }),
+    )
+  );
+}
+
+export function schemaFieldRequired(field: FieldSchema, read: (key: string) => unknown): boolean {
+  if (field.required || !field.requiredWhen) return Boolean(field.required);
+  return Object.entries(field.requiredWhen).every(([key, expected]) => {
+    const value = read(key);
+    if (typeof expected === 'string') return value === expected;
+    return 'min' in expected ? typeof value === 'number' && value >= expected.min : value === undefined;
+  });
 }
 
 export function schemaInitialValue(field: FieldSchema): unknown {

@@ -7,7 +7,7 @@ import { createSettingsFixture } from '@/test/settings';
 import { createCanvasRecorder } from '@/test/canvas-recorder';
 import { useSettingsStore } from '@/stores/settings.store';
 import { flushPromises } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
 import type { RowData } from '@/shared/types/index';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { editorUiStubs } from '@/test/ui-stubs';
@@ -35,6 +35,7 @@ vi.mock('@/shared/runtime/dialog.runtime', () => ({
 }));
 
 import SpecProjectileEditor from './SpecProjectileEditor.vue';
+vi.mock('@/app/composables/use-core-assets', () => ({ useCoreGraphics: () => ({ graphicsPaths: ref([]), loadGraphics: vi.fn() }) }));
 
 let wrapper: import('@vue/test-utils').VueWrapper | null = null;
 
@@ -67,6 +68,8 @@ function mountEditor(projectile: RowData) {
 describe('SpecProjectileEditor', () => {
   it('creates missing missile fields and reverses a complete engine insertion with one undo', async () => {
     const editor = mountEditor({ id: 'fixture', specClass: 'missile', extension: { keep: true } });
+    expect(editor.find('[data-name="extra"]').exists()).toBe(false);
+    expect(editor.text()).not.toContain('extension');
     await editor.setProps({ editContext: { targetKey: 'fixture', baselineGeneration: 1, handoff: 'load' } });
     expect(editor.get('[data-field-path="size[0]"] input').element).toHaveProperty('value', '');
     await editor.get('[data-field-path="engineSpec.acc"] input').setValue('12');

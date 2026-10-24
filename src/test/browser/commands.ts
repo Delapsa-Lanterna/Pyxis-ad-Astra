@@ -195,9 +195,12 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
         const values = Object.keys((source === 'config:designTypes' ? data?.designTypeColors : data) ?? {}).filter(
           (key) => source !== 'config:sounds' || key !== 'music',
         );
-        const core = { 'config:sounds': ['sample_core_effect'], 'config:designTypes': ['Low Tech'], 'config:hullStyles': ['LOW_TECH'] }[
-          source
-        ];
+        const core = {
+          'config:sounds': ['sample_core_effect'],
+          'config:designTypes': ['Low Tech'],
+          'config:hullStyles': ['LOW_TECH'],
+          'config:engineStyles': ['LOW_TECH'],
+        }[source];
         return (
           [
             ['mod', values],

@@ -8,6 +8,18 @@ describe('schema asset validation', () => {
     id: 'sample',
     sections: [{ id: 'main', label: 'Main', fields: [{ key: 'name', label: 'Name', type: 'string' }] }],
   };
+  it.each([true, false])('preserves explicit expansion permission %s at each object level', (allowed) => {
+    const root = {
+      key: 'file',
+      label: 'File',
+      type: 'object',
+      allowExtraFields: allowed,
+      nested: [{ key: 'child', label: 'Child', type: 'object' }],
+      valueSchema: { key: 'entry', label: 'Entry', type: 'object', allowExtraFields: !allowed },
+    };
+    const asset = { ...fieldSchema, allowExtraFields: allowed, root };
+    expect(parseFileSchema('sample', asset)).toEqual(asset);
+  });
   it('preserves metadata, source declarations and recursive field contracts', () => {
     const asset: FileSchema = {
       ...fieldSchema,
@@ -76,6 +88,31 @@ describe('schema asset validation', () => {
     expect(parseFileSchema('sample', fieldSchema)).toEqual(fieldSchema);
   });
 
+  it('preserves numeric required conditions and rejects malformed thresholds', () => {
+    const asset = { ...fieldSchema, root: { key: 'length', label: 'Length', type: 'float', requiredWhen: { particleCount: { min: 1 } } } };
+    expect(parseFileSchema('sample', asset).root!.requiredWhen).toEqual({ particleCount: { min: 1 } });
+    expect(() => parseFileSchema('sample', { ...asset, root: { ...asset.root, requiredWhen: { particleCount: { min: '1' } } } })).toThrow();
+  });
+  it('validates entity and config sources in definitions and retains visibility branches', () => {
+    for (const source of ['csv:projectiles.id', 'csv:variants.variantId', 'config:engineStyles']) {
+      const asset = {
+        ...fieldSchema,
+        definitions: {
+          reference: {
+            key: 'reference',
+            label: 'Reference',
+            type: 'enum',
+            source,
+            visibleWhen: [{ missileType: ['MIRV'] }, { 'behaviorSpec.delay': { gt: 0 } }],
+          },
+        },
+      };
+      expect(parseFileSchema('sample', asset).definitions!.reference!.source).toBe(source);
+      expect(() =>
+        parseFileSchema('sample', { ...asset, definitions: { reference: { ...asset.definitions.reference, source: 'csv:unknown.id' } } }),
+      ).toThrow();
+    }
+  });
   it.each(CSV_COLUMN_CONTROLS)('preserves %s column options including empty, false and zero values', (control) => {
     const column = {
       key: 'sample',

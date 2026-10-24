@@ -32,6 +32,7 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
   acceptSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
   synchronizeSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
   afterSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => void;
+  mapSaveError?: (error: unknown) => unknown;
   withSavePreparation?: (
     target: TTarget,
     submit: (prepared: TTarget) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | null>,
@@ -281,7 +282,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     const task = operation
       .catch((error: unknown) => {
         if (isReadInvalidated(error)) return null;
-        throw error;
+        throw options.mapSaveError && !disposed && life === lifetime ? options.mapSaveError(error) : error;
       })
       .finally(() => {
         saving.value = false;

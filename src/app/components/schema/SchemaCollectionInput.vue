@@ -5,7 +5,7 @@
       :key="row.id"
       :is="row.group ? NCollapseItem : SchemaFieldRow"
       v-memo="[row, runtimeContext, keyField]"
-      v-bind="row.group ? { name: row.id, title: row.field.label, class: 'schema-section' } : { field: row.field, path: row.path }"
+      v-bind="row.group || row.visible === false ? rowBindings(row) : { field: row.field, path: row.path }"
     >
       <template v-if="row.group || row.rename" #[row.labelSlot]>
         <SchemaScalarInput
@@ -38,7 +38,7 @@
       <slot :row="currentRow(row.id)" :update="(update: SchemaFieldUpdate) => updateRow(currentRow(row.id), update)" />
     </component>
     <div
-      v-if="field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
+      v-if="canAdd && field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
       class="ui-control-row"
     >
       <n-button v-for="choice in choices" :key="choice.label" size="tiny" @click="add(choice)">+ {{ choice.label }}</n-button>
@@ -55,14 +55,18 @@ import SchemaFieldRow from './SchemaFieldRow.vue';
 import SchemaScalarInput from './SchemaScalarInput.vue';
 import { useEditorRowIdentities } from '@/app/composables/editors/use-editor-row-identities';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
+import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import {
   schemaCollection,
+  schemaFieldRequired,
+  schemaFieldVisible,
   schemaInitialValue,
   schemaFieldVariant,
   schemaKeyValueEntries,
   schemaKeyValueOutput,
 } from '@/domain/schema/schema-values';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
+import type { RowData } from '@/shared/types';
 
 const props = defineProps<{
   field: FieldSchema;
@@ -73,7 +77,10 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const inputs = useFieldInputs();
+const mode = useInputEditMode();
 const array = computed(() => props.field.type === 'array');
+const allowExtraFields = computed(() => mode.value === 'plain' || props.field.allowExtraFields === true);
+const canAdd = computed(() => array.value || (allowExtraFields.value && !rows.value.some((row) => row.id === '__extra')));
 const format = computed(() => (props.value === undefined || Array.isArray(props.value) ? props.field.format : undefined));
 const fields = computed(() => props.field.nested ?? []);
 const item = computed<FieldSchema>(
@@ -92,7 +99,9 @@ const positions = computed(() => new Map(entries.value.map((entry, index) => [en
 const names = computed(
   () => new Set([...entries.value.map((entry) => entry.key), ...fixedByKey.value.keys(), ...(props.field.reservedKeys ?? [])]),
 );
-const dynamic = computed(() => entries.value.filter((entry) => array.value || !fixedByKey.value.has(entry.key)));
+const dynamic = computed(() =>
+  entries.value.filter((entry) => array.value || (allowExtraFields.value && !fixedByKey.value.has(entry.key))),
+);
 const keyField = computed<FieldSchema>(() => ({
   ...props.field.keySchema,
   key: 'name',
@@ -102,6 +111,8 @@ const keyField = computed<FieldSchema>(() => ({
   reservedKeys: [...(props.field.reservedKeys ?? []), ...fixedByKey.value.keys()],
 }));
 interface Row {
+  visible?: boolean;
+  mounted?: boolean;
   id: string;
   key: string;
   value: unknown;
@@ -116,6 +127,10 @@ interface Row {
   path: string;
   inputKey: string;
   validateName: (value: unknown) => string | null;
+}
+function rowBindings(row: Row) {
+  const bindings = row.group ? { name: row.id, title: row.field.label, class: 'schema-section' } : { field: row.field, path: row.path };
+  return row.visible === false ? { ...bindings, style: { display: 'none' } } : bindings;
 }
 const identity = useEditorRowIdentities(
   () => (array.value ? dynamic.value.map((entry) => entry.val) : dynamic.value),
@@ -141,8 +156,9 @@ const rows = computed<Row[]>((previous) => {
       ...resolved,
       ...(resolved.requiredWhen
         ? {
-            required: Object.entries(resolved.requiredWhen).every(
-              ([key, value]) => (entries.value[positions.value.get(key) ?? -1]?.val ?? fixedByKey.value.get(key)?.default) === value,
+            required: schemaFieldRequired(
+              resolved,
+              (key) => entries.value[positions.value.get(key) ?? -1]?.val ?? fixedByKey.value.get(key)?.default,
             ),
           }
         : {}),
@@ -173,6 +189,10 @@ const rows = computed<Row[]>((previous) => {
         ((value) =>
           !format.value && String(value) !== currentRow(id).key && names.value.has(String(value)) ? '名称重复或为保留名称' : null),
     };
+    if (definition.visibleWhen) {
+      row.visible = schemaFieldVisible(definition.visibleWhen, props.runtimeContext?.readValue?.() ?? (props.value as RowData));
+      row.mounted = row.visible || Boolean(old?.mounted);
+    }
     if (old) {
       if (stableDeepEqual(old.field, field)) row.field = old.field;
       if (stableDeepEqual(old.value, value, true)) row.value = old.value;
@@ -180,21 +200,23 @@ const rows = computed<Row[]>((previous) => {
     }
     return row;
   }
-  const fixed = array.value
-    ? []
-    : fields.value.map((field) =>
-        makeRow(field.key, entries.value[positions.value.get(field.key) ?? -1]?.val, field, 'field:' + field.key, false),
-      );
+  const fixed: Row[] = [];
+  if (!array.value)
+    for (const field of fields.value) {
+      const row = makeRow(field.key, entries.value[positions.value.get(field.key) ?? -1]?.val, field, 'field:' + field.key, false);
+      if (row.mounted !== false) fixed.push(row);
+    }
   const variable = dynamic.value.map((entry, index) =>
     makeRow(entry.key, entry.val, item.value, String(identity.identities.value[index]), true, entry.index),
   );
-  if (props.field.presentation !== 'groups') return [...fixed, ...variable];
-  const groups = variable.filter((row) => row.group);
-  const extra = variable.filter((row) => !row.group);
+  const grouped = props.field.presentation === 'groups';
+  if (!grouped && (!fixed.length || !allowExtraFields.value)) return [...fixed, ...variable];
+  const groups = grouped ? variable.filter((row) => row.group) : [];
+  const extra = grouped ? variable.filter((row) => !row.group) : variable;
   return [
     ...fixed,
     ...groups,
-    ...(extra.length
+    ...((mode.value === 'smart' ? props.field.allowExtraFields === true : extra.length > 0)
       ? [
           {
             ...makeRow(
@@ -207,7 +229,9 @@ const rows = computed<Row[]>((previous) => {
                 key: '__extra',
                 label: '额外字段',
                 type: 'object',
+                allowExtraFields: true,
                 valueSchema: item.value,
+                operations: props.field.operations,
                 reservedKeys: [
                   ...(props.field.reservedKeys ?? []),
                   ...fields.value.map((field) => field.key),

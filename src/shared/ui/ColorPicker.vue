@@ -301,8 +301,10 @@ function commitTextDraft(): string | null {
 
 registerFieldInput({
   key: colorKey,
+  path: props.inputKey ?? props.label,
   label: props.label || '颜色',
   dirty: inputDirty,
+  validate: () => (textDirty.value && parseColor(textDraft.value, null) === null ? '请输入有效颜色' : null),
   commit: () => {
     if (panelOpen.value) {
       return null;

@@ -61,6 +61,7 @@ const input = ref<{ $el: HTMLElement; focus: () => void } | null>(null);
 const controlGeneration = ref(0);
 const { raw, invalid, update, commit } = useRawFieldInput<number | null>({
   key: props.inputKey ?? 'number/' + getCurrentInstance()!.uid,
+  path: props.inputKey,
   label: props.label,
   text: () => cell(props.value),
   convert,

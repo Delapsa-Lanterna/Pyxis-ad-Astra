@@ -25,8 +25,8 @@
             {{ m.label }} <span class="ship-mode-shortcut ui-text-meta ui-text-muted">{{ m.shortcut }}</span>
           </button>
         </div>
-        <n-button :aria-pressed="view.mirror" @click="actions.toggleMirror">镜像编辑</n-button>
-        <n-button @click="actions.fitView">适应视图</n-button>
+        <n-button :type="view.mirror ? 'primary' : 'default'" :aria-pressed="view.mirror" @click="actions.toggleMirror">镜像编辑</n-button>
+        <n-button :type="view.fitted ? 'primary' : 'default'" :aria-pressed="view.fitted" @click="actions.fitView">适应视图</n-button>
         <span class="ship-mode-hint ui-text-muted">T 打开右侧</span>
       </div>
     </EditorHeader>
@@ -49,15 +49,7 @@
         @focusout.capture="canvas.fieldBlur"
         @keyup.capture="canvas.fieldKey"
       >
-        <section
-          v-if="view.weaponDiagnostics.length"
-          class="editor-resource-diagnostics ui-layout-grid ui-text-wrap ui-text-small"
-          role="status"
-          aria-label="内置武器预览"
-        >
-          <strong class="ui-emphasis">内置武器预览</strong>
-          <div v-for="diagnostic in view.weaponDiagnostics" :key="diagnostic">{{ diagnostic }}</div>
-        </section>
+        <template #problems><SpecProblems /></template>
         <n-collapse v-model:expanded-names="view.expandedSections" @update:expanded-names="canvas.onExpandedSectionsUpdate">
           <n-collapse-item
             v-for="section in SHIP_SECTIONS"
@@ -70,6 +62,7 @@
               :content="document"
               :fields="section.fields"
               :image-fields="['spriteName']"
+              @remove="actions.removeField"
               @update="actions.setProperty"
               @browse="actions.pickShipSprite"
               @change="$event === 'spriteName' && actions.loadSprite()"
@@ -110,10 +103,21 @@
               >
                 <SpecFieldList
                   :content="document"
-                  :fields="section.name === 'weapons' ? SHIP_SLOT_FIELDS : SHIP_SLOT_FIELDS.slice(0, 1)"
+                  :fields="section.name === 'weapons' ? weaponSlotFields : SHIP_SLOT_FIELDS.slice(0, 1)"
                   :prefix="'weaponSlots[' + view.selected + '].'"
+                  @remove="actions.removeField"
                   @update="actions.setProperty"
-                />
+                >
+                  <template #id="{ value, path }">
+                    <SchemaScalarInput
+                      :field="{ ...SHIP_SLOT_FIELDS[0]!, key: path }"
+                      :value="value"
+                      :input-key="path"
+                      :validate="view.validateSlotId"
+                      @update="$event.kind === 'set' && actions.setProperty(path, $event.value as string)"
+                    />
+                  </template>
+                </SpecFieldList>
                 <div v-if="view.mode === 'launchBay'" class="port-rows ui-layout-grid">
                   <div class="port-list-header coordinate-list-header ui-layout-grid ui-text-meta ui-text-muted">
                     <span>起降口</span><span>X</span><span>Y</span><span>操作</span>
@@ -148,14 +152,6 @@
                     <n-button size="small" @click.stop="actions.removeBayPortAt(index)">删除</n-button>
                   </div>
                 </div>
-                <FieldRow label="槽位扩展字段" field-key="weaponSlots" :path="'weaponSlots[' + view.selected + ']'" layout="group">
-                  <JsonValueInput
-                    :value="view.slotExtras"
-                    :label="'slot-extra-' + view.selected"
-                    shape="object"
-                    @update="actions.slotExtrasUpdated"
-                  />
-                </FieldRow>
               </div>
               <div class="action-group">
                 <n-button @click="section.name === 'weapons' ? actions.addWeaponSlot() : actions.addLaunchBay()">添加</n-button>
@@ -194,16 +190,15 @@
                   :content="document"
                   :fields="engineFields"
                   :prefix="'engineSlots[' + view.selected + '].'"
+                  @remove="actions.removeField"
                   @update="actions.setProperty"
                 />
                 <SpecFieldList
                   v-if="view.selectedEngine.style === 'CUSTOM'"
                   :content="document"
-                  :fields="[
-                    ['styleId', '命名样式 ID', '', view.engineStyles],
-                    ['styleSpec', '内联样式', {}],
-                  ]"
+                  :fields="SHIP_CUSTOM_ENGINE_FIELDS"
                   :prefix="'engineSlots[' + view.selected + '].'"
+                  @remove="actions.removeField"
                   @update="actions.setProperty"
                 />
                 <FieldHints
@@ -259,21 +254,19 @@
             </template>
             <template v-if="section.name === 'builtins'">
               <FieldRow label="内置武器" field-key="builtInWeapons" layout="group"
-                ><JsonValueInput
+                ><SchemaValueInput
+                  :field="view.builtInWeaponsSchema"
                   :value="document.builtInWeapons"
-                  label="builtInWeapons"
-                  shape="object"
-                  @update="actions.builtInWeaponsUpdated"
+                  :runtime-context="schemaRuntime"
+                  @update="$event.kind === 'set' && actions.builtInWeaponsUpdated($event.value as RowData)"
               /></FieldRow>
-              <FieldRow label="内置插件" field-key="builtInMods"><n-dynamic-tags v-model:value="view.builtInMods" /></FieldRow>
-              <FieldRow label="内置战机联队" field-key="builtInWings"><n-dynamic-tags v-model:value="view.builtInWings" /></FieldRow>
+              <SpecFieldList
+                :content="document"
+                :fields="SHIP_BUILTIN_FIELDS"
+                @remove="actions.removeField"
+                @update="actions.setProperty"
+              />
             </template>
-            <JsonFieldEditor
-              v-if="section.name === 'extra'"
-              :model-value="document"
-              :known-keys="SHIP_KNOWN_KEYS"
-              @update:model-value="actions.extrasUpdated"
-            />
           </n-collapse-item>
         </n-collapse>
       </EditorInspector>
@@ -282,23 +275,31 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue';
-import type { SpecField } from '@/domain/editors/spec-construction';
+import { computed, inject, useTemplateRef } from 'vue';
+import type { RowData } from '@/shared/types';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import FieldHints from '@/shared/ui/FieldHints.vue';
 import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
-import JsonValueInput from '@/shared/ui/JsonValueInput.vue';
-import JsonFieldEditor from '@/shared/ui/JsonFieldEditor.vue';
+import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
+import SchemaScalarInput from '@/app/components/schema/SchemaScalarInput.vue';
 import SpecFieldList from '../SpecFieldList.vue';
+import SpecProblems from '../SpecProblems.vue';
 import EditorFooter from '@/app/components/editors/common/EditorFooter.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import EditorInspector from '@/app/components/editors/common/EditorInspector.vue';
 import { str } from '@/shared/lib/starsector';
 import { entryKey } from '@/shared/lib/entry-keys';
-import { SHIP_SECTIONS, SHIP_SLOT_FIELDS, SHIP_ENGINE_FIELDS, SHIP_KNOWN_KEYS } from '@/domain/spec-editor/ship/spec-ship-fields';
+import {
+  SHIP_SECTIONS,
+  SHIP_SLOT_FIELDS,
+  SHIP_ENGINE_FIELDS,
+  SHIP_CUSTOM_ENGINE_FIELDS,
+  SHIP_BUILTIN_FIELDS,
+} from '@/domain/spec-editor/ship/spec-ship-fields';
+import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import {
   useSpecShipEditorViewModel,
   type SpecShipEditorProps,
@@ -306,13 +307,17 @@ import {
 } from '@/app/composables/spec-editor/ship/use-spec-ship-editor-view-model';
 const props = defineProps<SpecShipEditorProps>();
 const emit = defineEmits<SpecShipEditorEvents>();
+const schemaRuntime = inject(specSchemaContext, null);
 const editorWindowRef = useTemplateRef<HTMLElement>('editorWindowRef');
 const stageRef = useTemplateRef<HTMLElement>('stageRef');
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
 const { document, view, actions, canvas } = useSpecShipEditorViewModel(props, emit, { editorWindowRef, stageRef, canvasRef });
+const weaponSlotFields = SHIP_SLOT_FIELDS.map((field) =>
+  field.key === 'type' ? { ...field, options: field.options!.filter((type) => type !== 'LAUNCH_BAY') } : field,
+);
 const engineFields = computed(() =>
   SHIP_ENGINE_FIELDS.map((field) =>
-    field[0] === 'style' ? ([field[0], field[1], '', [...new Set([...view.engineStyles, 'CUSTOM'])], true] as SpecField) : field,
+    field.key === 'style' ? { ...field, options: [...new Set([...view.engineStyles, 'CUSTOM'])] } : field,
   ),
 );
 </script>

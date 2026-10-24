@@ -59,7 +59,7 @@ export type { EditContext } from '@/shared/types/edit-context.types';
 export type { SessionQueryIdentity } from '@/shared/types/query-cache.types';
 export type { CacheLimits, CacheSize, FontCacheLimits, QueryCacheKey } from '@/shared/types/cache-limits.types';
 export { QUERY_CACHE_KEYS } from '@/shared/types/cache-limits.types';
-export type { ErrorDiagnostic, ErrorLocation, FeedbackNotice } from '@/shared/types/error.types';
+export type { ErrorDiagnostic, ErrorLocation, FeedbackNotice, FieldProblem } from '@/shared/types/error.types';
 
 export type {
   WindowIdentity,

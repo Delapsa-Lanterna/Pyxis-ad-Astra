@@ -39,40 +39,42 @@ pub fn create_associated_spec(params: &AssociatedSpecCreateParams) -> Value {
     content
 }
 
-/// Pulse weapons are unsupported by the vanilla game; structured writes allow projectile and beam.
-pub fn validate_weapon_spec_class(content: &Value, path: &Path) -> AppResult<()> {
-    if matches!(
-        content.get("specClass").and_then(Value::as_str),
-        Some("projectile" | "beam")
-    ) {
-        return Ok(());
-    }
-    Err(AppError::message(
-        "spec.weapon_class_unsupported",
-        format!(
-            "{}: specClass must be projectile or beam; pulse is unsupported by the vanilla game",
-            path.display()
-        ),
-    ))
-}
-
-pub fn validate_weapon_editor_spec(content: &Value, path: &Path) -> AppResult<()> {
-    validate_weapon_spec_class(content, path)?;
-    for (field, code) in [
-        ("turretOffsets", "spec.weapon_turret_barrel_required"),
-        ("hardpointOffsets", "spec.weapon_hardpoint_barrel_required"),
-    ] {
-        if content
-            .get(field)
-            .and_then(Value::as_array)
-            .is_none_or(|offsets| offsets.len() < 2)
-        {
-            return Err(AppError::message(
-                code,
-                format!("{field} must contain at least one firing point"),
+static WEAPON_VALIDATION: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../../../schemas/spec-weapon.schema.json"))
+        .expect("embedded weapon schema must parse")
+});
+fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> AppResult<()> {
+    let key = rule["key"].as_str().expect("bundled weapon field");
+    crate::domain::schema::validate_field(rule, content.get(key).unwrap_or(&Value::Null), key, true)
+        .map_err(|_| {
+            AppError::message(
+                rule["issueCode"]
+                    .as_str()
+                    .expect("bundled weapon issue code"),
+                format!(
+                    "{}: {key} {}",
+                    path.display(),
+                    rule["issueMessage"]
+                        .as_str()
+                        .expect("bundled weapon issue message")
+                ),
             )
-            .at_path(path));
-        }
+            .at_path(path)
+        })
+}
+pub fn validate_weapon_spec_class(content: &Value, path: &Path) -> AppResult<()> {
+    validate_weapon_rule(
+        content,
+        path,
+        &WEAPON_VALIDATION["definitions"]["save"]["nested"][0],
+    )
+}
+pub fn validate_weapon_editor_spec(content: &Value, path: &Path) -> AppResult<()> {
+    for rule in WEAPON_VALIDATION["definitions"]["save"]["nested"]
+        .as_array()
+        .expect("bundled weapon rules")
+    {
+        validate_weapon_rule(content, path, rule)?;
     }
     Ok(())
 }

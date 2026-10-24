@@ -22,38 +22,22 @@
           "required": true,
           "source": "csv:ships.id"
         },
-        {
-          "key": "hullName",
-          "type": "string",
-          "label": "船体名称"
-        },
-        {
-          "key": "hullDesignation",
-          "type": "string",
-          "label": "定位"
-        },
+        { "key": "hullName", "type": "string", "label": "船体名称" },
+        { "key": "hullDesignation", "type": "string", "label": "定位" },
         {
           "key": "descriptionId",
           "type": "enum",
           "label": "覆盖描述 ID",
           "source": "csv:descriptions.id"
         },
-        {
-          "key": "descriptionPrefix",
-          "type": "string",
-          "label": "描述前缀"
-        },
+        { "key": "descriptionPrefix", "type": "string", "label": "描述前缀" },
         {
           "key": "tech",
           "type": "enum",
           "label": "设计类型",
           "source": "config:designTypes"
         },
-        {
-          "key": "spriteName",
-          "type": "path-image",
-          "label": "贴图路径"
-        }
+        { "key": "spriteName", "type": "path-image", "label": "贴图路径" }
       ]
     },
     {
@@ -129,11 +113,7 @@
           "label": "战机甲板数量",
           "min": 0
         },
-        {
-          "key": "maxSpeed",
-          "type": "float",
-          "label": "最高航速"
-        },
+        { "key": "maxSpeed", "type": "float", "label": "最高航速" },
         {
           "key": "shieldEfficiency",
           "type": "float",
@@ -174,7 +154,8 @@
             "type": "enum",
             "label": "weapon",
             "source": "csv:weapons.id"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "removeBuiltInWeapons",
@@ -227,18 +208,11 @@
                 "label": "安装方式",
                 "options": ["TURRET", "HARDPOINT", "HIDDEN"]
               },
-              {
-                "key": "angle",
-                "type": "float",
-                "label": "角度"
-              },
-              {
-                "key": "arc",
-                "type": "float",
-                "label": "射界"
-              }
+              { "key": "angle", "type": "float", "label": "角度" },
+              { "key": "arc", "type": "float", "label": "射界" }
             ]
-          }
+          },
+          "allowExtraFields": true
         }
       ]
     },
@@ -270,11 +244,7 @@
           "label": "战术系统 ID",
           "source": "csv:shipSystems.id"
         },
-        {
-          "key": "coversColor",
-          "type": "color-rgba",
-          "label": "武器盖板颜色"
-        }
+        { "key": "coversColor", "type": "color-rgba", "label": "武器盖板颜色" }
       ]
     },
     {
@@ -302,26 +272,10 @@
             "type": "object",
             "label": "engine",
             "nested": [
-              {
-                "key": "style",
-                "type": "string",
-                "label": "风格"
-              },
-              {
-                "key": "length",
-                "type": "float",
-                "label": "长度"
-              },
-              {
-                "key": "width",
-                "type": "float",
-                "label": "宽度"
-              },
-              {
-                "key": "angle",
-                "type": "float",
-                "label": "角度"
-              }
+              { "key": "style", "type": "string", "label": "风格" },
+              { "key": "length", "type": "float", "label": "长度" },
+              { "key": "width", "type": "float", "label": "宽度" },
+              { "key": "angle", "type": "float", "label": "角度" }
             ]
           },
           "keySchema": {
@@ -330,7 +284,8 @@
             "type": "integer",
             "min": 0,
             "default": 0
-          }
+          },
+          "allowExtraFields": true
         }
       ]
     }

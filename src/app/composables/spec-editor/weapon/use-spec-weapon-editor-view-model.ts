@@ -6,7 +6,8 @@ import type { WeaponOperationPreview } from '@/domain/editors/editor-types';
 import { str, deepClone } from '@/shared/lib/starsector/index';
 import { normalizeWeaponSpec, changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
 import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
-import { weaponSections, WEAPON_OBJECT_FIELDS } from '@/domain/spec-editor/weapon/spec-weapon-fields';
+import { weaponSections, weaponSpecIssues } from '@/domain/spec-editor/weapon/spec-weapon-fields';
+import { useSpecProblems } from '../use-spec-problems';
 
 import {
   projectWeaponBarrels,
@@ -34,7 +35,6 @@ export interface SpecWeaponEditorProps {
   weaponId: string;
   weapon: RowData;
   spriteData?: Record<string, string>;
-  projectileOptions: { label: string; value: string }[];
   editContext: EditContext | null;
   path?: string;
   dirty: boolean;
@@ -244,25 +244,13 @@ export function useSpecWeaponEditorViewModel(
     if (relative) setProperty(field, relative);
   }
   const sections = computed(() => weaponSections(localWeapon.value));
-  const knownKeys = computed(() => [
-    ...sections.value.flatMap((section) => section.fields.map((field) => field[0])),
-    'turretOffsets',
-    'hardpointOffsets',
-    'turretAngleOffsets',
-    'hardpointAngleOffsets',
-    ...(localWeapon.value.specClass === 'beam' ? [] : Object.keys(WEAPON_OBJECT_FIELDS)),
-  ]);
+  useSpecProblems(() => weaponSpecIssues(localWeapon.value));
   function setProperty(path: string, value: RowData[string]) {
     if (path === 'specClass')
       return document.command(() => {
         localWeapon.value = changeWeaponSpecClass(localWeapon.value, value as WeaponSpecClass);
       });
     document.change((weapon) => updateSpecField(weapon, path, value));
-  }
-  function objectExtras(key: string) {
-    return Object.fromEntries(
-      Object.entries(localWeapon.value[key] as RowData).filter(([field]) => !WEAPON_OBJECT_FIELDS[key]!.some((item) => item[0] === field)),
-    );
   }
   return {
     document: localWeapon,
@@ -272,10 +260,9 @@ export function useSpecWeaponEditorViewModel(
       expandedSections,
       selected: state.selected,
       mirror: state.mirrorMode,
+      fitted: viewport.fitted,
       sections,
-      knownKeys,
       spriteFields: [...WEAPON_SPRITE_FIELDS],
-      objectExtras,
       footerNote: computed(
         () =>
           '右键 拖动画布 | 滚轮缩放 | Ctrl+Z 撤销 | Ctrl+Shift+Z 重做' +
@@ -288,24 +275,14 @@ export function useSpecWeaponEditorViewModel(
       ),
       offsets: computed(() => barrels.value.offsets),
       angles: computed(() => barrels.value.angles),
-      projectileOptions: computed(() => props.projectileOptions),
     }),
     actions: {
+      removeField: (path: string) => document.change((weapon) => updateSpecField(weapon, path, undefined)),
       setProperty,
       removeProperty: (path: string) => document.command((weapon) => updateSpecField(weapon, path, undefined)),
-      extrasUpdated: (value: RowData) =>
-        document.change(() => {
-          localWeapon.value = value;
-        }),
       addObject: (key: 'muzzleFlashSpec' | 'smokeSpec') =>
         document.command((weapon) => {
           weapon[key] = createSpecObject(key);
-        }),
-      objectExtrasUpdated: (key: string, value: RowData) =>
-        document.command((weapon) => {
-          const object = weapon[key] as RowData;
-          for (const field of Object.keys(objectExtras(key))) delete object[field];
-          Object.assign(object, value);
         }),
       toggleMirror: () =>
         document.run(() => {
@@ -313,14 +290,13 @@ export function useSpecWeaponEditorViewModel(
           draw();
         }),
       fitView: () => {
-        viewport.pan.value = { x: 0, y: 0 };
         const dimensions = viewport.size(),
           extent = Math.max(
             1,
             ...[...images.images.values()].flatMap((image) => [image.width, image.height]),
             ...barrels.value.offsets.map((value) => Math.abs(value) * 2),
           );
-        viewport.scale.value = Math.min(20, Math.max(0.1, Math.min(dimensions.width, dimensions.height) / (extent + 80)));
+        viewport.fit(Math.min(20, Math.max(0.1, Math.min(dimensions.width, dimensions.height) / (extent + 80))));
         draw();
       },
       setView,

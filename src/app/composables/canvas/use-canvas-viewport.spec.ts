@@ -14,6 +14,25 @@ function fakeCanvas(width = 400, height = 200): HTMLCanvasElement {
 
 describe('useCanvasViewport', () => {
   afterEach(() => vi.unstubAllGlobals());
+  it('keeps fit selected until navigation actually changes the viewport', () => {
+    const viewport = useCanvasViewport(shallowRef(fakeCanvas()), 1, 10);
+    const navigation = useCanvasNavigation(viewport, vi.fn(), 'pointer');
+    viewport.fit(2);
+    expect(viewport.fitted.value).toBe(true);
+    navigation.start(new MouseEvent('mousedown', { button: 2, clientX: 10, clientY: 20 }));
+    navigation.move(new MouseEvent('mousemove', { clientX: 10, clientY: 20 }));
+    expect(viewport.fitted.value).toBe(true);
+    navigation.move(new MouseEvent('mousemove', { clientX: 30, clientY: 20 }));
+    expect(viewport.fitted.value).toBe(false);
+    navigation.finish();
+    viewport.fit(2);
+    navigation.wheel(new WheelEvent('wheel', { deltaY: -1 }));
+    expect(viewport.fitted.value).toBe(false);
+    viewport.fit(10);
+    navigation.wheel(new WheelEvent('wheel', { deltaY: -1 }));
+    expect(viewport.fitted.value).toBe(true);
+    expect(viewport.pan.value).toEqual({ x: 0, y: 0 });
+  });
   it.each([1, 1.25, 1.5, 2])('keeps the pointer world position fixed after pan and clamped zoom at DPR %s', (ratio) => {
     vi.stubGlobal('devicePixelRatio', ratio);
     const viewport = useCanvasViewport(shallowRef(fakeCanvas()), 1, 10);

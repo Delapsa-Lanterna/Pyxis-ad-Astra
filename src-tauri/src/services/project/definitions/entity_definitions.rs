@@ -118,7 +118,7 @@ const PROJECT_ENTITY_DEFINITIONS: [ProjectEntityDefinition; 9] = [
         kind: EntityKind::Projectile,
         spec: Some(&PROJECTILE_SPEC_DEFINITION),
         csv_table: None,
-        source_options: &[],
+        source_options: &["projectiles.id"],
         path_matches: spec_path_matches,
         query_impacts: &[],
         prepare: prepare_none,

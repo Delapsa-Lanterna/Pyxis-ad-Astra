@@ -1,7 +1,7 @@
 import { requestWindow } from '@/windows/managed.window';
 import type { WeaponFirePreviewSource } from '@/shared/types';
 export function weaponFirePreviewWindowTitle(id: string) {
-  return '发射预览 - ' + id;
+  return '开火预览 - ' + id;
 }
 export function openWeaponFirePreviewWindow(request: { sessionId: string; modRoot: string; id: string; source: WeaponFirePreviewSource }) {
   return requestWindow({

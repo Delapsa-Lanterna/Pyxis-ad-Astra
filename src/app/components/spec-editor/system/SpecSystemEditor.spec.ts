@@ -31,7 +31,6 @@ vi.mock('@/shared/runtime/dialog.runtime', () => ({
 }));
 
 import SpecSystemEditor from './SpecSystemEditor.vue';
-import JsonFieldEditor from '@/shared/ui/JsonFieldEditor.vue';
 
 let wrapper: import('@vue/test-utils').VueWrapper | null = null;
 
@@ -64,17 +63,18 @@ describe('SpecSystemEditor type switching', () => {
     installCanvas2DStub();
   });
 
-  it('keeps prototype-named extra fields through the real extra-field handoff', async () => {
+  it('preserves ignored prototype-named fields while editing a declared field', async () => {
     const source: RowData = JSON.parse('{"id":"sys1","type":"STAT_MOD","__proto__":{"value":1},"constructor":"business"}');
     const editor = mountEditor(source);
-    const extra = editor.findComponent(JsonFieldEditor);
-    expect(Object.keys(extra.props('modelValue'))).toEqual(['__proto__', 'constructor']);
-    extra.vm.$emit('update:modelValue', JSON.parse('{"__proto__":{"value":2},"constructor":"changed"}'));
+    expect(editor.find('[data-name="extra"]').exists()).toBe(false);
+    expect(editor.text()).not.toContain('constructor');
+    await editor.get('[data-field-path="statsScript"] input').setValue('example.Effect');
     await nextTick();
     const saved = editor.emitted('draft-changed')?.at(-1)?.[0] as RowData;
-    expect(JSON.stringify(saved)).toContain('"__proto__":{"value":2}');
-    expect(saved.constructor).toBe('changed');
+    expect(JSON.stringify(saved)).toContain('"__proto__":{"value":1}');
+    expect(saved.constructor).toBe('business');
     expect(saved.id).toBe('sys1');
+    expect(saved.statsScript).toBe('example.Effect');
     expect(JSON.stringify(source)).toContain('"__proto__":{"value":1}');
   });
 

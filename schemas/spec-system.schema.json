@@ -1,0 +1,190 @@
+{
+  "$schema": "circinus-ad-astra/field-schema/v1",
+  "id": "spec-system",
+  "sections": [
+    {
+      "id": "basic",
+      "label": "基础信息",
+      "fields": [
+        { "key": "id", "label": "系统 ID", "type": "string", "required": true, "editable": false, "identity": true },
+        {
+          "key": "type",
+          "label": "系统类型",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "WEAPON",
+            "ENGINE_MOD",
+            "SHIELD_MOD",
+            "STAT_MOD",
+            "FAST_RELOAD",
+            "AMMO_RELOAD",
+            "TELEPORTER",
+            "PHASE_CLOAK",
+            "DISPLACER",
+            "DRONE_LAUNCHER",
+            "EMP"
+          ],
+          "default": "STAT_MOD"
+        },
+        {
+          "key": "aiType",
+          "label": "AI 行为类型",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "BURN_DRIVE",
+            "BURN_DRIVE_TOGGLE",
+            "MANEUVERING_JETS",
+            "PHASE_CLOAK",
+            "PHASE_DISPLACER",
+            "FORTRESS_SHIELD",
+            "DAMPER_FIELD",
+            "TEMPORAL_SHELL",
+            "ACAUSAL_DISRUPTOR",
+            "WEAPON_BOOST",
+            "FLARE",
+            "CANISTER_FLAK",
+            "DRONE_LAUNCHER_PD",
+            "DRONE_STRIKE",
+            "RESERVE_DEPLOYMENT",
+            "MOTE_ATTRACTOR",
+            "CUSTOM",
+            "NONE"
+          ]
+        },
+        { "key": "statsScript", "label": "效果脚本", "type": "string" },
+        { "key": "aiScript", "label": "AI 脚本", "type": "string", "visibleWhen": { "aiType": ["CUSTOM"] } }
+      ]
+    },
+    {
+      "id": "behavior",
+      "label": "行为标志",
+      "fields": [
+        { "key": "runScriptWhilePaused", "label": "暂停时运行脚本", "type": "boolean" },
+        { "key": "runScriptWhileIdle", "label": "闲置时运行脚本", "type": "boolean" },
+        { "key": "blockActionsWhileChargingDown", "label": "充能降低时阻止动作", "type": "boolean" },
+        { "key": "canNotCauseOverload", "label": "不会导致过载", "type": "boolean" },
+        { "key": "canUseWhileRightClickSystemOn", "label": "右键系统开启时可用", "type": "boolean" },
+        { "key": "clampTurnRateAfter", "label": "效果后限制转向", "type": "boolean" },
+        { "key": "clampMaxSpeedAfter", "label": "效果后限制速度", "type": "boolean" },
+        { "key": "alwaysAccelerate", "label": "持续加速", "type": "boolean" },
+        { "key": "flameoutOnImpactChance", "label": "撞击失控概率", "type": "float", "step": 0.1 },
+        { "key": "fadeActivationSoundOnChargedown", "label": "充能降低时淡出音效", "type": "boolean" },
+        { "key": "activatingShieldsCancels", "label": "开盾时取消系统", "type": "boolean" }
+      ]
+    },
+    {
+      "id": "sound",
+      "label": "音效",
+      "fields": [
+        { "key": "useSound", "label": "激活音效", "type": "enum", "source": "config:sounds" },
+        { "key": "loopSound", "label": "循环音效", "type": "enum", "source": "config:sounds" },
+        { "key": "deactivateSound", "label": "关闭音效", "type": "enum", "source": "config:sounds" },
+        { "key": "outOfUsesSound", "label": "用尽音效", "type": "enum", "source": "config:sounds" },
+        { "key": "soundFilterType", "label": "滤波类型", "type": "enum", "options": ["LOWPASS"] },
+        { "key": "soundFilterGain", "label": "滤波增益", "type": "float", "step": 0.05 },
+        { "key": "soundFilterGainHF", "label": "高频滤波增益", "type": "float", "step": 0.05 }
+      ]
+    },
+    {
+      "id": "engine",
+      "label": "引擎视觉",
+      "fields": [
+        { "key": "engineGlowLengthMult", "label": "光柱长度倍率", "type": "float", "step": 0.1 },
+        { "key": "engineGlowWidthMult", "label": "光柱宽度倍率", "type": "float", "step": 0.1 },
+        { "key": "engineGlowGlowMult", "label": "辉光强度倍率", "type": "float", "step": 0.1 },
+        { "key": "engineGlowColor", "label": "引擎发光颜色", "type": "color-rgba", "default": [255, 175, 125, 255] },
+        { "key": "engineGlowContrailColor", "label": "引擎尾迹颜色", "type": "color-rgba", "default": [255, 175, 125, 255] }
+      ]
+    },
+    {
+      "id": "weaponGlow",
+      "label": "武器发光",
+      "fields": [
+        { "key": "weaponGlowColor", "label": "武器发光颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "weaponTypes", "label": "受影响武器类型", "type": "string-array", "options": ["ENERGY", "BALLISTIC", "MISSILE", "SYSTEM"] }
+      ]
+    },
+    {
+      "id": "jitter",
+      "label": "抖动效果",
+      "fields": [
+        { "key": "jitterColor", "label": "抖动颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "jitterCopies", "label": "抖动副本数", "type": "float" },
+        { "key": "jitterMinRange", "label": "最小范围", "type": "float" },
+        { "key": "jitterRange", "label": "抖动范围", "type": "float" },
+        { "key": "jitterRangeRadiusFraction", "label": "范围半径比例", "type": "float", "step": 0.1 },
+        { "key": "jitterUnderColor", "label": "底层抖动颜色", "type": "color-rgba", "default": [255, 255, 255, 255] },
+        { "key": "jitterUnderCopies", "label": "底层副本数", "type": "float" },
+        { "key": "jitterUnderMinRange", "label": "底层最小范围", "type": "float" },
+        { "key": "jitterUnderRange", "label": "底层抖动范围", "type": "float" },
+        { "key": "jitterUnderRangeRadiusFraction", "label": "底层范围半径比例", "type": "float", "step": 0.1 }
+      ]
+    },
+    {
+      "id": "phase",
+      "label": "效果与相位视觉",
+      "fields": [
+        { "key": "effectColor1", "label": "效果颜色 1", "type": "color-rgba", "default": [100, 50, 200, 255] },
+        { "key": "effectColor2", "label": "效果颜色 2", "type": "color-rgba", "default": [150, 75, 255, 255] },
+        { "key": "phaseHighlight", "label": "高光贴图后缀", "type": "string" },
+        { "key": "phaseDiffuse", "label": "漫射贴图后缀", "type": "string" },
+        { "key": "shipAlpha", "label": "舰船透明度", "type": "float", "step": 0.05 }
+      ]
+    },
+    {
+      "id": "shield",
+      "label": "护盾视觉",
+      "fields": [
+        { "key": "shieldRingColor", "label": "护盾环颜色", "type": "color-rgba", "default": [100, 200, 255, 255] },
+        { "key": "shieldInnerColor", "label": "护盾内部颜色", "type": "color-rgba", "default": [100, 200, 255, 75] },
+        { "key": "shieldThicknessMult", "label": "护盾厚度倍率", "type": "float", "step": 0.1 },
+        { "key": "shieldFluctuationMult", "label": "护盾波动倍率", "type": "float", "step": 0.1 }
+      ]
+    },
+    {
+      "id": "displacer",
+      "label": "位移器参数",
+      "fields": [
+        { "key": "range", "label": "位移距离", "type": "float" },
+        { "key": "randomRange", "label": "随机偏移", "type": "float" },
+        { "key": "renderCopyDuringTeleport", "label": "传送时渲染副本", "type": "boolean" }
+      ],
+      "visibleWhen": { "type": ["DISPLACER", "TELEPORTER"] }
+    },
+    {
+      "id": "weaponSystem",
+      "label": "武器系统",
+      "fields": [{ "key": "weaponDataId", "label": "关联武器 ID", "type": "enum", "source": "csv:weapons.id" }],
+      "visibleWhen": { "type": ["WEAPON"] }
+    },
+    {
+      "id": "drone",
+      "label": "无人机参数",
+      "fields": [
+        { "key": "droneVariant", "label": "无人机装配 ID", "type": "enum", "source": "csv:variants.variantId" },
+        { "key": "allowFreeRoam", "label": "允许自由漫游", "type": "boolean" },
+        { "key": "launchSpeed", "label": "发射速度", "type": "float" },
+        { "key": "launchDelay", "label": "发射延迟", "type": "float", "step": 0.1 },
+        { "key": "maxDrones", "label": "最大无人机数", "type": "float" },
+        { "key": "droneBehavior", "label": "无人机行为定义", "type": "array", "item": { "key": "value", "label": "内容", "type": "json" } }
+      ],
+      "visibleWhen": { "type": ["DRONE_LAUNCHER"] }
+    },
+    {
+      "id": "damage",
+      "label": "伤害（AI 理解用）",
+      "fields": [
+        { "key": "empDamage", "label": "EMP 伤害", "type": "float" },
+        { "key": "damage", "label": "伤害值", "type": "float" },
+        { "key": "damageType", "label": "伤害类型", "type": "enum", "options": ["ENERGY", "KINETIC", "HIGH_EXPLOSIVE", "FRAGMENTATION"] }
+      ]
+    },
+    {
+      "id": "aiHints",
+      "label": "AI 提示",
+      "fields": [{ "key": "aiHints", "label": "AI 提示", "type": "object", "allowExtraFields": true }]
+    }
+  ]
+}

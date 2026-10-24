@@ -5,6 +5,30 @@
   padding: var(--space-5);
   text-align: center;
 }
+.spec-problems {
+  flex: 0 0 auto;
+  max-height: 40%;
+  gap: 4px;
+  padding: 8px 12px;
+}
+.spec-problem {
+  padding: 4px 8px;
+  min-height: 44px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: 6px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+.spec-problem.error {
+  border-color: var(--color-danger-border-soft);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+.spec-problem-list {
+  scrollbar-color: color-mix(in srgb, currentColor 45%, transparent) transparent;
+  padding-left: 16px;
+  line-height: 16px;
+}
 .editor-window-status .editor-window-status-value {
   font: 650 18px/24px var(--font-sans);
 }

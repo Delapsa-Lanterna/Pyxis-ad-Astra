@@ -39,6 +39,7 @@ const {
   commit,
 } = useRawFieldInput<JsonInputValue<T>>({
   key: props.inputKey ?? props.label,
+  path: props.inputKey ?? props.label,
   label: props.label,
   text: () => formatJsonInput(props.value, props.shape),
   convert,

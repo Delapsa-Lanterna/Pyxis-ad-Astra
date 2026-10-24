@@ -59,7 +59,7 @@ export function detailActionsForRow(
 }
 
 export function detailActionLabel(action: TableDetailAction): string {
-  if (action.type === 'weapon-fire-preview') return '发射预览';
+  if (action.type === 'weapon-fire-preview') return '开火预览';
   if (action.type === 'file-editor') return '文件编辑器';
   if (action.type === 'immersive-editor') return '沉浸式编辑器';
   return specEditorWindowLabel(action.kind);

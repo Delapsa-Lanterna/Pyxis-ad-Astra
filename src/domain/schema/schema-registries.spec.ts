@@ -55,7 +55,7 @@ describe('schema asset registries', () => {
       for (const section of schema?.sections ?? []) {
         expect(section.id.length).toBeGreaterThan(0);
         expect(section.label.length).toBeGreaterThan(0);
-        expect(section.fields.length).toBeGreaterThan(0);
+        expect(Array.isArray(section.fields)).toBe(true);
       }
     }
   });

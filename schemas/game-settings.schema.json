@@ -3,13 +3,7 @@
   "id": "game-settings",
   "gameVersion": "0.98a-RC8",
   "displayName": "游戏设置",
-  "sources": [
-    {
-      "id": "file",
-      "type": "json-file",
-      "path": "data/config/settings.json"
-    }
-  ],
+  "sources": [{ "id": "file", "type": "json-file", "path": "data/config/settings.json" }],
   "root": {
     "key": "file",
     "type": "object",
@@ -24,7 +18,8 @@
           "type": "color-rgba",
           "label": "颜色",
           "default": [255, 255, 255, 255]
-        }
+        },
+        "allowExtraFields": true
       },
       {
         "key": "graphics",
@@ -41,9 +36,7 @@
             "label": "图片",
             "default": "",
             "variants": [
-              {
-                "type": "path-image"
-              },
+              { "type": "path-image" },
               {
                 "type": "array",
                 "label": "图片列表",
@@ -56,8 +49,10 @@
                 }
               }
             ]
-          }
-        }
+          },
+          "allowExtraFields": true
+        },
+        "allowExtraFields": true
       },
       {
         "key": "plugins",
@@ -68,7 +63,8 @@
           "type": "string",
           "label": "插件类名",
           "default": ""
-        }
+        },
+        "allowExtraFields": true
       }
     ],
     "presentation": "groups",
@@ -82,15 +78,12 @@
           "key": "group",
           "type": "object",
           "label": "分组",
-          "default": {}
+          "default": {},
+          "allowExtraFields": true
         },
-        {
-          "key": "value",
-          "type": "json",
-          "label": "内容",
-          "default": null
-        }
+        { "key": "value", "type": "json", "label": "内容", "default": null }
       ]
-    }
+    },
+    "allowExtraFields": true
   }
 }

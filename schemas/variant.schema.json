@@ -22,16 +22,8 @@
           "required": true,
           "source": "csv:ships.id"
         },
-        {
-          "key": "displayName",
-          "type": "string",
-          "label": "显示名称"
-        },
-        {
-          "key": "goalVariant",
-          "type": "boolean",
-          "label": "默认可选装配"
-        }
+        { "key": "displayName", "type": "string", "label": "显示名称" },
+        { "key": "goalVariant", "type": "boolean", "label": "默认可选装配" }
       ]
     },
     {
@@ -88,11 +80,7 @@
             "key": "item",
             "label": "武器组",
             "type": "object",
-            "default": {
-              "mode": "LINKED",
-              "weapons": {},
-              "autofire": false
-            },
+            "default": { "mode": "LINKED", "weapons": {}, "autofire": false },
             "nested": [
               {
                 "key": "mode",
@@ -111,13 +99,10 @@
                   "label": "武器 ID",
                   "source": "csv:weapons.id"
                 },
-                "required": true
+                "required": true,
+                "allowExtraFields": true
               },
-              {
-                "key": "autofire",
-                "type": "boolean",
-                "label": "自动开火"
-              }
+              { "key": "autofire", "type": "boolean", "label": "自动开火" }
             ]
           }
         }
@@ -154,7 +139,8 @@
             "key": "variantId",
             "type": "string",
             "label": "装配 ID"
-          }
+          },
+          "allowExtraFields": true
         }
       ]
     }

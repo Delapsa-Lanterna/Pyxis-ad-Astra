@@ -51,7 +51,6 @@ function mountEditor(weapon: RowData, spriteData: Record<string, string> = {}, w
     weaponId: 'railgun',
     weapon,
     spriteData,
-    projectileOptions: [{ label: 'proj1', value: 'proj1' }],
     editContext: null,
     dirty: false,
     canSave: false,
@@ -124,8 +123,19 @@ function installGlowRuntime() {
 }
 
 describe('SpecWeaponEditor', () => {
+  it('removes a cleared optional numeric field through the same input action', async () => {
+    const editor = mountEditor({ id: 'fixture', specClass: 'projectile', displayArcRadius: 25 }, {}, true);
+    const input = editor.get('[data-field-path="displayArcRadius"] input');
+    await input.setValue('');
+    await input.trigger('change');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).not.toHaveProperty('displayArcRadius');
+  });
   it('creates complete muzzle objects and edits their fields without losing unknown keys', async () => {
     const editor = mountEditor({ id: 'fixture', specClass: 'projectile', smokeSpec: { particleSizeMin: 2, extension: true } });
+    expect(editor.find('[data-name="extra"]').exists()).toBe(false);
+    expect(editor.text()).not.toContain('配置扩展字段');
+    expect(editor.text()).not.toContain('extension');
     await editor.setProps({ editContext: { targetKey: 'fixture', baselineGeneration: 1, handoff: 'load' } });
     await editor.get('[data-field-path="muzzleFlashSpec"] button').trigger('click');
     await flushPromises();
@@ -190,7 +200,12 @@ describe('SpecWeaponEditor', () => {
     const editor = mountEditor({ id: 'railgun', specClass: 'pulse', type: 'ENERGY', custom: { _slot: 'keep' } });
     await editor.setProps({ editContext: { targetKey: 'weapon', baselineGeneration: 1, handoff: 'load' } });
     const type = editor.findAll('select')[0]!;
-    expect(type.findAll('option').map((option) => option.text())).toEqual(['projectile', 'beam']);
+    expect(
+      type
+        .findAll('option')
+        .map((option) => option.text())
+        .slice(-2),
+    ).toEqual(['projectile', 'beam']);
     await type.setValue(JSON.stringify('beam'));
     await vi.waitFor(() =>
       expect(editor.emitted('draft-changed')?.at(-1)?.[0]).toMatchObject({
@@ -389,7 +404,7 @@ describe('SpecWeaponEditor', () => {
     await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 128]');
     await editor
       .findAll('button')
-      .find((button) => button.text() === '发射预览')!
+      .find((button) => button.text() === '开火预览')!
       .trigger('click');
     await flushPromises();
     const snapshot = editor.emitted('preview')!.at(-1)![0] as RowData;

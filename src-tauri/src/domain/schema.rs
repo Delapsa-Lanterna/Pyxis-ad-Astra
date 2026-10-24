@@ -101,7 +101,15 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
                                             .find(|field| field["key"] == *key)
                                             .and_then(|field| field.get("default"))
                                     });
-                                    value == Some(expected)
+                                    if expected.is_string() {
+                                        value == Some(expected)
+                                    } else if let Some(minimum) = expected["min"].as_f64() {
+                                        value
+                                            .and_then(Value::as_f64)
+                                            .is_some_and(|value| value >= minimum)
+                                    } else {
+                                        value.is_none()
+                                    }
                                 })
                             });
                         if required && !object.contains_key(key) {
@@ -117,6 +125,9 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
                 let fixed = field["nested"]
                     .as_array()
                     .and_then(|fields| fields.iter().find(|child| child["key"] == *key));
+                if fixed.is_none() && field["allowExtraFields"] != true {
+                    continue;
+                }
                 if field["reservedKeys"]
                     .as_array()
                     .is_some_and(|keys| keys.iter().any(|v| v.as_str() == Some(key)))
@@ -142,6 +153,16 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
             }
         }
         "array" => {
+            let count = data.as_array().expect("validated array").len();
+            if field["minEntries"]
+                .as_u64()
+                .is_some_and(|min| count < min as usize)
+                || field["maxEntries"]
+                    .as_u64()
+                    .is_some_and(|max| count > max as usize)
+            {
+                return Err(invalid());
+            }
             if let Some(schema) = field.get("item") {
                 for (index, value) in data.as_array().expect("validated array").iter().enumerate() {
                     validate_field(schema, value, &format!("{path}/{index}"), complete)?;

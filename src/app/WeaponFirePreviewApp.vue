@@ -1,5 +1,5 @@
 <template>
-  <WindowShell title="发射预览"><WeaponFirePreviewContent /></WindowShell>
+  <WindowShell title="开火预览"><WeaponFirePreviewContent /></WindowShell>
 </template>
 <script setup lang="ts">
 import WindowShell from '@/app/WindowShell.vue';

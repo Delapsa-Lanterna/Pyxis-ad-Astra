@@ -44,7 +44,6 @@
       :weapon-id="target.id"
       :weapon="weaponEditorData.spec"
       :sprite-data="weaponDependencies?.spriteData.value ?? {}"
-      :projectile-options="weaponDependencies?.projectileOptions.value ?? []"
       :edit-context="editContext"
       :path="editorData?.target.write.relPath"
       :dirty="draftDirty"
@@ -107,8 +106,10 @@
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { computed, onMounted, onUnmounted, provide } from 'vue';
+import { computed, onMounted, onUnmounted, provide, shallowReactive, watch } from 'vue';
+import { formatError } from '@/shared/lib/errors';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
+import { specProblemsKey } from '@/app/composables/spec-editor/use-spec-problems';
 import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { CONFIG_OPTION_SOURCES } from '@/domain/schema/schema-sources';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
@@ -136,6 +137,7 @@ const feedback = useAppFeedback();
 
 const windowModel = useSpecEditorWindowViewModel({ sessionId, modRoot, id, kind }, specEditorDefinition(kind));
 provideFieldInputs(windowModel.inputs);
+provide(specProblemsKey, windowModel.problems);
 const {
   currentTarget: target,
   editorData,
@@ -155,15 +157,53 @@ const {
   updateEditorDraft,
   loadPendingExternalSpec,
 } = windowModel;
+const sourceNotices = shallowReactive(new Map<string, string>());
+const sourceIdentity = () => JSON.stringify([target.value, editContext.value?.baselineGeneration]);
+watch(sourceIdentity, () => sourceNotices.clear());
 provide(
   specSchemaContext,
-  computed(() => (target.value ? createSchemaRuntimeContext(target.value.modRoot, target.value.sessionId) : null)),
+  computed(() => {
+    if (!target.value) return null;
+    const identity = sourceIdentity(),
+      runtime = createSchemaRuntimeContext(target.value.modRoot, target.value.sessionId);
+    return {
+      ...runtime,
+      sourceContextKey: JSON.stringify([target.value.modRoot, target.value.kind, target.value.id]),
+      querySourceOptions: async (source: string, signal?: AbortSignal) => {
+        try {
+          const result = await runtime.querySourceOptions!(source, signal);
+          if (identity === sourceIdentity()) sourceNotices.delete(source);
+          return result;
+        } catch (error) {
+          if (!signal?.aborted && identity === sourceIdentity()) sourceNotices.set(source, formatError(error));
+          throw error;
+        }
+      },
+    };
+  }),
 );
 const shipEditorData = computed(() => (editorData.value?.kind === 'ship' ? editorData.value : null));
 const weaponEditorData = computed(() => (editorData.value?.kind === 'weapon' ? editorData.value : null));
 const projectileEditorData = computed(() => (editorData.value?.kind === 'projectile' ? editorData.value : null));
 const systemEditorData = computed(() => (editorData.value?.kind === 'system' ? editorData.value : null));
 const { weapon: weaponDependencies, ship: shipImages, projectile: projectileImages } = useSpecEditorDependencies(windowModel, kind);
+onUnmounted(
+  windowModel.problems.register(() =>
+    [...sourceNotices.entries()]
+      .map(([path, message]) => ({ severity: 'warning' as const, code: 'spec.source_read', path, message }))
+      .concat(
+        [
+          shipImages?.errorText.value,
+          shipImages?.value.value?.diagnostic,
+          projectileImages?.errorText.value,
+          projectileImages?.value.value?.diagnostic,
+          ...(weaponDependencies?.notices.value ?? []),
+        ]
+          .filter((message): message is string => Boolean(message))
+          .map((message) => ({ severity: 'warning' as const, code: 'spec.preview', path: message, message })),
+      ),
+  ),
+);
 const shipSpriteForEditor = computed(() =>
   typeof shipImages?.value.value?.spriteData === 'string' ? shipImages.value.value.spriteData : '',
 );
@@ -212,7 +252,7 @@ function openPreview(weapon: import('@/shared/types/index').RowData) {
     id: target.value.id,
     sessionId: target.value.sessionId,
     source: { kind: 'draft', weapon },
-  }).catch((error) => feedback.error(error, '打开发射预览失败'));
+  }).catch((error) => feedback.error(error, '打开开火预览失败'));
 }
 
 useShortcutDispatch({

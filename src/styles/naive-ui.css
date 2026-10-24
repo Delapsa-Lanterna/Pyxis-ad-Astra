@@ -8,7 +8,7 @@
 .n-base-selection-tags {
   --selection-tag-height: calc(var(--n-height) - 8px);
   gap: var(--space-1);
-  padding: 3px !important;
+  padding: 3px var(--n-padding-multiple-right) 3px 3px !important;
 }
 .n-base-selection-tags .n-base-selection-tag-wrapper {
   padding: 0;

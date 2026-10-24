@@ -129,9 +129,9 @@ describe('misc config fields', () => {
     expect(document.activeElement).toBe(input.element);
   });
   it.each([
-    ['strings', 0],
-    ['engineStyles', 0],
-    ['hullStyles', 0],
+    ['strings', 1],
+    ['engineStyles', 1],
+    ['hullStyles', 1],
     ['sounds', 2],
     ['settings', 4],
   ] as const)('groups root objects in %s independently', async (kind, count) => {

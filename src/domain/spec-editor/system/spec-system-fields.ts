@@ -1,82 +1,16 @@
 import type { RowData } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
-import type { SpecField } from '@/domain/editors/spec-construction';
-
-export const SYSTEM_SOUND_FIELDS: SpecField[] = [
-  ['useSound', '激活音效', '', undefined, false, 'config:sounds'],
-  ['loopSound', '循环音效', '', undefined, false, 'config:sounds'],
-  ['deactivateSound', '关闭音效', '', undefined, false, 'config:sounds'],
-  ['outOfUsesSound', '用尽音效', '', undefined, false, 'config:sounds'],
-];
-
-/// Fields the system editor renders as structured controls; every other key
-/// in a `.system` spec is treated as an extra passthrough field.
-export const SYSTEM_STRUCTURED_FIELD_KEYS: ReadonlySet<string> = new Set([
-  'id',
-  'type',
-  'aiType',
-  'statsScript',
-  'aiScript',
-  'runScriptWhilePaused',
-  'runScriptWhileIdle',
-  'blockActionsWhileChargingDown',
-  'canNotCauseOverload',
-  'canUseWhileRightClickSystemOn',
-  'clampTurnRateAfter',
-  'clampMaxSpeedAfter',
-  'alwaysAccelerate',
-  'flameoutOnImpactChance',
-  'fadeActivationSoundOnChargedown',
-  'activatingShieldsCancels',
-  'useSound',
-  'loopSound',
-  'deactivateSound',
-  'outOfUsesSound',
-  'soundFilterType',
-  'soundFilterGain',
-  'soundFilterGainHF',
-  'engineGlowColor',
-  'engineGlowContrailColor',
-  'engineGlowLengthMult',
-  'engineGlowWidthMult',
-  'engineGlowGlowMult',
-  'weaponGlowColor',
-  'weaponTypes',
-  'jitterColor',
-  'jitterCopies',
-  'jitterMinRange',
-  'jitterRange',
-  'jitterRangeRadiusFraction',
-  'jitterUnderColor',
-  'jitterUnderCopies',
-  'jitterUnderMinRange',
-  'jitterUnderRange',
-  'jitterUnderRangeRadiusFraction',
-  'effectColor1',
-  'effectColor2',
-  'phaseHighlight',
-  'phaseDiffuse',
-  'shipAlpha',
-  'shieldRingColor',
-  'shieldInnerColor',
-  'shieldThicknessMult',
-  'shieldFluctuationMult',
-  'range',
-  'randomRange',
-  'renderCopyDuringTeleport',
-  'weaponDataId',
-  'droneVariant',
-  'allowFreeRoam',
-  'launchSpeed',
-  'launchDelay',
-  'maxDrones',
-  'droneBehavior',
-  'empDamage',
-  'damage',
-  'damageType',
-  'aiHints',
-]);
-
+import { specSchema, specSections } from '@/domain/spec-editor/spec-schemas';
+import { specFieldIssues } from '@/domain/spec-editor/spec-validation';
+const schema = specSchema('spec-system');
+export const SYSTEM_SOUND_FIELDS = schema.sections!.find((section) => section.id === 'sound')!.fields.filter((field) => field.source);
+export const SYSTEM_AI_HINTS_SCHEMA = schema.sections!.find((section) => section.id === 'aiHints')!.fields[0]!;
+export function systemSections(system: RowData) {
+  return specSections('spec-system', system);
+}
+export function systemSpecIssues(system: RowData) {
+  return systemSections(system).flatMap((section) => section.fields.flatMap((field) => specFieldIssues(field, system[field.key])));
+}
 export function normalizeSystemSpec(system: RowData): RowData {
   const normalized = deepClone(system);
   normalized.type = normalized.type || 'STAT_MOD';

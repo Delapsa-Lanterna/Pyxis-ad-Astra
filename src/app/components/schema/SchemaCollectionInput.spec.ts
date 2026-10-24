@@ -34,7 +34,13 @@ describe('retained collection rows', () => {
           h(
             SchemaCollectionInput,
             {
-              field: { key: 'file', label: 'File', type: 'object', valueSchema: { key: 'text', label: 'Text', type: 'string' } },
+              field: {
+                key: 'file',
+                label: 'File',
+                type: 'object',
+                allowExtraFields: true,
+                valueSchema: { key: 'text', label: 'Text', type: 'string' },
+              },
               value: value.value,
               inputKey: 'file',
               fieldPath: 'file',
@@ -68,10 +74,12 @@ describe('retained collection rows', () => {
                 label: 'File',
                 type: 'object',
                 presentation: 'groups',
+                allowExtraFields: true,
                 valueSchema: {
                   key: 'group',
                   label: 'Group',
                   type: 'object',
+                  allowExtraFields: true,
                   valueSchema: { key: 'line', label: 'Text', type: 'text' },
                 },
               },
@@ -98,7 +106,7 @@ describe('retained collection rows', () => {
     await inputs.commit();
     expect(value.value['组.一']).toEqual({ line: 'pending\n$sample' });
     await wrapper.findAll('button').at(-1)!.trigger('click');
-    expect(wrapper.findAll('.n-collapse-item').at(-1)!.classes()).toContain('n-collapse-item--active');
+    expect(wrapper.findAll('.n-collapse-item')[2]!.classes()).toContain('n-collapse-item--active');
     expect(wrapper.findAll('.n-collapse-item')[1]!.classes()).not.toContain('n-collapse-item--active');
   });
 });

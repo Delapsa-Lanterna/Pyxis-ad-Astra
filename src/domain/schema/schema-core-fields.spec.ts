@@ -10,6 +10,7 @@ function schemaFixture(sections: { id: string; fields: FieldSchema[] }[], source
   return {
     $schema: 'circinus-ad-astra/field-schema/v1',
     id: 'fixture',
+    allowExtraFields: true,
     sources,
     sections: sections.map((section) => ({ id: section.id, label: section.id, fields: section.fields })),
   };
@@ -20,6 +21,10 @@ function discovered(key: string, type: DiscoveredField['type'] = 'string'): Disc
 }
 
 describe('mergeSchemaWithCoreFields', () => {
+  it.each([undefined, false])('ignores discovered fields when expansion permission is %s', (allowed) => {
+    const schema = { ...schemaFixture([{ id: 'a', fields: [field('x')] }]), allowExtraFields: allowed };
+    expect(mergeSchemaWithCoreFields(schema, [discovered('unknown')])).toBe(schema);
+  });
   it('returns the original schema when nothing was discovered', () => {
     const schema = schemaFixture([{ id: 'a', fields: [field('x')] }]);
     expect(mergeSchemaWithCoreFields(schema, [])).toBe(schema);
@@ -48,12 +53,17 @@ describe('mergeSchemaWithCoreFields', () => {
   });
 
   it('matches declared nested field keys against discovered dotted keys', () => {
-    const parent = field('root', { nested: [field('leaf')] });
+    const parent = field('root', { type: 'object', allowExtraFields: true, nested: [field('leaf')] });
     const schema = schemaFixture([{ id: 'a', fields: [parent] }], [{ id: 'fx', type: 'json-file', path: 'f.json' }]);
     const merged = mergeSchemaWithCoreFields(schema, [discovered('root.leaf'), discovered('root.other')]);
     const sections = merged.sections ?? [];
     const extra = sections.at(-1)!;
     expect(extra.fields.map((entry) => entry.label)).toEqual(['root.other']);
+  });
+
+  it('keeps a declared child closed when its document permits extensions', () => {
+    const schema = schemaFixture([{ id: 'a', fields: [field('child', { type: 'object', nested: [field('known')] })] }]);
+    expect(mergeSchemaWithCoreFields(schema, [discovered('child.unknown')])).toBe(schema);
   });
 
   it('returns the original schema when every discovered field is already declared', () => {

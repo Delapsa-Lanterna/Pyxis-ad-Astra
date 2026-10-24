@@ -56,7 +56,7 @@ export const nSlider = {
 
 export const nSelect = {
   props: ['value', 'options', 'filterable', 'tag', 'clearable', 'disabled', 'size', 'show'],
-  emits: ['update:value', 'update:show'],
+  emits: ['update:value', 'update:show', 'search', 'blur'],
   template: `<select
     class="n-select-stub"
     :value="JSON.stringify(value ?? null)"

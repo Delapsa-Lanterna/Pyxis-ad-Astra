@@ -67,7 +67,7 @@ afterEach(async () => {
 });
 
 describe('window-owned feedback', () => {
-  it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '发射预览'])(
+  it.each(['沉浸式编辑器', '文件编辑器', 'Spec 编辑器', '开火预览'])(
     'assembles the shared %s titlebar inside the owning close boundary',
     async (title) => {
       const { wrapper } = windowHarness('child', title);

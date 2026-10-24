@@ -17,7 +17,7 @@ use crate::services::project::sources::core::{
 use crate::{
     domain::well_known_labels::{WellKnownCatalog, well_known_catalog},
     errors::{AppError, AppResult},
-    models::{CsvTableKey, ResourceSource, SourceOptionGroup},
+    models::{CsvTableKey, EntityKind, ResourceSource, SourceOptionGroup},
 };
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
@@ -216,7 +216,16 @@ fn config_source_option_groups(
         if !path.exists() {
             continue;
         }
-        let data = sources.json(&path)?;
+        let data = if source == "config:engineStyles" {
+            Value::Object(
+                super::super::sources::engine_styles::read_engine_styles(&root)?
+                    .0
+                    .into_iter()
+                    .collect(),
+            )
+        } else {
+            sources.json(&path)?
+        };
         let entries = if let Some(section) = section {
             let Some(value) = data.get(section) else {
                 continue;
@@ -340,21 +349,36 @@ fn entity_source_option_groups(
     (definition.prepare)(session)?;
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
-    let options =
-        entity_source_options(ResourceSource::Mod, (definition.list)(session)?, &mut seen);
-    if !options.is_empty() {
-        groups.push(SourceOptionGroup {
-            origin: ResourceSource::Mod,
-            options,
-        });
-    }
-    if let Some(core_list) = definition.core_list {
-        let options = entity_source_options(ResourceSource::Core, core_list(session)?, &mut seen);
+    for origin in [ResourceSource::Mod, ResourceSource::Core] {
+        let entities = if definition.kind == EntityKind::Projectile {
+            session
+                .projectile_specs
+                .values()
+                .filter(|record| record.location.source == origin)
+                .map(|record| super::super::model::EntityProjection {
+                    kind: EntityKind::Projectile,
+                    id: record.id.clone(),
+                    data: record.data.clone(),
+                    resource_refs:
+                        super::super::definitions::entity_resources::projectile_resource_refs(
+                            &record.id,
+                            &record.data,
+                        )
+                        .into_iter()
+                        .filter(|(key, _)| key == "sprite" || key == "bulletSprite")
+                        .collect(),
+                })
+                .collect()
+        } else if origin == ResourceSource::Mod {
+            (definition.list)(session)?
+        } else if let Some(core_list) = definition.core_list {
+            core_list(session)?
+        } else {
+            continue;
+        };
+        let options = entity_source_options(origin, entities, &mut seen);
         if !options.is_empty() {
-            groups.push(SourceOptionGroup {
-                origin: ResourceSource::Core,
-                options,
-            });
+            groups.push(SourceOptionGroup { origin, options });
         }
     }
     Ok(Some(groups))
@@ -374,7 +398,15 @@ fn entity_source_options(
             label: entity_source_option_label(&entity),
             value: entity.id.clone(),
             description: None,
-            resource_ref: entity.resource_refs.values().next().cloned(),
+            resource_ref: entity
+                .resource_refs
+                .values()
+                .next()
+                .cloned()
+                .map(|mut resource| {
+                    resource.source = origin;
+                    resource
+                }),
             origin,
             template_value: None,
             template_max: None,
@@ -701,6 +733,52 @@ fn add_faction_blueprint_metadata(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn projectile_reference_catalog() {
+        let root = crate::testutil::temp_dir("projectile_catalog");
+        let local = root.join("mod");
+        let core = root.join("starsector-core");
+        for dir in [&local, &core] {
+            std::fs::create_dir_all(dir.join("data/weapons/proj")).unwrap();
+        }
+        for (dir, id, sprite) in [
+            (&local, "shared", "mod.png"),
+            (&local, "local", "local.png"),
+            (&core, "shared", "overridden.png"),
+            (&core, "core_only", "core.png"),
+        ] {
+            crate::io::write_utf8_no_bom(
+                &dir.join(format!("data/weapons/proj/{id}.proj")),
+                &serde_json::json!({"id":id,"specClass":"missile","sprite":sprite}).to_string(),
+            )
+            .unwrap();
+        }
+        let mut trace = crate::services::project::PerformanceTrace::new("catalog.open");
+        let manifest =
+            crate::services::project::open_project_session_traced(&local, Some(&root), &mut trace)
+                .unwrap();
+        let groups =
+            crate::services::query_csv_source_options(&manifest.session_id, "csv:projectiles.id")
+                .unwrap();
+        crate::services::project::close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].origin, crate::models::ResourceSource::Mod);
+        assert_eq!(groups[1].origin, crate::models::ResourceSource::Core);
+        assert_eq!(
+            groups[0]
+                .options
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["local", "shared"]
+        );
+        assert_eq!(groups[1].options[0].value, "core_only");
+        assert_eq!(
+            groups[1].options[0].resource_ref.as_ref().unwrap().source,
+            crate::models::ResourceSource::Core
+        );
+    }
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::io::write_utf8_no_bom;

@@ -103,9 +103,7 @@
           "label": "粒子尺寸倍数",
           "description": "PARTICLES 模式下的尾迹粒子尺寸倍数。",
           "numberFormat": "starsector",
-          "requiredWhen": {
-            "mode": "PARTICLES"
-          }
+          "requiredWhen": { "mode": "PARTICLES" }
         },
         {
           "key": "contrailParticleDuration",
@@ -113,9 +111,7 @@
           "label": "粒子持续时间",
           "description": "PARTICLES 模式下的尾迹粒子持续时间，单位为秒。",
           "numberFormat": "starsector",
-          "requiredWhen": {
-            "mode": "PARTICLES"
-          }
+          "requiredWhen": { "mode": "PARTICLES" }
         },
         {
           "key": "contrailParticleFinalSizeMult",
@@ -130,9 +126,7 @@
           "label": "条带宽度倍数",
           "description": "QUAD_STRIP 模式下的尾迹宽度倍数。",
           "numberFormat": "starsector",
-          "requiredWhen": {
-            "mode": "QUAD_STRIP"
-          }
+          "requiredWhen": { "mode": "QUAD_STRIP" }
         },
         {
           "key": "contrailDuration",
@@ -140,9 +134,7 @@
           "label": "条带持续时间",
           "description": "QUAD_STRIP 模式下的尾迹持续时间，单位为秒。",
           "numberFormat": "starsector",
-          "requiredWhen": {
-            "mode": "QUAD_STRIP"
-          }
+          "requiredWhen": { "mode": "QUAD_STRIP" }
         },
         {
           "key": "contrailWidthAddedFractionAtEnd",
@@ -203,6 +195,7 @@
         "type": "SMOKE"
       }
     },
-    "presentation": "groups"
+    "presentation": "groups",
+    "allowExtraFields": true
   }
 }

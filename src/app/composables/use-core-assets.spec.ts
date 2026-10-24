@@ -151,7 +151,13 @@ describe('Core asset ownership and acceptance', () => {
     await Promise.all([schema.loadCoreFields(), graphics.loadGraphics()]);
     expect(schema.loaded.value).toBe(true);
     expect(graphics.graphicsPaths.value).toEqual(['graphics/a.png']);
-    expect(schema.getMergedSchema('faction')?.sections?.at(-1)?.id).toBe('__core_discovered');
+    expect(useCoreAssetsStore().fields.content).toEqual(fields);
+    expect(
+      schema
+        .getMergedSchema('faction')
+        ?.sections?.flatMap((section) => section.fields)
+        .some((field) => field.key === 'file.bonus'),
+    ).toBe(false);
     expect(schema.getMergedSchema('unknown')).toBeNull();
   });
 

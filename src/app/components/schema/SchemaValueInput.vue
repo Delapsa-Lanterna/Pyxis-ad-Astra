@@ -24,6 +24,7 @@
     :field="active"
     :value="value"
     :input-key="fieldInputKey"
+    :field-path="fieldPath"
     :runtime-context="runtimeContext"
     @update="emit('update', $event)"
   />
@@ -46,6 +47,7 @@
   />
   <SchemaScalarInput
     v-else
+    :field-path="fieldPath"
     :field="scalar"
     :value="value"
     :input-key="fieldInputKey"

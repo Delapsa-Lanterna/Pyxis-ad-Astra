@@ -21,11 +21,11 @@ const schema: FileSchema = {
   ],
 };
 
-function mountForm(modelValue: RowData) {
+function mountForm(modelValue: RowData, allowExtraFields?: boolean) {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
   return mount(SchemaFormRenderer, {
-    props: { schema, modelValue },
+    props: { schema: { ...schema, allowExtraFields }, modelValue },
     global: {
       components: { NCollapse, NCollapseItem },
       stubs: {
@@ -49,6 +49,15 @@ function mountForm(modelValue: RowData) {
 enableAutoUnmount(afterEach);
 
 describe('SchemaFormRenderer', () => {
+  it.each([undefined, false, true])('uses only the declaration %s to show an empty or populated extra section', async (allowed) => {
+    const form = mountForm({}, allowed);
+    expect(form.find('.json-stub').exists()).toBe(allowed === true);
+    await form.setProps({ modelValue: { name: 'kept', custom: null } });
+    expect(form.find('.json-stub').exists()).toBe(allowed === true);
+    form.findComponent({ name: 'SchemaFieldRenderer' }).vm.$emit('update', { kind: 'set', value: 'updated' });
+    await nextTick();
+    expect(form.emitted('update:modelValue')?.at(-1)).toEqual([{ name: 'updated', custom: null }]);
+  });
   it('mounts fields when their section first opens and retains them after closing', async () => {
     const form = mountForm({ name: 'a', level: 1 });
     expect(form.findAll('.schema-section')).toHaveLength(2);
@@ -80,7 +89,7 @@ describe('SchemaFormRenderer', () => {
   });
 
   it('renders extra keys through the JSON editor and writes them back', async () => {
-    const form = mountForm({ name: 'a', bonus: 5 });
+    const form = mountForm({ name: 'a', bonus: 5 }, true);
     const json = form.findComponent({ name: 'SchemaValueInput' });
     expect(json.exists()).toBe(true);
     expect(json.props('value')).toEqual({ bonus: 5 });
@@ -92,7 +101,7 @@ describe('SchemaFormRenderer', () => {
   });
 
   it('projects underscore-prefixed business fields into the extra editor', () => {
-    const form = mountForm({ name: 'a', _rowKey: 'business', nested: { _slot: 'weapon' } });
+    const form = mountForm({ name: 'a', _rowKey: 'business', nested: { _slot: 'weapon' } }, true);
     expect(form.findComponent({ name: 'SchemaValueInput' }).props('value')).toEqual({
       _rowKey: 'business',
       nested: { _slot: 'weapon' },

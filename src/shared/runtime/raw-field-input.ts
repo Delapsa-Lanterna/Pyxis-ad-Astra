@@ -5,6 +5,7 @@ export type InputConversion<T> = { kind: 'value'; value: T } | { kind: 'remove' 
 
 export function useRawFieldInput<T>(options: {
   key: string;
+  path?: string;
   label: string;
   text: () => string;
   convert: (raw: string) => InputConversion<T>;
@@ -51,6 +52,12 @@ export function useRawFieldInput<T>(options: {
   watch(options.text, () => {
     if (!dirty.value) synchronize();
   });
-  registerFieldInput({ key: options.key, label: options.label, dirty, commit, focus: options.focus, cancel });
+  const error = computed(() => {
+    if (!dirty.value) return null;
+    const converted = options.convert(raw.value);
+    return converted.kind === 'error' ? converted.message : null;
+  });
+  const validate = () => error.value;
+  registerFieldInput({ key: options.key, path: options.path, label: options.label, dirty, validate, commit, focus: options.focus, cancel });
   return { raw, dirty, invalid, update, commit, cancel };
 }

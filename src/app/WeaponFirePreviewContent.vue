@@ -36,7 +36,7 @@ import WeaponFirePreview from '@/app/components/weapon-fire-preview/WeaponFirePr
 import { useWeaponFirePreviewWindowViewModel } from '@/app/composables/weapon-fire-preview/use-weapon-fire-preview-window-view-model';
 const settings = useSettingsStore();
 const { target, data, loading, errorText, contentReady, dispose } = useWeaponFirePreviewWindowViewModel();
-const closeGuard = useDirtyWindowCloseGuard({ dirty: ref(false), title: '关闭发射预览？', content: '关闭发射预览窗口。' });
+const closeGuard = useDirtyWindowCloseGuard({ dirty: ref(false), title: '关闭开火预览？', content: '关闭开火预览窗口。' });
 function closeWindow() {
   void closeCurrentWindow();
 }

@@ -147,7 +147,7 @@ describe('weapon fire preview source and read lifetime', () => {
     await flushPromises();
     expect(vm.data.value).toBe(accepted);
     expect(vm.loading.value).toBe(false);
-    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '刷新发射预览失败');
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '刷新开火预览失败');
     invalidate();
     await flushPromises();
     expect(vm.data.value?.weapon.id).toBe('w');

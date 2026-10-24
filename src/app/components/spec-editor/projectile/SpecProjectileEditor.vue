@@ -13,7 +13,9 @@
         ><n-button :disabled="!dirty || saving" @click="$emit('reset-requested')">重置</n-button
         ><n-button type="primary" :disabled="!canSave" :loading="saving" @click="$emit('save-requested')">保存</n-button></template
       >
-      <n-button size="small" @click="actions.resetView">适应视图</n-button>
+      <n-button size="small" :type="view.fitted ? 'primary' : 'default'" :aria-pressed="view.fitted" @click="actions.resetView"
+        >适应视图</n-button
+      >
     </EditorHeader>
     <div class="editor-body ui-content-contained">
       <div ref="stageRef" class="canvas-stage ui-content-contained ui-content-surface-muted">
@@ -42,6 +44,7 @@
         @focusout.capture="canvas.fieldBlur"
         @keyup.capture="canvas.fieldKey"
       >
+        <template #problems><SpecProblems /></template>
         <n-collapse v-model:expanded-names="view.expandedSections">
           <n-collapse-item
             v-for="section in view.sections"
@@ -55,6 +58,7 @@
               :fields="section.fields"
               :image-fields="['sprite', 'bulletSprite', 'glowSprite']"
               :readonly-fields="['id']"
+              @remove="actions.removeField"
               @update="actions.setProperty"
               @browse="actions.pickProjectileSprite"
             />
@@ -74,16 +78,15 @@
                   :content="document"
                   :fields="engineFields"
                   :prefix="'engineSlots[' + index + '].'"
+                  @remove="actions.removeField"
                   @update="actions.setProperty"
                 />
                 <SpecFieldList
                   v-if="slot.style === 'CUSTOM'"
                   :content="document"
-                  :fields="[
-                    ['styleId', '命名样式 ID', '', view.engineStyles],
-                    ['styleSpec', '内联样式', {}],
-                  ]"
+                  :fields="PROJECTILE_CUSTOM_ENGINE_FIELDS"
                   :prefix="'engineSlots[' + index + '].'"
+                  @remove="actions.removeField"
                   @update="actions.setProperty"
                 />
                 <FieldHints v-if="slot.style === 'CUSTOM'" description="styleId 优先；内联样式支持 PARTICLES 与 QUAD_STRIP。" />
@@ -104,16 +107,9 @@
                 :content="document"
                 :fields="EXPLOSION_FIELDS"
                 prefix="explosionSpec."
+                @remove="actions.removeField"
                 @update="actions.setProperty"
               />
-              <FieldRow v-if="document.explosionSpec" label="爆炸扩展字段" field-key="explosionSpec" layout="group">
-                <JsonValueInput
-                  :value="view.explosionExtras"
-                  label="explosion-extra"
-                  shape="object"
-                  @update="actions.explosionExtrasUpdated"
-                />
-              </FieldRow>
             </template>
             <template v-if="section.name === 'scripts'">
               <FieldHints description="behavior 支持 PROXIMITY_FUSE、MIRV、CUSTOM；对象参数交给对应 AI 或脚本消费。" />
@@ -121,12 +117,6 @@
                 <n-button @click="actions.removeProperty('behaviorSpec')">删除</n-button>
               </div>
             </template>
-            <JsonFieldEditor
-              v-if="section.name === 'extra'"
-              :model-value="document"
-              :known-keys="view.knownKeys"
-              @update:model-value="actions.projectileUpdated"
-            />
           </n-collapse-item>
         </n-collapse>
       </EditorInspector>
@@ -136,19 +126,21 @@
 </template>
 <script setup lang="ts">
 import { computed, useTemplateRef } from 'vue';
-import type { SpecField } from '@/domain/editors/spec-construction';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SpecFieldList from '../SpecFieldList.vue';
+import SpecProblems from '../SpecProblems.vue';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import FieldHints from '@/shared/ui/FieldHints.vue';
-import JsonValueInput from '@/shared/ui/JsonValueInput.vue';
-import JsonFieldEditor from '@/shared/ui/JsonFieldEditor.vue';
 import EditorFooter from '@/app/components/editors/common/EditorFooter.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import EditorInspector from '@/app/components/editors/common/EditorInspector.vue';
 import { entryKey } from '@/shared/lib/entry-keys';
-import { EXPLOSION_FIELDS, MISSILE_ENGINE_FIELDS } from '@/domain/spec-editor/projectile/spec-projectile-fields';
+import {
+  EXPLOSION_FIELDS,
+  MISSILE_ENGINE_FIELDS,
+  PROJECTILE_CUSTOM_ENGINE_FIELDS,
+} from '@/domain/spec-editor/projectile/spec-projectile-fields';
 import {
   useSpecProjectileEditorViewModel,
   type SpecProjectileEditorProps,
@@ -162,7 +154,7 @@ const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
 const { document, view, actions, canvas } = useSpecProjectileEditorViewModel(props, emit, { editorWindowRef, stageRef, canvasRef });
 const engineFields = computed(() =>
   MISSILE_ENGINE_FIELDS.map((field) =>
-    field[0] === 'style' ? ([field[0], field[1], '', [...new Set([...view.engineStyles, 'CUSTOM'])], true] as SpecField) : field,
+    field.key === 'style' ? { ...field, options: [...new Set([...view.engineStyles, 'CUSTOM'])] } : field,
   ),
 );
 </script>

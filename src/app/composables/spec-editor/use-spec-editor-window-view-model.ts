@@ -8,7 +8,8 @@ import {
 import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';
 import type { SpecEditorDefinition, SpecEditorTarget } from './spec-editor.types';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
-import { computed, shallowRef } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
+import { createSpecProblems } from './use-spec-problems';
 import type { UnlistenFn } from '@/windows/tauri.events';
 import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
 import type { SpecEditorKind, RowData, WriteResult, SpecEditorData } from '@/shared/types/index';
@@ -58,6 +59,35 @@ export function useSpecEditorWindowViewModel(
         };
       },
       save: async (target, draft, baseVersions) => {
+        problems.clearFailure();
+        const context = draftSession.context.value;
+        for (;;) {
+          await draftSession.inputs.commit();
+          if (draftSession.context.value !== context) return;
+          draft = deepClone(draftSession.draftValue.value);
+          const issues = problems.issues.value;
+          if (issues.some((issue) => issue.severity === 'error')) throw new AppError('规格内容无效', { action: 'spec-validation' });
+          const warnings = issues.filter((issue) => issue.severity === 'warning');
+          if (!warnings.length) break;
+          const checked = JSON.stringify([draft, warnings]);
+          const choice = await feedback.choose({
+            title: '仍有保存提醒',
+            content: warnings.map((issue) => issue.message).join('\n'),
+            choices: [{ label: '仍然保存', value: 'save', type: 'warning' }],
+          });
+          if (choice !== 'save' || draftSession.context.value !== context) return;
+          await draftSession.inputs.commit();
+          if (draftSession.context.value !== context) return;
+          if (problems.issues.value.some((issue) => issue.severity === 'error'))
+            throw new AppError('规格内容无效', { action: 'spec-validation' });
+          if (
+            checked ===
+            JSON.stringify([draftSession.draftValue.value, problems.issues.value.filter((issue) => issue.severity === 'warning')])
+          ) {
+            draft = deepClone(draftSession.draftValue.value);
+            break;
+          }
+        }
         const submittedData = deepClone(editorData.value!);
         const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
         const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
@@ -84,6 +114,8 @@ export function useSpecEditorWindowViewModel(
         };
       },
       targetKey: editorWindowTargetKey,
+      mapSaveError: (error) => problems.mapSaveError(error),
+      afterSaved: () => problems.clearFailure(),
       withSavePreparation: async (target, submit) =>
         identityPreparation!.withPreparation(target.sessionId, target.modRoot, editorData.value!.target, async (info) => {
           if (info) {
@@ -129,6 +161,8 @@ export function useSpecEditorWindowViewModel(
         });
       },
     });
+  const problems = createSpecProblems(draftSession.inputs, () => definition.validate?.(draftSession.draftValue.value) ?? []);
+  watch(draftSession.context, () => problems.clearFailure(), { flush: 'sync' });
   const unregisterSave = useSaveCommandStore().registerSaveSession({
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
@@ -172,10 +206,7 @@ export function useSpecEditorWindowViewModel(
   const editContext = draftSession.context;
   const draftSaving = draftSession.saving;
   const externalUpdateNotice = draftSession.externalUpdateNotice;
-  const canSaveSpec = computed(
-    () =>
-      draftSession.ready.value && (draftSession.hasPendingSynchronization.value || draftDirty.value || Boolean(editorData.value?.isNew)),
-  );
+  const canSaveSpec = computed(() => draftSession.ready.value);
 
   const missingEditorText = computed(() => {
     const target = editorWindowTarget();
@@ -418,6 +449,7 @@ export function useSpecEditorWindowViewModel(
   }
 
   return {
+    problems,
     inputs: draftSession.inputs,
     refresh: (resources: readonly import('@/shared/types/index').InvalidatedResourceScope[], paths: string[] = []) =>
       refreshProjectSourcePaths(

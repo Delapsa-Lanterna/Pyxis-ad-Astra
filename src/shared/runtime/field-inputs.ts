@@ -12,11 +12,14 @@ import {
 } from 'vue';
 import { AppError } from '@/shared/lib/errors';
 import { debugLog } from './app-log-queue';
+import type { FieldProblem } from '@/shared/types';
 
 export interface FieldInput {
   key: string;
+  path?: string;
   dirty: Readonly<Ref<boolean>>;
   label: string;
+  validate?: () => string | null;
   commit: () => string | null;
   focus: () => void | Promise<void>;
   cancel: () => void;
@@ -27,8 +30,21 @@ const fieldInputsKey: InjectionKey<FieldInputs> = Symbol('field-inputs');
 
 export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(null)) {
   const fields = shallowReactive(new Set<FieldInput>());
+  const validators = shallowReactive(new Set<() => FieldProblem[]>());
+  const documentProblems = computed(() => [...validators].flatMap((read) => read()));
+  const hasDocumentValidation = computed(() => validators.size > 0);
+  function registerDocumentValidation(read: () => FieldProblem[]) {
+    validators.add(read);
+    return () => validators.delete(read);
+  }
   const finalizers = new Map<() => void | boolean | Promise<void | boolean>, string | undefined>();
   const dirty = computed(() => [...fields].some((field) => field.dirty.value));
+  const errors = computed(() =>
+    [...fields].flatMap((field) => {
+      const message = field.validate?.();
+      return message ? [{ key: field.key, path: field.path, label: field.label, message }] : [];
+    }),
+  );
   let generation = 0;
 
   function register(field: FieldInput) {
@@ -85,6 +101,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     cancel();
     fields.clear();
     finalizers.clear();
+    validators.clear();
   }
   function registerFinalizer(finalize: () => void | boolean | Promise<void | boolean>, key?: string) {
     finalizers.set(finalize, key);
@@ -97,7 +114,21 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     const captured = generation;
     return () => captured === generation;
   }
-  return { targetKey, dirty, dirtyDescendants, register, registerFinalizer, captureContext, commit, cancel, release };
+  return {
+    targetKey,
+    dirty,
+    errors,
+    documentProblems,
+    hasDocumentValidation,
+    registerDocumentValidation,
+    dirtyDescendants,
+    register,
+    registerFinalizer,
+    captureContext,
+    commit,
+    cancel,
+    release,
+  };
 }
 
 export function provideFieldInputs(state = createFieldInputs()) {

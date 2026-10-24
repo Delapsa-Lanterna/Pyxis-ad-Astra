@@ -21,14 +21,21 @@ export type FieldType = (typeof FIELD_TYPES)[number];
 export type SchemaFieldUpdate = { kind: 'set'; value: unknown } | { kind: 'remove' };
 
 export const FIELD_TYPE_SET: ReadonlySet<string> = new Set(FIELD_TYPES);
+export type SchemaVisibility = Record<string, string[] | { gt: number }> | Record<string, string[] | { gt: number }>[];
 
 export interface FieldSchema {
+  ref?: string;
+  visibleWhen?: SchemaVisibility;
+  issueCode?: string;
+  issueMessage?: string;
+  identity?: boolean;
   key: string;
   type: FieldType;
   label: string;
   description?: string;
   required?: boolean;
   editable?: boolean;
+  allowExtraFields?: boolean;
   partial?: boolean;
   default?: unknown;
   warning?: string;
@@ -40,7 +47,7 @@ export interface FieldSchema {
   minEntries?: number;
   maxEntries?: number;
   exclusiveKeys?: string[];
-  requiredWhen?: Record<string, string>;
+  requiredWhen?: Record<string, string | { min: number } | { missing: true }>;
   step?: number;
   options?: string[];
   nested?: FieldSchema[];
@@ -57,6 +64,7 @@ export interface FieldSchema {
 }
 
 export interface SectionSchema {
+  visibleWhen?: SchemaVisibility;
   id: string;
   label: string;
   collapsed?: boolean;
@@ -78,8 +86,10 @@ export interface SchemaSource {
 }
 
 export interface FileSchema {
+  definitions?: Record<string, FieldSchema>;
   $schema?: string;
   id: string;
+  allowExtraFields?: boolean;
   fileType?: string;
   displayName?: string;
   description?: string;

@@ -300,6 +300,7 @@
         "dHullOverlayHeavy": "graphics/damage/dmod_overlay_lowtech_heavy.png"
       }
     },
-    "presentation": "groups"
+    "presentation": "groups",
+    "allowExtraFields": true
   }
 }

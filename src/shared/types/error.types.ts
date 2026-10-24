@@ -14,3 +14,10 @@ export interface FeedbackNotice {
   userMessage: string;
   diagnostic: ErrorDiagnostic;
 }
+
+export interface FieldProblem {
+  severity: 'error' | 'warning';
+  code: string;
+  path: string;
+  message: string;
+}

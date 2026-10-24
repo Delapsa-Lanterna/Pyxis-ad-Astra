@@ -80,6 +80,44 @@ function mountBoundField(field: FieldSchema, initial: unknown) {
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
+  it.each([undefined, false, true])('keeps object expansion permission %s independent of its contents', async (allowed) => {
+    const definition = fieldFixture('object', {
+      allowExtraFields: allowed,
+      nested: [{ key: 'known', label: 'Known', type: 'string' }],
+    });
+    const { value, inputs } = mountBoundField(definition, { known: 'kept', custom: null });
+    const extra = wrapper!.findAll('.schema-section').filter((group) => group.text().includes('额外字段'));
+    expect(extra).toHaveLength(allowed === true ? 1 : 0);
+    await wrapper!.get('input').setValue('updated');
+    await inputs.commit();
+    expect(value.value).toEqual({ known: 'updated', custom: null });
+    value.value = { known: 'updated' };
+    await nextTick();
+    expect(wrapper!.findAll('.schema-section')).toHaveLength(allowed === true ? 1 : 0);
+    if (allowed) {
+      await wrapper!.findAll('button').at(-1)!.trigger('click');
+      expect(value.value).toEqual({ known: 'updated', newField: null });
+    }
+  });
+
+  it('keeps list-item and nested-object permissions independent of their open parent', async () => {
+    const definition = fieldFixture('object', {
+      allowExtraFields: true,
+      nested: [
+        {
+          key: 'items',
+          label: 'Items',
+          type: 'array',
+          item: { key: 'item', label: 'Item', type: 'object', nested: [{ key: 'name', label: 'Name', type: 'string' }] },
+        },
+      ],
+    });
+    const { value, inputs } = mountBoundField(definition, { items: [{ name: 'kept', ignored: { private: true } }] });
+    expect(wrapper!.text()).not.toContain('ignored');
+    await wrapper!.get('input').setValue('updated');
+    await inputs.commit();
+    expect(value.value).toEqual({ items: [{ name: 'updated', ignored: { private: true } }] });
+  });
   it.each([
     ['true', undefined, true],
     ['FALSE', undefined, false],
@@ -243,7 +281,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     useSettingsStore().setEditMode(mode);
     const initial = { known: 'kept', 'extra.key': { enabled: true, count: 3 }, nil: null };
     const { value, inputs } = mountBoundField(
-      fieldFixture('object', { nested: [{ key: 'known', label: 'Known', type: 'string' }] }),
+      fieldFixture('object', { allowExtraFields: true, nested: [{ key: 'known', label: 'Known', type: 'string' }] }),
       initial,
     );
     if (mode === 'smart') {
@@ -277,7 +315,11 @@ describe('SchemaFieldRenderer smart mode', () => {
     'retains the stored dictionary form when renaming an entry',
     async (initial) => {
       const { value } = mountBoundField(
-        fieldFixture('object', { format: 'array-of-entries', valueSchema: { key: 'value', label: 'Value', type: 'string' } }),
+        fieldFixture('object', {
+          allowExtraFields: true,
+          format: 'array-of-entries',
+          valueSchema: { key: 'value', label: 'Value', type: 'string' },
+        }),
         initial,
       );
       await wrapper!.findAll('input.field-map-key-editor')[0]!.setValue('renamed.key');
@@ -378,7 +420,7 @@ describe('SchemaFieldRenderer smart mode', () => {
       {
         setup: () => () =>
           h(SchemaFieldRenderer, {
-            field: fieldFixture('object'),
+            field: fieldFixture('object', { allowExtraFields: true }),
             value: values.value,
             onUpdate: (value) => {
               if (value.kind === 'set') values.value = value.value as typeof values.value;
@@ -523,7 +565,7 @@ describe('SchemaFieldRenderer smart mode', () => {
           provideFieldInputs(inputs);
           return () =>
             h(SchemaFieldRenderer, {
-              field: fieldFixture('object', { source: 'csv:ships.tags' }),
+              field: fieldFixture('object', { allowExtraFields: true, source: 'csv:ships.tags' }),
               value: value.value,
               runtimeContext,
               onUpdate: (update) => {

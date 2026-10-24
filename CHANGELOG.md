@@ -12,7 +12,7 @@
 
 - 首个公开版本：Windows 桌面 Mod 工作区，可打开游戏目录或独立 Mod 目录并管理多个 Mod。
 - 已注册 CSV 表、`mod_info.json`、Faction、Mission、Variant、Skin、通用文本与保存历史编辑链路。
-- 舰船、武器、弹体和战术系统编辑器，及武器发射预览。
+- 舰船、武器、弹体和战术系统编辑器，及武器开火预览。
 - 当前 Mod 优先、原版回退的引用/资源查询与 PNG 资源导入。
 
 ### Changed

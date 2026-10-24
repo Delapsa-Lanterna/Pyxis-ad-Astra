@@ -4,6 +4,7 @@
       <span>{{ title }}</span
       ><small class="editor-inspector-heading-meta ui-text-muted">属性编辑</small>
     </div>
+    <slot name="problems" />
     <div class="editor-scroll editor-fields ui-content-scroll"><slot /></div>
   </aside>
 </template>

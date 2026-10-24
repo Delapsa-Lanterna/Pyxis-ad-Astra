@@ -2,15 +2,20 @@
   <SchemaScalarInput v-if="plainMode" :field="field" :value="value" :input-key="inputKey" @update="emit('update', $event)" />
   <n-select
     v-else-if="field.type === 'enum'"
+    ref="referenceSelect"
+    :show="reference ? referenceOpen : undefined"
     :value="strVal"
     :options="displayOptions"
     :render-label="renderSelectLabel"
     :filterable="Boolean(field.source)"
-    :tag="isConfigSource(field.source)"
     size="small"
     :clearable="!field.required"
+    :disabled="field.editable === false"
     @update:show="handleSelectShowUpdate"
-    @update:value="emitValue($event ?? '')"
+    @search="$event ? reference?.update($event) : reference?.cancel()"
+    @blur="reference?.commit()"
+    @keydown.esc="reference?.cancel()"
+    @update:value="reference ? (reference.update($event ?? ''), reference.commit()) : emitValue($event ?? '')"
   />
   <div v-else-if="field.type === 'path-image' || field.type === 'path'" class="path-field ui-control-row">
     <n-select
@@ -24,6 +29,7 @@
       size="small"
       placeholder="搜索或输入图片路径"
       class="path-select"
+      :disabled="field.editable === false"
       @update:show="handleSelectShowUpdate"
       @update:value="emitValue($event ?? '')"
     />
@@ -43,15 +49,20 @@
   </div>
   <div v-else class="ui-layout-row ui-layout-stack ui-layout-stretch">
     <n-select
+      ref="referenceSelect"
+      :show="reference ? referenceOpen : undefined"
       :value="field.type === 'tag-select' ? tagSelectVal : arrVal"
-      :options="field.type === 'tag-select' ? tagDisplayOptions : listOptions"
+      :options="listOptions"
       :render-label="renderSelectLabel"
       :render-tag="renderSelectTag"
       multiple
       filterable
-      tag
+      :tag="!reference"
       size="small"
       @update:show="handleSelectShowUpdate"
+      @search="$event ? reference?.update($event) : reference?.cancel()"
+      @blur="reference?.commit()"
+      @keydown.esc="reference?.cancel()"
       @update:value="updateTagSelection"
     />
     <div v-if="customTag !== null" class="ui-control-row">
@@ -79,7 +90,7 @@ import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media'
 import { useCoreGraphics } from '@/app/composables/use-core-assets';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { isCsvSource } from '@/domain/schema/csv-source-options';
-import { isConfigSource } from '@/domain/schema/schema-sources';
+import { isEntitySource } from '@/domain/schema/schema-sources';
 import {
   fieldSourceCurrentValues,
   includeCurrentSelectOptions,
@@ -94,16 +105,51 @@ import {
   schemaTagValues,
   wrapSchemaTagValues,
   schemaPathDisplayLabel,
+  convertSchemaScalarInput,
 } from '@/domain/schema/schema-values';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { ResourceRef } from '@/shared/types';
-const props = defineProps<{ field: FieldSchema; value: unknown; inputKey: string; runtimeContext?: SchemaRuntimeContext | null }>();
+import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
+const props = defineProps<{
+  field: FieldSchema;
+  value: unknown;
+  inputKey: string;
+  fieldPath?: string;
+  runtimeContext?: SchemaRuntimeContext | null;
+}>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const mode = useInputEditMode();
 const plainMode = computed(() => mode.value === 'plain');
 const fieldInputKey = computed(() => props.inputKey);
 const strVal = computed(() => schemaStringValue(props.value));
+const referenceOpen = ref(false),
+  referenceSelect = ref<{ focusInput: () => void } | null>(null);
+const reference =
+  props.field.source && ['enum', 'string-array', 'tag-select'].includes(props.field.type)
+    ? useRawFieldInput<string>({
+        key: props.inputKey,
+        path: props.fieldPath ?? props.field.key,
+        label: props.field.label,
+        text: () => (props.field.type === 'enum' ? strVal.value : ''),
+        convert: (text) => {
+          if (props.field.type !== 'enum') return { kind: 'value', value: text };
+          if (text === '') return props.field.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'remove' };
+          const result = convertSchemaScalarInput(text, props.field);
+          return result.kind === 'set' ? { kind: 'value', value: String(result.value) } : result;
+        },
+        apply: (result) => {
+          if (props.field.type !== 'enum' && result.kind === 'value') {
+            const values = [...new Set([...(props.field.type === 'tag-select' ? tagSelectVal.value : arrVal.value), result.value])];
+            emitValue(props.field.type === 'tag-select' ? wrapTags(values) : values);
+          } else emit('update', result.kind === 'remove' ? result : { kind: 'set', value: result.value });
+        },
+        focus: () => referenceSelect.value?.focusInput(),
+        onCancel: () => {
+          referenceOpen.value = false;
+        },
+      })
+    : null;
 const arrVal = computed(() => schemaArrayStringValues(props.value));
 const tagSelectVal = computed(() => schemaTagValues(props.value));
 const { graphicsPaths, loadGraphics } = useCoreGraphics();
@@ -153,13 +199,13 @@ function collectOptionMedia(options: SelectOption[]): OptionMediaEntry[] {
 
 function ensureSelectMedia(id: string) {
   const sessionId = props.runtimeContext?.sessionId;
-  if (!sessionId || !isCsvSource(props.field.source)) return;
+  if (!sessionId || (!isCsvSource(props.field.source) && !isEntitySource(props.field.source))) return;
   void replaceSchemaSelectSprites(sessionId, id, []);
 }
 
 function ensureCurrentMedia() {
   const sessionId = props.runtimeContext?.sessionId;
-  if (!isCsvSource(props.field.source) || !sessionId) {
+  if ((!isCsvSource(props.field.source) && !isEntitySource(props.field.source)) || !sessionId) {
     void replaceSchemaSelectSprites(sessionId, 'selected', []);
     return;
   }
@@ -216,15 +262,17 @@ const enumOptions = computed(() => {
 // Ghost echo: values missing from the catalog (broken refs, manual input) enter the option tree as raw text.
 const enumValues = computed(() => selectOptionValues(enumOptions.value));
 const sourceValues = computed(() => selectOptionValues(sourceOptions.value));
-const displayOptions = computed(() =>
-  includeCurrentSelectOptions(enumOptions.value, fieldSourceCurrentValues(props.field, props.value), enumValues.value),
-);
-const listOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, arrVal.value, sourceValues.value));
-const tagDisplayOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, tagSelectVal.value, sourceValues.value));
+const referenceValues = computed(() => [
+  ...fieldSourceCurrentValues(props.field, props.value),
+  ...(reference?.dirty.value && reference.raw.value ? [reference.raw.value] : []),
+]);
+const displayOptions = computed(() => includeCurrentSelectOptions(enumOptions.value, referenceValues.value, enumValues.value));
+const listOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, referenceValues.value, sourceValues.value));
 
 const customTag = ref<string | null>(null);
 const customTagInput = ref<InstanceType<typeof SchemaScalarInput> | null>(null);
 function updateTagSelection(values: string[]) {
+  reference?.update('');
   const template = sourceOptions.value
     .flatMap((group) => group.children ?? [group])
     .find((option) => option.templateValue !== undefined && values.includes(option.value));
@@ -243,6 +291,7 @@ watch(
   () => [fieldInputKey.value, props.field.source, props.runtimeContext?.sessionId, props.runtimeContext?.sourceContextKey],
   () => {
     customTag.value = null;
+    reference?.cancel();
   },
 );
 
@@ -269,6 +318,7 @@ function renderGraphicsLabel(option: SelectOption & { label?: string; value?: st
 }
 
 function handleSelectShowUpdate(show: boolean) {
+  referenceOpen.value = show;
   if (show) ensureSelectMedia('menu');
   else void releaseSchemaSelectSprites('menu');
 }

@@ -30,8 +30,8 @@
             固定视图 <span class="ship-mode-shortcut ui-text-meta ui-text-muted">H</span>
           </button>
         </div>
-        <n-button :aria-pressed="view.mirror" @click="actions.toggleMirror">镜像编辑</n-button>
-        <n-button @click="actions.fitView">适应视图</n-button>
+        <n-button :type="view.mirror ? 'primary' : 'default'" :aria-pressed="view.mirror" @click="actions.toggleMirror">镜像编辑</n-button>
+        <n-button :type="view.fitted ? 'primary' : 'default'" :aria-pressed="view.fitted" @click="actions.fitView">适应视图</n-button>
         <span class="ship-mode-hint ui-text-muted">T 打开右侧</span>
       </div>
     </EditorHeader>
@@ -54,6 +54,7 @@
         @focusout.capture="canvas.fieldBlur"
         @keyup.capture="canvas.fieldKey"
       >
+        <template #problems><SpecProblems /></template>
         <n-collapse v-model:expanded-names="view.expandedSections" @update:expanded-names="canvas.onExpandedSectionsUpdate">
           <n-collapse-item
             v-for="section in view.sections"
@@ -67,14 +68,10 @@
               :fields="section.fields"
               :image-fields="view.spriteFields"
               :readonly-fields="['id']"
+              @remove="actions.removeField"
               @update="actions.setProperty"
               @browse="actions.pickWeaponSprite"
-              ><template #projectileSpecId="{ value, path }"
-                ><n-auto-complete
-                  :value="value"
-                  :options="view.projectileOptions"
-                  @update:value="actions.setProperty(path, $event)" /></template
-            ></SpecFieldList>
+            />
             <template v-if="section.name === 'turretBarrels' || section.name === 'hardpointBarrels'">
               <div class="item-list ui-layout-grid">
                 <button
@@ -136,32 +133,24 @@
                   :content="document"
                   :fields="fields"
                   :prefix="key + '.'"
+                  @remove="actions.removeField"
                   @update="actions.setProperty"
                 />
-                <FieldRow v-if="document[key]" label="配置扩展字段" :field-key="key" layout="group">
-                  <JsonValueInput
-                    :value="view.objectExtras(key)"
-                    :label="key + '-extra'"
-                    shape="object"
-                    @update="actions.objectExtrasUpdated(key, $event)"
-                  />
-                </FieldRow>
               </div>
             </div>
             <FieldHints v-if="section.name === 'anim'" description="原版帧图片使用 _00.png、_01.png 等独立序列文件。" />
             <div v-if="section.name === 'proj'" class="action-group">
-              <n-button @click="actions.editProjectile">编辑弹体</n-button><n-button @click="actions.preview">发射预览</n-button>
+              <n-button @click="actions.editProjectile">编辑弹体</n-button><n-button @click="actions.preview">开火预览</n-button>
             </div>
-            <div v-if="section.name === 'beam'" class="action-group"><n-button @click="actions.preview">预览光束</n-button></div>
+            <div v-if="section.name === 'beam'" class="action-group"><n-button @click="actions.preview">开火预览</n-button></div>
             <div v-if="section.name === 'glow'" class="action-group">
-              <n-button :aria-pressed="view.glowPreviewEnabled" @click="actions.toggleGlowPreview">预览光效</n-button>
+              <n-button
+                :type="view.glowPreviewEnabled ? 'primary' : 'default'"
+                :aria-pressed="view.glowPreviewEnabled"
+                @click="actions.toggleGlowPreview"
+                >预览光效</n-button
+              >
             </div>
-            <JsonFieldEditor
-              v-if="section.name === 'extra'"
-              :model-value="document"
-              :known-keys="view.knownKeys"
-              @update:model-value="actions.extrasUpdated"
-            />
           </n-collapse-item>
         </n-collapse>
       </EditorInspector>
@@ -174,11 +163,10 @@ import { useTemplateRef } from 'vue';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SpecFieldList from '../SpecFieldList.vue';
+import SpecProblems from '../SpecProblems.vue';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import FieldHints from '@/shared/ui/FieldHints.vue';
 import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
-import JsonValueInput from '@/shared/ui/JsonValueInput.vue';
-import JsonFieldEditor from '@/shared/ui/JsonFieldEditor.vue';
 import EditorFooter from '@/app/components/editors/common/EditorFooter.vue';
 import EditorHeader from '@/app/components/editors/common/EditorHeader.vue';
 import EditorInspector from '@/app/components/editors/common/EditorInspector.vue';

@@ -3,13 +3,7 @@
   "id": "sounds",
   "gameVersion": "0.98a-RC8",
   "displayName": "声音",
-  "sources": [
-    {
-      "id": "file",
-      "type": "json-file",
-      "path": "data/config/sounds.json"
-    }
-  ],
+  "sources": [{ "id": "file", "type": "json-file", "path": "data/config/sounds.json" }],
   "root": {
     "key": "file",
     "type": "object",
@@ -75,14 +69,11 @@
                 "description": "使用 files 时生效，默认关闭。"
               }
             ],
-            "default": {
-              "source": "sounds/music",
-              "file": "",
-              "volume": 1
-            },
+            "default": { "source": "sounds/music", "file": "", "volume": 1 },
             "exclusiveKeys": ["file", "files"]
           }
-        }
+        },
+        "allowExtraFields": true
       }
     ],
     "valueSchema": {
@@ -116,11 +107,7 @@
             "numberFormat": "starsector"
           }
         ],
-        "default": {
-          "file": "",
-          "pitch": 1,
-          "volume": 1
-        }
+        "default": { "file": "", "pitch": 1, "volume": 1 }
       },
       "variants": [
         {
@@ -154,11 +141,7 @@
                 "numberFormat": "starsector"
               }
             ],
-            "default": {
-              "file": "",
-              "pitch": 1,
-              "volume": 1
-            }
+            "default": { "file": "", "pitch": 1, "volume": 1 }
           }
         },
         {
@@ -199,17 +182,11 @@
                     "numberFormat": "starsector"
                   }
                 ],
-                "default": {
-                  "file": "",
-                  "pitch": 1,
-                  "volume": 1
-                }
+                "default": { "file": "", "pitch": 1, "volume": 1 }
               }
             }
           ],
-          "default": {
-            "sounds": []
-          },
+          "default": { "sounds": [] },
           "valueSchema": {
             "key": "rule",
             "type": "object",
@@ -246,14 +223,13 @@
                 "numberFormat": "starsector"
               }
             ],
-            "default": {
-              "pitch": 1,
-              "volume": 1
-            }
-          }
+            "default": { "pitch": 1, "volume": 1 }
+          },
+          "allowExtraFields": true
         }
       ]
     },
-    "presentation": "groups"
+    "presentation": "groups",
+    "allowExtraFields": true
   }
 }

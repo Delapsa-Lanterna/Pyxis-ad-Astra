@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/entity-target';
 import type { EntityData, ResourceRef, RowData } from '@/shared/types/index';
-import { querySpecWeaponEditorData, querySpecWeaponEditorImages, querySpecWeaponProjectileOptions } from './spec-weapon-editor.service';
+import { querySpecWeaponEditorData, querySpecWeaponEditorImages } from './spec-weapon-editor.service';
 
 const mocks = vi.hoisted(() => ({ entity: vi.fn(), list: vi.fn(), resources: vi.fn(), images: vi.fn() }));
 vi.mock('@/services/entity-query.service', () => ({
@@ -50,16 +50,6 @@ describe('weapon editor queries', () => {
   it('preserves the missing weapon query diagnostic', async () => {
     mocks.entity.mockResolvedValue(null);
     await expect(querySpecWeaponEditorData('s1', 'ghost')).rejects.toThrow('找不到 ghost 的 weapon 数据');
-  });
-  it('reads the current projectile catalogue independently of the weapon spec', async () => {
-    mocks.list.mockResolvedValueOnce([{ id: 'shot' }, { id: 'missile' }]);
-    expect(await querySpecWeaponProjectileOptions('s1')).toEqual([
-      { label: 'shot', value: 'shot' },
-      { label: 'missile', value: 'missile' },
-    ]);
-    mocks.list.mockResolvedValueOnce([]);
-    expect(await querySpecWeaponProjectileOptions('s1')).toEqual([]);
-    expect(mocks.list).toHaveBeenCalledWith('s1', 'projectile', undefined);
   });
   it('resolves authorized images from the submitted weapon references', async () => {
     const draft = { id: 'railgun', turretSprite: 'graphics/draft.png' };

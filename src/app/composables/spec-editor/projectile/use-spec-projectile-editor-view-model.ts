@@ -1,7 +1,8 @@
 import { computed, reactive, ref, watch, onMounted, onScopeDispose, type EmitFn, type ShallowRef } from 'vue';
 import { useEditorDocument } from '../../editors/use-editor-document';
 import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
-import { EXPLOSION_FIELDS, projectileSections } from '@/domain/spec-editor/projectile/spec-projectile-fields';
+import { projectileSections, projectileSpecIssues } from '@/domain/spec-editor/projectile/spec-projectile-fields';
+import { useSpecProblems } from '../use-spec-problems';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 
@@ -106,6 +107,12 @@ export function useSpecProjectileEditorViewModel(
     if (props.spriteData?.[geometry.value.spriteField] && !images.ready.value) return '正在加载贴图…';
     return '';
   });
+  useSpecProblems(() => [
+    ...projectileSpecIssues(localProjectile.value),
+    ...[props.spriteError, decodeError.value, ...(engines.notices?.value ?? [])]
+      .filter((message): message is string => Boolean(message))
+      .map((message) => ({ severity: 'warning' as const, code: 'spec.preview', path: message, message })),
+  ]);
   function draw() {
     const ctx = canvasRef.value?.getContext('2d');
     if (!ctx) return;
@@ -131,13 +138,14 @@ export function useSpecProjectileEditorViewModel(
   function resetView() {
     const dimensions = viewport.size(),
       extent = geometry.value.extent;
-    viewport.pan.value = { x: 0, y: 0 };
-    viewport.scale.value = Math.max(
-      0.1,
-      Math.min(
-        20,
-        Math.max(1, dimensions.width - 80) / Math.max(1, extent.x * 2),
-        Math.max(1, dimensions.height - 80) / Math.max(1, extent.y * 2),
+    viewport.fit(
+      Math.max(
+        0.1,
+        Math.min(
+          20,
+          Math.max(1, dimensions.width - 80) / Math.max(1, extent.x * 2),
+          Math.max(1, dimensions.height - 80) / Math.max(1, extent.y * 2),
+        ),
       ),
     );
     draw();
@@ -166,17 +174,6 @@ export function useSpecProjectileEditorViewModel(
     Array.isArray(localProjectile.value.engineSlots) ? (localProjectile.value.engineSlots as RowData[]) : [],
   );
   const sections = computed(() => projectileSections(showMissileSections.value));
-  const knownKeys = computed(() => [
-    ...new Set(sections.value.flatMap((section) => section.fields.map((field) => field[0].split('.')[0]!.split('[')[0]!))),
-    ...(showMissileSections.value ? ['engineSlots', 'explosionSpec'] : []),
-  ]);
-  const explosionExtras = computed(() =>
-    Object.fromEntries(
-      Object.entries((localProjectile.value.explosionSpec ?? {}) as RowData).filter(
-        ([key]) => !EXPLOSION_FIELDS.some((field) => field[0] === key),
-      ),
-    ),
-  );
   const spriteSize = computed(() => {
     void images.ready.value;
     const ref = props.resourceRefs?.find((item) => item.key === geometry.value.spriteField && item.relPath === geometry.value.spritePath);
@@ -186,6 +183,10 @@ export function useSpecProjectileEditorViewModel(
   function setProperty(path: string, value: RowData[string]) {
     if (path === 'specClass') {
       onSpecClassChange(value as ProjectileSpecClass);
+      return;
+    }
+    if (path === 'missileType') {
+      void document.command((projectile) => updateSpecField(projectile, path, value));
       return;
     }
     document.change((projectile) => updateSpecField(projectile, path, value));
@@ -209,11 +210,6 @@ export function useSpecProjectileEditorViewModel(
       slots.splice(slots.indexOf(slot), 1);
     });
   }
-  function projectileUpdated(value: RowData) {
-    document.change(() => {
-      localProjectile.value = value;
-    });
-  }
   async function pickProjectileSprite(field: string) {
     const accepts = document.captureActionContext();
     const relative = await pickModImageReference({ sessionId: props.sessionId, modRoot: props.modRoot, title: '选择弹体贴图', accepts });
@@ -234,28 +230,22 @@ export function useSpecProjectileEditorViewModel(
     },
     document: localProjectile,
     view: reactive({
+      fitted: viewport.fitted,
       expandedSections,
       engineSlots,
       spriteNotice,
       sections,
-      knownKeys,
-      explosionExtras,
       spriteSize,
       engineStyles: engines.styleNames,
       canSyncSprite: computed(() => spriteSize.value[0]! > 0),
     }),
     actions: {
+      removeField: (path: string) => document.change((projectile) => updateSpecField(projectile, path, undefined)),
       setProperty,
       removeProperty: (path: string) => document.command((projectile) => updateSpecField(projectile, path, undefined)),
       addExplosion: () =>
         document.command((projectile) => {
           projectile.explosionSpec = createSpecObject('explosionSpec');
-        }),
-      explosionExtrasUpdated: (value: RowData) =>
-        document.command((projectile) => {
-          const object = projectile.explosionSpec as RowData;
-          for (const key of Object.keys(explosionExtras.value)) delete object[key];
-          Object.assign(object, value);
         }),
       createInlineStyle: (index: number) => {
         const slot = engineSlots.value[index]!;
@@ -280,7 +270,6 @@ export function useSpecProjectileEditorViewModel(
       resetView,
       addEngineSlot,
       removeEngineSlot,
-      projectileUpdated,
       pickProjectileSprite: (field: string) => document.run(() => void pickProjectileSprite(field)),
     },
   };

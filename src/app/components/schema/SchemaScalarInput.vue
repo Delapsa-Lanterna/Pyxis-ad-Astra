@@ -39,6 +39,7 @@ const props = defineProps<{
   field: FieldSchema;
   value: unknown;
   inputKey: string;
+  fieldPath?: string;
   initialText?: string;
   shape?: JsonInputShape;
   validate?: (value: unknown) => string | null;
@@ -48,6 +49,7 @@ const multiline = props.field.type === 'text' || props.field.type === 'json';
 const input = ref<{ inputElRef: HTMLInputElement | null; textareaElRef: HTMLTextAreaElement | null; focus: () => void } | null>(null);
 const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
   key: props.inputKey,
+  path: props.fieldPath ?? props.field.key,
   label: props.field.label,
   text: () =>
     props.field.type === 'json'
@@ -90,6 +92,7 @@ const inputs = useFieldInputs();
 if (inputs && (props.field.required || props.field.requiredWhen))
   onScopeDispose(
     inputs.registerFinalizer(async () => {
+      if (inputs.hasDocumentValidation.value) return;
       if (props.field.required && raw.value.trim() === '') {
         await focusFieldInput((multiline ? input.value?.textareaElRef : input.value?.inputElRef) ?? null);
         input.value?.focus();

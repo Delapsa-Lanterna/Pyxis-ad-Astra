@@ -14,6 +14,7 @@ import { entityTargetFixture } from '@/test/entity-target';
 const fileTarget = entityTargetFixture('ship', 'XY');
 import type { RowData } from '@/shared/types/index';
 import SpecEditorContent from './SpecEditorContent.vue';
+import { createSpecProblems } from '@/app/composables/spec-editor/use-spec-problems';
 
 const mocks = vi.hoisted(() => ({ createWindow: vi.fn() }));
 vi.mock('@/app/composables/spec-editor/use-spec-editor-window-view-model', () => ({
@@ -58,6 +59,7 @@ function setupWindow(initial = true) {
   const context = ref({ targetKey: 'ship', baselineGeneration: 1, handoff: 'load' as 'load' | 'external' });
   const inputs = createFieldInputs(ref('ship'));
   const vm = {
+    problems: createSpecProblems(inputs),
     currentTarget: ref({ id: 'XY', kind: 'ship', sessionId: 's1', modRoot: 'M:/mod' }),
     editorData: data,
     loading,

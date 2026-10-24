@@ -8,6 +8,42 @@ fn validate_document(id: &str, data: &Value) -> AppResult<()> {
 }
 
 #[test]
+fn closed_objects_ignore_unknowns() {
+    for allowed in [None, Some(false), Some(true)] {
+        let mut field = json!({
+            "type":"object", "nested":[{"key":"known","type":"integer"}],
+            "valueSchema":{"type":"integer"}
+        });
+        if let Some(allowed) = allowed {
+            field["allowExtraFields"] = json!(allowed);
+        }
+        let data = json!({"known":4,"custom":{"untouched":null}});
+        let before = data.clone();
+        assert_eq!(
+            validate_field(&field, &data, "file", true).is_ok(),
+            allowed != Some(true)
+        );
+        assert_eq!(data, before);
+        assert!(validate_field(&field, &json!({"known":"invalid"}), "file", true).is_err());
+    }
+}
+
+#[test]
+fn open_parents_keep_items_closed() {
+    let field = json!({
+        "type":"object", "allowExtraFields":true,
+        "valueSchema":{"type":"array","item":{
+            "type":"object","nested":[{"key":"known","type":"integer"}],
+            "valueSchema":{"type":"integer"}
+        }}
+    });
+    let data = json!({"sample":[{"known":1,"custom":{"keep":true}}]});
+    let before = data.clone();
+    validate_field(&field, &data, "file", true).unwrap();
+    assert_eq!(data, before);
+}
+
+#[test]
 fn asset_discovery_and_version_types() {
     for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../schemas")).unwrap() {
         let name = entry.unwrap().file_name().to_string_lossy().into_owned();
@@ -75,6 +111,27 @@ fn object_shapes_and_open_content() {
     ] {
         validate_document(id, &value).unwrap();
     }
+}
+
+#[test]
+fn required_particle_conditions() {
+    let field = &bundled_schema("spec-weapon")["definitions"]["muzzleFlashSpec"];
+    for count in [-1, 0, 1, 2] {
+        assert_eq!(
+            validate_field(
+                field,
+                &json!({"particleCount":count}),
+                "muzzleFlashSpec",
+                true
+            )
+            .is_ok(),
+            count <= 0
+        );
+    }
+    assert!(validate_field(field, &json!({}), "muzzleFlashSpec", true).is_err());
+    let custom = &bundled_schema("spec-ship")["definitions"]["customEngine"];
+    assert!(validate_field(custom, &json!({}), "engine", true).is_err());
+    validate_field(custom, &json!({"styleId":"sample-style"}), "engine", true).unwrap();
 }
 
 #[test]

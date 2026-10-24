@@ -7,10 +7,18 @@ export class AppError extends Error {
   readonly command?: string;
   readonly location: ErrorLocation | null;
   readonly cause?: unknown;
+  readonly userMessage?: string;
 
   constructor(
     message: string,
-    options: { action?: string; command?: string; code?: string; location?: ErrorLocation | null; cause?: unknown } = {},
+    options: {
+      action?: string;
+      command?: string;
+      code?: string;
+      location?: ErrorLocation | null;
+      cause?: unknown;
+      userMessage?: string;
+    } = {},
   ) {
     super(message);
     this.name = 'AppError';
@@ -19,6 +27,7 @@ export class AppError extends Error {
     this.code = options.code;
     this.location = options.location ?? null;
     this.cause = options.cause;
+    this.userMessage = options.userMessage;
   }
 }
 
@@ -69,6 +78,7 @@ function joinErrorMessages(context: string, source: string): string {
 }
 
 export function formatError(error: unknown): string {
+  if (error instanceof AppError && error.userMessage) return error.userMessage;
   if (error instanceof AppError && error.cause !== undefined) {
     const source = formatError(error.cause);
     return error.command ? source : joinErrorMessages(error.message, source);

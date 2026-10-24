@@ -22,12 +22,12 @@
         />
       </n-collapse-item>
     </template>
-    <n-collapse-item v-if="extraKeys.length" name="__extra" title="额外字段" class="schema-section">
+    <n-collapse-item v-if="showExtraFields" name="__extra" title="额外字段" class="schema-section">
       <template #header-extra
         ><small class="section-header-meta ui-text-muted">{{ extraKeys.length }} 项</small></template
       >
       <SchemaValueInput
-        :field="{ key: '__extra', label: '额外字段', type: 'object', reservedKeys: extraKnownKeys }"
+        :field="{ key: '__extra', label: '额外字段', type: 'object', allowExtraFields: true, reservedKeys: extraKnownKeys }"
         :value="Object.fromEntries(extraKeys.map((key) => [key, extraModelValue[key]]))"
         @update="onExtraUpdate($event.kind === 'set' ? ($event.value as RowData) : {})"
       />
@@ -54,7 +54,7 @@ import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue
 import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 
-useInputEditMode();
+const mode = useInputEditMode();
 
 const props = defineProps<{
   schema: FileSchema;
@@ -85,6 +85,7 @@ const extraKnownKeys = computed<string[]>(() => {
 });
 
 const extraKeys = computed<string[]>(() => extraJsonFieldKeys(extraModelValue.value, extraKnownKeys.value));
+const showExtraFields = computed(() => (mode.value === 'smart' ? props.schema.allowExtraFields === true : extraKeys.value.length > 0));
 
 const collapsedSections = reactive(new Set<string>());
 

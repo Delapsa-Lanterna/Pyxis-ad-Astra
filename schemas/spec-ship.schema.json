@@ -1,0 +1,153 @@
+{
+  "$schema": "circinus-ad-astra/field-schema/v1",
+  "id": "spec-ship",
+  "sections": [
+    {
+      "id": "basic",
+      "label": "船体属性",
+      "fields": [
+        { "key": "hullId", "label": "船体 ID", "type": "string", "default": "", "required": true, "identity": true },
+        { "key": "hullName", "label": "船体名称", "type": "string", "default": "" },
+        {
+          "key": "hullSize",
+          "label": "船体级别",
+          "type": "enum",
+          "default": "",
+          "options": ["FRIGATE", "DESTROYER", "CRUISER", "CAPITAL_SHIP", "FIGHTER"],
+          "required": true
+        },
+        { "key": "style", "label": "船体风格", "type": "enum", "default": "", "required": true, "source": "config:hullStyles" }
+      ]
+    },
+    {
+      "id": "sprite",
+      "label": "贴图与中心",
+      "fields": [
+        { "key": "spriteName", "label": "贴图", "type": "string", "default": "", "required": true },
+        { "key": "width", "label": "宽度", "type": "float", "default": 0, "required": true },
+        { "key": "height", "label": "高度", "type": "float", "default": 0, "required": true },
+        { "key": "center[0]", "label": "中心 X", "type": "float", "default": 0, "required": true },
+        { "key": "center[1]", "label": "中心 Y", "type": "float", "default": 0, "required": true }
+      ]
+    },
+    {
+      "id": "bounds",
+      "label": "碰撞边界",
+      "fields": [{ "key": "collisionRadius", "label": "碰撞半径", "type": "float", "default": 0, "required": true }]
+    },
+    {
+      "id": "props",
+      "label": "护盾参数",
+      "fields": [
+        { "key": "shieldCenter[0]", "label": "护盾中心 X", "type": "float", "default": 0, "required": true },
+        { "key": "shieldCenter[1]", "label": "护盾中心 Y", "type": "float", "default": 0, "required": true },
+        { "key": "shieldRadius", "label": "护盾半径", "type": "float", "default": 0, "required": true }
+      ]
+    },
+    { "id": "weapons", "label": "武器槽", "fields": [] },
+    { "id": "launchBays", "label": "战机甲板", "fields": [] },
+    { "id": "engines", "label": "引擎", "fields": [] },
+    { "id": "builtins", "label": "内置装备", "fields": [] },
+    {
+      "id": "advanced",
+      "label": "高级属性",
+      "fields": [
+        { "key": "viewOffset", "label": "视角偏移", "type": "float", "default": 0 },
+        { "key": "moduleAnchor[0]", "label": "模块锚点 X", "type": "float", "default": 0 },
+        { "key": "moduleAnchor[1]", "label": "模块锚点 Y", "type": "float", "default": 0 }
+      ]
+    }
+  ],
+  "definitions": {
+    "slot": {
+      "key": "slot",
+      "label": "武器槽",
+      "type": "object",
+      "nested": [
+        { "key": "id", "label": "槽位 ID", "type": "string", "default": "", "required": true },
+        { "key": "size", "label": "尺寸", "type": "enum", "default": "", "options": ["SMALL", "MEDIUM", "LARGE"], "required": true },
+        {
+          "key": "type",
+          "label": "类型",
+          "type": "enum",
+          "default": "",
+          "options": [
+            "BALLISTIC",
+            "ENERGY",
+            "MISSILE",
+            "LAUNCH_BAY",
+            "HYBRID",
+            "UNIVERSAL",
+            "SYNERGY",
+            "COMPOSITE",
+            "BUILT_IN",
+            "DECORATIVE",
+            "SYSTEM",
+            "STATION_MODULE"
+          ],
+          "required": true
+        },
+        {
+          "key": "mount",
+          "label": "挂载方式",
+          "type": "enum",
+          "default": "",
+          "options": ["TURRET", "HARDPOINT", "HIDDEN"],
+          "required": true
+        },
+        { "key": "angle", "label": "角度", "type": "float", "default": 0, "required": true },
+        { "key": "arc", "label": "射界", "type": "float", "default": 0, "required": true },
+        { "key": "renderOrderMod", "label": "绘制顺序修正", "type": "float", "default": 0 },
+        { "key": "locations[0]", "label": "位置 X", "type": "float", "default": 0, "required": true },
+        { "key": "locations[1]", "label": "位置 Y", "type": "float", "default": 0, "required": true }
+      ]
+    },
+    "engine": {
+      "key": "engine",
+      "label": "引擎",
+      "type": "object",
+      "nested": [
+        { "key": "angle", "label": "角度", "type": "float", "default": 0, "required": true },
+        { "key": "width", "label": "宽度", "type": "float", "default": 0, "required": true },
+        { "key": "length", "label": "长度", "type": "float", "default": 0, "required": true },
+        { "key": "contrailSize", "label": "尾迹标记", "type": "float", "default": 0 },
+        { "key": "style", "label": "引擎风格", "type": "enum", "default": "", "options": [], "required": true },
+        { "key": "location[0]", "label": "位置 X", "type": "float", "default": 0, "required": true },
+        { "key": "location[1]", "label": "位置 Y", "type": "float", "default": 0, "required": true }
+      ]
+    },
+    "customEngine": {
+      "key": "customEngine",
+      "label": "自定义引擎",
+      "type": "object",
+      "nested": [
+        { "key": "styleId", "label": "命名样式 ID", "type": "enum", "source": "config:engineStyles" },
+        {
+          "key": "styleSpec",
+          "label": "内联样式",
+          "type": "object",
+          "default": {},
+          "ref": "engine-styles#/root/valueSchema",
+          "requiredWhen": { "styleId": { "missing": true } },
+          "partial": false
+        }
+      ]
+    },
+    "weaponSlots": {
+      "key": "weaponSlots",
+      "label": "武器槽",
+      "type": "array",
+      "item": { "key": "item", "label": "武器槽", "type": "object", "required": true }
+    },
+    "engineSlots": {
+      "key": "engineSlots",
+      "label": "引擎",
+      "type": "array",
+      "item": { "key": "item", "label": "引擎", "type": "object", "required": true }
+    },
+    "builtInWeapons": { "key": "builtInWeapons", "label": "内置武器", "type": "object", "operations": { "remove": false } },
+    "builtInWeapon": { "key": "weapon", "label": "", "type": "enum", "source": "csv:weapons.id" },
+    "builtInMods": { "key": "builtInMods", "label": "内置插件", "type": "string-array", "source": "csv:hullmods.id" },
+    "builtInWings": { "key": "builtInWings", "label": "内置战机联队", "type": "string-array", "source": "csv:wings.id" }
+  }
+}

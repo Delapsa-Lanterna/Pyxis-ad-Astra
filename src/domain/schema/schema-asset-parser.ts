@@ -30,6 +30,14 @@ export function parseFileSchema(id: string, raw: unknown): FileSchema {
     ...(sections ? { sections } : {}),
   };
   if (asset.root !== undefined) schema.root = parseField(id, 'root', asset.root);
+  if (asset.definitions !== undefined)
+    schema.definitions = Object.fromEntries(
+      Object.entries(asRecord(asset.definitions, `schema ${id} definitions`)).map(([key, value]) => [
+        key,
+        parseField(id, `definitions.${key}`, value),
+      ]),
+    );
+  if (isBoolean(asset.allowExtraFields)) schema.allowExtraFields = asset.allowExtraFields;
   if (isString(asset.fileType)) schema.fileType = asset.fileType;
   if (isString(asset.displayName)) schema.displayName = asset.displayName;
   if (isString(asset.description)) schema.description = asset.description;
@@ -54,6 +62,7 @@ function parseSections(id: string, raw: unknown): SectionSchema[] {
       id: record.id,
       label: record.label,
       ...collapsed,
+      ...(record.visibleWhen !== undefined ? { visibleWhen: parseVisibility(record.visibleWhen) } : {}),
       fields: parseFields(id, `sections[${index}].fields`, record.fields),
     };
   });
@@ -79,9 +88,15 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
     type: record.type as FieldSchema['type'],
     label: record.label,
   };
+  if (isString(record.ref)) field.ref = record.ref;
+  if (isString(record.issueCode)) field.issueCode = record.issueCode;
+  if (isString(record.issueMessage)) field.issueMessage = record.issueMessage;
+  if (isBoolean(record.identity)) field.identity = record.identity;
+  if (record.visibleWhen !== undefined) field.visibleWhen = parseVisibility(record.visibleWhen);
   if (isString(record.description)) field.description = record.description;
   if (isBoolean(record.required)) field.required = record.required;
   if (isBoolean(record.editable)) field.editable = record.editable;
+  if (isBoolean(record.allowExtraFields)) field.allowExtraFields = record.allowExtraFields;
   if (isBoolean(record.partial)) field.partial = record.partial;
   if (record.default !== undefined) field.default = record.default;
   if (isString(record.warning)) field.warning = record.warning;
@@ -98,8 +113,13 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isStringArray(record.exclusiveKeys)) field.exclusiveKeys = record.exclusiveKeys;
   if (record.requiredWhen !== undefined) {
     const condition = asRecord(record.requiredWhen, `schema ${id} ${path}.requiredWhen`);
-    if (!Object.values(condition).every(isString)) throw new Error(`schema ${id} ${path}: 非法 requiredWhen`);
-    field.requiredWhen = condition as Record<string, string>;
+    if (
+      !Object.values(condition).every(
+        (value) => isString(value) || isNumber(asRecord(value, 'requiredWhen').min) || asRecord(value, 'requiredWhen').missing === true,
+      )
+    )
+      throw new Error(`schema ${id} ${path}: 非法 requiredWhen`);
+    field.requiredWhen = condition as FieldSchema['requiredWhen'];
   }
   if (isNumber(record.step)) field.step = record.step;
   if (isStringArray(record.options)) field.options = record.options;
@@ -216,6 +236,18 @@ function asRecord(value: unknown, context: string): Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
+}
+
+function parseVisibility(raw: unknown): FieldSchema['visibleWhen'] {
+  const branches = (Array.isArray(raw) ? raw : [raw]).map((branch) =>
+    Object.fromEntries(
+      Object.entries(asRecord(branch, 'visibleWhen')).map(([key, value]) => {
+        if (!isStringArray(value) && !isNumber(asRecord(value, 'visibleWhen').gt)) throw new Error(`visibleWhen ${key}: 非法展示条件`);
+        return [key, value];
+      }),
+    ),
+  );
+  return (Array.isArray(raw) ? branches : branches[0]) as FieldSchema['visibleWhen'];
 }
 
 function isBoolean(value: unknown): value is boolean {

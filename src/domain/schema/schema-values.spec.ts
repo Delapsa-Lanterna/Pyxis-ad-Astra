@@ -5,6 +5,7 @@ import {
   getNestedValue,
   parseSchemaPlainNumber,
   schemaArrayStringValues,
+  schemaFieldRequired,
   schemaJsonInputShape,
   schemaKeyValueOutput,
   schemaTagValues,
@@ -31,6 +32,14 @@ describe('whole-value plain numbers', () => {
 });
 
 describe('schema scalar commit contract', () => {
+  it('shares equality and numeric loading conditions', () => {
+    const field = { key: 'length', label: 'Length', type: 'float' as const, requiredWhen: { particleCount: { min: 1 } } };
+    for (const count of [-1, 0, 0.5, 1, 2]) expect(schemaFieldRequired(field, () => count)).toBe(count >= 1);
+    expect(schemaFieldRequired({ ...field, requiredWhen: { mode: 'PARTICLES' } }, () => 'PARTICLES')).toBe(true);
+    expect(schemaFieldRequired({ ...field, requiredWhen: { mode: 'PARTICLES' } }, () => 'NONE')).toBe(false);
+    expect(schemaFieldRequired({ ...field, requiredWhen: { styleId: { missing: true } } }, () => undefined)).toBe(true);
+    expect(schemaFieldRequired({ ...field, requiredWhen: { styleId: { missing: true } } }, () => '')).toBe(false);
+  });
   it('projects object items in string and tag arrays through the scalar text contract', () => {
     const values = deepClone([{ unknown: 1 }, 'tag', null]);
     expect(schemaArrayStringValues(values)).toEqual(['{"unknown":1}', 'tag', '']);

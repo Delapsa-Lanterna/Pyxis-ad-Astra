@@ -1,5 +1,6 @@
 import type { Ref } from 'vue';
 import type { EditContext, SpecEditorKind, RowData, SpecEditorData } from '@/shared/types';
+import type { SpecIssue } from '@/domain/spec-editor/spec-validation';
 
 export interface SpecEditorTarget {
   id: string;
@@ -15,6 +16,7 @@ export interface SpecEditorInput {
 }
 
 export interface SpecEditorDefinition<TData extends SpecEditorData> {
+  validate?: (value: RowData) => SpecIssue[];
   read: (sessionId: string, id: string, signal?: AbortSignal) => Promise<TData>;
   project: (data: TData) => RowData;
   accept: (data: TData, spec: RowData) => TData;

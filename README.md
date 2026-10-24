@@ -18,7 +18,7 @@ Windows 桌面版 Starsector Mod 配置工具，使用 Tauri 2 + Vue 3 + TypeScr
 - 打开 Starsector 游戏目录或单独的 Mod 目录；同一工作区可切换多个已加载 Mod
 - 创建最小 Mod 模板，并在检测到游戏目录时直接创建到 `mods/` 下
 - 编辑已注册的 CSV 表、`mod_info.json`、Faction、Mission、Variant、Skin 与通用文本文件
-- 提供舰船、武器、弹体和战术系统编辑器，以及武器发射预览
+- 提供舰船、武器、弹体和战术系统编辑器，以及武器开火预览
 - 当前 Mod 优先、原版回退的引用查询与贴图缩略图；支持导入、覆盖 PNG 贴图
 - 通过 changeset 记录保存历史，并支持撤销、重做和目标级刷新
 

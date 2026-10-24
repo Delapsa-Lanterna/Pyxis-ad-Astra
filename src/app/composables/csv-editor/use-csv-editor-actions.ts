@@ -149,7 +149,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
         modRoot: action.modRoot,
         id: action.id,
         source: { kind: 'saved' },
-      }).catch((error) => feedback.error(error, '打开发射预览失败'));
+      }).catch((error) => feedback.error(error, '打开开火预览失败'));
     } else if (action.type === 'file-editor') {
       void querySessionEntityEditTarget(action.sessionId, action.kind, action.id)
         .then((info) =>

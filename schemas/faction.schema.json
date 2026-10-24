@@ -174,7 +174,8 @@
             "label": "权重",
             "default": 1,
             "numberFormat": "starsector"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.names",
@@ -190,7 +191,8 @@
             "label": "权重",
             "default": 1,
             "numberFormat": "starsector"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.variantOverrides",
@@ -206,7 +208,8 @@
             "label": "权重",
             "default": 1,
             "numberFormat": "starsector"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.hullFrequency",
@@ -230,7 +233,8 @@
                 "label": "权重",
                 "default": 1,
                 "numberFormat": "starsector"
-              }
+              },
+              "allowExtraFields": true
             },
             {
               "key": "hulls",
@@ -246,7 +250,8 @@
                 "label": "权重",
                 "default": 1,
                 "numberFormat": "starsector"
-              }
+              },
+              "allowExtraFields": true
             }
           ]
         },
@@ -504,7 +509,8 @@
             "label": "权重",
             "default": 1,
             "numberFormat": "starsector"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.fighterSellFrequency",
@@ -520,7 +526,8 @@
             "label": "权重",
             "default": 1,
             "numberFormat": "starsector"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.hullmodSellFrequency",
@@ -536,7 +543,8 @@
             "label": "权重",
             "default": 1,
             "numberFormat": "starsector"
-          }
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.factionDoctrine",
@@ -740,9 +748,7 @@
             "key": "role",
             "type": "object",
             "label": "角色",
-            "default": {
-              "includeDefault": true
-            },
+            "default": { "includeDefault": true },
             "nested": [
               {
                 "key": "includeDefault",
@@ -762,7 +768,8 @@
                   "numberFormat": "starsector"
                 },
                 "minEntries": 1,
-                "maxEntries": 1
+                "maxEntries": 1,
+                "allowExtraFields": true
               },
               {
                 "key": "fallback2",
@@ -776,7 +783,8 @@
                   "numberFormat": "starsector"
                 },
                 "minEntries": 1,
-                "maxEntries": 1
+                "maxEntries": 1,
+                "allowExtraFields": true
               }
             ],
             "valueSchema": {
@@ -785,8 +793,10 @@
               "label": "权重",
               "default": 1,
               "numberFormat": "starsector"
-            }
-          }
+            },
+            "allowExtraFields": true
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.illegalCommodities",
@@ -868,15 +878,8 @@
             "type": "string",
             "label": "音乐 ID",
             "default": ""
-          }
-        },
-        {
-          "key": "file.internalComms",
-          "type": "string",
-          "label": "内部通讯 ID",
-          "description": "无作用，可不填",
-          "required": false,
-          "editable": true
+          },
+          "allowExtraFields": true
         },
         {
           "key": "file.portraits",
@@ -926,9 +929,7 @@
                 "key": "entry",
                 "type": "object",
                 "label": "名称",
-                "default": {
-                  "name": ""
-                },
+                "default": { "name": "" },
                 "nested": [
                   {
                     "key": "name",
@@ -937,7 +938,8 @@
                     "default": ""
                   }
                 ]
-              }
+              },
+              "allowExtraFields": true
             },
             {
               "key": "posts",
@@ -951,9 +953,7 @@
                 "key": "entry",
                 "type": "object",
                 "label": "名称",
-                "default": {
-                  "name": ""
-                },
+                "default": { "name": "" },
                 "nested": [
                   {
                     "key": "name",
@@ -962,7 +962,8 @@
                     "default": ""
                   }
                 ]
-              }
+              },
+              "allowExtraFields": true
             }
           ]
         },
@@ -988,7 +989,8 @@
                 "label": "权重",
                 "default": 1,
                 "numberFormat": "starsector"
-              }
+              },
+              "allowExtraFields": true
             },
             {
               "key": "MEDIUM",
@@ -1004,7 +1006,8 @@
                 "label": "权重",
                 "default": 1,
                 "numberFormat": "starsector"
-              }
+              },
+              "allowExtraFields": true
             },
             {
               "key": "HIGH",
@@ -1020,7 +1023,8 @@
                 "label": "权重",
                 "default": 1,
                 "numberFormat": "starsector"
-              }
+              },
+              "allowExtraFields": true
             }
           ]
         },
@@ -1227,7 +1231,8 @@
                 "label": "权重",
                 "default": 1,
                 "numberFormat": "starsector"
-              }
+              },
+              "allowExtraFields": true
             },
             {
               "key": "punitiveExpeditionData",
@@ -1294,7 +1299,8 @@
                 }
               ]
             }
-          ]
+          ],
+          "allowExtraFields": true
         },
         {
           "key": "file.fleetTypeNames",
@@ -1309,7 +1315,8 @@
             "type": "string",
             "label": "名称",
             "default": ""
-          }
+          },
+          "allowExtraFields": true
         }
       ]
     }
