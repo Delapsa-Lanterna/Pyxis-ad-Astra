@@ -46,6 +46,9 @@ export function selectOptionValueExists(options: SelectOption[], value: string):
       (!option.templateValue && option.value === value) || option.children?.some((child) => !child.templateValue && child.value === value),
   );
 }
+export function selectOptionValues(options: SelectOption[]): ReadonlySet<string> {
+  return new Set(flattenSelectOptions(options).map((option) => option.value));
+}
 
 export function isSelectOptionGroup(option: SelectOption): boolean {
   return option.type === 'group';
@@ -79,17 +82,27 @@ export function groupSelectOptions(options: SelectOption[]): SelectOptionGroup[]
   return groups;
 }
 
-export function includeCurrentSelectOptions(options: SelectOption[], values: string[]): SelectOption[] {
+export function includeCurrentSelectOptions(
+  options: SelectOption[],
+  values: string[],
+  existing = selectOptionValues(options),
+): SelectOption[] {
   const seen = new Set<string>();
-  const current = values
-    .filter((value) => {
-      if (value.length === 0 || seen.has(value) || selectOptionValueExists(options, value)) return false;
-      seen.add(value);
-      return true;
-    })
-    .map((value) => numericSelectOption(options, value) ?? { label: value, value });
+  const current = values.filter((value) => {
+    if (value.length === 0 || seen.has(value) || existing.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
   if (current.length === 0) return options;
-  return [{ type: 'group', ...CURRENT_VALUE_OPTION_GROUP, children: current }, ...options];
+  const templates = options.flatMap((option) => option.children ?? [option]).filter((option) => option.templateValue !== undefined);
+  return [
+    {
+      type: 'group',
+      ...CURRENT_VALUE_OPTION_GROUP,
+      children: current.map((value) => numericSelectOption(templates, value) ?? { label: value, value }),
+    },
+    ...options,
+  ];
 }
 
 export function schemaEnumSelectOptions(field: FieldSchema, sourceOptions: SelectOption[]): SelectOption[] {

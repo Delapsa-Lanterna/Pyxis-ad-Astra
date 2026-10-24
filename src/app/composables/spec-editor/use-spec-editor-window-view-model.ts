@@ -240,8 +240,7 @@ export function useSpecEditorWindowViewModel(
 
   function applyImportedSpec(data: RowData) {
     if (!editorData.value) return;
-    const spec = deepClone(data);
-    draftSession.setDraft(spec);
+    draftSession.setDraft(data);
   }
 
   async function saveEditorData(data?: RowData): Promise<void> {
@@ -265,8 +264,7 @@ export function useSpecEditorWindowViewModel(
   function updateEditorDraft(data: RowData): void {
     const target = editorWindowTarget();
     if (!target || !editorData.value) return;
-    const spec = deepClone(data);
-    draftSession.setDraft(spec);
+    draftSession.setDraft(data);
   }
 
   function loadPendingExternalSpec(): void {

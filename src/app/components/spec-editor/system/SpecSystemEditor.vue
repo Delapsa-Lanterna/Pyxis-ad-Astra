@@ -322,6 +322,7 @@
 
 <script setup lang="ts">
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
+import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SpecFieldList from '../SpecFieldList.vue';
 import { SYSTEM_SOUND_FIELDS } from '@/domain/spec-editor/system/spec-system-fields';
 import FieldRow from '@/shared/ui/FieldRow.vue';

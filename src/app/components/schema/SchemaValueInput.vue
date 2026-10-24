@@ -5,6 +5,7 @@
     :value="value"
     :input-key="fieldInputKey"
     :field-path="fieldPath ?? field.key"
+    :runtime-context="runtimeContext"
     @update="emit('update', $event)"
   >
     <template #default="{ row, update }">

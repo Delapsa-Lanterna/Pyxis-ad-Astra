@@ -9,6 +9,7 @@ import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { watchCanvasPixelRatio } from './use-canvas-surface';
 import { useCanvasSelection } from './use-canvas-selection';
 import { useCanvasNavigation } from './use-canvas-navigation';
+import { waitForEditorCollapse } from '@/app/components/editors/common/editor-collapse';
 
 export interface CanvasPick {
   byIdentity(identity: EditorTarget | null): CanvasTarget | null;
@@ -179,12 +180,7 @@ export function useCanvasEditor<TPreview>(options: {
     if (!scroll) return;
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (!accepts()) return;
-    await Promise.allSettled(
-      scroll
-        .getAnimations({ subtree: true })
-        .filter((animation) => animation instanceof CSSTransition && ['height', 'max-height'].includes(animation.transitionProperty))
-        .map((animation) => animation.finished),
-    );
+    await waitForEditorCollapse(scroll);
     await nextTick();
     if (!accepts()) return;
     const target = scroll.querySelector<HTMLElement>(reveal.selector);

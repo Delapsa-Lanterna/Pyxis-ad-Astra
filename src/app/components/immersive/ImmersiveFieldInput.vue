@@ -32,7 +32,7 @@ import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
-import { includeCurrentSelectOptions } from '@/domain/schema/schema-options';
+import { includeCurrentSelectOptions, selectOptionValues } from '@/domain/schema/schema-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { isConfigSource } from '@/domain/schema/schema-sources';
 import { parseJsonInput, formatJsonInput } from '@/shared/lib/json-input';
@@ -75,9 +75,10 @@ const source = useSchemaSourceOptions({
   value: () => raw.value,
   runtimeContext: () => props.runtimeContext,
 });
+const sourceValues = computed(() => selectOptionValues(source.sourceOptions.value));
 const selectOptions = computed(() =>
   props.field.schema.source
-    ? includeCurrentSelectOptions(source.sourceOptions.value, [raw.value])
+    ? includeCurrentSelectOptions(source.sourceOptions.value, [raw.value], sourceValues.value)
     : props.field.schema.options?.map((value) => ({ label: props.field.optionLabels?.[value] ?? value, value })),
 );
 </script>

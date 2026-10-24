@@ -27,6 +27,8 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 ### 消费
 
 - `src-tauri/src/models/spec_editor.rs`：规格种类、武器分支、保存及外部导入请求协议。
+- `src/app/components/editors/common/EditorCollapse.vue`：共同分组的展开列表交接。
+- `src/app/components/editors/common/EditorCollapseItem.vue`：共同分组的标题、辅助动作与保留输入的内容展示。
 - `src/app/components/editors/common/EditorFooter.vue`：编辑与预览共用的说明及操作插槽。
 - `src/app/components/editors/common/EditorHeader.vue`：编辑与预览共用的标题、dirty、外部基线及动作插槽。
 - `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
@@ -76,14 +78,14 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 
 ## 规范
 
-- 保存必须先提交所属活动输入，后续草稿必须按实际基线交接。
+- 保存必须先提交所属活动输入，后续草稿必须按实际基线交接；导入与编辑必须由目标草稿会话取得隔离副本。
 - 可选字段的展示默认值必须保持读取性质；恢复默认必须删除所属键，嵌套更新必须保留其它业务字段。
 - 四类实现必须消费共同目标、保存及外部接纳协议。
 - 图像与依赖读取必须消费独立输入契约，严禁通过完整窗口 VM 类型取得输入。
 - 基础会话必须消费独立定义接口，具体实现选择必须归应用装配。
 - 字段声明来源时必须消费字段模式的查询与控件，所属目标必须由规格宿主交付，刷新必须覆盖引用目录的 Mod 与 Core 路径。
 - 字段必须以完整字段行消费共同标签与值控件，中文名称、原始键和完整路径必须显式交付。
-- 折叠分组必须消费 EditorCollapse 与 Naive 折叠项，首次展开后必须保留原文、校验和输入登记。
+- 折叠分组必须消费 EditorCollapse 与 EditorCollapseItem，首次展开后必须保留原文、校验和输入登记。
 - 规格窗口身份必须包含 session、Mod、种类和 ID，身份接纳必须共同更新窗口与会话。
 - 资源替换、基线交接及释放必须结束旧读取的接纳权。
 

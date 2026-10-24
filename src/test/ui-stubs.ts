@@ -126,4 +126,5 @@ export const editorUiStubs: GlobalStubs = {
   NCollapse: nCollapse,
   NCollapseItem: nCollapseItem,
   CollapseItem: nCollapseItem,
+  EditorCollapseItem: nCollapseItem,
 };

@@ -221,12 +221,24 @@ beforeEach(() => {
   mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: import('@/shared/types').WriteResult) => {
     useProjectSyncStore().markAccepted({ modRoot, result } as import('@/shared/types').CommittedWriteEvent);
   });
-  mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) => ({
-    request,
-    missingPaths: [],
-    currentSources: {},
-    baseVersions: [],
-  }));
+  mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) => {
+    if (request.origin.kind === 'entity') {
+      const entity = entities.get(key(request.sessionId, request.origin.target.kind, request.origin.target.id))!;
+      const data = entity.data as RowData;
+      return {
+        request,
+        missingPaths: [],
+        baseVersions: entity.baseVersions,
+        currentSources:
+          entity.kind === 'mission'
+            ? { descriptor: data.descriptor, text: data.text, index: { rows: [{ isComment: false, data: data.list }] } }
+            : { file: data },
+        resourceRefs: entity.resourceRefs,
+      };
+    }
+    const source = useProjectStore().getManifest(request.modRoot)!;
+    return { request, missingPaths: [], baseVersions: source.baseVersions, currentSources: { file: source.modInfo }, resourceRefs: {} };
+  });
   mocks.feedback.choose.mockResolvedValue('follow');
   mocks.feedback.confirmWarning.mockImplementation((options) => options.onConfirm());
   mocks.previews.mockResolvedValue({ logoSrc: '', crestSrc: '' });
@@ -265,6 +277,7 @@ describe('JSON common workspace and form', () => {
       baseVersions: [{ path, fingerprint: null }],
       missingPaths: saved ? [] : [definition.path],
       currentSources: {},
+      resourceRefs: {},
     }));
     mocks.miscSave.mockImplementation(async () => {
       saved = true;
@@ -322,6 +335,7 @@ describe('JSON common workspace and form', () => {
       baseVersions: [{ path, fingerprint: exists ? 'v1' : null }],
       missingPaths: exists ? [] : ['data/strings/strings.json'],
       currentSources: {},
+      resourceRefs: {},
     }));
     mocks.miscSave.mockImplementation(async () => {
       exists = true;
@@ -569,6 +583,7 @@ describe('JSON common workspace and form', () => {
         request,
         baseVersions: [],
         currentSources: {},
+        resourceRefs: {},
         missingPaths: request.origin.kind === 'entity' && request.origin.target.id === 'a' ? ['source.json'] : [],
       }));
       navigation.navigateToModJson('M:/one', page);

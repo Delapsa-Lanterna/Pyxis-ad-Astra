@@ -18,6 +18,15 @@ pub fn misc_config_path(kind: MiscConfigKind) -> &'static str {
         MiscConfigKind::Settings => "data/config/settings.json",
     }
 }
+pub fn misc_config_schema_id(kind: MiscConfigKind) -> &'static str {
+    match kind {
+        MiscConfigKind::EngineStyles => "engine-styles",
+        MiscConfigKind::HullStyles => "hull-styles",
+        MiscConfigKind::Sounds => "sounds",
+        MiscConfigKind::Settings => "game-settings",
+        MiscConfigKind::Strings => "strings",
+    }
+}
 
 pub fn validate_misc_config(kind: MiscConfigKind, data: &Value, schema: &Value) -> AppResult<()> {
     crate::domain::schema::validate_field(schema, data, misc_config_path(kind), false)

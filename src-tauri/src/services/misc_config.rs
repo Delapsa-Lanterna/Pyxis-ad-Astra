@@ -130,14 +130,7 @@ pub(crate) fn validate_misc_config(kind: MiscConfigKind, data: &Value) -> AppRes
 }
 
 fn config_schema(kind: MiscConfigKind) -> &'static Value {
-    let id = match kind {
-        MiscConfigKind::EngineStyles => "engine-styles",
-        MiscConfigKind::HullStyles => "hull-styles",
-        MiscConfigKind::Sounds => "sounds",
-        MiscConfigKind::Settings => "game-settings",
-        MiscConfigKind::Strings => "strings",
-    };
-    &crate::parsers::bundled_schema(id)["root"]
+    &crate::parsers::bundled_schema(crate::domain::misc_config::misc_config_schema_id(kind))["root"]
 }
 
 fn validate_sound_indices(data: &Value) -> AppResult<()> {

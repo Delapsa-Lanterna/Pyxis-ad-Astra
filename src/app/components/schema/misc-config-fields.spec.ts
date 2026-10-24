@@ -12,7 +12,7 @@ import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/settings';
-import { editorUiStubs, nCollapse } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/ui-stubs';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 import { miscConfigFixture } from '@/test/misc-config';
 import type { MiscConfigKind, RowData } from '@/shared/types';
@@ -129,19 +129,19 @@ describe('misc config fields', () => {
     expect(document.activeElement).toBe(input.element);
   });
   it.each([
-    ['strings', 1],
-    ['engineStyles', 1],
-    ['hullStyles', 1],
-    ['sounds', 4],
+    ['strings', 0],
+    ['engineStyles', 0],
+    ['hullStyles', 0],
+    ['sounds', 2],
     ['settings', 4],
   ] as const)('groups root objects in %s independently', async (kind, count) => {
     mountConfig(kind);
     const collapse = wrapper!.findAllComponents(EditorCollapse)[0]!;
-    expect(collapse.getComponent(nCollapse).props('expandedNames')).toHaveLength(count);
+    expect(collapse.props('expandedNames')).toHaveLength(count);
     const input = wrapper!.get('input').element;
     collapse.vm.$emit('update:expandedNames', []);
     await nextTick();
-    expect(collapse.getComponent(nCollapse).props('expandedNames')).toEqual([]);
+    expect(collapse.props('expandedNames')).toEqual([]);
     collapse.vm.$emit('update:expandedNames', ['1']);
     await nextTick();
     expect(wrapper!.get('input').element).toBe(input);

@@ -1,5 +1,6 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { queryMiscConfigFiles, queryMiscConfigFile, hasMiscConfigInvalidation } from '@/services/misc-config.service';
 import { MISC_CONFIG_FILES, miscConfigFile, miscConfigValue } from '@/domain/json-editor/misc-config-files';
 import type { JsonEditorContext } from './json-editor-context';
@@ -58,23 +59,47 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     },
   });
   const documents = computed(() => editors.documentStates(sessionId.value!).filter((document) => document.target.value?.kind === kind));
+  const documentIndex = computed(() => {
+    const source = new Map<string, JsonDocumentState>(),
+      target = new Map<string, JsonDocumentState>();
+    for (const document of documents.value) {
+      if (!source.has(document.sourceTarget.value.id)) source.set(document.sourceTarget.value.id, document);
+      if (!target.has(document.target.value!.id)) target.set(document.target.value!.id, document);
+    }
+    return { source, target, retained: new Set(documents.value) };
+  });
   function bindRecord(record: JsonDocumentRecord) {
-    return { record, document: documents.value.find((document) => document.sourceTarget.value.id === record.target.id) ?? null };
+    return { record, document: documentIndex.value.source.get(record.target.id) ?? null };
   }
   function boundDocument(entry: (typeof formal.value)[number]) {
-    return entry.document && documents.value.includes(entry.document) ? entry.document : bindRecord(entry.record).document;
+    return entry.document && documentIndex.value.retained.has(entry.document) ? entry.document : bindRecord(entry.record).document;
   }
-  const records = computed(() => [
-    ...formal.value.map((entry) => boundDocument(entry)?.record.value ?? entry.record),
-    ...documents.value
-      .filter((document) => !formal.value.some((entry) => boundDocument(entry) === document))
-      .map((document) => document.record.value),
-  ]);
-  const items = computed(() => {
+  const records = computed(() => {
+    const bound = new Set<JsonDocumentState>();
+    const result = formal.value.map((entry) => {
+      const document = boundDocument(entry);
+      if (document) bound.add(document);
+      return document?.record.value ?? entry.record;
+    });
+    return [...result, ...documents.value.filter((document) => !bound.has(document)).map((document) => document.record.value)];
+  });
+  type Item = ReturnType<typeof jsonDocumentSummary> & {
+    key: string;
+    filename: string;
+    state: string;
+    dirty: boolean;
+    missing: boolean;
+    resource: ReturnType<typeof jsonDocumentMedia>;
+  };
+  const items = computed<Item[]>((previous) => {
+    const before = new Map(previous?.map((item) => [item.key, item]));
+    function retain(item: Item) {
+      const old = before.get(item.key);
+      return old && stableDeepEqual(old, item) ? old : item;
+    }
     const rows = records.value.map((record) => {
-      const document = documents.value.find((document) => document.target.value!.id === record.target.id);
-      return {
-        record,
+      const document = documentIndex.value.target.get(record.target.id);
+      return retain({
         key: record.target.id,
         filename: '',
         state: '',
@@ -82,13 +107,13 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         dirty: document?.dirty.value ?? false,
         missing: document?.sourceMissing.value ?? false,
         resource: jsonDocumentMedia(record),
-      };
+      });
     });
     if (kind === 'misc-config')
       return MISC_CONFIG_FILES.map((file) => {
         const row = rows.find((row) => row.key === file.kind);
         const entry = directory.value.find((entry) => entry.kind === file.kind);
-        return {
+        return retain({
           key: file.kind,
           id: file.kind,
           title: file.label,
@@ -99,7 +124,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
           missing: row?.missing ?? false,
           state: fileError.value && selectedId.value === file.kind ? 'error' : (entry?.state ?? ''),
           companion: '',
-        };
+        });
       });
     return kind === 'mission' || kind === 'mod-info'
       ? rows
@@ -183,17 +208,16 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     fileLoading.value = true;
     await reads.consume('file', scope, (signal) => queryMiscConfigFile(scope.sessionId, scope.modRoot, scope.kind, signal), {
       ready: (file) => {
-        if (file)
-          formal.value = [
-            ...formal.value,
-            bindRecord({
-              target: { ...scope, kind: 'misc-config', id, entity: null },
-              value: miscConfigValue(id, cloneQuerySnapshot<JsonValue>(file.data)),
-              baseVersions: [...file.baseVersions],
-              resources: {},
-            }),
-          ];
-        else directory.value = directory.value.map((item) => (item.kind === id ? { ...item, state: 'missing', error: null } : item));
+        if (file) {
+          const record: JsonDocumentRecord = {
+            target: { ...scope, kind: 'misc-config', id, entity: null },
+            value: miscConfigValue(id, cloneQuerySnapshot<JsonValue>(file.data)),
+            baseVersions: [...file.baseVersions],
+            resources: {},
+          };
+          formal.value = [...formal.value, bindRecord(record)];
+          activateRecord(record, true);
+        } else directory.value = directory.value.map((item) => (item.kind === id ? { ...item, state: 'missing', error: null } : item));
       },
       error: (error) => {
         fileError.value = error;
@@ -247,7 +271,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       write: () => capabilities.remove(record.target, record.baseVersions, deleteSource),
       accept: async () => {
         if (current.value?.target.value?.id === record.target.id) {
-          current.value.active.value = false;
+          current.value.setActive(false);
           current.value = null;
         }
         editors.releaseEntity(record.target.sessionId, kind, record.target.id);
@@ -271,16 +295,16 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         records.value.flatMap((record) => Object.values(record.resources)),
       ),
   });
-  function activateRecord(record?: JsonDocumentRecord) {
+  function activateRecord(record?: JsonDocumentRecord, fresh = false) {
     const next = record ? useJsonDocumentSession(definition, record, feedback) : null;
     if (next && formal.value.some((entry) => !entry.document && entry.record.target.id === record!.target.id)) {
       formal.value = formal.value.map((entry) => (entry.record.target.id === record!.target.id ? { ...entry, document: next } : entry));
     }
     if (current.value !== next) {
-      if (current.value) current.value.active.value = false;
+      if (current.value) current.value.setActive(false);
       current.value = next;
     }
-    if (next) next.active.value = active.value;
+    if (next) next.setActive(active.value, fresh);
   }
   watch(
     () => [selectedId.value, ...records.value.map((record) => record.target.id)],
@@ -311,7 +335,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     (enabled) => {
       if (enabled) void load();
       else reads.revoke();
-      if (current.value) current.value.active.value = enabled;
+      if (current.value) current.value.setActive(enabled);
     },
     { immediate: true },
   );
@@ -339,7 +363,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   );
   onScopeDispose(() => {
     if (current.value) {
-      current.value.active.value = false;
+      current.value.setActive(false);
     }
   });
   return {

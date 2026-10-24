@@ -31,45 +31,16 @@
             expanded ? collapsedGroups.delete(name) : collapsedGroups.add(name)
         "
       >
-        <component
+        <CsvCellPickerGroup
           v-for="group in filteredGroups"
           :key="group.key"
-          :is="group.label ? 'NCollapseItem' : 'div'"
-          class="csv-cell-picker-group"
-          :name="group.key"
-          :title="group.label"
-        >
-          <button
-            class="ui-button ui-text-normal ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
-            v-for="option in group.options"
-            :key="option.value"
-            :ref="visible.mediaRef(option.value, option.resourceRef)"
-            :class="['csv-cell-picker-option', { selected: selectedValues.has(option.value) }]"
-            :aria-pressed="multiple ? selectedValues.has(option.value) : undefined"
-            :title="option.description ?? undefined"
-            type="button"
-            @click="selectOption(option)"
-          >
-            <svg v-if="multiple" class="csv-cell-picker-check ui-control-icon" viewBox="0 0 16 16" aria-hidden="true">
-              <path v-if="selectedValues.has(option.value)" d="m3 8 3 3 7-6" />
-            </svg>
-            <ResourceThumbnail
-              v-if="option.resourceRef"
-              class="csv-cell-picker-thumb"
-              :session-id="sessionId"
-              :resource="option.resourceRef"
-              :url="visible.mediaSrc(option.resourceRef)"
-              :active="visible.mediaVisible(option.value)"
-              :label="option.label"
-              :width="18"
-              :height="18"
-            />
-            <span class="csv-cell-picker-label ui-text-truncate ui-layout-shrink">{{ option.label }}</span>
-            <span v-if="option.value !== option.label" class="csv-cell-picker-value ui-text-truncate ui-layout-shrink ui-text-muted">{{
-              option.value
-            }}</span>
-          </button>
-        </component>
+          :group="group"
+          :media="visible"
+          :selected="selectedValues"
+          :multiple="multiple"
+          :session-id="sessionId"
+          @select="selectOption"
+        />
       </NCollapse>
     </div>
     <button
@@ -87,7 +58,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import { groupSelectOptions, type FlatSelectOption, type SelectOption } from '@/domain/schema/schema-options';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
-import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
+import CsvCellPickerGroup from './CsvCellPickerGroup.vue';
 import { useCsvFloatingPanel, useCsvFloatingViewport } from '@/app/composables/csv-editor/use-csv-floating-panel';
 
 const props = defineProps<{
@@ -122,13 +93,23 @@ const PICKER_MAX_HEIGHT = 320;
 
 const pickerStyle = useCsvFloatingPanel(() => props.anchor, PICKER_MAX_HEIGHT);
 const groups = computed(() => groupSelectOptions(props.options));
+const catalog = computed(() => {
+  const search = new Map<FlatSelectOption, string>();
+  const exact = new Map<string, FlatSelectOption>();
+  for (const group of groups.value)
+    for (const option of group.options) {
+      search.set(option, (option.label + '\u0000' + option.value).toLowerCase());
+      for (const text of [option.value, option.label]) if (!exact.has(text)) exact.set(text, option);
+    }
+  return { search, exact };
+});
 const filteredGroups = computed(() => {
   const needle = query.value.trim().toLowerCase();
   if (!needle) return groups.value;
   return groups.value
     .map((group) => ({
       ...group,
-      options: group.options.filter((option) => option.label.toLowerCase().includes(needle) || option.value.toLowerCase().includes(needle)),
+      options: group.options.filter((option) => catalog.value.search.get(option)!.includes(needle)),
     }))
     .filter((group) => group.options.length > 0);
 });
@@ -176,7 +157,7 @@ function submitQuery(event: KeyboardEvent) {
   event.preventDefault();
   const value = query.value.trim();
   if (!value) return;
-  const option = groups.value.flatMap((group) => group.options).find((option) => option.value === value || option.label === value);
+  const option = catalog.value.exact.get(value);
   selectOption(option ?? { label: value, value });
 }
 

@@ -159,6 +159,7 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
         baseVersions: file?.baseVersions ?? [{ path: model.manifest.modRoot + '/' + definition.path, fingerprint: null }],
         missingPaths: file ? [] : [definition.path],
         currentSources: file ? { file: file.data } : {},
+        resourceRefs: {},
       };
     }
     case 'save_misc_config':

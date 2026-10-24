@@ -32,7 +32,6 @@ export function useEditorDocument(options: {
 
   function publish() {
     options.publish(value.value);
-    committed = deepClone(value.value);
     options.draw?.();
   }
   function finish(publishGesture = true) {
@@ -50,9 +49,7 @@ export function useEditorDocument(options: {
     if (!action.value) {
       const element = document.activeElement as HTMLElement | null;
       const field = element?.matches('input, textarea') && options.contains?.(element);
-      action.value = field
-        ? { kind: 'field', before: deepClone(committed), element: element! }
-        : { kind: 'command', before: deepClone(committed) };
+      action.value = field ? { kind: 'field', before: committed, element: element! } : { kind: 'command', before: committed };
     }
     edit(value.value);
     publish();
@@ -61,13 +58,13 @@ export function useEditorDocument(options: {
   function command(edit: (value: RowData) => void) {
     return run(() => {
       finish();
-      action.value = { kind: 'command', before: deepClone(committed) };
+      action.value = { kind: 'command', before: committed };
       change(edit);
     });
   }
   function beginGesture(complete: () => void) {
     finish();
-    action.value = { kind: 'gesture', before: deepClone(committed), complete };
+    action.value = { kind: 'gesture', before: committed, complete };
   }
   function beginField(event: FocusEvent) {
     const element = event.target as HTMLElement;
@@ -77,7 +74,7 @@ export function useEditorDocument(options: {
     )
       return;
     finish();
-    action.value = { kind: 'field', before: deepClone(committed), element };
+    action.value = { kind: 'field', before: committed, element };
   }
   function endField() {
     if (action.value?.kind === 'field') finish();
@@ -97,6 +94,7 @@ export function useEditorDocument(options: {
       const next = history?.[direction]();
       if (!next) return;
       value.value = options.normalize(next);
+      committed = deepClone(value.value);
       options.reset?.('replay');
       publish();
     });
@@ -110,6 +108,7 @@ export function useEditorDocument(options: {
     cancel: () => {
       if (action.value?.kind === 'gesture') action.value.complete();
       action.value = null;
+      committed = deepClone(value.value);
     },
   });
   if (inputs) onScopeDispose(inputs.registerFinalizer(() => finish()));

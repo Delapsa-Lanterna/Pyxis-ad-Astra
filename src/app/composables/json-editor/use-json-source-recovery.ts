@@ -4,7 +4,7 @@ import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
 import { recreateJsonSourcesAction } from '@/orchestrators/json-save.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import type { EditTargetDraftSession, EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
-import type { ConfigDocumentTarget } from '@/domain/json-editor/json-document-definitions';
+import { jsonRecoveryValue, type ConfigDocumentTarget } from '@/domain/json-editor/json-document-definitions';
 import type { JsonDocumentMeta } from './json-document-capabilities';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { AppFeedback, JsonRecoveryPlan, JsonRecoveryRequest, RowData } from '@/shared/types';
@@ -41,11 +41,12 @@ export function useJsonSourceRecovery(options: {
                 },
               },
     };
-    await reads.consume('recovery', request, () => prepareJsonSourceRecovery(request), {
+    const accepted = await reads.consume('recovery', request, () => prepareJsonSourceRecovery(request), {
       ready: (value) => {
         plan.value = value;
       },
     });
+    return accepted ? plan.value : null;
   }
   async function recreate() {
     try {
@@ -77,9 +78,15 @@ export function useJsonSourceRecovery(options: {
             );
             return {
               ...baseline,
+              value: jsonRecoveryValue(baseline.target, result.refreshedEntity!, baseline.value),
               baseVersions: [...new Map([...baseline.baseVersions, ...restored].map((version) => [version.path, version])).values()],
               commitId: result.commitId,
-              meta: { ...baseline.meta, receipt: result, recovery: result.refreshedEntity! },
+              meta: {
+                ...baseline.meta,
+                resources: result.refreshedEntity!.resourceRefs,
+                receipt: result,
+                recovery: result.refreshedEntity!,
+              },
             };
           })
         ).status === 'saved'
@@ -89,12 +96,25 @@ export function useJsonSourceRecovery(options: {
       return false;
     }
   }
-  watch(options.active, (enabled) => {
-    if (!enabled) reads.revoke();
-  });
+  watch(
+    options.active,
+    (enabled) => {
+      if (!enabled) reads.revoke();
+    },
+    { flush: 'sync' },
+  );
+  watch(
+    session.currentTargetKey,
+    () => {
+      reads.revoke();
+      plan.value = null;
+    },
+    { flush: 'sync' },
+  );
   return {
     missing: computed(() => Boolean(plan.value?.missingPaths.length)),
     refresh,
+    cancelRead: () => reads.revoke(),
     recreate,
     accept: (value: JsonRecoveryPlan) => {
       plan.value = value;

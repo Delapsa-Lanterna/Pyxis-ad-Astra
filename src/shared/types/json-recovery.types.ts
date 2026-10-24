@@ -15,6 +15,7 @@ export interface JsonRecoveryPlan {
   baseVersions: FileVersion[];
   missingPaths: string[];
   currentSources: Record<string, JsonValue>;
+  resourceRefs: Record<string, import('./project-identity.types').ResourceRef>;
 }
 export interface RecreateJsonSourcesPayload {
   sessionId: string;

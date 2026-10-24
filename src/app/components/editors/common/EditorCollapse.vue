@@ -1,13 +1,12 @@
 <template>
-  <NCollapse class="schema-form" v-bind="$attrs" arrow-placement="right" display-directive="show">
-    <template v-for="(_, slot) in $slots" :key="slot" #[slot]="scope"><slot :name="slot" v-bind="scope ?? {}" /></template>
-    <template #arrow="scope">
-      <slot name="arrow" v-bind="scope">
-        <svg class="section-chevron-icon ui-control-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
-      </slot>
-    </template>
-  </NCollapse>
+  <div class="schema-form editor-collapse"><slot /></div>
 </template>
 <script setup lang="ts">
-defineOptions({ inheritAttrs: false });
+import { provide, useSlots } from 'vue';
+import { editorCollapseKey } from './editor-collapse';
+const expanded = defineModel<(string | number)[]>('expandedNames', { required: true });
+function toggle(name: string | number) {
+  expanded.value = expanded.value.includes(name) ? expanded.value.filter((value) => value !== name) : [...expanded.value, name];
+}
+provide(editorCollapseKey, { expanded, toggle, slots: useSlots() });
 </script>

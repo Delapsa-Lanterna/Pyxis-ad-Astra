@@ -1,7 +1,10 @@
 use super::super::cache::{lock_session, session_handle};
 use crate::{
     errors::{AppError, AppResult},
-    io::{FsRootBoundary, file_version, read_csv_data, read_json_file, read_utf8_no_bom},
+    io::{
+        FsRootBoundary, acquire_root_write_lock, decode_text, file_version, read_versioned_bytes,
+        read_versioned_csv, read_versioned_json,
+    },
     models::{EntityKind, JsonDocumentOrigin, JsonRecoveryPlan, JsonRecoveryRequest},
 };
 use serde_json::Value;
@@ -12,6 +15,7 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
         &request.session_id,
         &request.mod_root,
     )?;
+    let _lease = acquire_root_write_lock(Path::new(&request.mod_root))?;
     let boundary = FsRootBoundary::new(Path::new(&request.mod_root), "JSON recovery root")?;
     let original = match &request.origin {
         JsonDocumentOrigin::ModInfo | JsonDocumentOrigin::MiscConfig { .. } => None,
@@ -63,26 +67,40 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
     let mut versions = Vec::new();
     let mut missing = Vec::new();
     let mut current = BTreeMap::new();
+    let mut index = None;
     for (key, relative, json) in paths {
         let path = boundary.resolve_relative_target(&relative, "JSON recovery source")?;
-        let before = file_version(&path)?;
-        if before.fingerprint.is_none() {
+        let version = if !path
+            .try_exists()
+            .map_err(|error| AppError::from(error).at_path(&path))?
+        {
             missing.push(relative.clone());
+            file_version(&path)?
         } else if key == "index" {
-            let table = read_csv_data(&path)?;
-            current.insert(key.to_string(), serde_json::to_value(table)?);
+            let (version, table) = read_versioned_csv(&path)?;
+            current.insert(key.to_string(), serde_json::to_value(&table)?);
+            index = Some(table);
+            version
         } else if json {
-            current.insert(key.to_string(), read_json_file(&path)?);
+            let (version, value) = read_versioned_json(&path)?;
+            if let JsonDocumentOrigin::MiscConfig { file } = request.origin {
+                crate::domain::misc_config::validate_misc_config(
+                    file,
+                    &value,
+                    &crate::parsers::bundled_schema(
+                        crate::domain::misc_config::misc_config_schema_id(file),
+                    )["root"],
+                )
+                .map_err(|error| error.at_path(&path))?;
+            }
+            current.insert(key.to_string(), value);
+            version
         } else {
-            current.insert(key.to_string(), Value::String(read_utf8_no_bom(&path)?));
-        }
-        if before != file_version(&path)? {
-            return Err(AppError::message(
-                "write.version_conflict",
-                "准备期间来源已变化",
-            ));
-        }
-        versions.push(before);
+            let (version, bytes) = read_versioned_bytes(&path)?;
+            current.insert(key.to_string(), Value::String(decode_text(&path, &bytes)?));
+            version
+        };
+        versions.push(version);
     }
     if let Some(target) = original.as_ref() {
         if target.kind == EntityKind::Mission {
@@ -96,11 +114,9 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             EntityKind::Mission => Some("data/missions/mission_list.csv"),
             _ => None,
         };
-        if let Some(index_path) = index_path {
-            let table =
-                read_csv_data(&boundary.resolve_relative(index_path, "JSON recovery index")?)?;
+        if let (Some(index_path), Some(table)) = (index_path, index.as_ref()) {
             let linked = if target.kind == EntityKind::Faction {
-                crate::io::faction_index_entries(&boundary, &table)?
+                crate::io::faction_index_entries(&boundary, table)?
                     .iter()
                     .any(|entry| {
                         crate::io::same_physical_path(&entry.path, Path::new(&target.write.path))
@@ -116,11 +132,27 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
             }
         }
     }
+    let resource_refs = if let Some(target) = original.as_ref() {
+        let handle = session_handle(&request.session_id)?;
+        let session = lock_session(&handle)?;
+        let mission = serde_json::json!({"descriptor": current.get("descriptor")});
+        let data = if target.kind == EntityKind::Mission {
+            &mission
+        } else {
+            current.get("file").unwrap_or(&Value::Null)
+        };
+        let definition =
+            super::super::definitions::entity_definitions::entity_definition(target.kind)?;
+        (definition.resources)(&session, &target.id, data)
+    } else {
+        BTreeMap::new()
+    };
     Ok(JsonRecoveryPlan {
         request,
         base_versions: versions,
         missing_paths: missing,
         current_sources: current,
+        resource_refs,
     })
 }
 

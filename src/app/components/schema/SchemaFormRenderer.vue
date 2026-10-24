@@ -37,6 +37,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
+import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import { extraJsonFieldKeys } from '@/shared/lib/json-fields';
 import type { RowData } from '@/shared/types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';

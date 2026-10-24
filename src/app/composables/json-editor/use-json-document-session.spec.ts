@@ -122,6 +122,31 @@ function receipt(before: EntityData | null, after: EntityData | null): WriteResu
   if (before && after) result.identityChanges = [{ before: before.target, after: after.target }];
   return result;
 }
+async function prepare(request: JsonRecoveryRequest): Promise<JsonRecoveryPlan> {
+  const { origin, sessionId, modRoot } = request;
+  if (origin.kind === 'entity') {
+    const entity = entities.get(sessionId + ':' + origin.target.kind + ':' + origin.target.id)!;
+    const data = entity.data as RowData;
+    return {
+      request,
+      missingPaths: [],
+      baseVersions: entity.baseVersions,
+      currentSources:
+        entity.kind === 'mission'
+          ? { descriptor: data.descriptor!, text: data.text!, index: { rows: [{ isComment: false, data: data.list! }] } }
+          : { file: data },
+      resourceRefs: entity.resourceRefs,
+    };
+  }
+  const manifest = useProjectStore().getManifest(modRoot)!;
+  return {
+    request,
+    missingPaths: [],
+    baseVersions: manifest.baseVersions,
+    currentSources: { file: origin.kind === 'modInfo' ? manifest.modInfo! : {} },
+    resourceRefs: {},
+  };
+}
 beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editHistoryLimit: 2 }));
@@ -158,12 +183,7 @@ beforeEach(() => {
     baseVersions: payload.baseVersions.map((v: { path: string }) => ({ ...v, fingerprint: 'saved' })),
   }));
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(session + ':' + kind + ':' + id) ?? null);
-  mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest): Promise<JsonRecoveryPlan> => ({
-    request,
-    baseVersions: [],
-    missingPaths: [],
-    currentSources: {},
-  }));
+  mocks.prepare.mockImplementation(prepare);
   mocks.saveFile.mockImplementation(
     async (session: string, root: string, id: string, data: RowData, previous: string | null, relPath: string) => {
       const kind = relPath.endsWith('.skin') ? 'skin' : 'variant';
@@ -206,6 +226,59 @@ afterEach(() => {
   useJsonEditorStore().releaseSession('s2');
 });
 describe('complete JSON document runtime', () => {
+  it('accepts a freshly read file without another request and refreshes once on return', async () => {
+    const doc = document(JSON_DOCUMENT_DEFINITIONS['misc-config']);
+    doc.setActive(true, true);
+    await flushPromises();
+    expect(mocks.readMisc).not.toHaveBeenCalled();
+    expect(mocks.prepare).not.toHaveBeenCalled();
+    doc.setActive(false);
+    doc.setActive(true);
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(mocks.readMisc).not.toHaveBeenCalled();
+  });
+  it('rejects a late refresh after page departure and accepts the next lifetime', async () => {
+    const doc = document();
+    let complete!: (plan: JsonRecoveryPlan) => void;
+    mocks.prepare.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    doc.setActive(true);
+    doc.setActive(false);
+    const request: JsonRecoveryRequest = { sessionId: 's1', modRoot: 'M:/one', origin: { kind: 'modInfo' } };
+    complete({ request, baseVersions: [], missingPaths: ['late'], currentSources: {}, resourceRefs: {} });
+    await flushPromises();
+    expect(doc.sourceMissing.value).toBe(false);
+    expect(doc.draftValue.value.displayName).toBe('Saved');
+    doc.setActive(true);
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledTimes(2);
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(feedback.error).not.toHaveBeenCalled();
+  });
+  it('revokes an earlier source snapshot when a local edit commits', async () => {
+    const doc = document();
+    let complete!: (plan: JsonRecoveryPlan) => void;
+    mocks.prepare.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    doc.setActive(true);
+    const request = mocks.prepare.mock.lastCall![0] as JsonRecoveryRequest;
+    const snapshot = await prepare(request);
+    edit(doc, JSON_DOCUMENT_DEFINITIONS.variants, 'Local');
+    complete({ ...snapshot, baseVersions: snapshot.baseVersions.map((version) => ({ ...version, fingerprint: 'late' })) });
+    await flushPromises();
+    expect(doc.draftValue.value.displayName).toBe('Local');
+    expect(doc.externalUpdateNotice.value).toBe('');
+    expect(doc.record.value.baseVersions[0]!.fingerprint).toBe('v1');
+  });
   it('retains numeric strings, draft history and newer edits across a misc config save', async () => {
     const doc = document(JSON_DOCUMENT_DEFINITIONS['misc-config']);
     expect(doc.schema.value.id).toBe('strings');
@@ -246,8 +319,9 @@ describe('complete JSON document runtime', () => {
       baseVersions: [],
       missingPaths: ['data/strings/strings.json'],
       currentSources: {},
+      resourceRefs: {},
     }));
-    doc.active.value = true;
+    doc.setActive(true);
     await flushPromises();
     expect(mocks.prepare.mock.lastCall![0].origin).toEqual({ kind: 'miscConfig', file: 'strings' });
     expect(doc.sourceMissing.value).toBe(true);
@@ -306,7 +380,7 @@ describe('complete JSON document runtime', () => {
     edit(a, definition, 'One');
     edit(a, definition, 'Two');
     edit(a, definition, 'Three');
-    a.active.value = false;
+    a.setActive(false);
     const same = document(definition);
     expect(same).toBe(a);
     const other = document(definition, 'a', 's2', 'M:/two');
@@ -367,7 +441,7 @@ describe('complete JSON document runtime', () => {
       .flatMap((definition) => [false, true].map((dirty) => ({ definition, dirty }))),
   )('$definition.kind accepts background rename with dirty=$dirty and preserves mapped history', async ({ definition, dirty }) => {
     const doc = document(definition);
-    doc.active.value = false;
+    doc.setActive(false);
     if (dirty) edit(doc, definition, 'Local');
     const before = entities.get('s1:' + definition.kind + ':a')!,
       after = jsonEntityFixture(definition.kind as 'faction' | 'mission' | 'variant' | 'skin', 'next', 'External');
@@ -377,7 +451,7 @@ describe('complete JSON document runtime', () => {
     if (dirty) {
       expect(doc.target.value!.id).toBe('a');
       vi.mocked(feedback.choose).mockResolvedValueOnce('follow');
-      doc.active.value = true;
+      doc.setActive(true);
       await flushPromises();
 
       expect(doc.dirty.value).toBe(true);
@@ -416,6 +490,7 @@ describe('complete JSON document runtime', () => {
       baseVersions: baseline.baseVersions.map((version) => ({ ...version, fingerprint: null })),
       missingPaths: baseline.baseVersions.map((version) => version.path.slice('M:/one/'.length)),
       currentSources: {},
+      resourceRefs: {},
     };
     mocks.prepare.mockResolvedValue(plan);
     const result: WriteResult<JsonRecoveryPlan> = {
@@ -427,7 +502,7 @@ describe('complete JSON document runtime', () => {
         currentSources: definition.file
           ? { file: baseline.value }
           : definition.kind === 'mission'
-            ? { descriptor: baseline.value.descriptor!, text: 'Body' }
+            ? { descriptor: baseline.value.descriptor!, text: 'Body', index: { rows: [{ isComment: false, data: baseline.value.list! }] } }
             : { file: baseline.value.file! },
       },
     };
@@ -451,17 +526,13 @@ describe('complete JSON document runtime', () => {
         baseVersions: baseline.baseVersions,
         missingPaths: ['missing.json'],
         currentSources: {},
+        resourceRefs: {},
       });
-      doc.active.value = true;
+      doc.setActive(true);
       await flushPromises();
       expect(doc.sourceMissing.value).toBe(true);
       expect(doc.dirty.value).toBe(true);
-      mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) => ({
-        request,
-        baseVersions: [],
-        missingPaths: [],
-        currentSources: {},
-      }));
+      mocks.prepare.mockImplementation(prepare);
       if (definition.kind === 'mod-info') {
         const manifest = useProjectStore().getManifest('M:/one')!;
         manifest.modInfo = { id: 'mod', name: 'External' };
@@ -517,6 +588,7 @@ describe('complete JSON document runtime', () => {
         baseVersions: baseline.baseVersions.map((version) => ({ ...version, fingerprint: null })),
         missingPaths: [baseline.target.entity!.write.relPath],
         currentSources: {},
+        resourceRefs: {},
       };
       mocks.prepare.mockResolvedValue({ ...plan, missingPaths: outcome === 'reappeared' ? [] : plan.missingPaths });
       if (outcome === 'cancel') vi.mocked(feedback.choose).mockResolvedValueOnce(null);
@@ -525,7 +597,7 @@ describe('complete JSON document runtime', () => {
         mocks.recreate.mockResolvedValueOnce({
           ...receipt(null, null),
           baseVersions: baseline.baseVersions,
-          refreshedEntity: { ...plan, missingPaths: [] },
+          refreshedEntity: { ...plan, missingPaths: [], currentSources: { file: baseline.value } },
         });
         mocks.complete.mockRejectedValueOnce(new Error('broadcast'));
       }
@@ -553,9 +625,9 @@ describe('complete JSON document runtime', () => {
     });
     const savingA = a.save(),
       savingB = b.save();
-    b.active.value = true;
     const external = entities.get('s1:variant:b')!;
     external.baseVersions = external.baseVersions.map((v) => ({ ...v, fingerprint: 'latest' }));
+    b.setActive(true);
     await flushPromises();
     const raw = ref(true);
     b.inputs.register({

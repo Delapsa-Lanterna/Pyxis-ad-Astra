@@ -225,6 +225,35 @@ fn reject_stale_recovery() {
     }
 }
 #[test]
+fn recovery_snapshot_versions() {
+    for kind in ["modInfo", "variant", "skin", "faction", "mission"] {
+        let fixture = Fixture::new(kind);
+        let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
+        assert!(plan.missing_paths.is_empty(), "{kind}");
+        for path in &fixture.paths {
+            let expected = crate::io::file_version(&fixture.root.join(path)).unwrap();
+            assert!(plan.base_versions.contains(&expected), "{kind}: {path}");
+        }
+        if kind == "mission" {
+            assert_eq!(plan.current_sources["text"], "Saved text");
+            assert_eq!(
+                plan.current_sources["index"]["rows"][0]["data"]["custom"],
+                "kept"
+            );
+        } else {
+            assert!(plan.current_sources["file"].is_object());
+        }
+    }
+    let fixture = Fixture::new("faction");
+    std::fs::write(
+        fixture.root.join(&fixture.paths[0]),
+        r#"{"id":"sample","crest":"graphics/current.png"}"#,
+    )
+    .unwrap();
+    let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
+    assert_eq!(plan.resource_refs["crest"].rel_path, "graphics/current.png");
+}
+#[test]
 fn repair_faction_reference() {
     let fixture = Fixture::new("faction");
     let path = fixture.root.join(&fixture.paths[0]);

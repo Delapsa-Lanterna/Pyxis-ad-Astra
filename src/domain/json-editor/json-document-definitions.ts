@@ -1,11 +1,21 @@
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import type { DeepReadonly, EntityData, EntityEditTarget, FileVersion, JsonEditorPageId, ResourceRef, RowData } from '@/shared/types';
+import type {
+  CsvRow,
+  DeepReadonly,
+  EntityData,
+  EntityEditTarget,
+  FileVersion,
+  JsonEditorPageId,
+  JsonRecoveryPlan,
+  ResourceRef,
+  RowData,
+} from '@/shared/types';
 import { aggregateSchemaSources } from '@/domain/schema/schema-sources';
 import { configFactionListItems } from './json-config-entities';
 import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
-import { miscConfigFile } from './misc-config-files';
+import { miscConfigFile, miscConfigValue } from './misc-config-files';
 
 export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {
@@ -80,6 +90,16 @@ export function configDocumentKey(target: ConfigDocumentTarget) {
 }
 export function jsonDocumentValue(kind: JsonDocumentKind, data: RowData): RowData {
   return kind === 'variant' || kind === 'skin' ? data : aggregateSchemaSources(kind === 'mission' ? data : { file: data });
+}
+export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecoveryPlan, current: RowData): RowData {
+  const sources = plan.currentSources;
+  if (target.kind === 'misc-config') return miscConfigValue(target.id, sources.file!);
+  if (target.kind === 'mission') {
+    const index = sources.index as unknown as { rows: CsvRow[] };
+    const list = index.rows.find((row) => !row.isComment && row.data.mission === target.id)!.data;
+    return { ...current, ...aggregateSchemaSources({ list, descriptor: sources.descriptor, text: sources.text ?? '' }) };
+  }
+  return jsonDocumentValue(target.kind, requireRowData(sources.file, 'JSON 文档内容无效'));
 }
 export function jsonDocumentRecord(sessionId: string, modRoot: string, record: DeepReadonly<EntityData>): JsonDocumentRecord {
   const entity = cloneQuerySnapshot<EntityData>(record);

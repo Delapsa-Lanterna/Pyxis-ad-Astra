@@ -5,7 +5,7 @@
     :class="{ 'ui-field-number': field.type === 'integer' || field.type === 'float', 'field-json-input': field.type === 'json' }"
     :disabled="field.editable === false"
     :type="multiline ? 'textarea' : 'text'"
-    :autosize="multiline ? { minRows: 2, maxRows: 10 } : undefined"
+    :autosize="multiline ? { minRows: 1, maxRows: 10 } : undefined"
     :status="invalid ? 'error' : undefined"
     size="small"
     @update:value="update"
@@ -35,7 +35,14 @@ import { cell } from '@/shared/lib/starsector';
 import { formatJsonInput, parseJsonInput } from '@/shared/lib/json-input';
 import type { JsonInputShape } from '@/shared/types';
 
-const props = defineProps<{ field: FieldSchema; value: unknown; inputKey: string; initialText?: string; shape?: JsonInputShape }>();
+const props = defineProps<{
+  field: FieldSchema;
+  value: unknown;
+  inputKey: string;
+  initialText?: string;
+  shape?: JsonInputShape;
+  validate?: (value: unknown) => string | null;
+}>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate]; cancel: [] }>();
 const multiline = props.field.type === 'text' || props.field.type === 'json';
 const input = ref<{ inputElRef: HTMLInputElement | null; textareaElRef: HTMLTextAreaElement | null; focus: () => void } | null>(null);
@@ -61,6 +68,10 @@ const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
           props.field.type === 'tag-select' ? wrapSchemaTagValues(props.value, parseSchemaCommaList(text)) : parseSchemaCommaList(text),
       };
     const converted = convertSchemaScalarInput(text, props.field);
+    if (converted.kind === 'set') {
+      const message = props.validate?.(converted.value);
+      if (message) return { kind: 'error', message };
+    }
     return converted.kind === 'set' ? { kind: 'value', value: converted.value } : converted;
   },
   apply: (converted) => emit('update', converted.kind === 'value' ? { kind: 'set', value: converted.value } : converted),

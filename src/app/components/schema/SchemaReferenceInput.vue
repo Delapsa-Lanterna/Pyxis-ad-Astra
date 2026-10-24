@@ -85,6 +85,7 @@ import {
   includeCurrentSelectOptions,
   schemaEnumSelectOptions,
   selectOptionText,
+  selectOptionValues,
   type SelectOption,
 } from '@/domain/schema/schema-options';
 import {
@@ -213,9 +214,13 @@ const enumOptions = computed(() => {
 });
 
 // Ghost echo: values missing from the catalog (broken refs, manual input) enter the option tree as raw text.
-const displayOptions = computed(() => includeCurrentSelectOptions(enumOptions.value, fieldSourceCurrentValues(props.field, props.value)));
-const listOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, arrVal.value));
-const tagDisplayOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, tagSelectVal.value));
+const enumValues = computed(() => selectOptionValues(enumOptions.value));
+const sourceValues = computed(() => selectOptionValues(sourceOptions.value));
+const displayOptions = computed(() =>
+  includeCurrentSelectOptions(enumOptions.value, fieldSourceCurrentValues(props.field, props.value), enumValues.value),
+);
+const listOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, arrVal.value, sourceValues.value));
+const tagDisplayOptions = computed(() => includeCurrentSelectOptions(sourceOptions.value, tagSelectVal.value, sourceValues.value));
 
 const customTag = ref<string | null>(null);
 const customTagInput = ref<InstanceType<typeof SchemaScalarInput> | null>(null);

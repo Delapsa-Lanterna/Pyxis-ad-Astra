@@ -8,6 +8,7 @@ import { useCanvasEditor } from './use-canvas-editor';
 import { createCanvasState } from './use-canvas-state';
 import { useEditorDocument } from '@/app/composables/editors/use-editor-document';
 import { useCanvasViewport } from './use-canvas-viewport';
+import { beginEditorCollapseLeave, finishEditorCollapseLeave } from '@/app/components/editors/common/editor-collapse';
 import type { EditContext, RowData } from '@/shared/types';
 import { installCanvas2DStub } from '@/test/canvas-stub';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -122,10 +123,15 @@ describe('explicit inspector locking', () => {
       lock: fixture.state.target.value,
     });
     const scroll = fixture.wrapper.get('.editor-scroll').element;
-    const animations = vi.fn((): Animation[] => []),
-      scrollTo = vi.fn();
-    Object.assign(scroll, { getAnimations: animations, scrollTo });
-    return { ...fixture, animations, scrollTo, query: vi.spyOn(scroll, 'querySelector') };
+    const scrollTo = vi.fn();
+    const group = window.document.createElement('div');
+    group.className = 'editor-collapse';
+    const content = window.document.createElement('div');
+    content.className = 'n-collapse-item__content-wrapper';
+    group.append(content);
+    scroll.append(group);
+    Object.assign(scroll, { scrollTo });
+    return { ...fixture, content, scrollTo, query: vi.spyOn(scroll, 'querySelector') };
   }
 
   it.each([
@@ -203,23 +209,32 @@ describe('explicit inspector locking', () => {
     wrapper.unmount();
   });
 
+  it.each(['mode', 'unmount'])('ends cancelled reveal startup on %s before scheduling another frame', async (boundary) => {
+    const { wrapper, editor, state, scrollTo } = openInspector();
+    let frame!: FrameRequestCallback;
+    const schedule = vi.fn((callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    });
+    vi.stubGlobal('requestAnimationFrame', schedule);
+    await editor.revealInspector(() => state.select({ kind: 'slot', i: 0 }, true));
+    await flushPromises();
+    if (boundary === 'mode') editor.cancelInspectorReveal();
+    else wrapper.unmount();
+    frame(0);
+    await flushPromises();
+    expect(schedule).toHaveBeenCalledOnce();
+    expect(scrollTo).not.toHaveBeenCalled();
+    if (boundary !== 'unmount') wrapper.unmount();
+  });
+
   it.each(['latest', 'mode', 'reset', 'baseline', 'unmount'])(
     'waits for collapse completion and revokes pending work on %s',
     async (boundary) => {
-      let finish!: () => void;
-      class HeightTransition {
-        transitionProperty = 'max-height';
-        finished = new Promise<void>((resolve) => {
-          finish = resolve;
-        });
-      }
-      vi.stubGlobal('CSSTransition', HeightTransition);
-      const { wrapper, editor, state, context, animations, scrollTo, query } = openInspector();
-      const transition = new HeightTransition();
-      animations.mockReturnValue([transition as unknown as Animation]);
+      const { wrapper, editor, state, context, content, scrollTo, query } = openInspector();
+      beginEditorCollapseLeave(content);
       await editor.revealInspector(() => state.select({ kind: 'slot', i: 0 }, true));
       await flushPromises();
-      expect(animations).toHaveBeenCalledWith({ subtree: true });
       expect(scrollTo).not.toHaveBeenCalled();
       if (boundary === 'latest') await editor.revealInspector(() => state.select({ kind: 'slot', i: 1 }, true));
       if (boundary === 'mode') editor.cancelInspectorReveal();
@@ -227,7 +242,7 @@ describe('explicit inspector locking', () => {
       if (boundary === 'baseline') context.value = { targetKey: 'one', baselineGeneration: 2, handoff: 'external' };
       if (boundary === 'unmount') wrapper.unmount();
       await flushPromises();
-      finish();
+      finishEditorCollapseLeave(content);
       await flushPromises();
       if (boundary === 'latest') {
         expect(query).toHaveBeenCalledExactlyOnceWith('[data-edit="slot-1"]');

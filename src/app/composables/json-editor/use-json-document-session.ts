@@ -11,6 +11,7 @@ import { jsonDocumentCapabilities, type JsonDocumentMeta } from './json-document
 import {
   configDocumentKey,
   jsonDocumentId,
+  jsonRecoveryValue,
   type ConfigDocumentTarget,
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
@@ -64,7 +65,6 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     acceptSaved: (snapshot) => {
       if (snapshot.meta.recovery) {
         recovery.accept(snapshot.meta.recovery);
-        void session.refreshTarget(snapshot.target);
       }
     },
     synchronizeSaved: async (snapshot) => {
@@ -105,6 +105,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   );
   type Writer = EditTargetDraftSessionOptions<RowData, ConfigDocumentTarget, JsonDocumentMeta>['save'];
   async function saveActual(write?: Writer): Promise<DocumentSaveResult> {
+    recovery.cancelRead();
     const committed = session.inputs.commit();
     if (committed && !(await committed)) return { status: 'cancelled' };
     if (!write && !session.dirty.value && !session.hasPendingSynchronization.value) return { status: 'noop' };
@@ -135,6 +136,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   const recovery = useJsonSourceRecovery({ session, active, save, feedback });
   const { confirmDiscard } = useFieldInputActions(session.inputs, feedback);
   function setDraft(value: RowData) {
+    recovery.cancelRead();
     history.push(session.draftValue.value, value);
     session.setDraft(value);
   }
@@ -143,12 +145,20 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     if (committed && !(await committed)) return false;
     if (!(direction === 'undo' ? history.canUndo.value : history.canRedo.value)) return null;
     session.inputs.cancel();
+    recovery.cancelRead();
     session.setDraft(history[direction]()!);
     return true;
   }
   async function refresh() {
-    await recovery.refresh();
-    if (active.value && !recovery.missing.value && !identity.pending.value) await session.refreshTarget(session.currentTarget.value!);
+    const target = session.currentTarget.value!;
+    const plan = await recovery.refresh();
+    if (plan && active.value && !recovery.missing.value && !identity.pending.value)
+      session.applyExternalForTarget({
+        target,
+        value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
+        baseVersions: plan.baseVersions,
+        meta: { receipt: null, resources: plan.resourceRefs },
+      });
   }
   const actions: DocumentEditorActions<ConfigDocumentTarget> = {
     target: session.currentTarget,
@@ -165,20 +175,18 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     waitForSave: () => commands.waitForSession(handle),
   };
   const editor = actions;
-  watch(
-    active,
-    (enabled) => {
-      if (enabled) {
-        editors.activate(editor);
-        void refresh().catch((error) => feedback.error(error, '刷新 JSON 文档失败'));
-      } else {
-        editors.deactivate(editor);
-        session.cancelRead();
-        reads.revoke();
-      }
-    },
-    { flush: 'sync' },
-  );
+  function setActive(enabled: boolean, fresh = false) {
+    if (enabled === active.value) return;
+    active.value = enabled;
+    if (enabled) {
+      editors.activate(editor);
+      if (!fresh) void refresh().catch((error) => feedback.error(error, '刷新 JSON 文档失败'));
+    } else {
+      editors.deactivate(editor);
+      session.cancelRead();
+      reads.revoke();
+    }
+  }
   watch(
     session.currentTarget,
     (next, before) => {
@@ -216,6 +224,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     viewId: configDocumentKey(record.target),
     ...actions,
     active,
+    setActive,
     externalUpdateNotice: session.externalUpdateNotice,
     schema: capabilities.schema,
     draftValue: computed({ get: () => session.draftValue.value, set: setDraft }),

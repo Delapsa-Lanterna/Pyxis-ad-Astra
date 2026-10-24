@@ -37,6 +37,7 @@ pub struct JsonRecoveryPlan {
     pub base_versions: Vec<FileVersion>,
     pub missing_paths: Vec<String>,
     pub current_sources: std::collections::BTreeMap<String, Value>,
+    pub resource_refs: std::collections::BTreeMap<String, crate::models::ResourceRef>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

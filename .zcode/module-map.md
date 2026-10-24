@@ -64,6 +64,7 @@
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
 - `src-tauri/src/testutil.rs`：Rust 测试共享夹具。
+- `src/app/components/editors/common/`：编辑与预览共同的标题、页脚、检查器和保留输入的分组展示。
 - `src/app/composables/use-query-read-owner.ts`：Vue 读取票据的作用域交接。
 - `src/domain/cache-limits.ts`：缓存预算的前端校验。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。

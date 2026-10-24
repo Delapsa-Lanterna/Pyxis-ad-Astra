@@ -1,50 +1,42 @@
 <template>
   <EditorCollapse :expanded-names="expanded" @update:expanded-names="collapse">
-    <template v-for="row in rows" :key="row.id">
-      <n-collapse-item v-if="row.group" :name="row.id" :title="row.field.label" class="schema-section">
-        <template #header>
-          <SchemaScalarInput
-            v-if="row.rename"
-            class="field-map-key-editor"
-            :field="nameField(currentRow(row.id))"
-            :value="currentRow(row.id).key"
-            :input-key="`${inputKey}/${row.id}/name`"
-            @click.stop
-            @update="rename(currentRow(row.id), $event)"
-          />
-          <span v-else>{{ row.field.label }}</span>
-        </template>
-        <template #header-extra>
-          <div v-if="row.remove" class="section-header-meta ui-control-row" @click.stop>
-            <n-button class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除分组" @click.stop="remove(row)">
-              <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </n-button>
-          </div>
-        </template>
-        <slot :row="currentRow(row.id)" :update="(update: SchemaFieldUpdate) => updateRow(currentRow(row.id), update)" />
-      </n-collapse-item>
-      <SchemaFieldRow v-else :field="row.field" :path="row.path">
-        <template v-if="row.rename" #label>
-          <SchemaScalarInput
-            class="field-map-key-editor"
-            :field="nameField(row)"
-            :value="row.key"
-            :input-key="`${inputKey}/${row.id}/name`"
-            @update="rename(row, $event)"
-          />
-        </template>
-        <slot :row="row" :update="(update: SchemaFieldUpdate) => updateRow(row, update)" />
-        <template #actions>
-          <n-button v-if="row.remove" class="compact-icon-button ui-control-reset" size="tiny" quaternary title="删除" @click="remove(row)">
+    <component
+      v-for="row in rows"
+      :key="row.id"
+      :is="row.group ? NCollapseItem : SchemaFieldRow"
+      v-memo="[row, runtimeContext, keyField]"
+      v-bind="row.group ? { name: row.id, title: row.field.label, class: 'schema-section' } : { field: row.field, path: row.path }"
+    >
+      <template v-if="row.group || row.rename" #[row.labelSlot]>
+        <SchemaScalarInput
+          v-if="row.rename"
+          class="field-map-key-editor"
+          :field="keyField"
+          :validate="row.validateName"
+          :value="row.key"
+          :input-key="`${inputKey}/${row.id}/name`"
+          @click.stop
+          @update="rename(currentRow(row.id), $event)"
+        />
+        <span v-else>{{ row.field.label }}</span>
+      </template>
+      <template #[row.actionSlot]>
+        <div v-if="row.remove" :class="row.group ? 'section-header-meta ui-control-row' : undefined" @click.stop>
+          <n-button
+            class="compact-icon-button ui-control-reset"
+            size="tiny"
+            quaternary
+            :title="row.group ? '删除分组' : '删除'"
+            @click.stop="remove(currentRow(row.id))"
+          >
             <svg class="compact-icon-button-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </n-button>
-        </template>
-      </SchemaFieldRow>
-    </template>
+        </div>
+      </template>
+      <slot :row="currentRow(row.id)" :update="(update: SchemaFieldUpdate) => updateRow(currentRow(row.id), update)" />
+    </component>
     <div
       v-if="field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
       class="ui-control-row"
@@ -54,8 +46,11 @@
   </EditorCollapse>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
+import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SchemaFieldRow from './SchemaFieldRow.vue';
 import SchemaScalarInput from './SchemaScalarInput.vue';
 import { useEditorRowIdentities } from '@/app/composables/editors/use-editor-row-identities';
@@ -69,7 +64,13 @@ import {
 } from '@/domain/schema/schema-values';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 
-const props = defineProps<{ field: FieldSchema; value: unknown; inputKey: string; fieldPath: string }>();
+const props = defineProps<{
+  field: FieldSchema;
+  value: unknown;
+  inputKey: string;
+  fieldPath: string;
+  runtimeContext?: SchemaRuntimeContext | null;
+}>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const inputs = useFieldInputs();
 const array = computed(() => props.field.type === 'array');
@@ -79,13 +80,43 @@ const item = computed<FieldSchema>(
   () => props.field.item ?? props.field.valueSchema ?? { key: 'value', label: '内容', type: 'json', default: null },
 );
 const entries = computed(() =>
-  array.value
+  (array.value
     ? Array.isArray(props.value)
       ? props.value.map((val, index) => ({ key: String(index), val }))
       : []
-    : schemaKeyValueEntries(props.value, format.value),
+    : schemaKeyValueEntries(props.value, format.value)
+  ).map((entry, index) => ({ ...entry, index })),
 );
-const dynamic = computed(() => entries.value.filter((entry) => array.value || !fields.value.some((field) => field.key === entry.key)));
+const fixedByKey = computed(() => new Map(fields.value.map((field) => [field.key, field])));
+const positions = computed(() => new Map(entries.value.map((entry, index) => [entry.key, index])));
+const names = computed(
+  () => new Set([...entries.value.map((entry) => entry.key), ...fixedByKey.value.keys(), ...(props.field.reservedKeys ?? [])]),
+);
+const dynamic = computed(() => entries.value.filter((entry) => array.value || !fixedByKey.value.has(entry.key)));
+const keyField = computed<FieldSchema>(() => ({
+  ...props.field.keySchema,
+  key: 'name',
+  label: props.field.keySchema?.label ?? '名称',
+  type: props.field.keySchema?.type ?? 'string',
+  required: true,
+  reservedKeys: [...(props.field.reservedKeys ?? []), ...fixedByKey.value.keys()],
+}));
+interface Row {
+  id: string;
+  key: string;
+  value: unknown;
+  field: FieldSchema;
+  variable: boolean;
+  index: number;
+  group: boolean;
+  labelSlot: string;
+  actionSlot: string;
+  rename: boolean;
+  remove: boolean;
+  path: string;
+  inputKey: string;
+  validateName: (value: unknown) => string | null;
+}
 const identity = useEditorRowIdentities(
   () => (array.value ? dynamic.value.map((entry) => entry.val) : dynamic.value),
   array.value ? undefined : (value) => (value as { key: string }).key,
@@ -93,15 +124,69 @@ const identity = useEditorRowIdentities(
 const choices = computed(
   () => item.value.variants ?? [{ ...item.value, label: props.field.presentation === 'groups' ? '添加分组' : '添加项' }],
 );
-const collapsed = ref<(string | number)[]>([]);
-const rows = computed(() => {
+const groupStates = ref(new Map<string, boolean>());
+const rows = computed<Row[]>((previous) => {
+  const before = new Map(previous?.map((row) => [row.id, row]));
+  function makeRow(
+    key: string,
+    value: unknown,
+    definition: FieldSchema,
+    id: string,
+    variable: boolean,
+    index = positions.value.get(key) ?? -1,
+  ): Row {
+    const old = before.get(id);
+    const resolved = definition.variants ? schemaFieldVariant(definition, value) : definition;
+    const field = {
+      ...resolved,
+      ...(resolved.requiredWhen
+        ? {
+            required: Object.entries(resolved.requiredWhen).every(
+              ([key, value]) => (entries.value[positions.value.get(key) ?? -1]?.val ?? fixedByKey.value.get(key)?.default) === value,
+            ),
+          }
+        : {}),
+      ...(array.value ? { key: '', label: schemaCollection(resolved) ? `${resolved.label} ${index + 1}` : `#${index + 1}` } : {}),
+      ...(props.field.editable === false ? { editable: false } : {}),
+      ...(props.field.partial ? { required: false } : {}),
+    };
+    const group = props.field.presentation === 'groups' ? !variable || field.type === 'object' : variable && schemaCollection(field);
+    const row: Row = {
+      id,
+      key,
+      value,
+      field,
+      variable,
+      index,
+      group,
+      labelSlot: group ? 'header' : 'label',
+      actionSlot: group ? 'header-extra' : 'actions',
+      rename: variable && !array.value && props.field.editable !== false && props.field.operations?.rename !== false,
+      remove:
+        props.field.editable !== false &&
+        props.field.operations?.remove !== false &&
+        (variable || (index >= 0 && !field.required && props.field.presentation !== 'groups')),
+      path: `${props.fieldPath}[${array.value ? key : JSON.stringify(key)}]`,
+      inputKey: `${props.inputKey}/${id}`,
+      validateName:
+        old?.validateName ??
+        ((value) =>
+          !format.value && String(value) !== currentRow(id).key && names.value.has(String(value)) ? '名称重复或为保留名称' : null),
+    };
+    if (old) {
+      if (stableDeepEqual(old.field, field)) row.field = old.field;
+      if (stableDeepEqual(old.value, value, true)) row.value = old.value;
+      if (Object.keys(row).every((key) => row[key as keyof Row] === old[key as keyof Row])) return old;
+    }
+    return row;
+  }
   const fixed = array.value
     ? []
     : fields.value.map((field) =>
-        makeRow(field.key, entries.value.find((entry) => entry.key === field.key)?.val, field, 'field:' + field.key, false),
+        makeRow(field.key, entries.value[positions.value.get(field.key) ?? -1]?.val, field, 'field:' + field.key, false),
       );
   const variable = dynamic.value.map((entry, index) =>
-    makeRow(entry.key, entry.val, item.value, String(identity.identities.value[index]), true, entries.value.indexOf(entry)),
+    makeRow(entry.key, entry.val, item.value, String(identity.identities.value[index]), true, entry.index),
   );
   if (props.field.presentation !== 'groups') return [...fixed, ...variable];
   const groups = variable.filter((row) => row.group);
@@ -138,79 +223,38 @@ const rows = computed(() => {
       : []),
   ];
 });
-type Row = ReturnType<typeof makeRow>;
+const rowById = computed(() => new Map(rows.value.map((row) => [row.id, row])));
 function currentRow(id: string) {
-  return rows.value.find((row) => row.id === id)!;
+  return rowById.value.get(id)!;
 }
-function makeRow(
-  key: string,
-  value: unknown,
-  definition: FieldSchema,
-  id: string,
-  variable: boolean,
-  index = entries.value.findIndex((entry) => entry.key === key),
-) {
-  const resolved = definition.variants ? schemaFieldVariant(definition, value) : definition;
-  const field = {
-    ...resolved,
-    ...(resolved.requiredWhen
-      ? {
-          required: Object.entries(resolved.requiredWhen).every(
-            ([key, value]) =>
-              (entries.value.find((entry) => entry.key === key)?.val ?? fields.value.find((field) => field.key === key)?.default) === value,
-          ),
-        }
-      : {}),
-    ...(array.value ? { key: '', label: schemaCollection(resolved) ? `${resolved.label} ${index + 1}` : `#${index + 1}` } : {}),
-    ...(props.field.editable === false ? { editable: false } : {}),
-    ...(props.field.partial ? { required: false } : {}),
-  };
-  return {
-    id,
-    key,
-    value,
-    field,
-    variable,
-    index,
-    group: props.field.presentation === 'groups' ? !variable || field.type === 'object' : variable && schemaCollection(field),
-    rename: variable && !array.value && props.field.editable !== false && props.field.operations?.rename !== false,
-    remove:
-      props.field.editable !== false &&
-      props.field.operations?.remove !== false &&
-      (variable || (index >= 0 && !field.required && props.field.presentation !== 'groups')),
-    path: `${props.fieldPath}[${array.value ? key : JSON.stringify(key)}]`,
-    inputKey: `${props.inputKey}/${id}`,
-  };
-}
-const expanded = computed(() => rows.value.filter((row) => row.group && !collapsed.value.includes(row.id)).map((row) => row.id));
+
+const expanded = computed(() =>
+  rows.value.filter((row) => row.group && (groupStates.value.get(row.id) ?? !row.variable)).map((row) => row.id),
+);
 function collapse(names: (string | number)[]) {
-  collapsed.value = rows.value.filter((row) => row.group && !names.includes(row.id)).map((row) => row.id);
+  const opened = new Set(names);
+  groupStates.value = new Map(rows.value.filter((row) => row.group).map((row) => [row.id, opened.has(row.id)]));
 }
-function nameField(row: Row): FieldSchema {
-  return {
-    ...props.field.keySchema,
-    key: 'name',
-    label: props.field.keySchema?.label ?? '名称',
-    type: props.field.keySchema?.type ?? 'string',
-    required: true,
-    reservedKeys: [
-      ...(props.field.reservedKeys ?? []),
-      ...fields.value.map((field) => field.key),
-      ...(!format.value ? entries.value.filter((entry) => entry.key !== row.key).map((entry) => entry.key) : []),
-    ],
-  };
-}
+watch(
+  () => rows.value.filter((row) => row.group).map((row) => row.id),
+  (next, previous) => {
+    if (!previous) return;
+    const existing = new Set(previous);
+    const retained = new Set(next);
+    for (const id of groupStates.value.keys()) if (!retained.has(id)) groupStates.value.delete(id);
+    for (const id of next) if (!existing.has(id)) groupStates.value.set(id, true);
+  },
+);
+
 function publish(next: { key: string; val: unknown }[], operation?: { kind: 'insert' | 'remove'; index: number }) {
-  identity.commit(
-    array.value ? next.map((entry) => entry.val) : next.filter((entry) => !fields.value.some((field) => field.key === entry.key)),
-    operation,
-  );
+  identity.commit(array.value ? next.map((entry) => entry.val) : next.filter((entry) => !fixedByKey.value.has(entry.key)), operation);
   emit('update', { kind: 'set', value: array.value ? next.map((entry) => entry.val) : schemaKeyValueOutput(next, format.value) });
 }
 function updateRow(row: Row, update: SchemaFieldUpdate) {
   if (update.kind === 'remove') return remove(row);
   if (row.id === '__extra') {
-    const retained = entries.value.filter((entry) => rows.value.some((row) => row.id !== '__extra' && row.key === entry.key));
+    const retainedKeys = new Set(rows.value.filter((row) => row.id !== '__extra').map((row) => row.key));
+    const retained = entries.value.filter((entry) => retainedKeys.has(entry.key));
     return publish([...retained, ...schemaKeyValueEntries(update.value, undefined)]);
   }
   const next = entries.value
@@ -218,7 +262,7 @@ function updateRow(row: Row, update: SchemaFieldUpdate) {
     .filter(
       (entry) => !props.field.exclusiveKeys?.includes(row.key) || entry.key === row.key || !props.field.exclusiveKeys.includes(entry.key),
     );
-  if (row.index < 0) next.push({ key: row.key, val: update.value });
+  if (row.index < 0) next.push({ key: row.key, val: update.value, index: next.length });
   publish(next);
 }
 function rename(row: Row, update: SchemaFieldUpdate) {
@@ -229,19 +273,13 @@ function remove(row: Row) {
   inputs?.cancel(row.inputKey);
   publish(
     entries.value.filter((_, index) => index !== row.index),
-    row.variable ? { kind: 'remove', index: dynamic.value.indexOf(entries.value[row.index]!) } : undefined,
+    row.variable ? { kind: 'remove', index: dynamic.value.findIndex((entry) => entry.index === row.index) } : undefined,
   );
 }
 function add(choice: FieldSchema) {
-  const occupied = [
-    ...entries.value.map((entry) => entry.key),
-    ...fields.value.map((field) => field.key),
-    ...(props.field.reservedKeys ?? []),
-  ];
   const initial = props.field.keySchema ? schemaInitialValue(props.field.keySchema) : 'newField';
   let key = array.value ? String(entries.value.length) : String(initial);
-  for (let index = 1; occupied.includes(key); index++)
-    key = typeof initial === 'number' ? String(initial + index) : initial + String(index);
+  for (let index = 1; names.value.has(key); index++) key = typeof initial === 'number' ? String(initial + index) : initial + String(index);
   publish([...entries.value, { key, val: schemaInitialValue(choice) }], { kind: 'insert', index: dynamic.value.length });
 }
 </script>

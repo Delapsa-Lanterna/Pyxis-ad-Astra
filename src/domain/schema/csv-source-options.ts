@@ -73,14 +73,11 @@ export function sourceValue(index: CsvSourceIndex, source: string | undefined | 
 }
 
 export function includeCurrentValue(options: SelectOption[], existingValues: Set<string>, value: string): SelectOption[] {
-  return value.length > 0 && !existingValues.has(value) ? includeCurrentSelectOptions(options, [value]) : options;
+  return includeCurrentSelectOptions(options, [value], existingValues);
 }
 
 export function includeCurrentValues(options: SelectOption[], existingValues: Set<string>, values: string[]): SelectOption[] {
-  return includeCurrentSelectOptions(
-    options,
-    values.filter((value) => !existingValues.has(value)),
-  );
+  return includeCurrentSelectOptions(options, values, existingValues);
 }
 
 function createValueIndex(options: SelectOption[]): Map<string, { group: string; option: SelectOption }> {

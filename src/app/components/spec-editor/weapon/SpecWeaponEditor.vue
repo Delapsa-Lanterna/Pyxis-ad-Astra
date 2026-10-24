@@ -172,6 +172,7 @@
 <script setup lang="ts">
 import { useTemplateRef } from 'vue';
 import NCollapse from '@/app/components/editors/common/EditorCollapse.vue';
+import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SpecFieldList from '../SpecFieldList.vue';
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import FieldHints from '@/shared/ui/FieldHints.vue';

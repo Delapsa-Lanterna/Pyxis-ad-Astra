@@ -492,14 +492,9 @@ fn variant_resources(
 fn skin_resources(
     session: &ProjectSession,
     id: &str,
-    _data: &Value,
+    data: &Value,
 ) -> BTreeMap<String, ResourceRef> {
-    session
-        .skin_files
-        .iter()
-        .find(|skin| skin.skin_hull_id == id)
-        .map(|skin| skin_entity_resource_refs(session, skin))
-        .unwrap_or_default()
+    skin_entity_resource_refs(session, id, data)
 }
 
 fn build_skin_entity(
@@ -511,7 +506,7 @@ fn build_skin_entity(
     Ok(EntityProjection {
         kind,
         id: item.skin_hull_id.clone(),
-        resource_refs: skin_entity_resource_refs(session, item),
+        resource_refs: skin_entity_resource_refs(session, &item.skin_hull_id, &item.data),
         data,
     })
 }
