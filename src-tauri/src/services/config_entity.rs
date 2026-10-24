@@ -21,6 +21,7 @@ pub fn save_mod_info(
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
+    crate::domain::schema::validate_document(crate::parsers::bundled_schema("mod-info"), &data)?;
     let mut builder = FileChangeSetBuilder::new(Path::new(mod_root))?;
     let mut json = JsonWriteBatch::new(options);
     let target = builder.root().join("mod_info.json");

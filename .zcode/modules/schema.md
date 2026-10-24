@@ -17,12 +17,14 @@
 - `schemas/mod-info.schema.json`：Mod 信息字段模式资产。
 - `schemas/skin.schema.json`：皮肤字段模式资产。
 - `schemas/sounds.schema.json`：音效数组、声音组对象及音乐目录字段。
-- `schemas/strings.schema.json`：按分组编辑字符串的文件表单。
+- `schemas/strings.schema.json`：分组字符串与根级文本的文件表单。
 - `schemas/variant.schema.json`：装配字段模式资产。
 - `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
 - `src-tauri/src/commands/source_options.rs`：来源目录 command。
+- `src-tauri/src/domain/schema.rs`：对象完整性、分支、值类型校验与配置覆盖合并。
 - `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
 - `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
+- `src-tauri/src/services/schema_tests.rs`：字段资产发现、类型保留与保存约束验证。
 - `src/app/components/schema/`：字段分派、表单、标量原文及行为测试。
 - `src/app/components/schema/SchemaCollectionInput.vue`：对象固定属性、可命名条目、列表、结构动作与折叠。
 - `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染。
@@ -52,7 +54,9 @@
 
 ### 消费
 
+- `src-tauri/build.rs`：按根目录字段资产生成编译期索引。
 - `src-tauri/src/models/schema.rs`：字段来源请求、选项与来源分组协议。
+- `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产的严格 JSON 读取入口。
 - `src/shared/lib/input-number.ts`：完整有限浮点与安全整数解析。
 - `src/shared/lib/json-fields.ts`：额外 JSON 字段展示条目投影。
 - `src/shared/lib/json-input.ts`：字段输入消费的共享 JSON 解析、形状校验与格式化。
@@ -113,6 +117,7 @@
 
 ## 规范
 
+- Bundled JSON schema 必须以 `schemas/*.schema.json` 文件登记，文件名必须与资产 ID 一致；前端注册与 Rust 编译期索引必须消费同一目录。
 - Bundled schema 注册时必须校验每个 `csv:` source 的表名属于正式 CSV 表注册表或实体注册表的 source 声明，无效 source 必须阻止注册。
 - Bundled schema 的 `config:` 来源必须属于正式配置目录登记，声音、设计类型与船体样式必须按当前 Mod 优先和原版补全交付候选。
 - Core 根切换必须立即清空所属字段与图形投影；静态 schema 合并必须消费当前根字段，失败时必须保留静态 schema。
@@ -120,10 +125,12 @@
 - SchemaFieldRenderer 必须组合共同字段行、说明和值分派；SchemaValueInput 必须自身递归并交付 SchemaFieldUpdate。
 - Smart 下拉的选项菜单与已选标签必须共用同一 `SelectOption`。
 - `numberFormat: starsector` 必须保留未修改的游戏数值字符串，后缀数值修改必须经字段输入校验。
+- `partial` 对象必须允许省略和删除本地覆盖字段，完整性必须交给合并后的保存校验。
 - `plain` editMode 只允许文本或 JSON 文本；`smart` editMode 才允许增强控件；多行文本必须由 `text` 类型声明。
 - `root` 必须定义独立文件内容，`nested`、`valueSchema` 与 `item` 必须分别定义固定属性、可命名条目与列表元素，`operations` 必须限定结构动作。
 - schema 组件严禁写盘或直连 IPC。
 - schema 资产必须按配置、CSV 列与 Mod 信息入口加载，资产解析必须复用所属版本、形状与来源校验。
+- `variants` 分支必须继承所属字段的键与名称，版本对象的数字与字符串部分必须保留原类型。
 - `variants` 必须按实际 JSON 类型选择所属表单，新增条目必须采用所选格式初值，既有结构必须保留。
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
 - 分组必须消费 EditorCollapse 与 Naive 折叠项；`presentation: groups` 必须将一级对象分别成组并将其余值归入额外字段，增删改名必须保持其他组的展开状态，首次展开后的隐藏必须保留所属输入。
@@ -135,6 +142,7 @@
 - 字段默认与数组项默认必须由所属 schema 消费语义决定；完整规格新建必须消费所属格式的共享模板构造。
 - 字符串字段只允许提交字符串；Plain 整数必须按完整十进制和安全整数范围解析，浮点必须按完整有限十进制解析，非法文本必须逐字符保留。
 - 对象条目与列表行必须由所属集合的稳定身份维护，结构动作必须共同交接身份与内容；深拷贝草稿严禁改变现存行节点、焦点和展开态。
+- 对象键、条目数量、互斥字段及条件必填必须分别消费 `keySchema`、`minEntries`、`maxEntries`、`exclusiveKeys` 与 `requiredWhen`，结构操作必须服从所属约束。
 - 嵌套字段与键值输出必须保留自有业务键；字段路径读取只允许消费自有属性，构造可写字典必须采用无原型对象。
 - 已选值必须按逐字符身份与目录比较，首尾空白完整保留。
 - 数组元素清理必须消费所属删除项动作；字段删除必须按稳定行身份取消所属输入子树。
@@ -145,6 +153,7 @@
 - 模式替换涉及待提交输入时必须确认放弃；取消必须保留当前输入面，确认必须取消输入并采用最新设置模式。
 - 沉浸式复合字段必须由 `FieldInputs` 终结器在全部原文有效后交付一个字段集合；结构化数组必须消费共享 JSON 输入解析，必填分支必须阻止空值提交。
 - 沉浸式字段浮层必须消费正式 `FieldSchema`、来源绑定与原始输入协议；多段描述必须各自登记稳定字段身份，提交必须交付所属联合记录更新。
+- 缺省布尔值必须按所属字段默认值显示，原版字符串布尔值必须按实际含义显示；挂载严禁写入默认值，未经编辑的必填空输入必须参与提交校验。
 - 装配候选手填 ID 必须登记原始输入并参与 dirty、保存和关闭判定；引用取消必须消费所属输入释放。
 - 装配模块浮层必须以正式 slotId 定位模块引用，并保留对象或有序条目数组形态；字段提交必须交给所属联合草稿。
 - 路径字段必须消费 pathBase；Mod 路径必须相对 Mod 根，Mission icon 必须相对任务目录，候选目录和选择器必须服从同一基准。

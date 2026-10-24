@@ -81,6 +81,7 @@ export function convertSchemaScalarInput(raw: string, field: FieldSchema): Schem
       ? parseSchemaPlainBoolean(raw)
       : parseSchemaPlainNumber(gameLiteral ? raw.trim().slice(0, -1) : raw, field.type === 'integer');
   if (typeof value === 'string') return { kind: 'error', message: field.type === 'boolean' ? '请输入有效布尔值' : '请输入完整有效数字' };
+  if (field.reservedKeys?.includes(String(value))) return { kind: 'error', message: '名称重复或为保留名称' };
   if (typeof value === 'number' && ((field.min !== undefined && value < field.min) || (field.max !== undefined && value > field.max))) {
     return { kind: 'error', message: '数值超出字段允许范围' };
   }
@@ -88,6 +89,7 @@ export function convertSchemaScalarInput(raw: string, field: FieldSchema): Schem
 }
 
 export function schemaFieldVariant(field: FieldSchema, value: unknown): FieldSchema {
+  if (value === undefined) value = field.default;
   const matches = (candidate: FieldSchema) =>
     ['array', 'string-array'].includes(candidate.type)
       ? Array.isArray(value)
@@ -98,13 +100,14 @@ export function schemaFieldVariant(field: FieldSchema, value: unknown): FieldSch
           : candidate.type === 'boolean'
             ? typeof value === 'boolean'
             : typeof value === 'string';
-  return (
-    field.variants!.find((candidate) => candidate.type === 'json' || matches(candidate)) ?? {
-      key: field.key,
-      label: field.label,
-      type: 'json',
-    }
-  );
+  const variant = field.variants!.find((candidate) => candidate.type === 'json' || matches(candidate));
+  return variant || value === undefined
+    ? { ...field, ...(variant ?? field.variants![0]), variants: undefined }
+    : {
+        key: field.key,
+        label: field.label,
+        type: 'json',
+      };
 }
 
 export function applySchemaFieldUpdate(obj: RowData, key: string, update: SchemaFieldUpdate): RowData {

@@ -1,4 +1,3 @@
-import { parseFileSchema } from '@/domain/schema/schema-asset-parser';
-import modInfoSchemaRaw from '../../../schemas/mod-info.schema.json';
+import { getSchema } from '@/domain/schema/config-schema-registry';
 
-export const MOD_INFO_SCHEMA = parseFileSchema('mod-info', modInfoSchemaRaw);
+export const MOD_INFO_SCHEMA = getSchema('mod-info')!;

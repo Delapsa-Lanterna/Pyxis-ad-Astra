@@ -17,6 +17,89 @@ use crate::{
 use serde_json::Value;
 use std::path::Path;
 
+pub fn validate_skin_engine_changes(session_id: &str, data: &Value) -> AppResult<()> {
+    crate::domain::schema::validate_document(crate::parsers::bundled_schema("skin"), data)?;
+    if data
+        .get("engineSlotChanges")
+        .and_then(Value::as_object)
+        .is_none_or(|changes| changes.is_empty())
+    {
+        return Ok(());
+    }
+    let handle = session_handle(session_id)?;
+    let session = lock_session(&handle)?;
+    let core_ships = session
+        .manifest
+        .starsector_root
+        .as_deref()
+        .map(super::super::sources::core::load_core_ship_files)
+        .transpose()?;
+    let core_skins = session
+        .manifest
+        .starsector_root
+        .as_deref()
+        .map(super::super::sources::core::load_core_skin_files)
+        .transpose()?;
+    let mut id = data["baseHullId"]
+        .as_str()
+        .ok_or_else(|| AppError::message("config.missing_field", "缺少 baseHullId"))?;
+    let mut layers = vec![data];
+    let mut seen = std::collections::BTreeSet::new();
+    loop {
+        if !seen.insert(id) {
+            return Err(AppError::message("skin.base_cycle", "循环船体皮肤引用"));
+        }
+        let skin = session
+            .skin_files
+            .iter()
+            .find(|skin| skin.skin_hull_id == id)
+            .or_else(|| {
+                core_skins
+                    .as_ref()
+                    .and_then(|skins| skins.iter().find(|skin| skin.skin_hull_id == id))
+            });
+        let Some(skin) = skin else { break };
+        layers.push(&skin.data);
+        id = skin.data["baseHullId"]
+            .as_str()
+            .expect("loaded skin base ID");
+    }
+    let hull = session
+        .ship_files
+        .get(id)
+        .or_else(|| core_ships.as_ref().and_then(|ships| ships.get(id)))
+        .ok_or_else(|| {
+            AppError::message("config.reference_missing", format!("找不到基础船体：{id}"))
+        })?;
+    let mut count = hull.data["engineSlots"].as_array().map_or(0, Vec::len);
+    for layer in layers.into_iter().rev() {
+        let removed: std::collections::BTreeSet<_> = layer["removeEngineSlots"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| {
+                value
+                    .as_f64()
+                    .or_else(|| value.as_str().and_then(|text| text.parse::<f64>().ok()))
+            })
+            .filter(|&index| index >= 0.0 && index < count as f64)
+            .map(|index| index as usize)
+            .collect();
+        count -= removed.len();
+        if let Some(changes) = layer["engineSlotChanges"].as_object() {
+            for key in changes.keys() {
+                if !key.parse::<usize>().is_ok_and(|index| index < count) {
+                    return Err(AppError::message(
+                        "config.shape_invalid",
+                        format!("引擎槽索引超出当前船体范围：engineSlotChanges/{key}"),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn save_entity_spec(
     session_id: &str,
     target: &EntityEditTarget,
@@ -24,6 +107,14 @@ pub fn save_entity_spec(
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
+    if let Some(schema) = match target.kind {
+        EntityKind::Variant => Some("variant"),
+        EntityKind::Faction => Some("faction"),
+        EntityKind::Skin => Some("skin"),
+        _ => None,
+    } {
+        crate::domain::schema::validate_document(crate::parsers::bundled_schema(schema), &data)?;
+    }
     if target.kind == EntityKind::Weapon {
         crate::domain::spec_construction::validate_weapon_editor_spec(
             &data,

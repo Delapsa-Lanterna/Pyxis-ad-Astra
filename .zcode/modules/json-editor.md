@@ -10,6 +10,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/commands/config_entity.rs`：Mod 信息、势力与战役保存、创建和删除 command。
 - `src-tauri/src/commands/json_file.rs`：装配与皮肤的保存、创建、删除及会话来源核对。
+- `src-tauri/src/commands/json_file_validation_tests.rs`：皮肤继承、引擎槽索引及写盘拒绝验证。
 - `src-tauri/src/commands/json_recovery.rs`：来源重建准备、事务版本复核与 changeset 提交。
 - `src-tauri/src/domain/json_documents.rs`：Variant 与 Skin 的正式内容构造及计数投影。
 - `src-tauri/src/services/config_entity.rs`：Mod 信息保存、战役索引及任务目录的保存、创建和删除。
@@ -32,6 +33,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：实体 ID、路径及来源边界纯规则。
+- `src-tauri/src/domain/schema.rs`：保存时消费的字段内容与结构校验。
 - `src-tauri/src/io/faction_index.rs`：势力索引引用的所属根授权。
 - `src-tauri/src/models/config_entity.rs`：Mod 信息与索引实体请求、刷新内容及势力索引结构。
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
@@ -137,6 +139,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `mod_info` 必须使用目标 Draft Session。
 - 业务 JSON 的顶层键、嵌套字典键与数组对象键必须完整保留；运行时身份、版本与资源投影必须由实体记录承载。
 - 主窗口历史必须先提交活动 JSON 输入再判定撤销栈；输入拒绝或目标变化必须结束本次命令。
+- 保存 Mod 信息、势力、装配与皮肤必须校验已提供对象的所属字段结构；新增依赖与武器组必须交付有效初值并拒绝缺失的必填内容。
 - 保存必须先提交所属活动输入与动作；实际内容必须在后续同步前接纳为基线，同步失败必须保留该基线并结束等待交接。
 - 保存必须在所属队列实际执行时提交输入并捕获独立快照；请求期间的新编辑必须保留，base 必须更新为实际写盘版本，dirty 必须按该 base 与当前 draft 比较。
 - 列表动作准备必须捕获所属 Mod 和 session；等待保存后的同步必须消费捕获根，错误呈现必须核对所属会话及视图生命周期。
@@ -171,6 +174,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - 来源重建必须覆盖 Mod 信息、Variant、Skin、Faction 文件及必要索引、Mission descriptor、正文及必要索引行与已登记杂项配置文件。
 - 来源重建必须重新授权原目标并核对准备与事务内版本，缺失来源必须采用最后保存基线、原路径和原身份。
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
+- 皮肤引擎槽修改必须按基础船体及继承皮肤的移除顺序校验整数索引，越界修改必须在写盘前拒绝。
 - 结构化 JSON 保存必须使用设置快照选择原样更新或规范化写入；原样更新无法安全完成时必须在写入前确认影响文件。
 - 编辑目标必须由后端 query 交付；保存必须消费捕获的目标、正式路径与版本凭据。
 - 表单双向绑定必须经统一 Draft Session setter 提交；保存动作必须返回已保存、无需保存或已取消；已保存结果必须携带正式回执；校验拒绝与保存取消时严禁提交成功基线或触发保存成功回调。

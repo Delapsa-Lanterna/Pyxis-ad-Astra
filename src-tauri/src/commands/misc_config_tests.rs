@@ -46,15 +46,18 @@ fn reject_linked_source() {
             .code(),
         "path.link_rejected"
     );
-    let result = crate::services::misc_config::save_misc_config(MiscConfigWrite {
-        kind: MiscConfigKind::Strings,
-        session_id: "boundary-fixture".into(),
-        mod_root,
-        data: json!({}),
-        ordered_json: "{}".into(),
-        json_write: Default::default(),
-        base_versions: vec![],
-    });
+    let result = crate::services::misc_config::save_misc_config(
+        MiscConfigWrite {
+            kind: MiscConfigKind::Strings,
+            session_id: "boundary-fixture".into(),
+            mod_root,
+            data: json!({}),
+            ordered_json: "{}".into(),
+            json_write: Default::default(),
+            base_versions: vec![],
+        },
+        None,
+    );
     assert_eq!(result.unwrap_err().code(), "path.link_rejected");
     assert!(!outside.join("strings.json").exists());
     std::fs::remove_dir(link).unwrap();
@@ -264,7 +267,7 @@ fn config_formats_replay() {
     for (kind, content) in [
         (
             MiscConfigKind::EngineStyles,
-            json!({"SAMPLE": {"engineColor":[255,100,50,255],"contrailMaxSpeedMult":"0.5f","extra":{"keep":true}}}),
+            json!({"SAMPLE": {"engineColor":[255,100,50,255],"contrailMaxSpeedMult":"0.5f","contrailAngularVelocityMult":1,"contrailParticleSizeMult":1,"contrailParticleDuration":1,"type":"SMOKE","extra":{"keep":true}}}),
         ),
         (
             MiscConfigKind::HullStyles,
@@ -272,7 +275,7 @@ fn config_formats_replay() {
         ),
         (
             MiscConfigKind::Sounds,
-            json!({"simple":[{"file":"sounds/sample.ogg","pitch":1}],"engine_loop":{"SAMPLE":{"pitch":1,"volume":0.5}},"music":{"sample":[{"source":"sounds/music","files":["a.ogg","b.ogg"],"shuffle":true}]}}),
+            json!({"simple":[{"file":"sounds/sample.ogg","pitch":1}],"engine_loop":{"sounds":[{"file":"sounds/loop.ogg"}],"SAMPLE":{"pitch":1,"volume":0.5}},"music":{"sample":[{"source":"sounds/music","files":["a.ogg","b.ogg"],"shuffle":true}]}}),
         ),
         (
             MiscConfigKind::Settings,
@@ -408,7 +411,6 @@ fn config_field_validation() {
             json!({"SAMPLE":{"contrailMaxSpeedMult":"1ff"}}),
         ),
         (MiscConfigKind::EngineStyles, json!({"CUSTOM":{}})),
-        (MiscConfigKind::HullStyles, json!({"FIGHTER":{}})),
         (
             MiscConfigKind::HullStyles,
             json!({"SAMPLE":{"shieldInnerColor":[0,0,256,255]}}),
@@ -467,7 +469,7 @@ fn engine_source_preservation() {
     let f = Fixture::new();
     let path = f.root.join("data/config/engine_styles.json");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    let source = "{\n # retained style comment\n SAMPLE:{contrailMaxSpeedMult:0.5f,type:\"GLOW\",engineColor:[1,2,3,255]}\n}\n";
+    let source = "{\n # retained style comment\n SAMPLE:{contrailMaxSpeedMult:0.5f,contrailAngularVelocityMult:1,contrailParticleSizeMult:1,contrailParticleDuration:1,type:\"GLOW\",engineColor:[1,2,3,255]}\n}\n";
     std::fs::write(&path, source).unwrap();
     let read = query_misc_config_file(MiscConfigRead {
         kind: MiscConfigKind::EngineStyles,
@@ -496,4 +498,70 @@ fn engine_source_preservation() {
     assert!(saved.contains("# retained style comment"));
     assert!(saved.contains("contrailMaxSpeedMult:0.5f"));
     assert!(saved.find("contrailMaxSpeedMult").unwrap() < saved.find("engineColor").unwrap());
+}
+
+#[test]
+fn merged_config_save_validation() {
+    let mut f = Fixture::new();
+    let game = f.root.join("game");
+    let config = game.join("starsector-core/data/config");
+    std::fs::create_dir_all(&config).unwrap();
+    let style = &crate::parsers::bundled_schema("engine-styles")["root"]["valueSchema"]["default"];
+    std::fs::write(
+        config.join("engine_styles.json"),
+        json!({"SAMPLE":style}).to_string(),
+    )
+    .unwrap();
+    std::fs::write(config.join("sounds.json"), json!({"sample":{"sounds":[{"file":"sounds/sample.ogg"}],"FRIGATE":{"pitch":1,"volume":1,"sounds":[0]}}}).to_string()).unwrap();
+    project::close_project_session(f.scope.session_id.clone()).unwrap();
+    let manifest = project::open_project_session_traced(
+        &f.root,
+        Some(&game),
+        &mut project::PerformanceTrace::new("project.openSession"),
+    )
+    .unwrap();
+    f.scope.session_id = manifest.session_id;
+    let save = |kind, data: Value| {
+        let path = f
+            .root
+            .join(crate::domain::misc_config::misc_config_path(kind));
+        save_misc_config(MiscConfigWrite {
+            session_id: f.scope.session_id.clone(),
+            mod_root: f.scope.mod_root.clone(),
+            kind,
+            base_versions: vec![file_version(&path).unwrap()],
+            ordered_json: data.to_string(),
+            data,
+            json_write: Default::default(),
+        })
+    };
+    let partial = json!({"SAMPLE":{"contrailMaxSpeedMult":"1f"}});
+    save(MiscConfigKind::EngineStyles, partial.clone()).unwrap();
+    let path = f.root.join("data/config/engine_styles.json");
+    assert_eq!(crate::io::read_json_file(&path).unwrap(), partial);
+    assert!(
+        save(
+            MiscConfigKind::EngineStyles,
+            json!({"SAMPLE":{"mode":"QUAD_STRIP"}})
+        )
+        .is_err()
+    );
+    assert_eq!(crate::io::read_json_file(&path).unwrap(), partial);
+    let partial = json!({"sample":{"FRIGATE":{"pitch":1,"volume":2}}});
+    save(MiscConfigKind::Sounds, partial.clone()).unwrap();
+    let path = f.root.join("data/config/sounds.json");
+    assert_eq!(crate::io::read_json_file(&path).unwrap(), partial);
+    assert!(
+        save(
+            MiscConfigKind::Sounds,
+            json!({"sample":{"FRIGATE":{"pitch":1,"volume":1,"sounds":[1]}}})
+        )
+        .is_err()
+    );
+    assert_eq!(crate::io::read_json_file(&path).unwrap(), partial);
+    save(
+        MiscConfigKind::Sounds,
+        json!({"sample":{"FRIGATE":{"pitch":1,"volume":1,"sounds":["0"]}}}),
+    )
+    .unwrap();
 }

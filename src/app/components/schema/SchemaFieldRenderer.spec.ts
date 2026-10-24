@@ -7,7 +7,7 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { createSettingsFixture } from '@/test/settings';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
 import { editorUiStubs } from '@/test/ui-stubs';
-import { nSelect } from '@/test/ui-stubs';
+import { nSelect, nSwitch } from '@/test/ui-stubs';
 import { h, nextTick, ref } from 'vue';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
@@ -80,6 +80,101 @@ function mountBoundField(field: FieldSchema, initial: unknown) {
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
+  it.each([
+    ['true', undefined, true],
+    ['FALSE', undefined, false],
+    [undefined, true, true],
+    [undefined, false, false],
+  ] as const)('shows the game boolean %s with default %s without writing on mount', async (initial, fallback, enabled) => {
+    const { value } = mountBoundField(fieldFixture('boolean', { default: fallback }), initial);
+    const toggle = wrapper!.getComponent(nSwitch);
+    expect(toggle.props('value')).toBe(enabled);
+    expect(value.value).toBe(initial);
+    toggle.vm.$emit('update:value', !enabled);
+    await nextTick();
+    expect(value.value).toBe(!enabled);
+  });
+  it('rejects an untouched empty required input and focuses it', async () => {
+    const { inputs, value } = mountBoundField(fieldFixture('string', { required: true }), '');
+    await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
+    expect(value.value).toBe('');
+    expect(document.activeElement).toBe(wrapper!.get('input').element);
+    await wrapper!.get('input').setValue('sample-id');
+    await inputs.commit();
+    expect(value.value).toBe('sample-id');
+  });
+  it('edits version components in their declared types', async () => {
+    const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('mod-info')!;
+    const version = schema.sections!.flatMap((section) => section.fields).find((field) => field.key === 'file.version')!;
+    const { value, inputs } = mountBoundField(version, { major: 2, minor: '4a', patch: 1 });
+    expect(wrapper!.findAll('textarea')).toHaveLength(0);
+    await wrapper!
+      .findAll('input')
+      .find((input) => input.element.value === '2')!
+      .setValue('3');
+    await inputs.commit();
+    expect(value.value).toEqual({ major: 3, minor: '4a', patch: 1 });
+    await wrapper!
+      .findAll('input')
+      .find((input) => input.element.value === '4a')!
+      .setValue('5b');
+    await inputs.commit();
+    expect(value.value).toEqual({ major: 3, minor: '5b', patch: 1 });
+  });
+  it('creates valid weapon groups and uses numeric engine-slot names', async () => {
+    const { getSchema } = await import('@/domain/schema/config-schema-registry');
+    const group = getSchema('variant')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'weaponGroups')!;
+    const mounted = mountBoundField(group, []);
+    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    expect(mounted.value.value).toEqual([{ mode: 'LINKED', weapons: {}, autofire: false }]);
+    wrapper!.unmount();
+    const engines = getSchema('skin')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'engineSlotChanges')!;
+    const { value, inputs } = mountBoundField(engines, {});
+    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    await wrapper!.findAll('button').at(-1)!.trigger('click');
+    expect(value.value).toEqual({ '0': {}, '1': {} });
+    await wrapper!.findAll('input.field-map-key-editor')[1]!.setValue('-1');
+    await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
+    expect(value.value).toEqual({ '0': {}, '1': {} });
+  });
+  it('keeps music file and files in one branch when either input is changed', async () => {
+    const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('sounds')!;
+    const track = schema.root!.nested![0]!.valueSchema!.item!;
+    const { value, inputs } = mountBoundField(track, { source: 'sounds/music', file: 'solo.ogg', volume: 1 });
+    const files = wrapper!.findAllComponents({ name: 'SchemaCollectionInput' }).find((input) => input.props('field').key === 'files')!;
+    await files.findAll('button').at(-1)!.trigger('click');
+    expect(value.value).toEqual({ source: 'sounds/music', volume: 1, files: [''] });
+    const file = wrapper!.findAllComponents({ name: 'SchemaScalarInput' }).find((input) => input.props('field').key === 'file')!;
+    await file.get('input').setValue('other.ogg');
+    await inputs.commit();
+    expect(value.value).toEqual({ source: 'sounds/music', volume: 1, file: 'other.ogg' });
+  });
+  it('limits fallback roles and prepares direct root text with the existing input', async () => {
+    const { getSchema } = await import('@/domain/schema/config-schema-registry');
+    const roles = getSchema('faction')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'file.shipRoles')!;
+    mountBoundField(
+      roles.valueSchema!.nested!.find((field) => field.key === 'fallback')!,
+      { 'sample.role': 1 },
+    );
+    expect(wrapper!.findAll('button').filter((button) => button.text().startsWith('+'))).toHaveLength(0);
+    wrapper!.unmount();
+    const { value, inputs } = mountBoundField(getSchema('strings')!.root!, { existing: { line: '001' } });
+    await wrapper!
+      .findAll('button')
+      .find((button) => button.text() === '+ 根级文本')!
+      .trigger('click');
+    expect(value.value).toEqual({ existing: { line: '001' }, newField: '' });
+    const input = wrapper!.findAll('textarea').at(-1)!;
+    await input.setValue('123\n $sample');
+    await inputs.commit();
+    expect(value.value).toEqual({ existing: { line: '001' }, newField: '123\n $sample' });
+  });
   it('edits nested text maps without converting strings or overwriting duplicate keys', async () => {
     const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('strings')!.root!;
     const value = ref<import('@/shared/types').RowData>({ first: { line: '001' }, second: {} });
@@ -105,7 +200,7 @@ describe('SchemaFieldRenderer smart mode', () => {
     expect(value.value['组.一']).toEqual({ line: '123\n $token "text" ' });
     await names()[1]!.setValue('_句.子');
     expect(value.value['组.一']).toEqual({ '_句.子': '123\n $token "text" ' });
-    const add = () => wrapper!.findAll('button').filter((button) => button.text() === '+ 添加项' || button.text() === '+ 添加分组');
+    const add = () => wrapper!.findAll('button').filter((button) => button.text() === '+ 添加项' || button.text() === '+ 文本分组');
     await add().at(-1)!.trigger('click');
     expect(value.value.newField).toEqual({});
     await add()[0]!.trigger('click');

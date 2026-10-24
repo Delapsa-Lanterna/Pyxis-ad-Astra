@@ -131,7 +131,7 @@
         },
         {
           "key": "maxSpeed",
-          "type": "integer",
+          "type": "float",
           "label": "最高航速"
         },
         {
@@ -323,6 +323,13 @@
                 "label": "角度"
               }
             ]
+          },
+          "keySchema": {
+            "key": "index",
+            "label": "引擎槽索引",
+            "type": "integer",
+            "min": 0,
+            "default": 0
           }
         }
       ]

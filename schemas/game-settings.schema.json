@@ -29,12 +29,46 @@
       {
         "key": "graphics",
         "type": "object",
-        "label": "图像资源"
+        "label": "图像资源",
+        "valueSchema": {
+          "key": "category",
+          "type": "object",
+          "label": "资源类别",
+          "default": {},
+          "valueSchema": {
+            "key": "resource",
+            "type": "path-image",
+            "label": "图片",
+            "default": "",
+            "variants": [
+              {
+                "type": "path-image"
+              },
+              {
+                "type": "array",
+                "label": "图片列表",
+                "default": [],
+                "item": {
+                  "key": "image",
+                  "type": "path-image",
+                  "label": "图片",
+                  "default": ""
+                }
+              }
+            ]
+          }
+        }
       },
       {
         "key": "plugins",
         "type": "object",
-        "label": "插件"
+        "label": "插件",
+        "valueSchema": {
+          "key": "className",
+          "type": "string",
+          "label": "插件类名",
+          "default": ""
+        }
       }
     ],
     "presentation": "groups",

@@ -65,6 +65,34 @@ function mountConfig(kind: MiscConfigKind, realCollapse = false) {
 }
 
 describe('misc config fields', () => {
+  it('defers completeness of partial style overrides to the merged save boundary', async () => {
+    const { value, inputs } = mountConfig('engineStyles');
+    value.value = { SAMPLE_STYLE: { contrailMaxSpeedMult: '0.5f' } };
+    await flushPromises();
+    await inputs.commit();
+    expect(value.value).toEqual({ SAMPLE_STYLE: { contrailMaxSpeedMult: '0.5f' } });
+    const input = wrapper!.findAll('input').find((input) => input.element.value === '0.5f')!;
+    await input.setValue('');
+    await inputs.commit();
+    expect(value.value).toEqual({ SAMPLE_STYLE: {} });
+  });
+  it('edits plugin classes as plain strings and graphics as declared image values', async () => {
+    const { value, inputs } = mountConfig('settings');
+    value.value = { ...value.value, plugins: { sample: 'example.runtime.Sample' } };
+    await flushPromises();
+    const input = wrapper!.findAll('input').find((input) => input.element.value === 'example.runtime.Sample')!;
+    expect(input.element.tagName).toBe('INPUT');
+    await input.setValue('example.runtime.Other');
+    await inputs.commit();
+    expect(value.value.plugins).toEqual({ sample: 'example.runtime.Other' });
+    const images = wrapper!
+      .findAllComponents({ name: 'SchemaReferenceInput' })
+      .filter((input) => input.props('field').type === 'path-image');
+    expect(images.map((image) => image.props('value'))).toEqual(['graphics/sample_a.png', 'graphics/sample_b.png']);
+    images[1]!.vm.$emit('update', { kind: 'set', value: 'graphics/changed.png' });
+    await nextTick();
+    expect(value.value.graphics).toEqual({ sample: { icons: ['graphics/sample_a.png', 'graphics/changed.png'] } });
+  });
   it('registers five independently typed files and round-trips their field definitions', () => {
     expect(MISC_CONFIG_FILES.map((file) => file.kind)).toEqual(['strings', 'engineStyles', 'hullStyles', 'sounds', 'settings']);
     for (const file of MISC_CONFIG_FILES) {
@@ -125,21 +153,21 @@ describe('misc config fields', () => {
     expect(value.value.plugins).toBeUndefined();
     await plugins.findAll('button').at(-1)!.trigger('click');
     await flushPromises();
-    expect(value.value.plugins).toEqual({ newField: null });
-    expect(wrapper!.getComponent(SchemaFormRenderer).props('modelValue').file).toHaveProperty('plugins.newField', null);
-    expect(wrapper!.findAllComponents({ name: 'SchemaCollectionInput' })[0]!.props('value')).toHaveProperty('plugins.newField', null);
+    expect(value.value.plugins).toEqual({ newField: '' });
+    expect(wrapper!.getComponent(SchemaFormRenderer).props('modelValue').file).toHaveProperty('plugins.newField', '');
+    expect(wrapper!.findAllComponents({ name: 'SchemaCollectionInput' })[0]!.props('value')).toHaveProperty('plugins.newField', '');
     expect(
       wrapper!
         .findAllComponents({ name: 'SchemaCollectionInput' })
         .find((input) => input.props('field').key === 'plugins')!
         .props('value'),
-    ).toEqual({ newField: null });
+    ).toEqual({ newField: '' });
     expect(plugins.get('input').element.value).toBe('newField');
     await plugins.findAll('button').at(-1)!.trigger('click');
     await flushPromises();
-    expect(value.value.plugins).toEqual({ newField: null, newField1: null });
+    expect(value.value.plugins).toEqual({ newField: '', newField1: '' });
     await plugins.findAll('button.compact-icon-button')[0]!.trigger('click');
-    expect(value.value.plugins).toEqual({ newField1: null });
+    expect(value.value.plugins).toEqual({ newField1: '' });
     expect(plugins.find('button').exists()).toBe(true);
     value.value = { ...value.value, sampleOptions: { flag: false } };
     await nextTick();

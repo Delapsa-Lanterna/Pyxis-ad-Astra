@@ -14,11 +14,11 @@
     "key": "file",
     "type": "object",
     "label": "样式",
-    "reservedKeys": ["sounds", "DEFAULT", "FIGHTER", "FRIGATE", "DESTROYER", "CRUISER", "CAPITAL_SHIP"],
     "valueSchema": {
       "key": "style",
       "type": "object",
       "label": "样式属性",
+      "partial": true,
       "nested": [
         {
           "key": "hyperspaceJitterColor",
@@ -249,7 +249,8 @@
           "key": "coversMatchShipBrightness",
           "type": "boolean",
           "label": "槽盖匹配亮度",
-          "description": "武器槽盖板随船体亮度调整，默认开启。"
+          "description": "武器槽盖板随船体亮度调整，默认开启。",
+          "default": true
         },
         {
           "key": "coversColorShiftAmount",

@@ -20,8 +20,8 @@ export function parseFileSchema(id: string, raw: unknown): FileSchema {
   if (asset.$schema !== FIELD_SCHEMA_VERSION) {
     throw new Error(`schema ${id}: $schema 必须是 ${FIELD_SCHEMA_VERSION}`);
   }
-  if (typeof asset.id !== 'string' || asset.id.length === 0) {
-    throw new Error(`schema ${id}: 缺少 id`);
+  if (typeof asset.id !== 'string' || asset.id !== id) {
+    throw new Error(`schema ${id}: id 必须是 ${id}`);
   }
   const sections = asset.sections === undefined ? undefined : parseSections(id, asset.sections);
   const schema: FileSchema = {
@@ -82,6 +82,7 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isString(record.description)) field.description = record.description;
   if (isBoolean(record.required)) field.required = record.required;
   if (isBoolean(record.editable)) field.editable = record.editable;
+  if (isBoolean(record.partial)) field.partial = record.partial;
   if (record.default !== undefined) field.default = record.default;
   if (isString(record.warning)) field.warning = record.warning;
   if (isString(record.danger)) field.danger = record.danger;
@@ -92,6 +93,14 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   }
   if (isNumber(record.min)) field.min = record.min;
   if (isNumber(record.max)) field.max = record.max;
+  if (isNumber(record.minEntries)) field.minEntries = record.minEntries;
+  if (isNumber(record.maxEntries)) field.maxEntries = record.maxEntries;
+  if (isStringArray(record.exclusiveKeys)) field.exclusiveKeys = record.exclusiveKeys;
+  if (record.requiredWhen !== undefined) {
+    const condition = asRecord(record.requiredWhen, `schema ${id} ${path}.requiredWhen`);
+    if (!Object.values(condition).every(isString)) throw new Error(`schema ${id} ${path}: 非法 requiredWhen`);
+    field.requiredWhen = condition as Record<string, string>;
+  }
   if (isNumber(record.step)) field.step = record.step;
   if (isStringArray(record.options)) field.options = record.options;
   if (isStringArray(record.reservedKeys)) field.reservedKeys = record.reservedKeys;
@@ -128,7 +137,13 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (record.valueSchema !== undefined && record.valueSchema !== null) {
     field.valueSchema = parseField(id, `${path}.valueSchema`, record.valueSchema);
   }
-  if (record.variants !== undefined) field.variants = parseFields(id, `${path}.variants`, record.variants);
+  if (record.keySchema !== undefined) field.keySchema = parseField(id, `${path}.keySchema`, record.keySchema);
+  if (record.variants !== undefined) {
+    if (!Array.isArray(record.variants)) throw new Error(`schema ${id} ${path}: variants 必须是数组`);
+    field.variants = record.variants.map((variant, index) =>
+      parseField(id, `${path}.variants[${index}]`, { key: field.key, label: field.label, ...asRecord(variant, path) }),
+    );
+  }
   return field;
 }
 

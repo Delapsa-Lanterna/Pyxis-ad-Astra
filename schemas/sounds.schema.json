@@ -33,7 +33,8 @@
                 "key": "source",
                 "type": "string",
                 "label": "音乐来源",
-                "description": "音乐目录或 music.bin 路径，相对 Mod 根。"
+                "description": "音乐目录或 music.bin 路径，相对 Mod 根。",
+                "required": true
               },
               {
                 "key": "file",
@@ -64,7 +65,8 @@
                 "key": "randomStart",
                 "type": "boolean",
                 "label": "随机起始曲目",
-                "description": "使用 files 时生效，默认开启。"
+                "description": "使用 files 时生效，默认开启。",
+                "default": true
               },
               {
                 "key": "shuffle",
@@ -77,7 +79,8 @@
               "source": "sounds/music",
               "file": "",
               "volume": 1
-            }
+            },
+            "exclusiveKeys": ["file", "files"]
           }
         }
       }
@@ -162,11 +165,13 @@
           "key": "group",
           "type": "object",
           "label": "声音组",
+          "partial": true,
           "nested": [
             {
               "key": "sounds",
               "type": "array",
               "label": "音频列表",
+              "required": true,
               "default": [],
               "item": {
                 "key": "sound",
@@ -209,6 +214,7 @@
             "key": "rule",
             "type": "object",
             "label": "选择规则",
+            "partial": true,
             "nested": [
               {
                 "key": "sounds",
@@ -227,6 +233,7 @@
                 "key": "pitch",
                 "type": "float",
                 "label": "音高倍数",
+                "required": true,
                 "description": "在原音频音高上乘以该值。",
                 "numberFormat": "starsector"
               },
@@ -234,6 +241,7 @@
                 "key": "volume",
                 "type": "float",
                 "label": "音量倍数",
+                "required": true,
                 "description": "在原音频音量上乘以该值。",
                 "numberFormat": "starsector"
               }

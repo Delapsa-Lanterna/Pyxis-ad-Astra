@@ -24,7 +24,25 @@
         "type": "text",
         "label": "文本内容",
         "default": ""
-      }
+      },
+      "variants": [
+        {
+          "type": "object",
+          "label": "文本分组",
+          "valueSchema": {
+            "key": "text",
+            "type": "text",
+            "label": "文本内容",
+            "default": ""
+          },
+          "default": {}
+        },
+        {
+          "type": "text",
+          "label": "根级文本",
+          "default": ""
+        }
+      ]
     },
     "presentation": "groups"
   }

@@ -4,7 +4,9 @@ import { getSchema } from './config-schema-registry';
 import { getCsvColumnSchemas } from './csv-schema-registry';
 import { TABLE_KEYS } from '@/shared/types';
 
-const CONFIG_SCHEMA_IDS = ['mod-info', 'faction', 'mission', 'skin', 'variant'];
+const CONFIG_SCHEMA_IDS = Object.keys(import.meta.glob('../../../schemas/*.schema.json')).map((path) =>
+  path.slice(path.lastIndexOf('/') + 1, -'.schema.json'.length),
+);
 
 describe('schema asset registries', () => {
   it('offers only game weapon group modes in variant editing', () => {
@@ -49,7 +51,7 @@ describe('schema asset registries', () => {
       expect(schema, id).not.toBeNull();
       expect(schema?.$schema).toBe('circinus-ad-astra/field-schema/v1');
       expect(schema?.id).toBe(id);
-      expect(schema?.sections?.length).toBeGreaterThan(0);
+      expect(Boolean(schema?.root) || Boolean(schema?.sections?.length)).toBe(true);
       for (const section of schema?.sections ?? []) {
         expect(section.id.length).toBeGreaterThan(0);
         expect(section.label.length).toBeGreaterThan(0);

@@ -21,7 +21,14 @@ pub fn query_misc_config_file(payload: MiscConfigRead) -> Result<Option<MiscConf
 #[tauri::command(async)]
 pub fn save_misc_config(payload: MiscConfigWrite) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
-    let result = services::misc_config::save_misc_config(payload)?;
+    let root = services::project::current_projection(&payload.session_id)?
+        .manifest
+        .starsector_root;
+    let root = root
+        .as_deref()
+        .map(services::project::core_dir)
+        .transpose()?;
+    let result = services::misc_config::save_misc_config(payload, root.as_deref())?;
     transaction.commit(result, "保存杂项配置")
 }
 #[tauri::command(async)]

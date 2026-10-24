@@ -45,7 +45,10 @@
         </template>
       </SchemaFieldRow>
     </template>
-    <div v-if="field.editable !== false && field.operations?.add !== false" class="ui-control-row">
+    <div
+      v-if="field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
+      class="ui-control-row"
+    >
       <n-button v-for="choice in choices" :key="choice.label" size="tiny" @click="add(choice)">+ {{ choice.label }}</n-button>
     </div>
   </EditorCollapse>
@@ -150,8 +153,17 @@ function makeRow(
   const resolved = definition.variants ? schemaFieldVariant(definition, value) : definition;
   const field = {
     ...resolved,
+    ...(resolved.requiredWhen
+      ? {
+          required: Object.entries(resolved.requiredWhen).every(
+            ([key, value]) =>
+              (entries.value.find((entry) => entry.key === key)?.val ?? fields.value.find((field) => field.key === key)?.default) === value,
+          ),
+        }
+      : {}),
     ...(array.value ? { key: '', label: schemaCollection(resolved) ? `${resolved.label} ${index + 1}` : `#${index + 1}` } : {}),
     ...(props.field.editable === false ? { editable: false } : {}),
+    ...(props.field.partial ? { required: false } : {}),
   };
   return {
     id,
@@ -176,9 +188,10 @@ function collapse(names: (string | number)[]) {
 }
 function nameField(row: Row): FieldSchema {
   return {
+    ...props.field.keySchema,
     key: 'name',
-    label: '名称',
-    type: 'string',
+    label: props.field.keySchema?.label ?? '名称',
+    type: props.field.keySchema?.type ?? 'string',
     required: true,
     reservedKeys: [
       ...(props.field.reservedKeys ?? []),
@@ -200,7 +213,11 @@ function updateRow(row: Row, update: SchemaFieldUpdate) {
     const retained = entries.value.filter((entry) => rows.value.some((row) => row.id !== '__extra' && row.key === entry.key));
     return publish([...retained, ...schemaKeyValueEntries(update.value, undefined)]);
   }
-  const next = entries.value.map((entry, index) => (index === row.index ? { ...entry, val: update.value } : entry));
+  const next = entries.value
+    .map((entry, index) => (index === row.index ? { ...entry, val: update.value } : entry))
+    .filter(
+      (entry) => !props.field.exclusiveKeys?.includes(row.key) || entry.key === row.key || !props.field.exclusiveKeys.includes(entry.key),
+    );
   if (row.index < 0) next.push({ key: row.key, val: update.value });
   publish(next);
 }
@@ -221,8 +238,10 @@ function add(choice: FieldSchema) {
     ...fields.value.map((field) => field.key),
     ...(props.field.reservedKeys ?? []),
   ];
-  let key = array.value ? String(entries.value.length) : 'newField';
-  for (let index = 1; occupied.includes(key); index++) key = 'newField' + index;
+  const initial = props.field.keySchema ? schemaInitialValue(props.field.keySchema) : 'newField';
+  let key = array.value ? String(entries.value.length) : String(initial);
+  for (let index = 1; occupied.includes(key); index++)
+    key = typeof initial === 'number' ? String(initial + index) : initial + String(index);
   publish([...entries.value, { key, val: schemaInitialValue(choice) }], { kind: 'insert', index: dynamic.value.length });
 }
 </script>

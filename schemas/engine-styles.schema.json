@@ -19,13 +19,15 @@
       "key": "style",
       "type": "object",
       "label": "样式属性",
+      "partial": true,
       "nested": [
         {
           "key": "mode",
           "type": "enum",
           "label": "尾迹模式",
           "description": "PARTICLES 使用粒子尾迹参数，QUAD_STRIP 使用条带尾迹参数，NONE 关闭尾迹。",
-          "options": ["NONE", "PARTICLES", "QUAD_STRIP"]
+          "options": ["NONE", "PARTICLES", "QUAD_STRIP"],
+          "default": "PARTICLES"
         },
         {
           "key": "engineColor",
@@ -67,7 +69,8 @@
           "key": "withSpread",
           "type": "boolean",
           "label": "尾焰扩散",
-          "description": "控制尾焰是否扩散，默认开启。"
+          "description": "控制尾焰是否扩散，默认开启。",
+          "default": true
         },
         {
           "key": "engineCampaignColor",
@@ -99,14 +102,20 @@
           "type": "float",
           "label": "粒子尺寸倍数",
           "description": "PARTICLES 模式下的尾迹粒子尺寸倍数。",
-          "numberFormat": "starsector"
+          "numberFormat": "starsector",
+          "requiredWhen": {
+            "mode": "PARTICLES"
+          }
         },
         {
           "key": "contrailParticleDuration",
           "type": "float",
           "label": "粒子持续时间",
           "description": "PARTICLES 模式下的尾迹粒子持续时间，单位为秒。",
-          "numberFormat": "starsector"
+          "numberFormat": "starsector",
+          "requiredWhen": {
+            "mode": "PARTICLES"
+          }
         },
         {
           "key": "contrailParticleFinalSizeMult",
@@ -120,14 +129,20 @@
           "type": "float",
           "label": "条带宽度倍数",
           "description": "QUAD_STRIP 模式下的尾迹宽度倍数。",
-          "numberFormat": "starsector"
+          "numberFormat": "starsector",
+          "requiredWhen": {
+            "mode": "QUAD_STRIP"
+          }
         },
         {
           "key": "contrailDuration",
           "type": "float",
           "label": "条带持续时间",
           "description": "QUAD_STRIP 模式下的尾迹持续时间，单位为秒。",
-          "numberFormat": "starsector"
+          "numberFormat": "starsector",
+          "requiredWhen": {
+            "mode": "QUAD_STRIP"
+          }
         },
         {
           "key": "contrailWidthAddedFractionAtEnd",
@@ -153,6 +168,7 @@
         {
           "key": "contrailMaxSpeedMult",
           "type": "float",
+          "required": true,
           "label": "尾迹速度倍数",
           "description": "控制尾迹运动速度，按引擎样式使用该倍数。",
           "numberFormat": "starsector"
@@ -160,6 +176,7 @@
         {
           "key": "contrailAngularVelocityMult",
           "type": "float",
+          "required": true,
           "label": "尾迹角速度倍数",
           "description": "控制尾迹旋转速度的倍数。",
           "numberFormat": "starsector"
@@ -167,6 +184,7 @@
         {
           "key": "type",
           "type": "enum",
+          "required": true,
           "label": "混合方式",
           "description": "GLOW 使用叠加发光，SMOKE 使用普通混合。",
           "options": ["GLOW", "SMOKE"]

@@ -20,9 +20,10 @@
 - `schemas/game-settings.schema.json`：设计类型颜色及游戏设置各分组的字段定义。
 - `schemas/hull-styles.schema.json`：船体样式字段、初值及前后端共同校验依据。
 - `schemas/sounds.schema.json`：音效、声音组与音乐格式及字段定义。
+- `src-tauri/src/domain/schema.rs`：字段结构、条件必填及分支约束校验。
 - `src-tauri/src/io/`：路径授权、版本、JSON 原文保留与文件变更集。
 - `src-tauri/src/models/misc_config.rs`：文件种类、查询记录、保存与删除协议。
-- `src-tauri/src/parsers/tool_json.rs`：内嵌字段资产的严格 JSON 解析。
+- `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产读取。
 - `src-tauri/src/services/write_transactions.rs`：根事务、版本校验、历史及提交同步。
 - `src/domain/json-editor/misc-config-files.ts`：文件种类、用途、文件名、路径、表单、初始内容与文档投影。
 - `src/services/query-cache.service.ts`：所属会话的实时读取与失效。
@@ -68,11 +69,13 @@
 - 所有写动作必须消费所属 session、Mod 和版本，经根事务、JSON 写入确认及正式回执交接。
 - 文件身份必须独立于 JSON 内容，严禁向内容写入实体 ID。
 - 新增文件种类必须分别登记用途、文件名、路径、表单、初始内容与内容校验，模块请求必须保持文件种类身份。
+- 样式与声音保存必须按当前 Mod 覆盖原版后的内容校验完整性，实际写盘必须保留所属草稿的局部覆盖形态。
 - 样式新增必须采用已登记的完整初值并检查保留名称；读取和保存必须保留合法局部覆盖及未知字段。
 - 目录与内容必须分别消费正式读取票据和路径失效；错误与迟到结果必须按文件、session、Mod 和请求接纳。
 - 船体样式的声音组引用与声音组的船体样式规则必须消费字段来源目录，设计类型颜色名称必须交付所属引用字段。
 - 表单与后端内容校验必须共同消费所属资产的 `root` 定义；表单必须复用字段模式的固定属性、可命名条目、列表、额外字段与编辑模式规则。
 - 配置一级对象必须分别展示为可折叠分组，设置的 `designTypeColors`、`graphics` 与 `plugins` 必须作为保留分组，其余值必须归入额外字段；已登记字段必须使用所属控件，未登记字段必须使用 JSON 文本输入，空的额外字段区块必须隐藏。
+- 音乐单文件与文件列表必须按互斥字段提交；声音选择索引必须按合并后音频列表的实际长度校验。
 - 音效数组、声音组对象及音乐目录必须按实际结构编辑，音频文件名必须消费所属 Mod 根或音乐来源的路径含义。
 
 ## 陷阱

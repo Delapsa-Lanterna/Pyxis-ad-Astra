@@ -249,6 +249,14 @@ fn build_spec_file(
     rel_path: &str,
     data: &Value,
 ) -> AppResult<(String, Value)> {
+    crate::domain::schema::validate_document(
+        crate::parsers::bundled_schema(if kind == EntityKind::Variant {
+            "variant"
+        } else {
+            "skin"
+        }),
+        data,
+    )?;
     match kind {
         EntityKind::Variant => {
             let file = crate::domain::json_documents::build_variant_file(mod_root, rel_path, data)?;
@@ -396,7 +404,7 @@ mod tests {
         let mut data = entity_json(case, "new");
         data[case.companion_field] = json!(case.companion_value);
         match case.kind {
-            EntityKind::Variant => data["weaponGroups"] = json!([{}]),
+            EntityKind::Variant => data["weaponGroups"] = json!([{"mode":"LINKED","weapons":{}}]),
             EntityKind::Skin => data["builtInWeapons"] = json!({"WS 001": "demo_weapon"}),
             _ => unreachable!(),
         }

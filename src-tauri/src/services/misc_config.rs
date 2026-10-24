@@ -11,10 +11,7 @@ use crate::{
     },
 };
 use serde_json::Value;
-use std::{
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
+use std::path::{Path, PathBuf};
 
 pub fn query_misc_config_files(mod_root: &str) -> AppResult<Vec<MiscConfigEntry>> {
     let _lease = acquire_root_write_lock(Path::new(mod_root))?;
@@ -81,10 +78,32 @@ fn require_version(path: &Path, versions: &[FileVersion]) -> AppResult<()> {
     }
     Ok(())
 }
-pub fn save_misc_config(payload: MiscConfigWrite) -> AppResult<WriteResult<Value>> {
+pub fn save_misc_config(
+    payload: MiscConfigWrite,
+    core_root: Option<&Path>,
+) -> AppResult<WriteResult<Value>> {
     let path = target_path(&payload.mod_root, payload.kind)?;
     require_version(&path, &payload.base_versions)?;
     validate_misc_config(payload.kind, &payload.data).map_err(|error| error.at_path(&path))?;
+    let mut effective = Value::Object(Default::default());
+    if let Some(root) = core_root {
+        let source = FsRootBoundary::new(root, "core config root")?
+            .resolve_relative(misc_config_path(payload.kind), "core config")?;
+        if source.try_exists().map_err(AppError::from)? {
+            effective = crate::io::read_json_file(&source)?;
+        }
+    }
+    crate::domain::schema::merge_config_values(&mut effective, payload.data.clone());
+    crate::domain::schema::validate_field(
+        config_schema(payload.kind),
+        &effective,
+        misc_config_path(payload.kind),
+        true,
+    )
+    .map_err(|error| error.at_path(&path))?;
+    if payload.kind == MiscConfigKind::Sounds {
+        validate_sound_indices(&effective).map_err(|error| error.at_path(&path))?;
+    }
     let mut json = JsonWriteBatch::new(payload.json_write);
     let text = json.render(&path, &payload.data, Some(&payload.ordered_json))?;
     json.finish()?;
@@ -111,25 +130,46 @@ pub(crate) fn validate_misc_config(kind: MiscConfigKind, data: &Value) -> AppRes
 }
 
 fn config_schema(kind: MiscConfigKind) -> &'static Value {
-    static SCHEMAS: LazyLock<[Value; 5]> = LazyLock::new(|| {
-        [
-            include_str!("../../../schemas/engine-styles.schema.json"),
-            include_str!("../../../schemas/hull-styles.schema.json"),
-            include_str!("../../../schemas/sounds.schema.json"),
-            include_str!("../../../schemas/game-settings.schema.json"),
-            include_str!("../../../schemas/strings.schema.json"),
-        ]
-        .map(|text| {
-            crate::parsers::parse_persisted_json::<Value>(text)
-                .expect("bundled field schema is valid JSON")
-        })
-    });
-    let index = match kind {
-        MiscConfigKind::EngineStyles => 0,
-        MiscConfigKind::HullStyles => 1,
-        MiscConfigKind::Sounds => 2,
-        MiscConfigKind::Settings => 3,
-        MiscConfigKind::Strings => 4,
+    let id = match kind {
+        MiscConfigKind::EngineStyles => "engine-styles",
+        MiscConfigKind::HullStyles => "hull-styles",
+        MiscConfigKind::Sounds => "sounds",
+        MiscConfigKind::Settings => "game-settings",
+        MiscConfigKind::Strings => "strings",
     };
-    &SCHEMAS[index]["root"]
+    &crate::parsers::bundled_schema(id)["root"]
+}
+
+fn validate_sound_indices(data: &Value) -> AppResult<()> {
+    for (name, group) in data.as_object().expect("validated sounds") {
+        if name == "music" || !group.is_object() {
+            continue;
+        }
+        let length = group["sounds"]
+            .as_array()
+            .expect("complete sound group")
+            .len();
+        for (rule, value) in group.as_object().expect("sound group") {
+            if rule == "sounds" {
+                continue;
+            }
+            if let Some(indices) = value["sounds"].as_array()
+                && indices.iter().any(|index| {
+                    index.as_f64().unwrap_or_else(|| {
+                        index
+                            .as_str()
+                            .expect("numeric index text")
+                            .parse()
+                            .expect("validated numeric index")
+                    }) >= length as f64
+                })
+            {
+                return Err(AppError::message(
+                    "config.shape_invalid",
+                    format!("音频索引超出 sounds 列表范围：{name}/{rule}/sounds"),
+                ));
+            }
+        }
+    }
+    Ok(())
 }

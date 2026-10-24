@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onScopeDispose, ref } from 'vue';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';
 import {
   convertSchemaScalarInput,
@@ -28,6 +28,8 @@ import {
   wrapSchemaTagValues,
 } from '@/domain/schema/schema-values';
 import { useRawFieldInput } from '@/shared/runtime/raw-field-input';
+import { useFieldInputs } from '@/shared/runtime/field-inputs';
+import { AppError } from '@/shared/lib/errors';
 import { focusFieldInput } from '@/shared/runtime/focus-field-input';
 import { cell } from '@/shared/lib/starsector';
 import { formatJsonInput, parseJsonInput } from '@/shared/lib/json-input';
@@ -73,6 +75,17 @@ onMounted(() => {
   if (props.initialText !== undefined) input.value?.focus();
 });
 defineExpose({ commit });
+const inputs = useFieldInputs();
+if (inputs && (props.field.required || props.field.requiredWhen))
+  onScopeDispose(
+    inputs.registerFinalizer(async () => {
+      if (props.field.required && raw.value.trim() === '') {
+        await focusFieldInput((multiline ? input.value?.textareaElRef : input.value?.inputElRef) ?? null);
+        input.value?.focus();
+        throw new AppError(`${props.field.label}：必填字段不能为空`, { action: 'commit-field-inputs' });
+      }
+    }, props.inputKey),
+  );
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' && event.key !== 'Escape') return;
   if (event.isComposing || (event.key === 'Enter' && multiline && !event.ctrlKey)) return;

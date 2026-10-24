@@ -88,13 +88,18 @@
             "key": "item",
             "label": "武器组",
             "type": "object",
-            "default": {},
+            "default": {
+              "mode": "LINKED",
+              "weapons": {},
+              "autofire": false
+            },
             "nested": [
               {
                 "key": "mode",
                 "type": "enum",
                 "label": "模式",
-                "options": ["LINKED", "ALTERNATING"]
+                "options": ["LINKED", "ALTERNATING"],
+                "required": true
               },
               {
                 "key": "weapons",
@@ -105,7 +110,8 @@
                   "type": "enum",
                   "label": "武器 ID",
                   "source": "csv:weapons.id"
-                }
+                },
+                "required": true
               },
               {
                 "key": "autofire",
@@ -149,64 +155,6 @@
             "type": "string",
             "label": "装配 ID"
           }
-        }
-      ]
-    },
-    {
-      "id": "autofit",
-      "label": "自动装配",
-      "collapsed": true,
-      "fields": [
-        {
-          "key": "quality",
-          "type": "float",
-          "label": "质量",
-          "min": 0,
-          "max": 1,
-          "step": 0.05
-        },
-        {
-          "key": "weaponQuality",
-          "type": "float",
-          "label": "武器质量",
-          "min": 0,
-          "max": 1,
-          "step": 0.05
-        },
-        {
-          "key": "fighterQuality",
-          "type": "float",
-          "label": "战机质量",
-          "min": 0,
-          "max": 1,
-          "step": 0.05
-        },
-        {
-          "key": "doctrine",
-          "type": "object",
-          "label": "舰队学说",
-          "nested": [
-            {
-              "key": "warships",
-              "type": "integer",
-              "label": "常规战舰"
-            },
-            {
-              "key": "carriers",
-              "type": "integer",
-              "label": "航母"
-            },
-            {
-              "key": "phaseShips",
-              "type": "integer",
-              "label": "相位舰"
-            },
-            {
-              "key": "officerQuality",
-              "type": "integer",
-              "label": "军官质量"
-            }
-          ]
         }
       ]
     }

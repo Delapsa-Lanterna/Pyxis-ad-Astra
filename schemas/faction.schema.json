@@ -172,7 +172,8 @@
             "key": "weight",
             "type": "float",
             "label": "权重",
-            "default": 1
+            "default": 1,
+            "numberFormat": "starsector"
           }
         },
         {
@@ -187,7 +188,8 @@
             "key": "weight",
             "type": "float",
             "label": "权重",
-            "default": 1
+            "default": 1,
+            "numberFormat": "starsector"
           }
         },
         {
@@ -202,7 +204,8 @@
             "key": "weight",
             "type": "float",
             "label": "权重",
-            "default": 1
+            "default": 1,
+            "numberFormat": "starsector"
           }
         },
         {
@@ -225,7 +228,8 @@
                 "key": "weight",
                 "type": "float",
                 "label": "权重",
-                "default": 1
+                "default": 1,
+                "numberFormat": "starsector"
               }
             },
             {
@@ -240,7 +244,8 @@
                 "key": "weight",
                 "type": "float",
                 "label": "权重",
-                "default": 1
+                "default": 1,
+                "numberFormat": "starsector"
               }
             }
           ]
@@ -497,7 +502,8 @@
             "key": "weight",
             "type": "float",
             "label": "权重",
-            "default": 1
+            "default": 1,
+            "numberFormat": "starsector"
           }
         },
         {
@@ -512,7 +518,8 @@
             "key": "weight",
             "type": "float",
             "label": "权重",
-            "default": 1
+            "default": 1,
+            "numberFormat": "starsector"
           }
         },
         {
@@ -527,7 +534,8 @@
             "key": "weight",
             "type": "float",
             "label": "权重",
-            "default": 1
+            "default": 1,
+            "numberFormat": "starsector"
           }
         },
         {
@@ -635,7 +643,8 @@
               "editable": true,
               "default": 0,
               "min": 0,
-              "max": 1
+              "max": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "combatFreighterCombatUseFraction",
@@ -646,7 +655,8 @@
               "editable": true,
               "default": 0,
               "min": 0,
-              "max": 1
+              "max": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "combatFreighterCombatUseFractionWhenPriority",
@@ -657,7 +667,8 @@
               "editable": true,
               "default": 0,
               "min": 0,
-              "max": 1
+              "max": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "autofitRandomizeProbability",
@@ -668,7 +679,8 @@
               "editable": true,
               "default": 0.1,
               "min": 0,
-              "max": 1
+              "max": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "officerSkillsShuffleProbability",
@@ -679,7 +691,8 @@
               "editable": true,
               "default": 1,
               "min": 0,
-              "max": 1
+              "max": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "officerSkills",
@@ -700,7 +713,8 @@
               "editable": true,
               "default": 1,
               "min": 0,
-              "max": 1
+              "max": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "commanderSkills",
@@ -744,8 +758,11 @@
                   "key": "weight",
                   "type": "float",
                   "label": "权重",
-                  "default": 1
-                }
+                  "default": 1,
+                  "numberFormat": "starsector"
+                },
+                "minEntries": 1,
+                "maxEntries": 1
               },
               {
                 "key": "fallback2",
@@ -755,15 +772,19 @@
                   "key": "weight",
                   "type": "float",
                   "label": "权重",
-                  "default": 1
-                }
+                  "default": 1,
+                  "numberFormat": "starsector"
+                },
+                "minEntries": 1,
+                "maxEntries": 1
               }
             ],
             "valueSchema": {
               "key": "weight",
               "type": "float",
               "label": "权重",
-              "default": 1
+              "default": 1,
+              "numberFormat": "starsector"
             }
           }
         },
@@ -841,7 +862,13 @@
               "required": false,
               "editable": true
             }
-          ]
+          ],
+          "valueSchema": {
+            "key": "track",
+            "type": "string",
+            "label": "音乐 ID",
+            "default": ""
+          }
         },
         {
           "key": "file.internalComms",
@@ -959,7 +986,8 @@
                 "key": "weight",
                 "type": "float",
                 "label": "权重",
-                "default": 1
+                "default": 1,
+                "numberFormat": "starsector"
               }
             },
             {
@@ -974,7 +1002,8 @@
                 "key": "weight",
                 "type": "float",
                 "label": "权重",
-                "default": 1
+                "default": 1,
+                "numberFormat": "starsector"
               }
             },
             {
@@ -989,7 +1018,8 @@
                 "key": "weight",
                 "type": "float",
                 "label": "权重",
-                "default": 1
+                "default": 1,
+                "numberFormat": "starsector"
               }
             }
           ]
@@ -1036,7 +1066,8 @@
               "description": "AI 核心在该势力处的价值倍率",
               "required": false,
               "editable": true,
-              "default": 1
+              "default": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "AICoreRepMult",
@@ -1045,7 +1076,8 @@
               "description": "上交 AI 核心获得的声望倍率",
               "required": false,
               "editable": true,
-              "default": 1
+              "default": 1,
+              "numberFormat": "starsector"
             },
             {
               "key": "buysSurveyData",
@@ -1193,7 +1225,8 @@
                 "key": "weight",
                 "type": "float",
                 "label": "权重",
-                "default": 1
+                "default": 1,
+                "numberFormat": "starsector"
               }
             },
             {

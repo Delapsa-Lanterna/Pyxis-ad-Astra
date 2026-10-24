@@ -38,7 +38,7 @@
   <n-switch
     v-else-if="mode !== 'plain' && active.type === 'boolean'"
     class="tool-switch field-switch"
-    :value="value === true"
+    :value="booleanValue === true || (typeof booleanValue === 'string' && booleanValue.toLowerCase() === 'true')"
     size="small"
     :disabled="active.editable === false"
     @update:value="emit('update', { kind: 'set', value: $event })"
@@ -74,6 +74,7 @@ const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const mode = useInputEditMode();
 const fieldInputKey = computed(() => props.inputKey ?? props.field.key);
 const active = computed(() => (props.field.variants ? schemaFieldVariant(props.field, props.value) : props.field));
+const booleanValue = computed(() => (props.value === undefined ? active.value.default : props.value));
 const scalar = computed<FieldSchema>(() =>
   schemaCollection(active.value) || active.value.type.startsWith('color-') ? { ...active.value, type: 'json' } : active.value,
 );

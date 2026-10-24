@@ -23,3 +23,4 @@ pub use session::{
     registered_session_ids,
 };
 pub(crate) use sources::configure_persistent_index_cache;
+pub(crate) use sources::core::core_dir;

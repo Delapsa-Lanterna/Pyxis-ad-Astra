@@ -4,16 +4,7 @@ use std::{collections::BTreeMap, path::Path};
 
 pub(in crate::services::project) const ENGINE_STYLES_PATH: &str = "data/config/engine_styles.json";
 
-pub(in crate::services::project) fn merge_engine_styles(target: &mut Value, incoming: Value) {
-    match (target, incoming) {
-        (Value::Object(target), Value::Object(incoming)) => {
-            for (key, value) in incoming {
-                merge_engine_styles(target.entry(key).or_insert(Value::Null), value);
-            }
-        }
-        (target, value) => *target = value,
-    }
-}
+pub(in crate::services::project) use crate::domain::schema::merge_config_values as merge_engine_styles;
 
 pub(in crate::services::project) fn read_engine_styles(
     root: &Path,

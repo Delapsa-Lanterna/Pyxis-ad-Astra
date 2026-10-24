@@ -38,10 +38,60 @@
           "key": "file.version",
           "type": "string",
           "label": "版本号",
-          "description": "Mod 版本号。支持字符串格式（如 \"1.0.0\"）或对象格式（如 {\"major\":1, \"minor\":0, \"patch\":0}）。对象格式会显示为 JSON 并可直接编辑",
+          "description": "支持版本字符串或包含 major、minor、patch 的对象；对象中的各部分保留原有的数字或文字类型。",
           "required": true,
           "editable": true,
-          "default": "1.0.0"
+          "default": "1.0.0",
+          "variants": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "nested": [
+                {
+                  "key": "major",
+                  "type": "string",
+                  "label": "主版本",
+                  "required": true,
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                },
+                {
+                  "key": "minor",
+                  "type": "string",
+                  "label": "次版本",
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                },
+                {
+                  "key": "patch",
+                  "type": "string",
+                  "label": "修订版本",
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         {
           "key": "file.gameVersion",
@@ -50,7 +100,57 @@
           "description": "Mod 适用的 Starsector 游戏版本",
           "required": true,
           "editable": true,
-          "default": "0.97a-RC11"
+          "default": "0.98a",
+          "variants": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "nested": [
+                {
+                  "key": "major",
+                  "type": "string",
+                  "label": "主版本",
+                  "required": true,
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                },
+                {
+                  "key": "minor",
+                  "type": "string",
+                  "label": "次版本",
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                },
+                {
+                  "key": "patch",
+                  "type": "string",
+                  "label": "修订版本",
+                  "variants": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "float"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         {
           "key": "file.description",
@@ -89,7 +189,9 @@
             "key": "item",
             "label": "依赖项",
             "type": "object",
-            "default": {},
+            "default": {
+              "id": ""
+            },
             "nested": [
               {
                 "key": "id",
@@ -113,7 +215,57 @@
                 "label": "最低版本",
                 "description": "依赖项所需的最低版本",
                 "required": false,
-                "editable": true
+                "editable": true,
+                "variants": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "nested": [
+                      {
+                        "key": "major",
+                        "type": "string",
+                        "label": "主版本",
+                        "required": true,
+                        "variants": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "float"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "minor",
+                        "type": "string",
+                        "label": "次版本",
+                        "variants": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "float"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "patch",
+                        "type": "string",
+                        "label": "修订版本",
+                        "variants": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "float"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
               }
             ]
           }

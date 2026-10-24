@@ -29,6 +29,7 @@ export interface FieldSchema {
   description?: string;
   required?: boolean;
   editable?: boolean;
+  partial?: boolean;
   default?: unknown;
   warning?: string;
   danger?: string;
@@ -36,11 +37,16 @@ export interface FieldSchema {
   pathBase?: 'mod' | 'mission';
   min?: number;
   max?: number;
+  minEntries?: number;
+  maxEntries?: number;
+  exclusiveKeys?: string[];
+  requiredWhen?: Record<string, string>;
   step?: number;
   options?: string[];
   nested?: FieldSchema[];
   item?: FieldSchema;
   valueSchema?: FieldSchema;
+  keySchema?: FieldSchema;
   variants?: FieldSchema[];
   numberFormat?: 'starsector';
   reservedKeys?: string[];

@@ -113,6 +113,7 @@ pub fn delete_variant_entity(
 #[tauri::command(async)]
 pub fn save_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
+    services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
     services::require_entity_version_scope(
         &payload.session_id,
         EntityKind::Skin,
@@ -145,6 +146,7 @@ pub fn save_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Va
 #[tauri::command(async)]
 pub fn create_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
+    services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
     services::require_entity_version_scope(
         &payload.session_id,
         EntityKind::Skin,
@@ -187,6 +189,10 @@ pub fn delete_skin_entity(payload: DeleteJsonEntityFilePayload) -> Result<WriteR
     )?;
     transaction.commit(result, "删除皮肤")
 }
+
+#[cfg(test)]
+#[path = "json_file_validation_tests.rs"]
+mod validation_tests;
 
 #[cfg(test)]
 mod tests {

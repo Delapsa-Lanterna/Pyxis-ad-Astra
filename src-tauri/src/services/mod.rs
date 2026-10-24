@@ -9,6 +9,9 @@ pub mod json_file;
 pub mod misc_config;
 pub mod spec_editor;
 
+#[cfg(test)]
+mod schema_tests;
+
 pub mod file_editor;
 pub mod file_history;
 pub mod mod_creation;
@@ -46,7 +49,7 @@ pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::entity_identity::{
-    save_entity_spec, save_entity_text, save_variant_entity,
+    save_entity_spec, save_entity_text, save_variant_entity, validate_skin_engine_changes,
 };
 pub(crate) use project::write::faction_identity::{delete_faction_entity, save_faction_entity};
 pub(crate) use project::write::joint_edit::save_joint_edit;
