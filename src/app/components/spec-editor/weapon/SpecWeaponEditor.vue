@@ -142,7 +142,9 @@
             <div v-if="section.name === 'proj'" class="action-group">
               <n-button @click="actions.editProjectile">编辑弹体</n-button><n-button @click="actions.preview">开火预览</n-button>
             </div>
-            <div v-if="section.name === 'beam'" class="action-group"><n-button @click="actions.preview">开火预览</n-button></div>
+            <div v-if="section.name === 'beam' || section.name === 'anim'" class="action-group">
+              <n-button @click="actions.preview">开火预览</n-button>
+            </div>
             <div v-if="section.name === 'glow'" class="action-group">
               <n-button
                 :type="view.glowPreviewEnabled ? 'primary' : 'default'"

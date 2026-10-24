@@ -399,22 +399,27 @@ describe('SpecWeaponEditor', () => {
     expect(editor.emitted('edit-projectile')).toEqual([['shot']]);
   });
 
-  it('delivers a detached fire-preview snapshot after committing active color input', async () => {
-    const editor = mountEditor({ id: 'railgun', specClass: 'projectile', unknown: { value: 7 } }, {}, true);
-    await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 128]');
-    await editor
-      .findAll('button')
-      .find((button) => button.text() === '开火预览')!
-      .trigger('click');
-    await flushPromises();
-    const snapshot = editor.emitted('preview')!.at(-1)![0] as RowData;
-    expect(snapshot).toMatchObject({ glowColor: [100, 200, 50, 128], unknown: { value: 7 } });
-    await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[1, 2, 3, 255]');
-    await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
-    await flushPromises();
-    expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ glowColor: [1, 2, 3, 255] });
-    expect(snapshot.glowColor).toEqual([100, 200, 50, 128]);
-  });
+  it.each(['projectile', 'beam'])(
+    'delivers detached %s snapshots from both preview entries after committing active input',
+    async (specClass) => {
+      const editor = mountEditor({ id: 'railgun', specClass, unknown: { value: 7 } }, {}, true);
+      expect(editor.findAll('button').filter((button) => button.text() === '开火预览')).toHaveLength(2);
+      const snapshots: RowData[] = [];
+      for (const section of [specClass === 'beam' ? 'beam' : 'proj', 'anim']) {
+        await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[100, 200, 50, 128]');
+        await editor.get('[data-name="' + section + '"] .action-group button:last-child').trigger('click');
+        await flushPromises();
+        const snapshot = editor.emitted('preview')!.at(-1)![0] as RowData;
+        expect(snapshot).toMatchObject({ glowColor: [100, 200, 50, 128], unknown: { value: 7 } });
+        snapshots.push(snapshot);
+      }
+      await editor.get('[data-name="glow"] .color-picker-text-input').setValue('[1, 2, 3, 255]');
+      await editor.get('[data-name="glow"] [aria-pressed]').trigger('click');
+      await flushPromises();
+      expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ glowColor: [1, 2, 3, 255] });
+      for (const snapshot of snapshots) expect(snapshot.glowColor).toEqual([100, 200, 50, 128]);
+    },
+  );
 
   it('commits pending color input before enabling the preview', async () => {
     const { frames, tint, load } = installGlowRuntime();

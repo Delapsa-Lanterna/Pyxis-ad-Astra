@@ -1,17 +1,22 @@
-import { computed, onMounted, onUnmounted, reactive, shallowRef, watch, type ShallowRef } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch, type ShallowRef } from 'vue';
 import type { DeepReadonly, RowData, WeaponFirePreviewData } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
 import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
 import { createWeaponFirePreviewDefinition, type WeaponFirePreviewDefinition } from '@/domain/weapon-fire-preview/preview-definition';
 import {
   createWeaponFirePreviewState,
+  cloneWeaponFirePreviewState,
+  type WeaponFirePreviewState,
   startWeaponFirePreview,
   stopWeaponFirePreview,
   advanceWeaponFirePreview,
   weaponGlowLevel,
 } from '@/domain/weapon-fire-preview/simulation';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
-import { useCanvasSurface, watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
+import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
+import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
+import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
+import { weaponCanvasPoint, weaponPointFromCanvas } from '@/domain/editors/lib/geometry';
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
 import { useProjectileRendering } from '../editors/use-projectile-rendering';
 import { useEngineRendering } from '../editors/use-engine-rendering';
@@ -32,21 +37,26 @@ export function useWeaponFirePreviewViewModel(
   elements: { canvasRef: Readonly<ShallowRef<HTMLCanvasElement | null>>; previewStageRef: Readonly<ShallowRef<HTMLElement | null>> },
 ) {
   const { canvasRef, previewStageRef } = elements,
-    surface = useCanvasSurface(canvasRef);
+    viewport = useCanvasViewport(canvasRef, 1, 20);
   const state = shallowRef(createWeaponFirePreviewState()),
     viewMode = computed(() => state.value.mode);
+  const history: { state: WeaponFirePreviewState; sources: WeaponFirePreviewDefinition[] }[] = [],
+    position = ref(0);
   const definition = computed(() =>
     createWeaponFirePreviewDefinition(props.weaponCsvRow, props.weaponSpec, props.projectile ?? {}, viewMode.value, props.resources),
   );
   const sources = shallowRef<WeaponFirePreviewDefinition[]>([definition.value]);
-  function synchronize() {
-    const next = [
+  function stateSources(value: WeaponFirePreviewState) {
+    return [
       ...new Set([
-        definition.value,
-        ...state.value.projectiles.map((item) => item.definition),
-        ...state.value.effects.map((item) => item.definition),
+        ...value.projectiles.map((item) => item.definition),
+        ...value.effects.map((item) => item.definition),
+        ...(value.beam.definition ? [value.beam.definition] : []),
       ]),
     ];
+  }
+  function synchronize() {
+    const next = [...new Set([definition.value, ...stateSources(state.value), ...history.flatMap((item) => item.sources)])];
     if (next.length !== sources.value.length || next.some((item, i) => item !== sources.value[i])) sources.value = next;
   }
   const resources = computed(() =>
@@ -65,16 +75,34 @@ export function useWeaponFirePreviewViewModel(
   const hasWeaponSpec = computed(() => Object.keys(props.weaponSpec).length > 0),
     palette = useCanvasPalette(draw),
     frames = useEditorFrameLoop(frame);
-  let last = 0,
+  const navigation = useCanvasNavigation(viewport, redraw, 'pointer');
+  let inside = false,
+    fitScale = 1,
+    last = 0,
     stopDpi: (() => void) | null = null;
+  function redraw() {
+    if (!state.value.running) draw();
+  }
+  function fitView() {
+    fitScale = (viewport.size().width - 140) / Math.max(definition.value.range, 100);
+    viewport.fit(1);
+    viewport.pan.value.x = 80 - viewport.size().width / 2;
+    draw();
+  }
+  function refreshView() {
+    if (viewport.fitted.value) fitView();
+    else draw();
+  }
   function restart() {
+    history.splice(position.value + 1);
+    synchronize();
     frames.stop();
     last = 0;
     frames.start();
   }
   function reset() {
     state.value = createWeaponFirePreviewState(state.value.mode, state.value.speed);
-    synchronize();
+    resetHistory();
     restart();
     draw();
   }
@@ -86,6 +114,7 @@ export function useWeaponFirePreviewViewModel(
   function setView(mode: WeaponViewMode) {
     if (hasWeaponSpec.value) {
       state.value = { ...state.value, mode, firingState: { ...state.value.firingState, barrel: 0 } };
+      resetHistory();
       draw();
     }
   }
@@ -93,25 +122,57 @@ export function useWeaponFirePreviewViewModel(
     const paused = !state.value.running;
     startWeaponFirePreview(state.value);
     state.value = { ...state.value };
+    resetHistory();
     if (paused) restart();
   }
   function stopFiring() {
     stopWeaponFirePreview(state.value);
     state.value = { ...state.value };
+    resetHistory();
+  }
+  function record(replace = false) {
+    if (replace) history.pop();
+    history.push({ state: cloneWeaponFirePreviewState(state.value), sources: stateSources(state.value) });
+    if (history.length > 120) history.shift();
+    position.value = history.length - 1;
+    synchronize();
+  }
+  function resetHistory() {
+    history.length = 0;
+    record();
+  }
+  function advance(dt: number) {
+    advanceWeaponFirePreview(state.value, definition.value, dt, Math.random, engines.style);
+    record(dt === 0);
+  }
+  function step(direction: -1 | 1) {
+    frames.stop();
+    const next = position.value + direction;
+    if (next === history.length) {
+      state.value = { ...state.value, running: true };
+      advance(1 / 60);
+    } else {
+      position.value = next;
+      state.value = { ...cloneWeaponFirePreviewState(history[next]!.state), speed: state.value.speed };
+    }
+    state.value = { ...state.value, running: false };
+    synchronize();
+    draw();
   }
   function frame(time: number) {
     if (!last) last = time;
     const dt = ((time - last) / 1000) * state.value.speed;
     last = time;
-    advanceWeaponFirePreview(state.value, definition.value, dt, Math.random, engines.style);
-    synchronize();
+    advance(dt);
     draw();
   }
   function draw() {
     const c = canvasRef.value;
     if (!c) return;
-    const origin = { x: 80, y: surface.size().height / 2 },
-      scale = (surface.size().width - 140) / Math.max(definition.value.range, 100);
+    const origin = viewport.center(),
+      scale = fitScale * viewport.scale.value,
+      point = weaponPointFromCanvas(navigation.last, origin, scale),
+      coord = { x: Math.round(point.x * 2) / 2, y: Math.round(point.y * 2) / 2 };
     images.paint((providers) =>
       engines.paint((engineImages) => {
         const color = arr(props.weaponSpec.glowColor, [255, 255, 255, 255]),
@@ -123,12 +184,17 @@ export function useWeaponFirePreviewViewModel(
         }
         const glowKey = state.value.mode === 'turret' ? 'turretGlowSprite' : 'hardpointGlowSprite';
         renderWeaponFirePreviewScene(c.getContext('2d')!, {
-          size: surface.size(),
-          palette: palette.value,
+          base: {
+            ...viewport.size(),
+            center: origin,
+            scale,
+            palette: palette.value,
+            mirrorY: null,
+            cursor: inside
+              ? { point: weaponCanvasPoint(coord, origin, scale), label: coord.x.toFixed(1) + ', ' + coord.y.toFixed(1) }
+              : null,
+          },
           definition: definition.value,
-          origin,
-          range: definition.value.range * scale,
-          scale,
           hasWeaponSpec: hasWeaponSpec.value,
           assets: {
             images: weaponImages,
@@ -150,33 +216,36 @@ export function useWeaponFirePreviewViewModel(
   }
   function resize() {
     const rect = previewStageRef.value?.getBoundingClientRect();
-    surface.resize(rect?.width, rect?.height);
-    draw();
+    viewport.resize(rect?.width, rect?.height);
+    refreshView();
   }
   useShortcutDispatch({ keys: { u: () => setView('turret'), h: () => setView('hardpoint') } });
   onMounted(() => {
     stopDpi = watchCanvasPixelRatio(resize);
     resize();
+    fitView();
     window.addEventListener('resize', resize);
     reset();
   });
   onUnmounted(() => {
+    history.length = 0;
+    navigation.finish();
     stopDpi?.();
     window.removeEventListener('resize', resize);
   });
   watch(
-    () => props.sessionId,
+    () => [props.sessionId, props.weaponId],
     () => {
       state.value = createWeaponFirePreviewState(state.value.mode, state.value.speed);
-      synchronize();
-      draw();
+      resetHistory();
+      refreshView();
     },
   );
   watch(
     definition,
     () => {
-      synchronize();
-      draw();
+      resetHistory();
+      refreshView();
     },
     { flush: 'post' },
   );
@@ -187,12 +256,28 @@ export function useWeaponFirePreviewViewModel(
       firing: computed(() => state.value.firing),
       speed: computed(() => state.value.speed),
       viewMode,
+      canStepBack: computed(() => position.value > 0),
+      fitted: viewport.fitted,
       hasWeaponSpec,
       mediaReady: images.ready,
       previewSubtitle: computed(() => '武器 ' + props.weaponId + ' · 弹体 ' + (str(props.weaponSpec.projectileSpecId) || '-')),
       speedLabel: computed(() => state.value.speed.toFixed(1) + 'x'),
     }),
     actions: {
+      step,
+      fitView,
+      onDown: navigation.start,
+      onUp: navigation.finish,
+      onWheel: navigation.wheel,
+      onMove: (event: MouseEvent) => {
+        inside = true;
+        if (!navigation.move(event)) redraw();
+      },
+      onLeave: () => {
+        inside = false;
+        navigation.finish();
+        redraw();
+      },
       reset,
       toggle,
       setView,

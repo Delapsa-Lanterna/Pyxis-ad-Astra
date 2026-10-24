@@ -1,5 +1,3 @@
-import type { Point } from '@/domain/editors/editor-types';
-import type { CanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import type { WeaponFirePreviewDefinition, PreviewResources } from '@/domain/weapon-fire-preview/preview-definition';
 import type {
   WeaponFirePreviewProjectileState,
@@ -7,18 +5,14 @@ import type {
   PreviewExplosion,
 } from '@/domain/weapon-fire-preview/simulation';
 import { num } from '@/shared/lib/starsector';
-import { clearCanvas } from '../editors/canvas-drawing';
+import { renderCanvasBase, renderCanvasCursor, type CanvasScene } from '../editors/canvas-scene';
 import { renderWeaponImages, type WeaponImageScene } from '../editors/weapon-images';
 import { drawBeamVisual, drawProjectileVisual, type ProjectileImages } from '../editors/projectile-renderer';
 import type { EngineImages } from '../editors/engine-renderer';
 
 export interface WeaponFirePreviewScene {
-  size: { width: number; height: number };
-  palette: CanvasPalette;
+  base: CanvasScene;
   definition: WeaponFirePreviewDefinition;
-  origin: Point;
-  range: number;
-  scale: number;
   hasWeaponSpec: boolean;
   assets: WeaponImageScene;
   projectiles: WeaponFirePreviewProjectileState[];
@@ -63,30 +57,23 @@ function renderTrail(ctx: CanvasRenderingContext2D, projectile: WeaponFirePrevie
   }
 }
 export function renderWeaponFirePreviewScene(ctx: CanvasRenderingContext2D, scene: WeaponFirePreviewScene): void {
-  clearCanvas(ctx, scene.size.width, scene.size.height, scene.palette.background);
-  ctx.strokeStyle = scene.palette.grid;
-  ctx.lineWidth = 1;
-  for (let x = 80; x < scene.size.width; x += 50) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, scene.size.height);
-    ctx.stroke();
-  }
+  const { center: origin, scale, height } = scene.base;
+  renderCanvasBase(ctx, scene.base);
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = '#ef444488';
   ctx.beginPath();
-  ctx.moveTo(scene.origin.x + scene.range, 40);
-  ctx.lineTo(scene.origin.x + scene.range, scene.size.height - 40);
+  ctx.moveTo(origin.x + scene.definition.range * scale, 40);
+  ctx.lineTo(origin.x + scene.definition.range * scale, height - 40);
   ctx.stroke();
   ctx.setLineDash([]);
   if (scene.hasWeaponSpec) renderWeaponImages(ctx, scene.assets);
   else {
     ctx.fillStyle = '#374151';
-    ctx.fillRect(scene.origin.x - 18, scene.origin.y - 12, 36, 24);
+    ctx.fillRect(origin.x - 18, origin.y - 12, 36, 24);
   }
   ctx.save();
-  ctx.translate(scene.origin.x, scene.origin.y);
-  ctx.scale(scene.scale, scene.scale);
+  ctx.translate(origin.x, origin.y);
+  ctx.scale(scale, scale);
   const p = scene.definition,
     beam = scene.beam;
   if (p.beam && beam.alpha > 0 && (!p.fullChargeOnly || beam.phase !== 'chargeup'))
@@ -166,4 +153,5 @@ export function renderWeaponFirePreviewScene(ctx: CanvasRenderingContext2D, scen
     ctx.restore();
   }
   ctx.restore();
+  renderCanvasCursor(ctx, scene.base);
 }

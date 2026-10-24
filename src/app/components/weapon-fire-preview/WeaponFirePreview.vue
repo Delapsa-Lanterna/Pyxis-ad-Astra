@@ -21,6 +21,7 @@
             固定视图 <span class="ship-mode-shortcut ui-text-meta ui-text-muted">H</span>
           </button>
         </div>
+        <n-button :type="view.fitted ? 'primary' : 'default'" :aria-pressed="view.fitted" @click="actions.fitView">适应视图</n-button>
       </div>
     </EditorHeader>
     <div class="editor-body ui-content-contained ui-layout-grid ui-layout-clip">
@@ -28,7 +29,16 @@
         ref="previewStageRef"
         class="canvas-stage preview-canvas-stage ui-content-contained ui-content-surface-muted ui-layout-contained"
       >
-        <canvas ref="canvasRef" class="editor-canvas preview-canvas ui-canvas-image" />
+        <canvas
+          ref="canvasRef"
+          class="editor-canvas preview-canvas ui-canvas-image"
+          @mousedown="actions.onDown"
+          @mousemove="actions.onMove"
+          @mouseup="actions.onUp"
+          @mouseleave="actions.onLeave"
+          @wheel.prevent="actions.onWheel"
+          @contextmenu.prevent
+        />
       </div>
       <EditorInspector title="预览控制">
         <div class="preview-control-panel ui-layout-grid">
@@ -53,6 +63,10 @@
               <n-button @click="actions.toggle">{{ view.running ? '暂停' : '播放' }}</n-button>
               <n-button tertiary @click="actions.reset">重置</n-button>
             </div>
+            <div class="preview-control-actions ui-layout-grid">
+              <n-button :disabled="!view.canStepBack" @click="actions.step(-1)">上一帧</n-button>
+              <n-button @click="actions.step(1)">下一帧</n-button>
+            </div>
             <div class="preview-speed-control ui-layout-grid">
               <div class="preview-speed-header ui-text-small ui-layout-grid ui-layout-center">
                 <span class="preview-speed-header-label ui-text-muted">播放速度</span>
@@ -64,7 +78,7 @@
         </div>
       </EditorInspector>
     </div>
-    <EditorFooter note="播放预览用于观察武器弹道和光束表现；右侧可调整播放速度。"> </EditorFooter>
+    <EditorFooter note="右键 拖动画布 | 滚轮 缩放 | 右侧调整播放速度"> </EditorFooter>
   </div>
 </template>
 

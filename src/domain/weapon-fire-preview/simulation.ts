@@ -33,6 +33,22 @@ export function createWeaponFirePreviewState(mode: WeaponViewMode = 'turret', sp
   };
 }
 export type WeaponFirePreviewState = ReturnType<typeof createWeaponFirePreviewState>;
+export function cloneWeaponFirePreviewState(state: WeaponFirePreviewState): WeaponFirePreviewState {
+  return {
+    ...state,
+    firingState: { ...state.firingState },
+    beam: { ...state.beam },
+    projectiles: state.projectiles.map((projectile) => ({
+      ...projectile,
+      trails: projectile.trails.map((trail) => ({
+        ...trail,
+        color: [...trail.color],
+        points: trail.points.map((point) => ({ ...point })),
+      })),
+    })),
+    effects: state.effects.map((effect) => ({ ...effect, particles: effect.particles.map((particle) => ({ ...particle })) })),
+  };
+}
 export type WeaponFirePreviewBeamState = WeaponFirePreviewState['beam'];
 export interface PreviewExplosion extends Point {
   definition: WeaponFirePreviewDefinition;

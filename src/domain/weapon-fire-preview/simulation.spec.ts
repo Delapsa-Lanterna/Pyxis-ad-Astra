@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWeaponFirePreviewDefinition } from './preview-definition';
 import {
   createWeaponFirePreviewState,
+  cloneWeaponFirePreviewState,
   startWeaponFirePreview,
   stopWeaponFirePreview,
   advanceWeaponFirePreview,
@@ -18,6 +19,51 @@ const definition = () =>
   );
 
 describe('preview definition and simulation', () => {
+  it.each(['projectile', 'missile', 'beam'])('clones %s state independently while sharing born definitions and styles', (kind) => {
+    const p = createWeaponFirePreviewDefinition(
+        { range: 2, 'proj speed': 10, 'launch speed': 10, 'flight time': 0.2, 'beam speed': 100, chargedown: 10 },
+        { specClass: kind === 'beam' ? 'beam' : 'projectile' },
+        {
+          specClass: kind,
+          fadeTime: 0.1,
+          flameoutTime: 0,
+          engineSlots: [{ loc: [0, 0], width: 2, styleSpec: { contrailDuration: 1, mode: 'QUAD_STRIP' } }],
+          behaviorSpec: {
+            behavior: 'PROXIMITY_FUSE',
+            explosionSpec: { duration: 0.5, radius: 20, particleCount: 2, particleDuration: 0.5 },
+          },
+        },
+        'turret',
+      ),
+      state = createWeaponFirePreviewState();
+    startWeaponFirePreview(state);
+    advanceWeaponFirePreview(state, p, 0.1, random);
+    const snapshot = cloneWeaponFirePreviewState(state),
+      serialized = JSON.stringify(snapshot);
+    expect(snapshot).toEqual(state);
+    expect(snapshot.firingState).not.toBe(state.firingState);
+    expect(snapshot.beam).not.toBe(state.beam);
+    if (kind !== 'beam') expect(snapshot.projectiles[0]!.definition).toBe(p);
+    if (kind === 'missile') {
+      expect(snapshot.projectiles[0]!.trails[0]!.style).toBe(state.projectiles[0]!.trails[0]!.style);
+      expect(snapshot.projectiles[0]!.trails[0]!.points).not.toBe(state.projectiles[0]!.trails[0]!.points);
+      expect(snapshot.projectiles[0]!.trails[0]!.points.length).toBeGreaterThan(0);
+    }
+    stopWeaponFirePreview(state);
+    advanceWeaponFirePreview(state, p, 0.15, random);
+    expect(JSON.stringify(snapshot)).toBe(serialized);
+    if (kind !== 'beam') {
+      expect(state.projectiles).toHaveLength(0);
+      expect(state.effects).toHaveLength(1);
+      const effect = cloneWeaponFirePreviewState(state);
+      expect(effect.effects[0]!.definition).toBe(p);
+      effect.effects[0]!.particles[0]!.x++;
+      expect(effect.effects[0]!.particles).not.toEqual(state.effects[0]!.particles);
+    }
+    const restored = cloneWeaponFirePreviewState(snapshot);
+    advanceWeaponFirePreview(restored, p, 0.4, random);
+    expect(JSON.stringify(snapshot)).toBe(serialized);
+  });
   it('uses CSV missile launch speed, maximum speed and flight time', () => {
     const p = createWeaponFirePreviewDefinition(
       { 'launch speed': 10, 'proj speed': 100, 'flight time': 2 },
