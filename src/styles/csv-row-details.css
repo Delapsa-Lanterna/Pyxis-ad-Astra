@@ -12,6 +12,9 @@
   height: 100%;
   image-rendering: pixelated;
 }
+.detail-thumbnail .n-image {
+  height: 100%;
+}
 .thumbnail-placeholder {
   gap: 6px;
   color: var(--color-faint);

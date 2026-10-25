@@ -120,6 +120,7 @@ export const editorUiStubs: GlobalStubs = {
   'n-button': nButton,
   'n-checkbox': nCheckbox,
   'n-dynamic-tags': nDynamicTags,
+  'n-image': { props: ['src', 'alt', 'imgProps'], template: '<img :src="src" :alt="alt" v-bind="imgProps" />' },
   'n-popover': nPopover,
   'n-collapse': nCollapse,
   'n-collapse-item': nCollapseItem,

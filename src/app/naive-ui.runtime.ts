@@ -14,6 +14,7 @@ export function installNaiveUi(app: App): void {
   registerAsyncNaiveComponent(app, 'NCollapse', async () => (await import('naive-ui/es/collapse')).NCollapse);
   registerAsyncNaiveComponent(app, 'NCollapseItem', async () => (await import('naive-ui/es/collapse')).NCollapseItem);
   registerAsyncNaiveComponent(app, 'NDynamicTags', async () => (await import('naive-ui/es/dynamic-tags')).NDynamicTags);
+  registerAsyncNaiveComponent(app, 'NImage', async () => (await import('./components/AppImage.vue')).default);
   registerAsyncNaiveComponent(app, 'NInput', async () => (await import('naive-ui/es/input')).NInput);
   registerAsyncNaiveComponent(app, 'NInputNumber', async () => (await import('naive-ui/es/input-number')).NInputNumber);
   registerAsyncNaiveComponent(app, 'NModal', async () => (await import('naive-ui/es/modal')).NModal);

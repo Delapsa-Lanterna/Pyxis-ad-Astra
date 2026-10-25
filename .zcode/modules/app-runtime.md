@@ -44,6 +44,8 @@
 - `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁的建立与提供，以及目标交接挂载。
 - `src/app/WindowShell.vue`：唯一窗口壳，以 main/child 模式区分设置持久化与设置镜像，统一挂载 Provider、主题与 Core 加载生命周期。
 - `src/app/app-feedback-assembly.ts`：文件会话定位、授权恢复动作、转码及保存同步。
+- `src/app/components/AppImage.spec.ts`：统一图片控件的属性交接、预览关闭锁及释放验证。
+- `src/app/components/AppImage.vue`：统一图片控件的等比展示与窗口关闭锁适配。
 - `src/app/components/AppSelect.vue`：统一下拉框的展开状态、箭头收起与内部聚焦。
 - `src/app/components/MainWindowFrame.vue`：主窗口空间及主内容区域的展示框架。
 - `src/app/components/WindowTooltip.vue`：窗口统一接管原生 title 提示，持有悬浮等待、主题展示与释放。
@@ -124,6 +126,7 @@
 - 启动失败页面必须提供重试、复制诊断和退出，必须提供原生窗口控制；退出必须等待启动失败交接并消费现有关闭流程，展示必须独立于 settings、业务 store 和 Provider 初始化。
 - 启动链路的控件注册必须显式登记，严禁通过副作用自动注册控件。
 - 启动错误呈现必须 HTML 转义消息内容，严禁拼接未转义文本。
+- 图片预览必须消费统一注册控件并随所属窗口关闭锁禁用，图片必须按比例显示。
 - 应用关闭必须先完成主窗口确认和设置提交，再逐个销毁子窗口与独立恢复窗口、释放会话并最后销毁主窗口。
 - 应用正常关闭必须交付日志尾批，原生退出必须记录实际退出事件及应用版本。
 - 异步 Naive 控件必须由注册表统一加载，业务模板必须消费注册控件。

@@ -38,7 +38,13 @@
           class="json-image-preview ui-text-muted ui-layout-grid ui-layout-shrink"
         >
           <span class="ui-text-soft ui-text-small">{{ label }}</span
-          ><img :src="src" :alt="title" class="json-image-preview-image ui-image ui-layout-stretch ui-control-border" />
+          ><n-image
+            :src="src"
+            :alt="title"
+            class="ui-layout-stretch"
+            width="100%"
+            :img-props="{ class: 'json-image-preview-image ui-image ui-control-border' }"
+          />
         </div>
       </div>
       <SchemaFormRenderer :schema="document.schema.value" v-model="draft" :runtime-context="schemaRuntimeContext" />

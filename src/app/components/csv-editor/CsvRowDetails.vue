@@ -4,11 +4,14 @@
     <template v-if="tables.selectedRow">
       <section class="panel-card detail-card record-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
         <div class="detail-thumbnail ui-control-center ui-layout-clip ui-layout-stretch ui-control-border">
-          <img
-            class="ui-image detail-thumbnail-image ui-layout-stretch"
+          <n-image
             v-if="previewState.src"
             :src="previewState.src"
             :alt="previewState.alt"
+            class="ui-layout-stretch"
+            width="100%"
+            height="100%"
+            :img-props="{ class: 'ui-image detail-thumbnail-image' }"
           />
           <div v-else class="thumbnail-placeholder ui-layout-row ui-layout-center ui-layout-stack">
             <svg class="thumbnail-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
