@@ -5,7 +5,7 @@ import { parseArchitectureFrontend } from './frontend.mjs';
 /** @typedef {import('../../shared/frontend-source.mjs').ImportSpecifierInfo} ImportSpecifierInfo */
 /** @typedef {{ specifier: string, resolved: string, typeOnly: boolean, bindings: ImportSpecifierInfo[], line: number, column: number }} ResolvedImport */
 /** @typedef {{ rel: string, name: string }} ExportOrigin */
-/** @typedef {import('../../shared/files.mjs').SourceFile & ReturnType<typeof parseArchitectureFrontend> & {dependencies: ResolvedImport[], repositoryPaths: ReadonlySet<string>}} ResolvedFile */
+/** @typedef {import('../../shared/files.mjs').SourceFile & ReturnType<typeof parseArchitectureFrontend> & {dependencies: ResolvedImport[], referenceBindings: Map<string, {edge: ResolvedImport, binding: ImportSpecifierInfo}>, repositoryPaths: ReadonlySet<string>}} ResolvedFile */
 
 /** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @returns {ResolvedFile[]} */
 export function prepareArchitectureFiles(sources, available = sources.map((file) => file.rel)) {
@@ -24,6 +24,7 @@ export function prepareArchitectureFiles(sources, available = sources.map((file)
     ...file,
     ...parseArchitectureFrontend(file),
     dependencies: /** @type {ResolvedImport[]} */ ([]),
+    referenceBindings: new Map(),
     repositoryPaths,
   }));
   const paths = new Set(available.filter((rel) => !rel.endsWith('/')));
@@ -62,6 +63,12 @@ export function prepareArchitectureFiles(sources, available = sources.map((file)
       edge.bindings.push(binding);
     }
     file.dependencies = [...edges.values()];
+    for (const edge of file.dependencies)
+      for (const binding of edge.bindings) {
+        if (binding.typeOnly) continue;
+        if (binding.localName) file.referenceBindings.set(binding.localName, { edge, binding });
+        if (!file.referenceBindings.has(binding.specifier)) file.referenceBindings.set(binding.specifier, { edge, binding });
+      }
   }
   return files;
 }
@@ -176,9 +183,7 @@ function exportOrigins(rel, name, nodes, visiting, terminal, externalNames) {
           ),
         );
     } else {
-      const imported = file.dependencies
-        .flatMap((edge) => edge.bindings.map((binding) => ({ edge, binding })))
-        .find(({ binding }) => binding.localName === declaration.localName && !binding.typeOnly);
+      const imported = file.referenceBindings.get(declaration.localName);
       if (imported)
         origins.push(
           ...exportOrigins(
@@ -218,10 +223,7 @@ function runtimeExportNames(rel, nodes, visiting, externalNames) {
 
 /** @param {import('./context.mjs').ArchitectureFile} file @param {import('../../shared/frontend-source.mjs').SourceCall | import('../../shared/frontend-source.mjs').SourceAccess} reference @param {ReadonlyMap<string, import('./context.mjs').ArchitectureFile>} nodes @param {ReadonlySet<string>} sources */
 function referenceOrigins(file, reference, nodes, sources) {
-  const match = file.dependencies
-    .filter((edge) => !edge.typeOnly)
-    .flatMap((edge) => edge.bindings.map((binding) => ({ edge, binding })))
-    .find(({ binding }) => (reference.specifier ? binding.specifier === reference.specifier : binding.localName === reference.localName));
+  const match = file.referenceBindings.get(reference.specifier ?? reference.localName ?? '');
   if (!match) return [];
   const { edge, binding } = match;
   return dependencyOrigins(

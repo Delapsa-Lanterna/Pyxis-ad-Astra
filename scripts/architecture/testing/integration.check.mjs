@@ -56,7 +56,8 @@ test('protected namespace, export-star and dynamic module consumption retain cap
         "export * from '@/services/csv-table.service'; export { saveCsvPatch as patch } from '@/services/csv-table.service';",
       'src/services/csv-table.service.ts': 'export function saveCsvPatch() {}',
     });
-    assert.equal(messages(capabilityBoundaryRule.check(files)).length, 1);
+    const diagnostics = capabilityBoundaryRule.check(files).filter((diagnostic) => diagnostic.file === 'src/app/composables/use-sample.ts');
+    assert.equal(diagnostics.length, 1);
   }
 });
 
@@ -77,7 +78,7 @@ test('file history public aliases form their formal capability boundary', () => 
   assert.deepEqual(messages(capabilityBoundaryRule.check(files)), []);
 });
 
-test('one invalid component dependency is reported once across the dependency rules', () => {
+test('independent layer and capability violations each produce a diagnostic', () => {
   const files = architectureFixtures({
     'src/app/components/editors/Audit.vue':
       '<script setup lang="ts">import { saveCsvPatch } from "@/services/csv-table.service";</script><template><div /></template>',
@@ -86,7 +87,7 @@ test('one invalid component dependency is reported once across the dependency ru
   const failures = rules
     .flatMap((rule) => messages(rule.check(files)))
     .filter((failure) => failure.includes('Audit.vue') && (failure.includes('components must') || failure.includes('table-write')));
-  assert.equal(failures.length, 1);
+  assert.equal(failures.length, 2);
 });
 
 test('runtime exports at protected providers declare their capability contract', () => {
@@ -165,7 +166,7 @@ test('a pure domain with the same semantic name retains its own ownership', () =
   assert.deepEqual(messages(capabilityBoundaryRule.check(files)), []);
 });
 
-test('command-domain purity has one dependency owner', () => {
+test('command-domain purity retains both layer and capability obligations', () => {
   const files = architectureFixtures({
     'src/domain/workspace/commands.ts':
       "import { querySessionEntity } from '@/services/entity-query.service'; export function shortcutCommandFromKeyEvent() {}",
@@ -173,7 +174,7 @@ test('command-domain purity has one dependency owner', () => {
   });
   assert.equal(
     rules.flatMap((rule) => messages(rule.check(files))).filter((failure) => failure.includes('src/domain/workspace/commands.ts')).length,
-    1,
+    2,
   );
 });
 

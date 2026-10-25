@@ -4,11 +4,10 @@ import { createBrowserModel } from './model';
 import { summarize } from '../../../scripts/shared/sample-statistics.mjs';
 type Kind = 'csv' | 'weapons' | 'wings' | 'hullmods';
 const controls = document.querySelector<HTMLElement>('#controls')!;
+document.body.classList.add('browser-benchmark');
 controls.innerHTML =
   '<button id="run">运行全部基准</button> <button id="smoke">单轮流程检查</button> <button id="preview">显示样本</button><pre id="status">Ready</pre>';
-controls.style.cssText = 'height:68px;overflow:auto;padding:8px;box-sizing:border-box';
 const element = document.querySelector<HTMLElement>('#app')!;
-element.style.cssText = 'height:calc(100vh - 68px);position:relative';
 const host = createBrowserHost(element);
 const status = document.querySelector<HTMLElement>('#status')!;
 const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));

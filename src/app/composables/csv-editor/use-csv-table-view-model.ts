@@ -34,7 +34,6 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   let lastRange = { start: 0, count: 240 };
   const widthSample = ref<import('@/shared/types').CsvDraftRow[]>([]);
   const loadedSourceOptions = ref(new Map<string, SelectOption[]>());
-  const columnWidthOverrides = ref<Record<string, number>>({});
   const searchPending = ref(false),
     windowReady = ref(false);
   const reorderDisabledReason = computed(() =>
@@ -62,6 +61,9 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
       : null,
   );
   const targetKey = computed(() => (target.value ? JSON.stringify(target.value) : ''));
+  const columnWidthOverrides = computed(() =>
+    target.value ? (workspace.getColumnWidths(target.value.modRoot, target.value.table) ?? {}) : {},
+  );
   watch(
     targetKey,
     () => {
@@ -184,7 +186,6 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
       clearLocalQueryState();
       if (!captured) return;
       lockedColumnWidths.value = {};
-      columnWidthOverrides.value = workspace.getColumnWidths(captured.modRoot, captured.table) ?? {};
       await initializeIndex();
       if (disposed || identity !== targetKey.value) return;
       await reloadVisibleSourceOptions();
@@ -209,11 +210,9 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
   );
 
   function setColumnWidth(key: string, width: number) {
-    columnWidthOverrides.value = { ...columnWidthOverrides.value, [key]: Math.max(40, width) };
-    const modRoot = tables.activeModRoot;
-    if (modRoot) {
-      workspace.setColumnWidths(modRoot, tables.currentTab, columnWidthOverrides.value);
-    }
+    const captured = target.value;
+    if (captured)
+      workspace.setColumnWidths(captured.modRoot, captured.table, { ...columnWidthOverrides.value, [key]: Math.max(40, width) });
   }
 
   const stopQueryInvalidation = subscribeQueryInvalidations((event) => {

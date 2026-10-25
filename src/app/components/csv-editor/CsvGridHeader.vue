@@ -33,8 +33,7 @@ function startResize(event: MouseEvent, column: CsvGridColumn) {
   resizeState = { key: column.key, startX: event.clientX, startWidth: column.widthPx };
   document.addEventListener('mousemove', onResizeMove);
   document.addEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
+  document.body.classList.add('csv-column-resizing');
 }
 
 function onResizeMove(event: MouseEvent) {
@@ -47,8 +46,7 @@ function onResizeEnd() {
   resizeState = null;
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
+  document.body.classList.remove('csv-column-resizing');
 }
 
 onUnmounted(() => {

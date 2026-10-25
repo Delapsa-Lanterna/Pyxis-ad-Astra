@@ -24,6 +24,5 @@ export const VARIANT_COLORS = {
   positive: '#9bff00',
   value: '#ffd200',
   opGradient: 'linear-gradient(#1c75b9,#1cbeff 50%,#1c70b1)',
-  opTrack: '#000000',
   opOverflow: 'rgba(255,0,0,0.7843137255)',
 };

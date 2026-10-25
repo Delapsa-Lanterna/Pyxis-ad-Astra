@@ -7,10 +7,10 @@ import { parse } from 'vue/compiler-sfc';
 /** @typedef {{ localName: string | null, member: string | null, specifier: string | null, arguments: (string | null)[], argumentExpressions: (string | null)[], factory: boolean, line: number, column: number }} SourceCall */
 /** @typedef {{line: number, column: number, message: string, target?: string, symbol?: string, expected?: string}} SourceFailure */
 /** @typedef {Omit<SourceCall, 'arguments' | 'argumentExpressions'> & {write: boolean}} SourceAccess */
-/** @typedef {{ imports: ImportSpecifierInfo[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], accesses: SourceAccess[], dependencyFailures: SourceFailure[], syntax: {scripts: {ast: ts.SourceFile, offset: number}[], template: {text: string, offset: number} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]} }} FrontendSource */
+/** @typedef {{ imports: ImportSpecifierInfo[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], accesses: SourceAccess[], dependencyFailures: SourceFailure[], syntax: {scripts: {ast: ts.SourceFile, offset: number}[], template: {text: string, offset: number, ast: import('@vue/compiler-dom').RootNode} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]} }} FrontendSource */
 
-/** @param {import('./files.mjs').SourceFile} file @param {{references?: boolean}} [options] @returns {FrontendSource} */
-export function parseFrontendSource(file, { references = true } = {}) {
+/** @param {import('./files.mjs').SourceFile} file @param {{references?: boolean, inspect?: boolean, onNode?: (node: ts.Node, ast: ts.SourceFile, offset: number) => void}} [options] @returns {FrontendSource} */
+export function parseFrontendSource(file, { references = true, inspect = true, onNode } = {}) {
   /** @type {FrontendSource} */
   const facts = {
     imports: [],
@@ -22,7 +22,7 @@ export function parseFrontendSource(file, { references = true } = {}) {
     syntax: { scripts: [], template: null, styles: [] },
   };
   const positionAt = sourcePositions(file.text);
-  if (!/\.(?:ts|tsx|js|jsx|mjs|vue)$/.test(file.rel)) return facts;
+  if (!inspect || !/\.(?:ts|tsx|js|jsx|mjs|vue)$/.test(file.rel)) return facts;
   const { blocks, template, styles } = scriptBlocks(file);
   facts.syntax.template = template;
   facts.syntax.styles = styles;
@@ -133,6 +133,7 @@ export function parseFrontendSource(file, { references = true } = {}) {
     }
     /** @param {ts.Node} node @returns {void} */
     function visit(node) {
+      onNode?.(node, ast, block.offset);
       if (references && ts.isCallExpression(node) && node.expression.kind !== ts.SyntaxKind.ImportKeyword) {
         const target = callTarget(node.expression);
         if (target) {
@@ -305,7 +306,7 @@ export function parseFrontendSource(file, { references = true } = {}) {
   return facts;
 }
 
-/** @param {import('./files.mjs').SourceFile} file @returns {{blocks: {text: string, offset: number, kind: ts.ScriptKind}[], template: {text: string, offset: number} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]}} */
+/** @param {import('./files.mjs').SourceFile} file @returns {{blocks: {text: string, offset: number, kind: ts.ScriptKind}[], template: {text: string, offset: number, ast: import('@vue/compiler-dom').RootNode} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]}} */
 function scriptBlocks(file) {
   if (!file.rel.endsWith('.vue'))
     return { blocks: [{ text: file.text, offset: 0, kind: scriptKind(file.rel.split('.').at(-1)) }], template: null, styles: [] };
@@ -314,7 +315,13 @@ function scriptBlocks(file) {
     throw new Error(`${file.rel}: ${errors.map((error) => (typeof error === 'string' ? error : error.message)).join('; ')}`);
   return {
     styles: descriptor.styles,
-    template: descriptor.template ? { text: descriptor.template.content, offset: descriptor.template.loc.start.offset } : null,
+    template: descriptor.template
+      ? {
+          text: descriptor.template.content,
+          offset: descriptor.template.loc.start.offset,
+          ast: /** @type {import('@vue/compiler-dom').RootNode} */ (descriptor.template.ast),
+        }
+      : null,
     blocks: [descriptor.script, descriptor.scriptSetup].flatMap((block) =>
       block ? [{ text: block.content, offset: block.loc.start.offset, kind: scriptKind(block.lang ?? 'js') }] : [],
     ),

@@ -9,7 +9,7 @@ import { moduleFacts, moduleMapFacts } from './modules.mjs';
 
 /** @typedef {import('./imports.mjs').ResolvedFile & {rust: import('./rust.mjs').RustFacts, document: import('./modules.mjs').ModuleFacts}} ArchitectureFile */
 /** @typedef {{files: readonly ArchitectureFile[], byPath: ReadonlyMap<string, ArchitectureFile>, paths: ReadonlySet<string>, frontend: readonly ArchitectureFile[], rust: readonly ArchitectureFile[], documents: readonly ArchitectureFile[], failures: import('../diagnostics.mjs').Diagnostic[], moduleMap: ReturnType<typeof moduleMapFacts>, registeredRules: readonly import('../diagnostics.mjs').ArchitectureRule[], counts: {frontend: number, rust: number, documents: number}}} ArchitectureContext */
-const sourceExtensions = new Set(['.css', '.js', '.json', '.jsx', '.mjs', '.rs', '.ts', '.tsx', '.vue']);
+const sourceExtensions = new Set(['.js', '.jsx', '.mjs', '.rs', '.ts', '.tsx', '.vue']);
 
 /** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @returns {ArchitectureContext} */
 export function architectureContext(sources, available = sources.map((file) => file.rel)) {
@@ -40,7 +40,13 @@ export function architectureContext(sources, available = sources.map((file) => f
     documents,
     moduleMap: moduleMapFacts(files, files[0]?.repositoryPaths ?? new Set(available)),
     failures: files.flatMap((file) =>
-      file.dependencyFailures.map((failure) => ({ ruleId: 'source-resolution', file: file.rel, ...failure })),
+      file.dependencyFailures.map((failure) => ({
+        ruleId: 'source-resolution',
+        file: file.rel,
+        ...failure,
+        reference: '.zcode/modules/static-checks.md#规范',
+        source: 'scripts/architecture/facts/imports.mjs',
+      })),
     ),
     counts: {
       frontend: prepared.reduce((count, file) => count + file.parses.frontend, 0),
@@ -58,7 +64,10 @@ export async function collectArchitectureContext(root) {
     return (
       !file.rel.endsWith('/') &&
       !file.rel.startsWith('.zcode/plans/') &&
-      ((sourceExtensions.has(extension) && (extension !== '.json' || file.rel.startsWith('schemas/') || file.rel === 'tsconfig.json')) ||
+      !specFile(file.rel) &&
+      ((sourceExtensions.has(extension) &&
+        (file.rel.startsWith('src/') || file.rel.startsWith('src-tauri/') || file.rel.startsWith('scripts/architecture/rules/'))) ||
+        file.rel === 'tsconfig.json' ||
         file.rel === '.zcode/module-map.md' ||
         (file.rel.startsWith('.zcode/modules/') && extension === '.md'))
     );

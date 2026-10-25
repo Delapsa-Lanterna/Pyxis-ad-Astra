@@ -11,6 +11,39 @@ test('fixed component geometry, local inheritance and feedback values remain ord
   assert.deepEqual(checkStyles(fixture('.control{--dot:green;width:72px;gap:8px;border-radius:50%;box-shadow:0 0 4px var(--dot)}')), []);
 });
 
+test('fixed styles in production templates and scripts belong in the stylesheet entry', () => {
+  for (const [rel, text, position] of [
+    ['ui/Control.vue', '<template>\n<div style="display:block" /></template>', '2:6'],
+    ['ui/Control.vue', '<template>\n<div :style="{ display: \'block\' }" /></template>', '2:6'],
+    ['ui/Control.vue', '<template>\n<div :style="({ opacity: 0, zIndex: -1, display: null })" /></template>', '2:6'],
+    ['ui/index.html', '<main>\n<div style="display:block"></div></main>', '2:6'],
+    ['ui/runtime.ts', "const element=document.body;\nelement.style.cursor='col-resize';", '2:1'],
+    ['ui/Control.vue', '<script setup>\nconst element=document.body;\nelement.style.cursor=`move`;</script>', '3:1'],
+  ]) {
+    const failures = checkStyles([{ rel, text }]);
+    assert.equal(failures.length, 1);
+    assert.ok(failures[0].startsWith(`${rel}:${position}: css.entry:`), failures[0]);
+  }
+});
+
+test('dynamic styles and CSS variable delivery remain allowed', () => {
+  assert.deepEqual(
+    checkStyles([
+      { rel: 'ui/style.css', text: '.control{top:var(--top);color:var(--preview)}' },
+      { rel: 'ui/Control.vue', text: "<template><div :style=\"{ top: top + 'px', '--preview': color }\" /></template>" },
+      { rel: 'ui/Preview.vue', text: '<template><div :style="{\'--preview\': \'red\'}" /><div :style="{}" /></template>' },
+      { rel: 'ui/Computed.vue', text: '<template><div :style="{ [property]: \'red\' }" /></template>' },
+      {
+        rel: 'ui/runtime.ts',
+        text: "element.style.top=top+'px'; element.style.color=color; element.style.setProperty('--top', top); element.style.setProperty('--preview', 'red'); slot.style='CUSTOM';",
+      },
+      { rel: 'ui/runtime.spec.ts', text: "element.style.cursor='move';" },
+      { rel: 'src/test/browser/entry.ts', text: "element.style.cursor='move';" },
+    ]),
+    [],
+  );
+});
+
 test('CSS syntax, property values and exact duplicate declarations report source positions', () => {
   for (const [text, code] of [
     ['.control{color:red;color:red}', 'css.duplicate'],

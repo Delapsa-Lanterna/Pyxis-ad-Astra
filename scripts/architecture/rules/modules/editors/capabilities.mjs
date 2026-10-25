@@ -1,183 +1,155 @@
-import { readOwners } from '../../capabilities/owners.mjs';
+import { capabilities, readOwners } from '../../capabilities/owners.mjs';
 
-/** @type {import('../../capabilities/frontend-policy.mjs').CapabilityRule[]} */
 export const editorsCapabilities = [
-  {
-    role: 'service',
-    domain: 'weapon-data',
-    names: ['queryWeaponData', 'queryWeaponSpecData', 'queryWeaponSprites'],
-    capability: 'weapon-data-read',
-    owners: [
-      { layer: 'services', domain: 'spec-weapon-editor' },
-      { layer: 'services', domain: 'weapon-fire-preview' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'spec-weapon-editor',
-    names: ['querySpecWeaponEditorData'],
-    capability: 'weapon-editor-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-assembly' }],
-  },
-  {
-    role: 'service',
-    domain: 'spec-weapon-editor',
-    names: ['querySpecWeaponEditorImages', 'querySpecWeaponProjectileOptions'],
-    capability: 'spec-weapon-editor-dependencies',
-    owners: [{ layer: 'app', role: 'composable', domain: 'spec-weapon-editor-dependencies' }],
-  },
-  {
-    role: 'service',
-    domain: 'spec-projectile-editor',
-    names: ['querySpecProjectileEditorData', 'querySpecProjectileEditorImages'],
-    capability: 'projectile-editor-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-assembly' }],
-  },
-  {
-    role: 'service',
-    domain: 'weapon-fire-preview',
-    names: ['queryWeaponFirePreviewData'],
-    capability: 'weapon-fire-preview-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'weapon-fire-preview-window-view-model' }],
-  },
-  {
-    role: 'service',
-    domain: 'joint-edit',
-    names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'queryJointVariantCatalog', 'prepareJointEdit'],
-    capability: 'joint-edit-read',
-    owners: [
-      { layer: 'orchestrators', domain: 'joint-edit' },
-      { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
-      { layer: 'app', role: 'composable', domain: 'immersive-editor-runtime' },
-      { layer: 'app', role: 'composable', domain: 'immersive-variant-editor' },
-      { layer: 'app', role: 'composable', domain: 'immersive-wing-editor' },
-      { layer: 'app', role: 'composable', domain: 'variant-catalog' },
-      { layer: 'app', role: 'composable', domain: 'variant-candidate' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'joint-edit',
-    names: ['queryJointCandidate'],
-    capability: 'joint-candidate-read',
-    owners: [
-      { layer: 'orchestrators', domain: 'joint-edit' },
-      { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
-      { layer: 'app', role: 'composable', domain: 'variant-catalog' },
-      { layer: 'app', role: 'composable', domain: 'variant-candidate' },
-      { layer: 'services', domain: 'spec-ship-editor' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'joint-edit',
-    names: ['saveJointEdit'],
-    capability: 'joint-edit-write',
-    owners: [{ layer: 'orchestrators', domain: 'joint-edit' }],
-  },
-  {
-    role: 'service',
-    domain: 'csv-table',
-    names: ['queryTableIndex', 'queryTableRows', 'querySessionCsvRowPreview', 'queryTableRowPreviewDataUrl'],
-    capability: 'table-query',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'csv-table',
-    names: ['captureAssociatedSpecTarget'],
-    capability: 'table-identity-prepare',
-    owners: [{ layer: 'orchestrators', domain: 'csv-save' }],
-  },
-  {
-    role: 'service',
-    domain: 'json-entity',
-    names: ['saveModInfo', 'saveIndexedConfigEntity', 'createIndexedConfigEntity', 'deleteIndexedConfigEntity'],
-    capability: 'config-write',
-    owners: [{ layer: 'orchestrators', domain: 'json-save' }],
-  },
-  {
-    role: 'service',
-    domain: 'json-entity',
-    names: ['captureConfigIdentityIntent', 'queryFactionPreviewImages', 'queryMissionDraftIcon'],
-    capability: 'config-query',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'json-file',
-    names: ['saveVariantEntity', 'createVariantEntity', 'deleteVariantEntity', 'saveSkinEntity', 'createSkinEntity', 'deleteSkinEntity'],
-    capability: 'config-write',
-    owners: [{ layer: 'orchestrators', domain: 'json-save' }],
-  },
-  {
-    role: 'service',
-    domain: 'csv-table',
-    names: ['saveCsvPatch'],
-    capability: 'table-write',
-    owners: [{ layer: 'orchestrators', domain: 'csv-save' }],
-  },
-  {
-    role: 'service',
-    domain: 'spec-editor',
-    names: ['saveSpecEditorSpec', 'saveSpecEditorSpecByKind'],
-    capability: 'spec-write',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'spec-ship-editor',
-    names: ['querySpecShipEditorData', 'querySpecShipEditorImages', 'querySpecShipWeaponSources'],
-    capability: 'spec-ship-editor-read',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'spec-system-editor',
-    names: ['querySpecSystemEditorData'],
-    capability: 'spec-system-editor-read',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'spec-editor',
-    names: ['querySpecEditorIdentityIntent'],
-    capability: 'editor-query',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'spec-editor',
-    names: ['loadSpecEditorImport'],
-    capability: 'spec-import',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'files',
-    names: ['writeEditableFileText', 'transcodeFileToUtf8'],
-    capability: 'text-write',
-    owners: readOwners.concat([{ path: 'src/app/app-feedback-assembly.ts', layer: 'app' }]),
-  },
-  {
-    role: 'service',
-    domain: 'file-history',
-    names: ['replayFileChangeSet'],
-    capability: 'history-replay',
-    owners: [{ layer: 'orchestrators', domain: 'file-history-replay' }],
-  },
-  {
-    role: 'service',
-    domain: 'file-history',
-    names: ['loadFileHistory', 'clearSavedFileHistory'],
-    capability: 'history-wire',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'files',
-    names: ['loadEditableFileData', 'queryFileTextIdentityIntent', 'followFileTextIdentity'],
-    capability: 'text-read',
-    owners: readOwners,
-  },
+  ...capabilities({ role: 'service', domain: 'weapon-data' }, [
+    {
+      capability: 'weapon-data-read',
+      names: ['queryWeaponData', 'queryWeaponSpecData', 'queryWeaponSprites'],
+      owners: [
+        { layer: 'services', domain: 'spec-weapon-editor' },
+        { layer: 'services', domain: 'weapon-fire-preview' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'spec-weapon-editor' }, [
+    {
+      capability: 'weapon-editor-read',
+      names: ['querySpecWeaponEditorData'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-assembly' }],
+    },
+    {
+      capability: 'spec-weapon-editor-dependencies',
+      names: ['querySpecWeaponEditorImages', 'querySpecWeaponProjectileOptions'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'spec-weapon-editor-dependencies' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'spec-projectile-editor' }, [
+    {
+      capability: 'projectile-editor-read',
+      names: ['querySpecProjectileEditorData', 'querySpecProjectileEditorImages'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'spec-editor-assembly' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'weapon-fire-preview' }, [
+    {
+      capability: 'weapon-fire-preview-read',
+      names: ['queryWeaponFirePreviewData'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'weapon-fire-preview-window-view-model' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'joint-edit' }, [
+    {
+      capability: 'joint-edit-read',
+      names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'queryJointVariantCatalog', 'prepareJointEdit'],
+      owners: [
+        { layer: 'orchestrators', domain: 'joint-edit' },
+        { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+        { layer: 'app', role: 'composable', domain: 'immersive-editor-runtime' },
+        { layer: 'app', role: 'composable', domain: 'immersive-variant-editor' },
+        { layer: 'app', role: 'composable', domain: 'immersive-wing-editor' },
+        { layer: 'app', role: 'composable', domain: 'variant-catalog' },
+        { layer: 'app', role: 'composable', domain: 'variant-candidate' },
+      ],
+    },
+    {
+      capability: 'joint-candidate-read',
+      names: ['queryJointCandidate'],
+      owners: [
+        { layer: 'orchestrators', domain: 'joint-edit' },
+        { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+        { layer: 'app', role: 'composable', domain: 'variant-catalog' },
+        { layer: 'app', role: 'composable', domain: 'variant-candidate' },
+        { layer: 'services', domain: 'spec-ship-editor' },
+      ],
+    },
+    { capability: 'joint-edit-write', names: ['saveJointEdit'], owners: [{ layer: 'orchestrators', domain: 'joint-edit' }] },
+  ]),
+  ...capabilities({ role: 'service', domain: 'csv-table' }, [
+    {
+      capability: 'table-query',
+      names: ['queryTableIndex', 'queryTableRows', 'querySessionCsvRowPreview', 'queryTableRowPreviewDataUrl'],
+      owners: readOwners,
+    },
+    {
+      capability: 'table-identity-prepare',
+      names: ['captureAssociatedSpecTarget'],
+      owners: [{ layer: 'orchestrators', domain: 'csv-save' }],
+    },
+    { capability: 'table-write', names: ['saveCsvPatch'], owners: [{ layer: 'orchestrators', domain: 'csv-save' }] },
+  ]),
+  ...capabilities({ role: 'service', domain: 'json-entity' }, [
+    {
+      capability: 'config-write',
+      names: ['saveModInfo', 'saveIndexedConfigEntity', 'createIndexedConfigEntity', 'deleteIndexedConfigEntity'],
+      owners: [{ layer: 'orchestrators', domain: 'json-save' }],
+    },
+    {
+      capability: 'config-query',
+      names: ['captureConfigIdentityIntent', 'queryFactionPreviewImages', 'queryMissionDraftIcon'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'json-file' }, [
+    {
+      capability: 'config-write',
+      names: ['saveVariantEntity', 'createVariantEntity', 'deleteVariantEntity', 'saveSkinEntity', 'createSkinEntity', 'deleteSkinEntity'],
+      owners: [{ layer: 'orchestrators', domain: 'json-save' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'spec-editor' }, [
+    {
+      capability: 'spec-write',
+      names: ['saveSpecEditorSpec', 'saveSpecEditorSpecByKind'],
+      owners: readOwners,
+    },
+    {
+      capability: 'editor-query',
+      names: ['querySpecEditorIdentityIntent'],
+      owners: readOwners,
+    },
+    {
+      capability: 'spec-import',
+      names: ['loadSpecEditorImport'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'spec-ship-editor' }, [
+    {
+      capability: 'spec-ship-editor-read',
+      names: ['querySpecShipEditorData', 'querySpecShipEditorImages', 'querySpecShipWeaponSources'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'spec-system-editor' }, [
+    {
+      capability: 'spec-system-editor-read',
+      names: ['querySpecSystemEditorData'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'files' }, [
+    {
+      capability: 'text-write',
+      names: ['writeEditableFileText', 'transcodeFileToUtf8'],
+      owners: [
+        { layer: 'services' },
+        { layer: 'orchestrators' },
+        { layer: 'app', role: 'composable' },
+        { path: 'src/app/app-feedback-assembly.ts', layer: 'app' },
+      ],
+    },
+    {
+      capability: 'text-read',
+      names: ['loadEditableFileData', 'queryFileTextIdentityIntent', 'followFileTextIdentity'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'file-history' }, [
+    { capability: 'history-replay', names: ['replayFileChangeSet'], owners: [{ layer: 'orchestrators', domain: 'file-history-replay' }] },
+    {
+      capability: 'history-wire',
+      names: ['loadFileHistory', 'clearSavedFileHistory'],
+      owners: readOwners,
+    },
+  ]),
 ];

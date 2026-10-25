@@ -7,8 +7,7 @@ import { miscConfigFixture } from '../misc-config';
 const query = new URLSearchParams(location.search);
 const scene = (query.get('case') ?? 'settings').split('-')[0] as BrowserScenario;
 const count = Number(query.get('case')?.split('-')[1] ?? (scene === 'csv' ? 50 : 30));
-document.body.style.cssText = 'display:flex;flex-direction:column;height:100vh';
-document.body.classList.add('browser-preview');
+document.body.classList.add('browser-preview', 'browser-preview-layout');
 const controls = document.querySelector<HTMLElement>('#controls')!;
 controls.className = 'browser-controls';
 controls.innerHTML =
@@ -17,7 +16,6 @@ controls.innerHTML =
   '</nav>' +
   '<div><button id="theme">明暗主题</button><button id="reopen">重新打开</button><button id="reset">恢复样本</button><button id="close">关闭场景</button><span id="status">正在准备</span></div>';
 const element = document.querySelector<HTMLElement>('#app')!;
-element.style.cssText = 'flex:1;min-height:0;position:relative;transform:translateZ(0)';
 const status = document.querySelector<HTMLElement>('#status')!;
 const host = createBrowserHost(element);
 let dark = query.get('theme') === 'dark';

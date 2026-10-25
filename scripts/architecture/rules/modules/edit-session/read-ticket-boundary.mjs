@@ -27,7 +27,7 @@ export const readTicketBoundaryRule = defineRule(
               });
       const ticketCalls = callsFrom(file, context.byPath, new Set([ticketSource]));
       const creations = ticketCalls.filter((call) => call.name === 'createReadTicket');
-      for (const lifecycle of readTicketLifecycles(file, creations)) {
+      for (const lifecycle of readTicketLifecycles(file, creations, context.byPath)) {
         if (!lifecycle.accepts.size)
           report(file, lifecycle, 'direct ReadTicket consumers must accept a result before publication', {
             target: ticketSource,

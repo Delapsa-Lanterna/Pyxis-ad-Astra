@@ -184,7 +184,7 @@ describe('Spec field source integration', () => {
     expect(row('pingSound')).toBeUndefined();
     root.value.missileType = 'PHASE_MINE';
     await flushPromises();
-    expect(row('projectileSpec')!.attributes('style')).toContain('display: none');
+    expect(row('projectileSpec')!.classes()).toContain('ui-retained-hidden');
     expect(row('pingSound')).toBeUndefined();
     (root.value.behaviorSpec as RowData).delay = 0.5;
     await flushPromises();

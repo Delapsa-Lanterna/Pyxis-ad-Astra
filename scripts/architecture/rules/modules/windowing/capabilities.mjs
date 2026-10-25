@@ -1,120 +1,98 @@
-/** @type {import('../../capabilities/frontend-policy.mjs').CapabilityRule[]} */
+import { capabilities } from '../../capabilities/owners.mjs';
+
 export const windowsCapabilities = [
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['updateEditTargetRegistration'],
-    capability: 'edit-target-registration',
-    owners: [{ layer: 'app', role: 'composable', domain: 'edit-target-handoff' }],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['queryEditTargetOwners', 'reserveEditTargets', 'focusEditTargetOwner'],
-    capability: 'edit-target-coordination',
-    owners: [{ layer: 'orchestrators', domain: 'edit-target-handoff' }],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['focusNativeManagedWindow'],
-    capability: 'window-target-focus',
-    owners: [
-      { layer: 'orchestrators', domain: 'window-target-focus' },
-      { layer: 'orchestrators', domain: 'immersive-editor' },
+  ...capabilities({ role: 'service', domain: 'window' }, [
+    {
+      capability: 'edit-target-registration',
+      names: ['updateEditTargetRegistration'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'edit-target-handoff' }],
+    },
+    {
+      capability: 'edit-target-coordination',
+      names: ['queryEditTargetOwners', 'reserveEditTargets', 'focusEditTargetOwner'],
+      owners: [{ layer: 'orchestrators', domain: 'edit-target-handoff' }],
+    },
+    {
+      capability: 'window-target-focus',
+      names: ['focusNativeManagedWindow'],
+      owners: [
+        { layer: 'orchestrators', domain: 'window-target-focus' },
+        { layer: 'orchestrators', domain: 'immersive-editor' },
+      ],
+    },
+    { capability: 'window-open', names: ['requestNativeWindow'], owners: [{ layer: 'windows', domain: 'managed' }] },
+    {
+      capability: 'window-context',
+      names: [
+        'getNativeWindowBootstrap',
+        'getNativeWindowContext',
+        'getNativeWindowRequest',
+        'acceptNativeWindowRequest',
+        'failNativeWindowRequest',
+        'failNativeWindowStartup',
+      ],
+      owners: [{ layer: 'windows', domain: 'window-context' }],
+    },
+    {
+      capability: 'window-lifecycle-guard',
+      names: ['updateNativeWindowStatus'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'dirty-window-close-guard' }],
+    },
+    {
+      capability: 'entity-window-identity',
+      names: ['reserveNativeWindowTargets', 'releaseNativeWindowTargets'],
+      owners: [
+        { layer: 'orchestrators', domain: 'edit-target-handoff' },
+        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'csv-save' },
+        { layer: 'orchestrators', domain: 'json-save' },
+      ],
+    },
+    {
+      capability: 'window-identity-handoff',
+      names: ['retargetNativeWindow'],
+      owners: [
+        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'immersive-editor' },
+        { layer: 'orchestrators', domain: 'weapon-fire-preview' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'app-lifecycle' }, [
+    {
+      capability: 'scope-close',
+      names: ['requestClose'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+    },
+    {
+      capability: 'close-participant',
+      names: ['replyNativeClose', 'readyNativeClose'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+    },
+  ]),
+  ...capabilities(
+    { path: 'src/app/composables/use-window-close-state.ts', layer: 'app', role: 'composable', domain: 'window-close-state' },
+    [
+      {
+        capability: 'window-close-provider',
+        names: ['provideWindowCloseState'],
+        owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+      },
+      {
+        capability: 'window-close-consume',
+        names: ['useWindowCloseState', 'useWindowLifecycleActions'],
+        owners: [
+          { layer: 'app', role: 'composable' },
+          { layer: 'app', role: 'component' },
+        ],
+      },
     ],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['requestNativeWindow'],
-    capability: 'window-open',
-    owners: [{ layer: 'windows', domain: 'managed' }],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: [
-      'getNativeWindowBootstrap',
-      'getNativeWindowContext',
-      'getNativeWindowRequest',
-      'acceptNativeWindowRequest',
-      'failNativeWindowRequest',
-      'failNativeWindowStartup',
-    ],
-    capability: 'window-context',
-    owners: [{ layer: 'windows', domain: 'window-context' }],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['updateNativeWindowStatus'],
-    capability: 'window-lifecycle-guard',
-    owners: [{ layer: 'app', role: 'composable', domain: 'dirty-window-close-guard' }],
-  },
-  {
-    role: 'service',
-    domain: 'app-lifecycle',
-    names: ['requestClose'],
-    capability: 'scope-close',
-    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
-  },
-  {
-    role: 'service',
-    domain: 'app-lifecycle',
-    names: ['replyNativeClose', 'readyNativeClose'],
-    capability: 'close-participant',
-    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['reserveNativeWindowTargets', 'releaseNativeWindowTargets'],
-    capability: 'entity-window-identity',
-    owners: [
-      { layer: 'orchestrators', domain: 'edit-target-handoff' },
-      { layer: 'orchestrators', domain: 'entity-identity' },
-      { layer: 'orchestrators', domain: 'csv-save' },
-      { layer: 'orchestrators', domain: 'json-save' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'window',
-    names: ['retargetNativeWindow'],
-    capability: 'window-identity-handoff',
-    owners: [
-      { layer: 'orchestrators', domain: 'entity-identity' },
-      { layer: 'orchestrators', domain: 'immersive-editor' },
-      { layer: 'orchestrators', domain: 'weapon-fire-preview' },
-    ],
-  },
-  {
-    path: 'src/app/composables/use-window-close-state.ts',
-    layer: 'app',
-    role: 'composable',
-    domain: 'window-close-state',
-    names: ['provideWindowCloseState'],
-    capability: 'window-close-provider',
-    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
-  },
-  {
-    path: 'src/app/composables/use-window-close-state.ts',
-    layer: 'app',
-    role: 'composable',
-    domain: 'window-close-state',
-    names: ['useWindowCloseState', 'useWindowLifecycleActions'],
-    capability: 'window-close-consume',
-    owners: [
-      { layer: 'app', role: 'composable' },
-      { layer: 'app', role: 'component' },
-    ],
-  },
-  {
-    role: 'external',
-    domain: '@tauri-apps/api/core',
-    names: ['invoke'],
-    capability: 'invoke-wire',
-    owners: [{ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', domain: 'runtime' }],
-  },
+  ),
+  ...capabilities({ role: 'external', domain: '@tauri-apps/api/core' }, [
+    {
+      capability: 'invoke-wire',
+      names: ['invoke'],
+      owners: [{ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', domain: 'runtime' }],
+    },
+  ]),
 ];

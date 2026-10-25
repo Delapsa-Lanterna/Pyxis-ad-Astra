@@ -232,11 +232,16 @@
   margin-bottom: 0;
 }
 .immersive-weapon-icon,
-.immersive-damage-icon {
+.immersive-damage-icon,
+.wing-immersive-panel .variant-wing-icon {
   width: 80px;
   height: 80px;
   object-fit: contain;
   image-rendering: pixelated;
+}
+.immersive-fallback-icon {
+  display: block;
+  flex: none;
 }
 .immersive-damage-description {
   text-align: right;

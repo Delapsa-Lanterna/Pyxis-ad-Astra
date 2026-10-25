@@ -3,6 +3,7 @@ import ts from 'typescript';
 import { baseParse } from '@vue/compiler-dom';
 import { posix } from 'node:path';
 import { parseFrontendSource } from './frontend-source.mjs';
+import { sourcePositions } from './source-position.mjs';
 
 /** @typedef {{rel: string, text: string}} StyleFile */
 /** @typedef {{loc?: {start: {line: number, column: number}} | null} | null} SourceNode */
@@ -16,15 +17,26 @@ export function checkStyles(files) {
   /** @type {Set<string>} */
   const runtime = new Set();
   const available = new Set(files.filter((file) => file.rel.endsWith('.css')).map((file) => file.rel));
-  /** @param {StyleFile} file @param {SourceNode} node @param {string} code @param {string} message */
+  /** @param {StyleFile} file @param {SourceNode | number} node @param {string} code @param {string} message */
   function report(file, node, code, message) {
-    const start = node?.loc?.start ?? { line: 1, column: 1 };
-    failures.push(`${file.rel}:${start.line}:${start.column}: ${code}: ${message}`);
+    const start = typeof node === 'number' ? sourcePositions(file.text)(node) : node?.loc?.start;
+    failures.push(`${file.rel}:${start?.line ?? 1}:${start?.column ?? 1}: ${code}: ${message}`);
   }
-  /** @param {ts.SourceFile} source */
-  function collectValues(source) {
+  /** @param {ts.SourceFile} source @param {StyleFile} file @param {number} [offset] */
+  function collectValues(source, file, offset = 0) {
+    const production = !/(?:\.spec\.[cm]?[jt]sx?|\.check\.mjs)$/.test(file.rel) && !file.rel.startsWith('src/test/');
     /** @param {import('typescript').Node} node */
     function visit(node) {
+      if (
+        production &&
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isPropertyAccessExpression(node.left) &&
+        ts.isPropertyAccessExpression(node.left.expression) &&
+        node.left.expression.name.text === 'style' &&
+        ts.isStringLiteralLike(node.right)
+      )
+        report(file, offset + node.getStart(source), 'css.entry', 'fixed style writes belong in the stylesheet entry');
       if (ts.isPropertyAssignment(node) && ts.isStringLiteralLike(node.name) && node.name.text.startsWith('--'))
         runtime.add(node.name.text);
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'setProperty') {
@@ -40,14 +52,21 @@ export function checkStyles(files) {
     if (node.type === 1) {
       if (node.tag === 'style') report(file, node, 'css.entry', 'style blocks belong in the stylesheet entry');
       for (const property of node.props) {
+        if (property.type === 6 && property.name === 'style')
+          report(file, property, 'css.entry', 'fixed style attributes belong in the stylesheet entry');
         if (
           property.type === 7 &&
           property.name === 'bind' &&
           property.arg?.type === 4 &&
           property.arg.content === 'style' &&
           property.exp?.type === 4
-        )
-          collectValues(ts.createSourceFile('style.ts', `(${property.exp.content})`, ts.ScriptTarget.Latest, true));
+        ) {
+          const source = ts.createSourceFile('style.ts', `(${property.exp.content})`, ts.ScriptTarget.Latest, true);
+          collectValues(source, file, property.exp.loc.start.offset - 1);
+          const statement = source.statements[0];
+          if (ts.isExpressionStatement(statement) && isFixedStyleObject(statement.expression))
+            report(file, property, 'css.entry', 'fixed style bindings belong in the stylesheet entry');
+        }
       }
       if (node.tag === 'link') {
         const attributes = new Map(
@@ -81,18 +100,34 @@ export function checkStyles(files) {
   /** @param {StyleFile} file */
   function checkCode(file) {
     const parsed = parseFrontendSource({ ...file, path: file.rel }, { references: false });
-    for (const { ast } of parsed.syntax.scripts) collectValues(ast);
+    for (const { ast, offset } of parsed.syntax.scripts) collectValues(ast, file, offset);
     for (const entry of parsed.imports) {
       if (/\.css(?:[?#]|$)/i.test(entry.specifier)) checkEntry(file, entry.specifier, { loc: { start: entry } });
     }
     return parsed.syntax;
+  }
+  /** @param {ts.Node} node @returns {boolean} */
+  function isFixedStyleObject(node) {
+    if (ts.isParenthesizedExpression(node)) return isFixedStyleObject(node.expression);
+    return (
+      ts.isObjectLiteralExpression(node) &&
+      node.properties.some((property) => !/^['"]?--/.test(property.name?.getText() ?? '')) &&
+      node.properties.every(
+        (property) =>
+          ts.isPropertyAssignment(property) &&
+          !ts.isComputedPropertyName(property.name) &&
+          (ts.isLiteralExpression(property.initializer) ||
+            (ts.isPrefixUnaryExpression(property.initializer) && ts.isNumericLiteral(property.initializer.operand)) ||
+            [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(property.initializer.kind)),
+      )
+    );
   }
   for (const file of files) {
     if (!file.rel.endsWith('.css')) {
       const syntax = checkCode(file);
       if (file.rel.endsWith('.vue')) {
         for (const style of syntax.styles) report(file, style, 'css.entry', 'component styles belong in the stylesheet entry');
-        if (syntax.template) inspectTemplate(file, baseParse(syntax.template.text));
+        if (syntax.template) inspectTemplate(file, syntax.template.ast);
       } else if (file.rel.endsWith('.html')) inspectTemplate(file, baseParse(file.text));
       continue;
     }

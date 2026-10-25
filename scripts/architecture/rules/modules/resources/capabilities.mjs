@@ -1,102 +1,87 @@
-import { readOwners } from '../../capabilities/owners.mjs';
+import { capabilities, readOwners } from '../../capabilities/owners.mjs';
 
-/** @type {import('../../capabilities/frontend-policy.mjs').CapabilityRule[]} */
 export const resourcesCapabilities = [
-  {
-    role: 'service',
-    domain: 'resource-media',
-    names: ['dispatchResourceMedia'],
-    capability: 'media-dispatch',
-    owners: [
-      { layer: 'app', role: 'composable', domain: 'resource-media-registry' },
-      { layer: 'services', domain: 'resource-media' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'engine-assets',
-    names: ['queryEngineRenderAssets', 'hasEngineAssetsInvalidation'],
-    capability: 'engine-assets-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'engine-rendering' }],
-  },
-  {
-    role: 'service',
-    domain: 'resource-media',
-    names: [
-      'acquireResourceMedia',
-      'resourceMediaDataUrl',
-      'mediaIdleByteLimit',
-      'resourceMediaStats',
-      'disposeResourceMedia',
-      'RESOURCE_MEDIA_FLUSH_DELAY_MS',
-    ],
-    capability: 'media-residence',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'core-assets',
-    names: ['queryCoreFields', 'queryCoreGraphics'],
-    capability: 'core-index-read',
-    owners: [{ layer: 'orchestrators', domain: 'core-assets' }],
-  },
-  {
-    role: 'service',
-    domain: 'resource-reference',
-    names: ['querySessionDraftResources'],
-    capability: 'draft-resource-query',
-    owners: [{ layer: 'services' }],
-  },
-  {
-    role: 'service',
-    domain: 'resource-reference',
-    names: ['resolveModImageReference'],
-    capability: 'resource-reference',
-    owners: [{ layer: 'app', role: 'composable', domain: 'resource-reference' }],
-  },
-  {
-    role: 'service',
-    domain: 'hull-reference',
-    names: ['querySessionHullReferences', 'queryHullReferenceOptions', 'queryBuiltInWeaponSlotOptions'],
-    capability: 'hull-query',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'resource-media',
-    names: ['subscribeResourceInvalidations', 'hasResourceInvalidation', 'mediaResourceKey', 'mediaIdleEntryLimit'],
-    capability: 'cache-observe',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'resource-media',
-    names: ['invalidateResourceMediaByProject'],
-    capability: 'project-cache-invalidate',
-    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
-  },
-  {
-    role: 'service',
-    domain: 'resource-media',
-    names: ['invalidateResourceMediaForSession'],
-    capability: 'session-cache-clear',
-    owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
-  },
-  {
-    role: 'service',
-    domain: 'resource-media',
-    names: ['queryResourceDataUrls'],
-    capability: 'resource-load',
-    owners: ['json-resource', 'csv-table', 'spec-ship-editor', 'weapon-data', 'resource-media', 'spec-projectile-editor'].map((domain) => ({
-      layer: 'services',
-      domain,
-    })),
-  },
-  {
-    role: 'service',
-    domain: 'core-assets',
-    names: ['invalidateCoreCacheForRoot'],
-    capability: 'core-cache-clear',
-    owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
-  },
+  ...capabilities({ role: 'service', domain: 'resource-media' }, [
+    {
+      capability: 'media-dispatch',
+      names: ['dispatchResourceMedia'],
+      owners: [
+        { layer: 'app', role: 'composable', domain: 'resource-media-registry' },
+        { layer: 'services', domain: 'resource-media' },
+      ],
+    },
+    {
+      capability: 'media-residence',
+      names: [
+        'acquireResourceMedia',
+        'resourceMediaDataUrl',
+        'mediaIdleByteLimit',
+        'resourceMediaStats',
+        'disposeResourceMedia',
+        'RESOURCE_MEDIA_FLUSH_DELAY_MS',
+      ],
+      owners: readOwners,
+    },
+    {
+      capability: 'cache-observe',
+      names: ['subscribeResourceInvalidations', 'hasResourceInvalidation', 'mediaResourceKey', 'mediaIdleEntryLimit'],
+      owners: readOwners,
+    },
+    {
+      capability: 'project-cache-invalidate',
+      names: ['invalidateResourceMediaByProject'],
+      owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
+    },
+    {
+      capability: 'session-cache-clear',
+      names: ['invalidateResourceMediaForSession'],
+      owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
+    },
+    {
+      capability: 'resource-load',
+      names: ['queryResourceDataUrls'],
+      owners: [
+        { layer: 'services', domain: 'json-resource' },
+        { layer: 'services', domain: 'csv-table' },
+        { layer: 'services', domain: 'spec-ship-editor' },
+        { layer: 'services', domain: 'weapon-data' },
+        { layer: 'services', domain: 'resource-media' },
+        { layer: 'services', domain: 'spec-projectile-editor' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'engine-assets' }, [
+    {
+      capability: 'engine-assets-read',
+      names: ['queryEngineRenderAssets', 'hasEngineAssetsInvalidation'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'engine-rendering' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'core-assets' }, [
+    {
+      capability: 'core-index-read',
+      names: ['queryCoreFields', 'queryCoreGraphics'],
+      owners: [{ layer: 'orchestrators', domain: 'core-assets' }],
+    },
+    {
+      capability: 'core-cache-clear',
+      names: ['invalidateCoreCacheForRoot'],
+      owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'resource-reference' }, [
+    { capability: 'draft-resource-query', names: ['querySessionDraftResources'], owners: [{ layer: 'services' }] },
+    {
+      capability: 'resource-reference',
+      names: ['resolveModImageReference'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'resource-reference' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'hull-reference' }, [
+    {
+      capability: 'hull-query',
+      names: ['querySessionHullReferences', 'queryHullReferenceOptions', 'queryBuiltInWeaponSlotOptions'],
+      owners: readOwners,
+    },
+  ]),
 ];

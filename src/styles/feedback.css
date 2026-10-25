@@ -36,6 +36,10 @@
 .game-warning-content {
   gap: 4px;
 }
+.app-toast-text {
+  max-width: 680px;
+  overflow-wrap: anywhere;
+}
 .mod-opening-failure-content .mod-opening-failure-content-value,
 .game-warning-content .game-warning-content-value,
 .preview-control-section .preview-control-section-title,

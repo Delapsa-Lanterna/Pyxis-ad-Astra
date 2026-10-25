@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { relative } from 'node:path';
 
-/** @typedef {{ruleId: string, file: string, line: number, column: number, message: string, target?: string, symbol?: string, expected?: string}} Diagnostic */
+/** @typedef {{ruleId: string, file: string, line: number, column: number, message: string, reference: string, source: string, target?: string, symbol?: string, expected?: string}} Diagnostic */
 /** @typedef {{line: number, column: number}} Position */
 /** @typedef {Position & {bindings?: import('./facts/imports.mjs').ImportSpecifierInfo[], target?: string | string[]}} EvidencePosition */
 /** @typedef {(file: {rel: string}, position: EvidencePosition, message: string, relation?: {target?: string, symbol?: string, expected?: string}) => void} Report */
@@ -9,10 +9,11 @@ import { relative } from 'node:path';
 
 /** @param {string} name @param {string} reference @param {string} source @param {(context: import('./facts/context.mjs').ArchitectureContext, report: Report) => void} check @returns {ArchitectureRule} */
 export function defineRule(name, reference, source, check) {
+  const ruleSource = relative(process.cwd(), fileURLToPath(source)).replaceAll('\\', '/');
   return {
     name,
     reference,
-    source: relative(process.cwd(), fileURLToPath(source)).replaceAll('\\', '/'),
+    source: ruleSource,
     check(context) {
       /** @type {Diagnostic[]} */
       const diagnostics = [];
@@ -26,6 +27,8 @@ export function defineRule(name, reference, source, check) {
           line: position.line,
           column: position.column,
           message,
+          reference,
+          source: ruleSource,
           ...(symbol ? { symbol } : {}),
           ...relation,
         });
@@ -37,8 +40,8 @@ export function defineRule(name, reference, source, check) {
 
 /** @param {Diagnostic} diagnostic @returns {string} */
 export function formatDiagnostic(diagnostic) {
-  const { file, line, column, ruleId, message, target } = diagnostic;
-  return `${file}:${line}:${column}: [${ruleId}] ${target ? target + ': ' : ''}${message}`;
+  const { file, line, column, ruleId, message, target, reference, source } = diagnostic;
+  return `${file}:${line}:${column}: [${ruleId}] ${target ? target + ': ' : ''}${message} (${reference}; ${source})`;
 }
 
 /** @param {readonly Diagnostic[]} diagnostics @returns {Diagnostic[]} */

@@ -33,7 +33,10 @@ jobs:
       - name: Encoding check
         run: npm run encoding:check
 
-      - name: Lint (eslint + check tests + architecture + styles + identifier length)
+      - name: Checker tests
+        run: npm run test:checks
+
+      - name: Lint (eslint + architecture + styles + identifier length)
         run: npm run lint
 
       - name: Typecheck

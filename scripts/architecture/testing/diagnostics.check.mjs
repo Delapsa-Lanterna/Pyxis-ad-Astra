@@ -44,14 +44,16 @@ test('dependency rejection follows layer, responsibility and capability ownershi
   const frontend = checkArchitecture(context).filter((d) => d.file === 'src/app/composables/use-edit-target-draft-session.ts');
   const rust = checkArchitecture(context).filter((d) => d.file.endsWith('file_history.rs'));
   assert.equal(frontend.length, 2);
-  assert.equal(rust.length, 1);
+  assert.equal(rust.length, 2);
   assert.deepEqual(frontend.map((diagnostic) => diagnostic.ruleId).sort(), ['capability-boundary', 'draft-session-boundary']);
-  assert.equal(rust[0].ruleId, 'rust-project-layer-boundary');
+  assert.deepEqual(rust.map((diagnostic) => diagnostic.ruleId).sort(), ['rust-project-layer-boundary', 'rust-service-edge-boundary']);
   for (const diagnostic of [...frontend, ...rust]) {
     assert.equal(diagnostic.line, 2);
     assert.ok(diagnostic.column > 0);
     assert.ok(diagnostic.target && diagnostic.symbol && diagnostic.expected);
-    assert.deepEqual(Object.keys(diagnostic).sort(), ['column', 'expected', 'file', 'line', 'message', 'ruleId', 'symbol', 'target']);
+    const rule = rules.find((candidate) => candidate.name === diagnostic.ruleId);
+    assert.equal(diagnostic.reference, rule?.reference);
+    assert.equal(diagnostic.source, rule?.source);
   }
 });
 

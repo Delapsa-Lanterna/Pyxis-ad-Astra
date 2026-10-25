@@ -241,6 +241,11 @@
   padding: var(--space-1);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-floating);
+  height: 260px;
+}
+body.csv-column-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 .csv-cell-text-input {
   flex: 1;

@@ -27,3 +27,24 @@
 .browser-preview #app .variant-picker {
   max-height: calc(100% - 14px);
 }
+.browser-preview-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.browser-preview-layout #app {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  transform: translateZ(0);
+}
+.browser-benchmark #controls {
+  height: 68px;
+  overflow: auto;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.browser-benchmark #app {
+  height: calc(100vh - 68px);
+  position: relative;
+}

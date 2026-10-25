@@ -1,7 +1,5 @@
 import { defineRule } from '../../diagnostics.mjs';
-import { classifyFrontendPath } from '../../facts/classify.mjs';
 import { capabilityFor, capabilityOrigins, hasCapabilityBoundary, canConsumeCapability } from './frontend-policy.mjs';
-import { frontendDependencyFailure } from '../dependencies/frontend-policy.mjs';
 
 export const capabilityBoundaryRule = defineRule(
   'capability-boundary',
@@ -17,7 +15,7 @@ export const capabilityBoundaryRule = defineRule(
               expected: 'declared capability',
             });
       for (const edge of file.dependencies) {
-        if (edge.typeOnly || frontendDependencyFailure(file.role, classifyFrontendPath(edge.resolved), edge)) continue;
+        if (edge.typeOnly) continue;
         /** @type {Map<string, {names: Set<string>, owners: import('./frontend-policy.mjs').Owner[]}>} */
         const rejected = new Map();
         for (const origin of capabilityOrigins(edge, context.byPath)) {

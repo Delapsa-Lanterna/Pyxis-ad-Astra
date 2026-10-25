@@ -254,6 +254,9 @@ body,
 .ui-image {
   object-fit: contain;
 }
+.ui-retained-hidden {
+  display: none !important;
+}
 .titlebar-workspace-menu {
   gap: 2px;
   min-width: 144px;

@@ -1,256 +1,197 @@
-import { readOwners } from '../../capabilities/owners.mjs';
+import { capabilities, readOwners } from '../../capabilities/owners.mjs';
 
-/** @type {import('../../capabilities/frontend-policy.mjs').CapabilityRule[]} */
 export const projectCapabilities = [
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['pauseProjectDisplay'],
-    capability: 'close-display',
-    owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
-  },
-  ...[
-    { domain: 'entity-query', name: 'hasEntityInvalidation' },
-    { domain: 'source-options', name: 'hasSourceInvalidation' },
-    { domain: 'csv-table', name: 'hasTableInvalidation' },
-  ].map(({ domain, name }) => ({ role: 'service', domain, names: [name], capability: 'cache-observe', owners: readOwners })),
-  {
-    role: 'service',
-    domain: 'mod-file-browser',
-    names: ['queryModDirectory', 'queryModFileSearch', 'queryModTextFileTarget'],
-    capability: 'mod-file-browser-read',
-    owners: [{ layer: 'app', role: 'composable', domain: 'mod-file-browser-view-model' }],
-  },
-  {
-    path: 'src/shared/runtime/command.runtime.ts',
-    layer: 'shared',
-    role: 'shared',
-    domain: 'runtime',
-    names: ['invokeCommand'],
-    capability: 'command-transport',
-    owners: [{ layer: 'services' }],
-  },
-  {
-    role: 'service',
-    domain: 'workspace-state',
-    names: ['loadPersistedWorkspace', 'savePersistedWorkspace'],
-    capability: 'workspace-persistence',
-    owners: [{ layer: 'orchestrators', domain: 'workspace-persistence' }],
-  },
-  {
-    role: 'service',
-    domain: 'mod-creation',
-    names: ['createNewModProject'],
-    capability: 'mod-create',
-    owners: [{ layer: 'orchestrators', domain: 'mod-creation' }],
-  },
-  {
-    role: 'service',
-    domain: 'project-projection',
-    names: ['markProjectionPending'],
-    capability: 'projection-state',
-    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
-  },
-  {
-    role: 'service',
-    domain: 'project-projection',
-    names: ['markProjectionReady'],
-    capability: 'projection-state',
-    owners: [
-      { layer: 'orchestrators', domain: 'project-sync' },
-      { layer: 'orchestrators', domain: 'workspace-lifecycle' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'project-projection',
-    names: ['requireProjectionReady'],
-    capability: 'projection-read',
-    owners: ['query-cache', 'resource-media'].map((domain) => ({ layer: 'services', domain })),
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['publishCommittedWrite'],
-    capability: 'commit-synchronize',
-    owners: ['file-history-replay', 'editor-window', 'file-editor-window'].map((domain) => ({
-      layer: 'orchestrators',
-      domain,
-    })),
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['retryPendingModSyncs'],
-    capability: 'commit-retry',
-    owners: [
-      { layer: 'orchestrators', domain: 'csv-save' },
-      { layer: 'orchestrators', domain: 'json-save' },
-      { layer: 'orchestrators', domain: 'file-history-replay' },
-      { layer: 'orchestrators', domain: 'workspace-lifecycle' },
-      { layer: 'app', role: 'composable', domain: 'workspace-shell-actions' },
-      { layer: 'app', role: 'composable', domain: 'csv-save-participants' },
-      { layer: 'app', role: 'composable', domain: 'json-list-selection' },
-    ],
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['refreshProjectSourcePaths'],
-    capability: 'source-refresh',
-    owners: [{ layer: 'app', role: 'composable' }],
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['retryPendingSessionSyncs'],
-    capability: 'commit-retry',
-    owners: [{ layer: 'app', role: 'composable', domain: 'write-sync-view-model' }],
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['invalidateProjectionCaches'],
-    capability: 'commit-observe',
-    owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['listenCommittedWrites'],
-    capability: 'commit-observe',
-    owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['listenProjectSessionInvalidated', 'listenEntityIdentityApplied'],
-    capability: 'commit-observe',
-    owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
-  },
-  {
-    role: 'orchestrator',
-    domain: 'project-sync',
-    names: ['completeSavedWrite'],
-    capability: 'commit-complete',
-    owners: [
-      { layer: 'orchestrators', domain: 'json-save' },
-      { layer: 'orchestrators', domain: 'csv-save' },
-      { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
-      { layer: 'app', role: 'composable', domain: 'csv-save-participants' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'entity-query',
-    names: ['querySessionEntity', 'querySessionEntityList'],
-    capability: 'session-query-load',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'entity-query',
-    names: ['querySessionEntityIdentityIntent'],
-    capability: 'session-identity-intent',
-    owners: [{ layer: 'services' }],
-  },
-  {
-    role: 'service',
-    domain: 'entity-query',
-    names: ['querySessionEntityEditTarget'],
-    capability: 'entity-target-read',
-    owners: [
-      { layer: 'orchestrators', domain: 'edit-target-handoff' },
-      { layer: 'services' },
-      { layer: 'orchestrators', domain: 'entity-identity' },
-      { layer: 'app', role: 'composable', domain: 'csv-editor-actions' },
-      { layer: 'orchestrators', domain: 'window-target-focus' },
-    ],
-  },
-  {
-    role: 'service',
-    domain: 'source-options',
-    names: ['querySourceOptionCatalog'],
-    capability: 'source-query',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'query-cache',
-    names: ['createCachedSessionQuery', 'createLiveSessionQuery'],
-    capability: 'query-cache-load',
-    owners: [
-      'entity-query',
-      'csv-table',
-      'source-options',
-      'hull-reference',
-      'resource-reference',
-      'joint-edit',
-      'engine-assets',
-      'misc-config',
-    ].map((domain) => ({
-      layer: 'services',
-      domain,
-    })),
-  },
-  {
-    role: 'service',
-    domain: 'query-cache',
-    names: ['subscribeQueryInvalidations', 'hasQueryInvalidation'],
-    capability: 'cache-observe',
-    owners: readOwners,
-  },
-  {
-    role: 'service',
-    domain: 'query-cache',
-    names: ['invalidateQueryCacheByProject'],
-    capability: 'project-cache-invalidate',
-    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
-  },
-  {
-    role: 'service',
-    domain: 'query-cache',
-    names: ['invalidateQueryCacheForSession'],
-    capability: 'session-cache-clear',
-    owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
-  },
-  {
-    role: 'service',
-    domain: 'project-session',
-    names: ['openProject'],
-    capability: 'session-open',
-    owners: [{ layer: 'orchestrators', domain: 'directory-opening' }],
-  },
-  {
-    role: 'service',
-    domain: 'project-session',
-    names: ['closeProject'],
-    capability: 'session-close',
-    owners: ['directory-opening', 'workspace-lifecycle'].map((domain) => ({ layer: 'orchestrators', domain })),
-  },
-  {
-    role: 'service',
-    domain: 'project-sync',
-    names: ['requestProjectSessionRefresh', 'refreshProjectSources'],
-    capability: 'session-refresh',
-    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
-  },
-  {
-    role: 'service',
-    domain: 'project-sync',
-    names: ['synchronizeSessionCommit'],
-    capability: 'commit-recovery',
-    owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
-  },
-  {
-    role: 'service',
-    domain: 'directory',
-    names: ['pickDirectory', 'detectDirectoryTarget', 'scanDirectoryGameOverview'],
-    capability: 'directory-read',
-    owners: [
-      { layer: 'orchestrators', domain: 'directory-opening' },
-      { layer: 'orchestrators', domain: 'workspace-persistence' },
-      { layer: 'app', domain: 'workspace-shell-actions' },
-    ],
-  },
+  ...capabilities({ role: 'orchestrator', domain: 'project-sync' }, [
+    {
+      capability: 'close-display',
+      names: ['pauseProjectDisplay'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+    },
+    {
+      capability: 'commit-synchronize',
+      names: ['publishCommittedWrite'],
+      owners: [
+        { layer: 'orchestrators', domain: 'file-history-replay' },
+        { layer: 'orchestrators', domain: 'editor-window' },
+        { layer: 'orchestrators', domain: 'file-editor-window' },
+      ],
+    },
+    {
+      capability: 'commit-retry',
+      names: ['retryPendingModSyncs'],
+      owners: [
+        { layer: 'orchestrators', domain: 'csv-save' },
+        { layer: 'orchestrators', domain: 'json-save' },
+        { layer: 'orchestrators', domain: 'file-history-replay' },
+        { layer: 'orchestrators', domain: 'workspace-lifecycle' },
+        { layer: 'app', role: 'composable', domain: 'workspace-shell-actions' },
+        { layer: 'app', role: 'composable', domain: 'csv-save-participants' },
+        { layer: 'app', role: 'composable', domain: 'json-list-selection' },
+      ],
+    },
+    { capability: 'source-refresh', names: ['refreshProjectSourcePaths'], owners: [{ layer: 'app', role: 'composable' }] },
+    {
+      capability: 'commit-retry',
+      names: ['retryPendingSessionSyncs'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'write-sync-view-model' }],
+    },
+    {
+      capability: 'commit-observe',
+      names: ['invalidateProjectionCaches', 'listenCommittedWrites', 'listenProjectSessionInvalidated', 'listenEntityIdentityApplied'],
+      owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
+    },
+    {
+      capability: 'commit-complete',
+      names: ['completeSavedWrite'],
+      owners: [
+        { layer: 'orchestrators', domain: 'json-save' },
+        { layer: 'orchestrators', domain: 'csv-save' },
+        { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
+        { layer: 'app', role: 'composable', domain: 'csv-save-participants' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'entity-query' }, [
+    {
+      capability: 'cache-observe',
+      names: ['hasEntityInvalidation'],
+      owners: readOwners,
+    },
+    {
+      capability: 'session-query-load',
+      names: ['querySessionEntity', 'querySessionEntityList'],
+      owners: readOwners,
+    },
+    { capability: 'session-identity-intent', names: ['querySessionEntityIdentityIntent'], owners: [{ layer: 'services' }] },
+    {
+      capability: 'entity-target-read',
+      names: ['querySessionEntityEditTarget'],
+      owners: [
+        { layer: 'orchestrators', domain: 'edit-target-handoff' },
+        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'window-target-focus' },
+        { layer: 'services' },
+        { layer: 'app', role: 'composable', domain: 'csv-editor-actions' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'source-options' }, [
+    {
+      capability: 'cache-observe',
+      names: ['hasSourceInvalidation'],
+      owners: readOwners,
+    },
+    {
+      capability: 'source-query',
+      names: ['querySourceOptionCatalog'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'csv-table' }, [
+    {
+      capability: 'cache-observe',
+      names: ['hasTableInvalidation'],
+      owners: readOwners,
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'mod-file-browser' }, [
+    {
+      capability: 'mod-file-browser-read',
+      names: ['queryModDirectory', 'queryModFileSearch', 'queryModTextFileTarget'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'mod-file-browser-view-model' }],
+    },
+  ]),
+  ...capabilities({ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', role: 'shared', domain: 'runtime' }, [
+    { capability: 'command-transport', names: ['invokeCommand'], owners: [{ layer: 'services' }] },
+  ]),
+  ...capabilities({ role: 'service', domain: 'workspace-state' }, [
+    {
+      capability: 'workspace-persistence',
+      names: ['loadPersistedWorkspace', 'savePersistedWorkspace'],
+      owners: [{ layer: 'orchestrators', domain: 'workspace-persistence' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'mod-creation' }, [
+    { capability: 'mod-create', names: ['createNewModProject'], owners: [{ layer: 'orchestrators', domain: 'mod-creation' }] },
+  ]),
+  ...capabilities({ role: 'service', domain: 'project-projection' }, [
+    { capability: 'projection-state', names: ['markProjectionPending'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
+    {
+      capability: 'projection-state',
+      names: ['markProjectionReady'],
+      owners: [
+        { layer: 'orchestrators', domain: 'project-sync' },
+        { layer: 'orchestrators', domain: 'workspace-lifecycle' },
+      ],
+    },
+    {
+      capability: 'projection-read',
+      names: ['requireProjectionReady'],
+      owners: [
+        { layer: 'services', domain: 'query-cache' },
+        { layer: 'services', domain: 'resource-media' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'query-cache' }, [
+    {
+      capability: 'query-cache-load',
+      names: ['createCachedSessionQuery', 'createLiveSessionQuery'],
+      owners: [
+        { layer: 'services', domain: 'entity-query' },
+        { layer: 'services', domain: 'csv-table' },
+        { layer: 'services', domain: 'source-options' },
+        { layer: 'services', domain: 'hull-reference' },
+        { layer: 'services', domain: 'resource-reference' },
+        { layer: 'services', domain: 'joint-edit' },
+        { layer: 'services', domain: 'engine-assets' },
+        { layer: 'services', domain: 'misc-config' },
+      ],
+    },
+    {
+      capability: 'cache-observe',
+      names: ['subscribeQueryInvalidations', 'hasQueryInvalidation'],
+      owners: readOwners,
+    },
+    {
+      capability: 'project-cache-invalidate',
+      names: ['invalidateQueryCacheByProject'],
+      owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
+    },
+    {
+      capability: 'session-cache-clear',
+      names: ['invalidateQueryCacheForSession'],
+      owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'project-session' }, [
+    { capability: 'session-open', names: ['openProject'], owners: [{ layer: 'orchestrators', domain: 'directory-opening' }] },
+    {
+      capability: 'session-close',
+      names: ['closeProject'],
+      owners: [
+        { layer: 'orchestrators', domain: 'directory-opening' },
+        { layer: 'orchestrators', domain: 'workspace-lifecycle' },
+      ],
+    },
+  ]),
+  ...capabilities({ role: 'service', domain: 'project-sync' }, [
+    {
+      capability: 'session-refresh',
+      names: ['requestProjectSessionRefresh', 'refreshProjectSources'],
+      owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
+    },
+    { capability: 'commit-recovery', names: ['synchronizeSessionCommit'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
+  ]),
+  ...capabilities({ role: 'service', domain: 'directory' }, [
+    {
+      capability: 'directory-read',
+      names: ['pickDirectory', 'detectDirectoryTarget', 'scanDirectoryGameOverview'],
+      owners: [
+        { layer: 'orchestrators', domain: 'directory-opening' },
+        { layer: 'orchestrators', domain: 'workspace-persistence' },
+        { layer: 'app', domain: 'workspace-shell-actions' },
+      ],
+    },
+  ]),
 ];

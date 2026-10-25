@@ -1,4 +1,4 @@
-import { h, type CSSProperties, type VNode } from 'vue';
+import { h, type VNode } from 'vue';
 import { NButton } from 'naive-ui/es/button';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
@@ -23,8 +23,6 @@ export interface FeedbackFileAction {
   run: () => void | Promise<void>;
 }
 export type FeedbackFileActions = (reference: FileReference, level: FeedbackLevel, code: string) => FeedbackFileAction[];
-const TOAST_TEXT_STYLE: CSSProperties = { maxWidth: '680px', overflowWrap: 'anywhere' };
-
 export function createAppFeedback(message: MessageApiInjection, dialog: DialogApiInjection, fileActions: FeedbackFileActions): AppFeedback {
   function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '') {
     const actions = reference === null ? [] : fileActions(reference, level, code);
@@ -74,12 +72,12 @@ export function createAppFeedback(message: MessageApiInjection, dialog: DialogAp
 }
 
 function renderToastContent(text: string, reference: FileReference | null, actions: FeedbackFileAction[]): VNode {
-  const rows: VNode[] = [h('span', { style: TOAST_TEXT_STYLE }, text)];
+  const rows: VNode[] = [h('span', { class: 'app-toast-text' }, text)];
   if (reference !== null) {
     const locationText = reference.line
       ? reference.path + '（' + fileReferenceLocationSuffix(reference.line, reference.column) + '）'
       : reference.path;
-    rows.push(h(NText, { depth: 3, style: TOAST_TEXT_STYLE }, { default: () => locationText }));
+    rows.push(h(NText, { depth: 3, class: 'app-toast-text' }, { default: () => locationText }));
   }
   if (actions.length)
     rows.push(

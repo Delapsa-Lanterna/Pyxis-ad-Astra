@@ -130,7 +130,7 @@ interface Row {
 }
 function rowBindings(row: Row) {
   const bindings = row.group ? { name: row.id, title: row.field.label, class: 'schema-section' } : { field: row.field, path: row.path };
-  return row.visible === false ? { ...bindings, style: { display: 'none' } } : bindings;
+  return row.visible === false ? { ...bindings, class: [bindings.class, 'ui-retained-hidden'] } : bindings;
 }
 const identity = useEditorRowIdentities(
   () => (array.value ? dynamic.value.map((entry) => entry.val) : dynamic.value),

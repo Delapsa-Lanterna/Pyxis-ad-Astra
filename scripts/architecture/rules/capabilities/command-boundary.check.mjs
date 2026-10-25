@@ -30,6 +30,8 @@ for (const [index, source] of imports.entries()) {
       { ...failures[0], message: undefined },
       {
         ruleId: 'command-boundary',
+        reference: commandBoundaryRule.reference,
+        source: commandBoundaryRule.source,
         file: 'src/services/example.service.ts',
         line: 1,
         column: source.indexOf(markers[index]) + 1,

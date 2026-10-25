@@ -7,11 +7,7 @@
         :values="vm.displayValues.value"
         :root="vm.joint.currentTarget.value!"
       />
-      <div
-        class="variant-op-budget ui-control-center"
-        :style="{ background: VARIANT_COLORS.opTrack }"
-        title="已使用／总装配点数 · 基础配置口径"
-      >
+      <div class="variant-op-budget ui-control-center" title="已使用／总装配点数 · 基础配置口径">
         <div class="variant-op-fill ui-layout-row" aria-hidden="true">
           <span :style="{ width: opSegments.within * 100 + '%', background: VARIANT_COLORS.opGradient }" />
           <span :style="{ width: opSegments.overflow * 100 + '%', background: VARIANT_COLORS.opOverflow }" />

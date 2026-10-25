@@ -1,5 +1,5 @@
 <template>
-  <img class="ui-image" :src="icons[kind]" :width="size" :height="size" :alt="label" :style="{ display: 'block', flex: 'none' }" />
+  <img class="ui-image immersive-fallback-icon" :src="icons[kind]" :width="size" :height="size" :alt="label" />
 </template>
 <script setup lang="ts">
 import KINETIC from '@/assets/immersive/damage/kinetic.svg';

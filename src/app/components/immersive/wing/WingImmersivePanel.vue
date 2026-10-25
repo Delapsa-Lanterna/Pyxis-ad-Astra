@@ -6,11 +6,7 @@
     <section>
       <ImmersiveSection title="技术数据" />
       <div class="weapon-immersive-data ui-layout-grid">
-        <div
-          class="variant-wing-icon weapon-immersive-data-content ui-layout-shrink ui-layout-clip"
-          :style="{ width: '80px', height: '80px' }"
-          :title="layout.diagnostic"
-        >
+        <div class="variant-wing-icon weapon-immersive-data-content ui-layout-shrink ui-layout-clip" :title="layout.diagnostic">
           <ImmersiveHullScene
             v-if="panel.preview && !layout.diagnostic"
             :variant="panel.preview"

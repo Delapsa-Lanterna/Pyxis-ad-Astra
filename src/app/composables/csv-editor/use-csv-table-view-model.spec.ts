@@ -244,6 +244,8 @@ describe('CSV index and keyed content owner', () => {
     vm.setColumnWidth('name', 180);
     expect(vm.effectiveColumns.value.find((column) => column.key === 'name')?.widthPx).toBe(180);
     expect(useWorkspaceStore().getColumnWidths(target.modRoot, 'ships')?.name).toBe(180);
+    useWorkspaceStore().setColumnWidths(target.modRoot, 'ships', { name: 220 });
+    expect(vm.effectiveColumns.value.find((column) => column.key === 'name')?.widthPx).toBe(220);
     await expect(vm.querySelectedRowPreview({ sessionId: 'session', table: 'ships', rowKey: 'key-0' })).resolves.toBe('preview');
   });
 });
