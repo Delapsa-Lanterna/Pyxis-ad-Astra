@@ -15,14 +15,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onScopeDispose } from 'vue';
 import ContextMenu from '@/app/components/ContextMenu.vue';
 import WindowTooltip from '@/app/components/WindowTooltip.vue';
 import { darkTheme } from 'naive-ui/es/themes';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import WindowRuntime from '@/app/WindowRuntime.vue';
 import TitleBar from '@/app/TitleBar.vue';
-import { windowModName } from '@/windows/window-context.window';
+import { managedWindowContext, windowModName } from '@/windows/window-context.window';
 import { useCoreAssetsLifecycle } from '@/app/composables/use-core-assets';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -30,6 +30,9 @@ import { buildThemeOverrides } from '@/app/theme-overrides';
 import { useThemeDomEffect } from '@/app/composables/settings/use-theme-dom-effect';
 import { useAppSettings } from '@/app/composables/use-app-lifecycle-assembly';
 import { useWindowImageRuntimeLifetime } from '@/app/composables/use-window-image-runtime';
+import { setRuntimeErrorContext } from '@/app/runtime-error-monitor';
+import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
+import { useSaveCommandStore } from '@/stores/save-command.store';
 
 const props = withDefaults(defineProps<{ mode?: 'main' | 'child'; appearance?: 'application' | 'immersive'; title?: string }>(), {
   mode: 'child',
@@ -39,6 +42,30 @@ const props = withDefaults(defineProps<{ mode?: 'main' | 'child'; appearance?: '
 
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
+const draftSessions = useDraftSessionsStore();
+const saveCommands = useSaveCommandStore();
+onScopeDispose(
+  setRuntimeErrorContext(() => ({
+    ...(() => {
+      const identity = managedWindowContext.value?.identity;
+      const modRoot = identity && 'modRoot' in identity ? identity.modRoot : null;
+      return {
+        dirty: String(modRoot ? draftSessions.hasUnsavedWorkForMod(modRoot) : false),
+        saving: String(modRoot ? saveCommands.hasPendingSave(modRoot) : false),
+      };
+    })(),
+    windowMode: props.mode,
+    windowTitle: props.title || null,
+    windowModName: windowModName.value || null,
+    windowKind: managedWindowContext.value?.kind ?? null,
+    windowLabel: managedWindowContext.value?.label ?? null,
+    windowTarget: managedWindowContext.value
+      ? managedWindowContext.value.identity.type === 'file' || managedWindowContext.value.identity.type === 'recovery'
+        ? managedWindowContext.value.identity.path
+        : managedWindowContext.value.identity.id
+      : null,
+  })),
+);
 const coreRoot = computed(
   () => settings.starsectorRoot ?? workspace.gameOverview?.starsectorRoot ?? workspace.activeManifest?.starsectorRoot ?? null,
 );

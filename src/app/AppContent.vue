@@ -56,6 +56,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useProjectStore } from '@/stores/project.store';
 import { debugLog } from '@/shared/runtime/app-log-queue';
+import { setRuntimeErrorContext } from '@/app/runtime-error-monitor';
 
 const OverviewPage = defineAsyncComponent(() => import('@/app/components/OverviewPage.vue'));
 const SettingsPage = defineAsyncComponent(() => import('@/app/components/SettingsPage.vue'));
@@ -79,6 +80,16 @@ useWorkspaceShellLifecycle(feedback, csvActions.selectAssociatedSpecs);
 const saveCommand = useSaveCommandStore();
 useMainWindowShortcuts(feedback);
 const hasUnsavedMainWindowChanges = computed(() => workspace.loadedModList.some((mod) => draftSessions.hasUnsavedWorkForMod(mod.modRoot)));
+const releaseRuntimeErrorContext = setRuntimeErrorContext(() => ({
+  page: workspace.currentView,
+  jsonPage: workspace.currentView === 'json-editor' ? workspace.jsonPage : null,
+  csvTab: workspace.currentView === 'table' ? useCsvEditorStore().currentTab : null,
+  modRoot: workspace.activeModRoot,
+  sessionId: workspace.activeSessionId,
+  targetId: useJsonEditorStore().active?.target.value?.id ?? null,
+  dirty: String(hasUnsavedMainWindowChanges.value),
+  saving: String(saveCommand.hasPendingSave()),
+}));
 useContextMenuScope({
   identity: () => JSON.stringify([workspace.currentView, workspace.jsonPage, workspace.activeModRoot]),
   canRefresh: () => actions.canRefreshOverview.value,
@@ -141,6 +152,7 @@ watch(
 
 onUnmounted(() => {
   closeGuard.dispose();
+  releaseRuntimeErrorContext();
   saveCommand.unregisterActiveSaveHandler(saveActiveDocument);
 });
 

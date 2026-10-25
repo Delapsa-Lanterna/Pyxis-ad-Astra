@@ -5,6 +5,7 @@ import type { FieldInputs } from '@/shared/runtime/field-inputs';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { EditWriteTarget } from '@/shared/types';
 import { editTargetsOverlap } from '@/domain/edit-session';
+import { debugLog } from '@/shared/runtime/app-log-queue';
 
 type SaveHandler = () => void | Promise<void>;
 
@@ -125,6 +126,7 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   function requestSave(handle: SaveSessionHandle, run?: () => Promise<DocumentSaveResult>): Promise<DocumentSaveResult> {
     const pending = requests.get(handle);
     if (pending) return pending.promise;
+    debugLog('save.queued', () => ({ target: handle.targetKey.value ?? '', modRoot: handle.modRoot.value ?? '' }));
     const request = createRequest(handle, run);
     queue.push(request);
     void drainQueue();
@@ -133,13 +135,20 @@ export const useSaveCommandStore = defineStore('save-command', () => {
   async function executeSave(request: SaveRequest): Promise<void> {
     if (request.running) return;
     request.running = true;
+    debugLog('save.started', () => ({ target: request.handle.targetKey.value ?? '', modRoot: request.modRoot ?? '' }));
     const index = queue.indexOf(request);
     if (index !== -1) queue.splice(index, 1);
     try {
       const result = sessions.has(request.handle) ? await request.run() : { status: 'cancelled' as const };
       request.resolve(result);
+      debugLog(result.status === 'cancelled' ? 'save.cancelled' : 'save.completed', () => ({
+        target: request.handle.targetKey.value ?? '',
+        modRoot: request.modRoot ?? '',
+        status: result.status,
+      }));
     } catch (error) {
       request.reject(error);
+      debugLog('save.failed', () => ({ target: request.handle.targetKey.value ?? '', modRoot: request.modRoot ?? '' }));
       for (const pending of queue.splice(0))
         if (pending.modRoot === request.modRoot) {
           requests.delete(pending.handle);

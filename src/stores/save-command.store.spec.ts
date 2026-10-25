@@ -8,6 +8,7 @@ import { flushPromises } from '@vue/test-utils';
 import { savedWriteFixture } from '@/test/write-result';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { EditWriteTarget } from '@/shared/types';
+import { appLogQueue } from '@/shared/runtime/app-log-queue';
 
 describe('useSaveCommandStore', () => {
   it('waits for pending synchronization and allows the active save to trigger its retry', async () => {
@@ -176,6 +177,18 @@ function participant(id: string, run: () => Promise<DocumentSaveResult>, root = 
 }
 describe('document save queue', () => {
   beforeEach(() => setActivePinia(createPinia()));
+  it('records queue and completion state at debug level without input values', async () => {
+    const entries: string[] = [];
+    appLogQueue.install(async (batch) => {
+      entries.push(...batch.map((entry) => entry.code ?? ''));
+    }, vi.fn());
+    appLogQueue.setLevel('debug');
+    const item = participant('JSON', async () => ({ status: 'noop' }));
+    await item.save();
+    await appLogQueue.flush();
+    expect(entries).toEqual(['save.queued', 'save.started', 'save.completed']);
+    appLogQueue.setLevel('info');
+  });
   it('serializes different documents and reads the latest input when its turn begins', async () => {
     const first = deferred<DocumentSaveResult>(),
       second = deferred<DocumentSaveResult>();

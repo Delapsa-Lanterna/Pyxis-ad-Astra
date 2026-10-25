@@ -6,6 +6,7 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { startPerformanceMonitor } from '@/app/performance-monitor';
 import { errorDiagnosticOf } from '@/shared/lib/errors';
 import { startApplicationLog } from '@/app/application-log';
+import { installRuntimeErrorMonitor, installVueErrorHandlers } from '@/app/runtime-error-monitor';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { showCurrentWindow } from '@/windows/current.window';
 import { initializeWindowContext, failWindowStartup } from '@/windows/window-context.window';
@@ -13,6 +14,7 @@ import StartupFailure from '@/app/StartupFailure.vue';
 import './styles/style.css';
 
 let app: App | null = null;
+installRuntimeErrorMonitor();
 async function bootstrap() {
   const bootstrap = await initializeWindowContext();
   const windowKind = bootstrap.kind === 'main' ? 'main' : bootstrap.context.kind;
@@ -22,6 +24,7 @@ async function bootstrap() {
   await startApplicationLog(pinia);
   startPerformanceMonitor(pinia, settings.performanceMonitorActive);
   app = createApp(Root).use(pinia);
+  installVueErrorHandlers(app);
   installNaiveUi(app);
   app.mount('#app');
   await showCurrentWindow();
@@ -48,6 +51,7 @@ void bootstrap().catch((error) => {
   const target = document.querySelector('#app');
   if (target) {
     app = createApp(StartupFailure, { error, reported, onFailure: reportStartupError });
+    installVueErrorHandlers(app);
     app.mount(target);
   }
   void showCurrentWindow();
