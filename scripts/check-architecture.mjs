@@ -1,16 +1,10 @@
-import { collectArchitectureFiles } from './shared/files.mjs';
-import { rules } from './architecture/rules/index.mjs';
+import { collectArchitectureContext } from './architecture/facts/context.mjs';
+import { checkArchitecture } from './architecture/check.mjs';
+import { formatDiagnostic } from './architecture/diagnostics.mjs';
 
-const files = await collectArchitectureFiles(process.cwd());
-const failures = files.flatMap((file) => file.dependencyFailures);
-
-for (const rule of rules) {
-  failures.push(...rule.check(files));
-}
-
-if (failures.length > 0) {
-  console.error(failures.join('\n'));
+const context = await collectArchitectureContext(process.cwd());
+const diagnostics = checkArchitecture(context);
+if (diagnostics.length) {
+  console.error(diagnostics.map(formatDiagnostic).join('\n'));
   process.exitCode = 1;
-}
-
-if (failures.length === 0) console.log('Architecture check passed.');
+} else console.log('Architecture check passed.');

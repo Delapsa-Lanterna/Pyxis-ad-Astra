@@ -1,14 +1,11 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { extname, join, relative } from 'node:path';
-import { prepareArchitectureFiles } from './imports.mjs';
+import { readdir } from 'node:fs/promises';
+import { join, relative } from 'node:path';
 
 const ignoredDirs = new Set(['.git', 'dist', 'node_modules', 'release', 'target']);
 const ignoredPathParts = ['src-tauri/gen', 'src-tauri/target'];
-const architectureExtensions = new Set(['.css', '.js', '.json', '.jsx', '.mjs', '.rs', '.ts', '.tsx', '.vue']);
 
 /** @typedef {{ path: string, rel: string }} RepoPath */
 /** @typedef {RepoPath & { text: string }} SourceFile */
-/** @typedef {SourceFile & import('./frontend-source.mjs').FrontendSource & { dependencies: import('./imports.mjs').ResolvedImport[], dependencyFailures: string[], repositoryPaths: ReadonlySet<string> }} RepoFile */
 
 /**
  * Walks the repository once with the shared ignore rules and keeps the files
@@ -22,75 +19,6 @@ const architectureExtensions = new Set(['.css', '.js', '.json', '.jsx', '.mjs', 
  */
 export async function collectRepoPaths(root, include, includeDirectories = false) {
   return collectPaths(root, root, include, includeDirectories);
-}
-
-/**
- * Architecture-entry view of the repository: sources plus the module docs the
- * docs contract governs. Every returned file is read eagerly.
- *
- * @param {string} root
- * @returns {Promise<RepoFile[]>}
- */
-export async function collectArchitectureFiles(root) {
-  const available = await collectRepoPaths(root, () => true, true);
-  const paths = available.filter((file) => !file.rel.endsWith('/') && isArchitecturePath(file.rel, extname(file.rel)));
-  const files = await Promise.all(
-    paths.map(async (path) => ({
-      ...path,
-      text: await readFile(path.path, 'utf8'),
-    })),
-  );
-  return prepareArchitectureFiles(
-    files,
-    available.map((file) => file.rel),
-  );
-}
-
-/**
- * @param {string} rel
- * @param {string} extension
- * @returns {boolean}
- */
-function isArchitecturePath(rel, extension) {
-  if (rel.startsWith('.zcode/plans/')) return false;
-  const isModuleDoc = extension === '.md' && rel.startsWith('.zcode/modules/');
-  const isModuleMap = extension === '.md' && rel === '.zcode/module-map.md';
-  return (
-    (architectureExtensions.has(extension) && (extension !== '.json' || rel.startsWith('schemas/') || rel === 'tsconfig.json')) ||
-    isModuleDoc ||
-    isModuleMap
-  );
-}
-
-/** @param {string} path @returns {boolean} */
-export function frontendFile(path) {
-  return path.startsWith('src/') && /\.(?:ts|tsx|js|jsx|mjs|vue)$/.test(path);
-}
-
-/// Colocated test files: production naming and failure-semantics conventions
-/// do not govern them.
-/** @param {string} path @returns {boolean} */
-export function specFile(path) {
-  return /\.spec\.(ts|tsx)$/.test(path) || path.startsWith('src/test/');
-}
-
-/** @param {string} path @returns {boolean} */
-export function rustFile(path) {
-  return path.endsWith('.rs');
-}
-
-/**
- * Rust command modules are the only allowed save/load command surface.
- * @param {string} path
- * @returns {boolean}
- */
-export function rustCommandModule(path) {
-  return path.startsWith('src-tauri/src/commands/');
-}
-
-/** @param {RepoFile[]} files @param {string} rel @returns {RepoFile | undefined} */
-export function singleFileByRel(files, rel) {
-  return files.find((file) => file.rel === rel);
 }
 
 /**

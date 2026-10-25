@@ -41,7 +41,7 @@
 
 ### 关联
 
-- `scripts/architecture/rules/workspace-module-boundary.mjs`：workspace 边界规则。
+- `scripts/architecture/rules/modules/workspace/workspace-module-boundary.mjs`：workspace 边界规则。
 
 ## 边界
 

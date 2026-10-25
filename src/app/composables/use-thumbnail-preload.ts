@@ -67,7 +67,12 @@ export function useThumbnailPreload(surface: string, onFailures?: (resources: re
     const settled = () => {
       if (waiting === ticket) waiting = null;
     };
-    void ticket.promise.then(settled, settled);
+    void ticket.promise
+      .then(() => {
+        ticket.accept();
+        settled();
+      }, settled)
+      .catch(settled);
   }
   function recapture() {
     if (!range) return;

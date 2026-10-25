@@ -1,6 +1,5 @@
 import * as css from 'css-tree';
 import ts from 'typescript';
-import { parse } from '@vue/compiler-sfc';
 import { baseParse } from '@vue/compiler-dom';
 import { posix } from 'node:path';
 import { parseFrontendSource } from './frontend-source.mjs';
@@ -22,9 +21,8 @@ export function checkStyles(files) {
     const start = node?.loc?.start ?? { line: 1, column: 1 };
     failures.push(`${file.rel}:${start.line}:${start.column}: ${code}: ${message}`);
   }
-  /** @param {string} text */
-  function collectValues(text) {
-    const source = ts.createSourceFile('style.ts', text, ts.ScriptTarget.Latest, true);
+  /** @param {ts.SourceFile} source */
+  function collectValues(source) {
     /** @param {import('typescript').Node} node */
     function visit(node) {
       if (ts.isPropertyAssignment(node) && ts.isStringLiteralLike(node.name) && node.name.text.startsWith('--'))
@@ -49,7 +47,7 @@ export function checkStyles(files) {
           property.arg.content === 'style' &&
           property.exp?.type === 4
         )
-          collectValues(`(${property.exp.content})`);
+          collectValues(ts.createSourceFile('style.ts', `(${property.exp.content})`, ts.ScriptTarget.Latest, true));
       }
       if (node.tag === 'link') {
         const attributes = new Map(
@@ -82,18 +80,19 @@ export function checkStyles(files) {
   }
   /** @param {StyleFile} file */
   function checkCode(file) {
-    collectValues(file.text);
-    for (const entry of parseFrontendSource({ ...file, path: file.rel }).imports) {
+    const parsed = parseFrontendSource({ ...file, path: file.rel }, { references: false });
+    for (const { ast } of parsed.syntax.scripts) collectValues(ast);
+    for (const entry of parsed.imports) {
       if (/\.css(?:[?#]|$)/i.test(entry.specifier)) checkEntry(file, entry.specifier, { loc: { start: entry } });
     }
+    return parsed.syntax;
   }
   for (const file of files) {
     if (!file.rel.endsWith('.css')) {
-      checkCode(file);
+      const syntax = checkCode(file);
       if (file.rel.endsWith('.vue')) {
-        const descriptor = parse(file.text, { filename: file.rel }).descriptor;
-        for (const style of descriptor.styles) report(file, style, 'css.entry', 'component styles belong in the stylesheet entry');
-        if (descriptor.template) inspectTemplate(file, baseParse(descriptor.template.content));
+        for (const style of syntax.styles) report(file, style, 'css.entry', 'component styles belong in the stylesheet entry');
+        if (syntax.template) inspectTemplate(file, baseParse(syntax.template.text));
       } else if (file.rel.endsWith('.html')) inspectTemplate(file, baseParse(file.text));
       continue;
     }

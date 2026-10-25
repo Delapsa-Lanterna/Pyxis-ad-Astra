@@ -23,7 +23,11 @@ vi.mock('@/services/resource-media.service', () => ({
         return value.value;
       }),
     );
-    return { dataUrl: value, ready: ticket.promise, release: () => ticket.invalidate('consumer') };
+    const ready = ticket.promise.then((result) => {
+      ticket.accept();
+      return result;
+    });
+    return { dataUrl: value, ready, release: () => ticket.invalidate('consumer') };
   },
   resourceMediaDataUrl: () => undefined,
   subscribeResourceInvalidations: (listener: (event: ResourceMediaInvalidationEvent) => void) => {

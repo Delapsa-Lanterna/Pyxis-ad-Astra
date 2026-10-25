@@ -16,7 +16,7 @@ jobs:
           node-version: 24
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
 
@@ -33,7 +33,7 @@ jobs:
       - name: Encoding check
         run: npm run encoding:check
 
-      - name: Lint (eslint + architecture + identifier length)
+      - name: Lint (eslint + check tests + architecture + styles + identifier length)
         run: npm run lint
 
       - name: Typecheck

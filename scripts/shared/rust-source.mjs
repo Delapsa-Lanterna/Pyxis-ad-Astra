@@ -1,25 +1,17 @@
-/// Production-source view of a Rust file, shared by every architecture check
-/// that must ignore test code: comments and strings are stripped first so the
-/// `#[cfg(test)]` block boundary is brace-balanced over real code only — a
-/// `{` inside a comment or string can no longer shift the cut.
 /** @param {string} text @returns {string} */
 export function productionRustSource(text) {
   return stripRustTestBlocks(stripRustCommentsAndStrings(text));
 }
 
-/// Splits a comma-separated Rust fragment (parameter lists, use trees) at
-/// top-level commas only: any of the four bracket kinds keeps inner commas
-/// together.
 /** @param {string} value @returns {string[]} */
 export function splitTopLevel(value) {
   const parts = [];
   let depth = 0;
   let start = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    if ('([{<'.includes(char)) depth += 1;
-    if (')]}>'.includes(char)) depth -= 1;
-    if (char === ',' && depth === 0) {
+  for (let index = 0; index < value.length; index++) {
+    if ('([{<'.includes(value[index])) depth++;
+    if (')]}>'.includes(value[index])) depth--;
+    if (value[index] === ',' && depth === 0) {
       parts.push(value.slice(start, index));
       start = index + 1;
     }
@@ -28,141 +20,80 @@ export function splitTopLevel(value) {
   return parts;
 }
 
-/** @param {string} text @returns {string} */
+/** Masks non-code characters while preserving original source offsets.
+ * @param {string} text @returns {string}
+ */
 export function stripRustCommentsAndStrings(text) {
-  // Deterministic lexer-lite. Regex alternation cannot lex Rust reliably: a
-  // `"` inside a char literal, or a `'` lifetime, makes string/delimiter
-  // pairing desync across hundreds of lines. States are walked explicitly.
-  let out = '';
-  let i = 0;
-  while (i < text.length) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if (ch === '/' && next === '*') {
+  const output = text.split('');
+  const rawString = /b?r(#*)"/y;
+  let index = 0;
+  while (index < text.length) {
+    const start = index;
+    if (text.startsWith('//', index)) {
+      const end = text.indexOf('\n', index);
+      index = end < 0 ? text.length : end;
+    } else if (text.startsWith('/*', index)) {
       let depth = 1;
-      let j = i + 2;
-      while (j < text.length && depth > 0) {
-        if (text[j] === '/' && text[j + 1] === '*') {
-          depth += 1;
-          j += 2;
-        } else if (text[j] === '*' && text[j + 1] === '/') {
-          depth -= 1;
-          j += 2;
-        } else {
-          j += 1;
-        }
+      index += 2;
+      while (index < text.length && depth) {
+        if (text.startsWith('/*', index)) {
+          depth++;
+          index += 2;
+        } else if (text.startsWith('*/', index)) {
+          depth--;
+          index += 2;
+        } else index++;
       }
-      out += ' ';
-      i = j;
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      const end = text.indexOf('\n', i);
-      i = end === -1 ? text.length : end;
-      out += ' ';
-      continue;
-    }
-    const rawHashes = matchRawStringHashes(text, i);
-    if (rawHashes !== null) {
-      i = skipRawString(text, i + 1 + rawHashes, rawHashes);
-      out += '""';
-      continue;
-    }
-    if (ch === '"') {
-      i = skipQuoted(text, i, '"');
-      out += '""';
-      continue;
-    }
-    if (ch === "'") {
-      const lifetime = /^[A-Za-z_][A-Za-z0-9_]*(?!')/.exec(text.slice(i + 1, i + 32));
-      if (lifetime) {
-        out += ch;
-        i += 1 + lifetime[0].length;
+    } else {
+      rawString.lastIndex = index;
+      const raw = text[index] === 'r' || text[index] === 'b' ? rawString.exec(text) : null;
+      if (raw) {
+        const delimiter = '"' + raw[1];
+        const end = text.indexOf(delimiter, index + raw[0].length);
+        index = end < 0 ? text.length : end + delimiter.length;
+      } else if (text[index] === "'" && /^[A-Za-z_][A-Za-z0-9_]*(?!')/.test(text.slice(index + 1, index + 33))) {
+        index += 1 + (/^[A-Za-z_][A-Za-z0-9_]*(?!')/.exec(text.slice(index + 1, index + 33))?.[0].length ?? 0);
+        continue;
+      } else if (
+        text[index] === '"' ||
+        (text[index] === "'" && /^'(?:\\(?:u\{[^}]+\}|x[\da-fA-F]{2}|.)|[^'\\\r\n])'/u.test(text.slice(index)))
+      ) {
+        const quote = text[index++];
+        while (index < text.length) {
+          if (text[index] === '\\') index += 2;
+          else if (text[index++] === quote) break;
+        }
+      } else {
+        index++;
         continue;
       }
-      i = skipQuoted(text, i, "'");
-      out += "''";
-      continue;
     }
-    out += ch;
-    i += 1;
+    for (let offset = start; offset < index; offset++) if (text[offset] !== '\n' && text[offset] !== '\r') output[offset] = ' ';
   }
-  return out;
-}
-
-/// `r"..."`, `r#"..."#`, `br#"..."#` — returns the hash count at position i.
-/** @param {string} text @param {number} i @returns {number | null} */
-function matchRawStringHashes(text, i) {
-  let j = i;
-  if (text[j] === 'b') j += 1;
-  if (text[j] !== 'r') return null;
-  j += 1;
-  let hashes = 0;
-  while (text[j] === '#') {
-    hashes += 1;
-    j += 1;
-  }
-  return text[j] === '"' ? hashes : null;
-}
-
-/** @param {string} text @param {number} bodyStart @param {number} hashes @returns {number} */
-function skipRawString(text, bodyStart, hashes) {
-  const terminator = '"' + '#'.repeat(hashes);
-  const end = text.indexOf(terminator, bodyStart);
-  return end === -1 ? text.length : end + terminator.length;
-}
-
-/** @param {string} text @param {number} openIndex @param {string} quote @returns {number} */
-function skipQuoted(text, openIndex, quote) {
-  let j = openIndex + 1;
-  while (j < text.length) {
-    if (text[j] === '\\') {
-      j += 2;
-      continue;
-    }
-    if (text[j] === quote) {
-      return j + 1;
-    }
-    j += 1;
-  }
-  return text.length;
+  return output.join('');
 }
 
 /** @param {string} text @returns {string} */
 export function stripRustTestBlocks(text) {
-  let output = text;
-  const marker = '#[cfg(test)]';
-  let index = output.indexOf(marker);
-  while (index !== -1) {
-    let blockStart = index + marker.length;
-    let signatureDepth = 0;
-    for (; blockStart < output.length; blockStart++) {
-      const char = output[blockStart];
-      if ('(['.includes(char)) signatureDepth++;
-      else if (')]'.includes(char)) signatureDepth--;
-      else if (signatureDepth === 0 && (char === '{' || char === ';')) break;
-    }
-    if (output[blockStart] === ';') {
-      output = output.slice(0, index) + output.slice(blockStart + 1);
-      index = output.indexOf(marker);
-      continue;
-    }
-    if (blockStart === output.length) break;
+  const output = text.split('');
+  for (const match of text.matchAll(/#!?\[cfg\(test\)\]|#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\([^]]*\))?\]/g)) {
+    let end = match.index + match[0].length;
     let depth = 0;
-    let end = blockStart;
-    for (; end < output.length; end += 1) {
-      const char = output[end];
-      if (char === '{') depth += 1;
-      if (char === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          end += 1;
-          break;
-        }
+    for (; end < text.length; end++) {
+      if ('(['.includes(text[end])) depth++;
+      else if (')]'.includes(text[end])) depth--;
+      else if (!depth && (text[end] === '{' || text[end] === ';')) break;
+    }
+    if (match[0].startsWith('#!')) end = text.length;
+    else if (text[end] === '{') {
+      depth = 1;
+      while (++end < text.length && depth) {
+        if (text[end] === '{') depth++;
+        if (text[end] === '}') depth--;
       }
     }
-    output = `${output.slice(0, index)}${output.slice(end)}`;
-    index = output.indexOf(marker);
+    for (let index = match.index; index <= end && index < text.length; index++)
+      if (text[index] !== '\n' && text[index] !== '\r') output[index] = ' ';
   }
-  return output;
+  return output.join('');
 }

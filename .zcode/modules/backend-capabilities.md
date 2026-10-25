@@ -23,8 +23,8 @@
 
 ### 关联
 
-- `scripts/architecture/rules/command-boundary.mjs`：command 来源与唯一 检查。
-- `scripts/shared/command-policy.mjs`：正式 command 实现归属表。
+- `scripts/architecture/rules/capabilities/command-boundary.mjs`：command 调用的来源与唯一归属检查。
+- `scripts/architecture/rules/capabilities/command-policy.mjs`：正式 command 实现归属表。
 - `scripts/shared/frontend-source.mjs`：词法调用、绑定与源码位置事实。
 
 ## 边界

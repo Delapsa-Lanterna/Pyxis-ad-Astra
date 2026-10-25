@@ -1,19 +1,34 @@
 import ts from 'typescript';
+import { sourcePositions } from './source-position.mjs';
 import { parse } from 'vue/compiler-sfc';
 
 /** @typedef {{ importedName: string | null, localName: string | null, specifier: string, typeOnly: boolean, kind: 'import' | 'export' | 'dynamic' | 'type', line: number, column: number }} ImportSpecifierInfo */
-/** @typedef {{ exportedName: string, localName: string, specifier: string | null, importedName: string, typeOnly: boolean }} ExportBinding */
-/** @typedef {{ localName: string | null, member: string | null, specifier: string | null, command: string | null, line: number, column: number }} SourceCall */
-/** @typedef {{ imports: ImportSpecifierInfo[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], dependencyFailures: string[] }} FrontendSource */
+/** @typedef {{ exportedName: string, localName: string, specifier: string | null, importedName: string, typeOnly: boolean, line: number, column: number }} ExportBinding */
+/** @typedef {{ localName: string | null, member: string | null, specifier: string | null, arguments: (string | null)[], argumentExpressions: (string | null)[], factory: boolean, line: number, column: number }} SourceCall */
+/** @typedef {{line: number, column: number, message: string, target?: string, symbol?: string, expected?: string}} SourceFailure */
+/** @typedef {Omit<SourceCall, 'arguments' | 'argumentExpressions'> & {write: boolean}} SourceAccess */
+/** @typedef {{ imports: ImportSpecifierInfo[], exports: ExportBinding[], exportedFunctions: string[], calls: SourceCall[], accesses: SourceAccess[], dependencyFailures: SourceFailure[], syntax: {scripts: {ast: ts.SourceFile, offset: number}[], template: {text: string, offset: number} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]} }} FrontendSource */
 
-/** @param {import('./files.mjs').SourceFile} file @returns {FrontendSource} */
-export function parseFrontendSource(file) {
+/** @param {import('./files.mjs').SourceFile} file @param {{references?: boolean}} [options] @returns {FrontendSource} */
+export function parseFrontendSource(file, { references = true } = {}) {
   /** @type {FrontendSource} */
-  const facts = { imports: [], exports: [], exportedFunctions: [], calls: [], dependencyFailures: [] };
+  const facts = {
+    imports: [],
+    exports: [],
+    exportedFunctions: [],
+    calls: [],
+    accesses: [],
+    dependencyFailures: [],
+    syntax: { scripts: [], template: null, styles: [] },
+  };
+  const positionAt = sourcePositions(file.text);
   if (!/\.(?:ts|tsx|js|jsx|mjs|vue)$/.test(file.rel)) return facts;
-  const blocks = scriptBlocks(file);
+  const { blocks, template, styles } = scriptBlocks(file);
+  facts.syntax.template = template;
+  facts.syntax.styles = styles;
   for (const block of blocks) {
     const ast = ts.createSourceFile(file.rel, block.text, ts.ScriptTarget.Latest, true, block.kind);
+    facts.syntax.scripts.push({ ast, offset: block.offset });
     /** @type {Map<ts.Node, Map<string, ts.Expression | null>>} */
     const scopes = new Map();
     /** @param {ts.Node} node @returns {ts.Node} */
@@ -40,14 +55,43 @@ export function parseFrontendSource(file) {
           }
         }
       }
-      if (ts.isParameter(node) && ts.isIdentifier(node.name)) bindAlias(node, node.name.text, null);
+      if (ts.isParameter(node)) {
+        if (ts.isIdentifier(node.name)) bindAlias(node, node.name.text, null);
+        if (ts.isObjectBindingPattern(node.name) || ts.isArrayBindingPattern(node.name))
+          for (const element of node.name.elements)
+            if (ts.isBindingElement(element) && ts.isIdentifier(element.name)) bindAlias(node, element.name.text, null);
+      }
       if (ts.isFunctionDeclaration(node) && node.name) bindAlias(node, node.name.text, null);
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+        ts.isIdentifier(node.left)
+      )
+        bindAlias(node, node.left.text, node.right);
       ts.forEachChild(node, collectAliases);
     }
-    collectAliases(ast);
-    /** @param {ts.Expression} expression @param {Set<string>} [seen] @returns {{localName: string | null, member: string | null, specifier: string | null} | null} */
+    if (references) collectAliases(ast);
+    /** @type {Map<ts.Expression, ReturnType<typeof resolveTarget>>} */
+    const targets = new Map();
+    /** @param {ts.Expression} expression @param {Set<string>} [seen] @returns {{localName: string | null, member: string | null, specifier: string | null, factory: boolean} | null} */
     function callTarget(expression, seen = new Set()) {
-      if (ts.isParenthesizedExpression(expression) || ts.isAwaitExpression(expression)) return callTarget(expression.expression, seen);
+      const cached = targets.get(expression);
+      if (cached !== undefined) return cached;
+      const target = resolveTarget(expression, seen);
+      targets.set(expression, target);
+      return target;
+    }
+    /** @param {ts.Expression} expression @param {Set<string>} seen @returns {{localName: string | null, member: string | null, specifier: string | null, factory: boolean} | null} */
+    function resolveTarget(expression, seen) {
+      if (
+        ts.isParenthesizedExpression(expression) ||
+        ts.isAwaitExpression(expression) ||
+        ts.isAsExpression(expression) ||
+        ts.isNonNullExpression(expression) ||
+        ts.isSatisfiesExpression(expression)
+      )
+        return callTarget(expression.expression, seen);
       if (ts.isIdentifier(expression)) {
         let scope = scopeOf(expression);
         while (scope) {
@@ -59,32 +103,64 @@ export function parseFrontendSource(file) {
           if (ts.isSourceFile(scope)) break;
           scope = scopeOf(scope);
         }
-        return { localName: expression.text, member: null, specifier: null };
+        return { localName: expression.text, member: null, specifier: null, factory: false };
       }
       if (ts.isPropertyAccessExpression(expression)) {
         const source = callTarget(expression.expression, seen);
         return source ? { ...source, member: expression.name.text } : null;
       }
+      if (ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
+        const source = callTarget(expression.expression, seen);
+        return source ? { ...source, member: expression.argumentExpression.text } : null;
+      }
       if (ts.isCallExpression(expression) && expression.expression.kind === ts.SyntaxKind.ImportKeyword) {
         const argument = expression.arguments[0];
-        if (argument && ts.isStringLiteralLike(argument)) return { localName: null, member: null, specifier: argument.text };
+        if (argument && ts.isStringLiteralLike(argument))
+          return { localName: null, member: null, specifier: argument.text, factory: false };
+      }
+      if (ts.isCallExpression(expression)) {
+        const source = callTarget(expression.expression, seen);
+        return source ? { ...source, factory: true } : null;
       }
       return null;
     }
+    /** @param {ts.Expression | undefined} expression @param {string} name */
+    function localExport(expression, name) {
+      const target = references && expression ? callTarget(expression) : null;
+      return target && !target.factory
+        ? { localName: target.localName ?? name, importedName: target.member ?? '*' }
+        : { localName: name, importedName: name };
+    }
     /** @param {ts.Node} node @returns {void} */
     function visit(node) {
-      if (ts.isCallExpression(node) && node.expression.kind !== ts.SyntaxKind.ImportKeyword) {
+      if (references && ts.isCallExpression(node) && node.expression.kind !== ts.SyntaxKind.ImportKeyword) {
         const target = callTarget(node.expression);
         if (target) {
-          const argument = node.arguments[0];
-          const prefix = file.text.slice(0, block.offset + node.getStart(ast)).split('\n');
+          const position = positionAt(block.offset + node.getStart(ast));
           facts.calls.push({
             ...target,
-            command: argument && ts.isStringLiteralLike(argument) ? argument.text : null,
-            line: prefix.length,
-            column: prefix[prefix.length - 1].length + 1,
+            arguments: node.arguments.map((argument) => (ts.isStringLiteralLike(argument) ? argument.text : null)),
+            argumentExpressions: node.arguments.map((argument) =>
+              ts.isStringLiteralLike(argument) || ts.isPropertyAccessExpression(argument) || ts.isElementAccessExpression(argument)
+                ? argument.getText(ast)
+                : null,
+            ),
+            ...position,
           });
         }
+      }
+      if (references && (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))) {
+        const target = callTarget(node);
+        const parent = node.parent;
+        const write =
+          (ts.isBinaryExpression(parent) &&
+            parent.left === node &&
+            parent.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+            parent.operatorToken.kind <= ts.SyntaxKind.LastAssignment) ||
+          ts.isDeleteExpression(parent) ||
+          ((ts.isPrefixUnaryExpression(parent) || ts.isPostfixUnaryExpression(parent)) &&
+            (parent.operator === ts.SyntaxKind.PlusPlusToken || parent.operator === ts.SyntaxKind.MinusMinusToken));
+        if (target) facts.accesses.push({ ...target, ...positionAt(block.offset + node.getStart(ast)), write });
       }
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
         const specifier = node.moduleSpecifier.text;
@@ -113,17 +189,37 @@ export function parseFrontendSource(file) {
         const clause = node.exportClause;
         if (!clause && specifier) {
           addImport(node, specifier, '*', null, node.isTypeOnly, 'export');
-          facts.exports.push({ exportedName: '*', localName: '*', specifier, importedName: '*', typeOnly: node.isTypeOnly });
+          facts.exports.push({
+            ...positionAt(block.offset + node.getStart(ast)),
+            exportedName: '*',
+            localName: '*',
+            specifier,
+            importedName: '*',
+            typeOnly: node.isTypeOnly,
+          });
         } else if (clause && ts.isNamedExports(clause)) {
           for (const binding of clause.elements) {
             const importedName = binding.propertyName?.text ?? binding.name.text;
             const typeOnly = node.isTypeOnly || binding.isTypeOnly;
             if (specifier) addImport(binding, specifier, importedName, null, typeOnly, 'export');
-            facts.exports.push({ exportedName: binding.name.text, localName: importedName, specifier, importedName, typeOnly });
+            facts.exports.push({
+              ...positionAt(block.offset + node.getStart(ast)),
+              exportedName: binding.name.text,
+              ...(specifier ? { localName: importedName, importedName } : localExport(binding.propertyName ?? binding.name, importedName)),
+              specifier,
+              typeOnly,
+            });
           }
         } else if (clause && ts.isNamespaceExport(clause) && specifier) {
           addImport(node, specifier, '*', null, node.isTypeOnly, 'export');
-          facts.exports.push({ exportedName: clause.name.text, localName: '*', specifier, importedName: '*', typeOnly: node.isTypeOnly });
+          facts.exports.push({
+            ...positionAt(block.offset + node.getStart(ast)),
+            exportedName: clause.name.text,
+            localName: '*',
+            specifier,
+            importedName: '*',
+            typeOnly: node.isTypeOnly,
+          });
         }
       } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
         addImport(node, node.argument.literal.text, node.qualifier?.getText(ast) ?? '*', null, true, 'type');
@@ -131,10 +227,14 @@ export function parseFrontendSource(file) {
         const argument = node.arguments[0];
         if (argument && ts.isStringLiteralLike(argument)) addImport(node, argument.text, '*', null, false, 'dynamic');
         else {
-          const prefix = file.text.slice(0, block.offset + node.getStart(ast)).split('\n');
-          facts.dependencyFailures.push(
-            `${file.rel}:${prefix.length}:${prefix[prefix.length - 1].length + 1}: dynamic dependencies must declare a literal module specifier for capability authorization`,
-          );
+          const position = positionAt(block.offset + node.getStart(ast));
+          facts.dependencyFailures.push({
+            ...position,
+            message: 'dynamic dependencies must declare a literal module specifier for capability authorization',
+            target: node.getText(ast),
+            symbol: 'import',
+            expected: 'literal module specifier',
+          });
         }
       }
       if (ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
@@ -149,6 +249,7 @@ export function parseFrontendSource(file) {
           const name = isDefault ? 'default' : node.name?.text;
           if (name) {
             facts.exports.push({
+              ...positionAt(block.offset + node.getStart(ast)),
               exportedName: name,
               localName: node.name?.text ?? name,
               specifier: null,
@@ -161,8 +262,13 @@ export function parseFrontendSource(file) {
           for (const declaration of node.declarationList.declarations) {
             if (!ts.isIdentifier(declaration.name)) continue;
             const name = declaration.name.text;
-            const localName = declaration.initializer && ts.isIdentifier(declaration.initializer) ? declaration.initializer.text : name;
-            facts.exports.push({ exportedName: name, localName, specifier: null, importedName: name, typeOnly: false });
+            facts.exports.push({
+              ...positionAt(block.offset + node.getStart(ast)),
+              exportedName: name,
+              ...localExport(declaration.initializer, name),
+              specifier: null,
+              typeOnly: false,
+            });
             if (
               declaration.initializer &&
               (ts.isArrowFunction(declaration.initializer) || ts.isFunctionExpression(declaration.initializer))
@@ -173,10 +279,10 @@ export function parseFrontendSource(file) {
       }
       if (ts.isExportAssignment(node))
         facts.exports.push({
+          ...positionAt(block.offset + node.getStart(ast)),
           exportedName: 'default',
-          localName: ts.isIdentifier(node.expression) ? node.expression.text : 'default',
+          ...localExport(node.expression, 'default'),
           specifier: null,
-          importedName: 'default',
           typeOnly: false,
         });
       ts.forEachChild(node, visit);
@@ -184,15 +290,14 @@ export function parseFrontendSource(file) {
     /** @param {ts.Node} node @param {string} specifier @param {string | null} importedName @param {string | null} localName @param {boolean} typeOnly @param {ImportSpecifierInfo['kind']} kind */
     function addImport(node, specifier, importedName, localName, typeOnly, kind) {
       const position = block.offset + node.getStart(ast);
-      const prefix = file.text.slice(0, position).split('\n');
+      const location = positionAt(position);
       facts.imports.push({
         importedName,
         localName,
         specifier,
         typeOnly,
         kind,
-        line: prefix.length,
-        column: prefix[prefix.length - 1].length + 1,
+        ...location,
       });
     }
     visit(ast);
@@ -200,15 +305,20 @@ export function parseFrontendSource(file) {
   return facts;
 }
 
-/** @param {import('./files.mjs').SourceFile} file @returns {{text: string, offset: number, kind: ts.ScriptKind}[]} */
+/** @param {import('./files.mjs').SourceFile} file @returns {{blocks: {text: string, offset: number, kind: ts.ScriptKind}[], template: {text: string, offset: number} | null, styles: import('@vue/compiler-sfc').SFCStyleBlock[]}} */
 function scriptBlocks(file) {
-  if (!file.rel.endsWith('.vue')) return [{ text: file.text, offset: 0, kind: scriptKind(file.rel.split('.').at(-1)) }];
+  if (!file.rel.endsWith('.vue'))
+    return { blocks: [{ text: file.text, offset: 0, kind: scriptKind(file.rel.split('.').at(-1)) }], template: null, styles: [] };
   const { descriptor, errors } = parse(file.text, { filename: file.rel });
   if (errors.length)
     throw new Error(`${file.rel}: ${errors.map((error) => (typeof error === 'string' ? error : error.message)).join('; ')}`);
-  return [descriptor.script, descriptor.scriptSetup].flatMap((block) =>
-    block ? [{ text: block.content, offset: block.loc.start.offset, kind: scriptKind(block.lang ?? 'js') }] : [],
-  );
+  return {
+    styles: descriptor.styles,
+    template: descriptor.template ? { text: descriptor.template.content, offset: descriptor.template.loc.start.offset } : null,
+    blocks: [descriptor.script, descriptor.scriptSetup].flatMap((block) =>
+      block ? [{ text: block.content, offset: block.loc.start.offset, kind: scriptKind(block.lang ?? 'js') }] : [],
+    ),
+  };
 }
 
 /** @param {string | undefined} language @returns {ts.ScriptKind} */

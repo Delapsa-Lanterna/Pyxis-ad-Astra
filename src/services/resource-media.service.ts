@@ -78,7 +78,10 @@ function request(entry: MediaEntry): Promise<string | null> {
     if (entry.request === ticket) entry.request = null;
     if (!entry.references && working.get(entry.key) === entry) working.delete(entry.key);
   }
-  void ticket.promise.then(settled, settled);
+  void ticket.promise.then(() => {
+    ticket.accept();
+    settled();
+  }, settled);
   if (flushHandle === null)
     flushHandle = setTimeout(() => {
       flushHandle = null;
@@ -130,7 +133,12 @@ export function acquireResourceMedia(sessionId: string, resource: ResourceRef): 
   if (retained.get(key) === entry) retained.retain(key);
   const owned = entry;
   const consumer = owned.value.value === undefined ? createReadTicket({ sessionId, resource }, () => request(owned)) : null;
-  const ready = consumer?.promise ?? Promise.resolve(owned.value.value!);
+  const ready = consumer
+    ? consumer.promise.then((value) => {
+        consumer.accept();
+        return value;
+      })
+    : Promise.resolve(owned.value.value!);
   let released = false;
   return {
     dataUrl: readonly(owned.value),

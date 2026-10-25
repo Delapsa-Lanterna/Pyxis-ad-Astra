@@ -25,7 +25,7 @@
 
 ### 关联
 
-- `scripts/architecture/rules/editor-module-boundary.mjs`：编辑器组件边界规则。
+- `scripts/architecture/rules/modules/editors/`：规格编辑、查询与绘制职责规则。
 
 ## 边界
 
@@ -34,7 +34,7 @@
 - 写入归编辑器事务，receipt 经统一文件历史、项目投影和窗口通知接纳。
 - 窗口 ViewModel 拥有 bundle、目标会话、外部版本及保存交接。
 - 规格归一化归领域入口，字段形状由正式 schema 和 JSON 输入共同表达。
-- 额外字段展示必须消费所属 FieldSchema 的显式权限，aiHints 字典必须独立声明允许扩展。
+- 额外字段展示消费所属 FieldSchema 的显式权限，aiHints 字典独立声明允许扩展。
 
 ## 链路
 
@@ -53,9 +53,9 @@
 
 ### 额外字段
 
-1. 字段展示必须消费 aiHints 的显式开放声明。
-2. 字段编辑必须经共同集合输入交付字段更新。
-3. 编辑 ViewModel 必须更新所属字段并保留完整草稿。
+1. 字段展示消费 aiHints 的显式开放声明。
+2. 字段编辑经共同集合输入交付字段更新。
+3. 编辑 ViewModel 更新所属字段并保留完整草稿。
 
 ### 保存
 

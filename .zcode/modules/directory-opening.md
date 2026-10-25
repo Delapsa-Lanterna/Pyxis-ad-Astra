@@ -31,7 +31,7 @@
 
 ### 关联
 
-- `scripts/architecture/rules/directory-opening-boundary.mjs`：目录打开边界规则。
+- `scripts/architecture/rules/modules/directory-opening/directory-opening-boundary.mjs`：目录打开边界规则。
 
 ## 边界
 

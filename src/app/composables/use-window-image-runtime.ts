@@ -36,6 +36,7 @@ export interface ThumbnailRequest {
 interface ThumbnailLoad {
   source: ThumbnailRequest;
   request: ReadTicket<HTMLCanvasElement>;
+  accepted: Promise<HTMLCanvasElement>;
   references: number;
   canvas: HTMLCanvasElement | null;
   start(): Promise<HTMLCanvasElement>;
@@ -253,12 +254,16 @@ export function createWindowImageRuntime() {
           return canvas;
         }),
       );
-      product = captured = { source, request, references: 0, canvas: null, start };
+      const accepted = request.promise.then((value) => {
+        request.accept();
+        return value;
+      });
+      product = captured = { source, request, accepted, references: 0, canvas: null, start };
       products.set(source.key, product);
       const settled = () => {
         if (products.get(source.key) === captured) products.delete(source.key);
       };
-      void request.promise.then(settled, settled);
+      void accepted.then(settled, settled);
       if (priority !== 'visible')
         void afterVisible
           .then(() => preload(() => start().then(() => undefined), request.signal))
@@ -270,7 +275,7 @@ export function createWindowImageRuntime() {
     let released = false;
     return {
       canvas: null,
-      promise: captured.request.promise,
+      promise: captured.accepted,
       release: () => {
         if (released) return;
         released = true;

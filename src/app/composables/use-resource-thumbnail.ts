@@ -80,13 +80,18 @@ export function useResourceThumbnail(
     if (next.canvas) accept(next.canvas);
     else {
       waiting = createReadTicket({ sessionId: request.sessionId, thumbnail: request.key }, () => next.promise);
-      void waiting.promise.then(accept).catch((error) => {
-        if (current !== generation) return;
-        next.release();
-        lease = null;
-        signature = '';
-        if (!isReadInvalidated(error)) failed(error);
-      });
+      void waiting.promise
+        .then((finished) => {
+          waiting?.accept();
+          accept(finished);
+        })
+        .catch((error) => {
+          if (current !== generation) return;
+          next.release();
+          lease = null;
+          signature = '';
+          if (!isReadInvalidated(error)) failed(error);
+        });
     }
   }
   watch(() => [surface.value, active(), source().key], paint, { flush: 'post' });

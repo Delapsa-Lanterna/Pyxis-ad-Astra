@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { productionRustSource } from './rust-source.mjs';
-import { cratePaths, rustServiceExports, rustServicePaths } from './rust-crate-paths.mjs';
-import { architectureFixtures } from './check-fixtures.mjs';
+import { cratePaths, rustServiceExports, rustServicePaths } from '../architecture/facts/rust-crate-paths.mjs';
+import { architectureFixtures } from '../architecture/testing/fixtures.mjs';
 
 test('external test modules and test reexports preserve subsequent production dependencies', () => {
   for (const item of ['mod tests;', 'pub use tests::fixture;']) {
@@ -26,12 +26,20 @@ test('test function signatures with array lengths and nested bodies leave produc
   assert.ok(cratePaths(production).some((path) => path.join('::') === 'io::read_utf8_no_bom'));
 });
 
+test('direct test attributes are excluded while later production references remain visible', () => {
+  const source = productionRustSource(
+    '#[test] fn fixture() { crate::services::hidden(); }\n#[tokio::test] async fn async_fixture() { crate::services::hidden_again(); }\npub fn load() { let _: &\'static str = "ok"; crate::io::read_utf8_no_bom(); }',
+  );
+  assert.equal(source.includes('hidden'), false);
+  assert.ok(cratePaths(source).some((path) => path.join('::') === 'io::read_utf8_no_bom'));
+});
+
 test('service exports retain actual definitions through grouped imports and local aliases', () => {
   const files = architectureFixtures({
     'src-tauri/src/services/mod.rs':
       'pub(crate) use project::query::entities::{query_entity, query_entity_list}; #[cfg(test)] pub use tests::fixture;',
   });
-  const exports = rustServiceExports(files);
+  const exports = rustServiceExports(files.files);
   assert.equal(exports.size, 2);
   for (const source of [
     'crate::services::query_entity();',
@@ -47,4 +55,13 @@ test('service exports retain actual definitions through grouped imports and loca
     'project',
     'close_project_session',
   ]);
+});
+
+test('raw string delimiters retain complete masking and original offsets', () => {
+  const hashes = '#'.repeat(80);
+  const source = 'let text=br' + hashes + '"crate::services::hidden();"' + hashes + ';\ncrate::io::read_utf8_no_bom();';
+  const production = productionRustSource(source);
+  assert.equal(production.length, source.length);
+  assert.equal(production.includes('hidden'), false);
+  assert.deepEqual(cratePaths(production), [['io', 'read_utf8_no_bom']]);
 });

@@ -59,7 +59,7 @@
 
 ## 公共文件
 
-- `scripts/shared/`：工程检查与浏览器验收共享的采集、解析、样本统计及原生替换工具。
+- `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置、样本统计及原生替换工具。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
