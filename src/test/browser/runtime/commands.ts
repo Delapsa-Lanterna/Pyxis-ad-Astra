@@ -35,6 +35,10 @@ export function browserWindowLabel() {
 }
 
 export async function invoke<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
+  if (command === 'query_joint_edit') {
+    const delay = Number(new URLSearchParams(location.search).get('readDelay') ?? 0);
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+  }
   const failure = model.failures.get(command);
   if (failure) {
     model.failures.delete(command);

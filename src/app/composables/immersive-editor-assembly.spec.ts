@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   listen: vi.fn(),
   stop: vi.fn(),
   error: vi.fn(),
+  log: vi.fn(),
   retarget: vi.fn(),
   media: vi.fn(),
   choose: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
 
 vi.mock('@/orchestrators/immersive-editor.orchestrator', () => ({ retargetImmersiveWindow: mocks.retarget }));
 vi.mock('@/windows/spec-editor.window', () => ({ openSpecProjectileEditorWindow: mocks.openProjectile }));
+vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: vi.fn(), hasSourceInvalidation: () => false }));
 vi.mock('@/services/query-cache.service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
@@ -879,6 +881,39 @@ describe('wing joint source handoff', () => {
   });
 });
 describe('immersive ship lifecycle and reference channels', () => {
+  it('retries initialization and refresh failures while preserving the current draft', async () => {
+    mocks.query.mockRejectedValueOnce(new Error('Initial unavailable'));
+    const { vm, wrapper } = editor();
+    await vm.retry();
+    expect(vm.errorText.value).toContain('Initial unavailable');
+    expect(vm.joint.ready.value).toBe(false);
+    await vm.retry();
+    expect(vm.errorText.value).toBe('');
+    expect(vm.joint.ready.value).toBe(true);
+    vm.logSlowPreparation();
+    expect(mocks.log).toHaveBeenCalledExactlyOnceWith({
+      level: 'warning',
+      code: 'immersive.preparation_slow',
+      message: 'immersive editor preparation exceeded 12 seconds',
+      path: null,
+      line: null,
+      fields: { sessionId: 's', modRoot: 'M:/mod', kind: 'ship', id: 'lasher', waitMs: '12000', phase: 'read' },
+    });
+    vm.updateField(vm.panel.value!.heading[0]!.fields[0]!, { kind: 'set', value: 'Draft name' });
+    mocks.query.mockRejectedValueOnce(new Error('Refresh unavailable'));
+    await vm.retry();
+    expect(vm.errorText.value).toContain('Refresh unavailable');
+    expect(vm.panel.value!.heading[0]!.display).toBe('Draft name');
+    const next = shipJointFixture();
+    next.records[1]!.value = { state: 'present', value: { id: 'lasher', name: 'External name' } };
+    mocks.query.mockResolvedValueOnce(next);
+    await vm.retry();
+    expect(vm.errorText.value).toBe('');
+    expect(vm.panel.value!.heading[0]!.display).toBe('Draft name');
+    expect(vm.joint.hasPendingExternalValue.value).toBe(true);
+    expect(mocks.listen).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
   it('opens the projectile reference produced by committing the active weapon input', async () => {
     mocks.query.mockResolvedValue(weaponJointFixture());
     const { vm, wrapper } = editor('weapon');

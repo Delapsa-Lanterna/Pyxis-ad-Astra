@@ -27,6 +27,8 @@ import { AppError, formatError, warningNotice } from '@/shared/lib/errors';
 import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
+import { recordLogBestEffort } from '@/services/app-log.service';
+import { logFields } from '@/shared/lib/log-fields';
 
 export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   root: JointEditRoot & { rowKey?: string },
@@ -51,6 +53,15 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   const joint = useJointEditSession({
     editableRecords: definition.editableRecords,
     ...hooks,
+    readSnapshot: async (target, signal) => {
+      errorText.value = '';
+      try {
+        return await (hooks.readSnapshot ?? queryJointEdit)(target, signal);
+      } catch (error) {
+        if (active && !signal?.aborted) errorText.value = formatError(error);
+        throw error;
+      }
+    },
     afterBaseline: async (snapshot, receipt, previous) => {
       if (receipt.commitId <= windowCommit) return;
       await retargetImmersiveWindow(snapshot);
@@ -299,6 +310,24 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     }
   }
   let initialization: Promise<void> | null = null;
+  function logSlowPreparation() {
+    recordLogBestEffort({
+      level: 'warning',
+      code: 'immersive.preparation_slow',
+      message: 'immersive editor preparation exceeded 12 seconds',
+      path: null,
+      line: null,
+      fields: logFields({ ...root, ...joint.currentTarget.value, waitMs: 12000, phase: referenceChanging.value ? 'reference' : 'read' }),
+    });
+  }
+  async function retry() {
+    try {
+      if (joint.ready.value) await joint.refreshTarget(joint.currentTarget.value!);
+      else await initialize();
+    } catch (error) {
+      if (active) errorText.value = formatError(error);
+    }
+  }
   function initialize(rowKey?: string | null) {
     if (rowKey && rowKey !== root.rowKey) {
       if (joint.dirty.value) return Promise.reject(new AppError('请先保存当前行的编辑，再接纳新的行身份', { action: 'accept-window' }));
@@ -464,6 +493,8 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     undo,
     redo,
     initialize,
+    retry,
+    logSlowPreparation,
     loadExternal,
     reads,
     isActive: () => active,

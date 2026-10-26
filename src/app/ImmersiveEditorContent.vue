@@ -1,12 +1,16 @@
 <template>
   <ImmersiveEditorShell
+    :label="label"
+    :object-id="joint.currentTarget.value?.id ?? id"
+    :target-key="joint.currentTargetKey.value ?? id"
+    :reference-changing="vm.referenceChanging.value"
     :compact="kind === 'variant'"
     :dirty="dirty"
     :saving="saving"
     :loading="loading"
     :error="errorText"
     :ready="ready"
-    :locked="handoffLocked || vm.referenceChanging.value"
+    :locked="handoffLocked"
     :external-notice="externalUpdateNotice"
     :can-undo="history.canUndo.value"
     :can-redo="history.canRedo.value"
@@ -14,7 +18,8 @@
     @undo="vm.undo"
     @redo="vm.redo"
     @close="closeWindow"
-    @retry="reloadCurrentWindow"
+    @retry="vm.retry"
+    @slow="vm.logSlowPreparation"
     @load-external="vm.loadExternal"
   >
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
@@ -50,7 +55,7 @@ import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/compos
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
-import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
+import { closeCurrentWindow } from '@/windows/current.window';
 import ImmersiveEditorShell from '@/app/components/immersive/ImmersiveEditorShell.vue';
 import ShipImmersivePanel from '@/app/components/immersive/ship/ShipImmersivePanel.vue';
 import WeaponImmersivePanel from '@/app/components/immersive/weapon/WeaponImmersivePanel.vue';

@@ -1,15 +1,15 @@
 <template>
-  <div class="immersive-editor-shell ui-content-grid ui-text-normal" :class="{ 'variant-window-shell': compact }" :inert="locked">
-    <main class="immersive-editor-scroll ui-layout-contained ui-layout-clip ui-control-reset">
-      <div v-if="loading" class="immersive-status"><ImmersiveText text="正在读取联合来源" /></div>
-      <div v-else-if="error" class="immersive-status">
-        <strong><ImmersiveText text="读取失败" /></strong>
-        <p><ImmersiveText :text="error" block /></p>
-        <n-button @click="$emit('retry')">重试</n-button>
+  <div class="immersive-editor-shell ui-content-grid ui-text-normal" :class="{ 'variant-window-shell': compact }" :aria-busy="preparing">
+    <main class="immersive-editor-scroll ui-layout-contained ui-layout-clip ui-control-reset" :inert="locked || covered">
+      <div v-if="!ready" class="immersive-editor-placeholder immersive-scene-grid">
+        <header>
+          <h1 class="page-title">{{ label }}编辑器</h1>
+          <code class="ui-text-wrap">{{ objectId }}</code>
+        </header>
       </div>
       <slot v-else />
     </main>
-    <footer v-if="!compact" class="immersive-editor-actions ui-footer ui-layout-row ui-layout-center">
+    <footer v-if="!compact" class="immersive-editor-actions ui-footer ui-layout-row ui-layout-center" :inert="locked || covered">
       <ImmersiveEditorActions
         :dirty="dirty"
         :can-undo="canUndo"
@@ -27,12 +27,25 @@
         <span role="status">{{ saving ? '保存中' : dirty ? '未保存' : '已保存' }}</span></ImmersiveEditorActions
       >
     </footer>
+    <section v-if="covered" class="immersive-loading-overlay ui-layout-grid" :aria-label="`${label}准备状态`">
+      <div class="immersive-loading-content ui-content-grid">
+        <n-spin v-if="preparing" size="large" />
+        <h1 class="page-title" role="status">{{ preparing ? `正在准备${label}` : `${label}准备失败` }}</h1>
+        <p v-if="!preparing" class="immersive-loading-reason ui-text-reset" role="alert">{{ error }}</p>
+        <p v-else-if="delayed" class="ui-text-reset" role="status">准备时间较长，请继续等待</p>
+        <n-button v-if="!preparing" type="primary" @click="$emit('retry')">重试</n-button>
+      </div>
+    </section>
   </div>
 </template>
 <script setup lang="ts">
-import ImmersiveText from './ImmersiveText.vue';
+import { computed, ref, watch } from 'vue';
 import ImmersiveEditorActions from './ImmersiveEditorActions.vue';
-defineProps<{
+const props = defineProps<{
+  label: string;
+  objectId: string;
+  targetKey: string;
+  referenceChanging: boolean;
   dirty: boolean;
   saving: boolean;
   loading: boolean;
@@ -44,5 +57,22 @@ defineProps<{
   canRedo: boolean;
   compact?: boolean;
 }>();
-defineEmits<{ save: []; close: []; undo: []; redo: []; retry: []; 'load-external': [] }>();
+const preparing = computed(() => props.loading || props.referenceChanging || (!props.ready && !props.error));
+const covered = computed(() => preparing.value || Boolean(props.error));
+const delayed = ref(false);
+watch(
+  [preparing, () => props.targetKey],
+  ([waiting], _, onCleanup) => {
+    delayed.value = false;
+    if (waiting) {
+      const timer = setTimeout(() => {
+        delayed.value = true;
+        emit('slow');
+      }, 12000);
+      onCleanup(() => clearTimeout(timer));
+    }
+  },
+  { immediate: true },
+);
+const emit = defineEmits<{ save: []; close: []; undo: []; redo: []; retry: []; slow: []; 'load-external': [] }>();
 </script>

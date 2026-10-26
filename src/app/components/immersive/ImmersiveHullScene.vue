@@ -2,6 +2,7 @@
   <div
     ref="stage"
     class="variant-scene ui-layout-clip"
+    :class="{ 'immersive-scene-grid': !iconSize }"
     :tabindex="iconSize ? undefined : 0"
     @keydown.enter.prevent="activateSelected"
     @keydown="navigate"
@@ -204,7 +205,8 @@ function paintScene(engineImages: EngineImages) {
     size = viewport.size(),
     center = viewport.center(),
     scale = viewport.scale.value;
-  clearCanvas(ctx, size.width, size.height, IMMERSIVE_COLORS.background);
+  if (props.iconSize) clearCanvas(ctx, size.width, size.height, IMMERSIVE_COLORS.background);
+  else ctx.clearRect(0, 0, size.width, size.height);
   const cached = props.iconSize ? imageCache.thumbnail(thumbnailKey()) : null;
   const nextRelease = cached ? imageCache.retainThumbnail(thumbnailKey()) : null;
   releaseThumbnail?.();
@@ -213,22 +215,6 @@ function paintScene(engineImages: EngineImages) {
     releaseThumbnail = nextRelease;
     drawPixelImage(ctx, cached, 0, 0, size.width, size.height);
     return;
-  }
-  if (!props.iconSize) {
-    ctx.strokeStyle = 'rgba(70,200,255,0.2941176471)';
-    ctx.lineWidth = 1 / window.devicePixelRatio;
-    for (let x = (size.width % 25) / 2; x < size.width; x += 25) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, size.height);
-      ctx.stroke();
-    }
-    for (let y = (size.height % 25) / 2; y < size.height; y += 25) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(size.width, y);
-      ctx.stroke();
-    }
   }
   ctx.save();
   ctx.translate(center.x, center.y);
