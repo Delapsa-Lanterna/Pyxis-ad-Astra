@@ -41,6 +41,96 @@ afterEach(() => {
 });
 
 describe('variant scene pointer dismissal', () => {
+  it.each(['LAUNCH_BAY', 'SYSTEM', 'DECORATIVE'])('uses the same pointer and keyboard targets around %s slots', async (type) => {
+    installCanvas2DStub();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 700,
+      width: 1000,
+      height: 700,
+      toJSON: () => ({}),
+    });
+    const snapshot = variantJointFixture();
+    const variant = projectVariantPanel(snapshot, Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])))
+      .variants[0]!;
+    const original = variant.weapons[0]!;
+    const excluded = { ...original, slot: { ...original.slot, type } };
+    const own = mount(ImmersiveHullScene, {
+      props: { variant: { ...variant, weapons: [excluded, variant.weapons[1]!] }, sessionId: 's' },
+      global: { stubs: { ImmersiveText: true } },
+    });
+    await own.get('canvas').trigger('mousemove', { clientX: 390, clientY: 350 });
+    expect(own.find('.variant-slot-label').exists()).toBe(false);
+    await own.get('canvas').trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
+    expect(own.emitted('blank')).toHaveLength(1);
+    expect(own.emitted('slot')).toBeUndefined();
+    await own.get('canvas').trigger('mousedown', { button: 0, clientX: 480, clientY: 410 });
+    expect(own.emitted('slot')?.at(-1)?.[0]).toBe(1);
+    await own.get('.variant-scene').trigger('keydown', { key: 'ArrowRight' });
+    await own.get('.variant-scene').trigger('keydown', { key: 'Enter' });
+    expect(own.emitted('slot')?.at(-1)?.[0]).toBe(1);
+    own.unmount();
+  });
+  it('shows the installed module name and follows module replacement and removal', async () => {
+    installCanvas2DStub();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 700,
+      width: 1000,
+      height: 700,
+      toJSON: () => ({}),
+    });
+    const snapshot = variantJointFixture();
+    const variant = projectVariantPanel(snapshot, Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])))
+      .variants[0]!;
+    const weapon = variant.weapons[0]!;
+    const slot = { ...weapon.slot, type: 'STATION_MODULE' };
+    const scene = { ...variant, weapons: [{ ...weapon, slot, id: '', name: '', builtin: false }] };
+    const module = { slot, variant: { ...variant, key: 'module', name: 'Sample module', modules: [] } };
+    const own = mount(ImmersiveHullScene, {
+      props: { variant: { ...scene, modules: [module] }, sessionId: 's' },
+      global: { stubs: { ImmersiveText: { props: ['text'], template: '<span>{{ text }}</span>' } } },
+    });
+    await own.get('canvas').trigger('mousemove', { clientX: 390, clientY: 350 });
+    expect(own.get('.variant-slot-label').text()).toBe('Sample module');
+    await own.setProps({ variant: { ...scene, modules: [{ ...module, variant: { ...module.variant, name: 'Replacement module' } }] } });
+    expect(own.get('.variant-slot-label').text()).toBe('Replacement module');
+    for (const [hullName, expected] of [
+      ['Sample hull', 'Sample hull'],
+      ['', 'sample_hull'],
+    ] as const) {
+      const unnamed = { ...module.variant, name: '', spec: { ...module.variant.spec, hullName, hullId: 'sample_hull' } };
+      await own.setProps({ variant: { ...scene, modules: [{ ...module, variant: unnamed }] } });
+      expect(own.get('.variant-slot-label').text()).toBe(expected);
+    }
+    await own.setProps({ variant: { ...scene, modules: [] } });
+    expect(own.get('.variant-slot-label').text()).toBe('空槽');
+    await own.setProps({ variant: { ...variant, weapons: [{ ...weapon, name: 'Sample weapon', builtin: true }] } });
+    expect(own.get('.variant-slot-label').text()).toBe('Sample weapon（内置）');
+    own.unmount();
+  });
   it('shares three bundled SVG decodes and returns their ready images synchronously', async () => {
     const actual = await vi.importActual<typeof import('@/app/renderers/editors/engine-fallback')>(
       '@/app/renderers/editors/engine-fallback',

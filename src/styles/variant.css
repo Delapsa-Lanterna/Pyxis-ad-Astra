@@ -243,9 +243,8 @@
   margin-bottom: 3px;
 }
 .variant-mod-name {
-  justify-content: flex-end;
   height: 34px;
-  flex: 1;
+  flex: 0 1 auto;
   text-align: right;
 }
 .variant-mod-name > .variant-mod-name-label {

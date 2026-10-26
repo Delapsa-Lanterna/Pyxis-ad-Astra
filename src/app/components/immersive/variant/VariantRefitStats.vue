@@ -1,5 +1,5 @@
 <template>
-  <aside ref="surface" class="variant-refit-stats">
+  <aside ref="surface" class="variant-refit-stats" @scroll.capture="hover.locate">
     <div class="variant-op-display ui-layout-row ui-layout-center">
       <VariantShipInfo
         :variant="variant"
@@ -104,9 +104,15 @@
             <template #trigger
               ><button
                 class="variant-mod-name ui-button ui-control-row ui-control-button ui-text-normal ui-layout-clip ui-control-reset"
-                :title="categoryLabel(mod.category) + (mod.strengthened ? ' · S强化' : '')"
+                @focus="showDetails(mod.id, $event)"
+                @blur="hover.leave"
+                @click="hover.close()"
+                @keydown.esc.stop.prevent="hover.close(true)"
               >
                 <ImmersiveText
+                  class="variant-mod-name-label"
+                  @mouseenter="showDetails(mod.id, $event)"
+                  @mouseleave="hover.leave"
                   :text="mod.name"
                   :runs="[{ text: mod.name, color: mod.category === 's' || mod.strengthened ? '#cc99ff' : undefined }]"
                   ink-aligned
@@ -158,9 +164,23 @@
       </button>
     </section>
   </aside>
+  <Teleport :to="surface?.closest<HTMLElement>('[role=dialog]') ?? 'body'">
+    <div
+      v-if="selected && catalog"
+      :ref="(element) => (hover.surface.value = element as HTMLElement | null)"
+      class="variant-hullmod-tooltip"
+      role="tooltip"
+      :style="hover.position.value"
+      @mouseenter="hover.keep"
+      @mouseleave="hover.leave"
+      @keydown.esc.stop.prevent="hover.close(true)"
+    >
+      <VariantHullmodDetails :entry="selected" :reference="catalog" :images="detailImages" />
+    </div>
+  </Teleport>
 </template>
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber, variantOpSegments } from '@/domain/immersive/variant/variant-panel';
 import { VARIANT_COLORS } from '@/domain/immersive/appearance';
@@ -172,6 +192,11 @@ import ImmersivePanelRow from '../ImmersivePanelRow.vue';
 import type { ImmersiveRenderContext } from '../immersive-render-context';
 import VariantShipInfo from './VariantShipInfo.vue';
 import ImmersiveHullmodIcon from './ImmersiveHullmodIcon.vue';
+import VariantHullmodDetails from './VariantHullmodDetails.vue';
+import { useImmersiveHover } from '@/app/composables/use-immersive-hover';
+import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
+import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
+import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = defineProps<{
   variant: VariantProjection;
   render: ImmersiveRenderContext;
@@ -180,6 +205,49 @@ const props = defineProps<{
 }>();
 const pickerButton = ref<HTMLButtonElement | null>(null);
 const surface = ref<HTMLElement | null>(null);
+const hover = useImmersiveHover<string>(
+  () => 393,
+  () => 'left',
+);
+const { entries, snapshot: catalog } = useVariantCatalog(
+  () => props.vm.joint.currentTarget.value!,
+  () => 'hullmods',
+);
+const selected = computed(() => entries.value.find((entry) => entry.id === hover.selected.value));
+const detailsMedia = useResourceMediaRegistry({ onError: useAppFeedback().error, onFailures: () => undefined });
+const detailResources = computed(() =>
+  selected.value && catalog.value
+    ? ['e', 'e_bot', 'e_top', 'w', 'w_bot', 'w_top'].flatMap((edge) => {
+        const resource = catalog.value!.referenceSettings.resources['ui_border1b_' + edge];
+        return resource ? [resource] : [];
+      })
+    : [],
+);
+watch(
+  [() => props.vm.joint.currentTarget.value!.sessionId, detailResources],
+  ([session, resources]) => {
+    void detailsMedia.replaceCollection(session, 'installed-hullmod-details', resources);
+  },
+  { immediate: true },
+);
+const detailImages = computed(() =>
+  Object.fromEntries(
+    detailResources.value.map((resource) => [
+      resource.key,
+      detailsMedia.dataUrl(props.vm.joint.currentTarget.value!.sessionId, resource) ?? '',
+    ]),
+  ),
+);
+watch([() => props.variant.key, () => props.vm.joint.currentTarget.value], () => hover.close());
+watch(
+  () => props.variant.mods,
+  (mods) => {
+    if (!mods.some((mod) => mod.id === hover.selected.value)) hover.close();
+  },
+);
+function showDetails(id: string, event: MouseEvent | FocusEvent) {
+  hover.show(id, event.currentTarget as HTMLElement, event.type === 'focus' ? 'focus' : 'hover');
+}
 defineExpose({ focusPicker: () => pickerButton.value!.focus({ preventScroll: true }) });
 const opSegments = computed(() => variantOpSegments(props.variant.opUsed, props.variant.opTotal));
 defineEmits<{ picker: []; step: [field: string, delta: number]; mod: [id: string, category: HullmodCategory | null] }>();

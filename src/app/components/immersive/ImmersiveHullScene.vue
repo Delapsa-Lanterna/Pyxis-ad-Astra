@@ -23,7 +23,7 @@
       class="variant-slot-label ui-text-normal"
       :style="{ left: point(hoverWeapon.slot).x + 'px', top: point(hoverWeapon.slot).y + 20 + 'px' }"
     >
-      <ImmersiveText :text="(hoverWeapon.name || '空槽') + (hoverWeapon.builtin ? '（内置）' : '')" font="slot-name" />
+      <ImmersiveText :text="hoverLabel" font="slot-name" />
     </div>
   </div>
 </template>
@@ -66,6 +66,15 @@ const viewport = useCanvasViewport(canvas, 1, 4),
   feedback = useAppFeedback();
 const state = createCanvasState<null>();
 const hoverWeapon = computed(() => (state.hovered.value ? props.variant.weapons[state.hovered.value.i] : null));
+const hoverLabel = computed(() => {
+  const weapon = hoverWeapon.value;
+  if (!weapon) return '';
+  if (weapon.slot.type === 'STATION_MODULE') {
+    const module = props.variant.modules.find((module) => module.slot.id === weapon.slot.id)?.variant;
+    return module ? module.name || schemaStringValue(module.spec.hullName || module.spec.hullId) : '空槽';
+  }
+  return (weapon.name || '空槽') + (weapon.builtin ? '（内置）' : '');
+});
 const navigation = useCanvasNavigation(
   {
     ...viewport,
@@ -166,12 +175,17 @@ const point = (slot: import('@/shared/types').DeepReadonly<import('@/shared/type
   const location = Array.isArray(slot.locations) ? slot.locations : [0, 0];
   return viewport.toCanvas('ship', -Number(location[1]), Number(location[0]));
 };
+const interactiveSlots = computed(() =>
+  props.variant.weapons
+    .map((weapon, index) => ({ weapon, index }))
+    .filter(({ weapon }) => !['SYSTEM', 'DECORATIVE', 'LAUNCH_BAY'].includes(schemaStringValue(weapon.slot.type))),
+);
 const selection = useCanvasSelection(
   state,
   (x, y) =>
-    props.variant.weapons.map((weapon, i) => {
+    interactiveSlots.value.map(({ weapon, index }) => {
       const p = point(weapon.slot);
-      return { kind: 'slot', i, distance: Math.hypot(x - p.x, y - p.y) };
+      return { kind: 'slot', i: index, distance: Math.hypot(x - p.x, y - p.y) };
     }),
   () => 24,
   false,
@@ -320,9 +334,7 @@ function navigate(event: KeyboardEvent) {
   if (!direction) return;
   event.preventDefault();
   event.stopPropagation();
-  const items = props.variant.weapons
-    .map((weapon, index) => ({ weapon, index }))
-    .filter(({ weapon }) => !['SYSTEM', 'DECORATIVE', 'LAUNCH_BAY'].includes(schemaStringValue(weapon.slot.type)));
+  const items = interactiveSlots.value;
   const current = items.findIndex(({ index }) => index === state.selected.value);
   const next = items[(current + direction + items.length) % items.length];
   if (next) {
