@@ -36,19 +36,34 @@
             "BURN_DRIVE",
             "BURN_DRIVE_TOGGLE",
             "MANEUVERING_JETS",
+            "FAST_RELOAD",
+            "AMMO_RELOAD",
             "PHASE_CLOAK",
             "PHASE_DISPLACER",
             "FORTRESS_SHIELD",
             "DAMPER_FIELD",
+            "HIGH_ENERGY_FOCUS",
+            "PHASE_TELEPORTER",
+            "PHASE_TELEPORTER_2",
             "TEMPORAL_SHELL",
             "ACAUSAL_DISRUPTOR",
             "WEAPON_BOOST",
+            "DYNAMIC_STABILIZER",
+            "LIDAR_ARRAY",
             "FLARE",
+            "FLARE_JAMMER",
             "CANISTER_FLAK",
             "DRONE_LAUNCHER_PD",
+            "DRONE_LAUNCHER_STANDARD",
             "DRONE_STRIKE",
             "RESERVE_DEPLOYMENT",
             "MOTE_ATTRACTOR",
+            "ENTROPY_AMPLIFIER",
+            "INTERDICTOR",
+            "MINE_STRIKE",
+            "EMP",
+            "TARGETING_FEED",
+            "RECALL_DEVICE",
             "CUSTOM",
             "NONE"
           ]
@@ -65,11 +80,47 @@
         { "key": "runScriptWhileIdle", "label": "闲置时运行脚本", "type": "boolean" },
         { "key": "blockActionsWhileChargingDown", "label": "充能降低时阻止动作", "type": "boolean" },
         { "key": "canNotCauseOverload", "label": "不会导致过载", "type": "boolean" },
+        { "key": "requiresZeroFluxBoost", "label": "需要零幅能加速", "type": "boolean", "default": false },
         { "key": "canUseWhileRightClickSystemOn", "label": "右键系统开启时可用", "type": "boolean" },
         { "key": "clampTurnRateAfter", "label": "效果后限制转向", "type": "boolean" },
         { "key": "clampMaxSpeedAfter", "label": "效果后限制速度", "type": "boolean" },
         { "key": "alwaysAccelerate", "label": "持续加速", "type": "boolean" },
         { "key": "flameoutOnImpactChance", "label": "撞击失控概率", "type": "float", "step": 0.1 },
+        {
+          "key": "allowFlameoutOnImpactWithFriendly",
+          "label": "友军撞击可导致失控",
+          "type": "boolean",
+          "default": false,
+          "visibleWhen": { "type": ["ENGINE_MOD"] }
+        },
+        {
+          "key": "minFractionToReload",
+          "label": "AI 触发装填的最低比例",
+          "type": "float",
+          "default": 0,
+          "visibleWhen": { "aiType": ["FAST_RELOAD", "AMMO_RELOAD"] }
+        },
+        {
+          "key": "reloadBaseAmmoAmountOnly",
+          "label": "仅装填基础弹药量",
+          "type": "boolean",
+          "default": false,
+          "visibleWhen": { "type": ["AMMO_RELOAD"] }
+        },
+        {
+          "key": "vulnerableChargeup",
+          "label": "充能时保持实体状态",
+          "type": "boolean",
+          "default": false,
+          "visibleWhen": { "type": ["TELEPORTER", "DISPLACER"] }
+        },
+        {
+          "key": "vulnerableChargedown",
+          "label": "充能降低时保持实体状态",
+          "type": "boolean",
+          "default": false,
+          "visibleWhen": { "type": ["TELEPORTER", "DISPLACER"] }
+        },
         { "key": "fadeActivationSoundOnChargedown", "label": "充能降低时淡出音效", "type": "boolean" },
         { "key": "activatingShieldsCancels", "label": "开盾时取消系统", "type": "boolean" }
       ]
@@ -82,7 +133,8 @@
         { "key": "loopSound", "label": "循环音效", "type": "enum", "source": "config:sounds" },
         { "key": "deactivateSound", "label": "关闭音效", "type": "enum", "source": "config:sounds" },
         { "key": "outOfUsesSound", "label": "用尽音效", "type": "enum", "source": "config:sounds" },
-        { "key": "soundFilterType", "label": "滤波类型", "type": "enum", "options": ["LOWPASS"] },
+        { "key": "impactSound", "label": "EMP 命中音效", "type": "enum", "source": "config:sounds", "visibleWhen": { "type": ["EMP"] } },
+        { "key": "soundFilterType", "label": "滤波类型", "type": "enum", "options": ["LOWPASS", "NONE"] },
         { "key": "soundFilterGain", "label": "滤波增益", "type": "float", "step": 0.05 },
         { "key": "soundFilterGainHF", "label": "高频滤波增益", "type": "float", "step": 0.05 }
       ]
@@ -91,6 +143,8 @@
       "id": "engine",
       "label": "引擎视觉",
       "fields": [
+        { "key": "engineActivateHiddenNozzles", "label": "激活隐藏喷口", "type": "boolean", "default": true },
+        { "key": "engineGlowMaxBlend", "label": "引擎光效最大混合", "type": "float", "default": 1 },
         { "key": "engineGlowLengthMult", "label": "光柱长度倍率", "type": "float", "step": 0.1 },
         { "key": "engineGlowWidthMult", "label": "光柱宽度倍率", "type": "float", "step": 0.1 },
         { "key": "engineGlowGlowMult", "label": "辉光强度倍率", "type": "float", "step": 0.1 },
@@ -130,6 +184,13 @@
         { "key": "effectColor2", "label": "效果颜色 2", "type": "color-rgba", "default": [150, 75, 255, 255] },
         { "key": "phaseHighlight", "label": "高光贴图后缀", "type": "string" },
         { "key": "phaseDiffuse", "label": "漫射贴图后缀", "type": "string" },
+        {
+          "key": "phaseChargedownVulnerabilityFraction",
+          "label": "相位充能降低易伤比例",
+          "type": "float",
+          "default": 0,
+          "visibleWhen": { "type": ["PHASE_CLOAK"] }
+        },
         { "key": "shipAlpha", "label": "舰船透明度", "type": "float", "step": 0.05 }
       ]
     },

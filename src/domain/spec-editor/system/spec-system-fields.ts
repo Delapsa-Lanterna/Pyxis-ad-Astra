@@ -9,7 +9,9 @@ export function systemSections(system: RowData) {
   return specSections('spec-system', system);
 }
 export function systemSpecIssues(system: RowData) {
-  return systemSections(system).flatMap((section) => section.fields.flatMap((field) => specFieldIssues(field, system[field.key])));
+  return systemSections(system).flatMap((section) =>
+    section.fields.flatMap((field) => specFieldIssues(field, system[field.key], field.key, false, system)),
+  );
 }
 export function normalizeSystemSpec(system: RowData): RowData {
   const normalized = deepClone(system);

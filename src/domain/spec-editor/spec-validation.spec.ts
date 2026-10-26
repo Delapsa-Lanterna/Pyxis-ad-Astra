@@ -10,6 +10,77 @@ import { createWeaponSpec } from '@/domain/editors/weapon-spec';
 import { createProjectileSpec } from './projectile/spec-projectile-model';
 
 describe('Spec schema validation', () => {
+  it.each([
+    ['requiresZeroFluxBoost', true, 'STAT_MOD', 'NONE'],
+    ['minFractionToReload', 0.4, 'FAST_RELOAD', 'FAST_RELOAD'],
+    ['reloadBaseAmmoAmountOnly', true, 'AMMO_RELOAD', 'AMMO_RELOAD'],
+    ['allowFlameoutOnImpactWithFriendly', true, 'ENGINE_MOD', 'BURN_DRIVE'],
+    ['engineActivateHiddenNozzles', false, 'STAT_MOD', 'NONE'],
+    ['engineGlowMaxBlend', 0.6, 'STAT_MOD', 'NONE'],
+    ['vulnerableChargeup', true, 'TELEPORTER', 'PHASE_TELEPORTER'],
+    ['vulnerableChargedown', true, 'DISPLACER', 'PHASE_DISPLACER'],
+    ['impactSound', 'sample-sound', 'EMP', 'EMP'],
+    ['phaseChargedownVulnerabilityFraction', 0.2, 'PHASE_CLOAK', 'PHASE_CLOAK'],
+  ])('validates system field %s in its execution branch', (key, value, type, aiType) => {
+    const system = { ...createSystemSpec('sample'), type, aiType };
+    expect(systemSpecIssues({ ...system, [key]: value })).toEqual([]);
+    expect(systemSpecIssues({ ...system, [key]: [] }).map((issue) => issue.path)).toEqual([key]);
+  });
+  it.each([
+    ['darkCore', true],
+    ['darkCoreIter', 2],
+    ['darkFringeIter', 3],
+    ['coreWidthMult', 0.5],
+  ])('validates projectile loader field %s', (key, value) => {
+    const projectile = createProjectileSpec('sample', 'projectile');
+    expect(projectileSpecIssues({ ...projectile, [key]: value })).toEqual([]);
+    expect(projectileSpecIssues({ ...projectile, [key]: [] }).map((issue) => issue.path)).toEqual([key]);
+  });
+  it.each([
+    'FLARE',
+    'FLARE_JAMMER',
+    'CANISTER_FLAK',
+    'BURN_DRIVE',
+    'BURN_DRIVE_TOGGLE',
+    'MANEUVERING_JETS',
+    'FAST_RELOAD',
+    'AMMO_RELOAD',
+    'FORTRESS_SHIELD',
+    'DAMPER_FIELD',
+    'HIGH_ENERGY_FOCUS',
+    'PHASE_TELEPORTER',
+    'PHASE_TELEPORTER_2',
+    'PHASE_DISPLACER',
+    'DRONE_LAUNCHER_PD',
+    'DRONE_LAUNCHER_STANDARD',
+    'WEAPON_BOOST',
+    'DYNAMIC_STABILIZER',
+    'LIDAR_ARRAY',
+    'TEMPORAL_SHELL',
+    'ACAUSAL_DISRUPTOR',
+    'MOTE_ATTRACTOR',
+    'ENTROPY_AMPLIFIER',
+    'INTERDICTOR',
+    'MINE_STRIKE',
+    'DRONE_STRIKE',
+    'EMP',
+    'PHASE_CLOAK',
+    'NONE',
+    'TARGETING_FEED',
+    'RESERVE_DEPLOYMENT',
+    'RECALL_DEVICE',
+    'CUSTOM',
+  ])('accepts system AI behavior %s through save validation', (aiType) => {
+    expect(systemSpecIssues({ ...createSystemSpec('sample'), aiType })).toEqual([]);
+  });
+  it('accepts system filters with affected weapon and damage categories through save validation', () => {
+    const weaponTypes = ['BALLISTIC', 'ENERGY', 'MISSILE', 'SYSTEM'];
+    for (const soundFilterType of ['LOWPASS', 'NONE']) {
+      for (const damageType of ['ENERGY', 'KINETIC', 'HIGH_EXPLOSIVE', 'FRAGMENTATION']) {
+        expect(systemSpecIssues({ ...createSystemSpec('sample'), soundFilterType, damageType, weaponTypes })).toEqual([]);
+      }
+    }
+  });
   it('reports every weapon save rule from the shared asset', () => {
     const weapon = { ...createWeaponSpec('sample', 'projectile'), specClass: 'pulse', turretOffsets: [], hardpointOffsets: [] };
     expect(weaponSpecIssues(weapon).map((issue) => issue.code)).toEqual(
