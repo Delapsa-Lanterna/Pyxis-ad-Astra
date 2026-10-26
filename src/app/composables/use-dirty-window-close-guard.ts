@@ -80,7 +80,8 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
           accepted = accepted && accepts();
           break;
         case 'flush':
-          await actions.flushSettings();
+          if (currentWindowLabel() === 'main') await actions.flushSettings();
+          else await actions.flushPerformance();
           break;
         case 'resume': {
           actions.acceptReleasedSessions(intent.releasedSessions);

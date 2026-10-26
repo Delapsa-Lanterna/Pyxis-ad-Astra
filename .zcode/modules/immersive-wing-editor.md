@@ -17,7 +17,7 @@
 
 ### 消费
 
-- `src/test/wing-joint-edit.ts`：战机联队联合来源及行键的测试构造。
+- `src/test/fixtures/joint-edit/wing-joint-edit.ts`：战机联队联合来源及行键的测试构造。
 
 ## 边界
 

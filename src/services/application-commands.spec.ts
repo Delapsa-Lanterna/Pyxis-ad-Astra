@@ -1,7 +1,7 @@
 import { requestClose, replyNativeClose, readyNativeClose } from './app-lifecycle.service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readSettings, readDefaultSettings, saveSettings, querySystemFonts } from './app-settings.service';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { openConfigFolder } from './app-config.service';
 import { clearLog, loadLogStatus } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';

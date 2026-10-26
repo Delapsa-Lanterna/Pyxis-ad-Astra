@@ -16,18 +16,16 @@ import type {
   MiscConfigWrite,
   JsonRecoveryRequest,
 } from '@/shared/types';
-import { createSettingsFixture } from '../settings';
-import { createBrowserModel, sampleImage, type BrowserModel } from './model';
+import { createSettingsFixture } from '../../fixtures/settings';
+import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
 import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
 import type { RowData } from '@/shared/types';
 
 let model: BrowserModel;
-let logged = 0;
 export function installBrowserModel(next: BrowserModel) {
   model = next;
-  logged = 0;
 }
 export function browserModel() {
   return model;
@@ -66,7 +64,7 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
     case 'get_app_log_status':
       return {
         path: (model.settings.logDirectory ?? 'M:/tool-data') + '/sample.log',
-        sizeBytes: logged * 80,
+        sizeBytes: model.logEntries * 80,
         recording: 'active',
         level: model.settings.logLevel,
         lastError: null,
@@ -74,12 +72,12 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
         pending: 0,
       } satisfies AppLogStatus;
     case 'append_app_logs':
-      logged += (args.payload as AppendAppLogsPayload).entries.length;
+      model.logEntries += (args.payload as AppendAppLogsPayload).entries.length;
       return;
     case 'stop_app_log':
       return;
     case 'clear_app_log_file':
-      logged = 0;
+      model.logEntries = 0;
       return dispatch('get_app_log_status', {});
     case 'open_config_dir':
       return;
@@ -261,7 +259,12 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
     case 'query_engine_render_assets':
       return { styles: {}, resources: {}, versions: [] } satisfies EngineRenderAssets;
     case 'query_resource_data_urls':
-      return { entries: (args.payload as { resources: object[] }).resources.map((resource) => ({ ...resource, dataUrl: sampleImage })) };
+      return {
+        entries: (args.payload as { resources: { relPath: string }[] }).resources.map((resource) => ({
+          ...resource,
+          dataUrl: model.resourceDataUrl(resource.relPath),
+        })),
+      };
     case 'query_original_font':
       return fontResult((args.payload as { fontId: string }).fontId);
     case 'query_edit_target_owners':

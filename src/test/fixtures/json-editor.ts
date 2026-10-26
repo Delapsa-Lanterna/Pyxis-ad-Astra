@@ -1,4 +1,4 @@
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { EntityData, RowData } from '@/shared/types';
 
 export function jsonEntityFixture(

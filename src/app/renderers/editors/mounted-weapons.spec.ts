@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ResourceRef } from '@/shared/types';
 import type { MountedWeaponImages } from '@/domain/editors/weapon-images';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { renderMountedWeapons, type MountedWeaponScene } from './weapon-images';
 
 const resource = (key: string): ResourceRef => ({ key, source: 'mod', relPath: key + '.png', ownerKind: 'weapon', ownerId: key });

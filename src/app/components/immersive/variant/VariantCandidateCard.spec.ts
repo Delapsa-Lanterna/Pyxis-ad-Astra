@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JointVariantEntry } from '@/shared/types';
-import { wingJointFixture } from '@/test/wing-joint-edit';
+import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import VariantCandidateCard from './VariantCandidateCard.vue';
 import { jointObject } from '@/domain/joint-edit';
 const media = vi.hoisted(() => ({ replace: vi.fn(), query: vi.fn(), error: vi.fn(), warning: vi.fn() }));

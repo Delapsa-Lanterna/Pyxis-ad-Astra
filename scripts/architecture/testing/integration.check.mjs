@@ -96,7 +96,10 @@ test('runtime exports at protected providers declare their capability contract',
 });
 
 test('production fixture consumption has one diagnostic and tests may consume production', () => {
-  for (const source of ["import { fixture } from '@/test/entity-target';", "import type { Fixture } from '@/test/entity-target';"]) {
+  for (const source of [
+    "import { fixture } from '@/test/fixtures/entity-target';",
+    "import type { Fixture } from '@/test/fixtures/entity-target';",
+  ]) {
     const files = architectureFixtures({
       'src/domain/example.ts': source,
       'src/test/entity-target.ts': 'export interface Fixture {} export function fixture() {}',

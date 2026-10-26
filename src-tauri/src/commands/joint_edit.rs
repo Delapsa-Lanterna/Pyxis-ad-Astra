@@ -7,7 +7,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditReadResult, AppError> {
     match payload.catalog {
         Some(kind) => {
@@ -17,11 +17,11 @@ pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditReadResult, 
             .map(|value| JointEditReadResult::Snapshot(Box::new(value))),
     }
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn prepare_joint_edit(payload: JointEditDraft) -> Result<JointEditPrepared, AppError> {
     services::prepare_joint_edit(&payload)
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_joint_edit(
     payload: JointEditSubmission,
 ) -> Result<WriteResult<JointEditSnapshot>, AppError> {

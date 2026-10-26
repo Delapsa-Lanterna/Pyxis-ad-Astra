@@ -2,8 +2,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, computed } from 'vue';
 import { flushPromises } from '@vue/test-utils';
 import type { WeaponFirePreviewData, WeaponFirePreviewSource, WindowContextFor, WriteResult } from '@/shared/types';
-import { entityTargetFixture } from '@/test/entity-target';
-import { savedWriteFixture } from '@/test/write-result';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useWeaponFirePreviewWindowViewModel } from './use-weapon-fire-preview-window-view-model';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 const mocks = vi.hoisted(() => ({

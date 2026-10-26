@@ -28,7 +28,7 @@ import {
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { sessionUpdateFixture } from '@/test/write-result';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 
 const root = 'C:/mods/alpha';
 function project(session = 's1') {

@@ -7,7 +7,7 @@ import {
 } from './query-cache.service';
 import { markProjectionPending, markProjectionReady } from './project-projection.service';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { DeepReadonly, ProjectInvalidation } from '@/shared/types';
 import { installPerformanceMonitor, type PerformanceSample } from '@/shared/runtime/performance';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';

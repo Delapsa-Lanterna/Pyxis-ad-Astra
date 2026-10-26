@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { createPinia, setActivePinia } from 'pinia';
 
 const mocks = vi.hoisted(() => ({

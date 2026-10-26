@@ -9,8 +9,10 @@
 ### 拥有
 
 - `scripts/performance/`：性能基准与外部采样工具。
+- `src-tauri/command-macros/`：命令声明与登记的计时调用生成。
 - `src-tauri/src/commands/performance_monitor.rs`：批量交付及状态、重置、导出命令。
-- `src-tauri/src/services/performance_monitor.rs`：tracing 接收层、环形缓冲与报告导出。
+- `src-tauri/src/services/command_timing_tests.rs`：命令生成、实际完成、身份与停用验证。
+- `src-tauri/src/services/performance_monitor.rs`：命令计时、环形缓冲与报告导出。
 - `src-tauri/src/services/performance_monitor_tests.rs`：容量、统计、正文过滤、文件与异步区间验证。
 - `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
 - `src-tauri/src/services/project/performance_retained_tests.rs`：后端 CSV 性能样本。
@@ -20,15 +22,16 @@
 
 ### 消费
 
+- `scripts/browser/`：必须消费公共浏览器构建、预热、交替执行及报告工具。
 - `src-tauri/src/models/performance_monitor.rs`：性能采样与报告状态协议。
 - `src/shared/runtime/performance.ts`：运行开关、区间计时与采样接收入口。
 - `src/shared/types/performance-monitor.types.ts`：批量交付与状态协议。
-- `src/test/browser/benchmark.ts`：消费共享场景准备的固定操作采样入口。
+- `src/test/browser/benchmarks/`：必须消费公共场景操作、测量结果及预算判定。
 
 ### 装配
 
 - `src-tauri/src/commands/app_lifecycle.rs`：正式设置接纳与运行开关固定。
-- `src-tauri/src/lib.rs`：共同 handler 的命令、窗口与请求身份装配。
+- `src-tauri/src/lib.rs`：统一命令登记与计时调用装配。
 - `src/app/components/SettingsPage.vue`：日志分组下方的性能调试入口。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：正常关闭时交付所属尾批。
 - `src/main.ts`：业务挂载前的监视装配。
@@ -51,8 +54,8 @@
 ### 自动采集
 
 1. 正式设置交付已保存及本次运行开关，启用窗口在业务挂载前装配采集设施。
-2. IPC、查询与 action 在共同入口计时；Rust 消费 Tauri tracing 区间及 handler 身份。
-3. 窗口记录批量交付后端，正常关闭时交付尾批。
+2. IPC、查询与 action 在共同入口计时；Rust 由命令生成调用取得名称、窗口与请求身份，在参数接纳后开始并在实际执行结束时交付耗时。
+3. 窗口记录批量交付后端，受控关闭必须经窗口关闭握手在销毁前交付性能尾批。
 
 ### 报告导出
 
@@ -61,12 +64,16 @@
 
 ## 规范
 
+- 子窗口销毁前必须经关闭握手完成性能尾批交付；交付失败必须保留监视错误并继续关闭。
 - 性能复测必须固定样本、构建、环境及操作脚本，统计最小值、最大值、平均值、中位数与 nearest-rank P95。
+- 性能对照必须按轮次轮换起始组并顺序执行；首次打开必须使用独立浏览器上下文。
 - 性能报告必须记录构建与脚本哈希、窗口、DPR、缓存条件及 profiler 状态；偶数样本中位数必须取中间两值的平均。
+- 性能测试台必须默认预热 2 次、正式测量 30 次，预热样本必须独立记录；重复使用压力必须默认测量 100 次。
 - 性能监视必须默认关闭；关闭时严禁建立采集设施、读取采样时钟或组装采样字段。
 - 性能记录严禁写入应用日志，请求与响应正文严禁进入基础采样。
 - 批量交付必须保持单次在途；采集设施必须随所属窗口释放。
 - 观测严禁改变业务、查询或展示语义；新增 command、查询与 action 必须由共同入口自动采集。
+- 项目命令必须使用共同 command 声明与 generate_handler 登记；原函数必须保留业务签名，异步计时必须覆盖实际等待，运行时严禁启用 tauri/tracing。
 
 ## 陷阱
 

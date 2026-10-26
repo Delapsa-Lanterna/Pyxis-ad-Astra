@@ -83,7 +83,7 @@ pub fn run() {
         })
         .invoke_handler({
             let handler: Box<dyn Fn(tauri::ipc::Invoke) -> bool + Send + Sync> =
-                Box::new(tauri::generate_handler![
+                Box::new(command_macros::generate_handler![
                     commands::performance_monitor_batch,
                     commands::performance_monitor_report,
                     commands::request_window,
@@ -175,30 +175,7 @@ pub fn run() {
                     commands::save_mod_info,
                     commands::apply_file_change_set,
                 ]);
-            move |invoke: tauri::ipc::Invoke| {
-                #[cfg(feature = "performance-monitor")]
-                let _span = if services::performance_monitor::enabled()
-                    && !invoke.message.command().starts_with("performance_monitor_")
-                {
-                    Some(
-                        tracing::debug_span!(
-                            "monitor.command",
-                            command = invoke.message.command(),
-                            window = invoke.message.webview_ref().label(),
-                            request = invoke
-                                .message
-                                .headers()
-                                .get("x-performance-request")
-                                .and_then(|value| value.to_str().ok())
-                                .unwrap_or("")
-                        )
-                        .entered(),
-                    )
-                } else {
-                    None
-                };
-                handler(invoke)
-            }
+            handler
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

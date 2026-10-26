@@ -7,7 +7,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn synchronize_committed_write(
     payload: SynchronizeCommittedWritePayload,
 ) -> Result<CommittedSessionUpdate, AppError> {
@@ -18,14 +18,14 @@ pub fn synchronize_committed_write(
     )
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn invalidate_project_session(
     payload: InvalidateProjectSessionPayload,
 ) -> Result<ProjectSessionInvalidationResult, AppError> {
     services::project::invalidate_project_session(&payload.session_id, payload.changes)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn refresh_project_sources(
     payload: RefreshProjectSourcesPayload,
 ) -> Result<ProjectSessionInvalidationResult, AppError> {

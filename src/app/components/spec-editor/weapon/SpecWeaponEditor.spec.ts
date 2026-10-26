@@ -4,12 +4,12 @@ import { createPinia, setActivePinia } from 'pinia';
 import { h } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RowData } from '@/shared/types/index';
-import { installCanvas2DStub } from '@/test/canvas-stub';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 const mocks = vi.hoisted(() => ({
   feedback: {

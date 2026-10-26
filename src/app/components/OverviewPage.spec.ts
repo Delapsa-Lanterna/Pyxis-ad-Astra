@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import OverviewPage from '@/app/components/OverviewPage.vue';
-import { nButton } from '@/test/ui-stubs';
+import { nButton } from '@/test/unit/ui-stubs';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 

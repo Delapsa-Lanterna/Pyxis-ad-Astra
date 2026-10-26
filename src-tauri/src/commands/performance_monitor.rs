@@ -1,10 +1,10 @@
 use crate::{errors::AppError, models::performance_monitor::*, services};
 
-#[tauri::command]
+#[command_macros::command]
 pub fn performance_monitor_batch(window: tauri::WebviewWindow, batch: PerformanceBatch) {
     services::performance_monitor::deliver(window.label(), batch);
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn performance_monitor_report(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,

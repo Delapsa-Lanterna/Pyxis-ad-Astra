@@ -57,7 +57,7 @@ import { useWorkspaceShellActions } from './use-workspace-shell-actions';
 import { useProjectStore } from '@/stores/project.store';
 
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { effectScope, ref } from 'vue';

@@ -44,8 +44,8 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/stores/workspace.store.ts`：当前 Mod、清单与 session 投影，以及按 Mod、表与列持有的持久化列宽。
-- `src/test/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
-- `src/test/csv-row.ts`：CSV 草稿行的测试构造。
+- `src/test/fixtures/csv-row.ts`：CSV 草稿行的测试构造。
+- `src/test/unit/csv-input-host.ts`：CSV 输入提交的组件测试宿主。
 
 ### 装配
 

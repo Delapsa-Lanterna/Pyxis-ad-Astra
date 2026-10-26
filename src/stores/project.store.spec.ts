@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useProjectStore } from './project.store';
-import { sessionUpdateFixture } from '@/test/write-result';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { TABLE_KEYS, type ProjectManifest } from '@/shared/types';
 
 function manifest(sessionId: string, modRoot = 'M:/alpha'): ProjectManifest {

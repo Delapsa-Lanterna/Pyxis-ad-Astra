@@ -7,8 +7,8 @@ import AppSelect from '@/app/components/AppSelect.vue';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
 import type { ChooseOptions, AppFeedback } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { savedWriteFixture } from '@/test/write-result';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useCsvEditorActions } from './use-csv-editor-actions';
 
 const mocks = vi.hoisted(() => ({

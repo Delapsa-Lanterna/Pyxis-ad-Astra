@@ -5,10 +5,10 @@ import { defineComponent, h, nextTick, onUpdated, ref } from 'vue';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 import SchemaCollectionInput from './SchemaCollectionInput.vue';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
-import { nInput, nButton } from '@/test/ui-stubs';
+import { nInput, nButton } from '@/test/unit/ui-stubs';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 let wrapper: ReturnType<typeof mount>;
 afterEach(() => wrapper?.unmount());

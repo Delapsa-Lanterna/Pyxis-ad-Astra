@@ -9,6 +9,10 @@ import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/pe
 import { flushApplicationLogs } from '@/services/app-log.service';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 
+async function flushPerformance() {
+  await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
+}
+
 export function useAppLifecycleAssembly() {
   return provideWindowCloseState({
     requestClose,
@@ -16,11 +20,12 @@ export function useAppLifecycleAssembly() {
     replyClose: replyNativeClose,
     prepareDisplay: pauseProjectDisplay,
     acceptReleasedSessions,
+    flushPerformance,
     flushSettings: async () => {
       await flushSettings();
       debugLog('window.close_prepared');
       await flushApplicationLogs();
-      await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
+      await flushPerformance();
     },
   });
 }

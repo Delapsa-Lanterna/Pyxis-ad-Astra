@@ -1,88 +1,59 @@
 import { createBrowserHost } from './host';
-import { createBrowserModel, scenarioNames, type BrowserScenario } from './model';
-import { listen, eventListenerCount } from './events';
-import { MISC_CONFIG_FILES } from '@/domain/json-editor/misc-config-files';
-import { miscConfigFixture } from '../misc-config';
+import { createScenario, scenarios, until, type ScenarioOptions } from './scenarios/registry';
+import { listen, eventListenerCount } from './runtime/events';
 
 const query = new URLSearchParams(location.search);
-const scene = (query.get('case') ?? 'settings').split('-')[0] as BrowserScenario;
-const count = Number(query.get('case')?.split('-')[1] ?? (scene === 'csv' ? 50 : 30));
+const scene = (query.get('scene') ?? 'settings') as ScenarioOptions['scene'];
 document.body.classList.add('browser-preview', 'browser-preview-layout');
 const controls = document.querySelector<HTMLElement>('#controls')!;
 controls.className = 'browser-controls';
 controls.innerHTML =
   '<nav>' +
-  scenarioNames.map((name) => `<a href="?case=${name}">${name}</a>`).join(' ') +
-  '</nav>' +
-  '<div><button id="theme">明暗主题</button><button id="reopen">重新打开</button><button id="reset">恢复样本</button><button id="close">关闭场景</button><span id="status">正在准备</span></div>';
+  scenarios.map((item) => '<a href="?scene=' + item.id + '">' + item.label + '</a>').join(' ') +
+  '</nav><div><label>规模 <input id="count" type="number" min="2" value="' +
+  (query.get('count') ?? (scene === 'csv' ? 50 : 30)) +
+  '"></label><button id="theme">明暗主题</button><button id="reopen">重新打开</button><button id="reset">恢复样本</button>' +
+  '<button id="close">关闭场景</button><span id="status" role="status">正在准备</span></div>';
 const element = document.querySelector<HTMLElement>('#app')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const host = createBrowserHost(element);
-let dark = query.get('theme') === 'dark';
-const busy = (value: boolean) =>
-  controls.querySelectorAll('button').forEach((button) => {
-    button.disabled = value;
-  });
+const options: ScenarioOptions = {
+  scene,
+  count: 30,
+  resourceSize: 0,
+  monitor: false,
+  theme: query.get('theme') === 'dark' ? 'dark' : 'light',
+};
 async function show(reset = false) {
-  busy(true);
+  controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = true));
   try {
-    const model = reset ? createBrowserModel(scene, count) : (host.model ?? createBrowserModel(scene, count));
-    if ((reset || !host.model) && scene === 'json' && query.get('state') === 'present') {
-      for (const definition of MISC_CONFIG_FILES) {
-        const path = model.manifest.modRoot + '/' + definition.path;
-        model.miscFiles.push({
-          kind: definition.kind,
-          path,
-          relPath: definition.path,
-          data: miscConfigFixture(definition.kind),
-          baseVersions: [{ path, fingerprint: 'sample' }],
-        });
-      }
-    }
-    if ((reset || !host.model) && scene === 'json' && query.get('state') === 'error') {
-      const definition = MISC_CONFIG_FILES.find((file) => file.kind === (query.get('file') ?? 'strings'))!;
-      const path = model.manifest.modRoot + '/' + definition.path;
-      model.miscFiles.push({
-        kind: definition.kind,
-        path,
-        relPath: definition.path,
-        data: miscConfigFixture(definition.kind),
-        baseVersions: [{ path, fingerprint: 'sample' }],
-      });
-      model.failures.set('query_misc_config_file', {
-        code: 'parse.json_syntax',
-        message: 'Invalid JSON token',
-        location: { path, line: 3, column: 2 },
-      });
-    }
+    options.count = Number(document.querySelector<HTMLInputElement>('#count')!.value);
+    const model = reset || !host.model ? createScenario(options) : host.model;
     await host.open(model);
-    host.setTheme(dark ? 'dark' : 'light');
-    status.textContent = '就绪';
-    status.dataset.listeners = String(eventListenerCount());
+    const definition = scenarios.find((item) => item.id === scene)!;
+    await until(() => Boolean(element.querySelector(definition.selector)), definition.label);
+    host.setTheme(options.theme);
+    status.textContent = definition.label + ' · ' + definition.capabilities.join('、');
+    status.dataset.ready = 'true';
   } catch (error) {
-    status.textContent = String(error);
+    status.textContent = error instanceof Error ? error.message : String(error);
+    status.dataset.ready = 'false';
   } finally {
-    busy(false);
+    controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = false));
   }
 }
 document.querySelector<HTMLButtonElement>('#theme')!.onclick = () => {
-  dark = !dark;
-  host.setTheme(dark ? 'dark' : 'light');
+  options.theme = options.theme === 'light' ? 'dark' : 'light';
+  host.setTheme(options.theme);
 };
 document.querySelector<HTMLButtonElement>('#reopen')!.onclick = () => void show();
 document.querySelector<HTMLButtonElement>('#reset')!.onclick = () => void show(true);
-async function closeScene() {
-  busy(true);
-  try {
-    await host.close();
-    status.textContent = '已关闭';
-    status.dataset.listeners = String(eventListenerCount());
-    status.dataset.media = JSON.stringify(host.mediaStats);
-  } finally {
-    busy(false);
-  }
+async function close() {
+  await host.close();
+  status.textContent = '已关闭';
+  status.dataset.ready = 'false';
 }
-document.querySelector<HTMLButtonElement>('#close')!.onclick = () => void closeScene();
-void listen('browser-close', closeScene);
+document.querySelector<HTMLButtonElement>('#close')!.onclick = () => void close();
+void listen('browser-close', close);
 Object.assign(globalThis, { browserTest: { host, eventListenerCount } });
 void show();

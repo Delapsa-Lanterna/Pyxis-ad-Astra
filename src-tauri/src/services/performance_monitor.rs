@@ -44,11 +44,6 @@ pub fn initialize(requested: bool) {
                     ..Monitor::default()
                 })
             });
-            #[cfg(feature = "performance-monitor")]
-            tracing::subscriber::set_global_default(
-                tracing_subscriber::registry().with(layer::MonitorLayer),
-            )
-            .expect("performance subscriber installed once");
         }
         active
     });
@@ -772,88 +767,53 @@ impl Monitor {
 #[path = "performance_monitor_tests.rs"]
 mod tests;
 
-#[cfg(feature = "performance-monitor")]
-use tracing_subscriber::prelude::*;
-#[cfg(feature = "performance-monitor")]
-mod layer {
-    use super::*;
-    use std::time::Instant;
-    use tracing::{
-        Subscriber,
-        span::{Attributes, Id},
-    };
-    use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
-    pub(super) struct MonitorLayer;
-    struct SpanData {
-        started: Instant,
-        sample: PerformanceSample,
-        window: String,
+#[cfg(all(test, feature = "performance-monitor"))]
+#[path = "command_timing_tests.rs"]
+mod command_tests;
+
+pub struct CommandTiming(Option<(std::time::Instant, String, PerformanceSample)>);
+impl CommandTiming {
+    fn start(active: bool, command: &str, window: &str, request: Option<&str>) -> Self {
+        if !active || command.starts_with("performance_monitor_") || command.contains("app_log") {
+            return Self(None);
+        }
+        Self(Some((
+            std::time::Instant::now(),
+            window.into(),
+            PerformanceSample {
+                name: command.into(),
+                category: "backend".into(),
+                started_at: now(),
+                duration: 0.0,
+                fields: BTreeMap::from([(
+                    "request".into(),
+                    request.map(Value::from).unwrap_or(Value::Null),
+                )]),
+            },
+        )))
     }
-    impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for MonitorLayer {
-        fn enabled(&self, metadata: &tracing::Metadata<'_>, _: Context<'_, S>) -> bool {
-            matches!(metadata.name(), "monitor.command" | "ipc::request::run")
-        }
-        fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
-            let span = context.span(id).expect("registered span");
-            let mut fields = BTreeMap::new();
-            attributes.record(
-                &mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| {
-                    fields.insert(
-                        field.name().to_string(),
-                        format!("{value:?}").trim_matches('"').to_string(),
-                    );
-                },
-            );
-            let (window, command, request) = if let Some(parent) = span.parent() {
-                let extensions = parent.extensions();
-                if let Some(data) = extensions.get::<SpanData>() {
-                    (
-                        data.window.clone(),
-                        data.sample.name.clone(),
-                        data.sample
-                            .fields
-                            .get("request")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                    )
-                } else {
-                    return;
-                }
-            } else {
-                (
-                    fields.remove("window").unwrap_or_default(),
-                    fields.remove("command").unwrap_or_default(),
-                    fields
-                        .remove("request")
-                        .map(Value::String)
-                        .unwrap_or(Value::Null),
-                )
-            };
-            if command.is_empty() {
-                return;
-            }
-            span.extensions_mut().insert(SpanData {
-                started: Instant::now(),
-                window,
-                sample: PerformanceSample {
-                    name: command,
-                    category: "backend".into(),
-                    started_at: now(),
-                    duration: 0.0,
-                    fields: BTreeMap::from([("request".into(), request)]),
-                },
-            });
-        }
-        fn on_close(&self, id: Id, context: Context<'_, S>) {
-            let span = context.span(&id).expect("closing span");
-            if span.name() != "ipc::request::run" {
-                return;
-            }
-            if let Some(data) = span.extensions_mut().remove::<SpanData>() {
-                let mut sample = data.sample;
-                sample.duration = data.started.elapsed().as_secs_f64() * 1000.0;
-                record(data.window, sample);
-            }
+}
+impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for CommandTiming {
+    fn from_command(
+        command: tauri::ipc::CommandItem<'de, R>,
+    ) -> Result<Self, tauri::ipc::InvokeError> {
+        Ok(Self::start(
+            enabled(),
+            command.message.command(),
+            command.message.webview_ref().label(),
+            command
+                .message
+                .headers()
+                .get("x-performance-request")
+                .and_then(|value| value.to_str().ok()),
+        ))
+    }
+}
+impl Drop for CommandTiming {
+    fn drop(&mut self) {
+        if let Some((started, window, mut sample)) = self.0.take() {
+            sample.duration = started.elapsed().as_secs_f64() * 1000.0;
+            record(window, sample);
         }
     }
 }

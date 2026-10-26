@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommittedWriteEvent, SpecEditorKind, FileChangeRecord } from '@/shared/types';
-import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
-import { entityTargetFixture } from '@/test/entity-target';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
   listeners: [] as Array<{ handler: (event: CommittedWriteEvent) => Promise<void>; phase: string | undefined }>,

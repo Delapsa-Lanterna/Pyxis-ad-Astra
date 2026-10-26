@@ -4,7 +4,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub async fn request_window(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -20,7 +20,7 @@ pub async fn request_window(
     .map_err(|error| AppError::message("window.delivery_wait", error.to_string()).diagnostic())?
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn focus_managed_window(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -28,7 +28,7 @@ pub fn focus_managed_window(
 ) -> Result<bool, AppError> {
     services::windows::focus_managed_window(&app, window.label(), &identity)
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn update_managed_window_status(
     window: tauri::WebviewWindow,
     payload: ManagedWindowStatus,
@@ -36,24 +36,24 @@ pub fn update_managed_window_status(
     services::windows::update_status(window.label(), payload)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn release_window_targets(window: tauri::WebviewWindow) -> Result<(), AppError> {
     services::windows::release_targets(window.label())
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn update_edit_target_registration(
     window: tauri::WebviewWindow,
     targets: Vec<crate::models::EditWriteTarget>,
 ) -> Result<(), crate::errors::AppError> {
     services::windows::update_edit_targets(window.label(), targets)
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_edit_target_owners(
     targets: Vec<crate::models::EditWriteTarget>,
 ) -> Result<Vec<String>, crate::errors::AppError> {
     services::windows::query_edit_target_owners(&targets)
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn reserve_edit_targets(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -61,7 +61,7 @@ pub fn reserve_edit_targets(
 ) -> Result<(), crate::errors::AppError> {
     services::windows::reserve_edit_targets(&app, window.label(), &targets)
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn focus_edit_target_owner(
     app: tauri::AppHandle,
     label: String,
@@ -69,19 +69,19 @@ pub fn focus_edit_target_owner(
     services::windows::focus_edit_target_owner(&app, &label)
 }
 
-#[tauri::command]
+#[command_macros::command]
 pub fn get_current_window_context(
     window: tauri::WebviewWindow,
 ) -> Result<crate::models::ManagedWindowContext, AppError> {
     services::windows::current_window_context(window.label())
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn get_current_window_request(
     window: tauri::WebviewWindow,
 ) -> Result<Option<crate::models::ManagedWindowContext>, AppError> {
     services::windows::current_window_request(window.label())
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn accept_window_request(
     window: tauri::WebviewWindow,
     request_id: u64,
@@ -89,7 +89,7 @@ pub fn accept_window_request(
 ) -> Result<bool, AppError> {
     services::windows::accept_window_request(window.label(), request_id, receiver_generation)
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn fail_window_request(
     window: tauri::WebviewWindow,
     request_id: u64,

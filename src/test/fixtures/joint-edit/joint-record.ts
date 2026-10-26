@@ -1,7 +1,7 @@
 import type { JointEditSnapshot, JointEditRecord, JointEditKind, JointValue, CsvTableKey, EntityKind, RowData } from '@/shared/types';
 import { entityContentId } from '@/domain/project/entity-definitions';
 import { immersiveEditableRecords } from '@/domain/immersive/source-records';
-import { entityTargetFixture } from './entity-target';
+import { entityTargetFixture } from '../entity-target';
 
 export const fixtureCsvPaths: Partial<Record<CsvTableKey, string>> = {
   ships: 'data/hulls/ship_data.csv',

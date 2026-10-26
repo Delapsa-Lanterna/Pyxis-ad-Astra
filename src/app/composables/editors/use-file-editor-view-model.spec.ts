@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { savedWriteFixture } from '@/test/write-result';
-import { entityTargetFixture } from '@/test/entity-target';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 beforeEach(() => {
   setActivePinia(createPinia());

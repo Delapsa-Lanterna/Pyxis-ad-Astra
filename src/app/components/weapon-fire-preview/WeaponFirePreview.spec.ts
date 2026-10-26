@@ -1,9 +1,9 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { installCanvas2DStub } from '@/test/canvas-stub';
-import { editorUiStubs, nSwitch } from '@/test/ui-stubs';
-import { createSettingsFixture } from '@/test/settings';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
+import { editorUiStubs, nSwitch } from '@/test/unit/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';

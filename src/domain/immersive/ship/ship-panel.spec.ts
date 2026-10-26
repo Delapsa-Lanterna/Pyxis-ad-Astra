@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { jointFixtureValues, fixtureSpecRecord, fixtureCsvRecord } from '@/test/joint-record';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { jointFixtureValues, fixtureSpecRecord, fixtureCsvRecord } from '@/test/fixtures/joint-edit/joint-record';
 import { projectShipPanel } from './ship-panel';
 import { updateImmersiveField } from '../fields';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { jointObject } from '@/domain/joint-edit';
 import { projectVariantPanel } from '../variant/variant-panel';
 

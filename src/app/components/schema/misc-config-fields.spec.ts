@@ -11,10 +11,10 @@ import { parseFileSchema } from '@/domain/schema/schema-asset-parser';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
-import { miscConfigFixture } from '@/test/misc-config';
+import { miscConfigFixture } from '@/test/fixtures/misc-config';
 import type { MiscConfigKind, RowData } from '@/shared/types';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 

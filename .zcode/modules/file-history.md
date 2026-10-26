@@ -29,7 +29,7 @@
 ### 关联
 
 - `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
-- `src/test/write-result.ts`：跨写入场景的正式提交结果夹具。
+- `src/test/fixtures/write-result.ts`：跨写入场景的正式提交结果夹具。
 
 ## 边界
 

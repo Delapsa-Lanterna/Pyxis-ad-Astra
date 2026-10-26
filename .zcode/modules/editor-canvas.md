@@ -48,8 +48,8 @@
 - `src/shared/lib/entry-keys.ts`：稳定条目键，为列表渲染提供结构化稳定 key。
 - `src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
 - `src/shared/lib/starsector/colors.ts`：挂载类型颜色、槽位半径与 RGBA 样式投影。
-- `src/test/canvas-recorder.ts`：画布绘制调用与样式的测试记录器。
-- `src/test/canvas-stub.ts`：画布尺寸及绘制上下文的测试装配。
+- `src/test/unit/canvas-recorder.ts`：画布绘制调用与样式的测试记录器。
+- `src/test/unit/canvas-stub.ts`：画布尺寸及绘制上下文的测试装配。
 
 ### 关联
 

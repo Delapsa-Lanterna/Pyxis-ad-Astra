@@ -1,13 +1,13 @@
-import { mountCsvInputHost } from '@/test/csv-input-host';
+import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import type { ResourceRef } from '@/shared/types';
 import CsvGridStaticCell from './CsvGridStaticCell.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 vi.mock('@/services/resource-media.service', () => ({
   resourceMediaDataUrl: vi.fn(() => 'data:image/png;base64,x'),

@@ -11,7 +11,7 @@ import TitleBar from './TitleBar.vue';
 import { createWindowFeedback } from './app-feedback-assembly';
 import { useAppFeedback } from './composables/use-app-feedback';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { AppFeedback } from '@/shared/types';
 import { useWindowCloseState } from './composables/use-window-close-state';
 import type { Ref } from 'vue';

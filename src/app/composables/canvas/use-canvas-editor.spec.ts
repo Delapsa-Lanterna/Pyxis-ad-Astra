@@ -10,9 +10,9 @@ import { useEditorDocument } from '@/app/composables/editors/use-editor-document
 import { useCanvasViewport } from './use-canvas-viewport';
 import { beginEditorCollapseLeave, finishEditorCollapseLeave } from '@/app/components/editors/common/editor-collapse';
 import type { EditContext, RowData } from '@/shared/types';
-import { installCanvas2DStub } from '@/test/canvas-stub';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 

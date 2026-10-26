@@ -6,7 +6,7 @@ import { useModFileBrowserViewModel } from './use-mod-file-browser-view-model';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
-import { sessionUpdateFixture, savedWriteFixture } from '@/test/write-result';
+import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import type { ModDirectory, ModFileEntry } from '@/shared/types/mod-file-browser.types';
 import type { CommittedWriteEvent } from '@/shared/types';

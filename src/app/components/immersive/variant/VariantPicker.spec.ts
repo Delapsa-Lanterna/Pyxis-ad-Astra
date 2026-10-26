@@ -6,7 +6,7 @@ import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-in
 import type { JointVariantEntry } from '@/shared/types';
 import VariantPicker from './VariantPicker.vue';
 import VariantImmersivePanel from './VariantImmersivePanel.vue';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import { jointObject } from '@/domain/joint-edit';

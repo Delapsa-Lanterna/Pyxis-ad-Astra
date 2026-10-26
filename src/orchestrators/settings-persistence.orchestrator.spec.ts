@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import type { AppSettings, SettingsSnapshot } from '@/shared/types';
 const api = vi.hoisted(() => ({ defaults: vi.fn(), save: vi.fn(), read: vi.fn(), listen: vi.fn(), history: vi.fn(), stop: vi.fn() }));

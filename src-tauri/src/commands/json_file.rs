@@ -32,7 +32,7 @@ fn json_file_save_context(
     Ok(target_exists)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_variant_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
     services::require_entity_version_scope(
@@ -59,7 +59,7 @@ pub fn save_variant_entity(payload: JsonEntityFilePayload) -> Result<WriteResult
     transaction.commit(result, "保存装配")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn create_variant_entity(
     payload: JsonEntityFilePayload,
 ) -> Result<WriteResult<Value>, AppError> {
@@ -83,7 +83,7 @@ pub fn create_variant_entity(
     transaction.commit(result, "创建装配")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn delete_variant_entity(
     payload: DeleteJsonEntityFilePayload,
 ) -> Result<WriteResult, AppError> {
@@ -110,7 +110,7 @@ pub fn delete_variant_entity(
     transaction.commit(result, "删除装配")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
     services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
@@ -143,7 +143,7 @@ pub fn save_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Va
     transaction.commit(result, "保存皮肤")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn create_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
     services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
@@ -165,7 +165,7 @@ pub fn create_skin_entity(payload: JsonEntityFilePayload) -> Result<WriteResult<
     transaction.commit(result, "创建皮肤")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn delete_skin_entity(payload: DeleteJsonEntityFilePayload) -> Result<WriteResult, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
     services::require_entity_version_scope(

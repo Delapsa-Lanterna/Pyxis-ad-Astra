@@ -15,6 +15,8 @@ const api = vi.hoisted(() => ({
   resume: vi.fn(),
   close: vi.fn(),
   flush: vi.fn(),
+  flushPerformance: vi.fn(),
+  label: 'close-fixture',
   readResume: vi.fn(),
   acceptReleased: vi.fn(),
 }));
@@ -30,7 +32,7 @@ vi.mock('@/app/composables/use-query-read-owner', async (original) => {
   };
 });
 vi.mock('@/windows/current.window', () => ({
-  currentWindowLabel: () => 'close-fixture',
+  currentWindowLabel: () => api.label,
   listenCurrentWindowCloseRequest: async (handler: (...args: unknown[]) => unknown) => {
     api.close.mockImplementation(handler);
     return vi.fn();
@@ -54,6 +56,7 @@ vi.mock('./use-window-close-state', () => ({
     replyClose: api.reply,
     readyClose: api.ready,
     acceptReleasedSessions: api.acceptReleased,
+    flushPerformance: api.flushPerformance,
     flushSettings: api.flush,
     prepareDisplay: () => {
       api.prepare();
@@ -85,6 +88,8 @@ async function setup(dirty = ref(false), flushSettings = async () => {}) {
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
+  api.label = 'close-fixture';
+  api.flushPerformance.mockResolvedValue(undefined);
   api.choose.mockResolvedValue('discard');
   api.reply.mockResolvedValue(undefined);
   api.resume.mockResolvedValue(undefined);
@@ -181,12 +186,24 @@ describe('window close preparation', () => {
     wrapper.unmount();
   });
   it('reports a settings failure as a structured flush result', async () => {
+    api.label = 'main';
     const { guard, wrapper } = await setup(ref(false), async () => {
       throw new Error('disk failure');
     });
     await api.listener(intent('hold'));
-    await api.listener(intent('flush'));
+    await api.listener({ ...intent('flush'), scope: { kind: 'application' } });
     expect(api.reply).toHaveBeenLastCalledWith(7, 'flush', false, expect.objectContaining({ message: 'disk failure' }));
+    guard.dispose();
+    wrapper.unmount();
+  });
+  it('delivers a child window performance tail before acknowledging flush', async () => {
+    const { guard, wrapper } = await setup();
+    await api.listener(intent('hold'));
+    await api.listener(intent('flush'));
+    expect(api.flushPerformance).toHaveBeenCalledOnce();
+    expect(api.flush).not.toHaveBeenCalled();
+    expect(api.flushPerformance.mock.invocationCallOrder[0]!).toBeLessThan(api.reply.mock.invocationCallOrder.at(-1)!);
+    expect(api.reply).toHaveBeenLastCalledWith(7, 'flush', true, null);
     guard.dispose();
     wrapper.unmount();
   });

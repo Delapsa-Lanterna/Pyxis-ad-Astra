@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { h, ref, shallowRef } from 'vue';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { jointObject } from '@/domain/joint-edit';
 import type { JointValue } from '@/shared/types';

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { h, shallowRef, nextTick } from 'vue';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { weaponJointFixture } from '@/test/weapon-joint-edit';
-import { wingJointFixture } from '@/test/wing-joint-edit';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
+import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import { projectWeaponPanel } from '@/domain/immersive/weapon/weapon-panel';
 import { jointObject } from '@/domain/joint-edit';

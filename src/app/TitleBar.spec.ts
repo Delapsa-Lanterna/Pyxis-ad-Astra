@@ -3,7 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import TitleBar from './TitleBar.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 const actions = vi.hoisted(() => ({ close: vi.fn(), minimize: vi.fn(), maximize: vi.fn(), drag: vi.fn(), maximized: vi.fn() }));
 vi.mock('@/windows/current.window', () => ({

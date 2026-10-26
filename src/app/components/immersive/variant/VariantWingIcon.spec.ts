@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import type { JointEditSnapshot } from '@/shared/types';
-import { wingJointFixture } from '@/test/wing-joint-edit';
+import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import VariantWingIcon from './VariantWingIcon.vue';
 import { jointObject } from '@/domain/joint-edit';
 

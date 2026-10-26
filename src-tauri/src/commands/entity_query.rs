@@ -7,22 +7,22 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_entity(payload: QueryEntityPayload) -> Result<Option<EntityData>, AppError> {
     services::query_entity(&payload.session_id, payload.kind, &payload.id)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_entity_list(payload: QueryEntityListPayload) -> Result<Vec<EntityData>, AppError> {
     services::query_entity_list(&payload.session_id, payload.kind)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_entity_edit_target(payload: QueryEntityPayload) -> Result<EntityEditInfo, AppError> {
     services::query_entity_edit_target(&payload.session_id, payload.kind, &payload.id)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_entity_identity_intent(
     payload: EntityIdentityIntentPayload,
 ) -> Result<EntityIdentityIntent, AppError> {

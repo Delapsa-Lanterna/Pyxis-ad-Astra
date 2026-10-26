@@ -5,7 +5,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import ContextMenu from './ContextMenu.vue';
 import TitleBar from '@/app/TitleBar.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { NDropdown } from 'naive-ui/es/dropdown';
 import { NConfigProvider } from 'naive-ui/es/config-provider';
 import { createThemeColors } from '@/domain/settings/theme';

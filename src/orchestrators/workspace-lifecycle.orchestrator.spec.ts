@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { sessionUpdateFixture } from '@/test/write-result';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { useProjectStore } from '@/stores/project.store';
 import { closeWorkspaceRuntime, captureWorkspaceCloseTarget, acceptReleasedSessions } from './workspace-lifecycle.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';

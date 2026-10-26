@@ -9,8 +9,8 @@ import { weaponSections, WEAPON_OBJECT_FIELDS } from '@/domain/spec-editor/weapo
 import { EXPLOSION_FIELDS } from '@/domain/spec-editor/projectile/spec-projectile-fields';
 import { SYSTEM_SOUND_FIELDS } from '@/domain/spec-editor/system/spec-system-fields';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { editorUiStubs, nSelect } from '@/test/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
 import { specSchema } from '@/domain/spec-editor/spec-schemas';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import SchemaValueInput from '@/app/components/schema/SchemaValueInput.vue';

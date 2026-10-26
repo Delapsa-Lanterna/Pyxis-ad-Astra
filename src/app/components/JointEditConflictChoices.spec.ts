@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { ref, defineComponent } from 'vue';
 import JointEditConflictChoices from './JointEditConflictChoices.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import type { JointConflictChoice, JointEditConflict } from '@/shared/types';
 describe('joint edit conflict selection component', () => {
   it('displays all three sources and emits a per-field choice without mutating its input', async () => {

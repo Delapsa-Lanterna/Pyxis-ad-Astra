@@ -4,7 +4,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn append_app_logs(
     app_handle: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -13,7 +13,7 @@ pub fn append_app_logs(
     services::app_log::append_app_logs(app_handle, window.label(), payload.entries)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn stop_app_log(
     app_handle: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -23,12 +23,12 @@ pub fn stop_app_log(
     services::app_log::stop_app_log(&app_handle, window.label(), message, dropped)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn get_app_log_status(app_handle: tauri::AppHandle) -> Result<AppLogStatus, AppError> {
     services::app_log::app_log_status(app_handle)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn clear_app_log_file(app_handle: tauri::AppHandle) -> Result<AppLogStatus, AppError> {
     services::app_log::clear_app_log_file(app_handle)
 }

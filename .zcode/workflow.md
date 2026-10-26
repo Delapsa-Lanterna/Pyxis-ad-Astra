@@ -42,26 +42,33 @@
 
 ## 验证方式
 
-- 文档和配置改动必须运行 `format:check`、`encoding:check` 与 `git diff --check`。
-- 前端或架构规则改动必须运行 `format:check`、`encoding:check`、`lint`、`typecheck`、`test` 与 `build`。
-- Rust 改动必须运行 `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings` 与 `cargo test`。
-- 跨层、保存、路径、parser、workspace 或发布链路改动必须运行全部检查。
-- 视觉改动必须人工检查。
+- 必须按改动文件、受影响行为和依赖链选择检查，并说明对应范围。
+- 任何改动必须运行 `git diff --check`。
+- 文本格式必须使用对应工具检查；Prettier 必须限定改动文件，Rust 必须指定所属 Cargo 项目。
+- 前端代码改动必须运行 `lint` 与 `typecheck`。
+- Rust 代码改动必须运行 `lint:rust`。
+- 行为改动必须运行覆盖受影响行为的测试。
+- 涉及架构、样式、标识符或编码约束的改动，必须运行对应检查脚本。
+- 检查器实现或规则改动必须运行对应检查器测试。
+- 前端构建配置、依赖、资源装配或打包链路改动必须运行 `build`。
+- Tauri 配置、Rust 构建配置、依赖或应用装配改动必须运行 Tauri 构建。
+- 跨层接口或共享行为改动必须组合执行受影响层的检查与测试。
+- 视觉改动必须人工检查受影响界面。
+- Tauri 构建包含的前端构建必须计入已执行验证。
 
 ## 常用命令
 
 ```powershell
 npm.cmd run format
 npm.cmd run format:check
-npm.cmd run encoding:check
 npm.cmd run lint
+npm.cmd run lint:fix
+npm.cmd run lint:rust
+npm.cmd run lint:checks
 npm.cmd run typecheck
 npm.cmd run test
-npm.cmd run test:browser
+npm.cmd run test:rust
 npm.cmd run build
-cargo fmt --manifest-path src-tauri\Cargo.toml --check
-cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path src-tauri\Cargo.toml
 git diff --check
 ```
 
@@ -71,8 +78,8 @@ git diff --check
 
 ## 事后要求
 
-- 无论任务范围，必须用项目内格式化工具执行全仓 format
+- 无论任务范围，必须用项目内格式化工具执行全仓 format。
 - 行为、架构、所有权、调用链、保存边界或长期规范变化时，必须在得到用户授权的前提下同步对应 guideline、module map 或模块契约。
-- 文档必须只描述当前有效事实，严禁记录实现过程、迁移历史、临时状态或候选方案；阶段任务只允许写入 `.zcode/todo.md`。
+- 文档必须只描述当前有效事实，严禁记录实现过程、迁移历史、临时状态或候选方案；阶段任务只允许在得到用户授权的前提下写入 `.zcode/todo.md`。
 - 复查性能开销，确认改动是否产生任何程度的性能问题。特别是时间开销。
 - 清理不再需要的临时文件，特别是用户 AppData 之中 Temp 目录下的文件。

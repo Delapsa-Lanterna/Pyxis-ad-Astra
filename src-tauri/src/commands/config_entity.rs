@@ -8,7 +8,7 @@ use crate::{
 };
 use serde_json::Value;
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_mod_info(
     payload: SaveModInfoPayload,
 ) -> Result<WriteResult<serde_json::Value>, AppError> {
@@ -22,7 +22,7 @@ pub fn save_mod_info(
     transaction.commit(result, "保存 Mod 信息")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_indexed_config_entity(
     payload: IndexedConfigEntityPayload,
 ) -> Result<WriteResult<Value>, AppError> {
@@ -58,7 +58,7 @@ pub fn save_indexed_config_entity(
     transaction.commit(result, "保存配置实体")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn create_indexed_config_entity(
     payload: IndexedConfigEntityPayload,
 ) -> Result<WriteResult<Value>, AppError> {
@@ -89,7 +89,7 @@ pub fn create_indexed_config_entity(
     transaction.commit(result, "创建配置实体")
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn delete_indexed_config_entity(
     payload: DeleteIndexedConfigEntityPayload,
 ) -> Result<WriteResult<Value>, AppError> {

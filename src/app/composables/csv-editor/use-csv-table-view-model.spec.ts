@@ -6,9 +6,9 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { sessionUpdateFixture } from '@/test/write-result';
-import { csvDraftRow, csvTableIndex } from '@/test/csv-row';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   index: vi.fn(),

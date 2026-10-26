@@ -1,18 +1,18 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { jointObject } from '@/domain/joint-edit';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { weaponJointFixture } from '@/test/weapon-joint-edit';
-import { wingJointFixture } from '@/test/wing-joint-edit';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
+import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { setVariantHullmod, equipVariantWing } from '@/domain/immersive/variant/variant-actions';
 import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 
 const mocks = vi.hoisted(() => ({

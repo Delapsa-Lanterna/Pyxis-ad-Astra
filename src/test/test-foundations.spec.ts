@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { installCanvas2DStub } from './canvas-stub';
-import { createCanvasRecorder } from './canvas-recorder';
-import { shipJointFixture } from './ship-joint-edit';
-import { weaponJointFixture } from './weapon-joint-edit';
-import { wingJointFixture } from './wing-joint-edit';
-import { variantJointFixture } from './variant-joint-edit';
+import { installCanvas2DStub } from './unit/canvas-stub';
+import { createCanvasRecorder } from './unit/canvas-recorder';
+import { shipJointFixture } from './fixtures/joint-edit/ship-joint-edit';
+import { weaponJointFixture } from './fixtures/joint-edit/weapon-joint-edit';
+import { wingJointFixture } from './fixtures/joint-edit/wing-joint-edit';
+import { variantJointFixture } from './fixtures/joint-edit/variant-joint-edit';
 import { jointObject } from '@/domain/joint-edit';
 import { entityContentId } from '@/domain/project/entity-definitions';
 import { summarize } from '../../scripts/shared/sample-statistics.mjs';

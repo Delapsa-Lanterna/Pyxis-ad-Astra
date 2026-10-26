@@ -6,6 +6,9 @@ authors = ["Circinus ad Astra"]
 edition = "2024"
 rust-version = "1.99.1"
 
+[workspace]
+members = ["command-macros"]
+
 [lib]
 name = "circinus_ad_astra_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -15,9 +18,10 @@ tauri-build = { version = "2.7.4", features = [] }
 
 [features]
 default = ["performance-monitor"]
-performance-monitor = ["tauri/tracing", "dep:tracing", "dep:tracing-subscriber"]
+performance-monitor = []
 
 [dependencies]
+command-macros = { path = "command-macros" }
 base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 csv = "1.3"
@@ -29,9 +33,10 @@ tauri-plugin-dialog = "2.8.3"
 tauri-plugin-clipboard-manager = "2.5.0"
 tauri-plugin-single-instance = "2.5.4"
 thiserror = "2"
-tracing = { version = "0.1", optional = true }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"], optional = true }
 walkdir = "2.5"
+
+[dev-dependencies]
+tauri = { version = "2.12.5", features = ["test"] }
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39.1"

@@ -4,12 +4,12 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn load_workspace(app_handle: tauri::AppHandle) -> Result<PersistedWorkspace, AppError> {
     services::workspace_persistence::load_app_workspace(app_handle)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_workspace(
     app_handle: tauri::AppHandle,
     payload: SaveWorkspacePayload,

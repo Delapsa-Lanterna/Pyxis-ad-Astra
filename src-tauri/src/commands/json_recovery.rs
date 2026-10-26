@@ -4,14 +4,14 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn prepare_json_source_recovery(
     payload: JsonRecoveryRequest,
 ) -> Result<JsonRecoveryPlan, AppError> {
     services::prepare_json_source_recovery(payload)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn recreate_json_sources(
     payload: RecreateJsonSourcesPayload,
 ) -> Result<WriteResult<JsonRecoveryPlan>, AppError> {

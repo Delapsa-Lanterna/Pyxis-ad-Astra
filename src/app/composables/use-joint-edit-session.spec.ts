@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 

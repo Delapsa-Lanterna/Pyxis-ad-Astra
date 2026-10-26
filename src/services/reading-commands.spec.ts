@@ -11,7 +11,7 @@ import {
 import { querySessionDraftResources, resolveModImageReference } from './resource-reference.service';
 import { queryResourceDataUrls, invalidateResourceMediaForSession } from './resource-media.service';
 import { invalidateQueryCacheForSession } from './query-cache.service';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { jsonDocumentRecord } from '@/domain/json-editor/json-document-definitions';
 import type { EntityData, ResourceRef, DeepReadonly, CsvRowPreviewPayload } from '@/shared/types';
 import { expectTypeOf } from 'vitest';

@@ -1,8 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import { sessionUpdateFixture } from '@/test/write-result';
-import { csvDraftRow, csvTableIndex } from '@/test/csv-row';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import {
   applyCsvDraftOperation,
   applyCsvTableIndexDraft,

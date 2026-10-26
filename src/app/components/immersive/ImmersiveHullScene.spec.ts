@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
-import { installCanvas2DStub } from '@/test/canvas-stub';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import ImmersiveHullScene from './ImmersiveHullScene.vue';
 import { loadEngineFallbacks } from '@/app/renderers/editors/engine-fallback';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 const mocks = vi.hoisted(() => ({
   images: new Map<string, HTMLImageElement>(),
   engines: {} as Record<string, HTMLImageElement>,

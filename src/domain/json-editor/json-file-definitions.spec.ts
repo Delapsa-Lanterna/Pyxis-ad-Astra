@@ -1,4 +1,4 @@
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { describe, expect, it } from 'vitest';
 import type { JsonEntityFile } from '@/shared/types';
 import { jsonFileCompanion, jsonFileTitle, skinFileDefinition, variantFileDefinition } from './json-file-definitions';

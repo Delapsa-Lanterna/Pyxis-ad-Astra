@@ -45,7 +45,7 @@ vi.mock('@/orchestrators/settings-persistence.orchestrator', () => ({
 
 import { useSettingsViewModel } from './use-settings-view-model';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 describe('useSettingsViewModel', () => {
   beforeEach(() => {

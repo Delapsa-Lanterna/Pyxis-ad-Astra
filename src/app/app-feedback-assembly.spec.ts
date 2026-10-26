@@ -10,8 +10,8 @@ import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 
 const mocks = vi.hoisted(() => ({
   log: vi.fn(),

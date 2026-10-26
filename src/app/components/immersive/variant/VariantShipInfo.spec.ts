@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { jointObject } from '@/domain/joint-edit';
 import VariantShipInfo from './VariantShipInfo.vue';

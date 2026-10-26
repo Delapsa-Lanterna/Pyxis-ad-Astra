@@ -16,6 +16,7 @@
 
 ### 消费
 
+- `src-tauri/command-macros/`：统一命令声明、登记与执行计时接入。
 - `src-tauri/src/models/mod.rs`：正式模型导出、serde 输入原语与共享去重追加函数。
 - `src-tauri/src/models/project_identity.rs`：command 消费的所属 session 与 Mod 根范围契约。
 - `src/shared/runtime/command-runtime.spec.ts`：传输与来源诊断验收。
@@ -55,6 +56,7 @@
 ## 规范
 
 - `AppError.command` 必须表达底层 command；`formatError` 必须透过该包装消费原始用户文案投影。
+- command 声明与登记必须消费共同命令生成规则；业务函数参数与返回值必须保留所属能力契约。
 - command 必须由可静态判定的字面量表达；别名、namespace、转导出和动态模块导入必须保留来源。
 - `errorContextOf` 必须分别表达领域 action 和 command，日志必须按所属字段记录。
 - `errorDiagnosticOf` 必须保留来源稳定码、原始消息和结构化位置；附加 payload 必须沿 cause 消费。

@@ -3,8 +3,8 @@ import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { editorUiStubs, nInputNumber } from '@/test/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { editorUiStubs, nInputNumber } from '@/test/unit/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 

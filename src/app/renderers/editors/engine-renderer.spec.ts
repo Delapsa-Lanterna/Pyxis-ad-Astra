@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { createEngineProduct, engineBounds, enginePaths, engineStyle, type EngineShape } from './engine-renderer';
 
 afterEach(() => vi.restoreAllMocks());

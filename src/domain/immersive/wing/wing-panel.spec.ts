@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wingJointFixture } from '@/test/wing-joint-edit';
+import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { immersiveEditableRecords } from '../source-records';
 import { projectWingPanel } from './wing-panel';
 import { updateImmersiveField } from '../fields';

@@ -1,4 +1,4 @@
-import { csvTableIndex } from '@/test/csv-row';
+import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { computed, h, nextTick } from 'vue';
@@ -7,15 +7,15 @@ import CsvGrid from './CsvGrid.vue';
 import { createCsvGridColumns } from '@/domain/csv-editor/csv-grid-model';
 import { provideCsvTableInputs } from '@/app/composables/csv-editor/use-csv-table-inputs';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { TABLE_KEYS } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
-import { sessionUpdateFixture } from '@/test/write-result';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { applySavedCsvRowKeyMapDraft } from '@/domain/csv-editor/csv-table-draft';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
 

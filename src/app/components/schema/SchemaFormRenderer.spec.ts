@@ -8,7 +8,7 @@ import SchemaFormRenderer from './SchemaFormRenderer.vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn() }) }));
 

@@ -4,9 +4,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { provideOriginalFonts, useOriginalFont, useFontMeasurement } from './use-original-fonts';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
-import { originalFontFixture } from '@/test/font';
+import { originalFontFixture } from '@/test/fixtures/font';
 import type { FontId } from '@/domain/fonts/font.types';
 import type { OriginalFontResult } from '@/shared/types/font.types';
 

@@ -7,9 +7,9 @@ import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { jsonEntityFixture } from '@/test/json-editor';
-import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { jsonEntityFixture } from '@/test/fixtures/json-editor';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import {
   JSON_DOCUMENT_DEFINITIONS,
   jsonDocumentRecord,

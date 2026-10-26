@@ -4,7 +4,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn open_project_session(
     app_handle: tauri::AppHandle,
     payload: OpenProjectSessionPayload,
@@ -16,7 +16,7 @@ pub fn open_project_session(
     )
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn close_project_session(payload: CloseProjectSessionPayload) -> Result<(), AppError> {
     services::project_session::release_project_session(payload.session_id)
 }

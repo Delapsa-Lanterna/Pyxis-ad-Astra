@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { EntityData, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecWeaponEditorData, querySpecWeaponEditorImages } from './spec-weapon-editor.service';
 

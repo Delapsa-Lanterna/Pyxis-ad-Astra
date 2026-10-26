@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import WriteSyncNotice from './WriteSyncNotice.vue';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { savedWriteFixture } from '@/test/write-result';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 const mocks = vi.hoisted(() => ({ retry: vi.fn(), error: vi.fn() }));
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ retryPendingSessionSyncs: mocks.retry }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));

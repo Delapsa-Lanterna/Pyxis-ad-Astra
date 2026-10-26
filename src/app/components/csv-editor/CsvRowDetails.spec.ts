@@ -1,9 +1,9 @@
-import { csvTableIndex } from '@/test/csv-row';
+import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { mount } from '@vue/test-utils';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';

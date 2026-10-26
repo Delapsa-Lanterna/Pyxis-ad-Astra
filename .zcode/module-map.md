@@ -59,7 +59,8 @@
 
 ## 公共文件
 
-- `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置、样本统计及原生替换工具。
+- `scripts/browser/`：浏览器模拟、测试台、生产样本构建、执行与报告的公共工具。
+- `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置及样本统计工具。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
@@ -70,7 +71,7 @@
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。
 - `src/shared/`：前端公共协议、原语、工具与控件。
 - `src/styles/`：按业务及关联组件组织的展示规则与样式入口。
-- `src/test/`：前端共享测试数据、控件与画布替身，以及浏览器场景和独立样本服务。
+- `src/test/`：共享数据工厂、单元测试辅助、浏览器模拟运行时、场景、操作与基准。
 
 ## 模块索引
 

@@ -1,4 +1,4 @@
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntityData, ResourceRef, RowData } from '@/shared/types';
 

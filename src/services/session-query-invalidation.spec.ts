@@ -19,7 +19,7 @@ import {
   prepareJointEdit,
 } from './joint-edit.service';
 import { invalidateQueryCacheByProject, invalidateQueryCacheForSession } from './query-cache.service';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { JointEditSnapshot, ProjectInvalidation, InvalidatedQueryScope } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());

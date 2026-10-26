@@ -1,5 +1,5 @@
 import { outlineStyle, controlPointStyle, centerMarkerStyle, weaponSlotStyle, launchBayPortStyle, barrelStyle } from './canvas-styles';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { describe, expect, it } from 'vitest';
 import type { Point } from '@/domain/editors/editor-types';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';

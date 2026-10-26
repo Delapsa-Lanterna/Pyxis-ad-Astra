@@ -1,4 +1,4 @@
-import { csvDraftRow } from '@/test/csv-row';
+import { csvDraftRow } from '@/test/fixtures/csv-row';
 import { describe, expect, it } from 'vitest';
 import type { CsvDraftRow, RowData } from '@/shared/types';
 import { createCsvGridColumns, csvRenderColumns, type CsvGridColumn } from './csv-grid-model';

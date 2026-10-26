@@ -3,10 +3,10 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import type { RowData } from '@/shared/types/index';
-import { installCanvas2DStub } from '@/test/canvas-stub';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 const mocks = vi.hoisted(() => ({
   feedback: {

@@ -1,7 +1,7 @@
 import { replaceCsvTableDraft, markCsvTableSavedDraft } from '@/domain/csv-editor/csv-table-draft';
-import { csvRows } from '@/test/csv-row';
-import { csvDraftRow } from '@/test/csv-row';
-import { entityTargetFixture } from '@/test/entity-target';
+import { csvRows } from '@/test/fixtures/csv-row';
+import { csvDraftRow } from '@/test/fixtures/csv-row';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';

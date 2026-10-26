@@ -4,7 +4,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_csv_source_options(
     payload: CsvSourceOptionsPayload,
 ) -> Result<Vec<SourceOptionGroup>, AppError> {

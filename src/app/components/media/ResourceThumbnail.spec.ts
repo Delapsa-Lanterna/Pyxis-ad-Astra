@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { installCanvas2DStub } from '@/test/canvas-stub';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { windowImageRuntime } from '@/app/composables/use-window-image-runtime';
 import ResourceThumbnail from './ResourceThumbnail.vue';
 import type { ResourceRef } from '@/shared/types';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 afterEach(() => {
   windowImageRuntime().clearSession('thumbnail-test');

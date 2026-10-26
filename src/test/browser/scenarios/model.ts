@@ -15,30 +15,34 @@ import type {
   MiscConfigFile,
   ErrorDiagnostic,
 } from '@/shared/types';
-import { createSettingsFixture } from '../settings';
-import { sessionUpdateFixture, savedWriteFixture } from '../write-result';
-import { shipJointFixture } from '../ship-joint-edit';
-import { weaponJointFixture } from '../weapon-joint-edit';
-import { wingJointFixture } from '../wing-joint-edit';
-import { variantJointFixture } from '../variant-joint-edit';
-import { retargetJointFixture, fixtureLocation, fixtureSpecTarget } from '../joint-record';
+import { createSettingsFixture } from '../../fixtures/settings';
+import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
+import { shipJointFixture } from '../../fixtures/joint-edit/ship-joint-edit';
+import { weaponJointFixture } from '../../fixtures/joint-edit/weapon-joint-edit';
+import { wingJointFixture } from '../../fixtures/joint-edit/wing-joint-edit';
+import { variantJointFixture } from '../../fixtures/joint-edit/variant-joint-edit';
+import { retargetJointFixture, fixtureLocation, fixtureSpecTarget } from '../../fixtures/joint-edit/joint-record';
 import { jointObject } from '@/domain/joint-edit';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { variantEditableRecords } from '@/domain/immersive/source-records';
+import { resourceImage } from '../../fixtures/resources';
 
 export const scenarioNames = ['settings', 'json', 'csv', 'ship', 'weapon', 'wing', 'variant', 'weapons', 'wings', 'hullmods'] as const;
 export type BrowserScenario = (typeof scenarioNames)[number];
 export const sampleRoot = 'M:/browser-sample';
 const builders = { ship: shipJointFixture, weapon: weaponJointFixture, wing: wingJointFixture, variant: variantJointFixture };
-let settingsRevision = 0;
-let windowRevision = 0;
 export const sampleImage =
   'data:image/svg+xml,' +
   encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="48"><path fill="#8db5ce" d="M16 1 28 38 23 45H9L4 38Z"/><path fill="#edf6fc" d="M16 8 19 34H13Z"/></svg>',
   );
 
-export function createBrowserModel(scene: BrowserScenario, count = scene === 'csv' ? 50 : 30, sessionId = 'browser-sample') {
+export function createBrowserModel(
+  scene: BrowserScenario,
+  count = scene === 'csv' ? 50 : 30,
+  sessionId = 'browser-sample',
+  resourceSize = 0,
+) {
   const header = [
     'id',
     'name',
@@ -78,7 +82,8 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
   const catalogs = new Map<JointVariantCatalogKind, JointVariantEntry[]>();
   const commits = new Map<number, Pick<ReturnType<typeof savedWriteFixture>, 'sessionUpdates'>>();
   let settings = createSettingsFixture(),
-    revision = ++settingsRevision,
+    revision = 1,
+    windowRevision = 0,
     commitId = 0,
     nextRow = count,
     reads = 0;
@@ -159,7 +164,7 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
             ownerKind: (kind === 'weapons' ? 'weapon' : kind === 'wings' ? 'ship' : 'hullmods') as 'weapon' | 'ship' | 'hullmods',
             ownerId: id,
             key: 'sprite',
-            relPath: 'graphics/sample.svg',
+            relPath: resourceSize ? `graphics/${resourceSize}/${id}.svg` : 'graphics/sample.svg',
           };
           const location = fixtureLocation(sampleRoot, kind + '.csv');
           const hull = previewHull;
@@ -188,7 +193,7 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
               specClass: 'projectile',
               type: 'BALLISTIC',
               size: 'MEDIUM',
-              turretSprite: 'graphics/sample.svg',
+              turretSprite: resource.relPath,
               turretOffsets: [0, 0],
               turretAngleOffsets: [0],
             },
@@ -369,6 +374,13 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
     saveJoint,
     windowContext,
     commits,
+    logEntries: 0,
+    resourceSize,
+    resourceDataUrl: (path: string) => (resourceSize ? resourceImage(resourceSize, path) : sampleImage),
+    rebase(settingsVersion: number, windowVersion: number) {
+      revision = settingsVersion + 1;
+      windowRevision = windowVersion;
+    },
     get context() {
       return context;
     },
@@ -381,7 +393,7 @@ export function createBrowserModel(scene: BrowserScenario, count = scene === 'cs
     },
     saveSettings(value: AppSettings) {
       settings = structuredClone(value);
-      revision = ++settingsRevision;
+      revision++;
       return { revision, value: structuredClone(settings), performanceMonitorActive: monitor.enabled };
     },
     settingsSnapshot: () => ({ revision, value: structuredClone(settings), performanceMonitorActive: monitor.enabled }),

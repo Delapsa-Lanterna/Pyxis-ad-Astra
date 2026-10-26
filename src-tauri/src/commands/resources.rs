@@ -9,7 +9,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_engine_render_assets(
     session_id: String,
     inline_styles: Vec<serde_json::Value>,
@@ -17,14 +17,14 @@ pub fn query_engine_render_assets(
     services::query_engine_render_assets(&session_id, &inline_styles)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_resource_data_urls(
     payload: ResourceDataUrlBatchPayload,
 ) -> Result<ResourceDataUrlBatchResult, AppError> {
     services::query_resource_data_urls(&payload.session_id, payload.resources)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn resolve_mod_relative_path(
     payload: ResolveModRelativePathPayload,
 ) -> Result<String, AppError> {
@@ -32,7 +32,7 @@ pub fn resolve_mod_relative_path(
     services::resolve_mod_relative_path(&payload.mod_root, &payload.absolute_path)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_draft_resources(
     payload: DraftResourcesPayload,
 ) -> Result<BTreeMap<String, ResourceRef>, AppError> {

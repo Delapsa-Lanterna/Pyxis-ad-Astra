@@ -34,8 +34,8 @@
 - `src/shared/types/cache-limits.types.ts`：完整设置快照消费的缓存预算协议。
 - `src/shared/ui/FieldHints.vue`：设置说明、注意与风险的共同展示。
 - `src/shared/ui/FieldRow.vue`：设置字段、控件和说明的共同展示。
-- `src/test/cache-setup.ts`：缓存服务测试消费的完整预算装配。
-- `src/test/settings.ts`：完整设置快照及独立覆盖的共享测试夹具。
+- `src/test/fixtures/settings.ts`：完整设置快照及独立覆盖的共享测试夹具。
+- `src/test/unit/cache-setup.ts`：缓存服务测试消费的完整预算装配。
 
 ### 装配
 

@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore, useSettingsStore } from './settings.store';
 import { windowCacheLimits } from '@/shared/runtime/cache-limits';
 

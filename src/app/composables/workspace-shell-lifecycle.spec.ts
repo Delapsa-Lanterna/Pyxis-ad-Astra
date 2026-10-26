@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: vi.fn() }) }));
 import { useWorkspaceShellLifecycle } from './use-workspace-shell-lifecycle';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { AppFeedback } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ identity: vi.fn(), events: vi.fn(), restore: vi.fn(), stopPersistence: vi.fn() }));
 vi.mock('@/orchestrators/editor-window.orchestrator', () => ({ listenEditorSpecSaved: mocks.events }));

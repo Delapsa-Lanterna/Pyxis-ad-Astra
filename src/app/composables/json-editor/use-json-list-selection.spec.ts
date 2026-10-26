@@ -7,7 +7,7 @@ import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { savedWriteFixture } from '@/test/write-result';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { AppFeedback, CommittedWriteEvent } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({

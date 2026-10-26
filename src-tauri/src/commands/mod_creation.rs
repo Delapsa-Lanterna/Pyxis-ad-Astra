@@ -4,7 +4,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn create_mod(payload: CreateModPayload) -> Result<CreatedMod, AppError> {
     services::mod_creation::create_mod(payload.destination, payload.template)
 }

@@ -8,9 +8,9 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { loadCoreFields } from '@/orchestrators/core-assets.orchestrator';
-import { createSettingsFixture } from '@/test/settings';
-import { sessionUpdateFixture } from '@/test/write-result';
-import { nPopover } from '@/test/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { nPopover } from '@/test/unit/ui-stubs';
 
 const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields, queryCoreGraphics: mocks.graphics }));

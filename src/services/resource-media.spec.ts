@@ -9,7 +9,7 @@ import {
   invalidateResourceMediaByProject,
 } from './resource-media.service';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { ResourceRef, ProjectInvalidation, ResourceDataUrlBatchResult } from '@/shared/types';
 import { installPerformanceMonitor, type PerformanceSample } from '@/shared/runtime/performance';
 const mock = vi.hoisted(() => ({

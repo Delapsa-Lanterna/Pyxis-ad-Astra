@@ -6,7 +6,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn detect_directory(payload: DetectDirectoryPayload) -> AppResult<OpenDirectoryResult> {
     services::directory_opening::detect_directory(
         std::path::Path::new(&payload.path),
@@ -14,7 +14,7 @@ pub fn detect_directory(payload: DetectDirectoryPayload) -> AppResult<OpenDirect
     )
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn scan_game_overview(payload: ScanGameOverviewPayload) -> AppResult<GameOverviewData> {
     services::directory_opening::scan_game_overview(std::path::Path::new(&payload.starsector_root))
 }

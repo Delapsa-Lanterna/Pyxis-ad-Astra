@@ -7,7 +7,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useEditTargetHandoff } from '@/app/composables/use-edit-target-handoff';
-import { savedWriteFixture, sessionUpdateFixture } from '@/test/write-result';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { AppFeedback } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   save: vi.fn<typeof import('@/orchestrators/csv-save.orchestrator').saveCsvChanges>().mockResolvedValue({ status: 'noop' }),

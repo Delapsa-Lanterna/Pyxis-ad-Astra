@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { projectileAppearance } from '@/domain/editors/projectile-appearance';
 import { drawProjectileVisual, type ProjectileVisual } from './projectile-renderer';
 const bitmap = { width: 32, height: 32 } as HTMLCanvasElement;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { projectVariantPanel, variantOpSegments } from './variant-panel';
 import { immersiveSnapshotScene } from '../hull-scene';
 import { variantEditableRecords } from '../source-records';

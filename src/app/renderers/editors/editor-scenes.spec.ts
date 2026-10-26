@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import { createThemeColors } from '@/domain/settings/theme';
 import { renderCanvasCursor, type CanvasScene } from './canvas-scene';

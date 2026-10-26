@@ -3,14 +3,14 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { useSettingsStore } from '@/stores/settings.store';
 import { flushPromises } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import type { RowData } from '@/shared/types/index';
-import { installCanvas2DStub } from '@/test/canvas-stub';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 const mocks = vi.hoisted(() => ({
   feedback: {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
 import { createWindowImageRuntime } from './use-window-image-runtime';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { ResourceRef } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   listener: null as ((event: import('@/services/resource-media.service').ResourceMediaInvalidationEvent) => void) | null,

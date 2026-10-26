@@ -2,8 +2,8 @@ import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { installCanvas2DStub } from '@/test/canvas-stub';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import ImmersiveFilterGroup from './ImmersiveFilterGroup.vue';
 beforeEach(() => {
   installCanvas2DStub();

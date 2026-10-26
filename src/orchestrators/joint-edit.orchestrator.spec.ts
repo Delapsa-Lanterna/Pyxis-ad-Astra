@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { jointFixtureValues } from '@/test/joint-record';
-import { savedWriteFixture } from '@/test/write-result';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { AppFeedback, JointEditDraft } from '@/shared/types';
 const mocks = vi.hoisted(() => ({ prepare: vi.fn(), save: vi.fn() }));
 vi.mock('@/services/joint-edit.service', () => ({ prepareJointEdit: mocks.prepare, saveJointEdit: mocks.save }));

@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick, ref } from 'vue';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { useInputEditMode } from './use-input-edit-mode';
 
 const feedback = vi.hoisted(() => ({ choose: vi.fn(), error: vi.fn() }));

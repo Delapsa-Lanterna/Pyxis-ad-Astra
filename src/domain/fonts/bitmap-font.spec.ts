@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bitmapFontFixture } from '@/test/font';
+import { bitmapFontFixture } from '@/test/fixtures/font';
 import { parseBitmapFont, parseOriginalBitmapFont } from './bitmap-font';
 import { layoutText, bitmapInkBounds } from './text-layout';
 

@@ -4,7 +4,7 @@ import { h } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import JsonFieldEditor from './JsonFieldEditor.vue';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import type { RowData } from '@/shared/types';
 import JsonValueInput from './JsonValueInput.vue';
 

@@ -1,4 +1,4 @@
-import { csvTableIndex } from '@/test/csv-row';
+import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, ref } from 'vue';
@@ -11,9 +11,9 @@ import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { sessionUpdateFixture } from '@/test/write-result';
-import { editorUiStubs, nInput } from '@/test/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
 import type { CsvTableIndex } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));

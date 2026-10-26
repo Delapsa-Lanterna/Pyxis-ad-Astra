@@ -1,12 +1,12 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';
 import { createCsvGridColumns, type CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import CsvGridCellEditor from './CsvGridCellEditor.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
-import { mountCsvInputHost } from '@/test/csv-input-host';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
+import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { vi } from 'vitest';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));

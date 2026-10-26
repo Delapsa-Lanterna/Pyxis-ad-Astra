@@ -1,12 +1,47 @@
 import { describe, expect, it } from 'vitest';
 import { createBrowserModel, sampleRoot } from './model';
-import { installBrowserModel, invoke } from './commands';
-import { listen, eventListenerCount } from './events';
+import { installBrowserModel, invoke } from '../runtime/commands';
+import { listen, emitTo, eventListenerCount } from '../runtime/events';
+import { resourceImage } from '../../fixtures/resources';
 import { jointObject } from '@/domain/joint-edit';
-import { createSettingsFixture } from '../settings';
+import { createSettingsFixture } from '../../fixtures/settings';
 import type { CsvTableIndex, JointEditKind, SaveCsvPatchPayload, SettingsSnapshot, PerformanceMonitorStatus } from '@/shared/types';
 
 describe('browser sample service', () => {
+  it('routes targeted events and releases their listeners', async () => {
+    const received: string[] = [];
+    const first = await listen(
+      'fixture-target',
+      () => {
+        received.push('A');
+      },
+      { target: 'A' },
+    );
+    const second = await listen(
+      'fixture-target',
+      () => {
+        received.push('B');
+      },
+      { target: 'B' },
+    );
+    const before = eventListenerCount();
+    await emitTo('A', 'fixture-target', null);
+    expect(received).toEqual(['A']);
+    first();
+    second();
+    expect(eventListenerCount()).toBe(before - 2);
+  });
+  it('generates independent deterministic resources at each pressure size', () => {
+    for (const size of [32, 128, 512]) {
+      const first = resourceImage(size, 'first');
+      expect(first).toBe(resourceImage(size, 'first'));
+      expect(first).not.toBe(resourceImage(size, 'second'));
+      expect(decodeURIComponent(first)).toContain(`width="${size}" height="${size}"`);
+      const model = createBrowserModel('weapons', 30, 'resources', size);
+      const resources = model.catalog('weapons').map((entry) => entry.resourceRefs.sprite!.relPath);
+      expect(new Set(resources).size).toBe(30);
+    }
+  });
   it('delivers monitor samples and maintains reset, export and detailed recording state', async () => {
     const model = createBrowserModel('settings');
     installBrowserModel(model);

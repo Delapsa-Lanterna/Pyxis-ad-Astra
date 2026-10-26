@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { querySpecProjectileEditorData, querySpecProjectileEditorImages } from './spec-projectile-editor.service';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 const mocks = vi.hoisted(() => ({ entity: vi.fn(), target: vi.fn(), resources: vi.fn(), images: vi.fn() }));
 vi.mock('@/services/entity-query.service', () => ({
   querySessionEntity: mocks.entity,

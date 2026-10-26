@@ -3,8 +3,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { entityTargetFixture } from '@/test/entity-target';
-import { savedWriteFixture } from '@/test/write-result';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import type { AppFeedback, EditHandoffRequest, EditHandoffReply } from '@/shared/types';
 const mocks = vi.hoisted(() => ({

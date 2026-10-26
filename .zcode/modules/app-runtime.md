@@ -18,7 +18,6 @@
 - `package-lock.json`：前端依赖的固定解析结果。
 - `package.json`：应用依赖及正式开发、检查和构建命令。
 - `rust-toolchain.toml`：Rust 工具链版本。
-- `scripts/browser-test.mjs`：浏览器快速验证的热更新启动入口。
 - `showcase/`：应用展示图标资产。
 - `src-tauri/Cargo.lock`：原生依赖的固定解析结果。
 - `src-tauri/Cargo.toml`：原生依赖、编译特性与 crate 配置。
@@ -64,10 +63,11 @@
 
 ### 消费
 
+- `scripts/browser/`：必须消费浏览器模拟与性能测试台的公共启动工具。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/workspace.store.ts`：当前 Mod、正式清单与 session 的工作区派生投影。
 - `src/test/browser/`：浏览器场景、正式窗口壳与独立样本的共享验收装配。
-- `src/test/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
+- `src/test/unit/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
 - `src/windows/window-context.window.ts`：启动消费的原生 bootstrap、上下文与正式设置交接入口。
 
 ### 关联

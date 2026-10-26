@@ -13,5 +13,11 @@ export async function emit(event: string, payload: unknown) {
     [...listeners].filter(([, entry]) => entry.event === event).map(([id, entry]) => entry.handler({ event, id, payload })),
   );
 }
-export const emitTo = (_target: string, event: string, payload: unknown) => emit(event, payload);
+export async function emitTo(target: string, event: string, payload: unknown) {
+  await Promise.all(
+    [...listeners]
+      .filter(([, entry]) => entry.event === event && entry.target === target)
+      .map(([id, entry]) => entry.handler({ event, id, payload })),
+  );
+}
 export const eventListenerCount = () => listeners.size;

@@ -28,4 +28,5 @@ export function getName() {
 export async function writeText(text: string) {
   await navigator.clipboard.writeText(text);
 }
+export const readText = () => navigator.clipboard.readText();
 export const fixtureWindowState = () => browserModel().context;

@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import JsonFieldEditor from './JsonFieldEditor.vue';
 import type { RowData } from '@/shared/types';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { h } from 'vue';
 import { vi } from 'vitest';
 import { NInputNumber } from 'naive-ui/es/input-number';

@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { ModOpeningFailure } from '@/shared/types';
 import { useProjectStore } from './project.store';
-import { sessionUpdateFixture } from '@/test/write-result';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 
 beforeEach(() => setActivePinia(createPinia()));
 

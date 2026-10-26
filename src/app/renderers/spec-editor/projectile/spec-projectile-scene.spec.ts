@@ -3,7 +3,7 @@ import { projectProjectileGeometry, normalizeProjectileSpec } from '@/domain/spe
 
 import { createCanvasPalette } from '@/domain/editors/lib/canvas-palette';
 import { createThemeColors } from '@/domain/settings/theme';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { renderSpecProjectileEditorScene } from './spec-projectile-scene';
 import type { RowData } from '@/shared/types/index';
 

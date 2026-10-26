@@ -103,34 +103,3 @@ fn export_stats_and_payload_filter() {
     assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), value);
     std::fs::remove_dir_all(directory).unwrap();
 }
-
-#[cfg(feature = "performance-monitor")]
-#[test]
-fn command_span_lifetime_and_switch() {
-    initialize(true);
-    initialize(false);
-    assert!(enabled());
-    use tracing::Instrument;
-    let root = tracing::debug_span!(
-        "monitor.command",
-        command = "monitor.fixture",
-        window = "fixture",
-        request = "test-request"
-    );
-    let child = {
-        let _entered = root.enter();
-        tracing::debug_span!("ipc::request::run")
-    };
-    drop(root);
-    tauri::async_runtime::block_on(async { std::future::ready(()).await }.instrument(child));
-    let monitor = state();
-    let records: Vec<_> = monitor
-        .records
-        .iter()
-        .filter(|(_, row)| row.name == "monitor.fixture")
-        .collect();
-    assert_eq!(records.len(), 1);
-    assert_eq!(records[0].0, "fixture");
-    assert_eq!(records[0].1.fields["request"], "test-request");
-    assert!(records[0].1.duration >= 0.0);
-}

@@ -7,7 +7,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIndex, AppError> {
     services::query_csv_table_index(
         &payload.session_id,
@@ -18,7 +18,7 @@ pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIn
     )
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_csv_table_rows(payload: CsvTableRowsPayload) -> Result<CsvTableRowsRead, AppError> {
     if payload.row_keys.len() > 160 {
         return Err(AppError::message(
@@ -29,12 +29,12 @@ pub fn query_csv_table_rows(payload: CsvTableRowsPayload) -> Result<CsvTableRows
     services::query_csv_table_rows(&payload.session_id, payload.table, payload.row_keys)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_csv_row_preview(payload: CsvRowPreviewPayload) -> Result<CsvRowPreview, AppError> {
     services::query_csv_row_preview(&payload.session_id, payload.table, &payload.row_key)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_csv_patch(payload: SaveCsvPatchPayload) -> Result<WriteResult, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
     services::require_csv_version_scope(

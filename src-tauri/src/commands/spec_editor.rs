@@ -5,14 +5,14 @@ use crate::{
 };
 use serde_json::Value;
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn load_imported_editor_spec_file(
     payload: LoadImportedEditorSpecPayload,
 ) -> Result<Value, AppError> {
     services::spec_editor::load_imported_editor_spec_file(payload.kind, payload.path)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_editor_spec(payload: SaveEditorSpecPayload) -> Result<WriteResult<Value>, AppError> {
     let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
     services::require_entity_version_scope(

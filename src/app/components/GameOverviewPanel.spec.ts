@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import GameOverviewPanel from '@/app/components/GameOverviewPanel.vue';
-import { nButton } from '@/test/ui-stubs';
+import { nButton } from '@/test/unit/ui-stubs';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 vi.mock('@/stores/workspace.store', () => ({

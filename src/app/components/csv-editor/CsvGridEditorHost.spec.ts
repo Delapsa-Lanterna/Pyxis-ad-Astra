@@ -1,9 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { mountCsvInputHost } from '@/test/csv-input-host';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { mountCsvInputHost } from '@/test/unit/csv-input-host';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import CsvGridEditorHost from './CsvGridEditorHost.vue';
 import type { CsvGridColumn } from '@/domain/csv-editor/csv-grid-model';
 import type { CsvSourceIndex } from '@/domain/schema/csv-source-options';

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fontGlyph, decodeOriginalFont } from './font-provider';
 import { parseOriginalBitmapFont } from '@/domain/fonts/bitmap-font';
-import { originalFontFixture } from '@/test/font';
+import { originalFontFixture } from '@/test/fixtures/font';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 afterEach(() => {
   initializeCacheLimits(createSettingsFixture().cacheLimits);

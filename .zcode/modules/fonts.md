@@ -33,7 +33,7 @@
 - `src/shared/runtime/app-log-queue.ts`：字体解码及字形缓存详细记录。
 - `src/shared/runtime/cache.ts`：字形缓存消费的容量与访问顺序原语。
 - `src/shared/types/font.types.ts`：字体身份、加载结果与图集页协议。
-- `src/test/font.ts`：自主构造的精简 FNT 与外部加载结果夹具。
+- `src/test/fixtures/font.ts`：自主构造的精简 FNT 与外部加载结果夹具。
 
 ### 装配
 

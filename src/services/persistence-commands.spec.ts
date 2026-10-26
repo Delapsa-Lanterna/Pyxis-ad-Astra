@@ -5,7 +5,7 @@ import * as jsonFileService from '@/services/json-file.service';
 import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as fileService from '@/services/files.service';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type {
   DeleteIndexedConfigEntityPayload,
   DeleteJsonEntityFilePayload,

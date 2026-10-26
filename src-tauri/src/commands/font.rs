@@ -4,7 +4,7 @@ use crate::{
     services,
 };
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn query_original_font(
     payload: QueryOriginalFontPayload,
 ) -> Result<OriginalFontResult, AppError> {

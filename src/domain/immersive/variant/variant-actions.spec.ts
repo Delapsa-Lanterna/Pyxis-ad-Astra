@@ -11,9 +11,9 @@ import {
   isSystemWeapon,
 } from './variant-actions';
 import { setVariantModule } from '@/domain/json-editor/json-variant-modules';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { jointObject } from '@/domain/joint-edit';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { RowData, JointValue, JointEditRecord } from '@/shared/types';
 describe('variant equipment actions', () => {
   it.each([

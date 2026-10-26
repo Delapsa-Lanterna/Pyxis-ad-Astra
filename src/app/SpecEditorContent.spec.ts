@@ -1,16 +1,16 @@
-import { installCanvas2DStub } from '@/test/canvas-stub';
+import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { mount, flushPromises } from '@vue/test-utils';
 import { computed, ref } from 'vue';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
-import { editorUiStubs } from '@/test/ui-stubs';
-import { createCanvasRecorder } from '@/test/canvas-recorder';
+import { createSettingsFixture } from '@/test/fixtures/settings';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
+import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { normalizeShipSpec } from '@/domain/spec-editor/ship/spec-ship-editing';
 
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 const fileTarget = entityTargetFixture('ship', 'XY');
 import type { RowData } from '@/shared/types/index';
 import SpecEditorContent from './SpecEditorContent.vue';

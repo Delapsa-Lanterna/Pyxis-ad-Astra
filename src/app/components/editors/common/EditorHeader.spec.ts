@@ -1,7 +1,7 @@
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import EditorHeader from './EditorHeader.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 let wrapper: VueWrapper | null = null;
 afterEach(() => wrapper?.unmount());
 function mountHeader(props: {

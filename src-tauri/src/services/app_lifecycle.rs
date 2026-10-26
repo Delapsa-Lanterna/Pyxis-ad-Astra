@@ -178,6 +178,12 @@ fn destroy(app: &tauri::AppHandle, operation: &Operation, label: &str) -> AppRes
     }
     Ok(())
 }
+fn child_windows(operation: &Operation) -> impl Iterator<Item = &String> {
+    operation
+        .labels
+        .iter()
+        .filter(|label| label.as_str() != "main")
+}
 pub fn request_close(
     app: &tauri::AppHandle,
     owner: &str,
@@ -292,16 +298,23 @@ fn execute_close(
         {
             return Ok(());
         }
-        for label in operation
-            .labels
-            .iter()
-            .filter(|label| label.as_str() != "main")
-        {
+        for label in child_windows(&operation) {
             if !phase(
                 app,
                 id,
                 &operation,
                 ClosePhase::Confirm,
+                std::slice::from_ref(label),
+            )? {
+                return Ok(());
+            }
+        }
+        for label in child_windows(&operation) {
+            if !phase(
+                app,
+                id,
+                &operation,
+                ClosePhase::Flush,
                 std::slice::from_ref(label),
             )? {
                 return Ok(());
@@ -313,11 +326,7 @@ fn execute_close(
             return Ok(());
         }
         confirmed = true;
-        for label in operation
-            .labels
-            .iter()
-            .filter(|label| label.as_str() != "main")
-        {
+        for label in child_windows(&operation) {
             destroy(app, &operation, label)?;
         }
         if !operation.state()?.cancelled {
@@ -398,6 +407,23 @@ fn execute_close(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn child_window_stages_include_every_managed_window() {
+        let operation = Operation {
+            only_if_clean: false,
+            owner: "main".into(),
+            scope: CloseScope::Application,
+            labels: vec!["main".into(), "managed-1".into(), "managed-2".into()],
+            progress: Mutex::new(Progress::default()),
+            changed: Condvar::new(),
+        };
+        assert_eq!(
+            child_windows(&operation)
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["managed-1", "managed-2"]
+        );
+    }
     #[test]
     fn close_replies_bind_participant_and_phase_and_expected_destroy_preserves_scope() {
         let id = SEQUENCE.fetch_add(1, Ordering::Relaxed) + 1;

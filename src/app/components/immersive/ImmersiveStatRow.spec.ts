@@ -1,8 +1,8 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { defineComponent } from 'vue';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { jointFixtureValues } from '@/test/joint-record';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
 import ImmersiveStatRow from './ImmersiveStatRow.vue';
 afterEach(() => {

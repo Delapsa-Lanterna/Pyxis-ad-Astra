@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { readCacheLimits } from './cache-limits';
 import { initializeCacheLimits, subscribeCacheLimits, updateCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 describe('hidden cache settings', () => {

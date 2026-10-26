@@ -1,5 +1,5 @@
 import { markCsvTableSavedDraft } from '@/domain/csv-editor/csv-table-draft';
-import { csvTableIndex } from '@/test/csv-row';
+import { csvTableIndex } from '@/test/fixtures/csv-row';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
@@ -9,9 +9,9 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
-import { sessionUpdateFixture } from '@/test/write-result';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { TABLE_KEYS, type CsvTableTarget, type CsvTableIndex } from '@/shared/types';
 import { csvColumnSchemasForTable } from '@/domain/csv-editor/csv-column-schema';
 

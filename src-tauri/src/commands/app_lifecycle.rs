@@ -1,6 +1,6 @@
 use crate::{errors::AppError, models::WindowIdentity, services};
 
-#[tauri::command]
+#[command_macros::command]
 pub async fn request_close(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -13,7 +13,7 @@ pub async fn request_close(
     .await
     .map_err(|error| AppError::message("lifecycle.wait_failed", error.to_string()))?
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn reply_close(
     window: tauri::WebviewWindow,
     operation_id: u64,
@@ -23,11 +23,11 @@ pub fn reply_close(
 ) -> Result<(), AppError> {
     services::app_lifecycle::reply(window.label(), operation_id, phase, accepted, diagnostic)
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn ready_close(window: tauri::WebviewWindow) -> Result<(), AppError> {
     services::app_lifecycle::ready(window.label())
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn reserve_window_targets(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -56,7 +56,7 @@ fn close_displaced(
     }
     Ok(())
 }
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn retarget_managed_window(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -72,14 +72,14 @@ pub fn retarget_managed_window(
     result?;
     services::windows::current_window_context(window.label())
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn get_window_bootstrap(
     window: tauri::WebviewWindow,
 ) -> Result<crate::models::WindowBootstrap, AppError> {
     services::app_lifecycle::loading(window.label())?;
     services::windows::current_window_bootstrap(window.label())
 }
-#[tauri::command]
+#[command_macros::command]
 pub fn fail_window_startup(
     window: tauri::WebviewWindow,
     diagnostic: crate::errors::ErrorDiagnostic,
@@ -91,14 +91,14 @@ pub fn fail_window_startup(
     services::windows::fail_window_startup(window.label(), diagnostic)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn read_settings(
     app_handle: tauri::AppHandle,
 ) -> Result<crate::models::SettingsSnapshot, AppError> {
     services::app_settings::read_settings(&app_handle, apply_settings_runtime)
 }
 
-#[tauri::command(async)]
+#[command_macros::command(async)]
 pub fn save_settings(
     app_handle: tauri::AppHandle,
     window: tauri::WebviewWindow,

@@ -6,7 +6,7 @@ import type { CsvTableViewModel } from '@/app/composables/csv-editor/use-csv-tab
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn() }) }));
 

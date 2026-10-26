@@ -17,12 +17,14 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { invalidateQueryCacheForSession } from '@/services/query-cache.service';
 import { resourceMediaStats } from '@/services/resource-media.service';
+import { invalidateResourceMediaForSession } from '@/services/resource-media.service';
+import { flushSettings } from '@/orchestrators/settings-persistence.orchestrator';
 import { flushApplicationLogs } from '@/services/app-log.service';
 import { startPerformanceMonitor, flushPerformanceMonitor } from '@/app/performance-monitor';
-import { installBrowserModel } from './commands';
-import { emit } from './events';
+import { installBrowserModel } from './runtime/commands';
+import { emit } from './runtime/events';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
-import type { BrowserModel } from './model';
+import type { BrowserModel } from './scenarios/model';
 import './style.css';
 
 const immersiveKinds = ['ship', 'weapon', 'wing', 'variant'] as const;
@@ -34,11 +36,24 @@ export function createBrowserHost(element: HTMLElement) {
   let tables: ReturnType<typeof useCsvEditorStore>;
   let settings: ReturnType<typeof useSettingsStore>;
   let initialized = false;
+  let settingsVersion = 0;
+  let windowVersion = 0;
+  let remainingSessions = 0;
   function unmount() {
+    if (app) {
+      settingsVersion = model.settingsSnapshot().revision;
+      windowVersion = model.context?.revision ?? windowVersion;
+    }
     app?.unmount();
     app = null;
   }
   async function close() {
+    if (app) {
+      await flushSettings();
+      await useSaveCommandStore(pinia!).waitForSaves();
+      settingsVersion = model.settingsSnapshot().revision;
+      windowVersion = model.context?.revision ?? windowVersion;
+    }
     unmount();
     await flushPerformanceMonitor();
     stopMonitor?.();
@@ -46,15 +61,21 @@ export function createBrowserHost(element: HTMLElement) {
     await flushApplicationLogs();
     if (model) {
       invalidateQueryCacheForSession(model.sessionId);
+      invalidateResourceMediaForSession(model.sessionId);
     }
     tables?.removeModState(model.manifest.modRoot);
     if (pinia && model) useJsonEditorStore(pinia).releaseSession(model.sessionId);
-    if (pinia) disposePinia(pinia);
+    if (pinia) {
+      remainingSessions = useSaveCommandStore(pinia).editTargets.length;
+      disposePinia(pinia);
+    }
     pinia = null;
   }
   async function open(next: BrowserModel, monitor = false) {
     await close();
     model = next;
+    model.rebase(settingsVersion, windowVersion);
+    delete element.dataset.selectedId;
     installBrowserModel(model);
     const kind = immersiveKinds.find((kind) => kind === model.scene);
     if (kind) model.windowContext(kind);
@@ -137,7 +158,12 @@ export function createBrowserHost(element: HTMLElement) {
       },
     });
     app = createApp({
-      setup: () => () => h(WindowShell, { mode: 'main', appearance: kind ? 'immersive' : 'application' }, { default: () => h(Scene) }),
+      setup: () => () =>
+        h(
+          WindowShell,
+          { mode: 'main', appearance: kind ? 'immersive' : 'application' },
+          { default: () => h('div', { class: 'browser-scene' }, [h(Scene)]) },
+        ),
     }).use(pinia);
     installNaiveUi(app);
     const started = performance.now();
@@ -149,6 +175,13 @@ export function createBrowserHost(element: HTMLElement) {
     open,
     close,
     unmount,
+    async save() {
+      if (model.scene === 'csv') await tables.activeEditor!.save();
+      else await useJsonEditorStore(pinia!).active!.save();
+    },
+    get remainingSessions() {
+      return remainingSessions;
+    },
     get model() {
       return model;
     },

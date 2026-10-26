@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { useThemeDomEffect } from './use-theme-dom-effect';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import { THEME_TOKEN_MAP } from '@/domain/settings/theme';

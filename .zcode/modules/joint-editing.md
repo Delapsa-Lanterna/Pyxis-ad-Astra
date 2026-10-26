@@ -39,9 +39,9 @@
 - `src/shared/types/joint-edit.types.ts`：前端联合记录、冲突及交接协议。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
 - `src/stores/save-command.store.ts`：保存参与者、所属句柄和短暂交接锁登记。
-- `src/test/entity-target.ts`：正式实体目标及版本的测试构造。
-- `src/test/joint-record.ts`：四类联合样本共用的记录、来源、版本与草稿构造。
-- `src/test/ship-joint-edit.ts`：舰船联合快照及所属来源记录的测试构造。
+- `src/test/fixtures/entity-target.ts`：正式实体目标及版本的测试构造。
+- `src/test/fixtures/joint-edit/joint-record.ts`：四类联合样本共用的记录、来源、版本与草稿构造。
+- `src/test/fixtures/joint-edit/ship-joint-edit.ts`：舰船联合快照及所属来源记录的测试构造。
 
 ### 装配
 

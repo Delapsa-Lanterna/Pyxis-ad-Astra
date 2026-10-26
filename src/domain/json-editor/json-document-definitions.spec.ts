@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ResourceRef } from '@/shared/types';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { JSON_DOCUMENT_DEFINITIONS, jsonDocumentMedia, jsonDocumentRecord, jsonDocumentSummary } from './json-document-definitions';
 
 const logo: ResourceRef = { source: 'mod', ownerKind: 'faction', ownerId: 'sample', relPath: 'graphics/logo.png', key: 'logo' };

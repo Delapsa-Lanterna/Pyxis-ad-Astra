@@ -19,7 +19,7 @@
 
 ### 消费
 
-- `src/test/weapon-joint-edit.ts`：武器联合来源与规格的测试构造。
+- `src/test/fixtures/joint-edit/weapon-joint-edit.ts`：武器联合来源与规格的测试构造。
 
 ## 边界
 

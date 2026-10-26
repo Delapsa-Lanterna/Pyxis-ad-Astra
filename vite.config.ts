@@ -26,6 +26,6 @@ export default defineConfig({
     include: ['src/**/*.spec.ts'],
     environment: 'jsdom',
     clearMocks: true,
-    setupFiles: ['src/test/cache-setup.ts'],
+    setupFiles: ['src/test/unit/cache-setup.ts'],
   },
 });

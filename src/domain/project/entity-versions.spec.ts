@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { captureIdentityVersions, handoffTableVersions } from './entity-versions';
 
 describe('identity version handoff', () => {

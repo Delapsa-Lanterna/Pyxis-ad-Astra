@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
-import { nButton } from '@/test/ui-stubs';
+import { nButton } from '@/test/unit/ui-stubs';
 import type { ModOpeningFailure } from '@/shared/types';
 
 let wrapper: VueWrapper | null = null;

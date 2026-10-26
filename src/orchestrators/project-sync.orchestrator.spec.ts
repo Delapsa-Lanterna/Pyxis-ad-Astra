@@ -2,8 +2,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectManifest, ProjectSessionInvalidationResult, WriteResult, CommittedSessionUpdate } from '@/shared/types';
 import type { ProjectSessionInvalidatedEvent, CommittedWriteEvent } from '@/windows/window.events';
-import { savedWriteFixture } from '@/test/write-result';
-import { entityTargetFixture } from '@/test/entity-target';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 const mocks = vi.hoisted(() => ({
   synchronizeSessionCommit: vi.fn(),
   refreshProjectSources: vi.fn(),

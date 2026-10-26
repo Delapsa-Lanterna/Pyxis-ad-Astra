@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import type { AppFeedback } from '@/shared/types';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 import { runConfirmedJsonWrite } from './json-write-confirmation.orchestrator';
 import { AppError, withCause } from '@/shared/lib/errors';
 

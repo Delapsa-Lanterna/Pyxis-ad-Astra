@@ -3,7 +3,7 @@ import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { computed, shallowRef } from 'vue';
 import FontText from './FontText.vue';
 import { parseOriginalBitmapFont, parseBitmapFont } from '@/domain/fonts/bitmap-font';
-import { originalFontFixture } from '@/test/font';
+import { originalFontFixture } from '@/test/fixtures/font';
 import type { LoadedFont } from '@/app/fonts/font-provider';
 
 const current = shallowRef<LoadedFont | null>(null);

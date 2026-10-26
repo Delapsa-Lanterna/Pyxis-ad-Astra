@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shipJointFixture } from '@/test/ship-joint-edit';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { designTypeColor } from './design-type';
 describe('original design manufacturer color', () => {
   it('uses game settings and retains the exact manufacturer original text', () => {

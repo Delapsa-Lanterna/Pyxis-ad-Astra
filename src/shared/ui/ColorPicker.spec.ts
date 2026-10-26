@@ -4,7 +4,7 @@ import { h, ref } from 'vue';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import ColorPicker from './ColorPicker.vue';
 import FieldRow from './FieldRow.vue';
-import { editorUiStubs } from '@/test/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { deepClone } from '@/shared/lib/starsector';
 
 let wrapper: import('@vue/test-utils').VueWrapper | null = null;

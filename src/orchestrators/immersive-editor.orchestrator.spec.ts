@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { wingJointFixture } from '@/test/wing-joint-edit';
-import { variantJointFixture } from '@/test/variant-joint-edit';
+import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
+import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import type { AppFeedback, WindowContextFor } from '@/shared/types';
 import { openEntityImmersiveEditor, openVariantImmersiveEditor, retargetImmersiveWindow } from './immersive-editor.orchestrator';
 const mocks = vi.hoisted(() => ({ focus: vi.fn(), open: vi.fn(), retarget: vi.fn(), publish: vi.fn(), row: vi.fn(), query: vi.fn() }));

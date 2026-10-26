@@ -1,8 +1,8 @@
-import { entityTargetFixture } from '@/test/entity-target';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntityData, ResourceRef, RowData, WriteResult } from '@/shared/types/index';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { weaponJointFixture } from '@/test/weapon-joint-edit';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
 
 const mocks = vi.hoisted(() => ({
   querySessionEntity: vi.fn(),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyJointConflictChoices, conflictValueText, jointWriteTargets, rebaseJointDraft } from './joint-edit';
-import { shipJointFixture } from '@/test/ship-joint-edit';
-import { jointFixtureValues } from '@/test/joint-record';
+import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
+import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import type { JointEditPrepared, JointValue, JointEditSnapshot } from '@/shared/types';
 const present = (value: import('@/shared/types').JsonValue): JointValue => ({ state: 'present', value });
 describe('joint edit field and physical target projection', () => {

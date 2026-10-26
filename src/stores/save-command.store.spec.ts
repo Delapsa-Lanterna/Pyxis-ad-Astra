@@ -5,7 +5,7 @@ import { createFieldInputs } from '@/shared/runtime/field-inputs';
 
 import { useSaveCommandStore, type SaveSessionHandle } from './save-command.store';
 import { flushPromises } from '@vue/test-utils';
-import { savedWriteFixture } from '@/test/write-result';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { EditWriteTarget } from '@/shared/types';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';

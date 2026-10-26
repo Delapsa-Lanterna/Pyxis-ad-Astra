@@ -30,28 +30,69 @@ npm.cmd run tauri -- build --no-bundle
 
 产物默认位于 `src-tauri\target\release\circinus-ad-astra.exe`。不要在仍需保留的运行实例上直接使用 `build.ps1` 或 `build.bat`：这两个便捷脚本会强制关闭应用并删除前端构建目录。
 
-## 浏览器快速验证
+## 浏览器模拟与性能测试台
 
-`npm.cmd run test:browser` 启动支持热更新的浏览器入口，终端显示本次地址。默认打开设置场景；工具栏提供场景切换、明暗主题、重新打开、恢复样本和关闭场景。
+`npm.cmd run dev-browser` 启动场景模拟器，地址为 `http://127.0.0.1:1461`。
+`npm.cmd run dev-testbed` 启动性能测试台，地址为 `http://127.0.0.1:1462`。
 
-| 场景         | 地址参数                                  | 操作                                                                 |
-| ------------ | ----------------------------------------- | -------------------------------------------------------------------- |
-| 设置         | `?case=settings`                          | 设置保存、默认值重置、目录选择、日志状态及性能调试样本               |
-| CSV          | `?case=csv`                               | 50 行、40 列，搜索、编辑、增删、排序、撤销重做及保存                 |
-| 沉浸式编辑器 | `?case=ship`、`weapon`、`wing`、`variant` | 正式字段输入、引用、历史及联合保存；装配包含武器、战机联队和插件动作 |
-| 候选列表     | `?case=weapons`、`wings`、`hullmods`      | 每类 30 项，筛选、键盘导航、详情及选择                               |
+模拟器提供设置、JSON、CSV、舰船、武器、战机联队、装配及三类候选列表，共 10 个场景。
+地址参数 `?scene=csv&count=300&theme=dark` 选择场景、规模和主题。
+工具栏提供主题切换、重新打开、恢复样本和关闭。
+样本查询、编辑、保存与重新读取共享正式前端组件及内存模拟服务。
+场景显示已支持能力；原生目录和窗口操作返回样本结果。
 
-数据保存在当前页面独立的内存样本中。重新打开保留已保存结果，恢复样本建立新状态，切换场景链接重新建立页面。原生目录和窗口动作交付样本结果。性能监视默认关闭。
+共享基础位于 `src/test/`：
+数据工厂位于 `fixtures/`，单元测试辅助位于 `unit/`，
+浏览器模拟、场景、操作和基准位于 `browser/`。
+`scripts/browser/` 提供服务、生产构建、浏览器执行及报告。
 
-浏览器宿主消费正式前端组件、输入、查询、历史和保存编排。`src/test/browser/native.ts` 由专属 Vite 配置替换原生接口，`model.ts` 保存样本，`commands.ts` 按正式请求与响应交付结果。未支持的命令在错误中给出名称。
+测试台提供规模基准、重复使用压力和资源压力。
+默认预热 2 次、正式测量 30 次；重复使用压力默认正式测量 100 次。
+资源压力使用 32、128、512 像素的独立固定生成图片。
+交替比较支持多份页面地址及监视开关，按轮次轮换起始组。
+同对象双组对照使用同一地址的两个独立页面。
 
-控制台中的 `browserTest.host.model.failures` 可注入一次读取或保存失败，例如 `browserTest.host.model.failures.set('save_joint_edit', '样本保存失败')`。下一次对应命令消费该失败，随后恢复正常；`browserTest.eventListenerCount()` 提供本页事件监听数量。
+### 自动执行
 
-### 基准与调用栈
+正式性能采样必须使用生产构建。
+下列命令构建测试台、启动 Edge、执行项目并保存 JSON 与 Markdown 报告：
 
-`node scripts/performance/retained-lists.mjs after` 构建并启动独立基准入口；页面提供单轮流程检查和 30 轮正式采样。`?case=csv-50` 等参数选择具体规模；`before <git-ref>` 使用指定版本的生产来源，`monitor-removed` 移除监视能力，`?monitor=on` 启用采集。
+```powershell
+npm.cmd run test:browser -- --suite smoke
+npm.cmd run test:browser -- --suite ui
+npm.cmd run test:browser -- --suite browser-ui
+npm.cmd run test:browser -- --suite lists
+npm.cmd run test:browser -- --suite stress
+npm.cmd run test:browser -- --suite resources
+npm.cmd run test:browser -- --suite smoke --scene settings --aa
+npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compare
+```
 
-基准报告附带构建、脚本哈希、窗口、DPR、缓存条件、profiler 状态、原始样本和统计。统计包括最小、最大、平均、中位数与 nearest-rank P95；偶数样本中位数取中间两值的平均。CPU 调用栈由 `node scripts/performance/profile.mjs <DevTools地址> <输出.cpuprofile> <毫秒>` 独立采集。
+`--warmup 2 --rounds 30` 指定预热和测量次数。
+`--first-open` 为每次首次打开创建新浏览器上下文并单独记录。
+`--output <report.json>` 指定报告位置。
+默认输出位于 `node_modules/.cache/browser/reports/`。
+
+两份构建的准备和执行方式如下：
+
+```powershell
+node scripts/browser/serve.mjs testbed --production --directory node_modules/.cache/browser/A
+node scripts/browser/serve.mjs testbed --production --directory node_modules/.cache/browser/B
+npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://127.0.0.1:端口A,off,code --variant B,http://127.0.0.1:端口B,off,code
+```
+
+`--existing` 使用指定目录中的已构建产物。
+`--no-monitor-code` 构建移除前端监视代码的对照样本。
+比较策略 `disabled` 使用 1% 或 1 ms 的增量上限，
+`enabled` 使用 10% 或 5 ms 的增量上限；两者均取较大值。
+`code` 记录代码构建间差异。
+行为失败和已有预算超限必须返回失败退出码。
+
+报告包含完整构建哈希、样本参数、运行设置、浏览器、视口、DPR、缓存条件、
+逐轮顺序、预热及正式样本，以及最小值、最大值、均值、中位数和 nearest-rank P95。
+首次打开与预热后结果必须分别判读。
+CPU 采样由 `node scripts/performance/profile.mjs <DevTools地址> <输出.cpuprofile> <毫秒>` 执行。
+真实 EXE 的 CSV 测量由 `scripts/performance/csv-rendering.mjs` 执行。
 
 ## 改动要求
 
@@ -72,14 +113,14 @@ npm.cmd run tauri -- build --no-bundle
 
 ```powershell
 npm.cmd run format:check
-npm.cmd run encoding:check
 npm.cmd run lint
+npm.cmd run lint:rust
+npm.cmd run lint:checks
 npm.cmd run typecheck
 npm.cmd run test
+npm.cmd run test:rust
+npm.cmd run test:checks
 npm.cmd run build
-cargo fmt --manifest-path src-tauri\Cargo.toml --check
-cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path src-tauri\Cargo.toml
 ```
 
 如改动涉及交互、主题、文件保存或游戏目录，请在 Pull Request 中分别说明自动化检查与手动验证；自动化通过不替代真实 Mod 和 GUI 验证。

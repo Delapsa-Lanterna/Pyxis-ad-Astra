@@ -1,15 +1,15 @@
-import { csvDraftRow } from '@/test/csv-row';
+import { csvDraftRow } from '@/test/fixtures/csv-row';
 import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive, ref } from 'vue';
 import CsvGrid from './CsvGrid.vue';
 import type { CsvGridModel } from '@/domain/csv-editor/csv-grid-model';
-import { mountCsvInputHost } from '@/test/csv-input-host';
+import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { createPinia, setActivePinia } from 'pinia';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createCsvSourceIndex } from '@/domain/schema/csv-source-options';
 import type { ResourceRef } from '@/shared/types';
-import { createSettingsFixture } from '@/test/settings';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 const { prepare } = vi.hoisted(() => ({ prepare: vi.fn() }));
