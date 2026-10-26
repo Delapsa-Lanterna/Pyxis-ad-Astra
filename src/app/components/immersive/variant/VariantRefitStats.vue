@@ -97,7 +97,7 @@
           <n-popover
             trigger="click"
             placement="bottom-end"
-            :disabled="!variant.editable"
+            :disabled="blocked || !variant.editable"
             :show-arrow="false"
             :to="surface?.closest<HTMLElement>('[role=dialog]')"
           >
@@ -180,7 +180,8 @@
   </Teleport>
 </template>
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue';
+import { computed, inject, ref, onMounted, watch } from 'vue';
+import { immersiveBlockedKey } from '../immersive-render-context';
 import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber, variantOpSegments } from '@/domain/immersive/variant/variant-panel';
 import { VARIANT_COLORS } from '@/domain/immersive/appearance';
@@ -204,6 +205,7 @@ const props = defineProps<{
   pickerOpen: boolean;
 }>();
 const pickerButton = ref<HTMLButtonElement | null>(null);
+const blocked = inject(immersiveBlockedKey, ref(false));
 const surface = ref<HTMLElement | null>(null);
 const hover = useImmersiveHover<string>(
   () => 393,

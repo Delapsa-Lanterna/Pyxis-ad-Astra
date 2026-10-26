@@ -1,5 +1,10 @@
 <template>
-  <div v-if="current" class="variant-immersive-panel ui-layout-clip ui-layout-stretch">
+  <div
+    v-if="current"
+    class="variant-immersive-panel ui-layout-clip ui-layout-stretch"
+    @mousedown.capture="startRightDrag"
+    @contextmenu.capture="finishRightClick"
+  >
     <ImmersiveHullScene
       ref="scene"
       :variant="current"
@@ -7,6 +12,7 @@
       @slot="openWeaponPicker"
       @module="openModulePicker"
       @blank="candidatePicker?.cancel()"
+      @remove="removeEquipment(current.weapons[$event]!.slot.type === 'STATION_MODULE' ? 'variants' : 'weapons', $event)"
     />
     <header class="variant-refit-header">
       <ImmersivePanelRow :stat="current.fields[0]!" :render="render" />
@@ -49,6 +55,7 @@
           :disabled="wing.builtin"
           :aria-label="wing.name + ' · 战机甲板 ' + (wing.index + 1)"
           @click="openWingPicker(wing.index, $event)"
+          @contextmenu.prevent.stop="removeEquipment('wings', wing.index)"
         >
           <VariantWingIcon v-if="wing.id" :root="vm.joint.currentTarget.value!" :id="wing.id" :size="64" :renderer-size="72" />
           <img class="ui-image" v-else-if="deckIcon" :src="deckIcon" width="64" height="64" alt="空置战机甲板" />
@@ -131,7 +138,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, inject, ref, watch, nextTick, onScopeDispose } from 'vue';
+import { immersiveBlockedKey } from '../immersive-render-context';
 import type { VariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { equipVariantWing, setVariantHullmod, type HullmodCategory } from '@/domain/immersive/variant/variant-actions';
@@ -154,6 +162,7 @@ import ImmersiveFallbackIcon from '../ImmersiveFallbackIcon.vue';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 const props = defineProps<{ panel: VariantPanel; render: ImmersiveRenderContext; vm: ReturnType<typeof useImmersiveVariantEditor> }>();
+const blocked = inject(immersiveBlockedKey, ref(false));
 for (const kind of ['weapons', 'wings', 'hullmods'] as const) {
   useVariantCatalog(
     () => props.vm.joint.currentTarget.value!,
@@ -164,7 +173,7 @@ for (const kind of ['weapons', 'wings', 'hullmods'] as const) {
 const selectedKey = ref(''),
   groupsButton = ref<HTMLButtonElement | null>(null),
   refitStats = ref<{ focusPicker: () => void } | null>(null),
-  scene = ref<{ fit: () => void } | null>(null),
+  scene = ref<InstanceType<typeof ImmersiveHullScene> | null>(null),
   candidatePicker = ref<InstanceType<typeof VariantPicker> | null>(null),
   picker = ref<{ kind: JointVariantCatalogKind; index: number; key: string; anchor: { x: number; y: number } } | null>(null),
   groupsOpen = ref(false);
@@ -247,19 +256,57 @@ async function editModule() {
   if (moduleContext.value.variant) await selectModule(moduleContext.value.variant.key);
 }
 async function openPicker(kind: JointVariantCatalogKind, index: number, anchor = { x: 7, y: 207 }) {
-  if (!current.value) return;
-  if (!(await props.vm.commitVariantInputs())) return;
-  if (kind === 'weapons' && current.value.weapons[index]!.builtin) return;
+  if (await prepareEquipment(kind, index)) picker.value = { kind, index, key: current.value!.key, anchor };
+}
+async function prepareEquipment(kind: JointVariantCatalogKind, index: number) {
+  if (!current.value || !(await props.vm.commitVariantInputs()) || blocked.value) return false;
+  if ((kind === 'weapons' && current.value.weapons[index]!.builtin) || (kind === 'wings' && current.value.wings[index]!.builtin))
+    return false;
   if (
     kind === 'weapons' &&
     ['SYSTEM', 'DECORATIVE', 'LAUNCH_BAY', 'STATION_MODULE'].includes(schemaStringValue(current.value.weapons[index]!.slot.type))
   )
-    return;
+    return false;
   if (!current.value.editable) {
     await props.vm.createOverrides([current.value.key]);
-    return;
+    return false;
   }
-  picker.value = { kind, index, key: current.value.key, anchor };
+  return true;
+}
+let rightOrigin = { clientX: 0, clientY: 0 },
+  rightDragged = false;
+function startRightDrag(event: MouseEvent) {
+  if (event.button !== 2) return;
+  event.preventDefault();
+  event.stopPropagation();
+  rightOrigin = event;
+  rightDragged = false;
+  window.addEventListener('mousemove', trackRightDrag, true);
+  window.addEventListener('mouseup', endRightDrag, true);
+  window.addEventListener('blur', endRightDrag);
+}
+function trackRightDrag(event: MouseEvent) {
+  event.stopPropagation();
+  const dx = event.clientX - rightOrigin.clientX,
+    dy = event.clientY - rightOrigin.clientY;
+  rightDragged ||= dx !== 0 || dy !== 0;
+  scene.value!.pan(dx, dy);
+  rightOrigin = event;
+}
+function endRightDrag() {
+  window.removeEventListener('mousemove', trackRightDrag, true);
+  window.removeEventListener('mouseup', endRightDrag, true);
+  window.removeEventListener('blur', endRightDrag);
+}
+onScopeDispose(endRightDrag);
+function finishRightClick(event: MouseEvent) {
+  if (rightDragged) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+async function removeEquipment(kind: JointVariantCatalogKind, index: number) {
+  if (await prepareEquipment(kind, index)) await selectEquipment({ kind, index, key: current.value!.key }, '', 'normal');
 }
 function openWeaponPicker(index: number, anchor: { x: number; y: number }) {
   void openPicker('weapons', index, anchor);
@@ -282,19 +329,26 @@ async function closeHullmods() {
 }
 async function applySelection(id: string, category: HullmodCategory, inputCommitted = false) {
   const request = picker.value!;
-  const variant = props.panel.variants.find((item) => item.key === request.key)!;
-  const accepted =
-    request.kind === 'variants'
-      ? await props.vm.installVariantModule(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
-      : request.kind === 'weapons'
-        ? await props.vm.installVariantWeapon(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
-        : await props.vm.updateVariant(request.key, (data) =>
-            request.kind === 'wings'
-              ? equipVariantWing(data, request.index, id)
-              : setVariantHullmod(data, id, installed(id) ? null : category),
-          );
+  const accepted = await selectEquipment(request, id, category, inputCommitted);
   if (accepted && request.kind !== 'hullmods' && picker.value === request) closePicker();
   return accepted;
+}
+async function selectEquipment(
+  request: Pick<NonNullable<typeof picker.value>, 'kind' | 'index' | 'key'>,
+  id: string,
+  category: HullmodCategory,
+  inputCommitted = false,
+) {
+  const variant = props.panel.variants.find((item) => item.key === request.key)!;
+  return request.kind === 'variants'
+    ? await props.vm.installVariantModule(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
+    : request.kind === 'weapons'
+      ? await props.vm.installVariantWeapon(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
+      : await props.vm.updateVariant(request.key, (data) =>
+          request.kind === 'wings'
+            ? equipVariantWing(data, request.index, id)
+            : setVariantHullmod(data, id, installed(id) ? null : category),
+        );
 }
 function applyManualSelection(id: string, category: HullmodCategory) {
   const request = picker.value!;
@@ -330,6 +384,17 @@ function clearVariant() {
   const key = current.value!.key;
   void props.vm.stripVariantBranch(key);
 }
+watch(
+  blocked,
+  (value) => {
+    if (value) {
+      endRightDrag();
+      picker.value = null;
+      groupsOpen.value = false;
+    }
+  },
+  { flush: 'sync' },
+);
 watch(
   () => current.value?.key,
   () => {

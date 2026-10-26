@@ -17,6 +17,7 @@ import type {
   JsonRecoveryRequest,
 } from '@/shared/types';
 import { createSettingsFixture } from '../../fixtures/settings';
+import { sessionUpdateFixture } from '../../fixtures/write-result';
 import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
 import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
@@ -312,6 +313,17 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       return { revision: 1, undoStack: [], redoStack: [] };
     case 'synchronize_committed_write':
       return model.commits.get((args.payload as { commitId: number }).commitId)!.sessionUpdates[0];
+    case 'refresh_project_sources': {
+      const projection = sessionUpdateFixture(model.sessionId, model.manifest.modRoot, model.commitId).projection;
+      return {
+        ...projection,
+        manifest: model.manifest,
+        invalidation: {
+          ...projection.invalidation,
+          resources: (args.payload as import('@/shared/types').RefreshProjectSourcesPayload).sources,
+        },
+      };
+    }
     case 'update_edit_target_registration':
     case 'reserve_edit_targets':
     case 'reserve_window_targets':

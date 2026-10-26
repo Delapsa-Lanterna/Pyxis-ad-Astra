@@ -7,6 +7,7 @@ import { jointObject } from '@/domain/joint-edit';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import VariantRefitStats from './VariantRefitStats.vue';
+import { immersiveBlockedKey } from '../immersive-render-context';
 const mocks = vi.hoisted(() => ({ query: vi.fn(), replace: vi.fn(async () => {}) }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointVariantCatalog: mocks.query }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
@@ -50,6 +51,7 @@ describe('installed hullmod details', () => {
         displaySnapshot: shallowRef(snapshot),
         displayValues: shallowRef(values),
       } as unknown as ReturnType<typeof useImmersiveVariantEditor>;
+      const blocked = shallowRef(false);
       const own = mount(VariantRefitStats, {
         props: {
           variant,
@@ -58,6 +60,7 @@ describe('installed hullmod details', () => {
           render: { mode: 'readonly', root: snapshot.root, records: snapshot.records, mediaUrl: () => '' },
         },
         global: {
+          provide: { [immersiveBlockedKey as symbol]: blocked },
           stubs: {
             ...editorUiStubs,
             teleport: true,
@@ -95,6 +98,13 @@ describe('installed hullmod details', () => {
         expect(own.find('[role=tooltip]').exists()).toBe(false);
         await label.trigger('mouseenter');
         await flushPromises();
+        blocked.value = true;
+        await flushPromises();
+        expect(own.find('[role=tooltip]').exists()).toBe(false);
+        await button.trigger('focus');
+        expect(own.find('[role=tooltip]').exists()).toBe(false);
+        blocked.value = false;
+        await label.trigger('mouseenter');
         await own.setProps({ variant: { ...variant, key: 'module' } });
         expect(own.find('[role=tooltip]').exists()).toBe(false);
       } finally {

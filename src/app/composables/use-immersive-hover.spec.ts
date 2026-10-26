@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, ref } from 'vue';
+import { immersiveBlockedKey } from '@/app/components/immersive/immersive-render-context';
 import { useImmersiveHover } from './use-immersive-hover';
 
 afterEach(() => {
@@ -8,6 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 function harness() {
+  const blocked = ref(false);
   vi.useFakeTimers();
   const disconnect = vi.fn();
   vi.stubGlobal(
@@ -34,11 +36,26 @@ function harness() {
           ]);
       },
     }),
-    { attachTo: document.body },
+    { attachTo: document.body, global: { provide: { [immersiveBlockedKey as symbol]: blocked } } },
   );
-  return { own, hover, disconnect };
+  return { own, hover, disconnect, blocked };
 }
 describe('immersive hover ownership', () => {
+  it('closes on preparation and requires a new pointer or focus intent after it ends', async () => {
+    const { own, hover, blocked } = harness();
+    const entry = own.get('button').element;
+    hover.show('one', entry);
+    await flushPromises();
+    blocked.value = true;
+    expect(hover.selected.value).toBeNull();
+    hover.show('two', entry, 'click');
+    expect(hover.selected.value).toBeNull();
+    blocked.value = false;
+    expect(hover.selected.value).toBeNull();
+    hover.show('two', entry, 'focus');
+    expect(hover.selected.value).toBe('two');
+    own.unmount();
+  });
   it('keeps a keyboard-owned detail while the pointer leaves its focused entry', async () => {
     const { own, hover } = harness();
     (own.find('button').element as HTMLElement).focus();

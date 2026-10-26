@@ -39,7 +39,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, provide, ref, watch } from 'vue';
+import { immersiveBlockedKey } from './immersive-render-context';
 import ImmersiveEditorActions from './ImmersiveEditorActions.vue';
 const props = defineProps<{
   label: string;
@@ -59,6 +60,10 @@ const props = defineProps<{
 }>();
 const preparing = computed(() => props.loading || props.referenceChanging || (!props.ready && !props.error));
 const covered = computed(() => preparing.value || Boolean(props.error));
+provide(
+  immersiveBlockedKey,
+  computed(() => props.locked || covered.value),
+);
 const delayed = ref(false);
 watch(
   [preparing, () => props.targetKey],

@@ -1,6 +1,9 @@
 import type { JointEditRoot, JointEditSnapshot, JointEditRecord, JointValue, ResourceRef } from '@/shared/types';
 import type { ImmersiveField, ImmersiveFieldChange, ImmersiveStat } from '@/domain/immersive/fields';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import type { InjectionKey, Ref } from 'vue';
+
+export const immersiveBlockedKey: InjectionKey<Readonly<Ref<boolean>>> = Symbol('immersive-blocked');
 
 export interface ImmersiveEditing {
   readonly values: Record<string, JointValue>;

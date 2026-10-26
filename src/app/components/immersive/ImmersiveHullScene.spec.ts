@@ -106,13 +106,23 @@ describe('variant scene pointer dismissal', () => {
     const variant = projectVariantPanel(snapshot, Object.fromEntries(snapshot.records.map((record) => [record.key, record.value])))
       .variants[0]!;
     const weapon = variant.weapons[0]!;
-    const slot = { ...weapon.slot, type: 'STATION_MODULE' };
+    const slot = { ...weapon.slot, type: 'STATION_MODULE', mount: 'HIDDEN' };
     const scene = { ...variant, weapons: [{ ...weapon, slot, id: '', name: '', builtin: false }] };
     const module = { slot, variant: { ...variant, key: 'module', name: 'Sample module', modules: [] } };
+    const drawSlot = vi.spyOn(await import('@/app/renderers/editors/canvas-visuals'), 'drawWeaponSlotVisual');
+    const drawMount = vi.spyOn(await import('@/app/renderers/immersive/weapon-mount'), 'drawWeaponMount');
     const own = mount(ImmersiveHullScene, {
       props: { variant: { ...scene, modules: [module] }, sessionId: 's' },
       global: { stubs: { ImmersiveText: { props: ['text'], template: '<span>{{ text }}</span>' } } },
     });
+    expect(drawSlot).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'STATION_MODULE', mount: 'HIDDEN' }));
+    expect(drawMount.mock.calls.every(([, type]) => type === 'STATION_MODULE')).toBe(true);
+    drawMount.mockClear();
+    await own.setProps({ variant: module.variant });
+    expect(new Set(drawMount.mock.calls.map(([, type]) => type))).toEqual(
+      new Set(module.variant.weapons.map((weapon) => weapon.slot.type)),
+    );
+    await own.setProps({ variant: { ...scene, modules: [module] } });
     await own.get('canvas').trigger('mousemove', { clientX: 390, clientY: 350 });
     expect(own.get('.variant-slot-label').text()).toBe('Sample module');
     await own.get('canvas').trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
@@ -127,11 +137,16 @@ describe('variant scene pointer dismissal', () => {
       await own.setProps({ variant: { ...scene, modules: [{ ...module, variant: unnamed }] } });
       expect(own.get('.variant-slot-label').text()).toBe(expected);
     }
+    drawSlot.mockClear();
     await own.setProps({ variant: { ...scene, modules: [] } });
+    expect(drawSlot).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'STATION_MODULE', mount: 'HIDDEN' }));
     expect(own.get('.variant-slot-label').text()).toBe('空槽');
     await own.get('canvas').trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
     expect(own.emitted('module')).toHaveLength(2);
-    await own.setProps({ variant: { ...variant, weapons: [{ ...weapon, name: 'Sample weapon', builtin: true }] } });
+    await own.setProps({
+      variant: { ...variant, weapons: [{ ...weapon, slot: { ...weapon.slot, mount: 'HIDDEN' }, name: 'Sample weapon', builtin: true }] },
+    });
+    expect(drawMount).toHaveBeenCalledWith(expect.anything(), weapon.slot.type, weapon.slot.size, expect.any(Number));
     expect(own.get('.variant-slot-label').text()).toBe('Sample weapon（内置）');
     own.unmount();
   });
@@ -282,6 +297,12 @@ describe('variant scene pointer dismissal', () => {
       global: { stubs: { ImmersiveText: true } },
     });
     const canvas = own.find('canvas');
+    const hit = new MouseEvent('contextmenu', { button: 2, clientX: 390, clientY: 350, bubbles: true, cancelable: true });
+    expect(canvas.element.dispatchEvent(hit)).toBe(false);
+    expect(own.emitted('remove')).toEqual([[0]]);
+    const blank = new MouseEvent('contextmenu', { button: 2, clientX: 20, clientY: 20, bubbles: true, cancelable: true });
+    expect(canvas.element.dispatchEvent(blank)).toBe(true);
+    expect(own.emitted('remove')).toHaveLength(1);
     await canvas.trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
     expect(own.emitted('slot')).toEqual([[0, { x: 390, y: 350 }]]);
     expect(own.emitted('blank')).toBeUndefined();

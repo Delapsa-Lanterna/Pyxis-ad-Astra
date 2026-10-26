@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { h, ref, shallowRef, shallowReactive } from 'vue';
+import { h, provide, ref, shallowRef, shallowReactive } from 'vue';
+import { immersiveBlockedKey } from '../immersive-render-context';
 import { NInput, NSelect, NButton } from 'naive-ui';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { JointVariantEntry } from '@/shared/types';
@@ -106,6 +107,7 @@ function harness(
     }));
   mocks.entries = shallowReactive(mocks.entries);
   const inputs = createFieldInputs(ref('variant'));
+  const blocked = ref(false);
   const current = ref(currentId);
   const commitManual = vi.fn(async () => true);
   const snapshot = variantJointFixture();
@@ -113,6 +115,7 @@ function harness(
   if (emptyDeck) values.variant = { state: 'present', value: { ...jointObject(values.variant), wings: [''] } };
   const displaySnapshot = shallowRef(snapshot);
   const cancelVariantAction = vi.fn();
+  const pan = vi.fn();
   const vm = {
     displaySnapshot,
     displayValues: shallowRef(values),
@@ -121,6 +124,9 @@ function harness(
     variantActionPending: ref(false),
     commitVariantInputs: vi.fn(async () => true),
     cancelVariantAction,
+    installVariantWeapon: vi.fn(async () => true),
+    installVariantModule: vi.fn(async () => true),
+    updateVariant: vi.fn(async () => true),
   } as unknown as ReturnType<typeof useImmersiveVariantEditor>;
   vi.stubGlobal(
     'ResizeObserver',
@@ -134,6 +140,7 @@ function harness(
     {
       setup() {
         provideFieldInputs(inputs);
+        provide(immersiveBlockedKey, blocked);
         return () =>
           inPanel
             ? h(VariantImmersivePanel, {
@@ -162,9 +169,10 @@ function harness(
           VariantWingIcon: true,
           VariantRefitStats: true,
           ImmersiveHullScene: {
-            emits: ['slot', 'module', 'blank'],
+            methods: { pan },
+            emits: ['slot', 'module', 'blank', 'remove'],
             template:
-              '<div><button class="test-module" @click="$emit(\'module\', 1, {x: 400, y: 300})">模块槽</button><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
+              '<div><button class="test-module" @click="$emit(\'module\', 1, {x: 400, y: 300})">模块槽</button><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})" @contextmenu.prevent="$emit(\'remove\', 1)">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
           },
           VariantCandidateDetails: { props: ['id'], template: '<aside>{{id}}</aside>' },
           VariantCandidateCard: {
@@ -177,9 +185,99 @@ function harness(
       },
     },
   );
-  return { wrapper, inputs, current, commitManual, cancelVariantAction, displaySnapshot, picker: wrapper.findComponent(VariantPicker) };
+  return {
+    wrapper,
+    inputs,
+    current,
+    blocked,
+    commitManual,
+    cancelVariantAction,
+    displaySnapshot,
+    vm,
+    pan,
+    picker: wrapper.findComponent(VariantPicker),
+  };
 }
 describe('variant candidate picker', () => {
+  it('pans from information controls and across overlays until right-button release', async () => {
+    const own = harness('weapons', 2, false, [], '', true);
+    const information = own.wrapper.findComponent({ name: 'VariantRefitStats' });
+    await information.trigger('mousedown', { button: 2, clientX: 600, clientY: 100 });
+    await own.wrapper.get('.test-slot').trigger('mousemove', { buttons: 2, clientX: 580, clientY: 120 });
+    await information.trigger('mousemove', { buttons: 2, clientX: 590, clientY: 140 });
+    expect(own.pan.mock.calls).toEqual([
+      [-20, 20],
+      [10, 20],
+    ]);
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 2 }));
+    await information.trigger('mousemove', { clientX: 600, clientY: 150 });
+    expect(own.pan).toHaveBeenCalledTimes(2);
+    await information.trigger('contextmenu');
+    expect(own.vm.installVariantWeapon).not.toHaveBeenCalled();
+    await information.trigger('mousedown', { button: 2, clientX: 600, clientY: 100 });
+    window.dispatchEvent(new Event('blur'));
+    await information.trigger('mousemove', { buttons: 2, clientX: 620, clientY: 100 });
+    expect(own.pan).toHaveBeenCalledTimes(2);
+    own.wrapper.unmount();
+  });
+  it.each(['weapons', 'wings'] as const)('keeps built-in %s on a right click', async (kind) => {
+    const own = harness(kind, 2, false, [], '', true);
+    const variant = own.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!;
+    if (kind === 'wings') variant.wings[0]!.builtin = true;
+    else variant.weapons[1]!.builtin = true;
+    await own.wrapper.get(kind === 'wings' ? '.variant-wing-tile' : '.test-slot').trigger('contextmenu');
+    await flushPromises();
+    expect(own.vm.installVariantWeapon).not.toHaveBeenCalled();
+    expect(own.vm.updateVariant).not.toHaveBeenCalled();
+    own.wrapper.unmount();
+  });
+  it.each(['weapons', 'wings', 'variants'] as const)('uses formal %s removal only for a stationary right click', async (kind) => {
+    const own = harness(kind, 2, false, [], '', true);
+    if (kind === 'variants')
+      own.wrapper.findComponent(VariantImmersivePanel).props('panel').variants[0]!.weapons[1]!.slot.type = 'STATION_MODULE';
+    const target = own.wrapper.get(kind === 'wings' ? '.variant-wing-tile' : '.test-slot');
+    await target.trigger('mousedown', { button: 2, clientX: 20, clientY: 20 });
+    await target.trigger('mousemove', { buttons: 2, clientX: 24, clientY: 20 });
+    await target.trigger('mousemove', { buttons: 2, clientX: 20, clientY: 20 });
+    await target.trigger('contextmenu');
+    await flushPromises();
+    expect(own.vm.installVariantWeapon).not.toHaveBeenCalled();
+    expect(own.vm.installVariantModule).not.toHaveBeenCalled();
+    expect(own.vm.updateVariant).not.toHaveBeenCalled();
+    await target.trigger('mousedown', { button: 2, clientX: 20, clientY: 20 });
+    await target.trigger('contextmenu');
+    await flushPromises();
+    if (kind === 'wings') {
+      expect(own.vm.updateVariant).toHaveBeenCalledWith('variant', expect.any(Function));
+      const update = vi.mocked(own.vm.updateVariant).mock.calls[0]![1];
+      expect(update({ wings: ['sample', 'retained'] })).toMatchObject({ wings: ['', 'retained'] });
+    } else
+      expect(kind === 'variants' ? own.vm.installVariantModule : own.vm.installVariantWeapon).toHaveBeenCalledWith(
+        'variant',
+        'WS2',
+        '',
+        false,
+      );
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    own.wrapper.unmount();
+  });
+  it.each(['weapons', 'wings', 'variants'] as const)('closes the %s picker and details when preparation begins', async (kind) => {
+    const own = harness(kind, 2, false, [], '', true);
+    await own.wrapper.get(kind === 'variants' ? '.test-module' : kind === 'weapons' ? '.test-slot' : '.variant-wing-tile').trigger('click');
+    await flushPromises();
+    await own.wrapper.get('.variant-picker-list .variant-candidate-card').trigger('mouseenter');
+    expect(own.wrapper.find('.variant-picker-tooltip').exists()).toBe(true);
+    own.cancelVariantAction.mockClear();
+    own.blocked.value = true;
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    expect(own.wrapper.find('.variant-picker-tooltip').exists()).toBe(false);
+    expect(own.cancelVariantAction).not.toHaveBeenCalled();
+    own.blocked.value = false;
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    own.wrapper.unmount();
+  });
   it('opens the module picker for a scene module event and preserves its parent target', async () => {
     const own = harness('variants', 2, false, [], '', true);
     await flushPromises();

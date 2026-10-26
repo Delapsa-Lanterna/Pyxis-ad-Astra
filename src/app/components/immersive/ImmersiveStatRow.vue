@@ -13,6 +13,7 @@
       placement="bottom-end"
       display-directive="if"
       :show="active"
+      :disabled="blocked"
       :to="trigger?.closest<HTMLElement>('[role=dialog]')"
       @update:show="$emit('toggle', $event)"
       :show-arrow="false"
@@ -43,7 +44,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, watch, onScopeDispose } from 'vue';
+import { inject, ref, watch, onScopeDispose } from 'vue';
+import { immersiveBlockedKey } from './immersive-render-context';
 import type { ImmersiveStat, ImmersiveFieldChange } from '@/domain/immersive/fields';
 import type { JointEditSnapshot, JointValue } from '@/shared/types';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
@@ -59,6 +61,14 @@ const props = defineProps<{
 }>();
 const trigger = ref<HTMLButtonElement | null>(null),
   popover = ref<{ syncPosition: () => void } | null>(null);
+const blocked = inject(immersiveBlockedKey, ref(false));
+watch(
+  blocked,
+  (value) => {
+    if (value) emit('dismiss');
+  },
+  { flush: 'sync' },
+);
 let positionFrame: number | null = null;
 function resize() {
   if (positionFrame !== null) window.cancelAnimationFrame(positionFrame);
@@ -85,5 +95,5 @@ onScopeDispose(() => {
   window.removeEventListener('resize', resize);
   if (positionFrame !== null) window.cancelAnimationFrame(positionFrame);
 });
-defineEmits<{ toggle: [show: boolean]; dismiss: []; update: [changes: ImmersiveFieldChange[]] }>();
+const emit = defineEmits<{ toggle: [show: boolean]; dismiss: []; update: [changes: ImmersiveFieldChange[]] }>();
 </script>

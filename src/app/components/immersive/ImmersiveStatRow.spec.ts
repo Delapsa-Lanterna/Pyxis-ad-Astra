@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { defineComponent } from 'vue';
+import { defineComponent, ref } from 'vue';
+import { immersiveBlockedKey } from './immersive-render-context';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
@@ -11,6 +12,7 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
 });
 function harness(attachTo?: HTMLElement) {
+  const blocked = ref(false);
   const scroll = vi.fn(),
     sync = vi.fn();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -26,6 +28,7 @@ function harness(attachTo?: HTMLElement) {
     attachTo,
     props: { stat, snapshot, values, editable: true, active: true, runtimeContext: { sessionId: 's', modRoot: 'M:/mod' } },
     global: {
+      provide: { [immersiveBlockedKey as symbol]: blocked },
       stubs: {
         ImmersiveText: true,
         NPopover: defineComponent({
@@ -39,7 +42,7 @@ function harness(attachTo?: HTMLElement) {
       },
     },
   });
-  return { own, scroll, sync };
+  return { own, scroll, sync, blocked };
 }
 describe('immersive popover anchor resizing', () => {
   it('keeps field inputs within their active dialog focus boundary', async () => {
@@ -56,6 +59,8 @@ describe('immersive popover anchor resizing', () => {
     const state = harness();
     await state.own.find('button').trigger('click');
     expect(state.own.emitted('toggle')).toEqual([[false]]);
+    state.blocked.value = true;
+    expect(state.own.emitted('dismiss')).toEqual([[]]);
     state.own.unmount();
   });
   it('keeps the same trigger node and reveals its anchor before resynchronizing the popover', async () => {

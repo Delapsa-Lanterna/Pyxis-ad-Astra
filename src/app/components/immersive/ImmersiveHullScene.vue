@@ -17,7 +17,7 @@
       @mouseup="navigation.finish"
       @mouseleave="leave"
       @wheel.prevent="navigation.wheel"
-      @contextmenu.prevent
+      @contextmenu="contextMenu"
     />
     <div
       v-if="!iconSize && hoverWeapon"
@@ -64,6 +64,7 @@ const emit = defineEmits<{
   slot: [index: number, anchor: { x: number; y: number }];
   module: [index: number, anchor: { x: number; y: number }];
   blank: [];
+  remove: [index: number];
 }>();
 const canvas = shallowRef<HTMLCanvasElement | null>(null),
   stage = ref<HTMLElement | null>(null);
@@ -262,19 +263,19 @@ function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
   );
 }
 function drawSlots(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection) {
+  if (props.iconSize || variant.key !== props.variant.key) return;
   for (const [index, weapon] of variant.weapons.entries()) {
     const location = Array.isArray(weapon.slot.locations) ? weapon.slot.locations : [0, 0];
     const p = immersiveHullPoint(location.map(Number)),
       slot = weapon.slot;
-    if (props.iconSize || slot.type === 'DECORATIVE' || slot.type === 'LAUNCH_BAY' || slot.type === 'SYSTEM' || slot.mount === 'HIDDEN')
-      continue;
+    if (['DECORATIVE', 'LAUNCH_BAY', 'SYSTEM'].includes(schemaStringValue(slot.type))) continue;
     const active = variant.key === props.variant.key && (state.selected.value === index || state.hovered.value?.i === index);
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.scale(active ? 0.66 : 0.44, active ? 0.66 : 0.44);
     drawWeaponMount(ctx, schemaStringValue(slot.type), schemaStringValue(slot.size), (weapon.id ? 0.3 : 0.5) * (active ? 1 : 0.25));
     ctx.restore();
-    if (active)
+    if (active || slot.type === 'STATION_MODULE')
       drawWeaponSlotVisual(ctx, {
         point: p,
         angle: Number(slot.angle ?? 0) + 90,
@@ -282,7 +283,7 @@ function drawSlots(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjecti
         mount: schemaStringValue(slot.mount),
         type: schemaStringValue(slot.type),
         size: schemaStringValue(slot.size),
-        style: weaponSlotStyle(schemaStringValue(slot.type), variant.key === props.variant.key && state.selected.value === index ? 1 : 0.6),
+        style: weaponSlotStyle(schemaStringValue(slot.type), active ? (state.selected.value === index ? 1 : 0.6) : 0.15),
       });
   }
 }
@@ -317,6 +318,14 @@ function activateSelected() {
     emit('module', index, anchor);
   } else {
     emit('slot', index, anchor);
+  }
+}
+function contextMenu(event: MouseEvent) {
+  const target = selection.byPointer(event.offsetX, event.offsetY);
+  if (target) {
+    event.preventDefault();
+    emit('remove', target.i);
+    paint();
   }
 }
 function navigate(event: KeyboardEvent) {
@@ -381,5 +390,9 @@ onScopeDispose(() => {
   stopRatio?.();
   navigation.finish();
 });
-defineExpose({ fit });
+function pan(dx: number, dy: number) {
+  viewport.panBy(dx, dy);
+  paint();
+}
+defineExpose({ fit, pan });
 </script>
