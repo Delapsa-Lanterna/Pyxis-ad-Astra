@@ -2,7 +2,7 @@
   <button
     class="variant-candidate-card ui-button ui-text-normal ui-layout-grid ui-control-pointer ui-control-border"
     :class="{ 'variant-current': current, 'variant-list-active': active }"
-    :title="cardDiagnostic || undefined"
+    :title="cardDiagnostic || entry.label + '\n' + entry.id"
     @click="$emit('select')"
     @mouseenter="$emit('hover', $event)"
     @focus="$emit('hover', $event)"
@@ -20,6 +20,16 @@
       :active="active"
       :loaded-missile="loadedMissile"
     />
+    <ResourceThumbnail
+      v-else-if="kind === 'variants' && entry.resourceRefs.icon"
+      :session-id="root.sessionId"
+      :resource="entry.resourceRefs.icon"
+      :url="mediaUrl(entry.resourceRefs.icon)"
+      :label="entry.moduleHull?.name || entry.label"
+      :width="69"
+      :height="69"
+      :active="active"
+    />
     <ImmersiveHullThumbnail
       v-else-if="scene && !wingLayout.diagnostic"
       :variant="scene"
@@ -31,10 +41,10 @@
     />
     <div v-else />
     <div class="variant-card-text ui-layout-row ui-layout-shrink ui-layout-stack ui-layout-clip">
-      <ImmersiveText :active="active" :text="entry.label" /><ImmersiveText
+      <ImmersiveText :active="active" :text="abbreviate(entry.label, 218)" /><ImmersiveText
         :active="active"
         :text="summary"
-        :runs="[{ text: summary, color: '#ffd200' }]"
+        :runs="[{ text: abbreviate(summary, 218), color: '#ffd200' }]"
         block
       /><ImmersiveText :active="active" v-if="current" text="点击卸下" font="caption" block /><ImmersiveText
         :active="active"
@@ -43,13 +53,21 @@
         font="caption"
       />
     </div>
-    <strong class="variant-candidate-card-value ui-layout-row ui-layout-stack"
-      ><ImmersiveText
-        :active="active"
-        :text="formatVariantNumber(cost)"
-        :runs="[{ text: formatVariantNumber(cost), color: current ? '#9bff00' : '#ffd200' }]"
-        font="op" /><ImmersiveText :active="active" text="装配点数" font="caption"
-    /></strong>
+    <strong
+      class="variant-candidate-card-value ui-layout-row ui-layout-stack"
+      :class="{ 'ui-layout-clip ui-layout-shrink': kind === 'variants' }"
+    >
+      <template v-if="kind === 'variants'">
+        <ImmersiveText class="variant-module-id ui-text-truncate" :text="abbreviate(entry.id, 52, true)" :active="active" font="caption" />
+        <ImmersiveText text="装配 ID" :active="active" font="caption" />
+      </template>
+      <template v-else
+        ><ImmersiveText
+          :active="active"
+          :text="formatVariantNumber(cost)"
+          :runs="[{ text: formatVariantNumber(cost), color: current ? '#9bff00' : '#ffd200' }]"
+          font="op" /><ImmersiveText :active="active" text="装配点数" font="caption" /></template
+    ></strong>
   </button>
 </template>
 <script setup lang="ts">
@@ -66,10 +84,14 @@ import { WING_ROLE_LABELS } from '@/domain/immersive/wing/wing-panel';
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveWeaponIcon from '../ImmersiveWeaponIcon.vue';
 import ImmersiveHullThumbnail from '../ImmersiveHullThumbnail.vue';
+import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
+import { useFontMeasurement } from '@/app/composables/use-original-fonts';
+import { immersiveFontIds } from '@/domain/immersive/font-roles';
+import { textGraphemes } from '@/domain/fonts/text-layout';
 const props = withDefaults(
   defineProps<{
     root: JointEditRoot;
-    kind: 'weapons' | 'wings';
+    kind: 'weapons' | 'wings' | 'variants';
     entry: ReadonlyVariantEntry;
     cost: number;
     diagnostic: string;
@@ -80,6 +102,18 @@ const props = withDefaults(
   { active: true },
 );
 defineEmits<{ select: []; hover: [event: MouseEvent | FocusEvent]; leave: [event: MouseEvent | FocusEvent] }>();
+const measureName = useFontMeasurement(immersiveFontIds.body);
+const measureId = props.kind === 'variants' ? useFontMeasurement(immersiveFontIds.caption) : null;
+function abbreviate(text: string, width: number, id = false) {
+  const measure = id ? measureId! : measureName!;
+  if (measure([{ text }]) <= width) return text;
+  let value = '';
+  for (const character of textGraphemes(text)) {
+    if (measure([{ text: value + character + '…' }]) > width) break;
+    value += character;
+  }
+  return value + '…';
+}
 const spec = computed(() => (isRowData(props.entry.spec) ? props.entry.spec : {}));
 const data = computed(() => (isRowData(props.entry.data) ? props.entry.data : {}));
 const layers = computed(() => weaponImageLayers(spec.value, props.entry.resourceRefs, 'turret'));
@@ -101,10 +135,12 @@ const cardDiagnostic = computed(
 );
 const mediaUrl = (resource: ResourceRef) => props.mediaUrl(resource);
 const summary = computed(() =>
-  props.kind === 'weapons'
-    ? [props.entry.primaryRole || '未提供', formatVariantNumber(immersiveNumber(data.value, 'range', 250))].join('，')
-    : schemaStringValue(data.value['role desc']) ||
-      WING_ROLE_LABELS[schemaStringValue(data.value.role)] ||
-      schemaStringValue(data.value.role),
+  props.kind === 'variants'
+    ? props.entry.moduleHull?.name || ''
+    : props.kind === 'weapons'
+      ? [props.entry.primaryRole || '未提供', formatVariantNumber(immersiveNumber(data.value, 'range', 250))].join('，')
+      : schemaStringValue(data.value['role desc']) ||
+        WING_ROLE_LABELS[schemaStringValue(data.value.role)] ||
+        schemaStringValue(data.value.role),
 );
 </script>

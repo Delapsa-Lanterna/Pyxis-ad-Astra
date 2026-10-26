@@ -12,7 +12,8 @@
       <n-input v-model:value="search" placeholder="搜索 ID／名称" clearable />
     </header>
     <div v-if="currentEntry" class="variant-current-title">
-      <ImmersiveText
+      <ImmersiveText v-if="kind === 'variants'" text="当前模块 · 点击卸下" font="heading" block /><ImmersiveText
+        v-else
         text="当前装备 · 按住 Ctrl 比较"
         :runs="[{ text: '当前装备 · 按住 ' }, { text: 'Ctrl', color: '#ffd200' }, { text: ' 比较' }]"
         font="heading"
@@ -32,7 +33,19 @@
       @hover="showCandidate(currentId, $event)"
       @leave="hover.leave"
     />
-    <div class="variant-picker-filters ui-layout-grid" :class="{ 'weapon-filter-grid': kind === 'weapons' }">
+    <div v-if="kind === 'variants'" class="variant-picker-filters variant-module-filters ui-layout-grid">
+      <ImmersiveFilterToggle
+        v-for="source in moduleSources"
+        :key="source.value"
+        :label="source.label"
+        :text="source.label"
+        :checked="selectedSources.includes(source.value)"
+        color="#aadeff"
+        font="filter"
+        @toggle="toggleSource(source.value)"
+      />
+    </div>
+    <div v-else class="variant-picker-filters ui-layout-grid" :class="{ 'weapon-filter-grid': kind === 'weapons' }">
       <ImmersiveFilterToggle
         v-for="option in filterOptions"
         :key="option.value"
@@ -44,6 +57,14 @@
         @toggle="toggleFilter(option)"
       />
     </div>
+    <button
+      v-if="kind === 'variants'"
+      class="variant-module-edit ui-button ui-control-button ui-control-border ui-text-normal"
+      :disabled="!moduleContext?.variant"
+      @click="$emit('edit-module')"
+    >
+      <ImmersiveText text="编辑模块装配" font="heading" />
+    </button>
     <div ref="listSurface" data-media-viewport class="variant-picker-list" @scroll="scrollList">
       <ImmersiveText v-if="loading" text="正在读取候选目录" />
       <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
@@ -74,7 +95,7 @@
       <summary class="immersive-disclosure-summary ui-layout-row ui-layout-center ui-control-pointer">
         <ImmersiveText text="来源与 ID" font="caption" ink-aligned />
       </summary>
-      <n-select :virtual-scroll="false" v-model:value="origin" :options="origins" />
+      <n-select v-if="kind !== 'variants'" :virtual-scroll="false" v-model:value="origin" :options="origins" />
       <footer class="variant-picker-extra-footer ui-footer ui-layout-row">
         <n-input v-model:value="manualId" placeholder="手动填写 ID" @keydown.enter.stop.prevent="manual" /><n-button @click="manual"
           >提交 ID</n-button
@@ -86,10 +107,10 @@
     v-if="hovered"
     :ref="(element) => (hover.surface.value = element as HTMLElement | null)"
     class="variant-picker-tooltip ui-layout-row"
-    :style="hover.position.value"
+    :style="{ ...hover.position.value, '--candidate-detail-width': detailPaneWidth + 'px' }"
     tabindex="-1"
     role="dialog"
-    :aria-label="kind === 'weapons' ? '武器只读信息' : '战机联队只读信息'"
+    :aria-label="kind === 'variants' ? '模块装配只读信息' : kind === 'weapons' ? '武器只读信息' : '战机联队只读信息'"
     @mouseenter="hover.keep"
     @mouseleave="hover.leave"
     @focusin="hover.keep"
@@ -98,12 +119,15 @@
     @keydown="compareKey"
     @keyup="compareKey"
   >
-    <VariantCandidateDetails :root="root" :kind="kind" :id="hovered" /><VariantCandidateDetails
-      v-if="compare && currentId && currentId !== hovered"
+    <VariantCandidateDetails
       :root="root"
       :kind="kind"
-      :id="currentId"
-    />
+      :id="hovered"
+      :current-variant="kind === 'variants' && hovered === currentId ? moduleContext?.variant : undefined"
+      :current-snapshot="moduleContext?.snapshot"
+      :current-values="moduleContext?.values"
+      :current-render="moduleContext?.render"
+    /><VariantCandidateDetails v-if="compare && currentId && currentId !== hovered" :root="root" :kind="kind" :id="currentId" />
   </div>
 </template>
 <script setup lang="ts">
@@ -111,7 +135,9 @@ import { computed, ref, onMounted, onScopeDispose, watch, type ComputedRef } fro
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import type { ReadonlyVariantEntry, JointEditRoot, RowData } from '@/shared/types';
+import type { ReadonlyVariantEntry, JointEditRoot, RowData, ResourceSource, JointEditSnapshot, JointValue } from '@/shared/types';
+import type { VariantProjection } from '@/domain/immersive/variant/variant-panel';
+import type { ImmersiveRenderContext } from '../immersive-render-context';
 import { useVariantCatalog } from '@/app/composables/immersive-editor/variant/use-variant-catalog';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
@@ -129,7 +155,14 @@ import { useThumbnailPreload } from '@/app/composables/use-thumbnail-preload';
 import { variantCandidateThumbnail } from '@/app/composables/immersive-editor/variant/variant-candidate-thumbnail';
 const props = defineProps<{
   root: JointEditRoot;
-  kind: 'weapons' | 'wings';
+  kind: 'weapons' | 'wings' | 'variants';
+  moduleContext?: {
+    entry?: ReadonlyVariantEntry;
+    variant?: VariantProjection;
+    snapshot: JointEditSnapshot;
+    values: Record<string, JointValue>;
+    render: ImmersiveRenderContext;
+  };
   weaponSlot?: RowData;
   currentId: string;
   anchor: { x: number; y: number };
@@ -138,6 +171,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [id: string, category: HullmodCategory];
   close: [];
+  'edit-module': [];
 }>();
 const surface = ref<HTMLElement | null>(null),
   listSurface = ref<HTMLElement | null>(null),
@@ -147,18 +181,59 @@ const surface = ref<HTMLElement | null>(null),
   sizes = ref<string[]>(props.kind === 'weapons' ? weaponFilterDefaults(props.weaponSlot!).sizes : []),
   manualId = ref(''),
   compare = ref(false);
+const moduleSources = [
+  { label: '本 Mod', value: 'mod' as const },
+  { label: '原版', value: 'core' as const },
+];
+const selectedSources = ref<ResourceSource[]>(['mod']);
+const viewportWidth = ref(window.innerWidth);
+const comparing = computed(() => compare.value && props.currentId && props.currentId !== hover.selected.value);
+const detailPaneWidth = computed(() =>
+  Math.min(
+    props.kind === 'variants' ? 832 : 422,
+    Math.max(240, (viewportWidth.value - 411 - (comparing.value ? 3 : 0)) / (comparing.value ? 2 : 1)),
+  ),
+);
+const detailWidth = computed(() => detailPaneWidth.value * (comparing.value ? 2 : 1) + (comparing.value ? 3 : 0));
+function toggleSource(source: ResourceSource) {
+  selectedSources.value = selectedSources.value.includes(source)
+    ? selectedSources.value.filter((value) => value !== source)
+    : [...selectedSources.value, source];
+}
 const hover = useImmersiveHover<string>(
-  (): number => (compare.value && props.currentId && props.currentId !== hover.selected.value ? 847 : 422),
-  () => (props.kind === 'weapons' ? 'left' : 'right'),
+  (): number => detailWidth.value,
+  () => (props.kind === 'wings' ? 'right' : 'left'),
 );
 const hovered = computed(() => hover.selected.value ?? '');
 function showCandidate(id: string, event: MouseEvent | FocusEvent) {
   hover.show(id, event.currentTarget as HTMLElement, event.type === 'focus' ? 'focus' : 'hover');
 }
-const { entries, loading, errorText, load } = useVariantCatalog(
+const mainCatalog = useVariantCatalog(
   () => props.root,
   () => props.kind,
+  () => props.kind !== 'variants' || selectedSources.value.includes('mod'),
+  () => (props.kind === 'variants' ? 'mod' : undefined),
 );
+const coreCatalog = useVariantCatalog(
+  () => props.root,
+  () => 'variants',
+  () => props.kind === 'variants' && selectedSources.value.includes('core'),
+  () => 'core',
+);
+const entries = computed(() =>
+  props.kind === 'variants'
+    ? [
+        ...mainCatalog.entries.value.filter((entry) => selectedSources.value.includes('mod') && entry.source.source === 'mod'),
+        ...coreCatalog.entries.value.filter((entry) => selectedSources.value.includes('core') && entry.source.source === 'core'),
+      ]
+    : mainCatalog.entries.value,
+);
+const loading = computed(() => mainCatalog.loading.value || coreCatalog.loading.value);
+const errorText = computed(() => mainCatalog.errorText.value || coreCatalog.errorText.value);
+function load() {
+  if (props.kind !== 'variants' || selectedSources.value.includes('mod')) void mainCatalog.load();
+  if (props.kind === 'variants' && selectedSources.value.includes('core')) void coreCatalog.load();
+}
 const origins = [
   { label: '全部来源', value: 'all' },
   { label: '当前 Mod', value: 'mod' },
@@ -199,15 +274,17 @@ function diagnostic(entry: ReadonlyVariantEntry) {
       : weaponSlotCompatibility(props.weaponSlot, entry.spec)
     : '';
 }
-const currentEntry = computed(() => (props.currentId ? entries.value.find((entry) => entry.id === props.currentId) : undefined));
+const currentEntry = computed(
+  () => props.moduleContext?.entry ?? (props.currentId ? entries.value.find((entry) => entry.id === props.currentId) : undefined),
+);
 const position = ref({ left: '0px', top: '0px' });
 function locate() {
+  viewportWidth.value = window.innerWidth;
   const bounds = surface.value!.getBoundingClientRect();
-  const detailWidth = compare.value && props.currentId !== hovered.value ? 847 : 422;
   const preferred =
     props.kind === 'wings'
-      ? Math.min(props.anchor.x, window.innerWidth - bounds.width - detailWidth - 14)
-      : Math.max(props.anchor.x, detailWidth + 10);
+      ? Math.min(props.anchor.x, window.innerWidth - bounds.width - detailWidth.value - 14)
+      : Math.max(props.anchor.x, detailWidth.value + 10);
   const x = Math.max(7, Math.min(preferred, window.innerWidth - bounds.width - 7));
   const y = Math.max(7, Math.min(props.anchor.y - bounds.height / 2, window.innerHeight - bounds.height - 7));
   const left = x + 'px',
@@ -223,12 +300,18 @@ const filtered = computed(() => {
       Boolean(entry.id) &&
       (props.kind !== 'weapons' || !isSystemWeapon(data(entry), isRowData(entry.spec) ? entry.spec : {})) &&
       (origin.value === 'all' || entry.source.source === origin.value) &&
-      (!needle || [entry.id, label(entry)].some((value) => value.toLowerCase().includes(needle))) &&
-      (props.kind === 'weapons'
-        ? isRowData(entry.spec) && weaponFilterMatches(entry.spec, types.value, sizes.value)
-        : types.value.includes(['INTERCEPTOR', 'BOMBER'].includes(string(entry, 'role')) ? string(entry, 'role') : 'FIGHTER')),
+      (!needle || [entry.id, label(entry), entry.moduleHull?.name ?? ''].some((value) => value.toLowerCase().includes(needle))) &&
+      (props.kind === 'variants'
+        ? entry.moduleHull?.hints.includes('MODULE')
+        : props.kind === 'weapons'
+          ? isRowData(entry.spec) && weaponFilterMatches(entry.spec, types.value, sizes.value)
+          : types.value.includes(['INTERCEPTOR', 'BOMBER'].includes(string(entry, 'role')) ? string(entry, 'role') : 'FIGHTER')),
   );
   items.sort((a, b) => {
+    if (props.kind === 'variants')
+      return (
+        (a.moduleHull?.name ?? '').localeCompare(b.moduleHull?.name ?? '') || a.label.localeCompare(b.label) || a.id.localeCompare(b.id)
+      );
     const left = cost(a),
       right = cost(b);
     if (Number.isNaN(left) || Number.isNaN(right)) return Number.isNaN(left) === Number.isNaN(right) ? 0 : Number.isNaN(left) ? 1 : -1;
@@ -335,7 +418,7 @@ function choose(id: string) {
   emit('select', id, 'normal');
 }
 function compareKey(event: KeyboardEvent) {
-  compare.value = event.ctrlKey;
+  compare.value = props.kind !== 'variants' && event.ctrlKey;
   const row = (event.target as HTMLElement).closest<HTMLElement>('[data-entry-id]');
   if (event.type !== 'keydown' || !row || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
   event.preventDefault();

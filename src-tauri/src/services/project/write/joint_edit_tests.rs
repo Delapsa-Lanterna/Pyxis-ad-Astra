@@ -285,6 +285,139 @@ fn variant_skin_slots_and_sources() {
 }
 
 #[test]
+fn module_variant_catalog_lightweight_sources_and_skins() {
+    let (dir, mut root) = fixture();
+    project::close_project_session(root.session_id.clone()).unwrap();
+    let game = temp_dir("module_catalog");
+    for (relative, content) in [
+        (
+            "data/hulls/ship_data.csv",
+            "id,name,hints\na,,MODULE\nb,Other,NOT_MODULE\n",
+        ),
+        (
+            "data/hulls/b.ship",
+            r#"{"hullId":"b","hullName":"Other","spriteName":"graphics/b.png"}"#,
+        ),
+        (
+            "data/hulls/skins/removed.skin",
+            r#"{"skinHullId":"removed","baseHullId":"a","removeHints":["MODULE"]}"#,
+        ),
+        (
+            "data/hulls/skins/added.skin",
+            r#"{"skinHullId":"added","baseHullId":"b","addHints":["MODULE"],"hullName":"Skin name"}"#,
+        ),
+        (
+            "data/variants/twin.variant",
+            r#"{"variantId":"twin","hullId":"a","displayName":"Twin"}"#,
+        ),
+        (
+            "data/variants/removed.variant",
+            r#"{"variantId":"removed","hullId":"removed"}"#,
+        ),
+        (
+            "data/variants/added.variant",
+            r#"{"variantId":"added","hullId":"added"}"#,
+        ),
+        (
+            "data/variants/ordinary.variant",
+            r#"{"variantId":"ordinary","hullId":"b"}"#,
+        ),
+    ] {
+        let path = dir.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write_utf8_no_bom(&path, content).unwrap();
+    }
+    for (relative, content) in [
+        (
+            "data/hulls/ship_data.csv",
+            "id,name,hints\ncore_ship,Core,MODULE\n",
+        ),
+        (
+            "data/hulls/core.ship",
+            r#"{"hullId":"core_ship","spriteName":"graphics/core.png"}"#,
+        ),
+        (
+            "data/variants/core.variant",
+            r#"{"variantId":"core","hullId":"core_ship"}"#,
+        ),
+        (
+            "data/variants/var.variant",
+            r#"{"variantId":"var","hullId":"core_ship"}"#,
+        ),
+    ] {
+        let path = game.join("starsector-core").join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write_utf8_no_bom(&path, content).unwrap();
+    }
+    let mut trace = project::PerformanceTrace::new("module.catalog.test");
+    root.session_id = project::open_project_session_traced(&dir, Some(&game), &mut trace)
+        .unwrap()
+        .session_id;
+    write_utf8_no_bom(
+        &dir.join("data/weapons/weapon.wpn"),
+        "invalid weapon content",
+    )
+    .unwrap();
+    let local = crate::services::query_variant_catalog(
+        &root,
+        JointVariantCatalogKind::Variants,
+        Some(ResourceSource::Mod),
+    )
+    .unwrap();
+    let mut ids = local
+        .catalog
+        .entries
+        .iter()
+        .map(|entry| entry.id.as_str())
+        .collect::<Vec<_>>();
+    ids.sort();
+    assert_eq!(ids, ["added", "twin", "var"]);
+    for entry in &local.catalog.entries {
+        assert_eq!(entry.data.as_object().unwrap().len(), 3);
+        assert!(entry.spec.is_none() && entry.preview.is_none() && entry.projectile.is_none());
+        assert_eq!(entry.source.source, ResourceSource::Mod);
+        assert!(
+            entry
+                .module_hull
+                .as_ref()
+                .unwrap()
+                .hints
+                .iter()
+                .any(|hint| hint == "MODULE")
+        );
+    }
+    let twin = local
+        .catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == "twin")
+        .unwrap();
+    assert_eq!(twin.module_hull.as_ref().unwrap().name, "Ship");
+    assert_eq!(twin.label, "Twin");
+    let added = local
+        .catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == "added")
+        .unwrap();
+    assert_eq!(added.module_hull.as_ref().unwrap().name, "Skin name");
+    let core = crate::services::query_variant_catalog(
+        &root,
+        JointVariantCatalogKind::Variants,
+        Some(ResourceSource::Core),
+    )
+    .unwrap();
+    assert_eq!(core.catalog.entries.len(), 1);
+    assert_eq!(core.catalog.entries[0].id, "core");
+    assert_eq!(
+        core.catalog.entries[0].resource_refs["icon"].source,
+        ResourceSource::Core
+    );
+    cleanup(dir, &root);
+    std::fs::remove_dir_all(game).unwrap();
+}
+
+#[test]
 fn variant_weapon_catalog_sources() {
     let (dir, root) = fixture();
     let snapshot = crate::services::query_variant_catalog(
@@ -294,6 +427,7 @@ fn variant_weapon_catalog_sources() {
             ..root.clone()
         },
         JointVariantCatalogKind::Weapons,
+        None,
     )
     .unwrap();
     let catalog = snapshot.catalog;
@@ -342,6 +476,7 @@ fn weapon_render_hints_skin_chain() {
         row_key: None,
         new_sources: Vec::new(),
         catalog: None,
+        catalog_source: None,
         values: Some(BTreeMap::from([(
             outer.clone(),
             JointValue::Present(json!({
@@ -392,7 +527,8 @@ fn variant_wing_catalog_core_reference() {
     root.kind = JointEditKind::Variant;
     root.id = "var".into();
     let snapshot =
-        crate::services::query_variant_catalog(&root, JointVariantCatalogKind::Wings).unwrap();
+        crate::services::query_variant_catalog(&root, JointVariantCatalogKind::Wings, None)
+            .unwrap();
     let entries = snapshot.catalog.entries;
     assert!(entries[0].preview.is_some());
     assert_eq!(entries[0].label, "Authority fighter Support Fighter");
@@ -668,6 +804,7 @@ fn wing_creates_skin_and_versions() {
         .session_id;
     let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
         catalog: None,
+        catalog_source: None,
         root: root.clone(),
         row_key: None,
         values: None,
@@ -731,6 +868,7 @@ fn weapon_projection_icons_and_source() {
     ]);
     let projected = crate::services::query_joint_edit_request(&JointEditQuery {
         catalog: None,
+        catalog_source: None,
         root: weapon_root,
         row_key: None,
         values: Some(draft),
@@ -945,7 +1083,8 @@ fn hullmod_catalog_ui_icons() {
         ..root
     };
     let result =
-        crate::services::query_variant_catalog(&root, JointVariantCatalogKind::Hullmods).unwrap();
+        crate::services::query_variant_catalog(&root, JointVariantCatalogKind::Hullmods, None)
+            .unwrap();
     assert_eq!(result.catalog.entries.len(), 3);
     let shared = result
         .catalog
@@ -1432,6 +1571,7 @@ fn csv_identity_and_draft_system() {
     };
     let mut query = JointEditQuery {
         catalog: None,
+        catalog_source: None,
         root: JointEditRoot {
             id: "unsaved-id".into(),
             ..root.clone()
@@ -1741,7 +1881,7 @@ fn variant_catalog_core_repeated_reads() {
         (JointVariantCatalogKind::Weapons, "core_weapon", "weapon"),
         (JointVariantCatalogKind::Wings, "core_wing", "wing"),
     ] {
-        let initial = crate::services::query_variant_catalog(&root, kind).unwrap();
+        let initial = crate::services::query_variant_catalog(&root, kind, None).unwrap();
         assert_eq!(initial.root, root);
         assert_eq!(initial.catalog.entries.len(), 2);
         for (id, source) in [
@@ -1768,7 +1908,7 @@ fn variant_catalog_core_repeated_reads() {
         let expected = serde_json::to_vec(&initial).unwrap();
         for sample in 0..10 {
             let timer = trace.timer();
-            let read = crate::services::query_variant_catalog(&root, kind).unwrap();
+            let read = crate::services::query_variant_catalog(&root, kind, None).unwrap();
             let bytes = serde_json::to_vec(&read).unwrap();
             assert_eq!(bytes, expected);
             println!(

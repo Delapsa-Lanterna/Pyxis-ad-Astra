@@ -10,9 +10,8 @@ use crate::{
 #[command_macros::command(async)]
 pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditReadResult, AppError> {
     match payload.catalog {
-        Some(kind) => {
-            services::query_variant_catalog(&payload.root, kind).map(JointEditReadResult::Catalog)
-        }
+        Some(kind) => services::query_variant_catalog(&payload.root, kind, payload.catalog_source)
+            .map(JointEditReadResult::Catalog),
         None => services::query_joint_edit_request(&payload)
             .map(|value| JointEditReadResult::Snapshot(Box::new(value))),
     }

@@ -10,6 +10,7 @@ import type {
   DeepReadonly,
   JointSourceCreate,
   JointVariantCatalogKind,
+  ResourceSource,
 } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createLiveSessionQuery, createCachedSessionQuery } from '@/services/query-cache.service';
@@ -78,8 +79,16 @@ export function queryJointVariantCatalog(
   root: JointEditRoot,
   catalog: JointVariantCatalogKind,
   signal?: AbortSignal,
+  catalogSource?: ResourceSource,
 ): Promise<DeepReadonly<JointVariantCatalogRead>> {
-  const parameters = { root: { ...root }, rowKey: null, values: null, newSources: [], catalog };
+  const parameters = {
+    root: { ...root },
+    rowKey: null,
+    values: null,
+    newSources: [],
+    catalog,
+    ...(catalogSource ? { catalogSource } : {}),
+  };
   return readJointCatalog(root.sessionId, parameters, signal);
 }
 export function prepareJointEdit(draft: JointEditDraft, signal?: AbortSignal): Promise<DeepReadonly<JointEditPrepared>> {

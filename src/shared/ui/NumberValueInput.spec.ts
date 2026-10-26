@@ -64,7 +64,7 @@ describe('Smart numeric input with real Naive UI', () => {
     [false, false, 5],
     [true, false, 9],
     [false, true, 4.5],
-    [true, true, 14],
+    [true, true, 54],
   ])('applies Shift=%s and Ctrl=%s to both buttons and saves the result', async (shiftKey, ctrlKey, expected) => {
     const { session, save } = await harness();
     await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey, ctrlKey });

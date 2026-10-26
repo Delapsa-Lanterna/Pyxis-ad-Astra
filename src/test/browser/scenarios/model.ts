@@ -26,6 +26,7 @@ import { jointObject } from '@/domain/joint-edit';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { variantEditableRecords } from '@/domain/immersive/source-records';
 import { resourceImage } from '../../fixtures/resources';
+import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 
 export const scenarioNames = ['settings', 'json', 'csv', 'ship', 'weapon', 'wing', 'variant', 'weapons', 'wings', 'hullmods'] as const;
 export type BrowserScenario = (typeof scenarioNames)[number];
@@ -120,7 +121,7 @@ export function createBrowserModel(
         if (record.target.kind === 'spec') {
           const data = (record.value as { state: 'present'; value: RowData }).value;
           if (record.target.target.kind === 'ship') {
-            data.spriteName = 'graphics/sample.svg';
+            data.spriteName = 'graphics/sample-hull.svg';
             data.width ??= 200;
             data.height ??= 360;
             data.center ??= [100, 180];
@@ -131,11 +132,24 @@ export function createBrowserModel(
               ownerKind: record.target.target.kind as 'ship' | 'weapon',
               ownerId: record.target.target.id,
               key: field,
-              relPath: 'graphics/sample.svg',
+              relPath: field === 'spriteName' ? 'graphics/sample-hull.svg' : 'graphics/sample.svg',
             };
         }
       }
       if (data.hull) data.hull.sprite = data.records.find((r) => r.key === data.hull!.hullKey)?.resourceRefs.sprite ?? null;
+      if (kind === 'variant' && !id) {
+        data.hull!.slots.push(
+          ...['MODULE', 'EMPTY_MODULE'].map((id, index) => ({
+            id,
+            type: 'STATION_MODULE',
+            size: 'LARGE',
+            angle: 0,
+            locations: [index * 100, -110],
+          })),
+        );
+        const variant = data.records.find((record) => record.key === data.bindings.variant)!;
+        variant.value = { state: 'present', value: { ...jointObject(variant.value), modules: { MODULE: 'module_0' } } };
+      }
       graphs.set(key, retargetJointFixture(data));
     }
     return graphs.get(key)!;
@@ -148,20 +162,23 @@ export function createBrowserModel(
         kind,
         Array.from({ length: count }, (_, i): JointVariantEntry => {
           const id =
-            kind === 'weapons'
-              ? i === 0
-                ? 'chaingun'
-                : 'weapon_' + i
-              : kind === 'wings'
+            kind === 'variants'
+              ? 'module_' + i
+              : kind === 'weapons'
                 ? i === 0
-                  ? 'sarissa_wing'
-                  : 'wing_' + i
-                : i === 0
-                  ? 'rangefinder'
-                  : 'hullmod_' + i;
+                  ? 'chaingun'
+                  : 'weapon_' + i
+                : kind === 'wings'
+                  ? i === 0
+                    ? 'sarissa_wing'
+                    : 'wing_' + i
+                  : i === 0
+                    ? 'rangefinder'
+                    : 'hullmod_' + i;
           const resource = {
             source: 'mod' as const,
-            ownerKind: (kind === 'weapons' ? 'weapon' : kind === 'wings' ? 'ship' : 'hullmods') as 'weapon' | 'ship' | 'hullmods',
+            ownerKind: (kind === 'weapons' ? 'weapon' : kind === 'wings' || kind === 'variants' ? 'ship' : 'hullmods') as
+              'weapon' | 'ship' | 'hullmods',
             ownerId: id,
             key: 'sprite',
             relPath: resourceSize ? `graphics/${resourceSize}/${id}.svg` : 'graphics/sample.svg',
@@ -171,7 +188,8 @@ export function createBrowserModel(
           return {
             id,
             label: `${kind} ${i + 1}`,
-            source: location,
+            source: kind === 'variants' ? { ...location, source: i % 2 ? 'core' : 'mod' } : location,
+            moduleHull: kind === 'variants' ? { id: 'aurora', name: 'Module hull ' + i, hints: ['MODULE'] } : null,
             sourceVersion: { path: location.path, fingerprint: '1' },
             resourceRefs: { turretSprite: resource, sprite: resource, icon: resource },
             data: {
@@ -215,7 +233,7 @@ export function createBrowserModel(
   }
   function project(root: JointEditRoot, values: Record<string, JointValue> | null = null) {
     const snapshot = structuredClone(graph(root.kind, root.id));
-    for (const [key, value] of Object.entries(values ?? {})) snapshot.records.find((r) => r.key === key)!.value = structuredClone(value);
+    for (const record of snapshot.records) if (values?.[record.key]) record.value = structuredClone(values[record.key]!);
     const record = (key: string) => snapshot.records.find((r) => r.key === key)!;
     const data = (key: string) => jointObject(record(key).value);
     const reference = (key: string, id: string) => {
@@ -282,6 +300,25 @@ export function createBrowserModel(
         }
       }
       snapshot.hull = snapshot.variants[snapshot.bindings.variant!]!;
+      const parent = snapshot.hull;
+      parent.modules = [];
+      for (const [slotId, id] of variantModuleEntries(data(parent.variantKey).modules)) {
+        const child = graph('variant', id),
+          prefix = 'module:' + id + ':';
+        if (!snapshot.variants[prefix + child.hull!.variantKey]) {
+          snapshot.records.push(...structuredClone(child.records).map((record) => ({ ...record, key: prefix + record.key })));
+          const hull = structuredClone(child.hull!);
+          hull.variantKey = prefix + hull.variantKey;
+          hull.hullKey = prefix + hull.hullKey;
+          hull.fields = Object.fromEntries(
+            Object.entries(hull.fields).map(([key, field]) => [key, { ...field, recordKey: prefix + field.recordKey }]),
+          );
+          hull.displayBindings = Object.fromEntries(Object.entries(hull.displayBindings).map(([key, value]) => [key, prefix + value]));
+          snapshot.variants[hull.variantKey] = hull;
+        }
+        parent.modules.push({ slotId, variantKey: prefix + child.hull!.variantKey });
+      }
+      for (const record of snapshot.records) if (values?.[record.key]) record.value = structuredClone(values[record.key]!);
     }
     return snapshot;
   }
@@ -376,7 +413,15 @@ export function createBrowserModel(
     commits,
     logEntries: 0,
     resourceSize,
-    resourceDataUrl: (path: string) => (resourceSize ? resourceImage(resourceSize, path) : sampleImage),
+    resourceDataUrl: (path: string) =>
+      path.endsWith('sample-hull.svg')
+        ? 'data:image/svg+xml,' +
+          encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="360"><path fill="#40657b" stroke="#8db5ce" stroke-width="3" d="M100 8 140 92 170 150 170 270 135 340H65L30 270V150L60 92Z"/><path fill="#a7c7db" d="M100 30 115 130 115 290H85V130Z"/></svg>',
+          )
+        : resourceSize
+          ? resourceImage(resourceSize, path)
+          : sampleImage,
     rebase(settingsVersion: number, windowVersion: number) {
       revision = settingsVersion + 1;
       windowRevision = windowVersion;

@@ -10,11 +10,14 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: media.error, warning: media.warning }) }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: media.query }));
+vi.mock('@/app/composables/use-original-fonts', () => ({
+  useFontMeasurement: () => (runs: { text: string }[]) => runs.map((run) => run.text).join('').length * 5,
+}));
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
-function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; active?: boolean } = { active: false }) {
+function harness(kind: 'weapons' | 'wings' | 'variants', visibility: { current?: boolean; active?: boolean } = { active: false }) {
   const snapshot = wingJointFixture();
   const source = snapshot.records[0]!.source!;
   const entry: JointVariantEntry = {
@@ -25,11 +28,13 @@ function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; act
     specSource: null,
     specVersion: null,
     resourceRefs: {
+      icon: { source: 'mod', relPath: 'hull.png', ownerKind: 'ship', ownerId: 'hull', key: 'sprite' },
       turretSprite: { source: 'mod', relPath: 'weapon.png', ownerKind: 'weapon', ownerId: 'candidate', key: 'turretSprite' },
     },
     data: { num: '3', formation: 'CLAW', range: '500' },
     spec: { type: 'ENERGY', size: 'SMALL' },
     primaryRole: '测试用途',
+    moduleHull: { id: 'hull', name: 'Sample hull', hints: ['MODULE'] },
     projectile: null,
     preview: kind === 'wings' ? { hull: snapshot.hull!, spec: jointObject(snapshot.records[0]!.value), specs: [] } : null,
   };
@@ -38,6 +43,7 @@ function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; act
     global: {
       stubs: {
         ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
+        ResourceThumbnail: { name: 'ResourceThumbnail', props: ['resource', 'width', 'height', 'active'], template: '<canvas/>' },
         ImmersiveWeaponIcon: { name: 'ImmersiveWeaponIcon', props: ['layers', 'mountType', 'mountSize', 'active'], template: '<canvas/>' },
         ImmersiveHullThumbnail: { name: 'ImmersiveHullThumbnail', props: ['variant', 'wingLayout', 'active'], template: '<canvas/>' },
       },
@@ -51,6 +57,21 @@ function harness(kind: 'weapons' | 'wings', visibility: { current?: boolean; act
   };
 }
 describe('catalog-driven candidate cards', () => {
+  it('uses a plain hull thumbnail and shows the module name, hull and complete ID', async () => {
+    const own = harness('variants');
+    expect(own.wrapper.text()).toContain('候选');
+    expect(own.wrapper.text()).toContain('Sample hull');
+    expect(own.wrapper.get('.variant-module-id').text()).toBe('candidate');
+    const image = own.wrapper.findComponent({ name: 'ResourceThumbnail' });
+    expect(image.props()).toMatchObject({ resource: { relPath: 'hull.png' }, width: 69, height: 69, active: false });
+    await own.show(true);
+    expect(image.props('active')).toBe(true);
+    expect(media.query).not.toHaveBeenCalled();
+    await own.wrapper.setProps({ entry: { ...own.entry, id: 'very_long_module_variant_identifier' } });
+    expect(own.wrapper.get('.variant-module-id').text()).toContain('…');
+    expect(own.wrapper.attributes('title')).toContain('very_long_module_variant_identifier');
+    own.wrapper.unmount();
+  });
   it.each(['weapons', 'wings'] as const)('shows the equipped %s preview when viewport visibility is omitted', (kind) => {
     const own = harness(kind, { current: true });
     expect(own.wrapper.find('canvas').exists()).toBe(true);

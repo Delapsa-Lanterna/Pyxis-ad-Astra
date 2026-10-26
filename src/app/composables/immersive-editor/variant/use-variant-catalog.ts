@@ -4,7 +4,12 @@ import { queryJointVariantCatalog } from '@/services/joint-edit.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { formatError } from '@/shared/lib/errors';
 import { subscribeQueryInvalidations, hasQueryInvalidation } from '@/services/query-cache.service';
-export function useVariantCatalog(root: () => JointEditRoot, kind: () => JointVariantCatalogKind, enabled: () => boolean = () => true) {
+export function useVariantCatalog(
+  root: () => JointEditRoot,
+  kind: () => JointVariantCatalogKind,
+  enabled: () => boolean = () => true,
+  source: () => import('@/shared/types').ResourceSource | undefined = () => undefined,
+) {
   const snapshot = shallowRef<DeepReadonly<JointVariantCatalogRead> | null>(null),
     entries = shallowRef<readonly ReadonlyVariantEntry[]>([]),
     loading = ref(false),
@@ -13,21 +18,26 @@ export function useVariantCatalog(root: () => JointEditRoot, kind: () => JointVa
   async function load() {
     loading.value = true;
     errorText.value = '';
-    await reads.consume('catalog', { root: root(), kind: kind() }, (signal) => queryJointVariantCatalog(root(), kind(), signal), {
-      ready: (value) => {
-        snapshot.value = value;
-        entries.value = snapshot.value.catalog.entries;
+    await reads.consume(
+      'catalog',
+      { root: root(), kind: kind(), source: source() },
+      (signal) => queryJointVariantCatalog(root(), kind(), signal, source()),
+      {
+        ready: (value) => {
+          snapshot.value = value;
+          entries.value = snapshot.value.catalog.entries;
+        },
+        error: (error) => {
+          errorText.value = formatError(error);
+        },
+        settled: () => {
+          loading.value = false;
+        },
       },
-      error: (error) => {
-        errorText.value = formatError(error);
-      },
-      settled: () => {
-        loading.value = false;
-      },
-    });
+    );
   }
   watch(
-    () => (enabled() ? [root(), kind()] : null),
+    () => (enabled() ? [root(), kind(), source()] : null),
     () => {
       entries.value = [];
       snapshot.value = null;

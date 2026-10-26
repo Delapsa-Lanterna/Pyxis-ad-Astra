@@ -58,13 +58,18 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
 pub fn query_variant_catalog(
     root: &JointEditRoot,
     kind: JointVariantCatalogKind,
+    source: Option<ResourceSource>,
 ) -> AppResult<JointVariantCatalogRead> {
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root.mod_root))?;
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
     let handle = cache::session_handle(&root.session_id)?;
     let mut session = cache::lock_ready_session(&handle)?;
     let (reference_settings, damage_icons) = reference_settings(&session)?;
-    let catalog = variant_catalog(&mut session, kind, damage_icons)?;
+    let catalog = if matches!(kind, JointVariantCatalogKind::Variants) {
+        module_variant_catalog(&mut session, source.expect("module catalog source"))?
+    } else {
+        variant_catalog(&mut session, kind, damage_icons)?
+    };
     let mut root = root.clone();
     root.mod_root = session.manifest.mod_root.clone();
     Ok(JointVariantCatalogRead {
@@ -318,6 +323,7 @@ fn variant_catalog(
         JointVariantCatalogKind::Weapons => CsvTableKey::Weapons,
         JointVariantCatalogKind::Wings => CsvTableKey::Wings,
         JointVariantCatalogKind::Hullmods => CsvTableKey::Hullmods,
+        JointVariantCatalogKind::Variants => unreachable!("module catalogs use hull summaries"),
     };
     cache::ensure_registered_table_rows(session, table)?;
     let rows = JointCsvCatalog::load(session, table)?;
@@ -534,6 +540,7 @@ fn variant_catalog(
                     .map(str::to_owned)
             });
         entries.push(JointVariantEntry {
+            module_hull: None,
             id,
             label,
             data: Value::Object(row.data),
@@ -551,6 +558,136 @@ fn variant_catalog(
         });
     }
     Ok(JointVariantCatalog { kind, entries })
+}
+
+fn module_variant_catalog(
+    session: &mut ProjectSession,
+    source: ResourceSource,
+) -> AppResult<JointVariantCatalog> {
+    let variants = if source == ResourceSource::Mod {
+        session.variant_files.clone()
+    } else {
+        session
+            .manifest
+            .starsector_root
+            .as_ref()
+            .map(|root| sources::core::load_core_variant_files(root))
+            .transpose()?
+            .map(|files| {
+                files
+                    .iter()
+                    .filter(|file| {
+                        !session
+                            .variant_files
+                            .iter()
+                            .any(|own| own.variant_id == file.variant_id)
+                    })
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    if variants.is_empty() {
+        return Ok(JointVariantCatalog {
+            kind: JointVariantCatalogKind::Variants,
+            entries: Vec::new(),
+        });
+    }
+    let mut graph = JointGraph {
+        session,
+        records: BTreeMap::new(),
+        visiting: BTreeSet::new(),
+        tables: BTreeMap::new(),
+        targets: BTreeMap::new(),
+        core_systems: None,
+        core_sources: BTreeMap::new(),
+        scope: JointGraphScope::HullCatalog,
+        draft_values: None,
+        bindings: BTreeMap::new(),
+        damage_icons: BTreeMap::new(),
+        new_sources: &[],
+    };
+    let mut hulls = BTreeMap::new();
+    let mut entries = Vec::new();
+    let source_root = if source == ResourceSource::Mod {
+        graph.session.manifest.mod_root.clone()
+    } else {
+        sources::core::core_dir(
+            graph
+                .session
+                .manifest
+                .starsector_root
+                .as_ref()
+                .expect("core catalog root"),
+        )?
+        .to_string_lossy()
+        .into_owned()
+    };
+    for variant in variants {
+        if !hulls.contains_key(&variant.hull_id) {
+            graph.records.clear();
+            graph.visiting.clear();
+            graph.spec(EntityKind::Variant, &variant.variant_id, "catalog")?;
+            let key = serde_json::to_string(&("spec", EntityKind::Variant, &variant.variant_id))?;
+            let records = graph.records.values().cloned().collect::<Vec<_>>();
+            let hull = crate::domain::joint_hull::project_joint_hull(&records, &key)?;
+            let summary = hull.map(|hull| {
+                let binding = &hull.fields["name"];
+                let data = |key: &str| match &graph.records[key].value {
+                    JointValue::Present(data) => data.clone(),
+                    JointValue::Missing => Value::Null,
+                };
+                let spec = data(&hull.hull_key);
+                let name = string_field(&data(&binding.record_key), &binding.path)
+                    .or_else(|| string_field(&spec, "hullName"))
+                    .unwrap_or_else(|| variant.hull_id.clone());
+                (
+                    JointModuleHull {
+                        id: variant.hull_id.clone(),
+                        name,
+                        hints: hull.hints,
+                    },
+                    hull.sprite,
+                )
+            });
+            hulls.insert(variant.hull_id.clone(), summary);
+        }
+        let Some((hull, sprite)) = hulls[&variant.hull_id].as_ref() else {
+            continue;
+        };
+        if !hull.hints.iter().any(|hint| hint == "MODULE") {
+            continue;
+        }
+        let location = EntityFileLocation {
+            source,
+            root: source_root.clone(),
+            path: variant.path.clone(),
+            rel_path: variant.rel_path.clone(),
+        };
+        entries.push(JointVariantEntry {
+            id: variant.variant_id.clone(),
+            label: string_field(&variant.data, "displayName")
+                .unwrap_or_else(|| variant.variant_id.clone()),
+            data: serde_json::json!({"variantId":variant.variant_id,"hullId":variant.hull_id,"displayName":string_field(&variant.data, "displayName").unwrap_or_default()}),
+            module_hull: Some(hull.clone()),
+            source_version: file_version(Path::new(&variant.path))?,
+            source: location,
+            resource_refs: sprite
+                .clone()
+                .map(|sprite| BTreeMap::from([("icon".into(), sprite)]))
+                .unwrap_or_default(),
+            spec: None,
+            spec_source: None,
+            spec_version: None,
+            preview: None,
+            projectile: None,
+            primary_role: None,
+        });
+    }
+    Ok(JointVariantCatalog {
+        kind: JointVariantCatalogKind::Variants,
+        entries,
+    })
 }
 
 fn catalog_wing_previews(
@@ -848,6 +985,7 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
 enum JointGraphScope {
     Editing,
     Preview,
+    HullCatalog,
 }
 struct JointGraph<'a> {
     session: &'a mut ProjectSession,
@@ -1173,7 +1311,9 @@ impl JointGraph<'_> {
                     self.spec(EntityKind::Variant, &module, id)?;
                 }
             }
-            if let Some(groups) = data.get("weaponGroups").and_then(Value::as_array) {
+            if self.scope != JointGraphScope::HullCatalog
+                && let Some(groups) = data.get("weaponGroups").and_then(Value::as_array)
+            {
                 for group in groups {
                     if let Some(weapons) = group.get("weapons").and_then(Value::as_object) {
                         for weapon in weapons.values().filter_map(Value::as_str) {
@@ -1203,7 +1343,9 @@ impl JointGraph<'_> {
                 }
             }
         }
-        if let Some(weapons) = data.get("builtInWeapons").and_then(Value::as_object) {
+        if self.scope != JointGraphScope::HullCatalog
+            && let Some(weapons) = data.get("builtInWeapons").and_then(Value::as_object)
+        {
             for weapon in weapons.values().filter_map(Value::as_str) {
                 self.spec(EntityKind::Weapon, weapon, id)?;
             }

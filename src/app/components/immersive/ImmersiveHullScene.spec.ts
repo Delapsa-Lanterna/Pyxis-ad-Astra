@@ -115,6 +115,8 @@ describe('variant scene pointer dismissal', () => {
     });
     await own.get('canvas').trigger('mousemove', { clientX: 390, clientY: 350 });
     expect(own.get('.variant-slot-label').text()).toBe('Sample module');
+    await own.get('canvas').trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
+    expect(own.emitted('module')).toEqual([[0, { x: 390, y: 350 }]]);
     await own.setProps({ variant: { ...scene, modules: [{ ...module, variant: { ...module.variant, name: 'Replacement module' } }] } });
     expect(own.get('.variant-slot-label').text()).toBe('Replacement module');
     for (const [hullName, expected] of [
@@ -127,6 +129,8 @@ describe('variant scene pointer dismissal', () => {
     }
     await own.setProps({ variant: { ...scene, modules: [] } });
     expect(own.get('.variant-slot-label').text()).toBe('空槽');
+    await own.get('canvas').trigger('mousedown', { button: 0, clientX: 390, clientY: 350 });
+    expect(own.emitted('module')).toHaveLength(2);
     await own.setProps({ variant: { ...variant, weapons: [{ ...weapon, name: 'Sample weapon', builtin: true }] } });
     expect(own.get('.variant-slot-label').text()).toBe('Sample weapon（内置）');
     own.unmount();

@@ -180,7 +180,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   }
 
   function updateFields(changes: ImmersiveFieldChange[]) {
-    if (changes.some((change) => change.field.handoff)) return switchReference(changes);
+    if (changes.some((change) => change.field.handoff)) return switchReference(changes).then(() => undefined);
     const before = deepClone(joint.draftValue.value);
     let after = before;
     for (const { field, update } of changes) {
@@ -227,14 +227,15 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       feedback.error(error);
     }
   }
-  async function switchReference(changes: ImmersiveFieldChange[]) {
+  async function switchReference(changes: ImmersiveFieldChange[], inputCommitted = false) {
     const key = joint.currentTargetKey.value;
     referenceChanging.value = true;
     let previous: Record<string, JointValue> | null = null;
     try {
-      if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false) return;
+      const submitting = inputCommitted && joint.saving.value;
+      if (!submitting && (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false)) return;
       if (!active || joint.currentTargetKey.value !== key) return;
-      if (joint.dirty.value) {
+      if (!submitting && joint.dirty.value) {
         const choice = await feedback.choose({
           title: '保存后切换关联来源？',
           content: `保存当前${definition.label}及关联来源的编辑，再接入所选来源。`,
@@ -253,6 +254,10 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
           update,
         );
       joint.setDraft(next);
+      if (submitting) {
+        previous = null;
+        return true;
+      }
       const saved = await joint.saveDraft();
       if (!saved) {
         joint.setDraft(previous);
@@ -262,6 +267,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       if (active && joint.currentTargetKey.value === key) {
         dismissStat();
         await joint.refreshTarget(joint.currentTarget.value!);
+        return true;
       }
     } catch (error) {
       if (previous && active && joint.currentTargetKey.value === key && !joint.hasPendingSynchronization.value) joint.setDraft(previous);
@@ -450,6 +456,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     editable,
     updateField,
     updateFields,
+    switchReference,
     toggleStat,
     dismissStat,
     save,

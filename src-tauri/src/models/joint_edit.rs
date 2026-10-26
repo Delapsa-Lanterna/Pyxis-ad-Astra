@@ -32,6 +32,7 @@ pub struct JointEditQuery {
     pub values: Option<BTreeMap<String, JointValue>>,
     pub new_sources: Vec<JointSourceCreate>,
     pub catalog: Option<JointVariantCatalogKind>,
+    pub catalog_source: Option<super::ResourceSource>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -40,11 +41,13 @@ pub enum JointVariantCatalogKind {
     Weapons,
     Wings,
     Hullmods,
+    Variants,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointVariantEntry {
+    pub module_hull: Option<JointModuleHull>,
     pub id: String,
     pub label: String,
     pub data: Value,
@@ -57,6 +60,13 @@ pub struct JointVariantEntry {
     pub preview: Option<JointVariantPreview>,
     pub projectile: Option<JointPreviewSpec>,
     pub primary_role: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JointModuleHull {
+    pub id: String,
+    pub name: String,
+    pub hints: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

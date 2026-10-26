@@ -246,7 +246,12 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       if (payload.catalog)
         return {
           root: payload.root,
-          catalog: { kind: payload.catalog, entries: model.catalog(payload.catalog) },
+          catalog: {
+            kind: payload.catalog,
+            entries: model
+              .catalog(payload.catalog)
+              .filter((entry) => !payload.catalogSource || entry.source.source === payload.catalogSource),
+          },
           referenceSettings: model.graph(payload.root.kind).referenceSettings,
         };
       if (payload.root.kind === 'wing' && !payload.root.id) payload.root.id = model.graph('wing').root.id;

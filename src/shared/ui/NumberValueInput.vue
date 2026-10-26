@@ -131,7 +131,7 @@ function adjust(direction: number, event: MouseEvent) {
     return;
   }
   const current = converted.kind === 'value' ? converted.value : null;
-  const multiplier = event.shiftKey ? (event.ctrlKey ? 10 : 5) : event.ctrlKey ? 0.5 : 1;
+  const multiplier = event.shiftKey ? (event.ctrlKey ? 50 : 5) : event.ctrlKey ? 0.5 : 1;
   const scaled = (Math.abs(props.step ?? 1) || 1) * multiplier;
   const offset = props.integer ? Math.max(1, Math.round(scaled)) : scaled;
   const next = current === null ? 0 : current + direction * offset;

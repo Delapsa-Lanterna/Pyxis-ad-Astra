@@ -5,7 +5,7 @@
       :variant="current"
       :session-id="vm.joint.currentTarget.value!.sessionId"
       @slot="openWeaponPicker"
-      @module="selectModule"
+      @module="openModulePicker"
       @blank="candidatePicker?.cancel()"
     />
     <header class="variant-refit-header">
@@ -70,18 +70,21 @@
       @mod="changeMod"
       @picker="picker ? closePicker() : openPicker('hullmods', 0)"
     />
-    <VariantPicker
-      v-if="picker && picker.kind !== 'hullmods'"
-      ref="candidatePicker"
-      :root="vm.joint.currentTarget.value!"
-      :kind="picker.kind"
-      :weapon-slot="picker.kind === 'weapons' ? current.weapons[picker.index]!.slot : undefined"
-      :current-id="currentId"
-      :anchor="picker.anchor"
-      :commit-manual="(id) => applySelection(id, 'normal', true)"
-      @select="applySelection"
-      @close="closePicker"
-    />
+    <Teleport to="body"
+      ><VariantPicker
+        v-if="picker && picker.kind !== 'hullmods'"
+        ref="candidatePicker"
+        :root="vm.joint.currentTarget.value!"
+        :kind="picker.kind"
+        :weapon-slot="picker.kind === 'weapons' ? current.weapons[picker.index]!.slot : undefined"
+        :current-id="currentId"
+        :anchor="picker.anchor"
+        :commit-manual="(id) => applySelection(id, 'normal', true)"
+        :module-context="picker.kind === 'variants' ? moduleContext : undefined"
+        @edit-module="editModule"
+        @select="applySelection"
+        @close="closePicker"
+    /></Teleport>
     <n-modal
       v-if="picker?.kind === 'hullmods'"
       :show="true"
@@ -132,7 +135,9 @@ import { computed, ref, watch, nextTick } from 'vue';
 import type { VariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { equipVariantWing, setVariantHullmod, type HullmodCategory } from '@/domain/immersive/variant/variant-actions';
-import type { JointVariantCatalogKind } from '@/shared/types';
+import type { JointVariantCatalogKind, ReadonlyVariantEntry } from '@/shared/types';
+import { jointObject } from '@/domain/joint-edit';
+import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import ImmersiveText from '../ImmersiveText.vue';
@@ -192,10 +197,55 @@ const currentId = computed(() =>
     ? ''
     : picker.value.kind === 'weapons'
       ? current.value.weapons[picker.value.index]!.id
-      : picker.value.kind === 'wings'
-        ? current.value.wings[picker.value.index]!.id
-        : '',
+      : picker.value.kind === 'variants'
+        ? (variantModuleEntries(jointObject(props.vm.displayValues.value[current.value.key]).modules).find(
+            ([slot]) => slot === current.value!.weapons[picker.value!.index]!.slot.id,
+          )?.[1] ?? '')
+        : picker.value.kind === 'wings'
+          ? current.value.wings[picker.value.index]!.id
+          : '',
 );
+const moduleContext = computed(() => {
+  const snapshot = props.vm.displaySnapshot.value!,
+    values = props.vm.displayValues.value;
+  const variant = current.value?.modules.find((module) => module.slot.id === current.value!.weapons[picker.value!.index]!.slot.id)?.variant;
+  const record = snapshot.records.find(
+    (record) => record.target.kind === 'spec' && record.target.target.kind === 'variant' && record.target.target.id === currentId.value,
+  );
+  const entry: ReadonlyVariantEntry | undefined =
+    record && record.target.kind === 'spec'
+      ? {
+          id: currentId.value,
+          label: schemaStringValue(jointObject(values[record.key] ?? record.value).displayName) || currentId.value,
+          data: jointObject(values[record.key] ?? record.value),
+          source: record.source ?? record.target.target.write,
+          sourceVersion: record.sourceVersion!,
+          resourceRefs: variant?.hull.sprite ? { icon: variant.hull.sprite } : {},
+          moduleHull: variant
+            ? {
+                id: schemaStringValue(variant.spec.hullId),
+                name: variant.name || schemaStringValue(variant.spec.hullName || variant.spec.hullId),
+                hints: variant.hull.hints,
+              }
+            : null,
+          spec: null,
+          specSource: null,
+          specVersion: null,
+          preview: null,
+          projectile: null,
+          primaryRole: null,
+        }
+      : undefined;
+  return { variant, entry, snapshot, values, render: { ...props.render, mode: 'readonly' as const } };
+});
+function openModulePicker(index: number, anchor: { x: number; y: number }) {
+  void openPicker('variants', index, anchor);
+}
+async function editModule() {
+  const request = picker.value;
+  if (!(await props.vm.commitVariantInputs()) || picker.value !== request) return;
+  if (moduleContext.value.variant) await selectModule(moduleContext.value.variant.key);
+}
 async function openPicker(kind: JointVariantCatalogKind, index: number, anchor = { x: 7, y: 207 }) {
   if (!current.value) return;
   if (!(await props.vm.commitVariantInputs())) return;
@@ -234,13 +284,15 @@ async function applySelection(id: string, category: HullmodCategory, inputCommit
   const request = picker.value!;
   const variant = props.panel.variants.find((item) => item.key === request.key)!;
   const accepted =
-    request.kind === 'weapons'
-      ? await props.vm.installVariantWeapon(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
-      : await props.vm.updateVariant(request.key, (data) =>
-          request.kind === 'wings'
-            ? equipVariantWing(data, request.index, id)
-            : setVariantHullmod(data, id, installed(id) ? null : category),
-        );
+    request.kind === 'variants'
+      ? await props.vm.installVariantModule(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
+      : request.kind === 'weapons'
+        ? await props.vm.installVariantWeapon(request.key, schemaStringValue(variant.weapons[request.index]!.slot.id), id, inputCommitted)
+        : await props.vm.updateVariant(request.key, (data) =>
+            request.kind === 'wings'
+              ? equipVariantWing(data, request.index, id)
+              : setVariantHullmod(data, id, installed(id) ? null : category),
+          );
   if (accepted && request.kind !== 'hullmods' && picker.value === request) closePicker();
   return accepted;
 }

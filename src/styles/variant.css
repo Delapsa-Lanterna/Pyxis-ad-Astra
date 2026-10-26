@@ -64,6 +64,7 @@
 }
 .variant-cut-button:disabled,
 .variant-add-mod:disabled,
+.variant-module-edit:disabled,
 .variant-step:disabled {
   opacity: 0.4;
   cursor: default;
@@ -370,6 +371,14 @@
   color: var(--color-warning);
   padding-right: var(--space-2);
 }
+.variant-module-filters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.variant-module-edit {
+  margin-bottom: 3px;
+  min-height: 25px;
+  flex: none;
+}
 .variant-candidate-card > .immersive-weapon-icon {
   width: 69px;
   height: 69px;
@@ -396,14 +405,15 @@
   overflow: auto;
 }
 .variant-candidate-details {
-  width: 422px;
+  width: var(--candidate-detail-width, 422px);
+  max-width: calc(100vw - 14px);
   flex: none;
   padding: 10px;
   border: 1px solid var(--color-border-strong);
 }
 .variant-candidate-details > .weapon-immersive-panel,
 .variant-candidate-details > .wing-immersive-panel {
-  width: 400px;
+  width: 100%;
 }
 .variant-ship-tooltip {
   position: fixed;

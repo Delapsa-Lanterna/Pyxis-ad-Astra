@@ -4,12 +4,24 @@ import { queryJointCandidate } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { projectWeaponPanel } from '@/domain/immersive/weapon/weapon-panel';
 import { projectWingPanel } from '@/domain/immersive/wing/wing-panel';
+import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
+import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError, warningNotice } from '@/shared/lib/errors';
 import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weapons' | 'wings', id: () => string) {
+export async function readModuleCandidateIssue(root: JointEditRoot, id: string, signal: AbortSignal) {
+  const candidate = await queryJointCandidate({ ...root, kind: 'variant', id }, signal);
+  const record = candidate.records.find(
+    (record) => record.target.kind === 'spec' && record.target.target.kind === 'variant' && record.target.target.id === id,
+  );
+  return {
+    reason: !candidate.hull ? '装配或船体来源缺失' : candidate.hull.hints.includes('MODULE') ? '' : '船体未标记 MODULE',
+    source: record?.source?.path ?? '来源缺失',
+  };
+}
+export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weapons' | 'wings' | 'variants', id: () => string) {
   const snapshot = shallowRef<JointEditSnapshot | null>(null),
     errorText = ref(''),
     reads = useQueryReadOwner(),
@@ -17,13 +29,21 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
   const values = computed(() => Object.fromEntries(snapshot.value?.records.map((record) => [record.key, record.value]) ?? []));
   const panel = computed(() =>
     snapshot.value
-      ? kind() === 'weapons'
-        ? projectWeaponPanel(snapshot.value, values.value)
-        : projectWingPanel(snapshot.value, values.value)
+      ? kind() === 'variants'
+        ? snapshot.value.hull
+          ? projectShipPanel(snapshot.value, values.value, snapshot.value, projectVariantPanel(snapshot.value, values.value).variants[0])
+          : null
+        : kind() === 'weapons'
+          ? projectWeaponPanel(snapshot.value, values.value)
+          : projectWingPanel(snapshot.value, values.value)
       : null,
   );
   const stats = computed(() =>
-    panel.value?.kind === 'weapon' ? [...panel.value.primary, ...panel.value.ancillary] : (panel.value?.technical ?? []),
+    panel.value?.kind === 'weapon'
+      ? [...panel.value.primary, ...panel.value.ancillary]
+      : panel.value?.kind === 'wing'
+        ? panel.value.technical
+        : (panel.value?.combat ?? []),
   );
   const media = useResourceMediaRegistry({
     onError: (error) => feedback.error(error),
@@ -42,7 +62,7 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
       reads.revoke();
       return;
     }
-    const target: JointEditRoot = { ...root(), kind: kind() === 'weapons' ? 'weapon' : 'wing', id: id() };
+    const target: JointEditRoot = { ...root(), kind: kind() === 'weapons' ? 'weapon' : kind() === 'wings' ? 'wing' : 'variant', id: id() };
     void reads.consume('detail', target, (signal) => queryJointCandidate(target, signal), {
       ready: (value) => {
         snapshot.value = cloneQuerySnapshot<JointEditSnapshot>(value);

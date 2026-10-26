@@ -59,7 +59,11 @@ const props = defineProps<{
   wingLayout?: ImmersiveWingLayout;
   resourceUrl?: (resource: import('@/shared/types').ResourceRef) => string;
 }>();
-const emit = defineEmits<{ slot: [index: number, anchor: { x: number; y: number }]; module: [key: string]; blank: [] }>();
+const emit = defineEmits<{
+  slot: [index: number, anchor: { x: number; y: number }];
+  module: [index: number, anchor: { x: number; y: number }];
+  blank: [];
+}>();
 const canvas = shallowRef<HTMLCanvasElement | null>(null),
   stage = ref<HTMLElement | null>(null);
 const viewport = useCanvasViewport(canvas, 1, 4),
@@ -320,13 +324,13 @@ function activateSelected() {
   const index = state.selected.value;
   if (index === null) return;
   const weapon = props.variant.weapons[index]!;
+  const position = point(weapon.slot),
+    bounds = canvas.value!.getBoundingClientRect();
+  const anchor = { x: bounds.left + position.x, y: bounds.top + position.y };
   if (weapon.slot.type === 'STATION_MODULE') {
-    const module = props.variant.hull.modules.find((item) => item.slotId === weapon.slot.id);
-    if (module) emit('module', module.variantKey);
+    emit('module', index, anchor);
   } else {
-    const position = point(weapon.slot),
-      bounds = canvas.value!.getBoundingClientRect();
-    emit('slot', index, { x: bounds.left + position.x, y: bounds.top + position.y });
+    emit('slot', index, anchor);
   }
 }
 function navigate(event: KeyboardEvent) {

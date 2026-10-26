@@ -176,6 +176,15 @@ describe('browser sample service', () => {
     expect(model.commitId).toBe(1);
   });
 
+  it('replaces a sample module while accepting drafts belonging to the previous module', () => {
+    const model = createBrowserModel('variant');
+    const baseline = model.project(model.graph('variant').root);
+    const values = Object.fromEntries(baseline.records.map((record) => [record.key, record.value]));
+    values.variant = { state: 'present', value: { ...jointObject(values.variant), modules: { MODULE: 'module_2' } } };
+    const next = model.project(baseline.root, values);
+    expect(next.hull!.modules).toEqual([{ slotId: 'MODULE', variantKey: 'module:module_2:variant' }]);
+    expect(next.records.some((record) => record.key === 'module:module_2:variant')).toBe(true);
+  });
   it('projects changed references and adds sources for all three equipment kinds', () => {
     const weapon = createBrowserModel('weapon'),
       snapshot = weapon.graph('weapon');

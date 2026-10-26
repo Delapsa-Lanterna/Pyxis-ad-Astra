@@ -40,7 +40,7 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 function harness(
-  kind: 'weapons' | 'wings' = 'weapons',
+  kind: 'weapons' | 'wings' | 'variants' = 'weapons',
   count = 2,
   systemHints = false,
   costs: (number | null)[] = [],
@@ -97,6 +97,13 @@ function harness(
       spec: { type: 'ENERGY', size: 'SMALL' },
     });
   mocks.entries.push({ ...mocks.entries[0]!, id: '', label: '', data: {} });
+  if (kind === 'variants')
+    mocks.entries = mocks.entries.map((entry, index) => ({
+      ...entry,
+      label: index === 0 ? 'Refit B' : 'Refit A',
+      source: { ...entry.source, source: index === 1 ? 'core' : 'mod' },
+      moduleHull: { id: 'hull_' + index, name: 'Hull ' + index, hints: ['MODULE'] },
+    }));
   mocks.entries = shallowReactive(mocks.entries);
   const inputs = createFieldInputs(ref('variant'));
   const current = ref(currentId);
@@ -108,6 +115,7 @@ function harness(
   const cancelVariantAction = vi.fn();
   const vm = {
     displaySnapshot,
+    displayValues: shallowRef(values),
     joint: { currentTarget: ref(snapshot.root), saving: ref(false) },
     referenceChanging: ref(false),
     variantActionPending: ref(false),
@@ -148,14 +156,15 @@ function harness(
       global: {
         components: { NInput, NSelect, NButton },
         stubs: {
+          teleport: true,
           ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
           ImmersivePanelRow: true,
           VariantWingIcon: true,
           VariantRefitStats: true,
           ImmersiveHullScene: {
-            emits: ['slot', 'blank'],
+            emits: ['slot', 'module', 'blank'],
             template:
-              '<div><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
+              '<div><button class="test-module" @click="$emit(\'module\', 1, {x: 400, y: 300})">模块槽</button><button class="test-slot" @click="$emit(\'slot\', 1, {x: 400, y: 300})">槽位</button><button class="test-blank" @click="$emit(\'blank\')">空白网格</button></div>',
           },
           VariantCandidateDetails: { props: ['id'], template: '<aside>{{id}}</aside>' },
           VariantCandidateCard: {
@@ -171,6 +180,39 @@ function harness(
   return { wrapper, inputs, current, commitManual, cancelVariantAction, displaySnapshot, picker: wrapper.findComponent(VariantPicker) };
 }
 describe('variant candidate picker', () => {
+  it('opens the module picker for a scene module event and preserves its parent target', async () => {
+    const own = harness('variants', 2, false, [], '', true);
+    await flushPromises();
+    await own.wrapper.get('.test-module').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.findComponent(VariantPicker).props('kind')).toBe('variants');
+    expect(own.wrapper.findComponent(VariantPicker).props('moduleContext')?.snapshot.root.id).toBe('aurora_refit');
+    await own.wrapper.get('.test-blank').trigger('click');
+    await flushPromises();
+    expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    own.wrapper.unmount();
+  });
+  it('defaults modules to this Mod, combines sources, searches hull names and unloads the current module', async () => {
+    const own = harness('variants');
+    await flushPromises();
+    expect(
+      own.picker
+        .findAll('[data-entry-id]')
+        .filter((card) => card.isVisible())
+        .map((card) => card.attributes('data-entry-id')),
+    ).toEqual(['compatible']);
+    await own.wrapper.get('[aria-label=原版]').trigger('click');
+    await flushPromises();
+    expect(own.picker.findAll('[data-entry-id]').filter((card) => card.isVisible())).toHaveLength(2);
+    await own.wrapper.find('input').setValue('Hull 1');
+    await flushPromises();
+    expect(own.picker.get('[data-entry-id=incompatible]').isVisible()).toBe(true);
+    expect(own.picker.get('[data-entry-id=compatible]').isVisible()).toBe(false);
+    await own.picker.findAll('.variant-candidate-card')[0]!.trigger('click');
+    expect(own.picker.emitted('select')?.at(-1)).toEqual(['', 'normal']);
+    expect(own.picker.get('.variant-module-edit').attributes('disabled')).toBeDefined();
+    own.wrapper.unmount();
+  });
   it('retains filtered candidate nodes with hidden visibility', async () => {
     const own = harness();
     await flushPromises();

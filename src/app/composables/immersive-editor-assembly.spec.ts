@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   projection: vi.fn(),
   catalog: vi.fn(),
+  candidate: vi.fn(),
   listen: vi.fn(),
   stop: vi.fn(),
   error: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('@/services/joint-edit.service', () => ({
   queryJointEditRow: mocks.query,
   queryJointEditProjection: mocks.projection,
   queryJointVariantCatalog: mocks.catalog,
+  queryJointCandidate: mocks.candidate,
 }));
 vi.mock('@/app/composables/use-joint-edit-actions', () => ({ useJointEditActions: () => ({ open: mocks.query, save: mocks.save }) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({
@@ -329,6 +331,75 @@ describe('variant joint actions', () => {
     expect(mocks.choose.mock.calls[0]![0].content).toContain('武器目录来源缺失');
     expect(mocks.save.mock.calls[0]![0].values.variant.value.weaponGroups).toMatchObject([{ weapons: { WS2: 'missing_weapon' } }]);
     expect(snapshot.root.kind).toBe('variant');
+    wrapper.unmount();
+  });
+  it.each(['replace', 'remove', 'cancel', 'failure'] as const)(
+    'handles module reference %s through the existing save switch',
+    async (mode) => {
+      const baseline = sharedVariant();
+      const { vm, wrapper } = editor('variant');
+      await vm.initialize();
+      const id = mode === 'remove' ? '' : 'replacement';
+      let commit = 100;
+      mocks.save.mockImplementation(async (draft) => {
+        if (mode === 'failure') throw new Error('save failed');
+        const next = structuredClone(baseline);
+        for (const record of next.records) if (draft.values[record.key]) record.value = structuredClone(draft.values[record.key]);
+        mocks.query.mockResolvedValue(next);
+        return { ...savedWriteFixture(), commitId: ++commit, refreshedEntity: next };
+      });
+      if (mode === 'cancel') {
+        await vm.variant!.updateVariant('variant', (data) => ({ ...data, fluxVents: 12 }));
+        mocks.choose.mockResolvedValue(null);
+      }
+      const accepted = await vm.variant!.installVariantModule('variant', 'M', id);
+      expect(accepted).toBe(mode === 'replace' || mode === 'remove');
+      const modules = jointObject(vm.joint.draftValue.value.variant).modules;
+      expect(modules).toEqual(
+        mode === 'replace' ? { M: id, N: 'module' } : mode === 'remove' ? { N: 'module' } : { M: 'module', N: 'module' },
+      );
+      expect(vm.referenceChanging.value).toBe(false);
+      expect(vm.variantActionPending.value).toBe(false);
+      wrapper.unmount();
+    },
+  );
+  it.each(['install', null])('confirms a missing module ID and preserves cancellation %s', async (choice) => {
+    sharedVariant();
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    mocks.candidate.mockResolvedValue({ ...variantJointFixture(), hull: null });
+    mocks.choose.mockResolvedValue(choice);
+    if (choice === null) {
+      expect(await vm.variant!.installVariantModule('variant', 'M', 'missing', true)).toBe(false);
+      expect(mocks.save).not.toHaveBeenCalled();
+    } else {
+      mocks.save.mockRejectedValueOnce(new Error('expected save failure'));
+      expect(await vm.variant!.installVariantModule('variant', 'M', 'missing', true)).toBe(false);
+    }
+    expect(mocks.choose.mock.calls[0]![0].content).toContain('来源缺失');
+    expect(jointObject(vm.joint.draftValue.value.variant).modules).toEqual({ M: 'module', N: 'module' });
+    wrapper.unmount();
+  });
+  it('commits a pending manual module reference inside the ongoing save once', async () => {
+    const baseline = sharedVariant();
+    const { vm, wrapper } = editor('variant');
+    await vm.initialize();
+    mocks.candidate.mockResolvedValue({ ...variantJointFixture(), hull: null });
+    mocks.choose.mockResolvedValue('install');
+    mocks.save.mockImplementation(async (draft) => {
+      const next = structuredClone(baseline);
+      for (const record of next.records) if (draft.values[record.key]) record.value = structuredClone(draft.values[record.key]);
+      return { ...savedWriteFixture(), refreshedEntity: next };
+    });
+    let pending = true;
+    vm.joint.inputs.registerFinalizer(async () => {
+      if (!pending) return;
+      pending = false;
+      return vm.variant!.installVariantModule('variant', 'M', 'manual_module', true);
+    }, 'manual-module');
+    await vm.joint.saveDraft();
+    expect(mocks.save).toHaveBeenCalledOnce();
+    expect(mocks.save.mock.calls[0]![0].values.variant.value.modules.M).toBe('manual_module');
     wrapper.unmount();
   });
   function sharedVariant() {

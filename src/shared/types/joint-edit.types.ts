@@ -15,9 +15,11 @@ export interface JointEditQuery {
   values: Record<string, JointValue> | null;
   newSources: JointSourceCreate[];
   catalog: JointVariantCatalogKind | null;
+  catalogSource?: import('./project-identity.types').ResourceSource;
 }
-export type JointVariantCatalogKind = 'weapons' | 'wings' | 'hullmods';
+export type JointVariantCatalogKind = 'weapons' | 'wings' | 'hullmods' | 'variants';
 export interface JointVariantEntry {
+  moduleHull?: { id: string; name: string; hints: string[] } | null;
   id: string;
   label: string;
   data: JsonValue;

@@ -15,6 +15,8 @@ import {
   isSystemWeapon,
 } from '@/domain/immersive/variant/variant-actions';
 import { queryJointVariantCatalog } from '@/services/joint-edit.service';
+import { readModuleCandidateIssue } from './use-variant-candidate';
+import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 
 export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
   const { joint, snapshot, displaySnapshot, history, reads, createOverrides, dismissStat } = runtime;
@@ -155,6 +157,77 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
     return applied;
   }
 
+  async function installVariantModule(key: string, slotId: string, id: string, manual = false): Promise<boolean> {
+    if (variantActionPending.value || runtime.referenceChanging.value) return false;
+    variantActionPending.value = true;
+    let accepted = false;
+    const target = joint.currentTarget.value!;
+    const targetKey = joint.currentTargetKey.value;
+    await reads.consume(
+      'variant-action',
+      { target, key, slotId, id },
+      async (signal) => {
+        if ((!manual && (!(await joint.waitForSave()) || !(await commitVariantInputs()))) || signal.aborted || !runtime.isActive())
+          return false;
+        const before = deepClone(joint.draftValue.value),
+          captured = snapshot.value,
+          admitted = joint.inputs.captureContext();
+        const current = () =>
+          !signal.aborted &&
+          runtime.isActive() &&
+          admitted() &&
+          joint.currentTarget.value === target &&
+          snapshot.value === captured &&
+          stableDeepEqual(before, joint.draftValue.value) &&
+          !joint.inputs.dirty.value;
+        if (manual && id) {
+          const candidate = await readModuleCandidateIssue(target, id, signal);
+          if (!current()) return false;
+          if (candidate.reason) {
+            const choice = await feedback.choose({
+              title: '强制引用模块装配？',
+              content: `装配：${jointObject(before[key]).variantId}\n槽位：${slotId}\n装配 ID：${id}\n${candidate.reason}\n来源：${candidate.source}`,
+              choices: [{ label: '强制引用', value: 'install', type: 'warning' }],
+            });
+            if (choice !== 'install' || !current()) return false;
+          }
+        }
+        if (!current()) return false;
+        const switched = await runtime.switchReference(
+          [
+            {
+              field: {
+                id: key + '/module/' + slotId,
+                recordKey: key,
+                moduleSlot: slotId,
+                handoff: true,
+                schema: { key: 'modules', label: '模块装配', type: 'string' },
+              },
+              update: { kind: 'set', value: id },
+            },
+          ],
+          manual,
+        );
+        return (
+          switched === true &&
+          runtime.isActive() &&
+          joint.currentTargetKey.value === targetKey &&
+          (variantModuleEntries(jointObject(joint.draftValue.value[key]).modules).find(([slot]) => slot === slotId)?.[1] ?? '') === id
+        );
+      },
+      {
+        ready: (value) => {
+          accepted = value;
+        },
+        error: (error) => feedback.error(error, '切换模块装配失败'),
+        settled: () => {
+          variantActionPending.value = false;
+        },
+      },
+    );
+    return accepted;
+  }
+
   async function stripVariantBranch(key: string): Promise<boolean> {
     if (variantActionPending.value) return false;
     const target = joint.currentTargetKey.value;
@@ -244,6 +317,7 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
     applyVariantActions,
     cancelVariantAction,
     installVariantWeapon,
+    installVariantModule,
     stripVariantBranch,
   };
 }

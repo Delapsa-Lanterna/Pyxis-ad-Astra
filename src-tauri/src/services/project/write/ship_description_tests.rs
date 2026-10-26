@@ -98,6 +98,7 @@ fn rename(
         "joint" => {
             let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
                 catalog: None,
+                catalog_source: None,
                 root: JointEditRoot {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),

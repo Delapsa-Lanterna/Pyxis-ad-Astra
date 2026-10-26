@@ -5,8 +5,10 @@ import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-
 import { immersiveCatalogScene, immersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { immersiveNumber } from '@/domain/immersive/fields';
 import { hullThumbnailRequest, weaponThumbnailRequest } from '../use-immersive-thumbnails';
+import { resourceThumbnailRequest } from '@/app/composables/use-resource-thumbnail';
 
-export function variantCandidateThumbnail(sessionId: string, entry: ReadonlyVariantEntry, kind: 'weapons' | 'wings') {
+export function variantCandidateThumbnail(sessionId: string, entry: ReadonlyVariantEntry, kind: 'weapons' | 'wings' | 'variants') {
+  if (kind === 'variants') return entry.resourceRefs.icon ? resourceThumbnailRequest(sessionId, entry.resourceRefs.icon, 69, 69) : null;
   const data = isRowData(entry.data) ? entry.data : {},
     spec = isRowData(entry.spec) ? entry.spec : {};
   if (kind === 'weapons')

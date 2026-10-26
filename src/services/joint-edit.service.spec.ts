@@ -34,6 +34,14 @@ beforeEach(() => {
   invalidateQueryCacheForSession(root.sessionId);
 });
 describe('joint edit capability protocols', () => {
+  it('caches module catalogs independently by source', async () => {
+    invoke.mockResolvedValue({ root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'variants', entries: [] } });
+    await queryJointVariantCatalog(root, 'variants', undefined, 'mod');
+    await queryJointVariantCatalog(root, 'variants', undefined, 'core');
+    await queryJointVariantCatalog(root, 'variants', undefined, 'mod');
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke.mock.calls.map((call) => call[1].payload.catalogSource)).toEqual(['mod', 'core']);
+  });
   it('reuses catalog reads and refreshes after project changes', async () => {
     const read = { root, referenceSettings: snapshot.referenceSettings, catalog: { kind: 'weapons', entries: [] } };
     invoke.mockResolvedValue(read);
