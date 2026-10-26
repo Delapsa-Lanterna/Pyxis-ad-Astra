@@ -267,6 +267,18 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
           dataUrl: model.resourceDataUrl(resource.relPath),
         })),
       };
+    case 'query_image_source_options': {
+      const { directories, missionId } = args.payload as { directories: string[]; missionId: string | null };
+      return [
+        {
+          origin: 'mod',
+          options: directories.map((directory) => {
+            const value = directory === '.' ? 'sample.png' : directory + '/sample.png';
+            return { label: 'sample.png', value, description: missionId, resourceRef: null, origin: 'mod' };
+          }),
+        },
+      ];
+    }
     case 'query_original_font':
       return fontResult((args.payload as { fontId: string }).fontId);
     case 'query_edit_target_owners':

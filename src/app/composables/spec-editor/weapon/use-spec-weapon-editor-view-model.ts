@@ -18,7 +18,7 @@ import {
   deleteWeaponBarrel,
 } from '@/domain/spec-editor/weapon/spec-weapon-editing';
 import { findMirrorBarrelIndex } from '@/domain/editors/lib/mirror';
-import { WEAPON_SPRITE_FIELDS, type WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
 import { useEditorDocument } from '../../editors/use-editor-document';
 import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { useCanvasEditor } from '@/app/composables/canvas/use-canvas-editor';
@@ -26,7 +26,6 @@ import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport'
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
 import { useEditorImages } from '../../editors/use-editor-images';
 import { useEditorFrameLoop } from '../../editors/use-editor-frame-loop';
-import { useResourceReference } from '../../editors/use-resource-reference';
 import { renderSpecWeaponEditorScene } from '@/app/renderers/spec-editor/weapon/spec-weapon-scene';
 import { useSettingsStore } from '@/stores/settings.store';
 export interface SpecWeaponEditorProps {
@@ -84,7 +83,6 @@ export function useSpecWeaponEditorViewModel(
   const glowColor = fields.color('glowColor');
   const localWeapon = document.value,
     barrels = computed(() => projectWeaponBarrels(localWeapon.value, viewMode.value));
-  const { pickModImageReference } = useResourceReference();
   const palette = useCanvasPalette(draw),
     frames = useEditorFrameLoop(draw);
   const images = useEditorImages(() => props.spriteData ?? {}, refreshRendering);
@@ -234,15 +232,6 @@ export function useSpecWeaponEditorViewModel(
     });
   }
 
-  async function pickWeaponSprite(field: string) {
-    const relative = await pickModImageReference({
-      sessionId: props.sessionId,
-      modRoot: props.modRoot,
-      title: '选择武器贴图',
-      accepts: document.captureActionContext(),
-    });
-    if (relative) setProperty(field, relative);
-  }
   const sections = computed(() => weaponSections(localWeapon.value));
   useSpecProblems(() => weaponSpecIssues(localWeapon.value));
   function setProperty(path: string, value: RowData[string]) {
@@ -262,7 +251,6 @@ export function useSpecWeaponEditorViewModel(
       mirror: state.mirrorMode,
       fitted: viewport.fitted,
       sections,
-      spriteFields: [...WEAPON_SPRITE_FIELDS],
       footerNote: computed(
         () =>
           '右键 拖动画布 | 滚轮缩放 | Ctrl+Z 撤销 | Ctrl+Shift+Z 重做' +
@@ -317,7 +305,6 @@ export function useSpecWeaponEditorViewModel(
         document.change(() => {
           barrels.value.angles[state.selected.value!] = value || 0;
         }),
-      pickWeaponSprite: (field: string) => document.run(() => void pickWeaponSprite(field)),
       editProjectile: () =>
         document.run(() => {
           const id = str(localWeapon.value.projectileSpecId);

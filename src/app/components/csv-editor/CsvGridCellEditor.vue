@@ -64,6 +64,7 @@
           :anchor="pickerAnchor"
           :multiple="isListControl"
           :options="pickerOptions"
+          :image-paths="control === 'path-image'"
           :session-id="context.target.sessionId"
           :values="pickerValues"
           @cancel="cancelAndClose"
@@ -99,6 +100,7 @@ import { focusFieldInput } from '@/shared/runtime/focus-field-input';
 import CsvCellPicker from '@/app/components/csv-editor/CsvCellPicker.vue';
 import CsvCellTextEditor from '@/app/components/csv-editor/CsvCellTextEditor.vue';
 import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
+import { useImageSourceOptions } from '@/app/composables/editors/use-image-source-options';
 
 const props = defineProps<{
   anchorElement: HTMLElement | null;
@@ -135,12 +137,19 @@ const isTextControl = computed(() => control.value === 'text');
 const usesNativeInput = computed(() => {
   if (isTextControl.value) return false;
   if (mode.value === 'plain') return true;
+  if (control.value === 'path-image') return false;
   return csvControlUsesNativeInput(control.value);
 });
 const isListControl = computed(() => isCsvListControl(control.value));
 const isReferenceControl = computed(() => isCsvReferenceControl(control.value));
 const listValue = computed(() => csvListValues(raw.value));
+const imageOptions = useImageSourceOptions({
+  sessionId: () => context.target.sessionId,
+  directories: () => props.column.schema?.imageDirectories,
+  active: () => mode.value !== 'plain' && control.value === 'path-image',
+});
 const pickerOptions = computed(() => {
+  if (control.value === 'path-image') return imageOptions.value;
   if (control.value === 'boolean') return csvBooleanOptions();
   if (control.value === 'enum') return props.column.enumOptions;
   const options = sourceOptions(props.sourceIndex, props.column.schema?.source);

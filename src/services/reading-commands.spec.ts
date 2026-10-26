@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { queryTableIndex, querySessionCsvRowPreview } from './csv-table.service';
-import { querySourceOptionCatalog } from './source-options.service';
+import { querySourceOptionCatalog, queryImageSourceOptions } from './source-options.service';
 import { querySessionHullReferences } from './hull-reference.service';
 import {
   querySessionEntity,
@@ -44,6 +44,12 @@ const cases: Array<[string, () => Promise<unknown>, object, unknown]> = [
     { resourceRef: null },
   ],
   ['query_csv_source_options', () => querySourceOptionCatalog(sessionId, 'csv:ships.name'), { sessionId, source: 'csv:ships.name' }, []],
+  [
+    'query_image_source_options',
+    () => queryImageSourceOptions(sessionId, ['graphics/backgrounds'], null),
+    { sessionId, directories: ['graphics/backgrounds'], missionId: null },
+    [],
+  ],
   [
     'query_hull_references',
     () => querySessionHullReferences(sessionId, ['b', 'a', 'b']),

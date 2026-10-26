@@ -1,9 +1,26 @@
-import type { SourceOptionGroup, InvalidatedQueryScope, CsvSourceOptionsPayload, DeepReadonly } from '@/shared/types';
+import type {
+  SourceOptionGroup,
+  InvalidatedQueryScope,
+  CsvSourceOptionsPayload,
+  ImageSourceOptionsPayload,
+  DeepReadonly,
+} from '@/shared/types';
 
 import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createCachedSessionQuery } from '@/services/query-cache.service';
+import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
+
+const readImageOptions = createLiveSessionQuery<Omit<ImageSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
+  queryKind: 'image-source-options',
+  load: ({ sessionId, parameters }) =>
+    invokeCommand('query_image_source_options', { payload: { sessionId, ...parameters } satisfies ImageSourceOptionsPayload }),
+  invalidates: () => true,
+});
+
+export function queryImageSourceOptions(sessionId: string, directories: string[], missionId: string | null, signal?: AbortSignal) {
+  return readImageOptions(sessionId, { directories, missionId }, signal);
+}
 
 const readSourceOptions = createCachedSessionQuery<Omit<CsvSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
   queryKind: 'csv-source-options',

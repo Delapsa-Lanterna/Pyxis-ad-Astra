@@ -9,7 +9,7 @@
     { "key": "decivRemove", "label": "文明丧失时移除", "control": "boolean" },
     { "key": "script", "label": "脚本", "control": "text" },
     { "key": "desc", "label": "描述", "control": "text" },
-    { "key": "icon", "label": "图标", "control": "path-image" },
+    { "key": "icon", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/icons/markets"] },
     { "key": "order", "label": "排序", "control": "number", "step": 1 }
   ]
 }

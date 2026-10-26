@@ -29,6 +29,15 @@ pub struct CsvSourceOptionsPayload {
     pub source: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageSourceOptionsPayload {
+    pub session_id: ProjectSessionId,
+    pub directories: Vec<String>,
+    #[serde(deserialize_with = "super::required_nullable_non_empty_string")]
+    pub mission_id: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

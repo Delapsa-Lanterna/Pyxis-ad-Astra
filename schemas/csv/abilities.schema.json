@@ -20,7 +20,7 @@
     { "key": "worldOn", "label": "世界开启音", "control": "text" },
     { "key": "worldOff", "label": "世界关闭音", "control": "text" },
     { "key": "worldLoop", "label": "世界循环音", "control": "text" },
-    { "key": "icon", "label": "图标", "control": "path-image" },
+    { "key": "icon", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/icons/abilities"] },
     { "key": "plugin", "label": "插件", "control": "text" },
     { "key": "ai", "label": "AI 脚本", "control": "text" },
     { "key": "desc", "label": "描述", "control": "text" },

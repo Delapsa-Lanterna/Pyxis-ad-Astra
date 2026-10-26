@@ -17,7 +17,6 @@
 ### 消费
 
 - `src/app/composables/canvas/use-canvas-editor.ts`：舰船消费的共享画布交互、选区和动作提交入口。
-- `src/app/composables/editors/use-resource-reference.ts`：贴图引用选择。
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
 - `src/domain/editors/lib/geometry.ts`：舰船与武器坐标、角度、距离及边界线段纯规则。
 - `src/domain/editors/lib/mirror.ts`：舰船消费的共享几何镜像规则。
@@ -86,6 +85,7 @@
 - builtInWeapons 必须按当前 weaponSlots 中 type 为 BUILT_IN 的槽位顺序生成固定 schema 字段，槽位 ID 必须作为固定标签，武器 ID 输入必须登记到所属目标会话并参与保存、关闭与外部版本保护；清空必须删除对应武器记录并保留槽位编辑行。
 - 原规格未声明 `descriptionId` 时，`hullId` 改名必须在同一 changeset 中将旧 ID 的 `SHIP` 描述记录改为新 ID；显式 `descriptionId` 必须保持所属引用语义。
 - 同 ID 保存必须使用实际已加载路径；修改 `hullId` 必须保留原目录并同步所属 CSV 的 ID 字段与文件历史。
+- 图片字段必须消费规格 schema 的目录候选与共同文件选择入口，选择贴图必须交付所属字段动作及尺寸加载。
 - 引擎必须消费共享普通满推力静态成品及正式样式资源；正式、镜像与操作预览必须共同生成展示列表，层序必须消费有效 RENDER_ENGINES_BELOW_HULL hint，控制点必须在编辑覆盖层。
 - 用户主动加载成功必须同步实际贴图宽高；真实无图首次加载必须通过中心字段赋值居中，附属几何必须保留相对坐标。
 - 画布与检查器必须通过编辑文档的动作入口更新所属草稿，dirty 外部内容必须暂存，保存必须提交当前指针位置并结束动作；镜像按钮必须消费真实镜像状态，适应视图必须消费视口状态，实际平移或缩放必须清除适应状态，单纯右键按下必须保留状态。

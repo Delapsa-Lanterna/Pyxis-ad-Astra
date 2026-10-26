@@ -56,11 +56,9 @@
             <SpecFieldList
               :content="document"
               :fields="section.fields"
-              :image-fields="['sprite', 'bulletSprite', 'glowSprite']"
               :readonly-fields="['id']"
               @remove="actions.removeField"
               @update="actions.setProperty"
-              @browse="actions.pickProjectileSprite"
             />
             <template v-if="section.name === 'missileVisual'">
               <FieldRow label="实际图片尺寸"

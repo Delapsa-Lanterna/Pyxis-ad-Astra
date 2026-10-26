@@ -39,6 +39,7 @@
           :selected="selectedValues"
           :multiple="multiple"
           :session-id="sessionId"
+          :image-paths="imagePaths"
           @select="selectOption"
         />
       </NCollapse>
@@ -66,6 +67,7 @@ const props = defineProps<{
   multiple: boolean;
   sessionId: string;
   options: SelectOption[];
+  imagePaths?: boolean;
   values: string[];
 }>();
 

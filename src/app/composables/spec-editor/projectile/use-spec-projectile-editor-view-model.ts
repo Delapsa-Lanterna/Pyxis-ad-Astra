@@ -23,7 +23,6 @@ import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surfa
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
 import { useProjectileRendering } from '../../editors/use-projectile-rendering';
 import { useEngineRendering } from '../../editors/use-engine-rendering';
-import { useResourceReference } from '@/app/composables/editors/use-resource-reference';
 
 export interface SpecProjectileEditorProps {
   modRoot: string;
@@ -167,7 +166,6 @@ export function useSpecProjectileEditorViewModel(
     window.removeEventListener('resize', resize);
   });
 
-  const { pickModImageReference } = useResourceReference();
   const specClass = computed(() => str(localProjectile.value.specClass, 'projectile'));
   const showMissileSections = computed(() => specClass.value === 'missile');
   const engineSlots = computed<RowData[]>(() =>
@@ -209,12 +207,6 @@ export function useSpecProjectileEditorViewModel(
       const slots = projectile.engineSlots as RowData[];
       slots.splice(slots.indexOf(slot), 1);
     });
-  }
-  async function pickProjectileSprite(field: string) {
-    const accepts = document.captureActionContext();
-    const relative = await pickModImageReference({ sessionId: props.sessionId, modRoot: props.modRoot, title: '选择弹体贴图', accepts });
-    if (!relative) return;
-    setProperty(field, relative);
   }
 
   return {
@@ -270,7 +262,6 @@ export function useSpecProjectileEditorViewModel(
       resetView,
       addEngineSlot,
       removeEngineSlot,
-      pickProjectileSprite: (field: string) => document.run(() => void pickProjectileSprite(field)),
     },
   };
 }

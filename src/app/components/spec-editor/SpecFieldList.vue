@@ -23,13 +23,9 @@
           :input-key="path(field)"
           :field-path="path(field)"
           :runtime-context="fieldRuntime"
-          @update="$event.kind === 'set' ? $emit('update', path(field), $event.value as JsonValue) : $emit('remove', path(field))"
-          @change="$emit('change', path(field))"
+          @update="updateField(field, $event)"
         />
       </slot>
-      <template #actions
-        ><n-button v-if="imageFields.includes(field.key)" size="tiny" @click="$emit('browse', path(field))">浏览</n-button></template
-      >
       <template #hint
         ><span v-if="stored(field) === undefined && field.required" class="ui-text-muted ui-text-small">未设置</span></template
       >
@@ -48,9 +44,9 @@
           :field="{ ...field.variants![1]!.item!, key: path(field) + '[' + index + ']' }"
           :value="(stored(field) as string[])[index]"
           :input-key="path(field) + '[' + index + ']'"
+          :runtime-context="fieldRuntime"
           @update="$event.kind === 'set' && $emit('update', path(field) + '[' + index + ']', $event.value as JsonValue)"
         />
-        <template #actions><n-button size="tiny" @click="$emit('browse', path(field) + '[' + index + ']')">浏览</n-button></template>
       </FieldRow>
     </template>
   </div>
@@ -64,10 +60,11 @@ import { toOptions } from '@/domain/editors/lib/editor-constants';
 import { schemaCollection, schemaFieldRequired } from '@/domain/schema/schema-values';
 import { specFieldParent, type SpecField } from '@/domain/editors/spec-construction';
 import type { JsonValue, RowData } from '@/shared/types';
-const props = withDefaults(
-  defineProps<{ content: RowData; fields: SpecField[]; prefix?: string; imageFields?: string[]; readonlyFields?: string[] }>(),
-  { prefix: '', imageFields: () => [], readonlyFields: () => [] },
-);
+import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
+const props = withDefaults(defineProps<{ content: RowData; fields: SpecField[]; prefix?: string; readonlyFields?: string[] }>(), {
+  prefix: '',
+  readonlyFields: () => [],
+});
 const schemaRuntime = inject(specSchemaContext, null);
 const fieldRuntime = computed(() => (schemaRuntime?.value ? { ...schemaRuntime.value, readValue: () => props.content } : null));
 const fields = computed(() =>
@@ -80,7 +77,12 @@ const fields = computed(() =>
       : field,
   ),
 );
-defineEmits<{ update: [path: string, value: JsonValue]; remove: [path: string]; browse: [path: string]; change: [path: string] }>();
+const emit = defineEmits<{ update: [path: string, value: JsonValue]; remove: [path: string]; change: [path: string] }>();
+function updateField(field: SpecField, update: SchemaFieldUpdate) {
+  if (update.kind === 'set') emit('update', path(field), update.value as JsonValue);
+  else emit('remove', path(field));
+  if (field.type === 'path-image') emit('change', path(field));
+}
 const path = (field: Pick<SpecField, 'key'>) => props.prefix + field.key;
 const stored = (field: Pick<SpecField, 'key'>) => {
   const { parent, key } = specFieldParent(props.content, path(field));

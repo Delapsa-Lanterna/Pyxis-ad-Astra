@@ -83,7 +83,7 @@ export const projectCapabilities = [
     },
     {
       capability: 'source-query',
-      names: ['querySourceOptionCatalog'],
+      names: ['querySourceOptionCatalog', 'queryImageSourceOptions'],
       owners: readOwners,
     },
   ]),

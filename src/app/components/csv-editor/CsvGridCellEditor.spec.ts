@@ -8,6 +8,25 @@ import CsvGridCellEditor from './CsvGridCellEditor.vue';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { vi } from 'vitest';
+import { flushPromises } from '@vue/test-utils';
+
+const images = vi.hoisted(() => ({
+  query: vi.fn(async () => [
+    {
+      origin: 'mod',
+      options: [
+        {
+          label: 'sample.png',
+          value: 'graphics/icons/sample.png',
+          description: 'graphics/icons/sample.png',
+          origin: 'mod',
+          resourceRef: null,
+        },
+      ],
+    },
+  ]),
+}));
+vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: images.query }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(), error: vi.fn() }) }));
 
@@ -56,6 +75,25 @@ function mountEditor(props: Record<string, unknown>) {
 }
 
 describe('CsvGridCellEditor', () => {
+  it('selects declared image candidates and commits manual paths in plain mode', async () => {
+    const column = { ...columnFixture('path-image'), schema: { key: 'size', control: 'path-image', imageDirectories: ['graphics/icons'] } };
+    const editor = mountEditor({
+      column,
+      anchorElement: document.createElement('div'),
+      initialAnchor: { height: 24, left: 0, top: 0, width: 200 },
+    });
+    await flushPromises();
+    expect(images.query).toHaveBeenCalledWith(fixture.target.sessionId, ['graphics/icons'], null, expect.any(AbortSignal));
+    await editor.get('.csv-cell-picker-option').trigger('click');
+    expect(fixture.updates[0]?.value).toBe('graphics/icons/sample.png');
+    wrapper!.unmount();
+    wrapper = null;
+    useSettingsStore().setEditMode('plain');
+    const plain = mountEditor({ column });
+    await plain.get('input').setValue('graphics/custom/manual.png');
+    await plain.get('input').trigger('keydown.enter');
+    expect(fixture.updates[0]?.value).toBe('graphics/custom/manual.png');
+  });
   beforeEach(() => {
     vi.stubGlobal(
       'ResizeObserver',

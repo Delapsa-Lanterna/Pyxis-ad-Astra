@@ -371,8 +371,11 @@ describe('ship pointer and inspector actions', () => {
       loaded.at(-1)!.onload?.();
       await flushPromises();
     }
-    const path = editor.get('[data-field-path="spriteName"] input');
-    await path.setValue('new.png');
+    editor
+      .get('[data-field-path="spriteName"]')
+      .getComponent({ name: 'SchemaReferenceInput' })
+      .vm.$emit('update', { kind: 'set', value: 'new.png' });
+    await editor.vm.$nextTick();
     await editor.setProps({ spriteData: 'new', spriteSourcePath: 'new.png' });
     loaded.at(-1)!.onload?.();
     await flushPromises();
@@ -413,8 +416,11 @@ describe('ship pointer and inspector actions', () => {
     loaded.at(-1)!.onload?.();
     await flushPromises();
     expect(editor.emitted('draft-changed')).toBeUndefined();
-    const path = editor.findAll('input').find((input) => (input.element as HTMLInputElement).value === 'old.png')!;
-    await path.trigger('change');
+    editor
+      .get('[data-field-path="spriteName"]')
+      .getComponent({ name: 'SchemaReferenceInput' })
+      .vm.$emit('update', { kind: 'set', value: 'old.png' });
+    await editor.vm.$nextTick();
     loaded.at(-1)!.onload?.();
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).toMatchObject({ width: 64, height: 32, center: [5, 6] });

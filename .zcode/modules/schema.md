@@ -24,7 +24,7 @@
 - `schemas/strings.schema.json`：分组字符串与根级文本的文件表单。
 - `schemas/variant.schema.json`：装配字段模式资产。
 - `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
-- `src-tauri/src/commands/source_options.rs`：来源目录 command。
+- `src-tauri/src/commands/source_options.rs`：字段来源与声明目录图片候选 command。
 - `src-tauri/src/domain/schema.rs`：对象完整性、分支、值类型校验与配置覆盖合并。
 - `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
 - `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
@@ -38,6 +38,7 @@
 - `src/app/components/schema/SchemaScalarInput.vue`：类型文本输入，暂存原文并提交正式字段动作。
 - `src/app/components/schema/SchemaValueInput.vue`：类型与模式分派、自身递归及字段更新交付。
 - `src/app/composables/editors/use-editor-row-identities.ts`：结构化输入条目的稳定行身份。
+- `src/app/composables/editors/use-image-source-options.ts`：图片目录候选读取、刷新与展示生命周期。
 - `src/app/composables/editors/use-schema-path-picker.ts`：所属字段文件选择、路径转换与目标接纳。
 - `src/app/composables/editors/use-schema-source-options.ts`：字段来源选项读取、失效及释放。
 - `src/app/composables/use-input-edit-mode.ts`：输入编辑模式及焦点交接。
@@ -54,7 +55,7 @@
 - `src/domain/schema/schema-sections.ts`：section 投影与折叠标识。
 - `src/domain/schema/schema-values.ts`：字段值转换，拥有标量、kv 条目与业务归一化规则。
 - `src/domain/schema/schema.types.ts`：schema 输出类型，拥有字段/控件闭合枚举与 FileSchema/FieldSchema/列 schema 形状。
-- `src/services/source-options.service.ts`：来源目录协议、查询身份与性能记录。
+- `src/services/source-options.service.ts`：字段来源与图片目录协议、查询身份与性能记录。
 
 ### 消费
 
@@ -63,6 +64,7 @@
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产的严格 JSON 读取入口。
 - `src/app/components/editors/common/EditorCollapse.vue`：共同分组的展开列表交接。
 - `src/app/components/editors/common/EditorCollapseItem.vue`：共同分组的标题、辅助动作与保留输入的内容展示。
+- `src/app/composables/editors/use-resource-reference.ts`：图片文件选择消费的后端路径授权与相对路径交付。
 - `src/shared/lib/input-number.ts`：完整有限浮点与安全整数解析。
 - `src/shared/lib/json-fields.ts`：额外 JSON 字段展示条目投影。
 - `src/shared/lib/json-input.ts`：字段输入消费的共享 JSON 解析、形状校验与格式化。
@@ -143,6 +145,8 @@
 - 不可解析的手输值必须显示逐字符原始文本；空字符串表示未选择。
 - 分组必须消费 EditorCollapse 与 EditorCollapseItem；可增删对象组及列表对象项必须初始收起，新增组必须展开，固定组必须消费所属默认值，首次展开后的隐藏必须保留所属输入；`presentation: groups` 必须将一级对象分别成组并将其余值归入额外字段。
 - 原版 tags、hints 与 UI 标签必须按 Starsector 版本及完整表列 source 查询；数字规则必须通过独立模板选项交付默认输入值与有效上限，选择必须填入标签自定义输入，并经所属 FieldInputs 提交；具体数字说明必须来自匹配的来源规则。
+- 图片候选必须按声明目录及子目录查询当前 Mod 和原版，同路径必须采用 Mod 优先，任务图片必须按当前任务目录交付相对路径；查询只允许交付路径元数据。
+- 图片输入必须显式声明 `imageDirectories` 候选目录数组，缺失或空数组必须交付空候选；目录只允许约束候选展示，手动路径必须沿用所属路径基准与授权。
 - 字典名称必须使用原文输入，引用候选必须归字段值；键值字段必须保持所属值类型并消费其默认值，同层改名必须拦截重名与保留名称，点号、中文和下划线必须作为原始键处理。
 - 字段名称、字段键与完整路径必须显式交给共同标签，值控件必须消费原文登记与正式提交接口。
 - 字段挂载严禁触发选项贴图批量读取；批量解析必须 single-flight 去重。

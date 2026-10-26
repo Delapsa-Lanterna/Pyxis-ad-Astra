@@ -42,6 +42,7 @@ export interface FieldSchema {
   danger?: string;
   source?: string;
   pathBase?: 'mod' | 'mission';
+  imageDirectories?: string[];
   min?: number;
   max?: number;
   minEntries?: number;
@@ -110,6 +111,7 @@ export interface CsvColumnSchema {
   key: string;
   label?: string;
   control: CsvColumnControl;
+  imageDirectories?: string[];
   source?: string;
   options?: string[];
   default?: string;

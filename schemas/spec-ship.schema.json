@@ -23,7 +23,14 @@
       "id": "sprite",
       "label": "贴图与中心",
       "fields": [
-        { "key": "spriteName", "label": "贴图", "type": "string", "default": "", "required": true },
+        {
+          "key": "spriteName",
+          "label": "贴图",
+          "type": "path-image",
+          "imageDirectories": ["graphics/ships"],
+          "default": "",
+          "required": true
+        },
         { "key": "width", "label": "宽度", "type": "float", "default": 0, "required": true },
         { "key": "height", "label": "高度", "type": "float", "default": 0, "required": true },
         { "key": "center[0]", "label": "中心 X", "type": "float", "default": 0, "required": true },

@@ -5,6 +5,7 @@ import { pickFileDialog, pickImageFileDialog } from '@/shared/runtime/dialog.run
 import { onScopeDispose } from 'vue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { warningNotice } from '@/shared/lib/errors';
+import { useResourceReference } from './use-resource-reference';
 
 export function useSchemaPathPicker(args: {
   runtimeContext: () => SchemaRuntimeContext | null | undefined;
@@ -13,6 +14,7 @@ export function useSchemaPathPicker(args: {
 }) {
   const feedback = useAppFeedback();
   const inputs = useFieldInputs();
+  const references = useResourceReference();
   let released = false;
   onScopeDispose(() => {
     released = true;
@@ -23,6 +25,17 @@ export function useSchemaPathPicker(args: {
     const sessionId = args.runtimeContext()?.sessionId;
     const modRoot = args.runtimeContext()?.modRoot;
     if (!modRoot) return;
+    if (options.imageFilter && args.pathBase?.() !== 'mission') {
+      const path = await references.pickModImageReference({
+        sessionId: sessionId!,
+        modRoot,
+        title: '选择图片文件',
+        accepts: () =>
+          !released && accepts() && args.runtimeContext()?.sessionId === sessionId && args.runtimeContext()?.modRoot === modRoot,
+      });
+      if (path !== null) args.setPath(path);
+      return;
+    }
     const missionId = args.runtimeContext()?.missionId;
     const baseRoot = args.pathBase?.() === 'mission' && missionId ? joinRootRelativePath(modRoot, `data/missions/${missionId}`) : modRoot;
 

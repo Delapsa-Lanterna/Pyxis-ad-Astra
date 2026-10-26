@@ -29,6 +29,6 @@
     { "key": "noVent", "label": "禁止强制排散", "control": "boolean" },
     { "key": "isPhaseCloak", "label": "视作相位", "control": "boolean" },
     { "key": "tags", "label": "Tags 标签", "control": "tags", "source": "csv:shipSystems.tags" },
-    { "key": "icon", "label": "图标", "control": "path-image" }
+    { "key": "icon", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/icons/hullsys"] }
   ]
 }

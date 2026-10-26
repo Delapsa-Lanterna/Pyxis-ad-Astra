@@ -33,7 +33,7 @@ export const commandOwners = {
     'release_window_targets',
     'retarget_managed_window',
   ],
-  'src/services/source-options.service.ts': ['query_csv_source_options'],
+  'src/services/source-options.service.ts': ['query_csv_source_options', 'query_image_source_options'],
   'src/services/joint-edit.service.ts': ['query_joint_edit', 'prepare_joint_edit', 'save_joint_edit'],
   'src/services/hull-reference.service.ts': ['query_hull_references'],
   'src/services/resource-media.service.ts': ['query_resource_data_urls'],

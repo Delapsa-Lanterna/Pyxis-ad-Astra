@@ -12,7 +12,7 @@
     { "key": "upgrade", "label": "升级为", "control": "text" },
     { "key": "tags", "label": "Tags 标签", "control": "tags", "source": "csv:industries.tags" },
     { "key": "data", "label": "数据", "control": "text" },
-    { "key": "image", "label": "图标", "control": "path-image" },
+    { "key": "image", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/icons/industry"] },
     { "key": "plugin", "label": "插件", "control": "text" },
     { "key": "desc", "label": "描述", "control": "text" },
     { "key": "order", "label": "排序", "control": "number", "step": 1 },

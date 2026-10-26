@@ -56,6 +56,7 @@
         {
           "key": "descriptor.icon",
           "type": "path-image",
+          "imageDirectories": ["."],
           "pathBase": "mission",
           "label": "icon",
           "description": "战役图标，通常位于 data/missions/{mission}/"
@@ -63,6 +64,7 @@
         {
           "key": "descriptor.background",
           "type": "path-image",
+          "imageDirectories": ["graphics/backgrounds"],
           "label": "background",
           "description": "战役背景图"
         }

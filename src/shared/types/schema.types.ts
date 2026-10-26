@@ -19,3 +19,9 @@ export interface CsvSourceOptionsPayload {
   sessionId: string;
   source: string;
 }
+
+export interface ImageSourceOptionsPayload {
+  sessionId: string;
+  directories: string[];
+  missionId: string | null;
+}

@@ -66,11 +66,9 @@
             <SpecFieldList
               :content="document"
               :fields="section.fields"
-              :image-fields="view.spriteFields"
               :readonly-fields="['id']"
               @remove="actions.removeField"
               @update="actions.setProperty"
-              @browse="actions.pickWeaponSprite"
             />
             <template v-if="section.name === 'turretBarrels' || section.name === 'hardpointBarrels'">
               <div class="item-list ui-layout-grid">

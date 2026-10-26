@@ -21,6 +21,6 @@
     { "key": "desc", "label": "描述", "control": "text" },
     { "key": "short", "label": "简短描述", "control": "text" },
     { "key": "sModDesc", "label": "S 插件强化说明", "control": "text" },
-    { "key": "sprite", "label": "图标", "control": "path-image" }
+    { "key": "sprite", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/hullmods"] }
   ]
 }

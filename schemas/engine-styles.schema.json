@@ -50,12 +50,14 @@
         {
           "key": "glowSprite",
           "type": "path-image",
+          "imageDirectories": ["graphics/fx"],
           "label": "发光贴图",
           "description": "引擎发光部分的贴图路径。"
         },
         {
           "key": "glowOutline",
           "type": "path-image",
+          "imageDirectories": ["graphics/fx"],
           "label": "尾焰轮廓贴图",
           "description": "引擎尾焰轮廓的贴图路径。"
         },

@@ -7,7 +7,7 @@
     { "key": "faction", "label": "势力", "control": "text" },
     { "key": "desc", "label": "描述", "control": "text" },
     { "key": "script", "label": "脚本", "control": "text" },
-    { "key": "icon", "label": "图标", "control": "path-image" },
+    { "key": "icon", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/factions"] },
     { "key": "order", "label": "排序", "control": "number", "step": 1 }
   ]
 }

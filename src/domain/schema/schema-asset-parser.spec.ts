@@ -3,6 +3,55 @@ import { parseCsvColumnSchemas, parseFileSchema } from './schema-asset-parser';
 import { CSV_COLUMN_CONTROLS, type FileSchema } from './schema.types';
 
 describe('schema asset validation', () => {
+  it.each([{ imageDirectories: [] }, { imageDirectories: ['.'] }, { imageDirectories: ['graphics/icons', 'graphics/ships'] }])(
+    'preserves image directories $imageDirectories in fields and CSV columns',
+    ({ imageDirectories }) => {
+      const root = { key: 'image', label: 'Image', type: 'path-image', imageDirectories };
+      expect(parseFileSchema('images', { $schema: 'circinus-ad-astra/field-schema/v1', id: 'images', root }).root).toEqual(root);
+      const column = { key: 'icon', control: 'path-image', imageDirectories };
+      expect(parseCsvColumnSchemas('ships', { $schema: 'circinus-ad-astra/csv-columns/v1', table: 'ships', columns: [column] })).toEqual([
+        column,
+      ]);
+    },
+  );
+  it.each([null, 'graphics', [''], ['../outside'], ['/absolute'], ['graphics/../outside'], ['graphics\\icons']])(
+    'rejects invalid directory declarations %j',
+    (imageDirectories) => {
+      expect(() =>
+        parseFileSchema('images', {
+          $schema: 'circinus-ad-astra/field-schema/v1',
+          id: 'images',
+          root: { key: 'icon', label: 'Icon', type: 'path-image', imageDirectories },
+        }),
+      ).toThrow('imageDirectories');
+    },
+  );
+  it('assigns explicit image directories to every bundled image declaration', () => {
+    const assets = import.meta.glob('../../../schemas/**/*.schema.json', { eager: true, import: 'default' });
+    let images = 0,
+      empty = 0,
+      files = 0;
+    function visit(value: unknown) {
+      if (!value || typeof value !== 'object') return;
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      const field = value as Record<string, unknown>;
+      if (field.type === 'path-image' || field.control === 'path-image') {
+        images++;
+        expect(Array.isArray(field.imageDirectories)).toBe(true);
+        if ((field.imageDirectories as string[]).length === 0) empty++;
+      }
+      Object.values(field).forEach(visit);
+    }
+    for (const asset of Object.values(assets)) {
+      const before = images;
+      visit(asset);
+      if (images !== before) files++;
+    }
+    expect({ images, empty, files }).toEqual({ images: 46, empty: 3, files: 18 });
+  });
   const fieldSchema = {
     $schema: 'circinus-ad-astra/field-schema/v1',
     id: 'sample',

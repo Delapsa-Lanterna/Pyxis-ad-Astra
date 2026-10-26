@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { useSchemaPathPicker } from './use-schema-path-picker';
 
-const mocks = vi.hoisted(() => ({ pick: vi.fn(), warning: vi.fn() }));
+const mocks = vi.hoisted(() => ({ pick: vi.fn(), warning: vi.fn(), resolve: vi.fn(async () => 'graphics/custom/image.png') }));
 vi.mock('@/shared/runtime/dialog.runtime', () => ({ pickImageFileDialog: mocks.pick, pickFileDialog: mocks.pick }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ warning: mocks.warning }) }));
+vi.mock('@/services/resource-reference.service', () => ({ resolveModImageReference: mocks.resolve }));
 
 const wrappers: ReturnType<typeof mount>[] = [];
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()));
@@ -22,6 +23,14 @@ function mountPicker(args: Parameters<typeof useSchemaPathPicker>[0]) {
 }
 
 describe('schema path bases', () => {
+  it('uses the existing backend authorization for manually selected Mod images', async () => {
+    const setPath = vi.fn();
+    const picker = mountPicker({ runtimeContext: () => ({ sessionId: 's1', modRoot: 'M:/mod' }), setPath });
+    mocks.pick.mockResolvedValueOnce('M:/mod/graphics/custom/image.png');
+    await picker.pickPathFile({ imageFilter: true });
+    expect(mocks.resolve).toHaveBeenCalledWith('s1', 'M:/mod', 'M:/mod/graphics/custom/image.png', expect.any(AbortSignal));
+    expect(setPath).toHaveBeenCalledWith('graphics/custom/image.png');
+  });
   it('stores the task-relative icon path and rejects files outside the task', async () => {
     const setPath = vi.fn();
     const picker = mountPicker({

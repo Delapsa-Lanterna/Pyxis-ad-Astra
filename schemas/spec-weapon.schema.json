@@ -31,23 +31,57 @@
       "id": "turretBarrels",
       "label": "炮塔配置",
       "fields": [
-        { "key": "turretSprite", "label": "主体贴图", "type": "string", "default": "", "required": true },
-        { "key": "turretUnderSprite", "label": "底层贴图", "type": "string", "default": "" },
-        { "key": "turretGlowSprite", "label": "光效贴图", "type": "string", "default": "" },
-        { "key": "turretGunSprite", "label": "炮管贴图", "type": "string", "default": "", "visibleWhen": { "specClass": ["projectile"] } }
+        {
+          "key": "turretSprite",
+          "label": "主体贴图",
+          "type": "path-image",
+          "imageDirectories": ["graphics/weapons"],
+          "default": "",
+          "required": true
+        },
+        { "key": "turretUnderSprite", "label": "底层贴图", "type": "path-image", "imageDirectories": ["graphics/weapons"], "default": "" },
+        { "key": "turretGlowSprite", "label": "光效贴图", "type": "path-image", "imageDirectories": ["graphics/weapons"], "default": "" },
+        {
+          "key": "turretGunSprite",
+          "label": "炮管贴图",
+          "type": "path-image",
+          "imageDirectories": ["graphics/weapons"],
+          "default": "",
+          "visibleWhen": { "specClass": ["projectile"] }
+        }
       ]
     },
     {
       "id": "hardpointBarrels",
       "label": "固定配置",
       "fields": [
-        { "key": "hardpointSprite", "label": "主体贴图", "type": "string", "default": "", "required": true },
-        { "key": "hardpointUnderSprite", "label": "底层贴图", "type": "string", "default": "" },
-        { "key": "hardpointGlowSprite", "label": "光效贴图", "type": "string", "default": "" },
+        {
+          "key": "hardpointSprite",
+          "label": "主体贴图",
+          "type": "path-image",
+          "imageDirectories": ["graphics/weapons"],
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "hardpointUnderSprite",
+          "label": "底层贴图",
+          "type": "path-image",
+          "imageDirectories": ["graphics/weapons"],
+          "default": ""
+        },
+        {
+          "key": "hardpointGlowSprite",
+          "label": "光效贴图",
+          "type": "path-image",
+          "imageDirectories": ["graphics/weapons"],
+          "default": ""
+        },
         {
           "key": "hardpointGunSprite",
           "label": "炮管贴图",
-          "type": "string",
+          "type": "path-image",
+          "imageDirectories": ["graphics/weapons"],
           "default": "",
           "visibleWhen": { "specClass": ["projectile"] }
         }
@@ -78,7 +112,7 @@
               "label": "自定义纹理",
               "minEntries": 2,
               "maxEntries": 2,
-              "item": { "key": "texture", "label": "纹理", "type": "string", "required": true }
+              "item": { "key": "texture", "label": "纹理", "type": "path-image", "imageDirectories": ["graphics/fx"], "required": true }
             }
           ]
         },

@@ -37,7 +37,7 @@
           "label": "设计类型",
           "source": "config:designTypes"
         },
-        { "key": "spriteName", "type": "path-image", "label": "贴图路径" }
+        { "key": "spriteName", "type": "path-image", "imageDirectories": ["graphics/ships"], "label": "贴图路径" }
       ]
     },
     {

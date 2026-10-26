@@ -15,7 +15,7 @@
       class="csv-cell-picker-option ui-button ui-text-normal ui-text-small ui-layout-row ui-layout-center ui-layout-stretch"
       :class="{ selected: selected.has(option.value) }"
       :aria-pressed="multiple ? selected.has(option.value) : undefined"
-      :title="option.description ?? undefined"
+      :title="imagePaths ? option.value : (option.description ?? undefined)"
       type="button"
       @click="emit('select', option)"
     >
@@ -34,9 +34,11 @@
         :height="18"
       />
       <span class="csv-cell-picker-label ui-text-truncate ui-layout-shrink">{{ option.label }}</span>
-      <span v-if="option.value !== option.label" class="csv-cell-picker-value ui-text-truncate ui-layout-shrink ui-text-muted">{{
-        option.value
-      }}</span>
+      <span
+        v-if="!imagePaths && option.value !== option.label"
+        class="csv-cell-picker-value ui-text-truncate ui-layout-shrink ui-text-muted"
+        >{{ option.value }}</span
+      >
     </button>
   </component>
 </template>
@@ -49,6 +51,7 @@ defineProps<{
   selected: ReadonlySet<string>;
   multiple: boolean;
   sessionId: string;
+  imagePaths?: boolean;
   media: ReturnType<typeof useVisibleResourceMedia>;
 }>();
 const emit = defineEmits<{ select: [option: FlatSelectOption] }>();

@@ -31,7 +31,6 @@ import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport'
 import { useCanvasPalette } from '@/app/composables/canvas/use-canvas-palette';
 import { useEditorImages } from '../../editors/use-editor-images';
 import { useSpecShipWeapons } from './use-spec-ship-weapons';
-import { useResourceReference } from '../../editors/use-resource-reference';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
 import { renderSpecShipEditorScene } from '@/app/renderers/spec-editor/ship/spec-ship-scene';
@@ -95,8 +94,7 @@ export function useSpecShipEditorViewModel(
   });
   const localShip = document.value,
     geometry = computed(() => projectShipGeometry(localShip.value));
-  const feedback = useAppFeedback(),
-    { pickModImageReference } = useResourceReference();
+  const feedback = useAppFeedback();
   const modes = [
     { shortcut: 'P', value: 'overview', label: '总览' },
     { shortcut: 'C', value: 'ranges', label: '范围' },
@@ -427,15 +425,6 @@ export function useSpecShipEditorViewModel(
       state.selectPort(ports.length);
     });
   }
-  async function pickShipSprite() {
-    const relative = await pickModImageReference({
-      sessionId: props.sessionId,
-      modRoot: props.modRoot,
-      title: '选择舰船贴图',
-      accepts: document.captureActionContext(),
-    });
-    if (relative) setField('spriteName', relative);
-  }
   return {
     document: localShip,
     view: reactive({
@@ -526,7 +515,6 @@ export function useSpecShipEditorViewModel(
             delete value[field.key];
         setField('builtInWeapons', value);
       },
-      pickShipSprite: () => document.run(() => void pickShipSprite()),
       loadSprite,
       syncShipCenter: () =>
         document.command((ship) => {

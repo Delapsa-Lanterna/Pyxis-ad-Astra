@@ -87,6 +87,7 @@
         {
           "key": "file.logo",
           "type": "path-image",
+          "imageDirectories": ["graphics/factions"],
           "label": "势力标志",
           "description": "势力标志图片路径（相对于游戏/mod 根目录）",
           "required": true,
@@ -95,6 +96,7 @@
         {
           "key": "file.crest",
           "type": "path-image",
+          "imageDirectories": ["graphics/factions"],
           "label": "势力徽章",
           "description": "势力徽章图片路径（用于 intel 等界面）",
           "required": true,

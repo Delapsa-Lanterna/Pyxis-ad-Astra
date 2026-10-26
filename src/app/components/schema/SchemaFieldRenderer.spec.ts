@@ -13,9 +13,16 @@ import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-dra
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
 
 const mocks = vi.hoisted(() => ({
+  queryImages: vi.fn(async () => [
+    {
+      origin: 'mod',
+      options: [{ label: 'sample.png', value: 'graphics/backgrounds/sample.png', origin: 'mod', resourceRef: null, description: null }],
+    },
+  ]),
   queryCoreFields: vi.fn(async () => ({})),
   queryCoreGraphics: vi.fn(async () => ['graphics/one.png', 'graphics/two.png']),
 }));
+vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: mocks.queryImages }));
 
 vi.mock('@/services/core-assets.service', () => ({
   queryCoreFields: mocks.queryCoreFields,
@@ -57,7 +64,7 @@ function mountField(field: FieldSchema, value: unknown, props: Record<string, un
   return wrapper!;
 }
 
-function mountBoundField(field: FieldSchema, initial: unknown) {
+function mountBoundField(field: FieldSchema, initial: unknown, runtimeContext?: { sessionId: string; modRoot: string }) {
   const inputs = createFieldInputs();
   const value = ref(initial);
   wrapper = mount(
@@ -68,6 +75,7 @@ function mountBoundField(field: FieldSchema, initial: unknown) {
           h(SchemaFieldRenderer, {
             field,
             value: value.value,
+            runtimeContext,
             onUpdate: (update) => {
               if (update.kind === 'set') value.value = update.value;
             },
@@ -80,6 +88,34 @@ function mountBoundField(field: FieldSchema, initial: unknown) {
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
+  it('keeps task-image candidates empty until the current task identity is available', async () => {
+    const field = mountField(fieldFixture('path-image', { pathBase: 'mission', imageDirectories: ['.'] }), '', {
+      runtimeContext: { sessionId: 'images', modRoot: 'M:/images' },
+    });
+    field.getComponent(nSelect).vm.$emit('update:show', true);
+    await flushPromises();
+    expect(field.getComponent(nSelect).props('options')).toEqual([]);
+    expect(mocks.queryImages).not.toHaveBeenCalled();
+  });
+  it('loads declared image candidates on opening while retaining free manual paths', async () => {
+    const mounted = mountBoundField(
+      fieldFixture('path-image', { imageDirectories: ['graphics/backgrounds'] }),
+      'graphics/custom/current.png',
+      { sessionId: 'images', modRoot: 'M:/images' },
+    );
+    const select = wrapper!.getComponent(nSelect);
+    expect(mocks.queryImages).not.toHaveBeenCalled();
+    select.vm.$emit('update:show', true);
+    await flushPromises();
+    expect(mocks.queryImages).toHaveBeenCalledWith('images', ['graphics/backgrounds'], null, expect.any(AbortSignal));
+    expect(select.props('options')[0].children[0].value).toBe('graphics/backgrounds/sample.png');
+    select.vm.$emit('update:value', 'graphics/backgrounds/sample.png');
+    await flushPromises();
+    expect(mounted.value.value).toBe('graphics/backgrounds/sample.png');
+    select.vm.$emit('search', 'graphics/custom/manual.png');
+    await mounted.inputs.commit();
+    expect(mounted.value.value).toBe('graphics/custom/manual.png');
+  });
   it.each([{ modules: {} }, { modules: [] }])(
     'uses real module slots and variant reference fields for $modules',
     async ({ modules: initial }) => {

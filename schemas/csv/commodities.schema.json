@@ -67,7 +67,8 @@
     {
       "key": "icon",
       "label": "图标",
-      "control": "path-image"
+      "control": "path-image",
+      "imageDirectories": ["graphics/icons/cargo"]
     },
     {
       "key": "sound id",

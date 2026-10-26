@@ -18,6 +18,15 @@ import type { RowData, SourceOptionGroup } from '@/shared/types';
 
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreGraphics: () => ({ graphicsPaths: ref([]), loadGraphics: vi.fn() }) }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
+const images = vi.hoisted(() => ({
+  query: vi.fn(async () => [
+    {
+      origin: 'mod',
+      options: [{ label: 'sample.png', value: 'graphics/fx/sample.png', description: null, origin: 'mod', resourceRef: null }],
+    },
+  ]),
+}));
+vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: images.query }));
 let wrapper: VueWrapper;
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -32,6 +41,41 @@ const references = [
 ].filter((field) => field.source);
 
 describe('Spec field source integration', () => {
+  it('uses image candidates and registered manual text in custom texture slots', async () => {
+    const field = weaponSections({ specClass: 'beam' })
+      .flatMap((section) => section.fields)
+      .find((field) => field.key === 'textureType')!;
+    const inputs = createFieldInputs();
+    const content = ref<RowData>({ textureType: ['graphics/fx/a.png', 'graphics/fx/b.png'] });
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          provide(specSchemaContext, ref({ sessionId: 'images', modRoot: 'M:/images' }));
+          return () =>
+            h(SpecFieldList, {
+              fields: [field],
+              content: content.value,
+              onUpdate: (key, value) => {
+                const index = key.endsWith('[0]') ? 0 : 1;
+                (content.value.textureType as string[])[index] = String(value);
+              },
+            });
+        },
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    const selectors = wrapper.findAllComponents(nSelect);
+    selectors[1]!.vm.$emit('update:show', true);
+    await flushPromises();
+    expect(images.query).toHaveBeenCalledWith('images', ['graphics/fx'], null, expect.any(AbortSignal));
+    selectors[1]!.vm.$emit('update:value', 'graphics/fx/sample.png');
+    await flushPromises();
+    expect((content.value.textureType as string[])[0]).toBe('graphics/fx/sample.png');
+    selectors[2]!.vm.$emit('search', 'graphics/custom/typed.png');
+    await inputs.commit();
+    expect((content.value.textureType as string[])[1]).toBe('graphics/custom/typed.png');
+  });
   const ship = specSchema('spec-ship').definitions!,
     projectile = specSchema('spec-projectile').definitions!;
   const behavior = projectile.behavior!.nested!;

@@ -33,10 +33,11 @@
           "valueSchema": {
             "key": "resource",
             "type": "path-image",
+            "imageDirectories": [],
             "label": "图片",
             "default": "",
             "variants": [
-              { "type": "path-image" },
+              { "type": "path-image", "imageDirectories": [] },
               {
                 "type": "array",
                 "label": "图片列表",
@@ -44,6 +45,7 @@
                 "item": {
                   "key": "image",
                   "type": "path-image",
+                  "imageDirectories": [],
                   "label": "图片",
                   "default": ""
                 }

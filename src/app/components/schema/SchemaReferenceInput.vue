@@ -20,6 +20,8 @@
   <div v-else-if="field.type === 'path-image' || field.type === 'path'" class="path-field ui-control-row">
     <n-select
       v-if="field.type === 'path-image'"
+      ref="referenceSelect"
+      :show="referenceOpen"
       :value="strVal || null"
       :options="graphicsOptions"
       :render-label="renderGraphicsLabel"
@@ -31,7 +33,10 @@
       class="path-select"
       :disabled="field.editable === false"
       @update:show="handleSelectShowUpdate"
-      @update:value="emitValue($event ?? '')"
+      @search="$event ? reference?.update($event) : reference?.cancel()"
+      @blur="reference?.commit()"
+      @keydown.esc="reference?.cancel()"
+      @update:value="reference && (reference.update($event ?? ''), reference.commit())"
     />
     <SchemaScalarInput v-else :field="field" :value="value" :input-key="inputKey" @update="emit('update', $event)" />
     <n-button
@@ -87,7 +92,7 @@ import ResourceOptionThumbnail from '@/app/components/media/ResourceOptionThumbn
 import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
 import { useSchemaPathPicker } from '@/app/composables/editors/use-schema-path-picker';
 import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
-import { useCoreGraphics } from '@/app/composables/use-core-assets';
+import { useImageSourceOptions } from '@/app/composables/editors/use-image-source-options';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { isCsvSource } from '@/domain/schema/csv-source-options';
 import { isEntitySource } from '@/domain/schema/schema-sources';
@@ -126,20 +131,20 @@ const strVal = computed(() => schemaStringValue(props.value));
 const referenceOpen = ref(false),
   referenceSelect = ref<{ focusInput: () => void } | null>(null);
 const reference =
-  props.field.source && ['enum', 'string-array', 'tag-select'].includes(props.field.type)
+  props.field.type === 'path-image' || (props.field.source && ['enum', 'string-array', 'tag-select'].includes(props.field.type))
     ? useRawFieldInput<string>({
         key: props.inputKey,
         path: props.fieldPath ?? props.field.key,
         label: props.field.label,
-        text: () => (props.field.type === 'enum' ? strVal.value : ''),
+        text: () => (['enum', 'path-image'].includes(props.field.type) ? strVal.value : ''),
         convert: (text) => {
-          if (props.field.type !== 'enum') return { kind: 'value', value: text };
+          if (!['enum', 'path-image'].includes(props.field.type)) return { kind: 'value', value: text };
           if (text === '') return props.field.required ? { kind: 'error', message: '必填字段不能为空' } : { kind: 'remove' };
           const result = convertSchemaScalarInput(text, props.field);
           return result.kind === 'set' ? { kind: 'value', value: String(result.value) } : result;
         },
         apply: (result) => {
-          if (props.field.type !== 'enum' && result.kind === 'value') {
+          if (!['enum', 'path-image'].includes(props.field.type) && result.kind === 'value') {
             const values = [...new Set([...(props.field.type === 'tag-select' ? tagSelectVal.value : arrVal.value), result.value])];
             emitValue(props.field.type === 'tag-select' ? wrapTags(values) : values);
           } else emit('update', result.kind === 'remove' ? result : { kind: 'set', value: result.value });
@@ -152,14 +157,12 @@ const reference =
     : null;
 const arrVal = computed(() => schemaArrayStringValues(props.value));
 const tagSelectVal = computed(() => schemaTagValues(props.value));
-const { graphicsPaths, loadGraphics } = useCoreGraphics();
-watch(
-  () => props.field.type === 'path-image',
-  (active) => {
-    if (active) loadGraphics();
-  },
-  { immediate: true },
-);
+const graphicsOptions = useImageSourceOptions({
+  sessionId: () => props.runtimeContext?.sessionId,
+  directories: () => (props.field.pathBase === 'mission' && !props.runtimeContext?.missionId ? [] : props.field.imageDirectories),
+  missionId: () => (props.field.pathBase === 'mission' ? props.runtimeContext?.missionId : undefined),
+  active: () => !plainMode.value && props.field.type === 'path-image' && referenceOpen.value,
+});
 const { replaceSchemaSelectSprites, releaseSchemaSelectSprites } = useSchemaSelectMedia();
 function emitValue(value: unknown) {
   emit('update', { kind: 'set', value });
@@ -295,23 +298,8 @@ watch(
   },
 );
 
-const graphicsOptions = computed(() => {
-  const options: SelectOption[] = [];
-  if (props.field.pathBase === 'mission') return options;
-  const seen = new Set<string>();
-
-  // Add core graphics paths
-  for (const path of graphicsPaths.value) {
-    if (!seen.has(path)) {
-      seen.add(path);
-      options.push({ label: schemaPathDisplayLabel(path), value: path });
-    }
-  }
-
-  return options;
-});
-
 function renderGraphicsLabel(option: SelectOption & { label?: string; value?: string }) {
+  if (option.type === 'group') return option.label;
   const path = option.value ?? '';
   const filename = schemaPathDisplayLabel(path);
   return h('span', { title: path, class: 'schema-select-option-label' }, filename);

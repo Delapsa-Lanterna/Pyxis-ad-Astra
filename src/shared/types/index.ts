@@ -182,7 +182,7 @@ export type {
   ScanGameOverviewPayload,
 } from '@/shared/types/directory-opening.types';
 
-export type { SourceOption, SourceOptionGroup, CsvSourceOptionsPayload } from '@/shared/types/schema.types';
+export type { SourceOption, SourceOptionGroup, CsvSourceOptionsPayload, ImageSourceOptionsPayload } from '@/shared/types/schema.types';
 
 export type {
   EditableFileData,

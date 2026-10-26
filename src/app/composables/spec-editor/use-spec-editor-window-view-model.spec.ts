@@ -943,9 +943,8 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
       { global: { stubs: editorUiStubs }, attachTo: document.body },
     );
     try {
-      const pathInput = wrapper.findAll('input').find((input) => (input.element as HTMLInputElement).value === 'old.png');
-      expect(pathInput).toBeDefined();
-      await pathInput!.setValue('new.png');
+      const pathInput = wrapper.get(`[data-field-path="${field}"]`).getComponent({ name: 'SchemaReferenceInput' });
+      pathInput.vm.$emit('update', { kind: 'set', value: 'new.png' });
       await flushPromises();
       expect(sources).toContain('new.png');
       sources.length = 0;

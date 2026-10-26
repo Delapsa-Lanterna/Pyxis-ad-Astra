@@ -11,7 +11,7 @@
     { "key": "stack size", "label": "堆叠数量", "control": "number", "step": 1 },
     { "key": "cargo space", "label": "货舱占用", "control": "number", "step": 1 },
     { "key": "baseRaidDanger", "label": "袭击风险", "control": "text" },
-    { "key": "icon", "label": "图标", "control": "path-image" },
+    { "key": "icon", "label": "图标", "control": "path-image", "imageDirectories": ["graphics/icons/cargo"] },
     { "key": "sound id", "label": "拾取音效", "control": "reference", "source": "config:sounds" },
     { "key": "sound id drop", "label": "丢弃音效", "control": "reference", "source": "config:sounds" },
     { "key": "plugin", "label": "插件", "control": "text" },

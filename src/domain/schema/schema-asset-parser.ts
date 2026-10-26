@@ -102,6 +102,7 @@ function parseField(id: string, path: string, raw: unknown): FieldSchema {
   if (isString(record.warning)) field.warning = record.warning;
   if (isString(record.danger)) field.danger = record.danger;
   if (isString(record.source)) field.source = record.source;
+  if (record.imageDirectories !== undefined) field.imageDirectories = parseImageDirectories(record.imageDirectories);
   if (record.pathBase !== undefined) {
     if (record.pathBase !== 'mod' && record.pathBase !== 'mission') throw new Error(`schema ${id}: ${path} 路径基准无效`);
     field.pathBase = record.pathBase;
@@ -211,6 +212,7 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
       throw new Error(`csv column schema ${table}[${index}]: 非法控件类型 ${String(record.control)}`);
     }
     const schema: CsvColumnSchema = { key: record.key, control: record.control as CsvColumnSchema['control'] };
+    if (record.imageDirectories !== undefined) schema.imageDirectories = parseImageDirectories(record.imageDirectories);
     if (isString(record.label)) schema.label = record.label;
     if (isString(record.source)) schema.source = record.source;
     if (schema.source?.startsWith('config:') && !isConfigSource(schema.source)) {
@@ -225,6 +227,19 @@ export function parseCsvColumnSchemas(table: string, raw: unknown): CsvColumnSch
     if (isNumber(record.priority)) schema.priority = record.priority;
     return schema;
   });
+}
+
+function parseImageDirectories(value: unknown): string[] {
+  if (
+    !isStringArray(value) ||
+    value.some(
+      (directory) =>
+        directory !== '.' &&
+        (!directory || directory.split('/').some((part) => !part || part === '.' || part === '..' || /[\\:\p{Cc}]/u.test(part))),
+    )
+  )
+    throw new Error('imageDirectories 必须是安全的相对目录数组');
+  return value;
 }
 
 function asRecord(value: unknown, context: string): Record<string, unknown> {

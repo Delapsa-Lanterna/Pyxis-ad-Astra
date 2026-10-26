@@ -61,10 +61,8 @@
             <SpecFieldList
               :content="document"
               :fields="section.fields"
-              :image-fields="['spriteName']"
               @remove="actions.removeField"
               @update="actions.setProperty"
-              @browse="actions.pickShipSprite"
               @change="$event === 'spriteName' && actions.loadSprite()"
             />
             <template v-if="section.name === 'sprite'">
