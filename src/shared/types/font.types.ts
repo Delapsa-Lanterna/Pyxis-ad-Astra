@@ -22,5 +22,6 @@ export type OriginalFontResult =
 export interface QueryOriginalFontPayload {
   sessionId: string;
   starsectorRoot: string | null;
+  fontDirectory: string | null;
   fontId: FontId;
 }

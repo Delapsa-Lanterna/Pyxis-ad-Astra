@@ -21,19 +21,24 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
     const target = document.target.value!;
     const context = createSchemaRuntimeContext(target.modRoot, target.sessionId);
     if (definition.kind === 'mission') return { ...context, missionId: target.id };
-    if (definition.kind !== 'skin') return context;
-    const hullId = String(document.draftValue.value.baseHullId ?? '');
+    if (definition.kind !== 'skin' && definition.kind !== 'variant') return context;
+    const hullId = String(document.draftValue.value[definition.kind === 'variant' ? 'hullId' : 'baseHullId'] ?? '');
     return {
       ...context,
       sourceContextKey: hullId,
       querySourceOptions: (source, signal) =>
-        source === 'hull:builtInWeaponSlots'
+        source === 'hull:builtInWeaponSlots' || source === 'hull:weaponSlots' || source === 'hull:moduleSlots'
           ? hullId
-            ? queryBuiltInWeaponSlotOptions(target.sessionId, hullId, signal)
+            ? queryBuiltInWeaponSlotOptions(
+                target.sessionId,
+                hullId,
+                signal,
+                source === 'hull:moduleSlots' ? 'moduleSlots' : source === 'hull:weaponSlots' ? 'weaponSlots' : 'builtInWeaponSlots',
+              )
             : Promise.resolve([])
           : context.querySourceOptions!(source, signal),
       subscribeSourceOptionInvalidation: (source, resources, listener) =>
-        source === 'hull:builtInWeaponSlots'
+        source === 'hull:builtInWeaponSlots' || source === 'hull:weaponSlots' || source === 'hull:moduleSlots'
           ? subscribeQueryInvalidations((event) => {
               if (event.scope !== 'session' && event.sessionId === target.sessionId && hasQueryInvalidation(event, 'hull-references'))
                 listener();

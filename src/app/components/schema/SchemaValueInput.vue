@@ -45,6 +45,23 @@
     :disabled="active.editable === false"
     @update:value="emit('update', { kind: 'set', value: $event })"
   />
+  <NumberValueInput
+    v-else-if="
+      mode !== 'plain' && ['integer', 'float'].includes(active.type) && !(active.numberFormat === 'starsector' && typeof value === 'string')
+    "
+    :value="value"
+    :input-key="fieldInputKey"
+    :label="active.label"
+    :integer="active.type === 'integer'"
+    :clear-action="active.required ? 'required' : 'remove'"
+    :min="active.min"
+    :max="active.max"
+    :step="active.step ?? 1"
+    :disabled="active.editable === false"
+    size="small"
+    @update:value="emit('update', { kind: 'set', value: $event })"
+    @remove="emit('update', { kind: 'remove' })"
+  />
   <SchemaScalarInput
     v-else
     :field-path="fieldPath"
@@ -61,6 +78,7 @@ import SchemaCollectionInput from './SchemaCollectionInput.vue';
 import SchemaReferenceInput from './SchemaReferenceInput.vue';
 import SchemaScalarInput from './SchemaScalarInput.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
+import NumberValueInput from '@/shared/ui/NumberValueInput.vue';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { schemaCollection, schemaFieldVariant, schemaJsonInputShape } from '@/domain/schema/schema-values';
 import type { FieldSchema, SchemaFieldUpdate } from '@/domain/schema/schema.types';

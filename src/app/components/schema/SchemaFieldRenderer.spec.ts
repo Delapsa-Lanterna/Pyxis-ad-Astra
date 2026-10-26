@@ -80,6 +80,105 @@ function mountBoundField(field: FieldSchema, initial: unknown) {
 }
 
 describe('SchemaFieldRenderer smart mode', () => {
+  it.each([{ modules: {} }, { modules: [] }])(
+    'uses real module slots and variant reference fields for $modules',
+    async ({ modules: initial }) => {
+      const field = (await import('@/domain/schema/config-schema-registry'))
+        .getSchema('variant')!
+        .sections!.flatMap((section) => section.fields)
+        .find((field) => field.key === 'modules')!;
+      const value = ref<unknown>(initial);
+      const query = vi.fn(async (source: string) => [
+        {
+          origin: 'mod' as const,
+          options: (source === 'hull:moduleSlots' ? ['M1', 'M2'] : ['sample_variant']).map((id) => ({
+            value: id,
+            label: id,
+            origin: 'mod' as const,
+            resourceRef: null,
+            description: null,
+          })),
+        },
+      ]);
+      wrapper = mount(
+        {
+          setup: () => () =>
+            h(SchemaFieldRenderer, {
+              field,
+              value: value.value,
+              runtimeContext: { sessionId: 's1', modRoot: 'M:/sample', querySourceOptions: query },
+              onUpdate: (update) => {
+                if (update.kind === 'set') value.value = update.value;
+              },
+            }),
+        },
+        { global: { stubs: editorUiStubs } },
+      );
+      await flushPromises();
+      await wrapper.findAll('button').at(-1)!.trigger('click');
+      await flushPromises();
+      expect(value.value).toEqual(Array.isArray(initial) ? [{ M1: '' }] : { M1: '' });
+      expect(
+        wrapper
+          .get('select.field-map-key-editor')
+          .findAll('option')
+          .map((option) => option.text()),
+      ).toEqual(['M1', 'M2']);
+      const reference = wrapper.findAllComponents({ name: 'SchemaReferenceInput' })[0]!;
+      expect(reference.props('field')).toMatchObject({ type: 'enum', source: 'csv:variants.variantId' });
+      expect(query.mock.calls.map(([source]) => source)).toContain('csv:variants.variantId');
+      reference.findComponent(nSelect).vm.$emit('update:value', 'sample_variant');
+      await flushPromises();
+      expect(value.value).toEqual(Array.isArray(initial) ? [{ M1: 'sample_variant' }] : { M1: 'sample_variant' });
+      await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('M2'));
+      expect(value.value).toEqual(Array.isArray(initial) ? [{ M2: 'sample_variant' }] : { M2: 'sample_variant' });
+    },
+  );
+  it('selects real slot names, adds available slots and reloads the hull catalog', async () => {
+    const value = ref({ A: 'gun' });
+    const query = vi.fn(async () => [
+      {
+        origin: 'mod' as const,
+        options: ['A', 'B'].map((id) => ({ value: id, label: id, origin: 'mod' as const, resourceRef: null, description: null })),
+      },
+    ]);
+    const context = ref({ sessionId: 's1', modRoot: 'M:/sample', sourceContextKey: 'hull-a', querySourceOptions: query });
+    const field = fieldFixture('object', {
+      allowExtraFields: true,
+      keySchema: { key: 'slot', label: 'Slot', type: 'enum', source: 'hull:weaponSlots' },
+      valueSchema: { key: 'weapon', label: 'Weapon', type: 'string' },
+    });
+    wrapper = mount(
+      {
+        setup: () => () =>
+          h(SchemaFieldRenderer, {
+            field,
+            value: value.value,
+            runtimeContext: context.value,
+            onUpdate: (update) => {
+              if (update.kind === 'set') value.value = update.value as typeof value.value;
+            },
+          }),
+      },
+      { global: { stubs: editorUiStubs } },
+    );
+    await flushPromises();
+    expect(wrapper.find('input.field-map-key-editor').exists()).toBe(false);
+    expect(
+      wrapper
+        .get('select.field-map-key-editor')
+        .findAll('option')
+        .map((option) => option.text()),
+    ).toEqual(['A', 'B']);
+    await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('B'));
+    expect(value.value).toEqual({ B: 'gun' });
+    await wrapper.findAll('button').at(-1)!.trigger('click');
+    expect(value.value).toEqual({ B: 'gun', A: '' });
+    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined();
+    context.value = { ...context.value, sourceContextKey: 'hull-b' };
+    await flushPromises();
+    expect(query).toHaveBeenCalledTimes(2);
+  });
   it.each([undefined, false, true])('keeps object expansion permission %s independent of its contents', async (allowed) => {
     const definition = fieldFixture('object', {
       allowExtraFields: allowed,
@@ -179,6 +278,28 @@ describe('SchemaFieldRenderer smart mode', () => {
     await wrapper!.findAll('input.field-map-key-editor')[1]!.setValue('-1');
     await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
     expect(value.value).toEqual({ '0': {}, '1': {} });
+  });
+  it('limits weapon groups to seven and restores adding after removal', async () => {
+    const { getSchema } = await import('@/domain/schema/config-schema-registry');
+    const group = getSchema('variant')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'weaponGroups')!;
+    const { value } = mountBoundField(
+      group,
+      Array.from({ length: 6 }, () => ({ mode: 'LINKED', weapons: {}, autofire: false })),
+    );
+    const collection = wrapper!.findAllComponents({ name: 'SchemaCollectionInput' })[0]!;
+    const add = () => collection.findAll(':scope > .ui-control-row > button');
+    expect(add()).toHaveLength(1);
+    await add()[0]!.trigger('click');
+    expect(value.value).toHaveLength(7);
+    expect(add()).toHaveLength(0);
+    await wrapper!.findAll('button.compact-icon-button')[0]!.trigger('click');
+    expect(value.value).toHaveLength(6);
+    expect(add()).toHaveLength(1);
+    await add()[0]!.trigger('click');
+    expect(value.value).toHaveLength(7);
+    expect(add()).toHaveLength(0);
   });
   it('keeps music file and files in one branch when either input is changed', async () => {
     const schema = (await import('@/domain/schema/config-schema-registry')).getSchema('sounds')!;

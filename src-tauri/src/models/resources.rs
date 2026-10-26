@@ -60,6 +60,8 @@ pub struct HullReferencesResult {
     pub hull_names: BTreeMap<String, String>,
     pub sprites: BTreeMap<String, ResourceRef>,
     pub built_in_weapon_slots: BTreeMap<String, Vec<HullWeaponSlot>>,
+    pub weapon_slots: BTreeMap<String, Vec<HullWeaponSlot>>,
+    pub module_slots: BTreeMap<String, Vec<HullWeaponSlot>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

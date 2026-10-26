@@ -8,7 +8,7 @@ import { editorUiStubs, nInputNumber } from '@/test/unit/ui-stubs';
 import SettingsPage from './SettingsPage.vue';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 
-const logUi = vi.hoisted(() => ({ refresh: vi.fn(), reset: vi.fn() }));
+const logUi = vi.hoisted(() => ({ refresh: vi.fn(), reset: vi.fn(), pickFont: vi.fn() }));
 vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
   useSettingsViewModel: (onReset?: () => void) => ({
     logStatus: ref({ recording: 'stopped', level: 'warning', pending: 0, dropped: 7, lastError: 'fixture write error' }),
@@ -38,6 +38,7 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
     logPathHint: ref('Log'),
     pickLogDirectory: vi.fn(),
     pickStarsectorRoot: vi.fn(),
+    pickImmersiveFontDirectory: logUi.pickFont,
     refreshLogStatus: logUi.refresh,
     openConfigFolderAction: vi.fn(),
     confirmResetSettings: () => {
@@ -165,16 +166,28 @@ describe('settings limit controls', () => {
     await wrapper.vm.$nextTick();
     expect(sections[0]!.get('.field-description').text()).toBe('已设置: D:/fixture');
     const immersive = sections[2]!;
-    expect(immersive.findAll('.schema-field > .field-label').map((label) => label.text())).toEqual(['通用字体', '沉浸式编辑器字体']);
+    expect(immersive.findAll('.schema-field > .field-label').map((label) => label.text())).toEqual([
+      '通用字体',
+      '沉浸式编辑器字体',
+      '沉浸式字体路径',
+    ]);
     expect(useSettingsStore().generalFont).toBeNull();
     await immersive.get('select').setValue('"Microsoft YaHei"');
     expect(useSettingsStore().generalFont).toBe('Microsoft YaHei');
     await immersive.get('select').setValue('""');
     expect(useSettingsStore().generalFont).toBeNull();
-    expect(immersive.text()).toContain('从游戏安装目录加载原版字体');
+    expect(immersive.text()).toContain('再尝试游戏原版字体');
     expect(useSettingsStore().immersiveGameFont).toBe(true);
     await immersive.get('button').trigger('click');
     expect(useSettingsStore().immersiveGameFont).toBe(false);
+    const directory = immersive.findAll('.schema-field').at(-1)!;
+    await directory.get('button').trigger('click');
+    expect(logUi.pickFont).toHaveBeenCalledOnce();
+    useSettingsStore().setImmersiveFontDirectory('F:/fonts');
+    await wrapper.vm.$nextTick();
+    expect((directory.get('input').element as HTMLInputElement).value).toBe('F:/fonts');
+    await directory.findAll('button')[1]!.trigger('click');
+    expect(useSettingsStore().immersiveFontDirectory).toBeNull();
     wrapper.unmount();
   });
   it('places history and log settings in their sections with units and scope hints', async () => {

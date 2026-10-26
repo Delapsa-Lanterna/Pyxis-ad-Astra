@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, useTemplateRef } from 'vue';
-import { useCsvFloatingPanel, useCsvFloatingViewport } from '@/app/composables/csv-editor/use-csv-floating-panel';
+import { useCsvFloatingPanel } from '@/app/composables/csv-editor/use-csv-floating-panel';
 
 const props = defineProps<{
   anchor: { height: number; left: number; top: number; width: number };
@@ -35,7 +35,6 @@ const emit = defineEmits<{
   cancel: [];
   commit: [value: string];
 }>();
-const floating = useCsvFloatingViewport();
 
 // Mirrors the .csv-cell-text-editor height in tables.css.
 const EDITOR_HEIGHT = 260;
@@ -71,7 +70,6 @@ function focusText() {
 }
 
 function handleDocumentMouseDown(event: MouseEvent) {
-  if (event.target === floating?.panel.value) return;
   const target = event.target as { closest?: (selector: string) => unknown } | null;
   if (target?.closest?.('.csv-grid-cell')) return;
   if (target?.closest?.('.csv-cell-text-editor')) return;

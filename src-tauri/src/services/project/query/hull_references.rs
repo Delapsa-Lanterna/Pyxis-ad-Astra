@@ -30,12 +30,16 @@ pub(super) fn build_hull_references(
     requested_reference_ids: &[String],
 ) -> AppResult<HullReferencesResult> {
     if !requested_reference_ids.is_empty() {
-        return Ok(HullReferencesResult {
+        let mut result = HullReferencesResult {
             groups: Vec::new(),
             hull_names: resolve_requested_hull_names(session, requested_reference_ids)?,
             sprites: resolve_requested_hull_sprites(session, requested_reference_ids)?,
-            built_in_weapon_slots: resolve_built_in_weapon_slots(session, requested_reference_ids)?,
-        });
+            built_in_weapon_slots: BTreeMap::new(),
+            weapon_slots: BTreeMap::new(),
+            module_slots: BTreeMap::new(),
+        };
+        resolve_weapon_slots(session, requested_reference_ids, &mut result)?;
+        return Ok(result);
     }
 
     ensure_registered_table_rows(session, CsvTableKey::Ships)?;
@@ -188,13 +192,16 @@ pub(super) fn build_hull_references(
         hull_names: BTreeMap::new(),
         sprites: BTreeMap::new(),
         built_in_weapon_slots: BTreeMap::new(),
+        weapon_slots: BTreeMap::new(),
+        module_slots: BTreeMap::new(),
     })
 }
 
-fn resolve_built_in_weapon_slots(
+fn resolve_weapon_slots(
     session: &ProjectSession,
     reference_ids: &[String],
-) -> AppResult<BTreeMap<String, Vec<crate::models::HullWeaponSlot>>> {
+    result: &mut HullReferencesResult,
+) -> AppResult<()> {
     let core_ships = session
         .manifest
         .starsector_root
@@ -207,83 +214,154 @@ fn resolve_built_in_weapon_slots(
         .as_ref()
         .map(|root| load_core_skin_files(root))
         .transpose()?;
-    reference_ids
-        .iter()
-        .map(|id| {
-            let mut chain = Vec::new();
-            let mut current = id.as_str();
-            let mut seen = BTreeSet::new();
-            while let Some(skin) = session
+    for id in reference_ids {
+        let mut chain = Vec::new();
+        let mut current = id.as_str();
+        let mut seen = BTreeSet::new();
+        while let Some(skin) = session
+            .skin_files
+            .iter()
+            .find(|skin| skin.skin_hull_id == current)
+            .or_else(|| {
+                core_skins
+                    .as_ref()
+                    .and_then(|skins| skins.iter().find(|skin| skin.skin_hull_id == current))
+            })
+        {
+            if !seen.insert(current) {
+                return Err(crate::errors::AppError::message(
+                    "skin.base_cycle",
+                    format!("循环船体皮肤引用: {id}"),
+                ));
+            }
+            let origin = if session
                 .skin_files
                 .iter()
-                .find(|skin| skin.skin_hull_id == current)
-                .or_else(|| {
-                    core_skins
-                        .as_ref()
-                        .and_then(|skins| skins.iter().find(|skin| skin.skin_hull_id == current))
-                })
+                .any(|candidate| std::ptr::eq(candidate, skin))
             {
-                if !seen.insert(current) {
-                    return Err(crate::errors::AppError::message(
-                        "skin.base_cycle",
-                        format!("循环船体皮肤引用: {id}"),
-                    ));
-                }
-                let origin = if session
-                    .skin_files
-                    .iter()
-                    .any(|candidate| std::ptr::eq(candidate, skin))
-                {
-                    ResourceSource::Mod
-                } else {
-                    ResourceSource::Core
-                };
-                chain.push((&skin.data, origin));
-                current = &skin.base_hull_id;
-            }
-            let base_origin = if session.ship_files.contains_key(current) {
                 ResourceSource::Mod
             } else {
                 ResourceSource::Core
             };
-            let mut slots: BTreeMap<String, ResourceSource> = session
-                .ship_files
-                .get(current)
-                .or_else(|| core_ships.as_ref().and_then(|ships| ships.get(current)))
-                .and_then(|ship| ship.data.get("builtInWeapons"))
-                .and_then(serde_json::Value::as_object)
-                .map(|weapons| {
-                    weapons
-                        .keys()
-                        .map(|key| (key.clone(), base_origin))
-                        .collect()
-                })
-                .unwrap_or_default();
-            for (skin, origin) in chain.into_iter().rev() {
-                if let Some(removed) = skin
-                    .get("removeBuiltInWeapons")
-                    .and_then(serde_json::Value::as_array)
-                {
-                    for slot in removed.iter().filter_map(serde_json::Value::as_str) {
-                        slots.remove(slot);
-                    }
-                }
-                if let Some(added) = skin
-                    .get("builtInWeapons")
-                    .and_then(serde_json::Value::as_object)
-                {
-                    slots.extend(added.keys().map(|key| (key.clone(), origin)));
+            chain.push((&skin.data, origin));
+            current = &skin.base_hull_id;
+        }
+        let base_origin = if session.ship_files.contains_key(current) {
+            ResourceSource::Mod
+        } else {
+            ResourceSource::Core
+        };
+        let ship = session
+            .ship_files
+            .get(current)
+            .or_else(|| core_ships.as_ref().and_then(|ships| ships.get(current)));
+        let mut weapons: Vec<(serde_json::Value, ResourceSource)> = ship
+            .and_then(|ship| ship.data.get("weaponSlots"))
+            .and_then(serde_json::Value::as_array)
+            .map(|slots| {
+                slots
+                    .iter()
+                    .map(|slot| (slot.clone(), base_origin))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut slots: BTreeMap<String, ResourceSource> = ship
+            .and_then(|ship| ship.data.get("builtInWeapons"))
+            .and_then(serde_json::Value::as_object)
+            .map(|weapons| {
+                weapons
+                    .keys()
+                    .map(|key| (key.clone(), base_origin))
+                    .collect()
+            })
+            .unwrap_or_default();
+        for (skin, origin) in chain.into_iter().rev() {
+            if let Some(removed) = skin
+                .get("removeWeaponSlots")
+                .and_then(serde_json::Value::as_array)
+            {
+                weapons.retain(|(slot, _)| !removed.contains(&slot["id"]));
+                for id in removed.iter().filter_map(serde_json::Value::as_str) {
+                    slots.remove(id);
                 }
             }
-            Ok((
-                id.clone(),
-                slots
-                    .into_iter()
-                    .map(|(id, origin)| crate::models::HullWeaponSlot { id, origin })
-                    .collect(),
-            ))
-        })
-        .collect()
+            if let Some(changes) = skin
+                .get("weaponSlotChanges")
+                .and_then(serde_json::Value::as_object)
+            {
+                for (slot, source) in &mut weapons {
+                    if let Some(change) = slot["id"]
+                        .as_str()
+                        .and_then(|id| changes.get(id))
+                        .and_then(serde_json::Value::as_object)
+                    {
+                        slot.as_object_mut()
+                            .expect("weapon slot object")
+                            .extend(change.clone());
+                        *source = origin;
+                    }
+                }
+            }
+            if let Some(removed) = skin
+                .get("removeBuiltInWeapons")
+                .and_then(serde_json::Value::as_array)
+            {
+                for slot in removed.iter().filter_map(serde_json::Value::as_str) {
+                    slots.remove(slot);
+                }
+            }
+            if let Some(added) = skin
+                .get("builtInWeapons")
+                .and_then(serde_json::Value::as_object)
+            {
+                slots.extend(added.keys().map(|key| (key.clone(), origin)));
+            }
+        }
+        result.module_slots.insert(
+            id.clone(),
+            weapons
+                .iter()
+                .filter(|(slot, _)| slot["type"] == "STATION_MODULE")
+                .map(|(slot, origin)| crate::models::HullWeaponSlot {
+                    id: slot["id"].as_str().expect("module slot ID").into(),
+                    origin: *origin,
+                })
+                .collect(),
+        );
+        result.weapon_slots.insert(
+            id.clone(),
+            weapons
+                .into_iter()
+                .filter_map(|(slot, origin)| {
+                    let id = slot["id"].as_str()?;
+                    (matches!(
+                        slot["type"].as_str(),
+                        Some(
+                            "BALLISTIC"
+                                | "ENERGY"
+                                | "MISSILE"
+                                | "HYBRID"
+                                | "SYNERGY"
+                                | "COMPOSITE"
+                                | "UNIVERSAL"
+                        )
+                    ) && !slots.contains_key(id))
+                    .then(|| crate::models::HullWeaponSlot {
+                        id: id.into(),
+                        origin,
+                    })
+                })
+                .collect(),
+        );
+        result.built_in_weapon_slots.insert(
+            id.clone(),
+            slots
+                .into_iter()
+                .map(|(id, origin)| crate::models::HullWeaponSlot { id, origin })
+                .collect(),
+        );
+    }
+    Ok(())
 }
 
 fn resolve_requested_hull_names(
@@ -369,7 +447,7 @@ mod tests {
         std::fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/mod_ship.ship"),
-            r#"{"hullId":"mod_ship","hullName":"Mod Ship","spriteName":"graphics/ships/mod_ship.png","builtInWeapons":{"WS001":"weapon_a","WS002":"weapon_a"}}"#,
+            r#"{"hullId":"mod_ship","hullName":"Mod Ship","spriteName":"graphics/ships/mod_ship.png","builtInWeapons":{"WS001":"weapon_a","WS002":"weapon_a"},"weaponSlots":[{"id":"WS001","type":"BALLISTIC"},{"id":"A","type":"ENERGY"},{"id":"B","type":"UNIVERSAL"},{"id":"C","type":"MISSILE"},{"id":"D","type":"DECORATIVE"},{"id":"E","type":"BUILT_IN"},{"id":"F","type":"LAUNCH_BAY"},{"id":"G","type":"STATION_MODULE"},{"id":"H","type":"SYSTEM"}]}"#,
         )
         .unwrap();
         write_utf8_no_bom(
@@ -379,12 +457,12 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/skins/mod_skin.skin"),
-            r#"{"skinHullId":"mod_skin","baseHullId":"mod_ship","removeBuiltInWeapons":["WS001"],"builtInWeapons":{"WS003":"weapon_b"}}"#,
+            r#"{"skinHullId":"mod_skin","baseHullId":"mod_ship","removeBuiltInWeapons":["WS001"],"builtInWeapons":{"WS003":"weapon_b"},"removeWeaponSlots":["B"],"weaponSlotChanges":{"A":{"type":"STATION_MODULE"}}}"#,
         )
         .unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/core_ship.ship"),
-            r#"{"hullId":"core_ship","hullName":"Core Ship","spriteName":"graphics/ships/core_ship.png","builtInWeapons":{"CORE_SLOT":"core_weapon"}}"#,
+            r#"{"hullId":"core_ship","hullName":"Core Ship","spriteName":"graphics/ships/core_ship.png","builtInWeapons":{"CORE_SLOT":"core_weapon"},"weaponSlots":[{"id":"CORE_EDITABLE","type":"BALLISTIC"}]}"#,
         )
         .unwrap();
         write_utf8_no_bom(
@@ -439,6 +517,34 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(
+            previews.weapon_slots["mod_ship"]
+                .iter()
+                .map(|slot| slot.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["A", "B", "C"]
+        );
+        assert_eq!(
+            previews.weapon_slots["mod_skin"]
+                .iter()
+                .map(|slot| slot.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["WS001", "C"]
+        );
+        assert_eq!(
+            previews.module_slots["mod_ship"]
+                .iter()
+                .map(|slot| slot.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["G"]
+        );
+        assert_eq!(
+            previews.module_slots["mod_skin"]
+                .iter()
+                .map(|slot| slot.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["A", "G"]
+        );
         let values: Vec<String> = catalog
             .groups
             .iter()
@@ -534,6 +640,11 @@ mod tests {
             &["mod_core".to_string(), "mod_override".to_string()],
         )
         .unwrap();
+        assert_eq!(inherited.weapon_slots["mod_core"][0].id, "CORE_EDITABLE");
+        assert_eq!(
+            inherited.weapon_slots["mod_core"][0].origin,
+            ResourceSource::Core
+        );
         assert_eq!(
             inherited.built_in_weapon_slots["mod_core"]
                 .iter()

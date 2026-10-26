@@ -238,6 +238,8 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
         hullNames: { aurora: 'Aurora', sample_hull: 'Sample hull' },
         sprites: {},
         builtInWeaponSlots: {},
+        weaponSlots: {},
+        moduleSlots: {},
       };
     case 'query_joint_edit': {
       const payload = args.payload as JointEditQuery;

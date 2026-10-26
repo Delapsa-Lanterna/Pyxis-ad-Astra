@@ -216,9 +216,13 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
             "Invalid custom accent",
         ));
     }
-    for directory in [&settings.starsector_root, &settings.log_directory]
-        .into_iter()
-        .flatten()
+    for directory in [
+        &settings.starsector_root,
+        &settings.log_directory,
+        &settings.immersive_font_directory,
+    ]
+    .into_iter()
+    .flatten()
     {
         validate_safe_absolute_path(Path::new(directory), "settings directory")?;
         if directory.chars().any(char::is_control) {
@@ -462,6 +466,9 @@ mod tests {
         let settings = AppSettings {
             general_font: Some("Microsoft YaHei".into()),
             immersive_game_font: false,
+            immersive_font_directory: Some(
+                dir.join("font_directory").to_string_lossy().into_owned(),
+            ),
             theme: Some(crate::models::AppTheme::Dark),
             accent: crate::models::AccentPreset::Custom,
             custom_accent: "#16a34a".into(),
@@ -585,7 +592,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 42);
+        assert_eq!(paths.len(), 43);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();
@@ -635,6 +642,7 @@ mod tests {
             ("logLevel", serde_json::json!("invalid")),
             ("generalFont", serde_json::json!("A\nB")),
             ("starsectorRoot", serde_json::json!("relative")),
+            ("immersiveFontDirectory", serde_json::json!("relative")),
             ("logDirectory", serde_json::json!("relative")),
             ("allowCoreEditing", serde_json::json!("true")),
             ("immersiveGameFont", serde_json::json!(0)),

@@ -76,6 +76,7 @@
           "key": "weaponGroups",
           "type": "array",
           "label": "武器组",
+          "maxEntries": 7,
           "item": {
             "key": "item",
             "label": "武器组",
@@ -93,6 +94,7 @@
                 "key": "weapons",
                 "type": "object",
                 "label": "武器",
+                "keySchema": { "key": "slotId", "label": "武器槽位", "type": "enum", "source": "hull:weaponSlots" },
                 "valueSchema": {
                   "key": "weaponId",
                   "type": "enum",
@@ -135,10 +137,12 @@
           "type": "object",
           "format": "array-of-entries",
           "label": "模块",
+          "keySchema": { "key": "slotId", "label": "模块槽位", "type": "enum", "source": "hull:moduleSlots" },
           "valueSchema": {
             "key": "variantId",
-            "type": "string",
-            "label": "装配 ID"
+            "type": "enum",
+            "label": "装配 ID",
+            "source": "csv:variants.variantId"
           },
           "allowExtraFields": true
         }

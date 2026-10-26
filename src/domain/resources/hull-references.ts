@@ -19,11 +19,17 @@ export function hullReferenceSourceGroups(result: DeepReadonly<HullReferencesRes
   }));
 }
 
-export function builtInWeaponSlotOptions(result: DeepReadonly<HullReferencesResult>, hullId: string): SourceOptionGroup[] {
+export type HullSlotKind = 'builtInWeaponSlots' | 'weaponSlots' | 'moduleSlots';
+
+export function hullWeaponSlotOptions(
+  result: DeepReadonly<HullReferencesResult>,
+  hullId: string,
+  kind: HullSlotKind = 'builtInWeaponSlots',
+): SourceOptionGroup[] {
   return (['mod', 'core'] as const)
     .map((origin) => ({
       origin,
-      options: (result.builtInWeaponSlots[hullId] ?? [])
+      options: (result[kind][hullId] ?? [])
         .filter((slot) => slot.origin === origin)
         .map((slot) => ({
           value: slot.id,

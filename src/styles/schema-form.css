@@ -63,13 +63,11 @@
 .field-control-line > .ui-field-number {
   flex: 0 1 120px;
 }
-.schema-field.field-group {
-  grid-template-columns: minmax(0, 1fr);
-  row-gap: 8px;
+.field-group > .field-control {
+  overflow-x: auto;
 }
-.field-group > .field-label,
 .field-group > .field-control > .field-control-line {
-  min-height: 0;
+  min-width: calc(2 * var(--field-label-width, 112px) + 12px);
 }
 .ui-field-stack,
 .field-json {

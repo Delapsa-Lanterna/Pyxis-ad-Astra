@@ -10,6 +10,7 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { createCsvSourceIndex } from '@/domain/schema/csv-source-options';
 import type { ResourceRef } from '@/shared/types';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 const { prepare } = vi.hoisted(() => ({ prepare: vi.fn() }));
@@ -30,6 +31,7 @@ beforeEach(() => {
         resize = callback;
       }
       observe = vi.fn();
+      unobserve = vi.fn();
       disconnect = disconnect;
     },
   );
@@ -55,13 +57,14 @@ function modelFixture(): CsvGridModel {
   };
 }
 
-function mountGrid(model = modelFixture(), smart = false) {
+function mountGrid(model = modelFixture(), smart = false, anchored = false) {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ editMode: smart ? 'smart' : 'plain' }));
   fixture = mountCsvInputHost(
     CsvGrid,
     {
       global: {
+        components: { NCollapse, NCollapseItem },
         stubs: {
           CsvGridHeader: {
             props: ['columns'],
@@ -77,8 +80,9 @@ function mountGrid(model = modelFixture(), smart = false) {
               v-for="row in entries.filter(entry => entry.kind === 'item')"
               :key="row.key"
               class="row-slot"
+              ${anchored ? ':data-row-key="row.item.rowKey"' : ''}
               @click="$emit('activate-cell', row.item, columns[0].column, $event)"
-            >{{ row.item.rowKey }}</div>
+            >${anchored ? '<div class="csv-grid-cell" data-column-key="id"><span class="csv-cell-frame">{{ row.item.rowKey }}</span></div>' : '{{ row.item.rowKey }}'}</div>
           </div>`,
           },
         },
@@ -92,6 +96,34 @@ function mountGrid(model = modelFixture(), smart = false) {
 }
 
 describe('CsvGrid', () => {
+  it.each(['reference', 'multi', 'text'] as const)('commits and closes %s when clicking viewport blank space', async (control) => {
+    const model = modelFixture();
+    model.columns[0]!.schema = { key: 'id', control, source: 'csv:ships.id' };
+    model.sourceIndex = createCsvSourceIndex(
+      ['csv:ships.id'],
+      new Map([['csv:ships.id', ['s0', 's1'].map((value) => ({ label: value, value }))]]),
+    );
+    const grid = mountGrid(model, true, true);
+    await vi.waitFor(() => expect(grid.find('.row-slot').exists()).toBe(true));
+    await grid.get('.csv-cell-frame').trigger('click');
+    await flushPromises();
+    const selector = control === 'text' ? '.csv-cell-text-editor' : '.csv-cell-picker';
+    expect(grid.find(selector).exists()).toBe(true);
+    await grid.get(control === 'text' ? 'textarea' : '.csv-cell-picker-search').trigger('mousedown');
+    expect(fixture.activeCell.value).toMatchObject({ rowKey: 'key-0', column: 'id' });
+    if (control === 'text') await grid.get('textarea').setValue('updated text');
+    else if (control === 'multi') await grid.findAll('.csv-cell-picker-option')[1]!.trigger('click');
+    else await grid.get('.csv-cell-picker-search').setValue('pending search');
+    await grid.get('.table-panel').trigger('mousedown');
+    await flushPromises();
+    expect(grid.find(selector).exists()).toBe(false);
+    expect(fixture.activeCell.value).toBeNull();
+    expect(fixture.updates).toEqual(
+      control === 'reference'
+        ? []
+        : [{ target: { ...fixture.target, rowKey: 'key-0', column: 'id' }, value: control === 'text' ? 'updated text' : 's0, s1' }],
+    );
+  });
   it('prepares media from data changes while row mounting keeps the same demand', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback));

@@ -20,7 +20,7 @@ import {
   readLogRotationSizeMiB,
   readLogBackupCount,
   readLogLevel,
-  readOptionalLogDirectory,
+  readOptionalDirectory,
   readPreserveOriginalJson,
   readAllowCoreEditing,
   readTheme,
@@ -56,12 +56,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const editMode = ref<EditMode>(readEditMode(initialSettings.editMode));
   const expandFieldDescriptions = ref(initialSettings.expandFieldDescriptions);
   const immersiveGameFont = ref(initialSettings.immersiveGameFont);
+  const immersiveFontDirectory = ref(initialSettings.immersiveFontDirectory);
   const preserveOriginalJson = ref(readPreserveOriginalJson(initialSettings.preserveOriginalJson));
   const allowCoreEditing = ref(readAllowCoreEditing(initialSettings.allowCoreEditing));
   const savedCoreEditing = ref(allowCoreEditing.value);
   const canEditCore = computed(() => allowCoreEditing.value && savedCoreEditing.value);
   const starsectorRoot = ref(initialSettings.starsectorRoot);
-  const logDirectory = ref(readOptionalLogDirectory(initialSettings.logDirectory));
+  const logDirectory = ref(readOptionalDirectory(initialSettings.logDirectory));
   const logLevel = ref<LogLevel>(readLogLevel(initialSettings.logLevel));
   const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : lightTheme));
   const isDark = computed(() => theme.value === 'dark');
@@ -136,6 +137,10 @@ export const useSettingsStore = defineStore('settings', () => {
     generalFont.value = readGeneralFont(value);
   }
 
+  function setImmersiveFontDirectory(path: string | null) {
+    immersiveFontDirectory.value = readOptionalDirectory(path);
+  }
+
   function setPreserveOriginalJson(enabled: boolean) {
     preserveOriginalJson.value = readPreserveOriginalJson(enabled);
   }
@@ -149,7 +154,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function setLogDirectory(path: string | null) {
-    logDirectory.value = readOptionalLogDirectory(path);
+    logDirectory.value = readOptionalDirectory(path);
   }
 
   function setLogLevel(level: LogLevel) {
@@ -171,6 +176,7 @@ export const useSettingsStore = defineStore('settings', () => {
       editMode: editMode.value,
       expandFieldDescriptions: expandFieldDescriptions.value,
       immersiveGameFont: immersiveGameFont.value,
+      immersiveFontDirectory: immersiveFontDirectory.value,
       preserveOriginalJson: preserveOriginalJson.value,
       allowCoreEditing: allowCoreEditing.value,
       starsectorRoot: starsectorRoot.value,
@@ -185,6 +191,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const nextGeneralFont = readGeneralFont(settings.generalFont);
     const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
+    const nextImmersiveFontDirectory = readOptionalDirectory(settings.immersiveFontDirectory);
     const nextFileHistoryLimit = readHistoryLimit(settings.fileHistoryLimit);
     const nextEditHistoryLimit = readHistoryLimit(settings.editHistoryLimit);
     const nextLogRotationSizeMiB = readLogRotationSizeMiB(settings.logRotationSizeMiB);
@@ -201,11 +208,12 @@ export const useSettingsStore = defineStore('settings', () => {
     editMode.value = readEditMode(settings.editMode);
     expandFieldDescriptions.value = nextExpandFieldDescriptions;
     immersiveGameFont.value = nextImmersiveGameFont;
+    immersiveFontDirectory.value = nextImmersiveFontDirectory;
     preserveOriginalJson.value = readPreserveOriginalJson(settings.preserveOriginalJson);
     allowCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
     savedCoreEditing.value = allowCoreEditing.value;
     starsectorRoot.value = settings.starsectorRoot;
-    logDirectory.value = readOptionalLogDirectory(settings.logDirectory);
+    logDirectory.value = readOptionalDirectory(settings.logDirectory);
     logLevel.value = readLogLevel(settings.logLevel);
   }
 
@@ -226,6 +234,7 @@ export const useSettingsStore = defineStore('settings', () => {
     editMode,
     expandFieldDescriptions,
     immersiveGameFont,
+    immersiveFontDirectory,
     preserveOriginalJson,
     allowCoreEditing,
     canEditCore,
@@ -248,6 +257,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setEditMode,
     setExpandFieldDescriptions,
     setImmersiveGameFont,
+    setImmersiveFontDirectory,
     setPreserveOriginalJson,
     setAllowCoreEditing,
     setFileHistoryLimit,

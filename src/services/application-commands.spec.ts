@@ -52,8 +52,8 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ['query_system_fonts', querySystemFonts, undefined],
   [
     'query_original_font',
-    () => queryOriginalFont('s1', null, 'insignia15LTaa'),
-    { payload: { sessionId: 's1', starsectorRoot: null, fontId: 'insignia15LTaa' } },
+    () => queryOriginalFont('s1', null, 'insignia15LTaa', 'F:/fonts'),
+    { payload: { sessionId: 's1', starsectorRoot: null, fontId: 'insignia15LTaa', fontDirectory: 'F:/fonts' } },
   ],
   ['save_settings', () => saveSettings(settings), { payload: { settings } }],
   ['get_app_log_status', loadLogStatus, undefined],

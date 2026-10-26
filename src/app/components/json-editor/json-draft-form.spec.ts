@@ -256,6 +256,27 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it.each(['variants', 'skins', 'factions', 'mission'] as const)(
+    '%s marks pending and retained drafts and clears the mark after saving',
+    async (page) => {
+      await mountPage(page);
+      nameInput().element.value = 'Pending';
+      await nameInput().trigger('input');
+      expect(wrapper!.get('.json-entity-list-item.active').classes()).toContain('dirty');
+      await nameInput().trigger('keydown', { key: 'Escape' });
+      expect(wrapper!.find('.json-entity-list-item.dirty').exists()).toBe(false);
+      await nameInput().setValue('Local');
+      await wrapper!.findAll('.json-entity-list-item')[1]!.trigger('click');
+      await flushPromises();
+      expect(wrapper!.get('.json-entity-list-item.dirty').text()).toContain('Local');
+      expect(wrapper!.get('.json-entity-list-item.active').text()).toContain('b');
+      await wrapper!.get('.json-entity-list-item.dirty').trigger('click');
+      await flushPromises();
+      await useJsonEditorStore().active!.save();
+      await flushPromises();
+      expect(wrapper!.find('.json-entity-list-item.dirty').exists()).toBe(false);
+    },
+  );
   it.each(['smart', 'plain'] as const)('consumes a file definition schema and initial content in %s mode', async (editMode) => {
     initializeSettingsStore(createSettingsFixture({ editMode }));
     const definition = {
@@ -356,6 +377,7 @@ describe('JSON common workspace and form', () => {
     expect(doc.target.value!.id).toBe('strings');
     await wrapper!.get('.schema-form button').trigger('click');
     expect(doc.dirty.value).toBe(true);
+    expect(wrapper!.get('.json-entity-list-item.active').classes()).toContain('dirty');
     const navigation = useWorkspaceNavigationActions();
     navigation.showSettings();
     await flushPromises();
@@ -363,6 +385,7 @@ describe('JSON common workspace and form', () => {
     await flushPromises();
     expect(useJsonEditorStore().active).toBe(doc);
     expect(doc.dirty.value).toBe(true);
+    expect(wrapper!.get('.json-entity-list-item.active').classes()).toContain('dirty');
     const editor = wrapper!.getComponent(JsonDocumentEditor);
     await editor
       .findAll('button')
@@ -545,7 +568,20 @@ describe('JSON common workspace and form', () => {
     await flushPromises();
     const runtime = wrapper!.getComponent(SchemaFormRenderer).props('runtimeContext')!;
     await runtime.querySourceOptions!('hull:builtInWeaponSlots');
-    expect(mocks.slots).toHaveBeenLastCalledWith('s1', 'other_hull', undefined);
+    expect(mocks.slots).toHaveBeenLastCalledWith('s1', 'other_hull', undefined, 'builtInWeaponSlots');
+  });
+  it.each([
+    ['hull:weaponSlots', 'weaponSlots'],
+    ['hull:moduleSlots', 'moduleSlots'],
+  ])('queries %s from the current variant hull', async (source, kind) => {
+    await mountPage('variants');
+    const document = wrapper!.getComponent(JsonDocumentEditor).props('document');
+    document.draftValue.value = { ...document.draftValue.value, hullId: 'selected_hull' };
+    await flushPromises();
+    const runtime = wrapper!.getComponent(SchemaFormRenderer).props('runtimeContext')!;
+    expect(runtime.sourceContextKey).toBe('selected_hull');
+    await runtime.querySourceOptions!(source);
+    expect(mocks.slots).toHaveBeenLastCalledWith('s1', 'selected_hull', undefined, kind);
   });
   it.each(['factions', 'mission'] as const)('%s combines source-removal policy with the draft deletion confirmation', async (page) => {
     await mountPage(page);

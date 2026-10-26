@@ -226,6 +226,31 @@ afterEach(() => {
   useJsonEditorStore().releaseSession('s2');
 });
 describe('complete JSON document runtime', () => {
+  it.each(['smart', 'plain'] as const)('handles slot transfer and a single undo in %s mode', async (editMode) => {
+    initializeSettingsStore(createSettingsFixture({ editMode }));
+    const doc = document();
+    doc.draftValue.value = {
+      ...doc.draftValue.value,
+      weaponGroups: [
+        { mode: 'LINKED', weapons: { A: 'gun' } },
+        { mode: 'LINKED', weapons: {} },
+      ],
+    };
+    const before = deepClone(doc.draftValue.value);
+    doc.draftValue.value = {
+      ...before,
+      weaponGroups: [
+        { mode: 'LINKED', weapons: { A: 'gun' } },
+        { mode: 'LINKED', weapons: { A: '' } },
+      ],
+    };
+    expect(doc.draftValue.value.weaponGroups).toEqual([
+      { mode: 'LINKED', weapons: editMode === 'smart' ? {} : { A: 'gun' } },
+      { mode: 'LINKED', weapons: { A: editMode === 'smart' ? 'gun' : '' } },
+    ]);
+    expect(await doc.undo()).toBe(true);
+    expect(doc.draftValue.value).toEqual(before);
+  });
   it('accepts a freshly read file without another request and refreshes once on return', async () => {
     const doc = document(JSON_DOCUMENT_DEFINITIONS['misc-config']);
     doc.setActive(true, true);

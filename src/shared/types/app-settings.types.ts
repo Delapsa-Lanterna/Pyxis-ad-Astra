@@ -26,6 +26,7 @@ export interface AppSettings {
   editMode: EditMode;
   expandFieldDescriptions: boolean;
   immersiveGameFont: boolean;
+  immersiveFontDirectory: string | null;
   preserveOriginalJson?: boolean;
   allowCoreEditing?: boolean;
   starsectorRoot: string | null;

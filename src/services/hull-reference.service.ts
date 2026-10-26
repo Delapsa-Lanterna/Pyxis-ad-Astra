@@ -2,7 +2,7 @@ import type { HullReferencesResult, HullReferencesPayload, DeepReadonly } from '
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery } from '@/services/query-cache.service';
-import { hullReferenceOptions, builtInWeaponSlotOptions } from '@/domain/resources/hull-references';
+import { hullReferenceOptions, hullWeaponSlotOptions, type HullSlotKind } from '@/domain/resources/hull-references';
 
 const readHullReferences = createCachedSessionQuery<Omit<HullReferencesPayload, 'sessionId'>, HullReferencesResult>({
   queryKind: 'hull-references',
@@ -24,6 +24,11 @@ export async function queryHullReferenceOptions(sessionId: string, referenceIds:
   return hullReferenceOptions(await querySessionHullReferences(sessionId, referenceIds, signal));
 }
 
-export async function queryBuiltInWeaponSlotOptions(sessionId: string, hullId: string, signal?: AbortSignal) {
-  return builtInWeaponSlotOptions(await querySessionHullReferences(sessionId, [hullId], signal), hullId);
+export async function queryBuiltInWeaponSlotOptions(
+  sessionId: string,
+  hullId: string,
+  signal?: AbortSignal,
+  kind: HullSlotKind = 'builtInWeaponSlots',
+) {
+  return hullWeaponSlotOptions(await querySessionHullReferences(sessionId, [hullId], signal), hullId, kind);
 }

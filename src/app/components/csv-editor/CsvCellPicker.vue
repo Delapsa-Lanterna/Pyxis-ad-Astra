@@ -59,7 +59,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 
 import { groupSelectOptions, type FlatSelectOption, type SelectOption } from '@/domain/schema/schema-options';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import CsvCellPickerGroup from './CsvCellPickerGroup.vue';
-import { useCsvFloatingPanel, useCsvFloatingViewport } from '@/app/composables/csv-editor/use-csv-floating-panel';
+import { useCsvFloatingPanel } from '@/app/composables/csv-editor/use-csv-floating-panel';
 
 const props = defineProps<{
   anchor: { height: number; left: number; top: number; width: number };
@@ -74,7 +74,6 @@ const emit = defineEmits<{
   commit: [values: string[]];
   update: [values: string[]];
 }>();
-const floating = useCsvFloatingViewport();
 
 const visible = useVisibleResourceMedia({
   sessionId: () => props.sessionId,
@@ -164,7 +163,6 @@ function submitQuery(event: KeyboardEvent) {
 defineExpose({ reset: () => (query.value = ''), focus: focusSearch });
 
 function handleDocumentMouseDown(event: MouseEvent) {
-  if (event.target === floating?.panel.value) return;
   const target = event.target as { closest?: (selector: string) => unknown } | null;
   if (target?.closest?.('.csv-grid-cell')) return;
   if (target?.closest?.('.csv-cell-picker')) return;

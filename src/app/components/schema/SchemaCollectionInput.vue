@@ -9,7 +9,7 @@
     >
       <template v-if="row.group || row.rename" #[row.labelSlot]>
         <SchemaScalarInput
-          v-if="row.rename"
+          v-if="row.rename && !keyField.source"
           class="field-map-key-editor"
           :field="keyField"
           :validate="row.validateName"
@@ -17,6 +17,16 @@
           :input-key="`${inputKey}/${row.id}/name`"
           @click.stop
           @update="rename(currentRow(row.id), $event)"
+        />
+        <n-select
+          v-else-if="row.rename"
+          class="field-map-key-editor"
+          :value="row.key"
+          :options="slotOptions.filter((option) => option.value === row.key || !names.has(option.value))"
+          filterable
+          size="small"
+          @click.stop
+          @update:value="rename(currentRow(row.id), { kind: 'set', value: $event })"
         />
         <span v-else>{{ row.field.label }}</span>
       </template>
@@ -41,7 +51,14 @@
       v-if="canAdd && field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
       class="ui-control-row"
     >
-      <n-button v-for="choice in choices" :key="choice.label" size="tiny" @click="add(choice)">+ {{ choice.label }}</n-button>
+      <n-button
+        v-for="choice in choices"
+        :key="choice.label"
+        :disabled="Boolean(keyField.source) && !availableSlot"
+        size="tiny"
+        @click="add(choice)"
+        >+ {{ choice.label }}</n-button
+      >
     </div>
   </EditorCollapse>
 </template>
@@ -53,6 +70,8 @@ import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import SchemaFieldRow from './SchemaFieldRow.vue';
 import SchemaScalarInput from './SchemaScalarInput.vue';
+import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
+import { flattenSelectOptions } from '@/domain/schema/schema-options';
 import { useEditorRowIdentities } from '@/app/composables/editors/use-editor-row-identities';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
@@ -110,6 +129,13 @@ const keyField = computed<FieldSchema>(() => ({
   required: true,
   reservedKeys: [...(props.field.reservedKeys ?? []), ...fixedByKey.value.keys()],
 }));
+const { sourceOptions } = useSchemaSourceOptions({
+  field: () => keyField.value,
+  value: () => undefined,
+  runtimeContext: () => props.runtimeContext,
+});
+const slotOptions = computed(() => flattenSelectOptions(sourceOptions.value));
+const availableSlot = computed(() => slotOptions.value.find((option) => !names.value.has(option.value)));
 interface Row {
   visible?: boolean;
   mounted?: boolean;
@@ -301,7 +327,11 @@ function remove(row: Row) {
   );
 }
 function add(choice: FieldSchema) {
-  const initial = props.field.keySchema ? schemaInitialValue(props.field.keySchema) : 'newField';
+  const initial = keyField.value.source
+    ? availableSlot.value!.value
+    : props.field.keySchema
+      ? schemaInitialValue(props.field.keySchema)
+      : 'newField';
   let key = array.value ? String(entries.value.length) : String(initial);
   for (let index = 1; names.value.has(key); index++) key = typeof initial === 'number' ? String(initial + index) : initial + String(index);
   publish([...entries.value, { key, val: schemaInitialValue(choice) }], { kind: 'insert', index: dynamic.value.length });

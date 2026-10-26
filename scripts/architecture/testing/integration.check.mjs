@@ -102,7 +102,7 @@ test('production fixture consumption has one diagnostic and tests may consume pr
   ]) {
     const files = architectureFixtures({
       'src/domain/example.ts': source,
-      'src/test/entity-target.ts': 'export interface Fixture {} export function fixture() {}',
+      'src/test/fixtures/entity-target.ts': 'export interface Fixture {} export function fixture() {}',
     });
     const failures = rules.flatMap((rule) => messages(rule.check(files))).filter((failure) => failure.includes('src/domain/example.ts'));
     assert.equal(failures.length, 1);

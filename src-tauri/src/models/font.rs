@@ -61,6 +61,8 @@ pub struct QueryOriginalFontPayload {
     pub session_id: ProjectSessionId,
     #[serde(deserialize_with = "required_nullable_non_empty_string")]
     pub starsector_root: Option<String>,
+    #[serde(deserialize_with = "required_nullable_non_empty_string")]
+    pub font_directory: Option<String>,
     pub font_id: crate::models::font::FontId,
 }
 
@@ -71,7 +73,8 @@ mod tests {
 
     #[test]
     fn original_font_payload_requires_root_and_normalizes_blank_values() {
-        let base = json!({"sessionId": "font-session", "fontId": "insignia15LTaa"});
+        let base =
+            json!({"sessionId": "font-session", "fontId": "insignia15LTaa", "fontDirectory": null});
         assert!(serde_json::from_value::<QueryOriginalFontPayload>(base.clone()).is_err());
         for (root, expected) in [
             (serde_json::Value::Null, None),
@@ -80,10 +83,20 @@ mod tests {
         ] {
             let mut value = base.clone();
             value["starsectorRoot"] = root;
-            let payload = serde_json::from_value::<QueryOriginalFontPayload>(value).unwrap();
+            let payload =
+                serde_json::from_value::<QueryOriginalFontPayload>(value.clone()).unwrap();
             assert_eq!(payload.session_id, "font-session");
             assert_eq!(payload.font_id.name(), "insignia15LTaa");
             assert_eq!(payload.starsector_root.as_deref(), expected);
+            let mut directory = value.clone();
+            directory["fontDirectory"] = directory["starsectorRoot"].clone();
+            assert_eq!(
+                serde_json::from_value::<QueryOriginalFontPayload>(directory)
+                    .unwrap()
+                    .font_directory
+                    .as_deref(),
+                expected
+            );
         }
     }
 }

@@ -1,16 +1,18 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { builtInWeaponSlotOptions, hullReferenceOptions } from './hull-references';
+import { hullWeaponSlotOptions, hullReferenceOptions } from './hull-references';
 import { mapSourceGroupsToSelectOptions } from '@/domain/schema/schema-options';
 import type { SelectOption, FlatSelectOption } from '@/domain/schema/schema-options';
 import type { ResourceRef } from '@/shared/types';
 
 describe('built-in slot origins', () => {
   it('preserves the backend origin through option grouping and labels', async () => {
-    const groups = builtInWeaponSlotOptions(
+    const groups = hullWeaponSlotOptions(
       {
         groups: [],
         hullNames: {},
         sprites: {},
+        weaponSlots: {},
+        moduleSlots: {},
         builtInWeaponSlots: {
           hull: [
             { id: 'CORE', origin: 'core' },
@@ -40,6 +42,8 @@ describe('hull option resource ownership', () => {
       hullNames: {},
       sprites: {},
       builtInWeaponSlots: {},
+      weaponSlots: {},
+      moduleSlots: {},
     });
     const option = result[0]!;
     expect(option.resourceRef).toBe(resource);

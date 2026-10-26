@@ -136,6 +136,18 @@ describe('useSettingsViewModel', () => {
     await viewModel.pickStarsectorRoot();
     expect(useSettingsStore().starsectorRoot).toBeNull();
   });
+  it('stores the chosen font directory and retains it when selection is cancelled', async () => {
+    const scope = effectScope();
+    const viewModel = scope.run(() => useSettingsViewModel())!;
+    mocks.pickDirectoryDialog.mockResolvedValueOnce('F:/fonts');
+    await viewModel.pickImmersiveFontDirectory();
+    expect(mocks.pickDirectoryDialog).toHaveBeenLastCalledWith('选择沉浸式字体目录');
+    expect(useSettingsStore().immersiveFontDirectory).toBe('F:/fonts');
+    mocks.pickDirectoryDialog.mockResolvedValueOnce(null);
+    await viewModel.pickImmersiveFontDirectory();
+    expect(useSettingsStore().immersiveFontDirectory).toBe('F:/fonts');
+    scope.stop();
+  });
   it('persists a picked log directory and refreshes the status', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue('C:/custom-log');
     mocks.loadLogStatus.mockResolvedValue({ path: 'C:/custom-log/app.log', sizeBytes: 0 });

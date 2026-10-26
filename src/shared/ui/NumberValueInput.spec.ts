@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { h } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NInputNumber } from 'naive-ui/es/input-number';
+import { NButton } from 'naive-ui/es/button';
 import NumberValueInput from './NumberValueInput.vue';
 import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { applySchemaFieldUpdate } from '@/domain/schema/schema-values';
@@ -11,7 +12,11 @@ import type { RowData } from '@/shared/types';
 let wrapper: ReturnType<typeof mount>;
 afterEach(() => wrapper?.unmount());
 
-async function harness(clearAction: 'remove' | 'required' = 'remove', integer = false) {
+async function harness(
+  clearAction: 'remove' | 'required' = 'remove',
+  integer = false,
+  options: { step?: number; min?: number; max?: number; disabled?: boolean; showButton?: boolean } = {},
+) {
   let session!: ReturnType<typeof useEditTargetDraftSession<RowData, string, null>>;
   const save = vi.fn(async (target: string, value: RowData) => ({ target, value, baseVersions: [], meta: null }));
   wrapper = mount(
@@ -31,13 +36,14 @@ async function harness(clearAction: 'remove' | 'required' = 'remove', integer = 
             label: 'Count',
             integer,
             clearAction,
+            ...options,
             'onUpdate:value': (value) =>
               session.setDraft(applySchemaFieldUpdate(session.draftValue.value, 'count', { kind: 'set', value })),
             onRemove: () => session.setDraft(applySchemaFieldUpdate(session.draftValue.value, 'count', { kind: 'remove' })),
           });
       },
     },
-    { global: { components: { 'n-input-number': NInputNumber } }, attachTo: document.body },
+    { global: { components: { 'n-input-number': NInputNumber, NButton } }, attachTo: document.body },
   );
   await session.loadTarget('one');
   await flushPromises();
@@ -45,6 +51,64 @@ async function harness(clearAction: 'remove' | 'required' = 'remove', integer = 
 }
 
 describe('Smart numeric input with real Naive UI', () => {
+  it('keeps disabled and hidden button states', async () => {
+    const { session } = await harness('remove', false, { disabled: true });
+    expect(wrapper.findAll('button').every((button) => button.attributes('disabled') !== undefined)).toBe(true);
+    await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey: true });
+    expect(session.draftValue.value.count).toBe(4);
+    wrapper.unmount();
+    await harness('remove', false, { showButton: false });
+    expect(wrapper.findAll('button')).toHaveLength(0);
+  });
+  it.each([
+    [false, false, 5],
+    [true, false, 9],
+    [false, true, 4.5],
+    [true, true, 14],
+  ])('applies Shift=%s and Ctrl=%s to both buttons and saves the result', async (shiftKey, ctrlKey, expected) => {
+    const { session, save } = await harness();
+    await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey, ctrlKey });
+    expect(session.draftValue.value.count).toBe(expected);
+    await session.saveDraft();
+    expect(save).toHaveBeenCalledWith('one', { count: expected }, []);
+    await wrapper.get('[aria-label="减少"]').trigger('click', { shiftKey, ctrlKey });
+    expect(session.draftValue.value.count).toBe(4);
+  });
+  it.each([
+    [1, 1],
+    [3, 2],
+  ])('rounds half of integer step %s to %s', async (step, offset) => {
+    const { session } = await harness('required', true, { step });
+    await wrapper.get('[aria-label="增加"]').trigger('click', { ctrlKey: true });
+    expect(session.draftValue.value.count).toBe(4 + offset);
+    await wrapper.get('[aria-label="减少"]').trigger('click', { ctrlKey: true });
+    expect(session.draftValue.value.count).toBe(4);
+  });
+  it.each([
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ])('clamps overshooting steps at both boundaries with Shift=%s and Ctrl=%s', async (shiftKey, ctrlKey) => {
+    const { session } = await harness('remove', false, { min: 3, max: 5, step: 8 });
+    await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey, ctrlKey });
+    expect(session.draftValue.value.count).toBe(5);
+    expect(wrapper.get('[aria-label="增加"]').attributes('disabled')).toBeDefined();
+    await wrapper.get('[aria-label="减少"]').trigger('click', { shiftKey, ctrlKey });
+    expect(session.draftValue.value.count).toBe(3);
+    expect(wrapper.get('[aria-label="减少"]').attributes('disabled')).toBeDefined();
+  });
+  it('uses pending raw input, preserves decimal precision and retains invalid input on clicks', async () => {
+    const { session } = await harness('remove', false, { step: 0.2 });
+    await wrapper.get('input').setValue('0.2');
+    await wrapper.get('[aria-label="增加"]').trigger('click', { ctrlKey: true });
+    expect(session.draftValue.value.count).toBe(0.3);
+    await wrapper.get('input').setValue('1e');
+    await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey: true });
+    expect(session.draftValue.value.count).toBe(0.3);
+    expect(wrapper.get<HTMLInputElement>('input').element.value).toBe('1e');
+    await expect(session.saveDraft()).rejects.toMatchObject({ action: 'commit-field-inputs' });
+  });
   it.each(['-', '1e', '1.2.3'])('retains %s, participates in dirty and focuses the failed save', async (raw) => {
     const { session, save } = await harness();
     const input = wrapper.get('input');

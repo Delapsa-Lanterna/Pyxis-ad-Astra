@@ -40,6 +40,9 @@
   background: var(--color-primary-soft);
   border-left-color: var(--color-primary);
 }
+.json-entity-list-item.dirty {
+  background: var(--color-warning-bg);
+}
 .json-entity-color,
 .json-entity-thumb {
   flex: 0 0 20px;

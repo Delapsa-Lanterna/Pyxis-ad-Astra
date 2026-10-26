@@ -31,6 +31,7 @@ export function createSettingsFixture(overrides: Partial<AppSettings> = {}): App
     editMode: 'smart',
     expandFieldDescriptions: false,
     immersiveGameFont: true,
+    immersiveFontDirectory: null,
     preserveOriginalJson: true,
     allowCoreEditing: false,
     starsectorRoot: null,

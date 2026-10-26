@@ -12,6 +12,19 @@ beforeEach(() => {
 });
 
 describe('settings integer limits', () => {
+  it('publishes, mirrors and clears the immersive font directory', () => {
+    const settings = useSettingsStore();
+    expect(settings.immersiveFontDirectory).toBeNull();
+    settings.setImmersiveFontDirectory('F:/fonts');
+    expect(settings.settingsSnapshot().immersiveFontDirectory).toBe('F:/fonts');
+    settings.replaceSettings(createSettingsFixture({ immersiveFontDirectory: 'F:/other' }));
+    expect(settings.immersiveFontDirectory).toBe('F:/other');
+    expect(() => settings.setImmersiveFontDirectory(' ')).toThrow();
+    expect(() => settings.replaceSettings(createSettingsFixture({ immersiveFontDirectory: '' }))).toThrow();
+    expect(settings.immersiveFontDirectory).toBe('F:/other');
+    settings.setImmersiveFontDirectory(null);
+    expect(settings.settingsSnapshot().immersiveFontDirectory).toBeNull();
+  });
   it('defaults field descriptions closed and validates edits and mirrored snapshots', () => {
     const settings = useSettingsStore();
     expect(settings.expandFieldDescriptions).toBe(false);

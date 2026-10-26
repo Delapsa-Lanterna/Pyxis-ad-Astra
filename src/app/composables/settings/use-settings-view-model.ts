@@ -87,6 +87,11 @@ export function useSettingsViewModel(onReset?: () => void) {
     }
   }
 
+  async function pickImmersiveFontDirectory() {
+    const selected = await pickDirectoryDialog('选择沉浸式字体目录');
+    if (selected) settings.setImmersiveFontDirectory(selected);
+  }
+
   async function restoreDefaultLogDirectory() {
     try {
       await saveLogDirectory(null);
@@ -164,6 +169,7 @@ export function useSettingsViewModel(onReset?: () => void) {
     logStatus,
     pickLogDirectory,
     pickStarsectorRoot,
+    pickImmersiveFontDirectory,
     refreshLogStatus,
     openConfigFolderAction: configActions.openConfigFolderAction,
     restoreDefaultLogDirectory,

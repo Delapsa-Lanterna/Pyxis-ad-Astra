@@ -10,6 +10,7 @@ pub fn query_original_font(
     session_id: &str,
     override_root: Option<&str>,
     font_id: FontId,
+    font_directory: Option<&str>,
 ) -> AppResult<OriginalFontResult> {
     let handle = super::super::cache::session_handle(session_id)?;
     let session = super::super::cache::lock_session(&handle)?;
@@ -17,6 +18,9 @@ pub fn query_original_font(
         .map(str::to_string)
         .or_else(|| session.manifest.starsector_root.clone());
     drop(session);
+    if let Some(directory) = font_directory {
+        return read_font_directory(Path::new(directory), font_id);
+    }
     let Some(root) = root else {
         return Ok(OriginalFontResult::Unavailable);
     };
@@ -30,8 +34,17 @@ fn read_original_font(root: &Path, font_id: FontId) -> AppResult<OriginalFontRes
         return Ok(OriginalFontResult::Unavailable);
     }
     let core = FsRootBoundary::new(&core_path, "font core root")?;
-    let relative = format!("graphics/fonts/{}.fnt", font_id.name());
-    let path = core.resolve_relative(&relative, "font definition")?;
+    let directory = core.resolve_relative("graphics/fonts", "font directory")?;
+    let mut result = read_font_directory(&directory, font_id)?;
+    if let OriginalFontResult::Available { root, .. } = &mut result {
+        *root = game.root().to_string_lossy().into_owned();
+    }
+    Ok(result)
+}
+
+fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalFontResult> {
+    let boundary = FsRootBoundary::new(directory, "font directory")?;
+    let path = boundary.resolve_relative(&format!("{}.fnt", font_id.name()), "font definition")?;
     let definition = read_utf8_no_bom(&path)?;
     let mut pages = Vec::new();
     let mut ids = BTreeSet::new();
@@ -56,7 +69,7 @@ fn read_original_font(root: &Path, font_id: FontId) -> AppResult<OriginalFontRes
         if !ids.insert(id) {
             return Err(malformed());
         }
-        let image = core.resolve_relative(&format!("graphics/fonts/{file}"), "font page")?;
+        let image = boundary.resolve_relative(file, "font page")?;
         let bytes = fs::read(&image).map_err(|error| {
             AppError::context("Read font page failed", error.into()).at_path(&image)
         })?;
@@ -70,7 +83,7 @@ fn read_original_font(root: &Path, font_id: FontId) -> AppResult<OriginalFontRes
         });
     }
     Ok(OriginalFontResult::Available {
-        root: game.root().to_string_lossy().into_owned(),
+        root: boundary.root().to_string_lossy().into_owned(),
         font_id,
         path: path.to_string_lossy().into_owned(),
         definition,
@@ -200,8 +213,13 @@ mod tests {
             &mut trace,
         )
         .unwrap();
-        let from_session =
-            query_original_font(&manifest.session_id, None, FontId::Orbitron12condensed).unwrap();
+        let from_session = query_original_font(
+            &manifest.session_id,
+            None,
+            FontId::Orbitron12condensed,
+            None,
+        )
+        .unwrap();
         let OriginalFontResult::Available { definition, .. } = from_session else {
             panic!("session font");
         };
@@ -210,15 +228,65 @@ mod tests {
             &manifest.session_id,
             Some(&other.to_string_lossy()),
             FontId::Orbitron12condensed,
+            None,
         )
         .unwrap();
         let OriginalFontResult::Available { definition, .. } = from_settings else {
             panic!("settings font");
         };
         assert!(definition.contains("settings-source"));
+        let directory = other.join("starsector-core/graphics/fonts");
+        let custom = query_original_font(
+            &manifest.session_id,
+            None,
+            FontId::Orbitron12condensed,
+            Some(&directory.to_string_lossy()),
+        )
+        .unwrap();
+        let OriginalFontResult::Available {
+            definition,
+            root: effective,
+            pages,
+            ..
+        } = custom
+        else {
+            panic!("custom font");
+        };
+        assert!(definition.contains("settings-source"));
+        assert_eq!(Path::new(&effective), directory.canonicalize().unwrap());
+        assert_eq!(pages.len(), 2);
+        for missing in [
+            other.join("missing"),
+            game.join("starsector-core/graphics/fonts"),
+        ] {
+            assert!(
+                query_original_font(
+                    &manifest.session_id,
+                    None,
+                    FontId::Victor14,
+                    Some(&missing.to_string_lossy())
+                )
+                .is_err()
+            );
+        }
         super::super::super::session::close_project_session(manifest.session_id.clone()).unwrap();
         assert!(
-            query_original_font(&manifest.session_id, None, FontId::Orbitron12condensed).is_err()
+            query_original_font(
+                &manifest.session_id,
+                None,
+                FontId::Orbitron12condensed,
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            query_original_font(
+                &manifest.session_id,
+                None,
+                FontId::Orbitron12condensed,
+                Some(&directory.to_string_lossy())
+            )
+            .is_err()
         );
         for dir in [root, game, other] {
             fs::remove_dir_all(dir).unwrap();

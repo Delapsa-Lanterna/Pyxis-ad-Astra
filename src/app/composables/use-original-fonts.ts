@@ -32,28 +32,48 @@ export function provideOriginalFonts(sessionId: () => string) {
   }
   function load(id: FontId) {
     if (!settings.immersiveGameFont || state(id).status !== 'idle') return;
-    const identity = { sessionId: sessionId(), starsectorRoot: settings.starsectorRoot, fontId: id, generation };
+    const identity = {
+      sessionId: sessionId(),
+      starsectorRoot: settings.starsectorRoot,
+      fontDirectory: settings.immersiveFontDirectory,
+      fontId: id,
+      generation,
+    };
     states.set(id, { status: 'loading', font: null });
     void reads.consume(
       id,
       identity,
-      async () => {
-        const result = await queryOriginalFont(identity.sessionId, identity.starsectorRoot, id);
-        return result.status === 'available' ? await decodeOriginalFont(result) : null;
+      async (signal) => {
+        const errors: Array<{ error: unknown; directory: string | null }> = [];
+        const directories = identity.fontDirectory ? [identity.fontDirectory, null] : [null];
+        for (const directory of directories) {
+          if (signal.aborted) break;
+          try {
+            const result = await queryOriginalFont(identity.sessionId, identity.starsectorRoot, id, directory);
+            if (result.status === 'available' && !signal.aborted) {
+              const font = await decodeOriginalFont(result);
+              return { font, errors };
+            }
+          } catch (error) {
+            errors.push({ error, directory });
+          }
+        }
+        return { font: null, errors };
       },
       {
-        ready: (font) => states.set(id, { status: font ? 'ready' : 'unavailable', font }),
-        error: (error) => {
-          states.set(id, { status: 'error', font: null });
-          const diagnostic = errorDiagnosticOf(error);
-          recordLogBestEffort({
-            level: 'warning',
-            code: diagnostic.code,
-            message: diagnostic.message,
-            path: diagnostic.location?.path ?? null,
-            line: diagnostic.location?.line ?? null,
-            fields: { fontId: id, sessionId: identity.sessionId, root: identity.starsectorRoot ?? 'session' },
-          });
+        ready: ({ font, errors }) => {
+          states.set(id, { status: font ? 'ready' : errors.length ? 'error' : 'unavailable', font });
+          for (const { error, directory } of errors) {
+            const diagnostic = errorDiagnosticOf(error);
+            recordLogBestEffort({
+              level: 'warning',
+              code: diagnostic.code,
+              message: diagnostic.message,
+              path: diagnostic.location?.path ?? null,
+              line: diagnostic.location?.line ?? null,
+              fields: { fontId: id, sessionId: identity.sessionId, root: directory ?? identity.starsectorRoot ?? 'session' },
+            });
+          }
         },
       },
     );
@@ -69,7 +89,7 @@ export function provideOriginalFonts(sessionId: () => string) {
     };
   }
   watch(
-    () => [settings.immersiveGameFont, settings.starsectorRoot, sessionId()] as const,
+    () => [settings.immersiveGameFont, settings.immersiveFontDirectory, settings.starsectorRoot, sessionId()] as const,
     () => {
       generation++;
       reads.revoke();

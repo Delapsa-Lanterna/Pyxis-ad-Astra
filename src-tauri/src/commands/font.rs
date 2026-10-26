@@ -12,5 +12,6 @@ pub fn query_original_font(
         &payload.session_id,
         payload.starsector_root.as_deref(),
         payload.font_id,
+        payload.font_directory.as_deref(),
     )
 }

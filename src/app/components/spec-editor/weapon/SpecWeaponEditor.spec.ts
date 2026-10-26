@@ -127,7 +127,7 @@ describe('SpecWeaponEditor', () => {
     const editor = mountEditor({ id: 'fixture', specClass: 'projectile', displayArcRadius: 25 }, {}, true);
     const input = editor.get('[data-field-path="displayArcRadius"] input');
     await input.setValue('');
-    await input.trigger('change');
+    await input.trigger('blur');
     await flushPromises();
     expect(editor.emitted('draft-changed')!.at(-1)![0]).not.toHaveProperty('displayArcRadius');
   });

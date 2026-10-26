@@ -40,7 +40,7 @@ describe('schema source query lifecycle', () => {
     wrapper.unmount();
   });
 
-  it.each(['csv:weapons.id', 'config:sounds', 'config:designTypes', 'config:hullStyles'])(
+  it.each(['csv:weapons.id', 'config:sounds', 'config:designTypes', 'config:hullStyles', 'hull:weaponSlots', 'hull:moduleSlots'])(
     'reloads %s across targets, failures and retry',
     async (catalog) => {
       errors.mockClear();

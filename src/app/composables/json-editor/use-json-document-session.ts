@@ -1,6 +1,7 @@
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
 import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { transferVariantWeaponSlots } from '@/domain/json-editor/json-variant-weapons';
 import { useEditTargetDraftSession, type EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
@@ -137,6 +138,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   const { confirmDiscard } = useFieldInputActions(session.inputs, feedback);
   function setDraft(value: RowData) {
     recovery.cancelRead();
+    if (definition.kind === 'variant' && settings.editMode === 'smart') value = transferVariantWeaponSlots(session.draftValue.value, value);
     history.push(session.draftValue.value, value);
     session.setDraft(value);
   }

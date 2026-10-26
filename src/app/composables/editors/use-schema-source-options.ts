@@ -60,6 +60,8 @@ export function useSchemaSourceOptions(args: {
         !isEntitySource(source) &&
         !isConfigSource(source) &&
         source !== 'hull:builtInWeaponSlots' &&
+        source !== 'hull:weaponSlots' &&
+        source !== 'hull:moduleSlots' &&
         source !== 'hull:ids')
     ) {
       loadedOptions.value = [];

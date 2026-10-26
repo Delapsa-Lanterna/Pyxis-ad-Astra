@@ -66,6 +66,33 @@ describe('CsvCellPicker placement', () => {
     wrapper.unmount();
   });
 
+  it.each([
+    [448, 313, 'bottom: 137px', 'max-height: 311px'],
+    [400, 210, 'bottom: 192px', 'max-height: 208px'],
+    [400, 100, 'top: 126px', 'max-height: 274px'],
+  ] as const)('limits the picker to the available side at viewport %s and anchor %s', (height, top, position, limit) => {
+    vi.stubGlobal('innerHeight', height);
+    const wrapper = mountPicker({ height: 24, left: 40, top, width: 200 });
+    expect(wrapper.attributes('style')).toContain(position);
+    expect(wrapper.attributes('style')).toContain(limit);
+    wrapper.unmount();
+  });
+
+  it('updates the available height when scrolling and resizing with the picker open', async () => {
+    vi.stubGlobal('innerHeight', 448);
+    const wrapper = mountPicker({ height: 24, left: 40, top: 313, width: 200 });
+    expect(wrapper.attributes('style')).toContain('max-height: 311px');
+    await wrapper.setProps({ anchor: { height: 24, left: 40, top: 210, width: 200 } });
+    window.dispatchEvent(new Event('scroll'));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.attributes('style')).toContain('max-height: 212px');
+    vi.stubGlobal('innerHeight', 400);
+    window.dispatchEvent(new Event('resize'));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.attributes('style')).toContain('max-height: 208px');
+    wrapper.unmount();
+  });
+
   it('offers a clear action for single-select with a current value', async () => {
     const wrapper = mountPicker({ height: 30, left: 40, top: 100, width: 200 }, { values: ['phase'] });
 

@@ -50,6 +50,17 @@ describe('CsvCellTextEditor', () => {
     wrapper.unmount();
   });
 
+  it.each([
+    [400, 210, 'bottom: 192px', 'max-height: 208px'],
+    [300, 80, 'top: 112px', 'max-height: 188px'],
+  ] as const)('limits the text editor to the available side at viewport %s and anchor %s', (height, top, position, limit) => {
+    vi.stubGlobal('innerHeight', height);
+    const wrapper = mountEditor({ height: 30, left: 40, top, width: 200 });
+    expect(wrapper.attributes('style')).toContain(position);
+    expect(wrapper.attributes('style')).toContain(limit);
+    wrapper.unmount();
+  });
+
   it('commits the edited draft on ctrl+enter', async () => {
     const wrapper = mountEditor({ height: 30, left: 40, top: 100, width: 200 }, '第一行');
     await wrapper.find('textarea').setValue('第一行\n第二行');

@@ -8,6 +8,21 @@ fn validate_document(id: &str, data: &Value) -> AppResult<()> {
 }
 
 #[test]
+fn variant_weapon_group_limit() {
+    for count in [0, 6, 7, 8] {
+        let data = json!({"weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); count]});
+        let result = validate_document("variant", &data);
+        if count <= 7 {
+            result.unwrap();
+        } else {
+            let error = result.unwrap_err();
+            assert_eq!(error.code(), "config.shape_invalid");
+            assert_eq!(error.to_string(), "字段内容无效：weaponGroups");
+        }
+    }
+}
+
+#[test]
 fn closed_objects_ignore_unknowns() {
     for allowed in [None, Some(false), Some(true)] {
         let mut field = json!({

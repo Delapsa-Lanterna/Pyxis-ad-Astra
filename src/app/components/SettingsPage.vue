@@ -89,8 +89,21 @@
 
       <FieldRow label="沉浸式编辑器字体"
         ><n-switch class="tool-switch" :value="settings.immersiveGameFont" @update:value="settings.setImmersiveGameFont" /><template #hint
-          ><FieldHints description="从游戏安装目录加载原版字体。原版字体缺字时，以英文问号代替。" /></template
+          ><FieldHints
+            description="优先从指定目录加载字体，再尝试游戏原版字体，最后使用通用字体。位图字体缺字时，以英文问号代替。" /></template
       ></FieldRow>
+      <FieldRow label="沉浸式字体路径">
+        <div class="ui-field-actions ui-layout-stretch action-group">
+          <n-input :value="settings.immersiveFontDirectory ?? ''" size="small" placeholder="使用游戏原版字体目录" readonly />
+          <n-button size="small" @click="pickImmersiveFontDirectory">选择目录</n-button>
+          <n-button v-if="settings.immersiveFontDirectory" size="small" quaternary @click="settings.setImmersiveFontDirectory(null)"
+            >清除</n-button
+          >
+        </div>
+        <template #hint
+          ><FieldHints description="选择直接存放游戏同名 .fnt 文件及配套图片的目录。选择或清除后立即生效，各种字体分别回退。"
+        /></template>
+      </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">编辑</h3>
@@ -357,6 +370,7 @@ const {
   applicationLogError,
   pickLogDirectory,
   pickStarsectorRoot,
+  pickImmersiveFontDirectory,
   refreshLogStatus,
   openConfigFolderAction,
   restoreDefaultLogDirectory,

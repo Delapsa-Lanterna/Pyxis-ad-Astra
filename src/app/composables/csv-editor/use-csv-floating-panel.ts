@@ -55,6 +55,7 @@ export function useCsvFloatingPanel(anchor: () => CsvFloatingAnchor, height: num
     return {
       bottom: flipUp ? `${viewport.value.height - localTop + 2}px` : undefined,
       left: `${left}px`,
+      maxHeight: `${Math.max(0, Math.min(height, flipUp ? localTop - 2 : spaceBelow))}px`,
       top: flipUp ? undefined : `${top}px`,
       width: `${width}px`,
       pointerEvents: hidden ? 'none' : 'auto',

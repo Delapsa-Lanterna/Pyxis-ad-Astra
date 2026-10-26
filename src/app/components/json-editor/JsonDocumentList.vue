@@ -13,7 +13,7 @@
         :key="item.key"
         :ref="mediaRef(item.key, item.resource)"
         class="json-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
-        :class="{ active: item.key === selectedId }"
+        :class="{ active: item.key === selectedId, dirty: item.dirty }"
         @click="emit('select', item.key)"
       >
         <span v-if="item.resource" class="json-entity-thumb ui-layout-grid ui-layout-clip ui-control-border"

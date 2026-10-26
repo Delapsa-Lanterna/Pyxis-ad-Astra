@@ -42,6 +42,8 @@ export interface HullReferencesResult {
   hullNames: Record<string, string>;
   sprites: Record<string, ResourceRef>;
   builtInWeaponSlots: Record<string, HullWeaponSlot[]>;
+  weaponSlots: Record<string, HullWeaponSlot[]>;
+  moduleSlots: Record<string, HullWeaponSlot[]>;
 }
 
 export type DraftResourceEntityKind = 'ship' | 'weapon' | 'projectile' | 'system' | 'faction' | 'mission';

@@ -32,6 +32,7 @@ describe('formal settings commits', () => {
     const { runtime, stop, settings } = await setup();
     settings.setGeneralFont('Fixture Font');
     settings.setCacheLimit('mediaData', 'entries', 17);
+    settings.setImmersiveFontDirectory('F:/fonts');
     settings.setLogDirectory('D:/fixture');
     await runtime.flushSettings();
     api.save.mockClear();
@@ -85,10 +86,11 @@ describe('formal settings commits', () => {
     expect(api.listen.mock.invocationCallOrder[0]).toBeLessThan(api.read.mock.invocationCallOrder[0]!);
     settings.setGeneralFont('Fixture Font');
     settings.setExpandFieldDescriptions(true);
+    settings.setImmersiveFontDirectory('F:/fonts');
     await runtime.flushSettings();
     expect(windowCacheLimits().mediaData.entries).toBe(17);
     expect(api.save).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ generalFont: 'Fixture Font', expandFieldDescriptions: true }),
+      expect.objectContaining({ generalFont: 'Fixture Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' }),
     );
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
@@ -136,12 +138,13 @@ describe('formal settings commits', () => {
     await runtime.initializeSettings();
     const stop = runtime.startSettingsMirror();
     const receive = api.listen.mock.calls[0]![1];
-    const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true });
+    const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' });
     next.cacheLimits.decodedImages.entries = 7;
     receive({ revision: 4, value: next });
     receive({ revision: 3, value: createSettingsFixture({ generalFont: 'Earlier Font' }) });
     expect(useSettingsStore().generalFont).toBe('Latest Font');
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
+    expect(useSettingsStore().immersiveFontDirectory).toBe('F:/fonts');
     expect((await import('@/shared/runtime/cache-limits')).windowCacheLimits().decodedImages.entries).toBe(7);
     window.dispatchEvent(new Event('focus'));
     await nextTick();

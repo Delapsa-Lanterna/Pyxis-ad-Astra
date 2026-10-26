@@ -44,10 +44,11 @@ export function assertValidSettings(settings: AppSettings): void {
   readEditMode(settings.editMode);
   readExpandFieldDescriptions(settings.expandFieldDescriptions);
   readImmersiveGameFont(settings.immersiveGameFont);
+  readOptionalDirectory(settings.immersiveFontDirectory);
   readPreserveOriginalJson(settings.preserveOriginalJson);
   readAllowCoreEditing(settings.allowCoreEditing);
   readLogLevel(settings.logLevel);
-  readOptionalLogDirectory(settings.logDirectory);
+  readOptionalDirectory(settings.logDirectory);
 }
 
 export function readAllowCoreEditing(value: boolean | undefined): boolean {
@@ -122,8 +123,8 @@ export function readLogLevel(value: LogLevel): LogLevel {
   return value;
 }
 
-export function readOptionalLogDirectory(value: string | null): string | null {
+export function readOptionalDirectory(value: string | null): string | null {
   if (value === null) return null;
-  if (!value.trim()) throw new Error('Invalid log directory: blank');
+  if (!value.trim()) throw new Error('Invalid settings directory: blank');
   return value;
 }
