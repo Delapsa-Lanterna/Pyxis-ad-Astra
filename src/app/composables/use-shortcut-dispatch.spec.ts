@@ -101,6 +101,7 @@ describe('useShortcutDispatch commands', () => {
             replyClose: vi.fn(),
             readyClose: vi.fn(),
             prepareDisplay: vi.fn(),
+            acceptReleasedSessions: vi.fn(),
             flushSettings: vi.fn(),
           });
           return () => h(Child);

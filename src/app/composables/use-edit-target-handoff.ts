@@ -17,12 +17,13 @@ export function useEditTargetHandoff(feedback: AppFeedback) {
     })
     .catch((error) => feedback.error(error, '启动编辑交接失败'));
   const stopWatch = watch(
-    () => commands.editTargets,
-    (targets) => {
+    () => [commands.editTargets, commands.closePrepared] as const,
+    ([targets, prepared]) => {
+      if (prepared) return;
       const captured = deepClone(targets);
-      registration = registration
-        .then(() => updateEditTargetRegistration(captured))
-        .catch((error) => feedback.error(error, '登记编辑目标失败'));
+      registration = commands.trackCloseAction(
+        registration.then(() => updateEditTargetRegistration(captured)).catch((error) => feedback.error(error, '登记编辑目标失败')),
+      );
     },
     { immediate: true },
   );

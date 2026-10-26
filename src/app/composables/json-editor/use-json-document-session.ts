@@ -106,7 +106,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   type Writer = EditTargetDraftSessionOptions<RowData, ConfigDocumentTarget, JsonDocumentMeta>['save'];
   async function saveActual(write?: Writer): Promise<DocumentSaveResult> {
     recovery.cancelRead();
-    const committed = session.inputs.commit();
+    const committed = session.inputs.commit(undefined, true);
     if (committed && !(await committed)) return { status: 'cancelled' };
     if (!write && !session.dirty.value && !session.hasPendingSynchronization.value) return { status: 'noop' };
     const snapshot = await session.saveDraft(write, Boolean(write));

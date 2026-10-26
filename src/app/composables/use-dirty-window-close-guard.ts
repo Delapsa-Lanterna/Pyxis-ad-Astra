@@ -83,6 +83,8 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
           await actions.flushSettings();
           break;
         case 'resume': {
+          actions.acceptReleasedSessions(intent.releasedSessions);
+          await nextTick();
           commands.closePrepared = false;
           operation = parents.pop() ?? 0;
           closing.value = operation !== 0;

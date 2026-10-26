@@ -300,7 +300,7 @@ export function useEditTargetDraftSession<TValue, TTarget, TMeta = unknown>(
     write: NonNullable<typeof options.save>,
     preserveDraft: boolean,
   ): Promise<Snapshot | null> {
-    const committed = inputs.commit();
+    const committed = inputs.commit(undefined, true);
     if (committed && !(await committed)) return null;
     if (disposed || life !== lifetime || key !== currentTargetKey.value) return null;
     const submitted = clone(draftValue.value);

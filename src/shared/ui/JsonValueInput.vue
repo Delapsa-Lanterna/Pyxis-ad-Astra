@@ -1,6 +1,7 @@
 <template>
   <div class="field-json-input">
     <n-input
+      class="ui-field-autosize"
       ref="input"
       :value="raw"
       type="textarea"

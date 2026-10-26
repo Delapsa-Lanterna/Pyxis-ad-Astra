@@ -277,6 +277,7 @@ pub struct CloseIntent {
     pub operation_id: u64,
     pub phase: ClosePhase,
     pub scope: CloseScope,
+    pub released_sessions: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]

@@ -1,3 +1,15 @@
+.ui-field-autosize {
+  --input-min-rows: 1;
+  --input-max-rows: 10;
+}
+.immersive-field-autosize {
+  --input-min-rows: 2;
+  --input-max-rows: 8;
+}
+.ui-field-autosize .n-input__textarea-mirror {
+  min-height: calc(2 * var(--n-padding-vertical) + var(--input-min-rows) * var(--n-line-height-textarea) * 1em);
+  max-height: calc(2 * var(--n-padding-vertical) + var(--input-max-rows) * var(--n-line-height-textarea) * 1em);
+}
 .n-dialog .n-dialog__title,
 .n-modal.n-card .n-card-header .n-card-header__main {
   font: 600 16px/22px var(--font-sans);

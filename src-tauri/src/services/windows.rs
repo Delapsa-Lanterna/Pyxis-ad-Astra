@@ -865,7 +865,7 @@ pub(crate) fn hold_close(
     owner: &str,
     scope: &crate::models::CloseScope,
     parent: Option<u64>,
-) -> AppResult<Vec<String>> {
+) -> AppResult<Result<Vec<String>, u64>> {
     let mut state = registry()?;
     let mut labels: Vec<_> = state
         .instances
@@ -883,16 +883,16 @@ pub(crate) fn hold_close(
     if *scope != crate::models::CloseScope::Window {
         labels.insert(0, "main".into());
     }
-    if state.closing.iter().any(|(id, (_, other, occupied))| {
-        Some(*id) != parent
+    if let Some((blocking, _)) = state.closing.iter().find(|(id, (_, other, occupied))| {
+        Some(**id) != parent
             && (scope.overlaps(other) || labels.iter().any(|label| occupied.contains(label)))
     }) {
-        return Err(AppError::message("lifecycle.busy", "所属范围正在关闭"));
+        return Ok(Err(*blocking));
     }
     state
         .closing
         .insert(id, (owner.into(), scope.clone(), labels.clone()));
-    Ok(labels)
+    Ok(Ok(labels))
 }
 pub(crate) fn release_close(id: u64) -> AppResult<()> {
     registry()?.closing.remove(&id);

@@ -1,5 +1,6 @@
 <template>
   <n-input
+    class="ui-field-autosize"
     ref="input"
     :value="raw"
     :class="{ 'ui-field-number': field.type === 'integer' || field.type === 'float', 'field-json-input': field.type === 'json' }"
@@ -91,8 +92,8 @@ defineExpose({ commit });
 const inputs = useFieldInputs();
 if (inputs && (props.field.required || props.field.requiredWhen))
   onScopeDispose(
-    inputs.registerFinalizer(async () => {
-      if (inputs.hasDocumentValidation.value) return;
+    inputs.registerFinalizer(async (validate) => {
+      if (!validate || inputs.hasDocumentValidation.value) return;
       if (props.field.required && raw.value.trim() === '') {
         await focusFieldInput((multiline ? input.value?.textareaElRef : input.value?.inputElRef) ?? null);
         input.value?.focus();

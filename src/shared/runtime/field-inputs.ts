@@ -37,7 +37,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     validators.add(read);
     return () => validators.delete(read);
   }
-  const finalizers = new Map<() => void | boolean | Promise<void | boolean>, string | undefined>();
+  const finalizers = new Map<(validate: boolean) => void | boolean | Promise<void | boolean>, string | undefined>();
   const dirty = computed(() => [...fields].some((field) => field.dirty.value));
   const errors = computed(() =>
     [...fields].flatMap((field) => {
@@ -56,13 +56,17 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     };
   }
 
-  function commit(prefix?: string): Promise<boolean> | undefined {
+  function commit(prefix?: string, validate = false): Promise<boolean> | undefined {
     const matches = (key: string) => prefix === undefined || key === prefix || key.startsWith(prefix + '/');
     const pending = [...fields].filter((field) => field.dirty.value && matches(field.key));
     const finish = [...finalizers]
       .filter(([, key]) => prefix === undefined || (key !== undefined && matches(key)))
       .sort(([, left], [, right]) => Number(left === undefined) - Number(right === undefined))
-      .map(([finalize]) => finalize);
+      .map(
+        ([finalize]) =>
+          () =>
+            finalize(validate),
+      );
     if (pending.length === 0 && finish.length === 0) return;
     return commitPending(pending, finish);
   }
@@ -103,7 +107,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     finalizers.clear();
     validators.clear();
   }
-  function registerFinalizer(finalize: () => void | boolean | Promise<void | boolean>, key?: string) {
+  function registerFinalizer(finalize: (validate: boolean) => void | boolean | Promise<void | boolean>, key?: string) {
     finalizers.set(finalize, key);
     return () => finalizers.delete(finalize);
   }

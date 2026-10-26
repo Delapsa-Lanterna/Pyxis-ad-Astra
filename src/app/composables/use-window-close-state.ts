@@ -7,6 +7,7 @@ interface WindowLifecycleActions {
   readyClose: () => Promise<void>;
   requestClose: (scope: CloseScope) => Promise<CloseResult>;
   prepareDisplay: () => () => Promise<void>;
+  acceptReleasedSessions: (sessionIds: string[]) => void;
   flushSettings: () => Promise<void>;
 }
 const lifecycleKey: InjectionKey<WindowLifecycleActions> = Symbol('window-lifecycle-actions');

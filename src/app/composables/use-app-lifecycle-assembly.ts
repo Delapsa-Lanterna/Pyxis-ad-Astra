@@ -2,6 +2,7 @@ import { requestClose, readyNativeClose, replyNativeClose } from '@/services/app
 import { onUnmounted } from 'vue';
 import { refreshLoadedFileHistory } from '@/orchestrators/file-history-replay.orchestrator';
 import { pauseProjectDisplay } from '@/orchestrators/project-sync.orchestrator';
+import { acceptReleasedSessions } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import { flushSettings, startSettingsPersistence, startSettingsMirror } from '@/orchestrators/settings-persistence.orchestrator';
 import { provideWindowCloseState } from './use-window-close-state';
 import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
@@ -14,6 +15,7 @@ export function useAppLifecycleAssembly() {
     readyClose: readyNativeClose,
     replyClose: replyNativeClose,
     prepareDisplay: pauseProjectDisplay,
+    acceptReleasedSessions,
     flushSettings: async () => {
       await flushSettings();
       debugLog('window.close_prepared');

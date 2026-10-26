@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sessionUpdateFixture } from '@/test/write-result';
 import { useProjectStore } from '@/stores/project.store';
-import { closeWorkspaceRuntime, captureWorkspaceCloseTarget } from './workspace-lifecycle.orchestrator';
+import { closeWorkspaceRuntime, captureWorkspaceCloseTarget, acceptReleasedSessions } from './workspace-lifecycle.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 const api = vi.hoisted(() => ({ close: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ invalidateCoreCacheForRoot: vi.fn(async () => {}) }));
@@ -18,6 +18,15 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 describe('workspace close results', () => {
+  it('accepts released sessions before the final receipt and preserves other sessions', async () => {
+    register('alpha');
+    register('beta');
+    acceptReleasedSessions(['alpha']);
+    acceptReleasedSessions(['alpha']);
+    expect(useProjectStore().getSessionId('M:/alpha')).toBeNull();
+    expect(useProjectStore().getSessionId('M:/beta')).toBe('beta');
+    expect(useWorkspaceStore().loadedModList.map((item) => item.modRoot)).toEqual(['M:/beta']);
+  });
   it.each(['closed', 'cancelled', 'failed'])('cleans precisely the released sessions for %s', async (status) => {
     register('alpha');
     register('beta');

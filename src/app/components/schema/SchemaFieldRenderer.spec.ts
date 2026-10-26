@@ -132,9 +132,10 @@ describe('SchemaFieldRenderer smart mode', () => {
     await nextTick();
     expect(value.value).toBe(!enabled);
   });
-  it('rejects an untouched empty required input and focuses it', async () => {
+  it('flushes untouched required inputs for navigation and validates them for saving', async () => {
     const { inputs, value } = mountBoundField(fieldFixture('string', { required: true }), '');
-    await expect(inputs.commit()).rejects.toMatchObject({ action: 'commit-field-inputs' });
+    await inputs.commit();
+    await expect(inputs.commit(undefined, true)).rejects.toMatchObject({ action: 'commit-field-inputs' });
     expect(value.value).toBe('');
     expect(document.activeElement).toBe(wrapper!.get('input').element);
     await wrapper!.get('input').setValue('sample-id');

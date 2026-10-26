@@ -1,5 +1,6 @@
 .ui-code,
-.field-json-input .n-input__textarea-el {
+.field-json-input .n-input__textarea-el,
+.field-json-input .n-input__textarea-mirror {
   font-family: var(--font-mono);
 }
 .schema-field {

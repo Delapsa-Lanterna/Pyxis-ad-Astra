@@ -15,7 +15,20 @@ const api = vi.hoisted(() => ({
   resume: vi.fn(),
   close: vi.fn(),
   flush: vi.fn(),
+  readResume: vi.fn(),
+  acceptReleased: vi.fn(),
 }));
+vi.mock('@/app/composables/use-query-read-owner', async (original) => {
+  const actual = await original<typeof import('@/app/composables/use-query-read-owner')>();
+  return {
+    ...actual,
+    pauseQueryReads: () => {
+      const resume = actual.pauseQueryReads();
+      api.readResume.mockImplementation(resume);
+      return api.readResume;
+    },
+  };
+});
 vi.mock('@/windows/current.window', () => ({
   currentWindowLabel: () => 'close-fixture',
   listenCurrentWindowCloseRequest: async (handler: (...args: unknown[]) => unknown) => {
@@ -40,6 +53,7 @@ vi.mock('./use-window-close-state', () => ({
     requestClose: api.native,
     replyClose: api.reply,
     readyClose: api.ready,
+    acceptReleasedSessions: api.acceptReleased,
     flushSettings: api.flush,
     prepareDisplay: () => {
       api.prepare();
@@ -48,11 +62,13 @@ vi.mock('./use-window-close-state', () => ({
   }),
 }));
 import { useDirtyWindowCloseGuard } from './use-dirty-window-close-guard';
+import { useQueryReadOwner } from './use-query-read-owner';
 const intent = (phase: WindowCloseIntent['phase']): WindowCloseIntent => ({
   operationId: 7,
   phase,
   scope: { kind: 'window' },
   onlyIfClean: false,
+  releasedSessions: [],
 });
 async function setup(dirty = ref(false), flushSettings = async () => {}) {
   let guard!: ReturnType<typeof useDirtyWindowCloseGuard>;
@@ -74,6 +90,34 @@ beforeEach(() => {
   api.resume.mockResolvedValue(undefined);
 });
 describe('window close preparation', () => {
+  it('delivers queued identity reads after a cancelled close resumes queries', async () => {
+    const { guard, wrapper } = await setup();
+    const ready = vi.fn();
+    const consumer = mount({
+      setup() {
+        const owner = useQueryReadOwner();
+        api.resume.mockImplementation(async () => {
+          await owner.consume('identity', { id: 'renamed' }, () => 'renamed', { ready });
+        });
+        return () => null;
+      },
+    });
+    for (const phase of ['hold', 'prepare', 'confirm', 'resume'] as const) await api.listener(intent(phase));
+    expect(ready).toHaveBeenCalledExactlyOnceWith('renamed');
+    consumer.unmount();
+    guard.dispose();
+    wrapper.unmount();
+  });
+  it('hands released sessions to display cleanup before resuming reads', async () => {
+    const { guard, wrapper } = await setup();
+    for (const phase of ['hold', 'prepare'] as const) await api.listener(intent(phase));
+    await api.listener({ ...intent('resume'), releasedSessions: ['released-fixture'] });
+    expect(api.acceptReleased).toHaveBeenCalledExactlyOnceWith(['released-fixture']);
+    expect(api.acceptReleased.mock.invocationCallOrder[0]).toBeLessThan(api.readResume.mock.invocationCallOrder[0]!);
+    expect(api.readResume.mock.invocationCallOrder[0]).toBeLessThan(api.resume.mock.invocationCallOrder[0]!);
+    guard.dispose();
+    wrapper.unmount();
+  });
   it('waits for executing actions and saves before capturing the latest dirty content', async () => {
     const dirty = ref(false),
       saving = ref(true);

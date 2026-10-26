@@ -20,6 +20,7 @@ struct Progress {
     destroying: BTreeSet<String>,
     destroyed: BTreeSet<String>,
     result: Option<CloseResult>,
+    released_sessions: Vec<String>,
 }
 impl Operation {
     fn state(&self) -> AppResult<std::sync::MutexGuard<'_, Progress>> {
@@ -151,6 +152,7 @@ fn phase(
                     operation_id: id,
                     phase,
                     scope: operation.scope.clone(),
+                    released_sessions: operation.state()?.released_sessions.clone(),
                 },
             )?;
         } else {
@@ -211,13 +213,13 @@ fn execute_close(
         session_ids.sort();
         session_ids.dedup();
     }
-    let (id, operation, execute, parent) = {
+    let (id, operation, execute, parent) = loop {
         let mut operations = OPERATIONS.lock().map_err(|_| poisoned())?;
         if let Some((id, operation)) = operations
             .iter()
             .find(|(_, op)| op.owner == owner && op.scope == scope)
         {
-            (*id, operation.clone(), false, None)
+            break (*id, operation.clone(), false, None);
         } else {
             let id = SEQUENCE.fetch_add(1, Ordering::Relaxed) + 1;
             let parent = if only_if_clean {
@@ -235,7 +237,18 @@ fn execute_close(
                 None
             };
             let labels =
-                windows::hold_close(id, owner, &scope, parent.as_ref().map(|(id, _)| *id))?;
+                match windows::hold_close(id, owner, &scope, parent.as_ref().map(|(id, _)| *id))? {
+                    Ok(labels) => labels,
+                    Err(blocking) => {
+                        let blocking = operations[&blocking].clone();
+                        drop(operations);
+                        let mut state = blocking.state()?;
+                        while state.result.is_none() {
+                            state = blocking.changed.wait(state).map_err(|_| poisoned())?;
+                        }
+                        continue;
+                    }
+                };
             if let Some((_, parent)) = &parent {
                 parent.state()?.destroying.insert(owner.into());
             }
@@ -248,7 +261,7 @@ fn execute_close(
                 changed: Condvar::new(),
             });
             operations.insert(id, operation.clone());
-            (id, operation, true, parent)
+            break (id, operation, true, parent);
         }
     };
     if !execute {
@@ -279,12 +292,6 @@ fn execute_close(
         {
             return Ok(());
         }
-        if operation.scope == CloseScope::Application
-            && !phase(app, id, &operation, ClosePhase::Flush, &main)?
-        {
-            return Ok(());
-        }
-        confirmed = true;
         for label in operation
             .labels
             .iter()
@@ -297,8 +304,20 @@ fn execute_close(
                 ClosePhase::Confirm,
                 std::slice::from_ref(label),
             )? {
-                break;
+                return Ok(());
             }
+        }
+        if operation.scope == CloseScope::Application
+            && !phase(app, id, &operation, ClosePhase::Flush, &main)?
+        {
+            return Ok(());
+        }
+        confirmed = true;
+        for label in operation
+            .labels
+            .iter()
+            .filter(|label| label.as_str() != "main")
+        {
             destroy(app, &operation, label)?;
         }
         if !operation.state()?.cancelled {
@@ -318,6 +337,7 @@ fn execute_close(
                     continue;
                 }
                 project_session::release_project_session(session.clone())?;
+                operation.state()?.released_sessions.push(session.clone());
                 result.released_sessions.push(session);
             }
             if executed.is_ok()

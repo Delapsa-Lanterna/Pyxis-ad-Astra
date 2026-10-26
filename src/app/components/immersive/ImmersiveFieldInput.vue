@@ -14,6 +14,7 @@
       @update:value="update($event ?? '')"
     />
     <n-input
+      class="ui-field-autosize immersive-field-autosize"
       v-else
       ref="input"
       :value="raw"

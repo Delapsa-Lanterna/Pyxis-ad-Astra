@@ -73,6 +73,7 @@ export interface WindowCloseIntent {
   operationId: number;
   phase: ClosePhase;
   scope: CloseScope;
+  releasedSessions: string[];
 }
 export interface CloseResult {
   status: 'closed' | 'cancelled' | 'failed';

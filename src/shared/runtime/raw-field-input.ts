@@ -16,9 +16,16 @@ export function useRawFieldInput<T>(options: {
   forceCommit?: () => boolean;
 }) {
   const raw = ref(options.text());
-  const baseline = ref(raw.value);
+  const baseline = ref<string | undefined>(raw.value);
+  watch(
+    () => Boolean(options.forceCommit?.()),
+    (force) => {
+      if (force) baseline.value = undefined;
+    },
+    { immediate: true, flush: 'sync' },
+  );
   const invalid = ref(false);
-  const dirty = computed(() => raw.value !== baseline.value || Boolean(options.forceCommit?.()));
+  const dirty = computed(() => raw.value !== baseline.value);
 
   function update(text: string) {
     raw.value = text;
@@ -40,9 +47,9 @@ export function useRawFieldInput<T>(options: {
       invalid.value = true;
       return converted.message;
     }
-    options.apply(converted);
     baseline.value = raw.value;
     invalid.value = false;
+    options.apply(converted);
     if (options.canonicalize)
       void nextTick(() => {
         if (!dirty.value) synchronize();

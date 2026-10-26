@@ -77,6 +77,7 @@ async function openWindow(label: string) {
         closing = provideWindowCloseState({
           replyClose: reply,
           readyClose: async () => {},
+          acceptReleasedSessions: () => {},
           requestClose: async () => ({ status: 'closed', destroyedWindows: [], releasedSessions: [], diagnostic: null }),
           prepareDisplay: () => async () => {},
           flushSettings: async () => {},
@@ -92,7 +93,13 @@ async function openWindow(label: string) {
 }
 
 async function phase(label: string, step: WindowCloseIntent['phase'], operationId = 1) {
-  await emitTo(label, WINDOW_EVENTS.windowCloseIntent, { operationId, phase: step, onlyIfClean: false, scope: { kind: 'window' } });
+  await emitTo(label, WINDOW_EVENTS.windowCloseIntent, {
+    operationId,
+    phase: step,
+    onlyIfClean: false,
+    scope: { kind: 'window' },
+    releasedSessions: [],
+  });
   await flushPromises();
 }
 

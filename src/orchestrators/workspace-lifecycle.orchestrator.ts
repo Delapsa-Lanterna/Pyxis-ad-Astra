@@ -22,9 +22,14 @@ export interface WorkspaceCloseTarget {
 
 async function closeTargets(targets: ProjectManifest[], requestClose: RequestClose) {
   const result = await requestClose({ kind: 'sessions', sessionIds: targets.map((target) => target.sessionId) });
-  for (const target of targets) if (result.releasedSessions.includes(target.sessionId)) removeClosedMod(target.modRoot);
+  acceptReleasedSessions(result.releasedSessions);
   if (result.diagnostic) throw result.diagnostic;
   return result.status === 'closed';
+}
+
+export function acceptReleasedSessions(sessionIds: string[]) {
+  for (const target of [...useProjectStore().manifests.values()])
+    if (sessionIds.includes(target.sessionId)) removeClosedMod(target.modRoot);
 }
 
 export function captureWorkspaceCloseTarget(): WorkspaceCloseTarget {

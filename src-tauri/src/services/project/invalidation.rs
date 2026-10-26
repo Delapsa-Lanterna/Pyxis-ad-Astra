@@ -199,6 +199,18 @@ fn invalidate_files(
     for update in updates {
         update.apply(session);
     }
+    if files
+        .iter()
+        .any(|file| path_affects_target(&file.path, super::model::MISSION_LIST_REL_PATH))
+    {
+        let table = session
+            .csv_tables
+            .get_mut(super::model::MISSION_LIST_TABLE_KEY)
+            .expect("registered mission table");
+        table.rows = None;
+        table.row_index = None;
+        table.saved_text = None;
+    }
     if let Some(mod_info) = mod_info {
         session.manifest.mod_info = mod_info;
     }
@@ -749,6 +761,83 @@ pub(super) fn refresh_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mission_index_changes_refresh_cached_lists_and_counts() {
+        let root = crate::testutil::temp_dir("mission_cached_index");
+        let path = root.join(super::super::model::MISSION_LIST_REL_PATH);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        crate::io::write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
+        let mut trace = super::super::PerformanceTrace::new("project.openSession");
+        let mut session =
+            super::super::session::build_project_session(&root, None, &mut trace).unwrap();
+        let definition = entity_definitions::entity_definition(EntityKind::Mission).unwrap();
+        for (before, after, ids) in [
+            (
+                "mission\r\nfirst\r\n",
+                "mission\r\nfirst\r\nsecond\r\n",
+                vec!["first", "second"],
+            ),
+            (
+                "mission\r\nfirst\r\nsecond\r\n",
+                "mission\r\nrenamed\r\nsecond\r\n",
+                vec!["renamed", "second"],
+            ),
+            (
+                "mission\r\nrenamed\r\nsecond\r\n",
+                "mission\r\nsecond\r\n",
+                vec!["second"],
+            ),
+        ] {
+            (definition.prepare)(&mut session).unwrap();
+            assert!(
+                session.csv_tables[super::super::model::MISSION_LIST_TABLE_KEY]
+                    .rows
+                    .is_some()
+            );
+            crate::io::write_utf8_no_bom(&path, after).unwrap();
+            invalidate_session_changes(
+                &mut session,
+                &[file_change(path.clone(), Some(before), Some(after))],
+            )
+            .unwrap();
+            (definition.prepare)(&mut session).unwrap();
+            let listed = (definition.list)(&mut session).unwrap();
+            assert_eq!(
+                listed
+                    .iter()
+                    .map(|item| item.id.as_str())
+                    .collect::<Vec<_>>(),
+                ids
+            );
+            assert_eq!(session.manifest.entity_summaries.missions, listed.len());
+        }
+        crate::io::write_utf8_no_bom(&path, "mission\r\nexternal\r\n").unwrap();
+        refresh_sources(
+            &mut session,
+            &[InvalidatedResourceScope {
+                source: ResourceSource::Mod,
+                rel_path: "data/missions".into(),
+            }],
+        )
+        .unwrap();
+        (definition.prepare)(&mut session).unwrap();
+        assert_eq!((definition.list)(&mut session).unwrap()[0].id, "external");
+        assert_eq!(session.manifest.entity_summaries.missions, 1);
+        crate::io::write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
+        invalidate_session_changes(
+            &mut session,
+            &[file_change(
+                path.clone(),
+                Some("mission\r\nexternal\r\n"),
+                Some("mission\r\nfirst\r\n"),
+            )],
+        )
+        .unwrap();
+        (definition.prepare)(&mut session).unwrap();
+        assert_eq!((definition.list)(&mut session).unwrap()[0].id, "first");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn config_source_invalidation() {
