@@ -18,6 +18,7 @@ import { jsonEntityFixture } from '@/test/fixtures/json-editor';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
+import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
 import * as miscConfig from '@/domain/json-editor/misc-config-files';
 import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigEntityPayload } from '@/shared/types';
@@ -740,6 +741,79 @@ describe('JSON common workspace and form', () => {
       expect(await document.undo()).toBe(true);
     },
   );
+  it.each(
+    (['skins', 'variants'] as const).flatMap((page) =>
+      (['discard', 'delete'] as const).flatMap((action) => [false, true].map((empty) => ({ page, action, empty }))),
+    ),
+  )('$page releases an externally deleted source through $action with empty=$empty', async ({ page, action, empty }) => {
+    const kind = page === 'skins' ? 'skin' : 'variant';
+    if (empty) entities.delete(key('s1', kind, 'b'));
+    await mountPage(page);
+    if (!empty) await nameInput().setValue('Local');
+    const editor = useJsonEditorStore().active!;
+    const prepare = mocks.prepare.getMockImplementation()!;
+    entities.delete(key('s1', kind, 'a'));
+    mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) =>
+      request.origin.kind === 'entity' && request.origin.target.id === 'a'
+        ? { request, baseVersions: [], currentSources: {}, resourceRefs: {}, missingPaths: ['source.json'] }
+        : prepare(request),
+    );
+    invalidateQueryCacheByProject('s1', {
+      ...savedWriteFixture().invalidation,
+      queryScopes: [{ kind: 'entity-detail', entity: { kind, id: 'a' }, table: null, source: null, resource: null }],
+    });
+    await flushPromises();
+    expect(wrapper!.text()).toContain('来源不完整');
+    mocks.feedback.confirmWarning.mockImplementation(() => {});
+    const error = new Error('list unavailable');
+    mocks.list.mockRejectedValueOnce(error);
+    await wrapper!
+      .findAll('button')
+      .find((button) => button.text() === (action === 'discard' ? '放弃编辑并继续' : '删除'))!
+      .trigger('click');
+    await flushPromises();
+    if (action === 'discard') {
+      expect(mocks.feedback.confirmWarning).toHaveBeenCalledOnce();
+      mocks.feedback.confirmWarning.mock.lastCall![0].onCancel!();
+      await flushPromises();
+      expect(useJsonEditorStore().active).toBe(editor);
+      expect(editor.dirty.value).toBe(!empty);
+      await wrapper!
+        .findAll('button')
+        .find((button) => button.text() === '放弃编辑并继续')!
+        .trigger('click');
+      await flushPromises();
+      mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    } else {
+      expect(mocks.feedback.confirmDanger.mock.lastCall![0].content).toContain('源文件已不存在');
+      await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
+      expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
+    }
+    await flushPromises();
+    expect(useJsonEditorStore().active).toBe(editor);
+    expect(wrapper!.find('[data-entity-id="a"]').exists()).toBe(true);
+    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '加载' + JSON_DOCUMENT_DEFINITIONS[page].label + '失败');
+    mocks.feedback.error.mockClear();
+    await wrapper!
+      .findAll('button')
+      .find((button) => button.text() === (action === 'discard' ? '放弃编辑并继续' : '删除'))!
+      .trigger('click');
+    await flushPromises();
+    if (action === 'discard') mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    else await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
+    await flushPromises();
+    expect(wrapper!.find('[data-entity-id="a"]').exists()).toBe(false);
+    expect(
+      useJsonEditorStore()
+        .documentStates('s1')
+        .map((document) => document.target.value!.id),
+    ).toEqual(empty ? [] : ['b']);
+    expect(useJsonEditorStore().active?.target.value?.id ?? null).toBe(empty ? null : 'b');
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.complete).not.toHaveBeenCalled();
+    expect(mocks.feedback.error).not.toHaveBeenCalled();
+    if (action === 'delete') expect(mocks.feedback.success).toHaveBeenCalledOnce();
+  });
   it.each(pages.filter((page) => page !== 'mod-info'))(
     '%s creates and selects a document, then deletes it through one confirmation',
     async (page) => {

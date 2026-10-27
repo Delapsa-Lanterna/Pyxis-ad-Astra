@@ -56,8 +56,12 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     sessionId,
     label: definition.label,
     discard: async (id) => {
+      if (!(await load()) || selectedId.value !== id) return false;
+      activateRecord();
+      selectedId.value = null;
       editors.releaseEntity(sessionId.value!, kind, id);
-      await load();
+      selection.reconcile(items.value.map((item) => item.key));
+      return true;
     },
   });
   const documents = computed(() => editors.documentStates(sessionId.value!).filter((document) => document.target.value?.kind === kind));
@@ -279,6 +283,12 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     });
   }
   async function remove(record: JsonDocumentRecord, deleteSource: boolean) {
+    if (
+      (kind === 'variant' || kind === 'skin') &&
+      current.value?.sourceMissing.value &&
+      current.value.target.value?.id === record.target.id
+    )
+      return selection.discardMissing(record.target.id);
     return selection.mutate({
       sessionId: record.target.sessionId,
       modRoot: record.target.modRoot,

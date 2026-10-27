@@ -22,7 +22,7 @@ export function useJsonListSelection(options: {
   modRoot: Readonly<Ref<string | null>>;
   sessionId: Readonly<Ref<string | null>>;
   label: string;
-  discard?: (id: string) => Promise<void>;
+  discard?: (id: string) => Promise<boolean>;
 }) {
   const selectedId = options.selectedId;
   const deletedTarget = ref(false);
@@ -85,7 +85,7 @@ export function useJsonListSelection(options: {
       confirmations.add(finish);
       feedback.confirmWarning({
         title: `交接${options.label}编辑？`,
-        content: `当前${options.label}有未保存修改，确认放弃并继续？`,
+        content: `确认放弃当前${options.label}编辑并继续？`,
         actionText: '放弃修改并继续',
         onConfirm: () => {
           finish(true);
@@ -95,6 +95,32 @@ export function useJsonListSelection(options: {
         },
       });
     });
+  }
+
+  async function discardTarget(id: string, confirm: boolean): Promise<boolean> {
+    const captured = key.value;
+    const current = () => !disposed && captured === key.value && id === selectedId.value;
+    try {
+      if (!current()) return false;
+      if (!(await prepare())) {
+        if (current()) feedback.info('当前编辑目标正在保存或交接，请稍后重试');
+        return false;
+      }
+      if (!current() || (confirm && !(await confirmDiscard())) || !current()) return false;
+      locked.value = true;
+      try {
+        if (options.discard && !(await options.discard(id))) return false;
+        if (disposed || captured !== key.value) return false;
+        selectedId.value = ids[0] ?? null;
+        deletedTarget.value = false;
+        return true;
+      } finally {
+        if (!disposed && captured === key.value) locked.value = false;
+      }
+    } catch (error) {
+      if (current()) feedback.error(error, `放弃${options.label}编辑失败`);
+      return false;
+    }
   }
 
   async function select(id: string | null) {
@@ -239,13 +265,12 @@ export function useJsonListSelection(options: {
     select,
     mutate,
     discardDeleted: async () => {
-      const captured = key.value;
-      const id = selectedId.value!;
-      if ((await prepare()) && (await confirmDiscard()) && !disposed && captured === key.value && id === selectedId.value) {
-        await options.discard?.(id);
-        selectedId.value = ids[0] ?? null;
-        deletedTarget.value = false;
-      }
+      await discardTarget(selectedId.value!, true);
+    },
+    discardMissing: async (id: string) => {
+      const discarded = await discardTarget(id, false);
+      if (discarded) feedback.success(`${options.label} "${id}" 已移除，源文件已不存在`);
+      return discarded;
     },
   };
 }

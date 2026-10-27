@@ -13,7 +13,7 @@ import type { AppFeedback, CommittedWriteEvent } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   complete: vi.fn(),
   retry: vi.fn(),
-  feedback: { success: vi.fn(), error: vi.fn(), confirmWarning: vi.fn<AppFeedback['confirmWarning']>() },
+  feedback: { success: vi.fn(), info: vi.fn(), error: vi.fn(), confirmWarning: vi.fn<AppFeedback['confirmWarning']>() },
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
 vi.mock('@/orchestrators/json-save.orchestrator', () => ({ completeJsonSave: mocks.complete }));
@@ -29,14 +29,14 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 
-function harness() {
+function harness(discard?: (id: string) => Promise<boolean>) {
   const modRoot = ref<string | null>('M:/mod');
   const sessionId = ref<string | null>('s1');
   const dirty = ref(false);
   let selection!: ReturnType<typeof useJsonListSelection>;
   wrapper = mount({
     setup() {
-      selection = useJsonListSelection({ selectedId: ref(null), modRoot, sessionId, label: '战役' });
+      selection = useJsonListSelection({ selectedId: ref(null), modRoot, sessionId, label: '战役', discard });
       return () => null;
     },
   });
@@ -113,6 +113,89 @@ describe('config list selection and action boundaries', () => {
     await confirmed;
     expect(selection.selectedId.value).toBe('b');
     expect(selection.deletedTarget.value).toBe(false);
+  });
+
+  it('reports preparation failures while discarding a deleted target', async () => {
+    const { selection, dirty } = harness();
+    dirty.value = true;
+    selection.reconcile(['b']);
+    const error = new Error('sync failed');
+    mocks.retry.mockRejectedValueOnce(error);
+    await selection.discardDeleted();
+    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '放弃战役编辑失败');
+    expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
+  });
+
+  it('cleans a missing target without opening a second confirmation', async () => {
+    const { selection, dirty } = harness();
+    dirty.value = true;
+    selection.reconcile(['b']);
+    expect(await selection.discardMissing('a')).toBe(true);
+    expect(selection.selectedId.value).toBe('b');
+    expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
+    expect(mocks.feedback.success).toHaveBeenCalledExactlyOnceWith('战役 "a" 已移除，源文件已不存在');
+  });
+
+  it.each(['discard', 'delete'] as const)('reports a failed save wait during %s', async (action) => {
+    const { selection } = harness();
+    useSaveCommandStore().registerSaveSession({
+      modRoot: ref('M:/mod'),
+      targetKey: ref('saving'),
+      saving: ref(true),
+      waitForSave: async () => false,
+    });
+    await (action === 'discard' ? selection.discardDeleted() : selection.discardMissing('a'));
+    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('当前编辑目标正在保存或交接，请稍后重试');
+    expect(selection.selectedId.value).toBe('a');
+    expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
+    expect(mocks.feedback.success).not.toHaveBeenCalled();
+  });
+
+  it.each(['discard', 'delete'] as const)('reports cleanup failure during %s and retains the target', async (action) => {
+    const error = new Error('cleanup failed');
+    const discard = vi.fn(async () => {
+      throw error;
+    });
+    const { selection } = harness(discard);
+    const pending = action === 'discard' ? selection.discardDeleted() : selection.discardMissing('a');
+    await flushPromises();
+    if (action === 'discard') mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    await pending;
+    expect(discard).toHaveBeenCalledExactlyOnceWith('a');
+    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '放弃战役编辑失败');
+    expect(selection.selectedId.value).toBe('a');
+    expect(selection.locked.value).toBe(false);
+  });
+
+  it('reports rejected input before opening a discard confirmation', async () => {
+    const { selection } = harness();
+    useJsonEditorStore().active!.inputs.register({
+      key: 'name',
+      label: 'Name',
+      dirty: ref(true),
+      focus: vi.fn(),
+      cancel: vi.fn(),
+      commit: () => 'Invalid',
+    });
+    await selection.discardDeleted();
+    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ action: 'commit-field-inputs' }),
+      '放弃战役编辑失败',
+    );
+    expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
+    expect(selection.selectedId.value).toBe('a');
+  });
+
+  it('keeps a newer selection when the old discard confirmation is accepted', async () => {
+    const discard = vi.fn(async () => true);
+    const { selection } = harness(discard);
+    const pending = selection.discardDeleted();
+    await flushPromises();
+    await selection.select('b');
+    mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    await pending;
+    expect(discard).not.toHaveBeenCalled();
+    expect(selection.selectedId.value).toBe('b');
   });
 
   it('retains the previous draft and locks through receipt acceptance', async () => {

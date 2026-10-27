@@ -97,6 +97,7 @@ function confirmDelete() {
   const record = props.document.record.value;
   const removeSource = ref(false);
   const indexed = props.definition.kind === 'faction' || props.definition.kind === 'mission';
+  const missingFileSource = Boolean(props.definition.file && props.document.sourceMissing.value);
   feedback.confirmDanger({
     title: '删除' + props.definition.label,
     content: indexed
@@ -109,7 +110,9 @@ function confirmDelete() {
               removeSource.value = value;
             },
           })
-      : '确定要删除' + props.definition.label + ' "' + record.target.id + '"，并放弃该文档的草稿与历史吗？',
+      : missingFileSource
+        ? '源文件已不存在，确定放弃' + props.definition.label + ' "' + record.target.id + '" 的草稿并移除当前编辑目标吗？'
+        : '确定要删除' + props.definition.label + ' "' + record.target.id + '"，并放弃该文档的草稿与历史吗？',
     actionText: '删除',
     onConfirm: async () => {
       await props.remove(record, removeSource.value);
