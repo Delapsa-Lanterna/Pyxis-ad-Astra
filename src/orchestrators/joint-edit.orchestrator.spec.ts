@@ -59,7 +59,7 @@ describe('joint declared editing scope confirmation', () => {
     associated.referencedBy = ['one', 'two'];
     const draft: JointEditDraft = { baseline: snapshot, values: jointFixtureValues(snapshot) };
     mocks.prepare.mockResolvedValue({ snapshot, values: draft.values, conflicts: [] });
-    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: snapshot });
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
     await submitJointEdit(draft, feedback, async () => []);
     expect(feedback.choose).not.toHaveBeenCalled();
     expect(mocks.save.mock.calls[0]![0].values).not.toHaveProperty('system');
@@ -72,7 +72,7 @@ describe('joint declared editing scope confirmation', () => {
     vi.mocked(feedback.choose).mockResolvedValueOnce(null);
     expect(await submitJointEdit(draft, feedback, async () => [], undefined, undefined, ['spec'])).toBeNull();
     expect(mocks.save).not.toHaveBeenCalled();
-    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: snapshot });
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
     await submitJointEdit(draft, feedback, async () => [], undefined, undefined, ['spec']);
     expect(mocks.save.mock.calls[0]![0].createOverrides).toEqual(['spec']);
   });

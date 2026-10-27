@@ -1,3 +1,4 @@
+import { projectChangeFixture } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, computed } from 'vue';
 import { flushPromises } from '@vue/test-utils';
@@ -5,7 +6,7 @@ import type { WeaponFirePreviewData, WeaponFirePreviewSource, WindowContextFor, 
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useWeaponFirePreviewWindowViewModel } from './use-weapon-fire-preview-window-view-model';
-import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
+
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   error: vi.fn(),
@@ -24,7 +25,8 @@ vi.mock('@/services/weapon-fire-preview.service', () => ({
   queryWeaponFirePreviewData: mocks.query,
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await import('@/test/unit/project-changes')),
   listenEntityIdentityApplied: mocks.listenIdentity,
   listenProjectSessionInvalidated: vi.fn(async () => vi.fn()),
   invalidateProjectionCaches: vi.fn(),
@@ -74,7 +76,7 @@ async function open() {
   return vm;
 }
 function invalidate() {
-  invalidateQueryCacheByProject('s', {
+  projectChangeFixture('s', {
     paths: [],
     tables: [],
     entities: [{ kind: 'weapon', id: 'w' }],

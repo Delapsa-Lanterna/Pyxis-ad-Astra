@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectManifest, ProjectSessionInvalidationResult, WriteResult, CommittedSessionUpdate } from '@/shared/types';
+import type { ProjectManifest, ProjectSessionInvalidationResult, WriteResult, CommittedSessionUpdate, ProjectChange } from '@/shared/types';
 import type { ProjectSessionInvalidatedEvent, CommittedWriteEvent } from '@/windows/window.events';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
@@ -42,7 +42,10 @@ import {
   listenCommittedWrites,
   completeSavedWrite,
   listenEntityIdentityApplied,
-  listenProjectSessionInvalidated,
+  listenProjectChanges,
+  subscribeProjectChanges,
+  releaseProjectSession,
+  pauseProjectDisplay,
   refreshProjectSourcePaths,
   invalidateProjectionCaches,
 } from './project-sync.orchestrator';
@@ -126,6 +129,102 @@ beforeEach(() => {
   useProjectStore().registerProjectManifest(manifestFixture(root, 's1'));
 });
 afterEach(() => markProjectionReady('s1'));
+
+describe('one business change delivery', () => {
+  it('updates child windows without a local manifest and retains distinct out-of-order change scopes', async () => {
+    useProjectStore().removeProjectManifest(root);
+    const receive = vi.fn();
+    const stop = await listenProjectChanges(receive);
+    const late = receipt(1);
+    if (late.sessionUpdates[0]!.status === 'ready') late.sessionUpdates[0]!.projection.invalidation.paths = ['other.txt'];
+    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt(2) });
+    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: late });
+    expect(receive).toHaveBeenCalledTimes(2);
+    expect(receive.mock.calls.map(([change]) => change.event.result.commitId)).toEqual([2, 1]);
+    expect(mocks.invalidateQueryCacheByProject.mock.calls.map(([, invalidation]) => invalidation.paths)).toEqual([
+      ['notes.txt'],
+      ['other.txt'],
+    ]);
+    stop();
+  });
+  it('delivers local acceptance once before broadcast and ignores its echo and retry', async () => {
+    const receive = vi.fn();
+    const stop = await listenProjectChanges(receive);
+    const result = receipt();
+    mocks.emitWindowEvent.mockRejectedValueOnce(new Error('broadcast'));
+    await expect(publishCommittedWrite(root, result, 's1')).rejects.toThrow('broadcast');
+    expect(receive).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ kind: 'commit', event: expect.objectContaining({ result }) }),
+    );
+    await retryPendingSessionSyncs('s1');
+    await mocks.handler!({ originWindowLabel: 'main', sessionId: 's1', modRoot: root, reason: 'save', result });
+    expect(receive).toHaveBeenCalledOnce();
+    expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
+    stop();
+  });
+  it('retries only failed consumers and preserves the order through identity acceptance', async () => {
+    const order: string[] = [];
+    const identityStop = await listenCommittedWrites(
+      async () => {
+        order.push('identity');
+      },
+      () => true,
+      'identity',
+    );
+    const first = vi.fn(() => {
+      order.push('first');
+    });
+    const second = vi.fn().mockImplementationOnce(() => {
+      throw new Error('consumer');
+    });
+    const stopFirst = await listenProjectChanges(first),
+      stopSecond = await listenProjectChanges(second);
+    const event: CommittedWriteEvent = { originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'undo', result: receipt() };
+    await expect(mocks.handler!(event)).rejects.toThrow('Project change delivery');
+    await mocks.handler!(event);
+    expect(order).toEqual(['identity', 'first']);
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledTimes(2);
+    identityStop();
+    stopFirst();
+    stopSecond();
+  });
+  it('shares listeners, releases them before registration finishes and continues remaining subscribers', async () => {
+    const receive = vi.fn();
+    const stopEarly = subscribeProjectChanges(vi.fn()),
+      stop = await listenProjectChanges(receive);
+    stopEarly();
+    await mocks.refreshHandler!({ ...projection(1), originWindowLabel: 'peer' });
+    await mocks.refreshHandler!({ ...projection(1), originWindowLabel: 'peer' });
+    expect(receive).toHaveBeenCalledOnce();
+    stop();
+    expect(mocks.handler).toBeNull();
+    expect(mocks.refreshHandler).toBeNull();
+  });
+  it('deduplicates projections and delivers closure immediately while display updates are paused', async () => {
+    const receive = vi.fn();
+    const stop = await listenProjectChanges(receive);
+    await mocks.refreshHandler!({ ...projection(3), originWindowLabel: 'peer' });
+    await mocks.refreshHandler!({ ...projection(3), originWindowLabel: 'peer' });
+    expect(receive).toHaveBeenCalledOnce();
+    const resume = pauseProjectDisplay();
+    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'redo', result: receipt(4) });
+    releaseProjectSession('s1');
+    expect(receive.mock.lastCall![0]).toEqual({ kind: 'closed', sessionId: 's1' });
+    await resume();
+    expect(receive).toHaveBeenCalledTimes(2);
+    stop();
+  });
+  it('delivers a source refresh once in the originating window', async () => {
+    const receive = vi.fn<(change: ProjectChange) => void>();
+    const stop = await listenProjectChanges(receive);
+    mocks.refreshProjectSources.mockResolvedValueOnce(projection(5));
+    await refreshProjectSourcePaths('s1', root, [root + '/notes.txt']);
+    await mocks.refreshHandler!({ ...projection(5), originWindowLabel: 'main' });
+    expect(receive).toHaveBeenCalledExactlyOnceWith({ kind: 'refresh', projection: projection(5) });
+    stop();
+  });
+});
 
 describe('committed write synchronization', () => {
   it('projects replay identity through the shared committed-write subscription', async () => {
@@ -362,7 +461,9 @@ describe('committed write synchronization', () => {
 describe('project source refresh', () => {
   it('accepts source and save notifications through one projection subscription and releases both listeners', async () => {
     const receive = vi.fn();
-    const stop = await listenProjectSessionInvalidated(receive);
+    const stop = await listenProjectChanges((change) => {
+      if (change.kind !== 'closed') receive(change.projection);
+    });
     await mocks.refreshHandler!({ ...projection(3), originWindowLabel: 'peer' });
     const result = receipt(4);
     await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result });

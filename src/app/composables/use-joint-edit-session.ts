@@ -2,16 +2,17 @@ import { computed, onScopeDispose } from 'vue';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useJointEditActions } from '@/app/composables/use-joint-edit-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { completeSavedWrite, listenProjectSessionInvalidated } from '@/orchestrators/project-sync.orchestrator';
+import { completeSavedWrite, subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { jointWriteTargets, rebaseJointDraft, type JointIdentitySnapshot } from '@/domain/joint-edit';
-import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult } from '@/shared/types';
+import type { JointEditRoot, JointEditSnapshot, JointValue, JointEditWriteResult, WriteContent } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryJointEdit } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 
 import { normalizeFsPath } from '@/shared/lib/paths';
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
 
 export function useJointEditSession(
   options: {
@@ -59,7 +60,7 @@ export function useJointEditSession(
         overrideIntent,
       );
       if (!result) return;
-      const snapshot = result.refreshedEntity;
+      const snapshot = result.content?.value;
       return {
         target: snapshot.root,
         value: valuesOf(snapshot),
@@ -121,26 +122,32 @@ export function useJointEditSession(
       },
     },
   });
-  const stopInvalidation = subscribeQueryInvalidations((event) => {
+  const stopChanges = subscribeProjectChanges((change) => {
     const root = session.currentTarget.value;
-    if (root && event.sessionId === root.sessionId && event.scope === 'session') session.clearTarget();
-  });
-  let released = false;
-  let stopProjection: (() => void) | null = null;
-  void listenProjectSessionInvalidated(async (event) => {
-    const root = session.currentTarget.value;
-    if (!root || event.manifest.sessionId !== root.sessionId || normalizeFsPath(event.manifest.modRoot) !== normalizeFsPath(root.modRoot))
+    if (!root || projectChangeSessionId(change) !== root.sessionId) return;
+    if (change.kind === 'closed') {
+      session.clearTarget();
       return;
-    if (event.invalidation.paths.length) {
-      if (options.onProjection) await options.onProjection(root);
-      else await session.refreshTarget(root);
     }
-  })
-    .then((stop) => {
-      if (released) stop();
-      else stopProjection = stop;
-    })
-    .catch((error) => feedback.error(error, '监听联合编辑更新失败'));
+    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(root.modRoot)) return;
+    const receipt = change.kind === 'commit' ? change.event.result : null;
+    if (receipt && !session.isTargetCommitCurrent(root, receipt.commitId)) return;
+    const content = receipt?.content as WriteContent<JointEditSnapshot> | null;
+    if (content?.target.kind === 'joint' && stableDeepEqual(content.target.root, root)) {
+      const snapshot = cloneQuerySnapshot(content.value);
+      session.applyExternalForTarget({
+        target: snapshot.root,
+        value: valuesOf(snapshot),
+        baseVersions: receipt!.baseVersions,
+        commitId: receipt!.commitId,
+        meta: { snapshot, receipt: null, previous: null },
+      });
+    } else if (change.projection.invalidation.paths.length || change.projection.invalidation.session) {
+      void (options.onProjection ? options.onProjection(root) : session.refreshTarget(root)).catch((error) =>
+        feedback.error(error, '读取联合编辑更新失败'),
+      );
+    }
+  });
   async function open(root: JointEditRoot) {
     let opened = false;
     await reads.consume('open', root, (signal) => actions.open(root, signal), {
@@ -158,9 +165,7 @@ export function useJointEditSession(
     return opened;
   }
   onScopeDispose(() => {
-    released = true;
-    stopProjection?.();
-    stopInvalidation();
+    stopChanges();
     unregister();
     session.dispose();
     void releaseHandoff?.().catch((error) => feedback.error(error, '释放联合编辑交接失败'));

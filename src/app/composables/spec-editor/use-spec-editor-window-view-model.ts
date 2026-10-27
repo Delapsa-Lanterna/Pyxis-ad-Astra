@@ -1,8 +1,9 @@
 import { hasEntityInvalidation } from '@/services/entity-query.service';
 import {
   refreshProjectSourcePaths,
-  invalidateProjectionCaches,
-  listenProjectSessionInvalidated,
+  publishCommittedWrite,
+  listenProjectChanges,
+  projectChangeSessionId,
   listenEntityIdentityApplied,
 } from '@/orchestrators/project-sync.orchestrator';
 import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';
@@ -12,25 +13,23 @@ import { computed, shallowRef, watch } from 'vue';
 import { createSpecProblems } from './use-spec-problems';
 import type { UnlistenFn } from '@/windows/tauri.events';
 import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
-import type { SpecEditorKind, RowData, WriteResult, SpecEditorData } from '@/shared/types/index';
+import type { SpecEditorKind, RowData, WriteResult, SpecEditorData, ProjectChange } from '@/shared/types/index';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { deepClone } from '@/shared/lib/starsector/index';
 import { AppError, formatError } from '@/shared/lib/errors';
+import { requireRowData } from '@/shared/lib/row-data';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions, handoffTableVersions } from '@/domain/project/entity-versions';
-import { emitEditorSpecSaved, listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 
 import { reserveEntityIntent, retargetEntityWindow, releaseCommittedIdentityTargets } from '@/orchestrators/entity-identity.orchestrator';
 
-import type { EntityIdentityAppliedEvent, EditorSpecSavedEvent, ProjectSessionInvalidatedEvent } from '@/windows/window.events';
+import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { pickEditorSpecFile } from '@/shared/runtime/dialog.runtime';
 import { closeCurrentWindow } from '@/windows/current.window';
-import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
 
 type MissingSpecChoice = { action: 'create' } | { action: 'import'; data: RowData } | { action: 'cancel' };
 
@@ -95,7 +94,7 @@ export function useSpecEditorWindowViewModel(
           saveSpecEditorSpecByKind(target.sessionId, target.modRoot, submittedData.target, draft, options, versions),
         );
         if (!result) return;
-        const value = result.refreshedEntity!;
+        const value = result.content!.value;
         const savedTarget = result.identityChanges[0]!.after;
         return {
           target: { ...target, id: savedTarget.id },
@@ -151,14 +150,7 @@ export function useSpecEditorWindowViewModel(
       },
       synchronizeSaved: async (snapshot) => {
         const result = snapshot.meta.receipt!;
-        await emitEditorSpecSaved({
-          kind: snapshot.target.kind,
-          sessionId: snapshot.target.sessionId,
-          modRoot: snapshot.target.modRoot,
-          id: snapshot.target.id,
-          spec: snapshot.value,
-          writeResult: result,
-        });
+        await publishCommittedWrite(snapshot.target.modRoot, result, snapshot.target.sessionId);
       },
     });
   const problems = createSpecProblems(draftSession.inputs, () => definition.validate?.(draftSession.draftValue.value) ?? []);
@@ -192,11 +184,9 @@ export function useSpecEditorWindowViewModel(
   const loading = draftSession.loading;
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
   const errorText = shallowRef('');
-  let unlistenEditorSpecSaved: UnlistenFn | null = null;
+  let unlistenChanges: UnlistenFn | null = null;
   let unlistenIdentity: UnlistenFn | null = null;
   let identityCommitId = -1;
-  let stopSessionInvalidated: UnlistenFn | null = null;
-  let stopQueryInvalidation: (() => void) | null = null;
   let disposed = false;
   const editorData = computed(() => {
     const data = draftSession.baselineSnapshot.value?.meta.data;
@@ -329,19 +319,8 @@ export function useSpecEditorWindowViewModel(
       unlistenIdentity = null;
       return;
     }
-    unlistenEditorSpecSaved = await listenEditorSpecSaved(handleEditorSpecSaved);
-    if (disposed) {
-      unlistenEditorSpecSaved();
-      unlistenEditorSpecSaved = null;
-      return;
-    }
-    stopSessionInvalidated = await listenProjectSessionInvalidated(onProjectSessionInvalidated);
-    if (disposed) {
-      stopSessionInvalidated();
-      stopSessionInvalidated = null;
-      return;
-    }
-    stopQueryInvalidation = subscribeQueryInvalidations(handleQueryCacheInvalidated);
+    unlistenChanges = await listenProjectChanges(handleProjectChange);
+    if (disposed) unlistenChanges();
   }
 
   function disposeEditorWindow() {
@@ -351,12 +330,8 @@ export function useSpecEditorWindowViewModel(
     unlistenIdentity?.();
     unlistenIdentity = null;
     unregisterSave();
-    unlistenEditorSpecSaved?.();
-    unlistenEditorSpecSaved = null;
-    stopSessionInvalidated?.();
-    stopSessionInvalidated = null;
-    stopQueryInvalidation?.();
-    stopQueryInvalidation = null;
+    unlistenChanges?.();
+    unlistenChanges = null;
     draftSession.dispose();
   }
 
@@ -402,42 +377,38 @@ export function useSpecEditorWindowViewModel(
     if (accepted) identityCommitId = event.result.commitId;
   }
 
-  function handleEditorSpecSaved(event: EditorSpecSavedEvent) {
+  function handleProjectChange(change: ProjectChange) {
     const target = editorWindowTarget();
-    if (
-      !target ||
-      event.sessionId !== target.sessionId ||
-      normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot) ||
-      !editorData.value
-    )
-      return;
-    if (event.kind === target.kind && event.id === target.id) receiveExternalPrimarySpec(event.spec, event.writeResult);
-  }
-
-  function onProjectSessionInvalidated(event: ProjectSessionInvalidatedEvent) {
-    const target = editorWindowTarget();
-    if (
-      !target ||
-      event.manifest.sessionId !== target.sessionId ||
-      normalizeFsPath(event.manifest.modRoot) !== normalizeFsPath(target.modRoot)
-    )
-      return;
-    invalidateProjectionCaches(event);
-  }
-
-  function handleQueryCacheInvalidated(event: QueryCacheInvalidationEvent) {
-    const target = editorWindowTarget();
-    if (!target || event.sessionId !== target.sessionId) return;
-    if (event.scope === 'session') {
+    if (!target || projectChangeSessionId(change) !== target.sessionId) return;
+    if (change.kind === 'closed') {
       missingSpecIntent = null;
+      draftSession.cancelRead();
       return;
     }
-    if (hasEntityInvalidation(event, 'entity-detail', params.kind, target.id)) {
+    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    const receipt = change.kind === 'commit' ? change.event.result : null;
+    if (receipt && !draftSession.isTargetCommitCurrent(target, receipt.commitId)) return;
+    const content = receipt?.content;
+    const owner = content?.target.kind === 'spec' ? content.target.target : null;
+    if (
+      owner?.kind === target.kind &&
+      owner.id === target.id &&
+      receipt!.baseVersions.some((version) => normalizeFsPath(version.path) === normalizeFsPath(owner.write.path))
+    ) {
+      const spec = deepClone(requireRowData(content!.value, '规格保存返回内容无效'));
+      const data = definition.accept(editorData.value!, spec);
+      draftSession.applyExternalForTarget({
+        target,
+        value: spec,
+        baseVersions: receipt!.baseVersions,
+        commitId: receipt!.commitId,
+        meta: { data: { ...data, target: owner, isNew: false, baseVersions: receipt!.baseVersions }, receipt },
+      });
+      return;
+    }
+    if (hasEntityInvalidation(change.projection.invalidation, 'entity-detail', target.kind, target.id))
       void queryEditorData({ promptForMissing: false, showLoading: false });
-      return;
-    }
   }
-
   function editorWindowTarget(): SpecEditorTarget | null {
     if (!params.sessionId || !params.modRoot || !params.id) return null;
     return {
@@ -481,20 +452,6 @@ export function useSpecEditorWindowViewModel(
     updateEditorDraft,
     loadPendingExternalSpec,
   };
-
-  function receiveExternalPrimarySpec(data: RowData, result: WriteResult<unknown>): void {
-    if (!editorData.value) return;
-    const spec = deepClone(data);
-    const target = editorWindowTarget();
-    if (!target) return;
-    draftSession.applyExternalForTarget({
-      target,
-      value: spec,
-      baseVersions: result.baseVersions,
-      commitId: result.commitId,
-      meta: { data: definition.accept(editorData.value, spec), receipt: result },
-    });
-  }
 }
 
 function sameEditorWindowTarget(left: SpecEditorTarget, right: SpecEditorTarget | null): boolean {

@@ -207,10 +207,10 @@ describe('business-owned query invalidation', () => {
       queries: [],
       invalidation: scope('entity-detail', { entity: { kind: 'ship', id: null } }),
     };
-    expect(hasEntityInvalidation(event, 'entity-detail', 'ship', 'demo')).toBe(true);
-    expect(hasEntityInvalidation(event, 'entity-detail', 'weapon', 'demo')).toBe(false);
-    expect(hasTableInvalidation({ ...event, invalidation: scope('csv-table-window') }, 'csv-table-window', 'ships')).toBe(true);
-    expect(hasSourceInvalidation({ ...event, invalidation: scope('csv-source-options') }, 'csv:ships.id')).toBe(true);
+    expect(hasEntityInvalidation(event.invalidation, 'entity-detail', 'ship', 'demo')).toBe(true);
+    expect(hasEntityInvalidation(event.invalidation, 'entity-detail', 'weapon', 'demo')).toBe(false);
+    expect(hasTableInvalidation(scope('csv-table-window'), 'csv-table-window', 'ships')).toBe(true);
+    expect(hasSourceInvalidation(scope('csv-source-options'), 'csv:ships.id')).toBe(true);
   });
   it('captures cached joint inputs independently of caller mutations', async () => {
     invoke.mockResolvedValue(snapshot);

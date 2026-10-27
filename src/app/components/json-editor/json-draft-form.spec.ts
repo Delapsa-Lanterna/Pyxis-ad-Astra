@@ -1,3 +1,4 @@
+import { projectChangeFixture } from '@/test/unit/project-changes';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,7 +19,7 @@ import { jsonEntityFixture } from '@/test/fixtures/json-editor';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 import { editorUiStubs } from '@/test/unit/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
-import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
+
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
 import * as miscConfig from '@/domain/json-editor/misc-config-files';
 import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigEntityPayload } from '@/shared/types';
@@ -107,6 +108,7 @@ vi.mock('@/services/entity-query.service', async (original) => ({
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async (original) => ({
   ...(await original<typeof import('@/orchestrators/project-sync.orchestrator')>()),
+  ...(await import('@/test/unit/project-changes')),
   listenEntityIdentityApplied: async (listener: (event: EntityIdentityAppliedEvent) => Promise<void>) => {
     mocks.listeners.add(listener);
     return () => mocks.listeners.delete(listener);
@@ -758,11 +760,13 @@ describe('JSON common workspace and form', () => {
         ? { request, baseVersions: [], currentSources: {}, resourceRefs: {}, missingPaths: ['source.json'] }
         : prepare(request),
     );
-    invalidateQueryCacheByProject('s1', {
+    projectChangeFixture('s1', {
       ...savedWriteFixture().invalidation,
       queryScopes: [{ kind: 'entity-detail', entity: { kind, id: 'a' }, table: null, source: null, resource: null }],
     });
     await flushPromises();
+    expect(mocks.prepare.mock.lastCall?.[0].origin).toMatchObject({ kind: 'entity', target: { kind, id: 'a' } });
+    expect(wrapper!.getComponent(JsonDocumentEditor).props('document').sourceMissing.value).toBe(true);
     expect(wrapper!.text()).toContain('来源不完整');
     mocks.feedback.confirmWarning.mockImplementation(() => {});
     const error = new Error('list unavailable');

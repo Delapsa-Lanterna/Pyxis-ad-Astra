@@ -10,13 +10,24 @@ export interface CsvRowKeyMapping {
   rowIndex: number;
 }
 
+export type WriteContentTarget =
+  | { kind: 'spec'; target: import('./project-identity.types').EntityEditTarget }
+  | { kind: 'text'; path: string }
+  | { kind: 'json'; origin: import('./project-identity.types').JsonDocumentOrigin }
+  | { kind: 'joint'; root: import('./project-identity.types').JointEditRoot }
+  | { kind: 'recovery'; origin: import('./project-identity.types').JsonDocumentOrigin };
+export interface WriteContent<T> {
+  target: WriteContentTarget;
+  value: T;
+}
+
 export interface WriteResult<T = RowData> {
   sessionUpdates: CommittedSessionUpdate[];
   identityChanges: import('@/shared/types/project-identity.types').EntityIdentityChange[];
   changes: FileChangeRecord[];
   invalidation: ProjectInvalidation;
   keyMap: CsvRowKeyMapping[];
-  refreshedEntity: T | null;
+  content: WriteContent<T> | null;
   commitId: number;
   baseVersions: FileVersion[];
   history: FileHistorySnapshot;
@@ -35,6 +46,11 @@ export interface CommittedWriteEvent {
   reason: 'save' | 'undo' | 'redo';
   result: WriteResult<unknown>;
 }
+
+export type ProjectChange =
+  | { kind: 'commit'; projection: ProjectSessionInvalidationResult; event: CommittedWriteEvent }
+  | { kind: 'refresh'; projection: ProjectSessionInvalidationResult }
+  | { kind: 'closed'; sessionId: string };
 
 export interface JsonSourceConfirmation {
   path: string;

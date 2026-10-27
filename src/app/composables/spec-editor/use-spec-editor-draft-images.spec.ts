@@ -1,3 +1,6 @@
+import { projectChangeFixture, projectChangeListeners } from '@/test/unit/project-changes';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
 import { expect, it, vi } from 'vitest';
 import { effectScope, ref } from 'vue';
 import { flushPromises } from '@vue/test-utils';
@@ -6,16 +9,8 @@ import type { SpecEditorTarget } from './spec-editor.types';
 import { useSpecEditorDraftImages } from './use-spec-editor-draft-images';
 const mocks = vi.hoisted(() => ({
   feedback: vi.fn(),
-  invalidated: null as null | ((event: import('@/services/resource-media.service').ResourceMediaInvalidationEvent) => void),
-  stop: vi.fn(),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.feedback }) }));
-vi.mock('@/services/resource-media.service', () => ({
-  subscribeResourceInvalidations: (callback: typeof mocks.invalidated) => {
-    mocks.invalidated = callback;
-    return mocks.stop;
-  },
-}));
 it('accepts current projectile image status through edits, invalidation and release', async () => {
   const scope = effectScope(),
     target = ref<SpecEditorTarget | null>({ sessionId: 's', modRoot: 'M:/mod', kind: 'projectile', id: 'p' });
@@ -43,12 +38,7 @@ it('accepts current projectile image status through edits, invalidation and rele
   await flushPromises();
   expect(vm.value.value?.spriteData).toEqual({ sprite: 'current' });
   expect(vm.loading.value).toBe(false);
-  mocks.invalidated!({
-    sessionId: 's',
-    scope: 'resources',
-    resources: [{ source: 'mod', relPath: 'second.png', ownerKind: 'weapon', ownerId: 'p', key: 'sprite' }],
-    invalidation: null,
-  });
+  projectChangeFixture('s', { ...savedWriteFixture().invalidation, resources: [{ source: 'mod', relPath: 'second.png' }] });
   await flushPromises();
   pending[2]!.reject(new Error('read failed'));
   await flushPromises();
@@ -65,5 +55,5 @@ it('accepts current projectile image status through edits, invalidation and rele
   pending[3]!.resolve({ resourceRefs: [], spriteData: { sprite: 'late' } });
   await flushPromises();
   expect(vm.value.value).toBeNull();
-  expect(mocks.stop).toHaveBeenCalledOnce();
+  expect(projectChangeListeners.size).toBe(0);
 });

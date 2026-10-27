@@ -109,8 +109,11 @@ pub fn save_misc_config(
     json.finish()?;
     let mut builder = FileChangeSetBuilder::new(Path::new(&payload.mod_root))?;
     builder.text_file(misc_config_path(payload.kind), Some(text))?;
-    Ok(WriteResult::from_refreshed_entity(
+    Ok(WriteResult::from_content(
         builder.apply()?,
+        crate::models::WriteContentTarget::Json {
+            origin: crate::models::JsonDocumentOrigin::MiscConfig { file: payload.kind },
+        },
         payload.data,
     ))
 }

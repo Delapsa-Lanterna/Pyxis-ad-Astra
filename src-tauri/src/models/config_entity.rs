@@ -20,7 +20,7 @@ impl From<IndexedConfigKind> for crate::models::EntityKind {
 
 /// Refreshed-entity payload of the indexed config chains (faction, mission):
 /// the changed index table plus the entity content, returned as the typed
-/// `refreshedEntity` of a `WriteResult`.
+/// content value of a `WriteResult` with its JSON document owner.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexedConfigEntityRefresh {

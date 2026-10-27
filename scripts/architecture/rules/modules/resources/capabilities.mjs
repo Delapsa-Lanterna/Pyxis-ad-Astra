@@ -78,6 +78,7 @@ export const resourcesCapabilities = [
     },
   ]),
   ...capabilities({ role: 'service', domain: 'hull-reference' }, [
+    { capability: 'cache-observe', names: ['hasHullReferencesInvalidation'], owners: readOwners },
     {
       capability: 'hull-query',
       names: ['querySessionHullReferences', 'queryHullReferenceOptions', 'queryBuiltInWeaponSlotOptions'],

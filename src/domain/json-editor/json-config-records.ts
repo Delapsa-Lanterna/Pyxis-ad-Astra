@@ -8,7 +8,7 @@ export interface ConfigFactionPreviewImages {
 }
 
 export function indexedConfigEntityData(result: WriteResult): IndexedConfigEntityData {
-  const row = requireRowData(result.refreshedEntity, '配置保存返回数据无效');
+  const row = requireRowData(result.content?.value, '配置保存返回数据无效');
   return {
     baseVersions: result.baseVersions,
     entityId: stringField(row, 'entityId', '配置保存返回 entityId 无效'),

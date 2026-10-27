@@ -150,16 +150,20 @@ pub fn save_variant_entity(
     )?;
     let result = save_entity_spec(session_id, &info.target, data, options, ordered_json)?;
     let after = &result.identity_changes[0].after;
-    let content = result
-        .refreshed_entity
+    let content = &result
+        .content
         .as_ref()
-        .expect("variant save returns data");
+        .expect("variant save returns data")
+        .value;
     let refreshed = crate::domain::json_documents::build_variant_file(
         Path::new(&after.write.root),
         &after.write.rel_path,
         content,
     )?;
-    Ok(result.with_refreshed_entity(serde_json::to_value(refreshed)?))
+    let owner = crate::models::WriteContentTarget::Json {
+        origin: after.into(),
+    };
+    Ok(result.with_content(owner, serde_json::to_value(refreshed)?))
 }
 
 pub fn save_entity_text(
@@ -193,7 +197,10 @@ pub fn save_entity_text(
         None,
         Some(&text),
     )?;
-    Ok(result.with_refreshed_entity(serde_json::json!({"text":text})))
+    let owner = crate::models::WriteContentTarget::Text {
+        path: result.identity_changes[0].after.write.path.clone(),
+    };
+    Ok(result.with_content(owner, serde_json::json!({"text":text})))
 }
 
 fn save_entity_content(
@@ -256,7 +263,10 @@ fn save_entity_content(
     if let Some(csv) = linked_csv {
         csv.accept(&mut session);
     }
-    let mut result = WriteResult::from_refreshed_entity(changes, staged.data);
+    let owner = crate::models::WriteContentTarget::Spec {
+        target: Box::new(staged.identity.after.clone()),
+    };
+    let mut result = WriteResult::from_content(changes, owner, staged.data);
     result.identity_changes.push(staged.identity);
     Ok(result)
 }
@@ -719,7 +729,7 @@ mod tests {
             base_versions: loaded.base_versions,
         })
         .unwrap();
-        assert_eq!(saved.refreshed_entity.unwrap()["text"], text);
+        assert_eq!(saved.content.unwrap().value["text"], text);
         assert_eq!(
             std::fs::read_to_string(root.join("data/hulls/nested/new.ship")).unwrap(),
             text
@@ -952,7 +962,7 @@ mod tests {
         })
         .unwrap();
         let expected = "{hullId:\"next\", # keep\n extra:{hullId:' untouched '}}\n";
-        assert_eq!(saved.refreshed_entity.unwrap()["text"], expected);
+        assert_eq!(saved.content.unwrap().value["text"], expected);
         assert_eq!(
             std::fs::read_to_string(root.join("data/hulls/next.ship")).unwrap(),
             expected

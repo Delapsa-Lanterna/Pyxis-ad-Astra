@@ -24,22 +24,6 @@ export interface EditorSpecSavedEvent {
   writeResult: WriteResult<unknown>;
 }
 
-export interface FileEditorSavedEvent {
-  modRoot: string;
-  path: string;
-  sessionId: string | null;
-  writeResult: WriteResult<unknown>;
-}
-
-export interface FileEditorTextAppliedEvent {
-  commitId: number;
-  baseVersions: import('@/shared/types').FileVersion[];
-  modRoot: string;
-  path: string;
-  sessionId: string;
-  text: string;
-}
-
 export interface ProjectSessionInvalidatedEvent {
   projectionRevision: number;
   manifest: ProjectManifest;

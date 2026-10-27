@@ -1,3 +1,4 @@
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { openVariantImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { computed, onScopeDispose, ref, watch } from 'vue';
 import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
@@ -7,9 +8,9 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { queryBuiltInWeaponSlotOptions } from '@/services/hull-reference.service';
-import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { hasResourceInvalidation, subscribeResourceInvalidations } from '@/services/resource-media.service';
+import { queryBuiltInWeaponSlotOptions, hasHullReferencesInvalidation } from '@/services/hull-reference.service';
+
+import { hasResourceInvalidation } from '@/services/resource-media.service';
 import { queryFactionPreviewImages, queryMissionDraftIcon } from '@/services/json-entity.service';
 import { jsonDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { AppError } from '@/shared/lib/errors';
@@ -49,8 +50,12 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
           : context.querySourceOptions!(source, signal),
       subscribeSourceOptionInvalidation: (source, resources, listener) =>
         source === 'hull:builtInWeaponSlots' || source === 'hull:weaponSlots' || source === 'hull:moduleSlots'
-          ? subscribeQueryInvalidations((event) => {
-              if (event.scope !== 'session' && event.sessionId === target.sessionId && hasQueryInvalidation(event, 'hull-references'))
+          ? subscribeProjectChanges((event) => {
+              if (
+                event.kind !== 'closed' &&
+                projectChangeSessionId(event) === target.sessionId &&
+                hasHullReferencesInvalidation(event.projection.invalidation)
+              )
                 listener();
             })
           : context.subscribeSourceOptionInvalidation!(source, resources, listener),
@@ -90,10 +95,11 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
     { immediate: true },
   );
   onScopeDispose(
-    subscribeResourceInvalidations((event) => {
+    subscribeProjectChanges((event) => {
       if (
-        event.sessionId === document.target.value!.sessionId &&
-        hasResourceInvalidation(event, Object.values(document.record.value.resources))
+        projectChangeSessionId(event) === document.target.value!.sessionId &&
+        event.kind !== 'closed' &&
+        hasResourceInvalidation(event.projection.invalidation, Object.values(document.record.value.resources))
       )
         revision.value++;
     }),

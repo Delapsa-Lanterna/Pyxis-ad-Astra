@@ -347,8 +347,12 @@ export function createBrowserModel(
     }
     return snapshot;
   }
-  function receipt<T>(refreshedEntity: T) {
-    const result = { ...savedWriteFixture(), refreshedEntity, commitId: ++commitId };
+  function receipt<T>(value: T, target: import('@/shared/types').WriteContentTarget = { kind: 'json', origin: { kind: 'modInfo' } }) {
+    const result = {
+      ...savedWriteFixture(),
+      content: value === null ? null : { target, value },
+      commitId: ++commitId,
+    };
     const update = sessionUpdateFixture(sessionId, sampleRoot, commitId);
     update.projection.manifest = structuredClone(manifest);
     result.sessionUpdates = [update];
@@ -399,7 +403,7 @@ export function createBrowserModel(
     graphs.set(snapshot.root.kind + ':' + snapshot.root.id, structuredClone(snapshot));
     if (graphs.get(snapshot.root.kind + ':default')?.root.id === snapshot.root.id)
       graphs.set(snapshot.root.kind + ':default', structuredClone(snapshot));
-    const result = receipt(snapshot);
+    const result = receipt(snapshot, { kind: 'joint', root: snapshot.root });
     result.baseVersions = snapshot.baseVersions;
     return result;
   }

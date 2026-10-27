@@ -208,13 +208,11 @@ export function subscribeResourceInvalidations(listener: (event: ResourceMediaIn
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
-export function hasResourceInvalidation(event: ResourceMediaInvalidationEvent, resources: readonly ResourceRef[]): boolean {
+export function hasResourceInvalidation(invalidation: ProjectInvalidation, resources: readonly ResourceRef[]): boolean {
   if (!resources.length) return false;
-  if (event.scope === 'session' || event.invalidation?.session) return true;
-  const keys = new Set(resources.map((resource) => mediaResourceKey(event.sessionId, resource)));
-  return [...event.resources, ...(event.invalidation?.resources ?? [])].some((resource) =>
-    keys.has(mediaResourceKey(event.sessionId, resource)),
-  );
+  if (invalidation.session) return true;
+  const keys = new Set(resources.map((resource) => mediaResourceKey('', resource)));
+  return invalidation.resources.some((resource) => keys.has(mediaResourceKey('', resource)));
 }
 function invalidate(sessionId: string, invalidation: ProjectInvalidation | null) {
   debugLog('media.invalidated', () => ({ sessionId, reason: invalidation ? 'project' : 'session' }));

@@ -793,7 +793,7 @@ fn wing_reference_and_graph() {
     };
     data["hullId"] = json!("b");
     let saved = submit(&payload).unwrap();
-    assert!(saved.refreshed_entity.unwrap().hull.is_none());
+    assert!(saved.content.unwrap().value.hull.is_none());
     let next = query_joint_edit(&root).unwrap();
     let hull = next
         .records
@@ -1190,7 +1190,7 @@ fn rename_keeps_csv_field_edits() {
         csv_staging::take_render_counts(),
         BTreeMap::from([(CsvTableKey::Ships, 1), (CsvTableKey::Descriptions, 1)])
     );
-    assert_eq!(saved.refreshed_entity.unwrap().root.id, "A");
+    assert_eq!(saved.content.unwrap().value.root.id, "A");
     let rows = read_csv_data(&dir.join("data/hulls/ship_data.csv"))
         .unwrap()
         .rows;
@@ -1305,7 +1305,7 @@ fn core_override_keeps_original() {
         crate::io::read_json_file(&dir.join("data/hulls/base.ship")).unwrap()["hullName"],
         "Core"
     );
-    input = payload(copied.refreshed_entity.unwrap());
+    input = payload(copied.content.unwrap().value);
     for record in &input.snapshot.records {
         if let JointValue::Present(mut value) = record.value.clone() {
             match &record.target {
@@ -1340,7 +1340,7 @@ fn core_override_keeps_original() {
             .header,
         vec!["id", "name", "custom"]
     );
-    let refreshed = result.refreshed_entity.unwrap();
+    let refreshed = result.content.unwrap().value;
     assert!(
         refreshed
             .records

@@ -6,7 +6,7 @@ import type {
   DeepReadonly,
 } from '@/shared/types';
 
-import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
+import type { ProjectInvalidation } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
@@ -39,8 +39,8 @@ export async function querySourceOptionCatalog(
   return readSourceOptions(sessionId, { source }, signal);
 }
 
-export function hasSourceInvalidation(event: QueryCacheInvalidationEvent, source: string): boolean {
-  return event.scope === 'session' || !!event.invalidation?.queryScopes.some((scope) => matchesSourceOptionsScope(scope, source));
+export function hasSourceInvalidation(invalidation: ProjectInvalidation, source: string): boolean {
+  return invalidation.session || invalidation.queryScopes.some((scope) => matchesSourceOptionsScope(scope, source));
 }
 function matchesSourceOptionsScope(scope: InvalidatedQueryScope, source: string | null): boolean {
   if (scope.kind !== 'csv-source-options') return false;

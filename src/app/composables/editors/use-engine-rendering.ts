@@ -1,7 +1,8 @@
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, shallowRef, shallowReactive, watch } from 'vue';
 import { formatError } from '@/shared/lib/errors';
 import { queryEngineRenderAssets, hasEngineAssetsInvalidation } from '@/services/engine-assets.service';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useResourceImages } from '@/app/composables/use-resource-images';
@@ -126,9 +127,13 @@ export function useEngineRendering(
     for (const entry of products.values()) entry.release();
     products.clear();
   }
-  const stop = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== session() || !hasEngineAssetsInvalidation(event)) return;
-    if (event.scope === 'session') {
+  const stop = subscribeProjectChanges((event) => {
+    if (
+      projectChangeSessionId(event) !== session() ||
+      (event.kind !== 'closed' && !hasEngineAssetsInvalidation(event.projection.invalidation))
+    )
+      return;
+    if (event.kind === 'closed') {
       closed = true;
       reads.revoke('session');
       assets.value = null;

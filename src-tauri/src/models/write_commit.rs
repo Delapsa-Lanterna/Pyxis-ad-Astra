@@ -29,6 +29,33 @@ pub struct JsonSourceConfirmation {
     pub source_fingerprint: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum WriteContentTarget {
+    Spec {
+        target: Box<super::EntityEditTarget>,
+    },
+    Text {
+        path: String,
+    },
+    Json {
+        origin: super::JsonDocumentOrigin,
+    },
+    Joint {
+        root: super::JointEditRoot,
+    },
+    Recovery {
+        origin: super::JsonDocumentOrigin,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteContent<T> {
+    pub target: WriteContentTarget,
+    pub value: T,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteResult<T = ()> {
@@ -37,21 +64,21 @@ pub struct WriteResult<T = ()> {
     pub changes: Vec<FileChangeRecord>,
     pub invalidation: ProjectInvalidation,
     pub key_map: Vec<CsvRowKeyMapping>,
-    pub refreshed_entity: Option<T>,
+    pub content: Option<WriteContent<T>>,
     pub commit_id: u64,
     pub base_versions: Vec<FileVersion>,
     pub history: FileHistorySnapshot,
 }
 
 impl<T> WriteResult<T> {
-    pub fn with_refreshed_entity<U>(self, entity: U) -> WriteResult<U> {
+    pub fn with_content<U>(self, target: WriteContentTarget, value: U) -> WriteResult<U> {
         WriteResult {
             session_updates: self.session_updates,
             identity_changes: self.identity_changes,
             changes: self.changes,
             invalidation: self.invalidation,
             key_map: self.key_map,
-            refreshed_entity: Some(entity),
+            content: Some(WriteContent { target, value }),
             commit_id: self.commit_id,
             base_versions: self.base_versions,
             history: self.history,
@@ -60,7 +87,7 @@ impl<T> WriteResult<T> {
     pub fn new(
         changes: Vec<FileChangeRecord>,
         key_map: Vec<CsvRowKeyMapping>,
-        refreshed_entity: Option<T>,
+        content: Option<WriteContent<T>>,
     ) -> Self {
         let invalidation = ProjectInvalidation {
             paths: changed_paths_for_changes(&changes),
@@ -72,15 +99,11 @@ impl<T> WriteResult<T> {
             changes,
             invalidation,
             key_map,
-            refreshed_entity,
+            content,
             commit_id: 0,
             base_versions: Vec::new(),
             history: FileHistorySnapshot::default(),
         }
-    }
-
-    pub fn refreshed_entity(&self) -> Option<&T> {
-        self.refreshed_entity.as_ref()
     }
 }
 
@@ -91,8 +114,12 @@ impl WriteResult<()> {
 }
 
 impl<T> WriteResult<T> {
-    pub fn from_refreshed_entity(changes: Vec<FileChangeRecord>, refreshed_entity: T) -> Self {
-        Self::new(changes, Vec::new(), Some(refreshed_entity))
+    pub fn from_content(
+        changes: Vec<FileChangeRecord>,
+        target: WriteContentTarget,
+        value: T,
+    ) -> Self {
+        Self::new(changes, Vec::new(), Some(WriteContent { target, value }))
     }
 }
 
@@ -206,17 +233,17 @@ mod tests {
                 "baseVersions",
                 "changes",
                 "commitId",
+                "content",
                 "history",
                 "identityChanges",
                 "invalidation",
                 "keyMap",
-                "refreshedEntity",
                 "sessionUpdates"
             ]
         );
         assert!(serialized.get("invalidation").is_some());
         assert_eq!(result.invalidation.paths, [] as [&str; 0]);
-        assert!(result.refreshed_entity().is_none());
+        assert!(result.content.is_none());
     }
 
     #[test]
@@ -262,5 +289,18 @@ mod tests {
         assert_eq!(payload.session_id, "session");
         assert_eq!(payload.mod_root, "M:/mod");
         assert_eq!(payload.commit_id, 7);
+    }
+
+    #[test]
+    fn content_owner_survives_value_projection() {
+        let target = WriteContentTarget::Text {
+            path: "M:/mod/notes.txt".into(),
+        };
+        let receipt = WriteResult::from_content(Vec::new(), target.clone(), "text");
+        let receipt = receipt.with_content(target, json!({"text":"text"}));
+        assert_eq!(
+            serde_json::to_value(receipt).unwrap()["content"],
+            json!({"target":{"kind":"text","path":"M:/mod/notes.txt"},"value":{"text":"text"}})
+        );
     }
 }

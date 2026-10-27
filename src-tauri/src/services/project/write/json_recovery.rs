@@ -151,8 +151,8 @@ pub fn recreate_json_sources(
     json.finish()?;
     let result = WriteResult::from_changes(builder.apply()?);
     let refreshed = super::super::query::json_recovery::prepare_json_source_recovery(plan.request)?;
-    Ok(WriteResult::from_refreshed_entity(
-        result.changes,
-        refreshed,
-    ))
+    let owner = crate::models::WriteContentTarget::Recovery {
+        origin: refreshed.request.origin.clone(),
+    };
+    Ok(WriteResult::from_content(result.changes, owner, refreshed))
 }

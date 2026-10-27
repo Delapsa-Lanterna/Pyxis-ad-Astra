@@ -94,7 +94,7 @@ export function jsonDocumentCapabilities(definition: JsonDocumentDefinition, fee
       if (!receipt) return;
       return {
         target,
-        value: miscConfigValue(id, receipt.refreshedEntity!),
+        value: miscConfigValue(id, receipt.content!.value),
         baseVersions: receipt.baseVersions,
         meta: { receipt },
         commitId: receipt.commitId,
@@ -109,7 +109,7 @@ export function jsonDocumentCapabilities(definition: JsonDocumentDefinition, fee
       const result = await saveModInfoAction(sessionId, modRoot, configModInfoSaveData(data, schema.value), feedback, baseVersions);
       if (!result) return;
       receipt = result;
-      value = jsonDocumentValue(kind, result.refreshedEntity as RowData);
+      value = jsonDocumentValue(kind, result.content?.value as RowData);
     } else if (kind === 'variant' || kind === 'skin') {
       if (!String(data[file!.companionField] ?? '').trim())
         throw new AppError(file!.companionField + ' 不能为空', { action: 'save-json-document', code: 'config.missing_field' });

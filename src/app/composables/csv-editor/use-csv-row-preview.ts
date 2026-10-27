@@ -1,8 +1,8 @@
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { hasTableInvalidation } from '@/services/csv-table.service';
 import { computed, ref, watch, onScopeDispose } from 'vue';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { subscribeResourceInvalidations } from '@/services/resource-media.service';
 
 import type { CsvRowPreviewTarget } from '@/shared/types';
 
@@ -33,30 +33,22 @@ export function useCsvRowPreview(options: {
     },
     { immediate: true },
   );
-  const stopQuery = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== options.target()?.sessionId) return;
-    if (event.scope === 'session') {
+  const stopQuery = subscribeProjectChanges((event) => {
+    if (projectChangeSessionId(event) !== options.target()?.sessionId) return;
+    if (event.kind === 'closed') {
       reads.revoke();
       return;
     }
-    if (hasQueryInvalidation(event, 'csv-row-preview'))
+    if (
+      hasTableInvalidation(event.projection.invalidation, 'csv-row-preview', options.target()!.table) ||
+      event.projection.invalidation.resources.length > 0
+    )
       reads.schedule('preview', () => {
         void load();
       });
   });
-  const stopResource = subscribeResourceInvalidations((event) => {
-    if (event.sessionId !== options.target()?.sessionId) return;
-    if (event.scope === 'session') {
-      reads.revoke();
-      return;
-    }
-    reads.schedule('preview', () => {
-      void load();
-    });
-  });
   onScopeDispose(() => {
     stopQuery();
-    stopResource();
   });
   return src;
 }

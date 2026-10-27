@@ -93,7 +93,7 @@ function writeResult(refreshedEntity: Record<string, unknown> | null = null) {
     invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
     identityChanges: id ? [{ before: target, after: target }] : [],
     keyMap: [],
-    refreshedEntity,
+    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: refreshedEntity },
     warnings: [],
   };
 }

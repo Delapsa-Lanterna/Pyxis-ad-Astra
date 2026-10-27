@@ -1,6 +1,6 @@
 import { computed, shallowRef, watch, onScopeDispose } from 'vue';
 import { createReadTicketOwner } from '@/shared/runtime/read-request';
-import { subscribeResourceInvalidations } from '@/services/resource-media.service';
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { formatError } from '@/shared/lib/errors';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { normalizeFsPath } from '@/shared/lib/paths';
@@ -68,9 +68,9 @@ export function useSpecEditorDraftImages<TImageData>(
     },
     { immediate: true, flush: 'sync' },
   );
-  const stop = subscribeResourceInvalidations((event) => {
-    if (event.sessionId !== options.target.value?.sessionId) return;
-    if (event.scope === 'session') {
+  const stop = subscribeProjectChanges((event) => {
+    if (projectChangeSessionId(event) !== options.target.value?.sessionId) return;
+    if (event.kind === 'closed') {
       reads.revoke('session');
       loading.value = false;
       return;
@@ -79,8 +79,9 @@ export function useSpecEditorDraftImages<TImageData>(
       ...(value.value?.resourceRefs ?? []).map((resource) => resource.relPath),
       ...options.fields.flatMap((field) => options.draft.value[field] ?? []).filter((path): path is string => typeof path === 'string'),
     ].map(normalizeFsPath);
-    const resources = event.invalidation?.resources ?? event.resources;
-    if (event.invalidation?.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath)))) void refresh();
+    const resources = event.projection.invalidation.resources;
+    if (event.projection.invalidation.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
+      reads.schedule('images', () => void refresh());
   });
   function dispose() {
     reads.revoke();

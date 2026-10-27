@@ -44,7 +44,7 @@ pub fn save_faction_entity(
             "势力内容 ID 与保存身份不一致",
         ));
     }
-    let mut result = super::entity_identity::save_entity_spec(
+    let result = super::entity_identity::save_entity_spec(
         session_id,
         &info.target,
         file.clone(),
@@ -53,14 +53,19 @@ pub fn save_faction_entity(
     )?;
     let index_rel = "data/world/factions/factions.csv";
     let index = read_csv_data(&Path::new(&info.target.write.root).join(index_rel))?;
-    result.refreshed_entity = Some(serde_json::to_value(IndexedConfigEntityRefresh {
-        entity_id: next_id.to_string(),
-        index_path: index_rel.to_string(),
-        index_header: index.header,
-        index_rows: index.rows,
-        entity_data: data,
-    })?);
-    Ok(result)
+    let owner = crate::models::WriteContentTarget::Json {
+        origin: (&result.identity_changes[0].after).into(),
+    };
+    Ok(result.with_content(
+        owner,
+        serde_json::to_value(IndexedConfigEntityRefresh {
+            entity_id: next_id.to_string(),
+            index_path: index_rel.to_string(),
+            index_header: index.header,
+            index_rows: index.rows,
+            entity_data: data,
+        })?,
+    ))
 }
 
 pub fn delete_faction_entity(
@@ -94,16 +99,7 @@ pub fn delete_faction_entity(
         builder.text_file(&info.target.write.rel_path, None)?;
     }
     let changes = builder.apply()?;
-    Ok(WriteResult::from_refreshed_entity(
-        changes,
-        serde_json::to_value(IndexedConfigEntityRefresh {
-            entity_id: id.to_string(),
-            index_path: path.clone(),
-            index_header: index.header,
-            index_rows: index.rows,
-            entity_data: Value::Null,
-        })?,
-    ))
+    Ok(WriteResult::new(changes, Vec::new(), None))
 }
 
 #[cfg(test)]

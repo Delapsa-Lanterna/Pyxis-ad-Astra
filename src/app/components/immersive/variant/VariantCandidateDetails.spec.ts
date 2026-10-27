@@ -1,3 +1,4 @@
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
 import { mount, flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';

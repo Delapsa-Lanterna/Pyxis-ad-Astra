@@ -71,7 +71,7 @@ fn skin_root_saves_independent_layers_and_follows_skin_rename() {
         unreachable!()
     };
     data["maxSpeed"] = json!(190);
-    let saved = submit(&request).unwrap().refreshed_entity.unwrap();
+    let saved = submit(&request).unwrap().content.unwrap().value;
     assert_eq!(saved.root.kind, JointEditKind::Skin);
     assert_eq!(
         hull_field_value(
@@ -98,7 +98,7 @@ fn skin_root_saves_independent_layers_and_follows_skin_rename() {
         json_write: Default::default(),
         create_overrides: Vec::new(),
     };
-    let saved = submit(&request).unwrap().refreshed_entity.unwrap();
+    let saved = submit(&request).unwrap().content.unwrap().value;
     assert_eq!(saved.root.id, "renamed");
     assert_eq!(
         hull_field_value(

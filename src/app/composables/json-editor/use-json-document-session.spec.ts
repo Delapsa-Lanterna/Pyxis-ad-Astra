@@ -1,3 +1,4 @@
+import { projectChangeFixture } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
@@ -18,7 +19,7 @@ import {
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
 } from '@/domain/json-editor/json-document-definitions';
-import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
+
 import { getSchema } from '@/domain/schema/config-schema-registry';
 import { deepClone } from '@/shared/lib/starsector';
 import type {
@@ -62,7 +63,8 @@ vi.mock('@/orchestrators/json-save.orchestrator', () => ({
   completeJsonSave: mocks.complete,
   recreateJsonSourcesAction: mocks.recreate,
 }));
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await import('@/test/unit/project-changes')),
   listenEntityIdentityApplied: async (handler: (event: EntityIdentityAppliedEvent) => Promise<void>) => {
     mocks.listeners.add(handler);
     return () => mocks.listeners.delete(handler);
@@ -179,7 +181,7 @@ beforeEach(() => {
   });
   mocks.saveMisc.mockImplementation(async (payload) => ({
     ...receipt(null, null),
-    refreshedEntity: payload.data,
+    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: payload.data },
     baseVersions: payload.baseVersions.map((v: { path: string }) => ({ ...v, fingerprint: 'saved' })),
   }));
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(session + ':' + kind + ':' + id) ?? null);
@@ -218,7 +220,7 @@ beforeEach(() => {
   mocks.saveMod.mockImplementation(async (_session: string, root: string, data: RowData) => ({
     ...receipt(null, null),
     baseVersions: [{ path: root + '/mod_info.json', fingerprint: 'v2' }],
-    refreshedEntity: data,
+    content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: data },
   }));
 });
 afterEach(() => {
@@ -521,14 +523,21 @@ describe('complete JSON document runtime', () => {
     const result: WriteResult<JsonRecoveryPlan> = {
       ...receipt(null, null),
       baseVersions: baseline.baseVersions.map((version) => ({ ...version, fingerprint: 'restored' })),
-      refreshedEntity: {
-        ...plan,
-        missingPaths: [],
-        currentSources: definition.file
-          ? { file: baseline.value }
-          : definition.kind === 'mission'
-            ? { descriptor: baseline.value.descriptor!, text: 'Body', index: { rows: [{ isComment: false, data: baseline.value.list! }] } }
-            : { file: baseline.value.file! },
+      content: {
+        target: { kind: 'json', origin: { kind: 'modInfo' } },
+        value: {
+          ...plan,
+          missingPaths: [],
+          currentSources: definition.file
+            ? { file: baseline.value }
+            : definition.kind === 'mission'
+              ? {
+                  descriptor: baseline.value.descriptor!,
+                  text: 'Body',
+                  index: { rows: [{ isComment: false, data: baseline.value.list! }] },
+                }
+              : { file: baseline.value.file! },
+        },
       },
     };
     mocks.recreate.mockResolvedValue(result);
@@ -567,7 +576,7 @@ describe('complete JSON document runtime', () => {
         entity.baseVersions = entity.baseVersions.map((v) => ({ ...v, fingerprint: 'external' }));
         entities.set('s1:' + definition.kind + ':a', entity);
       }
-      invalidateQueryCacheByProject('s1', {
+      projectChangeFixture('s1', {
         ...savedWriteFixture().invalidation,
         queryScopes: [
           {
@@ -622,7 +631,10 @@ describe('complete JSON document runtime', () => {
         mocks.recreate.mockResolvedValueOnce({
           ...receipt(null, null),
           baseVersions: baseline.baseVersions,
-          refreshedEntity: { ...plan, missingPaths: [], currentSources: { file: baseline.value } },
+          content: {
+            target: { kind: 'json', origin: { kind: 'modInfo' } },
+            value: { ...plan, missingPaths: [], currentSources: { file: baseline.value } },
+          },
         });
         mocks.complete.mockRejectedValueOnce(new Error('broadcast'));
       }

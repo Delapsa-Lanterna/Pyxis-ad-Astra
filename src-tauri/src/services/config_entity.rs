@@ -28,12 +28,24 @@ pub fn save_mod_info(
     let text = json.render(&target, &data, ordered_json)?;
     json.finish()?;
     if target.exists() && crate::io::read_utf8_no_bom(&target)? == text {
-        return Ok(WriteResult::from_refreshed_entity(Vec::new(), data));
+        return Ok(WriteResult::from_content(
+            Vec::new(),
+            crate::models::WriteContentTarget::Json {
+                origin: crate::models::JsonDocumentOrigin::ModInfo,
+            },
+            data,
+        ));
     }
     builder.text_file("mod_info.json", Some(text))?;
-    builder
-        .apply()
-        .map(|changes| WriteResult::from_refreshed_entity(changes, data))
+    builder.apply().map(|changes| {
+        WriteResult::from_content(
+            changes,
+            crate::models::WriteContentTarget::Json {
+                origin: crate::models::JsonDocumentOrigin::ModInfo,
+            },
+            data,
+        )
+    })
 }
 
 const MISSION_INDEX: &str = "data/missions/mission_list.csv";
@@ -219,8 +231,11 @@ pub fn save_mission_with_json(
             row_index: next_position,
         }),
     };
-    let mut result = WriteResult::from_refreshed_entity(
+    let mut result = WriteResult::from_content(
         changes,
+        crate::models::WriteContentTarget::Json {
+            origin: (&after).into(),
+        },
         serde_json::to_value(IndexedConfigEntityRefresh {
             entity_id: next_id.to_string(),
             index_path: MISSION_INDEX.to_string(),
@@ -286,16 +301,7 @@ pub fn delete_mission_entity(
     if delete_target {
         builder.delete_directory(format!("data/missions/{id}"))?;
     }
-    Ok(WriteResult::from_refreshed_entity(
-        builder.apply()?,
-        serde_json::to_value(IndexedConfigEntityRefresh {
-            entity_id: id.to_string(),
-            index_path: MISSION_INDEX.to_string(),
-            index_header: index.header,
-            index_rows: index.rows,
-            entity_data: Value::Null,
-        })?,
-    ))
+    Ok(WriteResult::new(builder.apply()?, Vec::new(), None))
 }
 
 #[cfg(test)]
@@ -766,7 +772,7 @@ mod tests {
         .unwrap();
         assert!(result.changes.is_empty());
         assert_eq!(
-            result.refreshed_entity,
+            result.content.map(|content| content.value),
             Some(serde_json::json!({"id":"demo"}))
         );
         assert_eq!(
@@ -788,7 +794,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            result.refreshed_entity,
+            result.content.map(|content| content.value),
             Some(crate::io::read_json_file(&root.join("mod_info.json")).unwrap())
         );
         fs::remove_dir_all(root).unwrap();

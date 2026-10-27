@@ -49,8 +49,12 @@ pub fn save_project_text_file(
         )?;
         crate::services::save_entity_text(session_id, &info.target, text)
     } else {
-        Ok(save_text_file(mod_root, &path, text.clone())?
-            .with_refreshed_entity(serde_json::json!({"text":text})))
+        Ok(save_text_file(mod_root, &path, text.clone())?.with_content(
+            crate::models::WriteContentTarget::Text {
+                path: path.to_string(),
+            },
+            serde_json::json!({"text":text}),
+        ))
     }
 }
 

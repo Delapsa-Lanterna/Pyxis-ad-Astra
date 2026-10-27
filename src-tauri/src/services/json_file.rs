@@ -123,7 +123,7 @@ pub fn save_json_entity_file(
         builder.apply()?
     };
 
-    let mut result = WriteResult::from_refreshed_entity(changes, refreshed);
+    let result: WriteResult = WriteResult::new(changes, Vec::new(), None);
     let source_id = previous_id.as_deref().unwrap_or(&next_id);
     let before_location = crate::models::EntityFileLocation {
         source: crate::models::ResourceSource::Mod,
@@ -161,6 +161,10 @@ pub fn save_json_entity_file(
         state: crate::models::EntityTargetState::Existing,
         linked_record: None,
     };
+    let owner = crate::models::WriteContentTarget::Json {
+        origin: (&after).into(),
+    };
+    let mut result = result.with_content(owner, refreshed);
     result
         .identity_changes
         .push(crate::models::EntityIdentityChange { before, after });
@@ -417,7 +421,7 @@ mod tests {
             save_input(Some(&source), data),
         )
         .unwrap();
-        let refreshed = result.refreshed_entity.clone().unwrap();
+        let refreshed = result.content.clone().unwrap().value;
 
         assert!(
             !root
@@ -563,7 +567,7 @@ mod tests {
             )
             .unwrap();
             assert!(save.changes.is_empty());
-            assert_eq!(save.refreshed_entity.unwrap()["relPath"], source);
+            assert_eq!(save.content.unwrap().value["relPath"], source);
             assert_eq!(read_utf8_no_bom(&root.join(&source)).unwrap(), original);
             let renamed = format!("{}/nested/new.{}", case.dir, case.ext);
             let result = save_json_entity_file(
@@ -583,7 +587,7 @@ mod tests {
             assert_eq!(result.changes.len(), 1);
             assert_eq!(
                 Path::new(
-                    result.refreshed_entity.as_ref().unwrap()["relPath"]
+                    result.content.as_ref().unwrap().value["relPath"]
                         .as_str()
                         .unwrap()
                 ),
@@ -665,7 +669,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(
-                created.refreshed_entity.unwrap()["relPath"],
+                created.content.unwrap().value["relPath"],
                 format!("{}/new.{}", case.dir, case.ext)
             );
             assert_eq!(

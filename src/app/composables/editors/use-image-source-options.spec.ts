@@ -1,23 +1,17 @@
+import { projectChangeFixture, closeProjectChangeFixture } from '@/test/unit/project-changes';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
 import { mount, flushPromises } from '@vue/test-utils';
 import { ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useImageSourceOptions } from './use-image-source-options';
 import type { SourceOptionGroup } from '@/shared/types';
-import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   error: vi.fn(),
-  stop: vi.fn(),
-  listener: vi.fn<(event: QueryCacheInvalidationEvent) => void>(),
 }));
 vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: mocks.query }));
-vi.mock('@/services/query-cache.service', () => ({
-  subscribeQueryInvalidations: (listener: typeof mocks.listener) => {
-    mocks.listener = listener;
-    return mocks.stop;
-  },
-}));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 const groups: SourceOptionGroup[] = [
   { origin: 'mod', options: [{ label: 'Image', value: 'graphics/sample.png', origin: 'mod', description: null, resourceRef: null }] },
@@ -72,10 +66,10 @@ describe('image directory candidate lifecycle', () => {
     await flushPromises();
     expect(mocks.error).toHaveBeenCalledOnce();
     expect(state.options.value).toEqual([]);
-    mocks.listener({ sessionId: 'one', scope: 'paths', queries: [], invalidation: null });
+    projectChangeFixture('one', savedWriteFixture().invalidation);
     await flushPromises();
     expect(state.options.value[0]?.children).toHaveLength(1);
-    mocks.listener({ sessionId: 'one', scope: 'session', queries: [], invalidation: null });
+    closeProjectChangeFixture('one');
     await flushPromises();
     expect(state.options.value).toEqual([]);
     expect(mocks.query).toHaveBeenCalledTimes(2);

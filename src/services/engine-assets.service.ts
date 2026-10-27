@@ -1,5 +1,5 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createLiveSessionQuery, subscribeQueryInvalidations, type QueryCacheInvalidationEvent } from './query-cache.service';
+import { createLiveSessionQuery, subscribeQueryInvalidations } from './query-cache.service';
 import type { EngineRenderAssets, ProjectInvalidation, RowData } from '@/shared/types';
 import { normalizeFsPath } from '@/shared/lib/paths';
 
@@ -14,11 +14,12 @@ function affected(invalidation: ProjectInvalidation) {
     })
   );
 }
-export function hasEngineAssetsInvalidation(event: QueryCacheInvalidationEvent) {
-  return event.scope === 'session' || Boolean(event.invalidation && affected(event.invalidation));
+export function hasEngineAssetsInvalidation(invalidation: ProjectInvalidation) {
+  return affected(invalidation);
 }
 subscribeQueryInvalidations((event) => {
-  if (hasEngineAssetsInvalidation(event)) for (const key of pending.keys()) if (JSON.parse(key)[0] === event.sessionId) pending.delete(key);
+  if (event.scope === 'session' || (event.invalidation && affected(event.invalidation)))
+    for (const key of pending.keys()) if (JSON.parse(key)[0] === event.sessionId) pending.delete(key);
 });
 const read = createLiveSessionQuery<{ inlineStyles: RowData[] }, EngineRenderAssets>({
   queryKind: 'engine-render-assets',

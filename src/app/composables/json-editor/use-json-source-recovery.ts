@@ -1,10 +1,9 @@
 import { computed, shallowRef, watch, type Ref } from 'vue';
-import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
 import { recreateJsonSourcesAction } from '@/orchestrators/json-save.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import type { EditTargetDraftSession, EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
-import { jsonRecoveryValue, type ConfigDocumentTarget } from '@/domain/json-editor/json-document-definitions';
+import { jsonRecoveryValue, jsonDocumentOrigin, type ConfigDocumentTarget } from '@/domain/json-editor/json-document-definitions';
 import type { JsonDocumentMeta } from './json-document-capabilities';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { AppFeedback, JsonRecoveryPlan, JsonRecoveryRequest, RowData } from '@/shared/types';
@@ -25,21 +24,7 @@ export function useJsonSourceRecovery(options: {
     const request: JsonRecoveryRequest = {
       sessionId: target.sessionId,
       modRoot: target.modRoot,
-      origin:
-        target.kind === 'misc-config'
-          ? { kind: 'miscConfig', file: miscConfigFile(target.id).kind }
-          : target.kind === 'mod-info'
-            ? { kind: 'modInfo' }
-            : {
-                kind: 'entity',
-                target: {
-                  sessionId: target.sessionId,
-                  modRoot: target.modRoot,
-                  kind: target.kind,
-                  id: target.id,
-                  relPath: target.entity!.write.relPath,
-                },
-              },
+      origin: jsonDocumentOrigin(target),
     };
     const accepted = await reads.consume('recovery', request, () => prepareJsonSourceRecovery(request), {
       ready: (value) => {
@@ -78,14 +63,14 @@ export function useJsonSourceRecovery(options: {
             );
             return {
               ...baseline,
-              value: jsonRecoveryValue(baseline.target, result.refreshedEntity!, baseline.value),
+              value: jsonRecoveryValue(baseline.target, result.content!.value, baseline.value),
               baseVersions: [...new Map([...baseline.baseVersions, ...restored].map((version) => [version.path, version])).values()],
               commitId: result.commitId,
               meta: {
                 ...baseline.meta,
-                resources: result.refreshedEntity!.resourceRefs,
+                resources: result.content!.value.resourceRefs,
                 receipt: result,
-                recovery: result.refreshedEntity!,
+                recovery: result.content!.value,
               },
             };
           })

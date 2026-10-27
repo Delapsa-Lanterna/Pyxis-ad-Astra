@@ -4,6 +4,7 @@ import {
   type TableSummary,
   type RowData,
   type WriteResult,
+  type WriteContentTarget,
   type CommittedSessionUpdate,
   type ProjectManifest,
 } from '@/shared/types';
@@ -42,7 +43,10 @@ export function sessionUpdateFixture(
   };
 }
 
-export function savedWriteFixture(refreshedEntity: RowData | null = null): WriteResult {
+export function savedWriteFixture(
+  value: RowData | null = null,
+  target: WriteContentTarget = { kind: 'json', origin: { kind: 'modInfo' } },
+): WriteResult {
   return {
     sessionUpdates: [],
     baseVersions: [],
@@ -52,6 +56,6 @@ export function savedWriteFixture(refreshedEntity: RowData | null = null): Write
     invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
     identityChanges: [],
     keyMap: [],
-    refreshedEntity,
+    content: value === null ? null : { target, value },
   };
 }

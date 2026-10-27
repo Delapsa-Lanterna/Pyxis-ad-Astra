@@ -1,13 +1,15 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths, listenEntityIdentityApplied } from '@/orchestrators/project-sync.orchestrator';
+import {
+  refreshProjectSourcePaths,
+  publishCommittedWrite,
+  listenEntityIdentityApplied,
+  listenProjectChanges,
+  projectChangeSessionId,
+} from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, queryFileTextIdentityIntent, followFileTextIdentity } from '@/services/files.service';
-import {
-  emitFileEditorSaved,
-  listenFileEditorProjectInvalidated,
-  listenFileEditorTextApplied,
-} from '@/orchestrators/file-editor-window.orchestrator';
+import { committedFileText } from '@/orchestrators/file-editor-window.orchestrator';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import type { UnlistenFn } from '@/windows/tauri.events';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
@@ -23,7 +25,7 @@ import {
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
-import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
+import type { EntityIdentityChange, WriteResult, EntityEditInfo, ProjectChange } from '@/shared/types';
 import { formatError, errorDiagnosticOf, AppError } from '@/shared/lib/errors';
 
 import { captureIdentityVersions, handoffTableVersions } from '@/domain/project/entity-versions';
@@ -61,7 +63,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   } | null = null;
   const identityNotice = ref('');
   let identitySequence = 0;
-  type TextMeta = { entity: EntityEditInfo | null; receipt: WriteResult | null };
+  type TextMeta = { entity: EntityEditInfo | null; receipt: WriteResult<unknown> | null };
 
   const title = ref(params.title);
   const contextLabel = ref(params.contextLabel);
@@ -94,7 +96,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       const change = result.identityChanges[0];
       return {
         target: { ...target, filePath: change?.after.write.path ?? target.filePath },
-        value: typeof result.refreshedEntity?.text === 'string' ? result.refreshedEntity.text : draft,
+        value: typeof result.content?.value?.text === 'string' ? result.content?.value.text : draft,
         baseVersions: result.baseVersions,
         meta: { entity: change ? { target: change.after, baseVersions: result.baseVersions } : entity, receipt: result },
         commitId: result.commitId,
@@ -146,12 +148,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     },
     synchronizeSaved: async (snapshot) => {
       const target = snapshot.target;
-      await emitFileEditorSaved({
-        modRoot: target.modRoot,
-        path: target.filePath,
-        sessionId: target.sessionId,
-        writeResult: snapshot.meta.receipt!,
-      });
+      await publishCommittedWrite(target.modRoot, snapshot.meta.receipt!, target.sessionId);
     },
     targetKey: (target) => fileEditorTargetKey(target),
   });
@@ -195,8 +192,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     },
   });
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
-  let unlistenTextApplied: UnlistenFn | null = null;
-  let unlistenProjectInvalidated: UnlistenFn | null = null;
+  let unlistenChanges: UnlistenFn | null = null;
   let unlistenIdentity: UnlistenFn | null = null;
   let disposed = false;
 
@@ -231,47 +227,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       unlistenIdentity = null;
       return;
     }
-    unlistenTextApplied = await listenFileEditorTextApplied((event) => {
-      if (disposed) return;
-      if (!currentPath.value || !params.modRoot || !params.sessionId || pendingIdentity) return;
-      if (event.sessionId !== params.sessionId) return;
-      if (normalizeFsPath(event.modRoot) !== normalizeFsPath(params.modRoot)) return;
-      if (normalizeFsPath(event.path) !== normalizeFsPath(currentPath.value)) return;
-      applyExternalText(event.text, event.baseVersions, event.commitId);
-    });
-    if (disposed) {
-      unlistenTextApplied?.();
-      unlistenTextApplied = null;
-      return;
-    }
-    const syncFilePath = currentPath.value;
-    const syncModRoot = params.modRoot;
-    const syncSessionId = params.sessionId;
-    if (syncFilePath === null || syncModRoot === null || syncSessionId === null) return;
-    unlistenProjectInvalidated = await listenFileEditorProjectInvalidated(async (event) => {
-      if (disposed || pendingIdentity) return;
-      if (event.manifest.sessionId !== syncSessionId) return;
-      if (normalizeFsPath(event.manifest.modRoot) !== normalizeFsPath(syncModRoot)) return;
-      const affected = event.invalidation.paths.some((path) => {
-        const changedPath = isAbsoluteFsPath(path) ? path : joinRootRelativePath(syncModRoot, path);
-        return pathBelongsToRoot(currentPath.value!, changedPath);
-      });
-      if (!affected) return;
-      try {
-        await draftSession.refreshTarget({
-          sessionId: syncSessionId,
-          modRoot: syncModRoot,
-          filePath: currentPath.value!,
-          mode: params.mode,
-        });
-      } catch (error) {
-        feedback.error(error, '外部文件更新同步失败');
-      }
-    });
-    if (disposed) {
-      unlistenProjectInvalidated?.();
-      unlistenProjectInvalidated = null;
-    }
+    unlistenChanges = await listenProjectChanges(handleProjectChange);
+    if (disposed) unlistenChanges();
   }
 
   function dispose() {
@@ -283,10 +240,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     identitySequence++;
     pendingIdentity = null;
     draftSession.dispose();
-    unlistenTextApplied?.();
-    unlistenTextApplied = null;
-    unlistenProjectInvalidated?.();
-    unlistenProjectInvalidated = null;
+    unlistenChanges?.();
+    unlistenChanges = null;
   }
 
   async function loadFile() {
@@ -451,16 +406,38 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     draftSession.setDraft(textHistory.redo()!);
   }
 
-  function applyExternalText(nextText: string, baseVersions?: import('@/shared/types').FileVersion[], commitId?: number) {
-    const target = fileEditorTarget();
-    if (!target) return;
-    draftSession.applyExternalForTarget({
-      target,
-      value: nextText,
-      baseVersions: baseVersions ?? [],
-      commitId,
-      meta: { entity: draftSession.baselineSnapshot.value?.meta.entity ?? null, receipt: null },
-    });
+  function handleProjectChange(change: ProjectChange) {
+    const target = draftSession.currentTarget.value;
+    if (!target || disposed || pendingIdentity || projectChangeSessionId(change) !== target.sessionId) return;
+    if (change.kind === 'closed') {
+      draftSession.cancelRead();
+      return;
+    }
+    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    const receipt = change.kind === 'commit' ? change.event.result : null;
+    if (receipt && !draftSession.isTargetCommitCurrent(target, receipt.commitId)) return;
+    const entity = draftSession.baselineSnapshot.value!.meta.entity;
+    const identity = receipt?.identityChanges.find((entry) => normalizeFsPath(entry.after.write.path) === normalizeFsPath(target.filePath));
+    const content = receipt ? committedFileText(receipt, target.filePath) : undefined;
+    if (
+      content !== undefined &&
+      (!entity || identity) &&
+      receipt!.baseVersions.some((version) => normalizeFsPath(version.path) === normalizeFsPath(target.filePath))
+    ) {
+      draftSession.applyExternalForTarget({
+        target,
+        value: content,
+        baseVersions: receipt!.baseVersions,
+        commitId: receipt!.commitId,
+        meta: { entity: identity ? { target: identity.after, baseVersions: receipt!.baseVersions } : null, receipt },
+      });
+      return;
+    }
+    const affected = change.projection.invalidation.paths.some((path) =>
+      pathBelongsToRoot(target.filePath, isAbsoluteFsPath(path) ? path : joinRootRelativePath(target.modRoot, path)),
+    );
+    if (affected || change.projection.invalidation.session)
+      void draftSession.refreshTarget(target).catch((error) => feedback.error(error, '外部文件更新同步失败'));
   }
 
   function applyLocation(location: import('@/shared/types').FileWindowLocation) {

@@ -61,10 +61,8 @@ describe('engine resource queries', () => {
   it('recognizes parent refreshes and retries read failures', async () => {
     expect(
       hasEngineAssetsInvalidation({
-        sessionId: 's',
-        scope: 'paths',
-        queries: [],
-        invalidation: { ...changed, resources: [{ source: 'core', relPath: 'data/config' }] },
+        ...changed,
+        resources: [{ source: 'core', relPath: 'data/config' }],
       }),
     ).toBe(true);
     vi.mocked(invokeCommand).mockRejectedValueOnce(new Error('read')).mockResolvedValue(result);

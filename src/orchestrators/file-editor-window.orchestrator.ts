@@ -1,47 +1,28 @@
-import { type FileEditorSavedEvent, type FileEditorTextAppliedEvent, type ProjectSessionInvalidatedEvent } from '@/windows/window.events';
-import { type WindowEventHandler } from '@/windows/tauri.events';
-import { publishCommittedWrite, listenCommittedWrites, listenProjectSessionInvalidated } from '@/orchestrators/project-sync.orchestrator';
-
+import type { WriteResult } from '@/shared/types';
 import { joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
-
-export function emitFileEditorSaved(event: FileEditorSavedEvent) {
-  return publishCommittedWrite(event.modRoot, event.writeResult, event.sessionId);
-}
-export function listenFileEditorTextApplied(handler: WindowEventHandler<FileEditorTextAppliedEvent>) {
-  return listenCommittedWrites(async (event) => {
-    for (const scope of event.result.sessionUpdates) {
-      for (const change of event.result.changes.filter(
-        (change) => pathBelongsToRoot(change.beforePath, scope.modRoot) || pathBelongsToRoot(change.afterPath, scope.modRoot),
-      )) {
-        if (change.kind === 'directory') {
-          const paths = new Set([...change.beforeFiles, ...change.afterFiles].map((file) => file.relPath));
-          const after = new Map(change.afterFiles.map((file) => [normalizeFsPath(file.relPath), file]));
-          for (const path of paths) {
-            const file = after.get(normalizeFsPath(path));
-            if (file?.dataBase64) continue;
-            await handler({
-              commitId: event.result.commitId,
-              baseVersions: event.result.baseVersions,
-              modRoot: scope.modRoot,
-              sessionId: scope.sessionId,
-              path: joinRootRelativePath(change.afterPath, path),
-              text: file?.text ?? '',
-            });
-          }
-        } else if (!change.afterDataBase64 && (!change.beforeDataBase64 || change.afterText !== null)) {
-          await handler({
-            commitId: event.result.commitId,
-            baseVersions: event.result.baseVersions,
-            modRoot: scope.modRoot,
-            sessionId: scope.sessionId,
-            path: change.afterPath,
-            text: change.afterText ?? '',
-          });
-        }
-      }
-    }
-  });
-}
-export function listenFileEditorProjectInvalidated(handler: WindowEventHandler<ProjectSessionInvalidatedEvent>) {
-  return listenProjectSessionInvalidated(handler);
+import { isRowData } from '@/shared/lib/row-data';
+export function committedFileText(result: WriteResult<unknown>, path: string): string | undefined {
+  const content = result.content;
+  if (
+    content?.target.kind === 'text' &&
+    normalizeFsPath(content.target.path) === normalizeFsPath(path) &&
+    isRowData(content.value) &&
+    typeof content.value.text === 'string'
+  )
+    return content.value.text;
+  for (const change of result.changes) {
+    if (change.kind === 'directory' && pathBelongsToRoot(path, change.afterPath)) {
+      const matches = (file: { relPath: string }) =>
+        normalizeFsPath(joinRootRelativePath(change.afterPath, file.relPath)) === normalizeFsPath(path);
+      const after = change.afterFiles.find(matches);
+      if (after?.dataBase64) return;
+      if (after) return after.text ?? '';
+      if (change.beforeFiles.some(matches)) return '';
+    } else if (
+      normalizeFsPath(change.afterPath) === normalizeFsPath(path) &&
+      !change.afterDataBase64 &&
+      (!change.beforeDataBase64 || change.afterText !== null)
+    )
+      return change.afterText ?? '';
+  }
 }

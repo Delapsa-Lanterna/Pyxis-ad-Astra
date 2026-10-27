@@ -255,7 +255,7 @@ fn recreate_missing_source() {
         baseline: json!({"file":{"dialogue":{"line":"001"}}}),
     })
     .unwrap();
-    assert!(restored.refreshed_entity.unwrap().missing_paths.is_empty());
+    assert!(restored.content.unwrap().value.missing_paths.is_empty());
     assert_eq!(
         f.read().unwrap().unwrap().data,
         json!({"dialogue":{"line":"001"}})

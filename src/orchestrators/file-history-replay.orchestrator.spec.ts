@@ -73,7 +73,7 @@ function savedResult(): WriteResult {
     invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
     identityChanges: [],
     keyMap: [],
-    refreshedEntity: null,
+    content: null,
     baseVersions: [],
     commitId: 2,
     history: { revision: 2, undoStack: [], redoStack: [entry()] },

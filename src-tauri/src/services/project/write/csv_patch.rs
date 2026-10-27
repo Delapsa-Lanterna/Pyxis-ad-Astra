@@ -188,7 +188,7 @@ pub fn save_csv_patch_snapshot(
             .iter()
             .all(|path| !path.is_empty())
     );
-    debug_assert!(write_result.refreshed_entity().is_none());
+    debug_assert!(write_result.content.is_none());
     Ok(write_result)
 }
 

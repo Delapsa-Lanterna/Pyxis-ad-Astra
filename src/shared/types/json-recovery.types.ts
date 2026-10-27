@@ -1,10 +1,7 @@
-import type { FileVersion } from '@/shared/types/project-identity.types';
+import type { FileVersion, JsonDocumentOrigin } from '@/shared/types/project-identity.types';
 import type { RowData, JsonValue } from '@/shared/types/json.types';
 
-export type JsonDocumentOrigin =
-  | { kind: 'modInfo' }
-  | { kind: 'miscConfig'; file: import('./misc-config.types').MiscConfigKind }
-  | { kind: 'entity'; target: import('@/shared/types/config-entity.types').ConfigEditTarget };
+export type { JsonDocumentOrigin } from './project-identity.types';
 export interface JsonRecoveryRequest {
   sessionId: string;
   modRoot: string;

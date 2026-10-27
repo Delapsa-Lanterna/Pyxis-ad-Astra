@@ -649,7 +649,11 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             }
         }
     }
-    let mut result = WriteResult::new(changes, key_map, Some(saved));
+    let owner = crate::models::WriteContentTarget::Joint {
+        root: saved.root.clone(),
+    };
+    let mut result = WriteResult::from_content(changes, owner, saved);
+    result.key_map = key_map;
     result.identity_changes = identities;
     Ok(result)
 }

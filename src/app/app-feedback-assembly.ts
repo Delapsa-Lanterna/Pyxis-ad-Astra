@@ -9,7 +9,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { managedWindowContext } from '@/windows/window-context.window';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
-import { emitFileEditorSaved } from '@/orchestrators/file-editor-window.orchestrator';
+import { publishCommittedWrite } from '@/orchestrators/project-sync.orchestrator';
 
 interface FeedbackFileSession {
   modRoot: string;
@@ -97,7 +97,7 @@ async function transcodeReference(feedback: AppFeedback, reference: FileReferenc
     return;
   }
   try {
-    await emitFileEditorSaved({ ...session, path: reference.path, writeResult: result });
+    await publishCommittedWrite(session.modRoot, result, session.sessionId);
   } catch (error) {
     feedback.error(error, '已转码为 UTF-8，项目同步失败');
     return;

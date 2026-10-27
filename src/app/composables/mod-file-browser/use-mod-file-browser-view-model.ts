@@ -10,12 +10,11 @@ import {
   visibleModFiles,
   affectedModDirectories,
 } from '@/domain/mod-file-browser/file-tree';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
-import { listenCommittedWrites } from '@/orchestrators/project-sync.orchestrator';
+import { listenProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
-import { relativePathFromRoot, pathBelongsToRoot, normalizeFsPath } from '@/shared/lib/paths';
+import { relativePathFromRoot, normalizeFsPath, isAbsoluteFsPath } from '@/shared/lib/paths';
 import { createModDirectoryReads } from './use-mod-directory-reads';
 import { recordPerformance, startPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
 import type { ModFileSortKey } from '@/shared/types';
@@ -293,36 +292,22 @@ export function useModFileBrowserViewModel() {
     directoryReads.revoke(({ directory }) => affected.includes(directory));
     for (const directory of affected) reads.schedule('refresh:' + JSON.stringify(directory), () => void load(directory));
   }
-  const stopInvalidation = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== target.value?.sessionId) return;
-    if (event.scope === 'session') {
+  void listenProjectChanges((change) => {
+    const captured = target.value;
+    if (!captured || disposed || projectChangeSessionId(change) !== captured.sessionId) return;
+    if (change.kind === 'closed') {
       cancelSearchTimer();
       reads.revoke('session');
       cancelPrefetch();
       directoryReads.revoke(() => true, 'session');
-      resetPending(event.sessionId);
+      resetPending(change.sessionId);
       return;
     }
-    scheduleUpdates(event.invalidation?.paths ?? []);
-  });
-  void listenCommittedWrites(async (event) => {
-    const captured = target.value;
-    if (!captured || disposed || normalizeFsPath(event.modRoot) !== normalizeFsPath(captured.modRoot)) return;
-    if (event.sessionId && event.sessionId !== captured.sessionId) return;
-    const paths = event.result.changes
-      .flatMap((change) => [change.beforePath, change.afterPath])
-      .filter((path) => pathBelongsToRoot(path, captured.modRoot))
-      .map((path) => relativePathFromRoot(captured.modRoot, path));
-    if (searching.value) {
-      if (paths.length) await submitSearch();
-      return;
-    }
-    const affected = affectedModDirectories(state.value!.directories, paths);
-    directoryReads.revoke(({ directory }) => affected.includes(directory));
-    for (const directory of affected) {
-      if (disposed || target.value?.sessionId !== captured.sessionId) return;
-      if (state.value!.directories.has(directory)) await load(directory);
-    }
+    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(captured.modRoot)) return;
+    const paths = change.projection.invalidation.paths.map((path) =>
+      isAbsoluteFsPath(path) ? relativePathFromRoot(captured.modRoot, path) : path,
+    );
+    scheduleUpdates(paths);
   })
     .then((stop) => {
       if (disposed) stop();
@@ -340,7 +325,6 @@ export function useModFileBrowserViewModel() {
     directoryReads.revoke();
     tree.clear();
     stopWrites?.();
-    stopInvalidation();
     resetPending(target.value?.sessionId);
   });
   useContextMenuScope({ identity: () => JSON.stringify(target.value), refresh, canRefresh: () => Boolean(target.value) });

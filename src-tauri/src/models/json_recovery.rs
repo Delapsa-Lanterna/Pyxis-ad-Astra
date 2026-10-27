@@ -22,6 +22,18 @@ pub struct JsonSourceIdentity {
     pub rel_path: Option<String>,
 }
 
+impl From<&super::EntityEditTarget> for JsonDocumentOrigin {
+    fn from(target: &super::EntityEditTarget) -> Self {
+        Self::Entity {
+            target: JsonSourceIdentity {
+                kind: target.kind,
+                id: target.id.clone(),
+                rel_path: Some(target.write.rel_path.clone()),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonRecoveryRequest {

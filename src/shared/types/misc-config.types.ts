@@ -1,8 +1,8 @@
 import type { JsonValue } from './json.types';
 import type { ErrorDiagnostic } from './error.types';
-import type { FileVersion } from './project-identity.types';
+import type { FileVersion, MiscConfigKind } from './project-identity.types';
 import type { JsonWriteOptions } from './write-commit.types';
-export type MiscConfigKind = 'strings' | 'engineStyles' | 'hullStyles' | 'sounds' | 'settings';
+export type { MiscConfigKind } from './project-identity.types';
 
 export interface MiscConfigScope {
   sessionId: string;

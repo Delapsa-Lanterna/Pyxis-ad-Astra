@@ -38,6 +38,7 @@ export const editorsCapabilities = [
     },
   ]),
   ...capabilities({ role: 'service', domain: 'joint-edit' }, [
+    { capability: 'cache-observe', names: ['hasJointEditInvalidation'], owners: readOwners },
     {
       capability: 'joint-edit-read',
       names: ['queryJointEdit', 'queryJointEditRow', 'queryJointEditProjection', 'queryJointVariantCatalog', 'prepareJointEdit'],

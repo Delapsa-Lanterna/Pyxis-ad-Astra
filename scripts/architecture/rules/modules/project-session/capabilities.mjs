@@ -12,8 +12,9 @@ export const projectCapabilities = [
       names: ['publishCommittedWrite'],
       owners: [
         { layer: 'orchestrators', domain: 'file-history-replay' },
-        { layer: 'orchestrators', domain: 'editor-window' },
-        { layer: 'orchestrators', domain: 'file-editor-window' },
+        { layer: 'app', role: 'composable', domain: 'spec-editor-window-view-model' },
+        { layer: 'app', role: 'composable', domain: 'file-editor-view-model' },
+        { path: 'src/app/app-feedback-assembly.ts', layer: 'app' },
       ],
     },
     {
@@ -37,8 +38,20 @@ export const projectCapabilities = [
     },
     {
       capability: 'commit-observe',
-      names: ['invalidateProjectionCaches', 'listenCommittedWrites', 'listenProjectSessionInvalidated', 'listenEntityIdentityApplied'],
+      names: [
+        'invalidateProjectionCaches',
+        'listenCommittedWrites',
+        'listenProjectChanges',
+        'subscribeProjectChanges',
+        'projectChangeSessionId',
+        'listenEntityIdentityApplied',
+      ],
       owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
+    },
+    {
+      capability: 'session-release',
+      names: ['releaseProjectSession'],
+      owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
     },
     {
       capability: 'commit-complete',

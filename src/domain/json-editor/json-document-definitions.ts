@@ -25,6 +25,13 @@ export interface ConfigDocumentTarget {
   id: string;
   entity: EntityEditTarget | null;
 }
+export function jsonDocumentOrigin(target: ConfigDocumentTarget): import('@/shared/types').JsonDocumentOrigin {
+  return target.kind === 'mod-info'
+    ? { kind: 'modInfo' }
+    : target.kind === 'misc-config'
+      ? { kind: 'miscConfig', file: miscConfigFile(target.id).kind }
+      : { kind: 'entity', target: { kind: target.kind, id: target.id, relPath: target.entity!.write.relPath } };
+}
 export interface JsonDocumentRecord {
   target: ConfigDocumentTarget;
   value: RowData;

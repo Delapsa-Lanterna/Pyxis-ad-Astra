@@ -18,7 +18,7 @@ export async function saveSpecEditorSpecByKind(
   ensureSpecContext(modRoot, target.id);
   try {
     const result = await saveSpecEditorSpec(sessionId, modRoot, target, data, jsonWrite, baseVersions);
-    return { ...result, refreshedEntity: requireRowData(result.refreshedEntity, '规格保存返回内容无效') };
+    return { ...result, content: { target: result.content!.target, value: requireRowData(result.content?.value, '规格保存返回内容无效') } };
   } catch (error) {
     throw withCause(`保存 ${target.id} spec 失败`, error, `save-${target.kind}-spec`);
   }

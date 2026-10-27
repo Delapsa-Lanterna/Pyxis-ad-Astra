@@ -150,7 +150,7 @@ mod tests {
             valid["turretOffsets"] = serde_json::json!([4, 5]);
             let saved = save(valid.clone()).unwrap();
             assert_eq!(read_json_file(&path).unwrap(), valid);
-            assert_eq!(saved.refreshed_entity, Some(valid));
+            assert_eq!(saved.content.map(|content| content.value), Some(valid));
             assert_eq!(saved.history.undo_stack.len(), 1);
             crate::services::project::close_project_session(manifest.session_id).unwrap();
             fs::remove_dir_all(root).unwrap();
@@ -185,7 +185,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(read_json_file(&path).unwrap(), content);
-        assert_eq!(saved.refreshed_entity, Some(content));
+        assert_eq!(saved.content.map(|content| content.value), Some(content));
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -214,7 +214,10 @@ mod tests {
             }
             let result = save_editor_spec(&root.to_string_lossy(), kind, "demo", data).unwrap();
             let persisted = read_json_file(&target).unwrap();
-            assert_eq!(result.refreshed_entity, Some(persisted.clone()));
+            assert_eq!(
+                result.content.map(|content| content.value),
+                Some(persisted.clone())
+            );
             let noop = save_editor_spec_with_json_options(
                 &root.to_string_lossy(),
                 kind,
@@ -228,7 +231,7 @@ mod tests {
             )
             .unwrap();
             assert!(noop.changes.is_empty());
-            assert_eq!(noop.refreshed_entity, Some(persisted));
+            assert_eq!(noop.content.map(|content| content.value), Some(persisted));
             fs::remove_dir_all(root).unwrap();
         }
     }

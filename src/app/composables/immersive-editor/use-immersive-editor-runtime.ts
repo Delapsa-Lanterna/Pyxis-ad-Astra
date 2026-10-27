@@ -1,6 +1,11 @@
 import { hasSourceInvalidation } from '@/services/source-options.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths, listenEntityIdentityApplied } from '@/orchestrators/project-sync.orchestrator';
+import {
+  refreshProjectSourcePaths,
+  listenEntityIdentityApplied,
+  subscribeProjectChanges,
+  projectChangeSessionId,
+} from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
 import { useJointEditSession } from '../use-joint-edit-session';
@@ -17,14 +22,14 @@ import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import { mapJointDraftIdentity, rebaseJointDraft } from '@/domain/joint-edit';
 import { queryJointEdit, queryJointEditRow, queryJointEditProjection } from '@/services/joint-edit.service';
 import { querySourceOptionCatalog } from '@/services/source-options.service';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
 
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { deepClone } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { AppError, formatError, warningNotice } from '@/shared/lib/errors';
-import { normalizeFsPath, joinRootRelativePath, isAbsoluteFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
+import { normalizeFsPath } from '@/shared/lib/paths';
 import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
 import { recordLogBestEffort } from '@/services/app-log.service';
@@ -101,12 +106,13 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
         ? hullReferenceSourceGroups(await querySessionHullReferences(root.sessionId, [], signal))
         : querySourceOptionCatalog(root.sessionId, source, signal),
     subscribeSourceOptionInvalidation: (source, _resources, listener) =>
-      subscribeQueryInvalidations((event) => {
+      subscribeProjectChanges((event) => {
+        if (event.kind === 'closed') return;
         if (
-          event.sessionId === root.sessionId &&
+          projectChangeSessionId(event) === root.sessionId &&
           (source === 'hull:ids'
-            ? event.invalidation?.queryScopes.some((scope) => scope.kind === 'hull-references')
-            : hasSourceInvalidation(event, source))
+            ? event.projection.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
+            : hasSourceInvalidation(event.projection.invalidation, source))
         )
           listener();
       }),
@@ -159,29 +165,15 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       error: (error) => feedback.error(error, '关联来源读取失败'),
     });
   }
-  const stopProjection = subscribeQueryInvalidations((event) => {
-    if (event.sessionId !== root.sessionId) return;
-    if (event.scope === 'session') {
+  const stopProjection = subscribeProjectChanges((event) => {
+    if (projectChangeSessionId(event) !== root.sessionId) return;
+    if (event.kind === 'closed') {
       reads.revoke('session');
       projection.value = null;
       dismissStat();
       errorText.value = '所属会话已关闭';
       return;
     }
-    const current = snapshot.value;
-    if (!current || !event.invalidation) return;
-    const owned = [
-      ...current.records.flatMap((record) => [...record.baseVersions, ...(record.sourceVersion ? [record.sourceVersion] : [])]),
-      ...current.referenceSettings.versions,
-    ].map((version) => version.path);
-    const changed = event.invalidation.paths.map((path) => (isAbsoluteFsPath(path) ? path : joinRootRelativePath(root.modRoot, path)));
-    if (
-      event.invalidation.session ||
-      changed.some((path) => owned.some((own) => pathBelongsToRoot(own, path) || pathBelongsToRoot(path, own)))
-    )
-      reads.schedule('projection', () => {
-        void refreshProjection(true);
-      });
   });
   function editable(field: ImmersiveField) {
     return snapshot.value?.records.find((record) => record.key === field.recordKey)?.source?.source !== 'core';

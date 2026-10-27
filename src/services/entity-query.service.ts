@@ -10,7 +10,7 @@ import type {
   EntityEditTarget,
   DeepReadonly,
 } from '@/shared/types';
-import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
+import type { ProjectInvalidation } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
@@ -87,12 +87,10 @@ export function querySessionEntityIdentityIntent(
 }
 
 export function hasEntityInvalidation(
-  event: QueryCacheInvalidationEvent,
+  invalidation: ProjectInvalidation,
   queryKind: 'entity-detail' | 'entity-list',
   kind: EntityKind,
   id: string | null = null,
 ): boolean {
-  return (
-    event.scope === 'session' || !!event.invalidation?.queryScopes.some((scope) => matchesEntityQueryScope(scope, queryKind, kind, id))
-  );
+  return invalidation.session || invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, queryKind, kind, id));
 }

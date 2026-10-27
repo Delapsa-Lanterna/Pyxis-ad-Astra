@@ -1,9 +1,10 @@
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, JointVariantCatalogKind, ReadonlyVariantEntry, JointVariantCatalogRead, DeepReadonly } from '@/shared/types';
-import { queryJointVariantCatalog } from '@/services/joint-edit.service';
+import { queryJointVariantCatalog, hasJointEditInvalidation } from '@/services/joint-edit.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { formatError } from '@/shared/lib/errors';
-import { subscribeQueryInvalidations, hasQueryInvalidation } from '@/services/query-cache.service';
+
 export function useVariantCatalog(
   root: () => JointEditRoot,
   kind: () => JointVariantCatalogKind,
@@ -51,14 +52,14 @@ export function useVariantCatalog(
     { immediate: true },
   );
   onScopeDispose(
-    subscribeQueryInvalidations((event) => {
-      if (!enabled() || event.sessionId !== root().sessionId) return;
-      if (event.scope === 'session') {
+    subscribeProjectChanges((event) => {
+      if (!enabled() || projectChangeSessionId(event) !== root().sessionId) return;
+      if (event.kind === 'closed') {
         reads.revoke('session');
         entries.value = [];
         snapshot.value = null;
         loading.value = false;
-      } else if (hasQueryInvalidation(event, 'joint-edit-catalog'))
+      } else if (hasJointEditInvalidation(event.projection.invalidation))
         reads.schedule('catalog', () => {
           void load();
         });

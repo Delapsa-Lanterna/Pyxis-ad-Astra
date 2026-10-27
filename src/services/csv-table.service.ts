@@ -19,7 +19,7 @@ import type {
 import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
-import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
+import type { ProjectInvalidation } from '@/shared/types';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
 
 import { associatedSpecKind } from '@/domain/csv-editor/associated-specs';
@@ -131,9 +131,12 @@ export async function queryTableRowPreviewDataUrl(
   return (await queryResourceDataUrls(sessionId, [resource], signal))[0] ?? '';
 }
 
-export function hasTableInvalidation(event: QueryCacheInvalidationEvent, queryKind: 'csv-table-window', table: string): boolean {
+export function hasTableInvalidation(
+  invalidation: ProjectInvalidation,
+  queryKind: 'csv-table-window' | 'csv-row-preview',
+  table: string,
+): boolean {
   return (
-    event.scope === 'session' ||
-    !!event.invalidation?.queryScopes.some((scope) => scope.kind === queryKind && (!scope.table || scope.table === table))
+    invalidation.session || invalidation.queryScopes.some((scope) => scope.kind === queryKind && (!scope.table || scope.table === table))
   );
 }

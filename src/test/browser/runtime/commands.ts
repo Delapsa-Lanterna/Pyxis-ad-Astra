@@ -168,7 +168,10 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
     case 'save_misc_config':
     case 'delete_misc_config': {
       const payload = args.payload as MiscConfigWrite;
-      const result = model.receipt(command === 'save_misc_config' ? payload.data : null);
+      const result = model.receipt(command === 'save_misc_config' ? payload.data : null, {
+        kind: 'json',
+        origin: { kind: 'miscConfig', file: payload.kind },
+      });
       const definition = miscConfigFile(payload.kind);
       const path = model.manifest.modRoot + '/' + definition.path;
       result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(result.commitId) : null }];

@@ -1,3 +1,4 @@
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
 import { createPinia, setActivePinia } from 'pinia';
 import { effectScope, ref, type Ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,11 +7,11 @@ import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useCoreGraphics } from './use-core-assets';
 import { useCoreSchema } from './use-core-schema';
 import type { DiscoveredField } from '@/shared/types';
-import type { ProjectSessionInvalidatedEvent } from '@/windows/window.events';
-import type { WindowEventHandler } from '@/windows/tauri.events';
+import { dispatchProjectChangeFixture, projectChangeListeners } from '@/test/unit/project-changes';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { flushPromises } from '@vue/test-utils';
 
-const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn(), listen: vi.fn(), unlisten: vi.fn() }));
-vi.mock('@/windows/tauri.events', () => ({ listenWindowEvent: mocks.listen }));
+const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields, queryCoreGraphics: mocks.graphics }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 const fields: Record<string, DiscoveredField[]> = { faction: [{ key: 'bonus', type: 'string', origin: 'core' }] };
@@ -22,7 +23,6 @@ beforeEach(() => {
   setActivePinia(createPinia());
   root = ref<string | null>('D:/A');
   vi.clearAllMocks();
-  mocks.listen.mockResolvedValue(mocks.unlisten);
   mocks.fields.mockResolvedValue(fields);
   mocks.graphics.mockResolvedValue(['graphics/a.png']);
   scope = effectScope();
@@ -34,10 +34,12 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
-  function refresh(path: string, source = 'core', gameRoot = 'd:/a') {
-    const handler = mocks.listen.mock.calls.at(-1)![1] as WindowEventHandler<ProjectSessionInvalidatedEvent>;
-    const event = { manifest: { starsectorRoot: gameRoot }, invalidation: { resources: [{ source, relPath: path }] } };
-    return handler(event as ProjectSessionInvalidatedEvent);
+  async function refresh(path: string, source: 'core' | 'mod' = 'core', gameRoot = 'd:/a') {
+    const projection = sessionUpdateFixture('s', 'M:/mod').projection;
+    projection.manifest.starsectorRoot = gameRoot;
+    projection.invalidation.resources = [{ source, relPath: path }];
+    dispatchProjectChangeFixture({ kind: 'refresh', projection });
+    await flushPromises();
   }
 
   it.each([
@@ -94,23 +96,18 @@ describe('Core asset ownership and acceptance', () => {
   it('releases the refresh subscription and ignores queued events after disposal', async () => {
     stop();
     await refresh('graphics/demo.png');
-    expect(mocks.unlisten).toHaveBeenCalledTimes(1);
+    expect(projectChangeListeners.size).toBe(0);
     expect(mocks.graphics).not.toHaveBeenCalled();
   });
 
   it('updates both window stores from the same explicit refresh event', async () => {
     const first = useCoreAssetsStore();
-    const firstHandler = mocks.listen.mock.calls.at(-1)![1] as WindowEventHandler<ProjectSessionInvalidatedEvent>;
     await loadCoreGraphics();
     setActivePinia(createPinia());
     const stopSecond = startCoreAssetsLoading(ref('D:/A'));
     const second = useCoreAssetsStore();
     await loadCoreGraphics();
     mocks.graphics.mockResolvedValue(['graphics/new.png']);
-    await firstHandler({
-      manifest: { starsectorRoot: 'D:/A' },
-      invalidation: { resources: [{ source: 'core', relPath: 'graphics' }] },
-    } as ProjectSessionInvalidatedEvent);
     await refresh('graphics');
     expect(first.graphics.content).toEqual(['graphics/new.png']);
     expect(second.graphics.content).toEqual(['graphics/new.png']);

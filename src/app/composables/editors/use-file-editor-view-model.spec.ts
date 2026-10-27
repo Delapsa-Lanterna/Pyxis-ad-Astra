@@ -1,3 +1,5 @@
+import { projectChangeFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
+import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
@@ -10,8 +12,9 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture());
 });
 
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
-  emitEntityIdentityApplied: vi.fn(async () => {}),
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await import('@/test/unit/project-changes')),
+  publishCommittedWrite: mocks.publishCommittedWrite,
   listenEntityIdentityApplied: vi.fn(async (handler) => {
     mocks.identityHandler = handler;
     return () => {};
@@ -23,15 +26,7 @@ const mocks = vi.hoisted(() => ({
   followIdentity: vi.fn(),
   loadEditableFileData: vi.fn(),
   writeEditableFileText: vi.fn(),
-  emitFileEditorSaved: vi.fn(async () => {}),
-  listenFileEditorProjectInvalidated: vi.fn(async (...args: unknown[]) => {
-    void args;
-    return async () => {};
-  }),
-  listenFileEditorTextApplied: vi.fn(async (...args: unknown[]) => {
-    void args;
-    return async () => {};
-  }),
+  publishCommittedWrite: vi.fn(async () => {}),
   feedback: {
     success: vi.fn(),
     info: vi.fn(),
@@ -61,23 +56,16 @@ vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
   retargetFileWindow: vi.fn(async () => {}),
 }));
 
-vi.mock('@/orchestrators/file-editor-window.orchestrator', () => ({
-  emitFileEditorSaved: mocks.emitFileEditorSaved,
-  listenFileEditorTextApplied: mocks.listenFileEditorTextApplied,
-  listenFileEditorProjectInvalidated: mocks.listenFileEditorProjectInvalidated,
-}));
-
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
 
 import { useFileEditorViewModel, type FileEditorViewModelParams } from './use-file-editor-view-model';
-import type { ProjectSessionInvalidatedEvent } from '@/windows/window.events';
 
 function paramsFixture(overrides: Partial<FileEditorViewModelParams> = {}): FileEditorViewModelParams {
   return {
     mode: 'session',
-    filePath: 'data/hulls/test.file',
+    filePath: 'C:/mods/alpha/data/hulls/test.file',
     modRoot: 'C:/mods/alpha',
     sessionId: 's1',
     title: '文件编辑器',
@@ -96,6 +84,12 @@ async function initializeViewModel(params: FileEditorViewModelParams) {
   return viewModel;
 }
 
+function textApplied(event: { sessionId: string; modRoot: string; path: string; text: string; baseVersions: [] }) {
+  const path = event.path.startsWith(event.modRoot) ? event.path : event.modRoot + '/' + event.path;
+  const result = savedWriteFixture({ text: event.text }, { kind: 'text', path });
+  result.baseVersions = [{ path, fingerprint: 'saved' }];
+  dispatchProjectChangeFixture(committedChangeFixture(result, event.sessionId, event.modRoot));
+}
 describe('useFileEditorViewModel loading', () => {
   it('loads the file text into the draft and tracks the line count', async () => {
     mocks.loadEditableFileData.mockResolvedValue({ path: 'x', text: 'line1\nline2', baseVersions: [] });
@@ -183,14 +177,14 @@ describe('useFileEditorViewModel editing', () => {
       invalidation: {},
       identityChanges: [],
       keyMap: [],
-      refreshedEntity: null,
+      content: null,
     };
     mocks.writeEditableFileText.mockResolvedValue(result);
     const viewModel = await loadedViewModel();
     viewModel.updateText('saved text');
     await viewModel.saveFile();
-    expect(mocks.writeEditableFileText).toHaveBeenCalledWith('s1', 'C:/mods/alpha', 'data/hulls/test.file', 'saved text', []);
-    expect(mocks.emitFileEditorSaved).toHaveBeenCalledTimes(1);
+    expect(mocks.writeEditableFileText).toHaveBeenCalledWith('s1', 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file', 'saved text', []);
+    expect(mocks.publishCommittedWrite).toHaveBeenCalledTimes(1);
     expect(mocks.feedback.success).toHaveBeenCalledWith('文件已保存');
     expect(viewModel.dirty.value).toBe(false);
     viewModel.dispose();
@@ -208,12 +202,12 @@ describe('useFileEditorViewModel editing', () => {
       invalidation: {},
       identityChanges: [],
       keyMap: [],
-      refreshedEntity: null,
+      content: null,
     });
     viewModel.updateText('recovered');
     await viewModel.saveFile();
-    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(null, 'C:/mods/alpha', 'data/hulls/test.file', 'recovered', []);
-    expect(mocks.emitFileEditorSaved).toHaveBeenCalledWith(expect.objectContaining({ sessionId: null, modRoot: 'C:/mods/alpha' }));
+    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(null, 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file', 'recovered', []);
+    expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('C:/mods/alpha', expect.any(Object), null);
     viewModel.dispose();
   });
 
@@ -255,6 +249,23 @@ describe('useFileEditorViewModel editing', () => {
 });
 
 describe('useFileEditorViewModel external text', () => {
+  it.each([true, false])('uses a text receipt once with complete entity metadata=%s', async (complete) => {
+    const target = entityTargetFixture('ship', 'probe', 'existing', 'C:/mods/alpha');
+    const loaded = { text: 'base', entity: { target, baseVersions: [] }, baseVersions: [] };
+    mocks.loadEditableFileData.mockResolvedValue(loaded);
+    const vm = await initializeViewModel(paramsFixture({ filePath: target.write.path }));
+    mocks.loadEditableFileData.mockClear();
+    mocks.loadEditableFileData.mockResolvedValue({ ...loaded, text: 'external' });
+    const result = savedWriteFixture({ text: 'external' }, { kind: 'text', path: target.write.path });
+    result.baseVersions = [{ path: target.write.path, fingerprint: 'saved' }];
+    result.invalidation.paths = [target.write.path];
+    result.identityChanges = complete ? [{ before: target, after: target }] : [];
+    dispatchProjectChangeFixture(committedChangeFixture(result, 's1', 'C:/mods/alpha'));
+    await flushPromises();
+    expect(mocks.loadEditableFileData).toHaveBeenCalledTimes(complete ? 0 : 1);
+    expect(vm.text.value).toBe('external');
+    vm.dispose();
+  });
   it('keeps unfinished text and follows its new identity after parsing becomes possible', async () => {
     const before = entityTargetFixture('ship', 'old');
     const after = entityTargetFixture('ship', 'new');
@@ -297,11 +308,6 @@ describe('useFileEditorViewModel external text', () => {
   });
   it('discards an external read superseded by the local save', async () => {
     mocks.loadEditableFileData.mockResolvedValueOnce({ path: 'C:/mods/alpha/notes.txt', text: 'base', baseVersions: [] });
-    let invalidated!: (event: ProjectSessionInvalidatedEvent) => Promise<void>;
-    mocks.listenFileEditorProjectInvalidated.mockImplementationOnce(async (handler: unknown) => {
-      invalidated = handler as typeof invalidated;
-      return async () => {};
-    });
     const vm = await initializeViewModel(paramsFixture({ filePath: 'C:/mods/alpha/notes.txt' }));
     let release!: (loaded: { text: string; baseVersions: [] }) => void;
     mocks.loadEditableFileData.mockImplementationOnce(
@@ -310,10 +316,7 @@ describe('useFileEditorViewModel external text', () => {
           release = resolve;
         }),
     );
-    const reading = invalidated({
-      manifest: { sessionId: 's1', modRoot: 'C:/mods/alpha' },
-      invalidation: { paths: ['notes.txt'] },
-    } as ProjectSessionInvalidatedEvent);
+    const reading = projectChangeFixture('s1', { ...savedWriteFixture().invalidation, ...{ paths: ['notes.txt'] } }, 'C:/mods/alpha');
     vm.updateText('saved B');
     mocks.writeEditableFileText.mockResolvedValueOnce({ ...savedWriteFixture({ text: 'saved B' }), changes: [], baseVersions: [] });
     await vm.saveFile();
@@ -327,18 +330,11 @@ describe('useFileEditorViewModel external text', () => {
     'stages a dirty file version from the invalidation path %s',
     async (path) => {
       mocks.loadEditableFileData.mockResolvedValueOnce({ path: 'x', text: 'base', baseVersions: [] });
-      let invalidated!: (event: ProjectSessionInvalidatedEvent) => Promise<void>;
-      mocks.listenFileEditorProjectInvalidated.mockImplementationOnce(async (handler: unknown) => {
-        invalidated = handler as typeof invalidated;
-        return async () => {};
-      });
       const viewModel = await initializeViewModel(paramsFixture({ filePath: 'C:/mods/alpha/data/hulls/test.file' }));
       viewModel.updateText('local');
       mocks.loadEditableFileData.mockResolvedValueOnce({ path: 'x', text: 'external', baseVersions: [] });
-      await invalidated({
-        manifest: { sessionId: 's1', modRoot: 'C:/mods/alpha' },
-        invalidation: { paths: [path] },
-      } as ProjectSessionInvalidatedEvent);
+      await projectChangeFixture('s1', { ...savedWriteFixture().invalidation, ...{ paths: [path] } }, 'C:/mods/alpha');
+      await flushPromises();
       expect(mocks.loadEditableFileData).toHaveBeenLastCalledWith('s1', 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file');
       expect(viewModel.text.value).toBe('local');
       expect(viewModel.hasPendingExternalText.value).toBe(true);
@@ -351,11 +347,6 @@ describe('useFileEditorViewModel external text', () => {
 
   it('stages external text while dirty and shows the notice', async () => {
     mocks.loadEditableFileData.mockResolvedValue({ path: 'x', text: 'base', baseVersions: [] });
-    let textApplied: ((event: { sessionId: string; modRoot: string; path: string; text: string; baseVersions: [] }) => void) | null = null;
-    mocks.listenFileEditorTextApplied.mockImplementation(async (handler?: unknown) => {
-      textApplied = handler as never;
-      return async () => {};
-    });
     const viewModel = await initializeViewModel(paramsFixture());
     viewModel.updateText('local edit');
     textApplied!({ sessionId: 's1', modRoot: 'C:/mods/alpha', path: 'data/hulls/test.file', text: 'external', baseVersions: [] });
@@ -374,11 +365,6 @@ describe('useFileEditorViewModel external text', () => {
 
   it('applies external text directly when clean and filters foreign targets', async () => {
     mocks.loadEditableFileData.mockResolvedValue({ path: 'x', text: 'base', baseVersions: [] });
-    let textApplied: ((event: { sessionId: string; modRoot: string; path: string; text: string; baseVersions: [] }) => void) | null = null;
-    mocks.listenFileEditorTextApplied.mockImplementation(async (handler?: unknown) => {
-      textApplied = handler as never;
-      return async () => {};
-    });
     const viewModel = await initializeViewModel(paramsFixture());
     textApplied!({ sessionId: 'other', modRoot: 'C:/mods/alpha', path: 'data/hulls/test.file', text: 'foreign', baseVersions: [] });
     expect(viewModel.text.value).toBe('base');

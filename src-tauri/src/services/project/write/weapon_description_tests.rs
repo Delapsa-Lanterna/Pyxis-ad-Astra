@@ -90,7 +90,14 @@ fn rename(
                 }],
                 json_write: Default::default(),
             })
-            .map(|receipt| receipt.with_refreshed_entity(json!(null)))
+            .map(|receipt| {
+                receipt.with_content(
+                    crate::models::WriteContentTarget::Json {
+                        origin: crate::models::JsonDocumentOrigin::ModInfo,
+                    },
+                    json!(null),
+                )
+            })
         }
         "joint" => {
             let baseline = crate::services::query_joint_edit_request(&JointEditQuery {
@@ -125,8 +132,10 @@ fn rename(
                 create_overrides: Vec::new(),
             })
             .map(|receipt| {
-                let snapshot = json!(receipt.refreshed_entity);
-                receipt.with_refreshed_entity(snapshot)
+                let content = receipt.content.as_ref().unwrap();
+                let owner = content.target.clone();
+                let snapshot = json!(content.value);
+                receipt.with_content(owner, snapshot)
             })
         }
         _ => unreachable!(),

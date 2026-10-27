@@ -1,6 +1,7 @@
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { ref, watch, onScopeDispose } from 'vue';
 import { queryImageSourceOptions } from '@/services/source-options.service';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 import { mapSourceGroupsToSelectOptions, type SelectOption } from '@/domain/schema/schema-options';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -33,9 +34,9 @@ export function useImageSourceOptions(args: {
   }
   watch(() => [args.sessionId(), JSON.stringify(args.directories()), args.missionId?.(), args.active()], reload, { immediate: true });
   onScopeDispose(
-    subscribeQueryInvalidations((event) => {
-      if (event.sessionId !== args.sessionId()) return;
-      if (event.scope === 'session') {
+    subscribeProjectChanges((event) => {
+      if (projectChangeSessionId(event) !== args.sessionId()) return;
+      if (event.kind === 'closed') {
         reads.revoke();
         options.value = [];
       } else reads.schedule('images', reload);

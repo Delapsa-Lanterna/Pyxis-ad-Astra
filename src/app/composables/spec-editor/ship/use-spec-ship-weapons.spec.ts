@@ -1,28 +1,19 @@
+import { projectChangeFixture, closeProjectChangeFixture } from '@/test/unit/project-changes';
+import { savedWriteFixture } from '@/test/fixtures/write-result';
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await import('@/test/unit/project-changes')) }));
 import { defineComponent, h, ref } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import type { ShipWeaponSources } from '@/domain/spec-editor/ship/spec-ship-weapons';
-import type { QueryCacheInvalidationEvent } from '@/services/query-cache.service';
 import { useSpecShipWeapons } from './use-spec-ship-weapons';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   replaceCollection: vi.fn(),
   clear: vi.fn(),
-  listener: null as ((event: QueryCacheInvalidationEvent) => void) | null,
 }));
 vi.mock('@/services/spec-ship-editor.service', () => ({ querySpecShipWeaponSources: mocks.query }));
-vi.mock('@/services/query-cache.service', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/services/query-cache.service')>()),
-  hasQueryInvalidation: () => true,
-  subscribeQueryInvalidations: (listener: typeof mocks.listener) => {
-    mocks.listener = listener;
-    return () => {
-      mocks.listener = null;
-    };
-  },
-}));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn() }) }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({
   useResourceMediaRegistry: () => ({
@@ -34,7 +25,6 @@ vi.mock('@/app/composables/use-resource-media-registry', () => ({
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
-  mocks.listener = null;
 });
 
 function source(id: string): ShipWeaponSources {
@@ -149,13 +139,13 @@ describe('ship built-in read and image lifecycle', () => {
     own.created[0]!.onerror!();
     await flushPromises();
     expect(own.runtime.diagnostics.value).toContain('槽位 A · 武器 first：first.png 贴图解码失败');
-    mocks.listener!({ sessionId: 's', scope: 'paths', queries: [], invalidation: null });
+    projectChangeFixture('s', { ...savedWriteFixture().invalidation, paths: ['weapons'] });
     await flushPromises();
     expect(mocks.query).toHaveBeenCalledTimes(2);
     own.created.at(-1)!.onload!();
     await flushPromises();
     expect(own.runtime.diagnostics.value).toEqual([]);
-    mocks.listener!({ sessionId: 's', scope: 'session', queries: [], invalidation: null });
+    closeProjectChangeFixture('s');
     await flushPromises();
     expect(own.runtime.weapons.value).toEqual([]);
     expect(mocks.clear).toHaveBeenCalledTimes(1);

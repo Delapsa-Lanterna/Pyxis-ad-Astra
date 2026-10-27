@@ -15,34 +15,38 @@ import type {
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createLiveSessionQuery, createCachedSessionQuery } from '@/services/query-cache.service';
 
+export function hasJointEditInvalidation(invalidation: import('@/shared/types').ProjectInvalidation) {
+  return invalidation.session || invalidation.paths.length > 0;
+}
+
 const readJointEdit = createLiveSessionQuery<JointEditQuery, JointEditSnapshot>({
   queryKind: 'joint-edit',
   load: ({ parameters }) => invokeCommand<JointEditSnapshot>('query_joint_edit', { payload: parameters }),
-  invalidates: (_parameters, invalidation) => invalidation.paths.length > 0,
+  invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 });
 
 const readJointCandidate = createCachedSessionQuery<JointEditQuery, JointEditSnapshot>({
   queryKind: 'joint-edit-candidate',
   load: ({ parameters }) => invokeCommand<JointEditSnapshot>('query_joint_edit', { payload: parameters }),
-  invalidates: (_parameters, invalidation) => invalidation.paths.length > 0,
+  invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 });
 
 const readJointProjection = createLiveSessionQuery<JointEditQuery, JointEditSnapshot>({
   queryKind: 'joint-edit-projection',
   load: ({ parameters }) => invokeCommand<JointEditSnapshot>('query_joint_edit', { payload: parameters }),
-  invalidates: (_parameters, invalidation) => invalidation.paths.length > 0,
+  invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 });
 
 const readJointCatalog = createCachedSessionQuery<JointEditQuery, JointVariantCatalogRead>({
   queryKind: 'joint-edit-catalog',
   load: ({ parameters }) => invokeCommand<JointVariantCatalogRead>('query_joint_edit', { payload: parameters }),
-  invalidates: (_parameters, invalidation) => invalidation.paths.length > 0,
+  invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 });
 
 const readJointPreparation = createLiveSessionQuery<JointEditDraft, JointEditPrepared>({
   queryKind: 'joint-edit-prepare',
   load: ({ parameters }) => invokeCommand<JointEditPrepared>('prepare_joint_edit', { payload: parameters }),
-  invalidates: (_parameters, invalidation) => invalidation.paths.length > 0,
+  invalidates: (_parameters, invalidation) => hasJointEditInvalidation(invalidation),
 });
 
 export function queryJointEdit(

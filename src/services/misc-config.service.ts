@@ -1,7 +1,7 @@
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { pathBelongsToRoot } from '@/shared/lib/paths';
 import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
-import { createLiveSessionQuery, type QueryCacheInvalidationEvent } from '@/services/query-cache.service';
+import { createLiveSessionQuery } from '@/services/query-cache.service';
 import type {
   MiscConfigEntry,
   MiscConfigKind,
@@ -33,8 +33,8 @@ const read = createLiveSessionQuery<{ modRoot: string; kind: MiscConfigKind }, M
 export const queryMiscConfigFiles = (sessionId: string, modRoot: string, signal?: AbortSignal) => directory(sessionId, { modRoot }, signal);
 export const queryMiscConfigFile = (sessionId: string, modRoot: string, kind: MiscConfigKind, signal?: AbortSignal) =>
   read(sessionId, { modRoot, kind }, signal);
-export function hasMiscConfigInvalidation(event: QueryCacheInvalidationEvent, modRoot: string, kind?: MiscConfigKind) {
-  return event.scope === 'session' || (!!event.invalidation && affectsMiscConfig(event.invalidation, modRoot, kind));
+export function hasMiscConfigInvalidation(invalidation: ProjectInvalidation, modRoot: string, kind?: MiscConfigKind) {
+  return invalidation.session || affectsMiscConfig(invalidation, modRoot, kind);
 }
 export function saveMiscConfig(payload: MiscConfigWrite): Promise<WriteResult<MiscConfigFile['data']>> {
   return invokeCommand('save_misc_config', { payload });

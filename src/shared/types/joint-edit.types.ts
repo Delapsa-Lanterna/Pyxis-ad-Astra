@@ -1,14 +1,15 @@
-import type { EntityEditTarget, EntityFileLocation, CsvTableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
+import type {
+  EntityEditTarget,
+  EntityFileLocation,
+  CsvTableKey,
+  ResourceRef,
+  FileVersion,
+  JointEditRoot,
+} from '@/shared/types/project-identity.types';
 import type { JsonValue, DeepReadonly } from './json.types';
 import type { JsonWriteOptions, WriteResult } from './write-commit.types';
 
-export type JointEditKind = 'ship' | 'skin' | 'weapon' | 'wing' | 'variant';
-export interface JointEditRoot {
-  sessionId: string;
-  modRoot: string;
-  kind: JointEditKind;
-  id: string;
-}
+export type { JointEditKind, JointEditRoot } from './project-identity.types';
 export interface JointEditQuery {
   root: JointEditRoot;
   rowKey: string | null;
@@ -139,7 +140,9 @@ export interface SaveJointEditPayload {
   jsonWrite: JsonWriteOptions;
   createOverrides: string[];
 }
-export type JointEditWriteResult = Omit<WriteResult, 'refreshedEntity'> & { refreshedEntity: JointEditSnapshot };
+export type JointEditWriteResult = Omit<WriteResult, 'content'> & {
+  content: import('./write-commit.types').WriteContent<JointEditSnapshot>;
+};
 
 export interface EditHandoffRequest {
   requestId: string;

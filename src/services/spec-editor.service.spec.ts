@@ -57,7 +57,7 @@ function writeResultFixture(): WriteResult {
     invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
     identityChanges: [],
     keyMap: [],
-    refreshedEntity: null,
+    content: null,
   };
 }
 
@@ -173,7 +173,7 @@ describe('saveSpecEditorSpecByKind and import', () => {
 
   it('passes successful writes through unchanged', async () => {
     const result = writeResultFixture();
-    result.refreshedEntity = { id: 'S1' };
+    result.content = { target: { kind: 'spec', target: entityTargetFixture('system', 'S1') }, value: { id: 'S1' } };
     mocks.invokeCommand.mockResolvedValue(result);
     await expect(saveSpecEditorSpecByKind('s1', 'C:/mods/alpha', entityTargetFixture('system', 'S1'), { id: 'S1' })).resolves.toEqual(
       result,

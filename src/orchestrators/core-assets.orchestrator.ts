@@ -5,9 +5,7 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
-import { WINDOW_EVENTS, type ProjectSessionInvalidatedEvent } from '@/windows/window.events';
-import { listenWindowEvent } from '@/windows/tauri.events';
-import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
+import { subscribeProjectChanges } from '@/orchestrators/project-sync.orchestrator';
 
 interface CoreLoader {
   fields: () => Promise<void>;
@@ -73,23 +71,15 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
   };
   loaders.set(store, runtime);
   store.reset(root.value);
-  const eventName = WINDOW_EVENTS.projectSourcesRefreshed;
-  const registration = listenWindowEvent<ProjectSessionInvalidatedEvent>(
-    eventName,
-    async ({ manifest, invalidation }) => {
-      if (disposed || !store.root || !manifest.starsectorRoot || normalizeFsPath(store.root) !== normalizeFsPath(manifest.starsectorRoot))
-        return;
-      const paths = invalidation.resources.filter((source) => source.source === 'core').map((source) => source.relPath);
-      const affected = (directory: string) =>
-        paths.some((path) => pathBelongsToRoot(path, directory) || pathBelongsToRoot(directory, path));
-      await Promise.all([
-        ...(['data/world/factions', 'data/hulls', 'data/weapons'].some(affected) ? [runtime.fields(true)] : []),
-        ...(affected('graphics') ? [runtime.graphics(true)] : []),
-      ]);
-    },
-    recordWindowEventHandlerError,
-  ).catch((error: unknown) => {
-    recordWindowEventHandlerError(error, eventName);
+  const stopChanges = subscribeProjectChanges((change) => {
+    if (change.kind === 'closed') return;
+    const { manifest, invalidation } = change.projection;
+    if (disposed || !store.root || !manifest.starsectorRoot || normalizeFsPath(store.root) !== normalizeFsPath(manifest.starsectorRoot))
+      return;
+    const paths = invalidation.resources.filter((source) => source.source === 'core').map((source) => source.relPath);
+    const affected = (directory: string) => paths.some((path) => pathBelongsToRoot(path, directory) || pathBelongsToRoot(directory, path));
+    if (['data/world/factions', 'data/hulls', 'data/weapons'].some(affected)) void runtime.fields(true);
+    if (affected('graphics')) void runtime.graphics(true);
   });
   const stop = watch(
     root,
@@ -105,7 +95,7 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
     disposed = true;
     generation++;
     stop();
-    void registration.then((unlisten) => unlisten?.());
+    stopChanges();
     loaders.delete(store);
     store.reset(null);
   };

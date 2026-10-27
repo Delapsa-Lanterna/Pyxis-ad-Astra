@@ -12,7 +12,7 @@
 - `src-tauri/src/services/file_editor.rs`：后端编辑 service，消费 IO 路径授权并交付文本读写。
 - `src/app/FileEditorContent.vue`：窗口内容，拥有行号槽、文本域、快捷键与外部文本呈现。
 - `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
-- `src/orchestrators/file-editor-window.orchestrator.ts`：窗口打开编排，处理 warning 与失败目标的窗口化。
+- `src/orchestrators/file-editor-window.orchestrator.ts`：从正式回执及变更集提取所属路径的完整文本。
 - `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
 - `src/windows/file-editor-window.spec.ts`：诊断文件的结构化恢复窗口交付验证。
 - `src/windows/file-editor.window.ts`：窗口请求，承载常规与错误恢复两种请求形状。
@@ -98,6 +98,7 @@
 - 文件读取和保存必须消费 IO 规范路径识别所属实体；保存必须消费正式读取交付的版本凭据并由事务核对。
 - 文件路径、窗口上下文、原生登记、事件过滤与保存句柄必须共同消费当前目标；后续编辑必须按实际写盘文本计算 dirty。
 - 文本事务必须保留提交原文；身份字段归一与外部跟随只允许修改解析定位的 ID 值范围。
+- 文本内容变化必须只经项目变化入口处理；回执文本、目标与所需实体凭据充分时必须直接接纳，信息不足时必须读取一次。
 - 文本域必须完整保留换行与空白，严禁规范化输入内容；转码必须按用户选择的源编码执行，严禁自动探测。
 - 文本窗口必须登记所属文件及实体关联的版本范围；联合准备必须消费原文输入、保存等待与正式文本保存，错误必须保留原文。
 - 本地编辑、保存与基线交接必须使较早读取的值与错误失效；文本、目标和版本必须共同接纳。

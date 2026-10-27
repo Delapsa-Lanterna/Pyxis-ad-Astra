@@ -13,6 +13,7 @@ import { useProjectSyncStore } from '@/stores/project-sync.store';
 import type { CloseScope, CloseResult, ProjectManifest } from '@/shared/types';
 type RequestClose = (scope: CloseScope) => Promise<CloseResult>;
 import { markProjectionReady } from '@/services/project-projection.service';
+import { releaseProjectSession } from '@/orchestrators/project-sync.orchestrator';
 
 export interface WorkspaceCloseTarget {
   gameOverviewRoot: string | null;
@@ -80,6 +81,7 @@ function removeClosedMod(modRoot: string) {
     markProjectionReady(sessionId);
     invalidateQueryCacheForSession(sessionId);
     invalidateResourceMediaForSession(sessionId);
+    releaseProjectSession(sessionId);
   }
 
   removeModRuntimeState(modRoot);

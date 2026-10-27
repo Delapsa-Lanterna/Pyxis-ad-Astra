@@ -1,3 +1,7 @@
+import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { requireRowData } from '@/shared/lib/row-data';
+import { miscConfigValue } from '@/domain/json-editor/misc-config-files';
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
 import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
@@ -13,6 +17,8 @@ import {
   configDocumentKey,
   jsonDocumentId,
   jsonRecoveryValue,
+  jsonDocumentOrigin,
+  jsonDocumentValue,
   type ConfigDocumentTarget,
   type JsonDocumentDefinition,
   type JsonDocumentRecord,
@@ -21,12 +27,12 @@ import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useSaveCommandStore, type SaveSessionHandle } from '@/stores/save-command.store';
 import { useSettingsStore } from '@/stores/settings.store';
-import { subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { completeJsonSave } from '@/orchestrators/json-save.orchestrator';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import type { DocumentEditorActions, DocumentSaveResult } from '@/shared/runtime/document-editor';
-import type { AppFeedback, RowData } from '@/shared/types';
+import type { AppFeedback, RowData, WriteContent, JsonRecoveryPlan } from '@/shared/types';
 
 export function useJsonDocumentSession(definition: JsonDocumentDefinition, record: JsonDocumentRecord, feedback: AppFeedback) {
   const editors = useJsonEditorStore();
@@ -202,13 +208,53 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   onScopeDispose(useDraftSessionsStore().registerDraftSession(modRoot, session.dirty));
   onScopeDispose(commands.registerSaveSession(handle));
   onScopeDispose(
-    subscribeQueryInvalidations((event) => {
-      if (event.sessionId !== record.target.sessionId || event.scope === 'session') return;
+    subscribeProjectChanges((event) => {
+      if (projectChangeSessionId(event) !== record.target.sessionId) return;
+      if (event.kind === 'closed') {
+        session.cancelRead();
+        reads.revoke('session');
+        return;
+      }
+      const target = session.currentTarget.value!;
+      const receipt = event.kind === 'commit' ? event.event.result : null;
+      if (receipt && !session.isTargetCommitCurrent(target, receipt.commitId)) return;
+      const content = receipt?.content;
+      if (
+        content &&
+        (content.target.kind === 'json' || content.target.kind === 'recovery') &&
+        stableDeepEqual(content.target.origin, jsonDocumentOrigin(target))
+      ) {
+        if (content.target.kind === 'recovery') {
+          const plan = (content as WriteContent<JsonRecoveryPlan>).value;
+          session.applyExternalForTarget({
+            target,
+            value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
+            baseVersions: receipt!.baseVersions,
+            commitId: receipt!.commitId,
+            meta: { receipt, resources: plan.resourceRefs },
+          });
+          return;
+        }
+        if (target.kind === 'mod-info' || target.kind === 'misc-config') {
+          const value =
+            target.kind === 'misc-config'
+              ? miscConfigValue(target.id, content.value as import('@/shared/types').JsonValue)
+              : jsonDocumentValue(target.kind, requireRowData(content.value, 'JSON 文档内容无效'));
+          session.applyExternalForTarget({
+            target,
+            value,
+            baseVersions: receipt!.baseVersions,
+            commitId: receipt!.commitId,
+            meta: { receipt },
+          });
+          return;
+        }
+      }
       if (
         definition.kind !== 'mod-info' &&
         !(definition.kind === 'misc-config'
-          ? hasMiscConfigInvalidation(event, record.target.modRoot, miscConfigFile(record.target.id).kind)
-          : hasEntityInvalidation(event, 'entity-detail', definition.kind, session.currentTarget.value!.id))
+          ? hasMiscConfigInvalidation(event.projection.invalidation, record.target.modRoot, miscConfigFile(record.target.id).kind)
+          : hasEntityInvalidation(event.projection.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
       )
         return;
       if (active.value)

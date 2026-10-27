@@ -164,9 +164,10 @@ fn restore_sources_and_history() {
             let result = fixture.restore(plan).unwrap();
             assert!(
                 result
-                    .refreshed_entity
+                    .content
                     .as_ref()
                     .unwrap()
+                    .value
                     .missing_paths
                     .is_empty(),
                 "{kind}: {mask}"
@@ -270,7 +271,7 @@ fn repair_faction_reference() {
     let result = fixture.restore(plan).unwrap();
     assert_eq!(std::fs::read_to_string(path).unwrap(), external);
     assert_eq!(
-        result.refreshed_entity.unwrap().current_sources["file"]["displayName"],
+        result.content.unwrap().value.current_sources["file"]["displayName"],
         "External"
     );
 }

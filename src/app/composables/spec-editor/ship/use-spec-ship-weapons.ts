@@ -1,9 +1,10 @@
+import { hasJointEditInvalidation } from '@/services/joint-edit.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecShipWeaponSources } from '@/services/spec-ship-editor.service';
-import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 import { mediaResourceKey } from '@/services/resource-media.service';
 import { projectShipWeapons, type ShipWeaponSources } from '@/domain/spec-editor/ship/spec-ship-weapons';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -67,9 +68,13 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
   }
   watch(() => JSON.stringify([root(), ship().builtInWeapons]), load, { immediate: true });
   onScopeDispose(
-    subscribeQueryInvalidations((event) => {
-      if (event.sessionId !== root().sessionId || !hasQueryInvalidation(event, 'joint-edit-candidate')) return;
-      if (event.scope === 'session') {
+    subscribeProjectChanges((event) => {
+      if (
+        projectChangeSessionId(event) !== root().sessionId ||
+        (event.kind !== 'closed' && !hasJointEditInvalidation(event.projection.invalidation))
+      )
+        return;
+      if (event.kind === 'closed') {
         reads.revoke('session');
         sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: '' };
         media.clear();

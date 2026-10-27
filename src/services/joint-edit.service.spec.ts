@@ -94,7 +94,7 @@ describe('joint edit capability protocols', () => {
       jsonWrite: { preserveOriginalJson: false, confirmedSources: [] },
       createOverrides: [],
     };
-    invoke.mockResolvedValue({ refreshedEntity: snapshot });
+    invoke.mockResolvedValue({ content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
     await saveJointEdit(payload);
     expect(invoke).toHaveBeenLastCalledWith('save_joint_edit', { payload });
   });

@@ -18,8 +18,8 @@ vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
   },
 }));
 
-import { emitEditorSpecSaved, listenEditorSpecSaved } from './editor-window.orchestrator';
-import { emitFileEditorSaved, listenFileEditorTextApplied } from './file-editor-window.orchestrator';
+import { listenEditorSpecSaved } from './editor-window.orchestrator';
+import { committedFileText } from './file-editor-window.orchestrator';
 
 function event(): CommittedWriteEvent {
   return { originWindowLabel: 'peer', sessionId: 's1', modRoot: 'M:/mod', reason: 'undo', result: savedWriteFixture() };
@@ -33,22 +33,15 @@ describe('committed write domain projections', () => {
   it.each(['ship', 'weapon', 'projectile', 'system'] as SpecEditorKind[])(
     'publishes %s saves and projects their formal identity from one receipt',
     async (kind) => {
-      const receipt = savedWriteFixture({ id: 'next', hullId: 'next' });
+      const receipt = savedWriteFixture({ id: 'next', hullId: 'next' }, { kind: 'spec', target: entityTargetFixture(kind, 'next') });
       receipt.identityChanges = [{ before: entityTargetFixture(kind, 'old'), after: entityTargetFixture(kind, 'next') }];
-      const source = { sessionId: 's1', modRoot: 'M:/mod', kind, id: 'next', spec: receipt.refreshedEntity!, writeResult: receipt };
-      await emitEditorSpecSaved(source);
-      expect(mocks.publish).toHaveBeenCalledWith('M:/mod', receipt, 's1');
+      const source = { sessionId: 's1', modRoot: 'M:/mod', kind, id: 'next', spec: receipt.content!.value, writeResult: receipt };
       const receive = vi.fn();
       await listenEditorSpecSaved(receive);
       await mocks.listeners[0]!.handler({ ...event(), result: receipt });
       expect(receive).toHaveBeenCalledWith(source);
     },
   );
-  it('publishes generic text saves through the same commit owner', async () => {
-    const receipt = savedWriteFixture({ text: 'text' });
-    await emitFileEditorSaved({ modRoot: 'M:/mod', sessionId: 's1', path: 'M:/mod/notes.txt', writeResult: receipt });
-    expect(mocks.publish).toHaveBeenCalledWith('M:/mod', receipt, 's1');
-  });
   it('releases a spec listener after consuming a generic file receipt', async () => {
     const receive = vi.fn();
     const stop = await listenEditorSpecSaved(receive);
@@ -85,12 +78,9 @@ describe('committed write domain projections', () => {
       ],
     };
     receipt.changes = [directory];
-    const receive = vi.fn();
-    await listenFileEditorTextApplied(receive);
-    await mocks.listeners[0]!.handler({ ...event(), result: receipt });
-    expect(receive).toHaveBeenCalledTimes(2);
-    expect(receive).toHaveBeenCalledWith(expect.objectContaining({ path: 'M:/mod/next\\gone.txt', text: '' }));
-    expect(receive).toHaveBeenCalledWith(expect.objectContaining({ path: 'M:/mod/next\\new.txt', text: 'after' }));
+    expect(committedFileText(receipt, 'M:/mod/next/gone.txt')).toBe('');
+    expect(committedFileText(receipt, 'M:/mod/next/new.txt')).toBe('after');
+    expect(committedFileText(receipt, 'M:/mod/next/image.png')).toBeUndefined();
   });
   it('projects recovery writes to their actual registered text-session scope', async () => {
     const receipt = savedWriteFixture({ text: 'recovered' });
@@ -110,9 +100,6 @@ describe('committed write domain projections', () => {
         afterFiles: [],
       },
     ];
-    const receive = vi.fn();
-    await listenFileEditorTextApplied(receive);
-    await mocks.listeners[0]!.handler({ ...event(), sessionId: null, result: receipt });
-    expect(receive).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', modRoot: 'M:/mod', text: 'recovered' }));
+    expect(committedFileText(receipt, 'M:/mod/notes.txt')).toBe('recovered');
   });
 });

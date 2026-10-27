@@ -4,11 +4,15 @@ import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { createCachedSessionQuery } from '@/services/query-cache.service';
 import { hullReferenceOptions, hullWeaponSlotOptions, type HullSlotKind } from '@/domain/resources/hull-references';
 
+export function hasHullReferencesInvalidation(invalidation: import('@/shared/types').ProjectInvalidation) {
+  return invalidation.session || invalidation.queryScopes.some((scope) => scope.kind === 'hull-references');
+}
+
 const readHullReferences = createCachedSessionQuery<Omit<HullReferencesPayload, 'sessionId'>, HullReferencesResult>({
   queryKind: 'hull-references',
   load: ({ sessionId, parameters }) =>
     invokeCommand<HullReferencesResult>('query_hull_references', { payload: { sessionId, ...parameters } satisfies HullReferencesPayload }),
-  invalidates: (_parameters, invalidation) => invalidation.queryScopes.some((scope) => scope.kind === 'hull-references'),
+  invalidates: (_parameters, invalidation) => hasHullReferencesInvalidation(invalidation),
 });
 
 export function querySessionHullReferences(

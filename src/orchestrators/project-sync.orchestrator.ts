@@ -13,7 +13,7 @@ import { useProjectSyncStore, type PendingWriteSync } from '@/stores/project-syn
 import { markProjectionPending, markProjectionReady } from '@/services/project-projection.service';
 import { AppError, errorDiagnosticOf, withCause, errorMessageOf } from '@/shared/lib/errors';
 import { recordLogBestEffort } from '@/services/app-log.service';
-import type { WriteResult, InvalidatedResourceScope } from '@/shared/types';
+import type { WriteResult, InvalidatedResourceScope, ProjectChange } from '@/shared/types';
 import { refreshProjectSources, synchronizeSessionCommit } from '@/services/project-sync.service';
 import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
 import { invalidateQueryCacheByProject, subscribeQueryInvalidations } from '@/services/query-cache.service';
@@ -118,6 +118,7 @@ async function executeSync(entry: PendingWriteSync) {
   if (!sync.pending.some((candidate) => candidate.id === entry.id)) return;
   if (entry.step === 'acceptance') {
     acceptCommittedWrite(entry.event);
+    await commitListeners.get(sync)?.deliver(entry.event);
     entry.step = 'broadcast';
   }
   if (entry.event.result.changes.length > 0) await emitWindowEvent(WINDOW_EVENTS.committedWriteApplied, entry.event);
@@ -147,9 +148,16 @@ interface CommitSubscriber {
   phase: 'identity' | 'projection';
   delivered: Set<string>;
 }
+interface ChangeSubscriber {
+  handler: (change: ProjectChange) => void;
+  delivered: Set<string>;
+}
 interface CommitListeners {
-  subscribers: Set<CommitSubscriber>;
+  subscribers: Set<CommitSubscriber | ChangeSubscriber>;
   registration: Promise<() => void>;
+  unlisten?: () => void;
+  deliver: (event: CommittedWriteEvent) => Promise<void>;
+  change: (change: ProjectChange) => Promise<void>;
 }
 const commitListeners = new WeakMap<ReturnType<typeof useProjectSyncStore>, CommitListeners>();
 
@@ -158,16 +166,73 @@ export async function listenCommittedWrites(
   matches: (event: CommittedWriteEvent) => boolean = () => true,
   phase: CommitSubscriber['phase'] = 'projection',
 ) {
+  const subscription = registerSubscriber({ handler, matches, phase, delivered: new Set() });
+  await subscription.ready;
+  return subscription.stop;
+}
+
+export async function listenProjectChanges(handler: (change: ProjectChange) => void) {
+  const subscription = registerSubscriber({ handler, delivered: new Set() });
+  await subscription.ready;
+  return subscription.stop;
+}
+
+export function subscribeProjectChanges(handler: (change: ProjectChange) => void) {
+  const subscription = registerSubscriber({ handler, delivered: new Set() });
+  void subscription.ready.catch((error) => recordWindowEventHandlerError(error, 'project-change'));
+  return subscription.stop;
+}
+
+export function projectChangeSessionId(change: ProjectChange) {
+  return change.kind === 'closed' ? change.sessionId : change.projection.manifest.sessionId;
+}
+
+function registerSubscriber(subscriber: CommitSubscriber | ChangeSubscriber) {
   const sync = useProjectSyncStore();
   let listeners = commitListeners.get(sync);
   if (!listeners) {
-    const subscribers = new Set<CommitSubscriber>();
+    const subscribers = new Set<CommitSubscriber | ChangeSubscriber>();
     const dispatches = new Map<string, Promise<void>>();
+    async function change(change: ProjectChange) {
+      const key =
+        change.kind === 'closed'
+          ? JSON.stringify(['closed', change.sessionId])
+          : JSON.stringify([change.kind, change.projection.manifest.sessionId, change.projection.projectionRevision]);
+      await deliverDisplay(() => {
+        if (change.kind !== 'closed') {
+          const { manifest } = change.projection;
+          const current = useProjectStore().getManifest(manifest.modRoot);
+          if (current && current.sessionId !== manifest.sessionId) return;
+        }
+        const failures: unknown[] = [];
+        for (const subscriber of subscribers) {
+          if (
+            'phase' in subscriber ||
+            subscriber.delivered.has(key) ||
+            subscriber.delivered.has(JSON.stringify(['closed', projectChangeSessionId(change)]))
+          )
+            continue;
+          try {
+            subscriber.handler(change);
+            subscriber.delivered.add(key);
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+        if (failures.length) throw new AggregateError(failures, 'Project change delivery failed');
+      });
+    }
     async function deliver(event: CommittedWriteEvent, key: string) {
-      if (event.originWindowLabel === currentWindowLabel()) return;
       const current = useProjectStore().getManifest(event.modRoot);
       if (current && event.sessionId && current.sessionId !== event.sessionId) return;
-      const selected = [...subscribers].filter((subscriber) => subscriber.matches(event) && !subscriber.delivered.has(key));
+      const selected = [...subscribers].filter(
+        (subscriber): subscriber is CommitSubscriber =>
+          'phase' in subscriber &&
+          event.originWindowLabel !== currentWindowLabel() &&
+          subscriber.matches(event) &&
+          !subscriber.delivered.has(key),
+      );
+      acceptCommittedWrite(event);
       const identities = selected
         .filter((subscriber) => subscriber.phase === 'identity')
         .map((subscriber) => {
@@ -177,7 +242,6 @@ export async function listenCommittedWrites(
           });
           return operation.then(() => subscriber.delivered.add(key));
         });
-      acceptCommittedWrite(event);
       await Promise.all(identities);
       const latest = useProjectStore().getManifest(event.modRoot);
       if (latest && event.sessionId && latest.sessionId !== event.sessionId) return;
@@ -186,40 +250,72 @@ export async function listenCommittedWrites(
         await deliverDisplay(() => (subscribers.has(subscriber) ? subscriber.handler(event) : undefined));
         subscriber.delivered.add(key);
       }
+      for (const update of event.result.sessionUpdates)
+        if (update.status === 'ready') await change({ kind: 'commit', projection: update.projection, event });
     }
-    const registration = listenWindowEvent<CommittedWriteEvent>(
-      WINDOW_EVENTS.committedWriteApplied,
-      (event) => {
-        const key = JSON.stringify([event.sessionId, event.modRoot, event.result.commitId]);
-        const running = dispatches.get(key);
-        if (running) return running;
-        const operation = deliver(event, key).finally(() => dispatches.delete(key));
-        dispatches.set(key, operation);
-        return operation;
-      },
-      recordWindowEventHandlerError,
-    );
-    listeners = { subscribers, registration };
+    function dispatch(event: CommittedWriteEvent) {
+      const key = JSON.stringify([event.sessionId, event.modRoot, event.result.commitId]);
+      const running = dispatches.get(key);
+      if (running) return running;
+      const operation = deliver(event, key).finally(() => dispatches.delete(key));
+      dispatches.set(key, operation);
+      return operation;
+    }
+    const registration = Promise.allSettled([
+      listenWindowEvent<CommittedWriteEvent>(WINDOW_EVENTS.committedWriteApplied, dispatch, recordWindowEventHandlerError),
+      listenWindowEvent<ProjectSessionInvalidatedEvent & { originWindowLabel: string }>(
+        WINDOW_EVENTS.projectSourcesRefreshed,
+        async (event) => {
+          if (event.originWindowLabel === currentWindowLabel()) return;
+          await acceptProjectSourceRefresh(event);
+        },
+        recordWindowEventHandlerError,
+      ),
+    ]).then((results) => {
+      const stops = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+      const stop = () => stops.forEach((stop) => stop());
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) {
+        stop();
+        throw failure.reason;
+      }
+      listeners!.unlisten = stop;
+      return stop;
+    });
+    listeners = { subscribers, registration, deliver: dispatch, change };
     commitListeners.set(sync, listeners);
   }
-  const subscriber: CommitSubscriber = { handler, matches, phase, delivered: new Set() };
   listeners.subscribers.add(subscriber);
-  let stop: () => void;
-  try {
-    stop = await listeners.registration;
-  } catch (error) {
-    listeners.subscribers.delete(subscriber);
-    commitListeners.delete(sync);
-    throw error;
-  }
   const registration = listeners;
-  return () => {
-    registration.subscribers.delete(subscriber);
-    if (registration.subscribers.size === 0) {
-      stop();
-      commitListeners.delete(sync);
-    }
+  return {
+    ready: registration.registration.catch((error) => {
+      registration.subscribers.delete(subscriber);
+      if (commitListeners.get(sync) === registration) commitListeners.delete(sync);
+      throw error;
+    }),
+    stop: () => {
+      registration.subscribers.delete(subscriber);
+      if (registration.subscribers.size === 0) {
+        if (commitListeners.get(sync) === registration) commitListeners.delete(sync);
+        if (registration.unlisten) registration.unlisten();
+        else
+          void registration.registration.then(
+            (stop) => stop(),
+            () => {},
+          );
+      }
+    },
   };
+}
+
+export function releaseProjectSession(sessionId: string) {
+  const listeners = commitListeners.get(useProjectSyncStore());
+  if (!listeners) return;
+  for (const subscriber of listeners.subscribers)
+    if (!('phase' in subscriber)) {
+      subscriber.handler({ kind: 'closed', sessionId });
+      subscriber.delivered.add(JSON.stringify(['closed', sessionId]));
+    }
 }
 
 export interface SavedWriteCompletion {
@@ -277,7 +373,7 @@ export async function refreshProjectSourcePaths(
       ...new Map([...sources, ...resources].map((source) => [JSON.stringify(source), source])).values(),
     ]);
     if (!active) return;
-    acceptProjectSessionProjection(result);
+    await acceptProjectSourceRefresh(result);
     await emitWindowEvent(WINDOW_EVENTS.projectSourcesRefreshed, { ...result, originWindowLabel: currentWindowLabel() });
   } catch (error) {
     if (active) throw error;
@@ -291,6 +387,11 @@ function acceptProjectSessionProjection(event: ProjectSessionInvalidatedEvent) {
   if (previous && previous.sessionId !== event.manifest.sessionId) return;
   project.replaceProjectManifest(event.manifest, event.projectionRevision);
   invalidateProjectionCaches(event);
+}
+
+async function acceptProjectSourceRefresh(projection: ProjectSessionInvalidatedEvent) {
+  acceptProjectSessionProjection(projection);
+  await commitListeners.get(useProjectSyncStore())?.change({ kind: 'refresh', projection });
 }
 
 export function listenEntityIdentityApplied(handler: WindowEventHandler<EntityIdentityAppliedEvent>) {
@@ -307,28 +408,4 @@ export function listenEntityIdentityApplied(handler: WindowEventHandler<EntityId
     () => true,
     'identity',
   );
-}
-
-export async function listenProjectSessionInvalidated(handler: WindowEventHandler<ProjectSessionInvalidatedEvent>) {
-  const stop = await listenCommittedWrites(async (event) => {
-    for (const update of event.result.sessionUpdates) if (update.status === 'ready') await handler(update.projection);
-  });
-  try {
-    const stopRefresh = await listenWindowEvent<ProjectSessionInvalidatedEvent & { originWindowLabel: string }>(
-      WINDOW_EVENTS.projectSourcesRefreshed,
-      async (event) => {
-        if (event.originWindowLabel === currentWindowLabel()) return;
-        acceptProjectSessionProjection(event);
-        await deliverDisplay(() => handler(event));
-      },
-      recordWindowEventHandlerError,
-    );
-    return () => {
-      stop();
-      stopRefresh();
-    };
-  } catch (error) {
-    stop();
-    throw error;
-  }
 }

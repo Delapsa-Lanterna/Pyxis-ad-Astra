@@ -96,7 +96,7 @@ function writeResult(overrides: Partial<WriteResult> = {}): WriteResult {
     invalidation,
     identityChanges: [],
     keyMap: [],
-    refreshedEntity: null,
+    content: null,
     ...overrides,
   };
 }

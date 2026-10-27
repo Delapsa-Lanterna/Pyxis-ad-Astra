@@ -1,14 +1,14 @@
+import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
+import { projectChangeFixture } from '@/test/unit/project-changes';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import type { JointEditSnapshot, JointEditWriteResult } from '@/shared/types';
-import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 
-import type { ProjectSessionInvalidatedEvent } from '@/windows/window.events';
-const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn(), error: vi.fn(), projection: vi.fn() }));
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
-  listenProjectSessionInvalidated: mocks.projection,
+const mocks = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn(), complete: vi.fn(), error: vi.fn() }));
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await import('@/test/unit/project-changes')),
   completeSavedWrite: mocks.complete,
 }));
 
@@ -45,7 +45,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.open.mockResolvedValue(snapshot);
   mocks.complete.mockResolvedValue(undefined);
-  mocks.projection.mockResolvedValue(() => {});
 });
 describe('joint snapshot session acceptance', () => {
   it('passes corrected override content once and accepts it as the actual baseline', async () => {
@@ -58,7 +57,7 @@ describe('joint snapshot session acceptance', () => {
     });
     await session.loadTarget(root);
     const actual = { ...snapshot, records: [{ ...snapshot.records[0]!, value: { state: 'present' as const, value: 'corrected' } }] };
-    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: actual });
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
     await session.createOverrides(['ship'], { ship: { state: 'present', value: 'corrected' } });
     expect(mocks.save.mock.calls[0]![0].values.ship).toEqual({ state: 'present', value: 'corrected' });
     expect(session.draftValue.value.ship).toEqual({ state: 'present', value: 'corrected' });
@@ -98,8 +97,8 @@ describe('joint snapshot session acceptance', () => {
       'identity',
     );
     mocks.open.mockResolvedValue({ ...snapshot, root: next });
-    const notify = mocks.projection.mock.calls[0]![0] as (event: ProjectSessionInvalidatedEvent) => Promise<void>;
-    await notify(update.projection);
+    projectChangeFixture('s', update.projection.invalidation);
+    await flushPromises();
     expect(mocks.open).toHaveBeenLastCalledWith(next);
     wrapper.unmount();
   });
@@ -115,7 +114,7 @@ describe('joint snapshot session acceptance', () => {
     });
     await session.loadTarget(root);
     expect(Object.keys(session.draftValue.value)).toEqual(['ship']);
-    mocks.save.mockResolvedValue({ ...savedWriteFixture(), refreshedEntity: snapshot });
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
     await session.createOverrides(['ship']);
     expect(mocks.save.mock.calls[0]![0].values).toEqual({ ship: snapshot.records[0]!.value });
     expect(mocks.save.mock.calls[0]![3]).toEqual(['ship']);
@@ -183,7 +182,7 @@ describe('joint snapshot session acceptance', () => {
     mocks.complete.mockImplementationOnce(async () => {
       expect(session.baselineSnapshot.value!.value.ship).toEqual({ state: 'present', value: 'actual' });
     });
-    finish({ ...savedWriteFixture(), refreshedEntity: actual });
+    finish({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
     await pending;
     expect(session.draftValue.value.ship).toEqual({ state: 'present', value: 'later' });
     expect(session.dirty.value).toBe(true);
@@ -199,7 +198,7 @@ describe('joint snapshot session acceptance', () => {
     });
     await session.loadTarget(root);
     session.setDraft({ ship: { state: 'present', value: 'one' } });
-    const receipt = { ...savedWriteFixture(), refreshedEntity: snapshot };
+    const receipt = { ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } };
     mocks.save.mockResolvedValue(receipt);
     mocks.complete.mockRejectedValueOnce(new Error('broadcast'));
     await expect(session.saveDraft()).rejects.toThrow();

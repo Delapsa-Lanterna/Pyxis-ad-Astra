@@ -1,6 +1,7 @@
+import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
 import { computed, shallowRef, ref, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, ResourceRef } from '@/shared/types';
-import { queryJointCandidate } from '@/services/joint-edit.service';
+import { queryJointCandidate, hasJointEditInvalidation } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { projectWeaponPanel } from '@/domain/immersive/weapon/weapon-panel';
 import { projectWingPanel } from '@/domain/immersive/wing/wing-panel';
@@ -10,7 +11,7 @@ import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useResourceMediaRegistry } from '@/app/composables/use-resource-media-registry';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError, warningNotice } from '@/shared/lib/errors';
-import { hasQueryInvalidation, subscribeQueryInvalidations } from '@/services/query-cache.service';
+
 export async function readModuleCandidateIssue(root: JointEditRoot, id: string, signal: AbortSignal) {
   const candidate = await queryJointCandidate({ ...root, kind: 'variant', id }, signal);
   const record = candidate.records.find(
@@ -74,9 +75,13 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
   }
   watch(() => [id(), kind(), root()], load, { immediate: true });
   onScopeDispose(
-    subscribeQueryInvalidations((event) => {
-      if (event.sessionId !== root().sessionId || !hasQueryInvalidation(event, 'joint-edit-candidate')) return;
-      if (event.scope === 'session') {
+    subscribeProjectChanges((event) => {
+      if (
+        projectChangeSessionId(event) !== root().sessionId ||
+        (event.kind !== 'closed' && !hasJointEditInvalidation(event.projection.invalidation))
+      )
+        return;
+      if (event.kind === 'closed') {
         reads.revoke('session');
         snapshot.value = null;
         media.clear();
