@@ -28,6 +28,16 @@ function mountHeader() {
 }
 
 describe('CsvGridHeader column resize', () => {
+  it.each([0, 1, 2])('reserves only the left button for resizing (button %s)', (button) => {
+    const mounted = mountHeader();
+    const event = new MouseEvent('mousedown', { button, clientX: 100, bubbles: true, cancelable: true });
+    mounted.get('.csv-th-resize').element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(button === 0);
+    expect(document.body.classList.contains('csv-column-resizing')).toBe(button === 0);
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 145 }));
+    expect(mounted.emitted('resize-column') ?? []).toEqual(button === 0 ? [['id', 165]] : []);
+  });
+
   it('sets the document interaction class when resizing starts', async () => {
     const mounted = mountHeader();
 

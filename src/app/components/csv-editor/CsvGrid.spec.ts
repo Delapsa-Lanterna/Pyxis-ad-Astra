@@ -3,6 +3,7 @@ import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive, ref } from 'vue';
 import CsvGrid from './CsvGrid.vue';
+import CsvGridRow from './CsvGridRow.vue';
 import type { CsvGridModel } from '@/domain/csv-editor/csv-grid-model';
 import { mountCsvInputHost } from '@/test/unit/csv-input-host';
 import { createPinia, setActivePinia } from 'pinia';
@@ -96,6 +97,34 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
 }
 
 describe('CsvGrid', () => {
+  it.each([0, 1, 2])('reserves only the left button for row interactions (button %s)', (button) => {
+    setActivePinia(createPinia());
+    initializeSettingsStore(createSettingsFixture());
+    const model = modelFixture();
+    const mounted = mountCsvInputHost(
+      CsvGridRow,
+      {},
+      {
+        row: model.rowsByKey['key-0'],
+        activity: { active: true, index: 0, hidden: false },
+        columns: [{ column: model.columns[0]!, gridColumn: 2, offsetPx: 16 }],
+        sourceIndex: model.sourceIndex,
+        selected: false,
+        isDirty: () => false,
+      },
+    );
+    wrapper = mounted.host;
+    const cellEvent = new MouseEvent('mousedown', { button, bubbles: true, cancelable: true });
+    mounted.surface.get('[data-column-key]').element.dispatchEvent(cellEvent);
+    expect(cellEvent.defaultPrevented).toBe(button === 0);
+    const handleEvent = new MouseEvent('pointerdown', { button, bubbles: true, cancelable: true });
+    mounted.surface.get('.csv-row-handle').element.dispatchEvent(handleEvent);
+    expect(handleEvent.defaultPrevented).toBe(button === 0);
+    expect(mounted.surface.emitted('start-row-drag')?.length ?? 0).toBe(button === 0 ? 1 : 0);
+    expect(mounted.surface.emitted('activate-cell')).toBeUndefined();
+    expect(mounted.surface.emitted('select-row')).toBeUndefined();
+  });
+
   it.each(['reference', 'multi', 'text'] as const)('commits and closes %s when clicking viewport blank space', async (control) => {
     const model = modelFixture();
     model.columns[0]!.schema = { key: 'id', control, source: 'csv:ships.id' };

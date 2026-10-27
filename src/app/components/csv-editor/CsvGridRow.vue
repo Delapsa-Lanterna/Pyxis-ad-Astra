@@ -6,7 +6,7 @@
     :class="{ selected }"
     :style="{ top: (activity.index + 1) * 24 + 'px', display: activity.hidden ? 'none' : undefined }"
     :aria-rowindex="activity.index + 2"
-    @mousedown.prevent
+    @mousedown.left.prevent
     @click="handleClick"
   >
     <div class="csv-grid-cell csv-row-handle-cell" role="rowheader" :title="reorderDisabledReason || '拖动调整行序'">
@@ -15,7 +15,7 @@
         type="button"
         :disabled="Boolean(reorderDisabledReason)"
         aria-label="拖动调整行序"
-        @pointerdown.prevent.stop="$emit('start-row-drag', row.rowKey, $event)"
+        @pointerdown.left.prevent.stop="$emit('start-row-drag', row.rowKey, $event)"
         @click.stop="$emit('select-row', row.rowKey)"
       >
         <svg class="csv-row-handle-icon" viewBox="0 0 12 12" aria-hidden="true">

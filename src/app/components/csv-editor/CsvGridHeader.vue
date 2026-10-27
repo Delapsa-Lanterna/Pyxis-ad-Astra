@@ -10,7 +10,7 @@
       role="columnheader"
     >
       <span class="csv-th-label ui-layout-clip">{{ column.schema?.label ?? column.key }}</span>
-      <span class="csv-th-resize" @mousedown.prevent="startResize($event, column)" />
+      <span class="csv-th-resize" @mousedown.left.prevent="startResize($event, column)" />
     </div>
   </div>
 </template>
