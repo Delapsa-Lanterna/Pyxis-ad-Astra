@@ -21,6 +21,7 @@
     >
       <template #actions
         ><n-button v-if="definition.file?.immersiveKind" @click="openImmersive">沉浸式编辑器</n-button
+        ><n-button v-if="definition.kind === 'skin'" :disabled="!canNavigateHull" @click="navigateToHull">跳转到船体</n-button
         ><n-button v-if="definition.kind !== 'mod-info'" secondary type="error" @click="confirmDelete">删除</n-button
         ><n-button :disabled="!document.canUndo.value" @click="replay('undo')">撤销</n-button
         ><n-button :disabled="!document.canRedo.value" @click="replay('redo')">重做</n-button
@@ -74,7 +75,10 @@ const props = defineProps<{
 }>();
 const feedback = useAppFeedback();
 const commands = useSaveCommandStore();
-const { previews, schemaRuntimeContext, openImmersive } = useJsonDocumentView(props.document, props.definition);
+const { canNavigateHull, navigateToHull, previews, schemaRuntimeContext, openImmersive } = useJsonDocumentView(
+  props.document,
+  props.definition,
+);
 const draft = props.document.draftValue;
 const title = computed(() => {
   if (props.definition.kind === 'misc-config') return miscConfigFile(props.document.target.value!.id).label;

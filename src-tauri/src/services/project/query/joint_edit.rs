@@ -30,7 +30,7 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
             JointEditKind::Ship => CsvTableKey::Ships,
             JointEditKind::Weapon => CsvTableKey::Weapons,
             JointEditKind::Wing => CsvTableKey::Wings,
-            JointEditKind::Variant => {
+            JointEditKind::Variant | JointEditKind::Skin => {
                 return Err(AppError::message(
                     "joint.row_kind",
                     "装配目标没有 CSV 行身份",
@@ -116,6 +116,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
     };
     match root.kind {
         JointEditKind::Ship => graph.spec(EntityKind::Ship, &root.id, "root")?,
+        JointEditKind::Skin => graph.spec(EntityKind::Skin, &root.id, "root")?,
         JointEditKind::Weapon => graph.spec(EntityKind::Weapon, &root.id, "root")?,
         JointEditKind::Variant => {
             graph.bindings.insert(
@@ -160,7 +161,9 @@ pub(in crate::services::project) fn query_joint_edit_values(
         .cloned()
         .collect();
     let mut records = graph.records.into_values().collect::<Vec<_>>();
-    let hull = if let Some(key) = bindings.get("variant") {
+    let hull = if matches!(root.kind, JointEditKind::Ship | JointEditKind::Skin) {
+        crate::domain::joint_hull::project_ship_hull(&records, &bindings["spec"])?
+    } else if let Some(key) = bindings.get("variant") {
         crate::domain::joint_hull::project_joint_hull(&records, key)?
     } else {
         None
@@ -171,8 +174,11 @@ pub(in crate::services::project) fn query_joint_edit_values(
         }
         bindings.insert(
             "hullCsv".into(),
-            hull.fields["hitpoints"].record_key.clone(),
+            hull.fields["hitpoints"][0].record_key.clone(),
         );
+        if root.kind == JointEditKind::Skin {
+            bindings.insert("csv".into(), hull.display_bindings["csv"].clone());
+        }
         let description_owner = hull.skin_keys.last().unwrap_or(&hull.hull_key);
         let owner = records
             .iter()
@@ -196,19 +202,19 @@ pub(in crate::services::project) fn query_joint_edit_values(
                 ))?,
             );
         }
-        let system = &hull.fields["system id"];
-        if let Some(record) = records
-            .iter()
-            .find(|record| record.key == system.record_key)
-            && let JointValue::Present(data) = &record.value
-            && let Some(id) = string_field(data, &system.path)
+        let system =
+            crate::domain::joint_hull::hull_field_value(&records, &hull.fields["system id"]);
+        if let Some(id) = system
+            .as_ref()
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
         {
             bindings.insert(
                 "system".into(),
                 serde_json::to_string(&("spec", EntityKind::System, id))?,
             );
         }
-        let field = &hull.fields["shield type"];
+        let field = &hull.fields["shield type"][0];
         if let Some(record) = records.iter().find(|record| record.key == field.record_key)
             && let JointValue::Present(data) = &record.value
             && string_field(data, &field.path).as_deref() == Some("PHASE")
@@ -632,13 +638,18 @@ fn module_variant_catalog(
             let records = graph.records.values().cloned().collect::<Vec<_>>();
             let hull = crate::domain::joint_hull::project_joint_hull(&records, &key)?;
             let summary = hull.map(|hull| {
-                let binding = &hull.fields["name"];
+                let name_value =
+                    crate::domain::joint_hull::hull_field_value(&records, &hull.fields["name"]);
                 let data = |key: &str| match &graph.records[key].value {
                     JointValue::Present(data) => data.clone(),
                     JointValue::Missing => Value::Null,
                 };
                 let spec = data(&hull.hull_key);
-                let name = string_field(&data(&binding.record_key), &binding.path)
+                let name = name_value
+                    .as_ref()
+                    .and_then(Value::as_str)
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_owned)
                     .or_else(|| string_field(&spec, "hullName"))
                     .unwrap_or_else(|| variant.hull_id.clone());
                 (

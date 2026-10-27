@@ -12,6 +12,7 @@ import { useJsonListSelection } from './use-json-list-selection';
 import { jsonDocumentCapabilities } from './json-document-capabilities';
 import { useJsonEditorStore, type JsonDocumentState } from '@/stores/json-editor.store';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import {
   jsonDocumentRecord,
   jsonDocumentMedia,
@@ -33,6 +34,7 @@ import type { DeepReadonly, JsonValue, MiscConfigEntry } from '@/shared/types';
 export function useJsonEditorViewModel(definition: JsonDocumentDefinition, context: JsonEditorContext) {
   const feedback = useAppFeedback();
   const editors = useJsonEditorStore();
+  const workspace = useWorkspaceStore();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
   const capabilities = jsonDocumentCapabilities(definition, feedback);
@@ -129,6 +131,20 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     return kind === 'mission' || kind === 'mod-info'
       ? rows
       : rows.sort((a, b) => a.companion.localeCompare(b.companion) || a.key.localeCompare(b.key));
+  });
+  watch([items, () => workspace.entityLocation, active], async () => {
+    const location = workspace.entityLocation;
+    if (
+      !active.value ||
+      !location ||
+      location.sessionId !== sessionId.value ||
+      location.modRoot !== modRoot.value ||
+      location.kind !== kind ||
+      !items.value.some((item) => item.key === location.id)
+    )
+      return;
+    await selection.select(location.id);
+    if (workspace.entityLocation === location && selectedId.value === location.id) workspace.entityLocation = null;
   });
   async function load() {
     listLoadStartedAt.value = startPerformance();

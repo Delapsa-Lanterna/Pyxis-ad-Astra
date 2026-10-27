@@ -19,6 +19,25 @@ pub fn project_joint_hull(
     else {
         return Ok(None);
     };
+    project_hull(records, variant_key, hull_id)
+}
+
+pub fn project_ship_hull(
+    records: &[JointEditRecord],
+    root_key: &str,
+) -> AppResult<Option<JointHullProjection>> {
+    let JointRecordTarget::Spec { target } = &record(records, root_key).target else {
+        unreachable!("ship hull root is a spec");
+    };
+    project_hull(records, root_key, &target.id)
+}
+
+fn project_hull(
+    records: &[JointEditRecord],
+    variant_key: &str,
+    hull_id: &str,
+) -> AppResult<Option<JointHullProjection>> {
+    let variant = record(records, variant_key);
     let mut current = hull_id;
     let mut skins = Vec::new();
     let mut seen = BTreeSet::new();
@@ -62,10 +81,10 @@ pub fn project_joint_hull(
     ] {
         fields.insert(
             path.into(),
-            JointFieldBinding {
+            vec![JointFieldBinding {
                 record_key: csv.key.clone(),
                 path: path.into(),
-            },
+            }],
         );
     }
     let mut weapons = BTreeMap::new();
@@ -83,12 +102,26 @@ pub fn project_joint_hull(
         .unwrap_or_default();
     if let Some(data) = value(csv).and_then(Value::as_object) {
         for path in data.keys() {
-            fields
-                .entry(path.clone())
-                .or_insert_with(|| JointFieldBinding {
+            fields.entry(path.clone()).or_insert_with(|| {
+                vec![JointFieldBinding {
                     record_key: csv.key.clone(),
                     path: path.clone(),
-                });
+                }]
+            });
+        }
+    }
+    for (path, paths) in crate::domain::spec_construction::skin_hull_fields() {
+        let inputs = fields.entry(path.clone()).or_insert_with(|| {
+            vec![JointFieldBinding {
+                record_key: csv.key.clone(),
+                path: path.clone(),
+            }]
+        });
+        for skin in skins.iter().rev() {
+            inputs.extend(paths.iter().map(|path| JointFieldBinding {
+                record_key: skin.key.clone(),
+                path: path.clone(),
+            }));
         }
     }
     let mut slots = Vec::new();
@@ -109,6 +142,9 @@ pub fn project_joint_hull(
         }
     }
     let mut sprite = hull.resource_refs.get("sprite").cloned();
+    let mut effective_spec = value(hull)
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
     for skin in skins.iter().rev() {
         let Some(data) = value(skin) else { continue };
         // ShipHullSpreadsheetLoader supplies base hints; ShipHullSpecLoader applies each Skin.
@@ -120,23 +156,34 @@ pub fn project_joint_hull(
         if let Some(added) = data.get("addHints").and_then(Value::as_array) {
             hints.extend(added.iter().filter_map(Value::as_str).map(str::to_owned));
         }
-        for (path, overrides) in [
-            ("name", &["hullName"][..]),
-            ("tech/manufacturer", &["manufacturer", "tech"][..]),
-            ("max speed", &["maxSpeed"][..]),
-            ("system id", &["systemId"][..]),
-            ("shield efficiency", &["shieldEfficiency"][..]),
-            ("ordnance points", &["ordnancePoints"][..]),
-            ("fighter bays", &["fighterBays"][..]),
-        ] {
-            if let Some(key) = overrides.iter().find(|key| data.get(**key).is_some()) {
-                fields.insert(
-                    path.into(),
-                    JointFieldBinding {
-                        record_key: skin.key.clone(),
-                        path: (*key).into(),
-                    },
-                );
+        for path in ["spriteName", "coversColor"] {
+            if let Some(next) = data.get(path) {
+                effective_spec[path] = next.clone();
+            }
+        }
+        if let Some(engines) = effective_spec
+            .get_mut("engineSlots")
+            .and_then(Value::as_array_mut)
+        {
+            if let Some(removed) = data.get("removeEngineSlots").and_then(Value::as_array) {
+                let indices: BTreeSet<_> = removed.iter().filter_map(Value::as_u64).collect();
+                let mut index = 0;
+                engines.retain(|_| {
+                    let keep = !indices.contains(&index);
+                    index += 1;
+                    keep
+                });
+            }
+            if let Some(changes) = data.get("engineSlotChanges").and_then(Value::as_object) {
+                for (index, engine) in engines.iter_mut().enumerate() {
+                    if let Some(change) = changes.get(&index.to_string()).and_then(Value::as_object)
+                    {
+                        engine
+                            .as_object_mut()
+                            .expect("engine slot is an object")
+                            .extend(change.clone());
+                    }
+                }
             }
         }
         if let Some(resource) = skin.resource_refs.get("sprite") {
@@ -181,6 +228,14 @@ pub fn project_joint_hull(
                 .collect();
         }
     }
+    effective_spec["weaponSlots"] = serde_json::json!(slots);
+    effective_spec["builtInWeapons"] = serde_json::json!(weapons);
+    effective_spec["builtInMods"] = serde_json::json!(mods);
+    if let Some(skin) = skins.first()
+        && let JointRecordTarget::Spec { target } = &skin.target
+    {
+        effective_spec["hullId"] = serde_json::json!(target.id);
+    }
     let built_in_weapons = weapons.clone();
     if let Some(groups) = value(variant)
         .and_then(|data| data.get("weaponGroups"))
@@ -212,9 +267,9 @@ pub fn project_joint_hull(
     {
         display_bindings.insert("description".into(), record.key.clone());
     }
-    let system = &fields["system id"];
-    if let Some(id) = value(record(records, &system.record_key))
-        .and_then(|data| data.get(&system.path))
+    let system = hull_field_value(records, &fields["system id"]);
+    if let Some(id) = system
+        .as_ref()
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|id| !id.is_empty())
@@ -223,6 +278,7 @@ pub fn project_joint_hull(
         display_bindings.insert("system".into(), record.key.clone());
     }
     Ok(Some(JointHullProjection {
+        spec: effective_spec,
         variant_key: variant_key.into(),
         hull_key: hull.key.clone(),
         skin_keys: skins.iter().rev().map(|skin| skin.key.clone()).collect(),
@@ -248,6 +304,38 @@ pub fn project_joint_hull(
             })
             .unwrap_or_default(),
     }))
+}
+
+pub fn hull_field_value(
+    records: &[JointEditRecord],
+    inputs: &[JointFieldBinding],
+) -> Option<Value> {
+    let mut effective = None;
+    for input in inputs {
+        let Some(data) = value(record(records, &input.record_key)) else {
+            continue;
+        };
+        let Some(next) = data.get(&input.path) else {
+            continue;
+        };
+        if input.path == "fpMod" && data.get("fleetPoints").is_some() {
+            continue;
+        }
+        let number = |value: &Value| {
+            value
+                .as_f64()
+                .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+                .unwrap_or(f64::NAN)
+        };
+        effective = Some(match input.path.as_str() {
+            "fpMod" => serde_json::json!(effective.as_ref().map_or(0.0, number) + number(next)),
+            "baseValueMult" => {
+                serde_json::json!((effective.as_ref().map_or(0.0, number) * number(next)).trunc())
+            }
+            _ => next.clone(),
+        });
+    }
+    effective
 }
 
 pub fn description_id(kind: EntityKind, id: &str, data: Option<&Value>) -> Option<String> {

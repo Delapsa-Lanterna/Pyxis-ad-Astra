@@ -1,5 +1,5 @@
 <template>
-  <aside class="json-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
+  <aside ref="listElement" class="json-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="json-entity-list-header">
       <h3 class="json-entity-list-header-title ui-text-reset">{{ definition.label }}</h3>
       <small class="json-entity-list-count">{{ items.length }} 项</small>
@@ -11,6 +11,7 @@
       <li
         v-for="item in items"
         :key="item.key"
+        :data-entity-id="item.key"
         :ref="mediaRef(item.key, item.resource)"
         class="json-entity-list-item ui-text-soft ui-layout-shrink ui-control-pointer ui-layout-grid ui-layout-center"
         :class="{ active: item.key === selectedId, dirty: item.dirty }"
@@ -67,7 +68,7 @@
   </aside>
 </template>
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, nextTick, useTemplateRef } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import type { useJsonEditorViewModel } from '@/app/composables/json-editor/use-json-editor-view-model';
@@ -95,6 +96,19 @@ const { mediaRef, mediaSrc, mediaVisible, recordListFirstFrame, setMediaRoot } =
   surface: 'json-' + props.definition.kind + '-list',
   failureLabel: '读取' + props.definition.label + '缩略图失败',
 });
+const listElement = useTemplateRef<HTMLElement>('listElement');
+watch(
+  () => [props.selectedId, props.items] as const,
+  async () => {
+    await nextTick();
+    const row = listElement.value?.querySelector<HTMLElement>('[data-entity-id="' + CSS.escape(props.selectedId ?? '') + '"]');
+    if (row) {
+      const list = row.parentElement!;
+      list.scrollTop += row.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    }
+  },
+  { immediate: true, flush: 'post' },
+);
 const showCreate = ref(false);
 const opening = ref(false);
 const newId = ref('');

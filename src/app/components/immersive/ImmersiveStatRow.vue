@@ -34,6 +34,7 @@
         :snapshot="snapshot!"
         :runtime-context="runtimeContext!"
         :active="active"
+        :field-editable="fieldEditable"
         @update="$emit('update', $event)"
         @close="$emit('dismiss')"
       />
@@ -55,6 +56,7 @@ const props = defineProps<{
   stat: ImmersiveStat;
   editable: boolean;
   active: boolean;
+  fieldEditable?: (field: import('@/domain/immersive/fields').ImmersiveField) => boolean;
   values?: Record<string, JointValue>;
   snapshot?: JointEditSnapshot;
   runtimeContext?: SchemaRuntimeContext;

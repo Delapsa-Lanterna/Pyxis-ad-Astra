@@ -1,4 +1,6 @@
 #![cfg(test)]
+#[path = "joint_skin_tests.rs"]
+mod skin_tests;
 use super::super::csv_staging;
 use super::*;
 
@@ -270,9 +272,18 @@ fn variant_skin_slots_and_sources() {
     assert_eq!(hull.built_in_mods, ["new"]);
     assert!(hull.built_in_weapons.is_empty());
     assert_eq!(hull.built_in_wings, ["wing"]);
-    assert_eq!(hull.fields["ordnance points"].path, "ordnancePoints");
-    assert_eq!(hull.fields["fighter bays"].path, "fighterBays");
-    assert_eq!(hull.display_bindings["csv"], hull.fields["name"].record_key);
+    assert_eq!(
+        hull.fields["ordnance points"].last().unwrap().path,
+        "ordnancePoints"
+    );
+    assert_eq!(
+        hull.fields["fighter bays"].last().unwrap().path,
+        "fighterBays"
+    );
+    assert_eq!(
+        hull.display_bindings["csv"],
+        hull.fields["name"][0].record_key
+    );
     let description = snapshot
         .records
         .iter()
@@ -627,9 +638,9 @@ fn wing_sources_and_fitted_weapons() {
             ("two".into(), "weapon".into())
         ])
     );
-    assert_eq!(hull.fields["min crew"].path, "min crew");
+    assert_eq!(hull.fields["min crew"][0].path, "min crew");
     assert_eq!(
-        hull.fields["hitpoints"].record_key,
+        hull.fields["hitpoints"][0].record_key,
         snapshot.bindings["hullCsv"]
     );
     let csv = snapshot
@@ -667,12 +678,15 @@ fn wing_skin_sources_and_slots() {
         hull.weapons,
         BTreeMap::from([("two".into(), "special".into())])
     );
-    assert_eq!(hull.fields["max speed"].path, "maxSpeed");
-    assert_eq!(hull.fields["name"].path, "hullName");
-    assert_eq!(hull.fields["tech/manufacturer"].path, "tech");
+    assert_eq!(hull.fields["max speed"].last().unwrap().path, "maxSpeed");
+    assert_eq!(hull.fields["name"].last().unwrap().path, "hullName");
+    assert_eq!(
+        hull.fields["tech/manufacturer"].last().unwrap().path,
+        "tech"
+    );
     assert_eq!(
         hull.display_bindings["csv"],
-        hull.fields["min crew"].record_key
+        hull.fields["min crew"][0].record_key
     );
     assert_eq!(
         hull.display_bindings["description"],
@@ -689,6 +703,8 @@ fn wing_skin_sources_and_slots() {
     );
     let mut payload = payload(snapshot);
     let source = payload.snapshot.hull.as_ref().unwrap().fields["max speed"]
+        .last()
+        .unwrap()
         .record_key
         .clone();
     let JointValue::Present(data) = payload.values.get_mut(&source).unwrap() else {
@@ -834,7 +850,10 @@ fn wing_creates_skin_and_versions() {
     assert_eq!(saved.changes.len(), 1);
     let next = query_joint_edit(&root).unwrap();
     assert_eq!(
-        next.hull.as_ref().unwrap().fields["max speed"].path,
+        next.hull.as_ref().unwrap().fields["max speed"]
+            .last()
+            .unwrap()
+            .path,
         "maxSpeed"
     );
     assert!(dir.join("data/hulls/skins/new_skin.skin").exists());

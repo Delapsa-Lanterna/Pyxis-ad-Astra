@@ -2,7 +2,7 @@
 
 ## 定义
 
-沉浸式战机联队编辑器模块提供战机联队信息、有效船体展示、来源补全及行身份跟随。
+沉浸式战机联队编辑器模块提供战机联队信息、有效船体展示、来源补全、行身份跟随及关联沉浸式编辑器打开。
 
 ## 参考
 
@@ -11,19 +11,20 @@
 - `src/app/components/immersive/wing/`：战机联队信息与来源展示。
 - `src/app/components/immersive/wing/WingImmersivePanel.vue`：战机联队内容及来源字段展示。
 - `src/app/composables/immersive-editor/wing/`：战机联队 rowKey、来源补全和业务动作。
-- `src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全及战机联队身份跟随。
+- `src/app/composables/immersive-editor/wing/use-immersive-wing-editor.ts`：按 rowKey 读取、来源补全、身份跟随及关联编辑器打开。
 - `src/domain/immersive/wing/`：战机联队来源、字段和编队纯投影。
 - `src/domain/immersive/wing/wing-panel.ts`：技术信息、来源绑定与编队输入投影。
 
 ### 消费
 
 - `src/test/fixtures/joint-edit/wing-joint-edit.ts`：战机联队联合来源及行键的测试构造。
+- `src/windows/immersive-editor.window.ts`：舰船与装配沉浸式窗口身份及打开请求。
 
 ## 边界
 
 - 共同来源规则提供战机联队可编辑记录集合。
 - 基础运行态拥有联合会话、字段、历史及释放。
-- 战机联队实现拥有舰船与 Skin 来源补全、引用定位、行身份重读和重命名接纳。
+- 战机联队实现拥有舰船与 Skin 来源补全、引用定位、行身份重读、重命名接纳和关联编辑器打开。
 - 战机联队投影提供角色、防御、系统、来源与编队参数。
 - 有效船体与装备由共同船体场景展示。
 
@@ -41,8 +42,15 @@
 2. 保存等待与确认完成后重读当前行的权威身份。
 3. 会话与窗口共同接纳新身份，草稿和历史按实际来源映射。
 
+### 关联编辑器打开
+
+1. 舰船与装配按钮交付战机联队专属动作。
+2. 动作等待保存、提交活动输入并核对目标与接纳权。
+3. 舰船动作读取装配所用 ship 或 skin 的真实身份，装配动作读取联队 variant 引用，共同通过正式沉浸式窗口入口交付完整身份。
+
 ## 规范
 
+- 关联编辑器打开必须提交活动输入并核对捕获目标；舰船身份必须消费装配实际 hullId 对应的 ship 或 skin 记录，装配身份必须消费联队 variant 引用，session 与 Mod 根必须沿用当前来源。
 - 战机联队名称必须消费有效船体名称与装配 `displayName`，并在一次字段动作中提交；用途必须优先消费 `role desc`，直接参数必须绑定战机联队 CSV 或有效船体的实际字段来源。
 - 战机联队投影必须消费原版角色、swarm 与防御分支；武装汇总必须按有效槽位统计，甲板、候选和内容渲染器的编队必须共同消费 `num`、`formation`、有效船体及装备的同一场景投影与绘制。
 - 战机联队编队必须消费共同船体场景和已确认的数量与阵型规则。

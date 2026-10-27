@@ -294,6 +294,60 @@ mod tests {
     }
 
     #[test]
+    fn sim_opponent_preview_resolves_its_variant_hull_sprite() {
+        let root = crate::testutil::temp_dir("sim_opponent_preview");
+        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        std::fs::create_dir_all(root.join("data/variants")).unwrap();
+        std::fs::create_dir_all(root.join("data/campaign")).unwrap();
+        crate::io::write_utf8_no_bom(
+            &root.join("data/hulls/ship_data.csv"),
+            "id,name\nship_a,Ship A\n",
+        )
+        .unwrap();
+        crate::io::write_utf8_no_bom(
+            &root.join("data/hulls/ship_a.ship"),
+            r#"{"hullId":"ship_a","spriteName":"graphics/ships/ship_a.png"}"#,
+        )
+        .unwrap();
+        crate::io::write_utf8_no_bom(
+            &root.join("data/variants/variant_a.variant"),
+            r#"{"variantId":"variant_a","hullId":"ship_a"}"#,
+        )
+        .unwrap();
+        crate::io::write_utf8_no_bom(
+            &root.join("data/campaign/sim_opponents.csv"),
+            "variant id\nvariant_a\n",
+        )
+        .unwrap();
+
+        let mut trace = super::super::super::PerformanceTrace::new("project.openSession");
+        let manifest =
+            super::super::super::open_project_session_traced(&root, None, &mut trace).unwrap();
+        let index = query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::SimOpponents,
+            1,
+            None,
+            CsvSearchField::Id,
+        )
+        .unwrap();
+        let preview = query_csv_row_preview(
+            &manifest.session_id,
+            CsvTableKey::SimOpponents,
+            &index.row_keys[0],
+        )
+        .unwrap();
+
+        let resource = preview.resource_ref.expect("sim opponent preview");
+        assert_eq!(resource.rel_path, "graphics/ships/ship_a.png");
+        assert_eq!(resource.owner_kind, crate::models::ResourceOwnerKind::Ship);
+        assert_eq!(resource.owner_id, "ship_a");
+        assert_eq!(resource.key, "thumbnail");
+        super::super::super::close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn search_uses_registered_ids_and_preserves_comment_rows() {
         let row = SessionCsvRow {
             row_key: "row".to_string(),

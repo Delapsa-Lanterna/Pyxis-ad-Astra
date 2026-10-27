@@ -17,7 +17,7 @@ export function immersiveSourceRecords(snapshot: JointEditSnapshot): {
 
 export function immersiveEditableRecords(snapshot: JointEditSnapshot): string[] {
   if (snapshot.root.kind === 'variant') return variantEditableRecords(snapshot);
-  if (snapshot.root.kind === 'wing') {
+  if (snapshot.root.kind === 'wing' || snapshot.root.kind === 'skin') {
     return [
       ...new Set([
         snapshot.bindings.csv!,
@@ -29,7 +29,7 @@ export function immersiveEditableRecords(snapshot: JointEditSnapshot): string[] 
           snapshot.bindings.description,
         ].filter((key): key is string => Boolean(key)),
         ...(snapshot.hull?.skinKeys ?? []),
-        ...Object.values(snapshot.hull?.fields ?? {}).map((field) => field.recordKey),
+        ...Object.values(snapshot.hull?.fields ?? {}).flatMap((inputs) => inputs.map((field) => field.recordKey)),
       ]),
     ];
   }

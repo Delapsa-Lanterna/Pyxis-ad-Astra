@@ -89,6 +89,7 @@ export function variantJointFixture(): JointEditSnapshot {
   ];
   const snapshot = fixtureJointSnapshot('variant', 'aurora_refit', records, { spec: 'variant', variant: 'variant' });
   snapshot.hull = {
+    spec: hullData,
     variantKey: 'variant',
     hullKey: 'spec',
     skinKeys: [],
@@ -109,7 +110,7 @@ export function variantJointFixture(): JointEditSnapshot {
         'shield arc',
         'shield upkeep',
         'shield efficiency',
-      ].map((path) => [path, { recordKey: 'csv', path }]),
+      ].map((path) => [path, [{ recordKey: 'csv', path }]]),
     ),
     weapons: { WS1: 'chaingun', WS2: 'chaingun' },
     displayBindings: { csv: 'csv', description: 'description' },

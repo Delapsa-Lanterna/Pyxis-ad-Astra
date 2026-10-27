@@ -5,6 +5,8 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { jointObject } from '@/domain/joint-edit';
 import { changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
 import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
+import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
+import { deepClone } from '@/shared/lib/starsector';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 
 export function useImmersiveWeaponEditor(runtime: ImmersiveEditorRuntime) {
@@ -37,23 +39,36 @@ export function useImmersiveWeaponEditor(runtime: ImmersiveEditorRuntime) {
       feedback.error(error);
     }
   }
-  async function openProjectile() {
+  async function openWeaponWindow(kind: 'projectile' | 'preview') {
     const target = joint.currentTarget.value;
     const admitted = joint.inputs.captureContext();
     try {
       if ((await joint.inputs.commit()) === false) return;
       if (!runtime.isActive() || !admitted() || joint.currentTarget.value !== target) return;
       const current = snapshot.value!;
-      const id = schemaStringValue(jointObject(joint.draftValue.value[current.bindings.spec!]).projectileSpecId);
-      await openSpecProjectileEditorWindow({
-        sessionId: current.root.sessionId,
-        modRoot: current.root.modRoot,
-        id,
-        starsectorRoot: settings.starsectorRoot,
-      });
+      const weapon = jointObject(joint.draftValue.value[current.bindings.spec!]);
+      if (kind === 'preview') {
+        await openWeaponFirePreviewWindow({
+          sessionId: current.root.sessionId,
+          modRoot: current.root.modRoot,
+          id: current.root.id,
+          source: { kind: 'draft', weapon: deepClone(weapon) },
+        });
+      } else {
+        await openSpecProjectileEditorWindow({
+          sessionId: current.root.sessionId,
+          modRoot: current.root.modRoot,
+          id: schemaStringValue(weapon.projectileSpecId),
+          starsectorRoot: settings.starsectorRoot,
+        });
+      }
     } catch (error) {
-      feedback.error(error, '打开弹体编辑器失败');
+      feedback.error(error, kind === 'preview' ? '打开开火预览失败' : '打开弹体编辑器失败');
     }
   }
-  return { createOverrides, openProjectile };
+  return {
+    createOverrides,
+    openProjectile: () => openWeaponWindow('projectile'),
+    openPreview: () => openWeaponWindow('preview'),
+  };
 }

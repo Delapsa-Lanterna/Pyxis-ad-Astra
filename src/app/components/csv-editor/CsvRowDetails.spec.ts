@@ -186,6 +186,42 @@ describe('CsvRowDetails', () => {
     },
   );
 
+  it('shows the referenced variant name for simulated opponents', async () => {
+    const { tables } = activateProject();
+    const target = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'simOpponents' as const };
+    tables.switchTab(target.modRoot, target.table);
+    tables.applyTableIndex(
+      target,
+      csvTableIndex([{ rowKey: 'opponent-a', isComment: false, data: { 'variant id': 'variant-a' } }], {
+        baseVersions: [],
+        table: 'simOpponents',
+        header: ['variant id'],
+        totalRows: 1,
+      }),
+    );
+    tables.selectRowByKey(target, 'opponent-a');
+    const pane = mountPane();
+    await pane.setProps({
+      sourceIndex: createCsvSourceIndex(
+        ['csv:variants.variantId'],
+        new Map([
+          [
+            'csv:variants.variantId',
+            [
+              {
+                type: 'group',
+                value: 'mod',
+                label: '当前 Mod',
+                children: [{ value: 'variant-a', label: 'Thunderclap (Assault)' }],
+              },
+            ],
+          ],
+        ]),
+      ),
+    });
+    expect(pane.get('.detail-name').text()).toBe('Thunderclap (Assault)');
+  });
+
   it('exposes the editor actions for a registered spec table', async () => {
     activateProject();
     const tables = useCsvEditorStore();

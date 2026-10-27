@@ -23,8 +23,20 @@
     @load-external="vm.loadExternal"
   >
     <ShipImmersivePanel v-if="panel?.kind === 'ship'" :panel="panel" :render="render" />
-    <WeaponImmersivePanel v-else-if="panel?.kind === 'weapon'" :panel="panel" :render="render" @open-projectile="vm.openProjectile" />
-    <WingImmersivePanel v-else-if="panel?.kind === 'wing'" :panel="panel" :render="render" @create-source="vm.wing!.createMissingSource" />
+    <WeaponImmersivePanel
+      v-else-if="panel?.kind === 'weapon'"
+      :panel="panel"
+      :render="render"
+      @open-projectile="vm.openProjectile"
+      @preview="vm.openPreview"
+    />
+    <WingImmersivePanel
+      v-else-if="panel?.kind === 'wing'"
+      :panel="panel"
+      :render="render"
+      @create-source="vm.wing!.createMissingSource"
+      @open-editor="vm.wing!.openRelatedEditor"
+    />
     <VariantImmersivePanel v-else-if="panel?.kind === 'variant'" :panel="panel" :vm="vm.variant!" :render="render">
       <template #meta>
         <ImmersiveEditorActions
@@ -67,7 +79,7 @@ const context = useWindowContext('immersive-editor').value;
 const { sessionId, modRoot, id, kind } = context.identity;
 provideOriginalFonts(() => sessionId);
 const rowKey = context.input.rowKey;
-const root: JointEditRoot & { kind: 'ship' | 'weapon' | 'wing' | 'variant'; rowKey?: string } = {
+const root: JointEditRoot & { kind: import('@/shared/types').JointEditKind; rowKey?: string } = {
   sessionId,
   modRoot,
   id,

@@ -167,7 +167,7 @@
   color: var(--color-danger-highlight);
 }
 .immersive-stat-row.inline {
-  justify-content: flex-start;
+  display: flex;
   gap: 0;
   margin-bottom: 10px;
 }

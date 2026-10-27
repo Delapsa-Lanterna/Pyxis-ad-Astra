@@ -36,6 +36,10 @@
         <ImmersiveText :text="'战机联队 ID：' + render.root.id" block />
       </p>
       <ImmersivePanelRow v-for="stat in panel.sources" :key="stat.id" :stat="stat" :render="render" />
+      <div v-if="render.mode === 'editable'" class="action-group">
+        <n-button :disabled="!editorIds.ship" @click="$emit('open-editor', 'ship')">舰船沉浸式编辑器</n-button>
+        <n-button :disabled="!editorIds.variant" @click="$emit('open-editor', 'variant')">装配沉浸式编辑器</n-button>
+      </div>
       <n-button
         v-if="render.mode === 'editable' && panel.defaultDescription"
         :disabled="render.editing.changing || !render.editing.editable(panel.defaultDescription)"
@@ -57,8 +61,21 @@ import ImmersivePanelSources from '../ImmersivePanelSources.vue';
 import ImmersiveText from '../ImmersiveText.vue';
 import ImmersiveHullScene from '../ImmersiveHullScene.vue';
 import { immersiveWingLayout } from '@/domain/immersive/hull-scene';
+import { jointObject } from '@/domain/joint-edit';
+import { schemaStringValue } from '@/domain/schema/schema-values';
 const props = defineProps<{ panel: WingPanel; render: ImmersiveRenderContext }>();
-defineEmits<{ 'create-source': [key: string] }>();
+defineEmits<{ 'create-source': [key: string]; 'open-editor': [kind: 'ship' | 'variant'] }>();
 const description = computed(() => descriptionForRender(props.panel.description, props.render.mode));
 const layout = computed(() => immersiveWingLayout(props.panel.count, props.panel.formation, 80));
+const editorIds = computed(() => {
+  if (props.render.mode === 'readonly') return { ship: '', variant: '' };
+  const { snapshot, values } = props.render.editing;
+  return {
+    ship:
+      snapshot.records.find((record) => record.key === snapshot.bindings.hull)?.value.state === 'present'
+        ? schemaStringValue(jointObject(values[snapshot.bindings.variant!]).hullId)
+        : '',
+    variant: schemaStringValue(jointObject(values[snapshot.bindings.csv!]).variant),
+  };
+});
 </script>

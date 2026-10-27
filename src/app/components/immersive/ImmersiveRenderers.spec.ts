@@ -126,11 +126,29 @@ describe('shared immersive content renderers', () => {
     }
     if (kind === 'weapon') {
       const weapon = own.findComponent(WeaponImmersivePanel);
-      await weapon
-        .findAll('button')
-        .find((button) => button.text() === '弹体编辑器')!
-        .trigger('click');
-      expect(weapon.emitted('open-projectile')).toEqual([[]]);
+      for (const [label, event] of [
+        ['弹体编辑器', 'open-projectile'],
+        ['开火预览', 'preview'],
+      ] as const) {
+        await weapon
+          .findAll('button')
+          .find((button) => button.text() === label)!
+          .trigger('click');
+        expect(weapon.emitted(event)).toEqual([[]]);
+      }
+    }
+    if (kind === 'wing') {
+      const wing = own.findComponent(WingImmersivePanel);
+      for (const [label, target] of [
+        ['舰船沉浸式编辑器', 'ship'],
+        ['装配沉浸式编辑器', 'variant'],
+      ] as const) {
+        await wing
+          .findAll('button')
+          .find((button) => button.text() === label)!
+          .trigger('click');
+        expect(wing.emitted('open-editor')!.at(-1)).toEqual([target]);
+      }
     }
     const firstButton = own.find('.immersive-stat-value');
     await firstButton.trigger('click');

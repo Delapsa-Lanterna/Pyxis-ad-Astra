@@ -12,6 +12,7 @@
         :runtime-context="runtimeContext"
         :active="active"
         :autofocus="index === 0"
+        :disabled="fieldEditable ? !fieldEditable(field) : false"
         @update="pending.set(field.id, $event)"
       />
       <small class="immersive-source-note ui-text-muted ui-text-wrap ui-text-reset"
@@ -40,6 +41,7 @@ const props = defineProps<{
   snapshot: JointEditSnapshot;
   runtimeContext: SchemaRuntimeContext;
   active: boolean;
+  fieldEditable?: (field: ImmersiveField) => boolean;
 }>();
 const emit = defineEmits<{ update: [changes: ImmersiveFieldChange[]]; submitted: []; close: [] }>();
 const inputs = useFieldInputs()!;
@@ -60,16 +62,19 @@ onScopeDispose(
   inputs.registerFinalizer(() => {
     const changes = props.stat.fields.flatMap((field) => {
       const update = pending.get(field.id);
-      return update ? [{ field, update }] : [];
+      return update && (!props.fieldEditable || props.fieldEditable(field)) ? [{ field, update }] : [];
     });
     pending.clear();
     if (changes.length) emit('update', changes);
   }, prefix),
 );
 const fieldKey = (field: ImmersiveField) => prefix + '/' + field.id;
+const sourceIndex = computed(() => new Map(props.snapshot.records.map((record) => [record.key, record])));
 function sourcePath(key: string) {
-  const record = props.snapshot.records.find((record) => record.key === key)!;
-  return record.source?.path ?? (record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path);
+  const record = sourceIndex.value.get(key)!;
+  const path = record.source?.path ?? (record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path);
+  const name = record.target.kind === 'spec' ? record.target.target.id : record.target.kind === 'csv' ? record.target.identity.id : '';
+  return name ? name + ' · ' + path : path;
 }
 async function submit() {
   try {

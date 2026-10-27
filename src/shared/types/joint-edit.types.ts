@@ -2,7 +2,7 @@ import type { EntityEditTarget, EntityFileLocation, CsvTableKey, ResourceRef, Fi
 import type { JsonValue, DeepReadonly } from './json.types';
 import type { JsonWriteOptions, WriteResult } from './write-commit.types';
 
-export type JointEditKind = 'ship' | 'weapon' | 'wing' | 'variant';
+export type JointEditKind = 'ship' | 'skin' | 'weapon' | 'wing' | 'variant';
 export interface JointEditRoot {
   sessionId: string;
   modRoot: string;
@@ -96,10 +96,11 @@ export interface JointFieldBinding {
   path: string;
 }
 export interface JointHullProjection {
+  spec: import('./json.types').RowData;
   variantKey: string;
   hullKey: string;
   skinKeys: string[];
-  fields: Record<string, JointFieldBinding>;
+  fields: Record<string, JointFieldBinding[]>;
   displayBindings: Record<string, string>;
   weapons: Record<string, string>;
   sprite: ResourceRef | null;

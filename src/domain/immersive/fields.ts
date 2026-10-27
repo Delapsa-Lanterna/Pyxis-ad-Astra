@@ -37,6 +37,7 @@ export interface ImmersiveField {
   recordKey: string;
   schema: FieldSchema;
   optionLabels?: Record<string, string>;
+  inheritOnEmpty?: boolean;
   handoff?: boolean;
   moduleSlot?: string;
 }

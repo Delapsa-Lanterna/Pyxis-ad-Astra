@@ -254,6 +254,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                     && matches!(
                         (current.root.kind, staged.identity.before.kind),
                         (JointEditKind::Ship, EntityKind::Ship)
+                            | (JointEditKind::Skin, EntityKind::Skin)
                             | (JointEditKind::Weapon, EntityKind::Weapon)
                             | (JointEditKind::Variant, EntityKind::Variant)
                     )
@@ -620,6 +621,10 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         } else {
             crate::domain::joint_hull::project_joint_hull(&saved.records, key)?
         };
+    }
+    if matches!(saved.root.kind, JointEditKind::Ship | JointEditKind::Skin) {
+        saved.hull =
+            crate::domain::joint_hull::project_ship_hull(&saved.records, &saved.bindings["spec"])?;
     }
     if saved.root.kind == JointEditKind::Variant {
         saved.variants.clear();

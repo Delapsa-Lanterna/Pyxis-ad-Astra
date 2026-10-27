@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   media: vi.fn(),
   choose: vi.fn(),
   openProjectile: vi.fn(),
+  openPreview: vi.fn(),
+  openImmersive: vi.fn(),
   invalidations: [] as Array<(event: unknown) => void>,
   projectUpdates: [] as Array<(event: import('@/windows/window.events').ProjectSessionInvalidatedEvent) => Promise<void>>,
 }));
@@ -58,6 +60,8 @@ vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
 
 vi.mock('@/orchestrators/immersive-editor.orchestrator', () => ({ retargetImmersiveWindow: mocks.retarget }));
 vi.mock('@/windows/spec-editor.window', () => ({ openSpecProjectileEditorWindow: mocks.openProjectile }));
+vi.mock('@/windows/weapon-fire-preview.window', () => ({ openWeaponFirePreviewWindow: mocks.openPreview }));
+vi.mock('@/windows/immersive-editor.window', () => ({ openImmersiveEditorWindow: mocks.openImmersive }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: vi.fn(), hasSourceInvalidation: () => false }));
 vi.mock('@/services/query-cache.service', async (importOriginal) => ({
@@ -686,6 +690,66 @@ describe('variant joint actions', () => {
 });
 
 describe('wing joint source handoff', () => {
+  it.each(['ship', 'variant'] as const)('opens the %s reference after committing active wing input', async (kind) => {
+    prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    vm.joint.inputs.registerFinalizer(() => {
+      const values = vm.joint.draftValue.value;
+      vm.joint.setDraft({
+        ...values,
+        spec: { state: 'present', value: { ...jointObject(values.spec), hullId: 'next_hull' } },
+        variant: { state: 'present', value: { ...jointObject(values.variant), hullId: 'fighter_skin' } },
+        wing: { state: 'present', value: { ...jointObject(values.wing), variant: 'next_variant' } },
+      });
+    });
+    await vm.wing!.openRelatedEditor(kind);
+    expect(mocks.openImmersive).toHaveBeenCalledExactlyOnceWith({
+      sessionId: 's',
+      modRoot: 'M:/mod',
+      kind,
+      id: kind === 'ship' ? 'sarissa' : 'next_variant',
+    });
+    wrapper.unmount();
+  });
+  it.each([
+    ['ship', 'cancel'],
+    ['ship', 'release'],
+    ['ship', 'target'],
+    ['variant', 'cancel'],
+    ['variant', 'release'],
+    ['variant', 'target'],
+  ] as const)('ends a pending %s editor open after %s', async (kind, reason) => {
+    prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    let finish!: () => void;
+    vm.joint.inputs.registerFinalizer(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const opening = vm.wing!.openRelatedEditor(kind);
+    await flushPromises();
+    if (reason === 'cancel') vm.joint.inputs.cancel();
+    else if (reason === 'release') wrapper.unmount();
+    else vm.joint.clearTarget();
+    finish();
+    await opening;
+    expect(mocks.openImmersive).not.toHaveBeenCalled();
+    if (reason !== 'release') wrapper.unmount();
+  });
+  it.each(['ship', 'variant'] as const)('reports a %s editor window failure once', async (kind) => {
+    prepare();
+    const { vm, wrapper } = editor('wing');
+    await vm.initialize();
+    const error = new Error('Window unavailable');
+    mocks.openImmersive.mockRejectedValueOnce(error);
+    await vm.wing!.openRelatedEditor(kind);
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(error, kind === 'ship' ? '打开舰船沉浸式编辑器失败' : '打开装配沉浸式编辑器失败');
+    wrapper.unmount();
+  });
   it('creates a missing fighter through the wing action and submits its captured source', async () => {
     const baseline = prepare();
     baseline.records.find((record) => record.key === 'spec')!.value = { state: 'missing' };
@@ -914,7 +978,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     expect(mocks.listen).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
-  it('opens the projectile reference produced by committing the active weapon input', async () => {
+  it.each(['openProjectile', 'openPreview'] as const)('opens %s after committing the active weapon input', async (action) => {
     mocks.query.mockResolvedValue(weaponJointFixture());
     const { vm, wrapper } = editor('weapon');
     await vm.initialize();
@@ -933,17 +997,30 @@ describe('immersive ship lifecycle and reference channels', () => {
       focus: vi.fn(),
       cancel: vi.fn(),
     });
-    await vm.openProjectile!();
-    expect(mocks.openProjectile).toHaveBeenCalledExactlyOnceWith({
-      sessionId: 's',
-      modRoot: 'M:/mod',
-      id: 'new_shot',
-      starsectorRoot: null,
-    });
+    await vm[action]!();
+    expect(mocks[action]).toHaveBeenCalledExactlyOnceWith(
+      action === 'openProjectile'
+        ? { sessionId: 's', modRoot: 'M:/mod', id: 'new_shot', starsectorRoot: null }
+        : {
+            sessionId: 's',
+            modRoot: 'M:/mod',
+            id: 'chaingun',
+            source: { kind: 'draft', weapon: jointObject(vm.joint.draftValue.value.spec) },
+          },
+    );
+    if (action === 'openPreview') {
+      mocks.openPreview.mock.calls[0]![0].source.weapon.unknown.retained = false;
+      expect(jointObject(vm.joint.draftValue.value.spec).unknown).toEqual({ retained: true });
+    }
     expect(vm.history.canUndo.value).toBe(true);
     wrapper.unmount();
   });
-  it.each(['cancel', 'release'] as const)('ends a pending projectile open after %s', async (reason) => {
+  it.each([
+    ['openProjectile', 'cancel'],
+    ['openProjectile', 'release'],
+    ['openPreview', 'cancel'],
+    ['openPreview', 'release'],
+  ] as const)('ends a pending %s after %s', async (action, reason) => {
     mocks.query.mockResolvedValue(weaponJointFixture());
     const { vm, wrapper } = editor('weapon');
     await vm.initialize();
@@ -954,14 +1031,25 @@ describe('immersive ship lifecycle and reference channels', () => {
           finish = resolve;
         }),
     );
-    const opening = vm.openProjectile!();
+    const opening = vm[action]!();
     await flushPromises();
     if (reason === 'cancel') vm.joint.inputs.cancel();
     else wrapper.unmount();
     finish();
     await opening;
-    expect(mocks.openProjectile).not.toHaveBeenCalled();
+    expect(mocks[action]).not.toHaveBeenCalled();
     if (reason === 'cancel') wrapper.unmount();
+  });
+  it.each(['input', 'window'] as const)('reports a preview %s failure once', async (failure) => {
+    mocks.query.mockResolvedValue(weaponJointFixture());
+    const { vm, wrapper } = editor('weapon');
+    await vm.initialize();
+    const error = new Error('Preview unavailable');
+    if (failure === 'input') vi.spyOn(vm.joint.inputs, 'commit').mockRejectedValueOnce(error);
+    else mocks.openPreview.mockRejectedValueOnce(error);
+    await vm.openPreview!();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(error, '打开开火预览失败');
+    wrapper.unmount();
   });
   it('keeps the Core pulse source unchanged when branch selection is cancelled', async () => {
     const snapshot = weaponJointFixture();

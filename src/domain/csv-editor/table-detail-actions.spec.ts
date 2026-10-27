@@ -53,15 +53,18 @@ describe('detailActionsForRow', () => {
 
   it('opens a wing through its own row and complete window identity', () => {
     const row: CsvRowRecord = { rowKey: 'wings:row:0', data: { id: 'wing1' }, isComment: false };
-    expect(detailActionsForRow(context, 'wings', row)).toEqual([
-      {
-        type: 'immersive-editor',
-        kind: 'wing',
-        modRoot: context.modRoot,
-        sessionId: context.sessionId,
-        id: 'wing1',
-        rowKey: 'wings:row:0',
-      },
+    expect(detailActionsForRow(context, 'wings', row)[0]).toEqual({
+      type: 'immersive-editor',
+      kind: 'wing',
+      modRoot: context.modRoot,
+      sessionId: context.sessionId,
+      id: 'wing1',
+      rowKey: 'wings:row:0',
+    });
+    expect(detailActionsForRow(context, 'wings', row).map(detailActionLabel)).toEqual(['沉浸式编辑器', '跳转到船体', '跳转到装配']);
+    expect(detailActionsForRow(context, 'wings', row).slice(1)).toEqual([
+      expect.objectContaining({ destination: 'hull', disabled: true }),
+      expect.objectContaining({ destination: 'variant', disabled: true }),
     ]);
     expect(detailActionsForRow(context, 'industries', row)).toEqual([]);
   });

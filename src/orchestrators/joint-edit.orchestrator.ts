@@ -12,6 +12,24 @@ import { withEditTargetHandoff } from '@/orchestrators/edit-target-handoff.orche
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { jointWriteTargets, applyJointConflictChoices } from '@/domain/joint-edit';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { AppError } from '@/shared/lib/errors';
+
+export async function resolveWingReference(root: JointEditRoot, destination: 'hull' | 'variant', signal?: AbortSignal) {
+  const snapshot = await queryJointEdit(root, signal);
+  const key = destination === 'variant' ? snapshot.bindings.variant : snapshot.bindings.hull;
+  const record = snapshot.records.find((entry) => entry.key === key);
+  if (!record || record.value.state !== 'present' || record.target.kind !== 'spec')
+    throw new AppError('找不到联队引用的' + (destination === 'variant' ? '装配' : '船体'), { action: 'navigate-wing-reference' });
+  const target = record.target.target;
+  const kind: 'ship' | 'skin' | 'variant' = target.kind === 'skin' ? 'skin' : target.kind === 'variant' ? 'variant' : 'ship';
+  const source = kind === 'ship' ? snapshot.records.find((entry) => entry.key === snapshot.hull!.displayBindings.csv)! : record;
+  return {
+    kind,
+    id: target.id,
+    source: source.source?.source ?? null,
+    rowKey: source.target.kind === 'csv' ? source.target.rowKey : undefined,
+  };
+}
 
 export async function openJointEditSnapshot(
   root: JointEditRoot,

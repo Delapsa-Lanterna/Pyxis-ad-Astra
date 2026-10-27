@@ -1,0 +1,14 @@
+{
+  "name": ["hullName"],
+  "designation": ["hullDesignation"],
+  "tech/manufacturer": ["manufacturer", "tech"],
+  "system id": ["systemId"],
+  "fleet pts": ["fleetPoints", "fpMod"],
+  "ordnance points": ["ordnancePoints"],
+  "base value": ["baseValue", "baseValueMult"],
+  "supplies/rec": ["suppliesToRecover"],
+  "supplies/mo": ["suppliesPerMonth"],
+  "fighter bays": ["fighterBays"],
+  "max speed": ["maxSpeed"],
+  "shield efficiency": ["shieldEfficiency"]
+}

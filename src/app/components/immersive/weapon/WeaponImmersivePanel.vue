@@ -54,12 +54,11 @@
     <section class="weapon-immersive-sources weapon-immersive-panel-section ui-layout-shrink">
       <ImmersiveSection title="来源与分支"><ImmersivePanelRow :stat="panel.branch" :render="render" /></ImmersiveSection
       ><template v-if="panel.projectile"
-        ><ImmersivePanelRow :stat="panel.projectile" :render="render" /><n-button
-          v-if="render.mode === 'editable'"
-          :disabled="!projectileId"
-          @click="$emit('open-projectile')"
-          >弹体编辑器</n-button
-        ></template
+        ><ImmersivePanelRow :stat="panel.projectile" :render="render" />
+        <div v-if="render.mode === 'editable'" class="action-group">
+          <n-button :disabled="!projectileId" @click="$emit('open-projectile')">弹体编辑器</n-button>
+          <n-button :disabled="!projectileId" @click="$emit('preview')">开火预览</n-button>
+        </div></template
       >
     </section>
   </div>
@@ -78,7 +77,7 @@ import ImmersiveFallbackIcon from '../ImmersiveFallbackIcon.vue';
 import { computed } from 'vue';
 import { jointObject } from '@/domain/joint-edit';
 import { schemaStringValue } from '@/domain/schema/schema-values';
-defineEmits<{ 'open-projectile': [] }>();
+defineEmits<{ 'open-projectile': []; preview: [] }>();
 const props = defineProps<{ panel: WeaponPanel; render: ImmersiveRenderContext }>();
 const description = computed(() => descriptionForRender(props.panel.description, props.render.mode));
 const projectileId = computed(() =>

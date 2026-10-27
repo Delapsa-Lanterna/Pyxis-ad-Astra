@@ -21,6 +21,7 @@ export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: Immers
     variantActionPending: computed(() => variant?.variantActionPending.value ?? false),
     createOverrides: weapon?.createOverrides ?? runtime.createOverrides,
     openProjectile: weapon?.openProjectile,
+    openPreview: weapon?.openPreview,
     save: async () => {
       if (!variant?.variantActionPending.value) await runtime.save();
     },

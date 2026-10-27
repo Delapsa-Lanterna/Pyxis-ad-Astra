@@ -2,7 +2,8 @@
   <ImmersiveStatRow
     v-if="render.mode === 'editable'"
     :stat="stat"
-    :editable="!render.editing.changing && stat.fields.every(render.editing.editable)"
+    :editable="!render.editing.changing && stat.fields.some(render.editing.editable)"
+    :field-editable="render.editing.editable"
     :active="render.editing.activeStat === stat.id"
     :values="render.editing.values"
     :snapshot="render.editing.snapshot"

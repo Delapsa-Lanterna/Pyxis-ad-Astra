@@ -15,6 +15,15 @@ static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
     defaults
 });
 
+pub fn skin_hull_fields() -> &'static std::collections::BTreeMap<String, Vec<String>> {
+    static FIELDS: LazyLock<std::collections::BTreeMap<String, Vec<String>>> =
+        LazyLock::new(|| {
+            serde_json::from_str(include_str!("../../../schemas/skin-hull-fields.json"))
+                .expect("embedded skin hull fields must parse")
+        });
+    &FIELDS
+}
+
 pub fn create_associated_spec(params: &AssociatedSpecCreateParams) -> Value {
     let (template, id_field) = match params {
         AssociatedSpecCreateParams::Ship { .. } => (&SPEC_DEFAULTS["ship"], "hullId"),

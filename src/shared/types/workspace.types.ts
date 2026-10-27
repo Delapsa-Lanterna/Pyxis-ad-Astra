@@ -20,6 +20,14 @@ export interface ModOpeningFailure {
   file: ModOpeningFailureFile | null;
 }
 
+export interface WorkspaceEntityLocation {
+  sessionId: string;
+  modRoot: string;
+  kind: 'ship' | 'skin' | 'variant';
+  id: string;
+  rowKey?: string;
+}
+
 /** Which main-content view is shown */
 export type WorkspaceView = 'overview' | 'table' | 'settings' | 'mod-overview' | 'file-history' | 'json-editor' | 'about' | 'mod-files';
 

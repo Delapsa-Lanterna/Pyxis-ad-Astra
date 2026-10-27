@@ -8,6 +8,10 @@ export async function focusExistingEntityWindow(sessionId: string, modRoot: stri
   return focusEntityWindowTarget(sessionId, modRoot, info.target);
 }
 
+export function queryEntityEditTarget(sessionId: string, kind: EntityEditTarget['kind'], id: string, signal?: AbortSignal) {
+  return querySessionEntityEditTarget(sessionId, kind, id, signal);
+}
+
 export async function focusEntityWindowTarget(sessionId: string, modRoot: string, target: EntityEditTarget): Promise<boolean> {
   if (target.kind === 'ship' || target.kind === 'weapon' || target.kind === 'projectile' || target.kind === 'system') {
     const focused = await focusNativeManagedWindow({ type: 'spec', sessionId, modRoot, kind: target.kind, id: target.id });

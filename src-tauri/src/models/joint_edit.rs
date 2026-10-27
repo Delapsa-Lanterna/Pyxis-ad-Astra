@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "camelCase")]
 pub enum JointEditKind {
     Ship,
+    Skin,
     Weapon,
     Wing,
     Variant,
@@ -200,10 +201,11 @@ pub struct JointFieldBinding {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointHullProjection {
+    pub spec: Value,
     pub variant_key: String,
     pub hull_key: String,
     pub skin_keys: Vec<String>,
-    pub fields: BTreeMap<String, JointFieldBinding>,
+    pub fields: BTreeMap<String, Vec<JointFieldBinding>>,
     pub display_bindings: BTreeMap<String, String>,
     pub weapons: BTreeMap<String, String>,
     pub sprite: Option<ResourceRef>,

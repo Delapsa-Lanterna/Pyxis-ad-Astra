@@ -53,9 +53,9 @@ describe('ship original configuration projection', () => {
     hull.variantKey = 'module';
     hull.skinKeys = ['skin'];
     hull.displayBindings = { csv: csv.key, description: description.key, system: 'system' };
-    for (const field of Object.values(hull.fields)) field.recordKey = csv.key;
-    hull.fields.name = { recordKey: skin.key, path: 'hullName' };
-    hull.fields['max speed'] = { recordKey: skin.key, path: 'maxSpeed' };
+    for (const inputs of Object.values(hull.fields)) for (const field of inputs) field.recordKey = csv.key;
+    hull.fields.name = [{ recordKey: skin.key, path: 'hullName' }];
+    hull.fields['max speed'] = [{ recordKey: skin.key, path: 'maxSpeed' }];
     snapshot.variants.module = hull;
     const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));
     const current = projectVariantPanel(snapshot, values).variants.find((variant) => variant.key === 'module')!;

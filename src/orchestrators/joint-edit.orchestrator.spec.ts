@@ -3,8 +3,12 @@ import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { AppFeedback, JointEditDraft } from '@/shared/types';
-const mocks = vi.hoisted(() => ({ prepare: vi.fn(), save: vi.fn() }));
-vi.mock('@/services/joint-edit.service', () => ({ prepareJointEdit: mocks.prepare, saveJointEdit: mocks.save }));
+const mocks = vi.hoisted(() => ({ prepare: vi.fn(), save: vi.fn(), query: vi.fn() }));
+vi.mock('@/services/joint-edit.service', () => ({
+  prepareJointEdit: mocks.prepare,
+  saveJointEdit: mocks.save,
+  queryJointEdit: mocks.query,
+}));
 vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
   withEditTargetHandoff: async (_targets: unknown, _feedback: unknown, action: () => unknown) => action(),
 }));
@@ -12,7 +16,8 @@ vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
   runConfirmedJsonWrite: async (_feedback: unknown, action: (options: unknown) => unknown) =>
     action({ preserveOriginalJson: true, confirmedSources: [] }),
 }));
-import { submitJointEdit } from './joint-edit.orchestrator';
+import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
+import { resolveWingReference, submitJointEdit } from './joint-edit.orchestrator';
 let feedback: AppFeedback;
 beforeEach(() => {
   vi.clearAllMocks();
@@ -27,6 +32,26 @@ beforeEach(() => {
   };
 });
 describe('joint declared editing scope confirmation', () => {
+  it.each(['mod', 'core'] as const)('resolves the actual skin from a %s variant', async (source) => {
+    const graph = skinJointFixture();
+    graph.bindings.variant = 'variant';
+    graph.bindings.hull = 'skin';
+    const variant = graph.records.find((record) => record.key === 'variant')!;
+    variant.source = { ...variant.source!, source };
+    mocks.query.mockResolvedValue(graph);
+    expect(await resolveWingReference({ ...graph.root, kind: 'variant' }, 'hull')).toMatchObject({
+      kind: 'skin',
+      id: 'sarissa_custom',
+      source: 'mod',
+    });
+    expect(await resolveWingReference({ ...graph.root, kind: 'variant' }, 'variant')).toMatchObject({
+      kind: 'variant',
+      id: 'sarissa_Fighter',
+      source,
+    });
+    graph.records.find((record) => record.key === 'skin')!.value = { state: 'missing' };
+    await expect(resolveWingReference(graph.root, 'hull')).rejects.toThrow('找不到联队引用的船体');
+  });
   it('confirms only submitted records while associated Core and shared sources remain readonly', async () => {
     const snapshot = shipJointFixture();
     const associated = snapshot.records.find((record) => record.key === 'system')!;

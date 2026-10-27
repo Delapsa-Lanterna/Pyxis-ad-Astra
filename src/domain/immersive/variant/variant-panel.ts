@@ -3,6 +3,7 @@ import { variantEditableRecords } from '../source-records';
 import { immersiveCatalogScene } from '../hull-scene';
 import type { JointEditSnapshot, JointValue, JointHullProjection, ResourceRef, RowData, ReadonlyVariantEntry } from '@/shared/types';
 import { jointObject } from '@/domain/joint-edit';
+import { hullDataIndex, hullFieldValue } from '../hull-fields';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics } from '../weapon/weapon-statistics';
@@ -127,7 +128,7 @@ export function projectVariantPanel(
 ): VariantPanel {
   const graph = projection ?? snapshot;
   const roles = variantRecordRoles(graph);
-  const data = (key: string) => jointObject(values[key] ?? graph.records.find((record) => record.key === key)?.value);
+  const data = hullDataIndex(graph.records, values);
   const csv = (table: string, id: string) =>
     graph.records.find((record) => record.target.kind === 'csv' && record.target.table === table && record.target.identity.id === id);
   const specRecord = (kind: string, id: string) =>
@@ -141,11 +142,11 @@ export function projectVariantPanel(
       const key = hull.variantKey,
         role = roles.get(key)!,
         variant = data(key),
-        spec = data(hull.hullKey);
+        spec = hull.skinKeys.length ? hull.spec : data(hull.hullKey);
       const record = graph.records.find((item) => item.key === key)!;
       const fieldValue = (name: string) => {
         const binding = hull.fields[name];
-        return binding ? data(binding.recordKey)[binding.path] : undefined;
+        return hullFieldValue(binding, data);
       };
       const number = (name: string, fallback = 0) => immersiveNumber({ [name]: fieldValue(name) ?? '' }, name, fallback);
       const hullSize = schemaStringValue(spec.hullSize);
@@ -215,7 +216,7 @@ export function projectVariantPanel(
           wingVariant = specRecord('variant', schemaStringValue(wing.variant));
         const fighterHull = graph.variants[wingVariant?.key ?? ''];
         const nameSource = fighterHull?.fields.name;
-        const fighterName = nameSource ? schemaStringValue(data(nameSource.recordKey)[nameSource.path]) : '';
+        const fighterName = schemaStringValue(hullFieldValue(nameSource, data));
         return {
           index,
           id,
@@ -318,7 +319,10 @@ export function projectVariantPanel(
       const diagnostics = weapons
         .filter((weapon) => weapon.diagnostic)
         .map((weapon) => `${schemaStringValue(weapon.slot.id)}：${weapon.diagnostic}`);
-      for (const recordKey of new Set([hull.hullKey, ...Object.values(hull.fields).map((field) => field.recordKey)])) {
+      for (const recordKey of new Set([
+        hull.hullKey,
+        ...Object.values(hull.fields).flatMap((inputs) => inputs.map((field) => field.recordKey)),
+      ])) {
         const source = graph.records.find((entry) => entry.key === recordKey)!;
         if (source.value.state === 'missing')
           diagnostics.push('船体来源缺失：' + (source.target.kind === 'spec' ? source.target.target.write.path : source.target.write.path));

@@ -1,6 +1,7 @@
 import type { JointEditSnapshot, JointValue, ResourceRef, JointHullProjection, DeepReadonly } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { jointObject } from '@/domain/joint-edit';
+import { hullDataIndex, hullFieldInputs, hullFieldValue } from '../hull-fields';
 import { immersiveSourceRecords } from '../source-records';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
@@ -82,29 +83,31 @@ export function projectShipPanel(
 ): ShipImmersivePanel {
   const graph = projection ?? snapshot;
   const find = (key: string | undefined) => graph.records.find((record) => record.key === key);
-  const sources = variant
+  const effectiveHull = variant?.hull ?? graph.hull;
+  const sources = effectiveHull
     ? {
-        spec: find(variant.hull.hullKey)!,
-        csv: find(variant.hull.displayBindings.csv)!,
-        description: find(variant.hull.displayBindings.description),
+        spec: find(effectiveHull.hullKey)!,
+        csv: find(effectiveHull.displayBindings.csv)!,
+        description: find(effectiveHull.displayBindings.description),
       }
     : immersiveSourceRecords(snapshot);
-  const data = (key: string | undefined) => jointObject(key ? (values[key] ?? find(key)?.value) : undefined);
+  const indexed = hullDataIndex(graph.records, values);
+  const data = (key: string | undefined) => (key ? indexed(key) : {});
   const csv = data(sources.csv.key);
   const spec = data(sources.spec.key);
   const desc = data(sources.description?.key);
   const value = (key: string) => {
-    const binding = variant?.hull.fields[key];
-    return binding ? data(binding.recordKey)[binding.path] : csv[key];
+    const binding = effectiveHull?.fields[key];
+    return binding ? hullFieldValue(binding, indexed) : csv[key];
   };
   const columns = getCsvColumnSchemas('ships');
   function csvField(key: string, label?: string): ImmersiveField {
     const column = columns.find((column) => column.key === key);
     return {
       id: 'csv/' + key,
-      recordKey: variant?.hull.fields[key]?.recordKey ?? sources.csv.key,
+      recordKey: sources.csv.key,
       schema: {
-        key: variant?.hull.fields[key]?.path ?? key,
+        key,
         label: label ?? column?.label ?? key,
         type: INTEGER_COLUMNS.has(key)
           ? 'integer'
@@ -118,16 +121,21 @@ export function projectShipPanel(
       },
     };
   }
+  function csvFields(key: string, label?: string): ImmersiveField[] {
+    const base = csvField(key, label),
+      inputs = effectiveHull?.fields[key];
+    return inputs ? hullFieldInputs(inputs, key, base.schema.label!) : [base];
+  }
   function numeric(key: string, label: string, fallback: number, unit = '', tone: ImmersiveStat['tone'] = 'highlight'): ImmersiveStat {
     const raw = schemaStringValue(value(key));
     const amount = number(key, fallback);
-    const field = csvField(key, label);
-    field.schema.type = INTEGER_COLUMNS.has(key) ? 'integer' : 'float';
+    const fields = csvFields(key, label);
+    fields[0]!.schema.type = INTEGER_COLUMNS.has(key) ? 'integer' : 'float';
     return {
       id: key,
       label,
       display: Number.isFinite(amount) ? format(amount) + unit : '无有效值',
-      fields: [field],
+      fields,
       tone,
       diagnostic: raw.trim() ? (Number.isFinite(amount) ? undefined : `${key} 不是有效数字`) : `${key} 缺失，显示原版默认值 ${fallback}`,
     };
@@ -145,19 +153,19 @@ export function projectShipPanel(
       id: 'name',
       label: '舰船名称',
       display: variant?.name || schemaStringValue(value('name')) || '未命名舰船',
-      fields: [csvField('name')],
+      fields: csvFields('name'),
     },
     {
       id: 'designation',
       label: '定位',
       display: schemaStringValue(value('designation')) || '未提供定位',
-      fields: [csvField('designation')],
+      fields: csvFields('designation'),
     },
     {
       id: 'tech/manufacturer',
       label: '设计类型',
       display: schemaStringValue(value('tech/manufacturer')) || 'Common',
-      fields: [csvField('tech/manufacturer')],
+      fields: csvFields('tech/manufacturer'),
     },
   ];
   const description: ImmersiveStat = {
@@ -173,16 +181,37 @@ export function projectShipPanel(
         }))
       : [],
   };
+  let prefix = '';
+  for (const [index, key] of (effectiveHull?.skinKeys ?? []).entries()) {
+    const skin = data(key);
+    if (skin.descriptionPrefix !== undefined) prefix = schemaStringValue(skin.descriptionPrefix);
+    description.fields.push(
+      {
+        id: 'skin/' + index + '/descriptionId',
+        recordKey: key,
+        inheritOnEmpty: true,
+        handoff: true,
+        schema: { key: 'descriptionId', type: 'enum', source: 'csv:descriptions.id', label: '皮肤描述引用（空白采用皮肤 ID）' },
+      },
+      {
+        id: 'skin/' + index + '/descriptionPrefix',
+        recordKey: key,
+        inheritOnEmpty: true,
+        schema: { key: 'descriptionPrefix', type: 'text', label: '皮肤描述前缀（空白继承）' },
+      },
+    );
+  }
+  if (prefix) description.display = prefix + '\n\n' + description.display;
   const recovery = numeric('supplies/rec', '战备恢复成本 (补给)', 0);
   const peak = numeric('peak CR sec', '峰值时间', 9999999, ' 秒');
   if (number('CR loss/sec', 0) <= 0) peak.display = '无限';
-  peak.fields.push(csvField('CR loss/sec', '每秒战备值衰减'));
+  peak.fields.push(...csvFields('CR loss/sec', '每秒战备值衰减'));
   peak.formula = '原版在每秒战备值衰减小于等于零时显示无限峰值时间。';
   const crew: ImmersiveStat = {
     id: 'crew',
     label: '船员配额',
     display: `${format(number('min crew', 1))} / ${format(number('max crew', 1))}`,
-    fields: [csvField('min crew'), csvField('max crew')],
+    fields: [...csvFields('min crew'), ...csvFields('max crew')],
     tone: 'crew',
   };
   const hull: ImmersiveStat = {
@@ -228,6 +257,9 @@ export function projectShipPanel(
       crew,
       hull,
       numeric('ordnance points', '装配点数', 0),
+      numeric('fleet pts', '舰队点数', 0),
+      numeric('base value', '基础价值', 0),
+      numeric('fighter bays', '战机甲板数量', 0),
     ],
     [
       numeric('supplies/mo', '维护消耗 (补给/月)', 0),
@@ -246,7 +278,7 @@ export function projectShipPanel(
     id: 'shield type',
     label: '防御方式',
     display: { NONE: '无', FRONT: '前盾', OMNI: '全盾', PHASE: '相位线圈' }[shieldType] ?? shieldType,
-    fields: [csvField('shield type'), csvField('defense id')],
+    fields: [...csvFields('shield type'), ...csvFields('defense id')],
   };
   const defenseStats: ImmersiveStat[] =
     shieldType === 'PHASE'
@@ -255,14 +287,14 @@ export function projectShipPanel(
             id: 'phase cost',
             label: '相位线圈激活',
             display: format(number('phase cost', 0) * number('max flux', 10)),
-            fields: [csvField('phase cost'), csvField('max flux')],
+            fields: [...csvFields('phase cost'), ...csvFields('max flux')],
             formula: '相位线圈激活 = phase cost × max flux',
           },
           {
             id: 'phase upkeep',
             label: '相位线圈维持 (幅能/秒)',
             display: format(number('phase upkeep', 0) * number('max flux', 10)),
-            fields: [csvField('phase upkeep'), csvField('max flux')],
+            fields: [...csvFields('phase upkeep'), ...csvFields('max flux')],
             formula: '相位线圈维持 (幅能/秒) = phase upkeep × max flux',
           },
         ]
@@ -274,7 +306,7 @@ export function projectShipPanel(
               id: 'shield upkeep',
               label: '护盾维持 (幅能/秒)',
               display: format(variant ? variant.shieldFlux : number('shield upkeep', 0) * number('flux dissipation', 1)),
-              fields: [csvField('shield upkeep'), csvField('flux dissipation')],
+              fields: [...csvFields('shield upkeep'), ...csvFields('flux dissipation')],
               formula: '护盾维持 (幅能/秒) = shield upkeep × flux dissipation',
             },
             numeric('shield efficiency', '护盾效率 (幅能/伤害)', 1),
@@ -309,12 +341,12 @@ export function projectShipPanel(
     id: 'system',
     label: '战术系统',
     display: schemaStringValue(jointObject(systemCsv?.value).name) || systemId || '无',
-    fields: [csvField('system id')],
+    fields: csvFields('system id'),
     diagnostic: systemId && !systemCsv?.source ? `系统 ${systemId} 的来源未提供` : undefined,
   };
   const systemText = jointObject(systemDesc?.value);
   const mountCounts = new Map<string, number>();
-  const slots = variant ? variant.hull.slots : Array.isArray(spec.weaponSlots) ? spec.weaponSlots : [];
+  const slots = effectiveHull?.slots ?? (Array.isArray(spec.weaponSlots) ? spec.weaponSlots : []);
   for (const slot of slots) {
     const data = jointObject({ state: 'present', value: slot });
     const type = schemaStringValue(data.type);
@@ -322,7 +354,7 @@ export function projectShipPanel(
     const key = `${SIZE_LABELS[schemaStringValue(data.size)] ?? schemaStringValue(data.size)}${MOUNT_LABELS[type]}`;
     mountCounts.set(key, (mountCounts.get(key) ?? 0) + 1);
   }
-  const weapons = spec.builtInWeapons;
+  const weapons = effectiveHull?.builtInWeapons ?? spec.builtInWeapons;
   const weaponCounts = new Map<string, number>();
   if (weapons && typeof weapons === 'object' && !Array.isArray(weapons))
     for (const id of Object.values(weapons)) {
@@ -336,7 +368,7 @@ export function projectShipPanel(
         : [],
     ),
   );
-  const mods = Array.isArray(spec.builtInMods) ? spec.builtInMods : [];
+  const mods = effectiveHull?.builtInMods ?? (Array.isArray(spec.builtInMods) ? spec.builtInMods : []);
   const hullmods = mods.map((value) => {
     const id = schemaStringValue(value);
     const record = references.find(
@@ -372,7 +404,7 @@ export function projectShipPanel(
       { text: weaponNames.get(id) || id, color: '#dcdcdc' },
     ]),
     hullmods: hullmods.join('，') || '无',
-    sprite: variant ? variant.hull.sprite : (sources.spec.resourceRefs.sprite ?? null),
+    sprite: effectiveHull ? effectiveHull.sprite : (sources.spec.resourceRefs.sprite ?? null),
     hullSize: schemaStringValue(spec.hullSize),
     allStats,
     equipment: [],

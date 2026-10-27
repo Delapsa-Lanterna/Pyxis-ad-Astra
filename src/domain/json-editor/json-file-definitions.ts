@@ -4,7 +4,7 @@ export interface JsonFileDefinition {
   companionField: string;
   listIconPaths: string[];
   usesHullNames: boolean;
-  immersiveKind?: 'variant';
+  immersiveKind?: 'variant' | 'skin';
 }
 
 export type { JsonEntityFile } from '@/shared/types';
@@ -22,7 +22,7 @@ export function jsonFileTitle(
   const hullId = jsonFileCompanion(definition, file);
   const hullName = hullNames[hullId]?.trim() || hullId;
   const displayName = trimmedString(file.data.displayName);
-  return displayName ? `${hullName} · ${displayName}` : hullName;
+  return displayName ? `${hullName} (${displayName})` : hullName;
 }
 
 function trimmedString(value: unknown): string {
@@ -37,6 +37,7 @@ export const variantFileDefinition: JsonFileDefinition = {
 };
 
 export const skinFileDefinition: JsonFileDefinition = {
+  immersiveKind: 'skin',
   companionField: 'baseHullId',
   listIconPaths: ['M12 3 5 18l7 3 7-3-7-15z', 'M8 16h8M9 12h6'],
   usesHullNames: false,

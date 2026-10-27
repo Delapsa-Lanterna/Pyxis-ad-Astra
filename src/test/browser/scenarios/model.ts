@@ -19,6 +19,7 @@ import { createSettingsFixture } from '../../fixtures/settings';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
 import { shipJointFixture } from '../../fixtures/joint-edit/ship-joint-edit';
 import { weaponJointFixture } from '../../fixtures/joint-edit/weapon-joint-edit';
+import { skinJointFixture } from '../../fixtures/joint-edit/skin-joint-edit';
 import { wingJointFixture } from '../../fixtures/joint-edit/wing-joint-edit';
 import { variantJointFixture } from '../../fixtures/joint-edit/variant-joint-edit';
 import { retargetJointFixture, fixtureLocation, fixtureSpecTarget } from '../../fixtures/joint-edit/joint-record';
@@ -28,10 +29,28 @@ import { variantEditableRecords } from '@/domain/immersive/source-records';
 import { resourceImage } from '../../fixtures/resources';
 import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 
-export const scenarioNames = ['settings', 'json', 'csv', 'ship', 'weapon', 'wing', 'variant', 'weapons', 'wings', 'hullmods'] as const;
+export const scenarioNames = [
+  'settings',
+  'json',
+  'csv',
+  'ship',
+  'skin',
+  'weapon',
+  'wing',
+  'variant',
+  'weapons',
+  'wings',
+  'hullmods',
+] as const;
 export type BrowserScenario = (typeof scenarioNames)[number];
 export const sampleRoot = 'M:/browser-sample';
-const builders = { ship: shipJointFixture, weapon: weaponJointFixture, wing: wingJointFixture, variant: variantJointFixture };
+const builders = {
+  skin: skinJointFixture,
+  ship: shipJointFixture,
+  weapon: weaponJointFixture,
+  wing: wingJointFixture,
+  variant: variantJointFixture,
+};
 export const sampleImage =
   'data:image/svg+xml,' +
   encodeURIComponent(
@@ -260,7 +279,7 @@ export function createBrowserModel(
     if (root.kind === 'wing' || root.kind === 'variant') {
       const id = String(data(snapshot.bindings.variant!).hullId);
       reference(snapshot.hull!.hullKey, id);
-      reference(snapshot.hull!.fields.name!.recordKey, id);
+      reference(snapshot.hull!.fields.name![0]!.recordKey, id);
     }
     if (root.kind === 'variant') {
       for (const key of variantEditableRecords(snapshot)) {
@@ -291,7 +310,10 @@ export function createBrowserModel(
               hull.variantKey = prefix + hull.variantKey;
               hull.hullKey = prefix + hull.hullKey;
               hull.fields = Object.fromEntries(
-                Object.entries(hull.fields).map(([key, binding]) => [key, { ...binding, recordKey: prefix + binding.recordKey }]),
+                Object.entries(hull.fields).map(([key, binding]) => [
+                  key,
+                  binding.map((input) => ({ ...input, recordKey: prefix + input.recordKey })),
+                ]),
               );
               hull.displayBindings = Object.fromEntries(Object.entries(hull.displayBindings).map(([key, value]) => [key, prefix + value]));
               snapshot.variants[hull.variantKey] = hull;
@@ -311,7 +333,10 @@ export function createBrowserModel(
           hull.variantKey = prefix + hull.variantKey;
           hull.hullKey = prefix + hull.hullKey;
           hull.fields = Object.fromEntries(
-            Object.entries(hull.fields).map(([key, field]) => [key, { ...field, recordKey: prefix + field.recordKey }]),
+            Object.entries(hull.fields).map(([key, field]) => [
+              key,
+              field.map((input) => ({ ...input, recordKey: prefix + input.recordKey })),
+            ]),
           );
           hull.displayBindings = Object.fromEntries(Object.entries(hull.displayBindings).map(([key, value]) => [key, prefix + value]));
           snapshot.variants[hull.variantKey] = hull;

@@ -31,6 +31,7 @@
           "source": "csv:descriptions.id"
         },
         { "key": "descriptionPrefix", "type": "string", "label": "描述前缀" },
+        { "key": "manufacturer", "type": "string", "label": "制造商" },
         {
           "key": "tech",
           "type": "enum",
@@ -76,6 +77,8 @@
       "id": "stats",
       "label": "数值覆盖",
       "fields": [
+        { "key": "fpMod", "type": "integer", "label": "舰队点数增量" },
+        { "key": "baseValue", "type": "integer", "label": "基础价值", "min": 0 },
         {
           "key": "fleetPoints",
           "type": "integer",

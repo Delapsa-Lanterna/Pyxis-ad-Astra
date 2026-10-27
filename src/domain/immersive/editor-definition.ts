@@ -9,7 +9,7 @@ import { variantWeaponGroups } from './variant/variant-actions';
 import { isRowData } from '@/shared/lib/row-data';
 
 export type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel | VariantPanel;
-export type ImmersiveEditorKind = 'ship' | 'weapon' | 'wing' | 'variant';
+export type ImmersiveEditorKind = import('@/shared/types').JointEditKind;
 
 const definitions: Record<ImmersiveEditorKind, ImmersiveEditorDefinition<ImmersivePanel>> = {
   variant: {
@@ -41,6 +41,14 @@ const definitions: Record<ImmersiveEditorKind, ImmersiveEditorDefinition<Immersi
     project: projectWingPanel,
     references: (_snapshot, values) => Object.entries(values),
     media: (panel) => (panel.kind === 'wing' && panel.sprite ? [panel.sprite] : []),
+  },
+  skin: {
+    retainDisplayReferences: false,
+    label: '舰船皮肤',
+    editableRecords: immersiveEditableRecords,
+    project: projectShipPanel,
+    references: (_snapshot, values) => Object.entries(values),
+    media: (panel) => (panel.kind === 'ship' && panel.sprite ? [panel.sprite] : []),
   },
   ship: {
     retainDisplayReferences: false,

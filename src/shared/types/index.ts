@@ -193,7 +193,14 @@ export type {
   FollowTextIdentityPayload,
 } from '@/shared/types/file-editor.types';
 export { SPEC_EDITOR_KINDS } from '@/shared/types/spec-editor.types';
-export type { JsonEditorPageId, ModEntry, ModOpeningFailure, ModOpeningFailureFile, WorkspaceView } from '@/shared/types/workspace.types';
+export type {
+  JsonEditorPageId,
+  ModEntry,
+  ModOpeningFailure,
+  ModOpeningFailureFile,
+  WorkspaceView,
+  WorkspaceEntityLocation,
+} from '@/shared/types/workspace.types';
 export type {
   PersistedMod,
   PersistedWorkspace,

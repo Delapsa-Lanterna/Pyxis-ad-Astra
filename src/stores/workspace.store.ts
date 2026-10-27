@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import type {
   JsonEditorPageId,
   GameOverviewData,
@@ -29,6 +29,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const modGenerations = new Map<string, number>();
   let nextModGeneration = 0;
   let workspaceGeneration = 0;
+  const entityLocation = shallowRef<import('@/shared/types').WorkspaceEntityLocation | null>(null);
   const activeModRoot = ref<string | null>(null);
   const currentView = ref<WorkspaceView>('overview');
   const jsonPage = ref<JsonEditorPageId>('mod-info');
@@ -82,6 +83,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     modOpeningFailures.value.clear();
   }
 
+  watch([activeModRoot, currentView, jsonPage, activeSessionId], () => {
+    const location = entityLocation.value;
+    if (
+      location &&
+      (location.sessionId !== activeSessionId.value ||
+        location.modRoot !== activeModRoot.value ||
+        (location.kind === 'ship'
+          ? currentView.value !== 'table'
+          : currentView.value !== 'json-editor' || jsonPage.value !== (location.kind === 'skin' ? 'skins' : 'variants')))
+    )
+      entityLocation.value = null;
+  });
   function clearGameScanWarning(warning: GameScanWarning) {
     gameOverview.value!.warnings = gameOverview.value!.warnings.filter((item) => item !== warning);
   }
@@ -237,6 +250,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   return {
+    entityLocation,
     activeModRoot,
     activeMod,
     activeManifest,

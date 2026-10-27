@@ -1,4 +1,4 @@
-import { h, ref } from 'vue';
+import { h, ref, watch } from 'vue';
 
 import type { AppFeedback } from '@/shared/types';
 
@@ -16,11 +16,22 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { querySessionEntityEditTarget } from '@/services/entity-query.service';
+import { resolveWingReference } from '@/orchestrators/joint-edit.orchestrator';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { navigateToModTable, navigateToModJson } from '@/orchestrators/workspace-navigation.orchestrator';
+import { AppError } from '@/shared/lib/errors';
 
 export function useCsvEditorActions(feedback: AppFeedback) {
   const project = useProjectStore();
   const tables = useCsvEditorStore();
   const workspace = useWorkspaceStore();
+  const reads = useQueryReadOwner();
+  watch(
+    () => [workspace.activeSessionId, workspace.activeModRoot, tables.currentTab, tables.selectedRowKey],
+    () => reads.revoke(),
+    { flush: 'sync' },
+  );
   async function save() {
     try {
       const result = await tables.activeEditor!.save();
@@ -127,8 +138,61 @@ export function useCsvEditorActions(feedback: AppFeedback) {
     return root ? tables.getTableInputs(root, tables.currentTab).commit() : undefined;
   }
 
+  async function navigateWing(action: Extract<TableDetailAction, { type: 'wing-navigation' }>) {
+    const commands = useSaveCommandStore(),
+      sequence = commands.beginTransition();
+    const current = () =>
+      commands.isTransitionCurrent(sequence) &&
+      workspace.activeSessionId === action.sessionId &&
+      workspace.activeModRoot === action.modRoot &&
+      tables.currentTab === 'wings' &&
+      tables.selectedRowKey === action.rowKey;
+    try {
+      const waiting = commands.waitForSaves();
+      if ((waiting && !(await waiting)) || !current()) return;
+      const inputs = tables.getTableInputs(action.modRoot, 'wings'),
+        admitted = inputs.captureContext();
+      if ((await inputs.commit()) === false || !current() || !admitted()) return;
+      const id = String(tables.selectedRow!.variant ?? '').trim();
+      await reads.consume(
+        'wing-navigation',
+        { action, id },
+        (signal) =>
+          resolveWingReference({ sessionId: action.sessionId, modRoot: action.modRoot, kind: 'variant', id }, action.destination, signal),
+        {
+          ready: (target) => {
+            if (!current() || !admitted() || inputs.dirty.value || String(tables.selectedRow!.variant ?? '').trim() !== id) return;
+            const { kind } = target;
+            const label = { ship: '船体', skin: '舰船皮肤', variant: '装配' }[kind];
+            if (target.source === 'core') {
+              feedback.info(label + '「' + target.id + '」来自原版。');
+              return;
+            }
+            if (!target.source)
+              throw new AppError('当前 Mod 没有' + label + '记录「' + target.id + '」', { action: 'navigate-wing-reference' });
+            if (kind === 'ship') navigateToModTable(action.modRoot, 'ships');
+            else navigateToModJson(action.modRoot, kind === 'skin' ? 'skins' : 'variants');
+            workspace.entityLocation = {
+              sessionId: action.sessionId,
+              modRoot: action.modRoot,
+              kind,
+              id: target.id,
+              ...(target.rowKey ? { rowKey: target.rowKey } : {}),
+            };
+          },
+          error: (error) => {
+            if (current()) feedback.error(error, '跳转联队引用失败');
+          },
+        },
+      );
+    } catch (error) {
+      if (current()) feedback.error(error, '跳转联队引用失败');
+    }
+  }
   function handleDetailAction(action: TableDetailAction) {
-    if (action.type === 'immersive-editor') {
+    if (action.type === 'wing-navigation') {
+      void navigateWing(action);
+    } else if (action.type === 'immersive-editor') {
       const csvTarget = project.tableWriteTargets.find(
         (target) =>
           target.sessionId === action.sessionId &&

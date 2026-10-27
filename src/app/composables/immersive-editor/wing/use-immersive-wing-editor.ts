@@ -4,7 +4,9 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryJointEditRow } from '@/services/joint-edit.service';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { immersiveEditableRecords } from '@/domain/immersive/source-records';
-import { rebaseJointDraft } from '@/domain/joint-edit';
+import { jointObject, rebaseJointDraft } from '@/domain/joint-edit';
+import { schemaStringValue } from '@/domain/schema/schema-values';
+import { openImmersiveEditorWindow } from '@/windows/immersive-editor.window';
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
 import { createShipSpec } from '@/domain/editors/spec-construction';
 import { deepClone } from '@/shared/lib/starsector';
@@ -138,5 +140,28 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
       referenceChanging.value = false;
     }
   }
-  return { readSnapshot, refreshWingBaseline, createMissingSource };
+  async function openRelatedEditor(kind: 'ship' | 'variant') {
+    const target = joint.currentTarget.value!;
+    const admitted = joint.inputs.captureContext();
+    try {
+      if (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false) return;
+      if (!runtime.isActive() || !admitted() || !joint.isTargetCurrent(target)) return;
+      const current = snapshot.value!;
+      if (kind === 'ship') {
+        const hull = current.records.find((record) => record.key === current.bindings.hull)!;
+        if (hull.target.kind !== 'spec') return;
+        await openImmersiveEditorWindow({
+          ...current.root,
+          kind: hull.target.target.kind === 'skin' ? 'skin' : 'ship',
+          id: hull.target.target.id,
+        });
+      } else {
+        const id = schemaStringValue(jointObject(joint.draftValue.value[current.bindings.csv!]).variant);
+        await openImmersiveEditorWindow({ ...current.root, kind, id });
+      }
+    } catch (error) {
+      feedback.error(error, kind === 'ship' ? '打开舰船沉浸式编辑器失败' : '打开装配沉浸式编辑器失败');
+    }
+  }
+  return { readSnapshot, refreshWingBaseline, createMissingSource, openRelatedEditor };
 }

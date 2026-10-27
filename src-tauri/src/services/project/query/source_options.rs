@@ -560,6 +560,9 @@ fn entity_source_option_groups(
         return Ok(None);
     };
     (definition.prepare)(session)?;
+    if definition.kind == EntityKind::Variant {
+        ensure_registered_table_rows(session, CsvTableKey::Ships)?;
+    }
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
     for origin in [ResourceSource::Mod, ResourceSource::Core] {
@@ -589,7 +592,7 @@ fn entity_source_option_groups(
         } else {
             continue;
         };
-        let options = entity_source_options(origin, entities, &mut seen);
+        let options = entity_source_options(origin, session, entities, &mut seen)?;
         if !options.is_empty() {
             groups.push(SourceOptionGroup { origin, options });
         }
@@ -599,16 +602,17 @@ fn entity_source_option_groups(
 
 fn entity_source_options(
     origin: ResourceSource,
+    session: &ProjectSession,
     entities: Vec<super::super::model::EntityProjection>,
     seen: &mut BTreeSet<String>,
-) -> Vec<crate::models::SourceOption> {
+) -> AppResult<Vec<crate::models::SourceOption>> {
     let mut options = Vec::new();
     for entity in entities {
         if !seen.insert(entity.id.clone()) {
             continue;
         }
         options.push(crate::models::SourceOption {
-            label: entity_source_option_label(&entity),
+            label: entity_source_option_label(origin, session, &entity)?,
             value: entity.id.clone(),
             description: None,
             resource_ref: entity
@@ -625,19 +629,47 @@ fn entity_source_options(
             template_max: None,
         });
     }
-    options
+    Ok(options)
 }
 
-fn entity_source_option_label(entity: &super::super::model::EntityProjection) -> String {
+fn entity_source_option_label(
+    origin: ResourceSource,
+    session: &ProjectSession,
+    entity: &super::super::model::EntityProjection,
+) -> AppResult<String> {
     let display_name = entity
         .data
         .get("displayName")
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default();
+    if entity.kind == EntityKind::Variant {
+        let hull_id = entity
+            .data
+            .get("hullId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let hull_name = if hull_id.is_empty() {
+            None
+        } else {
+            HullReferenceResolver::new(session)
+                .field(origin, hull_id, "hullName")?
+                .map(|(name, _, _)| name)
+        };
+        let hull_name = hull_name.or_else(|| (!hull_id.is_empty()).then(|| hull_id.to_string()));
+        let label = match (hull_name, display_name.trim()) {
+            (Some(hull_name), display_name) if !display_name.is_empty() => {
+                format!("{hull_name} ({display_name})")
+            }
+            (Some(hull_name), _) => hull_name,
+            (None, display_name) if !display_name.is_empty() => display_name.to_string(),
+            (None, _) => entity.id.clone(),
+        };
+        return Ok(label);
+    }
     if display_name.trim().is_empty() || display_name == entity.id {
-        entity.id.clone()
+        Ok(entity.id.clone())
     } else {
-        format!("{display_name} ({})", entity.id)
+        Ok(format!("{display_name} ({})", entity.id))
     }
 }
 
@@ -1428,6 +1460,11 @@ mod tests {
         std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/variants")).unwrap();
         write_utf8_no_bom(
+            &root.join("starsector-core/data/hulls/ship_data.csv"),
+            "id,name\r\ncore_hull,Core Hull\r\n",
+        )
+        .unwrap();
+        write_utf8_no_bom(
             &mod_root.join("data/variants/mod_fighter.variant"),
             r#"{"variantId":"mod_fighter","hullId":"core_hull","displayName":"Mod 僚机"}"#,
         )
@@ -1473,7 +1510,7 @@ mod tests {
         );
         assert_eq!(
             source_option_label_from_groups(&groups, "mod_fighter").as_deref(),
-            Some("Mod 僚机 (mod_fighter)")
+            Some("Core Hull (Mod 僚机)")
         );
         let core_option = groups[1].options.first().unwrap();
         assert!(core_option.resource_ref.is_some());

@@ -99,7 +99,7 @@
 - [编辑会话原语](modules/draft-session.md)：说明完整目标快照、读取票据、文档保存队列、EditContext、快照历史与未保存注册表。
 - [联合编辑与目标交接](modules/joint-editing.md)：说明联合来源快照、物理写入范围、跨编辑面保存准备、三方冲突选择、原子提交及释放。
 - [沉浸式编辑器基础](modules/immersive-editor.md)：说明共同运行态、字段展示、来源选择、资源与船体场景。
-- [沉浸式舰船编辑器](modules/immersive-ship-editor.md)：说明舰船字段、基础统计与只读信息内容。
+- [沉浸式舰船编辑器](modules/immersive-ship-editor.md)：说明舰船及皮肤字段、有序来源、基础统计与只读信息内容。
 - [沉浸式武器编辑器](modules/immersive-weapon-editor.md)：说明武器信息、分支动作与弹体打开。
 - [沉浸式战机联队编辑器](modules/immersive-wing-editor.md)：说明战机联队信息、来源补全、引用与行身份跟随。
 - [沉浸式装配编辑器](modules/immersive-variant-editor.md)：说明装配投影、装备动作、模块导航与候选交互。

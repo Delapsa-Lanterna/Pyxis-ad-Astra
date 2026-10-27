@@ -67,6 +67,48 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it('locates an unloaded exact row and keeps an existing draft', async () => {
+    const vm = harness();
+    await flushPromises();
+    vm.tables.updateCellValue({ ...target, rowKey: 'key-0', column: 'name' }, 'Local');
+    useWorkspaceStore().entityLocation = { ...target, kind: 'ship', id: 'id-900', rowKey: 'key-900' };
+    await flushPromises();
+    expect(mocks.rows).toHaveBeenCalledWith('session', 'ships', ['key-900'], expect.any(AbortSignal));
+    expect(vm.tables.selectedRowKey).toBe('key-900');
+    expect(vm.tables.rowsByKey['key-900']?.data.id).toBe('id-900');
+    expect(vm.tables.rowsByKey['key-0']?.data.name).toBe('Local');
+    expect(useWorkspaceStore().entityLocation).toBeNull();
+  });
+  it.each(['selection', 'table', 'newer'] as const)('invalidates a late location after %s changes', async (reason) => {
+    const vm = harness();
+    await flushPromises();
+    let finish!: (value: CsvTableRowsRead) => void;
+    mocks.rows.mockImplementationOnce(
+      () =>
+        new Promise<CsvTableRowsRead>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const workspace = useWorkspaceStore();
+    workspace.entityLocation = { ...target, kind: 'ship', id: 'id-900', rowKey: 'key-900' };
+    await flushPromises();
+    if (reason === 'selection') vm.tables.selectRowByKey(target, 'key-10');
+    else if (reason === 'table') vm.tables.switchTab(target.modRoot, 'wings');
+    else workspace.entityLocation = { ...target, kind: 'ship', id: 'id-800', rowKey: 'key-800' };
+    await flushPromises();
+    finish(readRows(['key-900']));
+    await flushPromises();
+    expect(vm.tables.selectedRowKey).toBe(reason === 'selection' ? 'key-10' : reason === 'newer' ? 'key-800' : null);
+    expect(workspace.entityLocation).toBeNull();
+  });
+  it('reports a location read error through table feedback', async () => {
+    harness();
+    await flushPromises();
+    mocks.rows.mockRejectedValueOnce(new Error('Unreadable target'));
+    useWorkspaceStore().entityLocation = { ...target, kind: 'ship', id: 'id-900', rowKey: 'key-900' };
+    await flushPromises();
+    expect(mocks.error).toHaveBeenCalledWith(expect.any(Error), '加载定位船体失败');
+  });
   it.each(['system id', 'defense id', 'travel drive'])('loads ship-system options when %s is the only column', async (key) => {
     mocks.index.mockResolvedValue(csvTableIndex([csvDraftRow({ [key]: '' }, 'key-0')], { header: [key] }));
     mocks.sources.mockResolvedValue([{ origin: 'mod', options: [{ label: 'Sample system', value: 'sample-system' }] }]);

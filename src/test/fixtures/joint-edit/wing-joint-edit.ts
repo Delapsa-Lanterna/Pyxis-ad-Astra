@@ -86,6 +86,7 @@ export function wingJointFixture(): JointEditSnapshot {
     system: 'system',
   });
   snapshot.hull = {
+    spec: records[0]!.value.state === 'present' ? (records[0]!.value.value as import('@/shared/types').RowData) : {},
     hints: [],
     slots: [],
     builtInWeapons: {},
@@ -110,7 +111,7 @@ export function wingJointFixture(): JointEditSnapshot {
         'defense id',
         'shield arc',
         'shield efficiency',
-      ].map((path) => [path, { recordKey: 'hull-csv', path }]),
+      ].map((path) => [path, [{ recordKey: 'hull-csv', path }]]),
     ),
     weapons: { WS000: 'lightac', WS001: 'lightac' },
     sprite: null,

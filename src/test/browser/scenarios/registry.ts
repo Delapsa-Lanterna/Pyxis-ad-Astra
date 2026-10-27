@@ -26,6 +26,7 @@ export const scenarios = scenarioNames.map((id) => ({
     json: 'JSON 配置',
     csv: 'CSV 表格',
     ship: '舰船',
+    skin: '舰船皮肤',
     weapon: '武器',
     wing: '战机联队',
     variant: '装配',

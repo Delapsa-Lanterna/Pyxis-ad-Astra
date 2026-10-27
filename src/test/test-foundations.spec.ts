@@ -73,7 +73,7 @@ it.each([shipJointFixture, weaponJointFixture, wingJointFixture, variantJointFix
     const hullId = a.hull ? jointObject(a.records.find((record) => record.key === a.hull!.hullKey)!.value).hullId : a.root.id;
     const description = a.records.find((record) => record.key === (a.hull?.displayBindings.description ?? a.bindings.description))!;
     expect(jointObject(description.value).id).toBe(hullId);
-    if (a.hull) expect(jointObject(a.records.find((record) => record.key === a.hull!.fields.name!.recordKey)!.value).id).toBe(hullId);
+    if (a.hull) expect(jointObject(a.records.find((record) => record.key === a.hull!.fields.name![0]!.recordKey)!.value).id).toBe(hullId);
     a.records[0]!.value = { state: 'missing' };
     expect(b.records[0]!.value.state).toBe('present');
   },

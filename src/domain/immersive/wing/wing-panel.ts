@@ -1,6 +1,7 @@
 import type { JointEditSnapshot, JointValue, ResourceRef } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { jointObject } from '@/domain/joint-edit';
+import { hullDataIndex, hullFieldValue, hullFieldInputs } from '../hull-fields';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { parseInputNumber } from '@/shared/lib/input-number';
@@ -41,8 +42,8 @@ export function projectWingPanel(
 ): WingPanel {
   const graph = projection ?? snapshot,
     hull = graph.hull;
-  const data = (key: string | undefined) =>
-    jointObject(key ? (values[key] ?? graph.records.find((record) => record.key === key)?.value) : undefined);
+  const indexed = hullDataIndex(graph.records, values);
+  const data = (key: string | undefined) => (key ? indexed(key) : {});
   const wingKey = snapshot.bindings.csv!,
     wing = data(wingKey);
   const columns = getCsvColumnSchemas('wings');
@@ -70,14 +71,14 @@ export function projectWingPanel(
   const hf = (key: string, label: string, type: ImmersiveField['schema']['type'] = 'string'): ImmersiveField[] => {
     const binding = hull?.fields[key];
     if (!binding) return [];
-    const result = field(binding.recordKey, binding.path, label, type);
-    const source = getCsvColumnSchemas('ships').find((column) => column.key === key)?.source;
-    if (source) result.schema = { ...result.schema, type: 'enum', source };
-    return [result];
+    return hullFieldInputs(binding, key, label).map((input, index) => ({
+      ...input,
+      schema: index ? input.schema : { ...input.schema, type: input.schema.source ? 'enum' : type },
+    }));
   };
   const hv = (key: string) => {
     const binding = hull?.fields[key];
-    return binding ? data(binding.recordKey)[binding.path] : undefined;
+    return hullFieldValue(binding, indexed);
   };
   const stat = (id: string, label: string, display: string, fields: ImmersiveField[]): ImmersiveStat => ({ id, label, display, fields });
   const number = (value: unknown, fallback: number) => {
@@ -103,7 +104,7 @@ export function projectWingPanel(
   });
   const variantKey = snapshot.bindings.variant,
     variant = data(variantKey);
-  const hullNameLabel = hull?.fields.name?.path === 'hullName' ? '船体名称' : '舰船名称';
+  const hullNameLabel = hull?.fields.name?.at(-1)?.path === 'hullName' ? '船体名称' : '舰船名称';
   const name = stat(
     'name',
     '战机联队名称',

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { fixtureSpecRecord } from '@/test/fixtures/joint-edit/joint-record';
 import { wingJointFixture } from '@/test/fixtures/joint-edit/wing-joint-edit';
 import { immersiveEditableRecords } from '../source-records';
 import { projectWingPanel } from './wing-panel';
@@ -74,7 +75,8 @@ describe('wing original data and source projection', () => {
   });
   it('uses Skin source bindings and keeps the linked ship CSV intact', () => {
     const { snapshot, values } = fixture();
-    snapshot.hull!.fields['max speed'] = { recordKey: 'skin', path: 'maxSpeed' };
+    snapshot.hull!.fields['max speed'] = [{ recordKey: 'skin', path: 'maxSpeed' }];
+    snapshot.records.push(fixtureSpecRecord('skin', 'skin', { skinHullId: 'skin', baseHullId: 'sarissa', maxSpeed: 190 }));
     values.skin = { state: 'present', value: { skinHullId: 'skin', maxSpeed: 190 } };
     const panel = projectWingPanel(snapshot, values);
     expect(panel.technical.find((stat) => stat.id === 'max speed')!).toMatchObject({

@@ -7,6 +7,7 @@ use super::super::{
         weapon_sprite_path,
     },
     resources::{HullReferenceResolver, resource_ref},
+    sources::core::load_core_variant_files,
 };
 use crate::{
     errors::AppResult,
@@ -275,7 +276,7 @@ const SIM_OPPONENTS_TABLE: ProjectCsvTableDefinition = ProjectCsvTableDefinition
     spec: &SIM_OPPONENTS_SPEC,
     resource_owner: None,
     icon_field: None,
-    row_resource: no_row_resource,
+    row_resource: sim_opponent_row_resource,
     source_resource: no_source_resource,
     source_display_name: no_source_display_name,
 };
@@ -351,6 +352,36 @@ fn wing_row_resource(
         return Ok(None);
     };
     hull_resource_ref(session, source, &variant.hull_id)
+}
+
+fn sim_opponent_row_resource(
+    session: &ProjectSession,
+    source: ResourceSource,
+    _table: CsvTableKey,
+    row: &Map<String, Value>,
+) -> AppResult<Option<ResourceRef>> {
+    let Some(variant_id) = string_from_row(row, "variant id") else {
+        return Ok(None);
+    };
+    let hull_id = if let Some(variant) = session
+        .variant_files
+        .iter()
+        .find(|variant| variant.variant_id == variant_id)
+    {
+        Some(variant.hull_id.clone())
+    } else {
+        let Some(root) = session.manifest.starsector_root.as_deref() else {
+            return Ok(None);
+        };
+        load_core_variant_files(root)?
+            .iter()
+            .find(|variant| variant.variant_id == variant_id)
+            .map(|variant| variant.hull_id.clone())
+    };
+    let Some(hull_id) = hull_id else {
+        return Ok(None);
+    };
+    hull_resource_ref(session, source, &hull_id)
 }
 
 fn icon_row_resource(

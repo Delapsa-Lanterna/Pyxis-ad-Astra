@@ -23,7 +23,6 @@
 
 ### 前端
 
-- Spec 编辑器按基础宿主与舰船、武器、弹体、战术系统实现归属，具体实现选择由应用装配完成。
 - `schemas/`：配置字段、CSV 列和规格默认模板资产，经正式加载 owner 消费。
 - `src/app/`：窗口根、页面、组件、检查器与 ViewModel/composable；应用装配在这里收口，不承载领域规则与后端能力。
 - `src/domain/`：编辑会话、表格、schema、配置、设置、workspace 和编辑器的纯规则与转换；严禁依赖 app、services、stores 或 windows。
@@ -33,7 +32,6 @@
 - `src/stores/`：内存运行态、manifest、表格、历史、设置、Core 和 workspace 状态；严禁拥有 IO、确认框或跨模块编排。
 - `src/styles/`：全局主题、应用框架和业务样式。
 - `src/windows/`：窗口 identity、结构化上下文、请求回执、原生实例、事件过滤、关闭请求和销毁生命周期。
-- 沉浸式编辑器按基础运行态与舰船、武器、战机联队、装配实现归属，装配消费所属只读信息内容。
 
 ### Rust
 

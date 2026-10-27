@@ -5,6 +5,15 @@ import { associatedSpecEditorKinds, associatedSpecKind } from '@/domain/csv-edit
 import { specEditorWindowLabel } from '@/domain/spec-editor/spec-editor-definitions';
 
 export type TableDetailAction =
+  | {
+      type: 'wing-navigation';
+      destination: 'hull' | 'variant';
+      modRoot: string;
+      sessionId: string;
+      id: string;
+      rowKey: string;
+      disabled: boolean;
+    }
   | { type: 'weapon-fire-preview'; modRoot: string; sessionId: string; id: string }
   | { type: 'immersive-editor'; kind: 'ship' | 'weapon' | 'wing'; modRoot: string; sessionId: string; id: string; rowKey: string }
   | { type: 'file-editor'; modRoot: string; kind: EntityKind; id: string; sessionId: string; title: string }
@@ -32,6 +41,19 @@ export function detailActionsForRow(
   if (isCsvCommentRow(row)) return [];
   const id = rowSpecId(row.data, table);
   if (!id) return [];
+  if (table === 'wings')
+    return [
+      { type: 'immersive-editor', kind: 'wing', modRoot: context.modRoot, sessionId: context.sessionId, id, rowKey: row.rowKey },
+      ...(['hull', 'variant'] as const).map((destination): TableDetailAction => ({
+        type: 'wing-navigation',
+        destination,
+        modRoot: context.modRoot,
+        sessionId: context.sessionId,
+        id,
+        rowKey: row.rowKey,
+        disabled: !String(row.data.variant ?? '').trim(),
+      })),
+    ];
   const specKind = associatedSpecKind(table);
   const editorActions: TableDetailAction[] = associatedSpecEditorKinds(table).map((kind) => ({
     type: 'editor-window' as const,
@@ -43,11 +65,11 @@ export function detailActionsForRow(
   }));
   if (table === 'weapons') editorActions.push({ type: 'weapon-fire-preview', modRoot: context.modRoot, sessionId: context.sessionId, id });
   const immersive: TableDetailAction[] =
-    table === 'ships' || table === 'weapons' || table === 'wings'
+    table === 'ships' || table === 'weapons'
       ? [
           {
             type: 'immersive-editor',
-            kind: table === 'ships' ? 'ship' : table === 'weapons' ? 'weapon' : 'wing',
+            kind: table === 'ships' ? 'ship' : 'weapon',
             modRoot: context.modRoot,
             sessionId: context.sessionId,
             id,
@@ -59,6 +81,7 @@ export function detailActionsForRow(
 }
 
 export function detailActionLabel(action: TableDetailAction): string {
+  if (action.type === 'wing-navigation') return action.destination === 'hull' ? '跳转到船体' : '跳转到装配';
   if (action.type === 'weapon-fire-preview') return '开火预览';
   if (action.type === 'file-editor') return '文件编辑器';
   if (action.type === 'immersive-editor') return '沉浸式编辑器';
@@ -66,6 +89,8 @@ export function detailActionLabel(action: TableDetailAction): string {
 }
 
 export function detailActionKey(action: TableDetailAction): string {
+  if (action.type === 'wing-navigation')
+    return JSON.stringify([action.type, action.destination, action.modRoot, action.sessionId, action.rowKey]);
   if (action.type === 'weapon-fire-preview') return JSON.stringify([action.type, action.modRoot, action.sessionId, action.id]);
   return action.type === 'file-editor'
     ? JSON.stringify([action.type, action.kind, action.modRoot, action.sessionId, action.id])

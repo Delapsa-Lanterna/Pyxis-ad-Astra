@@ -68,10 +68,21 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     targetKey,
     () => {
       searchRevision++;
+      if (workspace.entityLocation?.kind === 'ship') workspace.entityLocation = null;
     },
     { flush: 'sync' },
   );
   const { confirmDiscard } = useFieldInputActions(null);
+  watch(
+    () => tables.selectedRowKey,
+    () => {
+      if (workspace.entityLocation?.kind === 'ship') {
+        workspace.entityLocation = null;
+        reads.revoke('consumer', 'location');
+      }
+    },
+    { flush: 'sync' },
+  );
   useContextMenuScope({
     identity: () => targetKey.value,
     canRefresh: () => Boolean(target.value) && !tables.currentTableLocked,
@@ -347,6 +358,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
           if (initialCount) widthSample.value = cloneQuerySnapshot<import('@/shared/types').CsvDraftRow[]>(index.rows);
           windowReady.value = true;
           accepted = true;
+          void locateRequestedRow();
           lockColumnWidthsForLoadedModel();
         },
         error: (error) => {
@@ -360,6 +372,43 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     );
     return accepted;
   }
+  async function locateRequestedRow() {
+    const location = workspace.entityLocation,
+      captured = target.value;
+    if (
+      !location ||
+      location.kind !== 'ship' ||
+      captured?.table !== 'ships' ||
+      captured.sessionId !== location.sessionId ||
+      captured.modRoot !== location.modRoot ||
+      !windowReady.value
+    )
+      return;
+    if (!tables.rowKeys.includes(location.rowKey!)) return;
+    if (!tables.rowsByKey[location.rowKey!]) {
+      const accepted = await reads.consume(
+        'location',
+        location,
+        (signal) => queryTableRows(captured.sessionId, 'ships', [location.rowKey!], signal),
+        {
+          ready: (rows) => {
+            if (workspace.entityLocation === location && targetKey.value === JSON.stringify(captured))
+              tables.applyTableRows(captured, rows);
+          },
+          error: (error) => feedback.error(error, '加载定位船体失败'),
+        },
+      );
+      if (!accepted || workspace.entityLocation !== location || targetKey.value !== JSON.stringify(captured)) return;
+    }
+    tables.selectRowByKey(captured, location.rowKey!);
+    workspace.entityLocation = null;
+  }
+  watch(
+    () => workspace.entityLocation,
+    () => {
+      void locateRequestedRow();
+    },
+  );
   async function initializeIndex() {
     const identity = targetKey.value;
     const accepted = await loadIndex(false, 240);

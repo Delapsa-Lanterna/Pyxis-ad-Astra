@@ -8,12 +8,14 @@
 
 ### 拥有
 
+- `schemas/skin-hull-fields.json`：基础舰船属性与皮肤覆盖字段的统一映射声明。
 - `src-tauri/src/commands/joint_edit.rs`：联合读取、准备、提交 command。
 - `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影。
 - `src-tauri/src/domain/joint_hull.rs`：有效船体字段来源、Skin 继承与有效武器槽的纯投影。
 - `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配。
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接。
 - `src-tauri/src/services/project/write/joint_edit_tests.rs`：联合保存、来源补全及身份写入验证。
+- `src-tauri/src/services/project/write/joint_skin_tests.rs`：皮肤根、有序来源、继承计算与保存改名验证。
 - `src-tauri/src/services/project/write/variant_identity.rs`：装配身份改名消费当前 Mod 父引用并装配同根 changeset 的写入。
 - `src/app/components/JointEditConflictChoices.vue`：三个来源与字段选择展示。
 - `src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期。
@@ -61,7 +63,7 @@
 - 原生窗口能力拥有实例 label、登记、聚焦和预约，联合模块消费这些能力。
 - 各 CSV、配置、文本与专项会话拥有所属草稿、输入、dirty、saving 和历史。
 - 后端 query 拥有来源图、记录、授权目标和版本，write 拥有同根 changeset 与实际快照。
-- 有效船体 hints 来自基础船体 CSV，Skin 链按基础至有效来源依次应用 removeHints、addHints。
+- 有效船体字段由基础船体和有序皮肤来源共同定义，实际规格、贴图、槽位、引擎与 hints 按基础至有效皮肤顺序合成。
 - 窗口壳装配目标接收与登记生命周期，manifest 和会话释放交还所属登记。
 - 联合编排拥有按业务目标捕获的准备请求、参与者协调、预约与释放。
 
@@ -127,6 +129,7 @@
 - 模块引用必须消费原版对象和有序条目数组的正式格式；读写必须保留加载格式、顺序、共享记录身份和未知字段。
 - 武器描述必须按武器 ID 与 `WEAPON` 类型读取；武器 ID 改名必须在同一事务中更新所属描述记录，目标描述占用必须拒绝整次保存。
 - 版本凭据必须消费 IO 读取交付的规范路径；联合根必须交付所属 session 的正式 Mod 根，改名目标必须消费 IO 目标解析结果。
+- 皮肤根必须保持真实 skin 身份，保存、改名与权威来源重读必须共同接纳其有序字段来源和实际生效规格。
 - 目标适配器必须声明可编辑记录集合；草稿、三方比较、共享影响确认与保存协调只允许消费该集合。
 - 短暂锁必须覆盖提交与基线接纳；取消、失败、销毁和会话结束必须释放原请求登记。
 - 缺失舰船与武器规格必须消费所属正式构造器；武器创建必须携带合法 projectile 或 beam 分支，未知业务字段必须保留。
@@ -135,6 +138,7 @@
 - 联合打开必须以所属 `ReadTicket` 接纳快照；替换和卸载必须撤销打开及交接等待。跨窗口同时发起重叠目标交接必须结束冲突请求并保持原草稿。
 - 联合提交必须只应用一次 changeset、登记一次文件历史；写后结果必须由实际 after 快照装配版本。
 - 联合武器关联投影必须按当前草稿的 `projectileSpecId` 与伤害类型返回弹体来源和配置授权图标；配置版本必须参与关联失效。
+- 船体属性必须消费统一皮肤字段映射，来源必须按基础与继承链有序交付；舰队点数必须优先采用 fleetPoints 再采用 fpMod，价值必须先采用 baseValue 再应用 baseValueMult 并截取整数。
 - 装配身份改名必须在同一根事务中更新当前 Mod 全部父装配 modules 引用；读取版本与交接目标必须覆盖父文件，配置、文本和联合写入必须共同消费该规则。
 - 输入错误、取消、保存失败与同步失败必须保持所属编辑面；跨窗口错误必须聚焦其 owner 并保留正式诊断。
 - 重复目标交接必须复用进行中请求；参与者释放、目标变化和窗口销毁必须撤销原响应接纳权。

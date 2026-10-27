@@ -3,6 +3,7 @@
     <span><ImmersiveText :text="field.schema.label" /></span>
     <n-select
       :virtual-scroll="false"
+      :disabled="disabled"
       v-if="mode === 'smart' && (field.schema.options || field.schema.source)"
       ref="input"
       :value="raw"
@@ -15,6 +16,8 @@
     />
     <n-input
       class="ui-field-autosize immersive-field-autosize"
+      :disabled="disabled"
+      :placeholder="field.inheritOnEmpty ? '空白继承' : undefined"
       v-else
       ref="input"
       :value="raw"
@@ -45,20 +48,21 @@ const props = defineProps<{
   runtimeContext: SchemaRuntimeContext;
   active: boolean;
   autofocus: boolean;
+  disabled?: boolean;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
 const input = ref<{ focus: () => void } | null>(null);
 const mode = useInputEditMode();
 const jsonShape = computed(() => (props.field.schema.type === 'array' ? 'array' : props.field.schema.type === 'object' ? 'object' : null));
 watch(input, (control) => {
-  if (props.active && props.autofocus) control?.focus();
+  if (props.active && props.autofocus && !props.disabled) control?.focus();
 });
 const { raw, invalid, update } = useRawFieldInput<unknown>({
   key: props.inputKey,
   label: props.field.schema.label,
   text: () => (jsonShape.value ? formatJsonInput(props.value, jsonShape.value) : schemaStringValue(props.value)),
-  forceCommit: () => props.active && props.value === undefined,
   convert: (text) => {
+    if (props.field.inheritOnEmpty && !text.trim()) return { kind: 'remove' };
     const schema = props.field.schema;
     if (jsonShape.value) return parseJsonInput(text, jsonShape.value);
     if (schema.type === 'integer' || schema.type === 'float' || schema.type === 'boolean') {

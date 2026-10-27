@@ -27,7 +27,7 @@ import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { BrowserModel } from './scenarios/model';
 import './style.css';
 
-const immersiveKinds = ['ship', 'weapon', 'wing', 'variant'] as const;
+const immersiveKinds = ['ship', 'skin', 'weapon', 'wing', 'variant'] as const;
 export function createBrowserHost(element: HTMLElement) {
   let app: App | null = null;
   let pinia: Pinia | null = null;

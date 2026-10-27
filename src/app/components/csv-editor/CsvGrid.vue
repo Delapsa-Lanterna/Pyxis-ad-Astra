@@ -114,6 +114,19 @@ const renderColumns = computed<CsvRenderColumn[]>((previous) =>
   csvRenderColumns(props.model.columns, scrollLeft.value, viewportWidth.value, editorTarget.value?.column, previous),
 );
 provideCsvFloatingViewport(panelRef, overlayRef);
+watch(
+  () => [props.selectedRowKey, props.model.rowKeys] as const,
+  async () => {
+    await nextTick();
+    const index = props.model.rowKeys.indexOf(props.selectedRowKey!);
+    const panel = panelRef.value;
+    if (index < 0 || !panel) return;
+    const top = (index + 1) * 24;
+    if (top < panel.scrollTop || top + 24 > panel.scrollTop + panel.clientHeight) panel.scrollTop = top;
+    syncViewportMetrics();
+  },
+  { immediate: true, flush: 'post' },
+);
 
 function targetKey(target: CsvCellTarget | null): string {
   return target ? JSON.stringify([target.sessionId, target.modRoot, target.table, target.rowKey, target.column]) : '';

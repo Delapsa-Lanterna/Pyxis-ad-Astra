@@ -29,7 +29,14 @@
       <section class="panel-card detail-card ui-layout-grid ui-layout-shrink ui-control-border ui-content-surface">
         <div class="panel-section-title">操作</div>
         <div class="detail-actions ui-layout-grid">
-          <n-button v-for="action in detailActions" :key="detailActionKey(action)" block secondary @click="$emit('detail-action', action)">
+          <n-button
+            v-for="action in detailActions"
+            :key="detailActionKey(action)"
+            :disabled="'disabled' in action && action.disabled"
+            block
+            secondary
+            @click="$emit('detail-action', action)"
+          >
             {{ detailActionLabel(action) }}
           </n-button>
         </div>
@@ -123,8 +130,8 @@ const showReferenceDecorations = computed(() => settings.editMode === 'smart');
 
 const displayName = computed(() => {
   if (!tables.selectedRow) return '';
-  if (tables.currentTab === 'wings' && !isCommentRow.value) {
-    const variant = cell(tables.selectedRow.variant);
+  if ((tables.currentTab === 'wings' || tables.currentTab === 'simOpponents') && !isCommentRow.value) {
+    const variant = cell(tables.selectedRow.variant ?? tables.selectedRow['variant id']);
     return findSourceOption('csv:variants.variantId', variant).option?.label || variant || '未指定装配';
   }
   return cell(tables.selectedRow.name) || cell(tables.selectedRow.designation) || '未命名记录';

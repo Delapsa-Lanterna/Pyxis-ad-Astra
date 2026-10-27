@@ -8,6 +8,8 @@ import { NButton } from 'naive-ui/es/button';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
+import { jointObject } from '@/domain/joint-edit';
+import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { projectShipPanel } from '@/domain/immersive/ship/ship-panel';
@@ -28,8 +30,8 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture({ theme: 'dark' }));
   vi.clearAllMocks();
 });
-function harness(id = 'hitpoints', missing = false) {
-  const snapshot = shipJointFixture();
+function harness(id = 'hitpoints', missing = false, skin = false, baseReadonly = false) {
+  const snapshot = skin ? skinJointFixture() : shipJointFixture();
   const values = shallowRef(jointFixtureValues(snapshot));
   const active = ref(true);
   if (missing && values.value.csv?.state === 'present') delete (values.value.csv.value as Record<string, unknown>).hitpoints;
@@ -45,6 +47,7 @@ function harness(id = 'hitpoints', missing = false) {
             snapshot,
             values: values.value,
             active: active.value,
+            fieldEditable: (field) => !baseReadonly || field.recordKey === 'skin',
             runtimeContext: { sessionId: 's', modRoot: 'M:/mod' },
             onUpdate: (changes: ImmersiveFieldChange[]) => {
               for (const { field, update } of changes) {
@@ -67,6 +70,22 @@ function harness(id = 'hitpoints', missing = false) {
   return { wrapper, inputs, values, active };
 }
 describe('immersive raw field popover', () => {
+  it('keeps inherited values unchanged on inspection and edits the Mod skin beside a readonly base', async () => {
+    const own = harness('max speed', false, true, true);
+    await flushPromises();
+    const fields = own.wrapper.findAll('input');
+    expect(fields).toHaveLength(2);
+    expect(fields[0]!.element.disabled).toBe(true);
+    expect(fields[1]!.element.disabled).toBe(false);
+    expect(own.inputs.dirty.value).toBe(false);
+    await own.inputs.commit();
+    expect(own.values.value.skin).toMatchObject({ value: { maxSpeed: 180 } });
+    await fields[1]!.setValue('');
+    await own.inputs.commit();
+    expect(jointObject(own.values.value.skin)).not.toHaveProperty('maxSpeed');
+    expect(own.values.value['hull-csv']).toMatchObject({ value: { 'max speed': '140' } });
+    own.wrapper.unmount();
+  });
   it('retains every raw field and applies one complete batch after a later field is corrected', async () => {
     const own = harness('crew');
     await flushPromises();
@@ -134,7 +153,7 @@ describe('immersive raw field popover', () => {
   it('cancels an explicit missing-field request without publishing a new column value', async () => {
     const own = harness('hitpoints', true);
     await flushPromises();
-    expect(own.inputs.dirty.value).toBe(true);
+    expect(own.inputs.dirty.value).toBe(false);
     await own.wrapper.find('input').setValue('500');
     await own.wrapper.find('input').trigger('keydown', { key: 'Escape' });
     await flushPromises();
@@ -152,7 +171,7 @@ describe('immersive raw field popover', () => {
     await flushPromises();
     expect(own.values.value.description).toMatchObject({
       state: 'present',
-      value: { text1: '第一段\n第二段', text2: 'second', text3: '', text4: '', text5: '' },
+      value: { text1: '第一段\n第二段', text2: 'second' },
     });
     own.wrapper.unmount();
   });

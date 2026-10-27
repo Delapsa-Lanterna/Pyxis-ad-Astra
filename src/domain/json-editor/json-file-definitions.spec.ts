@@ -30,7 +30,7 @@ function skinFixture(overrides: Partial<JsonEntityFile> = {}): JsonEntityFile {
 describe('jsonFileTitle', () => {
   it('composes hull name and display name for variants', () => {
     const file = variantFixture({ data: { variantId: 'v1', hullId: 'h1', displayName: 'Elite' } });
-    expect(jsonFileTitle(variantFileDefinition, file, { h1: 'Escort' })).toBe('Escort · Elite');
+    expect(jsonFileTitle(variantFileDefinition, file, { h1: 'Escort' })).toBe('Escort (Elite)');
   });
 
   it('falls back to the hull name, then the hull id, for variants', () => {

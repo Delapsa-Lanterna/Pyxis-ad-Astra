@@ -1,5 +1,5 @@
 export interface ScenarioOptions {
-  scene: 'settings' | 'json' | 'csv' | 'ship' | 'weapon' | 'wing' | 'variant' | 'weapons' | 'wings' | 'hullmods';
+  scene: 'settings' | 'json' | 'csv' | 'ship' | 'skin' | 'weapon' | 'wing' | 'variant' | 'weapons' | 'wings' | 'hullmods';
   count: number;
   resourceSize: number;
   monitor: boolean;

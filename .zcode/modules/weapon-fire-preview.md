@@ -36,6 +36,7 @@
 ### 装配
 
 - `src/app/WeaponFirePreviewApp.vue`：独立窗口根，消费唯一窗口壳。
+- `src/app/composables/immersive-editor/weapon/use-immersive-weapon-editor.ts`：沉浸式武器草稿与弹体引用的预览来源交接。
 
 ## 边界
 
@@ -50,7 +51,7 @@
 
 ### 打开与来源接纳
 
-1. 武器列表以 saved 来源打开预览；武器编辑器以提交后的独立草稿快照打开预览。
+1. 武器列表以 saved 来源打开预览；Spec 武器编辑器与沉浸式武器编辑器以提交后的独立武器规格快照打开预览。
 2. 窗口请求入口登记 weapon-fire-preview 身份及完整来源。
 3. 预览窗口接纳最新来源，使较早读取失效。
 4. 窗口 ViewModel 完成所属武器、CSV 及弹体读取，随后回执 accepted。

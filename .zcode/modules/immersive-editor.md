@@ -32,10 +32,12 @@
 - `src/assets/immersive/icons/`：插件与甲板的本地回退资产。
 - `src/domain/immersive/appearance.ts`：沉浸式缩放、主题与颜色投影。
 - `src/domain/immersive/design-type.ts`：设计类型名称及颜色规则。
-- `src/domain/immersive/editor-definition.ts`：四类联合根的名称、字段定义与写入规则。
+- `src/domain/immersive/editor-definition.ts`：五类联合根的名称、字段定义与写入规则。
 - `src/domain/immersive/fields.ts`：字段规则、数值投影及共同定义契约。
 - `src/domain/immersive/font-roles.ts`：沉浸式文本角色到字体样式的投影。
 - `src/domain/immersive/highlighted-text.ts`：说明文本的高亮片段纯投影。
+- `src/domain/immersive/hull-fields.spec.ts`：船体有序来源、继承计算及分层输入验证。
+- `src/domain/immersive/hull-fields.ts`：船体基础与皮肤字段的统一读取、计算与输入投影。
 - `src/domain/immersive/hull-scene.ts`：有效船体、装备层序、坐标与编队投影。
 - `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
 - `src/domain/immersive/weapon-icon.ts`：挂载颜色与形状纯投影。
@@ -44,6 +46,7 @@
 
 ### 消费
 
+- `schemas/skin-hull-fields.json`：船体标量属性与皮肤来源的统一映射。
 - `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
 - `src/domain/json-editor/json-file-defaults.ts`：装配与皮肤的初始 JSON 内容。
 - `src/domain/json-editor/json-variant-modules.ts`：装配模块字段的对象/数组读取与写回。
@@ -51,7 +54,7 @@
 
 ### 装配
 
-- `src/app/ImmersiveEditorContent.vue`：四类沉浸式组件、共同会话及业务事件装配。
+- `src/app/ImmersiveEditorContent.vue`：五类联合根的沉浸式组件、共同会话及业务事件装配。
 - `src/app/composables/immersive-editor-assembly.ts`：实现选择、保存门禁与展示适配。
 
 ## 边界
@@ -91,6 +94,7 @@
 - 共同运行态必须唯一拥有联合会话与历史，业务实现必须消费原引用。
 - 内容渲染器必须显式消费只读或编辑模式；编辑模式必须由所属会话提供字段能力，只读模式只允许消费投影、来源与媒体结果。
 - 只读信息必须消费所属领域内容投影，草稿、原始输入、历史、保存及目标登记必须归所属编辑会话。
+- 多来源浮层必须逐字段判定编辑权限，原版字段必须独立保留只读展示；空白皮肤字段必须提交移除以恢复继承，查看及提交未改动输入必须保持来源内容。
 - 字体选择必须经领域角色映射交付实际身份，文字与截断测量必须消费字体模块的同一排布能力。
 - 字段身份必须使用稳定来源角色与路径；单行输入必须以 Enter 提交、Esc 取消，多行描述必须以 Ctrl+Enter 提交，未完成输入必须参与 dirty、保存和关闭交接。
 - 对话层必须拥有所属点击和焦点边界，字段与类别浮层必须挂载在所属 dialog；返回必须交接活动字段、取消手填输入并恢复发起入口焦点。

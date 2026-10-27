@@ -7,6 +7,7 @@ import JsonDocumentList from './JsonDocumentList.vue';
 import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -37,6 +38,8 @@ const mocks = vi.hoisted(() => ({
   miscList: vi.fn(),
   miscSave: vi.fn(),
   miscDelete: vi.fn(),
+  openImmersive: vi.fn(),
+  hullTarget: vi.fn(),
   feedback: {
     error: vi.fn(),
     warning: vi.fn(),
@@ -48,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
+vi.mock('@/orchestrators/immersive-editor.orchestrator', () => ({ openVariantImmersiveEditor: mocks.openImmersive }));
 vi.mock('@/app/composables/use-core-schema', () => ({
   useCoreSchema: () => ({
     loadCoreFields: async () => {},
@@ -98,6 +102,7 @@ vi.mock('@/services/entity-query.service', async (original) => ({
   ...(await original<typeof import('@/services/entity-query.service')>()),
   querySessionEntityList: mocks.list,
   querySessionEntity: mocks.read,
+  querySessionEntityEditTarget: mocks.hullTarget,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async (original) => ({
   ...(await original<typeof import('@/orchestrators/project-sync.orchestrator')>()),
@@ -256,6 +261,107 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it.each(['skins', 'variants'] as const)('%s shows the common immersive action and opens its saved identity', async (page) => {
+    await mountPage(page);
+    const actions = wrapper!.findAll('.editor-actions button');
+    expect(actions[0]?.text()).toBe('沉浸式编辑器');
+    await actions[0]!.trigger('click');
+    await flushPromises();
+    expect(mocks.openImmersive).toHaveBeenCalledExactlyOnceWith(
+      { sessionId: 's1', modRoot: 'M:/one', kind: page === 'skins' ? 'skin' : 'variant', id: 'a' },
+      mocks.feedback,
+    );
+  });
+  it.each(['factions', 'mission'] as const)('%s keeps the immersive action hidden', async (page) => {
+    await mountPage(page);
+    expect(wrapper!.findAll('.editor-actions button').map((button) => button.text())).not.toContain('沉浸式编辑器');
+    expect(mocks.openImmersive).not.toHaveBeenCalled();
+  });
+  it('reports a skin immersive open failure once', async () => {
+    const error = new Error('open failed');
+    mocks.openImmersive.mockRejectedValueOnce(error);
+    await mountPage('skins');
+    await wrapper!.find('.editor-actions button').trigger('click');
+    await flushPromises();
+    expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '打开舰船皮肤沉浸式编辑器失败');
+  });
+  it('skin jumps to a Mod hull row and keeps the target identity request', async () => {
+    const manifest = useProjectStore().getManifest('M:/one')!;
+    useCsvEditorStore().initializeModTables({ sessionId: 's1', modRoot: 'M:/one', manifest });
+    mocks.hullTarget.mockResolvedValueOnce({
+      target: {
+        kind: 'ship',
+        id: 'hull',
+        source: { source: 'mod', root: 'M:/one', relPath: 'data/hulls/ship_data.csv', path: 'M:/one/data/hulls/ship_data.csv' },
+        write: { source: 'mod', root: 'M:/one', relPath: 'data/hulls/ship_data.csv', path: 'M:/one/data/hulls/ship_data.csv' },
+        state: 'existing',
+        linkedRecord: { kind: 'csv', table: 'ships', rowKey: 'ship-row' },
+      },
+      baseVersions: [],
+    });
+    await mountPage('skins');
+    await wrapper!
+      .findAll('.editor-actions button')
+      .find((button) => button.text() === '跳转到船体')!
+      .trigger('click');
+    await flushPromises();
+    expect(mocks.hullTarget).toHaveBeenCalledWith('s1', 'ship', 'hull', expect.any(AbortSignal));
+    expect(useWorkspaceStore().currentView).toBe('table');
+    expect(useCsvEditorStore().currentTab).toBe('ships');
+    expect(useWorkspaceStore().entityLocation).toMatchObject({
+      sessionId: 's1',
+      modRoot: 'M:/one',
+      kind: 'ship',
+      id: 'hull',
+      rowKey: 'ship-row',
+    });
+  });
+  it('keeps the skin page and explains a Core base hull', async () => {
+    mocks.hullTarget.mockResolvedValueOnce({
+      target: {
+        kind: 'ship',
+        id: 'hull',
+        source: { source: 'core', root: 'M:/game', relPath: 'data/hulls/ship_data.csv', path: 'M:/game/data/hulls/ship_data.csv' },
+        write: { source: 'mod', root: 'M:/one', relPath: 'data/hulls/ship_data.csv', path: 'M:/one/data/hulls/ship_data.csv' },
+        state: 'existing',
+        linkedRecord: null,
+      },
+      baseVersions: [],
+    });
+    await mountPage('skins');
+    await wrapper!
+      .findAll('.editor-actions button')
+      .find((button) => button.text() === '跳转到船体')!
+      .trigger('click');
+    await flushPromises();
+    expect(useWorkspaceStore().currentView).toBe('json-editor');
+    expect(useWorkspaceStore().entityLocation).toBeNull();
+    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('船体「hull」来自原版。');
+  });
+  it.each(['variants', 'skins'] as const)('%s locates and scrolls to an exact entity while retaining another draft', async (page) => {
+    const kind = page === 'skins' ? 'skin' : 'variant';
+    for (let index = 0; index < 80; index++) {
+      const id = 'entity_' + String(index).padStart(3, '0');
+      entities.set(key('s1', kind, id), jsonEntityFixture(kind, id, 'Listed'));
+    }
+    entities.set(key('s1', kind, 'target_id'), jsonEntityFixture(kind, 'target_id', 'Located'));
+    await mountPage(page);
+    await nameInput().setValue('Local');
+    const draft = useJsonEditorStore().active!;
+    const row = wrapper!.get('[data-entity-id="target_id"]').element;
+    vi.spyOn(row, 'getBoundingClientRect').mockImplementation(() => ({ top: 900 - row.parentElement!.scrollTop }) as DOMRect);
+    useWorkspaceStore().entityLocation = { sessionId: 's1', modRoot: 'M:/one', kind, id: 'target_id' };
+    await flushPromises();
+    expect(wrapper!.get('.json-entity-list-item.active').attributes('data-entity-id')).toBe('target_id');
+    expect(wrapper!.get('.json-entity-list-items').element.scrollTop).toBe(900);
+    expect(useWorkspaceStore().entityLocation).toBeNull();
+    expect(nameInput().element.value).toBe('Located');
+    expect(draft.dirty.value).toBe(true);
+    await wrapper!.get('[data-entity-id="a"]').trigger('click');
+    await flushPromises();
+    expect(useJsonEditorStore().active).toBe(draft);
+    expect(nameInput().element.value).toBe('Local');
+  });
   it.each(['variants', 'skins', 'factions', 'mission'] as const)(
     '%s marks pending and retained drafts and clears the mark after saving',
     async (page) => {
