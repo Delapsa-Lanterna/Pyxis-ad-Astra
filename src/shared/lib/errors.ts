@@ -122,5 +122,5 @@ export function fileReferenceLocationSuffix(line: number, column?: number): stri
 
 export function appendFileReferenceLocation(message: string, reference: FileReference | null): string {
   if (!reference?.line) return message;
-  return `${message}（${fileReferenceLocationSuffix(reference.line, reference.column)}）`;
+  return `${message} (${fileReferenceLocationSuffix(reference.line, reference.column)})`;
 }

@@ -15,7 +15,7 @@
 
 ## 开发准备
 
-开发必须使用 Node.js（含 npm）、`rust-toolchain.toml` 固定的 Rust 1.95.0 MSVC 工具链，以及 Windows。安装依赖并启动开发模式：
+开发必须使用 Node.js (含 npm)、`rust-toolchain.toml` 固定的 Rust 1.95.0 MSVC 工具链，以及 Windows。安装依赖并启动开发模式：
 
 ```powershell
 npm install

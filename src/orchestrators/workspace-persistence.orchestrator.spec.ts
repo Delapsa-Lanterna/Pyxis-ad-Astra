@@ -77,7 +77,7 @@ describe('restorePersistedWorkspace', () => {
     );
     expect(mocks.hydrateOpenedModRuntime).toHaveBeenCalledWith('C:/mods/alpha', expect.anything(), false);
     expect(onWarnings).toHaveBeenCalledWith('Alpha', [
-      expect.objectContaining({ userMessage: 'scan warning（data/x.csv）', diagnostic: expect.objectContaining({ code: 'scan.warning' }) }),
+      expect.objectContaining({ userMessage: 'scan warning (data/x.csv)', diagnostic: expect.objectContaining({ code: 'scan.warning' }) }),
     ]);
     expect(onError).not.toHaveBeenCalled();
     const mod = workspace.mods.get('C:/mods/alpha');

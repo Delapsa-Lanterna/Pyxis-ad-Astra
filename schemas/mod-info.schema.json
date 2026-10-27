@@ -118,7 +118,7 @@
           "key": "file.modPlugin",
           "type": "string",
           "label": "Mod 插件类",
-          "description": "Mod 的主插件类全限定名（Java class path）",
+          "description": "Mod 的主插件类全限定名 (Java class path)",
           "required": false,
           "editable": true
         },
@@ -126,7 +126,7 @@
           "key": "file.jars",
           "type": "string-array",
           "label": "JAR 文件",
-          "description": "Mod 需要加载的 JAR 文件路径列表（相对于 mod 根目录）",
+          "description": "Mod 需要加载的 JAR 文件路径列表 (相对于 mod 根目录)",
           "required": false,
           "editable": true,
           "default": []
@@ -157,7 +157,7 @@
                 "key": "name",
                 "type": "string",
                 "label": "依赖名称",
-                "description": "依赖项的显示名称（可选，仅用于展示）",
+                "description": "依赖项的显示名称 (可选，仅用于展示)",
                 "required": false,
                 "editable": true
               },
@@ -203,7 +203,7 @@
           "key": "file.totalConversion",
           "type": "boolean",
           "label": "完全独立",
-          "description": "是否为完全独立 Mod（会禁用一切非工具类 Mod）",
+          "description": "是否为完全独立 Mod (会禁用一切非工具类 Mod)",
           "required": false,
           "editable": true,
           "default": false,
@@ -213,7 +213,7 @@
           "key": "file.utility",
           "type": "boolean",
           "label": "工具类 Mod",
-          "description": "是否为工具类 Mod（可与完全独立 Mod 共存）",
+          "description": "是否为工具类 Mod (可与完全独立 Mod 共存)",
           "required": false,
           "editable": true,
           "default": false
@@ -222,7 +222,7 @@
           "key": "file.replace",
           "type": "string-array",
           "label": "替换文件",
-          "description": "需要完全替换（而非合并）的文件路径列表",
+          "description": "需要完全替换 (而非合并) 的文件路径列表",
           "required": false,
           "editable": true,
           "default": [],

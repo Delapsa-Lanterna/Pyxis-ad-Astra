@@ -46,7 +46,7 @@ describe('static original hullmod tooltip', () => {
       'Short [脚本参数 1]',
       'S [脚本参数 1]',
     ]);
-    expect(own.find('section').findComponent(ImmersiveText).props('text')).toBe('S强化静态说明');
+    expect(own.find('section').findComponent(ImmersiveText).props('text')).toBe('S 强化效果静态说明');
     const short = own.findAllComponents(ImmersiveText).find((text) => text.text().startsWith('Short'))!;
     expect(short.text()).toBe('Short [脚本参数 1]');
     expect(short.props('runs')!.every((run) => run.color === '#afafaf')).toBe(true);

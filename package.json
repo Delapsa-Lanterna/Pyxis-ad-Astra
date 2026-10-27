@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
-    "lint:checks": "node scripts/check-architecture.mjs && node scripts/check-styles.mjs && node scripts/check-identifier-length.mjs && node scripts/check-encoding.mjs",
+    "lint:checks": "node scripts/check-architecture.mjs && node scripts/check-styles.mjs && node scripts/check-identifier-length.mjs && node scripts/check-encoding.mjs && node scripts/check-text-guidelines.mjs",
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "test": "vitest run",

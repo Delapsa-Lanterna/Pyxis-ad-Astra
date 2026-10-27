@@ -9,7 +9,7 @@
 ### 拥有
 
 - `src-tauri/src/parsers/`：游戏文本及工具 JSON 的解析、渲染与格式诊断。
-- `src-tauri/src/parsers/alex_csv.rs`：CSV-like 解析与渲染，字符级行状态机对齐游戏 CSVParser（列数容忍、空行/`#` 行保留），并按最小引号规则渲染。
+- `src-tauri/src/parsers/alex_csv.rs`：CSV-like 解析与渲染，字符级行状态机对齐游戏 CSVParser (列数容忍、空行/`#` 行保留)，并按最小引号规则渲染。
 - `src-tauri/src/parsers/alex_json.rs`：JSON-like 字符级 tokener，消费游戏 org.json 与 LoadingUtils 格式语义。
 - `src-tauri/src/parsers/faction_index.rs`：索引列、行位置、ID 列与引用列的格式解析。
 - `src-tauri/src/parsers/preserve_json.rs`：结构化 JSON 原文更新，定位字段文本范围并核验写回语义。
@@ -78,8 +78,8 @@
 - CSV 渲染必须消费正式 `isComment` 标记，并保留非注释首格的必要外围引号与注释记录的原始 `#` 前缀。
 - CSV 行解析必须以双引号切换状态，以成对双引号产出字面引号；引号内逗号和换行必须保留，非引号 LF 必须终止记录。
 - CSV 表头必须消费首行的朴素逗号分割，按 Java split 语义移除尾部空段，再逐格 trim、剥除首尾引号及合并双引号。
-- CSV 解析对齐游戏 CSVParser：列数容忍（短行缺失键不写入、长行丢弃多余），严禁以列数不一致拒绝记录。
-- CSV 解析必须保留可见空行（空 Map 行）、全逗号行、`#` 行和引号内换行；引号内 `\r\n` 按 `\n` 保留。
+- CSV 解析对齐游戏 CSVParser：列数容忍 (短行缺失键不写入、长行丢弃多余)，严禁以列数不一致拒绝记录。
+- CSV 解析必须保留可见空行 (空 Map 行)、全逗号行、`#` 行和引号内换行；引号内 `\r\n` 按 `\n` 保留。
 - JSON 字符串必须合并合法 UTF-16 代理对；无引号 word 必须按游戏分隔集合终止。
 - JSON 字面值必须对 `true`、`false`、`null` 忽略大小写，数值按 Long／Double 规则解析并在解析失败时返回字符串；非有限数值、字符串字面换行和未知转义必须返回格式错误。
 - JSON 对象和数组必须消费游戏的无引号键值、分号、尾分隔符、等号及括号规则；数组空槽必须产出 `null`，根对象尾文必须按游戏规则忽略。

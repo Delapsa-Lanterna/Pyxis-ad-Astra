@@ -7,6 +7,7 @@
 - 前端任务读取 `.zcode/frontend-guidelines.md`。
 - Rust 任务读取 `.zcode/backend-guidelines.md`。
 - 视觉任务读取 `.zcode/css-guidelines.md`。
+- 涉及可见文本的任务读取 `.zcode/text-guidelines.md`。
 - 读取 `.zcode/module-map.md`，再按命中线索加载相关的模块文档。
 
 ## 面向模块开发
@@ -44,7 +45,7 @@
 
 - 必须按改动文件、受影响行为和依赖链选择检查，并说明对应范围。
 - 任何改动必须运行 `git diff --check`。
-- 文本格式必须使用对应工具检查；Prettier 必须限定改动文件，Rust 必须指定所属 Cargo 项目。
+- 文本格式必须使用 `lint:checks` 与对应工具检查；Prettier 必须限定改动文件，Rust 必须指定所属 Cargo 项目。
 - 前端代码改动必须运行 `lint` 与 `typecheck`。
 - Rust 代码改动必须运行 `lint:rust`。
 - 行为改动必须运行覆盖受影响行为的测试。

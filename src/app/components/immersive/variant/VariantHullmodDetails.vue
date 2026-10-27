@@ -20,7 +20,7 @@
       <ImmersiveText :runs="hullmodDescription(hullmodString(entry, 'short')).runs.map((run) => ({ ...run, color: '#afafaf' }))" block />
     </p>
     <section class="variant-hullmod-details-section" v-if="strengthening.length">
-      <ImmersiveText text="S强化静态说明" font="heading" outlined block />
+      <ImmersiveText text="S 强化效果静态说明" font="heading" outlined block />
       <p class="variant-hullmod-details-description" v-for="(paragraph, index) in strengthening" :key="index">
         <ImmersiveText :runs="paragraph.runs" block />
       </p>

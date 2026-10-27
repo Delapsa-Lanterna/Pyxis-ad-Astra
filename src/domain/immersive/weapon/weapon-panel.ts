@@ -202,7 +202,7 @@ export function projectWeaponPanel(
       stat(
         'dps',
         '伤害 / 秒',
-        format(stats.dps) + (stats.dps !== stats.sustained ? `（持续 ${format(stats.sustained)}）` : ''),
+        format(stats.dps) + (stats.dps !== stats.sustained ? ` (持续 ${format(stats.sustained)})` : ''),
         [...damageFields, cf('ammo'), cf('ammo/sec')],
         stats.beam
           ? '光束伤害按充能、持续、衰减与冷却周期计算；持续光束使用 damage/second。'
@@ -228,7 +228,7 @@ export function projectWeaponPanel(
         stat(
           'flux-second',
           '幅能 / 秒',
-          format(stats.fluxPerSecond) + (stats.dps !== stats.sustained ? `（持续 ${format(stats.sustainedFlux)}）` : ''),
+          format(stats.fluxPerSecond) + (stats.dps !== stats.sustained ? ` (持续 ${format(stats.sustainedFlux)})` : ''),
           fluxFields,
           '每秒幅能 = DPS × 幅能／伤害。',
         ),

@@ -3,7 +3,7 @@ import { errorDiagnosticOf, extractFileReferenceFromError, formatError } from '@
 import { pathBelongsToRoot } from '@/shared/lib/paths';
 
 export function scanWarningNotice(warning: GameScanWarning): FeedbackNotice {
-  return { userMessage: `${formatError(warning)}（${warning.path}）`, diagnostic: warning };
+  return { userMessage: `${formatError(warning)} (${warning.path})`, diagnostic: warning };
 }
 
 export function formatLoadWarnings(loaded: ProjectManifest): FeedbackNotice[] {

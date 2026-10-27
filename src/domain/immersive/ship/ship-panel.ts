@@ -436,7 +436,7 @@ export function projectShipPanel(
         text:
           variant.wings
             .filter((wing) => wing.id)
-            .map((wing) => `${wing.name}（战机甲板 ${wing.index + 1}${wing.builtin ? '，内置' : ''}）`)
+            .map((wing) => `${wing.name} (战机甲板 ${wing.index + 1}${wing.builtin ? '，内置' : ''})`)
             .join('，') || '无',
       },
       {
@@ -445,7 +445,7 @@ export function projectShipPanel(
           variant.mods
             .map(
               (mod) =>
-                `${mod.name}（${{ builtin: '内置', normal: '普通', permanent: '永久', s: 'S 插件' }[mod.category]}${mod.strengthened ? '，内置 S 强化' : ''}）`,
+                `${mod.name} (${{ builtin: '内置', normal: '普通', permanent: '永久', s: 'S 插件' }[mod.category]}${mod.strengthened ? '，内置 S 强化' : ''})`,
             )
             .join('，') || '无',
       },

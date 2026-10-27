@@ -24,7 +24,7 @@ Windows 桌面版 Starsector Mod 配置工具，使用 Tauri 2 + Vue 3 + TypeScr
 
 ## 开始使用
 
-1. 从 GitHub Release 下载 Windows 可执行文件，或按下文“开发”步骤运行源码。
+1. 从 GitHub Release 下载 Windows 可执行文件，或按下文 "开发" 步骤运行源码。
 2. 在总览页选择 Starsector 游戏目录；也可以直接打开一个 Mod 根目录。
 3. 从顶部 Mod 页签进入已加载 Mod，再从左侧导航打开表格、配置或专用编辑器。
 4. 保存只会写入当前编辑目标所属的 Mod 文件；保存前仍建议保留 Mod 备份。
@@ -32,7 +32,7 @@ Windows 桌面版 Starsector Mod 配置工具，使用 Tauri 2 + Vue 3 + TypeScr
 ## 运行与开发环境
 
 - 运行环境：Windows；使用原版回退资源时需要本机已安装的 Starsector。
-- 源码开发必须使用 Node.js（含 npm）与 `rust-toolchain.toml` 固定的 Rust 1.95.0 MSVC 工具链；Cargo 声明的最低 Rust 版本为 1.90。
+- 源码开发必须使用 Node.js (含 npm) 与 `rust-toolchain.toml` 固定的 Rust 1.95.0 MSVC 工具链；Cargo 声明的最低 Rust 版本为 1.90。
 - 依赖版本以 [package.json](./package.json) 和 [src-tauri/Cargo.toml](./src-tauri/Cargo.toml) 为准。
 
 ## 技术栈
@@ -58,7 +58,7 @@ npm.cmd run tauri -- dev
 npm.cmd run tauri -- build --no-bundle
 ```
 
-该命令会经 `tauri.conf.json` 的 `beforeBuildCommand` 自动执行 `npm run build`（先 `vue-tsc` 类型检查，再 vite 构建前端产物）。
+该命令会经 `tauri.conf.json` 的 `beforeBuildCommand` 自动执行 `npm run build` (先 `vue-tsc` 类型检查，再 vite 构建前端产物)。
 
 构建完成后产物位于：
 

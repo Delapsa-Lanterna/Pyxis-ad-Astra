@@ -8,7 +8,7 @@
       :class="level"
       :role="level === 'error' ? 'alert' : 'status'"
     >
-      <strong>{{ level === 'error' ? '无法保存' : '保存前请确认' }}（{{ items(level).length }}）</strong>
+      <strong>{{ level === 'error' ? '无法保存' : '保存前请确认' }} ({{ items(level).length }})</strong>
       <ul class="spec-problem-list ui-content-scroll ui-text-reset">
         <li v-for="issue in items(level)" :key="`${issue.code}:${issue.path}`">{{ issue.message }}</li>
       </ul>

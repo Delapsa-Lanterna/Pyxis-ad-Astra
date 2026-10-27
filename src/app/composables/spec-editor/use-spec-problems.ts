@@ -14,7 +14,7 @@ export function createSpecProblems(inputs: FieldInputs | null, validate: () => S
       severity: 'error',
       code: 'field.input_invalid',
       path: error.path ?? error.key,
-      message: `${error.label}（${error.path ?? error.key}）：${error.message}`,
+      message: `${error.label} (${error.path ?? error.key}): ${error.message}`,
     }));
     const next = [
       ...new Map(

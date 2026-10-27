@@ -25,7 +25,7 @@ export function specFieldIssues(
       severity: 'error',
       code: field.issueCode ?? 'spec.field_invalid',
       path,
-      message: `${field.label || field.key}（${path}）：${field.issueMessage ?? message}`,
+      message: `${field.label || field.key} (${path}): ${field.issueMessage ?? message}`,
     },
   ];
   if (value === undefined || value === null) return field.required && !partial ? fail('必填字段未设置') : [];

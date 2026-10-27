@@ -75,7 +75,7 @@ function renderToastContent(text: string, reference: FileReference | null, actio
   const rows: VNode[] = [h('span', { class: 'app-toast-text' }, text)];
   if (reference !== null) {
     const locationText = reference.line
-      ? reference.path + '（' + fileReferenceLocationSuffix(reference.line, reference.column) + '）'
+      ? reference.path + ' (' + fileReferenceLocationSuffix(reference.line, reference.column) + ')'
       : reference.path;
     rows.push(h(NText, { depth: 3, class: 'app-toast-text' }, { default: () => locationText }));
   }

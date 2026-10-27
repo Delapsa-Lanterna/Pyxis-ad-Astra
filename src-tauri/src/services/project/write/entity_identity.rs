@@ -135,7 +135,8 @@ pub fn save_variant_entity(
         .get("variantId")
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::message("spec.id_mismatch", "装配数据缺少 variantId"))?;
-    if validate_entity_id(content_id, "装配ID无效")? != validate_entity_id(next_id, "装配ID无效")?
+    if validate_entity_id(content_id, "装配 ID 无效")?
+        != validate_entity_id(next_id, "装配 ID 无效")?
     {
         return Err(AppError::message(
             "spec.id_mismatch",

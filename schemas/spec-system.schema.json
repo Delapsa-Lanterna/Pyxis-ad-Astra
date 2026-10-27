@@ -235,7 +235,7 @@
     },
     {
       "id": "damage",
-      "label": "伤害（AI 理解用）",
+      "label": "伤害 (AI 理解用)",
       "fields": [
         { "key": "empDamage", "label": "EMP 伤害", "type": "float" },
         { "key": "damage", "label": "伤害值", "type": "float" },

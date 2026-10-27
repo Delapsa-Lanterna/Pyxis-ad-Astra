@@ -117,7 +117,8 @@ export function hullmodRowState(entry: ReadonlyVariantEntry, installed: VariantH
       : '',
     iconColor: installed?.category === 'builtin' && !installed.strengthened ? '#afafaf' : color,
     label: installed
-      ? { normal: '普通', permanent: '永久', s: 'S 插件', builtin: '内置' }[installed.category] + (installed.strengthened ? ' · S强化' : '')
+      ? { normal: '普通', permanent: '永久', s: 'S 插件', builtin: '内置' }[installed.category] +
+        (installed.strengthened ? ' · S 强化效果' : '')
       : '未安装',
     diagnostic: !Number.isFinite(cost)
       ? '装配点数来源未确定：' + entry.id

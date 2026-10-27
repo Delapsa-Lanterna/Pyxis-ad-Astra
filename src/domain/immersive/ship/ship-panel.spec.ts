@@ -22,7 +22,7 @@ describe('ship original configuration projection', () => {
     expect(panel.logistics[0]!.find((stat) => stat.id === 'ordnance points')!.display).toBe('30 / 165');
     expect(panel.equipment.find((row) => row.label === '军备详情')!.text).toBe('1× Assault Chaingun（内置），1× Assault Chaingun');
     expect(panel.equipment.find((row) => row.label === '战机联队')!.text).toContain('战机甲板 1');
-    expect(panel.equipment.find((row) => row.label === '船体插件')!.text).toBe('Safety Overrides（永久）');
+    expect(panel.equipment.find((row) => row.label === '船体插件')!.text).toBe('Safety Overrides (永久)');
     expect(jointObject(snapshot.records.find((record) => record.key === 'variant')!.value).fluxCapacitors).toBe(4);
   });
   it('selects module, Skin, description and logistics through their actual hull bindings', () => {
