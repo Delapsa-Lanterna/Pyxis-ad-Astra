@@ -52,7 +52,6 @@ jobs:
         run: ./scripts/test-rust-paths.ps1 -PathForm Long
 
       - name: Rust tests (8.3 short paths)
-        if: ${{ always() }}
         run: ./scripts/test-rust-paths.ps1 -PathForm Short
 
       - name: Tauri build and version alignment

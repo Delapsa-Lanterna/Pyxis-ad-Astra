@@ -5,11 +5,17 @@ const BANNED_PUNCTUATION = /[“”‘’（）]/gu;
 const TEXT_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.md', '.mjs', '.rs', '.toml', '.ts', '.vue']);
 const TEST_PATH = /(?:^|\/)(?:test|tests|testdata|__tests__)(?:\/|$)|(?:^|\/)testutil\.[^.]+$|(?:\.spec|\.test)\.[^.]+$/;
 
+/** @typedef {{ rel: string, text: string }} TextFile */
+/** @typedef {{ start: number, text: string, strictOuter?: boolean }} TextCandidate */
+
+/** @param {string} rel @param {string} extension */
 export function isTextGuidelineFile(rel, extension) {
   return TEXT_EXTENSIONS.has(extension) && !rel.startsWith('scripts/') && !TEST_PATH.test(rel);
 }
 
+/** @param {TextFile[]} files @returns {string[]} */
 export function checkTextGuidelines(files) {
+  /** @type {string[]} */
   const failures = [];
   for (const file of files) {
     for (const candidate of extractCandidates(file.rel, file.text)) scanCandidate(file.rel, file.text, candidate, failures);
@@ -17,6 +23,7 @@ export function checkTextGuidelines(files) {
   return failures;
 }
 
+/** @param {string} rel @param {string} text @returns {TextCandidate[]} */
 function extractCandidates(rel, text) {
   const extension = rel.slice(rel.lastIndexOf('.'));
   if (extension === '.md') return [{ start: 0, text: text.replace(/```[\s\S]*?```|`[^`]*`/g, mask), strictOuter: true }];
@@ -25,6 +32,7 @@ function extractCandidates(rel, text) {
   return quotedCandidates(text);
 }
 
+/** @param {string} text @returns {TextCandidate[]} */
 function jsonValueCandidates(text) {
   const candidates = [];
   const visibleKey =
@@ -36,6 +44,7 @@ function jsonValueCandidates(text) {
   return candidates;
 }
 
+/** @param {string} text @returns {TextCandidate[]} */
 function vueCandidates(text) {
   const scriptStart = text.indexOf('<script');
   const template = scriptStart < 0 ? text : text.slice(0, scriptStart);
@@ -80,6 +89,7 @@ function vueCandidates(text) {
   return candidates;
 }
 
+/** @param {string} text @returns {TextCandidate[]} */
 function quotedCandidates(text) {
   const candidates = [];
   const pattern = /(?:r#+"([\s\S]*?)"#+|`(?:\\.|[^`\\])*`|'(?:\\.|[^'\\\r\n])'|"(?:\\.|[^"\\])*")/gu;
@@ -87,7 +97,7 @@ function quotedCandidates(text) {
     const raw = match[0];
     const rawString = raw.startsWith('r');
     const prefix = rawString ? raw.indexOf('"') + 1 : 1;
-    const suffix = rawString ? raw.match(/"#*$/u)[0].length : 1;
+    const suffix = rawString ? (raw.match(/"#*$/u)?.[0].length ?? 0) : 1;
     let content = raw.slice(prefix, raw.length - suffix);
     if (raw.startsWith('`')) content = content.replace(/\$\{[\s\S]*?\}/g, mask);
     content = content.replace(/\\[\s\S]/gu, mask);
@@ -96,6 +106,7 @@ function quotedCandidates(text) {
   return candidates;
 }
 
+/** @param {string} rel @param {string} source @param {TextCandidate} candidate @param {string[]} failures */
 function scanCandidate(rel, source, candidate, failures) {
   for (const match of candidate.text.matchAll(BANNED_PUNCTUATION)) {
     report(
@@ -135,14 +146,17 @@ function scanCandidate(rel, source, candidate, failures) {
   }
 }
 
+/** @param {string} text @param {number} index */
 function isFunctionCallOpening(text, index) {
   return /(?:^|[^A-Za-z0-9_$-])[A-Za-z_$][A-Za-z0-9_$-]*$/u.test(text.slice(0, index));
 }
 
+/** @param {string} value */
 function mask(value) {
   return MASK_CHAR.repeat(value.length);
 }
 
+/** @param {string} text @param {number} index @param {number} direction */
 function outerSpaceIsValid(text, index, direction) {
   const adjacent = text[index + direction];
   if (adjacent === undefined || /\s|\p{P}|\p{S}/u.test(adjacent)) return true;
@@ -150,6 +164,7 @@ function outerSpaceIsValid(text, index, direction) {
   return text[index + direction * 2] !== ' ';
 }
 
+/** @param {string} rel @param {string} source @param {number} offset @param {string} rule @param {string} message @param {string[]} failures */
 function report(rel, source, offset, rule, message, failures) {
   const prefix = source.slice(0, offset);
   failures.push(`${rel}:${prefix.split('\n').length}:${prefix.slice(prefix.lastIndexOf('\n') + 1).length + 1} ${rule}: ${message}`);
