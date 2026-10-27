@@ -1,9 +1,9 @@
 import { defineRule } from '../../diagnostics.mjs';
 
-const SECTION_ORDER = ['定义', '参考', '边界', '链路', '规范', '陷阱'];
+const SECTION_ORDER = ['定义', '参考', '边界', '链路', '规范'];
 const REFERENCE_GROUPS = ['拥有', '消费', '装配', '关联'];
 /** @type {Record<string, number>} */
-const MIN_SECTION_LINES = { 参考: 3, 边界: 5, 规范: 5, 陷阱: 3 };
+const MIN_SECTION_LINES = { 参考: 3, 边界: 5, 规范: 5 };
 const MAX_DOC_LINES = 300;
 
 export const moduleStructureRule = defineRule(
@@ -41,7 +41,7 @@ function checkDocStructure(file, title, paths) {
   if (lines[1] !== '') report(1, 'module title must have one blank separator');
   const headings = file.document.headings;
   if (headings.map((heading) => heading.name).join('|') !== SECTION_ORDER.join('|')) {
-    report(0, 'H2 headings must occur exactly once in this order: 定义、参考、边界、链路、规范、陷阱');
+    report(0, 'H2 headings must occur exactly once in this order: 定义、参考、边界、链路、规范');
     return failures;
   }
   if (headings[0].index !== 2) report(2, '定义 must immediately follow the title separator');

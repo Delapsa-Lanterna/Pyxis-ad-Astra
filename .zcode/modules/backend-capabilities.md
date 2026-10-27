@@ -62,9 +62,3 @@
 - `errorDiagnosticOf` 必须保留来源稳定码、原始消息和结构化位置；附加 payload 必须沿 cause 消费。
 - `invokeCommand` 必须保留完整 args，nullable、无参数及顶层参数必须服从 Rust command 契约。
 - 联合读取、准备及提交必须唯一归 joint-edit 能力；编辑目标登记、查询、预约与聚焦必须归窗口能力。
-
-## 陷阱
-
-- 在传输层组装业务字段会让 wire 参数脱离所属能力定义。
-- 用 command 名替代用户动作会混淆底层诊断与操作文案。
-- 错误包装丢弃 payload 会使冲突聚焦与恢复动作失去正式目标。

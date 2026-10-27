@@ -17,8 +17,7 @@ const validDoc =
   '### 拥有\n\n- `assets/icon.png`：图标资源。\n- `src/domain/sample.ts`：领域规则。\n- `src/empty/`：空目录。\n\n' +
   '## 边界\n\n- A 输入归领域。\n- B 状态归会话。\n- C 资源归媒体。\n- D 编排归动作。\n- E 展示归组件。\n\n' +
   '## 链路\n\n### 加载\n\n1. 输入进入规则。\n2. 结果交付展示。\n\n### 释放\n\n1. 会话释放等待。\n\n' +
-  '## 规范\n\n- A 输入必须绑定身份。\n- B 读取必须绑定票据。\n- C 状态必须归会话。\n- D 结果必须归消费者。\n- E 资源必须归媒体。\n\n' +
-  '## 陷阱\n\n- A 错位输入污染状态。\n- B 错位结果污染展示。\n- C 错位资源污染缓存。\n';
+  '## 规范\n\n- A 输入必须绑定身份。\n- B 读取必须绑定票据。\n- C 状态必须归会话。\n- D 结果必须归消费者。\n- E 资源必须归媒体。\n';
 
 function fixtures(doc = validDoc, map = indexText, extras = {}) {
   return architectureFixtures({
@@ -128,6 +127,7 @@ test('owned directory descendants have one owner while consumption may be shared
 
 const malformedDocs = [
   ['unknown H2', validDoc.replace('## 规范', '## 其它')],
+  ['extra H2', validDoc + '\n## 陷阱\n\n- A 输入必须绑定身份。\n'],
   ['duplicate H2', validDoc.replace('## 规范', '## 边界\n\n## 规范')],
   ['reordered H2', validDoc.replace('## 边界', '## 规范').replace(/## 规范(?=\n\n- A 输入必须)/, '## 边界')],
   ['missing H2', validDoc.replace('## 规范\n\n', '')],
@@ -150,7 +150,7 @@ const malformedDocs = [
   ['definition heading', validDoc.replace('样例模块提供样例能力。', '### 单行标题')],
   ['paragraph in 边界', validDoc.replace('- A 输入归领域。', 'A 输入归领域。')],
   ['ordered list in 规范', validDoc.replace('- A 输入必须绑定身份。', '1. A 输入必须绑定身份。')],
-  ['table in 陷阱', validDoc.replace('- A 错位输入污染状态。', '| A | B |')],
+  ['table in 规范', validDoc.replace('- A 输入必须绑定身份。', '| A | B |')],
   ['fence in 规范', validDoc.replace('- A 输入必须绑定身份。', '```js\nconst x = 1;\n```')],
   ['nested unordered list', validDoc.replace('- B 状态归会话。', '  - B 状态归会话。')],
   ['alternative unordered marker', validDoc.replace('- B 状态归会话。', '* B 状态归会话。')],
@@ -213,7 +213,7 @@ for (const [name, doc] of malformedDocs) {
 }
 
 test('all compact list sections and required reference counts keep their minimums', () => {
-  for (const section of ['参考', '边界', '规范', '陷阱']) {
+  for (const section of ['参考', '边界', '规范']) {
     const doc = validDoc.replace(new RegExp('## ' + section + '\\n\\n[\\s\\S]*?(?=\\n\\n## |$)'), '## ' + section + '\n\n');
     assert.ok(messages(moduleDiagnostics(fixtures(doc))).length > 0, section);
   }
