@@ -265,7 +265,8 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{models::*, testutil::temp_dir};
+    use crate::models::*;
+    use crate::services::project::test_support::project_workspace;
     use std::{path::Path, sync::mpsc, time::Duration};
 
     #[test]
@@ -282,7 +283,7 @@ mod tests {
             "mission-text",
             "mission-index",
         ] {
-            let root = temp_dir(&format!("missing_save_{kind}"));
+            let root = project_workspace(&format!("missing_save_{kind}"));
             for directory in [
                 "data/hulls",
                 "data/variants",
@@ -651,7 +652,7 @@ mod tests {
             services::project_sync::wait_projects(&[manifest.mod_root]).unwrap();
             services::project_sync::release_window(&owner).unwrap();
             services::project::close_project_session(manifest.session_id).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 }

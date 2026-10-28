@@ -111,12 +111,12 @@ fn fingerprint(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use crate::models::JsonSourceConfirmation;
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     #[test]
     fn json_read_attaches_actual_path_to_parser_position() {
-        let dir = temp_dir("json_error_location");
+        let dir = TestWorkspace::new("json_error_location");
         let path = dir.join("nested.skin");
         crate::io::write_utf8_no_bom(&path, "{\n\"id\":1,\"id\":2}").unwrap();
         let error = read_json_file(&path).unwrap_err();
@@ -126,7 +126,7 @@ mod tests {
             Some(path.to_str().unwrap())
         );
         assert_eq!(error.location().unwrap().line, Some(2));
-        let _ = fs::remove_dir_all(dir);
+        dir.close().unwrap();
     }
 
     #[test]
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn preserves_existing_json_and_rejects_unconfirmed_rewrite() {
-        let dir = temp_dir("json_write_batch_confirmation");
+        let dir = TestWorkspace::new("json_write_batch_confirmation");
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("demo.json");
         crate::io::write_utf8_no_bom(&path, "{a:[1,,2], # keep\n b:3}\nEND").unwrap();
@@ -173,12 +173,12 @@ mod tests {
         confirmed.finish().unwrap();
         assert_eq!(parse_starsector_json(&rendered).unwrap(), value);
         assert!(rendered.ends_with("\nEND"));
-        let _ = fs::remove_dir_all(dir);
+        dir.close().unwrap();
     }
 
     #[test]
     fn confirmation_is_rejected_after_source_changes() {
-        let dir = temp_dir("json_write_batch_changed_source");
+        let dir = TestWorkspace::new("json_write_batch_changed_source");
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("demo.json");
         crate::io::write_utf8_no_bom(&path, "{a:[1,,2]}").unwrap();
@@ -205,7 +205,7 @@ mod tests {
             retry.finish(),
             Err(AppError::JsonRewriteRequired { .. })
         ));
-        let _ = fs::remove_dir_all(dir);
+        dir.close().unwrap();
     }
 }
 

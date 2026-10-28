@@ -230,12 +230,12 @@ fn append_duplicate_id_warnings(mods: &[GameModSummary], warnings: &mut Vec<Game
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
     use std::{fs, path::Path};
 
     #[test]
     fn scan_game_overview_reads_mod_summaries_only() {
-        let root = temp_dir("game_overview");
+        let root = TestWorkspace::new("game_overview");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         fs::create_dir_all(root.join("mods/demo")).unwrap();
         fs::create_dir_all(root.join("mods/demo/data/hulls")).unwrap();
@@ -252,7 +252,6 @@ mod tests {
 
         let overview = scan_game_overview(&root).unwrap();
 
-        let _ = fs::remove_dir_all(&root);
         assert!(overview.core_available);
         assert_eq!(overview.mods.len(), 2);
         assert_eq!(overview.mods[0].id, "demo");
@@ -260,36 +259,37 @@ mod tests {
         assert_eq!(overview.mods[1].id, "starsector-core");
         assert!(!overview.mods[1].has_mod_info);
         assert!(overview.warnings.is_empty());
+        root.close().unwrap();
     }
 
     #[test]
     fn scan_game_overview_uses_canonical_root() {
-        let root = temp_dir("game_overview_canonical");
+        let root = TestWorkspace::new("game_overview_canonical");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         fs::create_dir_all(root.join("mods")).unwrap();
 
         let overview = scan_game_overview(&root.join(".")).unwrap();
 
         let expected_root = path_string(&root);
-        let _ = fs::remove_dir_all(&root);
         assert_eq!(overview.starsector_root, expected_root);
+        root.close().unwrap();
     }
 
     #[test]
     fn scan_game_overview_rejects_parent_dir_root() {
-        let root = temp_dir("game_overview_parent_dir");
+        let root = TestWorkspace::new("game_overview_parent_dir");
 
-        let error = scan_game_overview(&root.join(".."))
+        let error = scan_game_overview(&root.literal_path(".."))
             .unwrap_err()
             .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("invalid starsector root path"));
+        root.close().unwrap();
     }
 
     #[test]
     fn scan_game_overview_warns_duplicate_ids_and_missing_core() {
-        let root = temp_dir("game_warnings");
+        let root = TestWorkspace::new("game_warnings");
         fs::create_dir_all(root.join("mods/a")).unwrap();
         fs::create_dir_all(root.join("mods/b")).unwrap();
         fs::create_dir_all(root.join("mods/no_info")).unwrap();
@@ -298,7 +298,6 @@ mod tests {
 
         let overview = scan_game_overview(&root).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(!overview.core_available);
         assert!(
             overview
@@ -318,11 +317,12 @@ mod tests {
                 .iter()
                 .any(|w| w.message.contains("重复 Mod id"))
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn scan_game_overview_authorizes_invalid_mod_info_for_recovery_editing() {
-        let root = temp_dir("game_invalid_mod_info_edit_target");
+        let root = TestWorkspace::new("game_invalid_mod_info_edit_target");
         let mod_root = root.join("mods/broken");
         let mod_info_path = mod_root.join("mod_info.json");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
@@ -343,28 +343,28 @@ mod tests {
         let target = warning.edit_target.as_ref().unwrap();
         let expected_mod_root = path_string(&mod_root);
         let expected_path = path_string(&mod_info_path);
-        let _ = fs::remove_dir_all(root);
         assert_eq!(target.mod_root, expected_mod_root);
         assert_eq!(target.path, expected_path);
         assert_eq!(warning.path, expected_path);
         assert!(warning.message.contains("line 3 column"));
+        root.close().unwrap();
     }
 
     #[test]
     fn scan_game_overview_reports_unreadable_mods_path_reason() {
-        let root = temp_dir("game_mods_path_error");
+        let root = TestWorkspace::new("game_mods_path_error");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         fs::write(root.join("mods"), "not a directory").unwrap();
 
         let overview = scan_game_overview(&root).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(
             overview
                 .warnings
                 .iter()
                 .any(|w| w.message.contains("无法读取 mods 目录:"))
         );
+        root.close().unwrap();
     }
 
     fn path_string(path: &Path) -> String {

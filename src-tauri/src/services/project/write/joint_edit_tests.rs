@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 #[path = "joint_skin_tests.rs"]
 mod skin_tests;
 use super::super::csv_staging;
@@ -8,13 +9,13 @@ use crate::services::prepare_joint_edit;
 use crate::{
     io::{read_csv_data, write_utf8_no_bom},
     services::{project, write_transactions},
-    testutil::temp_dir,
+    testutil::TestWorkspace,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf};
 
-fn fixture() -> (PathBuf, JointEditRoot) {
-    let dir = temp_dir("joint_graph");
+fn fixture() -> (TestWorkspace, JointEditRoot) {
+    let dir = project_workspace("joint_graph");
     for relative in [
         "data/hulls",
         "data/variants",
@@ -83,9 +84,9 @@ fn submit(
     let transaction = write_transactions::begin(payload, &payload.base_versions)?;
     transaction.commit(save_joint_edit(payload)?, "联合测试")
 }
-fn cleanup(dir: PathBuf, root: &JointEditRoot) {
+fn cleanup(dir: TestWorkspace, root: &JointEditRoot) {
     project::close_project_session(root.session_id.clone()).unwrap();
-    std::fs::remove_dir_all(dir).unwrap();
+    dir.close().unwrap();
 }
 
 #[test]
@@ -153,7 +154,7 @@ fn mod_only_joint_save_survives_missing_game_and_core_directories() {
     for remove_game in [false, true] {
         let (dir, mut root) = fixture();
         project::close_project_session(root.session_id.clone()).unwrap();
-        let game = temp_dir("joint_missing_original");
+        let game = project_workspace("joint_missing_original");
         std::fs::create_dir(game.join("starsector-core")).unwrap();
         root.session_id = project::open_project_session_traced(
             &dir,
@@ -474,7 +475,7 @@ fn variant_skin_slots_and_sources() {
 fn module_variant_catalog_lightweight_sources_and_skins() {
     let (dir, mut root) = fixture();
     project::close_project_session(root.session_id.clone()).unwrap();
-    let game = temp_dir("module_catalog");
+    let game = project_workspace("module_catalog");
     for (relative, content) in [
         (
             "data/hulls/ship_data.csv",
@@ -600,7 +601,7 @@ fn module_variant_catalog_lightweight_sources_and_skins() {
         ResourceSource::Core
     );
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }
 
 #[test]
@@ -681,7 +682,7 @@ fn weapon_render_hints_skin_chain() {
 #[test]
 fn variant_wing_catalog_core_reference() {
     let (dir, mut root) = fixture();
-    let game = temp_dir("variant_catalog_core");
+    let game = project_workspace("variant_catalog_core");
     let core = game.join("starsector-core");
     std::fs::create_dir_all(core.join("data/hulls")).unwrap();
     std::fs::create_dir_all(core.join("data/variants")).unwrap();
@@ -736,7 +737,7 @@ fn variant_wing_catalog_core_reference() {
             .ends_with("fighter_var.variant")
     );
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }
 
 #[test]
@@ -797,7 +798,7 @@ fn four_roots_capture_versions() {
     cleanup(dir, &root);
 }
 
-fn wing_fixture() -> (PathBuf, JointEditRoot) {
+fn wing_fixture() -> (TestWorkspace, JointEditRoot) {
     let (dir, root) = fixture();
     project::close_project_session(root.session_id).unwrap();
     write_utf8_no_bom(&dir.join("data/hulls/ship_data.csv"),"name,id,hitpoints,armor rating,min crew,max speed,shield type,custom\nShip,a,750,200,3,140,NONE,007\nOther,b,1000,300,4,90,NONE,008\n").unwrap();
@@ -1273,7 +1274,7 @@ fn ui_and_engine_resource_versions() {
 fn hullmod_catalog_ui_icons() {
     let (dir, root) = fixture();
     project::close_project_session(root.session_id.clone()).unwrap();
-    let game = temp_dir("joint_hullmod_catalog");
+    let game = project_workspace("joint_hullmod_catalog");
     let core = game.join("starsector-core");
     for path in [
         core.join("data/config"),
@@ -1351,7 +1352,7 @@ fn hullmod_catalog_ui_icons() {
     );
     assert_eq!(result.reference_settings.versions.len(), 2);
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }
 
 #[test]
@@ -1504,8 +1505,8 @@ fn queued_joint_changes_follow_consecutive_renames_and_preserve_current_fields()
 
 #[test]
 fn core_override_keeps_original() {
-    let dir = temp_dir("joint_core_mod");
-    let game = temp_dir("joint_core_game");
+    let dir = project_workspace("joint_core_mod");
+    let game = project_workspace("joint_core_game");
     std::fs::create_dir_all(&dir).unwrap();
     let core = game.join("starsector-core");
     for relative in [
@@ -1660,7 +1661,7 @@ fn core_override_keeps_original() {
             .all(|record| record.source.as_ref().unwrap().source == ResourceSource::Mod)
     );
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }
 
 #[test]
@@ -1745,7 +1746,7 @@ fn builtin_wings_and_single_user() {
 #[test]
 fn core_system_uses_actual_source() {
     let (dir, root) = fixture();
-    let game = temp_dir("joint_system_core");
+    let game = project_workspace("joint_system_core");
     let core = game.join("starsector-core");
     std::fs::create_dir_all(core.join("data/shipsystems/nested")).unwrap();
     write_utf8_no_bom(
@@ -1796,7 +1797,7 @@ fn core_system_uses_actual_source() {
         "Core drive"
     );
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }
 
 #[test]
@@ -2005,8 +2006,8 @@ fn missing_weapon_uses_construction() {
 #[test]
 fn core_pulse_requires_legal_override() {
     for spec_class in [WeaponSpecClass::Projectile, WeaponSpecClass::Beam] {
-        let dir = temp_dir("joint_pulse_mod");
-        let game = temp_dir("joint_pulse_game");
+        let dir = project_workspace("joint_pulse_mod");
+        let game = project_workspace("joint_pulse_game");
         let core = game.join("starsector-core");
         std::fs::create_dir_all(core.join("data/weapons")).unwrap();
         std::fs::create_dir_all(core.join("data/strings")).unwrap();
@@ -2075,7 +2076,7 @@ fn core_pulse_requires_legal_override() {
             original
         );
         cleanup(dir, &root);
-        std::fs::remove_dir_all(game).unwrap();
+        game.close().unwrap();
     }
 }
 
@@ -2083,7 +2084,7 @@ fn core_pulse_requires_legal_override() {
 fn core_header_and_sensor_sources() {
     let (dir, root) = fixture();
     project::close_project_session(root.session_id.clone()).unwrap();
-    let game = temp_dir("joint_reference_core");
+    let game = project_workspace("joint_reference_core");
     let core = game.join("starsector-core");
     std::fs::create_dir_all(core.join("data/config")).unwrap();
     std::fs::create_dir_all(core.join("data/hulls")).unwrap();
@@ -2162,14 +2163,14 @@ fn core_header_and_sensor_sources() {
     assert_eq!(csv.header, ["id", "hitpoints", "name", "tags", "custom"]);
     assert_eq!(csv.rows[1].data["custom"], "007");
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }
 
 #[test]
 fn variant_catalog_core_repeated_reads() {
     let (dir, mut root) = fixture();
     project::close_project_session(root.session_id.clone()).unwrap();
-    let game = temp_dir("variant_catalog_core_reads");
+    let game = project_workspace("variant_catalog_core_reads");
     let core = game.join("starsector-core");
     for (relative, content) in [
         (
@@ -2252,5 +2253,5 @@ fn variant_catalog_core_repeated_reads() {
         }
     }
     cleanup(dir, &root);
-    std::fs::remove_dir_all(game).unwrap();
+    game.close().unwrap();
 }

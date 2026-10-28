@@ -183,11 +183,12 @@ fn csv_row_matches(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
     use serde_json::json;
 
     #[test]
     fn index_and_keyed_batches_preserve_identity_and_refresh_the_lookup_after_a_write() {
-        let root = crate::testutil::temp_dir("csv_keyed_batches");
+        let root = project_workspace("csv_keyed_batches");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         crate::io::write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
@@ -269,7 +270,7 @@ mod tests {
             .is_err()
         );
         super::super::super::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -310,7 +311,7 @@ mod tests {
 
     #[test]
     fn sim_opponent_preview_resolves_its_variant_hull_sprite() {
-        let root = crate::testutil::temp_dir("sim_opponent_preview");
+        let root = project_workspace("sim_opponent_preview");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("data/campaign")).unwrap();
@@ -359,7 +360,7 @@ mod tests {
         assert_eq!(resource.owner_id, "ship_a");
         assert_eq!(resource.key, "thumbnail");
         super::super::super::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -402,7 +403,7 @@ mod tests {
 
     #[test]
     fn window_search_normalizes_text_and_returns_exact_counts() {
-        let root = crate::testutil::temp_dir("csv_search_fields");
+        let root = project_workspace("csv_search_fields");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         crate::io::write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"),
             "id,name,tags,description\r\nAlpha,银河,demo_bp,description\r\nBeta,Alpha,rare,description\r\n#Alpha,注释,disabled,description\r\n").unwrap();
@@ -432,6 +433,6 @@ mod tests {
             assert_eq!(window.rows.len(), count);
         }
         super::super::super::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

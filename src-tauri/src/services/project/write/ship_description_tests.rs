@@ -1,15 +1,16 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 use crate::{
     io::{read_csv_data, read_json_file, write_utf8_no_bom},
     models::*,
     services::{project, write_transactions},
-    testutil::temp_dir,
+    testutil::TestWorkspace,
 };
 use serde_json::json;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
-fn fixture(explicit: bool) -> (PathBuf, ProjectManifest) {
-    let root = temp_dir("default_ship_description");
+fn fixture(explicit: bool) -> (TestWorkspace, ProjectManifest) {
+    let root = project_workspace("default_ship_description");
     std::fs::create_dir_all(root.join("data/hulls")).unwrap();
     std::fs::create_dir_all(root.join("data/strings")).unwrap();
     let mut data = json!({"hullId":"old","hullSize":"FRIGATE","custom":{"keep":1}});
@@ -212,7 +213,7 @@ fn default_description_command_rename() {
             "new"
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }
 
@@ -232,7 +233,7 @@ fn explicit_description_commands() {
         );
         assert_eq!(receipt.changes.len(), 2);
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }
 
@@ -258,7 +259,7 @@ fn description_collision_is_atomic() {
                 .is_empty()
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }
 
@@ -297,7 +298,7 @@ fn description_version_conflict() {
     assert!(!root.join("data/hulls/new.ship").exists());
     assert_eq!(std::fs::read_to_string(path).unwrap(), text);
     project::close_project_session(manifest.session_id).unwrap();
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[test]
@@ -313,7 +314,7 @@ fn missing_description_stays_missing() {
         assert!(!path.exists());
         assert_eq!(receipt.changes.len(), 2);
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }
 
@@ -323,7 +324,7 @@ fn core_description_copy_rename() {
     project::close_project_session(manifest.session_id).unwrap();
     let path = root.join("data/strings/descriptions.csv");
     std::fs::remove_file(&path).unwrap();
-    let game = temp_dir("default_description_core");
+    let game = project_workspace("default_description_core");
     let core = game.join("starsector-core/data/strings");
     std::fs::create_dir_all(&core).unwrap();
     let core_text = "id,type,text1,text5,notes\nold,SHIP,Core description,Fifth,kept\n";
@@ -349,6 +350,6 @@ fn core_description_copy_rename() {
         .unwrap();
     assert_eq!(record["value"]["value"]["id"], "new");
     project::close_project_session(manifest.session_id).unwrap();
-    std::fs::remove_dir_all(root).unwrap();
-    std::fs::remove_dir_all(game).unwrap();
+    root.close().unwrap();
+    game.close().unwrap();
 }

@@ -452,6 +452,7 @@ pub fn delete_indexed_request(
 mod tests {
     use super::*;
     use crate::models::IndexedConfigKind;
+    use crate::services::project::test_support::project_workspace;
 
     struct IndexedSaveInput<'a> {
         index_row: Map<String, Value>,
@@ -563,7 +564,6 @@ mod tests {
             )
         })
     }
-    use crate::testutil::temp_dir;
     use crate::{
         io::{read_utf8_no_bom, write_utf8_no_bom},
         models::FileChangeReplayDirection,
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn mission_index_ownership_skips_comments_during_read_save_delete_and_replay() {
-        let root = temp_dir("mission_comment_identity");
+        let root = project_workspace("mission_comment_identity");
         let index = root.join(MISSION_INDEX);
         fs::create_dir_all(root.join("data/missions/old")).unwrap();
         write_utf8_no_bom(
@@ -667,12 +667,12 @@ mod tests {
             "old"
         );
         crate::services::project::close_project_session(manifest.session_id).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn faction_save_preserves_spec_comments_and_order() {
-        let root = temp_dir("indexed_faction_preserves_json");
+        let root = project_workspace("indexed_faction_preserves_json");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -705,12 +705,12 @@ mod tests {
         assert_eq!(result.changes.len(), 2);
         assert!(text.contains("# note"));
         assert!(text.find("displayName").unwrap() < text.find("id:").unwrap());
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn faction_save_can_rename_file_and_index_with_undo_redo() {
-        let root = temp_dir("indexed_faction_rename");
+        let root = project_workspace("indexed_faction_rename");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -754,13 +754,13 @@ mod tests {
             .apply_changes(&result.changes, FileChangeReplayDirection::Redo)
             .unwrap();
         let new_text = read_utf8_no_bom(&dir.join("new.faction")).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert!(new_text.contains("\"id\": \"new\""));
+        root.close().unwrap();
     }
 
     #[test]
     fn faction_save_keeps_single_column_game_format_on_same_id_save() {
-        let root = temp_dir("indexed_faction_same_id");
+        let root = project_workspace("indexed_faction_same_id");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -795,12 +795,12 @@ mod tests {
             "faction\ndata/world/factions/demo.faction\n"
         );
         assert_eq!(result.changes.len(), 2);
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn indexed_entity_rejects_duplicate_id() {
-        let root = temp_dir("indexed_duplicate_id");
+        let root = project_workspace("indexed_duplicate_id");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -824,13 +824,13 @@ mod tests {
             false,
         );
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn indexed_entity_save_requires_previous_index_row() {
-        let root = temp_dir("indexed_missing_previous");
+        let root = project_workspace("indexed_missing_previous");
         fs::create_dir_all(root.join("data/world/factions")).unwrap();
         write_utf8_no_bom(
             &root.join("data/world/factions/factions.csv"),
@@ -854,13 +854,13 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("势力索引不存在: missing"));
+        root.close().unwrap();
     }
 
     #[test]
     fn indexed_entity_delete_requires_index_row() {
-        let root = temp_dir("indexed_delete_missing");
+        let root = project_workspace("indexed_delete_missing");
         fs::create_dir_all(root.join("data/missions")).unwrap();
         write_utf8_no_bom(&root.join("data/missions/mission_list.csv"), "mission\r\n").unwrap();
 
@@ -873,13 +873,13 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("战役索引不存在: missing"));
+        root.close().unwrap();
     }
 
     #[test]
     fn mission_delete_expands_directory_invalidation_paths() {
-        let root = temp_dir("mission_delete_expands_invalidation_paths");
+        let root = project_workspace("mission_delete_expands_invalidation_paths");
         fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -901,7 +901,6 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.invalidation.paths.iter().any(|path| {
             path.replace('\\', "/")
                 .ends_with("data/missions/demo/descriptor.json")
@@ -910,11 +909,12 @@ mod tests {
             path.replace('\\', "/")
                 .ends_with("data/missions/demo/mission_text.txt")
         }));
+        root.close().unwrap();
     }
 
     #[test]
     fn mod_info_save_keeps_source_when_semantics_are_unchanged() {
-        let root = temp_dir("save_mod_info_preserve");
+        let root = project_workspace("save_mod_info_preserve");
         let path = root.join("mod_info.json");
         write_utf8_no_bom(&path, "{\n  # note\n  id: 'demo'\n}\n").unwrap();
         let result = save_mod_info(
@@ -936,12 +936,12 @@ mod tests {
             read_utf8_no_bom(&path).unwrap(),
             "{\n  # note\n  id: 'demo'\n}\n"
         );
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn mod_info_receipt_matches_persisted_content() {
-        let root = temp_dir("mod_info_receipt");
+        let root = project_workspace("mod_info_receipt");
         let data = serde_json::json!({"id":"demo", "name":"Saved", "dependencies":[{"id":"dep"}]});
         let result = save_mod_info(
             &root.to_string_lossy(),
@@ -954,6 +954,6 @@ mod tests {
             result.content.map(|content| content.value),
             Some(crate::io::read_json_file(&root.join("mod_info.json")).unwrap())
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

@@ -10,6 +10,8 @@ pub(in crate::services) mod resources;
 mod root;
 mod session;
 mod sources;
+#[cfg(test)]
+pub(crate) mod test_support;
 mod versions;
 pub(in crate::services) mod write;
 

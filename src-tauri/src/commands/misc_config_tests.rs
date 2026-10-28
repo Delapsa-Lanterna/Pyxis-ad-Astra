@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 
 use crate::{
     commands::{prepare_json_source_recovery, query_misc_config_file, query_misc_config_files},
@@ -9,20 +10,19 @@ use crate::{
         MiscConfigWrite,
     },
     services::{project, write_transactions},
-    testutil::temp_dir,
+    testutil::TestWorkspace,
 };
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
 struct Fixture {
-    root: PathBuf,
+    root: TestWorkspace,
     scope: MiscConfigScope,
 }
 #[test]
 #[cfg(windows)]
 fn reject_linked_source() {
-    let (root, outside, link) =
-        crate::testutil::temp_junction_dir("misc_config_boundary", "data/strings");
+    let (root, outside, link) = TestWorkspace::junction("misc_config_boundary", "data/strings");
     let mod_root = root.to_string_lossy().into_owned();
     let entries = crate::services::misc_config::query_misc_config_files(&mod_root).unwrap();
     assert_eq!(
@@ -58,12 +58,11 @@ fn reject_linked_source() {
     assert_eq!(result.unwrap_err().code(), "path.link_rejected");
     assert!(!outside.join("strings.json").exists());
     std::fs::remove_dir(link).unwrap();
-    std::fs::remove_dir_all(root).unwrap();
-    std::fs::remove_dir_all(outside).unwrap();
+    root.close().unwrap();
 }
 impl Fixture {
     fn new() -> Self {
-        let root = temp_dir("misc_config");
+        let root = project_workspace("misc_config");
         let mut trace = project::PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         Self {
@@ -103,12 +102,6 @@ impl Fixture {
                 },
             }),
         )
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        project::close_project_session(self.scope.session_id.clone()).unwrap();
-        std::fs::remove_dir_all(&self.root).unwrap();
     }
 }
 

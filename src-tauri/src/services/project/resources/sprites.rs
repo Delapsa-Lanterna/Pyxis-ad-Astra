@@ -260,7 +260,8 @@ fn path_escapes_resource_root(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     pub(super) fn batch_at(mod_root: &Path, core: Option<&Path>) -> SpriteReadBatch {
@@ -274,7 +275,7 @@ mod tests {
 
     #[test]
     fn batch_resolves_sources_when_they_are_accessed() {
-        let root = temp_dir("sprite_batch_sources");
+        let root = project_workspace("sprite_batch_sources");
         let local = root.join("mod");
         let core = root.join("core");
         fs::create_dir(&local).unwrap();
@@ -338,13 +339,13 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     #[cfg(windows)]
     fn batch_rechecks_removed_roots_and_new_links() {
-        let (root, outside, link) = crate::testutil::temp_junction_dir("sprite_batch_link", "late");
+        let (root, outside, link) = TestWorkspace::junction("sprite_batch_link", "late");
         let held = root.join("held");
         fs::rename(&link, &held).unwrap();
         fs::write(outside.join("image.png"), [1]).unwrap();
@@ -368,8 +369,7 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
-        fs::remove_dir_all(root).unwrap();
-        fs::remove_dir_all(outside).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -378,7 +378,7 @@ mod tests {
         use crate::services::project::{
             PerformanceTrace, close_project_session, open_project_session_traced,
         };
-        let root = temp_dir("sprite_batch_cache_lifetime");
+        let root = project_workspace("sprite_batch_cache_lifetime");
         fs::write(root.join("cached.png"), [1]).unwrap();
         fs::write(root.join("late.png"), [2]).unwrap();
         let manifest =
@@ -413,7 +413,7 @@ mod tests {
             &manifest.session_id,
             &media_resource_key(&late)
         ));
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     fn load_ship_sprite_data(
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn missing_sprite_does_not_create_entry() {
-        let root = temp_dir("missing_sprite");
+        let root = project_workspace("missing_sprite");
         let mut ships = BTreeMap::new();
         ships.insert(
             "demo".to_string(),
@@ -465,13 +465,13 @@ mod tests {
 
         let loaded = load_ship_sprite_data(&root, None, &ships);
 
-        let _ = fs::remove_dir_all(root);
         assert!(loaded.is_empty());
+        root.close().unwrap();
     }
 
     #[test]
     fn sprite_data_url_matches_file_type() {
-        let root = temp_dir("sprite_mime_type");
+        let root = project_workspace("sprite_mime_type");
         let sprite_dir = root.join("graphics/ships");
         fs::create_dir_all(&sprite_dir).unwrap();
         fs::write(sprite_dir.join("demo.jpg"), b"jpeg-bytes").unwrap();
@@ -480,14 +480,14 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(data_url.starts_with("data:image/jpeg;base64,"));
+        root.close().unwrap();
     }
 
     #[test]
     fn core_fallback_loads_sprite() {
-        let mod_dir = temp_dir("core_fallback_mod");
-        let core_dir = temp_dir("core_fallback_core");
+        let mod_dir = project_workspace("core_fallback_mod");
+        let core_dir = project_workspace("core_fallback_core");
 
         // Create sprite in core_dir only (not in mod_dir)
         let sprite_dir = core_dir.join("graphics/weapons");
@@ -513,20 +513,19 @@ mod tests {
 
         let loaded = load_weapon_sprite_data(&mod_dir, Some(core_dir.as_path()), &weapon_specs);
 
-        let _ = fs::remove_dir_all(&mod_dir);
-        let _ = fs::remove_dir_all(&core_dir);
-
         // Should have loaded from core
         assert!(loaded.contains_key("testgun"));
         let sprites = &loaded["testgun"];
         assert!(sprites.contains_key("turretSprite"));
         assert!(sprites["turretSprite"].starts_with("data:image/png;base64,"));
+        core_dir.close().unwrap();
+        mod_dir.close().unwrap();
     }
 
     #[test]
     fn mod_sprite_takes_priority_over_core() {
-        let mod_dir = temp_dir("priority_mod");
-        let core_dir = temp_dir("priority_core");
+        let mod_dir = project_workspace("priority_mod");
+        let core_dir = project_workspace("priority_core");
 
         // Minimal PNG
         let png_bytes: [u8; 69] = [
@@ -552,31 +551,30 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(&mod_dir);
-        let _ = fs::remove_dir_all(&core_dir);
-
         // Should succeed (mod has priority, but both work)
         assert!(result.is_some());
+        core_dir.close().unwrap();
+        mod_dir.close().unwrap();
     }
 
     #[test]
     fn sprite_loader_rejects_parent_dir_escape() {
-        let mod_dir = temp_dir("sprite_parent_escape_mod");
-        let core_dir = temp_dir("sprite_parent_escape_core");
+        let mod_dir = project_workspace("sprite_parent_escape_mod");
+        let core_dir = project_workspace("sprite_parent_escape_core");
 
         let error = load_sprite_data_url(&mod_dir, Some(core_dir.as_path()), "../outside.png")
             .unwrap_err()
             .to_string();
 
-        let _ = fs::remove_dir_all(&mod_dir);
-        let _ = fs::remove_dir_all(&core_dir);
         assert!(error.contains("sprite path is outside resource root"));
+        core_dir.close().unwrap();
+        mod_dir.close().unwrap();
     }
 
     #[test]
     fn sprite_loader_rejects_absolute_path() {
-        let mod_dir = temp_dir("sprite_absolute_mod");
-        let core_dir = temp_dir("sprite_absolute_core");
+        let mod_dir = project_workspace("sprite_absolute_mod");
+        let core_dir = project_workspace("sprite_absolute_core");
         let absolute = mod_dir.join("graphics/ships/demo.png");
 
         let error = load_sprite_data_url(
@@ -587,14 +585,14 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = fs::remove_dir_all(&mod_dir);
-        let _ = fs::remove_dir_all(&core_dir);
         assert!(error.contains("sprite path is outside resource root"));
+        core_dir.close().unwrap();
+        mod_dir.close().unwrap();
     }
 
     #[test]
     fn resolve_mod_relative_path_returns_forward_slash_relative() {
-        let mod_dir = temp_dir("resolve_relative_mod");
+        let mod_dir = project_workspace("resolve_relative_mod");
         let sprite_dir = mod_dir.join("graphics").join("ships");
         fs::create_dir_all(&sprite_dir).unwrap();
         let sprite = sprite_dir.join("demo.png");
@@ -604,14 +602,14 @@ mod tests {
             resolve_mod_relative_path(&mod_dir.to_string_lossy(), &sprite.to_string_lossy())
                 .unwrap();
 
-        let _ = fs::remove_dir_all(&mod_dir);
         assert_eq!(relative, "graphics/ships/demo.png");
+        mod_dir.close().unwrap();
     }
 
     #[test]
     fn resolve_mod_relative_path_rejects_outside_root() {
-        let mod_dir = temp_dir("resolve_outside_mod");
-        let outside = temp_dir("resolve_outside_file_dir");
+        let mod_dir = project_workspace("resolve_outside_mod");
+        let outside = project_workspace("resolve_outside_file_dir");
         let outside_file = outside.join("elsewhere.png");
         fs::write(&outside_file, b"png").unwrap();
 
@@ -620,8 +618,8 @@ mod tests {
                 .unwrap_err()
                 .to_string();
 
-        let _ = fs::remove_dir_all(&mod_dir);
-        let _ = fs::remove_dir_all(&outside);
         assert!(error.contains("所选文件位于 Mod 目录之外"));
+        outside.close().unwrap();
+        mod_dir.close().unwrap();
     }
 }

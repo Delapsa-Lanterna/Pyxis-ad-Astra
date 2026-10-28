@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::testutil::TestWorkspace;
 use crate::{
     errors::{AppError, AppResult, ErrorDiagnostic},
     models::{EntityIdentityChange, FileVersion, SaveDelivery, WriteResult},
@@ -525,6 +527,7 @@ fn execute<T: Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
     use serde_json::Value;
     use std::{sync::mpsc, time::Duration};
     use tauri::ipc::InvokeResponseBody;
@@ -568,7 +571,7 @@ mod tests {
     #[test]
     fn project_completion_is_independent_of_subscriber_failure_and_release() {
         let _serial = TEST_QUEUE.lock().unwrap();
-        let root = crate::testutil::temp_dir("save_subscribers");
+        let root = project_workspace("save_subscribers");
         let receiver = window("observer");
         save_empty("observer", "first", &root.to_string_lossy());
         assert_eq!(saved(&receiver)["requestId"], "first");
@@ -578,15 +581,14 @@ mod tests {
         release_window("observer").unwrap();
         save_empty("observer", "released", &root.to_string_lossy());
         assert!(saves().unwrap().roots.is_empty());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     #[cfg(windows)]
     fn replaced_root_rejects_writing_and_releases_project_waiting() {
         let _serial = TEST_QUEUE.lock().unwrap();
-        let (fixture, outside, link) =
-            crate::testutil::temp_junction_dir("save_replaced_root", "linked");
+        let (fixture, outside, link) = TestWorkspace::junction("save_replaced_root", "linked");
         let project = fixture.join("project");
         std::fs::create_dir(&project).unwrap();
         let text = project.to_string_lossy().to_string();
@@ -601,15 +603,14 @@ mod tests {
         wait_projects(&[text]).unwrap();
         assert!(!outside.join("saved.txt").exists());
         std::fs::remove_dir(project).unwrap();
-        std::fs::remove_dir_all(fixture).unwrap();
-        std::fs::remove_dir_all(outside).unwrap();
+        fixture.close().unwrap();
     }
 
     #[test]
     fn queued_failure_releases_its_position_and_missing_root_can_be_closed() {
         let _serial = TEST_QUEUE.lock().unwrap();
         for remove_before_enqueue in [false, true] {
-            let root = crate::testutil::temp_dir("save_missing_root");
+            let root = project_workspace("save_missing_root");
             let text = root.to_string_lossy().to_string();
             if remove_before_enqueue {
                 std::fs::remove_dir_all(&root).unwrap();
@@ -642,7 +643,7 @@ mod tests {
     #[test]
     fn receive_order_is_fixed_before_workers_start() {
         let _serial = TEST_QUEUE.lock().unwrap();
-        let root = crate::testutil::temp_dir("save_receive_order");
+        let root = project_workspace("save_receive_order");
         let text = root.to_string_lossy().to_string();
         let first = enqueue("ordered", "earlier".into(), &text, None).unwrap();
         let second = enqueue("ordered", "later".into(), &text, None).unwrap();
@@ -663,14 +664,14 @@ mod tests {
         worker.join().unwrap();
         receive.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(saves().unwrap().roots.is_empty());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn recovery_keeps_one_project_and_survives_all_subscribers_releasing() {
         let _serial = TEST_QUEUE.lock().unwrap();
-        let root = crate::testutil::temp_dir("save_project_recovery");
-        let other = crate::testutil::temp_dir("save_project_unblocked");
+        let root = project_workspace("save_project_recovery");
+        let other = project_workspace("save_project_unblocked");
         let text = root.to_string_lossy().to_string();
         let receiver = window("recovery-owner");
         let queued = enqueue("recovery-owner", "recover".into(), &text, None).unwrap();
@@ -703,15 +704,15 @@ mod tests {
         })
         .unwrap();
         assert!(saves().unwrap().roots.is_empty());
-        std::fs::remove_dir_all(root).unwrap();
-        std::fs::remove_dir_all(other).unwrap();
+        root.close().unwrap();
+        other.close().unwrap();
     }
 
     #[test]
     fn source_confirmation_cancellation_and_reappearing_files_end_without_writes() {
         let _serial = TEST_QUEUE.lock().unwrap();
         for reappeared in [false, true] {
-            let root = crate::testutil::temp_dir("missing_source_answer");
+            let root = project_workspace("missing_source_answer");
             let path = root.join("notes.txt");
             std::fs::write(&path, "before").unwrap();
             let captured = crate::io::file_version(&path).unwrap();
@@ -768,14 +769,14 @@ mod tests {
             }
             assert!(saves().unwrap().roots.is_empty());
             release_window(owner).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn missing_source_confirmation_follows_the_project_after_subscriber_release() {
         let _serial = TEST_QUEUE.lock().unwrap();
-        let root = crate::testutil::temp_dir("save_confirmation_handoff");
+        let root = project_workspace("save_confirmation_handoff");
         let text = root.to_string_lossy().to_string();
         let source = window("confirmation-source");
         let next_root = text.clone();
@@ -830,13 +831,13 @@ mod tests {
         worker.join().unwrap();
         assert!(work("confirmation").is_err());
         release_window("confirmation-receiver").unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn explicit_abandon_ends_recovery_and_following_requests() {
         let _serial = TEST_QUEUE.lock().unwrap();
-        let root = crate::testutil::temp_dir("save_abandon");
+        let root = project_workspace("save_abandon");
         let text = root.to_string_lossy().to_string();
         let receive = window("abandon-owner");
         let first = enqueue("abandon-owner", "blocked".into(), &text, None).unwrap();
@@ -870,13 +871,13 @@ mod tests {
         wait_projects(&[text]).unwrap();
         assert!(saves().unwrap().roots.is_empty());
         release_window("abandon-owner").unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
     #[test]
     fn one_multifile_save_delivers_one_event_and_one_history_entry_to_each_window() {
         use crate::models::*;
         let _serial = TEST_QUEUE.lock().unwrap();
-        let root = crate::testutil::temp_dir("save_queue_multifile");
+        let root = project_workspace("save_queue_multifile");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         std::fs::write(
@@ -999,6 +1000,6 @@ mod tests {
         release_window("multifile-first").unwrap();
         release_window("multifile-second").unwrap();
         crate::services::project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

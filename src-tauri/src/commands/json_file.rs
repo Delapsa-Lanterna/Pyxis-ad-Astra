@@ -10,7 +10,8 @@ mod validation_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{io::write_utf8_no_bom, testutil::temp_dir};
+    use crate::io::write_utf8_no_bom;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn spec_save_scope_matches_indexed_filename_without_previous_id() {
@@ -30,7 +31,7 @@ mod tests {
                 "baseHullId",
             ),
         ] {
-            let root = temp_dir(&format!("spec_scope_{extension}"));
+            let root = project_workspace(&format!("spec_scope_{extension}"));
             std::fs::create_dir_all(root.join(dir)).unwrap();
             let indexed = format!("{dir}/filename.{extension}");
             write_utf8_no_bom(
@@ -69,7 +70,7 @@ mod tests {
                 !json_file_save_context(&manifest.session_id, kind, None, "new", None).unwrap()
             );
             services::project::close_project_session(manifest.session_id).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 }

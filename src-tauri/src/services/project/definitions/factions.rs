@@ -127,7 +127,7 @@ fn is_owned_faction_blueprint_tag(tag: &str, faction_id: &str) -> bool {
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
     use serde_json::json;
     use std::fs;
 
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn faction_blueprint_tags_preserve_owned_tags() {
-        let root = temp_dir("faction_foreign_blueprint_tags");
+        let root = project_workspace("faction_foreign_blueprint_tags");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -158,18 +158,18 @@ mod tests {
 
         let faction_blueprint_tags = faction_blueprint_tags(&load_faction_files(&root).unwrap());
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(
             faction_blueprint_tags.get("demo_bp"),
             Some(&"demo".to_string())
         );
         assert!(!faction_blueprint_tags.contains_key("custom_bp"));
         assert!(!faction_blueprint_tags.contains_key("base_bp"));
+        root.close().unwrap();
     }
 
     #[test]
     fn loads_factions_from_faction_path_csv() {
-        let root = temp_dir("faction_path_csv");
+        let root = project_workspace("faction_path_csv");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -195,16 +195,16 @@ mod tests {
 
         let files = load_faction_files(&root).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(files.contains_key("plsp"));
         assert!(files.contains_key("celestite"));
         assert!(!files.contains_key("mercenary"));
         assert_eq!(files["plsp"].data["displayName"], "Polaris");
+        root.close().unwrap();
     }
 
     #[test]
     fn reports_faction_index_csv_path() {
-        let root = temp_dir("faction_bad_csv");
+        let root = project_workspace("faction_bad_csv");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         // Short rows are tolerated now; a real defect must still surface the CSV path.
@@ -212,14 +212,14 @@ mod tests {
 
         let error = load_faction_files(&root).unwrap_err().to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("解析 CSV 失败"));
         assert!(error.contains("factions.csv"));
+        root.close().unwrap();
     }
 
     #[test]
     fn faction_index_reports_non_comment_row_without_id() {
-        let root = temp_dir("faction_missing_id");
+        let root = project_workspace("faction_missing_id");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -235,15 +235,15 @@ mod tests {
 
         let error = load_faction_files(&root).unwrap_err().to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("factions.csv"));
         assert!(error.contains("row 2"));
         assert!(error.contains("missing faction id"));
+        root.close().unwrap();
     }
 
     #[test]
     fn indexed_faction_file_parse_errors_are_not_hidden() {
-        let root = temp_dir("faction_bad_file");
+        let root = project_workspace("faction_bad_file");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -255,13 +255,13 @@ mod tests {
 
         let load_error = load_faction_files(&root).unwrap_err().to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(load_error.contains("demo.faction"));
+        root.close().unwrap();
     }
 
     #[test]
     fn indexed_faction_file_must_be_object() {
-        let root = temp_dir("faction_non_object_file");
+        let root = project_workspace("faction_non_object_file");
         let dir = root.join("data/world/factions");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(
@@ -273,10 +273,10 @@ mod tests {
 
         let load_error = load_faction_files(&root).unwrap_err().to_string();
 
-        let _ = fs::remove_dir_all(root);
         // A non-object root is rejected by the parser per the game's
         // new JSONObject; read_json_file adds the file path.
         assert!(load_error.contains("demo.faction"));
         assert!(load_error.contains("must begin with '{'"));
+        root.close().unwrap();
     }
 }

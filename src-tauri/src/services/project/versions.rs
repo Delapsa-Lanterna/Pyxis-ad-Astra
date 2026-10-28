@@ -19,10 +19,11 @@ pub(super) fn version_for_path(session: &ProjectSession, path: &str) -> FileVers
 #[cfg(test)]
 mod tests {
     use crate::models::EntityKind;
+    use crate::services::project::test_support::project_workspace;
     use std::path::Path;
     #[test]
     fn session_versions_cover_mission_directory_and_skin_resource_override() {
-        let root = crate::testutil::temp_dir("versioned_mission_skin");
+        let root = project_workspace("versioned_mission_skin");
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         std::fs::write(
             root.join("data/hulls/base.ship"),
@@ -81,6 +82,6 @@ mod tests {
         std::fs::write(root.join("data/missions/demo/new.txt"), "external").unwrap();
         assert!(crate::io::verify_versions(&manifest.mod_root, &mission).is_err());
         super::super::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

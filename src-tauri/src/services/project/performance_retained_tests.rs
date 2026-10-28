@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 
 use super::query::csv_window::{query_csv_table_index, query_csv_table_rows};
 use super::{PerformanceTrace, close_project_session, open_project_session_traced};
@@ -45,7 +46,7 @@ fn read_index(session: &str) -> ReadIndex {
 #[ignore = "explicit production CSV performance run"]
 fn retained_csv_performance() {
     for count in [50, 300, 2000] {
-        let root = crate::testutil::temp_dir(&format!("retained_csv_perf_{count}"));
+        let root = project_workspace(&format!("retained_csv_perf_{count}"));
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let header = std::iter::once("id".to_string())
             .chain((1..40).map(|column| format!("field_{column}")))
@@ -184,6 +185,6 @@ fn retained_csv_performance() {
             serde_json::json!({"count":count,"columns":40,"bytes":text.len(),"openSession":summarize(opening.clone()),"coldIndex":summarize(cold.clone()),"warmIndex":summarize(warm.clone()),"rows":summarize(rows.clone()),"search":summarize(search.clone()),"saveOrder":summarize(writes.clone()),"recovery":summarize(recovery.clone()),"queryWork":query_work,"saveWork":save_work,"recoveryWork":recovery_work,"samples":{"openSession":opening,"coldIndex":cold,"warmIndex":warm,"rows":rows,"search":search,"saveOrder":writes,"recovery":recovery}})
         );
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

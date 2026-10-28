@@ -818,13 +818,14 @@ thread_local! {
 mod tests {
     use super::*;
     use crate::io::read_utf8_no_bom;
-    use crate::testutil::{temp_dir, temp_linked_dir};
+    use crate::services::project::test_support::project_workspace;
+    use crate::testutil::TestWorkspace;
     use std::{fs, sync::mpsc, thread, time::Duration};
 
     #[test]
     fn failed_file_step_restores_all_previous_bytes_and_partial_output() {
         for failed in 0..3 {
-            let root = temp_dir("restore_file_positions");
+            let root = project_workspace("restore_file_positions");
             let originals = [
                 vec![0x81, 0x93, 0x0d, 0x0a],
                 b"second\r\n".to_vec(),
@@ -866,13 +867,13 @@ mod tests {
             for (index, bytes) in originals.iter().enumerate() {
                 assert_eq!(fs::read(root.join(format!("{index}.txt"))).unwrap(), *bytes);
             }
-            fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn vanished_root_waits_for_restoration_without_recreating_it() {
-        let root = temp_dir("restore_vanished_root");
+        let root = project_workspace("restore_vanished_root");
         let held = root.with_extension("held");
         fs::write(root.join("first.txt"), "first").unwrap();
         fs::write(root.join("second.txt"), "second").unwrap();
@@ -920,12 +921,12 @@ mod tests {
             "second"
         );
         assert!(!held.exists());
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn failed_business_save_restores_files_without_advancing_history_or_session() {
-        let root = temp_dir("restore_business_save");
+        let root = project_workspace("restore_business_save");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         let spec = root.join("data/hulls/original.ship");
         let csv = root.join("data/hulls/ship_data.csv");
@@ -1002,12 +1003,12 @@ mod tests {
         let saved = crate::services::write_transactions::commit_action(action).unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
         crate::services::project::close_project_session(manifest.session_id).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn recovery_reverses_create_delete_rename_and_directory_steps() {
-        let root = temp_dir("restore_mixed_file_steps");
+        let root = project_workspace("restore_mixed_file_steps");
         fs::write(root.join("deleted.bin"), [0, 255, 1]).unwrap();
         fs::write(root.join("renamed.txt"), "old-name").unwrap();
         fs::create_dir(root.join("directory")).unwrap();
@@ -1047,12 +1048,12 @@ mod tests {
             fs::read(root.join("directory/nested.bin")).unwrap(),
             [0, 128]
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn rename_roundtrips_paths_and_content() {
-        let root = temp_dir("rename_roundtrip");
+        let root = project_workspace("rename_roundtrip");
         let old = root.join("nested/old.spec");
         let next = root.join("nested/new.spec");
         fs::create_dir_all(old.parent().unwrap()).unwrap();
@@ -1088,12 +1089,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(fs::read_to_string(&next).unwrap(), "after");
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn rename_failure_restores_source_and_releases_target() {
-        let root = temp_dir("rename_rollback");
+        let root = project_workspace("rename_rollback");
         fs::write(root.join("old.spec"), "before").unwrap();
         fs::create_dir(root.join("blocked")).unwrap();
         let mut renamed = build_text_change(&root.join("old.spec"), Some("after".into())).unwrap();
@@ -1113,13 +1114,13 @@ mod tests {
         );
         assert_eq!(fs::read_to_string(root.join("old.spec")).unwrap(), "before");
         assert!(!root.join("new.spec").exists());
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[cfg(windows)]
     #[test]
     fn case_only_rename_preserves_actual_filename_through_replay() {
-        let root = temp_dir("case_only_rename");
+        let root = project_workspace("case_only_rename");
         fs::write(root.join("Demo.spec"), "before").unwrap();
         let mut builder = FileChangeSetBuilder::new(&root).unwrap();
         builder
@@ -1153,13 +1154,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(filename(), "demo.spec");
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[cfg(windows)]
     #[test]
     fn accepted_change_paths_expand_aliases_and_preserve_rename_case() {
-        let root = temp_dir("changeset_alias_case");
+        let root = project_workspace("changeset_alias_case");
         fs::write(root.join("Original.spec"), "before").unwrap();
         let mut change =
             build_text_change(&root.join("Original.spec"), Some("after".into())).unwrap();
@@ -1226,12 +1227,12 @@ mod tests {
             fs::read_to_string(root.join("Original.spec")).unwrap(),
             "before"
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn root_queue_is_fifo_and_reentrant() {
-        let root = temp_dir("fifo_root_queue");
+        let root = project_workspace("fifo_root_queue");
         let held = acquire_root_write_lock(&root).unwrap();
         let nested = acquire_root_write_lock(&root).unwrap();
         let (sent, received) = mpsc::channel();
@@ -1257,12 +1258,12 @@ mod tests {
         for worker in workers {
             worker.join().unwrap();
         }
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn root_write_lock_serializes_same_canonical_root() {
-        let root = temp_dir("root_write_lock_serializes");
+        let root = project_workspace("root_write_lock_serializes");
         let held = acquire_root_write_lock(&root).unwrap();
         let (started_tx, started_rx) = mpsc::channel();
         let (released_tx, released_rx) = mpsc::channel();
@@ -1277,14 +1278,14 @@ mod tests {
         drop(held);
         released_rx.recv_timeout(Duration::from_secs(1)).unwrap();
         worker.join().unwrap();
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[cfg(windows)]
     #[test]
     fn later_snapshot_failure_keeps_all_earlier_targets_unchanged() {
         use std::os::windows::fs::OpenOptionsExt;
-        let root = temp_dir("snapshot_preflight");
+        let root = project_workspace("snapshot_preflight");
         let first = root.join("first.txt");
         let second = root.join("second.txt");
         fs::write(&first, "first before").unwrap();
@@ -1305,14 +1306,14 @@ mod tests {
         );
         let first_after = fs::read_to_string(&first).unwrap();
         drop(locked);
-        fs::remove_dir_all(root).unwrap();
         assert!(result.is_err());
         assert_eq!(first_after, "first before");
+        root.close().unwrap();
     }
 
     #[test]
     fn root_write_reports_apply_and_restore_errors() {
-        let root = temp_dir("rollback_reports_restore_errors");
+        let root = project_workspace("rollback_reports_restore_errors");
         fs::create_dir_all(&root).unwrap();
         let change = FileChangeRecord {
             kind: FileChangeKind::File,
@@ -1334,9 +1335,9 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("changeset apply failed and rollback failed"));
         assert!(error.contains("rollback_reports_restore_errors"));
+        root.close().unwrap();
     }
 
     #[test]
@@ -1358,7 +1359,7 @@ mod tests {
 
     #[test]
     fn directory_delete_change_roundtrips_text_snapshot() {
-        let root = temp_dir("directory_delete_roundtrip");
+        let root = project_workspace("directory_delete_roundtrip");
         let dir = root.join("data/missions/demo");
         fs::create_dir_all(dir.join("nested")).unwrap();
         write_utf8_no_bom(&dir.join("descriptor.json"), "{\"title\":\"Demo\"}").unwrap();
@@ -1384,15 +1385,15 @@ mod tests {
         let descriptor = read_utf8_no_bom(&dir.join("descriptor.json")).unwrap();
         let nested = read_utf8_no_bom(&dir.join("nested/readme.txt")).unwrap();
         let icon = fs::read(dir.join("icon.bin")).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(descriptor, "{\"title\":\"Demo\"}");
         assert_eq!(nested, "details");
         assert_eq!(icon, vec![0, 159, 146, 150]);
+        root.close().unwrap();
     }
 
     #[test]
     fn binary_file_change_can_create_undo_and_redo() {
-        let root = temp_dir("binary_file_create_history");
+        let root = project_workspace("binary_file_create_history");
         let path = root.join("graphics/ships/demo.png");
         let change = build_file_change(
             &path,
@@ -1424,13 +1425,13 @@ mod tests {
         )
         .unwrap();
         let bytes = fs::read(&path).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(bytes, vec![1, 2, 3]);
+        root.close().unwrap();
     }
 
     #[test]
     fn binary_file_change_can_overwrite_and_restore() {
-        let root = temp_dir("binary_file_overwrite_history");
+        let root = project_workspace("binary_file_overwrite_history");
         let path = root.join("graphics/ships/demo.png");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, [9, 8, 7]).unwrap();
@@ -1464,13 +1465,13 @@ mod tests {
         )
         .unwrap();
         let bytes = fs::read(&path).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(bytes, vec![1, 2, 3]);
+        root.close().unwrap();
     }
 
     #[test]
     fn binary_file_change_can_delete_and_restore() {
-        let root = temp_dir("binary_file_delete_history");
+        let root = project_workspace("binary_file_delete_history");
         let path = root.join("graphics/ships/demo.png");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, [9, 8, 7]).unwrap();
@@ -1491,14 +1492,14 @@ mod tests {
         )
         .unwrap();
         let bytes = fs::read(&path).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(bytes, vec![9, 8, 7]);
+        root.close().unwrap();
     }
 
     #[test]
     fn replay_rejects_changeset_path_outside_mod_root() {
-        let root = temp_dir("changeset_rejects_external_path");
-        let outside = temp_dir("changeset_rejects_external_outside");
+        let root = project_workspace("changeset_rejects_external_path");
+        let outside = project_workspace("changeset_rejects_external_outside");
         let change =
             build_file_change(&outside.join("outside.txt"), Some("bad".to_string()), None).unwrap();
 
@@ -1508,14 +1509,14 @@ mod tests {
             vec![change],
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        outside.close().unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn replay_rejects_parent_dir_escape() {
-        let root = temp_dir("changeset_rejects_parent_dir_escape");
+        let root = project_workspace("changeset_rejects_parent_dir_escape");
         let mut change =
             build_file_change(&root.join("inside.txt"), Some("bad".to_string()), None).unwrap();
         change.before_path = root.join("..").join("outside.txt").to_string_lossy().into();
@@ -1527,15 +1528,14 @@ mod tests {
             vec![change],
         );
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn replay_rejects_link_parent_escape() {
-        let Some((root, outside, linked)) = temp_linked_dir("replay_link_escape", "linked") else {
-            return;
-        };
+        let (root, _outside, linked) =
+            TestWorkspace::directory_link("replay_link_escape", "linked").unwrap();
         let change = FileChangeRecord {
             kind: FileChangeKind::File,
             before_path: linked.join("outside.txt").to_string_lossy().to_string(),
@@ -1556,18 +1556,14 @@ mod tests {
             vec![change],
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn replay_rejects_link_directory_delete() {
-        let Some((root, outside, linked)) =
-            temp_linked_dir("replay_link_directory_delete", "linked")
-        else {
-            return;
-        };
+        let (root, _outside, linked) =
+            TestWorkspace::directory_link("replay_link_directory_delete", "linked").unwrap();
         let change = FileChangeRecord {
             kind: FileChangeKind::Directory,
             before_path: linked.to_string_lossy().to_string(),
@@ -1588,14 +1584,13 @@ mod tests {
             vec![change],
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn replay_rejects_directory_snapshot_parent_dir_before_apply() {
-        let root = temp_dir("changeset_rejects_snapshot_parent_dir");
+        let root = project_workspace("changeset_rejects_snapshot_parent_dir");
         let dir = root.join("data/missions/demo");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(&dir.join("mission_text.txt"), "keep").unwrap();
@@ -1624,14 +1619,14 @@ mod tests {
         );
         let text = read_utf8_no_bom(&dir.join("mission_text.txt")).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
         assert_eq!(text, "keep");
+        root.close().unwrap();
     }
 
     #[test]
     fn replay_rejects_invalid_directory_snapshot_relative_paths_before_apply() {
-        let root = temp_dir("changeset_rejects_invalid_snapshot_rel_path");
+        let root = project_workspace("changeset_rejects_invalid_snapshot_rel_path");
         let dir = root.join("data/missions/demo");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(&dir.join("mission_text.txt"), "keep").unwrap();
@@ -1666,7 +1661,7 @@ mod tests {
             assert_eq!(text, "keep", "{rel_path}");
         }
 
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     fn apply_file_change_set(

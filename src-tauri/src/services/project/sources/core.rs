@@ -32,6 +32,30 @@ static CORE_CACHES: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<CoreCacheEntry>>>>
 static CORE_FLIGHTS: LazyLock<Mutex<BTreeMap<String, Arc<CoreFlight>>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
+#[cfg(test)]
+pub(in crate::services::project) fn release_test_roots(root: &Path) -> Vec<String> {
+    let mut errors = Vec::new();
+    let root = crate::models::windows_path_key(&root.to_string_lossy());
+    match CORE_CACHES.lock() {
+        Ok(mut caches) => caches.retain(|path, _| {
+            !Path::new(&crate::models::windows_path_key(path)).starts_with(&root)
+        }),
+        Err(error) => errors.push(format!("release test Core cache {root}: {error}")),
+    }
+    match CORE_FLIGHTS.lock() {
+        Ok(flights) => {
+            for path in flights
+                .keys()
+                .filter(|path| Path::new(&crate::models::windows_path_key(path)).starts_with(&root))
+            {
+                errors.push(format!("unfinished Core read: {path}"));
+            }
+        }
+        Err(error) => errors.push(format!("inspect test Core reads {root}: {error}")),
+    }
+    errors
+}
+
 struct CoreFlight {
     result: Mutex<Option<Result<(), SharedCoreError>>>,
     ready: Condvar,
@@ -578,7 +602,7 @@ pub(in crate::services::project) fn invalidate_core_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
     use std::{
         fs,
         sync::{
@@ -591,7 +615,7 @@ mod tests {
 
     #[test]
     fn fields_and_graphics_are_cached_with_the_core_root() {
-        let root = temp_dir("core_shared_products");
+        let root = project_workspace("core_shared_products");
         let core = root.join("starsector-core");
         fs::create_dir_all(core.join("data/hulls")).unwrap();
         fs::create_dir_all(core.join("graphics/ships")).unwrap();
@@ -620,12 +644,12 @@ mod tests {
         assert!(cache.data.graphics.is_some());
         drop(cache);
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn refreshed_product_loads_before_the_old_flight_finishes() {
-        let root = temp_dir("core_refresh_flight");
+        let root = project_workspace("core_refresh_flight");
         fs::create_dir_all(root.join("starsector-core/graphics")).unwrap();
         let text = root.to_string_lossy().to_string();
         let worker_root = text.clone();
@@ -639,13 +663,18 @@ mod tests {
                 |cache, value| cache.graphics = Some(value),
                 |_| {
                     started.send(()).unwrap();
-                    released.recv().unwrap();
+                    released.recv_timeout(Duration::from_secs(30)).unwrap();
                     Ok(vec!["graphics/old.png".to_string()])
                 },
             )
             .unwrap()
         });
-        ready.recv().unwrap();
+        let started_result = ready.recv_timeout(Duration::from_secs(30));
+        if let Err(error) = started_result {
+            drop(release);
+            let worker_result = old.join();
+            panic!("Core loader did not start: {error}; worker={worker_result:?}");
+        }
         invalidate_core_sources(
             &text,
             &[crate::models::InvalidatedResourceScope {
@@ -662,17 +691,19 @@ mod tests {
         });
         let result = completion.recv_timeout(Duration::from_secs(5));
         release.send(()).unwrap();
-        old.join().unwrap();
-        current.join().unwrap();
+        let old_result = old.join();
+        let current_result = current.join();
+        old_result.unwrap();
+        current_result.unwrap();
         assert_eq!(result.unwrap().unwrap(), vec!["graphics/new.png"]);
         assert_eq!(load_core_graphics(&text).unwrap(), vec!["graphics/new.png"]);
         invalidate_core_cache(&text).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn concurrent_core_product_loads_share_one_loader() {
-        let root = temp_dir("core_single_flight");
+        let root = project_workspace("core_single_flight");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         let root_text = root.to_string_lossy().to_string();
         let barrier = Arc::new(Barrier::new(2));
@@ -695,16 +726,18 @@ mod tests {
         };
         let first = worker(root_text.clone(), barrier.clone(), loads.clone());
         let second = worker(root_text.clone(), barrier, loads.clone());
-        assert!(first.join().unwrap().is_ok());
-        assert!(second.join().unwrap().is_ok());
+        let first_result = first.join();
+        let second_result = second.join();
+        assert!(first_result.unwrap().is_ok());
+        assert!(second_result.unwrap().is_ok());
         assert_eq!(loads.load(Ordering::Relaxed), 1);
         invalidate_core_cache(&root_text).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn core_catalogs_share_root_identity_and_reopen_independently() {
-        let root = temp_dir("core_catalog_root_identity");
+        let root = project_workspace("core_catalog_root_identity");
         let first_root = root.join("first");
         let second_root = root.join("second");
         for (game_root, id) in [(&first_root, "first"), (&second_root, "second")] {
@@ -733,12 +766,12 @@ mod tests {
 
         invalidate_core_cache(&first_root.to_string_lossy()).unwrap();
         invalidate_core_cache(&second_root.to_string_lossy()).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn source_invalidation_reloads_affected_catalog_and_preserves_other_types() {
-        let root = temp_dir("core_catalog_source_invalidation");
+        let root = project_workspace("core_catalog_source_invalidation");
         let hull_dir = root.join("starsector-core/data/hulls");
         let projectile_dir = root.join("starsector-core/data/weapons/proj");
         fs::create_dir_all(&hull_dir).unwrap();
@@ -767,12 +800,12 @@ mod tests {
         assert!(Arc::ptr_eq(&projectiles, &unaffected));
 
         invalidate_core_cache(&root_text).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn overlapping_family_loads_preserve_each_loaded_catalog() {
-        let root = temp_dir("core_overlapping_catalogs");
+        let root = project_workspace("core_overlapping_catalogs");
         let projectile_dir = root.join("starsector-core/data/weapons/proj");
         fs::create_dir_all(&projectile_dir).unwrap();
         fs::write(projectile_dir.join("demo.proj"), r#"{"id":"demo"}"#).unwrap();
@@ -807,12 +840,12 @@ mod tests {
             );
         }
         invalidate_core_cache(&root_text).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn released_catalog_does_not_publish_into_a_reopened_root() {
-        let root = temp_dir("core_released_catalog");
+        let root = project_workspace("core_released_catalog");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         let root_text = root.to_string_lossy();
         get_or_load_core(
@@ -834,35 +867,38 @@ mod tests {
             assert!(snapshot.data.projectile_specs.is_some());
         }
         invalidate_core_cache(&root_text).unwrap();
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn core_cache_rejects_parent_dir_root() {
-        let root = temp_dir("core_cache_parent_dir_root");
-        let escaped = root.join("..");
+        let root = project_workspace("core_cache_parent_dir_root");
+        let escaped = root.literal_path("..");
 
         let error = load_core_ship_files(&escaped.to_string_lossy())
             .unwrap_err()
             .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("invalid starsector root path"));
+        root.close().unwrap();
     }
 
     #[test]
     fn core_cache_key_normalizes_root_identity() {
-        let root = temp_dir("core_cache_key");
+        let root = project_workspace("core_cache_key");
         let left = core_cache_key(&root.to_string_lossy()).unwrap();
         let right = core_cache_key(&root.join(".").to_string_lossy()).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(left, right);
+        root.close().unwrap();
     }
 
     #[test]
     fn persistent_core_cache_rejects_changed_source_content() {
-        let root = temp_dir("persistent_core_cache");
+        if crate::testutil::isolated_test() {
+            return;
+        }
+        let root = project_workspace("persistent_core_cache");
         let hull_dir = root.join("starsector-core/data/hulls");
         fs::create_dir_all(&hull_dir).unwrap();
         crate::io::write_utf8_no_bom(
@@ -870,10 +906,8 @@ mod tests {
             r#"{"hullId":"demo","spriteName":"before"}"#,
         )
         .unwrap();
-        super::super::super::sources::configure_persistent_index_cache(
-            crate::testutil::persistent_cache_directory(),
-        )
-        .unwrap();
+        super::super::super::sources::configure_persistent_index_cache(&root.outer().join("cache"))
+            .unwrap();
         crate::io::write_utf8_no_bom(
             &hull_dir.join("ship_data.csv"),
             "name,id\n#disabled,demo\n\"#quoted\",demo\n #space,space\n",
@@ -928,8 +962,8 @@ mod tests {
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
         let changed = load_core_ship_files(&root.to_string_lossy()).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(loaded["demo"].data["spriteName"], "before");
         assert_eq!(changed["demo"].data["spriteName"], "after");
+        root.close().unwrap();
     }
 }

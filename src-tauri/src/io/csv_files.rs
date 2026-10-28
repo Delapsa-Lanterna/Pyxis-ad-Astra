@@ -89,10 +89,11 @@ mod tests {
 
     #[test]
     fn read_csv_data_returns_an_empty_table_for_missing_files() {
-        let missing = std::path::Path::new("definitely/missing/table.csv");
-        let table = read_csv_data(missing).expect("empty table");
+        let root = crate::testutil::TestWorkspace::new("missing_csv");
+        let table = read_csv_data(&root.join("missing/table.csv")).expect("empty table");
         assert!(table.header.is_empty());
         assert!(table.rows.is_empty());
+        root.close().unwrap();
     }
 
     #[test]

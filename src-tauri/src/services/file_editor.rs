@@ -191,12 +191,13 @@ pub fn transcode_file_to_utf8(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::{temp_dir, temp_linked_dir};
+    use crate::services::project::test_support::project_workspace;
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     #[test]
     fn recovery_editor_loads_file_inside_mod_root() {
-        let root = temp_dir("recovery_editor_loads_inside_root");
+        let root = project_workspace("recovery_editor_loads_inside_root");
         let target = root.join("mod_info.json");
         write_utf8_no_bom(&target, "{\"id\":\"demo\"}").unwrap();
 
@@ -206,13 +207,13 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(loaded.text, "{\"id\":\"demo\"}");
+        root.close().unwrap();
     }
 
     #[test]
     fn recovery_editor_saves_file_inside_mod_root() {
-        let root = temp_dir("recovery_editor_saves_inside_root");
+        let root = project_workspace("recovery_editor_saves_inside_root");
         let target = root.join("mod_info.json");
         write_utf8_no_bom(&target, "{").unwrap();
 
@@ -224,15 +225,15 @@ mod tests {
         .unwrap();
         let saved = std::fs::read_to_string(&target).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(saved, "{}");
         assert_eq!(result.changes.len(), 1);
+        root.close().unwrap();
     }
 
     #[test]
     fn save_text_file_rejects_path_outside_mod_root() {
-        let root = temp_dir("save_text_file_rejects_external_root");
-        let outside = temp_dir("save_text_file_rejects_external_outside");
+        let root = project_workspace("save_text_file_rejects_external_root");
+        let outside = project_workspace("save_text_file_rejects_external_outside");
 
         let result = save_text_file(
             &root.to_string_lossy(),
@@ -240,14 +241,14 @@ mod tests {
             "bad".to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        outside.close().unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn save_text_file_rejects_parent_dir_escape() {
-        let root = temp_dir("save_text_file_rejects_parent_dir_escape");
+        let root = project_workspace("save_text_file_rejects_parent_dir_escape");
         let escaped = root.join("..").join("outside.txt");
 
         let result = save_text_file(
@@ -256,14 +257,14 @@ mod tests {
             "bad".to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn load_editable_file_rejects_path_outside_mod_root() {
-        let root = temp_dir("load_editable_file_rejects_external_root");
-        let outside = temp_dir("load_editable_file_rejects_external_outside");
+        let root = project_workspace("load_editable_file_rejects_external_root");
+        let outside = project_workspace("load_editable_file_rejects_external_outside");
         let outside_file = outside.join("outside.txt");
         write_utf8_no_bom(&outside_file, "bad").unwrap();
 
@@ -272,14 +273,14 @@ mod tests {
             outside_file.to_string_lossy().to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        outside.close().unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn load_editable_file_rejects_parent_dir_escape() {
-        let root = temp_dir("load_editable_file_rejects_parent_dir_escape");
+        let root = project_workspace("load_editable_file_rejects_parent_dir_escape");
         let escaped = root.join("..").join("outside.txt");
 
         let result = load_editable_file(
@@ -287,16 +288,14 @@ mod tests {
             escaped.to_string_lossy().to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn save_text_file_rejects_link_parent_escape() {
-        let Some((root, outside, linked)) = temp_linked_dir("save_text_link_escape", "linked")
-        else {
-            return;
-        };
+        let (root, _outside, linked) =
+            TestWorkspace::directory_link("save_text_link_escape", "linked").unwrap();
 
         let result = save_text_file(
             &root.to_string_lossy(),
@@ -304,17 +303,14 @@ mod tests {
             "bad".to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn load_editable_file_rejects_link_parent_escape() {
-        let Some((root, outside, linked)) = temp_linked_dir("load_text_link_escape", "linked")
-        else {
-            return;
-        };
+        let (root, outside, linked) =
+            TestWorkspace::directory_link("load_text_link_escape", "linked").unwrap();
         write_utf8_no_bom(&outside.join("outside.txt"), "bad").unwrap();
 
         let result = load_editable_file(
@@ -322,14 +318,13 @@ mod tests {
             linked.join("outside.txt").to_string_lossy().to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn transcodes_legacy_encoding_to_utf8() {
-        let root = temp_dir("transcode_legacy_to_utf8");
+        let root = project_workspace("transcode_legacy_to_utf8");
         let target = root.join("notes.txt");
         let (encoded, _, _) = encoding_rs::GB18030.encode("舰船注释");
         fs::write(&target, encoded).unwrap();
@@ -342,14 +337,14 @@ mod tests {
         .unwrap();
         let saved = fs::read(&target).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(String::from_utf8(saved).unwrap(), "舰船注释");
         assert_eq!(result.changes.len(), 1);
+        root.close().unwrap();
     }
 
     #[test]
     fn transcode_refuses_already_utf8_file() {
-        let root = temp_dir("transcode_refuses_utf8");
+        let root = project_workspace("transcode_refuses_utf8");
         let target = root.join("notes.txt");
         write_utf8_no_bom(&target, "已是 UTF-8").unwrap();
 
@@ -359,13 +354,13 @@ mod tests {
             "gb18030",
         );
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn transcode_refuses_undecodable_bytes() {
-        let root = temp_dir("transcode_undecodable");
+        let root = project_workspace("transcode_undecodable");
         let target = root.join("notes.txt");
         // A lone 0x81 is an incomplete GB18030 sequence. Windows-1252 is a
         // total mapping and never reports errors; GB18030 does.
@@ -377,14 +372,14 @@ mod tests {
             "gb18030",
         );
 
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn transcode_rejects_path_outside_mod_root() {
-        let root = temp_dir("transcode_rejects_external_root");
-        let outside = temp_dir("transcode_rejects_external_outside");
+        let root = project_workspace("transcode_rejects_external_root");
+        let outside = project_workspace("transcode_rejects_external_outside");
         let outside_file = outside.join("notes.txt");
         fs::write(&outside_file, [0x81u8]).unwrap();
 
@@ -394,8 +389,8 @@ mod tests {
             "gb18030",
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        outside.close().unwrap();
+        root.close().unwrap();
     }
 }

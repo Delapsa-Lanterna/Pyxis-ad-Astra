@@ -80,18 +80,19 @@ impl StagedCsvWrite {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
     use crate::{
         io::{read_utf8_no_bom, write_utf8_no_bom},
         services::project::{
             PerformanceTrace, cache::ensure_registered_table_rows, session::build_project_session,
         },
-        testutil::temp_dir,
+        testutil::TestWorkspace,
     };
     use serde_json::json;
-    use std::{fs, path::PathBuf};
+    use std::fs;
 
-    fn fixture() -> (PathBuf, ProjectSession) {
-        let root = temp_dir("csv_staging");
+    fn fixture() -> (TestWorkspace, ProjectSession) {
+        let root = project_workspace("csv_staging");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
@@ -157,7 +158,7 @@ mod tests {
             assert!(!parsed.rows.last().unwrap().is_comment);
             assert_eq!(parsed.rows.last().unwrap().data["name"], "#Literal");
         }
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[cfg(windows)]
@@ -186,6 +187,6 @@ mod tests {
             before
         );
         drop(staged);
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

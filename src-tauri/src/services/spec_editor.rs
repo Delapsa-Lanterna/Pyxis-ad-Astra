@@ -91,14 +91,15 @@ fn validate_imported_editor_spec_path(
 mod tests {
     use super::*;
     use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
-    use crate::testutil::{temp_dir, temp_linked_file};
+    use crate::services::project::test_support::project_workspace;
+    use crate::testutil::TestWorkspace;
     use std::{fs, path::PathBuf};
 
     #[test]
     fn empty_weapon_editor_mounts_preserve_file_and_history_until_corrected() {
         use crate::models::{AssociatedSpecCreateParams, EntityKind, WeaponSpecClass};
         for spec_class in [WeaponSpecClass::Projectile, WeaponSpecClass::Beam] {
-            let root = temp_dir("weapon_editor_required_points");
+            let root = project_workspace("weapon_editor_required_points");
             fs::create_dir_all(root.join("data/weapons")).unwrap();
             let path = root.join("data/weapons/fixture.wpn");
             let mut valid = crate::domain::spec_construction::create_associated_spec(
@@ -157,13 +158,13 @@ mod tests {
             assert_eq!(saved.content.map(|content| content.value), Some(valid));
             assert_eq!(saved.history.undo_stack.len(), 1);
             crate::services::project::close_project_session(manifest.session_id).unwrap();
-            fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn pulse_import_can_be_read_and_corrected_before_structured_save() {
-        let root = temp_dir("pulse_editor_read_correct_save");
+        let root = project_workspace("pulse_editor_read_correct_save");
         fs::create_dir_all(root.join("data/weapons")).unwrap();
         let path = root.join("data/weapons/demo.wpn");
         let original = r#"{"id":"demo","specClass":"pulse","turretOffsets":[0,0],"hardpointOffsets":[0,0],"builtInWeapons":{"_slot":"w"},"array":[{"_field":1}]}"#;
@@ -190,7 +191,7 @@ mod tests {
         .unwrap();
         assert_eq!(read_json_file(&path).unwrap(), content);
         assert_eq!(saved.content.map(|content| content.value), Some(content));
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -202,7 +203,7 @@ mod tests {
             SpecEditorKind::System,
         ] {
             let definition = editor_spec_definition(kind).unwrap();
-            let root = temp_dir(&format!(
+            let root = project_workspace(&format!(
                 "spec_receipt_{}",
                 definition.extension_without_dot()
             ));
@@ -236,13 +237,13 @@ mod tests {
             .unwrap();
             assert!(noop.changes.is_empty());
             assert_eq!(noop.content.map(|content| content.value), Some(persisted));
-            fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn save_editor_spec_uses_fixed_weapon_target_boundary() {
-        let root = temp_dir("save_editor_weapon_spec");
+        let root = project_workspace("save_editor_weapon_spec");
         fs::create_dir_all(root.join("data/weapons/nested")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/nested/demo.wpn"),
@@ -263,14 +264,14 @@ mod tests {
             .canonicalize()
             .unwrap();
         let text = read_utf8_no_bom(&target).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(invalidation_paths(&result), [target]);
         assert!(text.contains("\"weaponType\": \"ENERGY\""));
+        root.close().unwrap();
     }
 
     #[test]
     fn editor_spec_save_preserves_existing_comments_and_normalizing_mode_rewrites() {
-        let root = temp_dir("save_editor_spec_json_modes");
+        let root = project_workspace("save_editor_spec_json_modes");
         fs::create_dir_all(root.join("data/weapons")).unwrap();
         let target = root.join("data/weapons/demo.wpn");
         write_utf8_no_bom(
@@ -305,12 +306,12 @@ mod tests {
         .unwrap();
         assert_eq!(normalized.changes.len(), 1);
         assert!(!read_utf8_no_bom(&target).unwrap().contains("# important"));
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn save_editor_spec_uses_fixed_ship_target_boundary() {
-        let root = temp_dir("save_editor_unknown_spec");
+        let root = project_workspace("save_editor_unknown_spec");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
 
         let result = save_editor_spec(
@@ -323,14 +324,14 @@ mod tests {
 
         let target = root.join("data/hulls/demo.ship").canonicalize().unwrap();
         let text = read_utf8_no_bom(&target).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(invalidation_paths(&result), [target]);
         assert!(text.contains("\"hullId\": \"demo\""));
+        root.close().unwrap();
     }
 
     #[test]
     fn save_editor_spec_does_not_skip_broken_target_candidates() {
-        let root = temp_dir("save_editor_broken_candidate");
+        let root = project_workspace("save_editor_broken_candidate");
         fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(&root.join("data/weapons/broken.wpn"), "{").unwrap();
 
@@ -344,14 +345,14 @@ mod tests {
         .to_string();
         let default_target_exists = root.join("data/weapons/demo.wpn").exists();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("broken.wpn"));
         assert!(!default_target_exists);
+        root.close().unwrap();
     }
 
     #[test]
     fn save_editor_spec_rejects_non_directory_candidate_root() {
-        let root = temp_dir("save_editor_non_directory_root");
+        let root = project_workspace("save_editor_non_directory_root");
         fs::create_dir_all(root.join("data")).unwrap();
         write_utf8_no_bom(&root.join("data/weapons"), "not a directory").unwrap();
 
@@ -365,14 +366,14 @@ mod tests {
         .to_string();
         let default_target_exists = root.join("data/weapons/demo.wpn").exists();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("JSON 目录不是目录"));
         assert!(!default_target_exists);
+        root.close().unwrap();
     }
 
     #[test]
     fn save_editor_spec_rejects_invalid_id_before_candidate_scan() {
-        let root = temp_dir("save_editor_invalid_id_before_scan");
+        let root = project_workspace("save_editor_invalid_id_before_scan");
         fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(&root.join("data/weapons/broken.wpn"), "{").unwrap();
 
@@ -386,14 +387,14 @@ mod tests {
         .to_string();
         let outside_target_exists = root.join("data/outside.wpn").exists();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("无效武器 ID"));
         assert!(!outside_target_exists);
+        root.close().unwrap();
     }
 
     #[test]
     fn load_imported_editor_spec_file_requires_matching_extension() {
-        let root = temp_dir("load_imported_spec_extension");
+        let root = project_workspace("load_imported_spec_extension");
         let path = root.join("demo.ship");
         write_utf8_no_bom(&path, r#"{"hullId":"demo"}"#).unwrap();
 
@@ -404,14 +405,14 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("imported editor spec extension must be .wpn"));
+        root.close().unwrap();
     }
 
     #[test]
     fn load_imported_editor_spec_file_rejects_parent_dir_path() {
-        let root = temp_dir("load_imported_spec_parent_dir");
-        let path = root.join("..").join("demo.wpn");
+        let root = project_workspace("load_imported_spec_parent_dir");
+        let path = root.literal_path("../demo.wpn");
 
         let error = load_imported_editor_spec_file(
             SpecEditorKind::Weapon,
@@ -420,16 +421,14 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("invalid imported editor spec path"));
+        root.close().unwrap();
     }
 
     #[test]
     fn load_imported_editor_spec_file_rejects_link_file() {
-        let Some((root, outside, link)) = temp_linked_file("load_imported_spec_link", "demo.wpn")
-        else {
-            return;
-        };
+        let (root, outside, link) =
+            TestWorkspace::file_link("load_imported_spec_link", "demo.wpn").unwrap();
         write_utf8_no_bom(&outside, r#"{"id":"demo","weaponType":"ENERGY"}"#).unwrap();
 
         let result = load_imported_editor_spec_file(
@@ -437,14 +436,13 @@ mod tests {
             link.to_string_lossy().to_string(),
         );
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_file(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn load_imported_editor_spec_file_reads_matching_spec() {
-        let root = temp_dir("load_imported_spec_reads");
+        let root = project_workspace("load_imported_spec_reads");
         let path = root.join("demo.wpn");
         write_utf8_no_bom(&path, r#"{"id":"demo","weaponType":"ENERGY"}"#).unwrap();
 
@@ -454,8 +452,8 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(value.get("id").and_then(Value::as_str), Some("demo"));
+        root.close().unwrap();
     }
 
     fn invalidation_paths(result: &WriteResult<Value>) -> Vec<PathBuf> {

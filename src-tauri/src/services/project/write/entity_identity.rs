@@ -526,10 +526,10 @@ pub fn write_spec_request(payload: SpecSave) -> Result<WriteResult<Value>, AppEr
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project::test_support::project_workspace;
     use crate::{
         models::{CsvSearchField, CsvTableKey, EntityKind, FileChangeReplayDirection},
         services::project,
-        testutil::temp_dir,
     };
     use serde_json::json;
 
@@ -544,7 +544,7 @@ mod tests {
             let definition =
                 crate::domain::entity_definitions::entity_spec_definition(kind).unwrap();
             let table = definition.csv_table.unwrap();
-            let root = temp_dir(&format!("identity_comment_{kind:?}"));
+            let root = project_workspace(&format!("identity_comment_{kind:?}"));
             std::fs::create_dir_all(root.join(definition.dir)).unwrap();
             let mut content = json!({"specClass":"beam"});
             if kind == EntityKind::Weapon {
@@ -617,13 +617,13 @@ mod tests {
                 "next"
             );
             project::close_project_session(manifest.session_id).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn loaded_nested_target_renames_with_its_csv_row_and_replays_identity() {
-        let root = temp_dir("identity_spec_csv");
+        let root = project_workspace("identity_spec_csv");
         std::fs::create_dir_all(root.join("data/hulls/nested")).unwrap();
         std::fs::write(
             root.join("data/hulls/nested/filename.ship"),
@@ -728,12 +728,12 @@ mod tests {
         .unwrap();
         assert!(root.join("data/hulls/nested/new.ship").is_file());
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn missing_spec_import_uses_content_identity() {
-        let root = temp_dir("identity_missing_import");
+        let root = project_workspace("identity_missing_import");
         let mut trace = project::PerformanceTrace::new("project.openSession");
         let manifest = project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let info = crate::services::project::query::entity_targets::query_entity_edit_target(
@@ -757,12 +757,12 @@ mod tests {
         assert_eq!(result.identity_changes[0].after.id, "imported");
         assert!(root.join("data/hulls/imported.ship").exists());
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn text_identity_save_preserves_source_and_updates_linked_row() {
-        let root = temp_dir("text_identity_source");
+        let root = project_workspace("text_identity_source");
         std::fs::create_dir_all(root.join("data/hulls/nested")).unwrap();
         let old = root.join("data/hulls/nested/filename.ship");
         std::fs::write(&old, "{hullId:'old', # keep\n hullName:'Old'}\n").unwrap();
@@ -806,12 +806,12 @@ mod tests {
             "new"
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn core_projectile_saves_to_mod_override_and_keeps_core_source() {
-        let game = temp_dir("identity_core_projectile");
+        let game = project_workspace("identity_core_projectile");
         let root = game.join("mods/demo");
         std::fs::create_dir_all(&root).unwrap();
         std::fs::create_dir_all(game.join("starsector-core/data/weapons/proj/nested")).unwrap();
@@ -908,12 +908,12 @@ mod tests {
             8
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(game).unwrap();
+        game.close().unwrap();
     }
 
     #[test]
     fn linked_csv_version_conflict_keeps_loaded_spec_and_history() {
-        let root = temp_dir("identity_csv_conflict");
+        let root = project_workspace("identity_csv_conflict");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let file = root.join("data/hulls/demo.ship");
         std::fs::write(&file, r#"{"hullId":"demo"}"#).unwrap();
@@ -955,12 +955,12 @@ mod tests {
             .is_empty()
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn spec_save_requires_the_complete_loaded_version_scope() {
-        let root = temp_dir("identity_required_scope");
+        let root = project_workspace("identity_required_scope");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/demo.ship");
         std::fs::write(&path, r#"{"hullId":"demo"}"#).unwrap();
@@ -1003,12 +1003,12 @@ mod tests {
             .is_empty()
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn text_identity_normalization_changes_only_the_root_id_value() {
-        let root = temp_dir("text_identity_normalized");
+        let root = project_workspace("text_identity_normalized");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/demo.ship");
         std::fs::write(&path, "{hullId:'demo'}").unwrap();
@@ -1040,6 +1040,6 @@ mod tests {
         );
         assert_eq!(saved.identity_changes[0].after.id, "next");
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

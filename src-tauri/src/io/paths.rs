@@ -235,12 +235,12 @@ fn is_reparse_point(_metadata: &fs::Metadata) -> bool {
 mod tests {
     use super::FsRootBoundary;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::{temp_dir, temp_linked_dir};
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     #[test]
     fn identity_and_requested_target_share_expanded_parent() {
-        let root = temp_dir("path_identity_target");
+        let root = TestWorkspace::new("path_identity_target");
         fs::create_dir_all(root.join("nested")).unwrap();
         let original = root.join("nested/Original.ship");
         write_utf8_no_bom(&original, "{}").unwrap();
@@ -272,13 +272,13 @@ mod tests {
             boundary.resolve_absolute(&original, "deleted").unwrap(),
             boundary.root().join("nested/Original.ship")
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     #[cfg(windows)]
     fn short_aliases_expand_files_parents_and_versions() {
-        let root = temp_dir("expanded_path_identity");
+        let root = TestWorkspace::new("expanded_path_identity");
         fs::create_dir_all(root.join("Long directory name")).unwrap();
         let path = root.join("Long directory name/Long weapon filename.wpn");
         write_utf8_no_bom(&path, "{}").unwrap();
@@ -314,12 +314,12 @@ mod tests {
                 .unwrap(),
             Some("Long directory name/Long weapon filename.wpn".into())
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn changed_path_resolves_project_relative_path() {
-        let root = temp_dir("changed_path_relative");
+        let root = TestWorkspace::new("changed_path_relative");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
 
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
@@ -327,13 +327,13 @@ mod tests {
             .resolve_changed_path_to_relative("data/hulls/demo.ship", "changed path")
             .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(rel, Some("data/hulls/demo.ship".to_string()));
+        root.close().unwrap();
     }
 
     #[test]
     fn changed_path_resolves_project_absolute_path() {
-        let root = temp_dir("changed_path_absolute");
+        let root = TestWorkspace::new("changed_path_absolute");
         let target = root.join("data/hulls/demo.ship");
         fs::create_dir_all(target.parent().unwrap()).unwrap();
         write_utf8_no_bom(&target, "{}").unwrap();
@@ -343,13 +343,13 @@ mod tests {
             .resolve_changed_path_to_relative(&target.to_string_lossy(), "changed path")
             .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(rel, Some("data/hulls/demo.ship".to_string()));
+        root.close().unwrap();
     }
 
     #[test]
     fn changed_path_resolves_deleted_project_absolute_path() {
-        let root = temp_dir("changed_path_deleted_absolute");
+        let root = TestWorkspace::new("changed_path_deleted_absolute");
         let target = root.join("data/hulls/deleted.ship");
         fs::create_dir_all(target.parent().unwrap()).unwrap();
 
@@ -358,14 +358,14 @@ mod tests {
             .resolve_changed_path_to_relative(&target.to_string_lossy(), "changed path")
             .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(rel, Some("data/hulls/deleted.ship".to_string()));
+        root.close().unwrap();
     }
 
     #[test]
     fn changed_path_ignores_external_absolute_path() {
-        let root = temp_dir("changed_path_external_root");
-        let external = temp_dir("changed_path_external_other");
+        let root = TestWorkspace::new("changed_path_external_root");
+        let external = TestWorkspace::new("changed_path_external_other");
         let target = external.join("data/hulls/demo.ship");
         fs::create_dir_all(target.parent().unwrap()).unwrap();
         write_utf8_no_bom(&target, "{}").unwrap();
@@ -375,14 +375,14 @@ mod tests {
             .resolve_changed_path_to_relative(&target.to_string_lossy(), "changed path")
             .unwrap();
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(external);
         assert_eq!(rel, None);
+        external.close().unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn changed_path_rejects_parent_dir_path() {
-        let root = temp_dir("changed_path_parent_dir");
+        let root = TestWorkspace::new("changed_path_parent_dir");
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
 
         let error = boundary
@@ -390,24 +390,21 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = fs::remove_dir_all(root);
         assert!(error.contains("invalid changed path path"));
+        root.close().unwrap();
     }
 
     #[test]
     fn changed_path_rejects_link_parent_escape() {
-        let Some((root, outside, link)) = temp_linked_dir("changed_path_link_parent", "data/link")
-        else {
-            return;
-        };
+        let (root, _outside, link) =
+            TestWorkspace::directory_link("changed_path_link_parent", "data/link").unwrap();
         let target = link.join("outside.ship");
 
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
         let result =
             boundary.resolve_changed_path_to_relative(&target.to_string_lossy(), "changed path");
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 }

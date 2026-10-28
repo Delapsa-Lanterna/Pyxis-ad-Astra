@@ -2,6 +2,8 @@ use crate::errors::ErrorDiagnostic;
 use crate::models::{
     FileChangeRecord, FileHistorySnapshot, FileVersion, ProjectInvalidation, push_unique_all,
 };
+#[cfg(test)]
+use crate::testutil::TestWorkspace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
@@ -296,7 +298,7 @@ mod tests {
 
     #[test]
     fn write_result_expands_directory_change_invalidation_paths() {
-        let root = crate::testutil::temp_dir("directory_invalidation_paths");
+        let root = TestWorkspace::new("directory_invalidation_paths");
         let dir = root.join("data/variants/nested");
         std::fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("demo.variant"), "{}").unwrap();
@@ -318,7 +320,7 @@ mod tests {
                 .iter()
                 .any(|path| { path_string(path) == path_string(dir.join("demo.variant")) })
         );
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     fn path_string(path: impl AsRef<Path>) -> String {

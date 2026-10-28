@@ -1,15 +1,16 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 use crate::{
     io::{read_csv_data, read_json_file, write_utf8_no_bom},
     models::*,
     services::{project, write_transactions},
-    testutil::temp_dir,
+    testutil::TestWorkspace,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path};
 
-fn fixture(collision: bool) -> (std::path::PathBuf, ProjectManifest) {
-    let root = temp_dir("weapon_description");
+fn fixture(collision: bool) -> (TestWorkspace, ProjectManifest) {
+    let root = project_workspace("weapon_description");
     std::fs::create_dir_all(root.join("data/weapons")).unwrap();
     std::fs::create_dir_all(root.join("data/strings")).unwrap();
     write_utf8_no_bom(
@@ -207,7 +208,7 @@ fn weapon_description_replay() {
             "new"
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }
 
@@ -229,6 +230,6 @@ fn weapon_description_collision() {
                 .is_empty()
         );
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

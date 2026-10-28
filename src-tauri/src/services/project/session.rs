@@ -1,3 +1,5 @@
+#[cfg(test)]
+use super::test_support::project_workspace;
 use crate::services::project::sources::json_documents::{
     load_skin_files_from, load_variant_files_from,
 };
@@ -526,11 +528,11 @@ pub(super) fn load_spec_bundle(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn opened_sessions_remain_registered_until_explicit_close() {
-        let root = temp_dir("session_explicit_close");
+        let root = project_workspace("session_explicit_close");
         let manifests = (0..40)
             .map(|_| {
                 let mut trace = PerformanceTrace::new("project.openSession");
@@ -549,12 +551,12 @@ mod tests {
             lock_session(&handle).unwrap().manifest.session_id,
             manifests[0].session_id
         );
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_rejects_variant_missing_required_ids() {
-        let root = temp_dir("variant_missing_ids");
+        let root = project_workspace("variant_missing_ids");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/bad.variant"),
@@ -567,14 +569,14 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("bad.variant"));
         assert!(error.contains("hullId"));
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_rejects_corrupted_mod_info() {
-        let root = temp_dir("mod_info_corrupted");
+        let root = project_workspace("mod_info_corrupted");
         write_utf8_no_bom(&root.join("mod_info.json"), "{").unwrap();
 
         let mut trace = PerformanceTrace::new("project.openSession");
@@ -582,13 +584,13 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("mod_info.json"));
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_rejects_corrupted_mission_list() {
-        let root = temp_dir("mission_list_corrupted");
+        let root = project_workspace("mission_list_corrupted");
         std::fs::create_dir_all(root.join("data/missions")).unwrap();
         // Long rows are tolerated now; a real defect must still fail session open.
         write_utf8_no_bom(
@@ -602,28 +604,28 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("mission_list.csv"));
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_rejects_parent_dir_starsector_root() {
-        let root = temp_dir("session_parent_dir_starsector_root");
-        let escaped = root.join("..");
+        let root = project_workspace("session_parent_dir_starsector_root");
+        let escaped = root.literal_path("..");
 
         let mut trace = PerformanceTrace::new("project.openSession");
         let error = open_project_session_traced(&root, Some(&escaped), &mut trace)
             .unwrap_err()
             .to_string();
 
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("invalid starsector root path"));
+        root.close().unwrap();
     }
 
     #[test]
     fn session_mod_root_validation_rejects_wrong_root() {
-        let left = temp_dir("session_mod_root_left");
-        let right = temp_dir("session_mod_root_right");
+        let left = project_workspace("session_mod_root_left");
+        let right = project_workspace("session_mod_root_right");
         write_utf8_no_bom(&left.join("mod_info.json"), r#"{"id":"left"}"#).unwrap();
         write_utf8_no_bom(&right.join("mod_info.json"), r#"{"id":"right"}"#).unwrap();
 
@@ -636,14 +638,14 @@ mod tests {
             .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(left);
-        let _ = std::fs::remove_dir_all(right);
         assert!(error.contains("does not own mod root"));
+        right.close().unwrap();
+        left.close().unwrap();
     }
 
     #[test]
     fn open_project_session_manifest_summaries_only_include_public_csv_tables() {
-        let root = temp_dir("manifest_public_csv_tables");
+        let root = project_workspace("manifest_public_csv_tables");
         std::fs::create_dir_all(root.join("data/missions")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -655,7 +657,6 @@ mod tests {
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let manifest_json = serde_json::to_value(&manifest).unwrap();
 
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(manifest.entity_summaries.missions, 1);
         assert!(
             !manifest_json["tableSummaries"]
@@ -663,11 +664,12 @@ mod tests {
                 .unwrap()
                 .contains_key(MISSION_LIST_TABLE_KEY)
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_manifest_counts_valid_table_entities() {
-        let root = temp_dir("manifest_table_entity_counts");
+        let root = project_workspace("manifest_table_entity_counts");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("data/campaign")).unwrap();
         write_utf8_no_bom(
@@ -684,7 +686,6 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let loaded = open_project_session_traced(&root, None, &mut trace).unwrap();
 
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(
             loaded.table_entity_summaries[&crate::models::CsvTableKey::Wings],
             2
@@ -697,11 +698,12 @@ mod tests {
             loaded.table_summaries[&crate::models::CsvTableKey::Wings].total_rows,
             None
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_warns_and_keeps_first_duplicate_variant_id() {
-        let root = temp_dir("variant_duplicate_id");
+        let root = project_workspace("variant_duplicate_id");
         std::fs::create_dir_all(root.join("data/variants/a")).unwrap();
         std::fs::create_dir_all(root.join("data/variants/b")).unwrap();
         write_utf8_no_bom(
@@ -718,7 +720,6 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let loaded = open_project_session_traced(&root, None, &mut trace).unwrap();
 
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(loaded.entity_summaries.variants, 1);
         assert!(
             loaded
@@ -727,11 +728,12 @@ mod tests {
                 .any(|warning| warning.message.contains("重复 variantId dup")
                     && warning.path.contains("two.variant"))
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_rejects_skin_missing_required_ids() {
-        let root = temp_dir("skin_missing_ids");
+        let root = project_workspace("skin_missing_ids");
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/skins/bad.skin"),
@@ -744,14 +746,14 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("bad.skin"));
         assert!(error.contains("baseHullId"));
+        root.close().unwrap();
     }
 
     #[test]
     fn open_project_session_warns_and_keeps_first_duplicate_skin_hull_id() {
-        let root = temp_dir("skin_duplicate_id");
+        let root = project_workspace("skin_duplicate_id");
         std::fs::create_dir_all(root.join("data/hulls/skins/a")).unwrap();
         std::fs::create_dir_all(root.join("data/hulls/skins/b")).unwrap();
         write_utf8_no_bom(
@@ -768,7 +770,6 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let loaded = open_project_session_traced(&root, None, &mut trace).unwrap();
 
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(loaded.entity_summaries.skins, 1);
         assert!(
             loaded
@@ -777,12 +778,16 @@ mod tests {
                 .any(|warning| warning.message.contains("重复 skinHullId dup")
                     && warning.path.contains("two.skin"))
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn persistent_project_index_reuses_matching_sources_and_rebuilds_changed_sources() {
+        if crate::testutil::isolated_test() {
+            return;
+        }
         use super::sources::json_documents::take_load_counts;
-        let root = temp_dir("persistent_project_index");
+        let root = project_workspace("persistent_project_index");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/demo.variant"),
@@ -802,10 +807,8 @@ mod tests {
             )
             .unwrap();
         }
-        super::super::sources::configure_persistent_index_cache(
-            crate::testutil::persistent_cache_directory(),
-        )
-        .unwrap();
+        super::super::sources::configure_persistent_index_cache(&root.outer().join("cache"))
+            .unwrap();
 
         let mut initial_trace = PerformanceTrace::new("project.openSession");
         take_load_counts();
@@ -829,7 +832,6 @@ mod tests {
         assert!(changed.variant_warnings.is_empty());
         assert_eq!(changed.skin_warnings.len(), 1);
 
-        let _ = std::fs::remove_dir_all(root);
         assert!(
             cached
                 .variant_files
@@ -850,6 +852,7 @@ mod tests {
                     .any(|(key, value)| key == "result" && value == "reused")
         }));
         assert_eq!(changed.variant_files.len(), 2);
+        root.close().unwrap();
     }
 
     #[test]
@@ -868,7 +871,7 @@ mod tests {
 
         let roots: Vec<_> = (0..SESSIONS)
             .map(|index| {
-                let root = temp_dir(&format!("session_concurrency_{index}"));
+                let root = project_workspace(&format!("session_concurrency_{index}"));
                 std::fs::create_dir_all(root.join("data/hulls")).unwrap();
                 write_utf8_no_bom(
                     &root.join("data/hulls/ship_data.csv"),
@@ -929,8 +932,12 @@ mod tests {
                 }
             }));
         }
-        for handle in handles {
-            handle.join().unwrap();
+        let outcomes = handles
+            .into_iter()
+            .map(|handle| handle.join())
+            .collect::<Vec<_>>();
+        for outcome in outcomes {
+            outcome.unwrap();
         }
 
         for (session_index, session_id) in session_ids.iter().enumerate() {
@@ -944,8 +951,8 @@ mod tests {
             )
             .unwrap();
             assert_eq!(window.total_rows, 1 + WRITES_PER_SESSION);
-            let _ = close_project_session(session_id.clone());
-            let _ = std::fs::remove_dir_all(&roots[session_index]);
+            close_project_session(session_id.clone()).unwrap();
+            roots[session_index].clone().close().unwrap();
         }
     }
 }
@@ -975,7 +982,7 @@ mod source_refresh_tests {
     use crate::models::{CsvTableKey, InvalidatedResourceScope, ResourceSource};
     #[test]
     fn missing_unloaded_csv_reports_its_unavailable_recovery_source() {
-        let root = crate::testutil::temp_dir("missing_unloaded_csv");
+        let root = project_workspace("missing_unloaded_csv");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");
         let original = "id,name\na,Original\nb,Other\n";
@@ -1011,11 +1018,11 @@ mod source_refresh_tests {
                 .ends_with("ship_data.csv")
         );
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
     #[test]
     fn removed_project_root_releases_session_history_and_registration() {
-        let root = crate::testutil::temp_dir("release_removed_project");
+        let root = project_workspace("release_removed_project");
         std::fs::write(root.join("notes.txt"), "before").unwrap();
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("release.removed"))
@@ -1039,7 +1046,6 @@ mod source_refresh_tests {
         .unwrap();
         let saved = transaction.commit(result, "saved").unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
-        std::fs::remove_dir_all(&root).unwrap();
         crate::services::project_session::release_project_session(manifest.session_id.clone())
             .unwrap();
         assert!(
@@ -1062,10 +1068,11 @@ mod source_refresh_tests {
             .code(),
             "session.unknown"
         );
+        root.close().unwrap();
     }
     #[test]
     fn refresh_keeps_rows_and_rejects_escape() {
-        let root = crate::testutil::temp_dir("source_refresh");
+        let root = project_workspace("source_refresh");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let csv = root.join("data/hulls/ship_data.csv");
         crate::io::write_utf8_no_bom(&csv, "id,name\nship,Before\n").unwrap();
@@ -1117,6 +1124,6 @@ mod source_refresh_tests {
         };
         assert!(refresh_project_sources(&manifest.session_id, vec![invalid]).is_err());
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

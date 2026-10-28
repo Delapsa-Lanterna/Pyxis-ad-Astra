@@ -2,12 +2,12 @@
 mod tests {
     use crate::io::write_utf8_no_bom;
     use crate::services::project::sources::SourceReader;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
     use std::fs;
 
     #[test]
     fn mission_count_ignores_comment_rows() {
-        let root = temp_dir("mission_count_comments");
+        let root = project_workspace("mission_count_comments");
         fs::create_dir_all(root.join("data/missions")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -23,7 +23,7 @@ mod tests {
             )
             .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(count, 1);
+        root.close().unwrap();
     }
 }

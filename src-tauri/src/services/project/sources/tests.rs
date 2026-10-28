@@ -1,11 +1,12 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 
 use super::*;
 use crate::io::{file_version, read_versioned_json, verify_versions};
 
 #[test]
 fn source_version_matches_content() {
-    let root = crate::testutil::temp_dir("paired_source");
+    let root = project_workspace("paired_source");
     let path = root.join("document.ship");
     std::fs::write(&path, b"\xef\xbb\xbf{\"hullId\":\"before\"}").unwrap();
     let (version, value) = read_versioned_json(&path).unwrap();
@@ -18,13 +19,16 @@ fn source_version_matches_content() {
             .code(),
         "write.version_conflict"
     );
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[test]
 fn source_cache_partial_reuse() {
-    let root = crate::testutil::temp_dir("partial_source_cache");
-    configure_persistent_index_cache(crate::testutil::persistent_cache_directory()).unwrap();
+    if crate::testutil::isolated_test() {
+        return;
+    }
+    let root = project_workspace("partial_source_cache");
+    configure_persistent_index_cache(&root.outer().join("cache")).unwrap();
     let first = root.join("first.ship");
     let second = root.join("second.ship");
     std::fs::write(&first, r#"{"hullId":"first"}"#).unwrap();
@@ -42,12 +46,12 @@ fn source_cache_partial_reuse() {
         reopened.versions["first.ship"],
         file_version(&first).unwrap()
     );
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[test]
 fn directory_version_matches_io() {
-    let root = crate::testutil::temp_dir("source_directory_version");
+    let root = project_workspace("source_directory_version");
     let directory = root.join("data/missions/example/nested");
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(directory.join("file.txt"), "content").unwrap();
@@ -60,12 +64,12 @@ fn directory_version_matches_io() {
         sources.versions["data/missions/example"],
         file_version(&root.join("data/missions/example")).unwrap()
     );
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[test]
 fn csv_parse_handoff() {
-    let root = crate::testutil::temp_dir("source_csv_acceptance");
+    let root = project_workspace("source_csv_acceptance");
     let file = root.join("table.csv");
     std::fs::write(&file, "id,name\nitem,Example\n#note,Hidden\n,\n").unwrap();
     let mut sources = SourceReader::new(&root).unwrap();
@@ -74,13 +78,13 @@ fn csv_parse_handoff() {
     assert_eq!(table.rows.len(), 3);
     assert!(table.rows[1].is_comment);
     assert_eq!(sources.versions["table.csv"], file_version(&file).unwrap());
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[test]
 fn core_refresh_keeps_mod_baseline() {
     use crate::models::{InvalidatedResourceScope, ResourceSource};
-    let root = crate::testutil::temp_dir("separate_source_roots");
+    let root = project_workspace("separate_source_roots");
     let mod_root = root.join("mod");
     let game = root.join("game");
     for base in [&mod_root, &game.join("starsector-core")] {
@@ -119,13 +123,13 @@ fn core_refresh_keeps_mod_baseline() {
     );
     super::super::close_project_session(manifest.session_id).unwrap();
     core::invalidate_core_cache(&game.to_string_lossy()).unwrap();
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[test]
 fn joint_parent_version_matches() {
     use crate::models::{JointEditKind, JointEditRoot, JointValue};
-    let root = crate::testutil::temp_dir("joint_parent_credential");
+    let root = project_workspace("joint_parent_credential");
     std::fs::create_dir_all(root.join("data/variants")).unwrap();
     std::fs::create_dir_all(root.join("data/hulls")).unwrap();
     std::fs::write(root.join("data/hulls/hull.ship"), r#"{"hullId":"hull"}"#).unwrap();
@@ -170,5 +174,5 @@ fn joint_parent_version_matches() {
     assert!(record.base_versions.contains(expected));
     verify_versions(&manifest.mod_root, &snapshot.base_versions).unwrap();
     super::super::close_project_session(manifest.session_id).unwrap();
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }

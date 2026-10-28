@@ -547,7 +547,7 @@ pub fn write_csv_request(payload: CsvSave) -> Result<WriteResult<Value>, AppErro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn all_associated_formats_save_and_replay_with_business_columns_preserved() {
@@ -571,7 +571,7 @@ mod tests {
             AssociatedSpecCreateParams::Skill { id: "skill".into() },
         ];
         for create in cases {
-            let root = temp_dir("associated_format_business_replay");
+            let root = project_workspace("associated_format_business_replay");
             let table = create.table();
             let definition = associated_spec_definition(table).unwrap();
             let csv_rel = super::super::super::model::csv_table_spec(table).rel_path;
@@ -624,7 +624,7 @@ mod tests {
             assert_eq!(read_utf8_no_bom(&csv_path).unwrap(), csv);
             assert_eq!(read_json_file(&spec_path).unwrap(), expected);
             close_project_session(manifest.session_id).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
@@ -633,7 +633,7 @@ mod tests {
         use crate::models::{EntityKind, FileChangeReplayDirection, WeaponSpecClass};
         use crate::services::{project, write_transactions};
         for next_id in ["Next", "demo"] {
-            let root = temp_dir("csv_nested_identity_command");
+            let root = project_workspace("csv_nested_identity_command");
             let directory = root.join("data/weapons/nested");
             std::fs::create_dir_all(&directory).unwrap();
             let csv_path = root.join("data/weapons/weapon_data.csv");
@@ -756,13 +756,13 @@ mod tests {
             .unwrap();
             assert_eq!(actual_name(), format!("{next_id}.wpn"));
             close_project_session(manifest.session_id).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn pulse_associated_rename_rejects_the_whole_csv_changeset() {
-        let root = temp_dir("pulse_associated_rename");
+        let root = project_workspace("pulse_associated_rename");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         let csv_path = root.join("data/weapons/weapon_data.csv");
         let spec_path = root.join("data/weapons/old.wpn");
@@ -806,7 +806,7 @@ mod tests {
         assert_eq!(read_utf8_no_bom(&spec_path).unwrap(), spec);
         assert!(!root.join("data/weapons/new.wpn").exists());
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
     use crate::services::project::query::csv_window::query_csv_table_window;
     use crate::{
@@ -823,7 +823,7 @@ mod tests {
     #[test]
     fn ordered_csv_command_preserves_keys_comments_and_file_history() {
         use crate::models::FileChangeReplayDirection;
-        let root = temp_dir("csv_order_command");
+        let root = project_workspace("csv_order_command");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");
         let before = "id,name,custom\na,Alpha,001\n#note,Comment,002\n,,\nb,Beta,003\n";
@@ -931,14 +931,14 @@ mod tests {
         .unwrap();
         assert_eq!(read_utf8_no_bom(&path).unwrap(), text);
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn command_preserves_comment_identity_through_queries_save_and_replay() {
         use crate::models::{EntityKind, FileChangeReplayDirection};
         use crate::services::{project, write_transactions};
-        let root = temp_dir("csv_comment_command");
+        let root = project_workspace("csv_comment_command");
         let hulls = root.join("data/hulls");
         std::fs::create_dir_all(&hulls).unwrap();
         let path = hulls.join("ship_data.csv");
@@ -1078,12 +1078,12 @@ mod tests {
         let reopened = open_project_session_traced(&root, None, &mut reopened_trace).unwrap();
         assert_eq!(reopened.table_entity_summaries[&CsvTableKey::Ships], 5);
         close_project_session(reopened.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn save_csv_patch_creates_associated_spec_in_one_changeset() {
-        let root = temp_dir("save_csv_patch_create_assoc");
+        let root = project_workspace("save_csv_patch_create_assoc");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"), "id,name\r\n").unwrap();
 
@@ -1121,7 +1121,6 @@ mod tests {
         ];
 
         let _ = close_project_session(session_id);
-        let _ = std::fs::remove_dir_all(&root);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(matches!(result.changes[0].kind, FileChangeKind::File));
@@ -1129,11 +1128,12 @@ mod tests {
         assert_eq!(result.key_map[0].previous_key, "ships:new:1");
         assert!(csv.contains("new_ship,New Ship"));
         assert!(spec.contains("\"hullId\": \"new_ship\""));
+        root.close().unwrap();
     }
 
     #[test]
     fn save_refresh_preserves_surviving_and_new_row_keys_across_followup_saves() {
-        let root = temp_dir("csv_save_refresh_row_keys");
+        let root = project_workspace("csv_save_refresh_row_keys");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
@@ -1231,12 +1231,12 @@ mod tests {
         assert_eq!(window.rows[4].row_key, duplicate_key);
         assert_eq!(window.rows[5].row_key, new_key);
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn save_csv_patch_deletes_associated_spec_in_one_changeset() {
-        let root = temp_dir("save_csv_patch_delete_assoc");
+        let root = project_workspace("save_csv_patch_delete_assoc");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -1285,17 +1285,17 @@ mod tests {
         ];
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(&root);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(!result.changes[1].after_exists);
         assert!(!csv.contains("old_weapon,Old Weapon"));
         assert!(!spec_exists);
+        root.close().unwrap();
     }
 
     #[test]
     fn save_csv_patch_renames_associated_spec_through_json_parser() {
-        let root = temp_dir("save_csv_patch_rename_assoc_parser");
+        let root = project_workspace("save_csv_patch_rename_assoc_parser");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -1350,7 +1350,6 @@ mod tests {
         ];
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(&root);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(result.changes[1].before_exists);
@@ -1358,11 +1357,12 @@ mod tests {
         assert!(!renamed.contains("old_weapon"));
         assert!(renamed.contains("\"id\": \"new_weapon\""));
         assert!(renamed.contains("\"weaponType\": \"BALLISTIC\""));
+        root.close().unwrap();
     }
 
     #[test]
     fn csv_associated_rename_preserves_spec_comments() {
-        let root = temp_dir("csv_associated_rename_preserves_json");
+        let root = project_workspace("csv_associated_rename_preserves_json");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -1417,12 +1417,12 @@ mod tests {
         assert!(renamed.find("weaponType").unwrap() < renamed.find("id:").unwrap());
         assert!(!root.join("data/weapons/old_weapon.wpn").exists());
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn csv_and_spec_remain_unchanged_before_rewrite_confirmation() {
-        let root = temp_dir("csv_spec_rewrite_confirmation");
+        let root = project_workspace("csv_spec_rewrite_confirmation");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         let csv_path = root.join("data/weapons/weapon_data.csv");
         let spec_path = root.join("data/weapons/old_weapon.wpn");
@@ -1471,12 +1471,12 @@ mod tests {
         assert_eq!(read_utf8_no_bom(&spec_path).unwrap(), spec_before);
         assert!(!root.join("data/weapons/new_weapon.wpn").exists());
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn save_csv_patch_rename_missing_source_uses_registered_default_spec() {
-        let root = temp_dir("save_csv_patch_rename_missing_content");
+        let root = project_workspace("save_csv_patch_rename_missing_content");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -1524,17 +1524,17 @@ mod tests {
         ];
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(&root);
         assert_eq!(change_paths(&result.changes), expected_paths);
         assert_eq!(result.invalidation.paths, change_paths(&result.changes));
         assert!(!result.changes[1].before_exists);
         assert!(result.changes[1].after_exists);
         assert!(created.contains("\"id\": \"new_weapon\""));
+        root.close().unwrap();
     }
 
     #[test]
     fn save_csv_patch_rejects_unknown_non_new_row_key() {
-        let root = temp_dir("save_csv_patch_unknown_row_key");
+        let root = project_workspace("save_csv_patch_unknown_row_key");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(&root.join("data/hulls/ship_data.csv"), "id,name\r\n").unwrap();
 
@@ -1559,8 +1559,8 @@ mod tests {
         .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("CSV upsert row key does not exist"));
+        root.close().unwrap();
     }
 
     #[test]

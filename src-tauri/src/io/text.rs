@@ -77,30 +77,30 @@ pub fn write_utf8_no_bom(path: &Path, text: &str) -> AppResult<()> {
 mod tests {
     use super::*;
 
-    use crate::testutil::temp_path;
+    use crate::testutil::TestWorkspace;
 
     #[test]
     fn strips_utf8_bom() {
-        let path = temp_path("strips_utf8_bom.txt");
+        let path = TestWorkspace::file("strips_utf8_bom.txt");
         fs::write(&path, [UTF8_BOM, "ok".as_bytes()].concat()).unwrap();
         let text = read_utf8_no_bom(&path).unwrap();
-        let _ = fs::remove_file(path);
         assert_eq!(text, "ok");
+        path.close().unwrap();
     }
 
     #[test]
     fn writes_utf8_without_bom() {
-        let path = temp_path("writes_utf8_without_bom.txt");
+        let path = TestWorkspace::file("writes_utf8_without_bom.txt");
         write_utf8_no_bom(&path, "舰船").unwrap();
         let bytes = fs::read(&path).unwrap();
-        let _ = fs::remove_file(path);
         assert!(!bytes.starts_with(UTF8_BOM));
         assert_eq!(String::from_utf8(bytes).unwrap(), "舰船");
+        path.close().unwrap();
     }
 
     #[test]
     fn decoding_error_keeps_the_actual_file_for_transcoding() {
-        let path = temp_path("decoding_error_path.txt");
+        let path = TestWorkspace::file("decoding_error_path.txt");
         fs::write(&path, [0x81]).unwrap();
         let error = read_utf8_no_bom(&path).unwrap_err();
         assert_eq!(error.code(), "text.invalid_utf8");
@@ -108,39 +108,39 @@ mod tests {
             error.location().unwrap().path.as_deref(),
             Some(path.to_str().unwrap())
         );
-        let _ = fs::remove_file(path);
+        path.close().unwrap();
     }
 
     #[test]
     fn reads_cp1252_smart_single_quotes_as_ascii_apostrophes() {
-        let path = temp_path("reads_cp1252_quote.txt");
+        let path = TestWorkspace::file("reads_cp1252_quote.txt");
         fs::write(&path, b"\x91it\x92s\x92").unwrap();
 
         let text = read_utf8_no_bom(&path).unwrap();
 
-        let _ = fs::remove_file(path);
         assert_eq!(text, "'it's'");
+        path.close().unwrap();
     }
 
     #[test]
     fn reads_cp1252_smart_double_quotes_as_ascii_quotes() {
-        let path = temp_path("reads_cp1252_double_quotes.txt");
+        let path = TestWorkspace::file("reads_cp1252_double_quotes.txt");
         fs::write(&path, b"\x93quoted\x94").unwrap();
 
         let text = read_utf8_no_bom(&path).unwrap();
 
-        let _ = fs::remove_file(path);
         assert_eq!(text, "\"quoted\"");
+        path.close().unwrap();
     }
 
     #[test]
     fn reads_cp1252_en_dash_as_ascii_hyphen() {
-        let path = temp_path("reads_cp1252_en_dash.txt");
+        let path = TestWorkspace::file("reads_cp1252_en_dash.txt");
         fs::write(&path, b"left \x96 right").unwrap();
 
         let text = read_utf8_no_bom(&path).unwrap();
 
-        let _ = fs::remove_file(path);
         assert_eq!(text, "left - right");
+        path.close().unwrap();
     }
 }

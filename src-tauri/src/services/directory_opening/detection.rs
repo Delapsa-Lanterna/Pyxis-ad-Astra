@@ -89,30 +89,30 @@ fn resolve_known_root(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     #[test]
     fn detect_game_root_returns_overview() {
-        let root = temp_dir("detect_game_root");
+        let root = TestWorkspace::new("detect_game_root");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         fs::create_dir_all(root.join("mods")).unwrap();
 
         let detected = detect_directory(&root, None).unwrap();
 
         let expected_root = path_string(&root);
-        let _ = fs::remove_dir_all(root);
         assert_eq!(detected.kind, OpenDirectoryKind::GameRoot);
         assert_eq!(
             detected.starsector_root.as_deref(),
             Some(expected_root.as_str())
         );
         assert!(detected.overview.is_some());
+        root.close().unwrap();
     }
 
     #[test]
     fn detect_mod_in_game_uses_inferred_game_root() {
-        let root = temp_dir("detect_mod_in_game");
+        let root = TestWorkspace::new("detect_mod_in_game");
         fs::create_dir_all(root.join("starsector-core")).unwrap();
         fs::create_dir_all(root.join("mods/demo")).unwrap();
         write_utf8_no_bom(&root.join("mods/demo/mod_info.json"), r#"{"id":"demo"}"#).unwrap();
@@ -121,7 +121,6 @@ mod tests {
 
         let expected_root = path_string(&root);
         let expected_mod = path_string(&root.join("mods/demo"));
-        let _ = fs::remove_dir_all(root);
         assert_eq!(detected.kind, OpenDirectoryKind::ModInGame);
         assert_eq!(
             detected.starsector_root.as_deref(),
@@ -129,12 +128,13 @@ mod tests {
         );
         assert_eq!(detected.mod_root.as_deref(), Some(expected_mod.as_str()));
         assert!(detected.overview.is_some());
+        root.close().unwrap();
     }
 
     #[test]
     fn detect_external_mod_uses_valid_known_root() {
-        let game_root = temp_dir("detect_known_game");
-        let mod_root = temp_dir("detect_external_mod");
+        let game_root = TestWorkspace::new("detect_known_game");
+        let mod_root = TestWorkspace::new("detect_external_mod");
         fs::create_dir_all(game_root.join("starsector-core")).unwrap();
         fs::create_dir_all(game_root.join("mods")).unwrap();
         write_utf8_no_bom(&mod_root.join("mod_info.json"), r#"{"id":"external"}"#).unwrap();
@@ -143,8 +143,6 @@ mod tests {
 
         let expected_root = path_string(&game_root);
         let expected_mod = path_string(&mod_root);
-        let _ = fs::remove_dir_all(game_root);
-        let _ = fs::remove_dir_all(mod_root);
         assert_eq!(detected.kind, OpenDirectoryKind::ExternalMod);
         assert_eq!(
             detected.starsector_root.as_deref(),
@@ -152,18 +150,19 @@ mod tests {
         );
         assert_eq!(detected.mod_root.as_deref(), Some(expected_mod.as_str()));
         assert!(detected.warnings.is_empty());
+        mod_root.close().unwrap();
+        game_root.close().unwrap();
     }
 
     #[test]
     fn detect_external_mod_warns_invalid_known_root() {
-        let mod_root = temp_dir("detect_invalid_known");
+        let mod_root = TestWorkspace::new("detect_invalid_known");
         write_utf8_no_bom(&mod_root.join("mod_info.json"), r#"{"id":"external"}"#).unwrap();
-        let known_root = mod_root.join("..");
+        let known_root = mod_root.literal_path("..");
 
         let detected = detect_directory(&mod_root, Some(&known_root.to_string_lossy())).unwrap();
 
         let expected_mod = path_string(&mod_root);
-        let _ = fs::remove_dir_all(mod_root);
         assert_eq!(detected.kind, OpenDirectoryKind::ExternalMod);
         assert_eq!(detected.starsector_root, None);
         assert_eq!(detected.mod_root.as_deref(), Some(expected_mod.as_str()));
@@ -173,17 +172,18 @@ mod tests {
                 .iter()
                 .any(|warning| warning.message.contains("已忽略无效 Starsector 根目录"))
         );
+        mod_root.close().unwrap();
     }
 
     #[test]
     fn detect_unknown_directory_is_typed_unknown_without_warning() {
-        let root = temp_dir("detect_unknown");
+        let root = TestWorkspace::new("detect_unknown");
 
         let detected = detect_directory(&root, None).unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(detected.kind, OpenDirectoryKind::Unknown);
         assert!(detected.warnings.is_empty());
+        root.close().unwrap();
     }
 
     fn path_string(path: &Path) -> String {

@@ -42,6 +42,9 @@ jobs:
       - name: Checker tests
         run: npm run test:checks
 
+      - name: Test file resource lifecycle
+        run: npm run test:resources
+
       - name: Frontend tests
         run: npm run test
 
@@ -53,6 +56,9 @@ jobs:
 
       - name: Rust tests (8.3 short paths)
         run: ./scripts/test-rust-paths.ps1 -PathForm Short
+
+      - name: Rust tests (paths beyond 260 characters)
+        run: ./scripts/test-rust-paths.ps1 -PathForm Beyond260
 
       - name: Tauri build and version alignment
         run: npm run tauri -- build --no-bundle

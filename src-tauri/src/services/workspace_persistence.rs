@@ -97,19 +97,19 @@ mod tests {
     use crate::{io::write_utf8_no_bom, models::PersistedMod};
     use std::collections::BTreeMap;
 
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
 
     #[test]
     fn load_returns_default_when_file_missing() {
-        let dir = temp_dir("ws_missing");
+        let dir = TestWorkspace::new("ws_missing");
         let result = load_workspace(&dir).unwrap();
-        let _ = fs::remove_dir_all(&dir);
         assert!(result.mods.is_empty());
+        dir.close().unwrap();
     }
 
     #[test]
     fn save_then_load_roundtrips() {
-        let dir = temp_dir("ws_roundtrip");
+        let dir = TestWorkspace::new("ws_roundtrip");
         let state = PersistedWorkspace {
             mods: vec![PersistedMod {
                 mod_root: "D:/mods/test".to_string(),
@@ -129,15 +129,15 @@ mod tests {
         };
         save_workspace(&dir, &state).unwrap();
         let loaded = load_workspace(&dir).unwrap();
-        let _ = fs::remove_dir_all(&dir);
         assert_eq!(loaded.mods.len(), 1);
         assert_eq!(loaded.mods[0].display_name, "Test Mod");
         assert_eq!(loaded.column_widths["D:/mods/test"]["ships"]["id"], 120.0);
+        dir.close().unwrap();
     }
 
     #[test]
     fn load_ignores_removed_navigation_fields() {
-        let dir = temp_dir("ws_legacy_navigation");
+        let dir = TestWorkspace::new("ws_legacy_navigation");
         let workspace_path = dir.join(WORKSPACE_FILE);
         write_utf8_no_bom(
             &workspace_path,
@@ -155,18 +155,18 @@ mod tests {
         .unwrap();
 
         let loaded = load_workspace(&dir).unwrap();
-        let _ = fs::remove_dir_all(&dir);
         assert!(loaded.mods.is_empty());
         assert!(loaded.starsector_root.is_none());
+        dir.close().unwrap();
     }
 
     #[test]
     fn load_reports_corrupted_json() {
-        let dir = temp_dir("ws_corrupted");
+        let dir = TestWorkspace::new("ws_corrupted");
         fs::create_dir_all(&dir).unwrap();
         write_utf8_no_bom(&dir.join("workspace.json"), "not valid json{{{").unwrap();
         let result = load_workspace(&dir);
-        let _ = fs::remove_dir_all(&dir);
         assert!(result.is_err());
+        dir.close().unwrap();
     }
 }

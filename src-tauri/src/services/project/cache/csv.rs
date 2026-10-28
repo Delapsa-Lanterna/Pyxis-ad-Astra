@@ -260,7 +260,7 @@ pub(crate) fn ensure_registered_table_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
     use crate::{
         io::write_utf8_no_bom,
         models::{EntitySummaries, ProjectManifest},
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn ensure_session_table_rows_preserves_comment_identity_and_business_columns() {
-        let root = temp_dir("csv_business_metadata_boundary");
+        let root = project_workspace("csv_business_metadata_boundary");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
@@ -434,6 +434,6 @@ mod tests {
                 root.join(&expected.path).to_str()
             );
         }
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

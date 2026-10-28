@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(test)]
+use crate::testutil::TestWorkspace;
 
 fn sample(duration: f64) -> PerformanceSample {
     PerformanceSample {
@@ -95,11 +97,11 @@ fn export_stats_and_payload_filter() {
     assert_eq!(events[0]["ts"], 10000.0);
     assert_ne!(events[0]["tid"], events[4]["tid"]);
     assert_eq!(events[0]["args"], json!({"request":"request-1","rows":40}));
-    let directory = crate::testutil::temp_dir("monitor_export");
+    let directory = TestWorkspace::new("monitor_export");
     let path = directory.join("trace.json");
     write_utf8_no_bom(&path, &serde_json::to_string(&value).unwrap()).unwrap();
     let bytes = std::fs::read(&path).unwrap();
     assert!(!bytes.starts_with(&[0xef, 0xbb, 0xbf]));
     assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), value);
-    std::fs::remove_dir_all(directory).unwrap();
+    directory.close().unwrap();
 }

@@ -169,10 +169,11 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::testutil::TestWorkspace;
     #[test]
     #[cfg(windows)]
     fn alias_reads_return_long_path_credentials_and_keep_conflicts() {
-        let root = crate::testutil::temp_dir("version_alias_identity");
+        let root = TestWorkspace::new("version_alias_identity");
         let path = root.join("Long version filename.txt");
         std::fs::write(&path, "before").unwrap();
         let version = super::file_version(&crate::testutil::short_path(&path)).unwrap();
@@ -199,6 +200,6 @@ mod tests {
                 .to_string_lossy()
         );
         assert!(version.fingerprint.is_none());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

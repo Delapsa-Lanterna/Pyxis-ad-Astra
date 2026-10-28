@@ -107,12 +107,11 @@ pub(in crate::services::project) fn load_skin_files_from(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn duplicate_variant_ids_keep_first_and_warn() {
-        let root = temp_dir("core_kite_duplicate");
+        let root = project_workspace("core_kite_duplicate");
         let core_root = root.join("starsector-core");
         std::fs::create_dir_all(core_root.join("data/variants/kite")).unwrap();
         write_utf8_no_bom(
@@ -148,7 +147,6 @@ mod tests {
 
         let (variants, warnings) = load_variant_files(&core_root).unwrap();
 
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(variants.len(), 3);
         assert_eq!(warnings.len(), 3);
         assert!(
@@ -171,11 +169,12 @@ mod tests {
                 .iter()
                 .any(|warning| warning.message.contains("kite_hegemony_Interceptor"))
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn duplicate_variant_ids_do_not_fail_mod_loading() {
-        let root = temp_dir("mod_kite_duplicate");
+        let root = project_workspace("mod_kite_duplicate");
         std::fs::create_dir_all(root.join("data/variants/kite")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/kite/kite_Interceptor.variant"),
@@ -190,7 +189,6 @@ mod tests {
 
         let (variants, warnings) = load_variant_files(&root).unwrap();
 
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(variants.len(), 1);
         assert_eq!(warnings.len(), 1);
         assert!(
@@ -198,5 +196,6 @@ mod tests {
                 .message
                 .contains("重复 variantId kite_hegemony_Interceptor")
         );
+        root.close().unwrap();
     }
 }

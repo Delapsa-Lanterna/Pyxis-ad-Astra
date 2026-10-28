@@ -1046,10 +1046,11 @@ pub(crate) fn session_has_windows(session: &str) -> AppResult<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn editor_bootstrap_delivers_the_owning_mod_name() {
-        let root = crate::testutil::temp_dir("window_mod_name");
+        let root = project_workspace("window_mod_name");
         crate::io::write_utf8_no_bom(
             &root.join("mod_info.json"),
             r#"{"id":"fixture","name":"Named Mod"}"#,
@@ -1101,12 +1102,12 @@ mod tests {
             release_window(&label).unwrap();
         }
         super::super::project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn io_paths_share_focus_reservations_and_target_owners() {
-        let root = crate::testutil::temp_dir("window_expanded_identity");
+        let root = project_workspace("window_expanded_identity");
         let path = root.join("Long filename.spec");
         std::fs::write(&path, "{}").unwrap();
         let identity = |root: &std::path::Path, path: &std::path::Path| {
@@ -1157,7 +1158,7 @@ mod tests {
         );
         state.release(&label);
         assert!(state.edit_target_owners(&[target]).is_empty());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]

@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn all_log_levels_roundtrip_through_saved_settings() {
         use crate::models::AppLogLevel;
-        let dir = crate::testutil::temp_dir("log_level_settings");
+        let dir = TestWorkspace::new("log_level_settings");
         for level in [
             AppLogLevel::Debug,
             AppLogLevel::Info,
@@ -404,15 +404,15 @@ mod tests {
             super::save_settings(&dir, &settings).unwrap();
             assert_eq!(super::load_settings(&dir).unwrap().log_level, level);
         }
-        std::fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
     use super::*;
 
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
 
     #[test]
     fn settings_limits_validate_read_and_write_boundaries() {
-        let dir = temp_dir("settings_limit_boundaries");
+        let dir = TestWorkspace::new("settings_limit_boundaries");
         for (field, maximum) in [
             ("fileHistoryLimit", 1000),
             ("editHistoryLimit", 1000),
@@ -441,7 +441,7 @@ mod tests {
                 }
             }
         }
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
@@ -462,7 +462,7 @@ mod tests {
 
     #[test]
     fn settings_values_roundtrip() {
-        let dir = temp_dir("settings_fonts");
+        let dir = TestWorkspace::new("settings_fonts");
         let settings = AppSettings {
             general_font: Some("Microsoft YaHei".into()),
             immersive_game_font: false,
@@ -495,17 +495,13 @@ mod tests {
             write_utf8_no_bom(&settings_path(&dir), &text).unwrap();
             assert_eq!(load_settings(&dir).unwrap().general_font, None);
         }
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn custom_log_directory_is_created_and_canonicalized() {
-        let app_data = temp_dir("settings_log_app_data");
-        let app_data_name = app_data.file_name().unwrap().to_string_lossy();
-        let log_directory = app_data
-            .parent()
-            .unwrap()
-            .join(format!("{app_data_name}_custom_logs"));
+        let app_data = TestWorkspace::new("settings_log_app_data");
+        let log_directory = app_data.outer().join("custom_logs");
         let mut settings = AppSettings {
             log_directory: Some(log_directory.to_string_lossy().to_string()),
             ..AppSettings::default()
@@ -513,15 +509,14 @@ mod tests {
 
         prepare_log_directory(&app_data, &mut settings).unwrap();
         let configured = Path::new(settings.log_directory.as_deref().unwrap());
-        let _ = fs::remove_dir_all(&app_data);
-        let _ = fs::remove_dir_all(&log_directory);
         assert!(configured.is_absolute());
+        app_data.close().unwrap();
     }
 
     #[test]
     fn custom_log_directory_rejects_mod_and_app_data_locations() {
-        let app_data = temp_dir("settings_log_reject_app_data");
-        let mod_root = app_data.parent().unwrap().join("settings_log_reject_mod");
+        let app_data = TestWorkspace::new("settings_log_reject_app_data");
+        let mod_root = app_data.outer().join("mod");
         fs::create_dir_all(&mod_root).unwrap();
         write_utf8_no_bom(&mod_root.join("mod_info.json"), "{}").unwrap();
 
@@ -533,20 +528,15 @@ mod tests {
                 .unwrap_err();
 
         assert!(!mod_root.join("logs").exists());
-        let _ = fs::remove_dir_all(&app_data);
-        let _ = fs::remove_dir_all(&mod_root);
         assert!(mod_error.to_string().contains("inside a Mod"));
         assert!(app_data_error.to_string().contains("inside app data"));
+        app_data.close().unwrap();
     }
 
     #[test]
     fn configured_custom_log_directory_does_not_recreate_a_missing_directory() {
-        let app_data = temp_dir("settings_log_missing_app_data");
-        let app_data_name = app_data.file_name().unwrap().to_string_lossy();
-        let log_directory = app_data
-            .parent()
-            .unwrap()
-            .join(format!("{app_data_name}_missing_logs"));
+        let app_data = TestWorkspace::new("settings_log_missing_app_data");
+        let log_directory = app_data.outer().join("missing_logs");
         let mut settings = AppSettings {
             log_directory: Some(log_directory.to_string_lossy().to_string()),
             ..AppSettings::default()
@@ -556,20 +546,20 @@ mod tests {
         fs::remove_dir_all(&log_directory).unwrap();
         let result = log_output_directory(&app_data, &settings);
 
-        let _ = fs::remove_dir_all(&app_data);
         assert!(result.is_err());
         assert!(!log_directory.exists());
+        app_data.close().unwrap();
     }
 
     #[test]
     fn custom_log_directory_rejects_a_complete_log_file_path() {
-        let app_data = temp_dir("settings_log_file_path_app_data");
-        let file_path = app_data.parent().unwrap().join(LOG_FILE);
+        let app_data = TestWorkspace::new("settings_log_file_path_app_data");
+        let file_path = app_data.outer().join(LOG_FILE);
         let result = prepare_log_directory_for_save(&app_data, &file_path.to_string_lossy());
 
-        let _ = fs::remove_dir_all(&app_data);
         assert!(result.is_err());
         assert!(!file_path.exists());
+        app_data.close().unwrap();
     }
 
     fn setting_paths(value: &serde_json::Value, pointer: &str) -> Vec<String> {
@@ -584,7 +574,7 @@ mod tests {
 
     #[test]
     fn every_disk_field_recovers_independently_and_preserves_the_file() {
-        let dir = temp_dir("settings_field_recovery");
+        let dir = TestWorkspace::new("settings_field_recovery");
         let defaults = serde_json::to_value(AppSettings::default()).unwrap();
         let mut valid = defaults.clone();
         valid["theme"] = serde_json::json!("dark");
@@ -621,12 +611,12 @@ mod tests {
                 assert_eq!(read_utf8_no_bom(&settings_path(&dir)).unwrap(), text);
             }
         }
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn invalid_values_recover_together_and_saving_stays_strict() {
-        let dir = temp_dir("settings_invalid_values");
+        let dir = TestWorkspace::new("settings_invalid_values");
         let defaults = serde_json::to_value(AppSettings::default()).unwrap();
         let mut source = defaults.clone();
         for pointer in setting_paths(&defaults["cacheLimits"], "/cacheLimits") {
@@ -671,12 +661,12 @@ mod tests {
         let mut wire = defaults;
         wire["logLevel"] = serde_json::json!("invalid");
         assert!(serde_json::from_value::<AppSettings>(wire).is_err());
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn broken_files_and_unavailable_log_directories_allow_loading() {
-        let dir = temp_dir("settings_file_recovery");
+        let dir = TestWorkspace::new("settings_file_recovery");
         assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
         for text in ["{", "", "null", "[]", "42", "{\"cacheLimits\":null}"] {
             write_utf8_no_bom(&settings_path(&dir), text).unwrap();
@@ -699,6 +689,6 @@ mod tests {
         fs::remove_file(settings_path(&dir)).unwrap();
         fs::create_dir(settings_path(&dir)).unwrap();
         assert_eq!(load_settings(&dir).unwrap(), AppSettings::default());
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 }

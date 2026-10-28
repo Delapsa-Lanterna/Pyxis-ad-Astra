@@ -37,12 +37,12 @@ pub fn create_mod(
 mod tests {
     use super::*;
     use crate::models::NewModTemplate;
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     #[test]
     fn game_destination_creates_mod_under_the_game_mods_directory() {
-        let game_root = temp_dir("mod_creation_game_destination");
+        let game_root = TestWorkspace::new("mod_creation_game_destination");
         fs::create_dir_all(game_root.join("starsector-core")).unwrap();
         fs::create_dir_all(game_root.join("mods")).unwrap();
 
@@ -60,17 +60,17 @@ mod tests {
             .unwrap()
             .to_string_lossy()
             .to_string();
-        let _ = fs::remove_dir_all(&game_root);
         assert_eq!(Path::new(&created.mod_root), expected_root);
         assert_eq!(
             created.starsector_root.as_deref(),
             Some(expected_game_root.as_str())
         );
+        game_root.close().unwrap();
     }
 
     #[test]
     fn directory_destination_reports_its_containing_game_root() {
-        let game_root = temp_dir("mod_creation_directory_game_destination");
+        let game_root = TestWorkspace::new("mod_creation_directory_game_destination");
         fs::create_dir_all(game_root.join("starsector-core")).unwrap();
         fs::create_dir_all(game_root.join("mods")).unwrap();
 
@@ -87,16 +87,16 @@ mod tests {
             .unwrap()
             .to_string_lossy()
             .to_string();
-        let _ = fs::remove_dir_all(&game_root);
         assert_eq!(
             created.starsector_root.as_deref(),
             Some(expected_game_root.as_str())
         );
+        game_root.close().unwrap();
     }
 
     #[test]
     fn game_destination_rejects_non_game_directory() {
-        let directory = temp_dir("mod_creation_non_game_destination");
+        let directory = TestWorkspace::new("mod_creation_non_game_destination");
 
         let error = create_mod(
             NewModDestination::GameMods {
@@ -107,8 +107,8 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        let _ = fs::remove_dir_all(directory);
         assert!(error.contains("不是有效的 Starsector 游戏目录"));
+        directory.close().unwrap();
     }
 
     fn template() -> NewModTemplate {

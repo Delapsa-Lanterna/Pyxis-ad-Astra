@@ -68,14 +68,13 @@ mod tests {
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::io::write_utf8_no_bom;
+    use crate::services::project::test_support::project_workspace;
     use serde_json::{Map, Value};
     use std::collections::BTreeMap;
 
-    use crate::testutil::temp_dir;
-
     #[test]
     fn faction_list_prepares_one_index_and_matches_loaded_nested_targets() {
-        let root = temp_dir("faction_list_target_projection");
+        let root = project_workspace("faction_list_target_projection");
         std::fs::create_dir_all(root.join("data/world/factions/nested")).unwrap();
         write_utf8_no_bom(&root.join("data/world/factions/factions.csv"),
             "faction,file,custom\r\nalias,data/world/factions/nested/one.faction,kept\r\ntwo,data/world/factions/two.faction,other\r\n").unwrap();
@@ -111,12 +110,12 @@ mod tests {
             Some(crate::models::EntityLinkedRecord::Index { row_index: 0, .. })
         ));
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn mission_entity_query_returns_index_descriptor_text_and_icon_ref() {
-        let root = temp_dir("mission_entity_query");
+        let root = project_workspace("mission_entity_query");
         std::fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -143,7 +142,6 @@ mod tests {
             .unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, "demo");
         assert_eq!(entity.data["list"]["mission"], "demo");
@@ -156,11 +154,12 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("data/missions/demo/icon.png")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn mission_entity_query_returns_none_for_unregistered_mission() {
-        let root = temp_dir("mission_entity_missing");
+        let root = project_workspace("mission_entity_missing");
         std::fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -174,13 +173,13 @@ mod tests {
         let entity = query_entity(&manifest.session_id, EntityKind::Mission, "missing").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(entity.is_none());
+        root.close().unwrap();
     }
 
     #[test]
     fn mission_list_icon_descriptor_errors_are_not_hidden() {
-        let root = temp_dir("mission_list_icon_descriptor_error");
+        let root = project_workspace("mission_list_icon_descriptor_error");
         std::fs::create_dir_all(root.join("data/missions/demo")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -197,8 +196,8 @@ mod tests {
             .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("descriptor.json"));
+        root.close().unwrap();
     }
 
     #[test]
@@ -253,7 +252,7 @@ mod tests {
 
     #[test]
     fn mission_entity_list_registers_only_rows_with_a_mission_id() {
-        let root = temp_dir("mission_entity_rows_with_mission_id");
+        let root = project_workspace("mission_entity_rows_with_mission_id");
         std::fs::create_dir_all(root.join("data/missions")).unwrap();
         write_utf8_no_bom(
             &root.join("data/missions/mission_list.csv"),
@@ -267,14 +266,14 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Mission).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "demo");
+        root.close().unwrap();
     }
 
     #[test]
     fn weapon_entity_query_returns_spec_and_csv_row() {
-        let root = temp_dir("weapon_entity_query");
+        let root = project_workspace("weapon_entity_query");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -295,7 +294,6 @@ mod tests {
             .unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entity.data["spec"]["specClass"], "beam");
         assert_eq!(entity.data["csvRow"]["range"], "700");
         assert_eq!(
@@ -305,11 +303,12 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/weapons/demo.png")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn weapon_entity_query_uses_csv_registration_without_spec() {
-        let root = temp_dir("weapon_entity_csv_only");
+        let root = project_workspace("weapon_entity_csv_only");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -325,14 +324,14 @@ mod tests {
             .unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entity.data["spec"], Value::Object(Map::new()));
         assert_eq!(entity.data["csvRow"]["range"], "700");
+        root.close().unwrap();
     }
 
     #[test]
     fn weapon_entity_list_uses_csv_registration_boundary() {
-        let root = temp_dir("weapon_entity_list_csv_boundary");
+        let root = project_workspace("weapon_entity_list_csv_boundary");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -351,16 +350,16 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "csv_weapon");
         assert_eq!(entities[0].data["csvRow"]["range"], "700");
         assert_eq!(entities[0].data["spec"], Value::Object(Map::new()));
+        root.close().unwrap();
     }
 
     #[test]
     fn weapon_entity_list_registers_only_rows_with_an_id() {
-        let root = temp_dir("weapon_entity_rows_with_id");
+        let root = project_workspace("weapon_entity_rows_with_id");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -374,14 +373,14 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "demo_weapon");
+        root.close().unwrap();
     }
 
     #[test]
     fn weapon_entity_query_returns_none_for_unregistered_spec() {
-        let root = temp_dir("weapon_entity_unregistered_spec");
+        let root = project_workspace("weapon_entity_unregistered_spec");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -400,13 +399,13 @@ mod tests {
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(entity.is_none());
+        root.close().unwrap();
     }
 
     #[test]
     fn skill_entity_list_uses_csv_registration_boundary() {
-        let root = temp_dir("skill_entity_list_csv_boundary");
+        let root = project_workspace("skill_entity_list_csv_boundary");
         std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
@@ -430,7 +429,6 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "skill_one");
         assert_eq!(entities[0].data["spec"]["effect"], "demo");
@@ -442,11 +440,12 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/icons/skill_one.png")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn skill_entity_query_uses_empty_spec_for_registered_skill_without_file() {
-        let root = temp_dir("skill_entity_csv_only");
+        let root = project_workspace("skill_entity_csv_only");
         std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
@@ -462,15 +461,15 @@ mod tests {
             .unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entity.data["spec"], Value::Object(Map::new()));
         assert_eq!(entity.data["csvRow"]["name"], "Skill One");
         assert!(!entity.resource_refs.contains_key("icon"));
+        root.close().unwrap();
     }
 
     #[test]
     fn skill_entity_query_returns_none_for_unregistered_skill() {
-        let root = temp_dir("skill_entity_unregistered");
+        let root = project_workspace("skill_entity_unregistered");
         std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
@@ -489,13 +488,13 @@ mod tests {
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "missing").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(entity.is_none());
+        root.close().unwrap();
     }
 
     #[test]
     fn skill_entity_list_registers_only_rows_with_an_id() {
-        let root = temp_dir("skill_entity_rows_with_id");
+        let root = project_workspace("skill_entity_rows_with_id");
         std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
             &root.join("data/characters/skills/skill_data.csv"),
@@ -509,8 +508,8 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].id, "skill_one");
+        root.close().unwrap();
     }
 }

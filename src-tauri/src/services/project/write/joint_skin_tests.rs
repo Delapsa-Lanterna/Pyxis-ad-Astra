@@ -1,7 +1,7 @@
 use super::*;
 use crate::domain::joint_hull::hull_field_value;
 
-pub(super) fn skin_fixture() -> (PathBuf, JointEditRoot) {
+pub(super) fn skin_fixture() -> (TestWorkspace, JointEditRoot) {
     let (dir, mut root) = fixture();
     project::close_project_session(root.session_id).unwrap();
     std::fs::create_dir_all(dir.join("data/hulls/skins")).unwrap();

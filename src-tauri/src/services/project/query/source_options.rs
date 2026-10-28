@@ -119,16 +119,17 @@ pub fn query_image_source_options(
 #[cfg(test)]
 mod image_tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
     use crate::services::project::{
         PerformanceTrace,
         session::{close_project_session, open_project_session_traced},
     };
-    use crate::testutil::{temp_dir, temp_linked_dir};
+    use crate::testutil::TestWorkspace;
     use std::fs;
 
     #[test]
     fn image_directories_merge_sources_and_keep_mission_paths_relative() {
-        let root = temp_dir("image_source_catalog");
+        let root = project_workspace("image_source_catalog");
         let local = root.join("mod");
         let game = root.join("game");
         let core = game.join("starsector-core");
@@ -212,15 +213,14 @@ mod image_tests {
         );
         close_project_session(manifest.session_id.clone()).unwrap();
         assert!(query_image_source_options(&manifest.session_id, &directories, None).is_err());
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn image_directories_reject_linked_children() {
-        let Some((root, outside, _link)) = temp_linked_dir("image_catalog_link", "graphics/icons")
-        else {
-            return;
-        };
+        let (root, outside, _link) =
+            TestWorkspace::directory_link("image_catalog_link", "graphics/icons").unwrap();
+        let root = root.with_cleanup(crate::services::project::test_support::release_workspace);
         fs::write(outside.join("outside.png"), [1]).unwrap();
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("images.test"))
@@ -230,8 +230,7 @@ mod image_tests {
                 .is_err()
         );
         close_project_session(manifest.session_id).unwrap();
-        fs::remove_dir_all(root).unwrap();
-        fs::remove_dir_all(outside).unwrap();
+        root.close().unwrap();
     }
 }
 
@@ -978,9 +977,10 @@ fn add_faction_blueprint_metadata(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::project::test_support::project_workspace;
     #[test]
     fn projectile_reference_catalog() {
-        let root = crate::testutil::temp_dir("projectile_catalog");
+        let root = project_workspace("projectile_catalog");
         let local = root.join("mod");
         let core = root.join("starsector-core");
         for dir in [&local, &core] {
@@ -1006,7 +1006,6 @@ mod tests {
             crate::services::query_csv_source_options(&manifest.session_id, "csv:projectiles.id")
                 .unwrap();
         crate::services::project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, crate::models::ResourceSource::Mod);
         assert_eq!(groups[1].origin, crate::models::ResourceSource::Core);
@@ -1023,16 +1022,15 @@ mod tests {
             groups[1].options[0].resource_ref.as_ref().unwrap().source,
             crate::models::ResourceSource::Core
         );
+        root.close().unwrap();
     }
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::io::write_utf8_no_bom;
 
-    use crate::testutil::temp_dir;
-
     #[test]
     fn config_catalog_sources() {
-        let root = temp_dir("config_catalogs");
+        let root = project_workspace("config_catalogs");
         let local = root.join("mod");
         let core = root.join("starsector-core");
         for dir in [&local, &core] {
@@ -1104,12 +1102,12 @@ mod tests {
                 .ends_with("settings.json")
         );
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn source_options_return_resource_refs_without_data_urls() {
-        let root = temp_dir("source_resource_refs");
+        let root = project_workspace("source_resource_refs");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
@@ -1128,7 +1126,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let option = groups
             .iter()
             .flat_map(|group| group.options.iter())
@@ -1141,11 +1138,12 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/ships/ship_a.png")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn source_options_return_complete_stable_mod_then_core_catalog() {
-        let root = temp_dir("source_complete_catalog");
+        let root = project_workspace("source_complete_catalog");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/campaign")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/campaign")).unwrap();
@@ -1171,7 +1169,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:commodities.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, ResourceSource::Mod);
         assert_eq!(groups[0].options.len(), 501);
@@ -1218,11 +1215,12 @@ mod tests {
                 .iter()
                 .all(|option| option.origin == ResourceSource::Core)
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn mod_id_source_options_include_csv_metadata_and_resource() {
-        let root = temp_dir("current_source_resource_refs");
+        let root = project_workspace("current_source_resource_refs");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
@@ -1241,7 +1239,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Mod)
@@ -1256,11 +1253,12 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/ships/ship_a.png")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn core_id_source_options_include_csv_metadata_and_resource() {
-        let root = temp_dir("current_core_source_resource_refs");
+        let root = project_workspace("current_core_source_resource_refs");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
@@ -1282,7 +1280,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Core)
@@ -1297,11 +1294,12 @@ mod tests {
                 .map(|resource| resource.rel_path.as_str()),
             Some("graphics/ships/core_ship.png")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn ship_source_options_use_hull_name_only_when_csv_name_is_missing() {
-        let root = temp_dir("ship_source_name_fallback");
+        let root = project_workspace("ship_source_name_fallback");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
@@ -1332,7 +1330,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:ships.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(
             source_option_label_from_groups(&groups, "mod_ship").as_deref(),
             Some("Mod Fallback (mod_ship)")
@@ -1341,11 +1338,12 @@ mod tests {
             source_option_label_from_groups(&groups, "core_ship").as_deref(),
             Some("Core Fallback (core_ship)")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn wing_source_options_support_fighter_ids_and_tags() {
-        let root = temp_dir("wing_source_options");
+        let root = project_workspace("wing_source_options");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         std::fs::create_dir_all(root.join("data/variants/fighters")).unwrap();
         write_utf8_no_bom(
@@ -1366,7 +1364,6 @@ mod tests {
         let tag_groups = query_csv_source_options(&manifest.session_id, "csv:wings.tags").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(
             source_option_label_from_groups(&id_groups, "talon_wing").as_deref(),
             Some("截击机 (talon_wing)")
@@ -1375,11 +1372,12 @@ mod tests {
             source_option_label_from_groups(&tag_groups, "hegemony").as_deref(),
             Some("hegemony")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn core_wing_source_options_fail_when_skin_index_fails() {
-        let root = temp_dir("core_wing_source_ref_skin_error");
+        let root = project_workspace("core_wing_source_ref_skin_error");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(&mod_root).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
@@ -1404,13 +1402,13 @@ mod tests {
             .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("bad.skin"));
+        root.close().unwrap();
     }
 
     #[test]
     fn core_wing_source_options_do_not_use_mod_variants_for_resource_refs() {
-        let root = temp_dir("core_wing_source_ref_uses_core_variants_only");
+        let root = project_workspace("core_wing_source_ref_uses_core_variants_only");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
@@ -1437,7 +1435,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:wings.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Core)
@@ -1450,11 +1447,12 @@ mod tests {
             .unwrap();
         assert_eq!(option.origin, ResourceSource::Core);
         assert!(option.resource_ref.is_none());
+        root.close().unwrap();
     }
 
     #[test]
     fn variant_id_source_options_combine_mod_and_core_entities() {
-        let root = temp_dir("variant_id_source_options");
+        let root = project_workspace("variant_id_source_options");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/hulls")).unwrap();
@@ -1487,7 +1485,6 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:variants.variantId").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
 
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].origin, ResourceSource::Mod);
@@ -1514,11 +1511,12 @@ mod tests {
         );
         let core_option = groups[1].options.first().unwrap();
         assert!(core_option.resource_ref.is_some());
+        root.close().unwrap();
     }
 
     #[test]
     fn unknown_entity_source_still_fails_as_unknown_table() {
-        let root = temp_dir("unknown_entity_source");
+        let root = project_workspace("unknown_entity_source");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
 
         let mut trace =
@@ -1528,7 +1526,6 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:nonexistent.foo").unwrap_err();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(matches!(
             error,
             crate::errors::AppError::Message {
@@ -1536,11 +1533,12 @@ mod tests {
                 ..
             }
         ));
+        root.close().unwrap();
     }
 
     #[test]
     fn core_weapon_source_options_do_not_use_mod_weapon_specs_for_resource_refs() {
-        let root = temp_dir("core_weapon_source_ref_uses_core_specs_only");
+        let root = project_workspace("core_weapon_source_ref_uses_core_specs_only");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/weapons")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/weapons")).unwrap();
@@ -1566,7 +1564,6 @@ mod tests {
         let groups = query_csv_source_options(&manifest.session_id, "csv:weapons.id").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let option = groups
             .iter()
             .find(|group| group.origin == ResourceSource::Core)
@@ -1579,6 +1576,7 @@ mod tests {
             .unwrap();
         assert_eq!(option.origin, ResourceSource::Core);
         assert!(option.resource_ref.is_none());
+        root.close().unwrap();
     }
 
     #[test]
@@ -1590,7 +1588,7 @@ mod tests {
 
     #[test]
     fn csv_source_options_reject_missing_source_column() {
-        let root = temp_dir("source_missing_column");
+        let root = project_workspace("source_missing_column");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),
@@ -1606,13 +1604,13 @@ mod tests {
             .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("csv source column does not exist: ships.missing"));
+        root.close().unwrap();
     }
 
     #[test]
     fn non_id_csv_source_options_do_not_inherit_row_resources() {
-        let root = temp_dir("source_non_id_no_resource");
+        let root = project_workspace("source_non_id_no_resource");
         std::fs::create_dir_all(root.join("data/campaign")).unwrap();
         write_utf8_no_bom(
             &root.join("data/campaign/commodities.csv"),
@@ -1627,18 +1625,18 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let option = groups
             .iter()
             .flat_map(|group| group.options.iter())
             .find(|option| option.value == "bulk")
             .unwrap();
         assert!(option.resource_ref.is_none());
+        root.close().unwrap();
     }
 
     #[test]
     fn tag_and_hint_source_options_use_separate_known_labels() {
-        let root = temp_dir("source_separate_tag_hint_labels");
+        let root = project_workspace("source_separate_tag_hint_labels");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -1655,7 +1653,6 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:weapons.hints").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let tag_label = source_option_label_from_groups(&tag_groups, "no_drop");
         let hint_label = source_option_label_from_groups(&hint_groups, "PD");
         assert_eq!(
@@ -1663,11 +1660,12 @@ mod tests {
             Some("no_drop (不会作为常规战利品出现)")
         );
         assert_eq!(hint_label.as_deref(), Some("PD (点防御)"));
+        root.close().unwrap();
     }
 
     #[test]
     fn tag_source_options_label_blueprint_package_tags_from_core_special_items() {
-        let root = temp_dir("source_core_blueprint_package_tag_labels");
+        let root = project_workspace("source_core_blueprint_package_tag_labels");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/campaign")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/campaign")).unwrap();
@@ -1694,7 +1692,6 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let tag_label = source_option_label_from_groups(&groups, "lowtech_bp");
         let tag_description = source_option_description_from_groups(&groups, "lowtech_bp");
         assert_eq!(
@@ -1705,11 +1702,12 @@ mod tests {
             tag_description.as_deref(),
             Some("Unlocks low tech blueprints.")
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn tag_source_options_read_mod_blueprint_package_metadata_from_session_rows() {
-        let root = temp_dir("source_mod_blueprint_package_session_rows");
+        let root = project_workspace("source_mod_blueprint_package_session_rows");
         std::fs::create_dir_all(root.join("data/campaign")).unwrap();
         write_utf8_no_bom(
             &root.join("data/campaign/special_items.csv"),
@@ -1735,16 +1733,16 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:commodities.tags").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         let tag_label = source_option_label_from_groups(&groups, "demo_bp");
         let tag_description = source_option_description_from_groups(&groups, "demo_bp");
         assert_eq!(tag_label.as_deref(), Some("demo_bp (#Old Package)"));
         assert_eq!(tag_description.as_deref(), Some("Old description."));
+        root.close().unwrap();
     }
 
     #[test]
     fn source_options_label_core_tag_and_hint_metadata() {
-        let root = temp_dir("source_core_tag_hint_metadata");
+        let root = project_workspace("source_core_tag_hint_metadata");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
             &root.join("data/weapons/weapon_data.csv"),
@@ -1761,7 +1759,6 @@ mod tests {
             query_csv_source_options(&manifest.session_id, "csv:weapons.hints").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(
             source_option_label_from_groups(&tag_groups, "codex_unlockable").as_deref(),
             Some("codex_unlockable (数据百科待解锁)")
@@ -1798,6 +1795,7 @@ mod tests {
             source_option_label_from_groups(&hint_groups, "beam999").as_deref(),
             Some("beam999")
         );
+        root.close().unwrap();
     }
 
     fn source_option_label_from_groups(

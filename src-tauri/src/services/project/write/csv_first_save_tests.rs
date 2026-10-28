@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 
 use super::super::model::csv_table_specs;
 use crate::{
@@ -6,14 +7,13 @@ use crate::{
     io::read_csv_data,
     models::{CsvSave, CsvSearchField},
     services::{project, query_csv_table_index},
-    testutil::temp_dir,
 };
 
 #[test]
 fn csv_headers_and_first_save() {
     for spec in csv_table_specs() {
         for source in ["existing", "core", "schema"] {
-            let root = temp_dir("csv_first_save");
+            let root = project_workspace("csv_first_save");
             let mod_root = root.join("mod");
             let game = root.join("game");
             let core = game.join("starsector-core");
@@ -70,7 +70,7 @@ fn csv_headers_and_first_save() {
             assert_eq!(result.changes.len(), 1);
             project::close_project_session(manifest.session_id).unwrap();
             project::invalidate_core_cache(&game.to_string_lossy()).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 }

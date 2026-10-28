@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::services::project::test_support::project_workspace;
 
 use crate::{
     commands::prepare_json_source_recovery,
@@ -6,20 +7,19 @@ use crate::{
         EntityKind, JsonDocumentOrigin, JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore,
     },
     services::{project, query_entity},
-    testutil::temp_dir,
+    testutil::TestWorkspace,
 };
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
 struct Fixture {
-    root: PathBuf,
+    root: TestWorkspace,
     request: JsonRecoveryRequest,
     baseline: Value,
     paths: Vec<String>,
 }
 impl Fixture {
     fn new(kind: &str) -> Self {
-        let root = temp_dir("json_recovery");
+        let root = project_workspace("json_recovery");
         let (origin, baseline, files) = match kind {
             "modInfo" => (
                 JsonDocumentOrigin::ModInfo,
@@ -118,12 +118,6 @@ other,unrelated
                 baseline: self.baseline.clone(),
             }),
         )
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        project::close_project_session(self.request.session_id.clone()).unwrap();
-        std::fs::remove_dir_all(&self.root).unwrap();
     }
 }
 fn entity(kind: EntityKind, relative: &str) -> JsonDocumentOrigin {

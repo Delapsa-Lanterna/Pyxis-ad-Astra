@@ -94,10 +94,8 @@ fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalF
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        io::write_utf8_no_bom,
-        testutil::{temp_dir, temp_linked_dir},
-    };
+    use crate::services::project::test_support::project_workspace;
+    use crate::{io::write_utf8_no_bom, testutil::TestWorkspace};
 
     fn install(root: &Path, marker: &str) {
         let directory = root.join("starsector-core/graphics/fonts");
@@ -109,7 +107,7 @@ mod tests {
 
     #[test]
     fn reads_declared_page_names_and_returns_actual_source_paths() {
-        let root = temp_dir("original_font_pages");
+        let root = project_workspace("original_font_pages");
         install(&root, "original");
         let result = read_original_font(&root, FontId::Orbitron12condensed).unwrap();
         let OriginalFontResult::Available {
@@ -129,12 +127,12 @@ mod tests {
         assert!(path.ends_with("orbitron12condensed.fnt"));
         assert!(definition.contains("original"));
         assert_eq!(Path::new(&effective), root.canonicalize().unwrap());
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn distinguishes_unavailable_core_from_missing_font_and_page_files() {
-        let root = temp_dir("original_font_missing");
+        let root = project_workspace("original_font_missing");
         assert!(matches!(
             read_original_font(&root, FontId::Victor14).unwrap(),
             OriginalFontResult::Unavailable
@@ -161,12 +159,12 @@ mod tests {
                 .unwrap()
                 .ends_with("page1.png")
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn rejects_malformed_duplicate_and_escaping_page_declarations() {
-        let root = temp_dir("original_font_invalid_page");
+        let root = project_workspace("original_font_invalid_page");
         install(&root, "original");
         let path = root.join("starsector-core/graphics/fonts/orbitron12condensed.fnt");
         for text in [
@@ -178,27 +176,24 @@ mod tests {
             write_utf8_no_bom(&path, text).unwrap();
             assert!(read_original_font(&root, FontId::Orbitron12condensed).is_err());
         }
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn rejects_linked_font_parent_chains() {
-        let Some((root, outside, _linked)) =
-            temp_linked_dir("original_font_link", "starsector-core/graphics/fonts")
-        else {
-            return;
-        };
+        let (root, outside, _linked) =
+            TestWorkspace::directory_link("original_font_link", "starsector-core/graphics/fonts")
+                .unwrap();
         write_utf8_no_bom(&outside.join("victor14.fnt"), "page id=0 file=\"page.png\"").unwrap();
         assert!(read_original_font(&root, FontId::Victor14).is_err());
-        fs::remove_dir_all(root).unwrap();
-        fs::remove_dir_all(outside).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn captures_session_root_and_prioritizes_explicit_settings_root() {
-        let root = temp_dir("original_font_session_root");
-        let game = temp_dir("original_font_game");
-        let other = temp_dir("original_font_other_game");
+        let root = project_workspace("original_font_session_root");
+        let game = project_workspace("original_font_game");
+        let other = project_workspace("original_font_other_game");
         write_utf8_no_bom(
             &root.join("mod_info.json"),
             "{\"id\":\"font-test\",\"name\":\"Font Test\"}",
@@ -289,7 +284,7 @@ mod tests {
             .is_err()
         );
         for dir in [root, game, other] {
-            fs::remove_dir_all(dir).unwrap();
+            dir.close().unwrap();
         }
     }
 }

@@ -813,10 +813,11 @@ pub(super) fn refresh_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn mission_index_changes_refresh_cached_lists_and_counts() {
-        let root = crate::testutil::temp_dir("mission_cached_index");
+        let root = project_workspace("mission_cached_index");
         let path = root.join(super::super::model::MISSION_LIST_REL_PATH);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         crate::io::write_utf8_no_bom(&path, "mission\r\nfirst\r\n").unwrap();
@@ -888,7 +889,7 @@ mod tests {
         .unwrap();
         (definition.prepare)(&mut session).unwrap();
         assert_eq!((definition.list)(&mut session).unwrap()[0].id, "first");
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -933,7 +934,7 @@ mod tests {
     #[test]
     fn family_refresh_counts_and_diagnostics_follow_independent_owners() {
         use super::super::sources::json_documents::take_load_counts;
-        let root = crate::testutil::temp_dir("family_projection_counts");
+        let root = project_workspace("family_projection_counts");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         let variant = r#"{"variantId":"variant","hullId":"hull"}"#;
@@ -988,12 +989,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(take_load_counts(), (1, 1));
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn failed_projection_keeps_all_previous_family_state() {
-        let root = crate::testutil::temp_dir("atomic_family_projection");
+        let root = project_workspace("atomic_family_projection");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         let before = r#"{"variantId":"old","hullId":"hull"}"#;
@@ -1021,7 +1022,7 @@ mod tests {
         assert_eq!(session.variant_files[0].variant_id, "old");
         assert_eq!(session.manifest.entity_summaries.variants, 1);
         assert!(session.skin_files.is_empty());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
@@ -1050,7 +1051,6 @@ mod tests {
             }
         }
     }
-    use crate::testutil::temp_dir;
     use crate::{
         io::write_utf8_no_bom,
         models::{CsvTableKey, FileChangeKind, FileChangeRecord, FileSnapshot},
@@ -1060,7 +1060,7 @@ mod tests {
 
     #[test]
     fn invalidating_variant_path_refreshes_session_variant_index() {
-        let root = temp_dir("invalidate_variant_index");
+        let root = project_workspace("invalidate_variant_index");
         fs::create_dir_all(root.join("data/variants")).unwrap();
         write_utf8_no_bom(
             &root.join("data/variants/demo.variant"),
@@ -1086,7 +1086,6 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(
             session
                 .variant_files
@@ -1107,11 +1106,12 @@ mod tests {
                 invalidated_entity(EntityKind::Variant, Some("old".to_string())),
             ]
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn invalidating_faction_path_refreshes_tag_sources_and_preserves_csv_rows() {
-        let root = temp_dir("invalidate_faction_tags");
+        let root = project_workspace("invalidate_faction_tags");
         fs::create_dir_all(root.join("data/world/factions")).unwrap();
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
@@ -1150,7 +1150,6 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(session.faction_blueprint_tags.contains_key("demo_new_bp"));
         assert!(!session.faction_blueprint_tags.contains_key("demo_old_bp"));
         let rows = session
@@ -1174,11 +1173,12 @@ mod tests {
                 .any(|scope| scope.kind == InvalidatedQueryKind::CsvSourceOptions
                     && scope.source.as_deref() == Some("csv:ships.tags"))
         );
+        root.close().unwrap();
     }
 
     #[test]
     fn invalidating_csv_snapshot_scopes_ship_queries_to_changed_rows() {
-        let root = temp_dir("invalidate_ship_csv_snapshot");
+        let root = project_workspace("invalidate_ship_csv_snapshot");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         let before = "id,name\r\nalpha,Old\r\nbeta,Unchanged\r\n";
         let after = "id,name\r\nalpha,New\r\nbeta,Unchanged\r\n";
@@ -1197,7 +1197,6 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert_eq!(invalidation.tables, vec![CsvTableKey::Ships]);
         assert_eq!(
             invalidation.entities,
@@ -1218,11 +1217,12 @@ mod tests {
             scope.kind == InvalidatedQueryKind::EntityDetail
                 && scope.entity == Some(invalidated_entity(EntityKind::Ship, None))
         }));
+        root.close().unwrap();
     }
 
     #[test]
     fn invalidating_directory_snapshot_refreshes_exact_variant_ids() {
-        let root = temp_dir("invalidate_variant_directory_snapshot");
+        let root = project_workspace("invalidate_variant_directory_snapshot");
         fs::create_dir_all(root.join("data/variants")).unwrap();
         let old = r#"{"variantId":"old","hullId":"hull"}"#;
         write_utf8_no_bom(&root.join("data/variants/old.variant"), old).unwrap();
@@ -1245,7 +1245,6 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
         assert!(session.variant_files.is_empty());
         assert_eq!(
             invalidation.entities,
@@ -1254,6 +1253,7 @@ mod tests {
                 Some("old".to_string())
             )]
         );
+        root.close().unwrap();
     }
 
     #[test]
@@ -1424,8 +1424,8 @@ mod tests {
 
     #[test]
     fn invalidating_external_absolute_path_does_not_refresh_session_indexes() {
-        let root = temp_dir("invalidate_external_current");
-        let external = temp_dir("invalidate_external_other");
+        let root = project_workspace("invalidate_external_current");
+        let external = project_workspace("invalidate_external_other");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         fs::create_dir_all(external.join("data/hulls")).unwrap();
         write_utf8_no_bom(
@@ -1452,11 +1452,11 @@ mod tests {
         )
         .unwrap();
 
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(external);
         assert_eq!(session.manifest.entity_summaries.ships, 1);
         assert!(session.ship_files.contains_key("current"));
         assert!(!session.ship_files.contains_key("external"));
+        external.close().unwrap();
+        root.close().unwrap();
     }
 
     fn file_change(

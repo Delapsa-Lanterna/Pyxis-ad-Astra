@@ -128,12 +128,13 @@ mod tests {
     use super::*;
     use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
     use crate::services::project::cache::media::cached_sprite_media_contains;
+    use crate::services::project::test_support::project_workspace;
 
-    use crate::testutil::{temp_dir, temp_linked_dir};
+    use crate::testutil::TestWorkspace;
 
     #[test]
     fn engine_assets_merge_sources_and_keep_images_independent_of_styles() {
-        let root = temp_dir("engine_assets");
+        let root = project_workspace("engine_assets");
         let local = root.join("mod");
         let game = root.join("game");
         let core = game.join("starsector-core");
@@ -204,7 +205,7 @@ mod tests {
         );
         close_project_session(manifest.session_id.clone()).unwrap();
         assert!(query_engine_render_assets(&manifest.session_id, &[]).is_err());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     fn general_purpose_base64(bytes: &[u8]) -> String {
@@ -214,7 +215,7 @@ mod tests {
 
     #[test]
     fn batch_resource_query_keeps_order_and_uses_empty_for_missing() {
-        let root = temp_dir("batch_resource_query");
+        let root = project_workspace("batch_resource_query");
         std::fs::create_dir_all(root.join("graphics/ships")).unwrap();
         std::fs::write(root.join("graphics/ships/ship.png"), [137, 80, 78, 71]).unwrap();
 
@@ -243,7 +244,6 @@ mod tests {
         .unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(result.entries.len(), 2);
         assert_eq!(result.entries[0].key, "ship");
         assert_eq!(result.entries[0].owner_kind, ResourceOwnerKind::Ship);
@@ -253,11 +253,12 @@ mod tests {
         assert_eq!(result.entries[1].owner_kind, ResourceOwnerKind::Ship);
         assert_eq!(result.entries[1].owner_id, "missing");
         assert!(result.entries[1].data_url.is_none());
+        root.close().unwrap();
     }
 
     #[test]
     fn batch_resource_query_reads_shared_physical_media_once() {
-        let root = temp_dir("batch_resource_query_physical_key");
+        let root = project_workspace("batch_resource_query_physical_key");
         let sprite = root.join("graphics/shared/icon.png");
         std::fs::create_dir_all(sprite.parent().unwrap()).unwrap();
         std::fs::write(&sprite, [137, 80, 78, 71]).unwrap();
@@ -312,12 +313,12 @@ mod tests {
         assert_eq!(sprite_read_count(&sprite) - before, 1);
 
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn batch_resource_query_keeps_mod_and_core_media_separate() {
-        let root = temp_dir("batch_resource_query_source_key");
+        let root = project_workspace("batch_resource_query_source_key");
         let mod_sprite = root.join("mods/demo/graphics/shared/icon.png");
         let core_sprite = root.join("starsector-core/graphics/shared/icon.png");
         std::fs::create_dir_all(mod_sprite.parent().unwrap()).unwrap();
@@ -352,12 +353,12 @@ mod tests {
 
         assert_ne!(result.entries[0].data_url, result.entries[1].data_url);
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn core_resource_requires_starsector_root() {
-        let root = temp_dir("core_resource_without_root");
+        let root = project_workspace("core_resource_without_root");
 
         let mut trace =
             crate::services::project::performance::PerformanceTrace::new("project.openSession");
@@ -376,13 +377,13 @@ mod tests {
         .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("core resource requires starsector root"));
+        root.close().unwrap();
     }
 
     #[test]
     fn mod_resource_uses_core_fallback_from_session_root() {
-        let root = temp_dir("mod_resource_core_fallback");
+        let root = project_workspace("mod_resource_core_fallback");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(&mod_root).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/graphics/ships")).unwrap();
@@ -408,13 +409,13 @@ mod tests {
         .unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(result.entries[0].data_url.is_some());
+        root.close().unwrap();
     }
 
     #[test]
     fn resource_query_rejects_parent_dir_escape() {
-        let root = temp_dir("resource_query_parent_escape");
+        let root = project_workspace("resource_query_parent_escape");
 
         let mut trace =
             crate::services::project::performance::PerformanceTrace::new("project.openSession");
@@ -433,17 +434,15 @@ mod tests {
         .to_string();
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert!(error.contains("sprite path is outside resource root"));
+        root.close().unwrap();
     }
 
     #[test]
     fn resource_query_rejects_mod_link_parent_escape() {
-        let Some((root, outside, _linked)) =
-            temp_linked_dir("resource_query_link_escape", "linked")
-        else {
-            return;
-        };
+        let (root, outside, _linked) =
+            TestWorkspace::directory_link("resource_query_link_escape", "linked").unwrap();
+        let root = root.with_cleanup(crate::services::project::test_support::release_workspace);
         std::fs::write(outside.join("outside.png"), [137, 80, 78, 71]).unwrap();
 
         let mut trace =
@@ -461,14 +460,13 @@ mod tests {
         );
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
-        let _ = std::fs::remove_dir_all(outside);
         assert!(result.is_err());
+        root.close().unwrap();
     }
 
     #[test]
     fn media_cache_refreshes_entry_when_file_content_changes() {
-        let root = temp_dir("media_cache_refresh");
+        let root = project_workspace("media_cache_refresh");
         let sprite_dir = root.join("graphics/ships");
         std::fs::create_dir_all(&sprite_dir).unwrap();
         let sprite = sprite_dir.join("demo.png");
@@ -502,15 +500,15 @@ mod tests {
             .unwrap();
 
         close_project_session(session_id).unwrap();
-        let _ = std::fs::remove_dir_all(root);
         assert_ne!(first, second);
         assert!(first.ends_with(&general_purpose_base64(&[1u8])));
         assert!(second.ends_with(&general_purpose_base64(&[7u8, 7, 7])));
+        root.close().unwrap();
     }
 
     #[test]
     fn media_cache_evicts_oldest_beyond_capacity() {
-        let root = temp_dir("media_cache_eviction");
+        let root = project_workspace("media_cache_eviction");
         let count = super::super::super::cache::media::media_capacity_for_test() + 3;
         let sprite_dir = root.join("graphics/ships");
         std::fs::create_dir_all(&sprite_dir).unwrap();
@@ -554,15 +552,15 @@ mod tests {
         );
 
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
         assert_eq!(result.entries.len(), count);
         assert!(!oldest_still_cached);
         assert!(newest_still_cached);
+        root.close().unwrap();
     }
 
     #[test]
     fn closing_session_clears_media_cache() {
-        let root = temp_dir("media_cache_close_clears");
+        let root = project_workspace("media_cache_close_clears");
         let sprite_dir = root.join("graphics/ships");
         std::fs::create_dir_all(&sprite_dir).unwrap();
         std::fs::write(sprite_dir.join("demo.png"), [137, 80, 78, 71]).unwrap();
@@ -590,12 +588,12 @@ mod tests {
             &session_id,
             &media_resource_key(&resource)
         ));
-        let _ = std::fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn draft_weapon_resources_are_derived_from_submitted_snapshot() {
-        let root = temp_dir("draft_weapon_resources");
+        let root = project_workspace("draft_weapon_resources");
         let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let draft = serde_json::json!({"id":"weapon", "turretSprite":"graphics/draft.png"});
@@ -614,12 +612,12 @@ mod tests {
             query_draft_resources("closed", DraftResourceEntityKind::Weapon, "weapon", &draft)
                 .is_err()
         );
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn projectile_draft_resources_keep_both_sprite_fields_and_owner() {
-        let root = temp_dir("projectile_draft_resources");
+        let root = project_workspace("projectile_draft_resources");
         let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let draft = serde_json::json!({"sprite":"graphics/missile.png", "bulletSprite":"graphics/shot.png"});
@@ -653,12 +651,12 @@ mod tests {
             )
             .is_err()
         );
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn config_draft_resources_use_the_current_references_and_owner() {
-        let root = temp_dir("config_draft_resources");
+        let root = project_workspace("config_draft_resources");
         let mut trace = crate::services::project::PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let faction = query_draft_resources(
@@ -679,6 +677,6 @@ mod tests {
         .unwrap();
         assert_eq!(mission["icon"].rel_path, "data/missions/mission/new.png");
         close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

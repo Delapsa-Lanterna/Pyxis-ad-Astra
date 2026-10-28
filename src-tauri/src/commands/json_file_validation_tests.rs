@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::services::project::test_support::project_workspace;
 use serde_json::json;
 
 #[test]
@@ -5,9 +7,8 @@ fn skin_engine_index_save() {
     use crate::{
         models::{EntityKind, JsonFileSave},
         services,
-        testutil::temp_dir,
     };
-    let root = temp_dir("skin_engine_validation");
+    let root = project_workspace("skin_engine_validation");
     std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
     std::fs::write(
         root.join("data/hulls/base.ship"),
@@ -59,5 +60,5 @@ fn skin_engine_index_save() {
         .unwrap();
     assert_eq!(saved.data["engineSlotChanges"]["0"]["width"], 2.5);
     services::project::close_project_session(manifest.session_id).unwrap();
-    std::fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }

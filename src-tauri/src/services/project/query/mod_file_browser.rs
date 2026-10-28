@@ -195,10 +195,11 @@ fn binary_content(bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::{temp_dir, temp_linked_dir};
+    use crate::services::project::test_support::project_workspace;
+    use crate::testutil::TestWorkspace;
     #[test]
     fn lists_direct_children_hidden_files_and_empty_directories() {
-        let root = temp_dir("mod_file_browser_list");
+        let root = project_workspace("mod_file_browser_list");
         fs::create_dir_all(root.join("data/nested")).unwrap();
         fs::write(root.join(".hidden"), b"hidden").unwrap();
         fs::write(root.join("data/deep.txt"), b"text").unwrap();
@@ -222,11 +223,11 @@ mod tests {
                 .is_empty()
         );
         assert!(read_directory(&boundary, Some("../outside")).is_err());
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
     #[test]
     fn content_detection_preserves_text_formats_and_reports_actual_encoding_path() {
-        let root = temp_dir("mod_file_browser_content");
+        let root = project_workspace("mod_file_browser_content");
         for (name, bytes) in [
             ("README", b"hello".as_slice()),
             ("empty", b"".as_slice()),
@@ -259,13 +260,12 @@ mod tests {
             error.location().unwrap().path.as_deref(),
             Some(path.to_str().unwrap())
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
     #[test]
     fn exposes_links_as_restricted_without_following_them() {
-        let Some((root, outside, link)) = temp_linked_dir("mod_browser_link", "linked") else {
-            return;
-        };
+        let (root, _outside, link) =
+            TestWorkspace::directory_link("mod_browser_link", "linked").unwrap();
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
         let list = read_directory(&boundary, None).unwrap();
         assert!(
@@ -280,8 +280,7 @@ mod tests {
                 .is_err()
         );
         let _ = link;
-        fs::remove_dir_all(root).unwrap();
-        fs::remove_dir_all(outside).unwrap();
+        root.close().unwrap();
     }
     #[test]
     fn every_registered_binary_header_is_classified_before_decoding() {
@@ -309,7 +308,7 @@ mod tests {
 
     #[test]
     fn public_queries_bind_targets_to_session_and_reject_released_or_external_paths() {
-        let root = temp_dir("mod_browser_session");
+        let root = project_workspace("mod_browser_session");
         fs::write(root.join("README"), "中文").unwrap();
         fs::write(root.join("archive.jar"), b"PK\x03\x04").unwrap();
         let mut trace =
@@ -354,12 +353,12 @@ mod tests {
                 .code(),
             "session.unknown"
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn search_returns_unopened_matches_with_ancestors_and_metadata() {
-        let root = temp_dir("mod_file_search_metadata");
+        let root = project_workspace("mod_file_search_metadata");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         fs::create_dir_all(root.join("匹配目录")).unwrap();
         fs::write(root.join("data/hulls/测试.SHIP"), "中文").unwrap();
@@ -403,13 +402,12 @@ mod tests {
                 .size_bytes,
             Some(0)
         );
-        fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
     #[test]
     fn recursive_search_displays_links_and_keeps_their_targets_outside_its_traversal() {
-        let Some((root, outside, _link)) = temp_linked_dir("mod_search_links", "linked") else {
-            return;
-        };
+        let (root, outside, _link) =
+            TestWorkspace::directory_link("mod_search_links", "linked").unwrap();
         fs::write(outside.join("secret.txt"), "secret").unwrap();
         let boundary = FsRootBoundary::new(&root, "mod root").unwrap();
         assert!(
@@ -422,7 +420,6 @@ mod tests {
             search_files(&boundary, "linked").unwrap().entries[0].kind,
             ModFileKind::Restricted
         );
-        fs::remove_dir_all(root).unwrap();
-        fs::remove_dir_all(outside).unwrap();
+        root.close().unwrap();
     }
 }

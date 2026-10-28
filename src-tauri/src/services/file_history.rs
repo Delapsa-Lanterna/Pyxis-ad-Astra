@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::testutil::TestWorkspace;
 use crate::{
     errors::{AppError, AppResult},
     models::{
@@ -221,7 +223,7 @@ mod tests {
 
     #[test]
     fn recorded_writes_replay_and_clear_through_the_history_owner() {
-        let directory = crate::testutil::temp_dir("history_owner");
+        let directory = TestWorkspace::new("history_owner");
         let root = directory.to_string_lossy().to_lowercase();
         let change =
             crate::io::build_text_change(&directory.join("entry.txt"), Some("saved".into()))
@@ -257,12 +259,12 @@ mod tests {
         assert!(cleared.undo_stack.is_empty());
         assert!(query(&root).unwrap().redo_stack.is_empty());
         release_history(&root).unwrap();
-        std::fs::remove_dir_all(directory).unwrap();
+        directory.close().unwrap();
     }
 
     #[test]
     fn stale_replay_credentials_preserve_the_current_history() {
-        let directory = crate::testutil::temp_dir("history_owner_stale");
+        let directory = TestWorkspace::new("history_owner_stale");
         let root = directory.to_string_lossy().to_lowercase();
         let change =
             crate::io::build_text_change(&directory.join("entry.txt"), Some("saved".into()))
@@ -286,7 +288,7 @@ mod tests {
             saved.undo_stack[0].id
         );
         release_history(&root).unwrap();
-        std::fs::remove_dir_all(directory).unwrap();
+        directory.close().unwrap();
     }
 
     fn entry(id: u64) -> HistoryEntry {

@@ -23,6 +23,7 @@
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭与投影生命周期，注册表句柄经缓存运行时交接。
+- `src-tauri/src/services/project/test_support.rs`：测试工作区结束时释放所属会话、历史及 Core 缓存。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、提交与窗口登记释放及性能记录。

@@ -1,11 +1,12 @@
 import { chromium } from 'playwright';
 import { parseArgs } from 'node:util';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { unlink, mkdir } from 'node:fs/promises';
+import { resolve, dirname, basename, join } from 'node:path';
 import { serve } from './serve.mjs';
 import { compare, markdown, rotation } from './report.mjs';
 import { verifyUI, verifyBrowserUI } from './ui.mjs';
 import { summarize } from '../shared/sample-statistics.mjs';
+import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 
 /** @typedef {import('../../src/test/browser/contracts').RunOptions} RunOptions */
 /** @typedef {import('../../src/test/browser/contracts').RoundResult} RoundResult */
@@ -18,7 +19,7 @@ const { values } = parseArgs({
     count: { type: 'string' },
     warmup: { type: 'string', default: '2' },
     rounds: { type: 'string' },
-    output: { type: 'string', default: 'node_modules/.cache/browser/reports/run.json' },
+    output: { type: 'string' },
     variant: { type: 'string', multiple: true },
     aa: { type: 'boolean' },
     'monitor-compare': { type: 'boolean' },
@@ -28,83 +29,118 @@ const { values } = parseArgs({
     'dev-smoke': { type: 'boolean' },
   },
 });
-const server = values.url
-  ? null
-  : await serve({
-      production: !values['dev-smoke'],
-      directory: values.directory,
-      mode: values.suite === 'browser-ui' ? 'browser' : 'testbed',
-    });
-const url = /** @type {string} */ (values.url ?? server?.url);
-const browser = await chromium.launch({
-  channel: 'msedge',
-  headless: true,
-  args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
-});
-const sceneNames = /** @type {const} */ (['settings', 'json', 'csv', 'ship', 'weapon', 'wing', 'variant', 'weapons', 'wings', 'hullmods']);
-const workloads = /** @type {const} */ ({ lists: 'benchmark', stress: 'stress', resources: 'resources', smoke: 'stress' });
-const suite = /** @type {keyof typeof workloads} */ (values.suite);
-/** @type {{ label: string, url: string, monitor: boolean, policy: 'disabled' | 'enabled' | 'code' }[]} */
-const variants = values.variant
-  ? values.variant.map((value) => {
-      const [label, endpoint, monitor = 'off', policy = 'code'] = value.split(',');
-      return { label, url: endpoint, monitor: monitor === 'on', policy: /** @type {'disabled' | 'enabled' | 'code'} */ (policy) };
-    })
-  : values['monitor-compare']
-    ? [
-        { label: 'disabled', url, monitor: false, policy: 'code' },
-        { label: 'enabled', url, monitor: true, policy: 'enabled' },
-      ]
-    : values.aa
-      ? [
-          { label: 'A', url, monitor: false, policy: 'code' },
-          { label: 'B', url, monitor: false, policy: 'code' },
-        ]
-      : [{ label: 'current', url, monitor: false, policy: 'code' }];
-/** @type {{scene: RunOptions['scene'], count: number, resourceSize: number}[]} */
-let cases =
-  suite === 'lists'
-    ? ['csv', 'weapons', 'wings', 'hullmods'].flatMap((scene) =>
-        (scene === 'csv' ? [50, 300, 2000] : [30, 100, 800]).map((count) => ({
-          scene: /** @type {RunOptions['scene']} */ (scene),
-          count,
-          resourceSize: 0,
-        })),
-      )
-    : suite === 'resources'
-      ? [32, 128, 512].map((resourceSize) => ({ scene: 'weapons', count: 100, resourceSize }))
-      : sceneNames.map((scene) => ({ scene, count: scene === 'csv' ? 50 : 30, resourceSize: 0 }));
-if (values.scene) cases = cases.filter((item) => item.scene === values.scene);
-if (values.count)
-  cases =
-    suite === 'lists'
-      ? cases.filter((item) => item.count === Number(values.count))
-      : cases.map((item) => ({ ...item, count: Number(values.count) }));
-const warmup = Number(values.warmup);
-const rounds = Number(values.rounds ?? (suite === 'stress' ? 100 : suite === 'smoke' ? 1 : 30));
-/** @type {RunResult[]} */
-const runs = [];
-/** @type {unknown[]} */
-const order = [];
-/** @type {{variant: string, options: RunOptions, result: RoundResult}[]} */
-const firstOpen = [];
-/** @type {ReturnType<typeof compare>[]} */
-const comparisons = [];
-/** @type {unknown[]} */
-let uiChecks = [];
-if (['ui', 'browser-ui'].includes(values.suite)) cases = [];
-/** @param {string} endpoint */
-async function newPage(endpoint) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
-  const page = await context.newPage();
-  page.on('pageerror', (error) => console.error('PAGE_ERROR ' + error.message));
-  await page.goto(endpoint);
-  await page.waitForFunction(() => 'testbed' in globalThis);
-  return { context, page };
+let output;
+if (values.output) output = resolve(values.output);
+else {
+  const reports = await TestWorkspace.create(resolve('node_modules/.cache/browser/reports'), 'run');
+  output = reports.path('run.json');
 }
+const jsonOutput = await reserveTestOutput(output);
+const artifacts = join(dirname(output), basename(output, '.json') + '-artifacts');
+let markdownOutput;
 try {
-  if (values.suite === 'ui') uiChecks = await verifyUI(browser, url, dirname(resolve(values.output)) + '/ui');
-  if (values.suite === 'browser-ui') uiChecks = await verifyBrowserUI(browser, url, dirname(resolve(values.output)) + '/browser-ui');
+  markdownOutput = await reserveTestOutput(output.replace(/\.json$/, '') + '.md');
+} catch (error) {
+  await jsonOutput.handle.close();
+  await unlink(output);
+  throw error;
+}
+/** @type {Awaited<ReturnType<typeof serve>> | null} */
+let serverToClose = null;
+/** @type {import('playwright').Browser | null} */
+let browserToClose = null;
+const errors = [];
+try {
+  await mkdir(artifacts);
+  const server = values.url
+    ? null
+    : await serve({
+        production: !values['dev-smoke'],
+        directory: values.directory,
+        mode: values.suite === 'browser-ui' ? 'browser' : 'testbed',
+      });
+  const url = /** @type {string} */ (values.url ?? server?.url);
+  serverToClose = server;
+  const browser = await chromium.launch({
+    channel: 'msedge',
+    headless: true,
+    args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
+  });
+  browserToClose = browser;
+  const sceneNames = /** @type {const} */ ([
+    'settings',
+    'json',
+    'csv',
+    'ship',
+    'weapon',
+    'wing',
+    'variant',
+    'weapons',
+    'wings',
+    'hullmods',
+  ]);
+  const workloads = /** @type {const} */ ({ lists: 'benchmark', stress: 'stress', resources: 'resources', smoke: 'stress' });
+  const suite = /** @type {keyof typeof workloads} */ (values.suite);
+  /** @type {{ label: string, url: string, monitor: boolean, policy: 'disabled' | 'enabled' | 'code' }[]} */
+  const variants = values.variant
+    ? values.variant.map((value) => {
+        const [label, endpoint, monitor = 'off', policy = 'code'] = value.split(',');
+        return { label, url: endpoint, monitor: monitor === 'on', policy: /** @type {'disabled' | 'enabled' | 'code'} */ (policy) };
+      })
+    : values['monitor-compare']
+      ? [
+          { label: 'disabled', url, monitor: false, policy: 'code' },
+          { label: 'enabled', url, monitor: true, policy: 'enabled' },
+        ]
+      : values.aa
+        ? [
+            { label: 'A', url, monitor: false, policy: 'code' },
+            { label: 'B', url, monitor: false, policy: 'code' },
+          ]
+        : [{ label: 'current', url, monitor: false, policy: 'code' }];
+  /** @type {{scene: RunOptions['scene'], count: number, resourceSize: number}[]} */
+  let cases =
+    suite === 'lists'
+      ? ['csv', 'weapons', 'wings', 'hullmods'].flatMap((scene) =>
+          (scene === 'csv' ? [50, 300, 2000] : [30, 100, 800]).map((count) => ({
+            scene: /** @type {RunOptions['scene']} */ (scene),
+            count,
+            resourceSize: 0,
+          })),
+        )
+      : suite === 'resources'
+        ? [32, 128, 512].map((resourceSize) => ({ scene: 'weapons', count: 100, resourceSize }))
+        : sceneNames.map((scene) => ({ scene, count: scene === 'csv' ? 50 : 30, resourceSize: 0 }));
+  if (values.scene) cases = cases.filter((item) => item.scene === values.scene);
+  if (values.count)
+    cases =
+      suite === 'lists'
+        ? cases.filter((item) => item.count === Number(values.count))
+        : cases.map((item) => ({ ...item, count: Number(values.count) }));
+  const warmup = Number(values.warmup);
+  const rounds = Number(values.rounds ?? (suite === 'stress' ? 100 : suite === 'smoke' ? 1 : 30));
+  /** @type {RunResult[]} */
+  const runs = [];
+  /** @type {unknown[]} */
+  const order = [];
+  /** @type {{variant: string, options: RunOptions, result: RoundResult}[]} */
+  const firstOpen = [];
+  /** @type {ReturnType<typeof compare>[]} */
+  const comparisons = [];
+  /** @type {unknown[]} */
+  let uiChecks = [];
+  if (['ui', 'browser-ui'].includes(values.suite)) cases = [];
+  /** @param {string} endpoint */
+  async function newPage(endpoint) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
+    const page = await context.newPage();
+    page.on('pageerror', (error) => console.error('PAGE_ERROR ' + error.message));
+    await page.goto(endpoint);
+    await page.waitForFunction(() => 'testbed' in globalThis);
+    return { context, page };
+  }
+  if (values.suite === 'ui') uiChecks = await verifyUI(browser, url, join(artifacts, 'ui'));
+  if (values.suite === 'browser-ui') uiChecks = await verifyBrowserUI(browser, url, join(artifacts, 'browser-ui'));
   for (const item of cases) {
     const entries = [];
     try {
@@ -189,6 +225,7 @@ try {
     }
   }
   const report = {
+    artifacts,
     pass:
       runs.length === cases.length * variants.length &&
       runs.every((run) => run.pass) &&
@@ -224,13 +261,32 @@ try {
     comparisons,
     uiChecks,
   };
-  const output = resolve(values.output);
-  await mkdir(dirname(output), { recursive: true });
-  await writeFile(output, JSON.stringify(report, null, 2) + '\n', 'utf8');
-  await writeFile(output.replace(/\.json$/, '') + '.md', markdown(report), 'utf8');
+  await jsonOutput.handle.writeFile(JSON.stringify(report, null, 2) + '\n', 'utf8');
+  await markdownOutput.handle.writeFile(markdown(report), 'utf8');
   console.log(JSON.stringify({ output, pass: report.pass, runs: runs.length }));
   if (!report.pass) process.exitCode = 1;
+} catch (error) {
+  errors.push(error);
 } finally {
-  await browser.close();
-  await server?.close();
+  try {
+    await browserToClose?.close();
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await serverToClose?.close();
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length) {
+    const report = { pass: false, errors: errors.map((error) => (error instanceof Error ? error.stack : String(error))) };
+    await jsonOutput.handle.truncate(0);
+    await jsonOutput.handle.write(JSON.stringify(report, null, 2) + '\n', 0, 'utf8');
+    await markdownOutput.handle.truncate(0);
+    await markdownOutput.handle.write('# 浏览器测试报告\n\n判定：失败\n\n' + report.errors.join('\n'), 0, 'utf8');
+    process.exitCode = 1;
+  }
+  await jsonOutput.handle.close();
+  await markdownOutput.handle.close();
+  console.log(JSON.stringify({ output, resourcesReleased: !errors.length }));
 }

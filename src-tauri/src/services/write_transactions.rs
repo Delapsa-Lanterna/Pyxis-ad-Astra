@@ -230,12 +230,13 @@ fn versions_for_changes(changes: &[FileChangeRecord]) -> AppResult<Vec<FileVersi
 mod tests {
     use super::*;
     use crate::io::file_version;
-    use crate::{models::TextSave, testutil::temp_dir};
+    use crate::models::TextSave;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn committed_projection_is_built_once_per_affected_session_and_reused() {
         use crate::services::project;
-        let root = temp_dir("commit_projection_once");
+        let root = project_workspace("commit_projection_once");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         let path = root.join("data/variants/demo.variant");
         std::fs::write(&path, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
@@ -284,13 +285,13 @@ mod tests {
             session_id: second.session_id,
         })
         .unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn projection_failure_retains_disk_history_and_recovers_exact_commit() {
         use crate::services::project;
-        let root = temp_dir("commit_projection_pending");
+        let root = project_workspace("commit_projection_pending");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
         let path = root.join("data/variants/demo.variant");
         std::fs::write(&path, r#"{"variantId":"demo","hullId":"hull"}"#).unwrap();
@@ -376,13 +377,13 @@ mod tests {
             session_id: manifest.session_id,
         })
         .unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn committed_projection_recovery_uses_read_authorization_for_core_roots() {
         use crate::services::project;
-        let fixture = temp_dir("core_projection_read_authority");
+        let fixture = project_workspace("core_projection_read_authority");
         std::fs::create_dir_all(fixture.join("mods")).unwrap();
         let root = fixture.join("starsector-core");
         std::fs::create_dir_all(root.join("data/variants")).unwrap();
@@ -446,7 +447,7 @@ mod tests {
             session_id: manifest.session_id,
         })
         .unwrap();
-        std::fs::remove_dir_all(fixture).unwrap();
+        fixture.close().unwrap();
     }
 
     #[test]
@@ -460,7 +461,7 @@ mod tests {
     }
 
     fn assert_mission_rename_replay(next_id: &str) {
-        let root = temp_dir("transaction_mission_rename");
+        let root = project_workspace("transaction_mission_rename");
         std::fs::create_dir_all(root.join("data/missions/old")).unwrap();
         std::fs::write(
             root.join("data/missions/mission_list.csv"),
@@ -561,12 +562,12 @@ mod tests {
             [0, 255, 128]
         );
         super::super::project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn committed_history_and_replay_follow_disk_direction() {
-        let root = temp_dir("transaction_history_direction");
+        let root = project_workspace("transaction_history_direction");
         let path = root.join("notes.txt");
         std::fs::write(&path, "A").unwrap();
         let mut trace = super::super::project::PerformanceTrace::new("project.openSession");
@@ -622,12 +623,12 @@ mod tests {
             .is_err()
         );
         super::super::project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn failed_operation_releases_queue_without_advancing_history() {
-        let root = temp_dir("transaction_failure");
+        let root = project_workspace("transaction_failure");
         let path = root.join("notes.txt");
         std::fs::write(&path, "A").unwrap();
         let mut trace = super::super::project::PerformanceTrace::new("project.openSession");
@@ -667,14 +668,14 @@ mod tests {
         );
         super::super::project::close_project_session(manifest.session_id).unwrap();
         assert!(begin(&payload, &payload.base_versions).is_err());
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 
     #[test]
     fn csv_undo_queries_actual_disk_state() {
         use crate::models::CsvSave;
         use crate::models::{CsvRowPatch, CsvRowPatchAction, CsvSearchField, CsvTableKey};
-        let root = temp_dir("csv_history_actual_direction");
+        let root = project_workspace("csv_history_actual_direction");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();
         let path = root.join("data/hulls/ship_data.csv");
         std::fs::write(&path, "id,name\na,A\nb,B\n").unwrap();
@@ -749,6 +750,6 @@ mod tests {
             undone.history.revision
         );
         super::super::project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

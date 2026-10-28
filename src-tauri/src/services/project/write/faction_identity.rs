@@ -105,17 +105,17 @@ pub fn delete_faction_entity(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::project::test_support::project_workspace;
     use crate::{
         models::IndexedConfigKind,
         models::{IndexedConfigDelete, IndexedConfigSave},
         services::project,
-        testutil::temp_dir,
     };
     use serde_json::json;
 
     #[test]
     fn indexed_actual_target_keeps_columns_positions_versions_and_deletion_scope() {
-        let root = temp_dir("faction_actual_index_target");
+        let root = project_workspace("faction_actual_index_target");
         std::fs::create_dir_all(root.join("data/world/factions")).unwrap();
         std::fs::create_dir_all(root.join("data/custom/nested")).unwrap();
         let index = root.join("data/world/factions/factions.csv");
@@ -197,6 +197,6 @@ mod tests {
         assert!(!root.join("data/custom/nested/next.faction").exists());
         assert_eq!(crate::io::read_csv_data(&index).unwrap().rows.len(), 1);
         project::close_project_session(manifest.session_id).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+        root.close().unwrap();
     }
 }

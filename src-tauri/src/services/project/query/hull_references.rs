@@ -436,12 +436,11 @@ mod tests {
     use super::super::super::session::{close_project_session, open_project_session_traced};
     use super::*;
     use crate::io::write_utf8_no_bom;
-
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
 
     #[test]
     fn hull_reference_query_returns_mod_and_core_ship_and_skin_refs() {
-        let root = temp_dir("hull_reference_query");
+        let root = project_workspace("hull_reference_query");
         let mod_root = root.join("mods/demo");
         std::fs::create_dir_all(mod_root.join("data/hulls/skins")).unwrap();
         std::fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
@@ -757,13 +756,13 @@ mod tests {
             Some("graphics/ships/mod_ship.png")
         );
         let _ = close_project_session(manifest.session_id);
-        let _ = std::fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn cyclic_skin_references_end_with_a_formal_error() {
         for base in ["first", "second"] {
-            let root = temp_dir("skin_cycle");
+            let root = project_workspace("skin_cycle");
             std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
             write_utf8_no_bom(
                 &root.join("data/hulls/skins/first.skin"),
@@ -785,7 +784,7 @@ mod tests {
                 "skin.base_cycle"
             );
             close_project_session(manifest.session_id).unwrap();
-            std::fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 }

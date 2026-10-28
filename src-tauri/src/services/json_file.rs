@@ -454,7 +454,7 @@ fn build_spec_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
     use crate::{
         io::{read_utf8_no_bom, write_utf8_no_bom},
         models::FileChangeReplayDirection,
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn variant_rename_preserves_old_file_comments_and_key_order() {
-        let root = temp_dir("variant_rename_preserves_json");
+        let root = project_workspace("variant_rename_preserves_json");
         fs::create_dir_all(root.join("data/variants")).unwrap();
         let old = root.join("data/variants/old.variant");
         write_utf8_no_bom(
@@ -504,12 +504,12 @@ mod tests {
         assert!(!old.exists());
         assert!(text.contains("# author note"));
         assert!(text.find("hullId").unwrap() < text.find("variantId").unwrap());
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     #[test]
     fn variant_save_rename_keeps_the_selected_source_directory() {
-        let root = temp_dir("variant_nested_source_directory");
+        let root = project_workspace("variant_nested_source_directory");
         fs::create_dir_all(root.join("data/variants/nested")).unwrap();
         let old = root.join("data/variants/nested/old.variant");
         write_utf8_no_bom(&old, r#"{"hullId":"demo","variantId":"old"}"#).unwrap();
@@ -527,7 +527,7 @@ mod tests {
         assert!(root.join("data/variants/nested/new.variant").exists());
         assert!(!root.join("data/variants/new.variant").exists());
         assert_eq!(result.changes.len(), 1);
-        let _ = fs::remove_dir_all(root);
+        root.close().unwrap();
     }
 
     struct SpecCase {
@@ -569,7 +569,7 @@ mod tests {
     }
 
     fn rename_with_undo_redo(case: &SpecCase) {
-        let root = temp_dir(&format!("spec_entity_{}_rename", case.ext));
+        let root = project_workspace(&format!("spec_entity_{}_rename", case.ext));
         fs::create_dir_all(root.join(case.dir)).unwrap();
         write_utf8_no_bom(
             &root.join(format!("{}/old.{ext}", case.dir, ext = case.ext)),
@@ -630,12 +630,12 @@ mod tests {
             .unwrap();
         let text = read_utf8_no_bom(&root.join(format!("{}/new.{ext}", case.dir, ext = case.ext)))
             .unwrap();
-        let _ = fs::remove_dir_all(root);
         assert!(text.contains(&format!("\"{}\": \"new\"", case.id_field)));
+        root.close().unwrap();
     }
 
     fn delete_returns_replayable_changeset(case: &SpecCase) {
-        let root = temp_dir(&format!("spec_entity_{}_delete", case.ext));
+        let root = project_workspace(&format!("spec_entity_{}_delete", case.ext));
         fs::create_dir_all(root.join(case.dir)).unwrap();
         write_utf8_no_bom(
             &root.join(format!("{}/demo.{ext}", case.dir, ext = case.ext)),
@@ -662,25 +662,25 @@ mod tests {
             .unwrap();
         let text = read_utf8_no_bom(&root.join(format!("{}/demo.{ext}", case.dir, ext = case.ext)))
             .unwrap();
-        let _ = fs::remove_dir_all(root);
         assert!(text.contains(&format!("\"{}\":\"demo\"", case.id_field)));
+        root.close().unwrap();
     }
 
     fn delete_rejects_rel_path_outside_directory(case: &SpecCase) {
-        let root = temp_dir(&format!("spec_entity_{}_external_rel_path", case.ext));
+        let root = project_workspace(&format!("spec_entity_{}_external_rel_path", case.ext));
         write_utf8_no_bom(&root.join("mod_info.json"), "{}").unwrap();
 
         let result =
             delete_json_entity_file(&root.to_string_lossy(), case.kind, "demo", "mod_info.json");
 
         let text = read_utf8_no_bom(&root.join("mod_info.json")).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
         assert_eq!(text, "{}");
+        root.close().unwrap();
     }
 
     fn delete_requires_rel_path_entity_match(case: &SpecCase) {
-        let root = temp_dir(&format!("spec_entity_{}_matching_id", case.ext));
+        let root = project_workspace(&format!("spec_entity_{}_matching_id", case.ext));
         fs::create_dir_all(root.join(case.dir)).unwrap();
         write_utf8_no_bom(
             &root.join(format!("{}/other.{ext}", case.dir, ext = case.ext)),
@@ -698,13 +698,13 @@ mod tests {
         let text =
             read_utf8_no_bom(&root.join(format!("{}/other.{ext}", case.dir, ext = case.ext)))
                 .unwrap();
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
         assert!(text.contains(&format!("\"{}\":\"other\"", case.id_field)));
+        root.close().unwrap();
     }
 
     fn save_requires_data_id_to_match_target_id(case: &SpecCase) {
-        let root = temp_dir(&format!("spec_entity_{}_mismatched_data_id", case.ext));
+        let root = project_workspace(&format!("spec_entity_{}_mismatched_data_id", case.ext));
         let result = save_json_entity_file(
             &root.to_string_lossy(),
             case.kind,
@@ -716,15 +716,15 @@ mod tests {
         let target_exists = root
             .join(format!("{}/new.{ext}", case.dir, ext = case.ext))
             .exists();
-        let _ = fs::remove_dir_all(root);
         assert!(result.is_err());
         assert!(!target_exists);
+        root.close().unwrap();
     }
 
     #[test]
     fn spec_edits_preserve_selected_filename_and_rename_with_replay() {
         for case in [&VARIANT_CASE, &SKIN_CASE] {
-            let root = temp_dir(&format!("spec_selected_path_{}", case.ext));
+            let root = project_workspace(&format!("spec_selected_path_{}", case.ext));
             let source = format!("{}/nested/filename.{}", case.dir, case.ext);
             fs::create_dir_all(root.join(case.dir).join("nested")).unwrap();
             let original = format!(
@@ -793,14 +793,14 @@ mod tests {
                 read_json_file(&root.join(&renamed)).unwrap()[case.id_field],
                 "new"
             );
-            fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn spec_save_validates_disk_id_without_previous_id() {
         for case in [&VARIANT_CASE, &SKIN_CASE] {
-            let root = temp_dir(&format!("spec_source_owner_{}", case.ext));
+            let root = project_workspace(&format!("spec_source_owner_{}", case.ext));
             fs::create_dir_all(root.join(case.dir)).unwrap();
             let source = format!("{}/filename.{}", case.dir, case.ext);
             write_utf8_no_bom(&root.join(&source), &entity_file_json(case, "old")).unwrap();
@@ -823,14 +823,14 @@ mod tests {
                 read_json_file(&root.join(&outside_index)).unwrap()[case.id_field],
                 "old"
             );
-            fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 
     #[test]
     fn spec_create_rejects_existing_id_in_another_filename() {
         for case in [&VARIANT_CASE, &SKIN_CASE] {
-            let root = temp_dir(&format!("spec_create_conflict_{}", case.ext));
+            let root = project_workspace(&format!("spec_create_conflict_{}", case.ext));
             fs::create_dir_all(root.join(case.dir)).unwrap();
             let source = format!("{}/filename.{}", case.dir, case.ext);
             write_utf8_no_bom(&root.join(&source), &entity_file_json(case, "old")).unwrap();
@@ -860,7 +860,7 @@ mod tests {
                 read_json_file(&root.join(&source)).unwrap()[case.id_field],
                 "old"
             );
-            fs::remove_dir_all(root).unwrap();
+            root.close().unwrap();
         }
     }
 

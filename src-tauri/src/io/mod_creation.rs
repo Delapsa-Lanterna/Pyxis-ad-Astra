@@ -111,7 +111,7 @@ fn mod_id(info: &Value) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::temp_dir;
+    use crate::services::project::test_support::project_workspace;
     use crate::{
         domain::mod_creation::{
             ValidatedNewModTemplate, render_initial_mod_info, validate_new_mod_template,
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn creates_loadable_minimal_mod_template_with_crlf_metadata() {
-        let parent = temp_dir("mod_creation_template");
+        let parent = project_workspace("mod_creation_template");
         let template = template("demo_mod");
 
         let mod_info_text = render_initial_mod_info(&template).unwrap();
@@ -147,12 +147,12 @@ mod tests {
             );
         }
         let _ = crate::services::project::close_project_session(manifest.session_id);
-        let _ = fs::remove_dir_all(parent);
+        parent.close().unwrap();
     }
 
     #[test]
     fn rejects_existing_target_without_overwriting_it() {
-        let parent = temp_dir("mod_creation_existing_target");
+        let parent = project_workspace("mod_creation_existing_target");
         let target = parent.join("demo_mod");
         fs::create_dir(&target).unwrap();
         write_utf8_no_bom(&target.join("keep.txt"), "keep").unwrap();
@@ -164,14 +164,14 @@ mod tests {
             .to_string();
         let kept = crate::io::read_utf8_no_bom(&target.join("keep.txt")).unwrap();
 
-        let _ = fs::remove_dir_all(parent);
         assert!(error.contains("已存在"));
         assert_eq!(kept, "keep");
+        parent.close().unwrap();
     }
 
     #[test]
     fn rejects_duplicate_id_from_another_mod_directory() {
-        let parent = temp_dir("mod_creation_duplicate_id");
+        let parent = project_workspace("mod_creation_duplicate_id");
         let existing = parent.join("other_folder");
         fs::create_dir(&existing).unwrap();
         write_utf8_no_bom(&existing.join("mod_info.json"), r#"{"id":"demo_mod"}"#).unwrap();
@@ -182,8 +182,8 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        let _ = fs::remove_dir_all(parent);
         assert!(error.contains("Mod ID 已存在"));
+        parent.close().unwrap();
     }
 
     fn template(id: &str) -> ValidatedNewModTemplate {

@@ -424,7 +424,7 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
 mod tests {
     use super::*;
     use crate::io::read_utf8_no_bom;
-    use crate::testutil::temp_dir;
+    use crate::testutil::TestWorkspace;
     use std::collections::BTreeMap;
 
     fn entry(message: &str) -> AppLogEntry {
@@ -459,7 +459,7 @@ mod tests {
             serde_json::json!({ "n": n, "min": values[0], "max": values[n-1], "mean": values.iter().sum::<f64>() / n as f64,
                 "median": (values[(n-1)/2] + values[n/2]) / 2.0, "p95": values[(n as f64 * 0.95).ceil() as usize - 1] })
         }
-        let dir = temp_dir("log_writer_measurement");
+        let dir = TestWorkspace::new("log_writer_measurement");
         let entries = vec![entry("fixture event"); 1000];
         let settings = AppSettings::default();
         let mut original = Vec::new();
@@ -493,12 +493,12 @@ mod tests {
             "LOG_WRITE_MEASUREMENT {}",
             serde_json::json!({ "records": 1000, "single": summary(original), "batch64": summary(batch) })
         );
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn a_failed_writer_stops_subsequent_windows_until_a_new_runtime() {
-        let dir = temp_dir("log_runtime_stop");
+        let dir = TestWorkspace::new("log_runtime_stop");
         let mut state = LogRuntime::default();
         let records = vec![entry("first"), entry("second")];
         state
@@ -531,12 +531,12 @@ mod tests {
             read_utf8_no_bom(&log_path(&dir)).unwrap().lines().count(),
             2
         );
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn batch_output_preserves_event_time_order_and_single_line_records() {
-        let dir = temp_dir("log_batch_events");
+        let dir = TestWorkspace::new("log_batch_events");
         let mut first = entry("first\nmessage");
         first.code = Some("fixture\r\ncode".to_string());
         first.path = Some("fixture\tpath".to_string());
@@ -553,12 +553,12 @@ mod tests {
         assert_eq!(text.lines().count(), 2);
         assert!(text.starts_with("[2024-01-01T00:00:00.000Z] [info] [fixture  code] first message | path=fixture path sequence=1 window=fixture"));
         assert!(text.lines().nth(1).unwrap().contains("second"));
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn rotation_retains_order_and_shrinks_on_the_next_rotation() {
-        let dir = temp_dir("log_retention_order");
+        let dir = TestWorkspace::new("log_retention_order");
         let mut settings = AppSettings {
             log_rotation_size_mib: 1,
             log_backup_count: 3,
@@ -588,12 +588,12 @@ mod tests {
         );
         assert!(!dir.join(format!("{LOG_FILE}.2")).exists());
         assert!(!dir.join(format!("{LOG_FILE}.3")).exists());
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn rotation_uses_the_saved_threshold_and_handles_gaps_in_backups() {
-        let dir = temp_dir("log_retention_gaps");
+        let dir = TestWorkspace::new("log_retention_gaps");
         let settings = AppSettings {
             log_rotation_size_mib: 2,
             log_backup_count: 4,
@@ -623,12 +623,12 @@ mod tests {
                 "other file"
             );
         }
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn rotation_failure_reports_the_actual_backup_path() {
-        let dir = temp_dir("log_retention_io_error");
+        let dir = TestWorkspace::new("log_retention_io_error");
         let backup = dir.join(format!("{LOG_FILE}.1"));
         fs::create_dir(&backup).unwrap();
         write_utf8_no_bom(&log_path(&dir), &"x".repeat(1024 * 1024)).unwrap();
@@ -638,12 +638,12 @@ mod tests {
         };
         let error = append_log(&dir, &entry("rotation fails"), &settings).unwrap_err();
         assert_eq!(error.location().unwrap().path.as_deref(), backup.to_str());
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn unavailable_directory_errors_keep_the_directory_identity() {
-        let dir = temp_dir("log_directory_identity");
+        let dir = TestWorkspace::new("log_directory_identity");
         let missing = dir.join("missing");
         let error = append_log(
             &missing,
@@ -655,12 +655,12 @@ mod tests {
         assert_eq!(error.location().unwrap().path.as_deref(), missing.to_str());
         let error = clear_log_file(&missing).unwrap_err();
         assert_eq!(error.location().unwrap().path.as_deref(), missing.to_str());
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn concurrent_appends_preserve_complete_lines_through_rotation() {
-        let dir = temp_dir("log_retention_concurrent");
+        let dir = TestWorkspace::new("log_retention_concurrent");
         let settings = AppSettings {
             log_rotation_size_mib: 1,
             ..AppSettings::default()
@@ -692,12 +692,12 @@ mod tests {
             fs::read_to_string(log_path(&dir)).unwrap().lines().count(),
             1
         );
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn append_log_and_status_roundtrip() {
-        let dir = temp_dir("log_roundtrip");
+        let dir = TestWorkspace::new("log_roundtrip");
         append_log(
             &dir,
             &AppLogEntry {
@@ -713,16 +713,16 @@ mod tests {
         .unwrap();
         let status = log_status(&dir).unwrap();
         let text = read_utf8_no_bom(&dir.join(LOG_FILE)).unwrap();
-        let _ = fs::remove_dir_all(dir);
         assert!(status.size_bytes > 0);
         assert!(text.contains("[warning] [test.code] 测试 warning"));
         assert!(text.contains("path=D:/test/file.csv"));
         assert!(text.contains("line=3"));
+        dir.close().unwrap();
     }
 
     #[test]
     fn append_log_renders_fields_in_key_order_and_sanitizes_values() {
-        let dir = temp_dir("log_fields");
+        let dir = TestWorkspace::new("log_fields");
         let fields = BTreeMap::from([
             ("zeta".to_string(), " last ".to_string()),
             ("alpha".to_string(), "a\r\nb".to_string()),
@@ -741,14 +741,14 @@ mod tests {
         )
         .unwrap();
         let text = read_utf8_no_bom(&dir.join(LOG_FILE)).unwrap();
-        let _ = fs::remove_dir_all(dir);
         assert!(text.contains("alpha=a  b zeta=last"));
         assert!(text.find("alpha=").unwrap() < text.find("zeta=").unwrap());
+        dir.close().unwrap();
     }
 
     #[test]
     fn append_log_rotates_file_at_size_cap() {
-        let dir = temp_dir("log_rotate");
+        let dir = TestWorkspace::new("log_rotate");
         let filler = "x".repeat(5 * 1024 * 1024);
         crate::io::write_utf8_no_bom(&log_path(&dir), &filler).unwrap();
         append_log(
@@ -770,12 +770,12 @@ mod tests {
         assert_eq!(rotated.len(), 5 * 1024 * 1024);
         assert!(current.contains("after rotation"));
         assert!(!current.contains("xxxx"));
-        fs::remove_dir_all(dir).unwrap();
+        dir.close().unwrap();
     }
 
     #[test]
     fn clear_log_file_keeps_empty_file() {
-        let dir = temp_dir("log_clear");
+        let dir = TestWorkspace::new("log_clear");
         append_log(
             &dir,
             &AppLogEntry {
@@ -791,7 +791,7 @@ mod tests {
         .unwrap();
         clear_log_file(&dir).unwrap();
         let status = log_status(&dir).unwrap();
-        let _ = fs::remove_dir_all(dir);
         assert_eq!(status.size_bytes, 0);
+        dir.close().unwrap();
     }
 }
