@@ -1,3 +1,4 @@
+import './console-setup';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '../fixtures/settings';
 import { vi } from 'vitest';

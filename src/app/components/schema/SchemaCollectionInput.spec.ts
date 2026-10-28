@@ -1,11 +1,12 @@
 import { mount } from '@vue/test-utils';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, nextTick, onUpdated, ref } from 'vue';
 import { NCollapse, NCollapseItem } from 'naive-ui/es/collapse';
 import SchemaCollectionInput from './SchemaCollectionInput.vue';
 import SchemaFieldRenderer from './SchemaFieldRenderer.vue';
-import { nInput, nButton } from '@/test/unit/ui-stubs';
+import { nInput, nButton, nSelect, nSwitch } from '@/test/unit/ui-stubs';
+import { provideAppFeedback } from '@/app/composables/use-app-feedback';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
@@ -16,7 +17,19 @@ beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
 });
-const global = { components: { NCollapse, NCollapseItem }, stubs: { 'n-input': nInput, 'n-button': nButton } };
+const global = {
+  components: { NCollapse, NCollapseItem },
+  stubs: { 'n-input': nInput, 'n-button': nButton, NSelect: nSelect, NSwitch: nSwitch },
+};
+const feedback = {
+  success: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+  error: vi.fn(),
+  confirmDanger: vi.fn(),
+  confirmWarning: vi.fn(),
+  choose: vi.fn(async () => null),
+};
 describe('retained collection rows', () => {
   it('renders only the changed row after the document supplies a cloned value', async () => {
     const value = ref({ first: 'A', second: 'B', third: 'C' });
@@ -30,27 +43,30 @@ describe('retained collection rows', () => {
     });
     wrapper = mount(
       {
-        setup: () => () =>
-          h(
-            SchemaCollectionInput,
-            {
-              field: {
-                key: 'file',
-                label: 'File',
-                type: 'object',
-                allowExtraFields: true,
-                valueSchema: { key: 'text', label: 'Text', type: 'string' },
+        setup() {
+          provideAppFeedback(feedback);
+          return () =>
+            h(
+              SchemaCollectionInput,
+              {
+                field: {
+                  key: 'file',
+                  label: 'File',
+                  type: 'object',
+                  allowExtraFields: true,
+                  valueSchema: { key: 'text', label: 'Text', type: 'string' },
+                },
+                value: value.value,
+                inputKey: 'file',
+                fieldPath: 'file',
               },
-              value: value.value,
-              inputKey: 'file',
-              fieldPath: 'file',
-            },
-            {
-              default: ({ row }: { row: { key: string; value: string } }) => {
-                return h(Probe, { name: row.key, value: row.value });
+              {
+                default: ({ row }: { row: { key: string; value: string } }) => {
+                  return h(Probe, { name: row.key, value: row.value });
+                },
               },
-            },
-          ),
+            );
+        },
       },
       { global },
     );
@@ -66,6 +82,7 @@ describe('retained collection rows', () => {
     wrapper = mount(
       {
         setup() {
+          provideAppFeedback(feedback);
           provideFieldInputs(inputs);
           return () =>
             h(SchemaFieldRenderer, {

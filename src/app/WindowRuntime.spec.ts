@@ -15,6 +15,8 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { AppFeedback } from '@/shared/types';
 import { useWindowCloseState } from './composables/use-window-close-state';
 import type { Ref } from 'vue';
+import { nPopover } from '@/test/unit/ui-stubs';
+import { useEditTargetHandoff } from './composables/use-edit-target-handoff';
 
 const mocks = vi.hoisted(() => ({ stop: vi.fn(), listen: vi.fn(), register: vi.fn(async () => {}), log: vi.fn() }));
 vi.mock('./app-feedback-assembly', async (original) => {
@@ -31,6 +33,10 @@ vi.mock('@/app/composables/use-app-lifecycle-assembly', async (original) => ({
   useAppSettings: vi.fn(),
 }));
 vi.mock('@/app/composables/settings/use-theme-dom-effect', () => ({ useThemeDomEffect: vi.fn() }));
+vi.mock('./composables/use-edit-target-handoff', async (original) => {
+  const module = await original<typeof import('./composables/use-edit-target-handoff')>();
+  return { ...module, useEditTargetHandoff: vi.fn(module.useEditTargetHandoff) };
+});
 
 const wrappers: VueWrapper[] = [];
 const consumers: AppFeedback[] = [];
@@ -47,7 +53,7 @@ function windowHarness(mode: 'main' | 'child' = 'main', title?: string) {
   const wrapper = mount(WindowShell, {
     attachTo: document.body,
     props: { mode, title },
-    global: { components: { NConfigProvider, NMessageProvider, NDialogProvider }, stubs: { TitleBar: true } },
+    global: { components: { NConfigProvider, NMessageProvider, NDialogProvider }, stubs: { TitleBar: true, NPopover: nPopover } },
     slots: { default: () => [h(Probe, { key: page.value }), h(Probe, { key: 'peer' })] },
   });
   wrappers.push(wrapper);
@@ -93,7 +99,7 @@ describe('window-owned feedback', () => {
     });
     const wrapper = mount(WindowShell, {
       attachTo: document.body,
-      global: { components: { NConfigProvider, NMessageProvider, NDialogProvider } },
+      global: { components: { NConfigProvider, NMessageProvider, NDialogProvider, NPopover } },
       slots: { default: () => h(Host) },
     });
     wrappers.push(wrapper);
@@ -138,6 +144,8 @@ describe('window-owned feedback', () => {
     expect(consumers).toHaveLength(2);
     expect(consumers[0]).toBe(consumers[1]);
     expect(mocks.listen).toHaveBeenCalledOnce();
+    expect(mocks.listen).toHaveBeenCalledWith(consumers[0]);
+    expect(useEditTargetHandoff).toHaveBeenCalledExactlyOnceWith(consumers[0]);
     expect(mocks.register).toHaveBeenCalledWith([]);
   });
   it('keeps the instance and its feedback after replacing the source page', async () => {
@@ -156,6 +164,7 @@ describe('window-owned feedback', () => {
     windowHarness('child');
     await flushPromises();
     expect(consumers[0]).not.toBe(consumers[2]);
+    expect(mocks.listen.mock.calls.map(([feedback]) => feedback)).toEqual([consumers[0], consumers[2]]);
     first.wrapper.unmount();
     await flushPromises();
     expect(mocks.stop).toHaveBeenCalledOnce();

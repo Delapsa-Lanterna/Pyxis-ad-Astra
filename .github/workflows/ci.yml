@@ -46,7 +46,7 @@ jobs:
         run: npm run test:resources
 
       - name: Frontend tests
-        run: npm run test
+        run: npm run test --reporter=default
 
       - name: Rust clippy
         run: npm run lint:rust

@@ -1,11 +1,14 @@
 import { projectChangeFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
-import { flushPromises } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import { mountSetup } from '@/test/unit/mount-setup';
+
+enableAutoUnmount(afterEach);
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -83,7 +86,7 @@ function paramsFixture(overrides: Partial<FileEditorViewModelParams> = {}): File
 }
 
 async function initializeViewModel(params: FileEditorViewModelParams) {
-  const viewModel = useFileEditorViewModel(params);
+  const { value: viewModel } = mountSetup(() => useFileEditorViewModel(params));
   await viewModel.initialize();
   return viewModel;
 }

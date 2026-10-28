@@ -1,7 +1,8 @@
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { effectScope, computed } from 'vue';
-import { flushPromises } from '@vue/test-utils';
+import { computed } from 'vue';
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
+import { mountSetup } from '@/test/unit/mount-setup';
 import type { WeaponFirePreviewData, WeaponFirePreviewSource, WindowContextFor, WriteResult } from '@/shared/types';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
@@ -55,7 +56,7 @@ function data(id = 'w'): WeaponFirePreviewData {
     resources: { weapon: {}, projectile: {} },
   };
 }
-const scopes: ReturnType<typeof effectScope>[] = [];
+enableAutoUnmount(afterEach);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.query.mockReset();
@@ -66,11 +67,8 @@ beforeEach(() => {
   });
   mocks.retarget.mockResolvedValue(undefined);
 });
-afterEach(() => scopes.splice(0).forEach((scope) => scope.stop()));
 async function open() {
-  const scope = effectScope();
-  scopes.push(scope);
-  const vm = scope.run(useWeaponFirePreviewWindowViewModel)!;
+  const { value: vm } = mountSetup(useWeaponFirePreviewWindowViewModel);
   await vm.initialize();
   await flushPromises();
   return vm;
@@ -207,11 +205,9 @@ describe('weapon fire preview source and read lifetime', () => {
           finish = resolve;
         }),
     );
-    const scope = effectScope();
-    scopes.push(scope);
-    const vm = scope.run(useWeaponFirePreviewWindowViewModel)!;
+    const { value: vm, wrapper } = mountSetup(useWeaponFirePreviewWindowViewModel);
     const starting = vm.initialize();
-    scope.stop();
+    wrapper.unmount();
     const stop = vi.fn();
     finish(stop);
     await starting;

@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import TitleBar from './TitleBar.vue';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
+import { nPopover } from '@/test/unit/ui-stubs';
 
 const actions = vi.hoisted(() => ({ close: vi.fn(), minimize: vi.fn(), maximize: vi.fn(), drag: vi.fn(), maximized: vi.fn() }));
 vi.mock('@/windows/current.window', () => ({
@@ -27,7 +28,7 @@ describe('child window titlebar', () => {
       const pinia = createPinia();
       setActivePinia(pinia);
       initializeSettingsStore(createSettingsFixture());
-      wrapper = mount(TitleBar, { props: { title, subtitle: 'Owning Mod' }, global: { plugins: [pinia] } });
+      wrapper = mount(TitleBar, { props: { title, subtitle: 'Owning Mod' }, global: { plugins: [pinia], stubs: { NPopover: nPopover } } });
       await flushPromises();
       expect(wrapper.get('.titlebar-text-value').text()).toBe(title);
       expect(wrapper.get('.titlebar-text-label').text()).toBe('Owning Mod');

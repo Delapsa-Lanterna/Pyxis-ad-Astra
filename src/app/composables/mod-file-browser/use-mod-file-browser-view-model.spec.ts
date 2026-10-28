@@ -2,8 +2,8 @@ import { observeSavedContentFixture, committedChangeFixture } from '@/test/unit/
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { effectScope } from 'vue';
-import { flushPromises } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
+import { mountSetup } from '@/test/unit/mount-setup';
 import { useModFileBrowserViewModel } from './use-mod-file-browser-view-model';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -41,7 +41,7 @@ async function paint() {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await flushPromises();
 }
-const scopes: ReturnType<typeof effectScope>[] = [];
+enableAutoUnmount(afterEach);
 const entry = (relPath: string, kind: ModFileEntry['kind'] = 'file'): ModFileEntry => ({
   name: relPath.split('/').at(-1)!,
   relPath,
@@ -57,11 +57,9 @@ function register(id = 's1', root = 'M:/A') {
   workspace.activateModFiles(root);
 }
 async function open() {
-  const scope = effectScope();
-  scopes.push(scope);
-  const vm = scope.run(useModFileBrowserViewModel)!;
+  const { value: vm, wrapper } = mountSetup(useModFileBrowserViewModel);
   await flushPromises();
-  return { vm, scope };
+  return { vm, wrapper };
 }
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -89,7 +87,6 @@ beforeEach(() => {
   register();
 });
 afterEach(() => {
-  scopes.splice(0).forEach((scope) => scope.stop());
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -181,7 +178,7 @@ describe('mod file browser actions and read lifetime', () => {
     expect(mocks.open).not.toHaveBeenCalled();
   });
   it('reports an already delivered window request failure after leaving the browser', async () => {
-    const { vm, scope } = await open();
+    const { vm, wrapper } = await open();
     mocks.file.mockResolvedValueOnce({ sessionId: 's1', modRoot: 'M:/A', path: 'M:/A/README' });
     let fail!: (error: Error) => void;
     mocks.open.mockImplementationOnce(
@@ -191,7 +188,7 @@ describe('mod file browser actions and read lifetime', () => {
         }),
     );
     await vm.actions.activate('README');
-    scope.stop();
+    wrapper.unmount();
     fail(new Error('window startup failed'));
     await flushPromises();
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '打开文件编辑器失败');
@@ -239,7 +236,7 @@ describe('mod file browser actions and read lifetime', () => {
     expect(useModFileBrowserStore().sessions.get('s1')!.directories.has('data')).toBe(false);
   });
   it('shares simultaneous directory reads and ignores late errors after release', async () => {
-    const { vm, scope } = await open();
+    const { vm, wrapper } = await open();
     let complete!: (value: ModDirectory) => void;
     mocks.directory.mockImplementationOnce(
       () =>
@@ -263,7 +260,7 @@ describe('mod file browser actions and read lifetime', () => {
         }),
     );
     const opening = vm.actions.activate('latest');
-    scope.stop();
+    wrapper.unmount();
     reject(new Error('late'));
     await opening;
     expect(mocks.error).not.toHaveBeenCalled();
@@ -315,8 +312,8 @@ describe('mod file browser actions and read lifetime', () => {
           finish = resolve;
         }),
     );
-    const { scope } = await open();
-    scope.stop();
+    const { wrapper } = await open();
+    wrapper.unmount();
     const stop = vi.fn();
     finish(stop);
     await flushPromises();
@@ -402,7 +399,7 @@ describe('directory preload and display continuity', () => {
     expect(vm.view.nodes.map((node) => node.key)).toEqual(['current']);
   });
   it('ends queued frame work and late preloads on search, session replacement and release', async () => {
-    const { vm, scope } = await open();
+    const { vm, wrapper } = await open();
     mocks.search.mockResolvedValue(searchResult('find'));
     vm.actions.setSearch('find');
     await vm.actions.submitSearch();
@@ -423,7 +420,7 @@ describe('directory preload and display continuity', () => {
     complete({ directory: 'data', entries: [entry('data/obsolete')] });
     await flushPromises();
     expect(useModFileBrowserStore().sessions.get('s1')!.directories.get('data')!.entries).toBe(null);
-    scope.stop();
+    wrapper.unmount();
     await paint();
     expect(frames.size).toBe(0);
     expect(vm.view.title).toBe('M:/B');
@@ -475,7 +472,7 @@ describe('full Mod search state and input boundary', () => {
     expect(vm.view.scrollTop).toBe(75);
   });
   it('accepts only the latest search result and discards values and errors after release', async () => {
-    const { vm, scope } = await open();
+    const { vm, wrapper } = await open();
     let older!: (value: ReturnType<typeof searchResult>) => void;
     let latest!: (value: ReturnType<typeof searchResult>) => void;
     mocks.search
@@ -509,7 +506,7 @@ describe('full Mod search state and input boundary', () => {
     );
     vm.actions.setSearch('released');
     const pending = vm.actions.submitSearch();
-    scope.stop();
+    wrapper.unmount();
     fail(new Error('late'));
     await pending;
     expect(mocks.error).not.toHaveBeenCalled();
@@ -567,14 +564,14 @@ describe('full Mod search state and input boundary', () => {
     expect(mocks.directory).toHaveBeenCalledOnce();
   });
   it('releases a queued debounce when clearing search or leaving its page', async () => {
-    const { vm, scope } = await open();
+    const { vm, wrapper } = await open();
     vi.useFakeTimers();
     vm.actions.setSearch('a');
     vm.actions.clearSearch();
     await vi.advanceTimersByTimeAsync(300);
     expect(mocks.search).not.toHaveBeenCalled();
     vm.actions.setSearch('b');
-    scope.stop();
+    wrapper.unmount();
     await vi.advanceTimersByTimeAsync(300);
     expect(mocks.search).not.toHaveBeenCalled();
   });

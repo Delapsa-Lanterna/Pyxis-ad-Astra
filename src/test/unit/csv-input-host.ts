@@ -11,6 +11,7 @@ export function mountCsvInputHost(
   options: Pick<MountingOptions<Record<string, unknown>>, 'global' | 'attachTo'>,
   initialProps: Record<string, unknown>,
   target: CsvTableTarget = { sessionId: 'sess-1', modRoot: 'M:/mod', table: 'ships' },
+  surfaceProps: (activeCell: CsvCellTarget | null) => Record<string, unknown> = () => ({}),
 ) {
   const inputs = createFieldInputs(ref(JSON.stringify(target)));
   const activeCell = ref<CsvCellTarget | null>(null);
@@ -31,7 +32,7 @@ export function mountCsvInputHost(
             updates.push({ target: cell, value });
           },
         });
-        return () => h(surface, { ...props.value, editing: activeCell.value });
+        return () => h(surface, { ...props.value, ...surfaceProps(activeCell.value) });
       },
     },
     options,

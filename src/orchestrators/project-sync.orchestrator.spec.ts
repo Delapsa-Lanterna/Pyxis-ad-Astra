@@ -137,13 +137,13 @@ describe('ordered save consumption', () => {
     }
     expect(choose.mock.calls[0]![0].content).toContain('restore unavailable');
   });
-  it('asks about exact missing sources and returns the user choice', async () => {
-    const choose = vi.fn().mockResolvedValue('recreate');
+  it.each(['recreate', null])('asks about exact missing sources and returns the user choice %s', async (choice) => {
+    const choose = vi.fn().mockResolvedValue(choice);
     await startProjectSync({ choose } as unknown as import('@/shared/types').AppFeedback);
     mocks.receive!({ kind: 'missing', requestId: 'missing', paths: ['C:/mods/queue/notes.txt'] });
     await flushPromises();
     expect(choose.mock.calls[0]![0].content).toContain('C:/mods/queue/notes.txt');
-    expect(mocks.resolve).toHaveBeenCalledExactlyOnceWith('missing', ['C:/mods/queue/notes.txt'], true);
+    expect(mocks.resolve).toHaveBeenCalledExactlyOnceWith('missing', ['C:/mods/queue/notes.txt'], choice === 'recreate');
   });
 
   it('completes the save while content continues and retries reading separately', async () => {

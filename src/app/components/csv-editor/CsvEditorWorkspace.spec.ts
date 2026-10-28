@@ -1,5 +1,5 @@
 import { csvTableIndex } from '@/test/fixtures/csv-row';
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +15,9 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
 import type { CsvTableIndex } from '@/shared/types';
+import { mountSetup } from '@/test/unit/mount-setup';
+
+enableAutoUnmount(afterEach);
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), error: vi.fn() }));
 vi.mock('@/services/csv-table.service', () => ({
@@ -51,7 +54,7 @@ beforeEach(() => {
 afterEach(() => wrapper?.unmount());
 async function mountWorkspace() {
   wrapper = mount(CsvEditorWorkspace, {
-    props: { actions: useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback) },
+    props: { actions: mountSetup(() => useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback)).value },
     attachTo: document.body,
     global: { stubs: { ...editorUiStubs, CsvTableEditor: true, CsvRowDetails: true } },
   });
@@ -80,16 +83,19 @@ describe('table workspace search controls', () => {
       shown = ref(true);
     wrapper = mount(
       defineComponent({
-        setup: () => () =>
-          shown.value
-            ? h(CsvEditorWorkspace, {
-                actions: useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback),
-                detailPaneExpanded: expanded.value,
-                'onUpdate:detailPaneExpanded': (value: boolean) => {
-                  expanded.value = value;
-                },
-              })
-            : null,
+        setup() {
+          const actions = useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback);
+          return () =>
+            shown.value
+              ? h(CsvEditorWorkspace, {
+                  actions,
+                  detailPaneExpanded: expanded.value,
+                  'onUpdate:detailPaneExpanded': (value: boolean) => {
+                    expanded.value = value;
+                  },
+                })
+              : null;
+        },
       }),
       { global: { stubs: { ...editorUiStubs, CsvTableEditor: true, CsvRowDetails: true } } },
     );

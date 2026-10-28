@@ -1,7 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { effectScope, nextTick } from 'vue';
-import { flushPromises } from '@vue/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
+import { mountSetup } from '@/test/unit/mount-setup';
+
+enableAutoUnmount(afterEach);
 
 const mocks = vi.hoisted(() => ({
   feedback: {
@@ -71,12 +74,11 @@ describe('useFileHistoryViewModel', () => {
     useWorkspaceStore().registerMod({ modRoot: root, displayName: 'Alpha', version: '', status: 'ready' });
     useWorkspaceStore().activateModOverview(root);
     useProjectStore().registerProjectManifest(manifestFixture(root));
-    const scope = effectScope();
-    const vm = scope.run(useFileHistoryViewModel)!;
-    return { root, scope, vm };
+    const { value: vm, wrapper } = mountSetup(useFileHistoryViewModel);
+    return { root, wrapper, vm };
   }
   it('registers history refresh and accepts authoritative stack counts', async () => {
-    const { root, scope, vm } = activateHistory();
+    const { root, wrapper, vm } = activateHistory();
     await flushPromises();
     expect(mocks.historyScope.mock.calls.at(-1)![0].canRefresh()).toBe(true);
     mocks.loadFileHistory.mockResolvedValueOnce({
@@ -88,10 +90,10 @@ describe('useFileHistoryViewModel', () => {
     expect(vm.historyCount.value).toBe(1);
     expect(vm.canUndo.value).toBe(true);
     expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(3);
-    scope.stop();
+    wrapper.unmount();
   });
   it.each(['success', 'error', 'handoff'])('rejects a late history result after %s', async (mode) => {
-    const { root, scope, vm } = activateHistory();
+    const { root, wrapper, vm } = activateHistory();
     await flushPromises();
     let finish!: () => void;
     mocks.loadFileHistory.mockImplementationOnce(
@@ -104,16 +106,16 @@ describe('useFileHistoryViewModel', () => {
     if (mode === 'handoff') {
       useProjectStore().registerProjectManifest({ ...manifestFixture(root), sessionId: 's2' });
       await nextTick();
-    } else scope.stop();
+    } else wrapper.unmount();
     finish();
     await pending;
     expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(0);
     expect(mocks.feedback.error).not.toHaveBeenCalled();
-    scope.stop();
+    wrapper.unmount();
   });
 
   it('falls back to the unselected-mod title', () => {
-    const viewModel = useFileHistoryViewModel();
+    const { value: viewModel } = mountSetup(useFileHistoryViewModel);
     expect(viewModel.modTitle.value).toBe('未选择 Mod');
     expect(viewModel.historyCount.value).toBe(0);
     expect(viewModel.canUndo.value).toBe(false);
@@ -126,7 +128,7 @@ describe('useFileHistoryViewModel', () => {
     workspace.registerMod({ modRoot: 'C:/mods/alpha', displayName: 'Alpha', version: '', status: 'ready' });
     workspace.activateModTab('C:/mods/alpha');
     project.registerProjectManifest(manifestFixture('C:/mods/alpha'));
-    const viewModel = useFileHistoryViewModel();
+    const { value: viewModel } = mountSetup(useFileHistoryViewModel);
     expect(viewModel.modTitle.value).toBe('Alpha');
   });
 
@@ -145,7 +147,7 @@ describe('useFileHistoryViewModel', () => {
       ],
       redoStack: [],
     });
-    const viewModel = useFileHistoryViewModel();
+    const { value: viewModel } = mountSetup(useFileHistoryViewModel);
     expect(viewModel.historyCount.value).toBe(2);
     expect(viewModel.undoDisplayItems.value.map((entry) => entry.label)).toEqual(['save two', 'save one']);
     expect(viewModel.redoDisplayItems.value).toEqual([]);
@@ -165,7 +167,7 @@ describe('useFileHistoryViewModel', () => {
       undoStack: [{ id: 1, timestamp: 1, label: 'save one', paths: ['a'] }],
       redoStack: [],
     });
-    const viewModel = useFileHistoryViewModel();
+    const { value: viewModel } = mountSetup(useFileHistoryViewModel);
     viewModel.confirmClear();
     expect(mocks.feedback.confirmWarning).toHaveBeenCalledTimes(1);
     await mocks.feedback.confirmWarning.mock.calls[0]![0].onConfirm();
@@ -174,13 +176,13 @@ describe('useFileHistoryViewModel', () => {
   });
 
   it('skips clearing when there is no active mod or nothing to clear', () => {
-    const viewModel = useFileHistoryViewModel();
+    const { value: viewModel } = mountSetup(useFileHistoryViewModel);
     viewModel.confirmClear();
     expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
   });
 
   it('delegates undo and redo to the replay orchestrators', () => {
-    const viewModel = useFileHistoryViewModel();
+    const { value: viewModel } = mountSetup(useFileHistoryViewModel);
     viewModel.undoOne();
     viewModel.redoOne();
     expect(mocks.replayNextFileUndo).toHaveBeenCalledTimes(1);

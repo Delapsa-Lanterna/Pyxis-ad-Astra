@@ -11,6 +11,7 @@ import { TABLE_KEYS } from '@/shared/types';
 import type { CsvTableIndex, ProjectManifest } from '@/shared/types';
 import CsvRowDetails from './CsvRowDetails.vue';
 import { createCsvSourceIndex } from '@/domain/schema/csv-source-options';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 function tableSummariesFixture(): ProjectManifest['tableSummaries'] {
   const summaries = {} as ProjectManifest['tableSummaries'];
@@ -87,7 +88,7 @@ function mountPane() {
       queryRowPreview: vi.fn(async () => ''),
       sourceIndex: { optionsBySource: new Map(), valueIndexBySource: new Map(), valueSetsBySource: new Map() },
     },
-    global: { plugins: [getActivePinia()!] },
+    global: { plugins: [getActivePinia()!], stubs: editorUiStubs },
   });
   return wrapper!;
 }

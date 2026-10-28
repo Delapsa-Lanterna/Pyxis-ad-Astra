@@ -9,16 +9,16 @@ import { provideWindowCloseState } from './use-window-close-state';
 import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
 import { flushApplicationLogs } from '@/services/app-log.service';
 import { debugLog } from '@/shared/runtime/app-log-queue';
-import { useAppFeedback } from './use-app-feedback';
+import type { AppFeedback } from '@/shared/types';
 
 async function flushPerformance() {
   await flushPerformanceMonitor()?.catch(retainPerformanceMonitorError);
 }
 
-export function useAppLifecycleAssembly() {
+export function useAppLifecycleAssembly(feedback: AppFeedback) {
   let disposed = false;
   let stopSync: (() => void) | null = null;
-  void startProjectSync(useAppFeedback())
+  void startProjectSync(feedback)
     .then((stop) => {
       if (disposed) stop();
       else stopSync = stop;

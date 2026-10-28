@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NCheckbox } from 'naive-ui/es/checkbox';
 import { NSelect } from 'naive-ui/es/select';
 import AppSelect from '@/app/components/AppSelect.vue';
@@ -10,6 +10,9 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useCsvEditorActions } from './use-csv-editor-actions';
+import { mountSetup } from '@/test/unit/mount-setup';
+
+enableAutoUnmount(afterEach);
 
 const mocks = vi.hoisted(() => ({
   tables: { activeEditor: { save: vi.fn(), undo: vi.fn(), redo: vi.fn() } },
@@ -40,13 +43,15 @@ describe('CSV editor actions', () => {
   it('returns the active document save result', async () => {
     const result = { status: 'saved', receipt: savedWriteFixture() };
     mocks.tables.activeEditor.save.mockResolvedValue(result);
-    expect(await useCsvEditorActions(feedbackStub()).save()).toEqual(result);
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedbackStub()));
+    expect(await actions.save()).toEqual(result);
     expect(mocks.tables.activeEditor.save).toHaveBeenCalledOnce();
   });
 
   it('returns the adjusted weapon creation branch and selected actions from the confirmation', async () => {
     const feedback = feedbackStub();
-    const select = useCsvEditorActions(feedback).selectAssociatedSpecs;
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
+    const select = actions.selectAssociatedSpecs;
     (feedback.choose as ReturnType<typeof vi.fn>).mockImplementationOnce(async (options: ChooseOptions) => {
       const content = options.content as () => import('vue').VNode;
       const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
@@ -77,19 +82,20 @@ describe('CSV editor actions', () => {
   it('cancels the associated actions when the confirmation is dismissed', async () => {
     const feedback = feedbackStub();
     vi.mocked(feedback.choose).mockResolvedValueOnce(null);
-    expect(await useCsvEditorActions(feedback).selectAssociatedSpecs([])).toBeNull();
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
+    expect(await actions.selectAssociatedSpecs([])).toBeNull();
   });
 
   it('informs when there is nothing to save', async () => {
     mocks.tables.activeEditor.save.mockResolvedValue({ status: 'noop' });
     const feedback = feedbackStub();
-    const actions = useCsvEditorActions(feedback);
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
     await actions.save();
     expect(feedback.info).toHaveBeenCalledWith('没有需要保存的修改');
   });
   it.each(['undo', 'redo'] as const)('delegates %s to the current document actions and reports rejection', async (direction) => {
     const feedback = feedbackStub();
-    const actions = useCsvEditorActions(feedback);
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
     const action = direction === 'undo' ? actions.undoCurrentTableEdit : actions.redoCurrentTableEdit;
     await action();
     expect(mocks.tables.activeEditor[direction]).toHaveBeenCalledOnce();

@@ -91,6 +91,8 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
       attachTo: document.body,
     },
     { isDirty: () => false, model: reactive(model), selectedRowKey: null },
+    undefined,
+    (editing) => ({ editing }),
   );
   wrapper = fixture.host;
   return fixture.surface;

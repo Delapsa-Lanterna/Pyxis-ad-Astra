@@ -12,9 +12,9 @@ import { provideAppFeedback } from '@/app/composables/use-app-feedback';
 import { useEditTargetHandoff } from '@/app/composables/use-edit-target-handoff';
 import { watch } from 'vue';
 import { applicationLogError } from '@/shared/runtime/app-log-queue';
-const closing = useAppLifecycleAssembly();
 const feedback = createWindowFeedback(useMessage(), useDialog(), () => !closing.value);
 provideAppFeedback(feedback);
+const closing = useAppLifecycleAssembly(feedback);
 useEditTargetHandoff(feedback);
 watch(
   applicationLogError,

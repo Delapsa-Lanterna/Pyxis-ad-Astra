@@ -46,14 +46,13 @@ function boot(enabled = true) {
 }
 describe('window performance collection', () => {
   it('installs zero observers, timers or recording hooks while disabled', () => {
-    const { app } = boot(false);
+    boot(false);
     expect(performanceMonitorEnabled).toBe(false);
     expect(observe).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
     expect(flushPerformanceMonitor()).toBeUndefined();
     recordPerformance('none', 2);
     expect(api.deliver).not.toHaveBeenCalled();
-    app.unmount();
   });
   it('records numeric long-frame phases without script source details when supported', async () => {
     (PerformanceObserver as unknown as { supportedEntryTypes: string[] }).supportedEntryTypes.push('long-animation-frame');

@@ -35,7 +35,7 @@ describe('JsonFieldEditor', () => {
       {
         global: {
           components: { 'n-input-number': NInputNumber },
-          stubs: { 'n-input': editorUiStubs['n-input']!, 'n-button': editorUiStubs['n-button']! },
+          stubs: { 'n-input': editorUiStubs['n-input']!, 'n-button': editorUiStubs['n-button']!, 'n-switch': editorUiStubs['n-switch']! },
         },
         attachTo: document.body,
       },

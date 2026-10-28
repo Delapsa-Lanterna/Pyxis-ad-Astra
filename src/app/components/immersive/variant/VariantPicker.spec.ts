@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { h, provide, ref, shallowRef, shallowReactive } from 'vue';
 import { immersiveBlockedKey } from '../immersive-render-context';
-import { NInput, NSelect, NButton } from 'naive-ui';
+import { NInput, NSelect, NButton, NModal } from 'naive-ui';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { JointVariantEntry } from '@/shared/types';
 import VariantPicker from './VariantPicker.vue';
@@ -161,7 +161,7 @@ function harness(
     {
       attachTo: document.body,
       global: {
-        components: { NInput, NSelect, NButton },
+        components: { NInput, NSelect, NButton, NModal },
         stubs: {
           teleport: true,
           ImmersiveText: { props: ['text'], template: '<span>{{text}}</span>' },
