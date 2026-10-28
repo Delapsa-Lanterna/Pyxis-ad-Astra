@@ -3,7 +3,6 @@ import { onMounted, onUnmounted } from 'vue';
 import { useWindowLifecycleActions } from './use-window-close-state';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
-import { useSettingsStore } from '@/stores/settings.store';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import {
   restorePersistedWorkspace,
@@ -24,7 +23,6 @@ export function useWorkspaceShellLifecycle(
 ) {
   useCsvSaveParticipants(feedback, selectAssociatedSpecs);
   const { requestClose } = useWindowLifecycleActions();
-  const settings = useSettingsStore();
   const workspace = useWorkspaceStore();
   let workspacePersistence: WorkspacePersistenceWatcher | null = null;
   let disposed = false;
@@ -46,7 +44,6 @@ export function useWorkspaceShellLifecycle(
       await useSaveCommandStore().trackCloseAction(
         restorePersistedWorkspace({
           isCurrent: () => !disposed,
-          knownStarsectorRoot: settings.starsectorRoot,
           onModRestoreError: async (modRoot, displayName, error) => {
             if (disposed) return;
             await removeLoadedModRuntime(modRoot, requestClose);

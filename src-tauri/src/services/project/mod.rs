@@ -26,3 +26,4 @@ pub use session::{
 };
 pub(crate) use sources::configure_persistent_index_cache;
 pub(crate) use sources::core::core_dir;
+pub(crate) use sources::resolve_core_root;

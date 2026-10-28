@@ -16,6 +16,7 @@ const allowedServiceEdges = new Set([
   'app_settings -> workspace_persistence',
   'performance_monitor -> app_paths',
   'project_session -> app_paths',
+  'project_session -> app_settings',
   'project_session -> directory_opening',
   'project_session -> project',
   'project_session -> write_transactions',

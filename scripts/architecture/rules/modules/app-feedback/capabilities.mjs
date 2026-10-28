@@ -5,7 +5,7 @@ export const applicationCapabilities = [
     { capability: 'settings-start', names: ['initializeSettings'], owners: [{ path: 'src/main.ts', layer: 'app' }] },
     {
       capability: 'settings-reset',
-      names: ['resetSettings'],
+      names: ['resetSettings', 'saveStarsectorRoot'],
       owners: [{ layer: 'app', role: 'composable', domain: 'settings-view-model' }],
     },
     {

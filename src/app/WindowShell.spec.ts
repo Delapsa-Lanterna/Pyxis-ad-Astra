@@ -7,13 +7,16 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
-import { loadCoreFields } from '@/orchestrators/core-assets.orchestrator';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { nPopover } from '@/test/unit/ui-stubs';
 
-const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
-vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields, queryCoreGraphics: mocks.graphics }));
+const mocks = vi.hoisted(() => ({ root: vi.fn(), fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
+vi.mock('@/services/core-assets.service', () => ({
+  queryCoreRoot: mocks.root,
+  queryCoreFields: mocks.fields,
+  queryCoreGraphics: mocks.graphics,
+}));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('./WindowRuntime.vue', () => ({ default: { template: '<div><slot /></div>' } }));
 vi.mock('@/app/components/ContextMenu.vue', () => ({ default: { template: '<div><slot /></div>' } }));
@@ -31,6 +34,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.fields.mockResolvedValue({});
   mocks.graphics.mockResolvedValue([]);
+  mocks.root.mockImplementation(async ({ sessionId, starsectorRoot }) =>
+    sessionId
+      ? ([...useProjectStore().manifests.values()].find((manifest) => manifest.sessionId === sessionId)?.starsectorRoot ?? null)
+      : (useSettingsStore().savedStarsectorRoot ?? starsectorRoot),
+  );
 });
 afterEach(() => wrapper?.unmount());
 
@@ -73,7 +81,7 @@ describe('window Core root assembly', () => {
       vi.useRealTimers();
     }
   });
-  it.each(['main', 'child'] as const)('projects settings priority and active manifest fallback in a %s window', async (mode) => {
+  it.each(['main', 'child'] as const)('uses published session sources in a %s window', async (mode) => {
     register('alpha', 'M:/alpha', 'D:/game-alpha');
     register('beta', 'M:/beta', 'D:/game-beta');
     const workspace = useWorkspaceStore();
@@ -81,20 +89,30 @@ describe('window Core root assembly', () => {
     workspace.activateModOverview('M:/alpha');
     mountWindow(mode);
     const core = useCoreAssetsStore();
+    await flushPromises();
     expect(core.root).toBe('D:/game-alpha');
-    expect(mocks.fields).not.toHaveBeenCalled();
-    await loadCoreFields();
+    expect(mocks.fields).toHaveBeenCalledWith('D:/game-alpha');
     settings.setStarsectorRoot('D:/settings');
+    await flushPromises();
+    expect(core.root).toBe('D:/game-alpha');
+    register('alpha-next', 'M:/alpha', 'D:/settings');
+    register('beta-next', 'M:/beta', 'D:/settings');
+    settings.confirmSavedSettings(settings.settingsSnapshot());
+    await flushPromises();
     expect(core.root).toBe('D:/settings');
     workspace.activateModOverview('M:/beta');
+    await flushPromises();
     expect(core.root).toBe('D:/settings');
     settings.setStarsectorRoot(null);
+    register('beta-clear', 'M:/beta', 'D:/game-beta');
+    settings.confirmSavedSettings(settings.settingsSnapshot());
+    await flushPromises();
     expect(core.root).toBe('D:/game-beta');
     expect(mocks.fields).toHaveBeenLastCalledWith('D:/game-beta');
     expect(mocks.graphics).toHaveBeenLastCalledWith('D:/game-beta');
     useProjectStore().removeProjectManifest('M:/beta');
-    expect(core.root).toBeNull();
     await flushPromises();
+    expect(core.root).toBeNull();
     expect(core.fields.status).toBe('idle');
     wrapper.unmount();
     workspace.activateModOverview('M:/alpha');
@@ -112,8 +130,8 @@ describe('window Core root assembly', () => {
       mods: [],
       warnings: [],
     });
-    expect(useCoreAssetsStore().root).toBe('D:/restored-game');
     await flushPromises();
+    expect(useCoreAssetsStore().root).toBe('D:/restored-game');
     expect(mocks.fields).toHaveBeenCalledWith('D:/restored-game');
     expect(mocks.graphics).toHaveBeenCalledWith('D:/restored-game');
   });

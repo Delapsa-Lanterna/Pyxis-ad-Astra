@@ -120,6 +120,7 @@ import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
 import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useCoreGraphics } from '@/app/composables/use-core-assets';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import { specEditorDefinitions, useSpecEditorDependencies } from '@/app/composables/spec-editor-assembly';
 import { useSpecEditorWindowViewModel } from '@/app/composables/spec-editor/use-spec-editor-window-view-model';
@@ -129,7 +130,7 @@ import { useManagedWindowRequests } from '@/app/composables/use-managed-window-r
 const context = useWindowContext('editor').value;
 const { sessionId, modRoot, id } = context.identity;
 const kind = context.identity.kind;
-const starsectorRoot = context.input.starsectorRoot;
+const { starsectorRoot } = useCoreGraphics();
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
 
@@ -186,7 +187,7 @@ useContextMenuScope({
         ...(shipImages?.value.value?.resourceRefs ?? []),
         ...(projectileImages?.value.value?.resourceRefs ?? []),
         ...(weaponDependencies?.resourceRefs.value ?? []),
-        ...(starsectorRoot ? Object.values(CONFIG_OPTION_SOURCES).map((relPath) => ({ source: 'core' as const, relPath })) : []),
+        ...(starsectorRoot.value ? Object.values(CONFIG_OPTION_SOURCES).map((relPath) => ({ source: 'core' as const, relPath })) : []),
       ],
       Object.values(CONFIG_OPTION_SOURCES).map((path) => target.value!.modRoot + '/' + path),
     ),
@@ -211,7 +212,7 @@ function openProjectile(projectileId: string) {
     modRoot: target.value.modRoot,
     id: projectileId,
     sessionId: target.value.sessionId,
-    starsectorRoot,
+    starsectorRoot: starsectorRoot.value,
   }).catch((error) => feedback.error(error, '打开弹体编辑器失败'));
 }
 

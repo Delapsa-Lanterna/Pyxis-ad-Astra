@@ -53,7 +53,7 @@
 
 ## 跨层链路
 
-- Core 生命周期：`WindowShell` 计算设置根与工作区当前清单根 → Core orchestrator → fields/graphics command → Rust Core index → root generation → Core store
+- Core 生命周期：`WindowShell` 所属上下文 → 后端有效原版根查询 → Core orchestrator → fields/graphics command → Rust Core index → root generation → Core store
 - workspace 生命周期：workspace action → Rust 关闭范围登记 → 内容准备与逐窗确认 → Destroyed → session 释放 → 实际释放结果 → 前端运行态清理
 - 保存事务：`EditSession` → save orchestrator → 目标与版本准备 → write service → `command.runtime` → Rust FIFO transaction → changeset、`File History` 与 `ProjectSession projection` → `WriteResult`
 - 写后接纳：项目保存队列 → 文件、历史及正式内容登记 → 实际 `WriteResult` 发布与保存工作释放 → 消费者有序接纳历史、清单、缓存、身份及内容

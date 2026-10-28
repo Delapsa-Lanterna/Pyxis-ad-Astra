@@ -8,7 +8,7 @@ export const commandOwners = {
   'src/services/app-config.service.ts': ['open_config_dir'],
   'src/services/workspace-state.service.ts': ['load_workspace', 'save_workspace'],
   'src/services/mod-creation.service.ts': ['create_mod'],
-  'src/services/core-assets.service.ts': ['scan_core_fields', 'scan_core_graphics', 'invalidate_core_cache'],
+  'src/services/core-assets.service.ts': ['query_core_root', 'scan_core_fields', 'scan_core_graphics', 'invalidate_core_cache'],
   'src/services/mod-file-browser.service.ts': ['query_mod_directory', 'query_mod_file_search', 'query_mod_text_file_target'],
   'src/services/font.service.ts': ['query_original_font'],
   'src/services/directory.service.ts': ['detect_directory', 'scan_game_overview'],

@@ -154,7 +154,7 @@ describe('directory opening lifecycle', () => {
       columnWidths: {},
     });
     const pending = pendingOpen();
-    const restoring = restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: vi.fn() });
+    const restoring = restorePersistedWorkspace({ onModRestoreError: vi.fn() });
     await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(1));
     await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     pending.resolve(manifest('restored-stale'));
@@ -181,7 +181,7 @@ describe('directory opening lifecycle', () => {
         resolveScan = resolve;
       }),
     );
-    const restoring = restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: vi.fn() });
+    const restoring = restorePersistedWorkspace({ onModRestoreError: vi.fn() });
     await vi.waitFor(() => expect(mocks.scanDirectoryGameOverview).toHaveBeenCalledTimes(1));
     await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     resolveScan({ starsectorRoot, mods: [], warnings: [] });

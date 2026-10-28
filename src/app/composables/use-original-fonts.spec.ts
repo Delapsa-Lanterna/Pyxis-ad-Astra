@@ -19,7 +19,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture({ starsectorRoot: 'C:/game' }));
   vi.resetAllMocks();
-  mocks.query.mockImplementation(async (_session: string, _root: string, id: FontId) => originalFontFixture(id));
+  mocks.query.mockImplementation(async (_session: string, id: FontId) => originalFontFixture(id));
   mocks.decode.mockImplementation(async (source: Extract<OriginalFontResult, { status: 'available' }>) => ({
     definition: parseOriginalBitmapFont(source.definition),
     pages: new Map(source.pages.map((page) => [page.id, new Image()])),
@@ -60,17 +60,17 @@ describe('independent original font lifecycle', () => {
     const { wrapper } = harness();
     await flushPromises();
     expect(wrapper.text()).toBe('bitmap');
-    expect(mocks.query).toHaveBeenCalledExactlyOnceWith('session', 'C:/game', 'insignia15LTaa', 'F:/fonts');
+    expect(mocks.query).toHaveBeenCalledExactlyOnceWith('session', 'insignia15LTaa', 'F:/fonts');
     settings.setImmersiveGameFont(false);
     expect(settings.immersiveFontDirectory).toBe('F:/fonts');
     await flushPromises();
     expect(wrapper.text()).toBe('default');
     settings.setImmersiveGameFont(true);
     await flushPromises();
-    expect(mocks.query).toHaveBeenLastCalledWith('session', 'C:/game', 'insignia15LTaa', 'F:/fonts');
+    expect(mocks.query).toHaveBeenLastCalledWith('session', 'insignia15LTaa', 'F:/fonts');
     settings.setImmersiveFontDirectory(null);
     await flushPromises();
-    expect(mocks.query).toHaveBeenLastCalledWith('session', 'C:/game', 'insignia15LTaa', null);
+    expect(mocks.query).toHaveBeenLastCalledWith('session', 'insignia15LTaa', null);
     expect(wrapper.text()).toBe('bitmap');
     wrapper.unmount();
   });
@@ -82,14 +82,14 @@ describe('independent original font lifecycle', () => {
     const { wrapper } = harness(['insignia15LTaa', 'insignia15LTaa']);
     await flushPromises();
     expect(wrapper.text()).toBe('bitmapbitmap');
-    expect(mocks.query.mock.calls.map((call) => call[3])).toEqual(['F:/fonts', null]);
+    expect(mocks.query.mock.calls.map((call) => call[2])).toEqual(['F:/fonts', null]);
     expect(mocks.log).toHaveBeenCalledTimes(failure === 'unavailable' ? 0 : 1);
     if (failure !== 'unavailable') expect(mocks.log.mock.calls[0]![0].fields.root).toBe('F:/fonts');
     wrapper.unmount();
   });
   it('selects custom, game and general fonts independently', async () => {
     useSettingsStore().setImmersiveFontDirectory('F:/fonts');
-    mocks.query.mockImplementation(async (_session: string, _root: string, id: FontId, directory: string | null) => {
+    mocks.query.mockImplementation(async (_session: string, id: FontId, directory: string | null) => {
       if (id === 'victor14' || (id === 'orbitron20aa' && directory)) throw new Error('font missing');
       return originalFontFixture(id);
     });
@@ -97,8 +97,8 @@ describe('independent original font lifecycle', () => {
     await flushPromises();
     expect(wrapper.text()).toBe('bitmapbitmapdefault');
     expect(runtime.state('victor14').status).toBe('error');
-    expect(mocks.query.mock.calls.filter((call) => call[2] === 'insignia15LTaa').map((call) => call[3])).toEqual(['F:/fonts']);
-    expect(mocks.query.mock.calls.filter((call) => call[2] === 'orbitron20aa').map((call) => call[3])).toEqual(['F:/fonts', null]);
+    expect(mocks.query.mock.calls.filter((call) => call[1] === 'insignia15LTaa').map((call) => call[2])).toEqual(['F:/fonts']);
+    expect(mocks.query.mock.calls.filter((call) => call[1] === 'orbitron20aa').map((call) => call[2])).toEqual(['F:/fonts', null]);
     expect(mocks.log).toHaveBeenCalledTimes(3);
     wrapper.unmount();
   });
@@ -146,7 +146,7 @@ describe('independent original font lifecycle', () => {
     expect(runtime.state('insignia15LTaa').status).toBe('idle');
   });
   it('adopts successful fonts while a different font fails and logs once per attempt', async () => {
-    mocks.query.mockImplementation(async (_session: string, _root: string, id: FontId) => {
+    mocks.query.mockImplementation(async (_session: string, id: FontId) => {
       if (id === 'victor14')
         throw { code: 'io.unexpected', message: 'Missing font', location: { path: 'C:/game/victor14.fnt', line: null, column: null } };
       return originalFontFixture(id);
@@ -180,7 +180,7 @@ describe('independent original font lifecycle', () => {
     expect(mocks.log).not.toHaveBeenCalled();
     wrapper.unmount();
   });
-  it.each(['off', 'root', 'directory', 'session', 'close'] as const)('rejects late success and failure after %s', async (reason) => {
+  it.each(['off', 'directory', 'session', 'close'] as const)('rejects late success and failure after %s', async (reason) => {
     let finish!: (value: OriginalFontResult) => void;
     mocks.query.mockImplementationOnce(
       () =>
@@ -190,7 +190,6 @@ describe('independent original font lifecycle', () => {
     );
     const { wrapper, runtime, session } = harness();
     if (reason === 'off') useSettingsStore().setImmersiveGameFont(false);
-    if (reason === 'root') useSettingsStore().setStarsectorRoot('C:/other');
     if (reason === 'directory') useSettingsStore().setImmersiveFontDirectory('F:/fonts');
     if (reason === 'session') session.value = 'session2';
     if (reason === 'close') wrapper.unmount();
@@ -203,12 +202,12 @@ describe('independent original font lifecycle', () => {
     expect(mocks.log).not.toHaveBeenCalled();
     if (reason !== 'close') wrapper.unmount();
   });
-  it('isolates A-B-A loading generations and captures a nullable session-root input', async () => {
+  it('isolates A-B-A session generations and reads from the latest session', async () => {
     const finishes: Array<(value: OriginalFontResult) => void> = [];
     mocks.query.mockImplementation(() => new Promise<OriginalFontResult>((resolve) => finishes.push(resolve)));
-    const { wrapper, runtime } = harness();
-    useSettingsStore().setStarsectorRoot('C:/other');
-    useSettingsStore().setStarsectorRoot('C:/game');
+    const { wrapper, runtime, session } = harness();
+    session.value = 'other';
+    session.value = 'session';
     finishes[2]!(originalFontFixture());
     await flushPromises();
     const accepted = runtime.state('insignia15LTaa').font;
@@ -216,8 +215,8 @@ describe('independent original font lifecycle', () => {
     finishes[1]!({ status: 'unavailable' });
     await flushPromises();
     expect(runtime.state('insignia15LTaa').font).toBe(accepted);
-    useSettingsStore().setStarsectorRoot(null);
-    expect(mocks.query).toHaveBeenLastCalledWith('session', null, 'insignia15LTaa', null);
+    session.value = 'latest';
+    expect(mocks.query).toHaveBeenLastCalledWith('latest', 'insignia15LTaa', null);
     finishes[3]!({ status: 'unavailable' });
     await flushPromises();
     wrapper.unmount();
@@ -250,7 +249,7 @@ describe('independent original font lifecycle', () => {
     finish(originalFontFixture());
     await flushPromises();
     expect(wrapper.text()).toBe('7');
-    expect(mocks.query).toHaveBeenLastCalledWith('session', 'C:/game', 'insignia15LTaa', 'F:/fonts');
+    expect(mocks.query).toHaveBeenLastCalledWith('session', 'insignia15LTaa', 'F:/fonts');
     useSettingsStore().setImmersiveGameFont(false);
     await flushPromises();
     expect(wrapper.text()).toBe('10');

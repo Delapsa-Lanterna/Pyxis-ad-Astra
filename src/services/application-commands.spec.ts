@@ -6,7 +6,7 @@ import { openConfigFolder } from './app-config.service';
 import { clearLog, loadLogStatus } from './app-log.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-state.service';
 import { createNewModProject } from './mod-creation.service';
-import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
+import { queryCoreRoot, queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
 import { requestProjectSessionRefresh, refreshProjectSources } from './project-sync.service';
 import { queryOriginalFont } from './font.service';
@@ -52,8 +52,8 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ['query_system_fonts', querySystemFonts, undefined],
   [
     'query_original_font',
-    () => queryOriginalFont('s1', null, 'insignia15LTaa', 'F:/fonts'),
-    { payload: { sessionId: 's1', starsectorRoot: null, fontId: 'insignia15LTaa', fontDirectory: 'F:/fonts' } },
+    () => queryOriginalFont('s1', 'insignia15LTaa', 'F:/fonts'),
+    { payload: { sessionId: 's1', fontId: 'insignia15LTaa', fontDirectory: 'F:/fonts' } },
   ],
   ['save_settings', () => saveSettings(settings), { payload: { settings } }],
   ['get_app_log_status', loadLogStatus, undefined],
@@ -63,6 +63,11 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ['save_workspace', () => savePersistedWorkspace(state), { payload: { state } }],
   ['create_mod', () => createNewModProject(create), { payload: create }],
   ['scan_core_fields', () => queryCoreFields('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],
+  [
+    'query_core_root',
+    () => queryCoreRoot({ sessionId: 's1', starsectorRoot: null }),
+    { payload: { sessionId: 's1', starsectorRoot: null } },
+  ],
   ['scan_core_graphics', () => queryCoreGraphics('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],
   ['invalidate_core_cache', () => invalidateCoreCacheForRoot('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],
   ['detect_directory', () => detectDirectoryTarget('M:/mod', null), { payload: { path: 'M:/mod', knownStarsectorRoot: null } }],

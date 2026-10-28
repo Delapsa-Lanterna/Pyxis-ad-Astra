@@ -34,7 +34,6 @@ export function provideOriginalFonts(sessionId: () => string) {
     if (!settings.immersiveGameFont || state(id).status !== 'idle') return;
     const identity = {
       sessionId: sessionId(),
-      starsectorRoot: settings.starsectorRoot,
       fontDirectory: settings.immersiveFontDirectory,
       fontId: id,
       generation,
@@ -49,7 +48,7 @@ export function provideOriginalFonts(sessionId: () => string) {
         for (const directory of directories) {
           if (signal.aborted) break;
           try {
-            const result = await queryOriginalFont(identity.sessionId, identity.starsectorRoot, id, directory);
+            const result = await queryOriginalFont(identity.sessionId, id, directory);
             if (result.status === 'available' && !signal.aborted) {
               const font = await decodeOriginalFont(result);
               return { font, errors };
@@ -71,7 +70,7 @@ export function provideOriginalFonts(sessionId: () => string) {
               message: diagnostic.message,
               path: diagnostic.location?.path ?? null,
               line: diagnostic.location?.line ?? null,
-              fields: { fontId: id, sessionId: identity.sessionId, root: directory ?? identity.starsectorRoot ?? 'session' },
+              fields: { fontId: id, sessionId: identity.sessionId, root: directory ?? 'session' },
             });
           }
         },
@@ -89,7 +88,7 @@ export function provideOriginalFonts(sessionId: () => string) {
     };
   }
   watch(
-    () => [settings.immersiveGameFont, settings.immersiveFontDirectory, settings.starsectorRoot, sessionId()] as const,
+    () => [settings.immersiveGameFont, settings.immersiveFontDirectory, sessionId()] as const,
     () => {
       generation++;
       reads.revoke();

@@ -1,5 +1,9 @@
-import type { CoreScanPayload, InvalidateCoreCachePayload, DiscoveredField } from '@/shared/types';
+import type { CoreRootPayload, CoreScanPayload, InvalidateCoreCachePayload, DiscoveredField } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
+
+export function queryCoreRoot(payload: CoreRootPayload): Promise<string | null> {
+  return invokeCommand('query_core_root', { payload });
+}
 
 export function queryCoreFields(starsectorRoot: string): Promise<Record<string, DiscoveredField[]>> {
   return invokeCommand('scan_core_fields', { payload: { starsectorRoot } satisfies CoreScanPayload });

@@ -8,15 +8,12 @@ use std::{collections::BTreeSet, fs, path::Path};
 
 pub fn query_original_font(
     session_id: &str,
-    override_root: Option<&str>,
     font_id: FontId,
     font_directory: Option<&str>,
 ) -> AppResult<OriginalFontResult> {
     let handle = super::super::cache::session_handle(session_id)?;
     let session = super::super::cache::lock_session(&handle)?;
-    let root = override_root
-        .map(str::to_string)
-        .or_else(|| session.manifest.starsector_root.clone());
+    let root = session.manifest.starsector_root.clone();
     drop(session);
     if let Some(directory) = font_directory {
         return read_font_directory(Path::new(directory), font_id);
@@ -190,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn captures_session_root_and_prioritizes_explicit_settings_root() {
+    fn captures_session_root_and_uses_custom_font_directory() {
         let root = project_workspace("original_font_session_root");
         let game = project_workspace("original_font_game");
         let other = project_workspace("original_font_other_game");
@@ -208,32 +205,15 @@ mod tests {
             &mut trace,
         )
         .unwrap();
-        let from_session = query_original_font(
-            &manifest.session_id,
-            None,
-            FontId::Orbitron12condensed,
-            None,
-        )
-        .unwrap();
+        let from_session =
+            query_original_font(&manifest.session_id, FontId::Orbitron12condensed, None).unwrap();
         let OriginalFontResult::Available { definition, .. } = from_session else {
             panic!("session font");
         };
         assert!(definition.contains("session-source"));
-        let from_settings = query_original_font(
-            &manifest.session_id,
-            Some(&other.to_string_lossy()),
-            FontId::Orbitron12condensed,
-            None,
-        )
-        .unwrap();
-        let OriginalFontResult::Available { definition, .. } = from_settings else {
-            panic!("settings font");
-        };
-        assert!(definition.contains("settings-source"));
         let directory = other.join("starsector-core/graphics/fonts");
         let custom = query_original_font(
             &manifest.session_id,
-            None,
             FontId::Orbitron12condensed,
             Some(&directory.to_string_lossy()),
         )
@@ -257,7 +237,6 @@ mod tests {
             assert!(
                 query_original_font(
                     &manifest.session_id,
-                    None,
                     FontId::Victor14,
                     Some(&missing.to_string_lossy())
                 )
@@ -266,18 +245,11 @@ mod tests {
         }
         super::super::super::session::close_project_session(manifest.session_id.clone()).unwrap();
         assert!(
-            query_original_font(
-                &manifest.session_id,
-                None,
-                FontId::Orbitron12condensed,
-                None
-            )
-            .is_err()
+            query_original_font(&manifest.session_id, FontId::Orbitron12condensed, None).is_err()
         );
         assert!(
             query_original_font(
                 &manifest.session_id,
-                None,
                 FontId::Orbitron12condensed,
                 Some(&directory.to_string_lossy())
             )

@@ -4,7 +4,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import type { AppSettings, SettingsSnapshot } from '@/shared/types';
-const api = vi.hoisted(() => ({ defaults: vi.fn(), save: vi.fn(), read: vi.fn(), listen: vi.fn(), history: vi.fn(), stop: vi.fn() }));
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { useProjectStore } from '@/stores/project.store';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+const api = vi.hoisted(() => ({
+  defaults: vi.fn(),
+  save: vi.fn(),
+  read: vi.fn(),
+  listen: vi.fn(),
+  history: vi.fn(),
+  stop: vi.fn(),
+  detect: vi.fn(),
+  scan: vi.fn(),
+  open: vi.fn(),
+  workspaceSave: vi.fn(),
+}));
+vi.mock('@/services/directory.service', () => ({ detectDirectoryTarget: api.detect, scanDirectoryGameOverview: api.scan }));
+vi.mock('@/services/project-session.service', () => ({ openProject: api.open, closeProject: vi.fn() }));
+vi.mock('@/services/workspace-state.service', () => ({ savePersistedWorkspace: api.workspaceSave, loadPersistedWorkspace: vi.fn() }));
+vi.mock('@/services/core-assets.service', () => ({ invalidateCoreCacheForRoot: vi.fn(async () => {}) }));
 vi.mock('@/services/app-settings.service', () => ({ readDefaultSettings: api.defaults, saveSettings: api.save, readSettings: api.read }));
 vi.mock('@/windows/tauri.events', () => ({ listenWindowEvent: api.listen }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
@@ -28,6 +47,52 @@ async function setup() {
   return { runtime, stop: runtime.startSettingsPersistence(api.history), settings: useSettingsStore() };
 }
 describe('formal settings commits', () => {
+  it.each(['success', 'clear', 'cancel', 'validate', 'save', 'open'] as const)('switches the whole source lifecycle: %s', async (stage) => {
+    const previous = createSettingsFixture({ starsectorRoot: 'G:/previous' });
+    useSettingsStore().replaceSettings(previous);
+    useSettingsStore().confirmSavedSettings(previous);
+    api.read.mockResolvedValue({ revision: 1, value: previous });
+    const { runtime, stop, settings } = await setup();
+    const workspace = useWorkspaceStore();
+    const overview = { starsectorRoot: 'G:/workspace', modsDir: 'G:/workspace/mods', coreAvailable: true, mods: [], warnings: [] };
+    workspace.setGameOverview(overview);
+    workspace.registerMod({ modRoot: 'M:/sample', displayName: 'Sample', version: '', status: 'ready' });
+    useProjectStore().registerProjectManifest(sessionUpdateFixture('before', 'M:/sample').projection.manifest);
+    api.detect.mockResolvedValue({ kind: stage === 'validate' ? 'unknown' : 'game-root' });
+    api.scan.mockResolvedValue(overview);
+    api.open.mockImplementation(async () => ({
+      ...sessionUpdateFixture('after', 'M:/sample').projection.manifest,
+      starsectorRoot: settings.savedStarsectorRoot ?? overview.starsectorRoot,
+    }));
+    if (stage === 'save') api.save.mockRejectedValueOnce(new Error('settings unavailable'));
+    if (stage === 'open') api.open.mockRejectedValueOnce(new Error('mod unavailable'));
+    const close = vi.fn(async () => {
+      await useSaveCommandStore().settleCloseActions();
+      await runtime.flushSettings();
+      return {
+        status: stage === 'cancel' ? ('cancelled' as const) : ('closed' as const),
+        destroyedWindows: [],
+        releasedSessions: stage === 'cancel' ? [] : ['before'],
+        diagnostic: null,
+      };
+    });
+    const root = stage === 'clear' ? null : 'G:/selected';
+    const switching = runtime.saveStarsectorRoot(root, close);
+    if (stage === 'validate' || stage === 'save') await expect(switching).rejects.toThrow();
+    else expect(await switching).toBe(stage !== 'cancel');
+    expect(settings.starsectorRoot).toBe(['cancel', 'validate', 'save'].includes(stage) ? 'G:/previous' : root);
+    expect(workspace.gameOverview?.starsectorRoot).toBe('G:/workspace');
+    expect(close).toHaveBeenCalledTimes(stage === 'validate' ? 0 : 1);
+    if (stage === 'cancel' || stage === 'validate') expect(useProjectStore().getSessionId('M:/sample')).toBe('before');
+    else if (stage === 'open') expect(workspace.modOpeningFailureList.map((item) => item.modRoot)).toEqual(['M:/sample']);
+    else
+      expect(workspace.activeManifest ?? useProjectStore().getManifest('M:/sample')).toMatchObject({
+        sessionId: 'after',
+        starsectorRoot: stage === 'save' ? 'G:/previous' : (root ?? 'G:/workspace'),
+      });
+    expect(api.workspaceSave.mock.calls.every(([state]) => state.mods.length === (stage === 'open' ? 0 : 1))).toBe(true);
+    stop();
+  });
   it('saves the complete official defaults and applies committed budgets', async () => {
     const { runtime, stop, settings } = await setup();
     settings.setGeneralFont('Fixture Font');
@@ -36,7 +101,7 @@ describe('formal settings commits', () => {
     settings.setLogDirectory('D:/fixture');
     await runtime.flushSettings();
     api.save.mockClear();
-    await runtime.resetSettings();
+    await runtime.resetSettings(vi.fn());
     const defaults = createSettingsFixture();
     expect(api.defaults).toHaveBeenCalledOnce();
     expect(api.save).toHaveBeenCalledExactlyOnceWith(defaults);
@@ -52,9 +117,9 @@ describe('formal settings commits', () => {
     api.save.mockClear();
     if (stage === 'read') api.defaults.mockRejectedValueOnce(new Error('defaults unavailable'));
     else api.save.mockRejectedValueOnce(new Error('save unavailable'));
-    await expect(runtime.resetSettings()).rejects.toThrow('unavailable');
+    await expect(runtime.resetSettings(vi.fn())).rejects.toThrow('unavailable');
     expect(settings.settingsSnapshot()).toEqual(stage === 'read' ? before : createSettingsFixture());
-    await runtime.resetSettings();
+    await runtime.resetSettings(vi.fn());
     expect(settings.settingsSnapshot()).toEqual(createSettingsFixture());
     stop();
   });
@@ -69,7 +134,7 @@ describe('formal settings commits', () => {
           finish = resolve;
         }),
     );
-    const resetting = runtime.resetSettings();
+    const resetting = runtime.resetSettings(vi.fn());
     await vi.waitFor(() => expect(finish).toBeDefined());
     settings.setGeneralFont('Later Font');
     finish({ revision: 3, performanceMonitorActive: false, value: createSettingsFixture() });

@@ -1,9 +1,17 @@
 use crate::{
     errors::AppError,
-    models::{CoreScanPayload, DiscoveredField, InvalidateCoreCachePayload},
+    models::{CoreRootPayload, CoreScanPayload, DiscoveredField, InvalidateCoreCachePayload},
     services,
 };
 use std::collections::BTreeMap;
+
+#[command_macros::command(async)]
+pub fn query_core_root(payload: CoreRootPayload) -> Result<Option<String>, AppError> {
+    services::query_core_root(
+        payload.session_id.as_deref(),
+        payload.starsector_root.as_deref(),
+    )
+}
 
 #[command_macros::command(async)]
 pub fn scan_core_fields(

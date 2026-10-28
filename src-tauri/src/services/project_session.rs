@@ -23,14 +23,11 @@ pub fn open_project_session_with_root(
     let mut trace = PerformanceTrace::new("project.openSession");
     let mod_root_boundary = FsRootBoundary::new(Path::new(&mod_root), "mod root")?;
     let mod_root_path = mod_root_boundary.root();
-    let starsector_root = match starsector_root.as_deref() {
-        Some(root) => Some(
-            FsRootBoundary::new(Path::new(root), "starsector root")?
-                .root()
-                .to_path_buf(),
-        ),
-        None => crate::services::directory_opening::infer_starsector_root(mod_root_path),
-    };
+    let starsector_root = super::project::resolve_core_root(
+        super::app_settings::starsector_root()?.as_deref(),
+        starsector_root.as_deref(),
+        Some(mod_root_path),
+    )?;
     open_project_session_traced(mod_root_path, starsector_root.as_deref(), &mut trace)
 }
 

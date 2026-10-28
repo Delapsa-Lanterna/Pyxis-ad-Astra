@@ -99,6 +99,10 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       return ['Arial', 'Microsoft YaHei'];
     case 'scan_core_fields':
       return {};
+    case 'query_core_root':
+      return (args.payload as { sessionId: string | null }).sessionId
+        ? model.manifest.starsectorRoot
+        : (model.settingsSnapshot().value.starsectorRoot ?? (args.payload as { starsectorRoot: string | null }).starsectorRoot);
     case 'scan_core_graphics':
       return ['graphics/sample.svg'];
     case 'invalidate_core_cache':

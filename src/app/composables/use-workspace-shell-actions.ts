@@ -1,8 +1,6 @@
 import { computed, getCurrentScope, onScopeDispose } from 'vue';
 import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
-import { useSettingsStore } from '@/stores/settings.store';
-
 import { useProjectStore } from '@/stores/project.store';
 import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.service';
 
@@ -33,7 +31,6 @@ import { pathBasename } from '@/shared/lib/paths';
 export function useWorkspaceShellActions(feedback: AppFeedback) {
   const { requestClose } = useWindowLifecycleActions();
   const project = useProjectStore();
-  const settings = useSettingsStore();
   const workspace = useWorkspaceStore();
   const saveCommands = useSaveCommandStore();
   let disposed = false;
@@ -48,7 +45,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     try {
       const selected = await pickDirectory();
       if (!selected) return;
-      const outcome = await openDirectoryTarget(selected, settings.starsectorRoot);
+      const outcome = await openDirectoryTarget(selected, workspace.gameOverview?.starsectorRoot ?? null);
       handleDirectoryOpeningOutcome(outcome, selected);
     } catch (err) {
       feedback.error(err);
@@ -108,7 +105,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       if (!accepts() || workspace.gameOverview?.starsectorRoot !== root) return;
       workspace.clearModOpeningFailures();
       workspace.setGameOverview(overview);
-      settings.setStarsectorRoot(overview.starsectorRoot);
       recordLogBestEffort({
         level: 'info',
         code: 'workspace.refreshed',
@@ -163,7 +159,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   function handleDirectoryOpeningOutcome(outcome: DirectoryOpeningOutcome, path: string | null = null) {
     if (outcome.type === 'cancelled') return;
     if (outcome.type === 'game-overview') {
-      if (workspace.gameOverview?.starsectorRoot) settings.setStarsectorRoot(workspace.gameOverview.starsectorRoot);
       feedback.success(`游戏目录已扫描：${outcome.availableModCount} 个 Mod`);
       recordLogBestEffort({
         level: 'info',
@@ -174,7 +169,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
         fields: { root: outcome.root, mods: String(outcome.availableModCount) },
       });
     } else if (outcome.type === 'mod-loaded') {
-      if (workspace.gameOverview?.starsectorRoot) settings.setStarsectorRoot(workspace.gameOverview.starsectorRoot);
       feedback.success(`Mod 已导入：${outcome.modName}`);
       for (const warning of outcome.warnings) {
         feedback.warning(warning);

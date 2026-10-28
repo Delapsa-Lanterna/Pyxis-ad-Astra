@@ -15,9 +15,10 @@ const mocks = vi.hoisted(() => ({
   },
   pickDirectoryDialog: vi.fn(async () => null as string | null),
   saveLogDirectory: vi.fn(async () => {}),
+  saveStarsectorRoot: vi.fn(async () => true),
   loadLogStatus: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   openConfigFolder: vi.fn(async () => {}),
-  resetSettings: vi.fn(async () => {}),
+  resetSettings: vi.fn(async () => true),
   clearLog: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   querySystemFonts: vi.fn(async () => ['Arial', 'Microsoft YaHei']),
 }));
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
+vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: vi.fn() }) }));
 
 vi.mock('@/shared/runtime/dialog.runtime', () => ({
   pickDirectoryDialog: mocks.pickDirectoryDialog,
@@ -39,6 +41,7 @@ vi.mock('@/services/app-config.service', () => ({ openConfigFolder: mocks.openCo
 vi.mock('@/services/app-settings.service', () => ({ querySystemFonts: mocks.querySystemFonts }));
 
 vi.mock('@/orchestrators/settings-persistence.orchestrator', () => ({
+  saveStarsectorRoot: mocks.saveStarsectorRoot,
   saveLogDirectory: mocks.saveLogDirectory,
   resetSettings: mocks.resetSettings,
 }));
@@ -123,11 +126,11 @@ describe('useSettingsViewModel', () => {
     expect(viewModel.logPathHint.value).toBe('Log 文件: C:/log/app.log');
   });
 
-  it('stores a picked starsector root in the settings store', async () => {
+  it('passes a picked starsector root to the source switching action', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue('D:/games/starsector');
     const viewModel = useSettingsViewModel();
     await viewModel.pickStarsectorRoot();
-    expect(useSettingsStore().starsectorRoot).toBe('D:/games/starsector');
+    expect(mocks.saveStarsectorRoot).toHaveBeenCalledWith('D:/games/starsector', expect.any(Function));
   });
 
   it('ignores a cancelled starsector directory pick', async () => {
@@ -178,7 +181,7 @@ describe('useSettingsViewModel', () => {
 
   it('confirms a settings reset and reports completion after leaving the page', async () => {
     const onReset = vi.fn();
-    let finish!: () => void;
+    let finish!: (value: boolean) => void;
     mocks.resetSettings.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -192,7 +195,7 @@ describe('useSettingsViewModel', () => {
     expect(mocks.resetSettings).not.toHaveBeenCalled();
     const resetting = mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
     scope.stop();
-    finish();
+    finish(true);
     await resetting;
     expect(mocks.resetSettings).toHaveBeenCalledOnce();
     expect(mocks.feedback.success).toHaveBeenCalledWith('已重置为默认配置');

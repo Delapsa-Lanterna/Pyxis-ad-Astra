@@ -146,7 +146,13 @@ export type {
   CsvRowPreviewPayload,
 } from '@/shared/types/tables.types';
 
-export type { DiscoveredField, DiscoveredFieldType, CoreScanPayload, InvalidateCoreCachePayload } from '@/shared/types/core-assets.types';
+export type {
+  DiscoveredField,
+  DiscoveredFieldType,
+  CoreRootPayload,
+  CoreScanPayload,
+  InvalidateCoreCachePayload,
+} from '@/shared/types/core-assets.types';
 export type { EntityData, QueryEntityPayload, QueryEntityListPayload } from '@/shared/types/entity-query.types';
 export type {
   EntitySummaries,

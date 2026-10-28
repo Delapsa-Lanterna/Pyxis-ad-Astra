@@ -160,6 +160,7 @@ pub fn run() {
                     commands::save_settings,
                     commands::query_system_fonts,
                     commands::scan_core_fields,
+                    commands::query_core_root,
                     commands::scan_core_graphics,
                     commands::query_original_font,
                     commands::load_editable_file,

@@ -5,6 +5,114 @@ use super::*;
 use crate::io::{file_version, read_versioned_json, verify_versions};
 
 #[test]
+fn resolved_source_drives_session_fields_graphics_and_media() {
+    use crate::models::{ResourceOwnerKind, ResourceSource};
+    use crate::services::project::{
+        PerformanceTrace, open_project_session_traced, query, resources,
+    };
+    let root = project_workspace("effective_core_source");
+    let game = root.join("game");
+    let selected = root.join("selected");
+    let local = game.join("mods/sample");
+    let isolated = root.join("isolated");
+    for path in [&local, &isolated] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    for (path, marker) in [(&game, "local"), (&selected, "selected")] {
+        for directory in [
+            "mods",
+            "starsector-core/data/hulls",
+            "starsector-core/graphics",
+        ] {
+            std::fs::create_dir_all(path.join(directory)).unwrap();
+        }
+        std::fs::write(
+            path.join("starsector-core/data/hulls/example.ship"),
+            format!(
+                r#"{{"hullId":"example","{marker}":true,"spriteName":"graphics/example.png"}}"#
+            ),
+        )
+        .unwrap();
+        std::fs::write(path.join("starsector-core/graphics/example.png"), marker).unwrap();
+    }
+    let selected_text = selected.to_string_lossy();
+    let game_text = game.to_string_lossy();
+    for mod_root in [&local, &isolated] {
+        let effective = resolve_core_root(Some(&selected_text), Some(&game_text), Some(mod_root))
+            .unwrap()
+            .unwrap();
+        assert_eq!(effective, selected.canonicalize().unwrap());
+        let manifest = open_project_session_traced(
+            mod_root,
+            Some(&effective),
+            &mut PerformanceTrace::new("test"),
+        )
+        .unwrap();
+        assert_eq!(
+            manifest.mod_root,
+            mod_root.canonicalize().unwrap().to_string_lossy()
+        );
+        assert_eq!(
+            resources::core_assets::query_core_root(Some(&manifest.session_id), Some(&game_text))
+                .unwrap(),
+            manifest.starsector_root
+        );
+        let source = effective.to_string_lossy();
+        assert!(
+            core::load_core_fields(&source).unwrap()["ship"]
+                .iter()
+                .any(|field| field.key == "selected")
+        );
+        assert_eq!(
+            core::load_core_graphics(&source).unwrap(),
+            vec!["graphics/example.png"]
+        );
+        let sprite = resources::resource_ref(
+            ResourceSource::Mod,
+            "graphics/example.png",
+            ResourceOwnerKind::Ship,
+            "example",
+            "spriteName",
+        );
+        let media =
+            query::resources::query_resource_data_urls(&manifest.session_id, vec![sprite]).unwrap();
+        assert_eq!(
+            media.entries[0].data_url.as_deref(),
+            Some("data:image/png;base64,c2VsZWN0ZWQ=")
+        );
+        let references = query::hull_references::query_hull_references(
+            &manifest.session_id,
+            &["example".into()],
+        )
+        .unwrap();
+        assert!(references.sprites.contains_key("example"));
+        super::super::close_project_session(manifest.session_id).unwrap();
+    }
+    assert_eq!(
+        resolve_core_root(None, Some(&game_text), Some(&isolated)).unwrap(),
+        Some(game.canonicalize().unwrap())
+    );
+    assert_eq!(
+        resolve_core_root(None, None, Some(&local)).unwrap(),
+        Some(game.canonicalize().unwrap())
+    );
+    assert!(
+        resolve_core_root(None, None, Some(&isolated))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        resolve_core_root(
+            Some(&isolated.to_string_lossy()),
+            Some(&game_text),
+            Some(&local)
+        )
+        .is_err()
+    );
+    root.close().unwrap();
+}
+
+#[test]
 fn source_version_matches_content() {
     let root = project_workspace("paired_source");
     let path = root.join("document.ship");

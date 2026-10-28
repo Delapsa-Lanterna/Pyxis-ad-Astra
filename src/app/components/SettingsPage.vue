@@ -12,14 +12,14 @@
         ><div class="ui-field-actions ui-layout-stretch action-group">
           <n-input :value="settings.starsectorRoot ?? ''" size="small" placeholder="自动推断或手动指定" readonly />
           <n-button size="small" @click="pickStarsectorRoot">选择目录</n-button>
-          <n-button v-if="settings.starsectorRoot" size="small" quaternary @click="settings.setStarsectorRoot(null)">清除</n-button>
+          <n-button v-if="settings.starsectorRoot" size="small" quaternary @click="changeStarsectorRoot(null)">清除</n-button>
         </div>
         <template #hint>
           <FieldHints
             :description="
               settings.starsectorRoot
                 ? '已设置: ' + settings.starsectorRoot
-                : '未设置时，工具将从导入的 Mod 路径自动推断（mod_root 的上两级目录）。'
+                : '未设置时使用工作区游戏目录，孤立 Mod 则从其位置推断。指定目录覆盖全部 Mod 的原版来源，切换时会重新打开已加载 Mod。'
             "
           /> </template
       ></FieldRow>
@@ -370,6 +370,7 @@ const {
   applicationLogError,
   pickLogDirectory,
   pickStarsectorRoot,
+  changeStarsectorRoot,
   pickImmersiveFontDirectory,
   refreshLogStatus,
   openConfigFolderAction,

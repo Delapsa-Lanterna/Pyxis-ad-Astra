@@ -3,6 +3,13 @@ import test from 'node:test';
 import { rustServiceEdgeBoundaryRule } from './rust-service-edge-boundary.mjs';
 import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 
+test('session opening consumes the official settings root', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/services/project_session.rs': 'fn open() { crate::services::app_settings::starsector_root(); }',
+  });
+  assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(context)), []);
+});
+
 test('application assembly consumes the media cache configuration capability', () => {
   assert.deepEqual(
     messages(

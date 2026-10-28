@@ -13,6 +13,11 @@ export interface CoreScanPayload {
   starsectorRoot: string;
 }
 
+export interface CoreRootPayload {
+  sessionId: string | null;
+  starsectorRoot: string | null;
+}
+
 export interface InvalidateCoreCachePayload {
   starsectorRoot: string;
 }

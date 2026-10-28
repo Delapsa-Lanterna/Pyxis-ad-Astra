@@ -2,7 +2,7 @@ import { watch } from 'vue';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
-import type { PersistedMod, ProjectManifest, FeedbackNotice } from '@/shared/types';
+import type { PersistedMod, PersistedWorkspace, ProjectManifest, FeedbackNotice } from '@/shared/types';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { formatLoadWarnings } from '@/domain/project/load-diagnostics';
 import { hydrateOpenedModRuntime, openModProjectManifest } from '@/orchestrators/directory-opening.orchestrator';
@@ -12,15 +12,23 @@ import { loadPersistedWorkspace, savePersistedWorkspace } from '@/services/works
 
 interface RestoreWorkspaceOptions {
   isCurrent?: () => boolean;
-  knownStarsectorRoot: string | null;
   onModRestoreError: (modRoot: string, displayName: string, error: unknown) => void | Promise<void>;
   onModRestoreWarnings?: (displayName: string, warnings: FeedbackNotice[]) => void;
 }
 
+let saveTimer: number | null = null;
+let restoring = false;
+export function beginWorkspaceRestore() {
+  restoring = true;
+  if (saveTimer !== null) window.clearTimeout(saveTimer);
+}
+export async function finishWorkspaceRestore(persist = true) {
+  restoring = false;
+  if (persist) await savePersistedWorkspace(useWorkspaceStore().toPersistedState());
+}
+
 export function watchWorkspacePersistence() {
   const workspace = useWorkspaceStore();
-  let saveTimer: number | null = null;
-  let restoring = false;
 
   const stop = watch(
     () => workspace.toPersistedState(),
@@ -45,13 +53,8 @@ export function watchWorkspacePersistence() {
   );
 
   return {
-    beginRestore() {
-      restoring = true;
-    },
-    async finishRestore(persist = true) {
-      restoring = false;
-      if (persist) await savePersistedWorkspace(workspace.toPersistedState());
-    },
+    beginRestore: beginWorkspaceRestore,
+    finishRestore: finishWorkspaceRestore,
     stop() {
       if (saveTimer !== null) window.clearTimeout(saveTimer);
       stop();
@@ -59,11 +62,11 @@ export function watchWorkspacePersistence() {
   };
 }
 
-export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions) {
+export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions, snapshot?: PersistedWorkspace) {
   const workspace = useWorkspaceStore();
   const generation = workspace.getWorkspaceGeneration();
   const current = () => workspace.getWorkspaceGeneration() === generation && (options.isCurrent?.() ?? true);
-  const persisted = await loadPersistedWorkspace();
+  const persisted = snapshot ?? (await loadPersistedWorkspace());
   if (!current()) return;
   if (persisted.mods.length === 0 && !persisted.starsectorRoot) return;
 
@@ -78,7 +81,7 @@ export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions
   for (const { mod, generation } of restoreTargets) {
     if (!current()) return;
     try {
-      const loaded = await restorePersistedModProject(mod, persisted.starsectorRoot ?? options.knownStarsectorRoot, generation, current);
+      const loaded = await restorePersistedModProject(mod, persisted.starsectorRoot, generation, current);
       if (!current()) return;
       if (!loaded || workspace.getModGeneration(mod.modRoot) !== generation) continue;
       const name = cell(loaded.modInfo?.name) || mod.displayName;

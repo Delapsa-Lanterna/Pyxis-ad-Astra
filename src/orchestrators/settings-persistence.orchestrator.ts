@@ -8,7 +8,22 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { listenWindowEvent } from '@/windows/tauri.events';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
-import type { AppSettings, SettingsSnapshot } from '@/shared/types';
+import type { AppSettings, SettingsSnapshot, CloseScope, CloseResult } from '@/shared/types';
+import {
+  captureWorkspaceCloseTarget,
+  closeWorkspaceRuntime,
+  removeLoadedModRuntime,
+} from '@/orchestrators/workspace-lifecycle.orchestrator';
+import { settleDirectoryOpenings } from '@/orchestrators/directory-opening.orchestrator';
+import {
+  beginWorkspaceRestore,
+  finishWorkspaceRestore,
+  restorePersistedWorkspace,
+} from '@/orchestrators/workspace-persistence.orchestrator';
+import { detectDirectoryTarget } from '@/services/directory.service';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
 import { updateCacheLimits } from '@/shared/runtime/cache-limits';
 let official: SettingsSnapshot | null = null;
 let receive: ((snapshot: SettingsSnapshot) => void) | null = null;
@@ -133,6 +148,7 @@ export function startSettingsMirror(): () => void {
   const settings = useSettingsStore();
   receive = (snapshot) => {
     settings.replaceSettings(snapshot.value);
+    settings.confirmSavedSettings(snapshot.value);
     useCsvEditorStore().setHistoryLimit(snapshot.value.editHistoryLimit);
   };
   if (official) receive(official);
@@ -166,8 +182,66 @@ export async function flushSettings(): Promise<void> {
     });
   }
 }
-export async function resetSettings(): Promise<void> {
-  const defaults = await readDefaultSettings();
-  useSettingsStore().replaceSettings(defaults);
+export async function saveStarsectorRoot(
+  root: string | null,
+  requestClose: (scope: CloseScope) => Promise<CloseResult>,
+  defaults?: AppSettings,
+): Promise<boolean> {
+  const settings = useSettingsStore();
   await flushSettings();
+  const commit = async () => {
+    const previousRoot = official!.value.starsectorRoot;
+    if (defaults) settings.replaceSettings(defaults);
+    else settings.setStarsectorRoot(root);
+    try {
+      await flushSettings();
+    } catch (error) {
+      settings.setStarsectorRoot(previousRoot);
+      throw error;
+    }
+  };
+  if (root !== official!.value.starsectorRoot) return switchCoreSource(root, requestClose, commit);
+  await commit();
+  return true;
+}
+export async function resetSettings(requestClose: (scope: CloseScope) => Promise<CloseResult>): Promise<boolean> {
+  const defaults = await readDefaultSettings();
+  return saveStarsectorRoot(defaults.starsectorRoot, requestClose, defaults);
+}
+
+async function switchCoreSource(
+  root: string | null,
+  requestClose: (scope: CloseScope) => Promise<CloseResult>,
+  commitSettings: () => Promise<void>,
+) {
+  await useSaveCommandStore().settleCloseActions();
+  await settleDirectoryOpenings();
+  if (root && (await detectDirectoryTarget(root, null)).kind !== 'game-root')
+    throw new AppError(`请选择 Starsector 游戏安装目录: ${root}`, { action: 'core-source' });
+  const workspace = useWorkspaceStore();
+  const snapshot = workspace.toPersistedState();
+  beginWorkspaceRestore();
+  try {
+    if (!(await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose))) return false;
+    // Track only the post-close work: close preparation waits for tracked actions.
+    await useSaveCommandStore().trackCloseAction(commitAndReopen());
+    return true;
+  } finally {
+    await finishWorkspaceRestore();
+  }
+  async function commitAndReopen() {
+    try {
+      await commitSettings();
+    } finally {
+      await restorePersistedWorkspace(
+        {
+          onModRestoreError: async (modRoot, _name, error) => {
+            await removeLoadedModRuntime(modRoot, requestClose);
+            workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
+          },
+        },
+        snapshot,
+      );
+    }
+  }
 }

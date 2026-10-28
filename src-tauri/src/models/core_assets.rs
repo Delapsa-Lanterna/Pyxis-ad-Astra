@@ -31,6 +31,13 @@ pub struct CoreScanPayload {
     pub starsector_root: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoreRootPayload {
+    pub session_id: Option<String>,
+    pub starsector_root: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct InvalidateCoreCachePayload {

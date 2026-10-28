@@ -36,6 +36,12 @@ fn snapshot_state()
     })
 }
 
+pub fn starsector_root() -> AppResult<Option<String>> {
+    Ok(snapshot_state()?
+        .as_ref()
+        .and_then(|snapshot| snapshot.value.starsector_root.clone()))
+}
+
 pub fn read_settings(
     app: &tauri::AppHandle,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,

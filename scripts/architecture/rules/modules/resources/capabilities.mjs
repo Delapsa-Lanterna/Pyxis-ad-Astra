@@ -58,6 +58,7 @@ export const resourcesCapabilities = [
     },
   ]),
   ...capabilities({ role: 'service', domain: 'core-assets' }, [
+    { capability: 'core-root-read', names: ['queryCoreRoot'], owners: [{ layer: 'app', role: 'composable', domain: 'core-assets' }] },
     {
       capability: 'core-index-read',
       names: ['queryCoreFields', 'queryCoreGraphics'],

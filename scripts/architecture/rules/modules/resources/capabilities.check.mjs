@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { architectureFixtures } from '../../../testing/fixtures.mjs';
 import { projectResourcesBoundaryRule } from './project-resources-boundary.mjs';
 const cases = [
+  ['core-root-read', 'src/app/composables/use-core-assets.ts', 'src/services/core-assets.service.ts', 'queryCoreRoot'],
   ['core-fields-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreFields'],
   ['core-graphics-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreGraphics'],
   ['hull-query', 'src/app/composables/use-sample.ts', 'src/services/hull-reference.service.ts', 'queryHullReferenceOptions'],

@@ -193,6 +193,7 @@ export const projectCapabilities = [
       owners: [
         { layer: 'orchestrators', domain: 'directory-opening' },
         { layer: 'orchestrators', domain: 'workspace-persistence' },
+        { layer: 'orchestrators', domain: 'settings-persistence' },
         { layer: 'app', domain: 'workspace-shell-actions' },
       ],
     },

@@ -38,6 +38,7 @@ vi.mock('@/app/composables/settings/use-settings-view-model', () => ({
     logPathHint: ref('Log'),
     pickLogDirectory: vi.fn(),
     pickStarsectorRoot: vi.fn(),
+    changeStarsectorRoot: vi.fn(),
     pickImmersiveFontDirectory: logUi.pickFont,
     refreshLogStatus: logUi.refresh,
     openConfigFolderAction: vi.fn(),

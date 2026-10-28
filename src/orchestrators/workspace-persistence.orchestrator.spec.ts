@@ -51,7 +51,7 @@ describe('restorePersistedWorkspace', () => {
 
   it('returns early for an empty persisted snapshot', async () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ mods: [], starsectorRoot: null });
-    await restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: vi.fn() });
+    await restorePersistedWorkspace({ onModRestoreError: vi.fn() });
     expect(mocks.scanDirectoryGameOverview).not.toHaveBeenCalled();
     expect(mocks.openModProjectManifest).not.toHaveBeenCalled();
     expect(mocks.hydrateOpenedModRuntime).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe('restorePersistedWorkspace', () => {
     const onWarnings = vi.fn();
     const onError = vi.fn();
 
-    await restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: onError, onModRestoreWarnings: onWarnings });
+    await restorePersistedWorkspace({ onModRestoreError: onError, onModRestoreWarnings: onWarnings });
     expect(mocks.openModProjectManifest).toHaveBeenCalledWith(
       'C:/mods/alpha',
       'D:/games/starsector',
@@ -95,7 +95,7 @@ describe('restorePersistedWorkspace', () => {
     mocks.openModProjectManifest.mockRejectedValue(new Error('broken mod_info'));
     const onError = vi.fn(async () => {});
 
-    await restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: onError });
+    await restorePersistedWorkspace({ onModRestoreError: onError });
     expect(onError).toHaveBeenCalledWith('C:/mods/broken', 'Broken', expect.anything());
     expect(workspace.mods.get('C:/mods/broken')?.status).not.toBe('ready');
   });
@@ -107,7 +107,7 @@ describe('restorePersistedWorkspace', () => {
     });
     mocks.openModProjectManifest.mockResolvedValue(null);
     const onError = vi.fn();
-    await restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: onError });
+    await restorePersistedWorkspace({ onModRestoreError: onError });
     expect(mocks.hydrateOpenedModRuntime).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });
@@ -121,7 +121,7 @@ describe('restorePersistedWorkspace', () => {
         }),
     );
     let active = true;
-    const pending = restorePersistedWorkspace({ knownStarsectorRoot: null, onModRestoreError: vi.fn(), isCurrent: () => active });
+    const pending = restorePersistedWorkspace({ onModRestoreError: vi.fn(), isCurrent: () => active });
     active = false;
     finish({ mods: [{ modRoot: 'M:/late', displayName: 'Late', version: '' }], starsectorRoot: null });
     await pending;

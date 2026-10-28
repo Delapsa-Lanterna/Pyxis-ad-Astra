@@ -48,7 +48,13 @@ export const rustProjectLayerBoundaryRule = defineRule(
           modulePath.join('::') === 'commands::app_lifecycle' && reference === 'crate::services::file_history::set_history_limit';
         const runtimeMonitor =
           modulePath.join('::') === 'services::project::performance' && parts.slice(0, 2).join('::') === 'services::performance_monitor';
-        if (!runtimeSettings && !runtimeMonitor && !validRustDependency(from, to) && !rejected.has(to)) {
+        const sourceRoot =
+          modulePath.join('::') === 'services::project::sources' &&
+          [
+            'crate::services::directory_opening::resolve_game_mods_directory',
+            'crate::services::directory_opening::infer_starsector_root',
+          ].includes(reference);
+        if (!runtimeSettings && !runtimeMonitor && !sourceRoot && !validRustDependency(from, to) && !rejected.has(to)) {
           report(file, edge, from + ' must not depend on ' + to, { target: reference, expected: from });
           rejected.add(to);
         }

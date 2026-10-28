@@ -62,6 +62,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const savedCoreEditing = ref(allowCoreEditing.value);
   const canEditCore = computed(() => allowCoreEditing.value && savedCoreEditing.value);
   const starsectorRoot = ref(initialSettings.starsectorRoot);
+  const savedStarsectorRoot = ref(initialSettings.starsectorRoot);
   const logDirectory = ref(readOptionalDirectory(initialSettings.logDirectory));
   const logLevel = ref<LogLevel>(readLogLevel(initialSettings.logLevel));
   const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : lightTheme));
@@ -218,6 +219,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function confirmSavedSettings(settings: AppSettings) {
+    savedStarsectorRoot.value = settings.starsectorRoot;
     savedCoreEditing.value = readAllowCoreEditing(settings.allowCoreEditing);
   }
 
@@ -249,6 +251,7 @@ export const useSettingsStore = defineStore('settings', () => {
     isPlainEditMode,
     naiveTheme,
     starsectorRoot,
+    savedStarsectorRoot,
     theme,
     themeColors,
     setAccent,

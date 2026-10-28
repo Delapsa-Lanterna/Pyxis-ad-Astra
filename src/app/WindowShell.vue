@@ -66,11 +66,15 @@ onScopeDispose(
       : null,
   })),
 );
-const coreRoot = computed(
-  () => settings.starsectorRoot ?? workspace.gameOverview?.starsectorRoot ?? workspace.activeManifest?.starsectorRoot ?? null,
-);
+const coreContext = computed(() => {
+  const identity = managedWindowContext.value?.identity;
+  return {
+    sessionId: identity && 'sessionId' in identity ? identity.sessionId : workspace.activeSessionId,
+    starsectorRoot: workspace.gameOverview?.starsectorRoot ?? null,
+  };
+});
 useWindowImageRuntimeLifetime();
-useCoreAssetsLifecycle(coreRoot);
+useCoreAssetsLifecycle(coreContext, () => settings.savedStarsectorRoot);
 useAppSettings(props.mode);
 const colors = computed(() => (props.appearance === 'immersive' ? IMMERSIVE_COLORS : settings.themeColors));
 const theme = computed(() => (props.appearance === 'immersive' ? ('dark' as const) : settings.theme));

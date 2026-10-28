@@ -47,7 +47,9 @@ pub(crate) use project::query::resources::{
 };
 pub(crate) use project::query::source_options::query_csv_source_options;
 pub(crate) use project::query::source_options::query_image_source_options;
-pub(crate) use project::resources::core_assets::{scan_core_fields, scan_core_graphics};
+pub(crate) use project::resources::core_assets::{
+    query_core_root, scan_core_fields, scan_core_graphics,
+};
 pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
