@@ -1,4 +1,4 @@
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { computed, shallowRef, ref, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, ResourceRef } from '@/shared/types';
 import { queryJointCandidate, hasJointEditInvalidation } from '@/services/joint-edit.service';
@@ -55,7 +55,7 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
     },
   });
   const mediaUrl = (resource: ResourceRef | null | undefined) => media.dataUrl(root().sessionId, resource) ?? '';
-  function load() {
+  function load(required = false) {
     snapshot.value = null;
     errorText.value = '';
     media.clear();
@@ -64,29 +64,39 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
       return;
     }
     const target: JointEditRoot = { ...root(), kind: kind() === 'weapons' ? 'weapon' : kind() === 'wings' ? 'wing' : 'variant', id: id() };
-    void reads.consume('detail', target, (signal) => queryJointCandidate(target, signal), {
+    return reads.consume('detail', target, (signal) => queryJointCandidate(target, signal), {
       ready: (value) => {
         snapshot.value = cloneQuerySnapshot<JointEditSnapshot>(value);
       },
       error: (error) => {
         errorText.value = formatError(error);
+
+        if (required) throw error;
       },
     });
   }
-  watch(() => [id(), kind(), root()], load, { immediate: true });
+  watch(
+    () => [id(), kind(), root()],
+    () => {
+      void load();
+    },
+    { immediate: true },
+  );
   onScopeDispose(
-    subscribeProjectChanges((event) => {
-      if (
-        projectChangeSessionId(event) !== root().sessionId ||
-        (event.kind !== 'closed' && !hasJointEditInvalidation(event.projection.invalidation))
-      )
-        return;
-      if (event.kind === 'closed') {
+    observeSavedContent(
+      (event) => {
+        const projection = saveProjection(event, root().sessionId);
+        if (!projection) return;
+        if (projection.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(projection.invalidation)) return;
+        if (id()) return load(true);
+      },
+      (sessionId) => {
+        if (sessionId !== root().sessionId) return;
         reads.revoke('session');
         snapshot.value = null;
         media.clear();
-      } else if (id()) reads.schedule('detail', load);
-    }),
+      },
+    ),
   );
   watch(panel, (value) => {
     void media.replaceCollection(

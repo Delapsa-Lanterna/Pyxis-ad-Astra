@@ -25,7 +25,11 @@
         ><n-button v-if="definition.kind !== 'mod-info'" secondary type="error" @click="confirmDelete">删除</n-button
         ><n-button :disabled="!document.canUndo.value" @click="replay('undo')">撤销</n-button
         ><n-button :disabled="!document.canRedo.value" @click="replay('redo')">重做</n-button
-        ><n-button type="primary" :disabled="!document.dirty.value" :loading="document.saving.value" @click="commands.dispatchSaveCommand"
+        ><n-button
+          type="primary"
+          :disabled="!document.dirty.value || fileWaiting"
+          :loading="document.saving.value"
+          @click="commands.dispatchSaveCommand"
           >保存</n-button
         ></template
       >
@@ -56,6 +60,7 @@
 import { computed, h, ref } from 'vue';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useJsonDocumentView } from '@/app/composables/json-editor/use-json-document-view';
@@ -75,6 +80,7 @@ const props = defineProps<{
 }>();
 const feedback = useAppFeedback();
 const commands = useSaveCommandStore();
+const fileWaiting = computed(() => useProjectSyncStore().isWaiting(props.document.target.value?.modRoot));
 const { canNavigateHull, navigateToHull, previews, schemaRuntimeContext, openImmersive } = useJsonDocumentView(
   props.document,
   props.definition,

@@ -56,7 +56,6 @@ beforeEach(() => {
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   for (const target of [a, b]) {
     const update = sessionUpdateFixture(target.sessionId, target.modRoot);
-    if (update.status !== 'ready') throw new Error('fixture projection is ready');
     update.projection.manifest.tableSummaries.ships.header = ['id', 'name'];
     update.projection.manifest.tableSummaries.ships.totalRows = 1;
     useWorkspaceStore().registerMod({ modRoot: target.modRoot, displayName: target.sessionId, version: '', status: 'ready' });

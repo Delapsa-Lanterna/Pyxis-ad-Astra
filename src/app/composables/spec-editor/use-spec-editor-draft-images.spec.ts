@@ -38,9 +38,14 @@ it('accepts current projectile image status through edits, invalidation and rele
   await flushPromises();
   expect(vm.value.value?.spriteData).toEqual({ sprite: 'current' });
   expect(vm.loading.value).toBe(false);
-  projectChangeFixture('s', { ...savedWriteFixture().invalidation, resources: [{ source: 'mod', relPath: 'second.png' }] });
+  const refreshing = projectChangeFixture('s', {
+    ...savedWriteFixture().invalidation,
+    resources: [{ source: 'mod', relPath: 'second.png' }],
+  });
+  const rejected = expect(refreshing).rejects.toThrow('read failed');
   await flushPromises();
   pending[2]!.reject(new Error('read failed'));
+  await rejected;
   await flushPromises();
   expect(vm.errorText.value).toContain('read failed');
   expect(vm.loading.value).toBe(false);

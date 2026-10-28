@@ -2,9 +2,9 @@ import { hasEntityInvalidation } from '@/services/entity-query.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import {
   refreshProjectSourcePaths,
-  listenEntityIdentityApplied,
-  subscribeProjectChanges,
-  projectChangeSessionId,
+  listenSavedIdentity,
+  observeSavedContent,
+  saveProjection,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, onScopeDispose } from 'vue';
 import { useWindowContext } from '@/windows/window-context.window';
@@ -32,8 +32,7 @@ export function useWeaponFirePreviewWindowViewModel() {
     feedback = useAppFeedback();
   const stops: Array<() => void> = [];
   let disposed = false,
-    identityPending = false,
-    identityCommit = -1;
+    identityPending = false;
   async function refresh(required = false) {
     if (disposed || identityPending) return;
     const captured = target.value;
@@ -48,7 +47,7 @@ export function useWeaponFirePreviewWindowViewModel() {
           data.value = next;
         },
         error: (error) => {
-          if (data.value && !required) feedback.error(error, '刷新开火预览失败');
+          if (data.value) feedback.error(error, '刷新开火预览失败');
           else errorText.value = formatError(error);
           if (required) throw error;
         },
@@ -57,9 +56,6 @@ export function useWeaponFirePreviewWindowViewModel() {
         },
       },
     );
-  }
-  function scheduleRefresh() {
-    reads.schedule('data', () => void refresh());
   }
   useManagedWindowRequests(async (request) => {
     if (request.kind !== 'weapon-fire-preview') return;
@@ -79,14 +75,9 @@ export function useWeaponFirePreviewWindowViewModel() {
     await refresh();
   }
   async function install() {
-    const identityStop = await listenEntityIdentityApplied(async (event) => {
+    const identityStop = await listenSavedIdentity(async (event) => {
       const before = target.value;
-      if (
-        event.sessionId !== before.sessionId ||
-        normalizeFsPath(event.modRoot) !== normalizeFsPath(before.modRoot) ||
-        event.result.commitId <= identityCommit
-      )
-        return;
+      if (event.sessionId !== before.sessionId || normalizeFsPath(event.modRoot) !== normalizeFsPath(before.modRoot)) return;
       const change = event.result.identityChanges.find(
         (change) => change.before.kind === 'weapon' && change.before.id === before.id && change.after.id !== before.id,
       );
@@ -99,10 +90,9 @@ export function useWeaponFirePreviewWindowViewModel() {
         if (disposed) return;
         target.value = { ...before, id: change.after.id };
         if (source.value.kind === 'draft') source.value = { kind: 'draft', weapon: { ...source.value.weapon, id: change.after.id } };
-        identityCommit = event.result.commitId;
       } finally {
         identityPending = false;
-        if (!disposed) scheduleRefresh();
+        if (!disposed) await refresh(true);
       }
     });
     if (disposed) {
@@ -111,22 +101,34 @@ export function useWeaponFirePreviewWindowViewModel() {
     }
     stops.push(identityStop);
     stops.push(
-      subscribeProjectChanges((event) => {
-        if (projectChangeSessionId(event) !== target.value.sessionId) return;
-        if (event.kind === 'closed') {
-          reads.revoke('session');
-          loading.value = false;
-          return;
-        }
-        const projectileId = data.value?.weapon.projectileSpecId;
-        if (
-          hasEntityInvalidation(event.projection.invalidation, 'entity-detail', 'weapon', target.value.id) ||
-          (typeof projectileId === 'string' &&
-            hasEntityInvalidation(event.projection.invalidation, 'entity-detail', 'projectile', projectileId)) ||
-          hasResourceInvalidation(event.projection.invalidation, resourceRefs.value)
-        )
-          scheduleRefresh();
-      }),
+      observeSavedContent(
+        (event) => {
+          if (
+            event.result.identityChanges.some(
+              (change) => change.before.kind === 'weapon' && change.before.id !== change.after.id && change.after.id === target.value.id,
+            )
+          )
+            return;
+          const projection = saveProjection(event, target.value.sessionId);
+          if (!projection) return;
+          if (projection.manifest.sessionId !== target.value.sessionId) return;
+
+          const projectileId = data.value?.weapon.projectileSpecId;
+          if (
+            hasEntityInvalidation(projection.invalidation, 'entity-detail', 'weapon', target.value.id) ||
+            (typeof projectileId === 'string' &&
+              hasEntityInvalidation(projection.invalidation, 'entity-detail', 'projectile', projectileId)) ||
+            hasResourceInvalidation(projection.invalidation, resourceRefs.value)
+          )
+            return refresh(true);
+        },
+        (sessionId) => {
+          if (sessionId === target.value.sessionId) {
+            reads.revoke('session');
+            loading.value = false;
+          }
+        },
+      ),
     );
   }
   useContextMenuScope({

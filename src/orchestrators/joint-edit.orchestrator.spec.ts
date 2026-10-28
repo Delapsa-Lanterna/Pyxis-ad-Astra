@@ -17,7 +17,7 @@ vi.mock('@/orchestrators/json-write-confirmation.orchestrator', () => ({
     action({ preserveOriginalJson: true, confirmedSources: [] }),
 }));
 import { skinJointFixture } from '@/test/fixtures/joint-edit/skin-joint-edit';
-import { resolveWingReference, submitJointEdit } from './joint-edit.orchestrator';
+import { openJointEditSnapshot, resolveWingReference, submitJointEdit } from './joint-edit.orchestrator';
 let feedback: AppFeedback;
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,6 +32,15 @@ beforeEach(() => {
   };
 });
 describe('joint declared editing scope confirmation', () => {
+  it('opens the authoritative graph once while other document drafts remain independently owned', async () => {
+    const snapshot = shipJointFixture();
+    mocks.query.mockResolvedValue(snapshot);
+    const result = await openJointEditSnapshot(snapshot.root, feedback);
+    expect(mocks.query).toHaveBeenCalledExactlyOnceWith(snapshot.root, undefined);
+    expect(result).toEqual(snapshot);
+    expect(result).not.toBe(snapshot);
+    expect(feedback.choose).not.toHaveBeenCalled();
+  });
   it.each(['mod', 'core'] as const)('resolves the actual skin from a %s variant', async (source) => {
     const graph = skinJointFixture();
     graph.bindings.variant = 'variant';
@@ -70,10 +79,10 @@ describe('joint declared editing scope confirmation', () => {
     const draft = { baseline: snapshot, values: jointFixtureValues(snapshot) };
     mocks.prepare.mockResolvedValue({ snapshot, values: draft.values, conflicts: [] });
     vi.mocked(feedback.choose).mockResolvedValueOnce(null);
-    expect(await submitJointEdit(draft, feedback, async () => [], undefined, undefined, ['spec'])).toBeNull();
+    expect(await submitJointEdit(draft, feedback, async () => [], ['spec'])).toBeNull();
     expect(mocks.save).not.toHaveBeenCalled();
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
-    await submitJointEdit(draft, feedback, async () => [], undefined, undefined, ['spec']);
+    await submitJointEdit(draft, feedback, async () => [], ['spec']);
     expect(mocks.save.mock.calls[0]![0].createOverrides).toEqual(['spec']);
   });
 });

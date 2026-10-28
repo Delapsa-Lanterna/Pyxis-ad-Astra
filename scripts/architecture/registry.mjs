@@ -4,6 +4,7 @@ import { rustServiceEdgeBoundaryRule } from './rules/dependencies/rust-service-e
 import { sharedTypesBoundaryRule } from './rules/dependencies/shared-types-boundary.mjs';
 import { capabilityBoundaryRule } from './rules/capabilities/capability-boundary.mjs';
 import { commandBoundaryRule } from './rules/capabilities/command-boundary.mjs';
+import { rustCommandFunctionsRule } from './rules/capabilities/rust-command-functions.mjs';
 import { saveBackendBoundaryRule } from './rules/capabilities/save-backend-boundary.mjs';
 import { namingBoundaryRule } from './rules/conventions/naming-boundary.mjs';
 import { writableStateCopyCycleRule } from './rules/conventions/writable-state-copy-cycle.mjs';
@@ -60,6 +61,7 @@ export const rules = [
   workspacePersistenceBoundaryRule,
   capabilityBoundaryRule,
   commandBoundaryRule,
+  rustCommandFunctionsRule,
   saveBackendBoundaryRule,
   moduleStructureRule,
   moduleOwnershipRule,

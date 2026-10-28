@@ -7,7 +7,8 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
-import { sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
+import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import type { CsvDraftRow, CsvTableIndex, CsvTableRowsRead } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
@@ -16,13 +17,15 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   sources: vi.fn(),
   preview: vi.fn(async () => 'preview'),
+  affected: vi.fn(() => false),
 }));
 vi.mock('@/services/csv-table.service', () => ({
   queryTableIndex: mocks.index,
   queryTableRows: mocks.rows,
   queryTableRowPreviewDataUrl: mocks.preview,
-  hasTableInvalidation: () => false,
+  hasTableInvalidation: mocks.affected,
 }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => import('@/test/unit/project-changes'));
 vi.mock('@/services/source-options.service', () => ({ querySourceOptionCatalog: mocks.sources, hasSourceInvalidation: () => false }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
@@ -67,6 +70,21 @@ beforeEach(() => {
 });
 afterEach(() => wrapper?.unmount());
 describe('CSV index and keyed content owner', () => {
+  it('accepts its saved index once and completes saving without a second viewport read', async () => {
+    const vm = harness();
+    await flushPromises();
+    const store = useCsvEditorStore();
+    store.setSaving(target, true);
+    mocks.index.mockClear();
+    mocks.rows.mockClear();
+    mocks.affected.mockReturnValueOnce(true);
+    await dispatchProjectChangeFixture(committedChangeFixture(savedWriteFixture(), target.sessionId, target.modRoot));
+    store.setSaving(target, false);
+    await flushPromises();
+    expect(mocks.index).toHaveBeenCalledTimes(1);
+    expect(mocks.rows).toHaveBeenCalledTimes(0);
+    expect(vm.gridModel.value.rowKeys).toHaveLength(1000);
+  });
   it('locates an unloaded exact row and keeps an existing draft', async () => {
     const vm = harness();
     await flushPromises();

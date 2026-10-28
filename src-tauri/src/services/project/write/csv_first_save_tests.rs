@@ -2,10 +2,9 @@
 
 use super::super::model::csv_table_specs;
 use crate::{
-    commands::save_csv_patch,
     domain::csv_column_order::standard_csv_columns,
     io::read_csv_data,
-    models::{CsvSearchField, SaveCsvPatchPayload},
+    models::{CsvSave, CsvSearchField},
     services::{project, query_csv_table_index},
     testutil::temp_dir,
 };
@@ -52,16 +51,18 @@ fn csv_headers_and_first_save() {
             assert_eq!(index.total_rows, 0);
             let file = mod_root.join(spec.rel_path);
             assert_eq!(file.exists(), source == "existing");
-            let result = save_csv_patch(SaveCsvPatchPayload {
-                row_order: None,
-                base_versions: index.base_versions,
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root,
-                table: spec.key,
-                patches: Vec::new(),
-                associated_specs: Vec::new(),
-                json_write: Default::default(),
-            })
+            let result = crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::SaveCsvPatch(CsvSave {
+                    row_order: None,
+                    base_versions: index.base_versions,
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root,
+                    table: spec.key,
+                    patches: Vec::new(),
+                    associated_specs: Vec::new(),
+                    json_write: Default::default(),
+                }),
+            )
             .unwrap();
             let saved = read_csv_data(&file).unwrap();
             assert_eq!(saved.header, expected, "{}: {source}", spec.key.as_str());

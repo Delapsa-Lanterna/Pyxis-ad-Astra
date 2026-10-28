@@ -10,7 +10,7 @@ import type {
   ManagedWindowContext,
   PerformanceMonitorStatus,
   RowData,
-  SaveCsvPatchPayload,
+  CsvSave,
   SaveJointEditPayload,
   MiscConfigFile,
   ErrorDiagnostic,
@@ -100,11 +100,10 @@ export function createBrowserModel(
   const graphs = new Map<string, JointEditSnapshot>();
   const miscFiles: MiscConfigFile[] = [];
   const catalogs = new Map<JointVariantCatalogKind, JointVariantEntry[]>();
-  const commits = new Map<number, Pick<ReturnType<typeof savedWriteFixture>, 'sessionUpdates'>>();
   let settings = createSettingsFixture(),
     revision = 1,
     windowRevision = 0,
-    commitId = 0,
+    saveCount = 0,
     nextRow = count,
     reads = 0;
   let context: ManagedWindowContext;
@@ -348,18 +347,17 @@ export function createBrowserModel(
     return snapshot;
   }
   function receipt<T>(value: T, target: import('@/shared/types').WriteContentTarget = { kind: 'json', origin: { kind: 'modInfo' } }) {
+    saveCount++;
     const result = {
       ...savedWriteFixture(),
       content: value === null ? null : { target, value },
-      commitId: ++commitId,
     };
-    const update = sessionUpdateFixture(sessionId, sampleRoot, commitId);
+    const update = sessionUpdateFixture(sessionId, sampleRoot);
     update.projection.manifest = structuredClone(manifest);
     result.sessionUpdates = [update];
-    commits.set(result.commitId, result);
     return result;
   }
-  function saveCsv(payload: SaveCsvPatchPayload) {
+  function saveCsv(payload: CsvSave) {
     const result = receipt(null);
     for (const patch of payload.patches) {
       const index = rows.findIndex((row) => row.rowKey === patch.rowKey);
@@ -384,19 +382,17 @@ export function createBrowserModel(
       }
     });
     manifest.tableSummaries.ships.totalRows = rows.length;
-    result.baseVersions = [{ path: manifest.tableSummaries.ships.path, fingerprint: String(commitId) }];
+    result.baseVersions = [{ path: manifest.tableSummaries.ships.path, fingerprint: String(saveCount) }];
     result.invalidation.queryScopes = [{ kind: 'csv-table-window', table: 'ships', source: null, entity: null, resource: null }];
-    result.sessionUpdates[0] = sessionUpdateFixture(sessionId, sampleRoot, commitId);
-    if (result.sessionUpdates[0].status === 'ready') {
-      result.sessionUpdates[0].projection.manifest = structuredClone(manifest);
-      result.sessionUpdates[0].projection.invalidation = result.invalidation;
-    }
+    result.sessionUpdates[0] = sessionUpdateFixture(sessionId, sampleRoot);
+    result.sessionUpdates[0].projection.manifest = structuredClone(manifest);
+    result.sessionUpdates[0].projection.invalidation = result.invalidation;
     return result;
   }
   function saveJoint(payload: SaveJointEditPayload) {
     const snapshot = project(payload.snapshot.root, payload.values);
     for (const record of snapshot.records) {
-      record.sourceVersion!.fingerprint = String(commitId + 1);
+      record.sourceVersion!.fingerprint = String(saveCount + 1);
       record.baseVersions = [{ ...record.sourceVersion! }];
     }
     snapshot.baseVersions = [...new Map(snapshot.records.flatMap((r) => r.baseVersions).map((v) => [v.path, v])).values()];
@@ -439,7 +435,6 @@ export function createBrowserModel(
     saveCsv,
     saveJoint,
     windowContext,
-    commits,
     logEntries: 0,
     resourceSize,
     resourceDataUrl: (path: string) =>
@@ -477,8 +472,8 @@ export function createBrowserModel(
     readRows() {
       reads++;
     },
-    get commitId() {
-      return commitId;
+    get saveCount() {
+      return saveCount;
     },
   };
 }

@@ -25,6 +25,7 @@ vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({
   replayNextFileUndo: mocks.fileUndo,
   replayNextFileRedo: mocks.fileRedo,
 }));
+vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => ({ isWaiting: () => false }) }));
 vi.mock('@/stores/csv-editor.store', () => ({ useCsvEditorStore: () => mocks.tables }));
 vi.mock('@/stores/project.store', () => ({ useProjectStore: () => ({}) }));
 vi.mock('@/stores/workspace.store', () => ({ useWorkspaceStore: () => mocks.workspace }));

@@ -1,22 +1,13 @@
 import { watch, onScopeDispose } from 'vue';
 import type { AppFeedback } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { listenEditTargetHandoff } from '@/orchestrators/edit-target-handoff.orchestrator';
 import { updateEditTargetRegistration } from '@/services/window.service';
 import { deepClone } from '@/shared/lib/starsector';
 
 export function useEditTargetHandoff(feedback: AppFeedback) {
   const commands = useSaveCommandStore();
-  let disposed = false;
-  let stop: (() => void) | null = null;
   let registration = Promise.resolve();
-  void listenEditTargetHandoff(feedback)
-    .then((release) => {
-      if (disposed) release();
-      else stop = release;
-    })
-    .catch((error) => feedback.error(error, '启动编辑交接失败'));
-  const stopWatch = watch(
+  const stop = watch(
     () => [commands.editTargets, commands.closePrepared] as const,
     ([targets, prepared]) => {
       if (prepared) return;
@@ -28,9 +19,7 @@ export function useEditTargetHandoff(feedback: AppFeedback) {
     { immediate: true },
   );
   onScopeDispose(() => {
-    disposed = true;
-    stopWatch();
-    stop?.();
+    stop();
     void registration.then(() => updateEditTargetRegistration([])).catch((error) => feedback.error(error, '释放编辑目标失败'));
   });
 }

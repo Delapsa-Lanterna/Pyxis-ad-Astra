@@ -2,9 +2,9 @@ use super::{JsonWriteOptions, ProjectSessionId, required_nullable};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct JsonEntityFilePayload {
+pub struct JsonFileSave {
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
@@ -20,9 +20,9 @@ pub struct JsonEntityFilePayload {
     pub ordered_json: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeleteJsonEntityFilePayload {
+pub struct JsonFileDelete {
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
@@ -30,10 +30,7 @@ pub struct DeleteJsonEntityFilePayload {
     pub rel_path: String,
 }
 
-super::project_identity::impl_session_mod_scope_required!(
-    JsonEntityFilePayload,
-    DeleteJsonEntityFilePayload
-);
+super::project_identity::impl_session_mod_scope_required!(JsonFileSave, JsonFileDelete);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +68,7 @@ mod tests {
 
     #[test]
     fn config_file_entity_payload_requires_explicit_nullable_previous_id() {
-        let result = serde_json::from_value::<JsonEntityFilePayload>(json!({
+        let result = serde_json::from_value::<JsonFileSave>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "modRoot": "D:/mods/demo",
@@ -84,12 +81,12 @@ mod tests {
 
     #[test]
     fn config_file_entity_payload_requires_explicit_nullable_rel_path() {
-        let result = serde_json::from_value::<JsonEntityFilePayload>(json!({
+        let result = serde_json::from_value::<JsonFileSave>(json!({
             "baseVersions": [], "sessionId":"session-1", "modRoot":"D:/mods/demo", "previousId":null,
             "nextId":"demo", "data":{"id":"demo"}
         }));
         assert!(result.is_err());
-        let payload = serde_json::from_value::<JsonEntityFilePayload>(json!({
+        let payload = serde_json::from_value::<JsonFileSave>(json!({
             "baseVersions": [], "sessionId":"session-1", "modRoot":"D:/mods/demo", "previousId":null,
             "nextId":"demo", "relPath":null, "data":{"id":"demo"}
         }))
@@ -100,7 +97,7 @@ mod tests {
     #[test]
     fn json_entity_requests_keep_explicit_source_and_default_json_options() {
         let value = json!({"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","previousId":null,"nextId":"demo","relPath":null,"data":{"variantId":"demo"}});
-        let payload: JsonEntityFilePayload = serde_json::from_value(value.clone()).unwrap();
+        let payload: JsonFileSave = serde_json::from_value(value.clone()).unwrap();
         assert!(payload.previous_id.is_none());
         assert!(payload.rel_path.is_none());
         assert!(!payload.json_write.preserve_original_json);
@@ -108,7 +105,7 @@ mod tests {
         for field in ["previousId", "relPath"] {
             let mut missing = value.clone();
             missing.as_object_mut().unwrap().remove(field);
-            assert!(serde_json::from_value::<JsonEntityFilePayload>(missing).is_err());
+            assert!(serde_json::from_value::<JsonFileSave>(missing).is_err());
         }
     }
 }

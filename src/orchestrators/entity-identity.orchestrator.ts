@@ -1,6 +1,6 @@
 import { publishWindowContext } from '@/windows/window-context.window';
 import { querySpecEditorIdentityIntent } from '@/services/spec-editor.service';
-import { reserveNativeWindowTargets, releaseNativeWindowTargets, retargetNativeWindow } from '@/services/window.service';
+import { reserveNativeWindowTargets, retargetNativeWindow } from '@/services/window.service';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { specEditorWindowTitle } from '@/domain/spec-editor/spec-editor-definitions';
 import type { EntityEditTarget, SpecEditorKind, RowData, WindowIdentity } from '@/shared/types';
@@ -8,10 +8,6 @@ import type { EntityEditTarget, SpecEditorKind, RowData, WindowIdentity } from '
 export async function retargetEntityWindow(sessionId: string, modRoot: string, kind: SpecEditorKind, id: string) {
   const identity: WindowIdentity = { type: 'spec', sessionId, modRoot, kind, id };
   publishWindowContext(await retargetNativeWindow(identity, specEditorWindowTitle(kind, id)));
-}
-
-export function releaseCommittedIdentityTargets() {
-  return releaseNativeWindowTargets();
 }
 
 export async function reserveEntityIntent(sessionId: string, modRoot: string, source: EntityEditTarget, draft: RowData) {

@@ -42,7 +42,6 @@
 - `src/app/composables/editors/use-schema-path-picker.ts`：所属字段文件选择、路径转换与目标接纳。
 - `src/app/composables/editors/use-schema-source-options.ts`：字段来源选项读取、失效及释放。
 - `src/app/composables/use-input-edit-mode.ts`：输入编辑模式及焦点交接。
-- `src/app/composables/use-schema-runtime-context.ts`：所属 session 的字段来源查询与失效订阅装配。
 - `src/domain/schema/`：字段模式加载、结构、来源、值及展示纯规则。
 - `src/domain/schema/config-schema-registry.ts`：配置 schema 的同步查询入口。
 - `src/domain/schema/csv-schema-registry.ts`：CSV 列 schema 的同步查询入口。

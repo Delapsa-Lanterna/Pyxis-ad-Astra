@@ -1,11 +1,10 @@
-import { computed, onScopeDispose, shallowRef, watch } from 'vue';
+import { computed, onScopeDispose, watch } from 'vue';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useSaveCommandStore, type SaveSessionHandle } from '@/stores/save-command.store';
 import { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
-import { completeSavedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
 import { hasCsvTableDraftChanges } from '@/domain/csv-editor/csv-table-draft';
-import { TABLE_KEYS, type AppFeedback, type AssociatedSpecChange, type WriteResult } from '@/shared/types';
+import { TABLE_KEYS, type AppFeedback, type AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 
 export function useCsvSaveParticipants(
@@ -35,23 +34,11 @@ export function useCsvSaveParticipants(
           const target = { sessionId: manifest.sessionId, modRoot, table };
           const writeTarget = project.tableWriteTargets.find((target) => target.modRoot === modRoot && target.table === table)!;
           const inputs = tables.getTableInputs(modRoot, table);
-          const pendingReceipt = shallowRef<WriteResult | null>(null);
-          async function synchronize(receipt: WriteResult) {
-            pendingReceipt.value = receipt;
-            await completeSavedWrite({ modRoot, sessionId: manifest.sessionId, result: receipt, label: '保存 ' + table + ' CSV' });
-            pendingReceipt.value = null;
-            feedback.success('当前 CSV 表已保存');
-          }
           const handle: SaveSessionHandle = {
             targetKey: inputs.targetKey,
             modRoot: computed(() => modRoot),
             saving: computed(() => state.documents[table].saving),
-            pendingSynchronization: computed(() => pendingReceipt.value !== null),
-            waitForSave: async () => {
-              if (pendingReceipt.value) await synchronize(pendingReceipt.value);
-              else await retryPendingModSyncs(modRoot);
-              return true;
-            },
+            waitForSave: async () => true,
             editing: {
               targets: computed(() => [writeTarget]),
               label: String(manifest.modInfo?.name ?? modRoot) + ' / ' + table,
@@ -65,16 +52,21 @@ export function useCsvSaveParticipants(
                 return () => tables.releaseTableLock(requestId);
               },
               save: async () => {
-                if (pendingReceipt.value) await synchronize(pendingReceipt.value);
                 const latest = project.getManifest(modRoot);
                 if (latest?.sessionId !== target.sessionId || tables.getCsvModState(modRoot) !== state) return { status: 'cancelled' };
-                return saveCsvChanges({ table, manifest: latest, selectAssociatedSpecs, feedback, synchronize });
+                const result = await saveCsvChanges({
+                  table,
+                  manifest: latest,
+                  selectAssociatedSpecs,
+                  feedback,
+                });
+                if (result.status === 'saved') feedback.success('当前 CSV 表已保存');
+                return result;
               },
             },
           };
           tables.bindSaveActions(target, {
             saving: computed(() => commands.isSaveQueued(handle)),
-            pendingSynchronization: handle.pendingSynchronization!,
             save: () => commands.requestSave(handle),
             waitForSave: () => commands.waitForSession(handle),
           });

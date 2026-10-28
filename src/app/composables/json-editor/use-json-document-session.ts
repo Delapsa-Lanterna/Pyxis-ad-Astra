@@ -1,7 +1,10 @@
+import { useCoreSchema } from '@/app/composables/use-core-schema';
+import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
+import { releaseNativeWindowTargets } from '@/services/window.service';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { requireRowData } from '@/shared/lib/row-data';
 import { miscConfigValue } from '@/domain/json-editor/misc-config-files';
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
 import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
@@ -12,7 +15,7 @@ import { useFieldInputActions } from '@/app/composables/use-field-input-actions'
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useJsonDocumentIdentity } from './use-json-document-identity';
 import { useJsonSourceRecovery } from './use-json-source-recovery';
-import { jsonDocumentCapabilities, type JsonDocumentMeta } from './json-document-capabilities';
+import { loadJsonDocument, saveJsonDocument, type JsonDocumentMeta } from './json-document-capabilities';
 import {
   configDocumentKey,
   jsonDocumentId,
@@ -29,7 +32,6 @@ import { useSaveCommandStore, type SaveSessionHandle } from '@/stores/save-comma
 import { useSettingsStore } from '@/stores/settings.store';
 
 import { hasEntityInvalidation } from '@/services/entity-query.service';
-import { completeJsonSave } from '@/orchestrators/json-save.orchestrator';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import type { DocumentEditorActions, DocumentSaveResult } from '@/shared/runtime/document-editor';
 import type { AppFeedback, RowData, WriteContent, JsonRecoveryPlan } from '@/shared/types';
@@ -60,28 +62,28 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   const commands = useSaveCommandStore();
   const editors = useJsonEditorStore();
   const settings = useSettingsStore();
-  const capabilities = jsonDocumentCapabilities(definition, feedback, record.target.id);
+  const { getMergedSchema } = useCoreSchema();
+  const schema = computed(() =>
+    getMergedSchema(definition.kind === 'misc-config' ? miscConfigFile(record.target.id).schema : definition.kind)!,
+  );
   const active = ref(false);
   const reads = useQueryReadOwner();
   const modRoot = computed(() => record.target.modRoot);
   const session = useEditTargetDraftSession<RowData, ConfigDocumentTarget, JsonDocumentMeta>({
     emptyValue: {},
+    beginSave: beginSavedWrite,
+    savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null, recovery: undefined } }),
     targetKey: configDocumentKey,
-    load: capabilities.load,
-    save: capabilities.save,
-    acceptSaved: (snapshot) => {
+    load: loadJsonDocument,
+    save: (target, draft, versions, original, request) =>
+      saveJsonDocument(definition, schema.value, feedback, target, draft, versions, original, request),
+    acceptSaved: async (snapshot) => {
       if (snapshot.meta.recovery) {
         recovery.accept(snapshot.meta.recovery);
       }
+      await releaseNativeWindowTargets();
     },
-    synchronizeSaved: async (snapshot) => {
-      await completeJsonSave(
-        snapshot.target.modRoot,
-        snapshot.target.sessionId,
-        snapshot.meta.receipt!,
-        snapshot.meta.recovery ? '重新创建 JSON 来源' : '保存' + definition.label + ' ' + snapshot.target.id,
-      );
-    },
+
     afterSaved: (snapshot) => {
       feedback.success(snapshot.meta.recovery ? 'JSON 来源已重新创建' : '当前 JSON 文档已保存');
     },
@@ -99,7 +101,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
       ? undefined
       : {
           kind: definition.kind,
-          read: (target, id, signal) => capabilities.load({ ...target, id }, signal),
+          read: (target, id, signal) => loadJsonDocument({ ...target, id }, signal),
           map: (value, previous, next) => {
             if (jsonDocumentId(definition, value) !== previous) return value;
             const source = definition.kind === 'mission' ? 'list' : definition.kind === 'faction' ? 'file' : null;
@@ -113,9 +115,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   type Writer = EditTargetDraftSessionOptions<RowData, ConfigDocumentTarget, JsonDocumentMeta>['save'];
   async function saveActual(write?: Writer): Promise<DocumentSaveResult> {
     recovery.cancelRead();
-    const committed = session.inputs.commit(undefined, true);
-    if (committed && !(await committed)) return { status: 'cancelled' };
-    if (!write && !session.dirty.value && !session.hasPendingSynchronization.value) return { status: 'noop' };
+    if (!write && !session.dirty.value && !session.saving.value) return { status: 'noop' };
     const snapshot = await session.saveDraft(write, Boolean(write));
     return snapshot ? { status: 'saved', receipt: snapshot.meta.receipt! } : { status: 'cancelled' };
   }
@@ -123,7 +123,6 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     targetKey: session.currentTargetKey,
     modRoot,
     saving: session.saving,
-    pendingSynchronization: session.hasPendingSynchronization,
     waitForSave: session.waitForSave,
     editing: {
       label: definition.label,
@@ -174,7 +173,6 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     inputs: session.inputs,
     dirty: session.dirty,
     saving: computed(() => session.saving.value || commands.isSaveQueued(handle)),
-    pendingSynchronization: session.hasPendingSynchronization,
     canUndo: computed(() => history.canUndo.value || session.inputs.dirty.value),
     canRedo: computed(() => history.canRedo.value || session.inputs.dirty.value),
     undo: () => replay('undo'),
@@ -208,60 +206,79 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   onScopeDispose(useDraftSessionsStore().registerDraftSession(modRoot, session.dirty));
   onScopeDispose(commands.registerSaveSession(handle));
   onScopeDispose(
-    subscribeProjectChanges((event) => {
-      if (projectChangeSessionId(event) !== record.target.sessionId) return;
-      if (event.kind === 'closed') {
-        session.cancelRead();
-        reads.revoke('session');
-        return;
-      }
-      const target = session.currentTarget.value!;
-      const receipt = event.kind === 'commit' ? event.event.result : null;
-      if (receipt && !session.isTargetCommitCurrent(target, receipt.commitId)) return;
-      const content = receipt?.content;
-      if (
-        content &&
-        (content.target.kind === 'json' || content.target.kind === 'recovery') &&
-        stableDeepEqual(content.target.origin, jsonDocumentOrigin(target))
-      ) {
-        if (content.target.kind === 'recovery') {
-          const plan = (content as WriteContent<JsonRecoveryPlan>).value;
-          session.applyExternalForTarget({
-            target,
-            value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
-            baseVersions: receipt!.baseVersions,
-            commitId: receipt!.commitId,
-            meta: { receipt, resources: plan.resourceRefs },
-          });
+    observeSavedContent(
+      (event) => {
+        const projection = saveProjection(event, record.target?.sessionId);
+        if (!projection) return;
+        if (projection.manifest.sessionId !== record.target.sessionId) return;
+
+        const target = session.currentTarget.value!;
+        const receipt = event.reason === 'refresh' ? null : event.result;
+        if (receipt && !session.acceptsSaveDelivery(target, receipt.requestId)) return;
+        if (
+          receipt?.identityChanges.some(
+            (change) => change.after.kind === target.kind && change.after.id === target.id && change.before.id !== change.after.id,
+          )
+        )
           return;
+        const content = receipt?.content;
+        if (
+          content &&
+          (content.target.kind === 'json' || content.target.kind === 'recovery') &&
+          stableDeepEqual(content.target.origin, jsonDocumentOrigin(target))
+        ) {
+          if (content.target.kind === 'recovery') {
+            const plan = (content as WriteContent<JsonRecoveryPlan>).value;
+            session.applyExternalForTarget(
+              {
+                target,
+                value: jsonRecoveryValue(target, plan, session.baselineSnapshot.value!.value),
+                baseVersions: receipt!.baseVersions,
+                requestId: receipt!.requestId,
+                meta: { receipt: null, resources: plan.resourceRefs },
+              },
+              true,
+            );
+            return;
+          }
+          if (target.kind === 'mod-info' || target.kind === 'misc-config') {
+            const value =
+              target.kind === 'misc-config'
+                ? miscConfigValue(target.id, content.value as import('@/shared/types').JsonValue)
+                : jsonDocumentValue(target.kind, requireRowData(content.value, 'JSON 文档内容无效'));
+            session.applyExternalForTarget(
+              {
+                target,
+                value,
+                baseVersions: receipt!.baseVersions,
+                requestId: receipt!.requestId,
+                meta: { receipt: null },
+              },
+              true,
+            );
+            return;
+          }
         }
-        if (target.kind === 'mod-info' || target.kind === 'misc-config') {
-          const value =
-            target.kind === 'misc-config'
-              ? miscConfigValue(target.id, content.value as import('@/shared/types').JsonValue)
-              : jsonDocumentValue(target.kind, requireRowData(content.value, 'JSON 文档内容无效'));
-          session.applyExternalForTarget({
-            target,
-            value,
-            baseVersions: receipt!.baseVersions,
-            commitId: receipt!.commitId,
-            meta: { receipt },
-          });
+        if (
+          definition.kind !== 'mod-info' &&
+          !(definition.kind === 'misc-config'
+            ? hasMiscConfigInvalidation(projection.invalidation, record.target.modRoot, miscConfigFile(record.target.id).kind)
+            : hasEntityInvalidation(projection.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
+        )
           return;
+        if (active.value)
+          return refresh().catch((error) => {
+            feedback.error(error, '刷新 JSON 文档失败');
+            throw error;
+          });
+      },
+      (sessionId) => {
+        if (sessionId === record.target.sessionId) {
+          session.cancelRead();
+          reads.revoke('session');
         }
-      }
-      if (
-        definition.kind !== 'mod-info' &&
-        !(definition.kind === 'misc-config'
-          ? hasMiscConfigInvalidation(event.projection.invalidation, record.target.modRoot, miscConfigFile(record.target.id).kind)
-          : hasEntityInvalidation(event.projection.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
-      )
-        return;
-      if (active.value)
-        reads.schedule('refresh', () => {
-          void refresh().catch((error) => feedback.error(error, '刷新 JSON 文档失败'));
-        });
-    }),
+      },
+    ),
   );
   onScopeDispose(() => {
     editors.deactivate(editor);
@@ -274,12 +291,12 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     active,
     setActive,
     externalUpdateNotice: session.externalUpdateNotice,
-    schema: capabilities.schema,
+    schema,
     draftValue: computed({ get: () => session.draftValue.value, set: setDraft }),
     sourceTarget: computed(() => identity.pending.value?.snapshot.target ?? session.currentTarget.value!),
     sourceMissing: recovery.missing,
     recreateSources: recovery.recreate,
-    handoffLocked: computed(() => commands.isEditTargetLocked(session.currentTargetKey.value)),
+    handoffLocked: computed(() => false),
     record: computed<JsonDocumentRecord>(() => ({
       target: session.currentTarget.value!,
       value: session.baselineSnapshot.value!.value,

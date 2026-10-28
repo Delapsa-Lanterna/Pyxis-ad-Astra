@@ -18,7 +18,5 @@ export interface SpecEditorInput {
 export interface SpecEditorDefinition<TData extends SpecEditorData> {
   validate?: (value: RowData) => SpecIssue[];
   read: (sessionId: string, id: string, signal?: AbortSignal) => Promise<TData>;
-  project: (data: TData) => RowData;
-  accept: (data: TData, spec: RowData) => TData;
   idField: string;
 }

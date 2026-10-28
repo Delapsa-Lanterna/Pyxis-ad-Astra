@@ -92,12 +92,7 @@ export type { AppLogEntry, AppLogLevel, AppLogStatus, AppendAppLogsPayload } fro
 export { APP_LOG_LEVELS } from '@/shared/types/app-log.types';
 export type { FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot } from '@/shared/types/file-changes.types';
 export type { CsvDraftOperation, CsvTableHistoryEntry } from '@/shared/types/csv-table-history.types';
-export type {
-  FileHistoryEntrySummary,
-  FileHistorySnapshot,
-  ApplyFileChangeSetPayload,
-  FileHistoryPayload,
-} from '@/shared/types/file-history.types';
+export type { FileHistoryEntrySummary, FileHistorySnapshot, FileReplay, FileHistoryPayload } from '@/shared/types/file-history.types';
 export type {
   AssociatedSpecChange,
   AssociatedSpecWrite,
@@ -105,8 +100,9 @@ export type {
   CsvRowPatch,
   CsvRowPatchAction,
   CsvRowOrderEntry,
-  SaveCsvPatchPayload,
+  CsvSave,
 } from '@/shared/types/table-save.types';
+export type { SaveAction, SaveRequest } from '@/shared/types/save-action.types';
 export type {
   CsvRowKeyMapping,
   JsonSourceConfirmation,
@@ -114,28 +110,21 @@ export type {
   WriteResult,
   WriteContent,
   WriteContentTarget,
-  ProjectChange,
+  SaveDelivery,
+  SaveEdit,
   CommittedSessionUpdate,
-  CommittedProjection,
   CommittedWriteEvent,
-  SynchronizeCommittedWritePayload,
 } from '@/shared/types/write-commit.types';
-export type {
-  JsonEntityFile,
-  JsonEntityFilePayload,
-  DeleteJsonEntityFilePayload,
-  VariantFile,
-  SkinFile,
-} from '@/shared/types/json-file.types';
+export type { JsonEntityFile, JsonFileSave, JsonFileDelete, VariantFile, SkinFile } from '@/shared/types/json-file.types';
 export type {
   SavedConfig,
   ConfigEditTarget,
   IndexedConfigEntityData,
   IndexedConfigEntityRefresh,
   IndexedConfigKind,
-  SaveModInfoPayload,
-  IndexedConfigEntityPayload,
-  DeleteIndexedConfigEntityPayload,
+  ModInfoSave,
+  IndexedConfigSave,
+  IndexedConfigDelete,
 } from '@/shared/types/config-entity.types';
 export type {
   CsvDirtyRow,
@@ -172,7 +161,7 @@ export type {
   OpenProjectSessionPayload,
   CloseProjectSessionPayload,
   InvalidateProjectSessionPayload,
-  RefreshProjectSourcesPayload,
+  SourceRefresh,
 } from '@/shared/types/project-session.types';
 export type {
   GameModSummary,
@@ -189,8 +178,8 @@ export type { SourceOption, SourceOptionGroup, CsvSourceOptionsPayload, ImageSou
 
 export type {
   EditableFileData,
-  SaveTextFilePayload,
-  TranscodeFilePayload,
+  TextSave,
+  TextTranscode,
   LoadEditableFilePayload,
   TextIdentityIntentPayload,
   FollowTextIdentityPayload,
@@ -223,7 +212,7 @@ export type {
   SpecWeaponEditorData,
   SpecProjectileEditorData,
   LoadImportedEditorSpecPayload,
-  SaveEditorSpecPayload,
+  SpecSave,
 } from '@/shared/types/spec-editor.types';
 
 export type * from '@/shared/types/json-recovery.types';

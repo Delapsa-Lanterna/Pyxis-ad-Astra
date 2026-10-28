@@ -38,7 +38,7 @@ describe('Core asset ownership and acceptance', () => {
     const projection = sessionUpdateFixture('s', 'M:/mod').projection;
     projection.manifest.starsectorRoot = gameRoot;
     projection.invalidation.resources = [{ source, relPath: path }];
-    dispatchProjectChangeFixture({ kind: 'refresh', projection });
+    await dispatchProjectChangeFixture({ kind: 'refresh', projection });
     await flushPromises();
   }
 
@@ -86,7 +86,7 @@ describe('Core asset ownership and acceptance', () => {
   it('retains content on refresh failure and retries the current product', async () => {
     await loadCoreGraphics();
     mocks.graphics.mockRejectedValueOnce(new Error('refresh failed'));
-    await refresh('graphics/demo.png');
+    await expect(refresh('graphics/demo.png')).rejects.toThrow('refresh failed');
     expect(useCoreAssetsStore().graphics).toMatchObject({ content: ['graphics/a.png'], status: 'error' });
     mocks.graphics.mockResolvedValueOnce(['graphics/b.png']);
     await loadCoreGraphics();

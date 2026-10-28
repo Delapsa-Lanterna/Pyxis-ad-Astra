@@ -69,7 +69,7 @@ export async function exercise(host: Host, element: HTMLElement, assertions: Ass
       .click();
     await until(() => !document.querySelector('.immersive-field-popover'), '字段提交');
   }
-  const commit = host.model.commitId;
+  const commit = host.model.saveCount;
   const save = performance.now();
   if (scene === 'csv' || scene === 'json') await host.save();
   else {
@@ -77,10 +77,10 @@ export async function exercise(host: Host, element: HTMLElement, assertions: Ass
       (item) => item.textContent === '保存',
     )!;
     button.click();
-    await until(() => host.model.commitId > commit, '编辑器保存');
+    await until(() => host.model.saveCount > commit, '编辑器保存');
   }
   metrics.save = performance.now() - save;
-  recordAssertion(assertions, '保存回执', host.model.commitId > commit, true);
+  recordAssertion(assertions, '保存回执', host.model.saveCount > commit, true);
   if (scene === 'csv') recordAssertion(assertions, '保存值', String(host.model.rows[1]!.data.name), value);
   const model = host.model;
   await host.open(model, model.monitor.enabled);

@@ -27,6 +27,35 @@ impl Operation {
         self.progress.lock().map_err(|_| poisoned())
     }
 }
+
+pub fn close_displaced(
+    app: &tauri::AppHandle,
+    owner: &str,
+    displaced: Vec<String>,
+) -> Result<(), AppError> {
+    for label in displaced {
+        let result = crate::services::app_lifecycle::close_clean_window(app, &label);
+        if !matches!(result, Ok(ref result) if result.status == crate::models::CloseStatus::Closed)
+        {
+            crate::services::windows::release_targets(owner)?;
+            return result.and_then(|_| {
+                Err(AppError::message(
+                    "window.target_unsaved",
+                    "目标窗口交接已取消",
+                ))
+            });
+        }
+    }
+    Ok(())
+}
+
+pub fn apply_settings_runtime(value: &crate::models::AppSettings) -> Result<bool, AppError> {
+    crate::services::app_log::configure_runtime(value)?;
+    crate::services::project::configure_media_cache(&value.cache_limits.backend_media)?;
+    crate::services::file_history::set_history_limit(value.file_history_limit as usize)?;
+    crate::services::performance_monitor::initialize(value.performance_monitor_enabled);
+    Ok(crate::services::performance_monitor::enabled())
+}
 struct Operation {
     only_if_clean: bool,
     owner: String,

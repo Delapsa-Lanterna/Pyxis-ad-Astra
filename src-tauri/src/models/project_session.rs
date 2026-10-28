@@ -36,7 +36,6 @@ pub struct ProjectInvalidation {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSessionInvalidationResult {
-    pub projection_revision: u64,
     pub manifest: ProjectManifest,
     pub invalidation: ProjectInvalidation,
 }
@@ -121,9 +120,9 @@ pub struct InvalidateProjectSessionPayload {
     pub changes: Vec<FileChangeRecord>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RefreshProjectSourcesPayload {
+pub struct SourceRefresh {
     pub session_id: String,
     pub sources: Vec<crate::models::InvalidatedResourceScope>,
 }
@@ -176,7 +175,7 @@ mod tests {
     #[test]
     fn refresh_sources_payload_preserves_mod_and_core_paths() {
         let value = json!({"sessionId": "refresh-session", "sources": [{"source": "mod", "relPath": "data/hulls/demo.ship"}, {"source": "core", "relPath": "graphics/demo.png"}]});
-        let payload = serde_json::from_value::<RefreshProjectSourcesPayload>(value).unwrap();
+        let payload = serde_json::from_value::<SourceRefresh>(value).unwrap();
         assert_eq!(payload.session_id, "refresh-session");
         assert_eq!(
             serde_json::to_value(payload.sources).unwrap(),

@@ -50,7 +50,7 @@ pub struct MiscConfigFile {
     pub data: Value,
     pub base_versions: Vec<FileVersion>,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigWrite {
     pub kind: MiscConfigKind,
@@ -61,7 +61,7 @@ pub struct MiscConfigWrite {
     pub json_write: JsonWriteOptions,
     pub ordered_json: String,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigDelete {
     pub kind: MiscConfigKind,

@@ -11,6 +11,7 @@ import { recordWindowEventHandlerError } from '@/orchestrators/window-event-erro
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import { useWindowCloseState, useWindowLifecycleActions } from './use-window-close-state';
 import type { CloseScope, WindowCloseIntent } from '@/shared/types';
+import { settleProjectSaves } from '@/orchestrators/project-sync.orchestrator';
 interface DirtyWindowCloseGuardOptions {
   settle?: () => Promise<void>;
   dirty: Readonly<Ref<boolean>>;
@@ -53,8 +54,12 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
           await settleWindowRequests();
           await options.settle?.();
           await commands.settleCloseActions();
-          while (commands.hasPendingSave()) {
-            if (!(await commands.waitForSaves())) throw new AppError('保存或提交同步尚未完成', { action: 'close-prepare' });
+          if (intent.scope.kind === 'window' || currentWindowLabel() === 'main') {
+            await settleProjectSaves(intent.scope, feedback);
+            while (commands.hasPendingSave()) {
+              if (!(await commands.waitForSaves()) && commands.hasPendingSave())
+                throw new AppError('保存尚未完成', { action: 'close-prepare' });
+            }
           }
           break;
         case 'prepare':

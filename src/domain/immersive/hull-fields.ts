@@ -6,11 +6,11 @@ import { jointObject } from '@/domain/joint-edit';
 type Inputs = JointHullProjection['fields'][string];
 export function hullFieldValue(
   inputs: Inputs | undefined,
-  data: (key: string) => Readonly<RowData>,
+  data: ReadonlyMap<string, Readonly<RowData>>,
 ): import('@/shared/types').JsonValue | undefined {
   let value: import('@/shared/types').JsonValue | undefined;
   for (const input of inputs ?? []) {
-    const source = data(input.recordKey),
+    const source = data.get(input.recordKey)!,
       next = source[input.path];
     if (next === undefined || (input.path === 'fpMod' && source.fleetPoints !== undefined)) continue;
     value =
@@ -44,6 +44,5 @@ export function hullFieldInputs(inputs: Inputs, key: string, label: string): Imm
   });
 }
 export function hullDataIndex(records: readonly import('@/shared/types').JointEditRecord[], values: Record<string, JointValue>) {
-  const index = new Map(records.map((record) => [record.key, jointObject(values[record.key] ?? record.value)]));
-  return (key: string) => index.get(key)!;
+  return new Map(records.map((record) => [record.key, jointObject(values[record.key] ?? record.value)]));
 }

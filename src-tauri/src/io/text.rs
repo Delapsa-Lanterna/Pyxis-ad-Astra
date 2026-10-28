@@ -49,6 +49,8 @@ pub fn read_text_bytes_no_bom(path: &Path) -> AppResult<Vec<u8>> {
         )
         .at_path(path)
     })?;
+    #[cfg(test)]
+    super::csv_files::record_csv_disk_read(path);
     Ok(strip_utf8_bom(bytes))
 }
 

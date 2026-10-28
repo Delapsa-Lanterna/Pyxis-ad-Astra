@@ -39,9 +39,9 @@ pub struct FactionIndexRow {
     pub file_column: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SaveModInfoPayload {
+pub struct ModInfoSave {
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
@@ -52,9 +52,9 @@ pub struct SaveModInfoPayload {
     pub ordered_json: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct IndexedConfigEntityPayload {
+pub struct IndexedConfigSave {
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
@@ -70,9 +70,9 @@ pub struct IndexedConfigEntityPayload {
     pub ordered_json: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeleteIndexedConfigEntityPayload {
+pub struct IndexedConfigDelete {
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
@@ -82,9 +82,9 @@ pub struct DeleteIndexedConfigEntityPayload {
 }
 
 super::project_identity::impl_session_mod_scope_required!(
-    SaveModInfoPayload,
-    IndexedConfigEntityPayload,
-    DeleteIndexedConfigEntityPayload
+    ModInfoSave,
+    IndexedConfigSave,
+    IndexedConfigDelete
 );
 
 #[cfg(test)]
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn indexed_config_entity_payload_uses_entity_data_wire_field() {
-        let payload: IndexedConfigEntityPayload = serde_json::from_value(json!({
+        let payload: IndexedConfigSave = serde_json::from_value(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "modRoot": "D:/mods/demo",
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn indexed_config_entity_payload_requires_explicit_nullable_source_identity() {
-        let result = serde_json::from_value::<IndexedConfigEntityPayload>(json!({
+        let result = serde_json::from_value::<IndexedConfigSave>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "modRoot": "D:/mods/demo",
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn delete_indexed_config_entity_payload_requires_explicit_delete_flag() {
-        let result = serde_json::from_value::<DeleteIndexedConfigEntityPayload>(json!({
+        let result = serde_json::from_value::<IndexedConfigDelete>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "modRoot": "D:/mods/demo",
@@ -145,7 +145,7 @@ mod tests {
             value["orderedJson"] = Value::Null;
             value
         }] {
-            let payload: SaveModInfoPayload = serde_json::from_value(value).unwrap();
+            let payload: ModInfoSave = serde_json::from_value(value).unwrap();
             assert!(!payload.json_write.preserve_original_json);
             assert!(payload.json_write.confirmed_sources.is_empty());
             assert!(payload.ordered_json.is_none());

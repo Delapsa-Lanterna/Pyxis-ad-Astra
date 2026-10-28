@@ -1,21 +1,23 @@
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppFeedback, FileChangeRecord, FileHistoryEntrySummary, WriteResult, FileHistorySnapshot } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   replayFileChangeSet: vi.fn(),
-  publishCommittedWrite: vi.fn(async () => [] as { manifest: { modRoot: string } }[]),
+  acceptContent: vi.fn<(root: string, result: WriteResult, session: string, reason: string) => Promise<unknown[]>>().mockResolvedValue([]),
   emitWindowEvent: vi.fn(async () => {}),
   loadFileHistory: vi.fn(),
 }));
 vi.mock('@/services/file-history.service', async () => ({
   ...(await vi.importActual('@/services/file-history.service')),
-  replayFileChangeSet: mocks.replayFileChangeSet,
+  replayFileChangeSet: async (session: string, modRoot: string, direction: string, entryId: number, revision: number) => {
+    const result = await mocks.replayFileChangeSet(session, modRoot, direction, entryId, revision);
+    useFileHistoryStore().applySnapshot(modRoot, result.history);
+    await mocks.acceptContent(modRoot, result, session, direction);
+    return result;
+  },
   loadFileHistory: mocks.loadFileHistory,
-}));
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
-  publishCommittedWrite: mocks.publishCommittedWrite,
-  retryPendingModSyncs: vi.fn(async () => {}),
 }));
 vi.mock('@/windows/tauri.events', () => ({ emitWindowEvent: mocks.emitWindowEvent }));
 import {
@@ -68,14 +70,8 @@ function change(): FileChangeRecord {
 }
 function savedResult(): WriteResult {
   return {
-    sessionUpdates: [],
+    ...savedWriteFixture(),
     changes: [change()],
-    invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
-    identityChanges: [],
-    keyMap: [],
-    content: null,
-    baseVersions: [],
-    commitId: 2,
     history: { revision: 2, undoStack: [], redoStack: [entry()] },
   };
 }
@@ -89,7 +85,7 @@ describe('authoritative file history replay', () => {
     workspace.activateModOverview(root);
     useFileHistoryStore().applySnapshot(root, { revision: 1, undoStack: [entry()], redoStack: [] });
     mocks.loadFileHistory.mockImplementation(async () => useFileHistoryStore().getHistoryStacks(root));
-    mocks.publishCommittedWrite.mockResolvedValue([]);
+    mocks.acceptContent.mockResolvedValue([]);
     mocks.emitWindowEvent.mockResolvedValue(undefined);
     mocks.replayFileChangeSet.mockResolvedValue(savedResult());
   });
@@ -101,7 +97,6 @@ describe('authoritative file history replay', () => {
       ['s2', 'C:/mods/beta'],
     ] as const) {
       const update = sessionUpdateFixture(session, modRoot);
-      if (update.status !== 'ready') throw new Error('ready projection fixture');
       projects.registerProjectManifest(update.projection.manifest);
     }
     mocks.loadFileHistory.mockResolvedValue({ revision: 5, undoStack: [], redoStack: [] });
@@ -118,7 +113,6 @@ describe('authoritative file history replay', () => {
   it.each(['closed', 'replaced', 'released'] as const)('rejects history delivery after its target is %s', async (reason) => {
     const projects = useProjectStore();
     const update = sessionUpdateFixture('s1', root);
-    if (update.status !== 'ready') throw new Error('ready projection fixture');
     projects.registerProjectManifest(update.projection.manifest);
     let finish!: (snapshot: FileHistorySnapshot) => void;
     mocks.loadFileHistory.mockImplementationOnce(
@@ -152,11 +146,11 @@ describe('authoritative file history replay', () => {
     await executeFileReplayPlan(plan, project(), tables());
     expect(mocks.replayFileChangeSet).toHaveBeenCalledWith('s1', root, 'undo', 1, 1);
     expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(savedResult().history);
-    expect(mocks.publishCommittedWrite).toHaveBeenCalledWith(root, savedResult(), 's1', 'undo');
+    expect(mocks.acceptContent).toHaveBeenCalledWith(root, savedResult(), 's1', 'undo');
   });
 
   it('keeps committed backend history when refresh fails', async () => {
-    mocks.publishCommittedWrite.mockRejectedValue(new Error('parse failed'));
+    mocks.acceptContent.mockRejectedValue(new Error('parse failed'));
     const plan = createFileReplayPlan(project(), 'undo', root)!;
     await expect(executeFileReplayPlan(plan, project(), tables())).rejects.toThrow('parse failed');
     expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(savedResult().history);
@@ -188,7 +182,6 @@ describe('authoritative file history replay', () => {
   it('keeps the requested Mod when navigation changes during the history read', async () => {
     const projects = useProjectStore();
     const update = sessionUpdateFixture('s1', root);
-    if (update.status !== 'ready') throw new Error('ready fixture');
     projects.registerProjectManifest(update.projection.manifest);
     const workspace = (await import('@/stores/workspace.store')).useWorkspaceStore();
     workspace.registerMod({ modRoot: root, displayName: 'First', version: '', status: 'ready' });
@@ -226,7 +219,6 @@ describe('authoritative file history replay', () => {
       ['s2', 'C:/mods/beta'],
     ] as const) {
       const update = sessionUpdateFixture(session, modRoot);
-      if (update.status !== 'ready') throw new Error('ready fixture');
       projects.registerProjectManifest(update.projection.manifest);
       workspace.registerMod({ modRoot, displayName: session, version: '', status: 'ready' });
     }
@@ -239,7 +231,7 @@ describe('authoritative file history replay', () => {
     mocks.replayFileChangeSet.mockResolvedValueOnce(result);
     await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
     expect(mocks.replayFileChangeSet).toHaveBeenCalledExactlyOnceWith('s1', root, 'undo', 1, 1);
-    expect(mocks.publishCommittedWrite).toHaveBeenCalledWith(root, result, 's1', 'undo');
+    expect(mocks.acceptContent).toHaveBeenCalledWith(root, result, 's1', 'undo');
     expect(table.selectRowByKey).not.toHaveBeenCalled();
     expect(workspace.activeSessionId).toBe('s2');
     expect(messages.success).toHaveBeenCalledExactlyOnceWith('文件历史已撤销');
@@ -271,6 +263,6 @@ describe('authoritative file history replay', () => {
     ];
     mocks.replayFileChangeSet.mockResolvedValue(result);
     await executeFileReplayPlan(createFileReplayPlan(project(), 'undo', root)!, project(), tables());
-    expect(mocks.publishCommittedWrite).toHaveBeenCalledWith(root, result, 's1', 'undo');
+    expect(mocks.acceptContent).toHaveBeenCalledWith(root, result, 's1', 'undo');
   });
 });

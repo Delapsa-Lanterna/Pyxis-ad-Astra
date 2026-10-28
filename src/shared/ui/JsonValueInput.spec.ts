@@ -1,3 +1,4 @@
+import { beginSavedWrite } from '@/test/unit/project-changes';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { mount } from '@vue/test-utils';
 import { h } from 'vue';
@@ -16,6 +17,7 @@ describe('JSON field save boundary', () => {
       {
         setup() {
           session = useEditTargetDraftSession<RowData, string>({
+            beginSave: beginSavedWrite,
             emptyValue: {},
             load: () => ({ target: 'one', baseVersions: [], meta: null, value: { first: {}, second: {}, third: [] } }),
             save,
@@ -42,7 +44,7 @@ describe('JSON field save boundary', () => {
     expect((inputs[2]!.element as HTMLTextAreaElement).value).toBe('[3]');
     await enterRaw(1, '{"y":4}');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 4 }, third: [3] }, []);
+    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 4 }, third: [3] }, [], expect.any(Object), undefined);
     wrapper.unmount();
   });
 
@@ -63,6 +65,7 @@ describe('JSON field save boundary', () => {
       {
         setup() {
           session = useEditTargetDraftSession<RowData, string>({
+            beginSave: beginSavedWrite,
             emptyValue: {},
             load: () => ({ target: 'one', baseVersions: [], meta: null, value: { first: { x: 1 }, second: { y: 1 } } }),
             save,
@@ -84,7 +87,7 @@ describe('JSON field save boundary', () => {
     await inputs[0]!.setValue('{"x":2}');
     await inputs[1]!.setValue('{"y":3}');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 3 } }, []);
+    expect(save).toHaveBeenCalledWith('one', { first: { x: 2 }, second: { y: 3 } }, [], expect.any(Object), undefined);
     wrapper.unmount();
   });
   it.each(['{"x":', '{"x":1e309}'])('keeps rejected input %s dirty, blocks saving and commits the corrected object', async (raw) => {
@@ -94,6 +97,7 @@ describe('JSON field save boundary', () => {
       {
         setup() {
           session = useEditTargetDraftSession<RowData, string>({
+            beginSave: beginSavedWrite,
             emptyValue: {},
             load: () => ({ target: 'one', baseVersions: [], meta: null, value: { nested: { x: 1 } } }),
             save,
@@ -126,7 +130,7 @@ describe('JSON field save boundary', () => {
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(raw);
     await wrapper.get('textarea').setValue('{"x":2}');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { nested: { x: 2 } }, []);
+    expect(save).toHaveBeenCalledWith('one', { nested: { x: 2 } }, [], expect.any(Object), undefined);
     expect(session.dirty.value).toBe(false);
     wrapper.unmount();
   });

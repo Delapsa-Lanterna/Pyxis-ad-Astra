@@ -41,9 +41,32 @@ test('module documents reject stylesheet references and style constraints', () =
   }
 });
 
-test('CRLF keeps the same structure and dictionary order', () => {
+test('CRLF keeps the same structure and reference path order', () => {
   assert.deepEqual(messages(moduleDiagnostics(fixtures(validDoc.replace(/\n/g, '\r\n')))), []);
 });
+
+test('dictionary order applies only to reference paths while other sections retain reading order', () => {
+  const doc = validDoc
+    .replace('- A 输入归领域。\n- B 状态归会话。', '- B 状态归会话。\n- A 输入归领域。')
+    .replace('- A 输入必须绑定身份。\n- B 读取必须绑定票据。', '- B 读取必须绑定票据。\n- A 输入必须绑定身份。')
+    .replace(
+      '### 加载\n\n1. 输入进入规则。\n2. 结果交付展示。\n\n### 释放\n\n1. 会话释放等待。',
+      '### 释放\n\n1. 会话释放等待。\n\n### 加载\n\n1. 输入进入规则。\n2. 结果交付展示。',
+    );
+  assert.deepEqual(messages(moduleDiagnostics(fixtures(doc))), []);
+});
+
+for (const section of ['边界', '规范']) {
+  test(`${section} rejects a repeated entry anywhere in its chosen reading order`, () => {
+    const start = validDoc.indexOf('## ' + section + '\n\n');
+    const doc = validDoc.slice(0, start) + validDoc.slice(start).replace(/(- A [^\n]+)(\n- B [^\n]+\n)- C [^\n]+/, '$1$2$1');
+    const failures = moduleStructureRule.check(fixtures(doc));
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].message, `${section} entries must be unique`);
+    assert.equal(failures[0].file, moduleRel);
+    assert.equal(failures[0].column, 1);
+  });
+}
 
 test('public declarations and shared directories remain outside module ownership, including paired tests', () => {
   const map = indexText.replace('## 模块索引', '## 公共文件\n\n- `src/domain/sample.ts`：共享规则。\n\n## 模块索引');
@@ -156,7 +179,6 @@ const malformedDocs = [
   ['alternative unordered marker', validDoc.replace('- B 状态归会话。', '* B 状态归会话。')],
   ['loose unordered list', validDoc.replace('- B 状态归会话。', '\n- B 状态归会话。')],
   ['unordered continuation', validDoc.replace('- B 状态归会话。', '- B 状态归会话。\n  续行。')],
-  ['unordered dictionary order', validDoc.replace('- A 输入归领域。\n- B 状态归会话。', '- B 状态归会话。\n- A 输入归领域。')],
   ['duplicate unordered entry', validDoc.replace('- B 状态归会话。', '- A 输入归领域。')],
   ['chain without H3', validDoc.replace('### 加载\n\n', '')],
   ['empty chain', validDoc.replace('1. 输入进入规则。\n2. 结果交付展示。', '')],

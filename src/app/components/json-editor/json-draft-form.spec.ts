@@ -1,3 +1,4 @@
+import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -5,7 +6,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import JsonEditorWorkspace from './JsonEditorWorkspace.vue';
 import JsonDocumentEditor from './JsonDocumentEditor.vue';
 import JsonDocumentList from './JsonDocumentList.vue';
-import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
+import type { CommittedWriteEvent } from '@/windows/window.events';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -22,9 +23,10 @@ import { getSchema } from '@/domain/schema/config-schema-registry';
 
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
 import * as miscConfig from '@/domain/json-editor/misc-config-files';
-import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigEntityPayload } from '@/shared/types';
+import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigSave } from '@/shared/types';
+vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
-  listeners: new Set<(event: EntityIdentityAppliedEvent) => Promise<void>>(),
+  listeners: new Set<(event: CommittedWriteEvent) => Promise<void>>(),
   list: vi.fn(),
   read: vi.fn(),
   saveFile: vi.fn(),
@@ -109,24 +111,19 @@ vi.mock('@/services/entity-query.service', async (original) => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', async (original) => ({
   ...(await original<typeof import('@/orchestrators/project-sync.orchestrator')>()),
   ...(await import('@/test/unit/project-changes')),
-  listenEntityIdentityApplied: async (listener: (event: EntityIdentityAppliedEvent) => Promise<void>) => {
+  listenSavedIdentity: async (listener: (event: CommittedWriteEvent) => Promise<void>) => {
     mocks.listeners.add(listener);
     return () => mocks.listeners.delete(listener);
   },
 }));
 vi.mock('@/orchestrators/json-save.orchestrator', () => ({
-  completeJsonSave: mocks.complete,
-  saveVariantAction: mocks.saveFile,
-  saveSkinAction: mocks.saveFile,
+  saveJsonFileAction: (_kind: string, ...args: unknown[]) => mocks.saveFile(...args),
   saveIndexedEntityAction: mocks.saveIndexed,
   saveModInfoAction: mocks.saveMod,
-  createVariantAction: mocks.create,
-  createSkinAction: mocks.create,
+  createJsonFileAction: (_kind: string, ...args: unknown[]) => mocks.create(...args),
   createIndexedEntityAction: mocks.create,
-  deleteVariantAction: mocks.remove,
-  deleteSkinAction: mocks.remove,
-  deleteIndexedEntityAction: mocks.remove,
 }));
+vi.mock('@/services/json-file.service', () => ({ deleteVariantEntity: mocks.remove, deleteSkinEntity: mocks.remove }));
 vi.mock('@/services/json-recovery.service', () => ({ prepareJsonSourceRecovery: mocks.prepare }));
 vi.mock('@/services/misc-config.service', async (original) => ({
   ...(await original<typeof import('@/services/misc-config.service')>()),
@@ -135,7 +132,11 @@ vi.mock('@/services/misc-config.service', async (original) => ({
   saveMiscConfig: mocks.miscSave,
   deleteMiscConfig: mocks.miscDelete,
 }));
-vi.mock('@/services/json-entity.service', () => ({ queryFactionPreviewImages: mocks.previews, queryMissionDraftIcon: async () => '' }));
+vi.mock('@/services/json-entity.service', () => ({
+  deleteIndexedConfigEntity: mocks.remove,
+  queryFactionPreviewImages: mocks.previews,
+  queryMissionDraftIcon: async () => '',
+}));
 vi.mock('@/services/hull-reference.service', () => ({
   querySessionHullReferences: async () => ({ hullNames: {} }),
   queryHullReferenceOptions: async () => [],
@@ -152,7 +153,6 @@ vi.mock('@/app/composables/use-visible-resource-media', () => ({
 }));
 let wrapper: VueWrapper | null;
 let entities: Map<string, EntityData>;
-let serial: number;
 const pages = (Object.keys(JSON_DOCUMENT_DEFINITIONS) as JsonEditorPageId[]).filter((page) => page !== 'misc-config');
 const key = (session: string, kind: string, id: string) => [session, kind, id].join(':');
 function manifest(session = 's1', root = 'M:/one') {
@@ -191,7 +191,7 @@ function savedFile(session: string, root: string, id: string, data: RowData, pre
   const after = jsonEntityFixture(kind, id, 'Written', root);
   after.data = data;
   const receipt = savedWriteFixture();
-  receipt.commitId = ++serial;
+
   receipt.baseVersions = after.baseVersions.map((version) => ({ ...version, fingerprint: 'v2' }));
   receipt.identityChanges = [{ before: before.target, after: after.target }];
   entities.delete(key(session, kind, before.id));
@@ -204,7 +204,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.listeners.clear();
   entities = new Map();
-  serial = 1;
   wrapper = null;
   register();
   mocks.list.mockImplementation(async (session: string, kind: string) =>
@@ -214,12 +213,12 @@ beforeEach(() => {
   );
   mocks.read.mockImplementation(async (session: string, kind: string, id: string) => entities.get(key(session, kind, id)) ?? null);
   mocks.saveFile.mockImplementation(async (...args: Parameters<typeof savedFile>) => savedFile(...args));
-  mocks.saveIndexed.mockImplementation(async (write: IndexedConfigEntityPayload) => {
+  mocks.saveIndexed.mockImplementation(async (write: IndexedConfigSave) => {
     const before = entities.get(key(write.sessionId, write.kind, write.previousId!))!,
       after = jsonEntityFixture(write.kind, write.nextId, 'Written', write.modRoot);
     after.data = write.kind === 'faction' ? write.entityData.file! : { ...write.entityData, list: write.indexRow };
     const receipt = savedWriteFixture();
-    receipt.commitId = ++serial;
+
     receipt.baseVersions = after.baseVersions;
     receipt.identityChanges = [{ before: before.target, after: after.target }];
     entities.delete(key(write.sessionId, write.kind, before.id));
@@ -227,7 +226,7 @@ beforeEach(() => {
     return { entity: { entityData: write.entityData, indexRows: [{ data: write.indexRow, isComment: false }] }, receipt };
   });
   mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: import('@/shared/types').WriteResult) => {
-    useProjectSyncStore().markAccepted({ modRoot, result } as import('@/shared/types').CommittedWriteEvent);
+    await dispatchProjectChangeFixture(committedChangeFixture(result, _session, modRoot));
   });
   mocks.prepare.mockImplementation(async (request: JsonRecoveryRequest) => {
     if (request.origin.kind === 'entity') {
@@ -256,7 +255,6 @@ beforeEach(() => {
   ]);
   mocks.miscRead.mockResolvedValue(null);
 });
-import { useProjectSyncStore } from '@/stores/project-sync.store';
 afterEach(() => {
   wrapper?.unmount();
   useJsonEditorStore().releaseSession('s1');
@@ -411,7 +409,7 @@ describe('JSON common workspace and form', () => {
     }));
     mocks.miscSave.mockImplementation(async () => {
       saved = true;
-      return { ...savedWriteFixture(), commitId: ++serial };
+      return { ...savedWriteFixture() };
     });
     await mountPage('misc-config');
     await wrapper!.get('.empty-state button').trigger('click');
@@ -469,11 +467,11 @@ describe('JSON common workspace and form', () => {
     }));
     mocks.miscSave.mockImplementation(async () => {
       exists = true;
-      return { ...savedWriteFixture(), commitId: ++serial, baseVersions: [{ path, fingerprint: 'v1' }] };
+      return { ...savedWriteFixture(), baseVersions: [{ path, fingerprint: 'v1' }] };
     });
     mocks.miscDelete.mockImplementation(async () => {
       exists = false;
-      return { ...savedWriteFixture(), commitId: ++serial };
+      return { ...savedWriteFixture() };
     });
     await mountPage('misc-config');
     expect(wrapper!.get('.json-entity-list-item.active').text()).toContain('未创建');
@@ -590,7 +588,7 @@ describe('JSON common workspace and form', () => {
         { sessionId: 's1', modRoot: 'M:/one', path: baseline.target.entity!.write.path },
       ]);
       expect(handles).toHaveLength(1);
-      const result = await useSaveCommandStore().savePreparedParticipant(handles[0]!);
+      const result = await useSaveCommandStore().requestSave(handles[0]!);
       expect(result.status).toBe('saved');
       expect(docA.dirty.value).toBe(false);
       expect((nameInput().element as HTMLInputElement).value).toBe('B draft');
@@ -865,9 +863,13 @@ describe('JSON common workspace and form', () => {
       entities.delete(key('s1', 'mission', previous));
       entities.set(key('s1', 'mission', next), after);
       const result = savedWriteFixture();
-      result.commitId = ++serial;
+
       result.identityChanges = [{ before: before.target, after: after.target }];
-      await Promise.all([...mocks.listeners].map((listener) => listener({ sessionId: 's1', modRoot: 'M:/one', result })));
+      await Promise.all(
+        [...mocks.listeners].map((listener) =>
+          listener({ originWindowLabel: 'peer', reason: 'save', sessionId: 's1', modRoot: 'M:/one', result }),
+        ),
+      );
       await flushPromises();
       expect(wrapper!.findAll('.json-entity-list-item').map((item) => item.text())).toEqual([
         expect.stringContaining(next),

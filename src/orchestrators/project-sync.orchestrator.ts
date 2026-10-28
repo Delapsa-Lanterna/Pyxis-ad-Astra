@@ -1,351 +1,347 @@
-import {
-  WINDOW_EVENTS,
-  type CommittedWriteEvent,
-  type ProjectSessionInvalidatedEvent,
-  type EntityIdentityAppliedEvent,
-} from '@/windows/window.events';
-import { emitWindowEvent, listenWindowEvent, type WindowEventHandler } from '@/windows/tauri.events';
-import { currentWindowLabel } from '@/windows/current.window';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
-import { useProjectSyncStore, type PendingWriteSync } from '@/stores/project-sync.store';
-import { markProjectionPending, markProjectionReady } from '@/services/project-projection.service';
-import { AppError, errorDiagnosticOf, withCause, errorMessageOf } from '@/shared/lib/errors';
-import { recordLogBestEffort } from '@/services/app-log.service';
-import type { WriteResult, InvalidatedResourceScope, ProjectChange } from '@/shared/types';
-import { refreshProjectSources, synchronizeSessionCommit } from '@/services/project-sync.service';
+import { useProjectSyncStore, type PendingWriteSync, type SaveTask } from '@/stores/project-sync.store';
+import { markProjectionReady } from '@/services/project-projection.service';
+import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
+import type { InvalidatedResourceScope, CommittedWriteEvent, ProjectSessionInvalidationResult } from '@/shared/types';
+import {
+  registerSaveWindow,
+  retryProjectSave,
+  refreshProjectSources,
+  waitProjectSaves,
+  unregisterSaveWindow,
+  resolveSaveSources,
+  abandonProjectSaves,
+} from '@/services/project-sync.service';
+import { managedWindowContext } from '@/windows/window-context.window';
+import type { CloseScope } from '@/shared/types';
 import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/shared/lib/paths';
-import { invalidateQueryCacheByProject, subscribeQueryInvalidations } from '@/services/query-cache.service';
+import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
 
-let displayPaused = false;
-const displayUpdates: Array<() => Promise<unknown>> = [];
+type SaveHandler = (event: CommittedWriteEvent) => ReturnType<SaveTask>;
+interface ContentOwner {
+  handler: SaveHandler;
+  release?: (sessionId: string) => void;
+}
+interface SaveConsumers {
+  feedback?: import('@/shared/types').AppFeedback;
+  content: Set<ContentOwner>;
+  identity: Set<SaveHandler>;
+  ready: Promise<void>;
+  processing: Promise<void>;
+  sources: Map<string, { receive: () => SaveTask[]; fail: (error: unknown) => void }>;
+}
+const windows = new WeakMap<ReturnType<typeof useProjectSyncStore>, SaveConsumers>();
+let displayReady: Promise<void> | null = null;
+
 export function pauseProjectDisplay() {
-  displayPaused = true;
+  let resume!: () => void;
+  const paused = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  const waiting = displayReady ? Promise.all([displayReady, paused]).then(() => {}) : paused;
+  displayReady = waiting;
+  void waiting.then(() => {
+    if (displayReady === waiting) displayReady = null;
+  });
   return async () => {
-    displayPaused = false;
-    for (const update of displayUpdates.splice(0)) await update();
+    resume();
   };
 }
-async function deliverDisplay(action: () => Promise<unknown> | unknown) {
-  if (displayPaused) {
-    displayUpdates.push(async () => action());
-    return;
-  }
-  await action();
-}
-const syncExecutions = new WeakMap<ReturnType<typeof useProjectSyncStore>, Map<string, Promise<void>>>();
 
-function acceptCommittedWrite(event: CommittedWriteEvent) {
-  const project = useProjectStore();
-  const sync = useProjectSyncStore();
-  if (sync.wasAccepted(event)) return;
-  const current = project.getManifest(event.modRoot);
-  if (current && event.sessionId && current.sessionId !== event.sessionId) return;
-  if (event.sessionId) useFileHistoryStore().applySnapshot(event.modRoot, event.result.history);
-  for (const update of event.result.sessionUpdates) {
-    if (update.status !== 'ready') continue;
-    const manifest = project.getManifest(update.modRoot);
-    if (manifest && manifest.sessionId !== update.sessionId) continue;
-    markProjectionReady(update.sessionId, update.commitId);
-    acceptProjectSessionProjection(update.projection);
-  }
-  sync.markAccepted(event);
+export function saveProjection(event: CommittedWriteEvent, sessionId: string | null | undefined) {
+  const update = event.result.sessionUpdates.find((update) => update.sessionId === sessionId);
+  return update?.projection ?? null;
 }
 
-export async function publishCommittedWrite(
-  modRoot: string,
-  result: WriteResult<unknown>,
-  sessionId: string | null,
-  reason: CommittedWriteEvent['reason'] = 'save',
-) {
-  const event: CommittedWriteEvent = { modRoot, result, sessionId, reason, originWindowLabel: currentWindowLabel() };
+function consumers() {
   const sync = useProjectSyncStore();
-  if (
-    sync.wasAccepted(event) &&
-    !sync.pending.some((entry) => entry.event.modRoot === modRoot && entry.event.result.commitId === result.commitId)
-  )
-    return;
-  const entry = sync.enqueue(event);
-  await synchronizeEntry(entry);
+  let window = windows.get(sync);
+  if (window) return window;
+  const content = new Set<ContentOwner>(),
+    identity = new Set<SaveHandler>();
+  window = { content, identity, ready: Promise.resolve(), processing: Promise.resolve(), sources: new Map() };
+  windows.set(sync, window);
+  const registration = window;
+  registration.ready = registerSaveWindow((delivery) => {
+    if (delivery.kind === 'missing') {
+      void confirmMissingSources(registration, delivery).catch((error) => recordWindowEventHandlerError(error, 'save-confirmation'));
+      return;
+    }
+    if (delivery.kind === 'waiting') {
+      sync.setWaiting(delivery.modRoot, delivery.waiting);
+      return;
+    }
+    if (delivery.kind === 'blocked') {
+      sync.setBlocked(delivery);
+      return;
+    }
+    const event = delivery.event;
+    event.result.requestId = delivery.requestId;
+    for (const previous of sync.pending) {
+      if (!previous.error) continue;
+      if (normalizeRelPath(previous.event.modRoot).toLowerCase() !== normalizeRelPath(event.modRoot).toLowerCase()) continue;
+      const earlier = previous.event.result;
+      event.result = {
+        ...event.result,
+        content: null,
+        identityChanges: [...earlier.identityChanges, ...event.result.identityChanges],
+        sessionUpdates: event.result.sessionUpdates.map((update) => ({
+          ...update,
+          projection: {
+            ...update.projection,
+            invalidation: {
+              ...update.projection.invalidation,
+              paths: [
+                ...earlier.changes.flatMap((change) => [change.beforePath, change.afterPath]),
+                ...update.projection.invalidation.paths,
+              ],
+              session: true,
+            },
+          },
+        })),
+      };
+      previous.tasks.length = 0;
+      registration.sources.delete(previous.id);
+      sync.complete(previous.id);
+    }
+    const tasks: PendingWriteSync['tasks'] = [
+      async () => {
+        if (displayReady) await displayReady;
+      },
+    ];
+    if (event.reason !== 'refresh' && event.sessionId)
+      tasks.push(() => useFileHistoryStore().applySnapshot(event.modRoot, event.result.history));
+    for (let index = 0; index < event.result.sessionUpdates.length; index++)
+      tasks.push(async () => {
+        const update = event.result.sessionUpdates[index]!;
+        const current = useProjectStore().getManifest(update.modRoot);
+        if (current && current.sessionId !== update.sessionId) return;
+        markProjectionReady(update.sessionId);
+        acceptProjection(update.projection);
+      });
+    const source = registration.sources.get(delivery.requestId);
+    if (source) tasks.push(...source.receive());
+    for (const handler of identity)
+      tasks.push(async () => {
+        if (identity.has(handler)) return handler(event);
+      });
+    function ownedTask(owner: ContentOwner, task: SaveTask): SaveTask {
+      return async () => {
+        if (!content.has(owner)) return;
+        const result = await task();
+        return Array.isArray(result) ? result.map((task) => ownedTask(owner, task)) : result;
+      };
+    }
+    for (const owner of content) tasks.push(ownedTask(owner, () => owner.handler(event)));
+    const entry: PendingWriteSync = {
+      id: delivery.requestId,
+      event,
+      tasks,
+      running: null,
+      error: null,
+    };
+    void consume(sync.receive(entry)).catch((error) => recordWindowEventHandlerError(error, 'save-delivery'));
+  });
+  return registration;
 }
 
-async function synchronizeEntry(entry: PendingWriteSync): Promise<void> {
+async function consume(entry: PendingWriteSync): Promise<void> {
+  if (entry.running) return entry.running;
   const sync = useProjectSyncStore();
-  if (!syncExecutions.has(sync)) syncExecutions.set(sync, new Map());
-  const running = syncExecutions.get(sync)!.get(entry.id);
-  if (running) return running;
-  const operation = executeSync(entry)
-    .catch((error) => {
-      sync.markFailed(entry.id, errorDiagnosticOf(error));
+  entry.error = null;
+  // Only unfinished work remains in this list. A successful callback immediately relinquishes its position.
+  const window = consumers();
+  const operation = window.processing.then(async () => {
+    try {
+      while (entry.tasks.length) {
+        if (windows.get(sync) !== window) return;
+        const next = await entry.tasks[0]!();
+        entry.tasks.shift();
+        if (Array.isArray(next)) entry.tasks.unshift(...next);
+      }
+      if (windows.get(sync) !== window) return;
+      window.sources.delete(entry.id);
+      sync.complete(entry.id);
+    } catch (error) {
+      entry.error = errorDiagnosticOf(error);
       throw error;
-    })
-    .finally(() => syncExecutions.get(sync)!.delete(entry.id));
-  syncExecutions.get(sync)!.set(entry.id, operation);
+    } finally {
+      entry.running = null;
+    }
+  });
+  // A failed project retains its own task; the window remains available to the next project's event.
+  window.processing = operation.then(
+    () => undefined,
+    () => undefined,
+  );
+  entry.running = operation;
   return operation;
 }
 
-async function executeSync(entry: PendingWriteSync) {
+async function confirmMissingSources(window: SaveConsumers, delivery: Extract<import('@/shared/types').SaveDelivery, { kind: 'missing' }>) {
+  const choice = await window.feedback?.choose({
+    title: '确认重建缺失文件',
+    content: ['以下文件已缺失，将使用已读取的完整内容及本次保存修改重新创建：', ...delivery.paths].join('\n'),
+    choices: [{ label: '重新创建并保存', value: 'recreate', type: 'warning' }],
+  });
+  await resolveSaveSources(delivery.requestId, delivery.paths, choice === 'recreate');
+}
+
+export async function startProjectSync(feedback?: import('@/shared/types').AppFeedback) {
   const sync = useProjectSyncStore();
-  const current = useProjectStore().getManifest(entry.event.modRoot);
-  if (current && entry.event.sessionId && current.sessionId !== entry.event.sessionId) {
-    sync.complete(entry.id);
-    return;
-  }
-  entry.error = null;
-  if (!entry.historyAccepted) {
-    if (entry.event.sessionId) useFileHistoryStore().applySnapshot(entry.event.modRoot, entry.event.result.history);
-    entry.historyAccepted = true;
-  }
-  if (entry.step === 'projection') {
-    for (let index = 0; index < entry.event.result.sessionUpdates.length; index++) {
-      const update = entry.event.result.sessionUpdates[index]!;
-      if (update.status === 'pending') {
-        markProjectionPending(update.sessionId, update.commitId);
-        const restored = await synchronizeSessionCommit(update.sessionId, update.modRoot, update.commitId);
-        if (restored.status === 'pending')
-          throw new AppError(restored.error.message, {
-            action: 'synchronize-committed-write',
-            code: restored.error.code,
-            location: restored.error.location,
-          });
-        entry.event.result.sessionUpdates[index] = restored;
-      }
-    }
-    entry.step = 'acceptance';
-  }
-  if (!sync.pending.some((candidate) => candidate.id === entry.id)) return;
-  if (entry.step === 'acceptance') {
-    acceptCommittedWrite(entry.event);
-    await commitListeners.get(sync)?.deliver(entry.event);
-    entry.step = 'broadcast';
-  }
-  if (entry.event.result.changes.length > 0) await emitWindowEvent(WINDOW_EVENTS.committedWriteApplied, entry.event);
-  sync.complete(entry.id);
+  const window = consumers();
+  window.feedback = feedback;
+  await window.ready;
+  return () => {
+    windows.delete(sync);
+    const ended = new AppError('保存交接窗口已释放', { code: 'write.window_destroyed' });
+    for (const source of window.sources.values()) source.fail(ended);
+    window.sources.clear();
+    window.content.clear();
+    window.identity.clear();
+    sync.releaseWindow();
+    void unregisterSaveWindow().catch((error) => recordWindowEventHandlerError(error, 'save-release'));
+  };
 }
 
-export async function retryPendingSessionSyncs(sessionId: string) {
+export type SavedWriteOperation<T> = import('@/shared/runtime/command.runtime').SaveOperation<T>;
+
+export function beginSavedWrite<T>(
+  write: (request: import('@/shared/runtime/command.runtime').SaveCommandRequest) => Promise<T>,
+  accept: (value: Exclude<T, void | null>) => SaveTask[],
+): SavedWriteOperation<T> {
+  const id = crypto.randomUUID();
+  const window = consumers();
   const sync = useProjectSyncStore();
-  for (const entry of [...sync.pending]) {
-    if (entry.event.sessionId === sessionId || entry.event.result.sessionUpdates.some((update) => update.sessionId === sessionId))
-      await synchronizeEntry(entry);
-  }
-}
-
-export function retryPendingModSyncs(modRoot: string): Promise<void> | undefined {
-  const sync = useProjectSyncStore();
-  const entries = sync.pending.filter((entry) => entry.event.modRoot === modRoot);
-  if (entries.length === 0) return;
-  return (async () => {
-    for (const entry of entries) await synchronizeEntry(entry);
-  })();
-}
-
-interface CommitSubscriber {
-  handler: WindowEventHandler<CommittedWriteEvent>;
-  matches: (event: CommittedWriteEvent) => boolean;
-  phase: 'identity' | 'projection';
-  delivered: Set<string>;
-}
-interface ChangeSubscriber {
-  handler: (change: ProjectChange) => void;
-  delivered: Set<string>;
-}
-interface CommitListeners {
-  subscribers: Set<CommitSubscriber | ChangeSubscriber>;
-  registration: Promise<() => void>;
-  unlisten?: () => void;
-  deliver: (event: CommittedWriteEvent) => Promise<void>;
-  change: (change: ProjectChange) => Promise<void>;
-}
-const commitListeners = new WeakMap<ReturnType<typeof useProjectSyncStore>, CommitListeners>();
-
-export async function listenCommittedWrites(
-  handler: WindowEventHandler<CommittedWriteEvent>,
-  matches: (event: CommittedWriteEvent) => boolean = () => true,
-  phase: CommitSubscriber['phase'] = 'projection',
-) {
-  const subscription = registerSubscriber({ handler, matches, phase, delivered: new Set() });
-  await subscription.ready;
-  return subscription.stop;
-}
-
-export async function listenProjectChanges(handler: (change: ProjectChange) => void) {
-  const subscription = registerSubscriber({ handler, delivered: new Set() });
-  await subscription.ready;
-  return subscription.stop;
-}
-
-export function subscribeProjectChanges(handler: (change: ProjectChange) => void) {
-  const subscription = registerSubscriber({ handler, delivered: new Set() });
-  void subscription.ready.catch((error) => recordWindowEventHandlerError(error, 'project-change'));
-  return subscription.stop;
-}
-
-export function projectChangeSessionId(change: ProjectChange) {
-  return change.kind === 'closed' ? change.sessionId : change.projection.manifest.sessionId;
-}
-
-function registerSubscriber(subscriber: CommitSubscriber | ChangeSubscriber) {
-  const sync = useProjectSyncStore();
-  let listeners = commitListeners.get(sync);
-  if (!listeners) {
-    const subscribers = new Set<CommitSubscriber | ChangeSubscriber>();
-    const dispatches = new Map<string, Promise<void>>();
-    async function change(change: ProjectChange) {
-      const key =
-        change.kind === 'closed'
-          ? JSON.stringify(['closed', change.sessionId])
-          : JSON.stringify([change.kind, change.projection.manifest.sessionId, change.projection.projectionRevision]);
-      await deliverDisplay(() => {
-        if (change.kind !== 'closed') {
-          const { manifest } = change.projection;
-          const current = useProjectStore().getManifest(manifest.modRoot);
-          if (current && current.sessionId !== manifest.sessionId) return;
-        }
-        const failures: unknown[] = [];
-        for (const subscriber of subscribers) {
-          if (
-            'phase' in subscriber ||
-            subscriber.delivered.has(key) ||
-            subscriber.delivered.has(JSON.stringify(['closed', projectChangeSessionId(change)]))
-          )
-            continue;
-          try {
-            subscriber.handler(change);
-            subscriber.delivered.add(key);
-          } catch (error) {
-            failures.push(error);
-          }
-        }
-        if (failures.length) throw new AggregateError(failures, 'Project change delivery failed');
-      });
-    }
-    async function deliver(event: CommittedWriteEvent, key: string) {
-      const current = useProjectStore().getManifest(event.modRoot);
-      if (current && event.sessionId && current.sessionId !== event.sessionId) return;
-      const selected = [...subscribers].filter(
-        (subscriber): subscriber is CommitSubscriber =>
-          'phase' in subscriber &&
-          event.originWindowLabel !== currentWindowLabel() &&
-          subscriber.matches(event) &&
-          !subscriber.delivered.has(key),
-      );
-      acceptCommittedWrite(event);
-      const identities = selected
-        .filter((subscriber) => subscriber.phase === 'identity')
-        .map((subscriber) => {
-          const operation = Promise.resolve().then(() => {
-            if (subscribers.has(subscriber))
-              return deliverDisplay(() => (subscribers.has(subscriber) ? subscriber.handler(event) : undefined));
-          });
-          return operation.then(() => subscriber.delivered.add(key));
-        });
-      await Promise.all(identities);
-      const latest = useProjectStore().getManifest(event.modRoot);
-      if (latest && event.sessionId && latest.sessionId !== event.sessionId) return;
-      for (const subscriber of selected.filter((subscriber) => subscriber.phase === 'projection')) {
-        if (!subscribers.has(subscriber)) continue;
-        await deliverDisplay(() => (subscribers.has(subscriber) ? subscriber.handler(event) : undefined));
-        subscriber.delivered.add(key);
-      }
-      for (const update of event.result.sessionUpdates)
-        if (update.status === 'ready') await change({ kind: 'commit', projection: update.projection, event });
-    }
-    function dispatch(event: CommittedWriteEvent) {
-      const key = JSON.stringify([event.sessionId, event.modRoot, event.result.commitId]);
-      const running = dispatches.get(key);
-      if (running) return running;
-      const operation = deliver(event, key).finally(() => dispatches.delete(key));
-      dispatches.set(key, operation);
-      return operation;
-    }
-    const registration = Promise.allSettled([
-      listenWindowEvent<CommittedWriteEvent>(WINDOW_EVENTS.committedWriteApplied, dispatch, recordWindowEventHandlerError),
-      listenWindowEvent<ProjectSessionInvalidatedEvent & { originWindowLabel: string }>(
-        WINDOW_EVENTS.projectSourcesRefreshed,
-        async (event) => {
-          if (event.originWindowLabel === currentWindowLabel()) return;
-          await acceptProjectSourceRefresh(event);
-        },
-        recordWindowEventHandlerError,
-      ),
-    ]).then((results) => {
-      const stops = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
-      const stop = () => stops.forEach((stop) => stop());
-      const failure = results.find((result) => result.status === 'rejected');
-      if (failure) {
-        stop();
-        throw failure.reason;
-      }
-      listeners!.unlisten = stop;
-      return stop;
-    });
-    listeners = { subscribers, registration, deliver: dispatch, change };
-    commitListeners.set(sync, listeners);
-  }
-  listeners.subscribers.add(subscriber);
-  const registration = listeners;
-  return {
-    ready: registration.registration.catch((error) => {
-      registration.subscribers.delete(subscriber);
-      if (commitListeners.get(sync) === registration) commitListeners.delete(sync);
-      throw error;
-    }),
-    stop: () => {
-      registration.subscribers.delete(subscriber);
-      if (registration.subscribers.size === 0) {
-        if (commitListeners.get(sync) === registration) commitListeners.delete(sync);
-        if (registration.unlisten) registration.unlisten();
-        else
-          void registration.registration.then(
-            (stop) => stop(),
-            () => {},
-          );
-      }
+  let release!: (error: unknown) => void;
+  const released = new Promise<never>((_, reject) => {
+    release = reject;
+  });
+  window.sources.set(id, {
+    fail: release,
+    receive: () => [
+      async () => {
+        const value = await written;
+        return value ? accept(value as Exclude<T, void | null>) : [];
+      },
+    ],
+  });
+  const written = window.ready.then(() => {
+    if (windows.get(sync) !== window) throw new AppError('保存交接窗口已释放', { code: 'write.window_destroyed' });
+    return write({ id });
+  });
+  const result = Promise.race([written, released]);
+  void result.then(
+    (value) => {
+      if (!value) window.sources.delete(id);
     },
+    () => {
+      window.sources.delete(id);
+    },
+  );
+  return { id, result };
+}
+
+export async function settleProjectSaves(scope: CloseScope, feedback?: import('@/shared/types').AppFeedback) {
+  const roots =
+    scope.kind === 'window'
+      ? [managedWindowContext.value?.identity.modRoot].filter((root): root is string => !!root)
+      : [...useProjectStore().manifests.values()]
+          .filter((manifest) => scope.kind === 'application' || scope.sessionIds.includes(manifest.sessionId))
+          .map((manifest) => manifest.modRoot);
+  if (!roots.length) return;
+  try {
+    await waitProjectSaves(roots);
+  } catch (error) {
+    if (!feedback) throw error;
+    const pending = useProjectSyncStore().blocked.filter((work) =>
+      roots.some((root) => normalizeRelPath(root).toLowerCase() === normalizeRelPath(work.modRoot).toLowerCase()),
+    );
+    const choice = await feedback.choose({
+      title: '保存恢复尚未完成',
+      content: ['以下保存步骤尚未恢复，放弃后将保留磁盘当前内容：', ...pending.map((work) => work.diagnostic.message)].join('\n'),
+      choices: [{ label: '放弃恢复并继续关闭', value: 'abandon', type: 'warning' }],
+    });
+    if (choice !== 'abandon') throw error;
+    await abandonProjectSaves(roots);
+    await waitProjectSaves(roots);
+  }
+}
+
+export function observeSavedContent(handler: SaveHandler, release?: ContentOwner['release']) {
+  const window = consumers();
+  const owner = { handler, release };
+  window.content.add(owner);
+  void window.ready.catch((error) => recordWindowEventHandlerError(error, 'save-registration'));
+  return () => {
+    window.content.delete(owner);
+  };
+}
+
+export async function listenSavedContent(handler: SaveHandler, release?: ContentOwner['release']) {
+  const stop = observeSavedContent(handler, release);
+  await consumers().ready;
+  return stop;
+}
+
+export async function listenSavedIdentity(handler: SaveHandler) {
+  const window = consumers();
+  const receive: SaveHandler = (event) => {
+    if (
+      event.sessionId &&
+      event.result.identityChanges.some(
+        (change) => change.before.id !== change.after.id || change.before.write.path !== change.after.write.path,
+      )
+    )
+      return handler(event);
+  };
+  window.identity.add(receive);
+  await window.ready;
+  return () => {
+    window.identity.delete(receive);
   };
 }
 
 export function releaseProjectSession(sessionId: string) {
-  const listeners = commitListeners.get(useProjectSyncStore());
-  if (!listeners) return;
-  for (const subscriber of listeners.subscribers)
-    if (!('phase' in subscriber)) {
-      subscriber.handler({ kind: 'closed', sessionId });
-      subscriber.delivered.add(JSON.stringify(['closed', sessionId]));
+  const window = windows.get(useProjectSyncStore());
+  const errors: unknown[] = [];
+  for (const owner of window?.content ?? []) {
+    try {
+      owner.release?.(sessionId);
+    } catch (error) {
+      errors.push(error);
     }
+  }
+  if (errors.length) throw new AggregateError(errors, 'Project content release failed');
 }
 
-export interface SavedWriteCompletion {
-  label: string;
-  modRoot: string;
-  result: WriteResult<unknown>;
-  sessionId: string;
+export function retryPendingSessionSyncs(sessionId: string) {
+  return retryRequests(useProjectSyncStore().blocked.filter((work) => work.sessionId === sessionId || work.sessionIds.includes(sessionId)));
 }
-export async function completeSavedWrite(completion: SavedWriteCompletion): Promise<void> {
-  try {
-    await publishCommittedWrite(completion.modRoot, completion.result, completion.sessionId);
-  } catch (error) {
-    recordLogBestEffort({
-      level: 'warning',
-      code: 'write.sync_pending',
-      message: errorMessageOf(error),
-      path: completion.modRoot,
-      line: null,
-      fields: { sessionId: completion.sessionId },
-    });
-    throw withCause('已写盘，项目同步失败', error, 'sync-saved-write');
+
+export function retryPendingWrites() {
+  return retryRequests(useProjectSyncStore().blocked);
+}
+
+async function retryRequests(requests: ReadonlyArray<{ requestId: string; modRoot: string }>): Promise<void> {
+  const sync = useProjectSyncStore();
+  for (const work of requests) {
+    const content = sync.pending.find((entry) => entry.id === work.requestId);
+    if (content) await consume(content);
+    else {
+      await retryProjectSave(work.requestId);
+      await waitProjectSaves([work.modRoot]);
+    }
   }
 }
 
-export function invalidateProjectionCaches(event: ProjectSessionInvalidatedEvent) {
-  const sync = useProjectSyncStore();
-  if (sync.wereProjectionCachesInvalidated(event.manifest.sessionId, event.projectionRevision)) return;
-  invalidateResourceMediaByProject(event.manifest.sessionId, event.invalidation);
-  invalidateQueryCacheByProject(event.manifest.sessionId, event.invalidation);
-  sync.markProjectionCachesInvalidated(event.manifest.sessionId, event.projectionRevision);
+function acceptProjection(projection: ProjectSessionInvalidationResult) {
+  useProjectStore().replaceProjectManifest(projection.manifest);
+  invalidateResourceMediaByProject(projection.manifest.sessionId, projection.invalidation);
+  invalidateQueryCacheByProject(projection.manifest.sessionId, projection.invalidation);
 }
 
 export async function refreshProjectSourcePaths(
@@ -364,48 +360,9 @@ export async function refreshProjectSourcePaths(
             .at(-1)!,
         },
   );
-  let active = true;
-  const stop = subscribeQueryInvalidations((event) => {
-    if (event.sessionId === sessionId && event.scope === 'session') active = false;
-  });
-  try {
-    const result = await refreshProjectSources(sessionId, [
-      ...new Map([...sources, ...resources].map((source) => [JSON.stringify(source), source])).values(),
-    ]);
-    if (!active) return;
-    await acceptProjectSourceRefresh(result);
-    await emitWindowEvent(WINDOW_EVENTS.projectSourcesRefreshed, { ...result, originWindowLabel: currentWindowLabel() });
-  } catch (error) {
-    if (active) throw error;
-  } finally {
-    stop();
-  }
-}
-function acceptProjectSessionProjection(event: ProjectSessionInvalidatedEvent) {
-  const project = useProjectStore();
-  const previous = project.getManifest(event.manifest.modRoot);
-  if (previous && previous.sessionId !== event.manifest.sessionId) return;
-  project.replaceProjectManifest(event.manifest, event.projectionRevision);
-  invalidateProjectionCaches(event);
-}
-
-async function acceptProjectSourceRefresh(projection: ProjectSessionInvalidatedEvent) {
-  acceptProjectSessionProjection(projection);
-  await commitListeners.get(useProjectSyncStore())?.change({ kind: 'refresh', projection });
-}
-
-export function listenEntityIdentityApplied(handler: WindowEventHandler<EntityIdentityAppliedEvent>) {
-  return listenCommittedWrites(
-    async (event) => {
-      if (
-        event.sessionId &&
-        event.result.identityChanges.some(
-          (change) => change.before.id !== change.after.id || change.before.write.path !== change.after.write.path,
-        )
-      )
-        await handler({ sessionId: event.sessionId, modRoot: event.modRoot, result: event.result });
-    },
-    () => true,
-    'identity',
-  );
+  await consumers().ready;
+  const result = await refreshProjectSources(sessionId, [
+    ...new Map([...sources, ...resources].map((source) => [JSON.stringify(source), source])).values(),
+  ]);
+  void result;
 }

@@ -14,7 +14,7 @@ export interface JsonRecoveryPlan {
   currentSources: Record<string, JsonValue>;
   resourceRefs: Record<string, import('./project-identity.types').ResourceRef>;
 }
-export interface RecreateJsonSourcesPayload {
+export interface JsonSourceRestore {
   sessionId: string;
   modRoot: string;
   plan: JsonRecoveryPlan;

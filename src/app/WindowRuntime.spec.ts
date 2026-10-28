@@ -21,7 +21,7 @@ vi.mock('./app-feedback-assembly', async (original) => {
   const module = await original<typeof import('./app-feedback-assembly')>();
   return { ...module, createWindowFeedback: vi.fn(module.createWindowFeedback) };
 });
-vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({ listenEditTargetHandoff: mocks.listen }));
+vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ startProjectSync: mocks.listen, pauseProjectDisplay: vi.fn() }));
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: mocks.register }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 vi.mock('@/app/composables/use-core-assets', () => ({ useCoreAssetsLifecycle: vi.fn() }));
@@ -137,7 +137,7 @@ describe('window-owned feedback', () => {
     expect(createWindowFeedback).toHaveBeenCalledOnce();
     expect(consumers).toHaveLength(2);
     expect(consumers[0]).toBe(consumers[1]);
-    expect(mocks.listen).toHaveBeenCalledExactlyOnceWith(consumers[0]);
+    expect(mocks.listen).toHaveBeenCalledOnce();
     expect(mocks.register).toHaveBeenCalledWith([]);
   });
   it('keeps the instance and its feedback after replacing the source page', async () => {

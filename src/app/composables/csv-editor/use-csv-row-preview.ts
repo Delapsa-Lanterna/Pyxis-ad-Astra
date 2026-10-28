@@ -1,4 +1,4 @@
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { hasTableInvalidation } from '@/services/csv-table.service';
 import { computed, ref, watch, onScopeDispose } from 'vue';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -14,14 +14,17 @@ export function useCsvRowPreview(options: {
   const reads = useQueryReadOwner();
   const feedback = useAppFeedback();
   const key = computed(() => JSON.stringify(options.target()));
-  async function load() {
+  async function load(required = false) {
     const target = options.target();
     if (!target) return;
     await reads.consume('preview', target, (signal) => options.query(target, signal), {
       ready: (value) => {
         src.value = value;
       },
-      error: (error) => feedback.error(error, '加载行预览失败'),
+      error: (error) => {
+        feedback.error(error, '加载行预览失败');
+        if (required) throw error;
+      },
     });
   }
   watch(
@@ -33,20 +36,22 @@ export function useCsvRowPreview(options: {
     },
     { immediate: true },
   );
-  const stopQuery = subscribeProjectChanges((event) => {
-    if (projectChangeSessionId(event) !== options.target()?.sessionId) return;
-    if (event.kind === 'closed') {
-      reads.revoke();
-      return;
-    }
-    if (
-      hasTableInvalidation(event.projection.invalidation, 'csv-row-preview', options.target()!.table) ||
-      event.projection.invalidation.resources.length > 0
-    )
-      reads.schedule('preview', () => {
-        void load();
-      });
-  });
+  const stopQuery = observeSavedContent(
+    (event) => {
+      const projection = saveProjection(event, options.target()?.sessionId);
+      if (!projection) return;
+      if (projection.manifest.sessionId !== options.target()?.sessionId) return;
+
+      if (
+        hasTableInvalidation(projection.invalidation, 'csv-row-preview', options.target()!.table) ||
+        projection.invalidation.resources.length > 0
+      )
+        return load(true);
+    },
+    (sessionId) => {
+      if (sessionId === options.target()?.sessionId) reads.revoke('session');
+    },
+  );
   onScopeDispose(() => {
     stopQuery();
   });

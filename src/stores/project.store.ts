@@ -6,7 +6,6 @@ import { joinRootRelativePath } from '@/shared/lib/paths';
 
 export const useProjectStore = defineStore('project', () => {
   const manifests = ref<Map<string, ProjectManifest>>(new Map());
-  const projectionRevisions = new Map<string, number>();
   const tableWriteTargets = computed(() =>
     [...manifests.value.values()].flatMap((manifest) =>
       TABLE_KEYS.map((table) => ({
@@ -27,22 +26,15 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   function removeProjectManifest(modRoot: string) {
-    const sessionId = manifests.value.get(modRoot)?.sessionId;
-    if (sessionId) {
-      projectionRevisions.delete(sessionId);
-    }
     manifests.value.delete(modRoot);
   }
 
   function registerProjectManifest(manifest: ProjectManifest) {
-    projectionRevisions.set(manifest.sessionId, 0);
     manifests.value.set(manifest.modRoot, manifest);
   }
 
-  function replaceProjectManifest(manifest: ProjectManifest, projectionRevision: number) {
+  function replaceProjectManifest(manifest: ProjectManifest) {
     if (manifests.value.get(manifest.modRoot)?.sessionId !== manifest.sessionId) return;
-    if (projectionRevision <= (projectionRevisions.get(manifest.sessionId) ?? 0)) return;
-    projectionRevisions.set(manifest.sessionId, projectionRevision);
     manifests.value.set(manifest.modRoot, manifest);
   }
 

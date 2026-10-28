@@ -11,9 +11,9 @@ pub struct EditableFileData {
     pub base_versions: Vec<FileVersion>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SaveTextFilePayload {
+pub struct TextSave {
     pub base_versions: Vec<crate::models::FileVersion>,
     #[serde(deserialize_with = "required_nullable")]
     pub session_id: Option<ProjectSessionId>,
@@ -22,9 +22,9 @@ pub struct SaveTextFilePayload {
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TranscodeFilePayload {
+pub struct TextTranscode {
     pub base_versions: Vec<crate::models::FileVersion>,
     #[serde(deserialize_with = "required_nullable")]
     pub session_id: Option<ProjectSessionId>,
@@ -59,9 +59,9 @@ pub struct FollowTextIdentityPayload {
 }
 
 super::project_identity::impl_session_mod_scope_optional!(
-    SaveTextFilePayload,
+    TextSave,
     LoadEditableFilePayload,
-    TranscodeFilePayload
+    TextTranscode
 );
 
 #[cfg(test)]
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn save_text_file_payload_requires_mod_root() {
-        let result = serde_json::from_value::<SaveTextFilePayload>(json!({
+        let result = serde_json::from_value::<TextSave>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "path": "D:/mods/demo/mod_info.json",
@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn save_text_file_payload_requires_session_id() {
-        let result = serde_json::from_value::<SaveTextFilePayload>(json!({
+        let result = serde_json::from_value::<TextSave>(json!({
             "modRoot": "D:/mods/demo",
             "path": "D:/mods/demo/mod_info.json",
             "text": "{}"
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn save_text_file_payload_accepts_explicit_null_session_id() {
-        let payload = serde_json::from_value::<SaveTextFilePayload>(json!({
+        let payload = serde_json::from_value::<TextSave>(json!({
             "baseVersions": [],
             "sessionId": null,
             "modRoot": "D:/mods/demo",

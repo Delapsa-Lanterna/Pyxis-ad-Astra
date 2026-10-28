@@ -5,8 +5,6 @@ import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvide
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import { createWindowFeedback } from './app-feedback-assembly';
 import type { ManagedWindowContext, WriteResult } from '@/shared/types';
-import { retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
-import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
@@ -18,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(async () => {}),
   transcode: vi.fn(),
   emit: vi.fn(async () => {}),
+  sync: vi.fn(),
   context: { value: null as ManagedWindowContext | null },
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
@@ -29,11 +28,13 @@ vi.mock('@/services/files.service', () => ({ transcodeFileToUtf8: mocks.transcod
 let wrapper: VueWrapper | null = null;
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.sync.mockReset();
+  mocks.sync.mockResolvedValue(undefined);
   mocks.context.value = null;
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
   const update = sessionUpdateFixture('s1', 'M:/mod');
-  if (update.status === 'ready') useProjectStore().registerProjectManifest(update.projection.manifest);
+  useProjectStore().registerProjectManifest(update.projection.manifest);
 });
 afterEach(() => {
   wrapper?.unmount();
@@ -191,7 +192,7 @@ describe('window recovery completion', () => {
     feedback.error({ code: 'parse.json', message: 'Invalid', location: { path: 'M:/mod/demo.skin', line: 1, column: 2 } });
     useProjectStore().removeProjectManifest('M:/mod');
     const next = sessionUpdateFixture('s2', 'M:/mod');
-    if (next.status === 'ready') useProjectStore().registerProjectManifest(next.projection.manifest);
+    useProjectStore().registerProjectManifest(next.projection.manifest);
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
     await wrapper.get('button').trigger('click');
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1' }));
@@ -238,27 +239,31 @@ describe('window recovery completion', () => {
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
     expect(wrapper.text()).toContain('转码为 UTF-8 失败');
   });
-  it('reports written bytes separately from pending synchronization and retries the original commit', async () => {
+  it('reports unfinished native completion and resumes the original save', async () => {
     const { dialogs, messages } = showEncodingError();
-    mocks.transcode.mockResolvedValueOnce(receipt());
-    mocks.emit.mockRejectedValueOnce(new Error('broadcast failed'));
+    mocks.transcode.mockImplementationOnce(async () => {
+      await mocks.sync();
+      return receipt();
+    });
+    mocks.sync.mockRejectedValueOnce(new Error('window update failed'));
     await startTranscode(dialogs);
     expect(messages.error).toHaveBeenCalledTimes(2);
     expect(messages.success).not.toHaveBeenCalled();
-    expect(useProjectSyncStore().pending).toHaveLength(1);
     wrapper!.unmount();
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
-    expect(wrapper.text()).toContain('已转码为 UTF-8，项目同步失败');
-    await retryPendingModSyncs('M:/mod');
-    expect(useProjectSyncStore().pending).toHaveLength(0);
+    expect(wrapper.text()).toContain('转码为 UTF-8 失败');
+    await expect(mocks.sync()).resolves.toBeUndefined();
     expect(mocks.transcode).toHaveBeenCalledTimes(1);
-    expect(mocks.emit).toHaveBeenCalledTimes(2);
+    expect(mocks.sync).toHaveBeenCalledTimes(2);
   });
   it('waits for synchronization before success and completes after the source view is removed', async () => {
     const { dialogs, messages } = showEncodingError();
     let complete!: () => void;
-    mocks.transcode.mockResolvedValueOnce(receipt());
-    mocks.emit.mockImplementationOnce(
+    mocks.transcode.mockImplementationOnce(async () => {
+      await mocks.sync();
+      return receipt();
+    });
+    mocks.sync.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           complete = resolve;

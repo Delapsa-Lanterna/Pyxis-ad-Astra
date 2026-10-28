@@ -61,6 +61,43 @@ pub fn query_misc_config_file(
         base_versions: vec![version],
     }))
 }
+
+pub fn prepare_misc_save(
+    input: &mut MiscConfigWrite,
+    edits: &[crate::models::SaveEdit],
+) -> AppResult<()> {
+    let MiscConfigWrite {
+        mod_root,
+        kind,
+        data,
+        base_versions: versions,
+        ordered_json: ordered,
+        ..
+    } = input;
+    if let Some(current) = query_misc_config_file(mod_root, *kind)? {
+        *data = current.data;
+        *versions = current.base_versions;
+        crate::domain::save_edits::apply_save_edits(data, edits);
+        *ordered = serde_json::to_string(data)?;
+    }
+    Ok(())
+}
+
+pub fn write_misc_request(
+    payload: crate::models::MiscConfigWrite,
+) -> Result<WriteResult<Value>, AppError> {
+    let root = crate::services::project::current_projection(&payload.session_id)?
+        .manifest
+        .starsector_root;
+    let root = root
+        .as_deref()
+        .filter(|root| Path::new(root).join("starsector-core").is_dir())
+        .map(crate::services::project::core_dir)
+        .transpose()?;
+    let result = crate::services::misc_config::save_misc_config(payload, root.as_deref())?;
+    Ok(result)
+}
+
 fn target_path(mod_root: &str, kind: MiscConfigKind) -> AppResult<PathBuf> {
     FsRootBoundary::new(Path::new(mod_root), "misc config root")?
         .resolve_relative_target(misc_config_path(kind), "misc config file")

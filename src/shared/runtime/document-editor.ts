@@ -11,7 +11,6 @@ export interface DocumentEditorActions<TTarget extends { sessionId: string; modR
   inputs: FieldInputs;
   dirty: Readonly<Ref<boolean>>;
   saving: Readonly<Ref<boolean>>;
-  pendingSynchronization: Readonly<Ref<boolean>>;
   canUndo: Readonly<Ref<boolean>>;
   canRedo: Readonly<Ref<boolean>>;
   undo: () => Promise<DraftHistoryResult>;

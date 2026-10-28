@@ -9,7 +9,7 @@
     :saving="saving"
     :loading="loading"
     :error="errorText"
-    :ready="ready"
+    :ready="ready && !fileWaiting"
     :locked="handoffLocked"
     :external-notice="externalUpdateNotice"
     :can-undo="history.canUndo.value"
@@ -44,7 +44,7 @@
           :can-undo="history.canUndo.value"
           :can-redo="history.canRedo.value"
           :saving="saving"
-          :ready="ready && !vm.variantActionPending.value"
+          :ready="ready && !fileWaiting && !vm.variantActionPending.value"
           @undo="vm.undo"
           @redo="vm.redo"
           @save="vm.save"
@@ -59,6 +59,7 @@
 </template>
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { computed, onMounted, onUnmounted } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
 import { useWindowContext } from '@/windows/window-context.window';
@@ -96,6 +97,7 @@ const label = vm.label;
 const render = editableRenderContext(vm);
 const { joint, panel, errorText, history } = vm;
 const { saving, loading, ready, handoffLocked, externalUpdateNotice } = joint;
+const fileWaiting = computed(() => useProjectSyncStore().isWaiting(modRoot));
 const dirty = computed(() => joint.dirty.value || vm.variantActionPending.value);
 useInputEditMode(joint.inputs);
 const closeGuard = useDirtyWindowCloseGuard({

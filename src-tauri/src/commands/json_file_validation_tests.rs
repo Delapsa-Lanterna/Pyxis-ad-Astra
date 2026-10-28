@@ -3,7 +3,7 @@ use serde_json::json;
 #[test]
 fn skin_engine_index_save() {
     use crate::{
-        models::{EntityKind, JsonEntityFilePayload},
+        models::{EntityKind, JsonFileSave},
         services,
         testutil::temp_dir,
     };
@@ -28,7 +28,7 @@ fn skin_engine_index_save() {
     let target =
         services::query_entity_edit_target(&manifest.session_id, EntityKind::Skin, "sample")
             .unwrap();
-    let write = |index: &str| JsonEntityFilePayload {
+    let write = |index: &str| JsonFileSave {
         session_id: manifest.session_id.clone(),
         mod_root: manifest.mod_root.clone(),
         base_versions: target.base_versions.clone(),
@@ -40,14 +40,19 @@ fn skin_engine_index_save() {
         data: json!({"skinHullId":"sample","baseHullId":"middle","removeEngineSlots":[0],"engineSlotChanges":{index:{"width":2.5}}}),
     };
     assert_eq!(
-        crate::commands::create_skin_entity(write("1"))
-            .unwrap_err()
-            .code(),
+        crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::CreateSkinEntity(write("1"))
+        )
+        .unwrap_err()
+        .code(),
         "config.shape_invalid"
     );
     let path = root.join("data/hulls/skins/sample.skin");
     assert!(!path.exists());
-    crate::commands::create_skin_entity(write("0")).unwrap();
+    crate::services::write_transactions::commit_action(
+        crate::models::SaveAction::CreateSkinEntity(write("0")),
+    )
+    .unwrap();
     assert!(path.exists());
     let saved = services::query_entity(&manifest.session_id, EntityKind::Skin, "sample")
         .unwrap()

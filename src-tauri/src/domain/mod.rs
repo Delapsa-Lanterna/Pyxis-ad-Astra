@@ -8,6 +8,7 @@ pub mod joint_hull;
 pub mod json_documents;
 pub mod misc_config;
 pub mod mod_creation;
+pub mod save_edits;
 pub mod schema;
 pub mod spec_construction;
 pub mod well_known_labels;

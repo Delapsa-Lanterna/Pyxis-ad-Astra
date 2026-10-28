@@ -1,21 +1,65 @@
 use crate::{
     errors::AppError,
-    models::{
-        CommittedSessionUpdate, InvalidateProjectSessionPayload, ProjectSessionInvalidationResult,
-        RefreshProjectSourcesPayload, SynchronizeCommittedWritePayload,
-    },
+    models::{InvalidateProjectSessionPayload, ProjectSessionInvalidationResult},
     services,
 };
 
+#[command_macros::command]
+pub async fn save_project(
+    window: tauri::WebviewWindow,
+    request: crate::models::SaveRequest,
+) -> Result<crate::models::WriteResult<serde_json::Value>, AppError> {
+    services::write_transactions::submit(window.label().to_owned(), request).await
+}
+
+#[command_macros::command]
+pub fn register_save_window(
+    window: tauri::WebviewWindow,
+    channel: tauri::ipc::Channel<crate::models::SaveDelivery>,
+) -> Result<(), AppError> {
+    let root = if window.label() == "main" {
+        None
+    } else {
+        services::windows::current_window_context(window.label())?
+            .identity
+            .mod_root()
+            .map(str::to_string)
+    };
+    services::project_sync::register(window.label(), root, channel)
+}
+
+#[command_macros::command]
+pub fn unregister_save_window(window: tauri::WebviewWindow) -> Result<(), AppError> {
+    services::project_sync::release_window(window.label())
+}
+
+#[command_macros::command]
+pub fn resolve_save_sources(
+    window: tauri::WebviewWindow,
+    request_id: String,
+    paths: Vec<String>,
+    accepted: bool,
+) -> Result<(), AppError> {
+    services::project_sync::resolve_sources(window.label(), &request_id, &paths, accepted)
+}
+
+#[command_macros::command]
+pub fn abandon_project_saves(mod_roots: Vec<String>) -> Result<(), AppError> {
+    services::project_sync::abandon(&mod_roots)
+}
+
+#[command_macros::command]
+pub fn retry_project_save(request_id: String) -> Result<(), AppError> {
+    services::project_sync::retry(&request_id)
+}
+
 #[command_macros::command(async)]
-pub fn synchronize_committed_write(
-    payload: SynchronizeCommittedWritePayload,
-) -> Result<CommittedSessionUpdate, AppError> {
-    services::write_transactions::synchronize_committed_write(
-        &payload.session_id,
-        &payload.mod_root,
-        payload.commit_id,
-    )
+pub async fn wait_project_saves(
+    mod_roots: Vec<String>,
+) -> Result<(), crate::errors::ErrorDiagnostic> {
+    tauri::async_runtime::spawn_blocking(move || services::project_sync::wait_projects(&mod_roots))
+        .await
+        .map_err(|error| AppError::message("write.queue_wait", error.to_string()).diagnostic())?
 }
 
 #[command_macros::command(async)]
@@ -23,11 +67,4 @@ pub fn invalidate_project_session(
     payload: InvalidateProjectSessionPayload,
 ) -> Result<ProjectSessionInvalidationResult, AppError> {
     services::project::invalidate_project_session(&payload.session_id, payload.changes)
-}
-
-#[command_macros::command(async)]
-pub fn refresh_project_sources(
-    payload: RefreshProjectSourcesPayload,
-) -> Result<ProjectSessionInvalidationResult, AppError> {
-    services::project::refresh_project_sources(&payload.session_id, payload.sources)
 }

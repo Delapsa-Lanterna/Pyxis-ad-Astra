@@ -9,7 +9,7 @@ import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { useJsonDocumentSession, type JsonDocumentSession } from './use-json-document-session';
 import { useJsonListSelection } from './use-json-list-selection';
-import { jsonDocumentCapabilities } from './json-document-capabilities';
+import { createJsonDocument, deleteJsonDocument } from './json-document-capabilities';
 import { useJsonEditorStore, type JsonDocumentState } from '@/stores/json-editor.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -24,7 +24,7 @@ import {
 import { querySessionEntity, querySessionEntityList, hasEntityInvalidation } from '@/services/entity-query.service';
 import { queryHullReferenceOptions, querySessionHullReferences } from '@/services/hull-reference.service';
 
-import { refreshProjectSourcePaths, subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { focusExistingEntityWindow } from '@/orchestrators/window-target-focus.orchestrator';
 import { warningNotice } from '@/shared/lib/errors';
 import { startPerformance } from '@/shared/runtime/performance';
@@ -37,7 +37,6 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   const workspace = useWorkspaceStore();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
-  const capabilities = jsonDocumentCapabilities(definition, feedback);
   const { kind } = definition;
   const { modRoot, sessionId, active } = context;
   const formal = shallowRef<Array<{ record: JsonDocumentRecord; document: JsonDocumentState | null }>>([]);
@@ -150,7 +149,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     await selection.select(location.id);
     if (workspace.entityLocation === location && selectedId.value === location.id) workspace.entityLocation = null;
   });
-  async function load() {
+  async function load(required = false) {
     listLoadStartedAt.value = startPerformance();
     if (kind === 'misc-config') {
       const scope = { sessionId: sessionId.value!, modRoot: modRoot.value! };
@@ -163,6 +162,8 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
           listFailed.value = true;
           fileError.value = error;
           feedback.error(error, '读取杂项配置目录失败');
+
+          if (required) throw error;
         },
       });
       if (!accepted) return false;
@@ -192,6 +193,8 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
           error: (error) => {
             listFailed.value = true;
             feedback.error(error, '加载' + definition.label + '失败');
+
+            if (required) throw error;
           },
         },
       );
@@ -207,7 +210,10 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
         ready: (names) => {
           hullNames.value = names.hullNames;
         },
-        error: (error) => feedback.error(error, '读取船体名称失败'),
+        error: (error) => {
+          feedback.error(error, '读取船体名称失败');
+          if (required) throw error;
+        },
       });
     }
     return true;
@@ -274,7 +280,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       modRoot: target.modRoot,
       changesTarget: true,
       label: definition.label + ' "' + id + '" 已创建',
-      write: () => capabilities.create(target, id, companion),
+      write: (request) => createJsonDocument(definition, target, id, companion, request),
       accept: async () => {
         if (!(await load())) return false;
         selectedId.value = id;
@@ -294,7 +300,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       modRoot: record.target.modRoot,
       changesTarget: selectedId.value === record.target.id,
       label: definition.label + ' "' + record.target.id + '" 已删除',
-      write: () => capabilities.remove(record.target, record.baseVersions, deleteSource),
+      write: (request) => deleteJsonDocument(record.target, record.baseVersions, deleteSource, request),
       accept: async () => {
         if (current.value?.target.value?.id === record.target.id) {
           current.value.setActive(false);
@@ -375,18 +381,18 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     },
   );
   onScopeDispose(
-    subscribeProjectChanges((event) => {
+    observeSavedContent((event) => {
+      if (selection.isOwnSave(event.result.requestId)) return;
+      const projection = saveProjection(event, sessionId.value);
+      if (!projection) return;
       if (
-        projectChangeSessionId(event) === sessionId.value &&
-        event.kind !== 'closed' &&
+        projection.manifest.sessionId === sessionId.value &&
         (kind === 'mod-info' ||
           (kind === 'misc-config'
-            ? hasMiscConfigInvalidation(event.projection.invalidation, modRoot.value!)
-            : hasEntityInvalidation(event.projection.invalidation, 'entity-list', kind)))
+            ? hasMiscConfigInvalidation(projection.invalidation, modRoot.value!)
+            : hasEntityInvalidation(projection.invalidation, 'entity-list', kind)))
       )
-        reads.schedule('list', () => {
-          void load();
-        });
+        return load(true);
     }),
   );
   onScopeDispose(() => {

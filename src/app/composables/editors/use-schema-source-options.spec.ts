@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/orchestrators/project-sync.orchestrator', () => import('@/test/unit/project-changes'));
 import { useSchemaSourceOptions } from './use-schema-source-options';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 

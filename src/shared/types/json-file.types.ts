@@ -1,6 +1,6 @@
 import type { JsonValue, RowData } from '@/shared/types/json.types';
 
-export interface JsonEntityFilePayload {
+export interface JsonFileSave {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
@@ -12,7 +12,7 @@ export interface JsonEntityFilePayload {
   orderedJson?: string | null;
 }
 
-export interface DeleteJsonEntityFilePayload {
+export interface JsonFileDelete {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;

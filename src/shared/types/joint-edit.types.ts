@@ -143,17 +143,3 @@ export interface SaveJointEditPayload {
 export type JointEditWriteResult = Omit<WriteResult, 'content'> & {
   content: import('./write-commit.types').WriteContent<JointEditSnapshot>;
 };
-
-export interface EditHandoffRequest {
-  requestId: string;
-  ownerLabel: string;
-  receiverLabel: string;
-  targets: EditWriteTarget[];
-}
-export type EditHandoffReply = EditHandoffRequest &
-  (
-    | { status: 'ready'; receipts: WriteResult<unknown>[] }
-    | { status: 'cancelled' }
-    | { status: 'failed'; diagnostic: import('./error.types').ErrorDiagnostic }
-  );
-export type EditHandoffRelease = Pick<EditHandoffRequest, 'requestId' | 'ownerLabel' | 'receiverLabel'>;

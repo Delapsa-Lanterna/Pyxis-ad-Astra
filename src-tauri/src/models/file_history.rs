@@ -18,9 +18,9 @@ pub struct FileHistorySnapshot {
     pub redo_stack: Vec<FileHistoryEntrySummary>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ApplyFileChangeSetPayload {
+pub struct FileReplay {
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub direction: FileChangeReplayDirection,
@@ -35,7 +35,7 @@ pub struct FileHistoryPayload {
     pub mod_root: String,
 }
 
-super::project_identity::impl_session_mod_scope_required!(ApplyFileChangeSetPayload);
+super::project_identity::impl_session_mod_scope_required!(FileReplay);
 
 #[cfg(test)]
 mod tests {
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn apply_file_change_set_payload_requires_mod_root() {
-        let result = serde_json::from_value::<ApplyFileChangeSetPayload>(json!({
+        let result = serde_json::from_value::<FileReplay>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "direction": "undo",
@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn apply_file_change_set_payload_requires_session_id() {
-        let result = serde_json::from_value::<ApplyFileChangeSetPayload>(json!({
+        let result = serde_json::from_value::<FileReplay>(json!({
             "modRoot": "D:/mods/demo",
             "direction": "undo",
             "changes": []
@@ -75,13 +75,13 @@ mod tests {
     #[test]
     fn replay_requests_require_entry_and_revision_instead_of_client_changes() {
         let value = json!({"sessionId":"session","modRoot":"M:/mod","direction":"undo","entryId":4,"revision":2});
-        let payload: ApplyFileChangeSetPayload = serde_json::from_value(value.clone()).unwrap();
+        let payload: FileReplay = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(payload.entry_id, 4);
         assert_eq!(payload.revision, 2);
         for field in ["entryId", "revision"] {
             let mut missing = value.clone();
             missing.as_object_mut().unwrap().remove(field);
-            assert!(serde_json::from_value::<ApplyFileChangeSetPayload>(missing).is_err());
+            assert!(serde_json::from_value::<FileReplay>(missing).is_err());
         }
     }
 }

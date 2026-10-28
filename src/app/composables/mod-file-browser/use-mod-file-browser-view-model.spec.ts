@@ -1,4 +1,4 @@
-import { subscribeProjectChangesFixture, committedChangeFixture } from '@/test/unit/project-changes';
+import { observeSavedContentFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -11,7 +11,7 @@ import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
 
 import type { ModDirectory, ModFileEntry } from '@/shared/types/mod-file-browser.types';
-import type { ProjectChange } from '@/shared/types';
+import type { CommittedWriteEvent } from '@/shared/types';
 const mocks = vi.hoisted(() => ({
   directory: vi.fn(),
   search: vi.fn(),
@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   error: vi.fn(),
   listen: vi.fn(),
-  handler: null as null | ((event: ProjectChange) => void),
+  handler: null as null | ((event: CommittedWriteEvent) => import('@/stores/project-sync.store').SaveTask[] | undefined),
 }));
 vi.mock('@/services/mod-file-browser.service', () => ({
   queryModDirectory: mocks.directory,
@@ -30,7 +30,7 @@ vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.ope
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
-  listenProjectChanges: mocks.listen,
+  listenSavedContent: mocks.listen,
 }));
 const frames = new Map<number, FrameRequestCallback>();
 let frameId = 0;
@@ -53,7 +53,6 @@ function register(id = 's1', root = 'M:/A') {
   const workspace = useWorkspaceStore();
   workspace.registerMod({ modRoot: root, displayName: root, version: '', status: 'ready' });
   const update = sessionUpdateFixture(id, root);
-  if (update.status !== 'ready') throw new Error('ready fixture');
   useProjectStore().registerProjectManifest(update.projection.manifest);
   workspace.activateModFiles(root);
 }
@@ -75,7 +74,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
   mocks.listen.mockImplementation(async (handler) => {
     mocks.handler = handler;
-    return subscribeProjectChangesFixture(handler);
+    return observeSavedContentFixture(handler);
   });
   mocks.directory.mockImplementation(async (_id: string, path: string | null) => ({
     directory: path,
@@ -293,8 +292,7 @@ describe('mod file browser actions and read lifetime', () => {
     ];
     result.invalidation.paths = ['data/old.wpn', 'data/new.wpn'];
     const change = committedChangeFixture(result, 's1', 'M:/A');
-    change.kind !== 'closed' && (change.projection.invalidation = result.invalidation);
-    mocks.handler!(change);
+    for (const task of (await mocks.handler!(change)) ?? []) await task();
     await flushPromises();
     expect(mocks.directory).toHaveBeenCalledExactlyOnceWith('s1', 'data');
     mocks.directory.mockClear();

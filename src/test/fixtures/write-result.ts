@@ -9,11 +9,7 @@ import {
   type ProjectManifest,
 } from '@/shared/types';
 
-export function sessionUpdateFixture(
-  sessionId: string,
-  modRoot: string,
-  commitId = 1,
-): Extract<CommittedSessionUpdate, { status: 'ready' }> {
+export function sessionUpdateFixture(sessionId: string, modRoot: string): CommittedSessionUpdate {
   const tableSummaries = Object.fromEntries(
     TABLE_KEYS.map((key): [CsvTableKey, TableSummary] => [key, { path: key + '.csv', header: [], available: false, totalRows: 0 }]),
   ) as ProjectManifest['tableSummaries'];
@@ -21,10 +17,8 @@ export function sessionUpdateFixture(
   return {
     sessionId,
     modRoot,
-    commitId,
-    status: 'ready',
+
     projection: {
-      projectionRevision: commitId,
       manifest: {
         sessionId,
         modRoot,
@@ -50,7 +44,7 @@ export function savedWriteFixture(
   return {
     sessionUpdates: [],
     baseVersions: [],
-    commitId: 1,
+
     history: { revision: 1, undoStack: [], redoStack: [] },
     changes: [],
     invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },

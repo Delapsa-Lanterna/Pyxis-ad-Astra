@@ -89,6 +89,179 @@ fn cleanup(dir: PathBuf, root: &JointEditRoot) {
 }
 
 #[test]
+fn queued_joint_save_graph_builds() {
+    use super::super::super::query::joint_edit::take_joint_graph_builds;
+    for (kind, id, binding, field, value) in [
+        (JointEditKind::Ship, "a", "spec", "hullName", json!("Saved")),
+        (
+            JointEditKind::Weapon,
+            "weapon",
+            "spec",
+            "size",
+            json!("MEDIUM"),
+        ),
+        (JointEditKind::Wing, "wing", "csv", "num", json!(5)),
+        (
+            JointEditKind::Variant,
+            "var",
+            "variant",
+            "fluxVents",
+            json!(7),
+        ),
+        (JointEditKind::Skin, "child", "spec", "maxSpeed", json!(180)),
+    ] {
+        let (dir, mut root) = if kind == JointEditKind::Skin {
+            skin_tests::skin_fixture()
+        } else {
+            fixture()
+        };
+        root.kind = kind;
+        root.id = id.into();
+        let snapshot = query_joint_edit(&root).unwrap();
+        let key = snapshot.bindings[binding].clone();
+        let mut input = payload(snapshot);
+        take_joint_graph_builds();
+        crate::services::prepare_joint_save(
+            &mut input,
+            &[SaveEdit::Set {
+                path: vec![key.clone(), "value".into(), field.into()],
+                value: value.clone(),
+            }],
+            &[],
+        )
+        .unwrap();
+        let result = submit(&input).unwrap();
+        assert_eq!(take_joint_graph_builds(), 1, "{kind:?}");
+        assert_eq!(result.changes.len(), 1, "{kind:?}");
+        assert_eq!(result.history.undo_stack.len(), 1, "{kind:?}");
+        let saved = result.content.unwrap().value;
+        let record = saved
+            .records
+            .iter()
+            .find(|record| record.key == key)
+            .unwrap();
+        let JointValue::Present(data) = &record.value else {
+            panic!("saved record exists")
+        };
+        assert_eq!(data[field], value, "{kind:?}");
+        cleanup(dir, &root);
+    }
+}
+
+#[test]
+fn mod_only_joint_save_survives_missing_game_and_core_directories() {
+    for remove_game in [false, true] {
+        let (dir, mut root) = fixture();
+        project::close_project_session(root.session_id.clone()).unwrap();
+        let game = temp_dir("joint_missing_original");
+        std::fs::create_dir(game.join("starsector-core")).unwrap();
+        root.session_id = project::open_project_session_traced(
+            &dir,
+            Some(&game),
+            &mut project::PerformanceTrace::new("joint.missing.core"),
+        )
+        .unwrap()
+        .session_id;
+        let snapshot = query_joint_edit(&root).unwrap();
+        let mut input = payload(snapshot);
+        let key = input.snapshot.bindings["spec"].clone();
+        if let JointValue::Present(value) = input.values.get_mut(&key).unwrap() {
+            value["hullName"] = json!("Captured");
+        }
+        if remove_game {
+            std::fs::remove_dir_all(&game).unwrap();
+        } else {
+            std::fs::remove_dir_all(game.join("starsector-core")).unwrap();
+        }
+        let saved = submit(&input).unwrap();
+        assert_eq!(saved.history.undo_stack.len(), 1);
+        assert_eq!(
+            crate::io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
+            "Captured"
+        );
+        cleanup(dir, &root);
+        if !remove_game {
+            std::fs::remove_dir_all(game).unwrap();
+        }
+    }
+}
+
+#[test]
+fn confirmed_joint_save_recreates_spec_and_full_csv_from_loaded_content() {
+    let (dir, root) = fixture();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let mut values = snapshot
+        .records
+        .iter()
+        .map(|record| (record.key.clone(), record.value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let spec_key = snapshot.bindings["spec"].clone();
+    if let JointValue::Present(value) = values.get_mut(&spec_key).unwrap() {
+        value["hullName"] = json!("Captured");
+    }
+    let csv_key = snapshot.bindings["csv"].clone();
+    if let JointValue::Present(value) = values.get_mut(&csv_key).unwrap() {
+        value["custom"] = json!("009");
+    }
+    std::fs::remove_file(dir.join("data/hulls/a.ship")).unwrap();
+    std::fs::remove_file(dir.join("data/hulls/ship_data.csv")).unwrap();
+    let prepared = prepare_joint_edit(&JointEditDraft {
+        baseline: snapshot,
+        values,
+    })
+    .unwrap();
+    assert!(prepared.conflicts.is_empty());
+    let mut input = payload(prepared.snapshot);
+    input.values = prepared.values;
+    let saved = crate::io::with_write_retry(
+        Path::new(&root.mod_root),
+        |_| panic!("loaded recovery sources are complete"),
+        || {
+            crate::io::accept_source_recreation(
+                &root.mod_root,
+                vec![
+                    PathBuf::from(&root.mod_root)
+                        .join("data/hulls/a.ship")
+                        .to_string_lossy()
+                        .into(),
+                    PathBuf::from(&root.mod_root)
+                        .join("data/hulls/ship_data.csv")
+                        .to_string_lossy()
+                        .into(),
+                ],
+            )?;
+            crate::services::prepare_joint_save(
+                &mut input,
+                &[
+                    SaveEdit::Set {
+                        path: vec![spec_key.clone(), "value".into(), "hullName".into()],
+                        value: json!("Captured"),
+                    },
+                    SaveEdit::Set {
+                        path: vec![csv_key.clone(), "value".into(), "custom".into()],
+                        value: json!("009"),
+                    },
+                ],
+                &[],
+            )?;
+            submit(&input)
+        },
+    )
+    .unwrap();
+    assert_eq!(saved.history.undo_stack.len(), 1);
+    assert_eq!(
+        crate::io::read_json_file(&dir.join("data/hulls/a.ship")).unwrap()["hullName"],
+        "Captured"
+    );
+    let table = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
+    assert_eq!(table.rows.len(), 3);
+    assert_eq!(table.rows[1].data["custom"], "009");
+    assert_eq!(table.rows[2].data["id"], "b");
+    assert!(table.rows[0].is_comment);
+    cleanup(dir, &root);
+}
+
+#[test]
 fn variant_modules_atomic_history() {
     let (dir, mut root) = fixture();
     write_utf8_no_bom(&dir.join("data/hulls/a.ship"), r#"{"hullId":"a","weaponSlots":[{"id":"M1","type":"STATION_MODULE"},{"id":"M2","type":"STATION_MODULE"}]}"#).unwrap();
@@ -177,17 +350,19 @@ fn variant_rename_all_mod_parents() {
     assert_eq!(info.base_versions.len(), 3);
     let mut versions = info.base_versions;
     versions.push(crate::io::file_version(&dir.join("data/variants/new.variant")).unwrap());
-    let result = crate::commands::save_variant_entity(crate::models::JsonEntityFilePayload {
-        session_id: root.session_id.clone(),
-        mod_root: root.mod_root.clone(),
-        previous_id: Some("var".into()),
-        next_id: "new".into(),
-        rel_path: Some("data/variants/var.variant".into()),
-        data: json!({"variantId":"new","hullId":"a","fluxVents":3}),
-        json_write: Default::default(),
-        ordered_json: None,
-        base_versions: versions,
-    })
+    let result = crate::services::write_transactions::commit_action(
+        crate::models::SaveAction::SaveVariantEntity(crate::models::JsonFileSave {
+            session_id: root.session_id.clone(),
+            mod_root: root.mod_root.clone(),
+            previous_id: Some("var".into()),
+            next_id: "new".into(),
+            rel_path: Some("data/variants/var.variant".into()),
+            data: json!({"variantId":"new","hullId":"a","fluxVents":3}),
+            json_write: Default::default(),
+            ordered_json: None,
+            base_versions: versions,
+        }),
+    )
     .unwrap();
     assert_eq!(result.changes.len(), 3);
     assert_eq!(result.history.undo_stack.len(), 1);
@@ -595,9 +770,30 @@ fn four_roots_capture_versions() {
             snapshot
                 .records
                 .iter()
-                .any(|record| record.target.write().rel_path.ends_with(".wpn"))
+                .any(|record| record.target.write().rel_path.ends_with(".wpn")),
+            "kind={kind:?}; root={}; records={:?}",
+            root.mod_root,
+            snapshot
+                .records
+                .iter()
+                .map(|record| &record.target)
+                .collect::<Vec<_>>()
         );
     }
+    write_utf8_no_bom(
+        &dir.join("data/hulls/a.ship"),
+        r#"{"hullId":"a","weaponSlots":[]}"#,
+    )
+    .unwrap();
+    let changed = query_joint_edit(&root).unwrap();
+    assert_eq!(
+        changed
+            .records
+            .iter()
+            .filter(|record| record.target.write().rel_path.ends_with(".wpn"))
+            .count(),
+        0
+    );
     cleanup(dir, &root);
 }
 
@@ -1219,6 +1415,15 @@ fn late_change_rejects_confirmed_write() {
     if let JointValue::Present(value) = input.values.get_mut(&key).unwrap() {
         value["hullName"] = json!("Draft");
     }
+    crate::services::prepare_joint_save(
+        &mut input,
+        &[SaveEdit::Set {
+            path: vec![key, "value".into(), "hullName".into()],
+            value: json!("Draft"),
+        }],
+        &[],
+    )
+    .unwrap();
     write_utf8_no_bom(
         &dir.join("data/strings/descriptions.csv"),
         "id,type,text1,notes\na,SHIP,Later,007\n",
@@ -1235,6 +1440,65 @@ fn late_change_rejects_confirmed_write() {
             .undo_stack
             .is_empty()
     );
+    cleanup(dir, &root);
+}
+
+#[test]
+fn queued_joint_changes_follow_consecutive_renames_and_preserve_current_fields() {
+    let (dir, root) = fixture();
+    let snapshot = query_joint_edit(&root).unwrap();
+    let spec = snapshot.bindings["spec"].clone();
+    let csv = snapshot.bindings["csv"].clone();
+    let mut queued = payload(snapshot.clone());
+    let edits = vec![
+        SaveEdit::Set {
+            path: vec![spec.clone(), "value".into(), "hullName".into()],
+            value: json!("Queued"),
+        },
+        SaveEdit::Set {
+            path: vec![csv.clone(), "value".into(), "name".into()],
+            value: json!("Queued"),
+        },
+    ];
+    let mut identities = Vec::new();
+    let mut latest = snapshot;
+    for id in ["renamed", "final"] {
+        let mut request = payload(latest);
+        let key = request.snapshot.bindings["spec"].clone();
+        let JointValue::Present(data) = request.values.get_mut(&key).unwrap() else {
+            unreachable!()
+        };
+        data["hullId"] = json!(id);
+        data["custom"]["a"] = json!(7);
+        request
+            .base_versions
+            .push(crate::io::file_version(&dir.join(format!("data/hulls/{id}.ship"))).unwrap());
+        let result = submit(&request).unwrap();
+        identities.extend(result.identity_changes);
+        latest = result.content.unwrap().value;
+    }
+    let _lease = crate::services::project_sync::prepare_versions(
+        &root.mod_root,
+        &mut queued.base_versions,
+        &latest.base_versions,
+        &identities,
+    )
+    .unwrap();
+    crate::services::prepare_joint_save(&mut queued, &edits, &identities).unwrap();
+    assert_eq!(queued.snapshot.root.id, "final");
+    let result = submit(&queued).unwrap();
+    let saved = crate::io::read_json_file(&dir.join("data/hulls/final.ship")).unwrap();
+    assert_eq!(saved["hullId"], "final");
+    assert_eq!(saved["hullName"], "Queued");
+    assert_eq!(saved["custom"]["a"], 7);
+    let rows = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
+    let row = rows
+        .rows
+        .iter()
+        .find(|row| row.data["id"] == "final")
+        .unwrap();
+    assert_eq!(row.data["name"], "Queued");
+    assert_eq!(result.changes.len(), 2);
     cleanup(dir, &root);
 }
 
@@ -1298,6 +1562,53 @@ fn core_override_keeps_original() {
         })
         .map(|record| record.key.clone())
         .collect();
+    crate::services::prepare_joint_save(&mut input, &[], &[]).unwrap();
+    for relative in [
+        "data/hulls/base.ship",
+        "data/hulls/ship_data.csv",
+        "data/strings/descriptions.csv",
+    ] {
+        let path = core.join(relative);
+        let original = std::fs::read(&path).unwrap();
+        let mut changed = original.clone();
+        changed.push(b'\n');
+        for replacement in [Some(changed), None] {
+            if let Some(bytes) = replacement {
+                std::fs::write(&path, bytes).unwrap();
+            } else {
+                std::fs::remove_file(&path).unwrap();
+            }
+            let error = submit(&input).unwrap_err();
+            assert_eq!(error.code(), "write.version_conflict", "{relative}");
+            assert!(
+                write_transactions::query_history(&root.session_id, &root.mod_root)
+                    .unwrap()
+                    .undo_stack
+                    .is_empty()
+            );
+            assert!(!dir.join("data/hulls/base.ship").exists());
+            std::fs::write(&path, &original).unwrap();
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            let held = std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(&path)
+                .unwrap();
+            let error = submit(&input).unwrap_err();
+            drop(held);
+            assert_eq!(error.code(), "io.unexpected");
+            assert_eq!(
+                Path::new(error.location().unwrap().path.as_ref().unwrap())
+                    .canonicalize()
+                    .unwrap(),
+                path.canonicalize().unwrap()
+            );
+            assert!(!dir.join("data/hulls/base.ship").exists());
+        }
+    }
     let copied = submit(&input).unwrap();
     assert_eq!(copied.changes.len(), 3);
     assert_eq!(copied.key_map.len(), 2);

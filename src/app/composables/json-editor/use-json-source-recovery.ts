@@ -37,7 +37,7 @@ export function useJsonSourceRecovery(options: {
     try {
       return (
         (
-          await options.save(async () => {
+          await options.save(async (_target, _draft, _versions, _original, request) => {
             await refresh();
             const prepared = plan.value!;
             if (!prepared.missingPaths.length) return;
@@ -52,7 +52,7 @@ export function useJsonSourceRecovery(options: {
             });
             if (choice !== 'recreate') return;
             const baseline = deepClone(session.baselineSnapshot.value!);
-            const result = await recreateJsonSourcesAction(prepared, baseline.value, feedback, session.currentTargetKey.value!);
+            const result = await recreateJsonSourcesAction(prepared, baseline.value, feedback, session.currentTargetKey.value!, request);
             if (!result) return;
             const restored = result.baseVersions.filter((version) =>
               prepared.missingPaths.some(
@@ -65,7 +65,7 @@ export function useJsonSourceRecovery(options: {
               ...baseline,
               value: jsonRecoveryValue(baseline.target, result.content!.value, baseline.value),
               baseVersions: [...new Map([...baseline.baseVersions, ...restored].map((version) => [version.path, version])).values()],
-              commitId: result.commitId,
+              requestId: result.requestId,
               meta: {
                 ...baseline.meta,
                 resources: result.content!.value.resourceRefs,

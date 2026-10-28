@@ -71,7 +71,7 @@ export function immersiveSnapshotScene(snapshot: JointEditSnapshot, values: Reco
           {
             kind: record.target.target.kind,
             id: record.target.target.id,
-            data: data(record.key),
+            data: data.get(record.key)!,
             resourceRefs: record.resourceRefs,
             source: record.source,
             sourceVersion: record.sourceVersion,
@@ -81,10 +81,10 @@ export function immersiveSnapshotScene(snapshot: JointEditSnapshot, values: Reco
   );
   const scenes = Object.values({ ...snapshot.variants, [snapshot.hull.variantKey]: snapshot.hull }).map((hull) => {
     const binding = hull.fields.name;
-    const name = [schemaStringValue(hullFieldValue(binding, data)), schemaStringValue(data(hull.variantKey).displayName)]
+    const name = [schemaStringValue(hullFieldValue(binding, data)), schemaStringValue(data.get(hull.variantKey)!.displayName)]
       .filter(Boolean)
       .join(' · ');
-    return variantHullScene(hull, hull.skinKeys.length ? hull.spec : data(hull.hullKey), name, specs);
+    return variantHullScene(hull, hull.skinKeys.length ? hull.spec : data.get(hull.hullKey)!, name, specs);
   });
   for (const scene of scenes)
     for (const module of scene.hull.modules) {

@@ -26,7 +26,6 @@ const feedback = {
 } satisfies AppFeedback;
 function harness() {
   const update = sessionUpdateFixture('s', 'M:/mod');
-  if (update.status !== 'ready') throw new Error('ready fixture');
   const workspace = useWorkspaceStore(),
     tables = useCsvEditorStore();
   workspace.registerMod({ modRoot: 'M:/mod', displayName: 'Sample', version: '', status: 'ready' });

@@ -10,7 +10,10 @@ export interface CsvRowKeyMapping {
   rowIndex: number;
 }
 
+export type SaveEdit = { path: string[]; kind: 'set'; value: import('./json.types').JsonValue } | { path: string[]; kind: 'remove' };
+
 export type WriteContentTarget =
+  | { kind: 'csv'; table: import('./project-identity.types').CsvTableKey }
   | { kind: 'spec'; target: import('./project-identity.types').EntityEditTarget }
   | { kind: 'text'; path: string }
   | { kind: 'json'; origin: import('./project-identity.types').JsonDocumentOrigin }
@@ -22,35 +25,37 @@ export interface WriteContent<T> {
 }
 
 export interface WriteResult<T = RowData> {
+  requestId?: string;
   sessionUpdates: CommittedSessionUpdate[];
   identityChanges: import('@/shared/types/project-identity.types').EntityIdentityChange[];
   changes: FileChangeRecord[];
   invalidation: ProjectInvalidation;
   keyMap: CsvRowKeyMapping[];
   content: WriteContent<T> | null;
-  commitId: number;
+
   baseVersions: FileVersion[];
   history: FileHistorySnapshot;
 }
 
-export type CommittedProjection =
-  | { status: 'ready'; projection: ProjectSessionInvalidationResult }
-  | { status: 'pending'; error: import('@/shared/types/error.types').ErrorDiagnostic };
-
-export type CommittedSessionUpdate = { sessionId: string; modRoot: string; commitId: number } & CommittedProjection;
+export interface CommittedSessionUpdate {
+  sessionId: string;
+  modRoot: string;
+  projection: ProjectSessionInvalidationResult;
+}
 
 export interface CommittedWriteEvent {
   originWindowLabel: string;
   modRoot: string;
   sessionId: string | null;
-  reason: 'save' | 'undo' | 'redo';
+  reason: 'save' | 'undo' | 'redo' | 'refresh';
   result: WriteResult<unknown>;
 }
 
-export type ProjectChange =
-  | { kind: 'commit'; projection: ProjectSessionInvalidationResult; event: CommittedWriteEvent }
-  | { kind: 'refresh'; projection: ProjectSessionInvalidationResult }
-  | { kind: 'closed'; sessionId: string };
+export type SaveDelivery =
+  | { kind: 'missing'; requestId: string; paths: string[] }
+  | { kind: 'saved'; requestId: string; event: CommittedWriteEvent }
+  | { kind: 'blocked'; requestId: string; modRoot: string; sessionId: string | null; diagnostic: import('./error.types').ErrorDiagnostic }
+  | { kind: 'waiting'; modRoot: string; waiting: boolean };
 
 export interface JsonSourceConfirmation {
   path: string;
@@ -60,10 +65,4 @@ export interface JsonSourceConfirmation {
 export interface JsonWriteOptions {
   preserveOriginalJson?: boolean;
   confirmedSources?: JsonSourceConfirmation[];
-}
-
-export interface SynchronizeCommittedWritePayload {
-  sessionId: string;
-  modRoot: string;
-  commitId: number;
 }

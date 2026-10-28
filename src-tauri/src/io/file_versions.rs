@@ -8,12 +8,17 @@ use std::path::Path;
 
 pub fn file_version(path: &Path) -> AppResult<FileVersion> {
     let canonical = super::canonical_path(path, "versioned file")?;
-    version_from_path(&canonical)
+    version_from_path(&canonical, &[])
 }
 
-fn version_from_path(path: &Path) -> AppResult<FileVersion> {
+fn version_from_path(
+    path: &Path,
+    recreated: &[(std::path::PathBuf, String)],
+) -> AppResult<FileVersion> {
     let fingerprint = if path.is_file() {
         let bytes = std::fs::read(path)?;
+        #[cfg(test)]
+        super::csv_files::record_csv_disk_read(path);
         Some(fingerprint(&bytes))
     } else if path.is_dir() {
         let mut files = Vec::new();
@@ -29,8 +34,18 @@ fn version_from_path(path: &Path) -> AppResult<FileVersion> {
                             .strip_prefix(path)
                             .expect("walk entry belongs to root"),
                     ),
-                    fingerprint(&std::fs::read(entry.path())?),
+                    {
+                        let bytes = std::fs::read(entry.path())?;
+                        #[cfg(test)]
+                        super::csv_files::record_csv_disk_read(entry.path());
+                        fingerprint(&bytes)
+                    },
                 ));
+            }
+        }
+        for (missing, fingerprint) in recreated {
+            if let Ok(relative) = missing.strip_prefix(path) {
+                files.push((crate::io::forward_slash_path(relative), fingerprint.clone()));
             }
         }
         Some(directory_fingerprint(files)?)
@@ -111,6 +126,8 @@ pub(crate) fn read_authorized_bytes(path: &Path) -> AppResult<(FileVersion, Vec<
         )
         .at_path(path)
     })?;
+    #[cfg(test)]
+    super::csv_files::record_csv_disk_read(path);
     let version = FileVersion {
         path: path.to_string_lossy().to_string(),
         fingerprint: Some(fingerprint(&bytes)),
@@ -120,9 +137,27 @@ pub(crate) fn read_authorized_bytes(path: &Path) -> AppResult<(FileVersion, Vec<
 
 pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
     let boundary = FsRootBoundary::new(Path::new(root), "version root")?;
+    let mut recreated = Vec::new();
+    for version in versions {
+        if let Some(fingerprint) = &version.fingerprint
+            && super::source_recreation_allowed(root, &version.path)
+            && !Path::new(&version.path)
+                .try_exists()
+                .map_err(|error| AppError::from(error).at_path(&version.path))?
+        {
+            recreated.push((
+                boundary.resolve_absolute(Path::new(&version.path), "confirmed source")?,
+                fingerprint.clone(),
+            ));
+        }
+    }
     for expected in versions {
         let path = boundary.resolve_absolute(Path::new(&expected.path), "versioned file")?;
-        if version_from_path(&path)?.fingerprint != expected.fingerprint {
+        let current = version_from_path(&path, &recreated)?;
+        if current.fingerprint.is_none() && super::source_recreation_allowed(root, &expected.path) {
+            continue;
+        }
+        if current.fingerprint != expected.fingerprint {
             return Err(AppError::message(
                 "write.version_conflict",
                 format!("文件已被修改，请载入外部版本后重新保存: {}", path.display()),

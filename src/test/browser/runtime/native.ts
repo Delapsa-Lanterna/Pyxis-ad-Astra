@@ -2,6 +2,9 @@ import { browserModel, browserWindowLabel, invoke } from './commands';
 import { listen, emit } from './events';
 export { invoke, listen, emit };
 export { emitTo } from './events';
+export class Channel<T> {
+  constructor(public onmessage: (message: T) => void) {}
+}
 export function getCurrentWindow() {
   return {
     label: browserWindowLabel(),

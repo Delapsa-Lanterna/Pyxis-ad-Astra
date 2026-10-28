@@ -1,10 +1,36 @@
-import { invoke } from '@tauri-apps/api/core';
+import { Channel, invoke } from '@tauri-apps/api/core';
 import { AppError, errorMessageOf } from '@/shared/lib/errors';
 import { beginPerformance, performanceMonitorEnabled } from './performance';
 import { appLogQueue, beginDebug, shouldQueueLog } from './app-log-queue';
+import type { SaveAction, SaveEdit } from '@/shared/types';
+
+export interface SaveCommandRequest {
+  id: string;
+}
+
+export interface SaveOperation<T> {
+  id: string;
+  result: Promise<T>;
+}
 
 let sequence = 0;
 let instance = '';
+
+export function commandChannel<T>(handler: (message: T) => void) {
+  return new Channel<T>(handler);
+}
+
+export async function invokeSaveCommand<T>(
+  command: SaveAction['kind'],
+  args: { payload: SaveAction['input'] },
+  edits: SaveEdit[] = [],
+  request?: SaveCommandRequest,
+): Promise<T> {
+  const requestId = request?.id ?? crypto.randomUUID();
+  const invoked = invokeCommand<T>('save_project', { request: { id: requestId, edits, action: { kind: command, input: args.payload } } });
+  const result = await invoked;
+  return Object.assign(result as object, { requestId }) as T;
+}
 
 export async function invokeCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const observable = !command.startsWith('performance_monitor_') && !command.includes('app_log');

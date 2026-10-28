@@ -19,7 +19,7 @@ export interface LoadImportedEditorSpecPayload {
   path: string;
 }
 
-export interface SaveEditorSpecPayload {
+export interface SpecSave {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;

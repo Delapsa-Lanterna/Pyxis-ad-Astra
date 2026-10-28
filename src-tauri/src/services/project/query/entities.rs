@@ -18,7 +18,7 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     };
     let resource_refs = (definition.resources)(&session, id, &data);
     let info = super::entity_targets::describe_entity_target(&mut session, kind, id)?;
-    super::json_recovery::remember_json_origin(&mut session, &info.target);
+    super::entity_targets::remember_edit_target(&mut session, &info.target);
     Ok(Some(EntityData {
         target: info.target,
         base_versions: info.base_versions,
@@ -51,7 +51,12 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
         })
         .collect();
     for record in &records {
-        super::json_recovery::remember_json_origin(&mut session, &record.target);
+        if matches!(
+            kind,
+            EntityKind::Variant | EntityKind::Skin | EntityKind::Faction | EntityKind::Mission
+        ) {
+            super::entity_targets::remember_edit_target(&mut session, &record.target);
+        }
     }
     Ok(records)
 }
@@ -211,8 +216,7 @@ mod tests {
             },
         );
         let session = super::super::super::model::ProjectSession {
-            json_origins: Vec::new(),
-            projection_revision: 0,
+            loaded_edit_targets: Vec::new(),
             projection_pending: false,
             source_versions: BTreeMap::new(),
             manifest: crate::models::ProjectManifest {

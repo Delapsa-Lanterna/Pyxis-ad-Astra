@@ -1,7 +1,10 @@
-import { invokeCommand } from '@/shared/runtime/command.runtime';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
+import { captureSaveEdits } from '@/domain/project/save-edits';
+import type { JsonValue } from '@/shared/types';
+import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import { pathBelongsToRoot } from '@/shared/lib/paths';
 import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
-import { createLiveSessionQuery } from '@/services/query-cache.service';
+import { readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 import type {
   MiscConfigEntry,
   MiscConfigKind,
@@ -18,27 +21,37 @@ function affectsMiscConfig(invalidation: ProjectInvalidation, modRoot: string, k
   const files = kind ? [miscConfigFile(kind)] : MISC_CONFIG_FILES;
   return invalidation.paths.some((path) => files.some((file) => pathBelongsToRoot(modRoot + '/' + file.path, path)));
 }
-const directory = createLiveSessionQuery<{ modRoot: string }, MiscConfigEntry[]>({
+const directory = {
   queryKind: 'misc-config-files',
   load: ({ sessionId, parameters }) =>
     invokeCommand('query_misc_config_files', { payload: { sessionId, ...parameters } satisfies MiscConfigScope }),
   invalidates: ({ modRoot }, invalidation) => affectsMiscConfig(invalidation, modRoot),
-});
-const read = createLiveSessionQuery<{ modRoot: string; kind: MiscConfigKind }, MiscConfigFile | null>({
+} satisfies SessionQueryDefinition<{ modRoot: string }, MiscConfigEntry[]>;
+const read = {
   queryKind: 'misc-config-file',
   load: ({ sessionId, parameters }) =>
     invokeCommand('query_misc_config_file', { payload: { sessionId, ...parameters } satisfies MiscConfigRead }),
   invalidates: ({ modRoot, kind }, invalidation) => affectsMiscConfig(invalidation, modRoot, kind),
-});
-export const queryMiscConfigFiles = (sessionId: string, modRoot: string, signal?: AbortSignal) => directory(sessionId, { modRoot }, signal);
+} satisfies SessionQueryDefinition<{ modRoot: string; kind: MiscConfigKind }, MiscConfigFile | null>;
+export const queryMiscConfigFiles = (sessionId: string, modRoot: string, signal?: AbortSignal) =>
+  readLiveSessionQuery(directory, sessionId, { modRoot }, signal);
 export const queryMiscConfigFile = (sessionId: string, modRoot: string, kind: MiscConfigKind, signal?: AbortSignal) =>
-  read(sessionId, { modRoot, kind }, signal);
+  readLiveSessionQuery(read, sessionId, { modRoot, kind }, signal);
 export function hasMiscConfigInvalidation(invalidation: ProjectInvalidation, modRoot: string, kind?: MiscConfigKind) {
   return invalidation.session || affectsMiscConfig(invalidation, modRoot, kind);
 }
-export function saveMiscConfig(payload: MiscConfigWrite): Promise<WriteResult<MiscConfigFile['data']>> {
-  return invokeCommand('save_misc_config', { payload });
+export function saveMiscConfig(
+  payload: MiscConfigWrite,
+  original?: JsonValue,
+  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+): Promise<WriteResult<MiscConfigFile['data']>> {
+  return invokeSaveCommand(
+    'save_misc_config',
+    { payload },
+    original === undefined ? [{ kind: 'set', path: [], value: payload.data }] : captureSaveEdits(original, payload.data),
+    request,
+  );
 }
-export function deleteMiscConfig(payload: MiscConfigDelete): Promise<WriteResult> {
-  return invokeCommand('delete_misc_config', { payload });
+export function deleteMiscConfig(payload: MiscConfigDelete, request?: SaveCommandRequest): Promise<WriteResult> {
+  return invokeSaveCommand('delete_misc_config', { payload }, [], request);
 }

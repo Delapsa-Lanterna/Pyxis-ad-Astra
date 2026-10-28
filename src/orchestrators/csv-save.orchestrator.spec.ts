@@ -1,3 +1,5 @@
+import { savedWriteFixture } from '@/test/fixtures/write-result';
+import { savedContentWorks } from '@/test/unit/project-changes';
 import { replaceCsvTableDraft, markCsvTableSavedDraft } from '@/domain/csv-editor/csv-table-draft';
 import { csvRows } from '@/test/fixtures/csv-row';
 import { csvDraftRow } from '@/test/fixtures/csv-row';
@@ -7,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 const writeCsvPatch = vi.hoisted(() => vi.fn());
-const completeSavedWrite = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const completeSavedWrite = vi.hoisted(() => vi.fn<(completion: unknown) => Promise<void>>(() => Promise.resolve()));
 
 vi.mock('@/services/csv-table.service', async () => ({
   ...(await vi.importActual('@/services/csv-table.service')),
@@ -25,6 +27,9 @@ vi.mock('@/services/window.service', () => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
   completeSavedWrite,
+  beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion((result) =>
+    completeSavedWrite({ modRoot: MOD_ROOT, sessionId: SESSION_ID, label: '保存 ships CSV', result }),
+  ),
 }));
 
 import type { ProjectInvalidation, ProjectManifest, WriteResult, AssociatedSpecChange } from '@/shared/types';
@@ -74,10 +79,7 @@ function buildManifest(overrides: Partial<ProjectManifest> = {}): ProjectManifes
 function writeResult(overrides: Partial<WriteResult> = {}): WriteResult {
   const invalidation: ProjectInvalidation = { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false };
   return {
-    sessionUpdates: [],
-    baseVersions: [],
-    commitId: 1,
-    history: { revision: 1, undoStack: [], redoStack: [] },
+    ...savedWriteFixture(),
     changes: [
       {
         beforePath: `${MOD_ROOT}\\ships.csv`,
@@ -94,9 +96,6 @@ function writeResult(overrides: Partial<WriteResult> = {}): WriteResult {
       },
     ],
     invalidation,
-    identityChanges: [],
-    keyMap: [],
-    content: null,
     ...overrides,
   };
 }
@@ -564,13 +563,19 @@ describe('table-save orchestrator', () => {
     const result = writeResult({ baseVersions: [{ path: 'ships.csv', fingerprint: 'v2' }] });
     writeCsvPatch.mockResolvedValueOnce(result);
     completeSavedWrite.mockRejectedValueOnce(new Error('sync failed'));
-    await expect(saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] })).rejects.toThrow('sync failed');
+    await expect(saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: async () => [] })).resolves.toMatchObject({
+      status: 'saved',
+    });
+    await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('sync failed');
     expect(csvRows(state, true)[0]?.data.hullName).toBe('Written');
     expect(state.documents.ships.baseVersions).toEqual(result.baseVersions);
     expect(state.documents.ships.dirty).toEqual({});
     expect(tables.tableReadGeneration(MOD_ROOT, 'ships')).toBeGreaterThan(generation);
     expect(tables.saving).toBe(false);
     expect(result.keyMap).toEqual([]);
+    await savedContentWorks.at(-1)!.retryContent();
+    expect(writeCsvPatch).toHaveBeenCalledOnce();
+    expect(completeSavedWrite).toHaveBeenCalledTimes(2);
   });
 
   it('submits business content and accepts the saved row baseline', async () => {
@@ -599,7 +604,10 @@ describe('table-save orchestrator', () => {
       { preserveOriginalJson: false, confirmedSources: [] },
       [],
       null,
+      expect.any(Object),
+      undefined,
     );
+    await savedContentWorks.at(-1)!.content;
     expect(completeSavedWrite).toHaveBeenCalledWith({
       modRoot: MOD_ROOT,
       sessionId: SESSION_ID,
@@ -634,6 +642,8 @@ describe('table-save orchestrator', () => {
       },
       [],
       null,
+      expect.any(Object),
+      undefined,
     );
   });
 
@@ -686,6 +696,7 @@ describe('table-save orchestrator', () => {
     );
     writeCsvPatch.mockResolvedValueOnce(writeResult());
     await saveCsvChanges({ table: 'ships', manifest: project.getManifest(MOD_ROOT), selectAssociatedSpecs: async () => [] });
+    await savedContentWorks.at(-1)!.content;
     expect(csvRows(state, true)[0]?.data.hullName).toBe('B');
     expect(state.documents.ships.dirty['ships:r1']).toEqual({ action: 'upsert', cells: { hullName: 'A' } });
   });

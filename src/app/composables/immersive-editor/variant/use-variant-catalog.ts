@@ -1,4 +1,4 @@
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, JointVariantCatalogKind, ReadonlyVariantEntry, JointVariantCatalogRead, DeepReadonly } from '@/shared/types';
 import { queryJointVariantCatalog, hasJointEditInvalidation } from '@/services/joint-edit.service';
@@ -16,7 +16,7 @@ export function useVariantCatalog(
     loading = ref(false),
     errorText = ref(''),
     reads = useQueryReadOwner();
-  async function load() {
+  async function load(required = false) {
     loading.value = true;
     errorText.value = '';
     await reads.consume(
@@ -30,6 +30,8 @@ export function useVariantCatalog(
         },
         error: (error) => {
           errorText.value = formatError(error);
+
+          if (required) throw error;
         },
         settled: () => {
           loading.value = false;
@@ -52,18 +54,21 @@ export function useVariantCatalog(
     { immediate: true },
   );
   onScopeDispose(
-    subscribeProjectChanges((event) => {
-      if (!enabled() || projectChangeSessionId(event) !== root().sessionId) return;
-      if (event.kind === 'closed') {
+    observeSavedContent(
+      (event) => {
+        const projection = saveProjection(event, root().sessionId);
+        if (!projection) return;
+        if (!enabled() || projection.manifest.sessionId !== root().sessionId) return;
+        if (hasJointEditInvalidation(projection.invalidation)) return load(true);
+      },
+      (sessionId) => {
+        if (sessionId !== root().sessionId) return;
         reads.revoke('session');
         entries.value = [];
         snapshot.value = null;
         loading.value = false;
-      } else if (hasJointEditInvalidation(event.projection.invalidation))
-        reads.schedule('catalog', () => {
-          void load();
-        });
-    }),
+      },
+    ),
   );
   return { entries, snapshot, loading, errorText, load };
 }

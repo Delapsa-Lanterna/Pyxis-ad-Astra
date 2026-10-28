@@ -14,12 +14,29 @@ use crate::{
 use serde_json::Value;
 use std::{collections::BTreeMap, path::Path};
 
+/// Consumes the current snapshot prepared under the project's root lease.
+/// Source credentials are rechecked before staging, while the graph is reused.
 pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<JointEditSnapshot>> {
-    let current = super::super::query::joint_edit::query_joint_edit_values(
-        &payload.snapshot.root,
-        None,
-        &payload.snapshot.new_sources,
-    )?;
+    let current = &payload.snapshot;
+    let source_versions = current
+        .records
+        .iter()
+        .filter(|record| payload.values.contains_key(&record.key))
+        .filter_map(|record| record.source_version.as_ref())
+        .map(|version| (windows_path_key(&version.path), version))
+        .collect::<BTreeMap<_, _>>();
+    for expected in source_versions.into_values() {
+        let actual = crate::io::file_version(Path::new(&expected.path))
+            .map_err(|error| error.at_path(&expected.path))?;
+        if actual != *expected
+            && !crate::io::source_recreation_allowed(&current.root.mod_root, &expected.path)
+        {
+            return Err(
+                AppError::message("write.version_conflict", "联合保存来源内容已变化")
+                    .at_path(&expected.path),
+            );
+        }
+    }
     for required in current
         .records
         .iter()
@@ -72,12 +89,6 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             }
         }
     }
-    let supplied = payload
-        .snapshot
-        .records
-        .iter()
-        .map(|record| (&record.key, record))
-        .collect::<BTreeMap<_, _>>();
     for key in payload.values.keys() {
         if !current.records.iter().any(|record| &record.key == key) {
             return Err(AppError::message(
@@ -101,24 +112,6 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         let Some(value) = values.get(&record.key) else {
             continue;
         };
-        let Some(before) = supplied.get(&record.key) else {
-            return Err(AppError::message(
-                "joint.target_changed",
-                "联合保存目标集合已变化",
-            ));
-        };
-        if record.target != before.target {
-            return Err(AppError::message(
-                "joint.target_changed",
-                "联合保存目标已变化",
-            ));
-        }
-        if record.source_version != before.source_version {
-            return Err(AppError::message(
-                "write.version_conflict",
-                "联合保存来源内容已变化",
-            ));
-        }
         let create_override = payload.create_overrides.contains(&record.key);
         if create_override
             && record
@@ -131,7 +124,13 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 "覆盖创建来源已变化",
             ));
         }
-        if value == &record.value && !create_override {
+        if value == &record.value
+            && !create_override
+            && !crate::io::source_recreation_allowed(
+                &current.root.mod_root,
+                &record.target.write().path,
+            )
+        {
             continue;
         }
         match (&record.target, value) {
@@ -612,9 +611,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 })
         };
         let changed = current.hull.is_none()
-            || referenced(&current, key, "hullId") != referenced(&saved, key, "hullId")
+            || referenced(current, key, "hullId") != referenced(&saved, key, "hullId")
             || (current.root.kind == JointEditKind::Wing
-                && referenced(&current, &current.bindings["csv"], "variant")
+                && referenced(current, &current.bindings["csv"], "variant")
                     != referenced(&saved, &saved.bindings["csv"], "variant"));
         saved.hull = if changed {
             None

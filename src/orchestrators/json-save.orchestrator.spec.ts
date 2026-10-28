@@ -1,9 +1,9 @@
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { createPinia, setActivePinia } from 'pinia';
 
 const mocks = vi.hoisted(() => ({
-  completeSavedWrite: vi.fn(() => Promise.resolve()),
   writeModInfo: vi.fn(),
   writeIndexedConfigEntity: vi.fn(),
   writeCreateIndexedConfigEntity: vi.fn(),
@@ -16,10 +16,6 @@ const mocks = vi.hoisted(() => ({
   writeDeleteSkinEntity: vi.fn(),
 }));
 
-vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/orchestrators/project-sync.orchestrator')>()),
-  completeSavedWrite: mocks.completeSavedWrite,
-}));
 vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({ reserveFileIdentityIntent: vi.fn(async () => {}) }));
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 
@@ -49,18 +45,12 @@ vi.mock('@/services/json-file.service', () => ({
 
 import {
   createIndexedEntityAction,
-  createSkinAction,
-  createVariantAction,
-  deleteIndexedEntityAction,
-  deleteSkinAction,
-  deleteVariantAction,
+  createJsonFileAction,
   saveIndexedEntityAction,
   saveModInfoAction,
-  completeJsonSave,
-  saveSkinAction,
-  saveVariantAction,
+  saveJsonFileAction,
 } from '@/orchestrators/json-save.orchestrator';
-import { indexedConfigHistoryLabel } from '@/domain/json-editor/json-config-entities';
+import { deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
 import { createDefaultVariant } from '@/domain/json-editor/json-file-defaults';
 
 const MOD_ROOT = 'M:\\test-mod';
@@ -71,10 +61,7 @@ function writeResult(refreshedEntity: Record<string, unknown> | null = null) {
   const id = (refreshedEntity?.variantId ?? refreshedEntity?.skinHullId ?? '') as string;
   const target = entityTargetFixture(kind, id);
   return {
-    sessionUpdates: [],
-    baseVersions: [],
-    commitId: 1,
-    history: { revision: 1, undoStack: [], redoStack: [] },
+    ...savedWriteFixture(),
     changes: [
       {
         beforePath: `${MOD_ROOT}\\x.csv`,
@@ -90,9 +77,7 @@ function writeResult(refreshedEntity: Record<string, unknown> | null = null) {
         afterFiles: [],
       },
     ],
-    invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
     identityChanges: id ? [{ before: target, after: target }] : [],
-    keyMap: [],
     content: { target: { kind: 'json', origin: { kind: 'modInfo' } }, value: refreshedEntity },
     warnings: [],
   };
@@ -111,12 +96,12 @@ describe('JSON save orchestrator', () => {
   it.each(['variant', 'skin'] as const)('preserves %s loaded credentials for same-ID and case-only writes', async (kind) => {
     const source = entityTargetFixture(kind, 'Demo');
     const baseVersions = [{ path: source.write.path, fingerprint: 'loaded-spec' }];
-    const save = kind === 'variant' ? saveVariantAction : saveSkinAction;
+    const save = saveJsonFileAction;
     const write = kind === 'variant' ? mocks.writeVariantEntity : mocks.writeSkinEntity;
     const field = kind === 'variant' ? 'variantId' : 'skinHullId';
     for (const nextId of ['Demo', 'demo']) {
       write.mockResolvedValue(writeResult({ [field]: nextId, data: { [field]: nextId } }));
-      await save(SESSION_ID, MOD_ROOT, nextId, { [field]: nextId }, 'Demo', source.write.relPath, undefined, baseVersions);
+      await save(kind, SESSION_ID, MOD_ROOT, nextId, { [field]: nextId }, 'Demo', source.write.relPath, undefined, baseVersions);
       expect(write.mock.lastCall?.[0].baseVersions).toEqual(baseVersions);
     }
   });
@@ -124,7 +109,6 @@ describe('JSON save orchestrator', () => {
     mocks.writeModInfo.mockResolvedValue(writeResult());
 
     const result = await saveModInfoAction(SESSION_ID, MOD_ROOT, { id: 'demo' });
-    await completeJsonSave(MOD_ROOT, SESSION_ID, result!, '保存 mod_info.json');
 
     expect(mocks.writeModInfo).toHaveBeenCalledWith(
       SESSION_ID,
@@ -132,20 +116,16 @@ describe('JSON save orchestrator', () => {
       { id: 'demo' },
       { preserveOriginalJson: false, confirmedSources: [] },
       [],
+      undefined,
+      undefined,
     );
-    expect(mocks.completeSavedWrite).toHaveBeenCalledWith({
-      modRoot: MOD_ROOT,
-      sessionId: SESSION_ID,
-      label: '保存 mod_info.json',
-      result: expect.anything(),
-    });
+    expect(result).toEqual(writeResult());
   });
 
   it('does not record file history when a preserved JSON save has no changes', async () => {
     mocks.writeModInfo.mockResolvedValue({ ...writeResult(), changes: [] });
     const result = await saveModInfoAction(SESSION_ID, MOD_ROOT, { id: 'demo' });
-    await completeJsonSave(MOD_ROOT, SESSION_ID, result!, '保存 mod_info.json');
-    expect(mocks.completeSavedWrite).toHaveBeenCalledWith(expect.objectContaining({ result: expect.objectContaining({ changes: [] }) }));
+    expect(result!.changes).toEqual([]);
   });
 
   it('save indexed entity returns the refreshed entity id and records a save label', async () => {
@@ -163,13 +143,7 @@ describe('JSON save orchestrator', () => {
     });
 
     expect(entityId?.entity).toMatchObject({ entityId: 'npc_dave', baseVersions: [] });
-    await completeJsonSave(MOD_ROOT, SESSION_ID, entityId!.receipt, '保存 npc_dave.faction');
-    expect(mocks.completeSavedWrite).toHaveBeenCalledWith({
-      modRoot: MOD_ROOT,
-      sessionId: SESSION_ID,
-      label: '保存 npc_dave.faction',
-      result: expect.anything(),
-    });
+    expect(entityId!.receipt).toEqual(writeResult(indexedEntity('npc_dave')));
   });
 
   it('create indexed entity delegates to the create write and records a create label', async () => {
@@ -187,30 +161,27 @@ describe('JSON save orchestrator', () => {
     });
 
     expect(entityId.entity.entityId).toBe('mission_new');
-    await completeJsonSave(MOD_ROOT, SESSION_ID, entityId.receipt, indexedConfigHistoryLabel('mission', 'create', 'mission_new'));
     expect(mocks.writeCreateIndexedConfigEntity).toHaveBeenCalledTimes(1);
     expect(mocks.writeIndexedConfigEntity).not.toHaveBeenCalled();
-    expect(mocks.completeSavedWrite).toHaveBeenCalledWith({
-      modRoot: MOD_ROOT,
-      sessionId: SESSION_ID,
-      label: indexedConfigHistoryLabel('mission', 'create', 'mission_new'),
-      result: expect.anything(),
-    });
+    expect(entityId.receipt).toEqual(writeResult(indexedEntity('mission_new')));
   });
 
   it('delete indexed entity forwards the delete target flag', async () => {
     mocks.writeDeleteIndexedConfigEntity.mockResolvedValue(writeResult(indexedEntity('npc_old')));
 
-    await deleteIndexedEntityAction(SESSION_ID, MOD_ROOT, 'faction', 'npc_old', true);
+    await deleteJsonDocument({ sessionId: SESSION_ID, modRoot: MOD_ROOT, kind: 'faction', id: 'npc_old', entity: null }, [], true);
 
-    expect(mocks.writeDeleteIndexedConfigEntity).toHaveBeenCalledWith({
-      baseVersions: [],
-      sessionId: SESSION_ID,
-      modRoot: MOD_ROOT,
-      kind: 'faction',
-      id: 'npc_old',
-      deleteTarget: true,
-    });
+    expect(mocks.writeDeleteIndexedConfigEntity).toHaveBeenCalledWith(
+      {
+        baseVersions: [],
+        sessionId: SESSION_ID,
+        modRoot: MOD_ROOT,
+        kind: 'faction',
+        id: 'npc_old',
+        deleteTarget: true,
+      },
+      undefined,
+    );
   });
 
   it('variant create seeds the default variant payload', async () => {
@@ -229,7 +200,7 @@ describe('JSON save orchestrator', () => {
       }),
     );
 
-    const variant = await createVariantAction(SESSION_ID, MOD_ROOT, 'npc_dave', 'variant_new');
+    const variant = await createJsonFileAction('variant', SESSION_ID, MOD_ROOT, 'npc_dave', 'variant_new');
 
     expect(variant.entity.id).toBe('variant_new');
     const payload = mocks.writeCreateVariantEntity.mock.calls[0]![0];
@@ -253,7 +224,15 @@ describe('JSON save orchestrator', () => {
       }),
     );
 
-    await saveVariantAction(SESSION_ID, MOD_ROOT, 'variant_b', { variantId: 'variant_b' }, 'variant_a', 'data/variants/variant_a.variant');
+    await saveJsonFileAction(
+      'variant',
+      SESSION_ID,
+      MOD_ROOT,
+      'variant_b',
+      { variantId: 'variant_b' },
+      'variant_a',
+      'data/variants/variant_a.variant',
+    );
 
     expect(mocks.writeVariantEntity).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -264,21 +243,28 @@ describe('JSON save orchestrator', () => {
         nextId: 'variant_b',
       }),
       { preserveOriginalJson: false, confirmedSources: [] },
+      undefined,
+      undefined,
     );
   });
 
   it('variant delete forwards the relative path', async () => {
     mocks.writeDeleteVariantEntity.mockResolvedValue(writeResult());
 
-    await deleteVariantAction(SESSION_ID, MOD_ROOT, 'variants/old.variant', 'old');
+    const target = entityTargetFixture('variant', 'old');
+    target.write.relPath = 'variants/old.variant';
+    await deleteJsonDocument({ sessionId: SESSION_ID, modRoot: MOD_ROOT, kind: 'variant', id: 'old', entity: target }, [], true);
 
-    expect(mocks.writeDeleteVariantEntity).toHaveBeenCalledWith({
-      baseVersions: [],
-      sessionId: SESSION_ID,
-      modRoot: MOD_ROOT,
-      relPath: 'variants/old.variant',
-      entityId: 'old',
-    });
+    expect(mocks.writeDeleteVariantEntity).toHaveBeenCalledWith(
+      {
+        baseVersions: [],
+        sessionId: SESSION_ID,
+        modRoot: MOD_ROOT,
+        relPath: 'variants/old.variant',
+        entityId: 'old',
+      },
+      undefined,
+    );
   });
 
   it('skin create seeds the default skin payload', async () => {
@@ -298,7 +284,7 @@ describe('JSON save orchestrator', () => {
       }),
     );
 
-    const skin = await createSkinAction(SESSION_ID, MOD_ROOT, 'npc_dave', 'skin_new');
+    const skin = await createJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'npc_dave', 'skin_new');
 
     expect(skin.entity.id).toBe('skin_new');
     expect(mocks.writeCreateSkinEntity).toHaveBeenCalledTimes(1);
@@ -321,7 +307,7 @@ describe('JSON save orchestrator', () => {
       }),
     );
 
-    await saveSkinAction(SESSION_ID, MOD_ROOT, 'skin_b', { skinHullId: 'skin_b' }, 'skin_a', 'data/hulls/skins/skin_a.skin');
+    await saveJsonFileAction('skin', SESSION_ID, MOD_ROOT, 'skin_b', { skinHullId: 'skin_b' }, 'skin_a', 'data/hulls/skins/skin_a.skin');
 
     expect(mocks.writeSkinEntity).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -332,20 +318,27 @@ describe('JSON save orchestrator', () => {
         nextId: 'skin_b',
       }),
       { preserveOriginalJson: false, confirmedSources: [] },
+      undefined,
+      undefined,
     );
   });
 
   it('skin delete forwards the relative path', async () => {
     mocks.writeDeleteSkinEntity.mockResolvedValue(writeResult());
 
-    await deleteSkinAction(SESSION_ID, MOD_ROOT, 'skins/old.skin', 'old');
+    const target = entityTargetFixture('skin', 'old');
+    target.write.relPath = 'skins/old.skin';
+    await deleteJsonDocument({ sessionId: SESSION_ID, modRoot: MOD_ROOT, kind: 'skin', id: 'old', entity: target }, [], true);
 
-    expect(mocks.writeDeleteSkinEntity).toHaveBeenCalledWith({
-      baseVersions: [],
-      sessionId: SESSION_ID,
-      modRoot: MOD_ROOT,
-      relPath: 'skins/old.skin',
-      entityId: 'old',
-    });
+    expect(mocks.writeDeleteSkinEntity).toHaveBeenCalledWith(
+      {
+        baseVersions: [],
+        sessionId: SESSION_ID,
+        modRoot: MOD_ROOT,
+        relPath: 'skins/old.skin',
+        entityId: 'old',
+      },
+      undefined,
+    );
   });
 });

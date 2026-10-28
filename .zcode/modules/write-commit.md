@@ -2,61 +2,75 @@
 
 ## 定义
 
-保存提交模块提供写盘事务、提交回执与指定提交的投影恢复。
+保存提交模块提供按项目顺序执行的文件事务、文件历史和未完成投影恢复。
 
 ## 参考
 
 ### 拥有
 
-- `src-tauri/src/services/write_transactions.rs`：根租约、版本复核、提交完成及回放调度。
-- `src-tauri/src/services/write_transactions/committed.rs`：根提交序号、会话投影结果与恢复记录。
+- `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
+- `src-tauri/src/services/project/write/save_requests.rs`：联合来源与实体当前内容准备。
+- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记与回放。
+- `src-tauri/src/services/write_transactions/committed.rs`：未完成投影及恢复期间的内容持有。
+- `src-tauri/src/services/write_transactions/submission.rs`：保存请求接入、业务动作分派及所属事务提交。
+- `src/domain/project/save-edits.ts`：实际修改提取及保存后的独立草稿保留。
 
 ### 消费
 
-- `src-tauri/src/io/file_changes.rs`：同根 FIFO 租约和实际 changeset 应用。
-- `src-tauri/src/models/write_commit.rs`：公共保存回执、提交投影、行键映射与 JSON 写入参数。
-- `src-tauri/src/services/file_history.rs`：历史登记、查询、清空及回放状态交接。
-- `src-tauri/src/services/project/mod.rs`：受影响会话、目标版本及正式投影构造。
-- `src/shared/types/write-commit.types.ts`：保存回执、提交恢复请求、行键映射与 JSON 写入契约。
+- `src-tauri/src/io/file_changes.rs`：根写入租约和文件变更集应用。
+- `src-tauri/src/models/save_action.rs`：保存动作的明确业务输入。
+- `src-tauri/src/models/write_commit.rs`：保存输入、实际结果及所属内容。
+- `src-tauri/src/services/file_history.rs`：文件撤销重做。
+- `src-tauri/src/services/project/mod.rs`：会话授权和正式结果。
+- `src-tauri/src/services/project_sync.rs`：项目队列、来源确认和恢复控制。
+- `src/shared/types/save-action.types.ts`：保存请求与业务动作输入。
+- `src/shared/types/write-commit.types.ts`：前端实际保存结果和窗口交接类型。
 
 ### 装配
 
-- `src-tauri/src/commands/project_sync.rs`：指定提交恢复的 command 交接。
-- `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
-- `src/orchestrators/project-sync.orchestrator.ts`：前端提交接纳、恢复重试及窗口通知。
+- `src-tauri/command-macros/`：正式保存命令接入。
+- `src-tauri/src/commands/project_sync.rs`：统一保存命令、窗口通道与处理回执。
+- `src/orchestrators/project-sync.orchestrator.ts`：保存结果的窗口消费。
 
 ## 边界
 
-- 业务保存入口拥有输入提交、草稿捕获、所属写入与实际基线接纳。
-- 保存提交拥有根租约、提交序号、提交记录和对应恢复结果。
-- 历史模块拥有双栈、历史 revision 与 changeset 登记。
-- 同根事务持有 IO 租约，按顺序完成业务写入、历史登记和投影构造。
-- 窗口内同步状态、缓存失效与通知归项目同步。
+- 业务写入必须在所属事务内生成各文件的实际最终内容。
+- 保存输入必须归发起编辑会话，捕获后的草稿操作必须保持独立。
+- 多文件修改必须共同交给一次历史登记和一个保存事件。
+- 投影恢复必须持有实际写入范围及未完成状态。
+- 文件历史必须独立持有配置范围内的撤销重做内容。
+- 项目队列必须覆盖文件准备、来源确认、写入、失败恢复、历史和正式内容登记。
 
 ## 链路
 
-### 保存提交
+### 保存
 
-1. 业务 command 取得同根租约并核对会话与目标版本。
-2. 所属写入能力构造并应用 changeset，历史模块登记结果。
-3. 提交运行态分配提交序号并构造受影响会话的正式投影。
-4. 回执交付带所属目标的内容、实际版本、历史摘要和 ready 或 pending 会话结果。
+1. 保存入口捕获实际业务修改、完整目标和读取凭据。
+2. 所属项目队列取得执行位置，准备当前正式内容。
+3. 事务核对权限和磁盘凭据，业务写入完成文件变更集。
+4. 文件历史登记实际写入，会话构建正式结果。
+5. 项目同步必须顺序发布完整保存结果，保存调用必须返回项目执行结果。
+6. 项目必须在发布结果后释放所属工作并执行后续请求。
 
-### 指定提交恢复
+### 恢复
 
-1. 项目同步 command 交付所属 session、Mod 根与提交 ID。
-2. 事务取得所属根租约，读取正式提交记录。
-3. pending 记录按保存的 changeset 恢复投影，ready 记录交付已有结果。
-4. 会话关闭时释放所属提交恢复记录。
+1. 写入失败必须按相反顺序恢复本次已执行和部分执行的文件操作。
+2. 恢复受阻必须保留尚未完成步骤及所属项目队列位置。
+3. 全部文件已完成后的历史与正式内容登记失败必须继续所属登记。
+4. 恢复完成必须结束失败请求，后续请求必须按恢复后的内容继续。
 
 ## 规范
 
-- JSON 写入参数必须保留后端 false 与空确认列表的默认语义，正式保存入口必须显式交付当前设置。
-- 保存期间的新编辑必须归所属草稿与历史，提交回执必须表达实际写盘结果。
-- 历史双栈与 revision 只允许由文件历史模块修改，事务必须消费所属登记和回放入口。
-- 同根提交必须消费 FIFO 租约，目标版本必须在实际写盘前核对。
-- 指定提交恢复必须消费原 session、Mod 根与提交 ID，严禁再次执行业务文件写入。
-- 提交内容必须以 content 共同交付 target 与 value，规格、文本、JSON、联合快照及来源恢复必须由所属生产入口确定身份，删除必须交付 null 内容。
-- 提交恢复必须消费原提交记录中的实际 changeset 与写盘范围。
-- 提交投影必须按 ready 与 pending 的同一扁平协议交付，错误必须消费 ErrorDiagnostic。
-- 磁盘与历史完成后的投影失败必须保留原提交记录，成功恢复必须交付可重复接纳的结果。
+- JSON 写入必须消费实际设置和来源格式确认。
+- 同根写盘必须消费正式租约，文件授权和磁盘核对必须在实际写入前完成。
+- 同次修改的各文件必须在最终内容汇合后写入。
+- 实际结果必须共同交付文件变化、行键、身份、历史及受影响会话。
+- 文件写入失败必须恢复本次修改，文本恢复必须保留原始字节、路径和存在状态。
+- 已写盘后的登记失败必须继续所属登记，历史必须登记一次。
+- 保存请求必须归所属项目维护，接收窗口释放必须继续已接收请求。
+- 来源重建必须明确确认缺失路径并消费本次捕获内容，确认后必须重新核对文件。
+- 来源确认必须绑定所属请求、实际缺失路径及当前接收身份，接收方释放后必须向当前项目的可用接收方交接。
+- 恢复资料必须按当前进程内工作寿命维护，完成或明确放弃后必须释放。
+- 成功恢复记录必须立即释放。
+- 提交内容必须共同表达所属目标和实际返回形状。
+- 草稿及草稿历史必须归所属会话，保存完成必须保留捕获后的独立修改。

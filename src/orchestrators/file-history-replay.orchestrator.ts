@@ -1,11 +1,11 @@
 import { h } from 'vue';
 import type { AppFeedback, FileChangeReplayDirection, FileHistoryEntrySummary } from '@/shared/types';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { replayFileChangeSet, loadFileHistory } from '@/services/file-history.service';
-import { publishCommittedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
 
 import { AppError } from '@/shared/lib/errors';
 import { recordLogBestEffort } from '@/services/app-log.service';
@@ -77,12 +77,9 @@ export function createFileReplayPlan(
 
 export async function executeFileReplayPlan(plan: FileHistoryReplayPlan, project: ProjectStore, tables: TablesStore): Promise<void> {
   const tableTarget = { sessionId: plan.sessionId, modRoot: plan.modRoot, table: tables.currentTab };
-  await retryPendingModSyncs(plan.modRoot);
   assertReplayPlanStillCurrent(plan, project);
   const result = await replayFileChangeSet(plan.sessionId, plan.modRoot, plan.direction, plan.entry.id, plan.revision);
   if (project.getSessionId(plan.modRoot) !== plan.sessionId) return;
-  useFileHistoryStore().applySnapshot(plan.modRoot, result.history);
-  await publishCommittedWrite(plan.modRoot, result, plan.sessionId, plan.direction);
   if (useWorkspaceStore().activeModRoot === plan.modRoot && result.sessionUpdates.some((update) => update.modRoot === plan.modRoot))
     tables.selectRowByKey(tableTarget, null);
   recordLogBestEffort({
@@ -109,6 +106,7 @@ async function replayNextFileHistoryEntry(
   feedback: AppFeedback,
 ) {
   const root = useWorkspaceStore().activeModRoot;
+  if (useProjectSyncStore().isWaiting(root)) return false;
   const session = root ? project.getSessionId(root) : null;
   if (root && session) {
     try {

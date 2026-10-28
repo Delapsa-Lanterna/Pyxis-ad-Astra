@@ -241,6 +241,11 @@ function aliasPrefix(handle, from) {
 
 /** @param {ts.Node} node @param {ts.TypeChecker} checker @param {number} offset @param {Map<string, CollectionChannel>} [channels] @returns {string} */
 function expressionPath(node, checker, offset, channels = new Map()) {
+  if (node.kind === ts.SyntaxKind.ThisKeyword) {
+    let owner = node.parent;
+    while (owner && !ts.isClassDeclaration(owner) && !ts.isClassExpression(owner)) owner = owner.parent;
+    return owner ? `${offset + owner.getStart()}#this` : '';
+  }
   if (ts.isArrayLiteralExpression(node) && node.elements.length === 1 && ts.isSpreadElement(node.elements[0]))
     return expressionPath(node.elements[0].expression, checker, offset, channels);
   if (ts.isIdentifier(node)) {
@@ -296,19 +301,19 @@ function collectionChannels(ast, checker, offset, file, files) {
   /** @type {Map<ts.SourceFile, ts.TypeChecker>} */
   const checkers = new Map();
   visit(ast, (node) => {
-    if (
-      !ts.isVariableDeclaration(node) ||
-      !node.initializer ||
-      !ts.isCallExpression(node.initializer) ||
-      !ts.isIdentifier(node.initializer.expression)
-    )
-      return;
-    const imported = checker.getSymbolAtLocation(node.initializer.expression)?.declarations?.[0];
+    const target = ts.isVariableDeclaration(node)
+      ? node.name
+      : ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        ? node.left
+        : null;
+    const initializer = ts.isVariableDeclaration(node) ? node.initializer : ts.isBinaryExpression(node) ? node.right : null;
+    if (!target || !initializer || !ts.isCallExpression(initializer) || !ts.isIdentifier(initializer.expression)) return;
+    const imported = checker.getSymbolAtLocation(initializer.expression)?.declarations?.[0];
     if (!imported || !ts.isImportSpecifier(imported)) return;
-    const binding = file.referenceBindings.get(node.initializer.expression.text);
+    const binding = file.referenceBindings.get(initializer.expression.text);
     const provider = binding && files.get(binding.edge.resolved);
     if (!provider) return;
-    const root = expressionPath(node.name, checker, offset);
+    const root = expressionPath(target, checker, offset);
     for (const { ast: source } of provider.syntax.scripts) {
       const factory = source.statements.find(
         (statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === binding.binding.importedName,
@@ -356,6 +361,22 @@ function collectionChannels(ast, checker, offset, file, files) {
       }
     }
   });
+  /** @type {{from: string, to: string}[]} */
+  const aliases = [];
+  visit(ast, (node) => aliases.push(...aliasEdges(node, (value) => expressionPath(value, checker, offset))));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const { from, to } of aliases) {
+      for (const [method, channel] of [...channels]) {
+        if (!method.startsWith(from + '.')) continue;
+        const alias = to + method.slice(from.length);
+        if (channels.has(alias)) continue;
+        channels.set(alias, channel);
+        changed = true;
+      }
+    }
+  }
   return channels;
 }
 

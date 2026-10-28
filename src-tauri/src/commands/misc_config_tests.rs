@@ -1,15 +1,12 @@
 #![cfg(test)]
 
 use crate::{
-    commands::{
-        delete_misc_config, prepare_json_source_recovery, query_misc_config_file,
-        query_misc_config_files, recreate_json_sources, save_misc_config,
-    },
+    commands::{prepare_json_source_recovery, query_misc_config_file, query_misc_config_files},
     io::file_version,
     models::{
         FileChangeReplayDirection, FileVersion, JsonDocumentOrigin, JsonRecoveryRequest,
-        MiscConfigDelete, MiscConfigKind, MiscConfigRead, MiscConfigScope, MiscConfigWrite,
-        RecreateJsonSourcesPayload,
+        JsonSourceRestore, MiscConfigDelete, MiscConfigKind, MiscConfigRead, MiscConfigScope,
+        MiscConfigWrite,
     },
     services::{project, write_transactions},
     testutil::temp_dir,
@@ -92,18 +89,20 @@ impl Fixture {
         data: Value,
         base_versions: Vec<FileVersion>,
     ) -> Result<crate::models::WriteResult<Value>, crate::errors::AppError> {
-        save_misc_config(MiscConfigWrite {
-            session_id: self.scope.session_id.clone(),
-            mod_root: self.scope.mod_root.clone(),
-            kind: MiscConfigKind::Strings,
-            ordered_json: data.to_string(),
-            data,
-            base_versions,
-            json_write: crate::models::JsonWriteOptions {
-                preserve_original_json: true,
-                confirmed_sources: vec![],
-            },
-        })
+        crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveMiscConfig(MiscConfigWrite {
+                session_id: self.scope.session_id.clone(),
+                mod_root: self.scope.mod_root.clone(),
+                kind: MiscConfigKind::Strings,
+                ordered_json: data.to_string(),
+                data,
+                base_versions,
+                json_write: crate::models::JsonWriteOptions {
+                    preserve_original_json: true,
+                    confirmed_sources: vec![],
+                },
+            }),
+        )
     }
 }
 impl Drop for Fixture {
@@ -152,12 +151,14 @@ fn create_edit_delete_history() {
             .any(|path| std::path::Path::new(path) == f.path().canonicalize().unwrap())
     );
     let bytes = std::fs::read(f.path()).unwrap();
-    let deleted = delete_misc_config(MiscConfigDelete {
-        session_id: f.scope.session_id.clone(),
-        mod_root: f.scope.mod_root.clone(),
-        kind: MiscConfigKind::Strings,
-        base_versions: saved.base_versions,
-    })
+    let deleted = crate::services::write_transactions::commit_action(
+        crate::models::SaveAction::DeleteMiscConfig(MiscConfigDelete {
+            session_id: f.scope.session_id.clone(),
+            mod_root: f.scope.mod_root.clone(),
+            kind: MiscConfigKind::Strings,
+            base_versions: saved.base_versions,
+        }),
+    )
     .unwrap();
     assert!(!f.path().exists());
     let history = deleted.history;
@@ -248,12 +249,14 @@ fn recreate_missing_source() {
     };
     let plan = prepare_json_source_recovery(request).unwrap();
     assert_eq!(plan.missing_paths, ["data/strings/strings.json"]);
-    let restored = recreate_json_sources(RecreateJsonSourcesPayload {
-        session_id: f.scope.session_id.clone(),
-        mod_root: f.scope.mod_root.clone(),
-        plan,
-        baseline: json!({"file":{"dialogue":{"line":"001"}}}),
-    })
+    let restored = crate::testutil::commit_saved::<crate::models::JsonRecoveryPlan>(
+        crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
+            session_id: f.scope.session_id.clone(),
+            mod_root: f.scope.mod_root.clone(),
+            plan,
+            baseline: json!({"file":{"dialogue":{"line":"001"}}}),
+        }),
+    )
     .unwrap();
     assert!(restored.content.unwrap().value.missing_paths.is_empty());
     assert_eq!(
@@ -292,18 +295,20 @@ fn config_formats_replay() {
             kind,
         };
         let save = |data: Value, base_versions| {
-            save_misc_config(MiscConfigWrite {
-                kind,
-                session_id: f.scope.session_id.clone(),
-                mod_root: f.scope.mod_root.clone(),
-                ordered_json: data.to_string(),
-                data,
-                base_versions,
-                json_write: crate::models::JsonWriteOptions {
-                    preserve_original_json: true,
-                    confirmed_sources: vec![],
-                },
-            })
+            crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::SaveMiscConfig(MiscConfigWrite {
+                    kind,
+                    session_id: f.scope.session_id.clone(),
+                    mod_root: f.scope.mod_root.clone(),
+                    ordered_json: data.to_string(),
+                    data,
+                    base_versions,
+                    json_write: crate::models::JsonWriteOptions {
+                        preserve_original_json: true,
+                        confirmed_sources: vec![],
+                    },
+                }),
+            )
         };
         assert!(query_misc_config_file(read_payload()).unwrap().is_none());
         let created = save(json!({}), vec![file_version(&path).unwrap()]).unwrap();
@@ -316,11 +321,14 @@ fn config_formats_replay() {
         };
         let assert_source = |updates: &[crate::models::CommittedSessionUpdate]| {
             if let Some(source) = source {
-                assert!(updates.iter().any(|update| matches!(
-                    &update.projection,
-                    crate::models::CommittedProjection::Ready { projection }
-                        if projection.invalidation.query_scopes.iter().any(|scope| scope.source.as_deref() == Some(source))
-                )));
+                assert!(updates.iter().any(|update| {
+                    update
+                        .projection
+                        .invalidation
+                        .query_scopes
+                        .iter()
+                        .any(|scope| scope.source.as_deref() == Some(source))
+                }));
             }
         };
         assert_source(&saved.session_updates);
@@ -332,12 +340,14 @@ fn config_formats_replay() {
             content
         );
         let bytes = std::fs::read(&path).unwrap();
-        let deleted = delete_misc_config(MiscConfigDelete {
-            kind,
-            session_id: f.scope.session_id.clone(),
-            mod_root: f.scope.mod_root.clone(),
-            base_versions: saved.base_versions,
-        })
+        let deleted = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::DeleteMiscConfig(MiscConfigDelete {
+                kind,
+                session_id: f.scope.session_id.clone(),
+                mod_root: f.scope.mod_root.clone(),
+                base_versions: saved.base_versions,
+            }),
+        )
         .unwrap();
         assert_source(&deleted.session_updates);
         assert!(!path.exists());
@@ -376,12 +386,14 @@ fn config_formats_replay() {
             plan.missing_paths,
             [crate::domain::misc_config::misc_config_path(kind)]
         );
-        recreate_json_sources(RecreateJsonSourcesPayload {
-            session_id: f.scope.session_id.clone(),
-            mod_root: f.scope.mod_root.clone(),
-            plan,
-            baseline: json!({"file":content}),
-        })
+        crate::testutil::commit_saved::<crate::models::JsonRecoveryPlan>(
+            crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
+                session_id: f.scope.session_id.clone(),
+                mod_root: f.scope.mod_root.clone(),
+                plan,
+                baseline: json!({"file":content}),
+            }),
+        )
         .unwrap();
         assert_eq!(
             query_misc_config_file(read_payload())
@@ -481,18 +493,20 @@ fn engine_source_preservation() {
     assert_eq!(read.data["SAMPLE"]["contrailMaxSpeedMult"], "0.5f");
     let mut content = read.data;
     content["SAMPLE"]["engineColor"] = json!([10, 20, 30, 255]);
-    save_misc_config(MiscConfigWrite {
-        kind: MiscConfigKind::EngineStyles,
-        session_id: f.scope.session_id.clone(),
-        mod_root: f.scope.mod_root.clone(),
-        base_versions: read.base_versions,
-        ordered_json: content.to_string(),
-        data: content,
-        json_write: crate::models::JsonWriteOptions {
-            preserve_original_json: true,
-            confirmed_sources: vec![],
+    crate::services::write_transactions::commit_action(crate::models::SaveAction::SaveMiscConfig(
+        MiscConfigWrite {
+            kind: MiscConfigKind::EngineStyles,
+            session_id: f.scope.session_id.clone(),
+            mod_root: f.scope.mod_root.clone(),
+            base_versions: read.base_versions,
+            ordered_json: content.to_string(),
+            data: content,
+            json_write: crate::models::JsonWriteOptions {
+                preserve_original_json: true,
+                confirmed_sources: vec![],
+            },
         },
-    })
+    ))
     .unwrap();
     let saved = std::fs::read_to_string(path).unwrap();
     assert!(saved.contains("# retained style comment"));
@@ -525,15 +539,17 @@ fn merged_config_save_validation() {
         let path = f
             .root
             .join(crate::domain::misc_config::misc_config_path(kind));
-        save_misc_config(MiscConfigWrite {
-            session_id: f.scope.session_id.clone(),
-            mod_root: f.scope.mod_root.clone(),
-            kind,
-            base_versions: vec![file_version(&path).unwrap()],
-            ordered_json: data.to_string(),
-            data,
-            json_write: Default::default(),
-        })
+        crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveMiscConfig(MiscConfigWrite {
+                session_id: f.scope.session_id.clone(),
+                mod_root: f.scope.mod_root.clone(),
+                kind,
+                base_versions: vec![file_version(&path).unwrap()],
+                ordered_json: data.to_string(),
+                data,
+                json_write: Default::default(),
+            }),
+        )
     };
     let partial = json!({"SAMPLE":{"contrailMaxSpeedMult":"1f"}});
     save(MiscConfigKind::EngineStyles, partial.clone()).unwrap();

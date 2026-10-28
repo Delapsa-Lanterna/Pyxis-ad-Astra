@@ -50,7 +50,6 @@ vi.mock('@/services/app-log.service', () => ({
 
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
   refreshProjectSourcePaths: mocks.refreshProjectSourcePaths,
-  retryPendingModSyncs: vi.fn(),
 }));
 
 import { useWorkspaceShellActions } from './use-workspace-shell-actions';
@@ -218,7 +217,7 @@ describe('useWorkspaceShellActions', () => {
     const actions = useWorkspaceShellActions(feedbackStub());
     expect(actions.canRefreshOverview.value).toBe(true);
     mocks.refreshProjectSourcePaths.mockImplementationOnce(async () => {
-      useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } }, 1);
+      useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } });
     });
     await actions.refreshModOverview(manifest.modRoot);
     expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledWith('s1', manifest.modRoot, [
@@ -252,7 +251,7 @@ describe('useWorkspaceShellActions', () => {
     const pending = actions.refreshModOverview(manifest.modRoot);
     if (dispose) scope.stop();
     else useWorkspaceStore().showSettings();
-    useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } }, 1);
+    useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { name: 'After', version: '2' } });
     finish();
     await pending;
     expect(useWorkspaceStore().loadedModList[0]).toMatchObject(

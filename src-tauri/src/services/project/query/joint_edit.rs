@@ -17,6 +17,16 @@ use std::{
 };
 
 #[cfg(test)]
+thread_local! {
+    static JOINT_GRAPH_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(in crate::services::project) fn take_joint_graph_builds() -> usize {
+    JOINT_GRAPH_BUILDS.with(|count| count.replace(0))
+}
+
+#[cfg(test)]
 pub fn query_joint_edit(root: &JointEditRoot) -> AppResult<JointEditSnapshot> {
     query_joint_edit_values(root, None, &[])
 }
@@ -53,6 +63,23 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
             .into();
     }
     query_joint_edit_values(&root, query.values.as_ref(), &query.new_sources)
+}
+
+pub(in crate::services::project) fn retained_joint_sources(
+    snapshot: &JointEditSnapshot,
+) -> AppResult<BTreeMap<String, JointValue>> {
+    let mut values = BTreeMap::new();
+    for record in &snapshot.records {
+        if let Some(source) = &record.source
+            && source.source == ResourceSource::Mod
+            && !Path::new(&source.path)
+                .try_exists()
+                .map_err(|error| AppError::from(error).at_path(&source.path))?
+        {
+            values.insert(record.key.clone(), record.value.clone());
+        }
+    }
+    Ok(values)
 }
 
 pub fn query_variant_catalog(
@@ -99,6 +126,8 @@ pub(in crate::services::project) fn query_joint_edit_values(
     let mut session = cache::lock_ready_session(&handle)?;
     let mut root = root.clone();
     root.mod_root = session.manifest.mod_root.clone();
+    #[cfg(test)]
+    JOINT_GRAPH_BUILDS.with(|count| count.set(count.get() + 1));
     let (reference_settings, damage_icons) = reference_settings(&session)?;
     let mut graph = JointGraph {
         session: &mut session,
@@ -251,7 +280,13 @@ pub(in crate::services::project) fn query_joint_edit_values(
         .collect::<BTreeSet<_>>();
     let parents = session.variant_files.clone();
     for parent in parents {
-        let (parent_version, content) = crate::io::read_versioned_json(Path::new(&parent.path))?;
+        let (parent_version, content) = if !Path::new(&parent.path).exists()
+            && crate::io::source_recreation_allowed(&session.manifest.mod_root, &parent.path)
+        {
+            (file_version(Path::new(&parent.path))?, parent.data.clone())
+        } else {
+            crate::io::read_versioned_json(Path::new(&parent.path))?
+        };
         if !crate::domain::joint_hull::module_entries(content.get("modules"))
             .iter()
             .any(|(_, id)| variant_ids.contains(id))
@@ -798,7 +833,13 @@ fn reference_settings(
     let mut roots = Vec::new();
     let mut icons = BTreeMap::new();
     if let Some(game) = &session.manifest.starsector_root {
-        roots.push((sources::core::core_dir(game)?, ResourceSource::Core));
+        let core = Path::new(game).join("starsector-core");
+        if core
+            .try_exists()
+            .map_err(|error| AppError::from(error).at_path(&core))?
+        {
+            roots.push((sources::core::core_dir(game)?, ResourceSource::Core));
+        }
     }
     roots.push((
         Path::new(&session.manifest.mod_root).to_path_buf(),
@@ -905,8 +946,22 @@ fn reference_settings(
 }
 
 pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared> {
-    let mut snapshot =
-        query_joint_edit_values(&draft.baseline.root, None, &draft.baseline.new_sources)?;
+    let retained = retained_joint_sources(&draft.baseline)?;
+    let mut snapshot = query_joint_edit_values(
+        &draft.baseline.root,
+        Some(&retained),
+        &draft.baseline.new_sources,
+    )?;
+    for version in &mut snapshot.base_versions {
+        if version.fingerprint.is_none()
+            && let Some(original) = draft.baseline.base_versions.iter().find(|original| {
+                windows_path_key(&original.path) == windows_path_key(&version.path)
+                    && original.fingerprint.is_some()
+            })
+        {
+            *version = original.clone();
+        }
+    }
     let current = snapshot
         .records
         .iter()
@@ -920,10 +975,17 @@ pub fn prepare_joint_edit(draft: &JointEditDraft) -> AppResult<JointEditPrepared
         .iter()
         .filter(|record| draft.values.contains_key(&record.key))
     {
-        let disk = current
+        let mut disk = current
             .get(&base.key)
             .map(|record| record.value.clone())
             .unwrap_or(JointValue::Missing);
+        if matches!(disk, JointValue::Missing)
+            && base.source.as_ref().is_some_and(|source| {
+                source.source == ResourceSource::Mod && !Path::new(&source.path).exists()
+            })
+        {
+            disk = base.value.clone();
+        }
         let edited = draft.values.get(&base.key).unwrap_or(&base.value);
         values.insert(
             base.key.clone(),
@@ -1513,18 +1575,21 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
         .manifest
         .starsector_root
         .as_ref()
+        .filter(|root| Path::new(root).join("starsector-core").is_dir())
         .map(|root| crate::services::project::sources::core::load_core_ship_files(root))
         .transpose()?;
     let core_variants = session
         .manifest
         .starsector_root
         .as_ref()
+        .filter(|root| Path::new(root).join("starsector-core").is_dir())
         .map(|root| crate::services::project::sources::core::load_core_variant_files(root))
         .transpose()?;
     let core_skins = session
         .manifest
         .starsector_root
         .as_ref()
+        .filter(|root| Path::new(root).join("starsector-core").is_dir())
         .map(|root| crate::services::project::sources::core::load_core_skin_files(root))
         .transpose()?;
     {
@@ -1726,9 +1791,24 @@ impl JointCsvCatalog {
         let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "joint CSV")?;
         let path = boundary.resolve_relative(relative, "joint CSV")?;
         let write = location(ResourceSource::Mod, boundary.root(), relative);
-        let (version, csv) = crate::io::read_versioned_csv(&path)?;
-        let (_, mod_rows, _) =
-            cache::csv::table_snapshot_from_csv(&session.csv_tables[table.as_str()], table, csv)?;
+        let (version, mod_rows) = if path
+            .try_exists()
+            .map_err(|error| AppError::from(error).at_path(&path))?
+        {
+            let (version, csv) = crate::io::read_versioned_csv(&path)?;
+            let (_, rows, _) = cache::csv::table_snapshot_from_csv(
+                &session.csv_tables[table.as_str()],
+                table,
+                csv,
+            )?;
+            (version, rows)
+        } else {
+            let (_, rows, _) = cache::csv::read_table_snapshot(session, table)?;
+            (
+                super::super::versions::version_for_path(session, relative),
+                rows,
+            )
+        };
         let mut catalog = Self {
             write: write.clone(),
             version: version.clone(),
@@ -1736,7 +1816,7 @@ impl JointCsvCatalog {
         };
         catalog.add_rows(table, &mod_rows, &write, &version)?;
         if let Some(root) = &session.manifest.starsector_root {
-            let core = sources::core::core_dir(root)?;
+            let core = Path::new(root).join("starsector-core");
             let source_path = core.join(relative);
             if source_path.exists() {
                 let source = location(ResourceSource::Core, &core, relative);

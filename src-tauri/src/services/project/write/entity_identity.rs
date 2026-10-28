@@ -4,6 +4,7 @@ use super::super::{
     query::entity_targets::describe_entity_target,
 };
 use super::csv_staging::CsvTableDraft;
+use crate::models::SpecSave;
 use crate::{
     domain::{entity_definitions::entity_spec_definition, entity_identity::validate_entity_id},
     errors::{AppError, AppResult},
@@ -310,12 +311,16 @@ pub(in crate::services::project) fn stage_entity_content(
     let original = target
         .source
         .as_ref()
+        .filter(|location| {
+            Path::new(&location.path).exists()
+                || !crate::io::source_recreation_allowed(&session.manifest.mod_root, &location.path)
+        })
         .map(|location| read_json_file(Path::new(&location.path)))
         .transpose()?;
     if target.state == EntityTargetState::Existing
         && original
             .as_ref()
-            .expect("existing target has source")
+            .unwrap_or(&data)
             .get(definition.id_field)
             .and_then(Value::as_str)
             != Some(&target.id)
@@ -395,10 +400,9 @@ pub(in crate::services::project) fn stage_entity_content(
     }
     if target.kind == EntityKind::Faction {
         let index_rel = "data/world/factions/factions.csv";
-        let index_path = boundary.resolve_relative(index_rel, "faction index")?;
-        let mut index = crate::io::read_csv_data(&index_path)?;
+        let mut index = super::super::cache::csv::read_retained_csv(session, index_rel)?;
         if let Some(EntityLinkedRecord::Index { row_index, .. }) = &target.linked_record {
-            let entries = crate::io::read_faction_index(boundary.root())?;
+            let entries = crate::io::faction_index_entries(&boundary, &index)?;
             let entry = entries
                 .iter()
                 .find(|entry| entry.row_index == *row_index)
@@ -469,6 +473,57 @@ pub(in crate::services::project) fn stage_entity_content(
     })
 }
 
+pub fn prepare_spec_save(
+    input: &mut SpecSave,
+    edits: &[crate::models::SaveEdit],
+    identities: &[crate::models::EntityIdentityChange],
+) -> Result<(), AppError> {
+    let SpecSave {
+        session_id,
+        target,
+        data,
+        base_versions,
+        ordered_json,
+        ..
+    } = input;
+    for identity in identities {
+        if identity.before.kind == target.kind && identity.before.id == target.id {
+            *target = identity.after.clone();
+        }
+    }
+    if crate::io::source_recreation_allowed(&target.write.root, &target.write.path) {
+        return Ok(());
+    }
+    let current = crate::services::query_entity(session_id, target.kind, &target.id)?;
+    if let Some(current) = current {
+        *data = current.data;
+        *target = current.target;
+        *base_versions = current.base_versions;
+        crate::domain::save_edits::apply_save_edits(data, edits);
+        *ordered_json = Some(serde_json::to_string(&data)?);
+    } else if target.state == crate::models::EntityTargetState::Existing {
+        return Err(AppError::message("write.target_removed", "保存目标已删除"));
+    }
+    Ok(())
+}
+
+pub fn write_spec_request(payload: SpecSave) -> Result<WriteResult<Value>, AppError> {
+    crate::services::require_entity_version_scope(
+        &payload.session_id,
+        payload.target.kind,
+        &payload.target.id,
+        &payload.base_versions,
+    )?;
+    let result = crate::services::save_entity_spec(
+        &payload.session_id,
+        &payload.target,
+        payload.data,
+        payload.json_write,
+        payload.ordered_json.as_deref(),
+    )?;
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -517,15 +572,17 @@ mod tests {
             )
             .unwrap();
             content[definition.id_field] = "next".into();
-            let receipt = crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: info.target,
-                base_versions: info.base_versions,
-                data: content,
-                json_write: Default::default(),
-                ordered_json: None,
-            })
+            let receipt = crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    target: info.target,
+                    base_versions: info.base_versions,
+                    data: content,
+                    json_write: Default::default(),
+                    ordered_json: None,
+                }),
+            )
             .unwrap();
             let saved = crate::io::read_csv_data(&csv).unwrap();
             assert_eq!(saved.header, ["a", "id", "name"]);
@@ -615,15 +672,17 @@ mod tests {
             CsvSearchField::IdName,
         )
         .unwrap();
-        let result = crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data: json!({"hullId":"new","hullName":"Saved"}),
-            json_write: Default::default(),
-            ordered_json: None,
-        })
+        let result = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: info.target,
+                base_versions: info.base_versions,
+                data: json!({"hullId":"new","hullName":"Saved"}),
+                json_write: Default::default(),
+                ordered_json: None,
+            }),
+        )
         .unwrap();
         assert!(!root.join("data/hulls/nested/filename.ship").exists());
         assert!(root.join("data/hulls/nested/new.ship").is_file());
@@ -683,15 +742,17 @@ mod tests {
             "missing",
         )
         .unwrap();
-        let result = crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data: json!({"hullId":"imported"}),
-            json_write: Default::default(),
-            ordered_json: None,
-        })
+        let result = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: info.target,
+                base_versions: info.base_versions,
+                data: json!({"hullId":"imported"}),
+                json_write: Default::default(),
+                ordered_json: None,
+            }),
+        )
         .unwrap();
         assert_eq!(result.identity_changes[0].after.id, "imported");
         assert!(root.join("data/hulls/imported.ship").exists());
@@ -721,13 +782,15 @@ mod tests {
         assert_eq!(loaded.entity.as_ref().unwrap().target.id, "old");
         assert_eq!(loaded.base_versions.len(), 2);
         let text = "{hullId:'new', # keep\n hullName:'Edited', extra:{'_key':1}}\n";
-        let saved = crate::commands::save_text_file(crate::models::SaveTextFilePayload {
-            session_id: Some(manifest.session_id.clone()),
-            mod_root: manifest.mod_root.clone(),
-            path: loaded.path,
-            text: text.to_string(),
-            base_versions: loaded.base_versions,
-        })
+        let saved = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
+                session_id: Some(manifest.session_id.clone()),
+                mod_root: manifest.mod_root.clone(),
+                path: loaded.path,
+                text: text.to_string(),
+                base_versions: loaded.base_versions,
+            }),
+        )
         .unwrap();
         assert_eq!(saved.content.unwrap().value["text"], text);
         assert_eq!(
@@ -773,15 +836,17 @@ mod tests {
         );
         assert_eq!(info.target.write.rel_path, "data/weapons/proj/core.proj");
         assert_eq!(info.base_versions[0].fingerprint, None);
-        let saved = crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data: json!({"id":"core","width":8}),
-            json_write: Default::default(),
-            ordered_json: None,
-        })
+        let saved = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: info.target,
+                base_versions: info.base_versions,
+                data: json!({"id":"core","width":8}),
+                json_write: Default::default(),
+                ordered_json: None,
+            }),
+        )
         .unwrap();
         assert_eq!(crate::io::read_json_file(&core).unwrap()["width"], 4);
         assert_eq!(
@@ -866,15 +931,17 @@ mod tests {
             "id,name\ndemo,External\n",
         )
         .unwrap();
-        let failed = crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data: json!({"hullId":"next"}),
-            json_write: Default::default(),
-            ordered_json: None,
-        })
+        let failed = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: info.target,
+                base_versions: info.base_versions,
+                data: json!({"hullId":"next"}),
+                json_write: Default::default(),
+                ordered_json: None,
+            }),
+        )
         .unwrap_err();
         assert_eq!(failed.code(), "write.version_conflict");
         assert_eq!(crate::io::read_json_file(&file).unwrap()["hullId"], "demo");
@@ -911,15 +978,17 @@ mod tests {
             vec![info.base_versions[0].clone()],
             vec![info.base_versions[1].clone()],
         ] {
-            let error = crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                target: info.target.clone(),
-                base_versions: versions,
-                data: json!({"hullId":"next"}),
-                json_write: Default::default(),
-                ordered_json: None,
-            })
+            let error = crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    target: info.target.clone(),
+                    base_versions: versions,
+                    data: json!({"hullId":"next"}),
+                    json_write: Default::default(),
+                    ordered_json: None,
+                }),
+            )
             .unwrap_err();
             assert_eq!(error.code(), "write.version_scope_missing");
             assert_eq!(crate::io::read_json_file(&path).unwrap()["hullId"], "demo");
@@ -953,13 +1022,15 @@ mod tests {
         )
         .unwrap();
         let text = "{hullId:' next ', # keep\n extra:{hullId:' untouched '}}\n";
-        let saved = crate::commands::save_text_file(crate::models::SaveTextFilePayload {
-            session_id: Some(manifest.session_id.clone()),
-            mod_root: manifest.mod_root.clone(),
-            path: path.to_string_lossy().to_string(),
-            text: text.to_string(),
-            base_versions: info.base_versions,
-        })
+        let saved = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
+                session_id: Some(manifest.session_id.clone()),
+                mod_root: manifest.mod_root.clone(),
+                path: path.to_string_lossy().to_string(),
+                text: text.to_string(),
+                base_versions: info.base_versions,
+            }),
+        )
         .unwrap();
         let expected = "{hullId:\"next\", # keep\n extra:{hullId:' untouched '}}\n";
         assert_eq!(saved.content.unwrap().value["text"], expected);

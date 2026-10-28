@@ -1,4 +1,4 @@
-import { projectChangeFixture, closeProjectChangeFixture } from '@/test/unit/project-changes';
+import { projectChangeFixture, closeProjectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { jointObject } from '@/domain/joint-edit';
@@ -14,7 +14,7 @@ import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
-import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
+import type { CommittedWriteEvent } from '@/windows/window.events';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
   openPreview: vi.fn(),
   openImmersive: vi.fn(),
   invalidations: [] as Array<(event: unknown) => void>,
-  projectUpdates: [] as Array<(event: import('@/windows/window.events').ProjectSessionInvalidatedEvent) => Promise<void>>,
+  projectUpdates: [] as Array<(event: import('@/shared/types').ProjectSessionInvalidationResult) => Promise<void>>,
 }));
 vi.mock('@/services/joint-edit.service', () => ({
   queryJointEdit: mocks.query,
@@ -48,9 +48,9 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
-  listenEntityIdentityApplied: mocks.listen,
+  listenSavedIdentity: mocks.listen,
   listenProjectSessionInvalidated: async (
-    listener: (event: import('@/windows/window.events').ProjectSessionInvalidatedEvent) => Promise<void>,
+    listener: (event: import('@/shared/types').ProjectSessionInvalidationResult) => Promise<void>,
   ) => {
     mocks.projectUpdates.push(listener);
     return () => {
@@ -348,13 +348,12 @@ describe('variant joint actions', () => {
       const { vm, wrapper } = editor('variant');
       await vm.initialize();
       const id = mode === 'remove' ? '' : 'replacement';
-      let commit = 100;
       mocks.save.mockImplementation(async (draft) => {
         if (mode === 'failure') throw new Error('save failed');
         const next = structuredClone(baseline);
         for (const record of next.records) if (draft.values[record.key]) record.value = structuredClone(draft.values[record.key]);
         mocks.query.mockResolvedValue(next);
-        return { ...savedWriteFixture(), commitId: ++commit, content: { target: { kind: 'joint', root: next.root }, value: next } };
+        return { ...savedWriteFixture(), content: { target: { kind: 'joint', root: next.root }, value: next } };
       });
       if (mode === 'cancel') {
         await vm.variant!.updateVariant('variant', (data) => ({ ...data, fluxVents: 12 }));
@@ -476,7 +475,7 @@ describe('variant joint actions', () => {
     await vm.initialize();
     expect(await vm.variant!.stripVariantBranch('variant')).toBe(true);
     expect(mocks.save).toHaveBeenCalledTimes(1);
-    expect(mocks.save.mock.calls[0]![3]).toEqual(['module']);
+    expect(mocks.save.mock.calls[0]![1]).toEqual(['module']);
     expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(0);
     await vm.undo();
     expect(jointObject(vm.joint.draftValue.value.module).fluxVents).toBe(8);
@@ -603,7 +602,7 @@ describe('variant joint actions', () => {
     delete next.variants.module;
     mocks.query.mockResolvedValue(next);
     const receipt = { ...savedWriteFixture(), identityChanges: [{ before: target, after: entityTargetFixture('variant', 'module_new') }] };
-    await mocks.listen.mock.calls[0]![0]({ sessionId: 's', modRoot: 'M:/mod', result: receipt });
+    await mocks.listen.mock.calls[0]![0]({ originWindowLabel: 'peer', reason: 'save', sessionId: 's', modRoot: 'M:/mod', result: receipt });
     await flushPromises();
     expect(vm.joint.draftValue.value['next-module']).toMatchObject({ state: 'present', value: { variantId: 'module_new', fluxVents: 7 } });
     expect(vm.joint.draftValue.value.variant).toMatchObject({ state: 'present', value: { modules: [{ M: 'module_new' }] } });
@@ -864,7 +863,6 @@ describe('wing joint source handoff', () => {
     next.bindings.csv = 'next-wing';
     mocks.query.mockResolvedValue(next);
     const update = sessionUpdateFixture('s', 'M:/mod');
-    if (update.status !== 'ready') throw new Error('projection fixture');
     update.projection.invalidation.paths = ['data/hulls/wing_data.csv'];
     projectChangeFixture('s', update.projection.invalidation);
     await flushPromises();
@@ -923,8 +921,8 @@ describe('wing joint source handoff', () => {
     mocks.save.mockImplementation(async (draft) => {
       const actual = structuredClone(baseline);
       for (const record of actual.records) if (draft.values[record.key]) record.value = structuredClone(draft.values[record.key]);
-      if (commit === 1) mocks.query.mockResolvedValue(actual);
-      return { ...savedWriteFixture(), commitId: ++commit, content: { target: { kind: 'joint', root: actual.root }, value: actual } };
+      if (++commit === 1) mocks.query.mockResolvedValue(actual);
+      return { ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } };
     });
     await vm.updateFields([{ field: panel.sources[0]!.fields[0]!, update: { kind: 'set', value: 'other' } }]);
     expect(mocks.save).toHaveBeenCalledTimes(2);
@@ -1090,7 +1088,7 @@ describe('immersive ship lifecycle and reference channels', () => {
       state: 'present',
       value: { specClass: 'beam', textureType: 'SMOOTH', custom: 'retained' },
     });
-    expect(mocks.save.mock.calls[0]![3]).toEqual(['spec']);
+    expect(mocks.save.mock.calls[0]![1]).toEqual(['spec']);
     expect(vm.joint.draftValue.value.spec).toEqual(actual.records[0]!.value);
     expect(vm.joint.dirty.value).toBe(false);
     wrapper.unmount();
@@ -1144,8 +1142,10 @@ describe('immersive ship lifecycle and reference channels', () => {
     next.records[0]!.target = { kind: 'spec', target: after };
     next.records[0]!.value = { state: 'present', value: { hullId: 'renamed', hullSize: 'FRIGATE' } };
     mocks.query.mockResolvedValue(next);
-    const handler = mocks.listen.mock.calls[0]![0] as (event: EntityIdentityAppliedEvent) => Promise<void>;
+    const handler = mocks.listen.mock.calls[0]![0] as (event: CommittedWriteEvent) => Promise<void>;
     await handler({
+      originWindowLabel: 'peer',
+      reason: 'save',
       sessionId: 's',
       modRoot: 'M:/mod',
       result: { ...savedWriteFixture(), identityChanges: [{ before: before.target.target, after }] },
@@ -1158,7 +1158,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     expect(vm.joint.currentTarget.value!.id).toBe('renamed');
     wrapper.unmount();
   });
-  it('rereads associations after accepting the actual saved record values', async () => {
+  it('rereads associations once when actual saved references differ from the accepted draft projection', async () => {
     const { vm, wrapper } = editor();
     await vm.initialize();
     await flushPromises();
@@ -1174,11 +1174,38 @@ describe('immersive ship lifecycle and reference channels', () => {
     const actual = shipJointFixture();
     actual.records[1]!.value = { state: 'present', value: { 'system id': 'next', id: 'lasher', name: 'Lasher' } };
     mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
-    await vm.save();
+    let finish!: (snapshot: JointEditSnapshot) => void;
+    mocks.projection.mockImplementationOnce(
+      () =>
+        new Promise<JointEditSnapshot>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let settled = false;
+    const saving = vm.save().then(() => {
+      settled = true;
+    });
+    await flushPromises();
+    expect(settled).toBe(true);
+    finish(projection);
+    await saving;
+    await savedContentWorks.at(-1)!.content;
     await flushPromises();
     expect(mocks.projection).toHaveBeenCalledTimes(2);
     expect(shipPanel(vm).system.display).toBe('Selected system');
     expect(mocks.error).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+  it('accepts a complete save with unchanged references without another projection read', async () => {
+    const { vm, wrapper } = editor();
+    await vm.initialize();
+    await flushPromises();
+    const actual = shipJointFixture();
+    mocks.save.mockResolvedValue({ ...savedWriteFixture(), content: { target: { kind: 'joint', root: actual.root }, value: actual } });
+    mocks.projection.mockClear();
+    await vm.save();
+    await flushPromises();
+    expect(mocks.projection).toHaveBeenCalledTimes(0);
     wrapper.unmount();
   });
   it('keeps the old identity when native retarget fails and follows on retry with the draft history intact', async () => {
@@ -1193,12 +1220,14 @@ describe('immersive ship lifecycle and reference channels', () => {
     next.root.id = 'renamed';
     next.records[0]!.target = { kind: 'spec', target: after };
     next.records[0]!.value = { state: 'present', value: { hullId: 'renamed', hullSize: 'FRIGATE' } };
-    const event: EntityIdentityAppliedEvent = {
+    const event: CommittedWriteEvent = {
+      originWindowLabel: 'peer',
+      reason: 'save',
       sessionId: 's',
       modRoot: 'M:/mod',
       result: { ...savedWriteFixture(), identityChanges: [{ before: before.target.target, after }] },
     };
-    const handler = mocks.listen.mock.calls[0]![0] as (event: EntityIdentityAppliedEvent) => Promise<void>;
+    const handler = mocks.listen.mock.calls[0]![0] as (event: CommittedWriteEvent) => Promise<void>;
     mocks.query.mockResolvedValue(next);
     mocks.retarget.mockRejectedValueOnce(new Error('native retarget'));
     await expect(handler(event)).rejects.toThrow('native retarget');

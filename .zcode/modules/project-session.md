@@ -28,9 +28,9 @@
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、提交与窗口登记释放及性能记录。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 的种类、ID 与通配匹配。
-- `src/services/project-projection.service.ts`：窗口内按 session 与提交序号维护读取门控的运行态。
+- `src/services/project-projection.service.ts`：窗口内按 session 维护正式内容读取门控。
 - `src/services/project-session.service.ts`：session 打开、关闭与来源刷新协议。
-- `src/stores/project.store.ts`：按 Mod 根管理全部 manifest、session 查询、表格写入目标与已接纳投影版本。
+- `src/stores/project.store.ts`：按 Mod 根管理全部 manifest、session 查询、表格写入目标与正式清单。
 
 ### 消费
 
@@ -62,7 +62,7 @@
 
 - session 注册表持有授权根与会话 handle，各会话状态分别加锁。
 - 关闭移除登记，已取得 handle 的在途操作自然完成，后续操作以未知 session 拒绝。
-- 前端 project store 持有全部 manifest 和正式投影版本，工作区消费按根查询，项目同步交付完整投影。
+- 前端 project store 必须持有全部 manifest 和正式清单，工作区必须按根查询，项目同步必须顺序交付完整投影。
 - 势力及蓝图包提供 tags 元数据，来源变化参与全部相关表的失效。
 - 后端 query 消费会话索引并返回只读结果，write 发布 changeset 和结构化投影。
 - 媒体和查询等待按 session 释放，投影恢复归事务与提交同步入口。
@@ -89,18 +89,18 @@
 
 ### 写后失效
 
-1. FIFO 事务写盘并登记文件历史、提交身份与实际版本。
-2. 事务按路径归属定位已登记会话，构造受影响投影并发布会话更新。
-3. receipt 返回 ready 投影或 `pending` 提交引用与结构化错误。
-4. 前端接纳历史、manifest 与投影代次，先失效资源缓存再失效查询缓存。
-5. 统一提交事件携带来源窗口、完整 receipt 与保存或回放原因，消费者按身份接纳。
+1. FIFO 事务必须写盘并登记文件历史与实际文件凭据。
+2. 事务必须按路径归属定位已登记会话并构造受影响投影。
+3. 保存工作必须在正式内容准备完成后返回完整结果并发布更新。
+4. 前端必须按有序交付接纳历史及 manifest，先失效资源缓存再失效查询缓存。
+5. 统一结果必须携带来源窗口、完整内容与保存或回放原因。
 
 ### 提交恢复
 
-1. 手动重试、再次保存或关闭交接取得所属待同步 receipt。
-2. `pending` 投影经 `synchronize_committed_write` 消费后端登记的提交记录。
-3. ready 投影进入本窗口接纳，完成状态推进至广播。
-4. 广播成功释放前端 `pending`；失败保留当前步骤及 receipt。
+1. 已写盘保存工作必须持有尚未完成的正式内容登记。
+2. 手动重试必须继续所属会话登记，已完成会话必须释放其执行位置。
+3. 完整投影必须随保存结果发布并结束项目保存工作。
+4. 消费者必须独立处理必要读取、错误和自身释放。
 
 ### 关闭 session
 
@@ -117,19 +117,22 @@
 - ID 归属的实体视图、关联目标、来源目录、表计数、行预览与失效快照必须消费解析器 `isComment`；实体登记只允许枚举非注释且实体 ID 非空的行。
 - Variant 与 Skin 必须分别持有索引和诊断，统计必须消费所属记录数量；manifest 诊断必须按 Variant、Skin 顺序聚合。
 - Variant 与 Skin 的业务输出必须是文件内容；加载身份、文件目标、版本与资源必须分别归正式记录。
-- `WriteResult` 必须携带 sessionUpdates；每项必须表达 `sessionId`、`modRoot`、`commitId` 与 ready 或 `pending`，ready 必须携带 manifest、invalidation 和 `projectionRevision`。
+- `WriteResult` 必须携带 sessionUpdates；每项必须表达 `sessionId`、`modRoot` 和完整 projection，projection 必须携带 manifest 和 invalidation。
 - detail、list 与编辑目标查询必须消费同一目标定义；规格目标必须承载实际来源、所属根、写入目标、加载身份及关联行。
-- manifest 接纳必须核对 session 与单调投影代次，缓存失效与通知必须由项目同步按所属结果交付。
-- `pending` 提交与前端同步登记必须保存稳定码、原始 message 与 nullable location，呈现必须消费所属文案投影。
+- manifest 接纳必须核对所属 session 并服从保存交付顺序，缓存失效与内容交接必须由项目同步完成。
+- 未完成保存和内容读取必须分别保留稳定码、原始 message 与 nullable location，呈现必须消费所属文案投影。
 - session 注册表只允许短暂访问句柄，锁序必须为根事务租约、session 状态与缓存；query 严禁写盘，write 必须更新现有会话投影。
 - 会话与 Core CSV 缓存必须分别保存业务 data、`isComment` 与 `rowKey`，严禁覆盖文件中的同名业务键。
 - 会话根入口必须只交付生命周期、授权、投影及缓存配置，严禁转导出查询、资源和业务保存函数。
 - 写后失效对无法解析的实体只发出该实体种类的 `id: null` scope，严禁阻断其它实体或扩大失效范围。
 - 初始化、缓存恢复和失效重建必须消费同一所属来源构造；每次投影中的受影响族必须去重且各构造一次。
 - 多文件版本必须覆盖实际规格与所属 CSV、势力索引与授权规格、任务索引与任务目录；新建必须携带目标不存在凭据。
-- 已写盘提交的投影恢复必须经所属 FIFO 根租约；正常 ready 结果只允许直接接纳，广播重试必须复用已完成投影。
+- 任务来源凭据必须共同覆盖目录、索引、描述文件和正文，明确确认的缺失文件必须参与目录内容核对。
+- 已读取编辑目标必须归当前会话登记，外部来源缺失必须保留正式路径，已执行删除及改名必须释放原目标登记。
+- 已写盘提交的投影恢复必须经所属 FIFO 根租约；正常 ready 结果只允许直接接纳，窗口交接重试必须继续尚未完成的处理。
 - 已登记 session 必须保留至显式关闭；应用关闭必须占有新会话登记入口并等待已开始的建立动作；会话释放必须清理对应媒体缓存。
-- 异步刷新提交必须验证捕获 session 和 `pending` 生命周期；已关闭 session 的响应严禁覆盖新会话 manifest。
+- 异步刷新必须验证捕获 session 和读取寿命；已关闭 session 的响应严禁覆盖新会话 manifest。
+- 会话释放必须消费登记的项目身份，目录缺失时必须清理所属历史、媒体和窗口登记。
 - 所有 Mod 缓存与索引必须按 session 隔离，严禁跨 session 复用。
 - 手动刷新必须按所属 Mod／Core 来源授权并保留 session 与 CSV 行身份；完整读取成功后必须更新正式投影和版本。
 - 打开时必须取得全部索引来源的内容版本，业务投影必须消费匹配的来源记录。

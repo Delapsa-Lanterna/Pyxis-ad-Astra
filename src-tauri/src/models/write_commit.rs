@@ -3,7 +3,57 @@ use crate::models::{
     FileChangeRecord, FileHistorySnapshot, FileVersion, ProjectInvalidation, push_unique_all,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::path::Path;
+
+#[derive(Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SaveDelivery {
+    Missing {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        paths: Vec<String>,
+    },
+    Saved {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        event: Value,
+    },
+    Waiting {
+        #[serde(rename = "modRoot")]
+        mod_root: String,
+        waiting: bool,
+    },
+    Blocked {
+        #[serde(rename = "requestId")]
+        request_id: String,
+        #[serde(rename = "modRoot")]
+        mod_root: String,
+        #[serde(rename = "sessionId")]
+        session_id: Option<String>,
+        diagnostic: ErrorDiagnostic,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveRequest {
+    pub id: String,
+    pub edits: Vec<SaveEdit>,
+    pub action: super::SaveAction,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SaveEdit {
+    Set {
+        path: Vec<String>,
+        value: serde_json::Value,
+    },
+    Remove {
+        path: Vec<String>,
+    },
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,9 +79,12 @@ pub struct JsonSourceConfirmation {
     pub source_fingerprint: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WriteContentTarget {
+    Csv {
+        table: super::CsvTableKey,
+    },
     Spec {
         target: Box<super::EntityEditTarget>,
     },
@@ -49,14 +102,14 @@ pub enum WriteContentTarget {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteContent<T> {
     pub target: WriteContentTarget,
     pub value: T,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteResult<T = ()> {
     pub session_updates: Vec<CommittedSessionUpdate>,
@@ -65,9 +118,18 @@ pub struct WriteResult<T = ()> {
     pub invalidation: ProjectInvalidation,
     pub key_map: Vec<CsvRowKeyMapping>,
     pub content: Option<WriteContent<T>>,
-    pub commit_id: u64,
     pub base_versions: Vec<FileVersion>,
     pub history: FileHistorySnapshot,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommittedWriteEvent<'a, T> {
+    pub origin_window_label: &'a str,
+    pub mod_root: &'a str,
+    pub session_id: Option<&'a str>,
+    pub reason: &'a str,
+    pub result: &'a WriteResult<T>,
 }
 
 impl<T> WriteResult<T> {
@@ -79,7 +141,6 @@ impl<T> WriteResult<T> {
             invalidation: self.invalidation,
             key_map: self.key_map,
             content: Some(WriteContent { target, value }),
-            commit_id: self.commit_id,
             base_versions: self.base_versions,
             history: self.history,
         }
@@ -100,7 +161,6 @@ impl<T> WriteResult<T> {
             invalidation,
             key_map,
             content,
-            commit_id: 0,
             base_versions: Vec::new(),
             history: FileHistorySnapshot::default(),
         }
@@ -124,24 +184,11 @@ impl<T> WriteResult<T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "status", rename_all = "camelCase")]
-pub enum CommittedProjection {
-    Ready {
-        projection: std::sync::Arc<super::ProjectSessionInvalidationResult>,
-    },
-    Pending {
-        error: ErrorDiagnostic,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommittedSessionUpdate {
     pub session_id: String,
     pub mod_root: String,
-    pub commit_id: u64,
-    #[serde(flatten)]
-    pub projection: CommittedProjection,
+    pub projection: std::sync::Arc<super::ProjectSessionInvalidationResult>,
 }
 
 fn changed_paths_for_changes(changes: &[FileChangeRecord]) -> Vec<String> {
@@ -169,14 +216,6 @@ fn changed_paths_for_changes(changes: &[FileChangeRecord]) -> Vec<String> {
         }
     }
     paths
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SynchronizeCommittedWritePayload {
-    pub session_id: String,
-    pub mod_root: String,
-    pub commit_id: u64,
 }
 
 #[cfg(test)]
@@ -211,13 +250,23 @@ mod tests {
             "entitySummaries":{"factions":0,"missions":0,"ships":0,"weapons":0,"projectiles":0,"variants":0,"skins":0,"systems":0,"skills":0}
         });
         let invalidation = json!({"paths":[],"tables":[],"entities":[],"resources":[],"queryScopes":[],"session":false});
-        for value in [
-            json!({"sessionId":"s","modRoot":"M:/mod","commitId":3,"status":"ready","projection":{"projectionRevision":3,"manifest":manifest,"invalidation":invalidation}}),
-            json!({"sessionId":"s","modRoot":"M:/mod","commitId":3,"status":"pending","error":{"code":"project.scan_failed","message":"Source unavailable","location":null}}),
-        ] {
-            let update: CommittedSessionUpdate = serde_json::from_value(value.clone()).unwrap();
-            assert_eq!(serde_json::to_value(update).unwrap(), value);
-        }
+        let value = json!({"sessionId":"s","modRoot":"M:/mod","projection":{"manifest":manifest,"invalidation":invalidation}});
+        let update: CommittedSessionUpdate = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(update).unwrap(), value);
+        let blocked = SaveDelivery::Blocked {
+            request_id: "request".into(),
+            mod_root: "M:/mod".into(),
+            session_id: Some("s".into()),
+            diagnostic: crate::errors::AppError::message(
+                "project.scan_failed",
+                "Source unavailable",
+            )
+            .diagnostic(),
+        };
+        assert_eq!(
+            serde_json::to_value(blocked).unwrap()["diagnostic"],
+            json!({"code":"project.scan_failed","message":"Source unavailable","location":null})
+        );
     }
 
     #[test]
@@ -232,7 +281,6 @@ mod tests {
             [
                 "baseVersions",
                 "changes",
-                "commitId",
                 "content",
                 "history",
                 "identityChanges",
@@ -282,13 +330,17 @@ mod tests {
     }
 
     #[test]
-    fn synchronization_requests_keep_the_original_commit_identity() {
-        let payload: SynchronizeCommittedWritePayload =
-            serde_json::from_value(json!({"sessionId":"session","modRoot":"M:/mod","commitId":7}))
-                .unwrap();
-        assert_eq!(payload.session_id, "session");
-        assert_eq!(payload.mod_root, "M:/mod");
-        assert_eq!(payload.commit_id, 7);
+    fn save_requests_keep_the_original_request_identity() {
+        let payload: SaveRequest = serde_json::from_value(json!({
+            "id":"request-7", "edits":[],
+            "action":{"kind":"refresh_project_sources","input":{"sessionId":"session","sources":[]}}
+        }))
+        .unwrap();
+        assert_eq!(payload.id, "request-7");
+        assert!(payload.edits.is_empty());
+        assert!(
+            matches!(payload.action, super::super::SaveAction::RefreshProjectSources(input) if input.session_id == "session" && input.sources.is_empty())
+        );
     }
 
     #[test]

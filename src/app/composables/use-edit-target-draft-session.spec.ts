@@ -1,3 +1,4 @@
+import { withSavedCompletion, savedContentWorks } from '@/test/unit/project-changes';
 import { describe, expect, it, vi } from 'vitest';
 import { ref, watch } from 'vue';
 import { useEditTargetDraftSession, type EditTargetDraftSessionOptions, type EditTargetSnapshot } from './use-edit-target-draft-session';
@@ -22,12 +23,18 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
-function createSession(options: Partial<EditTargetDraftSessionOptions<SampleValue, SampleTarget, { label: string }>> = {}) {
+function createSession(
+  options: Partial<EditTargetDraftSessionOptions<SampleValue, SampleTarget, { label: string }>> & {
+    synchronizeSaved?: (snapshot: Snapshot) => void | Promise<void>;
+  } = {},
+) {
+  const { synchronizeSaved, ...sessionOptions } = options;
   const session = useEditTargetDraftSession({
+    beginSave: withSavedCompletion((value) => synchronizeSaved?.(value as Snapshot)),
     emptyValue: { a: 0 },
     targetKey: (value: SampleTarget) => value.id,
     load: () => snapshot(1),
-    ...options,
+    ...sessionOptions,
   });
   session.loadBaseForTarget(snapshot(1));
   return session;
@@ -57,33 +64,36 @@ describe('target snapshots', () => {
     expect(session.pendingSnapshot.value?.value.a).toBe(7);
     expect(session.draftValue.value.a).toBe(6);
   });
-  it('waiting a pending synchronization retries its receipt while retaining newer draft edits', async () => {
+  it('retries content independently while retaining newer draft edits', async () => {
     const save = vi.fn((_target: SampleTarget, value: SampleValue) => snapshot(value.a));
     const synchronizeSaved = vi.fn().mockRejectedValueOnce(new Error('broadcast')).mockResolvedValue(undefined);
     const session = createSession({ save, synchronizeSaved });
     session.setDraft({ a: 2 });
-    await expect(session.saveDraft()).rejects.toMatchObject({ action: 'sync-saved-target' });
+    await session.saveDraft();
+    await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('broadcast');
     session.setDraft({ a: 3 });
     await expect(session.waitForSave()).resolves.toBe(true);
+    await savedContentWorks.at(-1)!.retryContent();
     expect(save).toHaveBeenCalledOnce();
     expect(session.draftValue.value).toEqual({ a: 3 });
     expect(session.baselineSnapshot.value?.value).toEqual({ a: 2 });
-    expect(session.hasPendingSynchronization.value).toBe(false);
+    expect(session.saving.value).toBe(false);
     expect(session.dirty.value).toBe(true);
   });
-  it('retries the persisted synchronization receipt while retaining subsequent edits', async () => {
+  it('saves subsequent edits while earlier content work remains unfinished', async () => {
     const save = vi.fn((_target: SampleTarget, value: SampleValue) => snapshot(value.a, 'v' + value.a));
     const synchronize = vi.fn().mockRejectedValueOnce(new Error('broadcast')).mockResolvedValueOnce(undefined);
     const session = createSession({ save, synchronizeSaved: synchronize });
     session.setDraft({ a: 2 });
-    await expect(session.saveDraft()).rejects.toMatchObject({ action: 'sync-saved-target' });
-    expect(session.hasPendingSynchronization.value).toBe(true);
+    await session.saveDraft();
+    await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('broadcast');
+    expect(session.saving.value).toBe(false);
     session.setDraft({ a: 3 });
     await session.saveDraft();
     expect(save).toHaveBeenCalledTimes(2);
-    expect(synchronize).toHaveBeenCalledTimes(3);
+    await savedContentWorks.at(-1)!.content;
+    expect(synchronize).toHaveBeenCalledTimes(2);
     expect(session.draftValue.value).toEqual({ a: 3 });
-    expect(session.hasPendingSynchronization.value).toBe(false);
     expect(session.dirty.value).toBe(false);
   });
   it('accepts identity credentials and preserves raw fields and current draft in one handoff', () => {
@@ -168,13 +178,13 @@ describe('target snapshots', () => {
     expect(session.context.value?.handoff).toBe('reset');
   });
 
-  it('retains the source order after a metadata-only authoritative refresh', () => {
+  it('accepts the delivered order and keeps metadata with its content', () => {
     const session = createSession();
-    expect(session.applyExternalForTarget({ ...snapshot(2, 'v2'), commitId: 20 })).toBe('baseline');
+    expect(session.applyExternalForTarget({ ...snapshot(2, 'v2') })).toBe('baseline');
     session.applyExternalForTarget(snapshot(2, 'v2', 'hydrated'));
-    expect(session.applyExternalForTarget({ ...snapshot(1), commitId: 19 })).toBe('obsolete');
-    expect(session.baselineSnapshot.value?.value).toEqual({ a: 2 });
-    expect(session.baselineSnapshot.value?.meta.label).toBe('hydrated');
+    expect(session.applyExternalForTarget({ ...snapshot(1) })).toBe('baseline');
+    expect(session.baselineSnapshot.value?.value).toEqual({ a: 1 });
+    expect(session.baselineSnapshot.value?.meta.label).toBe('loaded');
   });
 });
 
@@ -249,17 +259,18 @@ describe('save operation', () => {
     const refresh = session.refreshTarget(target);
     session.setDraft({ a: 3 });
     write.resolve(written);
-    await expect(pending).rejects.toMatchObject({ action: 'sync-saved-target' });
+    await pending;
+    await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('unfinished phase');
     await refresh;
-    expect(afterSaved).not.toHaveBeenCalled();
-    expect(session.hasPendingSynchronization.value).toBe(true);
+    expect(afterSaved).toHaveBeenCalledOnce();
+    expect(session.saving.value).toBe(false);
     expect(await session.waitForSave()).toBe(true);
+    await savedContentWorks.at(-1)!.retryContent();
     expect(save).toHaveBeenCalledOnce();
     expect(acceptSaved).toHaveBeenCalledTimes(phase === 'accept' ? 2 : 1);
     expect(synchronizeSaved).toHaveBeenCalledTimes(phase === 'synchronize' ? 2 : 1);
     expect(load).toHaveBeenCalledTimes(phase === 'refresh' ? 2 : 1);
     expect(afterSaved).toHaveBeenCalledExactlyOnceWith(written);
-    expect(session.hasPendingSynchronization.value).toBe(false);
     expect(session.baselineSnapshot.value).toEqual(written);
     expect(session.draftValue.value).toEqual({ a: 3 });
   });
@@ -274,7 +285,7 @@ describe('save operation', () => {
     session.setDraft({ a: 9 });
     write.resolve(snapshot(20, 'v2', 'persisted'));
     await pending;
-    expect(save).toHaveBeenCalledWith(target, { a: 2 }, snapshot(1).baseVersions);
+    expect(save).toHaveBeenCalledWith(target, { a: 2 }, snapshot(1).baseVersions, { a: 1 }, undefined);
     expect(session.baselineSnapshot.value).toEqual(snapshot(20, 'v2', 'persisted'));
     expect(session.draftValue.value).toEqual({ a: 9 });
     expect(session.pendingSnapshot.value).toBeNull();
@@ -306,8 +317,12 @@ describe('save operation', () => {
     const pending = session.saveDraft();
     const waiting = session.waitForSave();
     if (stage === 'cancel') expect(await pending).toBeNull();
-    else await expect(pending).rejects.toThrow(stage === 'sync' ? '已写盘' : 'write');
-    expect(await waiting).toBe(false);
+    else if (stage === 'write') await expect(pending).rejects.toThrow('write');
+    else {
+      await pending;
+      await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('sync');
+    }
+    expect(await waiting).toBe(stage === 'sync');
     expect(session.baselineSnapshot.value?.value.a).toBe(stage === 'sync' ? 2 : 1);
     expect(session.saving.value).toBe(false);
   });
@@ -351,6 +366,20 @@ describe('save operation', () => {
     expect(session.pendingSnapshot.value).toEqual(snapshot(3, 'v3'));
     expect(session.draftValue.value).toEqual({ a: 9 });
   });
+  it('accepts a preceding queued save read while preserving its own captured draft', async () => {
+    const write = deferred<Snapshot>();
+    const load = vi.fn(() => snapshot(3, 'v3'));
+    const session = createSession({ load, save: () => write.promise });
+    session.setDraft({ a: 7 });
+    const pending = session.saveDraft();
+    await session.refreshTarget(target, true);
+    expect(load).toHaveBeenCalledOnce();
+    expect(session.pendingSnapshot.value).toEqual(snapshot(3, 'v3'));
+    expect(session.draftValue.value).toEqual({ a: 7 });
+    write.resolve(snapshot(7, 'v7'));
+    await pending;
+    expect(session.baselineSnapshot.value).toEqual(snapshot(7, 'v7'));
+  });
   it('completes captured synchronization after consumer disposal', async () => {
     const write = deferred<Snapshot>();
     const synchronizeSaved = vi.fn();
@@ -362,11 +391,34 @@ describe('save operation', () => {
     expect(synchronizeSaved).toHaveBeenCalledWith(snapshot(2, 'v2'));
     expect(session.baselineSnapshot.value).toBeNull();
   });
-  it('recognizes the local commit echo', async () => {
-    const session = createSession({ save: () => ({ ...snapshot(2, 'v2'), commitId: 10 }) });
+  it('retains a newer draft when formal content confirms the saved value', async () => {
+    const session = createSession({ save: () => ({ ...snapshot(2, 'v2') }) });
     await session.saveDraft();
     session.setDraft({ a: 3 });
-    expect(session.applyExternalForTarget({ ...snapshot(2, 'v2'), commitId: 10 })).toBe('obsolete');
+    expect(session.applyExternalForTarget({ ...snapshot(2, 'v2') })).toBe('baseline');
     expect(session.pendingSnapshot.value).toBeNull();
+  });
+});
+
+describe('captured save contents', () => {
+  it('writes the captured 100 while draft undo retains 80 during preparation', async () => {
+    const prepare = deferred<void>();
+    const write = vi.fn((_target: SampleTarget, value: SampleValue) => snapshot(value.a));
+    const session = createSession({
+      save: write,
+      confirmSave: async () => {
+        await prepare.promise;
+        return true;
+      },
+    });
+    session.setDraft({ a: 100 });
+    const saving = session.saveDraft();
+    session.setDraft({ a: 80 });
+    prepare.resolve();
+    await saving;
+    expect(write.mock.calls[0]![1]).toEqual({ a: 100 });
+    expect(session.baselineSnapshot.value?.value).toEqual({ a: 100 });
+    expect(session.draftValue.value).toEqual({ a: 80 });
+    expect(session.dirty.value).toBe(true);
   });
 });

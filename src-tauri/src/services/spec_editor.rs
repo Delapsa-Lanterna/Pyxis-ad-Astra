@@ -45,15 +45,17 @@ pub fn save_editor_spec_with_json_options(
             definition.entity_kind,
             id,
         )?;
-        crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data,
-            json_write: options,
-            ordered_json: ordered_json.map(str::to_string),
-        })
+        crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: info.target,
+                base_versions: info.base_versions,
+                data,
+                json_write: options,
+                ordered_json: ordered_json.map(str::to_string),
+            }),
+        )
     })();
     crate::services::project::close_project_session(manifest.session_id)?;
     result
@@ -118,15 +120,17 @@ mod tests {
             )
             .unwrap();
             let save = |data| {
-                crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-                    session_id: manifest.session_id.clone(),
-                    mod_root: manifest.mod_root.clone(),
-                    target: info.target.clone(),
-                    base_versions: info.base_versions.clone(),
-                    data,
-                    json_write: Default::default(),
-                    ordered_json: None,
-                })
+                crate::services::write_transactions::commit_action(
+                    crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        target: info.target.clone(),
+                        base_versions: info.base_versions.clone(),
+                        data,
+                        json_write: Default::default(),
+                        ordered_json: None,
+                    }),
+                )
             };
             for (field, code) in [
                 ("turretOffsets", "spec.weapon_turret_barrel_required"),

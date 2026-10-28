@@ -1,10 +1,11 @@
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { hasSourceInvalidation } from '@/services/source-options.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import {
   refreshProjectSourcePaths,
-  listenEntityIdentityApplied,
-  subscribeProjectChanges,
-  projectChangeSessionId,
+  listenSavedIdentity,
+  observeSavedContent,
+  saveProjection,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { JointEditRoot, JointEditSnapshot, JointValue } from '@/shared/types';
@@ -43,7 +44,6 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   const feedback = useAppFeedback();
   const settings = useSettingsStore();
   const reads = useQueryReadOwner();
-  let windowCommit = -1;
   let active = true;
   let selectionIntent: object | null = null;
   let stopIdentity: (() => void) | null = null;
@@ -68,10 +68,9 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       }
     },
     afterBaseline: async (snapshot, receipt, previous) => {
-      if (receipt.commitId <= windowCommit) return;
       await retargetImmersiveWindow(snapshot);
       history.rebase((value) => mapJointDraftIdentity(value, previous, snapshot, receipt.identityChanges, receipt.keyMap));
-      windowCommit = receipt.commitId;
+      await refreshProjection(true);
     },
   });
   const history = useSnapshotHistory<Record<string, JointValue>>(
@@ -106,16 +105,27 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
         ? hullReferenceSourceGroups(await querySessionHullReferences(root.sessionId, [], signal))
         : querySourceOptionCatalog(root.sessionId, source, signal),
     subscribeSourceOptionInvalidation: (source, _resources, listener) =>
-      subscribeProjectChanges((event) => {
-        if (event.kind === 'closed') return;
-        if (
-          projectChangeSessionId(event) === root.sessionId &&
-          (source === 'hull:ids'
-            ? event.projection.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
-            : hasSourceInvalidation(event.projection.invalidation, source))
-        )
-          listener();
-      }),
+      observeSavedContent(
+        (event) => {
+          const projection = saveProjection(event, root?.sessionId);
+          if (!projection) return;
+
+          if (
+            projection.manifest.sessionId === root.sessionId &&
+            (source === 'hull:ids'
+              ? projection.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
+              : hasSourceInvalidation(projection.invalidation, source))
+          )
+            return listener();
+        },
+        (sessionId) => {
+          if (sessionId !== root.sessionId) return;
+          reads.revoke('session');
+          projection.value = null;
+          dismissStat();
+          errorText.value = '所属会话已关闭';
+        },
+      ),
   }));
   const media = useResourceMediaRegistry({
     onError: (error) => feedback.error(error),
@@ -143,18 +153,29 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     return JSON.stringify([joint.currentTargetKey.value, ...definition.references(snapshot.value, joint.draftValue.value)]);
   }
   const referenceSelection = computed(referenceKey);
-  watch([referenceSelection, snapshot], () => {
+  watch([referenceSelection, snapshot], ([, baseline], [, previousBaseline]) => {
+    if (baseline !== previousBaseline && joint.context.value?.handoff === 'save') return;
     reads.revoke('consumer', 'projection');
     reads.schedule('projection', () => {
-      void refreshProjection(Boolean(joint.baselineSnapshot.value?.meta.receipt));
+      void refreshProjection();
     });
   });
-  async function refreshProjection(force = false) {
+  async function refreshProjection(required = false) {
     const baseline = snapshot.value;
     if (!baseline) return;
     const values = deepClone(joint.draftValue.value);
     const original = joint.baselineSnapshot.value!.value;
-    if (!force && stableDeepEqual(definition.references(baseline, values), definition.references(baseline, original))) {
+    const previous = projection.value;
+    const saved = joint.context.value?.handoff === 'save' && previous && previous.baseline !== baseline;
+    if (
+      previous &&
+      (saved || previous.baseline === baseline) &&
+      stableDeepEqual(definition.references(previous.baseline, previous.values), definition.references(baseline, values))
+    ) {
+      projection.value = { baseline, graph: previous.graph, values };
+      return;
+    }
+    if (!saved && stableDeepEqual(definition.references(baseline, values), definition.references(baseline, original))) {
       projection.value = { baseline, graph: baseline, values };
       return;
     }
@@ -162,19 +183,26 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       ready: (value) => {
         projection.value = { baseline, graph: cloneQuerySnapshot<JointEditSnapshot>(value), values };
       },
-      error: (error) => feedback.error(error, '关联来源读取失败'),
+      error: (error) => {
+        if (required) throw error;
+        feedback.error(error, '关联来源读取失败');
+      },
     });
   }
-  const stopProjection = subscribeProjectChanges((event) => {
-    if (projectChangeSessionId(event) !== root.sessionId) return;
-    if (event.kind === 'closed') {
+  const stopProjection = observeSavedContent(
+    (event) => {
+      const projection = saveProjection(event, root?.sessionId);
+      if (!projection) return;
+      if (projection.manifest.sessionId !== root.sessionId) return;
+    },
+    (sessionId) => {
+      if (sessionId !== root.sessionId) return;
       reads.revoke('session');
       projection.value = null;
       dismissStat();
       errorText.value = '所属会话已关闭';
-      return;
-    }
-  });
+    },
+  );
   function editable(field: ImmersiveField) {
     return snapshot.value?.records.find((record) => record.key === field.recordKey)?.source?.source !== 'core';
   }
@@ -212,6 +240,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     if (active && selectionIntent === intent) selectedStatId.value = show ? id : null;
   }
   async function save() {
+    if (useProjectSyncStore().isWaiting(root.modRoot)) return;
     try {
       const result = await joint.saveDraft();
       if (result) feedback.success(`${definition.label}联合保存完成`);
@@ -273,7 +302,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
         return true;
       }
     } catch (error) {
-      if (previous && active && joint.currentTargetKey.value === key && !joint.hasPendingSynchronization.value) joint.setDraft(previous);
+      if (previous && active && joint.currentTargetKey.value === key && !joint.saving.value) joint.setDraft(previous);
       feedback.error(error, '切换关联来源失败');
     } finally {
       referenceChanging.value = false;
@@ -334,13 +363,13 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   async function loadInitial() {
     stopIdentity?.();
     stopIdentity = null;
-    const stop = await listenEntityIdentityApplied(async (event) => {
+    const stop = await listenSavedIdentity(async (event) => {
       const target = joint.currentTarget.value;
       if (
         !target ||
         event.sessionId !== target.sessionId ||
         normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot) ||
-        !joint.isTargetCommitCurrent(target, event.result.commitId)
+        !joint.acceptsSaveDelivery(target, event.result.requestId)
       )
         return;
       const change = event.result.identityChanges.find(
@@ -358,20 +387,21 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
               ))),
       );
       if (!change) return;
-      if (joint.saving.value && !(await joint.waitForSave())) return;
-      if (!joint.isTargetCommitCurrent(target, event.result.commitId)) return;
+      if (!joint.acceptsSaveDelivery(target, event.result.requestId)) return;
       if (joint.dirty.value) {
         const choice = await feedback.choose({
           title: `跟随${definition.label}重命名？`,
           content: '保留当前草稿、活动输入和历史，并接纳新的正式身份。',
           choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
         });
-        if (choice !== 'follow' || !joint.isTargetCommitCurrent(target, event.result.commitId)) return;
+        if (!joint.acceptsSaveDelivery(target, event.result.requestId)) return;
+        if (choice !== 'follow')
+          throw new AppError('联合身份交接尚未确认', { code: 'write.identity_pending', action: 'follow-saved-identity' });
       }
       let captured: JointEditSnapshot | null = null;
       const accepted = await reads.consume(
         'identity',
-        { target, commitId: event.result.commitId },
+        { target },
         (signal) =>
           change.after.linkedRecord?.kind === 'csv'
             ? queryJointEditRow(target, change.after.linkedRecord.rowKey, signal)
@@ -382,7 +412,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
           },
         },
       );
-      if (!accepted || !captured || !joint.isTargetCommitCurrent(target, event.result.commitId)) return;
+      if (!accepted || !captured || !joint.acceptsSaveDelivery(target, event.result.requestId)) return;
       const next: JointEditSnapshot = captured;
       await retargetImmersiveWindow(next);
       const previous = snapshot.value;
@@ -401,7 +431,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
             value: nextValues,
             baseVersions: next.baseVersions,
             meta: { snapshot: next, receipt: null, previous: null },
-            commitId: event.result.commitId,
+            requestId: event.result.requestId,
           },
           map,
           'identity',

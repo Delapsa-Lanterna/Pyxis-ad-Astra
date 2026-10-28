@@ -27,7 +27,7 @@ vi.mock('@/services/weapon-fire-preview.service', () => ({
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
-  listenEntityIdentityApplied: mocks.listenIdentity,
+  listenSavedIdentity: mocks.listenIdentity,
   listenProjectSessionInvalidated: vi.fn(async () => vi.fn()),
   invalidateProjectionCaches: vi.fn(),
 }));
@@ -76,7 +76,7 @@ async function open() {
   return vm;
 }
 function invalidate() {
-  projectChangeFixture('s', {
+  return projectChangeFixture('s', {
     paths: [],
     tables: [],
     entities: [{ kind: 'weapon', id: 'w' }],
@@ -140,12 +140,14 @@ describe('weapon fire preview source and read lifetime', () => {
           fail = reject;
         }),
     );
-    invalidate();
+    const refreshing = invalidate();
+    const rejected = expect(refreshing).rejects.toThrow('读取失败');
     await flushPromises();
     expect(vm.loading.value).toBe(true);
     expect(vm.contentReady.value).toBe(true);
     expect(vm.data.value).toBe(accepted);
     fail(new Error('读取失败'));
+    await rejected;
     await flushPromises();
     expect(vm.data.value).toBe(accepted);
     expect(vm.loading.value).toBe(false);

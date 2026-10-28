@@ -106,11 +106,9 @@
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { computed, onMounted, onUnmounted, provide, shallowReactive, watch } from 'vue';
-import { formatError } from '@/shared/lib/errors';
+import { computed, onMounted, onUnmounted, provide } from 'vue';
 import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-context';
 import { specProblemsKey } from '@/app/composables/spec-editor/use-spec-problems';
-import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
 import { CONFIG_OPTION_SOURCES } from '@/domain/schema/schema-sources';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
 import SpecWeaponEditor from '@/app/components/spec-editor/weapon/SpecWeaponEditor.vue';
@@ -123,7 +121,7 @@ import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useSettingsStore } from '@/stores/settings.store';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
-import { specEditorDefinition, useSpecEditorDependencies } from '@/app/composables/spec-editor-assembly';
+import { specEditorDefinitions, useSpecEditorDependencies } from '@/app/composables/spec-editor-assembly';
 import { useSpecEditorWindowViewModel } from '@/app/composables/spec-editor/use-spec-editor-window-view-model';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
@@ -135,7 +133,7 @@ const starsectorRoot = context.input.starsectorRoot;
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
 
-const windowModel = useSpecEditorWindowViewModel({ sessionId, modRoot, id, kind }, specEditorDefinition(kind));
+const windowModel = useSpecEditorWindowViewModel({ sessionId, modRoot, id, kind }, specEditorDefinitions[kind]);
 provideFieldInputs(windowModel.inputs);
 provide(specProblemsKey, windowModel.problems);
 const {
@@ -157,31 +155,7 @@ const {
   updateEditorDraft,
   loadPendingExternalSpec,
 } = windowModel;
-const sourceNotices = shallowReactive(new Map<string, string>());
-const sourceIdentity = () => JSON.stringify([target.value, editContext.value?.baselineGeneration]);
-watch(sourceIdentity, () => sourceNotices.clear());
-provide(
-  specSchemaContext,
-  computed(() => {
-    if (!target.value) return null;
-    const identity = sourceIdentity(),
-      runtime = createSchemaRuntimeContext(target.value.modRoot, target.value.sessionId);
-    return {
-      ...runtime,
-      sourceContextKey: JSON.stringify([target.value.modRoot, target.value.kind, target.value.id]),
-      querySourceOptions: async (source: string, signal?: AbortSignal) => {
-        try {
-          const result = await runtime.querySourceOptions!(source, signal);
-          if (identity === sourceIdentity()) sourceNotices.delete(source);
-          return result;
-        } catch (error) {
-          if (!signal?.aborted && identity === sourceIdentity()) sourceNotices.set(source, formatError(error));
-          throw error;
-        }
-      },
-    };
-  }),
-);
+provide(specSchemaContext, windowModel.schemaRuntimeContext);
 const shipEditorData = computed(() => (editorData.value?.kind === 'ship' ? editorData.value : null));
 const weaponEditorData = computed(() => (editorData.value?.kind === 'weapon' ? editorData.value : null));
 const projectileEditorData = computed(() => (editorData.value?.kind === 'projectile' ? editorData.value : null));
@@ -189,19 +163,15 @@ const systemEditorData = computed(() => (editorData.value?.kind === 'system' ? e
 const { weapon: weaponDependencies, ship: shipImages, projectile: projectileImages } = useSpecEditorDependencies(windowModel, kind);
 onUnmounted(
   windowModel.problems.register(() =>
-    [...sourceNotices.entries()]
-      .map(([path, message]) => ({ severity: 'warning' as const, code: 'spec.source_read', path, message }))
-      .concat(
-        [
-          shipImages?.errorText.value,
-          shipImages?.value.value?.diagnostic,
-          projectileImages?.errorText.value,
-          projectileImages?.value.value?.diagnostic,
-          ...(weaponDependencies?.notices.value ?? []),
-        ]
-          .filter((message): message is string => Boolean(message))
-          .map((message) => ({ severity: 'warning' as const, code: 'spec.preview', path: message, message })),
-      ),
+    [
+      shipImages?.errorText.value,
+      shipImages?.value.value?.diagnostic,
+      projectileImages?.errorText.value,
+      projectileImages?.value.value?.diagnostic,
+      ...(weaponDependencies?.notices.value ?? []),
+    ]
+      .filter((message): message is string => Boolean(message))
+      .map((message) => ({ severity: 'warning' as const, code: 'spec.preview', path: message, message })),
   ),
 );
 const shipSpriteForEditor = computed(() =>

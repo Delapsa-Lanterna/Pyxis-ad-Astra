@@ -28,7 +28,7 @@ export interface IndexedConfigEntityData extends Omit<IndexedConfigEntityRefresh
   entityData: RowData | null;
 }
 
-export interface SaveModInfoPayload {
+export interface ModInfoSave {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
@@ -37,7 +37,7 @@ export interface SaveModInfoPayload {
   orderedJson?: string | null;
 }
 
-export interface IndexedConfigEntityPayload {
+export interface IndexedConfigSave {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;
@@ -50,7 +50,7 @@ export interface IndexedConfigEntityPayload {
   orderedJson?: string | null;
 }
 
-export interface DeleteIndexedConfigEntityPayload {
+export interface IndexedConfigDelete {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;
   modRoot: string;

@@ -1,6 +1,6 @@
 import { defineRule } from '../../diagnostics.mjs';
 import { callsFrom } from '../../facts/imports.mjs';
-import { COMMAND_TRANSPORT, commandOwners } from './command-policy.mjs';
+import { COMMAND_TRANSPORT, commandOwners, saveActionOwners } from './command-policy.mjs';
 
 const transport = new Set([COMMAND_TRANSPORT]);
 
@@ -12,9 +12,10 @@ export const commandBoundaryRule = defineRule(
     for (const file of context.frontend) {
       if (file.rel === COMMAND_TRANSPORT) continue;
       for (const call of callsFrom(file, context.byPath, transport)) {
-        if (call.name !== 'invokeCommand') continue;
+        if (call.name !== 'invokeCommand' && call.name !== 'invokeSaveCommand') continue;
         const command = call.arguments[0];
-        const owners = Object.entries(commandOwners)
+        const policy = call.name === 'invokeSaveCommand' ? saveActionOwners : commandOwners;
+        const owners = Object.entries(policy)
           .filter(([, commands]) => command != null && commands.includes(command))
           .map(([owner]) => owner);
         if (!owners.includes(file.rel))

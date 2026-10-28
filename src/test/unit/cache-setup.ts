@@ -1,4 +1,11 @@
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '../fixtures/settings';
+import { vi } from 'vitest';
+
+// Tests of content owners use an in-memory delivery fixture; native channel behavior is exercised by the sync tests.
+vi.mock('@/services/project-sync.service', async (original) => ({
+  ...(await original<typeof import('@/services/project-sync.service')>()),
+  registerSaveWindow: async () => {},
+}));
 
 initializeCacheLimits(createSettingsFixture().cacheLimits);

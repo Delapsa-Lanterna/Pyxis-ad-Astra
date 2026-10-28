@@ -92,7 +92,7 @@ export function projectShipPanel(
       }
     : immersiveSourceRecords(snapshot);
   const indexed = hullDataIndex(graph.records, values);
-  const data = (key: string | undefined) => (key ? indexed(key) : {});
+  const data = (key: string | undefined) => (key ? indexed.get(key)! : {});
   const csv = data(sources.csv.key);
   const spec = data(sources.spec.key);
   const desc = data(sources.description?.key);

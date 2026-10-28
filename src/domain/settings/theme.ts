@@ -168,42 +168,42 @@ type NeutralColors = Record<NeutralColorName, string>;
 function lightThemeColors(hex: string): NeutralColors {
   const hue = hueFromHex(hex);
   return {
-    '--color-bg': themedGray(hue, 3, 97),
-    '--color-panel': themedGray(hue, 2, 100),
-    '--color-panel-muted': themedGray(hue, 3, 95),
-    '--color-surface': themedGray(hue, 5, 93),
-    '--color-surface-hover': themedGray(hue, 7, 90),
-    '--color-surface-active': themedGray(hue, 9, 87),
-    '--color-border': themedGray(hue, 6, 85),
-    '--color-border-strong': themedGray(hue, 8, 75),
-    '--color-text-soft': themedGray(hue, 4, 14),
-    '--color-muted': themedGray(hue, 4, 46),
-    '--color-faint': themedGray(hue, 3, 64),
-    '--color-canvas-bg': themedGray(hue, 7, 5),
-    '--scrollbar-thumb': themedGray(hue, 6, 84),
-    '--scrollbar-thumb-hover': themedGray(hue, 7, 66),
-    '--shadow-floating': `0 24px 70px ${hexToRgba(themedGray(hue, 6, 10), 0.18)}`,
-    '--shadow-subtle': `0 1px 2px ${hexToRgba(themedGray(hue, 4, 10), 0.04)}`,
+    '--color-bg': hslToHex(hue, 3, 97),
+    '--color-panel': hslToHex(hue, 2, 100),
+    '--color-panel-muted': hslToHex(hue, 3, 95),
+    '--color-surface': hslToHex(hue, 5, 93),
+    '--color-surface-hover': hslToHex(hue, 7, 90),
+    '--color-surface-active': hslToHex(hue, 9, 87),
+    '--color-border': hslToHex(hue, 6, 85),
+    '--color-border-strong': hslToHex(hue, 8, 75),
+    '--color-text-soft': hslToHex(hue, 4, 14),
+    '--color-muted': hslToHex(hue, 4, 46),
+    '--color-faint': hslToHex(hue, 3, 64),
+    '--color-canvas-bg': hslToHex(hue, 7, 5),
+    '--scrollbar-thumb': hslToHex(hue, 6, 84),
+    '--scrollbar-thumb-hover': hslToHex(hue, 7, 66),
+    '--shadow-floating': `0 24px 70px ${hexToRgba(hslToHex(hue, 6, 10), 0.18)}`,
+    '--shadow-subtle': `0 1px 2px ${hexToRgba(hslToHex(hue, 4, 10), 0.04)}`,
   };
 }
 
 function darkThemeColors(hex: string): NeutralColors {
   const hue = hueFromHex(hex);
   return {
-    '--color-bg': themedGray(hue, 4, 3),
-    '--color-panel': themedGray(hue, 5, 8),
-    '--color-panel-muted': themedGray(hue, 5, 6),
-    '--color-surface': themedGray(hue, 7, 12),
-    '--color-surface-hover': themedGray(hue, 9, 16),
-    '--color-surface-active': themedGray(hue, 11, 21),
-    '--color-border': themedGray(hue, 8, 19),
-    '--color-border-strong': themedGray(hue, 10, 26),
-    '--color-text-soft': themedGray(hue, 4, 75),
-    '--color-muted': themedGray(hue, 4, 61),
-    '--color-faint': themedGray(hue, 4, 43),
-    '--color-canvas-bg': themedGray(hue, 7, 5),
-    '--scrollbar-thumb': themedGray(hue, 7, 28),
-    '--scrollbar-thumb-hover': themedGray(hue, 8, 40),
+    '--color-bg': hslToHex(hue, 4, 3),
+    '--color-panel': hslToHex(hue, 5, 8),
+    '--color-panel-muted': hslToHex(hue, 5, 6),
+    '--color-surface': hslToHex(hue, 7, 12),
+    '--color-surface-hover': hslToHex(hue, 9, 16),
+    '--color-surface-active': hslToHex(hue, 11, 21),
+    '--color-border': hslToHex(hue, 8, 19),
+    '--color-border-strong': hslToHex(hue, 10, 26),
+    '--color-text-soft': hslToHex(hue, 4, 75),
+    '--color-muted': hslToHex(hue, 4, 61),
+    '--color-faint': hslToHex(hue, 4, 43),
+    '--color-canvas-bg': hslToHex(hue, 7, 5),
+    '--scrollbar-thumb': hslToHex(hue, 7, 28),
+    '--scrollbar-thumb-hover': hslToHex(hue, 8, 40),
     '--shadow-floating': '0 24px 80px rgba(0, 0, 0, 0.42)',
     '--shadow-subtle': '0 1px 2px rgba(0, 0, 0, 0.22)',
   };
@@ -223,10 +223,6 @@ function mixHex(hex: string, target: string, ratio: number): string {
     b: Math.round(from.b + (to.b - from.b) * ratio),
   };
   return rgbToHex(mix.r, mix.g, mix.b);
-}
-
-function themedGray(hue: number, saturation: number, lightness: number): string {
-  return hslToHex(hue, saturation, lightness);
 }
 
 function hueFromHex(hex: string): number {

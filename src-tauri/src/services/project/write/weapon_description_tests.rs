@@ -40,56 +40,62 @@ fn rename(
     let mut data = read_json_file(&root.join("data/weapons/old.wpn"))?;
     data["id"] = json!("new");
     match mode {
-        "spec" => crate::commands::save_editor_spec(crate::models::SaveEditorSpecPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            target: info.target,
-            base_versions: info.base_versions,
-            data,
-            json_write: Default::default(),
-            ordered_json: None,
-        }),
-        "text" => crate::commands::save_text_file(crate::models::SaveTextFilePayload {
-            session_id: Some(manifest.session_id.clone()),
-            mod_root: manifest.mod_root.clone(),
-            path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
-            base_versions: info.base_versions,
-            text: data.to_string(),
-        }),
+        "spec" => crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                target: info.target,
+                base_versions: info.base_versions,
+                data,
+                json_write: Default::default(),
+                ordered_json: None,
+            }),
+        ),
+        "text" => crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
+                session_id: Some(manifest.session_id.clone()),
+                mod_root: manifest.mod_root.clone(),
+                path: root.join("data/weapons/old.wpn").to_string_lossy().into(),
+                base_versions: info.base_versions,
+                text: data.to_string(),
+            }),
+        ),
         "csv" => {
             let EntityLinkedRecord::Csv { row_key, .. } =
                 info.target.linked_record.clone().unwrap()
             else {
                 unreachable!()
             };
-            crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
-                row_order: None,
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                table: CsvTableKey::Weapons,
-                base_versions: info.base_versions,
-                patches: vec![CsvRowPatch {
-                    row_key,
-                    action: CsvRowPatchAction::Upsert,
-                    row: json!({"id":"new","name":"Old"})
-                        .as_object()
-                        .unwrap()
-                        .clone(),
-                    is_comment: false,
-                    insert_at: None,
-                }],
-                associated_specs: vec![AssociatedSpecWrite {
-                    target: info.target,
-                    change: AssociatedSpecChange::Rename {
-                        previous_id: "old".into(),
-                        create: AssociatedSpecCreateParams::Weapon {
-                            id: "new".into(),
-                            spec_class: WeaponSpecClass::Projectile,
+            crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
+                    row_order: None,
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    table: CsvTableKey::Weapons,
+                    base_versions: info.base_versions,
+                    patches: vec![CsvRowPatch {
+                        row_key,
+                        action: CsvRowPatchAction::Upsert,
+                        row: json!({"id":"new","name":"Old"})
+                            .as_object()
+                            .unwrap()
+                            .clone(),
+                        is_comment: false,
+                        insert_at: None,
+                    }],
+                    associated_specs: vec![AssociatedSpecWrite {
+                        target: info.target,
+                        change: AssociatedSpecChange::Rename {
+                            previous_id: "old".into(),
+                            create: AssociatedSpecCreateParams::Weapon {
+                                id: "new".into(),
+                                spec_class: WeaponSpecClass::Projectile,
+                            },
                         },
-                    },
-                }],
-                json_write: Default::default(),
-            })
+                    }],
+                    json_write: Default::default(),
+                }),
+            )
             .map(|receipt| {
                 receipt.with_content(
                     crate::models::WriteContentTarget::Json {
@@ -124,13 +130,15 @@ fn rename(
                 baseline,
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
-            crate::commands::save_joint_edit(JointEditSubmission {
-                base_versions: prepared.snapshot.base_versions.clone(),
-                snapshot: prepared.snapshot,
-                values: prepared.values,
-                json_write: Default::default(),
-                create_overrides: Vec::new(),
-            })
+            crate::testutil::commit_saved::<crate::models::JointEditSnapshot>(
+                crate::models::SaveAction::SaveJointEdit(Box::new(JointEditSubmission {
+                    base_versions: prepared.snapshot.base_versions.clone(),
+                    snapshot: prepared.snapshot,
+                    values: prepared.values,
+                    json_write: Default::default(),
+                    create_overrides: Vec::new(),
+                })),
+            )
             .map(|receipt| {
                 let content = receipt.content.as_ref().unwrap();
                 let owner = content.target.clone();

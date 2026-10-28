@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { queryModDirectory, queryModFileSearch, queryModTextFileTarget } from './mod-file-browser.service';
 const invoke = vi.hoisted(() => vi.fn(async () => null));
-vi.mock('@/shared/runtime/command.runtime', () => ({ invokeCommand: invoke }));
+vi.mock('@/shared/runtime/command.runtime', () => ({ invokeCommand: invoke, invokeSaveCommand: invoke }));
 describe('mod file browser transport', () => {
   it('uses structured session-scoped directory and file inputs', async () => {
     await queryModDirectory('s', null);

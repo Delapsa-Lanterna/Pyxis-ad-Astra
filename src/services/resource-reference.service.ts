@@ -9,16 +9,16 @@ import type {
 } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createLiveSessionQuery } from '@/services/query-cache.service';
+import { readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 
-const readResourceReference = createLiveSessionQuery<Omit<ResolveModRelativePathPayload, 'sessionId'>, string>({
+const readResourceReference = {
   queryKind: 'resource-reference',
   load: ({ sessionId, parameters }) =>
     invokeCommand<string>('resolve_mod_relative_path', { payload: { sessionId, ...parameters } satisfies ResolveModRelativePathPayload }),
   invalidates: () => false,
-});
+} satisfies SessionQueryDefinition<Omit<ResolveModRelativePathPayload, 'sessionId'>, string>;
 
-const readDraftResources = createLiveSessionQuery<Omit<DraftResourcesPayload, 'sessionId'>, Record<string, ResourceRef>>({
+const readDraftResources = {
   queryKind: 'draft-resources',
   load: ({ sessionId, parameters }) =>
     invokeCommand<Record<string, ResourceRef>>('query_draft_resources', {
@@ -26,10 +26,10 @@ const readDraftResources = createLiveSessionQuery<Omit<DraftResourcesPayload, 's
     }),
   invalidates: (parameters, invalidation) =>
     invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-detail', parameters.kind, parameters.id)),
-});
+} satisfies SessionQueryDefinition<Omit<DraftResourcesPayload, 'sessionId'>, Record<string, ResourceRef>>;
 
 export function resolveModImageReference(sessionId: string, modRoot: string, absolutePath: string, signal?: AbortSignal): Promise<string> {
-  return readResourceReference(sessionId, { modRoot, absolutePath }, signal);
+  return readLiveSessionQuery(readResourceReference, sessionId, { modRoot, absolutePath }, signal);
 }
 
 export function querySessionDraftResources(
@@ -40,5 +40,5 @@ export function querySessionDraftResources(
   signal?: AbortSignal,
 ): Promise<DeepReadonly<Record<string, ResourceRef>>> {
   const parameters = { kind, id, draft };
-  return readDraftResources(sessionId, parameters, signal);
+  return readLiveSessionQuery(readDraftResources, sessionId, parameters, signal);
 }

@@ -559,14 +559,24 @@ pub(crate) fn register_window_request(
         }
         return Ok(opened);
     }
-    let built = WebviewWindowBuilder::new(app, &opened.label, WebviewUrl::App("/".into()))
+    let mut builder = WebviewWindowBuilder::new(app, &opened.label, WebviewUrl::App("/".into()))
         .title(request.title)
         .visible(false)
         .decorations(false)
         .theme(native_theme)
         .inner_size(request.width, request.height)
-        .min_inner_size(request.min_width, request.min_height)
-        .build();
+        .min_inner_size(request.min_width, request.min_height);
+    // Windows sharing a WebView profile must use the same browser environment options.
+    if let Some(arguments) = app
+        .config()
+        .app
+        .windows
+        .first()
+        .and_then(|window| window.additional_browser_args.as_deref())
+    {
+        builder = builder.additional_browser_args(arguments);
+    }
+    let built = builder.build();
     let mut state = registry()?;
     match built {
         Ok(_window) => {
@@ -651,6 +661,25 @@ pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
 }
 pub fn current_window_context(label: &str) -> AppResult<ManagedWindowContext> {
     registry()?.context(label, false)
+}
+
+pub(crate) fn accepts_save(label: &str, source_session: Option<&str>) -> AppResult<bool> {
+    let registry = registry()?;
+    let session = registry
+        .instances
+        .get(label)
+        .and_then(|instance| instance.identity.session_id())
+        .or(source_session);
+    Ok(!registry
+        .closing
+        .values()
+        .any(|(_, scope, labels)| match scope {
+            crate::models::CloseScope::Application => true,
+            crate::models::CloseScope::Sessions { session_ids } => {
+                session.is_some_and(|session| session_ids.iter().any(|id| id == session))
+            }
+            crate::models::CloseScope::Window => labels.iter().any(|closed| closed == label),
+        }))
 }
 pub fn current_window_request(label: &str) -> AppResult<Option<ManagedWindowContext>> {
     let mut state = registry()?;

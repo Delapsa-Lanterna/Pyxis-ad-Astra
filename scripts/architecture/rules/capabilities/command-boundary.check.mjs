@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 import { commandBoundaryRule } from './command-boundary.mjs';
-import { COMMAND_TRANSPORT, commandOwners } from './command-policy.mjs';
+import { COMMAND_TRANSPORT, commandOwners, saveActionOwners } from './command-policy.mjs';
 
 const provider = 'export function invokeCommand() {}';
 const imports = [
@@ -53,6 +53,20 @@ test('computed commands require declared protocol facts', () => {
   assert.equal(messages(commandBoundaryRule.check(files)).length, 1);
 });
 
+test('ordered save transport retains command ownership through aliases and re-exports', () => {
+  const files = architectureFixtures({
+    [COMMAND_TRANSPORT]: 'export function invokeSaveCommand() {}',
+    'src/shared/save-bridge.ts': "export { invokeSaveCommand as save } from '@/shared/runtime/command.runtime';",
+    'src/services/spec-editor.service.ts': "import { save } from '@/shared/save-bridge'; save('save_editor_spec');",
+    'src/services/example.service.ts':
+      "import * as wire from '@/shared/runtime/command.runtime'; const save=wire.invokeSaveCommand; save('save_editor_spec');",
+  });
+  const failures = commandBoundaryRule.check(files);
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].file, 'src/services/example.service.ts');
+  assert.equal(failures[0].symbol, 'save_editor_spec');
+});
+
 test('scoped aliases and shadowed parameters retain their lexical ownership', () => {
   const source =
     "import { invokeCommand } from '@/shared/runtime/command.runtime'; function local(invokeCommand) { invokeCommand('save_settings'); } function actual() { const run = invokeCommand; run('read_settings'); }";
@@ -66,4 +80,20 @@ test('every declared command has exactly one capability owner', () => {
   const commands = Object.values(commandOwners).flat();
   assert.ok(commands.length > 0);
   assert.equal(new Set(commands).size, commands.length);
+});
+
+test('native calls and saved actions each use their own declared transport', () => {
+  const context = architectureFixtures({
+    [COMMAND_TRANSPORT]: 'export function invokeCommand() {} export function invokeSaveCommand() {}',
+    'src/services/spec-editor.service.ts': `import {invokeCommand, invokeSaveCommand} from '@/shared/runtime/command.runtime';
+invokeCommand('save_editor_spec'); invokeSaveCommand('load_imported_editor_spec_file');`,
+  });
+  assert.deepEqual(
+    commandBoundaryRule.check(context).map(({ symbol }) => symbol),
+    ['save_editor_spec', 'load_imported_editor_spec_file'],
+  );
+  const actions = Object.values(saveActionOwners).flat();
+  assert.equal(actions.length, 20);
+  assert.equal(new Set(actions).size, actions.length);
+  assert.equal(actions.filter((action) => Object.values(commandOwners).flat().includes(action)).length, 0);
 });

@@ -1,3 +1,4 @@
+use crate::models::{IndexedConfigDelete, IndexedConfigSave, ModInfoSave};
 use crate::{
     domain::entity_identity::validate_entity_id,
     errors::{AppError, AppResult},
@@ -60,6 +61,7 @@ fn mission_row_id(row: &crate::models::CsvRow) -> Option<&str> {
 }
 
 pub struct MissionSaveInput<'a> {
+    pub index: Option<crate::models::CsvTable>,
     pub index_row: Map<String, Value>,
     pub entity_data: Value,
     pub json_write: JsonWriteOptions,
@@ -78,7 +80,10 @@ pub fn save_mission_with_json(
     if let Some(previous) = previous_id {
         validate_entity_id(previous, "无效战役 ID")?;
     }
-    let mut index = read_csv_data(&boundary.resolve_relative(MISSION_INDEX, "mission index")?)?;
+    let mut index = match input.index {
+        Some(index) => index,
+        None => read_csv_data(&boundary.resolve_relative(MISSION_INDEX, "mission index")?)?,
+    };
     if index.header.is_empty() {
         index.header.push("mission".to_string());
     }
@@ -261,6 +266,7 @@ pub fn create_mission_entity(
         None,
         next_id,
         MissionSaveInput {
+            index: None,
             index_row,
             entity_data,
             json_write: Default::default(),
@@ -302,6 +308,144 @@ pub fn delete_mission_entity(
         builder.delete_directory(format!("data/missions/{id}"))?;
     }
     Ok(WriteResult::new(builder.apply()?, Vec::new(), None))
+}
+
+pub fn prepare_mod_save(
+    input: &mut ModInfoSave,
+    edits: &[crate::models::SaveEdit],
+) -> AppResult<()> {
+    let path = Path::new(&input.mod_root).join("mod_info.json");
+    if crate::io::source_recreation_allowed(&input.mod_root, &path.to_string_lossy()) {
+        return Ok(());
+    }
+    let current = crate::services::project::current_projection(&input.session_id)?.manifest;
+    input.data = current.mod_info.unwrap_or_default();
+    input.base_versions = current.base_versions;
+    crate::domain::save_edits::apply_save_edits(&mut input.data, edits);
+    input.ordered_json = Some(serde_json::to_string(&input.data)?);
+    Ok(())
+}
+
+pub(crate) fn prepare_indexed_request(
+    payload: &mut IndexedConfigSave,
+    edits: &[crate::models::SaveEdit],
+    identities: &[crate::models::EntityIdentityChange],
+) -> Result<(), AppError> {
+    if payload
+        .base_versions
+        .iter()
+        .any(|version| crate::io::source_recreation_allowed(&payload.mod_root, &version.path))
+    {
+        return Ok(());
+    }
+    let current = crate::services::prepare_json_save(
+        &payload.session_id,
+        payload.kind.into(),
+        payload.previous_id.as_ref().unwrap_or(&payload.next_id),
+        edits,
+        identities,
+    )?;
+    payload.previous_id = Some(current.id);
+    payload.base_versions = current.base_versions;
+    payload.entity_data = current.data;
+    if payload.kind == crate::models::IndexedConfigKind::Faction {
+        payload.next_id = payload.entity_data["file"]["id"]
+            .as_str()
+            .expect("validated faction ID")
+            .to_string();
+        payload.ordered_json = Some(serde_json::to_string(&payload.entity_data["file"])?);
+    } else {
+        payload.ordered_json = Some(serde_json::to_string(&payload.entity_data["descriptor"])?);
+    }
+    Ok(())
+}
+
+pub fn write_indexed_request(payload: IndexedConfigSave) -> Result<WriteResult<Value>, AppError> {
+    crate::services::require_entity_version_scope(
+        &payload.session_id,
+        payload.kind.into(),
+        payload.previous_id.as_deref().unwrap_or(&payload.next_id),
+        &payload.base_versions,
+    )?;
+    if payload.kind == crate::models::IndexedConfigKind::Faction {
+        let result = crate::services::save_faction_entity(
+            &payload.session_id,
+            payload.previous_id.as_deref(),
+            &payload.next_id,
+            payload.entity_data,
+            payload.json_write,
+            payload.ordered_json.as_deref(),
+        )?;
+        return Ok(result);
+    }
+    let result = crate::services::config_entity::save_mission_with_json(
+        &payload.mod_root,
+        payload.previous_id.as_deref(),
+        &payload.next_id,
+        crate::services::config_entity::MissionSaveInput {
+            index: Some(crate::services::read_project_csv(
+                &payload.session_id,
+                MISSION_INDEX,
+            )?),
+            index_row: payload.index_row,
+            entity_data: payload.entity_data,
+            json_write: payload.json_write,
+            ordered_json: payload.ordered_json.as_deref(),
+        },
+    )?;
+    Ok(result)
+}
+
+pub fn create_indexed_request(payload: IndexedConfigSave) -> Result<WriteResult<Value>, AppError> {
+    crate::services::require_entity_version_scope(
+        &payload.session_id,
+        payload.kind.into(),
+        &payload.next_id,
+        &payload.base_versions,
+    )?;
+    if payload.kind == crate::models::IndexedConfigKind::Faction {
+        let result = crate::services::save_faction_entity(
+            &payload.session_id,
+            None,
+            &payload.next_id,
+            payload.entity_data,
+            Default::default(),
+            None,
+        )?;
+        return Ok(result);
+    }
+    let result = crate::services::config_entity::create_mission_entity(
+        &payload.mod_root,
+        &payload.next_id,
+        payload.index_row,
+        payload.entity_data,
+    )?;
+    Ok(result)
+}
+
+pub fn delete_indexed_request(
+    payload: IndexedConfigDelete,
+) -> Result<WriteResult<Value>, AppError> {
+    crate::services::require_entity_version_scope(
+        &payload.session_id,
+        payload.kind.into(),
+        &payload.id,
+        &payload.base_versions,
+    )?;
+    if payload.kind == crate::models::IndexedConfigKind::Faction {
+        let result = crate::services::delete_faction_entity(
+            &payload.session_id,
+            &payload.id,
+            payload.delete_target,
+        )?;
+        return Ok(result);
+    }
+    let result = crate::services::config_entity::delete_mission_entity(
+        &payload.mod_root,
+        &payload.id,
+        payload.delete_target,
+    )?;
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -349,18 +493,22 @@ mod tests {
                 entity_kind,
                 previous.unwrap_or(next),
             )?;
-            crate::commands::save_indexed_config_entity(crate::models::IndexedConfigEntityPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                base_versions: info.base_versions,
-                kind,
-                previous_id: previous.map(str::to_string),
-                next_id: next.to_string(),
-                index_row: input.index_row,
-                entity_data: input.entity_data,
-                json_write: input.json_write,
-                ordered_json: input.ordered_json.map(str::to_string),
-            })
+            crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::SaveIndexedConfigEntity(
+                    crate::models::IndexedConfigSave {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        base_versions: info.base_versions,
+                        kind,
+                        previous_id: previous.map(str::to_string),
+                        next_id: next.to_string(),
+                        index_row: input.index_row,
+                        entity_data: input.entity_data,
+                        json_write: input.json_write,
+                        ordered_json: input.ordered_json.map(str::to_string),
+                    },
+                ),
+            )
         })
     }
 
@@ -401,15 +549,17 @@ mod tests {
             };
             let info =
                 crate::services::query_entity_edit_target(&manifest.session_id, entity_kind, id)?;
-            crate::commands::delete_indexed_config_entity(
-                crate::models::DeleteIndexedConfigEntityPayload {
-                    session_id: manifest.session_id.clone(),
-                    mod_root: manifest.mod_root.clone(),
-                    base_versions: info.base_versions,
-                    kind,
-                    id: id.to_string(),
-                    delete_target,
-                },
+            crate::services::write_transactions::commit_action(
+                crate::models::SaveAction::DeleteIndexedConfigEntity(
+                    crate::models::IndexedConfigDelete {
+                        session_id: manifest.session_id.clone(),
+                        mod_root: manifest.mod_root.clone(),
+                        base_versions: info.base_versions,
+                        kind,
+                        id: id.to_string(),
+                        delete_target,
+                    },
+                ),
             )
         })
     }
@@ -449,8 +599,8 @@ mod tests {
             info.target.linked_record,
             Some(EntityLinkedRecord::Index { row_index: 2, .. })
         ));
-        let saved = crate::commands::save_indexed_config_entity(
-            crate::models::IndexedConfigEntityPayload {
+        let saved = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveIndexedConfigEntity(crate::models::IndexedConfigSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: info.base_versions,
@@ -461,7 +611,7 @@ mod tests {
                 entity_data: serde_json::json!({"descriptor":{"title":"Next"},"text":"Next"}),
                 json_write: Default::default(),
                 ordered_json: None,
-            },
+            }),
         )
         .unwrap();
         let rows = read_csv_data(&index).unwrap().rows;
@@ -475,15 +625,17 @@ mod tests {
             "next",
         )
         .unwrap();
-        let deleted = crate::commands::delete_indexed_config_entity(
-            crate::models::DeleteIndexedConfigEntityPayload {
-                session_id: manifest.session_id.clone(),
-                mod_root: manifest.mod_root.clone(),
-                base_versions: next.base_versions,
-                kind: IndexedConfigKind::Mission,
-                id: "next".into(),
-                delete_target: true,
-            },
+        let deleted = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::DeleteIndexedConfigEntity(
+                crate::models::IndexedConfigDelete {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    base_versions: next.base_versions,
+                    kind: IndexedConfigKind::Mission,
+                    id: "next".into(),
+                    delete_target: true,
+                },
+            ),
         )
         .unwrap();
         let rows = read_csv_data(&index).unwrap().rows;
@@ -591,11 +743,16 @@ mod tests {
             "faction\ndata/world/factions/new.faction\n"
         );
 
-        crate::io::apply_changes(&result.changes.clone(), FileChangeReplayDirection::Undo).unwrap();
+        let replay = crate::io::acquire_root_write_lock(&root).unwrap();
+        replay
+            .apply_changes(&result.changes, FileChangeReplayDirection::Undo)
+            .unwrap();
         assert!(dir.join("old.faction").exists());
         assert!(!dir.join("new.faction").exists());
 
-        crate::io::apply_changes(&result.changes, FileChangeReplayDirection::Redo).unwrap();
+        replay
+            .apply_changes(&result.changes, FileChangeReplayDirection::Redo)
+            .unwrap();
         let new_text = read_utf8_no_bom(&dir.join("new.faction")).unwrap();
         let _ = fs::remove_dir_all(root);
         assert!(new_text.contains("\"id\": \"new\""));

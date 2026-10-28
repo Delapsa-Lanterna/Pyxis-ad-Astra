@@ -1,10 +1,9 @@
 #![cfg(test)]
 
 use crate::{
-    commands::{prepare_json_source_recovery, recreate_json_sources},
+    commands::prepare_json_source_recovery,
     models::{
-        EntityKind, JsonDocumentOrigin, JsonRecoveryRequest, JsonSourceIdentity,
-        RecreateJsonSourcesPayload,
+        EntityKind, JsonDocumentOrigin, JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore,
     },
     services::{project, query_entity},
     testutil::temp_dir,
@@ -58,6 +57,7 @@ impl Fixture {
                         "data/world/factions/factions.csv",
                         "id,file,note
 sample,data/world/factions/nested/original.faction,kept
+other,data/world/factions/other.faction,unrelated
 ",
                     ),
                 ],
@@ -75,6 +75,7 @@ sample,data/world/factions/nested/original.faction,kept
                         "data/missions/mission_list.csv",
                         "mission,custom
 sample,kept
+other,unrelated
 ",
                     ),
                 ],
@@ -109,12 +110,14 @@ sample,kept
         plan: crate::models::JsonRecoveryPlan,
     ) -> Result<crate::models::WriteResult<crate::models::JsonRecoveryPlan>, crate::errors::AppError>
     {
-        recreate_json_sources(RecreateJsonSourcesPayload {
-            session_id: self.request.session_id.clone(),
-            mod_root: self.request.mod_root.clone(),
-            plan,
-            baseline: self.baseline.clone(),
-        })
+        crate::testutil::commit_saved::<crate::models::JsonRecoveryPlan>(
+            crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
+                session_id: self.request.session_id.clone(),
+                mod_root: self.request.mod_root.clone(),
+                plan,
+                baseline: self.baseline.clone(),
+            }),
+        )
     }
 }
 impl Drop for Fixture {
@@ -175,6 +178,16 @@ fn restore_sources_and_history() {
             assert_eq!(result.changes.len(), missing.len(), "{kind}: {mask}");
             for (index, path) in fixture.paths.iter().enumerate() {
                 assert!(fixture.root.join(path).is_file(), "{path}");
+                if path.ends_with(".csv") {
+                    let table = crate::io::read_csv_data(&fixture.root.join(path)).unwrap();
+                    assert_eq!(table.rows.len(), 2, "{kind}: shared index");
+                    assert!(
+                        table
+                            .rows
+                            .iter()
+                            .any(|row| row.data.values().any(|value| value == "unrelated"))
+                    );
+                }
                 if !missing.contains(path) {
                     assert_eq!(
                         std::fs::read(fixture.root.join(path)).unwrap(),

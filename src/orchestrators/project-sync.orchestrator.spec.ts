@@ -1,549 +1,482 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectManifest, ProjectSessionInvalidationResult, WriteResult, CommittedSessionUpdate, ProjectChange } from '@/shared/types';
-import type { ProjectSessionInvalidatedEvent, CommittedWriteEvent } from '@/windows/window.events';
-import { savedWriteFixture } from '@/test/fixtures/write-result';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { flushPromises } from '@vue/test-utils';
+import type { SaveDelivery, CommittedWriteEvent } from '@/shared/types';
+import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
+
 const mocks = vi.hoisted(() => ({
-  synchronizeSessionCommit: vi.fn(),
-  refreshProjectSources: vi.fn(),
-  recordLogBestEffort: vi.fn(),
-  invalidateQueryCacheByProject: vi.fn(),
-  invalidateResourceMediaByProject: vi.fn(),
-  emitWindowEvent: vi.fn(),
-  handler: null as null | ((event: CommittedWriteEvent) => Promise<void>),
-  refreshHandler: null as null | ((event: ProjectSessionInvalidatedEvent & { originWindowLabel: string }) => Promise<void>),
+  receive: null as null | ((message: SaveDelivery) => void),
+  register: vi.fn(),
+  unregister: vi.fn(),
+  resolve: vi.fn(),
+  wait: vi.fn(),
+  abandon: vi.fn(),
+  retry: vi.fn(),
+  media: vi.fn(),
+  query: vi.fn(),
+  report: vi.fn(),
 }));
 vi.mock('@/services/project-sync.service', () => ({
-  synchronizeSessionCommit: mocks.synchronizeSessionCommit,
-  refreshProjectSources: mocks.refreshProjectSources,
+  registerSaveWindow: mocks.register,
+  unregisterSaveWindow: mocks.unregister,
+  retryProjectSave: mocks.retry,
+  refreshProjectSources: vi.fn(),
+  resolveSaveSources: mocks.resolve,
+  abandonProjectSaves: mocks.abandon,
+  waitProjectSaves: mocks.wait,
 }));
-vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.recordLogBestEffort }));
-vi.mock('@/services/query-cache.service', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/services/query-cache.service')>();
-  return { ...actual, invalidateQueryCacheByProject: mocks.invalidateQueryCacheByProject };
-});
-vi.mock('@/services/resource-media.service', () => ({ invalidateResourceMediaByProject: mocks.invalidateResourceMediaByProject }));
+vi.mock('@/services/query-cache.service', () => ({ invalidateQueryCacheByProject: mocks.query }));
+vi.mock('@/services/resource-media.service', () => ({ invalidateResourceMediaByProject: mocks.media }));
+vi.mock('@/orchestrators/window-event-errors.orchestrator', () => ({ recordWindowEventHandlerError: mocks.report }));
+vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 vi.mock('@/windows/current.window', () => ({ currentWindowLabel: () => 'main' }));
-vi.mock('@/windows/tauri.events', () => ({
-  emitWindowEvent: mocks.emitWindowEvent,
-  listenWindowEvent: vi.fn(async (_name, handler) => {
-    if (_name === 'project-sources-refreshed') mocks.refreshHandler = handler;
-    else mocks.handler = handler;
-    return () => {
-      if (_name === 'project-sources-refreshed') mocks.refreshHandler = null;
-      else mocks.handler = null;
-    };
-  }),
-}));
+
 import {
-  publishCommittedWrite,
-  retryPendingSessionSyncs,
-  listenCommittedWrites,
-  completeSavedWrite,
-  listenEntityIdentityApplied,
-  listenProjectChanges,
-  subscribeProjectChanges,
-  releaseProjectSession,
+  listenSavedContent,
+  observeSavedContent,
+  listenSavedIdentity,
+  beginSavedWrite,
+  retryPendingWrites,
   pauseProjectDisplay,
-  refreshProjectSourcePaths,
-  invalidateProjectionCaches,
+  releaseProjectSession,
+  retryPendingSessionSyncs,
+  startProjectSync,
+  settleProjectSaves,
 } from './project-sync.orchestrator';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useProjectStore } from '@/stores/project.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
-import { removeModRuntimeState } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import { useFileHistoryStore } from '@/stores/file-history.store';
-import { requireProjectionReady, markProjectionReady } from '@/services/project-projection.service';
-import { createCachedSessionQuery, invalidateQueryCacheForSession } from '@/services/query-cache.service';
-function manifestFixture(modRoot: string, sessionId: string): ProjectManifest {
-  return {
-    baseVersions: [],
-    sessionId,
-    modRoot,
-    starsectorRoot: null,
-    coreAvailable: false,
-    associatedSpecTables: [],
-    modInfo: null,
-    tableSummaries: {} as ProjectManifest['tableSummaries'],
-    tableEntitySummaries: {} as ProjectManifest['tableEntitySummaries'],
-    entitySummaries: {
-      factions: 0,
-      missions: 0,
-      ships: 0,
-      weapons: 0,
-      projectiles: 0,
-      variants: 0,
-      skins: 0,
-      systems: 0,
-      skills: 0,
-    },
-    warnings: [],
-  };
-}
+import { useEditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 
-const root = 'C:/mods/alpha';
-function projection(revision = 1): ProjectSessionInvalidationResult {
-  return {
-    projectionRevision: revision,
-    manifest: { ...manifestFixture(root, 's1'), modInfo: { name: 'projection-' + revision } },
-    invalidation: { paths: ['notes.txt'], tables: [], entities: [], resources: [], queryScopes: [], session: false },
-  };
+const nativeWaits = new Map<string, (value: unknown) => void>();
+async function invokeSave(request: import('@/shared/runtime/command.runtime').SaveCommandRequest) {
+  return new Promise<unknown>((resolve) => nativeWaits.set(request.id, resolve));
 }
-function receipt(commitId = 1, ready = true): WriteResult {
-  const result = savedWriteFixture();
-  result.commitId = commitId;
-  result.history = {
-    revision: commitId,
-    undoStack: [{ id: commitId, timestamp: 0, label: 'notes', paths: [root + '/notes.txt'] }],
-    redoStack: [],
-  };
-  result.changes = [
-    {
-      kind: 'file',
-      beforePath: root + '/notes.txt',
-      afterPath: root + '/notes.txt',
-      beforeExists: true,
-      beforeText: 'old',
-      beforeDataBase64: null,
-      beforeFiles: [],
-      afterExists: true,
-      afterText: 'new',
-      afterDataBase64: null,
-      afterFiles: [],
-    },
-  ];
-  result.sessionUpdates = [
-    ready
-      ? { sessionId: 's1', modRoot: root, commitId, status: 'ready', projection: projection(commitId) }
-      : { sessionId: 's1', modRoot: root, commitId, status: 'pending', error: { code: 'parse.json', message: 'bad spec', location: null } },
-  ];
-  return result;
+const root = 'C:/mods/queue';
+function event(id = 1, originWindowLabel = 'peer'): CommittedWriteEvent {
+  const result = savedWriteFixture({ speed: id });
+
+  result.requestId = 'request-' + id;
+  result.history.revision = id;
+  result.identityChanges = [{ before: entityTargetFixture('ship', 'before'), after: entityTargetFixture('ship', 'after') }];
+  const update = sessionUpdateFixture('s1', root);
+  update.projection.invalidation.paths = ['notes.txt'];
+  result.sessionUpdates = [update];
+  return { originWindowLabel, sessionId: 's1', modRoot: root, reason: 'save', result };
+}
+function deliver(value: CommittedWriteEvent) {
+  mocks.receive!({ kind: 'saved', requestId: value.result.requestId!, event: value });
+  nativeWaits.get(value.result.requestId!)?.(value.result);
 }
 beforeEach(() => {
   setActivePinia(createPinia());
-  vi.clearAllMocks();
-  mocks.handler = null;
-  mocks.refreshHandler = null;
-  mocks.emitWindowEvent.mockResolvedValue(undefined);
-  useProjectStore().registerProjectManifest(manifestFixture(root, 's1'));
-});
-afterEach(() => markProjectionReady('s1'));
-
-describe('one business change delivery', () => {
-  it('updates child windows without a local manifest and retains distinct out-of-order change scopes', async () => {
-    useProjectStore().removeProjectManifest(root);
-    const receive = vi.fn();
-    const stop = await listenProjectChanges(receive);
-    const late = receipt(1);
-    if (late.sessionUpdates[0]!.status === 'ready') late.sessionUpdates[0]!.projection.invalidation.paths = ['other.txt'];
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt(2) });
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: late });
-    expect(receive).toHaveBeenCalledTimes(2);
-    expect(receive.mock.calls.map(([change]) => change.event.result.commitId)).toEqual([2, 1]);
-    expect(mocks.invalidateQueryCacheByProject.mock.calls.map(([, invalidation]) => invalidation.paths)).toEqual([
-      ['notes.txt'],
-      ['other.txt'],
-    ]);
-    stop();
+  vi.resetAllMocks();
+  mocks.register.mockImplementation(async (receive) => {
+    mocks.receive = receive;
   });
-  it('delivers local acceptance once before broadcast and ignores its echo and retry', async () => {
-    const receive = vi.fn();
-    const stop = await listenProjectChanges(receive);
-    const result = receipt();
-    mocks.emitWindowEvent.mockRejectedValueOnce(new Error('broadcast'));
-    await expect(publishCommittedWrite(root, result, 's1')).rejects.toThrow('broadcast');
-    expect(receive).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ kind: 'commit', event: expect.objectContaining({ result }) }),
-    );
-    await retryPendingSessionSyncs('s1');
-    await mocks.handler!({ originWindowLabel: 'main', sessionId: 's1', modRoot: root, reason: 'save', result });
-    expect(receive).toHaveBeenCalledOnce();
-    expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
-    stop();
-  });
-  it('retries only failed consumers and preserves the order through identity acceptance', async () => {
-    const order: string[] = [];
-    const identityStop = await listenCommittedWrites(
-      async () => {
-        order.push('identity');
-      },
-      () => true,
-      'identity',
-    );
-    const first = vi.fn(() => {
-      order.push('first');
-    });
-    const second = vi.fn().mockImplementationOnce(() => {
-      throw new Error('consumer');
-    });
-    const stopFirst = await listenProjectChanges(first),
-      stopSecond = await listenProjectChanges(second);
-    const event: CommittedWriteEvent = { originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'undo', result: receipt() };
-    await expect(mocks.handler!(event)).rejects.toThrow('Project change delivery');
-    await mocks.handler!(event);
-    expect(order).toEqual(['identity', 'first']);
-    expect(first).toHaveBeenCalledOnce();
-    expect(second).toHaveBeenCalledTimes(2);
-    identityStop();
-    stopFirst();
-    stopSecond();
-  });
-  it('shares listeners, releases them before registration finishes and continues remaining subscribers', async () => {
-    const receive = vi.fn();
-    const stopEarly = subscribeProjectChanges(vi.fn()),
-      stop = await listenProjectChanges(receive);
-    stopEarly();
-    await mocks.refreshHandler!({ ...projection(1), originWindowLabel: 'peer' });
-    await mocks.refreshHandler!({ ...projection(1), originWindowLabel: 'peer' });
-    expect(receive).toHaveBeenCalledOnce();
-    stop();
-    expect(mocks.handler).toBeNull();
-    expect(mocks.refreshHandler).toBeNull();
-  });
-  it('deduplicates projections and delivers closure immediately while display updates are paused', async () => {
-    const receive = vi.fn();
-    const stop = await listenProjectChanges(receive);
-    await mocks.refreshHandler!({ ...projection(3), originWindowLabel: 'peer' });
-    await mocks.refreshHandler!({ ...projection(3), originWindowLabel: 'peer' });
-    expect(receive).toHaveBeenCalledOnce();
-    const resume = pauseProjectDisplay();
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'redo', result: receipt(4) });
-    releaseProjectSession('s1');
-    expect(receive.mock.lastCall![0]).toEqual({ kind: 'closed', sessionId: 's1' });
-    await resume();
-    expect(receive).toHaveBeenCalledTimes(2);
-    stop();
-  });
-  it('delivers a source refresh once in the originating window', async () => {
-    const receive = vi.fn<(change: ProjectChange) => void>();
-    const stop = await listenProjectChanges(receive);
-    mocks.refreshProjectSources.mockResolvedValueOnce(projection(5));
-    await refreshProjectSourcePaths('s1', root, [root + '/notes.txt']);
-    await mocks.refreshHandler!({ ...projection(5), originWindowLabel: 'main' });
-    expect(receive).toHaveBeenCalledExactlyOnceWith({ kind: 'refresh', projection: projection(5) });
-    stop();
-  });
+  mocks.unregister.mockResolvedValue(undefined);
+  nativeWaits.clear();
+  mocks.retry.mockResolvedValue(undefined);
+  useProjectStore().registerProjectManifest(sessionUpdateFixture('s1', root).projection.manifest);
 });
 
-describe('committed write synchronization', () => {
-  it('projects replay identity through the shared committed-write subscription', async () => {
-    const result = receipt();
-    result.identityChanges = [{ before: entityTargetFixture('variant', 'old'), after: entityTargetFixture('variant', 'next') }];
-    const receive = vi.fn();
-    const stop = await listenEntityIdentityApplied(receive);
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'undo', result });
-    expect(receive).toHaveBeenCalledExactlyOnceWith({ sessionId: 's1', modRoot: root, result });
-    stop();
-    expect(mocks.handler).toBeNull();
-  });
-  it('keeps an identity query alive when the received receipt invalidates its destination', async () => {
-    const actual = await vi.importActual<typeof import('@/services/query-cache.service')>('@/services/query-cache.service');
-    mocks.invalidateQueryCacheByProject.mockImplementationOnce(actual.invalidateQueryCacheByProject);
-    let finish!: (value: []) => void;
-    const ready = vi.fn();
-    const stop = await listenCommittedWrites(
-      async () => {
-        const value = await createCachedSessionQuery<{ kind: 'ship' }, []>({
-          queryKind: 'entity-list',
-          load: () =>
-            new Promise<[]>((resolve) => {
-              finish = resolve;
-            }),
-          invalidates: () => true,
-        })('s1', { kind: 'ship' });
-        ready(value);
+describe('ordered save consumption', () => {
+  it('accepts captured content once after save completion and retains a later draft', async () => {
+    const session = useEditTargetDraftSession<{ speed: number }, { id: string }>({
+      emptyValue: { speed: 0 },
+      targetKey: (target) => target.id,
+      load: () => ({ target: { id: 'a' }, value: { speed: 80 }, baseVersions: [], meta: null }),
+      beginSave: beginSavedWrite,
+      save: async (target, _value, _versions, _original, request) => {
+        const result = (await invokeSave(request!)) as import('@/shared/types').WriteResult<{ speed: number }>;
+        return { target, value: result.content!.value, baseVersions: result.baseVersions, meta: null, requestId: request!.id };
       },
-      () => true,
-      'identity',
-    );
-    const result = receipt();
-    result.sessionUpdates[0] = {
-      sessionId: 's1',
-      modRoot: root,
-      commitId: 1,
-      status: 'ready',
-      projection: {
-        ...projection(),
-        invalidation: {
-          ...projection().invalidation,
-          queryScopes: [{ kind: 'entity-list', entity: { kind: 'ship', id: null }, table: null, source: null, resource: null }],
-        },
-      },
-    };
-    const receiving = mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result });
-    const completed = expect(receiving).resolves.toBeUndefined();
-    await Promise.resolve();
-    finish([]);
-    await completed;
-    expect(ready).toHaveBeenCalledExactlyOnceWith([]);
-    stop();
-    invalidateQueryCacheForSession('s1');
-  });
-  it('accepts the transaction projection and history then invalidates resources before queries', async () => {
-    const written = receipt();
-    await publishCommittedWrite(root, written, 's1');
-    expect(mocks.synchronizeSessionCommit).not.toHaveBeenCalled();
-    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-1');
-    expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(written.history);
-    expect(mocks.invalidateResourceMediaByProject.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.invalidateQueryCacheByProject.mock.invocationCallOrder[0]!,
-    );
-    expect(mocks.emitWindowEvent).toHaveBeenCalledWith(
-      'committed-write-applied',
-      expect.objectContaining({ originWindowLabel: 'main', result: written, reason: 'save' }),
-    );
-  });
-  it('retains pending projection failures and resumes their exact backend commit', async () => {
-    mocks.synchronizeSessionCommit.mockRejectedValueOnce(new Error('parse failed'));
-    await expect(publishCommittedWrite(root, receipt(1, false), 's1')).rejects.toThrow('parse failed');
-    expect(useProjectSyncStore().pending[0]).toMatchObject({ step: 'projection', event: { result: { commitId: 1 } } });
-    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(1);
-    expect(() => requireProjectionReady('s1')).toThrow('Session projection pending');
-    expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
-    expect(mocks.invalidateQueryCacheByProject).not.toHaveBeenCalled();
-    mocks.synchronizeSessionCommit.mockResolvedValueOnce(receipt().sessionUpdates[0]);
-    await retryPendingSessionSyncs('s1');
-    expect(mocks.synchronizeSessionCommit).toHaveBeenLastCalledWith('s1', root, 1);
+    });
+    session.loadBaseForTarget({ target: { id: 'a' }, value: { speed: 80 }, baseVersions: [], meta: null });
+    const consumer = vi.fn((saved: CommittedWriteEvent) => {
+      if (session.acceptsSaveDelivery({ id: 'a' }, saved.result.requestId))
+        session.applyExternalForTarget({ target: { id: 'a' }, value: { speed: 0 }, baseVersions: [], meta: null });
+    });
+    await listenSavedContent(consumer);
+    session.setDraft({ speed: 100 });
+    const saving = session.saveDraft();
+    await flushPromises();
+    const id = [...nativeWaits.keys()][0]!;
+    session.setDraft({ speed: 80 });
+    const saved = event(100);
+    saved.result.requestId = id;
+    deliver(saved);
+    await saving;
+    await flushPromises();
+    expect(session.baselineSnapshot.value!.value.speed).toBe(100);
+    expect(session.draftValue.value.speed).toBe(80);
+    expect(session.pendingSnapshot.value).toBeNull();
+    expect(consumer).toHaveBeenCalledOnce();
     expect(useProjectSyncStore().pending).toHaveLength(0);
-    expect(() => requireProjectionReady('s1')).not.toThrow();
   });
-  it('retries broadcast using the completed local acceptance and projection', async () => {
-    mocks.emitWindowEvent.mockRejectedValueOnce(new Error('broadcast'));
-    await expect(publishCommittedWrite(root, receipt(), 's1')).rejects.toThrow('broadcast');
-    expect(useProjectSyncStore().pending[0]?.step).toBe('broadcast');
-    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(1);
-    await retryPendingSessionSyncs('s1');
-    expect(mocks.synchronizeSessionCommit).not.toHaveBeenCalled();
-    expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
-    expect(mocks.emitWindowEvent).toHaveBeenCalledTimes(2);
+  it.each([true, false])('settles project recovery with explicit abandon choice %s', async (abandon) => {
+    const error = {
+      code: 'io.unexpected',
+      message: 'restore unavailable',
+      location: { path: root + '/notes.txt', line: null, column: null },
+    };
+    mocks.wait.mockRejectedValueOnce(error).mockResolvedValue(undefined);
+    useProjectSyncStore().setBlocked({ kind: 'blocked', modRoot: root, sessionId: 's1', requestId: 'restore', diagnostic: error });
+    const choose = vi.fn().mockResolvedValue(abandon ? 'abandon' : null);
+    const result = settleProjectSaves({ kind: 'sessions', sessionIds: ['s1'] }, {
+      choose,
+    } as unknown as import('@/shared/types').AppFeedback);
+    if (abandon) {
+      await result;
+      expect(mocks.abandon).toHaveBeenCalledExactlyOnceWith([root]);
+      expect(mocks.wait).toHaveBeenCalledTimes(2);
+    } else {
+      await expect(result).rejects.toBe(error);
+      expect(mocks.abandon).not.toHaveBeenCalled();
+    }
+    expect(choose.mock.calls[0]![0].content).toContain('restore unavailable');
   });
-  it('shares a running operation for the same committed receipt', async () => {
-    let release!: () => void;
-    mocks.emitWindowEvent.mockImplementationOnce(() => new Promise<void>((resolve) => (release = resolve)));
-    const written = receipt();
-    const first = publishCommittedWrite(root, written, 's1');
-    const second = publishCommittedWrite(root, written, 's1');
+  it('asks about exact missing sources and returns the user choice', async () => {
+    const choose = vi.fn().mockResolvedValue('recreate');
+    await startProjectSync({ choose } as unknown as import('@/shared/types').AppFeedback);
+    mocks.receive!({ kind: 'missing', requestId: 'missing', paths: ['C:/mods/queue/notes.txt'] });
+    await flushPromises();
+    expect(choose.mock.calls[0]![0].content).toContain('C:/mods/queue/notes.txt');
+    expect(mocks.resolve).toHaveBeenCalledExactlyOnceWith('missing', ['C:/mods/queue/notes.txt'], true);
+  });
+
+  it('completes the save while content continues and retries reading separately', async () => {
+    const content = vi.fn().mockRejectedValueOnce(new Error('read')).mockResolvedValue(undefined);
+    await listenSavedContent(content);
+    const operation = beginSavedWrite(invokeSave, () => []);
+    await flushPromises();
+    const saved = event();
+    saved.result.requestId = operation.id;
+    deliver(saved);
+    await expect(operation.result).resolves.toBe(saved.result);
+    await flushPromises();
     expect(useProjectSyncStore().pending).toHaveLength(1);
-    await vi.waitFor(() => expect(mocks.emitWindowEvent).toHaveBeenCalledOnce());
+    await retryPendingWrites();
+    expect(content).toHaveBeenCalledTimes(2);
+    expect(mocks.retry).not.toHaveBeenCalled();
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+
+  it('keeps one source wait through project recovery and ends it with the actual result', async () => {
+    const operation = beginSavedWrite(invokeSave, () => []);
+    let finished = false;
+    void operation.result.then(() => {
+      finished = true;
+    });
+    await flushPromises();
+    mocks.receive!({
+      kind: 'blocked',
+      requestId: operation.id,
+      modRoot: root,
+      sessionId: 's1',
+      diagnostic: { code: 'io.unexpected', message: 'restore', location: null },
+    });
+    await flushPromises();
+    expect(finished).toBe(false);
+    const saved = event();
+    saved.result.requestId = operation.id;
+    deliver(saved);
+    await operation.result;
+    await flushPromises();
+    expect(finished).toBe(true);
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+
+  it('updates current content after a failed older delivery without replaying the old snapshot', async () => {
+    const observed: number[] = [];
+    const receive = vi.fn((saved: CommittedWriteEvent) => {
+      observed.push(saved.result.history.revision);
+      if (saved.result.history.revision === 1) throw new Error('read');
+    });
+    await listenSavedContent(receive);
+    deliver(event(1));
+    await flushPromises();
+    deliver(event(2));
+    await flushPromises();
+    expect(observed).toEqual([1, 2]);
+    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(2);
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+
+  it('owns one channel per window and keeps content subscriptions independent', async () => {
+    const first = vi.fn(),
+      second = vi.fn();
+    const stop = observeSavedContent(first);
+    await listenSavedContent(second);
+    stop();
+    deliver(event());
+    await flushPromises();
+    expect(mocks.register).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+  it('accepts history and invalidates caches once before waiting for identity and content', async () => {
+    const order: string[] = [];
+    mocks.media.mockImplementation(() => order.push('media'));
+    mocks.query.mockImplementation(() => order.push('cache'));
+    const history = vi.spyOn(useFileHistoryStore(), 'applySnapshot');
+    await listenSavedIdentity(async () => {
+      order.push('identity');
+      await Promise.resolve();
+      order.push('identity-ready');
+    });
+    await listenSavedContent(() => {
+      order.push('content');
+    });
+    deliver(event());
+    await flushPromises();
+    expect(order).toEqual(['media', 'cache', 'identity', 'identity-ready', 'content']);
+    expect(history).toHaveBeenCalledOnce();
+  });
+  it('consumes two distinct saves in delivered order', async () => {
+    const receive = vi.fn();
+    await listenSavedContent(receive);
+    deliver(event(1));
+    await flushPromises();
+    deliver(event(2));
+    await flushPromises();
+    expect(receive.mock.calls.map(([event]) => event.result.requestId)).toEqual(['request-1', 'request-2']);
+    expect(mocks.query).toHaveBeenCalledTimes(2);
+  });
+  it('finishes the current event before beginning the next delivered event', async () => {
+    let finish!: () => void;
+    const order: number[] = [];
+    await listenSavedContent(async (event) => {
+      const id = Number(event.result.requestId!.split('-').at(-1));
+      order.push(id);
+      if (id === 1)
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+    });
+    deliver(event(1));
+    deliver(event(2));
+    await flushPromises();
+    expect(order).toEqual([1]);
+    finish();
+    await flushPromises();
+    expect(order).toEqual([1, 2]);
+  });
+  it('runs source acceptance inside the ordered consumer and retries its unfinished step', async () => {
+    const order: string[] = [];
+    await listenSavedContent(() => {
+      order.push('content');
+    });
+    const accept = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('source'))
+      .mockImplementationOnce(async () => {
+        order.push('source');
+      });
+    const operation = beginSavedWrite(invokeSave, () => [accept]);
+    const saved = event(1, 'main');
+    saved.result.requestId = operation.id;
+    const finished = operation.result;
+    await flushPromises();
+    deliver(saved);
+    await finished;
+    await flushPromises();
+    expect(order).toEqual([]);
+    await retryPendingWrites();
+    expect(accept).toHaveBeenCalledTimes(2);
+    expect(order).toEqual(['source', 'content']);
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+  it('continues only unfinished tasks after a content failure', async () => {
+    const first = vi.fn(),
+      last = vi.fn();
+    const failing = vi.fn().mockRejectedValueOnce(new Error('content')).mockResolvedValue(undefined);
+    await listenSavedContent(first);
+    await listenSavedContent(failing);
+    await listenSavedContent(last);
+    deliver(event());
+    await flushPromises();
+    expect(first).toHaveBeenCalledOnce();
+    expect(last).not.toHaveBeenCalled();
+    expect(useProjectSyncStore().pending[0]?.error?.message).toBe('content');
+    await retryPendingSessionSyncs('s1');
+    await flushPromises();
+    expect(first).toHaveBeenCalledOnce();
+    expect(failing).toHaveBeenCalledTimes(2);
+    expect(last).toHaveBeenCalledOnce();
+    expect(mocks.query).toHaveBeenCalledOnce();
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+  it('retains pending content until its asynchronous consumer completes', async () => {
+    let finish!: () => void;
+    await listenSavedContent(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    deliver(event());
+    await flushPromises();
+    expect(useProjectSyncStore().pending).toHaveLength(1);
+    finish();
+    await flushPromises();
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+  it('registers the originating acceptance before dispatch and shares its completion promise', async () => {
+    const receive = vi.fn(),
+      identity = vi.fn(),
+      accept = vi.fn();
+    await listenSavedIdentity(identity);
+    await listenSavedContent(receive);
+    const operation = beginSavedWrite(invokeSave, () => [accept]);
+    const one = operation.result,
+      two = operation.result;
+    expect(one).toBe(two);
+    const saved = event(1, 'main');
+    saved.result.requestId = operation.id;
+    await flushPromises();
+    deliver(saved);
+    await Promise.all([one, two]);
+    await flushPromises();
+    expect(accept).toHaveBeenCalledOnce();
+    expect(receive).toHaveBeenCalledOnce();
+    expect(identity).toHaveBeenCalledOnce();
+    expect(useProjectSyncStore().pending).toHaveLength(0);
+  });
+  it('keeps paused identity work unfinished until resume and successful acceptance', async () => {
+    const order: string[] = [];
+    const identity = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        order.push('failed-identity');
+        throw new Error('identity');
+      })
+      .mockImplementationOnce(async () => {
+        order.push('identity');
+      });
+    await listenSavedIdentity(identity);
+    await listenSavedContent(() => {
+      order.push('content');
+    });
+    const resume = pauseProjectDisplay();
+    deliver(event());
+    await flushPromises();
+    expect(order).toEqual([]);
+    await resume();
+    await flushPromises();
+    expect(order).toEqual(['failed-identity']);
+    await retryPendingSessionSyncs('s1');
+    await flushPromises();
+    expect(order).toEqual(['failed-identity', 'identity', 'content']);
+  });
+  it('resumes each nested close pause independently', async () => {
+    const receive = vi.fn();
+    await listenSavedContent(receive);
+    const outer = pauseProjectDisplay();
+    const inner = pauseProjectDisplay();
+    deliver(event());
+    await outer();
+    await flushPromises();
+    expect(receive).not.toHaveBeenCalled();
+    await inner();
+    await flushPromises();
+    expect(receive).toHaveBeenCalledOnce();
+  });
+  it('accepts the complete manifest supplied by the saved event', async () => {
+    const receive = vi.fn();
+    await listenSavedContent(receive);
+    const saved = event();
+    saved.result.sessionUpdates[0]!.projection.manifest.modInfo = { id: 'prepared' };
+    deliver(saved);
+    await flushPromises();
+    expect(receive).toHaveBeenCalledOnce();
+    expect(useProjectStore().getManifest(root)!.modInfo).toEqual({ id: 'prepared' });
+    expect(mocks.query).toHaveBeenCalledOnce();
+  });
+  it('retries a blocked request with no session', async () => {
+    await startProjectSync();
+    mocks.receive!({
+      kind: 'blocked',
+      requestId: 'recovery',
+      modRoot: root,
+      sessionId: null,
+      diagnostic: { code: 'io.unexpected', message: 'disk', location: null },
+    });
+    mocks.retry.mockImplementationOnce(async () => mocks.receive!({ kind: 'waiting', modRoot: root, waiting: true }));
+    await retryPendingWrites();
+    expect(mocks.retry).toHaveBeenCalledExactlyOnceWith('recovery');
+    expect(useProjectSyncStore().blocked).toHaveLength(0);
+  });
+  it('releases every content owner before reporting a release error', async () => {
+    const released = vi.fn();
+    await listenSavedContent(vi.fn(), () => {
+      throw new Error('release');
+    });
+    await listenSavedContent(vi.fn(), released);
+    expect(() => releaseProjectSession('s1')).toThrow(AggregateError);
+    expect(released).toHaveBeenCalledExactlyOnceWith('s1');
+  });
+  it('projects native waiting status per project', async () => {
+    await startProjectSync();
+    mocks.receive!({ kind: 'waiting', modRoot: root, waiting: true });
+    expect(useProjectSyncStore().isWaiting(root.toUpperCase())).toBe(true);
+    expect(useProjectSyncStore().isWaiting('C:/mods/other')).toBe(false);
+    mocks.receive!({ kind: 'waiting', modRoot: root, waiting: false });
+    expect(useProjectSyncStore().isWaiting(root)).toBe(false);
+  });
+  it('retains a blocked write until its native retry resumes the same request', async () => {
+    await startProjectSync();
+    mocks.receive!({
+      kind: 'blocked',
+      modRoot: root,
+      requestId: 'disk',
+      sessionId: 's1',
+      diagnostic: { code: 'io.unexpected', message: 'disk', location: null },
+    });
+    expect(useProjectSyncStore().blocked).toHaveLength(1);
+    mocks.retry.mockImplementationOnce(async () => mocks.receive!({ kind: 'waiting', modRoot: root, waiting: true }));
+    await retryPendingSessionSyncs('s1');
+    expect(mocks.retry).toHaveBeenCalledExactlyOnceWith('disk');
+    expect(useProjectSyncStore().blocked).toHaveLength(0);
+    expect(useProjectSyncStore().isWaiting(root)).toBe(true);
+  });
+
+  it('keeps one local content failure and retries without invoking project recovery', async () => {
+    const receive = vi.fn().mockRejectedValueOnce(new Error('content')).mockResolvedValue(undefined);
+    await listenSavedContent(receive);
+    deliver(event());
+    await flushPromises();
+    const sync = useProjectSyncStore();
+    expect(sync.pending).toHaveLength(1);
+    expect(sync.blocked).toHaveLength(1);
+    expect(sync.blocked[0]!.diagnostic).toBe(sync.pending[0]!.error);
+    await retryPendingWrites();
+    await flushPromises();
+    expect(mocks.retry).not.toHaveBeenCalled();
+    expect(receive).toHaveBeenCalledTimes(2);
+    expect(sync.pending).toHaveLength(0);
+    expect(sync.blocked).toHaveLength(0);
+  });
+
+  it('completing an ended source preserves another request waiting in the same window', async () => {
+    const sync = useProjectSyncStore();
+    sync.receive({ id: 'other', event: event(2), tasks: [], running: null, error: null });
+    sync.complete('already-ended');
+    expect(sync.pending.map((work) => work.id)).toEqual(['other']);
+  });
+
+  it('window release ends all source waiters and releases its content work', async () => {
+    const release = await startProjectSync();
+    const operation = beginSavedWrite(invokeSave, () => []);
+    const first = expect(operation.result).rejects.toMatchObject({ code: 'write.window_destroyed' });
+    const second = expect(operation.result).rejects.toMatchObject({ code: 'write.window_destroyed' });
+    await flushPromises();
     release();
     await Promise.all([first, second]);
-    expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
-  });
-  it('deduplicates received receipts and keeps the highest manifest projection', async () => {
-    const handler = vi.fn();
-    const stop = await listenCommittedWrites(handler);
-    const latest: CommittedWriteEvent = { originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt(2) };
-    await mocks.handler!(latest);
-    await mocks.handler!(latest);
-    await mocks.handler!({ ...latest, result: receipt(1) });
-    expect(handler).toHaveBeenCalledTimes(2);
-    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-2');
-    expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(2);
-    stop();
-  });
-  it('invalidates caches before identity reads and waits for identity before projection delivery', async () => {
-    const sequence: string[] = [];
-    mocks.invalidateQueryCacheByProject.mockImplementationOnce(() => sequence.push('cache'));
-    await listenCommittedWrites(
-      async () => {
-        sequence.push('identity');
-        await Promise.resolve();
-        sequence.push('identity-ready');
-      },
-      () => true,
-      'identity',
-    );
-    await listenCommittedWrites(async () => {
-      sequence.push('projection');
-    });
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt() });
-    expect(sequence).toEqual(['cache', 'identity', 'identity-ready', 'projection']);
-  });
-  it('shares concurrent delivery of one receipt until identity acceptance completes', async () => {
-    let finish!: () => void;
-    const waiting = new Promise<void>((resolve) => (finish = resolve));
-    const identity = vi.fn(() => waiting);
-    const dependent = vi.fn();
-    const stopIdentity = await listenCommittedWrites(identity, () => true, 'identity');
-    const stopDependent = await listenCommittedWrites(dependent);
-    const event: CommittedWriteEvent = { originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt() };
-    const first = mocks.handler!(event);
-    const duplicate = mocks.handler!(event);
-    const beforeCompletion = dependent.mock.calls.length;
-    finish();
-    await Promise.all([first, duplicate]);
-    expect(beforeCompletion).toBe(0);
-    expect(identity).toHaveBeenCalledOnce();
-    expect(dependent).toHaveBeenCalledOnce();
-    stopIdentity();
-    stopDependent();
-  });
-  it('releases a projection subscriber while identity delivery is awaiting confirmation', async () => {
-    let finish!: () => void;
-    const waiting = new Promise<void>((resolve) => (finish = resolve));
-    const stopIdentity = await listenCommittedWrites(
-      () => waiting,
-      () => true,
-      'identity',
-    );
-    const dependent = vi.fn();
-    const stopDependent = await listenCommittedWrites(dependent);
-    const delivery = mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt() });
-    stopDependent();
-    finish();
-    await delivery;
-    expect(dependent).not.toHaveBeenCalled();
-    stopIdentity();
-  });
-  it('filters an older session before applying domain notifications', async () => {
-    const handler = vi.fn();
-    await listenCommittedWrites(handler);
-    removeModRuntimeState(root);
-    useProjectStore().registerProjectManifest(manifestFixture(root, 's2'));
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result: receipt() });
-    expect(handler).not.toHaveBeenCalled();
-    expect(mocks.invalidateQueryCacheByProject).not.toHaveBeenCalled();
-  });
-  it('leaves the source window echo at the committed local state', async () => {
-    const handler = vi.fn();
-    await listenCommittedWrites(handler);
-    const written = receipt();
-    await publishCommittedWrite(root, written, 's1');
-    await mocks.handler!({ originWindowLabel: 'main', sessionId: 's1', modRoot: root, reason: 'save', result: written });
-    expect(handler).not.toHaveBeenCalled();
-    expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
-  });
-  it('ends a removed-session retry before accepting an older response', async () => {
-    let restore!: (update: CommittedSessionUpdate) => void;
-    mocks.synchronizeSessionCommit.mockImplementationOnce(() => new Promise((resolve) => (restore = resolve)));
-    const syncing = publishCommittedWrite(root, receipt(1, false), 's1');
-    removeModRuntimeState(root);
-    useProjectStore().registerProjectManifest(manifestFixture(root, 's2'));
-    restore(receipt().sessionUpdates[0]!);
-    await syncing;
-    expect(useProjectStore().getSessionId(root)).toBe('s2');
-    expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
-  });
-  it('accepts zero-change credentials with the current projection', async () => {
-    const written = { ...receipt(), changes: [] };
-    await publishCommittedWrite(root, written, 's1');
-    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-1');
-    expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
-  });
-  it('completes a saved receipt through the shared submission lifecycle', async () => {
-    const written = receipt();
-    await completeSavedWrite({ modRoot: root, sessionId: 's1', result: written, label: 'saved' });
-    expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(written.history);
     expect(useProjectSyncStore().pending).toHaveLength(0);
-    expect(mocks.emitWindowEvent).toHaveBeenCalledWith('committed-write-applied', expect.objectContaining({ result: written }));
-  });
-  it('completes a zero-change saved receipt with its credentials and projection', async () => {
-    await completeSavedWrite({ modRoot: root, sessionId: 's1', result: { ...receipt(), changes: [] }, label: 'saved' });
-    expect(useProjectSyncStore().pending).toHaveLength(0);
-    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-1');
-    expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
-  });
-  it('retains a persisted synchronization failure with one diagnostic', async () => {
-    mocks.emitWindowEvent.mockRejectedValueOnce(new Error('broadcast'));
-    await expect(completeSavedWrite({ modRoot: root, sessionId: 's1', result: receipt(), label: 'saved' })).rejects.toMatchObject({
-      action: 'sync-saved-write',
-    });
-    expect(useProjectSyncStore().pending[0]).toMatchObject({ step: 'broadcast' });
-    expect(mocks.recordLogBestEffort).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ code: 'write.sync_pending', path: root, fields: { sessionId: 's1' } }),
-    );
-    await retryPendingSessionSyncs('s1');
-    expect(useProjectSyncStore().pending).toHaveLength(0);
-  });
-});
-
-describe('project source refresh', () => {
-  it('accepts source and save notifications through one projection subscription and releases both listeners', async () => {
-    const receive = vi.fn();
-    const stop = await listenProjectChanges((change) => {
-      if (change.kind !== 'closed') receive(change.projection);
-    });
-    await mocks.refreshHandler!({ ...projection(3), originWindowLabel: 'peer' });
-    const result = receipt(4);
-    await mocks.handler!({ originWindowLabel: 'peer', sessionId: 's1', modRoot: root, reason: 'save', result });
-    expect(receive.mock.calls.map(([event]) => event.projectionRevision)).toEqual([3, 4]);
-    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-4');
-    expect(useProjectSyncStore().wereProjectionCachesInvalidated('s1', 4)).toBe(true);
-    stop();
-    expect(mocks.handler).toBeNull();
-    expect(mocks.refreshHandler).toBeNull();
-  });
-  it('releases only the closing session projection records', () => {
-    invalidateProjectionCaches(projection());
-    invalidateProjectionCaches({ ...projection(), manifest: { ...projection().manifest, sessionId: 's2', modRoot: 'C:/mods/beta' } });
-    removeModRuntimeState(root);
-    const sync = useProjectSyncStore();
-    expect(sync.wereProjectionCachesInvalidated('s1', 1)).toBe(false);
-    expect(sync.wereProjectionCachesInvalidated('s2', 1)).toBe(true);
-  });
-  it('captures and deduplicates Mod and Core sources in the formal request', async () => {
-    mocks.refreshProjectSources.mockResolvedValueOnce(projection());
-    await refreshProjectSourcePaths(
-      's1',
-      root,
-      [root + '/notes.txt', 'G:/game/starsector-core/graphics/demo.png'],
-      [{ source: 'mod', relPath: 'notes.txt' }],
-    );
-    expect(mocks.refreshProjectSources).toHaveBeenCalledExactlyOnceWith('s1', [
-      { source: 'mod', relPath: 'notes.txt' },
-      { source: 'core', relPath: 'graphics/demo.png' },
-    ]);
-  });
-  it('accepts and broadcasts an in-flight source refresh after its page leaves', async () => {
-    let finish!: (value: ProjectSessionInvalidationResult) => void;
-    mocks.refreshProjectSources.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
-    const action = refreshProjectSourcePaths('s1', root, [root + '/notes.txt']);
-    useWorkspaceStore().showSettings();
-    finish(projection(3));
-    await action;
-    expect(useProjectStore().getManifest(root)?.modInfo?.name).toBe('projection-3');
-    expect(mocks.emitWindowEvent).toHaveBeenCalledExactlyOnceWith(
-      'project-sources-refreshed',
-      expect.objectContaining({ projectionRevision: 3 }),
-    );
-    expect(mocks.refreshProjectSources).toHaveBeenCalledWith('s1', [{ source: 'mod', relPath: 'notes.txt' }]);
-  });
-  it.each(['success', 'failure'] as const)('ends a source-refresh %s when its session closes', async (outcome) => {
-    let finish!: (value: ProjectSessionInvalidationResult) => void;
-    let fail!: (error: Error) => void;
-    mocks.refreshProjectSources.mockImplementationOnce(
-      () =>
-        new Promise((resolve, reject) => {
-          finish = resolve;
-          fail = reject;
-        }),
-    );
-    const action = refreshProjectSourcePaths('s1', root, [root + '/notes.txt']);
-    invalidateQueryCacheForSession('s1');
-    removeModRuntimeState(root);
-    useProjectStore().registerProjectManifest(manifestFixture(root, 's2'));
-    if (outcome === 'success') finish(projection());
-    else fail(new Error('closed session'));
-    await action;
-    expect(useProjectStore().getSessionId(root)).toBe('s2');
-    expect(mocks.emitWindowEvent).not.toHaveBeenCalled();
-    expect(mocks.invalidateResourceMediaByProject).not.toHaveBeenCalled();
-  });
-  it('applies one received projection only once across consumers', () => {
-    invalidateProjectionCaches(projection());
-    invalidateProjectionCaches(projection());
-    expect(mocks.invalidateQueryCacheByProject).toHaveBeenCalledOnce();
-  });
-  it('releases projection acceptance markers together with the owning Mod runtime', () => {
-    invalidateProjectionCaches(projection());
-    expect(useProjectSyncStore().wereProjectionCachesInvalidated('s1', 1)).toBe(true);
-    removeModRuntimeState(root);
-    expect(useProjectSyncStore().wereProjectionCachesInvalidated('s1', 1)).toBe(false);
+    expect(useProjectSyncStore().blocked).toHaveLength(0);
+    expect(mocks.unregister).toHaveBeenCalledOnce();
   });
 });

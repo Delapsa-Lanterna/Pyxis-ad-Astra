@@ -1,10 +1,12 @@
+import { releaseNativeWindowTargets } from '@/services/window.service';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
+import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import {
   refreshProjectSourcePaths,
-  publishCommittedWrite,
-  listenEntityIdentityApplied,
-  listenProjectChanges,
-  projectChangeSessionId,
+  listenSavedIdentity,
+  listenSavedContent,
+  saveProjection,
 } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, watch } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -17,18 +19,14 @@ import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import {
-  reserveFileIdentityIntent,
-  retargetFileWindow,
-  releaseCommittedIdentityTargets,
-} from '@/orchestrators/entity-identity.orchestrator';
+import { reserveFileIdentityIntent, retargetFileWindow } from '@/orchestrators/entity-identity.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
-import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
-import type { EntityIdentityChange, WriteResult, EntityEditInfo, ProjectChange } from '@/shared/types';
+import type { CommittedWriteEvent } from '@/windows/window.events';
+import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
 import { formatError, errorDiagnosticOf, AppError } from '@/shared/lib/errors';
 
-import { captureIdentityVersions, handoffTableVersions } from '@/domain/project/entity-versions';
+import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
 export interface FileEditorViewModelParams {
   mode: 'session' | 'recovery';
@@ -54,10 +52,9 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   const settings = useSettingsStore();
   const feedback = useAppFeedback();
   const currentPath = ref(params.filePath);
-  let identityPreparation: Awaited<ReturnType<typeof createEntitySavePreparation>> | null = null;
   let pendingIdentity: {
     change: EntityIdentityChange;
-    event: EntityIdentityAppliedEvent;
+    event: Pick<CommittedWriteEvent, 'sessionId' | 'modRoot' | 'result'>;
     target: FileEditorTarget;
     preserve: boolean;
   } | null = null;
@@ -77,11 +74,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     TextMeta
   >({
     emptyValue: '',
+    beginSave: beginSavedWrite,
+    savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
     load: async (target) => {
       const loaded = await loadEditableFileData(target.sessionId, target.modRoot, target.filePath);
       return { target, value: loaded.text, baseVersions: loaded.baseVersions, meta: { entity: loaded.entity, receipt: null } };
     },
-    save: async (target, draft, baseVersions) => {
+    save: async (target, draft, baseVersions, _original, request) => {
       const entity = draftSession.baselineSnapshot.value!.meta.entity;
       let versions = baseVersions;
       if (entity && target.sessionId) {
@@ -92,64 +91,25 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         await reserveFileIdentityIntent(target.sessionId, target.modRoot, intent);
         versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
       }
-      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, versions);
+      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, versions, request);
       const change = result.identityChanges[0];
       return {
         target: { ...target, filePath: change?.after.write.path ?? target.filePath },
         value: typeof result.content?.value?.text === 'string' ? result.content?.value.text : draft,
         baseVersions: result.baseVersions,
         meta: { entity: change ? { target: change.after, baseVersions: result.baseVersions } : entity, receipt: result },
-        commitId: result.commitId,
+        requestId: result.requestId,
       };
     },
-    withSavePreparation: async (target, submit) => {
-      const entity = draftSession.baselineSnapshot.value!.meta.entity;
-      if (!entity || target.sessionId === null) return submit(target);
-      return identityPreparation!.withPreparation(target.sessionId, target.modRoot, entity.target, async (info, receipt) => {
-        if (info && info.target.id !== entity.target.id) {
-          const change = receipt!.identityChanges.find(
-            (change) => change.before.id === entity.target.id && change.before.kind === entity.target.kind,
-          )!;
-          pendingIdentity = {
-            change,
-            event: { sessionId: target.sessionId!, modRoot: target.modRoot, result: receipt! },
-            target,
-            preserve: true,
-          };
-          await followPendingIdentity();
-          if (pendingIdentity)
-            throw new AppError(contextMessage.value || '文本身份交接正在处理，请完成输入后重试', { action: 'prepare-file-identity' });
-          return submit(draftSession.currentTarget.value!);
-        }
-        if (info) {
-          const versions = handoffTableVersions(draftSession.baselineSnapshot.value!.baseVersions, info);
-          draftSession.adoptIdentity(
-            target,
-            {
-              target,
-              value: draftSession.baselineSnapshot.value!.value,
-              baseVersions: versions,
-              meta: { entity: { target: info.target, baseVersions: versions }, receipt: null },
-            },
-            (text) => text,
-            'save',
-          );
-        }
-        return submit(target);
-      });
-    },
+
     acceptSaved: async (snapshot) => {
       const target = snapshot.target;
       if (target.sessionId) {
-        await identityPreparation?.finish();
         if (snapshot.meta.entity) await retargetFileWindow(target.sessionId, target.modRoot, target.filePath, title.value);
-        await releaseCommittedIdentityTargets();
+        await releaseNativeWindowTargets();
       }
     },
-    synchronizeSaved: async (snapshot) => {
-      const target = snapshot.target;
-      await publishCommittedWrite(target.modRoot, snapshot.meta.receipt!, target.sessionId);
-    },
+
     targetKey: (target) => fileEditorTargetKey(target),
   });
   watch(
@@ -169,7 +129,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
     saving: draftSession.saving,
-    pendingSynchronization: draftSession.hasPendingSynchronization,
     waitForSave: draftSession.waitForSave,
     editing: {
       targets: computed(() => {
@@ -215,19 +174,17 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   }
   async function setupFile() {
     disposed = false;
-    identityPreparation = await createEntitySavePreparation(feedback, () => draftSession.currentTargetKey.value);
-    if (disposed) {
-      identityPreparation.dispose();
-      return;
-    }
     if (disposed) return;
-    unlistenIdentity = await listenEntityIdentityApplied(handleIdentityApplied);
+    if (disposed) return;
+    unlistenIdentity = await listenSavedIdentity(handleIdentityApplied);
     if (disposed) {
       unlistenIdentity();
       unlistenIdentity = null;
       return;
     }
-    unlistenChanges = await listenProjectChanges(handleProjectChange);
+    unlistenChanges = await listenSavedContent(handleCommittedWriteEvent, (sessionId) => {
+      if (sessionId === draftSession.currentTarget.value?.sessionId) draftSession.cancelRead();
+    });
     if (disposed) unlistenChanges();
   }
 
@@ -235,7 +192,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     disposed = true;
     textHistory.dispose();
     unregisterSave();
-    identityPreparation?.dispose();
     unlistenIdentity?.();
     identitySequence++;
     pendingIdentity = null;
@@ -257,6 +213,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   }
 
   async function saveFile() {
+    if (useProjectSyncStore().isWaiting(params.modRoot)) return;
     if (!fileEditorTarget()) return;
     if (draftSession.saving.value) {
       await draftSession.waitForSave();
@@ -332,10 +289,9 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     if (pendingIdentity) void followPendingIdentity();
   }
 
-  async function handleIdentityApplied(event: EntityIdentityAppliedEvent) {
+  async function handleIdentityApplied(event: CommittedWriteEvent) {
     const target = fileEditorTarget();
     if (!target || target.sessionId !== event.sessionId || normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)) return;
-    if (event.result.commitId <= (draftSession.savedSnapshot.value?.commitId ?? -1)) return;
     const reference = pendingIdentity?.change.after.write.path ?? target.filePath;
     const change = event.result.identityChanges.find(
       (change) =>
@@ -343,7 +299,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         (change.before.write.path !== change.after.write.path || change.before.id !== change.after.id),
     );
     if (!change) return;
-    if (draftSession.saving.value && !(await draftSession.waitForSave())) return;
     if (disposed || fileEditorTargetKey(target) !== draftSession.currentTargetKey.value) return;
     const preserve = draftSession.dirty.value;
     if (preserve && !pendingIdentity) {
@@ -352,13 +307,15 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         content: '保留当前文本，并接纳新的文件路径和基线。',
         choices: [{ label: '保留文本并跟随', value: 'follow', type: 'primary' }],
       });
-      if (choice !== 'follow' || disposed || fileEditorTargetKey(target) !== draftSession.currentTargetKey.value) return;
+      if (disposed || fileEditorTargetKey(target) !== draftSession.currentTargetKey.value) return;
+      if (choice !== 'follow')
+        throw new AppError('文件身份交接尚未确认', { code: 'write.identity_pending', action: 'follow-saved-identity' });
     }
     pendingIdentity = { change, event, target, preserve };
-    await followPendingIdentity();
+    await followPendingIdentity(true);
   }
 
-  async function followPendingIdentity() {
+  async function followPendingIdentity(required = false) {
     const pending = pendingIdentity;
     if (!pending) return;
     const sequence = ++identitySequence;
@@ -368,7 +325,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       const loaded = await loadEditableFileData(pending.target.sessionId, pending.target.modRoot, pending.change.after.write.path);
       if (disposed || sequence !== identitySequence || pending !== pendingIdentity || raw !== text.value) return;
       const target = { ...pending.target, filePath: pending.change.after.write.path };
-      await retargetFileWindow(pending.event.sessionId, pending.event.modRoot, target.filePath, title.value);
+      await retargetFileWindow(pending.target.sessionId!, pending.event.modRoot, target.filePath, title.value);
       if (disposed || sequence !== identitySequence || pending !== pendingIdentity || raw !== text.value) return;
       draftSession.adoptIdentity(
         pending.target,
@@ -377,7 +334,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
           value: loaded.text,
           baseVersions: loaded.baseVersions,
           meta: { entity: loaded.entity, receipt: null },
-          commitId: pending.event.result.commitId,
         },
         () => followed ?? loaded.text,
       );
@@ -393,6 +349,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         targetLine.value = position.line;
         targetColumn.value = position.column ?? undefined;
       }
+      if (required) throw error;
     }
   }
 
@@ -406,16 +363,24 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     draftSession.setDraft(textHistory.redo()!);
   }
 
-  function handleProjectChange(change: ProjectChange) {
+  function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = draftSession.currentTarget.value;
-    if (!target || disposed || pendingIdentity || projectChangeSessionId(change) !== target.sessionId) return;
-    if (change.kind === 'closed') {
-      draftSession.cancelRead();
+    const projection = saveProjection(change, target?.sessionId);
+    if (!projection) return;
+    if (!target || disposed || pendingIdentity || projection.manifest.sessionId !== target.sessionId) return;
+
+    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    const receipt = change.reason === 'refresh' ? null : change.result;
+    if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return;
+    if (
+      receipt?.identityChanges.some(
+        (identity) =>
+          normalizeFsPath(identity.after.write.path) === normalizeFsPath(target.filePath) &&
+          (identity.before.id !== identity.after.id ||
+            normalizeFsPath(identity.before.write.path) !== normalizeFsPath(identity.after.write.path)),
+      )
+    )
       return;
-    }
-    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
-    const receipt = change.kind === 'commit' ? change.event.result : null;
-    if (receipt && !draftSession.isTargetCommitCurrent(target, receipt.commitId)) return;
     const entity = draftSession.baselineSnapshot.value!.meta.entity;
     const identity = receipt?.identityChanges.find((entry) => normalizeFsPath(entry.after.write.path) === normalizeFsPath(target.filePath));
     const content = receipt ? committedFileText(receipt, target.filePath) : undefined;
@@ -424,20 +389,22 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
       (!entity || identity) &&
       receipt!.baseVersions.some((version) => normalizeFsPath(version.path) === normalizeFsPath(target.filePath))
     ) {
-      draftSession.applyExternalForTarget({
-        target,
-        value: content,
-        baseVersions: receipt!.baseVersions,
-        commitId: receipt!.commitId,
-        meta: { entity: identity ? { target: identity.after, baseVersions: receipt!.baseVersions } : null, receipt },
-      });
+      draftSession.applyExternalForTarget(
+        {
+          target,
+          value: content,
+          baseVersions: receipt!.baseVersions,
+          requestId: receipt!.requestId,
+          meta: { entity: identity ? { target: identity.after, baseVersions: receipt!.baseVersions } : null, receipt: null },
+        },
+        true,
+      );
       return;
     }
-    const affected = change.projection.invalidation.paths.some((path) =>
+    const affected = projection.invalidation.paths.some((path) =>
       pathBelongsToRoot(target.filePath, isAbsoluteFsPath(path) ? path : joinRootRelativePath(target.modRoot, path)),
     );
-    if (affected || change.projection.invalidation.session)
-      void draftSession.refreshTarget(target).catch((error) => feedback.error(error, '外部文件更新同步失败'));
+    if (affected || projection.invalidation.session) return draftSession.refreshTarget(target, true).then(() => {});
   }
 
   function applyLocation(location: import('@/shared/types').FileWindowLocation) {
@@ -462,8 +429,10 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     saving: draftSession.saving,
     waitForSave: draftSession.waitForSave,
     dirty,
-    handoffLocked: computed(() => useSaveCommandStore().isEditTargetLocked(draftSession.currentTargetKey.value)),
-    canSave: computed(() => draftSession.ready.value && (dirty.value || draftSession.hasPendingSynchronization.value)),
+    handoffLocked: computed(() => false),
+    canSave: computed(
+      () => !useProjectSyncStore().isWaiting(params.modRoot) && draftSession.ready.value && (dirty.value || draftSession.saving.value),
+    ),
     hasPendingExternalText,
     externalTextNotice,
     lineCount,
@@ -506,5 +475,3 @@ function fileEditorTargetKey(target: FileEditorTarget): string {
 function normalizeEventLine(value: number | null): number | undefined {
   return value !== null && Number.isFinite(value) && value > 0 ? value : undefined;
 }
-
-import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';

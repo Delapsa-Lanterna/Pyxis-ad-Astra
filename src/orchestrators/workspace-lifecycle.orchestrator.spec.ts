@@ -9,7 +9,6 @@ vi.mock('@/services/core-assets.service', () => ({ invalidateCoreCacheForRoot: v
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 function register(id: string) {
   const update = sessionUpdateFixture(id, 'M:/' + id);
-  if (update.status !== 'ready') throw new Error('ready fixture');
   useProjectStore().registerProjectManifest(update.projection.manifest);
   useWorkspaceStore().registerMod({ modRoot: 'M:/' + id, displayName: id, version: '', status: 'ready' });
 }

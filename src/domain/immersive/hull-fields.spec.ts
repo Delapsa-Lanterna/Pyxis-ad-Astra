@@ -45,13 +45,13 @@ describe('ordered hull source fields', () => {
       { recordKey: 'skin', path: 'fpMod' },
     ];
     const data = { 'hull-csv': { 'fleet pts': '4' }, parent: { fleetPoints: 7, fpMod: 99 }, skin: { fpMod: -2 } };
-    expect(hullFieldValue(inputs, (key) => data[key as keyof typeof data])).toBe(5);
+    expect(hullFieldValue(inputs, new Map(Object.entries(data)))).toBe(5);
     const valueInputs = inputs.map((input) => ({
       ...input,
       path: input.path === 'fleet pts' ? 'base value' : input.path === 'fleetPoints' ? 'baseValue' : 'baseValueMult',
     }));
     const prices = { 'hull-csv': { 'base value': '800' }, parent: { baseValue: 1001, baseValueMult: 1.25 }, skin: { baseValueMult: 0.5 } };
-    expect(hullFieldValue(valueInputs, (key) => prices[key as keyof typeof prices])).toBe(625);
+    expect(hullFieldValue(valueInputs, new Map(Object.entries(prices)))).toBe(625);
     const field = projectShipPanel(graph, values).combat.find((stat) => stat.id === 'max speed')!.fields[1]!;
     const cleared = updateImmersiveField(
       values,

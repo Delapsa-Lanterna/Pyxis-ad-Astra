@@ -163,7 +163,7 @@ pub(crate) fn json_recovery_origin(
     let handle = session_handle(session_id)?;
     let session = lock_session(&handle)?;
     session
-        .json_origins
+        .loaded_edit_targets
         .iter()
         .rev()
         .find(|origin| {
@@ -178,22 +178,4 @@ pub(crate) fn json_recovery_origin(
         .ok_or_else(|| {
             AppError::message("json.recovery_target_changed", "重建来源不属于已读取的文档")
         })
-}
-
-pub(super) fn remember_json_origin(
-    session: &mut super::super::model::ProjectSession,
-    target: &crate::models::EntityEditTarget,
-) {
-    if !matches!(
-        target.kind,
-        EntityKind::Variant | EntityKind::Skin | EntityKind::Faction | EntityKind::Mission
-    ) {
-        return;
-    }
-    session.json_origins.retain(|origin| {
-        origin.kind != target.kind
-            || origin.id != target.id
-            || origin.write.rel_path != target.write.rel_path
-    });
-    session.json_origins.push(target.clone());
 }

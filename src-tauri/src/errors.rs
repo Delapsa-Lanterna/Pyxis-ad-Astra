@@ -56,6 +56,8 @@ pub enum AppError {
     EntityTargetExists {
         target: Box<crate::models::EntityEditTarget>,
     },
+    #[error("保存来源缺失，需要确认重建")]
+    SaveSourcesMissing { paths: Vec<String> },
 }
 
 impl AppError {
@@ -87,6 +89,7 @@ impl AppError {
             Self::Tauri(_) => "window.native",
             Self::JsonRewriteRequired { .. } => "json.rewrite_confirmation_required",
             Self::EntityTargetExists { .. } => "spec.target_exists",
+            Self::SaveSourcesMissing { .. } => "write.sources_missing",
         }
     }
 
@@ -165,6 +168,9 @@ impl Serialize for AppError {
         }
         if let Some(target) = self.conflicting_target() {
             state.serialize_field("target", target)?;
+        }
+        if let Self::SaveSourcesMissing { paths } = self {
+            state.serialize_field("paths", paths)?;
         }
         state.end()
     }

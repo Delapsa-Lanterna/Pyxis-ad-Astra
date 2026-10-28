@@ -81,8 +81,13 @@ export const editorsCapabilities = [
   ...capabilities({ role: 'service', domain: 'json-entity' }, [
     {
       capability: 'config-write',
-      names: ['saveModInfo', 'saveIndexedConfigEntity', 'createIndexedConfigEntity', 'deleteIndexedConfigEntity'],
+      names: ['saveModInfo', 'saveIndexedConfigEntity', 'createIndexedConfigEntity'],
       owners: [{ layer: 'orchestrators', domain: 'json-save' }],
+    },
+    {
+      capability: 'config-delete',
+      names: ['deleteIndexedConfigEntity'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'json-document-capabilities' }],
     },
     {
       capability: 'config-query',
@@ -93,8 +98,13 @@ export const editorsCapabilities = [
   ...capabilities({ role: 'service', domain: 'json-file' }, [
     {
       capability: 'config-write',
-      names: ['saveVariantEntity', 'createVariantEntity', 'deleteVariantEntity', 'saveSkinEntity', 'createSkinEntity', 'deleteSkinEntity'],
+      names: ['saveVariantEntity', 'createVariantEntity', 'saveSkinEntity', 'createSkinEntity'],
       owners: [{ layer: 'orchestrators', domain: 'json-save' }],
+    },
+    {
+      capability: 'config-delete',
+      names: ['deleteVariantEntity', 'deleteSkinEntity'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'json-document-capabilities' }],
     },
   ]),
   ...capabilities({ role: 'service', domain: 'spec-editor' }, [

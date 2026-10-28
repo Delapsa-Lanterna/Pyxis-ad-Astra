@@ -28,7 +28,19 @@ pub(crate) fn invalidate_session_changes(
     let files = changed_project_files(changes, &boundary)?;
     let mut sources = super::sources::SourceReader::from_session(session)?;
     sources.accept_changes(changes)?;
-    invalidate_files(session, files, false, sources)
+    let invalidation = invalidate_files(session, files, false, sources)?;
+    session.loaded_edit_targets.retain(|target| {
+        !changes.iter().any(|change| {
+            (!change.after_exists || change.before_path != change.after_path)
+                && (crate::models::windows_path_key(&target.write.path)
+                    == crate::models::windows_path_key(&change.before_path)
+                    || (matches!(change.kind, FileChangeKind::Directory)
+                        && crate::models::windows_path_key(&target.write.path).starts_with(
+                            &format!("{}/", crate::models::windows_path_key(&change.before_path)),
+                        )))
+        })
+    });
+    Ok(invalidation)
 }
 
 fn invalidate_files(
@@ -208,6 +220,27 @@ fn invalidate_files(
             .get_mut(super::model::MISSION_LIST_TABLE_KEY)
             .expect("registered mission table");
         table.rows = None;
+        table.row_index = None;
+        table.saved_text = None;
+    }
+    if let Some(csv) = sources.tables.get("data/world/factions/factions.csv") {
+        let table = session
+            .csv_tables
+            .get_mut("faction-index")
+            .expect("faction index is registered");
+        table.header = csv.header.clone();
+        table.rows = Some(
+            csv.rows
+                .iter()
+                .enumerate()
+                .map(|(index, row)| super::model::SessionCsvRow {
+                    row_key: format!("faction-index:row:{index}"),
+                    data: row.data.clone(),
+                    is_comment: row.is_comment,
+                })
+                .collect(),
+        );
+        table.next_row_seq = csv.rows.len() as u64;
         table.row_index = None;
         table.saved_text = None;
     }
@@ -701,6 +734,25 @@ pub(super) fn refresh_sources(
         let path = boundary.resolve_relative(&source.rel_path, "refresh source")?;
         paths.push(path.to_string_lossy().to_string());
         if source.source == ResourceSource::Mod {
+            if let Some((key, table)) = session
+                .csv_tables
+                .iter()
+                .find(|(_, table)| table.path == source.rel_path)
+                && !path
+                    .try_exists()
+                    .map_err(|error| crate::errors::AppError::from(error).at_path(&path))?
+                && table.rows.is_some()
+            {
+                if let Some(table_key) = CsvTableKey::from_key(key) {
+                    session
+                        .manifest
+                        .table_summaries
+                        .get_mut(&table_key)
+                        .expect("registered CSV summary")
+                        .available = false;
+                }
+                continue;
+            }
             files.push(ChangedProjectFile {
                 path: source.rel_path.clone(),
                 before_text: None,

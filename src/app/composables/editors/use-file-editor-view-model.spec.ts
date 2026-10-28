@@ -14,19 +14,24 @@ beforeEach(() => {
 
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
+  beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion((value) => {
+    const snapshot = value as { target: { modRoot: string; sessionId: string | null }; meta: { receipt: unknown } };
+    return mocks.publishCommittedWrite(snapshot.target.modRoot, snapshot.meta.receipt, snapshot.target.sessionId);
+  }),
   publishCommittedWrite: mocks.publishCommittedWrite,
-  listenEntityIdentityApplied: vi.fn(async (handler) => {
+  listenSavedIdentity: vi.fn(async (handler) => {
     mocks.identityHandler = handler;
     return () => {};
   }),
 }));
 
+vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
-  identityHandler: null as null | ((event: import('@/windows/window.events').EntityIdentityAppliedEvent) => Promise<void>),
+  identityHandler: null as null | ((event: import('@/windows/window.events').CommittedWriteEvent) => Promise<void>),
   followIdentity: vi.fn(),
   loadEditableFileData: vi.fn(),
   writeEditableFileText: vi.fn(),
-  publishCommittedWrite: vi.fn(async () => {}),
+  publishCommittedWrite: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
   feedback: {
     success: vi.fn(),
     info: vi.fn(),
@@ -52,7 +57,6 @@ vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
 }));
 vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
-  releaseCommittedIdentityTargets: vi.fn(async () => {}),
   retargetFileWindow: vi.fn(async () => {}),
 }));
 
@@ -171,7 +175,7 @@ describe('useFileEditorViewModel editing', () => {
     const result = {
       sessionUpdates: [],
       baseVersions: [],
-      commitId: 1,
+
       history: { revision: 1, undoStack: [], redoStack: [] },
       changes: [],
       invalidation: {},
@@ -183,7 +187,14 @@ describe('useFileEditorViewModel editing', () => {
     const viewModel = await loadedViewModel();
     viewModel.updateText('saved text');
     await viewModel.saveFile();
-    expect(mocks.writeEditableFileText).toHaveBeenCalledWith('s1', 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file', 'saved text', []);
+    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(
+      's1',
+      'C:/mods/alpha',
+      'C:/mods/alpha/data/hulls/test.file',
+      'saved text',
+      [],
+      undefined,
+    );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledTimes(1);
     expect(mocks.feedback.success).toHaveBeenCalledWith('文件已保存');
     expect(viewModel.dirty.value).toBe(false);
@@ -196,7 +207,7 @@ describe('useFileEditorViewModel editing', () => {
     mocks.writeEditableFileText.mockResolvedValue({
       sessionUpdates: [],
       baseVersions: [],
-      commitId: 1,
+
       history: { revision: 1, undoStack: [], redoStack: [] },
       changes: [],
       invalidation: {},
@@ -206,7 +217,14 @@ describe('useFileEditorViewModel editing', () => {
     });
     viewModel.updateText('recovered');
     await viewModel.saveFile();
-    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(null, 'C:/mods/alpha', 'C:/mods/alpha/data/hulls/test.file', 'recovered', []);
+    expect(mocks.writeEditableFileText).toHaveBeenCalledWith(
+      null,
+      'C:/mods/alpha',
+      'C:/mods/alpha/data/hulls/test.file',
+      'recovered',
+      [],
+      undefined,
+    );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('C:/mods/alpha', expect.any(Object), null);
     viewModel.dispose();
   });
@@ -285,8 +303,10 @@ describe('useFileEditorViewModel external text', () => {
     });
     const result = savedWriteFixture();
     result.identityChanges = [{ before, after }];
-    result.commitId = 10;
-    await mocks.identityHandler!({ sessionId: 's1', modRoot: 'm:/MOD/', result });
+
+    await expect(
+      mocks.identityHandler!({ originWindowLabel: 'peer', reason: 'save', sessionId: 's1', modRoot: 'm:/MOD/', result }),
+    ).rejects.toMatchObject({ code: 'parse.json_syntax' });
     expect(vm.text.value).toBe('{hullId:');
     expect(vm.filePath.value).toBe(before.write.path);
     expect(vm.externalTextNotice.value).toContain('修正文本');

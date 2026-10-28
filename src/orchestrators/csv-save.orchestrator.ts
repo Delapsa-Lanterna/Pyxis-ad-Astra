@@ -13,12 +13,13 @@ import { saveCsvPatch, captureAssociatedSpecTarget } from '@/services/csv-table.
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
-import { completeSavedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
+import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { commitCsvTableSaveDraft, hasCsvTableDraftChanges, hasCsvRowOrderChanges } from '@/domain/csv-editor/csv-table-draft';
 import { deepClone } from '@/shared/lib/starsector';
+import { retainLaterDraft } from '@/domain/project/save-edits';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
 
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';
@@ -39,7 +40,6 @@ interface TableSaveOptions {
   manifest: ProjectManifest | null;
   selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>;
   feedback?: AppFeedback;
-  synchronize?: (receipt: import('@/shared/types').WriteResult) => Promise<void>;
 }
 
 export async function saveCsvChanges(options: TableSaveOptions): Promise<CsvSaveResult> {
@@ -67,21 +67,26 @@ function captureTableSaveTarget({ manifest, table }: TableSaveOptions): Captured
 }
 
 async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOptions): Promise<CsvSaveResult> {
-  const synchronization = retryPendingModSyncs(target.modRoot);
-  if (synchronization) await synchronization;
   const tables = useCsvEditorStore();
   const state = target.state;
-  const pending = tables.getTableInputs(target.modRoot, target.table).commit();
+  const { manifest, modRoot, table } = target;
+  const capture = () => ({
+    changed: hasCsvTableDraftChanges(state.documents[table]) || !manifest.tableSummaries[table].available,
+    submittedHistory: tables.captureSaveHistory(modRoot, table),
+    patches: buildCurrentTablePatches(state, table),
+    originalRows: deepClone(state.documents[table].baselineRows),
+    rowOrder: hasCsvRowOrderChanges(state.documents[table]) ? [...state.documents[table].rowOrder] : null,
+    baseVersions: deepClone(state.documents[table].baseVersions),
+    candidates: deepClone(getAssociatedSpecCandidates(state.documents[table], manifest.associatedSpecTables)),
+  });
+  let captured = capture();
+  const pending = tables.getTableInputs(modRoot, table).commit(undefined, true, () => {
+    captured = capture();
+  });
   if (pending && !(await pending)) return { status: 'cancelled' };
   if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
-  const { manifest, modRoot, table } = target;
-  if (!hasCsvTableDraftChanges(state.documents[table]) && manifest.tableSummaries[table].available) return { status: 'noop' };
-
-  const submittedHistory = tables.captureSaveHistory(modRoot, table);
-  const patches = buildCurrentTablePatches(state, table);
-  const rowOrder = hasCsvRowOrderChanges(state.documents[table]) ? [...state.documents[table].rowOrder] : null;
-  const baseVersions = deepClone(state.documents[table].baseVersions);
-  const candidates = deepClone(getAssociatedSpecCandidates(state.documents[table], manifest.associatedSpecTables));
+  if (!captured.changed) return { status: 'noop' };
+  const { submittedHistory, patches, originalRows, rowOrder, baseVersions, candidates } = captured;
   const sourceTargets = new Map(
     candidates.length > 0
       ? await Promise.all(
@@ -124,9 +129,42 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
     return identities;
   });
   if (reservations.length > 0) await reserveNativeWindowTargets(reservations);
-  const result = await runConfirmedJsonWrite(options.feedback, (writeOptions) =>
-    saveCsvPatch(manifest.sessionId, modRoot, table, patches, writes, writeOptions, baseVersions, rowOrder),
+  const operation = beginSavedWrite(
+    (request) =>
+      runConfirmedJsonWrite(options.feedback, (writeOptions) =>
+        saveCsvPatch(manifest.sessionId, modRoot, table, patches, writes, writeOptions, baseVersions, rowOrder, originalRows, request),
+      ),
+    (result) => [
+      () => {
+        if (!isTableSaveTargetCurrent(target)) return;
+        tables.revokeTableReads(modRoot, table);
+        const keyMap = deepClone(result.keyMap);
+        const savedRows =
+          result.content?.target.kind === 'csv' ? (result.content.value as unknown as import('@/shared/types').CsvTableRowsRead).rows : [];
+        const actualPatches = patches.map((patch) => {
+          const key = keyMap.find((mapping) => mapping.previousKey === patch.rowKey)?.nextKey ?? patch.rowKey;
+          const saved = savedRows.find((row) => row.rowKey === key);
+          if (!saved) return patch;
+          const current = state.documents[table].rows[patch.rowKey];
+          if (current) {
+            current.data = retainLaterDraft(current.data, patch.row, saved.data);
+            current.isComment = retainLaterDraft(current.isComment, patch.isComment, saved.isComment);
+          }
+          return { ...patch, row: saved.data, isComment: saved.isComment };
+        });
+        commitCsvTableSaveDraft(state.documents[table], actualPatches, keyMap, rowOrder);
+        const tablePath = normalizeFsPath(joinRootRelativePath(modRoot, manifest.tableSummaries[table].path));
+        state.documents[table].baseVersions = result.baseVersions.filter(
+          (version) =>
+            normalizeFsPath(isAbsoluteFsPath(version.path) ? version.path : joinRootRelativePath(modRoot, version.path)) === tablePath,
+        );
+        tables.applySavedRowKeyMap(modRoot, table, keyMap);
+        tables.commitSaveHistory(modRoot, table, submittedHistory);
+      },
+      () => releaseNativeWindowTargets(),
+    ],
   );
+  const result = await operation.result;
   if (!result) return { status: 'cancelled' };
   recordLogBestEffort({
     level: 'info',
@@ -143,19 +181,6 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
       associatedSpecs: String(associatedSpecs.length),
     },
   });
-  if (!isTableSaveTargetCurrent(target)) return { status: 'saved', receipt: result };
-  tables.revokeTableReads(modRoot, table);
-  const keyMap = deepClone(result.keyMap);
-  commitCsvTableSaveDraft(state.documents[table], patches, keyMap, rowOrder);
-  const tablePath = normalizeFsPath(joinRootRelativePath(modRoot, manifest.tableSummaries[table].path));
-  state.documents[table].baseVersions = result.baseVersions.filter(
-    (version) => normalizeFsPath(isAbsoluteFsPath(version.path) ? version.path : joinRootRelativePath(modRoot, version.path)) === tablePath,
-  );
-  tables.applySavedRowKeyMap(modRoot, table, keyMap);
-  tables.commitSaveHistory(modRoot, table, submittedHistory);
-  await releaseNativeWindowTargets();
-  if (options.synchronize) await options.synchronize(result);
-  else await completeSavedWrite({ modRoot, result, label: `保存 ${table} CSV`, sessionId: manifest.sessionId });
   return { status: 'saved', receipt: result };
 }
 

@@ -80,7 +80,6 @@ describe('workspace active project projection', () => {
 
   function register(sessionId: string, modRoot: string) {
     const update = sessionUpdateFixture(sessionId, modRoot);
-    if (update.status !== 'ready') throw new Error('ready projection fixture');
     useProjectStore().registerProjectManifest(update.projection.manifest);
     return update.projection.manifest;
   }
@@ -94,11 +93,11 @@ describe('workspace active project projection', () => {
     const initial = register('first', 'M:/alpha');
     expect(workspace.activeManifest).toBe(project.getManifest('M:/alpha'));
     expect(workspace.activeSessionId).toBe('first');
-    project.replaceProjectManifest({ ...initial, modInfo: { name: 'updated' } }, 2);
-    project.replaceProjectManifest(initial, 1);
-    expect(workspace.activeManifest?.modInfo?.name).toBe('updated');
+    project.replaceProjectManifest({ ...initial, modInfo: { name: 'updated' } });
+    project.replaceProjectManifest(initial);
+    expect(workspace.activeManifest).toEqual(initial);
     register('second', 'M:/alpha');
-    project.replaceProjectManifest(initial, 3);
+    project.replaceProjectManifest(initial);
     expect(workspace.activeSessionId).toBe('second');
     project.removeProjectManifest('M:/alpha');
     expect(workspace.activeManifest).toBeNull();

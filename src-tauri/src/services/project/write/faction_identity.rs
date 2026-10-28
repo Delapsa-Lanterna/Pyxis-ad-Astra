@@ -107,7 +107,7 @@ mod tests {
     use super::*;
     use crate::{
         models::IndexedConfigKind,
-        models::{DeleteIndexedConfigEntityPayload, IndexedConfigEntityPayload},
+        models::{IndexedConfigDelete, IndexedConfigSave},
         services::project,
         testutil::temp_dir,
     };
@@ -147,18 +147,20 @@ mod tests {
                 .iter()
                 .all(|version| version.fingerprint.is_some())
         );
-        let saved = crate::commands::save_indexed_config_entity(IndexedConfigEntityPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            base_versions: info.base_versions,
-            kind: IndexedConfigKind::Faction,
-            previous_id: Some("loaded".into()),
-            next_id: "next".into(),
-            index_row: Default::default(),
-            entity_data: json!({"file":{"id":"next","displayName":"Saved"}}),
-            json_write: Default::default(),
-            ordered_json: None,
-        })
+        let saved = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveIndexedConfigEntity(IndexedConfigSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                base_versions: info.base_versions,
+                kind: IndexedConfigKind::Faction,
+                previous_id: Some("loaded".into()),
+                next_id: "next".into(),
+                index_row: Default::default(),
+                entity_data: json!({"file":{"id":"next","displayName":"Saved"}}),
+                json_write: Default::default(),
+                ordered_json: None,
+            }),
+        )
         .unwrap();
         let next = crate::services::project::query::entity_targets::query_entity_edit_target(
             &manifest.session_id,
@@ -180,16 +182,17 @@ mod tests {
             "data/custom/nested/next.faction"
         );
         assert_eq!(contents.rows[1].data["note"], "keep");
-        let result =
-            crate::commands::delete_indexed_config_entity(DeleteIndexedConfigEntityPayload {
+        let result = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::DeleteIndexedConfigEntity(IndexedConfigDelete {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
                 base_versions: next.base_versions,
                 kind: IndexedConfigKind::Faction,
                 id: "next".into(),
                 delete_target: true,
-            })
-            .unwrap();
+            }),
+        )
+        .unwrap();
         assert_eq!(result.changes.len(), 2);
         assert!(!root.join("data/custom/nested/next.faction").exists());
         assert_eq!(crate::io::read_csv_data(&index).unwrap().rows.len(), 1);

@@ -18,7 +18,7 @@ describe('shared immersive meta actions', () => {
     expect(own.emitted('save')).toHaveLength(1);
     expect(own.emitted('close')).toHaveLength(1);
     await own.setProps({ saving: true });
-    expect(buttons[0]!.attributes('disabled')).toBeDefined();
+    expect(buttons[0]!.attributes('disabled')).toBeUndefined();
     own.unmount();
   });
 });

@@ -25,7 +25,6 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
 - `src/domain/spec-editor/spec-validation.spec.ts`：四类规格字段、内部对象与共同保存约束验证。
 - `src/domain/spec-editor/spec-validation.ts`：字段类型、必填与声明约束的共同问题投影。
-- `src/orchestrators/editor-window.orchestrator.ts`：从所属规格提交内容派生保存反馈通知。
 - `src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
@@ -39,7 +38,6 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/app/components/editors/common/EditorInspector.vue`：编辑与预览共用的属性区标题及独立滚动容器。
 - `src/app/components/schema/SchemaValueInput.vue`：声明来源的规格引用字段控件。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
-- `src/app/composables/use-schema-runtime-context.ts`：按 session 与 Mod 根建立字段来源查询和失效订阅。
 - `src/domain/edit-session.ts`：编辑会话与撤销栈原语，拥有 base/draft/dirty/revision/pending external 状态机与双栈状态工厂。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
@@ -90,7 +88,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - 保存必须先提交所属活动输入，后续草稿必须按实际基线交接；导入与编辑必须由目标草稿会话取得隔离副本。
 - 保存必须在共同会话入口检查全部错误并确认全部警告；按钮必须保持可点击，内容错误必须拒绝保存并提示解决顶部错误，警告必须每次确认，确认目标、内容与问题变化必须重新检查。
 - 可选字段的展示默认值必须保持读取性质；恢复默认必须删除所属键，嵌套更新必须保留其它业务字段。
-- 四类实现必须消费共同目标、保存及外部接纳协议；内容变化必须只经项目变化入口交付，目标与凭据匹配的规格回执必须直接接纳或暂存。
+- 四类实现必须消费共同目标、保存及外部接纳协议；内容变化必须只经所属保存事件消费过程交付，目标与凭据匹配的规格回执必须直接接纳或暂存。
 - 四类编辑器必须共同消费 SpecProblems；红框必须先于黄框固定在检查器顶部，问题区必须至多占用检查器高度的百分之四十，两个框必须各自通过内部问题列表滚动，阻断问题与建议问题必须分别完整列出。
 - 图像与依赖读取必须消费独立输入契约，严禁通过完整窗口 VM 类型取得输入。
 - 基础会话必须消费独立定义接口，具体实现选择必须归应用装配。

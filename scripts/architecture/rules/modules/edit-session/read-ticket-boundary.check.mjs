@@ -249,3 +249,21 @@ const pending=new Map(); pending.set('left',left); pending.set('right',right);
 for (const key of ['left']) { pending.get(key).accept(); pending.get(key).invalidate(); }`);
   assert.ok(diagnostics.some(({ expected }) => expected === 'ticket.invalidate(reason)'));
 });
+
+test('class methods share their own stored tickets across constructor and read scopes', () => {
+  const storage = `export function createStorage() { const values = new Map();
+return { retain(key, value) { values.set(key, value); }, lookup(key) { return values.get(key); } }; }`;
+  const source = `import {createReadTicket} from '@/shared/runtime/read-request';
+import {createStorage} from '@/shared/storage';
+class Owner {
+  constructor() { this.storage = createStorage(); }
+  read() { const storage = this.storage; const task = createReadTicket(id, load); storage.retain(id, task); task.accept(); }
+  release() { const storage = this.storage; storage.lookup(id).invalidate(); }
+}`;
+  assert.deepEqual(collectionDiagnostics(source, { 'src/shared/storage.ts': storage }), []);
+  const unrelated = source.replace('release() {', '} class Other { release() {');
+  assert.deepEqual(
+    collectionDiagnostics(unrelated, { 'src/shared/storage.ts': storage }).map(({ expected }) => expected),
+    ['ticket.invalidate(reason)'],
+  );
+});

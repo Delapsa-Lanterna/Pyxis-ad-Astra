@@ -1,7 +1,7 @@
 export const COMMAND_TRANSPORT = 'src/shared/runtime/command.runtime.ts';
 
 export const commandOwners = {
-  'src/services/misc-config.service.ts': ['query_misc_config_files', 'query_misc_config_file', 'save_misc_config', 'delete_misc_config'],
+  'src/services/misc-config.service.ts': ['query_misc_config_files', 'query_misc_config_file'],
   'src/services/performance-monitor.service.ts': ['performance_monitor_batch', 'performance_monitor_report'],
   'src/services/app-settings.service.ts': ['read_settings', 'read_default_settings', 'save_settings', 'query_system_fonts'],
   'src/services/app-log.service.ts': ['append_app_logs', 'stop_app_log', 'get_app_log_status', 'clear_app_log_file'],
@@ -13,7 +13,15 @@ export const commandOwners = {
   'src/services/font.service.ts': ['query_original_font'],
   'src/services/directory.service.ts': ['detect_directory', 'scan_game_overview'],
   'src/services/project-session.service.ts': ['open_project_session', 'close_project_session'],
-  'src/services/project-sync.service.ts': ['invalidate_project_session', 'refresh_project_sources', 'synchronize_committed_write'],
+  'src/services/project-sync.service.ts': [
+    'invalidate_project_session',
+    'register_save_window',
+    'unregister_save_window',
+    'abandon_project_saves',
+    'resolve_save_sources',
+    'retry_project_save',
+    'wait_project_saves',
+  ],
   'src/services/app-lifecycle.service.ts': ['request_close', 'reply_close', 'ready_close'],
   'src/services/window.service.ts': [
     'update_edit_target_registration',
@@ -34,34 +42,33 @@ export const commandOwners = {
     'retarget_managed_window',
   ],
   'src/services/source-options.service.ts': ['query_csv_source_options', 'query_image_source_options'],
-  'src/services/joint-edit.service.ts': ['query_joint_edit', 'prepare_joint_edit', 'save_joint_edit'],
+  'src/services/joint-edit.service.ts': ['query_joint_edit', 'prepare_joint_edit'],
   'src/services/hull-reference.service.ts': ['query_hull_references'],
   'src/services/resource-media.service.ts': ['query_resource_data_urls'],
   'src/services/resource-reference.service.ts': ['resolve_mod_relative_path', 'query_draft_resources'],
   'src/services/engine-assets.service.ts': ['query_engine_render_assets'],
   'src/services/entity-query.service.ts': ['query_entity', 'query_entity_edit_target', 'query_entity_identity_intent', 'query_entity_list'],
-  'src/services/csv-table.service.ts': [
-    'save_csv_patch',
-    'query_csv_table_index',
-    'query_csv_table_rows',
-    'query_csv_table_window',
-    'query_csv_row_preview',
-  ],
-  'src/services/files.service.ts': [
-    'load_editable_file',
-    'query_text_identity_intent',
-    'follow_text_identity',
-    'save_text_file',
-    'transcode_file_to_utf8',
-  ],
-  'src/services/spec-editor.service.ts': ['load_imported_editor_spec_file', 'save_editor_spec'],
+  'src/services/csv-table.service.ts': ['query_csv_table_index', 'query_csv_table_rows', 'query_csv_row_preview'],
+  'src/services/files.service.ts': ['load_editable_file', 'query_text_identity_intent', 'follow_text_identity'],
+  'src/services/spec-editor.service.ts': ['load_imported_editor_spec_file'],
+  'src/services/json-recovery.service.ts': ['prepare_json_source_recovery'],
+  'src/services/file-history.service.ts': ['query_file_history', 'clear_file_history'],
+};
+
+export const saveActionOwners = {
+  'src/services/misc-config.service.ts': ['save_misc_config', 'delete_misc_config'],
+  'src/services/project-sync.service.ts': ['refresh_project_sources'],
+  'src/services/joint-edit.service.ts': ['save_joint_edit'],
+  'src/services/csv-table.service.ts': ['save_csv_patch'],
+  'src/services/files.service.ts': ['save_text_file', 'transcode_file_to_utf8'],
+  'src/services/spec-editor.service.ts': ['save_editor_spec'],
   'src/services/json-entity.service.ts': [
     'save_mod_info',
     'save_indexed_config_entity',
     'create_indexed_config_entity',
     'delete_indexed_config_entity',
   ],
-  'src/services/json-recovery.service.ts': ['prepare_json_source_recovery', 'recreate_json_sources'],
+  'src/services/json-recovery.service.ts': ['recreate_json_sources'],
   'src/services/json-file.service.ts': [
     'save_variant_entity',
     'create_variant_entity',
@@ -70,5 +77,5 @@ export const commandOwners = {
     'create_skin_entity',
     'delete_skin_entity',
   ],
-  'src/services/file-history.service.ts': ['apply_file_change_set', 'query_file_history', 'clear_file_history'],
+  'src/services/file-history.service.ts': ['apply_file_change_set'],
 };

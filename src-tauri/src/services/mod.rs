@@ -17,6 +17,7 @@ pub mod file_history;
 pub mod mod_creation;
 pub mod project;
 pub mod project_session;
+pub mod project_sync;
 pub mod system_open;
 pub mod windows;
 pub mod workspace_persistence;
@@ -24,6 +25,7 @@ pub mod write_transactions;
 
 #[cfg(test)]
 pub(crate) use project::query::csv_window::query_csv_table_window;
+pub(crate) use project::query::csv_window::read_project_csv;
 pub(crate) use project::query::csv_window::{
     query_csv_row_preview, query_csv_table_index, query_csv_table_rows,
 };
@@ -49,11 +51,15 @@ pub(crate) use project::resources::core_assets::{scan_core_fields, scan_core_gra
 pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
+pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};
+pub(crate) use project::write::entity_identity::{prepare_spec_save, write_spec_request};
 pub(crate) use project::write::entity_identity::{
     save_entity_spec, save_entity_text, save_variant_entity, validate_skin_engine_changes,
 };
 pub(crate) use project::write::faction_identity::{delete_faction_entity, save_faction_entity};
 pub(crate) use project::write::joint_edit::save_joint_edit;
+pub(crate) use project::write::json_recovery::restore_source_request;
+pub(crate) use project::write::save_requests::{prepare_joint_save, prepare_json_save};
 
 pub use project::write::json_recovery::recreate_json_sources;
 pub mod performance_monitor;

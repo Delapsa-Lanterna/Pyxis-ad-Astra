@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
-  createCachedSessionQuery,
-  createLiveSessionQuery,
+  CachedSessionQuery,
+  readLiveSessionQuery,
   invalidateQueryCacheByProject,
   invalidateQueryCacheForSession,
 } from './query-cache.service';
@@ -15,7 +15,7 @@ import type { AppLogEntry } from '@/shared/types';
 
 const changed: ProjectInvalidation = { paths: ['changed'], tables: [], entities: [], resources: [], queryScopes: [], session: false };
 const createReader = (load: () => Promise<Array<{ name: string }>>) =>
-  createCachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
+  new CachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
 
 describe('session query ownership', () => {
   it('logs query loading, sharing, cache hits and invalidation without request or response bodies', async () => {
@@ -32,12 +32,12 @@ describe('session query ownership', () => {
         }),
     );
     try {
-      const first = read('debug-query', { id: 'private request' });
-      const second = read('debug-query', { id: 'private request' });
+      const first = read.read('debug-query', { id: 'private request' });
+      const second = read.read('debug-query', { id: 'private request' });
       finish([{ name: 'private response' }]);
       await Promise.all([first, second]);
-      await read('debug-query', { id: 'private request' });
-      const pending = read('debug-query', { id: 'other private request' });
+      await read.read('debug-query', { id: 'private request' });
+      const pending = read.read('debug-query', { id: 'other private request' });
       const ended = expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
       invalidateQueryCacheForSession('debug-query');
       await ended;
@@ -67,22 +67,21 @@ describe('session query ownership', () => {
         }),
     );
     try {
-      const first = read('monitored-query', { id: 'a' });
-      const shared = read('monitored-query', { id: 'a' });
+      const first = read.read('monitored-query', { id: 'a' });
+      const shared = read.read('monitored-query', { id: 'a' });
       finish([]);
       await Promise.all([first, shared]);
-      await read('monitored-query', { id: 'a' });
-      const cancelled = read('monitored-query', { id: 'b' });
+      await read.read('monitored-query', { id: 'a' });
+      const cancelled = read.read('monitored-query', { id: 'b' });
       const ended = expect(cancelled).rejects.toMatchObject({ code: 'query.invalidated' });
       invalidateQueryCacheForSession('monitored-query');
       await ended;
       finish([]);
-      const live = createLiveSessionQuery({ queryKind: 'monitor-live', load: async () => [], invalidates: () => true });
-      await live('monitored-query', {});
+      await readLiveSessionQuery({ queryKind: 'monitor-live', load: async () => [], invalidates: () => true }, 'monitored-query', {});
       const failure = createReader(async () => {
         throw new Error('read failure');
       });
-      await expect(failure('monitored-query', { id: 'a' })).rejects.toThrow('read failure');
+      await expect(failure.read('monitored-query', { id: 'a' })).rejects.toThrow('read failure');
       expect(samples.map((sample) => [sample.category, sample.name, sample.fields.cache, sample.fields.status])).toEqual([
         ['query', 'entity-list', 'load', 'ok'],
         ['query', 'entity-list', 'shared', 'ok'],
@@ -99,16 +98,18 @@ describe('session query ownership', () => {
   });
   it('fixes parameters and the read-only result at the query definition', async () => {
     const read = createReader(async () => [{ name: 'Original' }]);
-    expectTypeOf(read).parameter(1).toEqualTypeOf<{ id: string }>();
-    expectTypeOf<Awaited<ReturnType<typeof read>>>().toEqualTypeOf<DeepReadonly<Array<{ name: string }>>>();
-    expect(await read('typed-query', { id: 'a' })).toEqual([{ name: 'Original' }]);
+    expectTypeOf(read.read).parameter(1).toEqualTypeOf<{ id: string }>();
+    expectTypeOf<Awaited<ReturnType<typeof read.read>>>().toEqualTypeOf<DeepReadonly<Array<{ name: string }>>>();
+    expect(await read.read('typed-query', { id: 'a' })).toEqual([{ name: 'Original' }]);
     invalidateQueryCacheForSession('typed-query');
   });
   it('ends an already released consumer before loading', async () => {
     const controller = new AbortController();
     controller.abort();
     const load = vi.fn(async () => []);
-    await expect(createReader(load)('aborted-query', { id: 'a' }, controller.signal)).rejects.toMatchObject({ code: 'query.invalidated' });
+    await expect(createReader(load).read('aborted-query', { id: 'a' }, controller.signal)).rejects.toMatchObject({
+      code: 'query.invalidated',
+    });
     expect(load).not.toHaveBeenCalled();
   });
   it('shares a pending request while cancellation ends only the consumer wait', async () => {
@@ -121,23 +122,23 @@ describe('session query ownership', () => {
     );
     const read = createReader(load),
       controller = new AbortController();
-    const first = read('shared-query', { id: 'a' }, controller.signal);
-    const second = read('shared-query', { id: 'a' });
+    const first = read.read('shared-query', { id: 'a' }, controller.signal);
+    const second = read.read('shared-query', { id: 'a' });
     const ended = expect(first).rejects.toMatchObject({ code: 'query.invalidated', cause: { reason: 'consumer' } });
     controller.abort();
     await ended;
     finish([]);
     await expect(second).resolves.toEqual([]);
-    await read('shared-query', { id: 'a' });
+    await read.read('shared-query', { id: 'a' });
     expect(load).toHaveBeenCalledOnce();
     invalidateQueryCacheForSession('shared-query');
   });
   it('retries failures and isolates sessions', async () => {
     const load = vi.fn().mockRejectedValueOnce(new Error('read failure')).mockResolvedValue([]);
     const read = createReader(load);
-    await expect(read('failed-query', { id: 'a' })).rejects.toThrow('read failure');
-    await read('failed-query', { id: 'a' });
-    await read('other-query', { id: 'a' });
+    await expect(read.read('failed-query', { id: 'a' })).rejects.toThrow('read failure');
+    await read.read('failed-query', { id: 'a' });
+    await read.read('other-query', { id: 'a' });
     expect(load).toHaveBeenCalledTimes(3);
     invalidateQueryCacheForSession('failed-query');
     invalidateQueryCacheForSession('other-query');
@@ -155,26 +156,24 @@ describe('session query ownership', () => {
       )
       .mockResolvedValue([{ name: 'Current' }]);
     const read = createReader(load);
-    const old = read('late-query', { id: 'a' });
+    const old = read.read('late-query', { id: 'a' });
     const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated' });
     invalidateQueryCacheByProject('late-query', changed);
     await ended;
-    await read('late-query', { id: 'a' });
+    await read.read('late-query', { id: 'a' });
     if (outcome === 'success') finish([]);
     else fail(new Error('late failure'));
-    expect(await read('late-query', { id: 'a' })).toEqual([{ name: 'Current' }]);
+    expect(await read.read('late-query', { id: 'a' })).toEqual([{ name: 'Current' }]);
     expect(load).toHaveBeenCalledTimes(2);
     invalidateQueryCacheForSession('late-query');
   });
   it('gates cached values and pending completion with the projection state', async () => {
     const read = createReader(async () => []);
-    await read('projection-gated', { id: 'a' });
-    markProjectionPending('projection-gated', 3);
-    await expect(read('projection-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.projection_pending' });
-    markProjectionReady('projection-gated', 2);
-    await expect(read('projection-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.projection_pending' });
-    markProjectionReady('projection-gated', 3);
-    await expect(read('projection-gated', { id: 'a' })).resolves.toEqual([]);
+    await read.read('projection-gated', { id: 'a' });
+    markProjectionPending('projection-gated');
+    await expect(read.read('projection-gated', { id: 'a' })).rejects.toMatchObject({ code: 'session.projection_pending' });
+    markProjectionReady('projection-gated');
+    await expect(read.read('projection-gated', { id: 'a' })).resolves.toEqual([]);
     invalidateQueryCacheForSession('projection-gated');
     let finish!: (value: []) => void;
     const pending = createReader(
@@ -182,11 +181,11 @@ describe('session query ownership', () => {
         new Promise<[]>((resolve) => {
           finish = resolve;
         }),
-    )('projection-gated', { id: 'b' });
-    markProjectionPending('projection-gated', 4);
+    ).read('projection-gated', { id: 'b' });
+    markProjectionPending('projection-gated');
     finish([]);
     await expect(pending).rejects.toMatchObject({ code: 'session.projection_pending' });
-    markProjectionReady('projection-gated', 4);
+    markProjectionReady('projection-gated');
     invalidateQueryCacheForSession('projection-gated');
   });
   it('ends pending requests for a closed session and allows a fresh read', async () => {
@@ -201,12 +200,12 @@ describe('session query ownership', () => {
       )
       .mockResolvedValue([]);
     const read = createReader(load),
-      old = read('closed-query', { id: 'a' });
+      old = read.read('closed-query', { id: 'a' });
     const ended = expect(old).rejects.toMatchObject({ code: 'query.invalidated', cause: { reason: 'session' } });
     invalidateQueryCacheForSession('closed-query');
     await ended;
     finish([]);
-    await read('closed-query', { id: 'a' });
+    await read.read('closed-query', { id: 'a' });
     expect(load).toHaveBeenCalledTimes(2);
     invalidateQueryCacheForSession('closed-query');
   });
@@ -226,18 +225,18 @@ describe('session query ownership', () => {
         )
         .mockResolvedValue([]);
       const read = createReader(load);
-      const first = read('zero-query', { id: 'a' }),
-        second = read('zero-query', { id: 'a' });
+      const first = read.read('zero-query', { id: 'a' }),
+        second = read.read('zero-query', { id: 'a' });
       expect(load).toHaveBeenCalledOnce();
       finish([]);
       await Promise.all([first, second]);
       limits.queries['entity-list'] = 1;
       initializeCacheLimits(limits);
-      await read('zero-query', { id: 'cached' });
+      await read.read('zero-query', { id: 'cached' });
       limits.queries['entity-list'] = 0;
       initializeCacheLimits(limits);
-      await read('zero-query', { id: 'cached' });
-      await read('zero-query', { id: 'a' });
+      await read.read('zero-query', { id: 'cached' });
+      await read.read('zero-query', { id: 'a' });
       expect(load).toHaveBeenCalledTimes(4);
       invalidateQueryCacheForSession('zero-query');
     } finally {
@@ -261,8 +260,8 @@ describe('session query ownership', () => {
     );
     const invalidates = vi.fn((parameters: { path: string }) => parameters.path === 'original');
     const definition = { queryKind: 'entity-list' as const, load, invalidates };
-    const read = mode === 'cached' ? createCachedSessionQuery(definition) : createLiveSessionQuery(definition);
-    const pending = read('snapshot-query', input);
+    const cached = mode === 'cached' ? new CachedSessionQuery(definition) : null;
+    const pending = cached ? cached.read('snapshot-query', input) : readLiveSessionQuery(definition, 'snapshot-query', input);
     expect(reads).toBe(1);
     expect(load).toHaveBeenCalledWith({ sessionId: 'snapshot-query', queryKind: 'entity-list', parameters: { path: 'original' } });
     const ended = expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });

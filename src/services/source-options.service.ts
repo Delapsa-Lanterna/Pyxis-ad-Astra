@@ -9,20 +9,20 @@ import type {
 import type { ProjectInvalidation } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
+import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 
-const readImageOptions = createLiveSessionQuery<Omit<ImageSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
+const readImageOptions = {
   queryKind: 'image-source-options',
   load: ({ sessionId, parameters }) =>
     invokeCommand('query_image_source_options', { payload: { sessionId, ...parameters } satisfies ImageSourceOptionsPayload }),
   invalidates: () => true,
-});
+} satisfies SessionQueryDefinition<Omit<ImageSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>;
 
 export function queryImageSourceOptions(sessionId: string, directories: string[], missionId: string | null, signal?: AbortSignal) {
-  return readImageOptions(sessionId, { directories, missionId }, signal);
+  return readLiveSessionQuery(readImageOptions, sessionId, { directories, missionId }, signal);
 }
 
-const readSourceOptions = createCachedSessionQuery<Omit<CsvSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
+const readSourceOptions = new CachedSessionQuery<Omit<CsvSourceOptionsPayload, 'sessionId'>, SourceOptionGroup[]>({
   queryKind: 'csv-source-options',
   load: ({ sessionId, parameters }) =>
     invokeCommand<SourceOptionGroup[]>('query_csv_source_options', {
@@ -36,7 +36,7 @@ export async function querySourceOptionCatalog(
   source: string,
   signal?: AbortSignal,
 ): Promise<DeepReadonly<SourceOptionGroup[]>> {
-  return readSourceOptions(sessionId, { source }, signal);
+  return readSourceOptions.read(sessionId, { source }, signal);
 }
 
 export function hasSourceInvalidation(invalidation: ProjectInvalidation, source: string): boolean {

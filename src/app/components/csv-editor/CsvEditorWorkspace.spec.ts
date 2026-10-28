@@ -41,7 +41,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
   const update = sessionUpdateFixture(target.sessionId, target.modRoot);
-  if (update.status !== 'ready') throw new Error('fixture is ready');
   update.projection.manifest.tableSummaries.ships.header = record().header;
   useWorkspaceStore().registerMod({ modRoot: target.modRoot, displayName: 'Search', version: '', status: 'ready' });
   useProjectStore().registerProjectManifest(update.projection.manifest);

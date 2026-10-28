@@ -1,25 +1,30 @@
 import { recreateJsonSources } from '@/services/json-recovery.service';
-import type { AppFeedback, SavedConfig, IndexedConfigKind, JsonEntityFile, WriteResult, RowData } from '@/shared/types';
+import type {
+  AppFeedback,
+  SavedConfig,
+  IndexedConfigKind,
+  IndexedConfigEntityData,
+  JsonEntityFile,
+  JsonRecoveryPlan,
+  EntityKind,
+  FileVersion,
+  VariantFile,
+  SkinFile,
+  WriteResult,
+  RowData,
+} from '@/shared/types';
 
 import {
   createIndexedConfigEntity,
-  deleteIndexedConfigEntity,
   saveIndexedConfigEntity,
   saveModInfo,
   captureConfigIdentityIntent,
 } from '@/services/json-entity.service';
-import {
-  createSkinEntity,
-  createVariantEntity,
-  deleteSkinEntity,
-  deleteVariantEntity,
-  saveSkinEntity,
-  saveVariantEntity,
-} from '@/services/json-file.service';
+import { createSkinEntity, createVariantEntity, saveSkinEntity, saveVariantEntity } from '@/services/json-file.service';
 import { createDefaultSkin, createDefaultVariant } from '@/domain/json-editor/json-file-defaults';
 import { indexedConfigEntityData } from '@/domain/json-editor/json-config-records';
 import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
-import { completeSavedWrite, retryPendingModSyncs } from '@/orchestrators/project-sync.orchestrator';
+import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 
@@ -27,21 +32,16 @@ import { reserveFileIdentityIntent } from '@/orchestrators/entity-identity.orche
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
-import { withEditTargetHandoff } from '@/orchestrators/edit-target-handoff.orchestrator';
-import { useSaveCommandStore } from '@/stores/save-command.store';
-import { normalizeFsPath } from '@/shared/lib/paths';
-const variantHandoffs = new Map<number, () => Promise<void>>();
 
 async function capturedVersions(
   sessionId: string,
   modRoot: string,
-  kind: import('@/shared/types').EntityKind,
+  kind: EntityKind,
   sourceId: string,
   nextId: string,
-  baseVersions: import('@/shared/types').FileVersion[],
+  baseVersions: FileVersion[],
   create = false,
 ) {
-  await retryPendingModSyncs(modRoot);
   const captured = await captureConfigIdentityIntent(sessionId, kind, sourceId, nextId).catch(async (error) => {
     await focusEntityIdentityConflict(sessionId, modRoot, error);
     throw error;
@@ -67,17 +67,16 @@ export async function saveModInfoAction(
   modRoot: string,
   data: RowData,
   feedback?: AppFeedback,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
+  baseVersions: FileVersion[] = [],
+  original?: RowData,
+  request?: SaveCommandRequest,
 ): Promise<WriteResult | null> {
-  await retryPendingModSyncs(modRoot);
-  const result = await runConfirmedJsonWrite(feedback, (options) => saveModInfo(sessionId, modRoot, data, options, baseVersions));
-  if (!result) return null;
-  return result;
+  return runConfirmedJsonWrite(feedback, (options) => saveModInfo(sessionId, modRoot, data, options, baseVersions, original, request));
 }
 
 export async function saveIndexedEntityAction(
   write: {
-    baseVersions: import('@/shared/types').FileVersion[];
+    baseVersions: FileVersion[];
     sessionId: string;
     modRoot: string;
     kind: IndexedConfigKind;
@@ -87,7 +86,9 @@ export async function saveIndexedEntityAction(
     entityData: RowData;
   },
   feedback?: AppFeedback,
-): Promise<SavedConfig<import('@/shared/types').IndexedConfigEntityData> | null> {
+  original?: RowData,
+  request?: SaveCommandRequest,
+): Promise<SavedConfig<IndexedConfigEntityData> | null> {
   const versions = await capturedVersions(
     write.sessionId,
     write.modRoot,
@@ -97,203 +98,81 @@ export async function saveIndexedEntityAction(
     write.baseVersions,
   );
   const result = await retainConfigReservation(
-    runConfirmedJsonWrite(feedback, (options) => saveIndexedConfigEntity({ ...write, baseVersions: versions }, options)),
+    runConfirmedJsonWrite(feedback, (options) => saveIndexedConfigEntity({ ...write, baseVersions: versions }, options, original, request)),
   );
   if (!result) return null;
   const entity = indexedConfigEntityData(result);
   return { entity, receipt: result };
 }
 
-export async function createIndexedEntityAction(write: {
-  baseVersions: import('@/shared/types').FileVersion[];
-  sessionId: string;
-  modRoot: string;
-  kind: IndexedConfigKind;
-  previousId: null;
-  nextId: string;
-  indexRow: RowData;
-  entityData: RowData;
-}): Promise<SavedConfig<import('@/shared/types').IndexedConfigEntityData>> {
+export async function createIndexedEntityAction(
+  write: {
+    baseVersions: FileVersion[];
+    sessionId: string;
+    modRoot: string;
+    kind: IndexedConfigKind;
+    previousId: null;
+    nextId: string;
+    indexRow: RowData;
+    entityData: RowData;
+  },
+  request?: SaveCommandRequest,
+): Promise<SavedConfig<IndexedConfigEntityData>> {
   const baseVersions = await capturedVersions(write.sessionId, write.modRoot, write.kind, write.nextId, write.nextId, [], true);
-  const result = await retainConfigReservation(createIndexedConfigEntity({ ...write, baseVersions }));
+  const result = await retainConfigReservation(createIndexedConfigEntity({ ...write, baseVersions }, request));
   const entity = indexedConfigEntityData(result);
   return { entity, receipt: result };
 }
 
-export async function deleteIndexedEntityAction(
+export async function saveJsonFileAction(
+  kind: 'variant' | 'skin',
   sessionId: string,
   modRoot: string,
-  kind: IndexedConfigKind,
   id: string,
-  deleteTarget: boolean,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
-): Promise<WriteResult> {
-  const result = await deleteIndexedConfigEntity({ sessionId, modRoot, kind, id, deleteTarget, baseVersions });
-  return result;
-}
-
-export async function saveVariantAction(
-  sessionId: string,
-  modRoot: string,
-  variantId: string,
   data: RowData,
   previousId: string | null,
   relPath: string,
   feedback?: AppFeedback,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
+  baseVersions: FileVersion[] = [],
+  original?: RowData,
+  request?: SaveCommandRequest,
 ): Promise<SavedConfig<JsonEntityFile> | null> {
-  const sourceId = previousId ?? variantId;
-  const targetKey = JSON.stringify({ sessionId, modRoot, kind: 'variant', id: sourceId, relPath });
-  let release: (() => Promise<void>) | null = null;
-  const save = async () => {
-    const captured = await captureConfigIdentityIntent(sessionId, 'variant', sourceId, variantId);
-    const parentVersions = captured.info.baseVersions.filter(
-      (version) => normalizeFsPath(version.path) !== normalizeFsPath(captured.info.target.write.path),
-    );
-    const versions = baseVersions.filter(
-      (version) => !parentVersions.some((parent) => normalizeFsPath(parent.path) === normalizeFsPath(version.path)),
-    );
-    baseVersions = await capturedVersions(sessionId, modRoot, 'variant', sourceId, variantId, [...versions, ...parentVersions]);
-    const write = {
-      baseVersions,
-      sessionId,
-      modRoot,
-      previousId,
-      nextId: variantId,
-      data,
-      relPath,
-    };
-    return retainConfigReservation(runConfirmedJsonWrite(feedback, (options) => saveVariantEntity(write, options)));
-  };
-  const captured = await captureConfigIdentityIntent(sessionId, 'variant', sourceId, variantId);
-  const targets = captured.info.baseVersions.map((version) => ({ sessionId, modRoot, path: version.path }));
-  const result =
-    feedback && sourceId !== variantId && !useSaveCommandStore().isPreparingParticipant(targetKey)
-      ? await withEditTargetHandoff(targets, feedback, save, targetKey, (cleanup) => {
-          release = cleanup;
-        })
-      : await save();
-  if (!result) return null;
-  if (release) variantHandoffs.set(result.commitId, release);
-  const variant = jsonEntitySavedData(result);
-  return { entity: variant, receipt: result };
-}
-
-export async function createVariantAction(
-  sessionId: string,
-  modRoot: string,
-  hullId: string,
-  variantId: string,
-): Promise<SavedConfig<JsonEntityFile>> {
-  const baseVersions = await capturedVersions(sessionId, modRoot, 'variant', variantId, variantId, [], true);
+  const saveEntity = kind === 'variant' ? saveVariantEntity : saveSkinEntity;
+  baseVersions = await capturedVersions(sessionId, modRoot, kind, previousId ?? id, id, baseVersions);
   const result = await retainConfigReservation(
-    createVariantEntity({
-      baseVersions,
-      sessionId,
-      modRoot,
-      previousId: null,
-      relPath: null,
-      nextId: variantId,
-      data: createDefaultVariant(hullId, variantId),
-    }),
+    runConfirmedJsonWrite<WriteResult<VariantFile | SkinFile>>(feedback, (options) =>
+      saveEntity({ baseVersions, sessionId, modRoot, previousId, nextId: id, data, relPath }, options, original, request),
+    ),
   );
-  const variant = jsonEntitySavedData(result);
-  return { entity: variant, receipt: result };
+  return result ? { entity: jsonEntitySavedData(result), receipt: result } : null;
 }
 
-export async function deleteVariantAction(
-  sessionId: string,
-  modRoot: string,
-  relPath: string,
-  variantId: string,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
-): Promise<WriteResult> {
-  const result = await deleteVariantEntity({ sessionId, modRoot, relPath, entityId: variantId, baseVersions });
-  return result;
-}
-
-export async function saveSkinAction(
-  sessionId: string,
-  modRoot: string,
-  skinHullId: string,
-  data: RowData,
-  previousId: string | null,
-  relPath: string,
-  feedback?: AppFeedback,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
-): Promise<SavedConfig<JsonEntityFile> | null> {
-  baseVersions = await capturedVersions(sessionId, modRoot, 'skin', previousId ?? skinHullId, skinHullId, baseVersions);
-  const write = {
-    baseVersions,
-    sessionId,
-    modRoot,
-    previousId,
-    nextId: skinHullId,
-    data,
-    relPath,
-  };
-  const result = await retainConfigReservation(runConfirmedJsonWrite(feedback, (options) => saveSkinEntity(write, options)));
-  if (!result) return null;
-  const skin = jsonEntitySavedData(result);
-  return { entity: skin, receipt: result };
-}
-
-export async function createSkinAction(
+export async function createJsonFileAction(
+  kind: 'variant' | 'skin',
   sessionId: string,
   modRoot: string,
   baseHullId: string,
-  skinHullId: string,
+  id: string,
+  request?: SaveCommandRequest,
 ): Promise<SavedConfig<JsonEntityFile>> {
-  const baseVersions = await capturedVersions(sessionId, modRoot, 'skin', skinHullId, skinHullId, [], true);
-  const result = await retainConfigReservation(
-    createSkinEntity({
-      baseVersions,
-      sessionId,
-      modRoot,
-      previousId: null,
-      relPath: null,
-      nextId: skinHullId,
-      data: createDefaultSkin(baseHullId, skinHullId),
-    }),
+  const createEntity = kind === 'variant' ? createVariantEntity : createSkinEntity;
+  const initial = kind === 'variant' ? createDefaultVariant : createDefaultSkin;
+  const baseVersions = await capturedVersions(sessionId, modRoot, kind, id, id, [], true);
+  const result = await retainConfigReservation<WriteResult<VariantFile | SkinFile>>(
+    createEntity({ baseVersions, sessionId, modRoot, previousId: null, relPath: null, nextId: id, data: initial(baseHullId, id) }, request),
   );
-  const skin = jsonEntitySavedData(result);
-  return { entity: skin, receipt: result };
-}
-
-export async function deleteSkinAction(
-  sessionId: string,
-  modRoot: string,
-  relPath: string,
-  skinHullId: string,
-  baseVersions: import('@/shared/types').FileVersion[] = [],
-): Promise<WriteResult> {
-  const result = await deleteSkinEntity({ sessionId, modRoot, relPath, entityId: skinHullId, baseVersions });
-  return result;
-}
-
-export async function completeJsonSave(modRoot: string, sessionId: string, result: WriteResult<unknown>, label: string) {
-  const release = variantHandoffs.get(result.commitId);
-  if (release) {
-    variantHandoffs.delete(result.commitId);
-    await release();
-  }
-  await releaseNativeWindowTargets();
-  await completeSavedWrite({ modRoot, sessionId, result, label });
+  return { entity: jsonEntitySavedData(result), receipt: result };
 }
 
 export async function recreateJsonSourcesAction(
-  plan: import('@/shared/types').JsonRecoveryPlan,
+  plan: JsonRecoveryPlan,
   baseline: RowData,
   feedback: AppFeedback,
   targetKey: string,
+  request?: SaveCommandRequest,
 ) {
   const { sessionId, modRoot } = plan.request;
-  await retryPendingModSyncs(modRoot);
-  if (useSaveCommandStore().isPreparingParticipant(targetKey)) return recreateJsonSources({ sessionId, modRoot, plan, baseline });
-  return withEditTargetHandoff(
-    plan.baseVersions.map((version) => ({ sessionId, modRoot, path: version.path })),
-    feedback,
-    () => recreateJsonSources({ sessionId, modRoot, plan, baseline }),
-    targetKey,
-  );
+  void feedback;
+  void targetKey;
+  return recreateJsonSources({ sessionId, modRoot, plan, baseline }, request);
 }

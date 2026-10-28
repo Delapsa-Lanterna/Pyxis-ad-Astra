@@ -4,7 +4,6 @@ import { useWindowLifecycleActions } from './use-window-close-state';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import { useSettingsStore } from '@/stores/settings.store';
-import { listenEditorSpecSaved } from '@/orchestrators/editor-window.orchestrator';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import {
   restorePersistedWorkspace,
@@ -27,7 +26,6 @@ export function useWorkspaceShellLifecycle(
   const { requestClose } = useWindowLifecycleActions();
   const settings = useSettingsStore();
   const workspace = useWorkspaceStore();
-  let stopWindowSaveEvents: (() => void) | null = null;
   let workspacePersistence: WorkspacePersistenceWatcher | null = null;
   let disposed = false;
 
@@ -41,29 +39,6 @@ export function useWorkspaceShellLifecycle(
       fields: { version: __APP_VERSION__ },
     });
     workspacePersistence = watchWorkspacePersistence();
-    const stopEvents = await listenEditorSpecSaved((event) => {
-      if (disposed) return;
-      recordLogBestEffort({
-        level: 'info',
-        code: 'editor.spec_saved',
-        message: 'editor spec saved',
-        path: null,
-        line: null,
-        fields: {
-          kind: event.kind,
-          id: event.id,
-          modRoot: event.modRoot,
-          sessionId: event.sessionId,
-          changes: String(event.writeResult.changes.length),
-        },
-      });
-      feedback.success(`${event.id} 已保存`);
-    });
-    if (disposed) {
-      stopEvents();
-      return;
-    }
-    stopWindowSaveEvents = stopEvents;
     const persistence = workspacePersistence;
     let shouldPersistRestoredWorkspace = false;
     try {
@@ -102,8 +77,6 @@ export function useWorkspaceShellLifecycle(
   onUnmounted(() => {
     disposed = true;
     debugLog('window.shell_unmounted', () => ({ version: __APP_VERSION__ }));
-    stopWindowSaveEvents?.();
-    stopWindowSaveEvents = null;
     workspacePersistence?.stop();
     workspacePersistence = null;
   });

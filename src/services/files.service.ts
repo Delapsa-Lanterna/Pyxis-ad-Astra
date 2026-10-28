@@ -1,11 +1,11 @@
 import type {
   LoadEditableFilePayload,
-  SaveTextFilePayload,
-  TranscodeFilePayload,
+  TextSave,
+  TextTranscode,
   TextIdentityIntentPayload,
   FollowTextIdentityPayload,
 } from '@/shared/types';
-import { invokeCommand } from '@/shared/runtime/command.runtime';
+import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import type { EditableFileData, FileVersion, WriteResult } from '@/shared/types';
 
 export function loadEditableFileData(sessionId: string | null, modRoot: string, path: string): Promise<EditableFileData> {
@@ -18,8 +18,9 @@ export function writeEditableFileText(
   path: string,
   text: string,
   baseVersions: import('@/shared/types').FileVersion[],
+  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
 ): Promise<WriteResult> {
-  return invokeCommand('save_text_file', { payload: { baseVersions, sessionId, modRoot, path, text } satisfies SaveTextFilePayload });
+  return invokeSaveCommand('save_text_file', { payload: { baseVersions, sessionId, modRoot, path, text } satisfies TextSave }, [], request);
 }
 
 export function transcodeFileToUtf8(
@@ -29,8 +30,8 @@ export function transcodeFileToUtf8(
   encoding: string,
   baseVersions: FileVersion[] = [],
 ): Promise<WriteResult> {
-  return invokeCommand('transcode_file_to_utf8', {
-    payload: { baseVersions, sessionId, modRoot, path, encoding } satisfies TranscodeFilePayload,
+  return invokeSaveCommand('transcode_file_to_utf8', {
+    payload: { baseVersions, sessionId, modRoot, path, encoding } satisfies TextTranscode,
   });
 }
 

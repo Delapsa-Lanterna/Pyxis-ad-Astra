@@ -1,3 +1,4 @@
+use crate::models::TextSave;
 use crate::{
     errors::{AppError, AppResult},
     io::{
@@ -6,6 +7,7 @@ use crate::{
     },
     models::{EditableFileData, FileChangeReplayDirection, WriteResult},
 };
+use serde_json::Value;
 use std::path::Path;
 
 pub fn save_text_file(mod_root: &str, path: &str, text: String) -> AppResult<WriteResult> {
@@ -18,6 +20,9 @@ pub fn load_project_editable_file(
     mod_root: &str,
     path: String,
 ) -> AppResult<EditableFileData> {
+    if let Some(session_id) = session_id {
+        crate::services::project::ensure_project_session_mod_root(session_id, mod_root)?;
+    }
     let mut loaded = load_editable_file(mod_root, path)?;
     if let Some(session_id) = session_id {
         loaded.entity = crate::services::query_file_entity_target(session_id, &loaded.path)?;
@@ -34,7 +39,7 @@ pub fn save_project_text_file(
     path: &str,
     text: String,
     versions: &[crate::models::FileVersion],
-) -> AppResult<WriteResult<serde_json::Value>> {
+) -> AppResult<WriteResult<Value>> {
     let path = FsRootBoundary::new(Path::new(mod_root), "mod root")?
         .resolve_absolute(Path::new(path), "file path")?;
     let path = path.to_string_lossy();
@@ -78,6 +83,32 @@ pub fn query_text_identity_intent(
     crate::services::query_entity_identity_intent(session_id, source, next)
 }
 
+pub fn prepare_text_save(
+    input: &mut TextSave,
+    identities: &[crate::models::EntityIdentityChange],
+) -> AppResult<()> {
+    let TextSave {
+        session_id,
+        mod_root,
+        path,
+        base_versions: versions,
+        ..
+    } = input;
+    for identity in identities {
+        if crate::models::windows_path_key(path)
+            == crate::models::windows_path_key(&identity.before.write.path)
+        {
+            *path = identity.after.write.path.clone();
+        }
+    }
+    if crate::io::source_recreation_allowed(mod_root, path) && !Path::new(path).exists() {
+        return Ok(());
+    }
+    let current = load_project_editable_file(session_id.as_deref(), mod_root, path.clone())?;
+    *versions = current.base_versions;
+    Ok(())
+}
+
 pub fn follow_text_identity(
     kind: crate::models::EntityKind,
     text: &str,
@@ -98,7 +129,7 @@ fn save_text_file_with_lock(
     let boundary = FsRootBoundary::new(Path::new(mod_root), "mod root")?;
     let path = boundary.resolve_absolute(path, "file path")?;
     let changes = vec![build_text_change(&path, Some(text))?];
-    crate::io::apply_changes(&changes, FileChangeReplayDirection::Redo)?;
+    _write_lock.apply_changes(&changes, FileChangeReplayDirection::Redo)?;
     Ok(WriteResult::from_changes(changes))
 }
 

@@ -7,61 +7,39 @@ export const projectCapabilities = [
       names: ['pauseProjectDisplay'],
       owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
     },
-    {
-      capability: 'commit-synchronize',
-      names: ['publishCommittedWrite'],
-      owners: [
-        { layer: 'orchestrators', domain: 'file-history-replay' },
-        { layer: 'app', role: 'composable', domain: 'spec-editor-window-view-model' },
-        { layer: 'app', role: 'composable', domain: 'file-editor-view-model' },
-        { path: 'src/app/app-feedback-assembly.ts', layer: 'app' },
-      ],
-    },
-    {
-      capability: 'commit-retry',
-      names: ['retryPendingModSyncs'],
-      owners: [
-        { layer: 'orchestrators', domain: 'csv-save' },
-        { layer: 'orchestrators', domain: 'json-save' },
-        { layer: 'orchestrators', domain: 'file-history-replay' },
-        { layer: 'orchestrators', domain: 'workspace-lifecycle' },
-        { layer: 'app', role: 'composable', domain: 'workspace-shell-actions' },
-        { layer: 'app', role: 'composable', domain: 'csv-save-participants' },
-        { layer: 'app', role: 'composable', domain: 'json-list-selection' },
-      ],
-    },
     { capability: 'source-refresh', names: ['refreshProjectSourcePaths'], owners: [{ layer: 'app', role: 'composable' }] },
     {
       capability: 'commit-retry',
-      names: ['retryPendingSessionSyncs'],
+      names: ['retryPendingSessionSyncs', 'retryPendingWrites'],
       owners: [{ layer: 'app', role: 'composable', domain: 'write-sync-view-model' }],
     },
     {
       capability: 'commit-observe',
-      names: [
-        'invalidateProjectionCaches',
-        'listenCommittedWrites',
-        'listenProjectChanges',
-        'subscribeProjectChanges',
-        'projectChangeSessionId',
-        'listenEntityIdentityApplied',
-      ],
+      names: ['saveProjection', 'listenSavedContent', 'observeSavedContent', 'listenSavedIdentity'],
       owners: [{ layer: 'orchestrators' }, { layer: 'app', role: 'composable' }],
+    },
+    {
+      capability: 'save-window-lifetime',
+      names: ['startProjectSync'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
+    },
+    {
+      capability: 'save-formal-acceptance',
+      names: ['beginSavedWrite'],
+      owners: [
+        { layer: 'app', role: 'composable' },
+        { layer: 'orchestrators', domain: 'csv-save' },
+      ],
+    },
+    {
+      capability: 'save-close-wait',
+      names: ['settleProjectSaves'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'dirty-window-close-guard' }],
     },
     {
       capability: 'session-release',
       names: ['releaseProjectSession'],
       owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
-    },
-    {
-      capability: 'commit-complete',
-      names: ['completeSavedWrite'],
-      owners: [
-        { layer: 'orchestrators', domain: 'json-save' },
-        { layer: 'orchestrators', domain: 'csv-save' },
-        { layer: 'app', role: 'composable', domain: 'joint-edit-session' },
-        { layer: 'app', role: 'composable', domain: 'csv-save-participants' },
-      ],
     },
   ]),
   ...capabilities({ role: 'service', domain: 'entity-query' }, [
@@ -85,6 +63,7 @@ export const projectCapabilities = [
         { layer: 'orchestrators', domain: 'window-target-focus' },
         { layer: 'services' },
         { layer: 'app', role: 'composable', domain: 'csv-editor-actions' },
+        { layer: 'app', role: 'composable', domain: 'json-document-view' },
       ],
     },
   ]),
@@ -115,7 +94,7 @@ export const projectCapabilities = [
     },
   ]),
   ...capabilities({ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', role: 'shared', domain: 'runtime' }, [
-    { capability: 'command-transport', names: ['invokeCommand'], owners: [{ layer: 'services' }] },
+    { capability: 'command-transport', names: ['invokeCommand', 'invokeSaveCommand', 'commandChannel'], owners: [{ layer: 'services' }] },
   ]),
   ...capabilities({ role: 'service', domain: 'workspace-state' }, [
     {
@@ -149,7 +128,7 @@ export const projectCapabilities = [
   ...capabilities({ role: 'service', domain: 'query-cache' }, [
     {
       capability: 'query-cache-load',
-      names: ['createCachedSessionQuery', 'createLiveSessionQuery'],
+      names: ['CachedSessionQuery', 'readLiveSessionQuery'],
       owners: [
         { layer: 'services', domain: 'entity-query' },
         { layer: 'services', domain: 'csv-table' },
@@ -190,11 +169,22 @@ export const projectCapabilities = [
   ]),
   ...capabilities({ role: 'service', domain: 'project-sync' }, [
     {
+      capability: 'save-window-delivery',
+      names: [
+        'registerSaveWindow',
+        'unregisterSaveWindow',
+        'abandonProjectSaves',
+        'resolveSaveSources',
+        'retryProjectSave',
+        'waitProjectSaves',
+      ],
+      owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
+    },
+    {
       capability: 'session-refresh',
       names: ['requestProjectSessionRefresh', 'refreshProjectSources'],
       owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
     },
-    { capability: 'commit-recovery', names: ['synchronizeSessionCommit'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
   ]),
   ...capabilities({ role: 'service', domain: 'directory' }, [
     {

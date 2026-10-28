@@ -1,29 +1,31 @@
+import { releaseNativeWindowTargets } from '@/services/window.service';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
+import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
+import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import { querySourceOptionCatalog } from '@/services/source-options.service';
 import { hasEntityInvalidation } from '@/services/entity-query.service';
 import {
   refreshProjectSourcePaths,
-  publishCommittedWrite,
-  listenProjectChanges,
-  projectChangeSessionId,
-  listenEntityIdentityApplied,
+  listenSavedContent,
+  saveProjection,
+  listenSavedIdentity,
 } from '@/orchestrators/project-sync.orchestrator';
-import { createEntitySavePreparation } from '@/orchestrators/edit-target-handoff.orchestrator';
 import type { SpecEditorDefinition, SpecEditorTarget } from './spec-editor.types';
 import { isReadInvalidated } from '@/shared/runtime/read-request';
-import { computed, shallowRef, watch } from 'vue';
+import { computed, shallowReactive, shallowRef, watch } from 'vue';
 import { createSpecProblems } from './use-spec-problems';
 import type { UnlistenFn } from '@/windows/tauri.events';
 import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
-import type { SpecEditorKind, RowData, WriteResult, SpecEditorData, ProjectChange } from '@/shared/types/index';
+import type { SpecEditorKind, RowData, WriteResult, SpecEditorData, CommittedWriteEvent } from '@/shared/types/index';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { deepClone } from '@/shared/lib/starsector/index';
 import { AppError, formatError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { normalizeFsPath } from '@/shared/lib/paths';
-import { captureIdentityVersions, handoffTableVersions } from '@/domain/project/entity-versions';
+import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
-import { reserveEntityIntent, retargetEntityWindow, releaseCommittedIdentityTargets } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/entity-identity.orchestrator';
 
-import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
@@ -44,54 +46,40 @@ export function useSpecEditorWindowViewModel(
 ) {
   const feedback = useAppFeedback();
   let missingSpecIntent: object | null = null;
-  let identityPreparation: Awaited<ReturnType<typeof createEntitySavePreparation>> | null = null;
   const draftSession: EditTargetDraftSession<RowData, SpecEditorTarget, { data: SpecEditorData; receipt: WriteResult<unknown> | null }> =
     useEditTargetDraftSession<RowData, SpecEditorTarget, { data: SpecEditorData; receipt: WriteResult<unknown> | null }>({
       emptyValue: {},
+      beginSave: beginSavedWrite,
+      savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
       load: async (target, signal) => {
         const data = await definition.read(target.sessionId, target.id, signal);
         return {
           target,
           meta: { data, receipt: null },
           baseVersions: data.baseVersions,
-          value: definition.project(data),
+          value: deepClone(data.spec),
         };
       },
-      save: async (target, draft, baseVersions) => {
+      confirmSave: async () => {
         problems.clearFailure();
         const context = draftSession.context.value;
-        for (;;) {
-          await draftSession.inputs.commit();
-          if (draftSession.context.value !== context) return;
-          draft = deepClone(draftSession.draftValue.value);
-          const issues = problems.issues.value;
-          if (issues.some((issue) => issue.severity === 'error')) throw new AppError('规格内容无效', { action: 'spec-validation' });
-          const warnings = issues.filter((issue) => issue.severity === 'warning');
-          if (!warnings.length) break;
-          const checked = JSON.stringify([draft, warnings]);
-          const choice = await feedback.choose({
-            title: '仍有保存提醒',
-            content: warnings.map((issue) => issue.message).join('\n'),
-            choices: [{ label: '仍然保存', value: 'save', type: 'warning' }],
-          });
-          if (choice !== 'save' || draftSession.context.value !== context) return;
-          await draftSession.inputs.commit();
-          if (draftSession.context.value !== context) return;
-          if (problems.issues.value.some((issue) => issue.severity === 'error'))
-            throw new AppError('规格内容无效', { action: 'spec-validation' });
-          if (
-            checked ===
-            JSON.stringify([draftSession.draftValue.value, problems.issues.value.filter((issue) => issue.severity === 'warning')])
-          ) {
-            draft = deepClone(draftSession.draftValue.value);
-            break;
-          }
-        }
+        const issues = [...problems.issues.value];
+        if (issues.some((issue) => issue.severity === 'error')) throw new AppError('规格内容无效', { action: 'spec-validation' });
+        const warnings = issues.filter((issue) => issue.severity === 'warning');
+        if (!warnings.length) return true;
+        const choice = await feedback.choose({
+          title: '仍有保存提醒',
+          content: warnings.map((issue) => issue.message).join('\n'),
+          choices: [{ label: '仍然保存', value: 'save', type: 'warning' }],
+        });
+        return choice === 'save' && draftSession.context.value === context;
+      },
+      save: async (target, draft, baseVersions, original, request) => {
         const submittedData = deepClone(editorData.value!);
         const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
         const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
         const result = await runConfirmedJsonWrite(feedback, (options) =>
-          saveSpecEditorSpecByKind(target.sessionId, target.modRoot, submittedData.target, draft, options, versions),
+          saveSpecEditorSpecByKind(target.sessionId, target.modRoot, submittedData.target, draft, options, versions, original, request),
         );
         if (!result) return;
         const value = result.content!.value;
@@ -100,10 +88,11 @@ export function useSpecEditorWindowViewModel(
           target: { ...target, id: savedTarget.id },
           value,
           baseVersions: result.baseVersions,
-          commitId: result.commitId,
+          requestId: result.requestId,
           meta: {
             data: {
-              ...definition.accept(submittedData, value),
+              ...submittedData,
+              spec: value,
               target: savedTarget,
               isNew: false,
               baseVersions: result.baseVersions,
@@ -115,42 +104,10 @@ export function useSpecEditorWindowViewModel(
       targetKey: editorWindowTargetKey,
       mapSaveError: (error) => problems.mapSaveError(error),
       afterSaved: () => problems.clearFailure(),
-      withSavePreparation: async (target, submit) =>
-        identityPreparation!.withPreparation(target.sessionId, target.modRoot, editorData.value!.target, async (info) => {
-          if (info) {
-            const nextTarget = { ...target, id: info.target.id };
-            const previousId = target.id;
-            const baseline = draftSession.baselineSnapshot.value!;
-            const renamed = previousId !== nextTarget.id;
-            const fresh = renamed ? await definition.read(target.sessionId, nextTarget.id) : editorData.value!;
-            const value = renamed ? definition.project(fresh) : baseline.value;
-            const versions = renamed ? fresh.baseVersions : handoffTableVersions(baseline.baseVersions, info);
-            draftSession.adoptIdentity(
-              target,
-              {
-                target: nextTarget,
-                value,
-                baseVersions: versions,
-                meta: { data: { ...fresh, target: info.target, baseVersions: versions }, receipt: null },
-              },
-              (draft) =>
-                previousId !== nextTarget.id && draft[definition.idField] === previousId
-                  ? { ...draft, [definition.idField]: nextTarget.id }
-                  : draft,
-              previousId === nextTarget.id ? 'save' : 'external',
-            );
-            return submit(nextTarget);
-          }
-          return submit(target);
-        }),
+
       acceptSaved: async (snapshot) => {
-        await identityPreparation!.finish();
         await retargetEntityWindow(snapshot.target.sessionId, snapshot.target.modRoot, snapshot.target.kind, snapshot.target.id);
-        await releaseCommittedIdentityTargets();
-      },
-      synchronizeSaved: async (snapshot) => {
-        const result = snapshot.meta.receipt!;
-        await publishCommittedWrite(snapshot.target.modRoot, result, snapshot.target.sessionId);
+        await releaseNativeWindowTargets();
       },
     });
   const problems = createSpecProblems(draftSession.inputs, () => definition.validate?.(draftSession.draftValue.value) ?? []);
@@ -159,7 +116,6 @@ export function useSpecEditorWindowViewModel(
     targetKey: draftSession.currentTargetKey,
     modRoot: computed(() => params.modRoot),
     saving: draftSession.saving,
-    pendingSynchronization: draftSession.hasPendingSynchronization,
     waitForSave: draftSession.waitForSave,
     editing: {
       targets: computed(() => {
@@ -186,17 +142,42 @@ export function useSpecEditorWindowViewModel(
   const errorText = shallowRef('');
   let unlistenChanges: UnlistenFn | null = null;
   let unlistenIdentity: UnlistenFn | null = null;
-  let identityCommitId = -1;
   let disposed = false;
   const editorData = computed(() => {
     const data = draftSession.baselineSnapshot.value?.meta.data;
-    return data ? definition.accept(data, draftSession.draftValue.value) : null;
+    return data ? { ...data, spec: draftSession.draftValue.value } : null;
   });
   const draftDirty = draftSession.dirty;
+  const currentTarget = computed(editorWindowTarget);
+  const sourceNotices = shallowReactive(new Map<string, string>());
+  const sourceIdentity = () => JSON.stringify([currentTarget.value, draftSession.context.value?.baselineGeneration]);
+  watch(sourceIdentity, () => sourceNotices.clear());
+  const schemaRuntimeContext = computed<SchemaRuntimeContext | null>(() => {
+    if (!currentTarget.value) return null;
+    const identity = sourceIdentity(),
+      runtime = { modRoot: currentTarget.value.modRoot, sessionId: currentTarget.value.sessionId };
+    return {
+      ...runtime,
+      sourceContextKey: JSON.stringify([currentTarget.value.modRoot, currentTarget.value.kind, currentTarget.value.id]),
+      querySourceOptions: async (source: string, signal?: AbortSignal) => {
+        try {
+          const result = await querySourceOptionCatalog(runtime.sessionId, source, signal);
+          if (identity === sourceIdentity()) sourceNotices.delete(source);
+          return result;
+        } catch (error) {
+          if (!signal?.aborted && identity === sourceIdentity()) sourceNotices.set(source, formatError(error));
+          throw error;
+        }
+      },
+    };
+  });
+  const releaseSourceProblems = problems.register(() =>
+    [...sourceNotices.entries()].map(([path, message]) => ({ severity: 'warning' as const, code: 'spec.source_read', path, message })),
+  );
   const editContext = draftSession.context;
   const draftSaving = draftSession.saving;
   const externalUpdateNotice = draftSession.externalUpdateNotice;
-  const canSaveSpec = computed(() => draftSession.ready.value);
+  const canSaveSpec = computed(() => draftSession.ready.value && !useProjectSyncStore().isWaiting(params.modRoot));
 
   const missingEditorText = computed(() => {
     const target = editorWindowTarget();
@@ -214,7 +195,7 @@ export function useSpecEditorWindowViewModel(
     }
     errorText.value = '';
     try {
-      const snapshot = options.promptForMissing ? await draftSession.loadTarget(target) : await draftSession.refreshTarget(target);
+      const snapshot = options.promptForMissing ? await draftSession.loadTarget(target) : await draftSession.refreshTarget(target, true);
       if (!snapshot?.meta) return;
       const data = snapshot.meta.data;
       if (data.isNew && options.promptForMissing) {
@@ -231,7 +212,10 @@ export function useSpecEditorWindowViewModel(
       if (options.showLoading) {
         errorText.value = formatError(error);
         throw error;
-      } else feedback.error(error, '刷新编辑器失败');
+      } else {
+        feedback.error(error, '刷新编辑器失败');
+        throw error;
+      }
     }
   }
 
@@ -271,6 +255,7 @@ export function useSpecEditorWindowViewModel(
       await draftSession.waitForSave();
       return;
     }
+    if (useProjectSyncStore().isWaiting(params.modRoot)) return;
     if (data) updateEditorDraft(data);
     try {
       const saved = await draftSession.saveDraft();
@@ -308,47 +293,41 @@ export function useSpecEditorWindowViewModel(
     if (!draftSession.ready.value) throw new AppError('规格接纳已取消', { action: 'accept-window' });
   }
   async function setupEditorWindow() {
-    identityPreparation = await createEntitySavePreparation(feedback, () => draftSession.currentTargetKey.value);
-    if (disposed) {
-      identityPreparation.dispose();
-      return;
-    }
-    unlistenIdentity = await listenEntityIdentityApplied(handleIdentityApplied);
+    if (disposed) return;
+    unlistenIdentity = await listenSavedIdentity(handleIdentityApplied);
     if (disposed) {
       unlistenIdentity();
       unlistenIdentity = null;
       return;
     }
-    unlistenChanges = await listenProjectChanges(handleProjectChange);
+    unlistenChanges = await listenSavedContent(handleCommittedWriteEvent, (sessionId) => {
+      if (sessionId === editorWindowTarget()?.sessionId) {
+        missingSpecIntent = null;
+        draftSession.cancelRead();
+      }
+    });
     if (disposed) unlistenChanges();
   }
 
   function disposeEditorWindow() {
     disposed = true;
     missingSpecIntent = null;
-    identityPreparation?.dispose();
     unlistenIdentity?.();
     unlistenIdentity = null;
     unregisterSave();
+    releaseSourceProblems();
     unlistenChanges?.();
     unlistenChanges = null;
     draftSession.dispose();
   }
 
-  async function handleIdentityApplied(event: EntityIdentityAppliedEvent) {
+  async function handleIdentityApplied(event: CommittedWriteEvent) {
     const target = editorWindowTarget();
-    if (
-      !target ||
-      event.sessionId !== target.sessionId ||
-      normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot) ||
-      event.result.commitId <= identityCommitId
-    )
-      return;
+    if (!target || event.sessionId !== target.sessionId || normalizeFsPath(event.modRoot) !== normalizeFsPath(target.modRoot)) return;
     const change = event.result.identityChanges.find(
       (change) => change.before.kind === target.kind && change.before.id === target.id && change.after.id !== target.id,
     );
     if (!change) return;
-    if (draftSession.saving.value && !(await draftSession.waitForSave())) return;
     if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
     if (draftSession.dirty.value) {
       const choice = await feedback.choose({
@@ -356,38 +335,43 @@ export function useSpecEditorWindowViewModel(
         content: '保留当前草稿和活动输入，并接纳新的正式身份与文件基线。',
         choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
       });
-      if (choice !== 'follow' || disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
+      if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
+      if (choice !== 'follow')
+        throw new AppError('规格身份交接尚未确认', { code: 'write.identity_pending', action: 'follow-saved-identity' });
     }
     const data = await definition.read(target.sessionId, change.after.id);
     if (disposed || !sameEditorWindowTarget(target, editorWindowTarget())) return;
     const nextTarget = { ...target, id: change.after.id };
-    const next = definition.project(data);
+    const next = deepClone(data.spec);
     await retargetEntityWindow(target.sessionId, target.modRoot, target.kind, nextTarget.id);
-    const accepted = draftSession.adoptIdentity(
+    draftSession.adoptIdentity(
       target,
       {
         target: nextTarget,
         value: next,
         baseVersions: data.baseVersions,
         meta: { data, receipt: null },
-        commitId: event.result.commitId,
+        requestId: event.result.requestId,
       },
       (draft) => (draftSession.dirty.value ? { ...draft, [definition.idField]: nextTarget.id } : next),
     );
-    if (accepted) identityCommitId = event.result.commitId;
   }
 
-  function handleProjectChange(change: ProjectChange) {
+  function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = editorWindowTarget();
-    if (!target || projectChangeSessionId(change) !== target.sessionId) return;
-    if (change.kind === 'closed') {
-      missingSpecIntent = null;
-      draftSession.cancelRead();
+    const projection = saveProjection(change, target?.sessionId);
+    if (!projection) return;
+    if (!target || projection.manifest.sessionId !== target.sessionId) return;
+
+    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    const receipt = change.reason === 'refresh' ? null : change.result;
+    if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return;
+    if (
+      receipt?.identityChanges.some(
+        (identity) => identity.after.kind === target.kind && identity.after.id === target.id && identity.before.id !== identity.after.id,
+      )
+    )
       return;
-    }
-    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
-    const receipt = change.kind === 'commit' ? change.event.result : null;
-    if (receipt && !draftSession.isTargetCommitCurrent(target, receipt.commitId)) return;
     const content = receipt?.content;
     const owner = content?.target.kind === 'spec' ? content.target.target : null;
     if (
@@ -396,18 +380,21 @@ export function useSpecEditorWindowViewModel(
       receipt!.baseVersions.some((version) => normalizeFsPath(version.path) === normalizeFsPath(owner.write.path))
     ) {
       const spec = deepClone(requireRowData(content!.value, '规格保存返回内容无效'));
-      const data = definition.accept(editorData.value!, spec);
-      draftSession.applyExternalForTarget({
-        target,
-        value: spec,
-        baseVersions: receipt!.baseVersions,
-        commitId: receipt!.commitId,
-        meta: { data: { ...data, target: owner, isNew: false, baseVersions: receipt!.baseVersions }, receipt },
-      });
+      const data = { ...editorData.value!, spec };
+      draftSession.applyExternalForTarget(
+        {
+          target,
+          value: spec,
+          baseVersions: receipt!.baseVersions,
+          requestId: receipt!.requestId,
+          meta: { data: { ...data, target: owner, isNew: false, baseVersions: receipt!.baseVersions }, receipt: null },
+        },
+        true,
+      );
       return;
     }
-    if (hasEntityInvalidation(change.projection.invalidation, 'entity-detail', target.kind, target.id))
-      void queryEditorData({ promptForMissing: false, showLoading: false });
+    if (hasEntityInvalidation(projection.invalidation, 'entity-detail', target.kind, target.id))
+      return queryEditorData({ promptForMissing: false, showLoading: false });
   }
   function editorWindowTarget(): SpecEditorTarget | null {
     if (!params.sessionId || !params.modRoot || !params.id) return null;
@@ -429,7 +416,8 @@ export function useSpecEditorWindowViewModel(
         [...editorData.value!.baseVersions.map((version) => version.path), ...paths],
         resources,
       ),
-    currentTarget: computed(editorWindowTarget),
+    currentTarget,
+    schemaRuntimeContext,
     editorData,
     loading,
     contentReady: computed(() => editorData.value !== null),
@@ -442,7 +430,7 @@ export function useSpecEditorWindowViewModel(
     waitForSave: draftSession.waitForSave,
     saving: draftSession.saving,
     draftSaving,
-    handoffLocked: computed(() => useSaveCommandStore().isEditTargetLocked(draftSession.currentTargetKey.value)),
+    handoffLocked: computed(() => false),
     canSaveSpec,
     externalUpdateNotice,
     missingEditorText,

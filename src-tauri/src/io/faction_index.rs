@@ -1,5 +1,6 @@
-use super::{FsRootBoundary, read_csv_data};
+use super::FsRootBoundary;
 use crate::{errors::AppResult, models::FactionIndexEntry, parsers::parse_faction_index};
+#[cfg(test)]
 use std::path::Path;
 
 #[cfg(test)]
@@ -10,11 +11,17 @@ pub(crate) fn take_faction_index_reads() -> usize {
     INDEX_READS.with(|count| count.replace(0))
 }
 
+#[cfg(test)]
+pub(crate) fn record_faction_index_read() {
+    INDEX_READS.with(|count| count.set(count.get() + 1));
+}
+
+#[cfg(test)]
 pub fn read_faction_index(root: &Path) -> AppResult<Vec<FactionIndexEntry>> {
     #[cfg(test)]
     INDEX_READS.with(|count| count.set(count.get() + 1));
     let boundary = FsRootBoundary::new(root, "faction root")?;
-    let table = read_csv_data(
+    let table = super::read_csv_data(
         &boundary.resolve_relative("data/world/factions/factions.csv", "faction index")?,
     )?;
     faction_index_entries(&boundary, &table)

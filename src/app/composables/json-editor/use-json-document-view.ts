@@ -1,12 +1,13 @@
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { openVariantImmersiveEditor } from '@/orchestrators/immersive-editor.orchestrator';
 import { computed, onScopeDispose, ref, watch } from 'vue';
 import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchestrator';
-import { queryEntityEditTarget } from '@/orchestrators/window-target-focus.orchestrator';
+import { querySessionEntityEditTarget } from '@/services/entity-query.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { createSchemaRuntimeContext } from '@/app/composables/use-schema-runtime-context';
+import { observeSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
+import { querySourceOptionCatalog } from '@/services/source-options.service';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { queryBuiltInWeaponSlotOptions, hasHullReferencesInvalidation } from '@/services/hull-reference.service';
 
@@ -30,7 +31,7 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
   );
   const schemaRuntimeContext = computed<SchemaRuntimeContext>(() => {
     const target = document.target.value!;
-    const context = createSchemaRuntimeContext(target.modRoot, target.sessionId);
+    const context = { modRoot: target.modRoot, sessionId: target.sessionId };
     if (definition.kind === 'mission') return { ...context, missionId: target.id };
     if (definition.kind !== 'skin' && definition.kind !== 'variant') return context;
     const hullId = String(document.draftValue.value[definition.kind === 'variant' ? 'hullId' : 'baseHullId'] ?? '');
@@ -47,18 +48,16 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
                 source === 'hull:moduleSlots' ? 'moduleSlots' : source === 'hull:weaponSlots' ? 'weaponSlots' : 'builtInWeaponSlots',
               )
             : Promise.resolve([])
-          : context.querySourceOptions!(source, signal),
+          : querySourceOptionCatalog(target.sessionId, source, signal),
       subscribeSourceOptionInvalidation: (source, resources, listener) =>
         source === 'hull:builtInWeaponSlots' || source === 'hull:weaponSlots' || source === 'hull:moduleSlots'
-          ? subscribeProjectChanges((event) => {
-              if (
-                event.kind !== 'closed' &&
-                projectChangeSessionId(event) === target.sessionId &&
-                hasHullReferencesInvalidation(event.projection.invalidation)
-              )
-                listener();
+          ? observeSavedContent((event) => {
+              const projection = saveProjection(event, target?.sessionId);
+              if (!projection) return;
+              if (projection.manifest.sessionId === target.sessionId && hasHullReferencesInvalidation(projection.invalidation))
+                return listener();
             })
-          : context.subscribeSourceOptionInvalidation!(source, resources, listener),
+          : observeSchemaSourceOptions(context, source, resources, listener),
     };
   });
   watch(
@@ -95,11 +94,12 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
     { immediate: true },
   );
   onScopeDispose(
-    subscribeProjectChanges((event) => {
+    observeSavedContent((event) => {
+      const projection = saveProjection(event, document.target.value!.sessionId);
+      if (!projection) return;
       if (
-        projectChangeSessionId(event) === document.target.value!.sessionId &&
-        event.kind !== 'closed' &&
-        hasResourceInvalidation(event.projection.invalidation, Object.values(document.record.value.resources))
+        projection.manifest.sessionId === document.target.value!.sessionId &&
+        hasResourceInvalidation(projection.invalidation, Object.values(document.record.value.resources))
       )
         revision.value++;
     }),
@@ -115,32 +115,37 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
       if (committed && !(await committed)) return;
       if (!admitted()) return;
       const id = String(document.draftValue.value.baseHullId ?? '').trim();
-      await reads.consume('skin-hull-navigation', { target, id }, (signal) => queryEntityEditTarget(target.sessionId, 'ship', id, signal), {
-        ready: (info) => {
-          if (!admitted() || document.target.value?.id !== target.id || String(document.draftValue.value.baseHullId ?? '').trim() !== id)
-            return;
-          if (info.target.source?.source === 'core') {
-            feedback.info('船体「' + id + '」来自原版。');
-            return;
-          }
-          if (info.target.source?.source !== 'mod')
-            throw new AppError('当前 Mod 没有船体记录「' + id + '」', { action: 'navigate-skin-hull' });
-          const linked = info.target.linkedRecord;
-          if (!linked || linked.kind !== 'csv' || linked.table !== 'ships')
-            throw new AppError('船体「' + id + '」缺少可定位的舰船表格行', { action: 'navigate-skin-hull' });
-          navigateToModTable(target.modRoot, 'ships');
-          workspace.entityLocation = {
-            sessionId: target.sessionId,
-            modRoot: target.modRoot,
-            kind: 'ship',
-            id,
-            rowKey: linked.rowKey,
-          };
+      await reads.consume(
+        'skin-hull-navigation',
+        { target, id },
+        (signal) => querySessionEntityEditTarget(target.sessionId, 'ship', id, signal),
+        {
+          ready: (info) => {
+            if (!admitted() || document.target.value?.id !== target.id || String(document.draftValue.value.baseHullId ?? '').trim() !== id)
+              return;
+            if (info.target.source?.source === 'core') {
+              feedback.info('船体「' + id + '」来自原版。');
+              return;
+            }
+            if (info.target.source?.source !== 'mod')
+              throw new AppError('当前 Mod 没有船体记录「' + id + '」', { action: 'navigate-skin-hull' });
+            const linked = info.target.linkedRecord;
+            if (!linked || linked.kind !== 'csv' || linked.table !== 'ships')
+              throw new AppError('船体「' + id + '」缺少可定位的舰船表格行', { action: 'navigate-skin-hull' });
+            navigateToModTable(target.modRoot, 'ships');
+            workspace.entityLocation = {
+              sessionId: target.sessionId,
+              modRoot: target.modRoot,
+              kind: 'ship',
+              id,
+              rowKey: linked.rowKey,
+            };
+          },
+          error: (error) => {
+            if (admitted()) feedback.error(error, '跳转皮肤基础船体失败');
+          },
         },
-        error: (error) => {
-          if (admitted()) feedback.error(error, '跳转皮肤基础船体失败');
-        },
-      });
+      );
     } catch (error) {
       if (admitted()) feedback.error(error, '跳转皮肤基础船体失败');
     }

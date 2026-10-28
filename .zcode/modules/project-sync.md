@@ -2,85 +2,83 @@
 
 ## 定义
 
-项目同步模块协调保存与来源刷新的结果接纳、缓存失效、恢复重试及窗口通知。
+项目同步模块协调按项目排队的保存结果、窗口内容接纳与完成释放。
 
 ## 参考
 
 ### 拥有
 
-- `src-tauri/src/commands/project_sync.rs`：按变更刷新、来源刷新与指定提交恢复 command。
-- `src/app/components/WriteSyncNotice.vue`：待同步提交及重试状态展示。
-- `src/app/components/write-sync-notice.spec.ts`：同步提示与重试反馈验证。
-- `src/app/composables/use-write-sync-view-model.ts`：待同步提交重试、执行状态与窗口反馈。
-- `src/orchestrators/committed-write-events.spec.ts`：文本与规格对正式提交通知的业务投影验证。
-- `src/orchestrators/project-sync.orchestrator.spec.ts`：保存及来源刷新的接纳、顺序、去重与释放验证。
-- `src/orchestrators/project-sync.orchestrator.ts`：保存及来源刷新接纳、缓存失效、恢复重试与窗口通知。
-- `src/services/project-sync.service.ts`：三个同步请求的类型化跨端交付。
-- `src/stores/project-sync.store.ts`：待同步提交、步骤、错误及提交与投影缓存失效记录。
+- `src-tauri/src/commands/project_sync.rs`：结果订阅、来源确认、项目等待与恢复控制。
+- `src-tauri/src/services/project_sync.rs`：项目保存队列、结果发布和未完成工作寿命。
+- `src/app/components/WriteSyncNotice.vue`：所属未完成交接的显示。
+- `src/app/components/write-sync-notice.spec.ts`：显式重试与错误呈现验证。
+- `src/app/composables/use-write-sync-view-model.ts`：失败交接重试与用户反馈。
+- `src/orchestrators/committed-write-events.spec.ts`：实际文件结果的文本提取验证。
+- `src/orchestrators/project-sync.orchestrator.spec.ts`：正式接纳、顺序消费、失败继续与释放验证。
+- `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
+- `src/services/project-sync.service.ts`：所属同步命令与有序通道交付。
+- `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 
 ### 消费
 
-- `src-tauri/src/models/project_session.rs`：会话刷新请求与完整投影结果。
-- `src-tauri/src/models/write_commit.rs`：保存回执与指定提交恢复请求。
-- `src-tauri/src/services/project/mod.rs`：正式会话刷新能力。
-- `src-tauri/src/services/write_transactions.rs`：指定提交恢复能力。
-- `src/services/project-projection.service.ts`：pending 提交对应的读取门控。
-- `src/services/query-cache.service.ts`：查询缓存失效与 session 等待结束信号。
-- `src/services/resource-media.service.ts`：所属资源缓存失效。
-- `src/shared/types/project-session.types.ts`：与 Rust 对应的刷新请求及投影结果。
-- `src/shared/types/write-commit.types.ts`：保存回执、通知与指定提交恢复请求。
-- `src/stores/file-history.store.ts`：历史摘要投影。
-- `src/stores/project.store.ts`：正式清单与单调投影版本。
-- `src/windows/tauri.events.ts`：窗口事件监听与发送。
+- `src-tauri/src/models/write_commit.rs`：保存请求、实际结果与恢复输入。
+- `src-tauri/src/services/windows.rs`：窗口范围、关闭及释放。
+- `src-tauri/src/services/write_transactions.rs`：写盘事务、历史与投影恢复。
+- `src/services/project-projection.service.ts`：正式读取门控。
+- `src/services/query-cache.service.ts`：所属查询和在途读取失效。
+- `src/services/resource-media.service.ts`：资源缓存与租约失效。
+- `src/shared/types/write-commit.types.ts`：保存交付及所属结果。
+- `src/stores/file-history.store.ts`：文件历史摘要接纳。
+- `src/stores/project.store.ts`：当前会话清单。
 
 ### 装配
 
-- `src/orchestrators/workspace-lifecycle.orchestrator.ts`：关闭前重试与所属 Mod、session 同步状态释放。
+- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口通道建立和释放。
+- `src/orchestrators/workspace-lifecycle.orchestrator.ts`：项目关闭与运行态释放。
 
 ## 边界
 
-- 保存提交和来源刷新共同消费正式投影接纳及缓存失效流程。
-- 同步运行态按窗口拥有，待同步提交和完成记录按 Mod 根释放，投影失效记录按 session 释放。
-- 同步重试消费原提交及当前步骤，窗口反馈消费实际完成结果。
-- 正式清单、投影版本与读取门控归项目会话，缓存内容归所属查询及资源能力。
-- 资源缓存先于查询缓存失效，通知交付已经完成的本地接纳结果。
-- 项目变化交接拥有共同订阅、进行中的交付及身份和内容阶段，提交、来源刷新及会话结束共同交付所属事实。
+- 保存提交必须交付实际写盘结果及完整受影响范围。
+- 各内容维护者必须拥有所属内容接纳、读取与草稿交接。
+- 同一请求的失败信息和窗口待办必须归同一登记维护。
+- 同一项目的文件动作必须按队列顺序完成写入、恢复及正式结果登记。
+- 窗口交付必须消费所属项目与原生窗口身份。
+- 窗口内待办必须只持有尚未完成的处理步骤。
+- 项目释放必须清理所属通道等待和业务运行态。
 
 ## 链路
 
-### 保存后同步
+### 保存交接
 
-1. 业务入口接纳实际保存基线并交付完整回执。
-2. 项目同步接纳历史摘要，按原提交恢复 pending 投影。
-3. 接纳正式清单并先后失效资源缓存与查询缓存。
-4. 完成本地内容交接后广播提交事件，失败保留当前步骤。
+1. 保存请求进入所属项目队列并执行实际文件事务。
+2. 完整结果经有序通道交给所属窗口。
+3. 窗口接纳历史和清单，依次失效资源及查询缓存。
+4. 窗口消费过程执行发起会话的保存接纳及相关会话的身份与内容交接。
+5. 保存调用必须按项目执行结果返回，内容维护者必须独立完成必要读取。
+6. 保存工作必须在结果发布后释放，内容更新失败必须归所属消费者处理。
 
-### 来源刷新
+### 失败与关闭
 
-1. 所属入口捕获 session、Mod 根与来源路径。
-2. 类型化 service 和对应 Rust command 交付正式来源刷新。
-3. session 有效时接纳清单、失效缓存并交付本地内容变化，再广播来源结果。
-4. 发起页面按所属读取接纳权更新展示。
-
-### 接收与释放
-
-1. 接收窗口按来源窗口、session、Mod 根与提交 ID 筛选通知。
-2. 正式接纳及缓存失效完成后执行身份处理，再交付保留原回执或刷新投影的内容变化。
-3. 消费者释放所属订阅，最后一个订阅者共同释放提交及来源刷新监听。
-4. Mod 关闭等待所属同步，完成后释放提交记录和所属 session 的投影失效记录。
+1. 项目恢复失败必须交付实际文件与处理步骤并保留所属工作。
+2. 恢复重试必须继续未完成步骤，内容读取重试必须独立维护。
+3. 关闭必须等待项目工作并明确处理放弃恢复，再检查未保存草稿。
+4. 会话结束必须释放各内容维护者和当前项目运行态。
 
 ## 规范
 
-- 关闭期间的内容变化必须沿现有展示队列恢复，恢复时必须核对当前 session 与所属目标版本；会话结束必须立即交付释放。
-- 前后端同步请求必须消费成对类型，字段、显式 null 和默认值必须共同核对。
-- 同一内容职责必须只消费一次项目变化，本窗口与接收窗口必须共同交接；后台读取必须归已有读取通道，内容通知严禁等待后台读取。
-- 同一提交的并发发布和接收必须共享进行中的 Promise，成功交付必须按订阅者去重。
-- 同步失败必须保留原回执、诊断及未完成步骤，重试严禁重复业务写入或磁盘回放。
-- 提交接纳必须消费实际历史摘要与单调投影，当前草稿必须由所属编辑器交接。
-- 来源刷新完成事件必须交付来源游戏根与失效资源路径，Core 窗口生命周期必须按该范围更新所属产品。
-- 来源刷新必须按捕获 session 的寿命完成正式接纳，页面切换必须保留已经执行的同步动作。
-- 窗口反馈必须消费所属动作的终结结果，失败记录必须保留原稳定码和诊断。
-- 窗口通知必须先完成正式接纳及资源、查询缓存失效；关闭准备必须保留展示通知，取消时必须按身份先于投影的顺序补交付。
-- 缓存失效记录必须按 session 和投影版本去重，所属 Mod 释放必须同时清理提交与投影记录。
-- 订阅者释放只允许结束所属等待，监听必须按实际订阅集合释放。
-- 读取门控必须随所属提交状态推进，迟到成功、错误及收尾严禁写入替换后的 session。
+- 保存事件必须交付已经准备完成的全部正式清单。
+- 保存事件必须共同携带实际内容、身份、行键、历史及受影响会话范围。
+- 原生窗口必须使用有序通道接收保存交付，异步处理必须按所属消费顺序等待。
+- 同一内容职责必须具有一个接纳入口，完整内容必须直接接纳，必要补充读取必须等待成功。
+- 同一项目的后续文件动作必须等待当前项目工作完成，其他项目必须独立推进。
+- 已完成步骤必须立即释放，重试必须继续所属未完成步骤。
+- 正式历史和清单接纳及缓存失效必须先于内容维护者读取。
+- 用户反馈必须消费所属动作的实际完成结果。
+- 文件写入失败必须恢复本次修改，恢复失败必须保留所属请求与后续队列，校验拒绝与来源确认必须归所属动作处理。
+- 保存成功必须以全部文件、历史和正式项目内容登记完成为准，显示读取失败必须独立报告。
+- 保存操作必须交付请求编号与同一结果 Promise，内容处理及重试必须归窗口所属未完成步骤。
+- 后端结果订阅必须独立于保存寿命，订阅释放必须只释放所属接收。
+- 内容读取失败后的新保存交付必须更新当前内容，严禁迟到重试接纳较早内容。
+- 项目及工具关闭的恢复放弃确认必须归主窗口统一处理，单窗关闭必须归所属窗口处理。
+- 窗口及项目关闭必须等待所属保存工作并保留失败诊断。
+- 读取接纳必须服从所属票据和会话寿命。

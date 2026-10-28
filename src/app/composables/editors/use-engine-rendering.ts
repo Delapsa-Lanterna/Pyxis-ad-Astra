@@ -1,4 +1,4 @@
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { computed, onScopeDispose, shallowRef, shallowReactive, watch } from 'vue';
 import { formatError } from '@/shared/lib/errors';
 import { queryEngineRenderAssets, hasEngineAssetsInvalidation } from '@/services/engine-assets.service';
@@ -87,7 +87,7 @@ export function useEngineRendering(
         if (!isReadInvalidated(error)) report(error, '读取引擎回退图片失败');
       });
   }
-  async function refresh() {
+  async function refresh(required = false) {
     reads.revoke();
     if (!source().length) {
       notices.clear();
@@ -104,7 +104,10 @@ export function useEngineRendering(
           assets.value = value;
           notify();
         },
-        error: (error) => report(error, '读取引擎样式失败'),
+        error: (error) => {
+          report(error, '读取引擎样式失败');
+          if (required) throw error;
+        },
       },
     );
   }
@@ -127,21 +130,23 @@ export function useEngineRendering(
     for (const entry of products.values()) entry.release();
     products.clear();
   }
-  const stop = subscribeProjectChanges((event) => {
-    if (
-      projectChangeSessionId(event) !== session() ||
-      (event.kind !== 'closed' && !hasEngineAssetsInvalidation(event.projection.invalidation))
-    )
-      return;
-    if (event.kind === 'closed') {
+  const stop = observeSavedContent(
+    (event) => {
+      const projection = saveProjection(event, session());
+      if (!projection) return;
+      if (projection.manifest.sessionId !== session() || !hasEngineAssetsInvalidation(projection.invalidation)) return;
+      return refresh(true);
+    },
+    (sessionId) => {
+      if (sessionId !== session()) return;
       closed = true;
       reads.revoke('session');
       assets.value = null;
       fallbackRead?.invalidate('session');
       fallbackRead = null;
       release();
-    } else void refresh();
-  });
+    },
+  );
   function paint(draw: (images: EngineImages) => void) {
     used.clear();
     const styles = new Map<

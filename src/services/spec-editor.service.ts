@@ -1,10 +1,11 @@
-import type { SaveEditorSpecPayload, LoadImportedEditorSpecPayload } from '@/shared/types';
+import type { SpecSave, LoadImportedEditorSpecPayload } from '@/shared/types';
 import { querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { AppError, withCause } from '@/shared/lib/errors';
-import { invokeCommand } from '@/shared/runtime/command.runtime';
+import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import { entityContentId } from '@/domain/project/entity-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { captureSaveEdits } from '@/domain/project/save-edits';
 import type { EntityEditTarget, SpecEditorKind, RowData, WriteResult } from '@/shared/types';
 
 export async function saveSpecEditorSpecByKind(
@@ -14,10 +15,12 @@ export async function saveSpecEditorSpecByKind(
   data: RowData,
   jsonWrite?: import('@/shared/types/index').JsonWriteOptions,
   baseVersions: import('@/shared/types/index').FileVersion[] = [],
+  original?: RowData,
+  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
 ): Promise<WriteResult> {
   ensureSpecContext(modRoot, target.id);
   try {
-    const result = await saveSpecEditorSpec(sessionId, modRoot, target, data, jsonWrite, baseVersions);
+    const result = await saveSpecEditorSpec(sessionId, modRoot, target, data, jsonWrite, baseVersions, original, request);
     return { ...result, content: { target: result.content!.target, value: requireRowData(result.content?.value, '规格保存返回内容无效') } };
   } catch (error) {
     throw withCause(`保存 ${target.id} spec 失败`, error, `save-${target.kind}-spec`);
@@ -31,17 +34,24 @@ export function saveSpecEditorSpec(
   data: RowData,
   jsonWrite?: import('@/shared/types/index').JsonWriteOptions,
   baseVersions: import('@/shared/types/index').FileVersion[] = [],
+  original?: RowData,
+  request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
 ): Promise<WriteResult> {
-  return invokeCommand('save_editor_spec', {
-    payload: {
-      baseVersions,
-      sessionId,
-      modRoot,
-      target,
-      data,
-      ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(data) } : {}),
-    } satisfies SaveEditorSpecPayload,
-  });
+  return invokeSaveCommand(
+    'save_editor_spec',
+    {
+      payload: {
+        baseVersions,
+        sessionId,
+        modRoot,
+        target,
+        data,
+        ...(jsonWrite ? { jsonWrite, orderedJson: JSON.stringify(data) } : {}),
+      } satisfies SpecSave,
+    },
+    original === undefined ? [{ kind: 'set', path: [], value: data }] : captureSaveEdits(original, data),
+    request,
+  );
 }
 
 export function querySpecEditorIdentityIntent(sessionId: string, source: EntityEditTarget, content: RowData, signal?: AbortSignal) {

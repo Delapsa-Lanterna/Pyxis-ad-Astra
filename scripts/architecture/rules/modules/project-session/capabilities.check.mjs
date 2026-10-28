@@ -1,23 +1,17 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
 const cases = [
-  [
-    'config-list-retry',
-    'src/app/composables/json-editor/use-json-list-selection.ts',
-    'src/orchestrators/project-sync.orchestrator.ts',
-    'retryPendingModSyncs',
-  ],
-  ['commit-recovery', 'src/orchestrators/project-sync.orchestrator.ts', 'src/services/project-sync.service.ts', 'synchronizeSessionCommit'],
+  ['save-retry', 'src/orchestrators/project-sync.orchestrator.ts', 'src/services/project-sync.service.ts', 'retryProjectSave'],
   [
     'commit-complete',
-    'src/orchestrators/json-save.orchestrator.ts',
+    'src/app/composables/json-editor/use-json-document-session.ts',
     'src/orchestrators/project-sync.orchestrator.ts',
-    'completeSavedWrite',
+    'beginSavedWrite',
   ],
   [
     'commit-publication',
-    'src/orchestrators/file-history-replay.orchestrator.ts',
+    'src/app/composables/use-write-sync-view-model.ts',
     'src/orchestrators/project-sync.orchestrator.ts',
-    'publishCommittedWrite',
+    'retryPendingWrites',
   ],
   [
     'projection-pending-owner',
@@ -51,10 +45,10 @@ const cases = [
     'csv-commit-complete',
     'src/app/composables/csv-editor/use-csv-save-participants.ts',
     'src/orchestrators/project-sync.orchestrator.ts',
-    'completeSavedWrite',
+    'beginSavedWrite',
   ],
-  ['query-cache-load', 'src/services/entity-query.service.ts', 'src/services/query-cache.service.ts', 'createCachedSessionQuery'],
-  ['live-query-load', 'src/services/entity-query.service.ts', 'src/services/query-cache.service.ts', 'createLiveSessionQuery'],
+  ['query-cache-load', 'src/services/entity-query.service.ts', 'src/services/query-cache.service.ts', 'CachedSessionQuery'],
+  ['live-query-load', 'src/services/entity-query.service.ts', 'src/services/query-cache.service.ts', 'readLiveSessionQuery'],
   ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-options.service.ts', 'querySourceOptionCatalog'],
   ['source-query', 'src/app/composables/use-sample.ts', 'src/services/source-options.service.ts', 'queryImageSourceOptions'],
   ['query-observe', 'src/app/composables/use-sample.ts', 'src/services/query-cache.service.ts', 'subscribeQueryInvalidations'],

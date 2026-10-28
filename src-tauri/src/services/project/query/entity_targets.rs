@@ -24,8 +24,17 @@ pub fn query_entity_edit_target(
     let mut session = lock_ready_session(&handle)?;
     (entity_definition(kind)?.prepare)(&mut session)?;
     let info = describe_entity_target(&mut session, kind, id)?;
-    super::json_recovery::remember_json_origin(&mut session, &info.target);
+    remember_edit_target(&mut session, &info.target);
     Ok(info)
+}
+
+pub(super) fn remember_edit_target(session: &mut ProjectSession, target: &EntityEditTarget) {
+    session.loaded_edit_targets.retain(|origin| {
+        origin.kind != target.kind
+            || origin.id != target.id
+            || origin.write.rel_path != target.write.rel_path
+    });
+    session.loaded_edit_targets.push(target.clone());
 }
 
 pub fn require_entity_version_scope(
@@ -233,6 +242,22 @@ pub(in crate::services::project) fn prepare_entity_targets(
             );
         }
     }
+    for target in session
+        .loaded_edit_targets
+        .iter()
+        .filter(|target| target.kind == kind && target.state == EntityTargetState::Existing)
+    {
+        if !sources.contains_key(&target.id)
+            && let Some(source) = &target.source
+            && !Path::new(&source.path)
+                .try_exists()
+                .map_err(|error| crate::errors::AppError::from(error).at_path(&source.path))?
+        {
+            sources
+                .entry(target.id.clone())
+                .or_insert_with(|| source.clone());
+        }
+    }
     let definition = crate::domain::entity_definitions::entity_spec_definition(kind);
     let mut linked = std::collections::BTreeMap::new();
     let index_version = if let Some(table) = definition.and_then(|definition| definition.csv_table)
@@ -256,7 +281,10 @@ pub(in crate::services::project) fn prepare_entity_targets(
         Some(version_for_path(session, &state.path))
     } else if kind == EntityKind::Faction {
         let index = "data/world/factions/factions.csv";
-        let entries = crate::io::read_faction_index(Path::new(&session.manifest.mod_root))?;
+        let boundary =
+            crate::io::FsRootBoundary::new(Path::new(&session.manifest.mod_root), "faction root")?;
+        let table = super::super::cache::csv::read_retained_csv(session, index)?;
+        let entries = crate::io::faction_index_entries(&boundary, &table)?;
         let mut paths = std::collections::BTreeMap::new();
         for entry in entries {
             paths
@@ -371,6 +399,16 @@ impl EntityTargetProjection {
             EntityTargetState::Create
         };
         let mut versions = vec![version_for_path(session, &write.rel_path)];
+        if self.kind == EntityKind::Mission {
+            versions.push(version_for_path(
+                session,
+                &format!("{}/descriptor.json", write.rel_path),
+            ));
+            versions.push(version_for_path(
+                session,
+                &format!("{}/mission_text.txt", write.rel_path),
+            ));
+        }
         versions.extend(self.index_version.iter().cloned());
         if self.default_description_ids.contains(id) {
             versions.extend(self.description_version.iter().cloned());

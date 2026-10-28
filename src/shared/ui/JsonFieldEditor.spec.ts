@@ -1,3 +1,4 @@
+import { beginSavedWrite } from '@/test/unit/project-changes';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
@@ -21,6 +22,7 @@ describe('JsonFieldEditor', () => {
       {
         setup() {
           session = useEditTargetDraftSession<RowData, string, null>({
+            beginSave: beginSavedWrite,
             emptyValue: {},
             targetKey: (target) => target,
             load: (target) => ({ target, value: { _count: 4 }, baseVersions: [], meta: null }),
@@ -48,7 +50,7 @@ describe('JsonFieldEditor', () => {
     expect((input.element as HTMLInputElement).value).toBe('1e');
     await input.setValue('');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', {}, []);
+    expect(save).toHaveBeenCalledWith('one', {}, [], expect.any(Object), undefined);
     expect(session.inputs.dirty.value).toBe(false);
     wrapper.unmount();
   });

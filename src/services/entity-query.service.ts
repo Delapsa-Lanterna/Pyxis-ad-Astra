@@ -13,9 +13,9 @@ import type {
 import type { ProjectInvalidation } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createCachedSessionQuery, createLiveSessionQuery } from '@/services/query-cache.service';
+import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 
-const readEntity = createCachedSessionQuery<Omit<QueryEntityPayload, 'sessionId'>, EntityData | null>({
+const readEntity = new CachedSessionQuery<Omit<QueryEntityPayload, 'sessionId'>, EntityData | null>({
   queryKind: 'entity-detail',
   load: ({ sessionId, parameters }) =>
     invokeCommand<EntityData | null>('query_entity', { payload: { sessionId, ...parameters } satisfies QueryEntityPayload }),
@@ -23,7 +23,7 @@ const readEntity = createCachedSessionQuery<Omit<QueryEntityPayload, 'sessionId'
     invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-detail', parameters.kind, parameters.id)),
 });
 
-const readEntityList = createCachedSessionQuery<Omit<QueryEntityListPayload, 'sessionId'>, EntityData[]>({
+const readEntityList = new CachedSessionQuery<Omit<QueryEntityListPayload, 'sessionId'>, EntityData[]>({
   queryKind: 'entity-list',
   load: ({ sessionId, parameters }) =>
     invokeCommand<EntityData[]>('query_entity_list', { payload: { sessionId, ...parameters } satisfies QueryEntityListPayload }),
@@ -31,15 +31,15 @@ const readEntityList = createCachedSessionQuery<Omit<QueryEntityListPayload, 'se
     invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-list', parameters.kind, null)),
 });
 
-const readEditTarget = createLiveSessionQuery<Omit<QueryEntityPayload, 'sessionId'>, EntityEditInfo>({
+const readEditTarget = {
   queryKind: 'entity-edit-target',
   load: ({ sessionId, parameters }) =>
     invokeCommand<EntityEditInfo>('query_entity_edit_target', { payload: { sessionId, ...parameters } satisfies QueryEntityPayload }),
   invalidates: (parameters, invalidation) =>
     invalidation.queryScopes.some((scope) => matchesEntityQueryScope(scope, 'entity-detail', parameters.kind, parameters.id)),
-});
+} satisfies SessionQueryDefinition<Omit<QueryEntityPayload, 'sessionId'>, EntityEditInfo>;
 
-const readIdentityIntent = createLiveSessionQuery<Omit<EntityIdentityIntentPayload, 'sessionId'>, EntityIdentityIntent>({
+const readIdentityIntent = {
   queryKind: 'entity-identity-intent',
   load: ({ sessionId, parameters }) =>
     invokeCommand<EntityIdentityIntent>('query_entity_identity_intent', {
@@ -51,7 +51,7 @@ const readIdentityIntent = createLiveSessionQuery<Omit<EntityIdentityIntentPaylo
         matchesEntityQueryScope(scope, 'entity-detail', parameters.source.kind, parameters.source.id) ||
         matchesEntityQueryScope(scope, 'entity-detail', parameters.source.kind, parameters.nextId),
     ),
-});
+} satisfies SessionQueryDefinition<Omit<EntityIdentityIntentPayload, 'sessionId'>, EntityIdentityIntent>;
 
 export function querySessionEntity(
   sessionId: string,
@@ -60,11 +60,11 @@ export function querySessionEntity(
   signal?: AbortSignal,
 ): Promise<DeepReadonly<EntityData | null>> {
   const parameters = { kind, id };
-  return readEntity(sessionId, parameters, signal);
+  return readEntity.read(sessionId, parameters, signal);
 }
 
 export function querySessionEntityList(sessionId: string, kind: EntityKind, signal?: AbortSignal): Promise<DeepReadonly<EntityData[]>> {
-  return readEntityList(sessionId, { kind }, signal);
+  return readEntityList.read(sessionId, { kind }, signal);
 }
 
 export function querySessionEntityEditTarget(
@@ -73,7 +73,7 @@ export function querySessionEntityEditTarget(
   id: string,
   signal?: AbortSignal,
 ): Promise<DeepReadonly<EntityEditInfo>> {
-  return readEditTarget(sessionId, { kind, id }, signal);
+  return readLiveSessionQuery(readEditTarget, sessionId, { kind, id }, signal);
 }
 
 export function querySessionEntityIdentityIntent(
@@ -83,7 +83,7 @@ export function querySessionEntityIdentityIntent(
   signal?: AbortSignal,
 ): Promise<DeepReadonly<EntityIdentityIntent>> {
   const parameters = { source, nextId };
-  return readIdentityIntent(sessionId, parameters, signal);
+  return readLiveSessionQuery(readIdentityIntent, sessionId, parameters, signal);
 }
 
 export function hasEntityInvalidation(

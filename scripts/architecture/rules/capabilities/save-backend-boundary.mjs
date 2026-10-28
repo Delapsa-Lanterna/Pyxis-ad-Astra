@@ -1,6 +1,7 @@
 import { defineRule } from '../../diagnostics.mjs';
 
 const commandServices = new Map([
+  ['save_project', 'write_transactions'],
   ['save_misc_config', 'misc_config'],
   ['delete_misc_config', 'misc_config'],
   ['load_imported_editor_spec_file', 'spec_editor'],

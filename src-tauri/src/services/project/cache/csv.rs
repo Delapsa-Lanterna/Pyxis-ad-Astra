@@ -17,9 +17,21 @@ pub(in crate::services::project) fn read_table_snapshot(
 ) -> AppResult<(Vec<String>, Vec<SessionCsvRow>, u64)> {
     let state = registered_session_table(session, table)?;
     let path = Path::new(&session.manifest.mod_root).join(&state.path);
-    let csv = if path.exists() {
+    let csv = if path
+        .try_exists()
+        .map_err(|error| AppError::from(error).at_path(&path))?
+    {
         read_versioned_csv(&path)?.1
     } else {
+        if let Some(retained) = missing_table_source(session, &state.path, &path)? {
+            let rows = retained
+                .rows
+                .as_ref()
+                .expect("retained CSV has complete rows");
+            #[cfg(test)]
+            crate::io::csv_files::record_csv_row_copies(rows.len());
+            return Ok((retained.header.clone(), rows.clone(), retained.next_row_seq));
+        }
         CsvTable {
             header: state.header.clone(),
             rows: Vec::new(),
@@ -27,6 +39,61 @@ pub(in crate::services::project) fn read_table_snapshot(
         }
     };
     table_snapshot_from_csv(state, table, csv)
+}
+
+pub(crate) fn read_retained_csv(session: &ProjectSession, relative: &str) -> AppResult<CsvTable> {
+    let path = Path::new(&session.manifest.mod_root).join(relative);
+    if path
+        .try_exists()
+        .map_err(|error| AppError::from(error).at_path(&path))?
+    {
+        #[cfg(test)]
+        if relative == "data/world/factions/factions.csv" {
+            crate::io::faction_index::record_faction_index_read();
+        }
+        return crate::io::read_csv_data(&path);
+    }
+    if let Some(state) = missing_table_source(session, relative, &path)? {
+        let rows = state.rows.as_ref().expect("retained CSV has complete rows");
+        #[cfg(test)]
+        crate::io::csv_files::record_csv_row_copies(rows.len());
+        return Ok(CsvTable {
+            header: state.header.clone(),
+            rows: rows
+                .iter()
+                .map(|row| crate::models::CsvRow {
+                    data: row.data.clone(),
+                    is_comment: row.is_comment,
+                })
+                .collect(),
+            path: path.to_string_lossy().into(),
+        });
+    }
+    crate::io::read_csv_data(&path)
+}
+
+fn missing_table_source<'a>(
+    session: &'a ProjectSession,
+    relative: &str,
+    path: &Path,
+) -> AppResult<Option<&'a SessionCsvTable>> {
+    let retained = session
+        .csv_tables
+        .values()
+        .find(|table| table.path == relative && table.rows.is_some());
+    if retained.is_none()
+        && session
+            .source_versions
+            .get(relative)
+            .is_some_and(|version| version.fingerprint.is_some())
+    {
+        return Err(AppError::message(
+            "write.recovery_content_missing",
+            "缺失 CSV 的完整内容尚未加载，无法重建",
+        )
+        .at_path(path));
+    }
+    Ok(retained)
 }
 
 pub(in crate::services::project) fn table_snapshot_from_csv(
@@ -137,28 +204,27 @@ pub(crate) fn ensure_session_table_rows(
     }
     let rel_path = session_table(session, table)?.path.clone();
     let path = Path::new(&session.manifest.mod_root).join(&rel_path);
-    let (version, mut csv) = read_versioned_csv(&path)?;
-    if !path.exists() && table == MISSION_LIST_TABLE_KEY {
-        csv.header = mission_list_default_header();
-    }
-    if !path.exists() {
-        if let Some(root) = session.manifest.starsector_root.as_ref() {
-            if let Some(table_key) = CsvTableKey::from_key(table) {
-                if let Some(core_table) = load_core_csv_table(root, table_key)? {
-                    csv.header = core_table.header.clone();
-                }
-            } else if table == MISSION_LIST_TABLE_KEY {
-                csv.header = mission_list_default_header();
-            }
-        } else if table == MISSION_LIST_TABLE_KEY {
-            csv.header = mission_list_default_header();
-        }
-    }
-    if !path.exists()
-        && csv.header.is_empty()
-        && let Some(table_key) = CsvTableKey::from_key(table)
+    if !path
+        .try_exists()
+        .map_err(|error| AppError::from(error).at_path(&path))?
     {
-        csv.header = crate::domain::csv_column_order::standard_csv_columns(table_key);
+        missing_table_source(session, &rel_path, &path)?;
+    }
+    let (version, mut csv) = read_versioned_csv(&path)?;
+    if version.fingerprint.is_none() {
+        if table == MISSION_LIST_TABLE_KEY {
+            csv.header = mission_list_default_header();
+        } else if let Some(table_key) = CsvTableKey::from_key(table) {
+            csv.header = match &session.manifest.starsector_root {
+                Some(root) => load_core_csv_table(root, table_key)?
+                    .map(|core| core.header.clone())
+                    .unwrap_or_default(),
+                None => Vec::new(),
+            };
+            if csv.header.is_empty() {
+                csv.header = crate::domain::csv_column_order::standard_csv_columns(table_key);
+            }
+        }
     }
     let row_sequence = session_table(session, table)?.next_row_seq;
     let rows: Vec<SessionCsvRow> = csv
@@ -208,8 +274,7 @@ mod tests {
     #[test]
     fn ensure_session_table_rows_rejects_unknown_table() {
         let mut session = ProjectSession {
-            json_origins: Vec::new(),
-            projection_revision: 0,
+            loaded_edit_targets: Vec::new(),
             projection_pending: false,
             source_versions: BTreeMap::new(),
             manifest: ProjectManifest {
@@ -262,8 +327,7 @@ mod tests {
         )
         .unwrap();
         let mut session = ProjectSession {
-            json_origins: Vec::new(),
-            projection_revision: 0,
+            loaded_edit_targets: Vec::new(),
             projection_pending: false,
             source_versions: BTreeMap::new(),
             manifest: ProjectManifest {
@@ -321,11 +385,55 @@ mod tests {
 
         let ships = loaded_registered_csv_rows(&session, CsvTableKey::Ships).unwrap();
         let skills = loaded_registered_csv_rows(&session, CsvTableKey::Skills).unwrap();
-        let _ = fs::remove_dir_all(root);
         assert_eq!(ships[0].data["_faction"], "business");
         assert!(!ships[0].is_comment);
         assert!(ships[1].is_comment);
         assert!(!skills[0].is_comment);
         assert_eq!(ships[0].data["_rowKey"], "business-key");
+
+        let expected = session.csv_tables[CsvTableKey::Ships.as_str()].clone();
+        fs::remove_file(root.join(&expected.path)).unwrap();
+        crate::io::csv_files::take_csv_work();
+        let (header, rows, sequence) = read_table_snapshot(&session, CsvTableKey::Ships).unwrap();
+        let retained = read_retained_csv(&session, &expected.path).unwrap();
+        assert_eq!(header, expected.header);
+        let saved_rows = expected.rows.unwrap();
+        assert_eq!(rows.len(), saved_rows.len());
+        for (restored, saved) in rows.iter().zip(&saved_rows) {
+            assert_eq!(restored.row_key, saved.row_key);
+            assert_eq!(restored.data, saved.data);
+            assert_eq!(restored.is_comment, saved.is_comment);
+        }
+        assert_eq!(sequence, expected.next_row_seq);
+        assert_eq!(retained.header, header);
+        assert_eq!(retained.rows.len(), rows.len());
+        for (restored, saved) in retained.rows.iter().zip(&rows) {
+            assert_eq!(restored.data, saved.data);
+            assert_eq!(restored.is_comment, saved.is_comment);
+        }
+        assert_eq!(
+            crate::io::csv_files::take_csv_work(),
+            (0, 0, 2 * rows.len())
+        );
+
+        session
+            .csv_tables
+            .get_mut(CsvTableKey::Ships.as_str())
+            .unwrap()
+            .rows = None;
+        for error in [
+            read_table_snapshot(&session, CsvTableKey::Ships)
+                .err()
+                .expect("missing unloaded CSV fails"),
+            read_retained_csv(&session, &expected.path).unwrap_err(),
+            ensure_registered_table_rows(&mut session, CsvTableKey::Ships).unwrap_err(),
+        ] {
+            assert_eq!(error.code(), "write.recovery_content_missing");
+            assert_eq!(
+                error.location().unwrap().path.as_deref(),
+                root.join(&expected.path).to_str()
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
     }
 }

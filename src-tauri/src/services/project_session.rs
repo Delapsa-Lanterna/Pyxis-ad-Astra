@@ -35,7 +35,13 @@ pub fn open_project_session_with_root(
 }
 
 pub fn release_project_session(session_id: String) -> AppResult<()> {
-    super::write_transactions::release_session_commits(&session_id)?;
     super::project::close_project_session(session_id.clone())?;
     super::windows::release_session(&session_id)
+}
+
+pub fn ensure_session_mod_scope(scope: &impl crate::models::SessionModScope) -> AppResult<()> {
+    if let Some(session_id) = scope.session_id() {
+        super::project::ensure_project_session_mod_root(session_id, scope.mod_root())?;
+    }
+    Ok(())
 }

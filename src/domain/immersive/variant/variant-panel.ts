@@ -141,8 +141,8 @@ export function projectVariantPanel(
     .map((hull): VariantProjection => {
       const key = hull.variantKey,
         role = roles.get(key)!,
-        variant = data(key),
-        spec = hull.skinKeys.length ? hull.spec : data(hull.hullKey);
+        variant = data.get(key)!,
+        spec = hull.skinKeys.length ? hull.spec : data.get(hull.hullKey)!;
       const record = graph.records.find((item) => item.key === key)!;
       const fieldValue = (name: string) => {
         const binding = hull.fields[name];

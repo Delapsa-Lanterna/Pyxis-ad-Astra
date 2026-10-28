@@ -29,8 +29,16 @@ async function closeTargets(targets: ProjectManifest[], requestClose: RequestClo
 }
 
 export function acceptReleasedSessions(sessionIds: string[]) {
-  for (const target of [...useProjectStore().manifests.values()])
-    if (sessionIds.includes(target.sessionId)) removeClosedMod(target.modRoot);
+  const errors: unknown[] = [];
+  for (const target of [...useProjectStore().manifests.values()]) {
+    if (!sessionIds.includes(target.sessionId)) continue;
+    try {
+      removeClosedMod(target.modRoot);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length) throw new AggregateError(errors, 'Project release failed');
 }
 
 export function captureWorkspaceCloseTarget(): WorkspaceCloseTarget {
@@ -81,10 +89,14 @@ function removeClosedMod(modRoot: string) {
     markProjectionReady(sessionId);
     invalidateQueryCacheForSession(sessionId);
     invalidateResourceMediaForSession(sessionId);
-    releaseProjectSession(sessionId);
+    try {
+      releaseProjectSession(sessionId);
+    } finally {
+      removeModRuntimeState(modRoot);
+    }
   }
 
-  removeModRuntimeState(modRoot);
+  if (!sessionId) removeModRuntimeState(modRoot);
 
   recordLogBestEffort({
     level: 'info',

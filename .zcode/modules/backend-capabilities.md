@@ -8,7 +8,7 @@
 
 ### 拥有
 
-- `src-tauri/src/commands/mod.rs`：command 模块注册及共享所属会话校验入口。
+- `src-tauri/src/commands/mod.rs`：command 模块注册和正式命令导出。
 - `src/services/application-commands.spec.ts`：应用、窗口、设置及会话的 command 参数交接验证。
 - `src/services/persistence-commands.spec.ts`：跨业务写入与回放的 wire 参数交接验证。
 - `src/services/reading-commands.spec.ts`：正式只读能力的传输、身份与查询结果验证。
@@ -25,7 +25,8 @@
 ### 关联
 
 - `scripts/architecture/rules/capabilities/command-boundary.mjs`：command 调用的来源与唯一归属检查。
-- `scripts/architecture/rules/capabilities/command-policy.mjs`：正式 command 实现归属表。
+- `scripts/architecture/rules/capabilities/command-policy.mjs`：原生命令与保存动作的所属能力清单。
+- `scripts/architecture/rules/capabilities/rust-command-functions.mjs`：commands 生产函数的命令声明检查。
 - `scripts/shared/frontend-source.mjs`：词法调用、绑定与源码位置事实。
 
 ## 边界
@@ -34,15 +35,15 @@
 - `command.runtime` 拥有唯一原始 invoke 调用与透明错误包装。
 - 命令详细记录由共同传输入口生成，记录请求身份、命令名和完成状态。
 - 所属 service 拥有 command 参数装配，共享传输消费完整参数。
-- 能力矩阵维护公开操作权限，command-policy 维护实际 command 实现归属。
+- 能力矩阵维护公开操作权限，command-policy 分别维护原生命令和保存动作归属。
 - 静态检查消费共享符号来源、调用和位置事实，分别验证 command owner 与能力消费者。
 
 ## 链路
 
 ### 跨进程调用
 
-1. 所属能力装配 command 与 payload 或顶层参数。
-2. `invokeCommand` 调用 Tauri invoke。
+1. 所属能力装配原生命令参数或保存动作输入。
+2. 普通能力经 `invokeCommand` 交付原生命令，保存动作经 `invokeSaveCommand` 交付 `save_project` 的保存请求。
 3. 成功结果返回所属能力与正式消费者。
 4. 失败包装为携带 command 和原始 cause 的 `AppError`。
 
@@ -57,8 +58,11 @@
 
 - `AppError.command` 必须表达底层 command；`formatError` 必须透过该包装消费原始用户文案投影。
 - command 声明与登记必须消费共同命令生成规则；业务函数参数与返回值必须保留所属能力契约。
+- command 宏必须只处理命令声明、参数转交和执行计时；保存顺序与业务准备必须由所属服务维护。
 - command 必须由可静态判定的字面量表达；别名、namespace、转导出和动态模块导入必须保留来源。
+- commands 目录中的生产函数必须声明 `#[command_macros::command]`；业务处理和执行辅助函数必须归所属服务维护。
 - `errorContextOf` 必须分别表达领域 action 和 command，日志必须按所属字段记录。
 - `errorDiagnosticOf` 必须保留来源稳定码、原始消息和结构化位置；附加 payload 必须沿 cause 消费。
 - `invokeCommand` 必须保留完整 args，nullable、无参数及顶层参数必须服从 Rust command 契约。
+- 保存动作必须通过 `save_project` 交付捕获内容及修改，动作名称与所属业务服务必须匹配。
 - 联合读取、准备及提交必须唯一归 joint-edit 能力；编辑目标登记、查询、预约与聚焦必须归窗口能力。

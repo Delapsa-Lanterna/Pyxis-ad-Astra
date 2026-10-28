@@ -6,6 +6,7 @@ import { csvDraftRow, csvTableIndex } from '@/test/fixtures/csv-row';
 import {
   applyCsvDraftOperation,
   applyCsvTableIndexDraft,
+  acceptSavedCsvTableIndex,
   applyCsvTableRowsDraft,
   commitCsvTableSaveDraft,
   createCsvRowDraft,
@@ -38,6 +39,22 @@ function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) =>
   return { state, index };
 }
 describe('CSV keyed baseline, order and draft acceptance', () => {
+  it('accepts saved A while preserving unrelated B draft values and history', () => {
+    const { state, index } = fixture();
+    const document = state.documents.ships;
+    setCsvCellValueDraft(document, key(2), 'name', 'Unsaved B');
+    const dirty = { ...document.dirty[key(2)] };
+    const updated = {
+      ...index,
+      rows: index.rows.map((row) => (row.rowKey === key(0) ? { ...row, data: { ...row.data, name: 'Saved A' } } : row)),
+    };
+    acceptSavedCsvTableIndex(document, updated);
+    expect(document.rows[key(0)]!.data.name).toBe('Saved A');
+    expect(document.rows[key(2)]!.data.name).toBe('Unsaved B');
+    expect(document.baselineRows[key(2)]!.data.name).toBe('Name 2');
+    expect(document.dirty[key(2)]).toEqual(dirty);
+    expect(hasCsvTableDraftChanges(document)).toBe(true);
+  });
   it.each([
     [0, 5],
     [5, 0],

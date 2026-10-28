@@ -3,7 +3,7 @@ import { queryEngineRenderAssets, hasEngineAssetsInvalidation } from './engine-a
 import { invalidateQueryCacheByProject, invalidateQueryCacheForSession } from './query-cache.service';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import type { EngineRenderAssets, ProjectInvalidation } from '@/shared/types';
-vi.mock('@/shared/runtime/command.runtime', () => ({ invokeCommand: vi.fn() }));
+vi.mock('@/shared/runtime/command.runtime', () => ({ invokeCommand: vi.fn(), invokeSaveCommand: vi.fn() }));
 const result: EngineRenderAssets = { styles: {}, versions: [], resources: {} as EngineRenderAssets['resources'] };
 const changed: ProjectInvalidation = {
   session: false,

@@ -21,16 +21,7 @@ beforeEach(() => {
 });
 describe('workspace shell listener lifecycle', () => {
   it('releases late event registration and ends startup', async () => {
-    let finish!: (stop: () => void) => void;
-    const stopIdentity = vi.fn();
-    mocks.identity.mockResolvedValue(stopIdentity);
-    mocks.events.mockResolvedValue(vi.fn());
-    mocks.events.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
+    mocks.restore.mockImplementation(async () => {});
     const feedback: AppFeedback = {
       success: vi.fn(),
       info: vi.fn(),
@@ -48,11 +39,8 @@ describe('workspace shell listener lifecycle', () => {
     });
     await flushPromises();
     wrapper.unmount();
-    const lateStop = vi.fn();
-    finish(lateStop);
     await flushPromises();
-    expect(lateStop).toHaveBeenCalledOnce();
-    expect(mocks.restore).not.toHaveBeenCalled();
+    expect(mocks.restore).toHaveBeenCalledOnce();
     expect(mocks.stopPersistence).toHaveBeenCalledOnce();
   });
 });

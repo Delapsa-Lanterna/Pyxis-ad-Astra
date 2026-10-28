@@ -3,7 +3,7 @@ use crate::models::WeaponSpecClass;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvRowPatch {
     #[serde(default)]
@@ -65,7 +65,7 @@ impl AssociatedSpecCreateParams {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     tag = "action",
     rename_all = "camelCase",
@@ -84,7 +84,7 @@ pub enum AssociatedSpecChange {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssociatedSpecWrite {
     pub change: AssociatedSpecChange,
@@ -100,9 +100,9 @@ impl AssociatedSpecChange {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SaveCsvPatchPayload {
+pub struct CsvSave {
     #[serde(deserialize_with = "super::required_nullable")]
     pub row_order: Option<Vec<CsvRowOrderEntry>>,
     pub base_versions: Vec<crate::models::FileVersion>,
@@ -115,7 +115,7 @@ pub struct SaveCsvPatchPayload {
     pub json_write: JsonWriteOptions,
 }
 
-super::project_identity::impl_session_mod_scope_required!(SaveCsvPatchPayload);
+super::project_identity::impl_session_mod_scope_required!(CsvSave);
 
 #[cfg(test)]
 mod tests {
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn save_csv_patch_payload_requires_explicit_associated_specs() {
-        let result = serde_json::from_value::<SaveCsvPatchPayload>(json!({
+        let result = serde_json::from_value::<CsvSave>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "modRoot": "C:/mods/test",
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn save_csv_patch_payload_requires_mod_root() {
-        let result = serde_json::from_value::<SaveCsvPatchPayload>(json!({
+        let result = serde_json::from_value::<CsvSave>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "table": "ships",
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn save_csv_patch_payload_requires_explicit_patch_row() {
-        let result = serde_json::from_value::<SaveCsvPatchPayload>(json!({
+        let result = serde_json::from_value::<CsvSave>(json!({
             "baseVersions": [],
             "sessionId": "session-1",
             "modRoot": "C:/mods/test",
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn table_save_requests_keep_explicit_actions_and_default_json_options() {
-        let payload: SaveCsvPatchPayload = serde_json::from_value(json!({"rowOrder":null,"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","table":"ships","patches":[],"associatedSpecs":[]})).unwrap();
+        let payload: CsvSave = serde_json::from_value(json!({"rowOrder":null,"baseVersions":[],"sessionId":"session","modRoot":"M:/mod","table":"ships","patches":[],"associatedSpecs":[]})).unwrap();
         assert_eq!(payload.table, CsvTableKey::Ships);
         assert!(!payload.json_write.preserve_original_json);
         assert!(payload.json_write.confirmed_sources.is_empty());

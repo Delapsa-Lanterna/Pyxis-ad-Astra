@@ -1,3 +1,4 @@
+import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntityData, ResourceRef, RowData, WriteResult } from '@/shared/types/index';
@@ -29,6 +30,7 @@ vi.mock('@/services/resource-media.service', () => ({
 
 vi.mock('@/shared/runtime/command.runtime', () => ({
   invokeCommand: mocks.invokeCommand,
+  invokeSaveCommand: mocks.invokeCommand,
 }));
 vi.mock('@/services/joint-edit.service', () => ({ queryJointCandidate: mocks.queryJointCandidate }));
 
@@ -49,15 +51,7 @@ function entity(data: RowData, refs: Record<string, ResourceRef> = {}): EntityDa
 
 function writeResultFixture(): WriteResult {
   return {
-    sessionUpdates: [],
-    baseVersions: [],
-    commitId: 1,
-    history: { revision: 1, undoStack: [], redoStack: [] },
-    changes: [],
-    invalidation: { paths: [], tables: [], entities: [], resources: [], queryScopes: [], session: false },
-    identityChanges: [],
-    keyMap: [],
-    content: null,
+    ...savedWriteFixture(),
   };
 }
 
@@ -160,15 +154,20 @@ describe('saveSpecEditorSpecByKind and import', () => {
     await expect(saveSpecEditorSpecByKind('s1', 'C:/mods/alpha', entityTargetFixture('ship', 'XY'), { hullId: 'XY' })).rejects.toThrow(
       '保存 XY spec 失败',
     );
-    expect(mocks.invokeCommand).toHaveBeenCalledWith('save_editor_spec', {
-      payload: {
-        baseVersions: [],
-        sessionId: 's1',
-        modRoot: 'C:/mods/alpha',
-        target: entityTargetFixture('ship', 'XY'),
-        data: { hullId: 'XY' },
+    expect(mocks.invokeCommand).toHaveBeenCalledWith(
+      'save_editor_spec',
+      {
+        payload: {
+          baseVersions: [],
+          sessionId: 's1',
+          modRoot: 'C:/mods/alpha',
+          target: entityTargetFixture('ship', 'XY'),
+          data: { hullId: 'XY' },
+        },
       },
-    });
+      expect.any(Array),
+      undefined,
+    );
   });
 
   it('passes successful writes through unchanged', async () => {

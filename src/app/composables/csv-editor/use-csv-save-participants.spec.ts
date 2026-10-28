@@ -18,7 +18,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/services/window.service', () => ({ updateEditTargetRegistration: mocks.registration }));
 vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({ listenEditTargetHandoff: async () => () => {} }));
 vi.mock('@/orchestrators/csv-save.orchestrator', () => ({ saveCsvChanges: mocks.save, pendingCsvSave: () => null }));
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ retryPendingModSyncs: mocks.retry, completeSavedWrite: mocks.retry }));
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
@@ -76,7 +75,6 @@ describe('all loaded CSV save participants', () => {
       },
     });
     const update = sessionUpdateFixture('s', 'M:/mod');
-    if (update.status !== 'ready') throw new Error('ready fixture');
     const manifest = update.projection.manifest;
     const project = useProjectStore();
     project.registerProjectManifest(manifest);
@@ -94,7 +92,6 @@ describe('all loaded CSV save participants', () => {
   });
   it('keeps captured targets valid while manifest removal awaits participant cleanup', async () => {
     const update = sessionUpdateFixture('s', 'M:/mod');
-    if (update.status !== 'ready') throw new Error('ready fixture');
     const manifest = update.projection.manifest;
     manifest.tableSummaries.ships.path = 'data/hulls/ship_data.csv';
     const project = useProjectStore();
@@ -123,7 +120,6 @@ describe('all loaded CSV save participants', () => {
       },
     });
     const update = sessionUpdateFixture('s', 'M:/mod');
-    if (update.status !== 'ready') throw new Error('ready fixture');
     const manifest = update.projection.manifest;
     manifest.tableSummaries.ships.path = 'data/hulls/ship_data.csv';
     const project = useProjectStore();
@@ -147,13 +143,10 @@ describe('all loaded CSV save participants', () => {
     await participant.editing!.draftSession.inputs.commit();
     expect(commit).toHaveBeenCalledOnce();
     expect(participant.editing!.dirty.value).toBe(false);
-    const release = commands.holdParticipants([participant], 'keep-lock');
     const refreshed = { ...manifest, modInfo: { name: 'Refreshed' } };
-    project.replaceProjectManifest(refreshed, 1);
+    project.replaceProjectManifest(refreshed);
     await flushPromises();
     expect(commands.participantsForTargets([target])[0]).toBe(participant);
-    expect(commands.isEditTargetLocked(participant.targetKey.value)).toBe(true);
-    release();
     await participant.editing!.save();
     expect(mocks.save).toHaveBeenLastCalledWith(expect.objectContaining({ manifest: refreshed }));
     tables.removeModState('M:/mod');
@@ -167,7 +160,6 @@ describe('all loaded CSV save participants', () => {
       commands = useSaveCommandStore();
     const first = sessionUpdateFixture('s', 'M:/mod');
     const second = sessionUpdateFixture('other', 'M:/other');
-    if (first.status !== 'ready' || second.status !== 'ready') throw new Error('ready fixtures');
     const manifest = first.projection.manifest;
     manifest.tableSummaries.ships.path = 'data/hulls/ship_data.csv';
     project.registerProjectManifest(manifest);
@@ -194,7 +186,6 @@ describe('all loaded CSV save participants', () => {
   });
   it('registers a background table, submits its input and saves its captured manifest', async () => {
     const update = sessionUpdateFixture('s', 'M:/mod');
-    if (update.status !== 'ready') throw new Error('ready fixture');
     const manifest = update.projection.manifest;
     manifest.tableSummaries.weapons.path = 'data/weapons/weapon_data.csv';
     useProjectStore().registerProjectManifest(manifest);
@@ -220,16 +211,12 @@ describe('all loaded CSV save participants', () => {
       manifest,
       selectAssociatedSpecs: selected,
       feedback,
-      synchronize: expect.any(Function),
     });
-    const release = commands.holdParticipants(participants, 'request');
-    expect(useCsvEditorStore().isTableLocked('M:/mod', 'weapons')).toBe(true);
-    release();
     expect(useCsvEditorStore().isTableLocked('M:/mod', 'weapons')).toBe(false);
     wrapper.unmount();
     expect(commands.participantsForTargets(handle.editing!.targets.value)).toEqual([]);
   });
-  it('retries the table receipt with a single successful feedback and retained newer input', async () => {
+  it('releases a failed project request and retains newer input', async () => {
     const manifest = sessionUpdateFixture('s', 'M:/mod').projection.manifest;
     const tables = useCsvEditorStore(),
       commands = useSaveCommandStore();
@@ -237,9 +224,10 @@ describe('all loaded CSV save participants', () => {
     tables.initializeModTables({ sessionId: 's', modRoot: manifest.modRoot, manifest });
     const feedback = { success: vi.fn() } as unknown as AppFeedback;
     const receipt = savedWriteFixture();
-    mocks.retry.mockRejectedValueOnce(new Error('broadcast'));
-    mocks.save.mockImplementationOnce(async (options) => {
-      await options.synchronize!(receipt);
+    mocks.retry.mockRejectedValueOnce(new Error('write failed'));
+    mocks.save.mockImplementationOnce(async () => {
+      const result = mocks.retry().then(() => receipt);
+      await result;
       return { status: 'saved', receipt };
     });
     const wrapper = mount({
@@ -249,16 +237,16 @@ describe('all loaded CSV save participants', () => {
       },
     });
     const handle = commands.participantsForTargets([{ sessionId: 's', modRoot: 'M:/mod', path: 'M:/mod/ships.csv' }])[0]!;
-    await expect(commands.requestSave(handle)).rejects.toThrow('broadcast');
+    await expect(commands.requestSave(handle)).rejects.toThrow('write failed');
     const raw = ref(true);
     tables
       .getTableInputs('M:/mod', 'ships')
       .register({ key: 'name', label: 'Name', dirty: raw, commit: () => null, cancel: vi.fn(), focus: vi.fn() });
-    expect(await commands.waitForSaves()).toBe(true);
-    expect(handle.pendingSynchronization!.value).toBe(false);
+    expect(commands.waitForSaves()).toBeUndefined();
+    expect(handle.saving.value).toBe(false);
     expect(raw.value).toBe(true);
     expect(mocks.save).toHaveBeenCalledOnce();
-    expect(feedback.success).toHaveBeenCalledOnce();
+    expect(feedback.success).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 });

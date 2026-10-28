@@ -2,6 +2,7 @@ pub(in crate::services) mod csv_patch;
 mod csv_staging;
 mod entity_description;
 pub(in crate::services) mod entity_identity;
+pub(in crate::services) mod save_requests;
 #[cfg(test)]
 mod ship_description_tests;
 mod variant_identity;

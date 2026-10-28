@@ -7,6 +7,25 @@ import { isConfigSource, isEntitySource } from '@/domain/schema/schema-sources';
 import type { ResourceRef } from '@/shared/types';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
+import { querySourceOptionCatalog, hasSourceInvalidation } from '@/services/source-options.service';
+import { hasResourceInvalidation } from '@/services/resource-media.service';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
+
+export function observeSchemaSourceOptions(
+  context: SchemaRuntimeContext,
+  source: string,
+  resources: () => ResourceRef[],
+  listener: () => void | Promise<void>,
+) {
+  return observeSavedContent((event) => {
+    const projection = saveProjection(event, context.sessionId);
+    if (
+      projection &&
+      (hasSourceInvalidation(projection.invalidation, source) || hasResourceInvalidation(projection.invalidation, resources()))
+    )
+      return listener();
+  });
+}
 
 export function useSchemaSourceOptions(args: {
   field: () => FieldSchema;
@@ -34,12 +53,11 @@ export function useSchemaSourceOptions(args: {
       stopInvalidation?.();
       const context = args.runtimeContext();
       const source = args.field().source ?? '';
-      stopInvalidation =
-        context?.subscribeSourceOptionInvalidation?.(source, loadedSourceResourceRefs, () => {
-          reads.schedule('source', () => {
-            void reloadSourceOptions();
-          });
-        }) ?? null;
+      stopInvalidation = context
+        ? context.subscribeSourceOptionInvalidation
+          ? context.subscribeSourceOptionInvalidation(source, loadedSourceResourceRefs, () => reloadSourceOptions(true))
+          : observeSchemaSourceOptions(context, source, loadedSourceResourceRefs, () => reloadSourceOptions(true))
+        : null;
     },
     { immediate: true },
   );
@@ -48,7 +66,7 @@ export function useSchemaSourceOptions(args: {
     stopInvalidation?.();
   });
 
-  async function reloadSourceOptions() {
+  async function reloadSourceOptions(required = false) {
     const context = args.runtimeContext();
     const sessionId = context?.sessionId ?? null;
     const source = args.field().source ?? null;
@@ -68,15 +86,23 @@ export function useSchemaSourceOptions(args: {
       return;
     }
 
-    await reads.consume('source', { sessionId, source }, async (signal) => context?.querySourceOptions?.(source, signal), {
-      ready: (groups) => {
-        loadedOptions.value = groups ? mapSourceGroupsToSelectOptions(groups) : [];
+    await reads.consume(
+      'source',
+      { sessionId, source },
+      (signal) =>
+        context?.querySourceOptions ? context.querySourceOptions(source, signal) : querySourceOptionCatalog(sessionId, source, signal),
+      {
+        ready: (groups) => {
+          loadedOptions.value = groups ? mapSourceGroupsToSelectOptions(groups) : [];
+        },
+        error: (error) => {
+          loadedOptions.value = [];
+          feedback.error(error, '加载字段来源失败');
+
+          if (required) throw error;
+        },
       },
-      error: (error) => {
-        loadedOptions.value = [];
-        feedback.error(error, '加载字段来源失败');
-      },
-    });
+    );
   }
 
   function loadedSourceResourceRefs(): ResourceRef[] {

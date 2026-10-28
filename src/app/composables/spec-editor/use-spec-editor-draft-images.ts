@@ -1,6 +1,6 @@
 import { computed, shallowRef, watch, onScopeDispose } from 'vue';
 import { createReadTicketOwner } from '@/shared/runtime/read-request';
-import { subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { formatError } from '@/shared/lib/errors';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { normalizeFsPath } from '@/shared/lib/paths';
@@ -34,7 +34,7 @@ export function useSpecEditorDraftImages<TImageData>(
         ])
       : null,
   );
-  async function refresh() {
+  async function refresh(required = false) {
     const target = options.target.value;
     reads.revoke();
     value.value = null;
@@ -53,6 +53,8 @@ export function useSpecEditorDraftImages<TImageData>(
         error: (error) => {
           errorText.value = formatError(error);
           if (options.errorPresentation !== 'inline') feedback.error(error, '读取草稿贴图失败');
+
+          if (required) throw error;
         },
         settled: () => {
           loading.value = false;
@@ -68,21 +70,27 @@ export function useSpecEditorDraftImages<TImageData>(
     },
     { immediate: true, flush: 'sync' },
   );
-  const stop = subscribeProjectChanges((event) => {
-    if (projectChangeSessionId(event) !== options.target.value?.sessionId) return;
-    if (event.kind === 'closed') {
-      reads.revoke('session');
-      loading.value = false;
-      return;
-    }
-    const paths = [
-      ...(value.value?.resourceRefs ?? []).map((resource) => resource.relPath),
-      ...options.fields.flatMap((field) => options.draft.value[field] ?? []).filter((path): path is string => typeof path === 'string'),
-    ].map(normalizeFsPath);
-    const resources = event.projection.invalidation.resources;
-    if (event.projection.invalidation.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
-      reads.schedule('images', () => void refresh());
-  });
+  const stop = observeSavedContent(
+    (event) => {
+      const projection = saveProjection(event, options.target.value?.sessionId);
+      if (!projection) return;
+      if (projection.manifest.sessionId !== options.target.value?.sessionId) return;
+
+      const paths = [
+        ...(value.value?.resourceRefs ?? []).map((resource) => resource.relPath),
+        ...options.fields.flatMap((field) => options.draft.value[field] ?? []).filter((path): path is string => typeof path === 'string'),
+      ].map(normalizeFsPath);
+      const resources = projection.invalidation.resources;
+      if (projection.invalidation.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
+        return refresh(true);
+    },
+    (sessionId) => {
+      if (sessionId === options.target.value?.sessionId) {
+        reads.revoke('session');
+        loading.value = false;
+      }
+    },
+  );
   function dispose() {
     reads.revoke();
     loading.value = false;

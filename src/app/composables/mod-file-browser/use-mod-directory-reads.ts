@@ -13,6 +13,7 @@ interface DirectoryRead {
   promise: Promise<boolean>;
   resolve: (accepted: boolean) => void;
   ticket?: ReadTicket<ModDirectory, DirectoryIdentity>;
+  error?: unknown;
 }
 
 export function createModDirectoryReads(handlers: {
@@ -57,7 +58,10 @@ export function createModDirectoryReads(handlers: {
         accepted = true;
       })
       .catch((error: unknown) => {
-        if (!isReadInvalidated(error)) handlers.error(task.identity, error);
+        if (!isReadInvalidated(error)) {
+          task.error = error;
+          handlers.error(task.identity, error);
+        }
       })
       .finally(() => {
         if (tasks.get(key) === task) {
@@ -68,7 +72,15 @@ export function createModDirectoryReads(handlers: {
         drain();
       });
   }
-  function request(identity: DirectoryIdentity, priority: Priority = 'foreground') {
+  function wait(task: DirectoryRead, required: boolean) {
+    return required
+      ? task.promise.then((accepted) => {
+          if (task.error) throw task.error;
+          return accepted;
+        })
+      : task.promise;
+  }
+  function request(identity: DirectoryIdentity, priority: Priority = 'foreground', required = false) {
     const key = keyOf(identity),
       existing = tasks.get(key);
     if (existing) {
@@ -77,7 +89,7 @@ export function createModDirectoryReads(handlers: {
         existing.priority = priority;
       }
       drain();
-      return existing.promise;
+      return wait(existing, required);
     }
     let resolve!: DirectoryRead['resolve'];
     const promise = new Promise<boolean>((finish) => {
@@ -87,7 +99,7 @@ export function createModDirectoryReads(handlers: {
     tasks.set(key, task);
     queued[priority].set(key, task);
     drain();
-    return promise;
+    return wait(task, required);
   }
   function revoke(matches: (identity: DirectoryIdentity) => boolean = () => true, reason: ReadEndReason = 'consumer') {
     for (const [key, task] of tasks) {

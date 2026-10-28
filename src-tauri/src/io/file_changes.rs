@@ -1,13 +1,11 @@
 use crate::{
     errors::{AppError, AppResult},
-    io::{
-        FsRootBoundary, read_utf8_no_bom, validate_safe_relative_path, validate_walk_entry,
-        write_utf8_no_bom,
-    },
+    io::{FsRootBoundary, validate_safe_relative_path, validate_walk_entry, write_utf8_no_bom},
     models::{FileChangeKind, FileChangeRecord, FileChangeReplayDirection, FileSnapshot},
 };
 use base64::{Engine as _, engine::general_purpose};
 use std::{
+    borrow::Cow,
     cell::RefCell,
     collections::BTreeMap,
     fs,
@@ -29,11 +27,70 @@ thread_local! {
 }
 
 struct RootWriteLease {
+    root: String,
+    recreated_sources: Mutex<Vec<String>>,
     coordinator: Arc<RootWriteCoordinator>,
+    retry: Option<WriteRetry>,
+}
+
+type WriteRetry = Arc<dyn Fn(&AppError) -> AppResult<()> + Send + Sync>;
+
+fn active_write_lease(root: &str) -> Option<Arc<RootWriteLease>> {
+    if let Some(lease) = ACTIVE_WRITES.with(|active| {
+        active
+            .borrow()
+            .get(&crate::models::windows_path_key(root))
+            .and_then(Weak::upgrade)
+    }) {
+        return Some(lease);
+    }
+    let path = crate::io::canonical_path(Path::new(root), "active save root").ok()?;
+    ACTIVE_WRITES.with(|active| {
+        active
+            .borrow()
+            .get(&crate::models::windows_path_key(&path.to_string_lossy()))
+            .and_then(Weak::upgrade)
+    })
 }
 
 pub struct RootWriteLock {
     _lease: Arc<RootWriteLease>,
+}
+
+impl RootWriteLock {
+    pub fn apply_changes(
+        &self,
+        changes: &[FileChangeRecord],
+        direction: FileChangeReplayDirection,
+    ) -> AppResult<()> {
+        apply_transaction_changes(changes, direction, &self._lease)
+    }
+}
+
+/// The existing root lease carries recovery for exactly one active write's disk steps.
+pub fn with_write_retry<T>(
+    root: &Path,
+    retry: impl Fn(&AppError) -> AppResult<()> + Send + Sync + 'static,
+    action: impl FnOnce() -> AppResult<T>,
+) -> AppResult<T> {
+    let _lease = acquire_root_write_lock_with_retry(root, Some(Arc::new(retry)))?;
+    action()
+}
+
+/// Completed write steps stay on their stack while the owning request awaits recovery.
+pub fn retry_write<T>(root: &str, mut action: impl FnMut() -> AppResult<T>) -> AppResult<T> {
+    loop {
+        match action() {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                let retry = active_write_lease(root).and_then(|lease| lease.retry.clone());
+                match retry {
+                    Some(retry) => retry(&error)?,
+                    None => return Err(error),
+                }
+            }
+        }
+    }
 }
 
 impl Drop for RootWriteLease {
@@ -46,6 +103,48 @@ impl Drop for RootWriteLease {
 }
 
 pub fn acquire_root_write_lock(root: &Path) -> AppResult<RootWriteLock> {
+    acquire_root_write_lock_with_retry(root, None)
+}
+
+pub fn accept_source_recreation(root: &str, paths: Vec<String>) -> AppResult<()> {
+    let paths = paths
+        .into_iter()
+        .map(|path| {
+            crate::io::canonical_path(Path::new(&path), "confirmed save source")
+                .map(|path| path.to_string_lossy().into_owned())
+        })
+        .collect::<AppResult<Vec<_>>>()?;
+    let lease = active_write_lease(root).expect("source confirmation belongs to the current save");
+    *lease
+        .recreated_sources
+        .lock()
+        .map_err(|_| AppError::message("write.lock_poisoned", "保存来源登记不可用"))? = paths;
+    Ok(())
+}
+
+pub fn source_recreation_allowed(root: &str, path: &str) -> bool {
+    let Some(lease) = active_write_lease(root) else {
+        return false;
+    };
+    let sources = lease
+        .recreated_sources
+        .lock()
+        .expect("save source registration is available");
+    if sources.is_empty() {
+        return false;
+    }
+    let Ok(path) = crate::io::canonical_path(Path::new(path), "recreated save source") else {
+        return false;
+    };
+    sources
+        .iter()
+        .any(|owned| same_physical_path(Path::new(owned), &path))
+}
+
+fn acquire_root_write_lock_with_retry(
+    root: &Path,
+    retry: Option<WriteRetry>,
+) -> AppResult<RootWriteLock> {
     let canonical_root = FsRootBoundary::new(root, "write root")?
         .root()
         .to_string_lossy()
@@ -53,9 +152,12 @@ pub fn acquire_root_write_lock(root: &Path) -> AppResult<RootWriteLock> {
     #[cfg(windows)]
     let canonical_root = canonical_root.to_lowercase();
     // Nested synchronous services share the transaction's lease.
-    if let Some(lease) =
-        ACTIVE_WRITES.with(|active| active.borrow().get(&canonical_root).and_then(Weak::upgrade))
-    {
+    if let Some(lease) = ACTIVE_WRITES.with(|active| {
+        active
+            .borrow()
+            .get(&crate::models::windows_path_key(&canonical_root))
+            .and_then(Weak::upgrade)
+    }) {
         return Ok(RootWriteLock { _lease: lease });
     }
     let coordinator = {
@@ -86,11 +188,19 @@ pub fn acquire_root_write_lock(root: &Path) -> AppResult<RootWriteLock> {
         })?;
     }
     drop(tickets);
-    let lease = Arc::new(RootWriteLease { coordinator });
+    let lease = Arc::new(RootWriteLease {
+        root: canonical_root.clone(),
+        recreated_sources: Mutex::new(Vec::new()),
+        coordinator,
+        retry,
+    });
     ACTIVE_WRITES.with(|active| {
         let mut active = active.borrow_mut();
         active.retain(|_, lease| lease.strong_count() > 0);
-        active.insert(canonical_root, Arc::downgrade(&lease));
+        active.insert(
+            crate::models::windows_path_key(&canonical_root),
+            Arc::downgrade(&lease),
+        );
     });
     Ok(RootWriteLock { _lease: lease })
 }
@@ -204,7 +314,8 @@ impl FileChangeSetBuilder {
     }
 
     pub fn apply(self) -> AppResult<Vec<FileChangeRecord>> {
-        apply_changes(&self.changes, FileChangeReplayDirection::Redo)?;
+        self._write_lock
+            .apply_changes(&self.changes, FileChangeReplayDirection::Redo)?;
         Ok(self.changes)
     }
 }
@@ -332,24 +443,38 @@ pub fn build_directory_replace_change(
     })
 }
 
-pub fn apply_changes(
+fn apply_transaction_changes(
     changes: &[FileChangeRecord],
     direction: FileChangeReplayDirection,
+    lease: &RootWriteLease,
 ) -> AppResult<()> {
-    let directed: Vec<_> = match direction {
-        FileChangeReplayDirection::Redo => changes.to_vec(),
-        FileChangeReplayDirection::Undo => changes
-            .iter()
-            .rev()
-            .map(FileChangeRecord::reversed)
-            .collect(),
+    let directed: Cow<'_, [FileChangeRecord]> = match direction {
+        FileChangeReplayDirection::Redo => Cow::Borrowed(changes),
+        FileChangeReplayDirection::Undo => Cow::Owned(
+            changes
+                .iter()
+                .rev()
+                .map(FileChangeRecord::reversed)
+                .collect(),
+        ),
     };
     let changes = &directed;
-    let direction = FileChangeReplayDirection::Redo;
     let rollback = changes
         .iter()
         .map(|change| {
-            let mut original = build_current_state(Path::new(&change.before_path))?;
+            let mut original = FileChangeRecord {
+                kind: change.kind,
+                before_path: change.before_path.clone(),
+                after_path: change.before_path.clone(),
+                before_exists: change.before_exists,
+                before_text: None,
+                before_data_base64: None,
+                before_files: Vec::new(),
+                after_exists: change.before_exists,
+                after_text: change.before_text.clone(),
+                after_data_base64: change.before_data_base64.clone(),
+                after_files: change.before_files.clone(),
+            };
             if change.before_path == change.after_path {
                 return Ok(vec![original]);
             }
@@ -367,18 +492,101 @@ pub fn apply_changes(
         })
         .collect::<AppResult<Vec<_>>>()?;
     for (index, change) in changes.iter().enumerate() {
-        if let Err(error) = apply_one(change, direction) {
-            return Err(changeset_apply_error(
-                error,
-                rollback_changes(
-                    &rollback[..=index]
-                        .iter()
-                        .flatten()
-                        .cloned()
-                        .collect::<Vec<_>>(),
-                ),
-            ));
+        let applied = (|| {
+            #[cfg(test)]
+            FILE_STEP.with(|step| {
+                if let Some(step) = &mut *step.borrow_mut() {
+                    step(index, change)?;
+                }
+                Ok::<(), AppError>(())
+            })?;
+            validate_change_boundary(&lease.root, change)?;
+            if change.before_exists
+                && !Path::new(&change.before_path)
+                    .try_exists()
+                    .map_err(|error| AppError::from(error).at_path(&change.before_path))?
+            {
+                return Err(AppError::context(
+                    "保存来源在写入前消失",
+                    std::io::Error::from(std::io::ErrorKind::NotFound).into(),
+                )
+                .at_path(&change.before_path));
+            }
+            apply_one(change)
+        })();
+        if let Err(error) = applied {
+            let total = rollback[..=index].iter().map(Vec::len).sum::<usize>();
+            let mut restore_errors = Vec::new();
+            for (completed_steps, original) in rollback[..=index]
+                .iter()
+                .rev()
+                .flat_map(|steps| steps.iter().rev())
+                .enumerate()
+            {
+                loop {
+                    let restored = (|| {
+                        validate_change_boundary(&lease.root, original)?;
+                        let current = build_current_state(Path::new(&original.after_path))?;
+                        if current.after_exists == original.after_exists
+                            && current.after_text == original.after_text
+                            && current.after_data_base64 == original.after_data_base64
+                            && current.after_files == original.after_files
+                        {
+                            return Ok(());
+                        }
+                        apply_one(original)
+                    })();
+                    match restored {
+                        Ok(()) => break,
+                        Err(restore_error) => match &lease.retry {
+                            Some(retry) => {
+                                let pending = rollback[..=index]
+                                    .iter()
+                                    .rev()
+                                    .flat_map(|steps| steps.iter().rev())
+                                    .skip(completed_steps)
+                                    .map(|step| step.after_path.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                let completed = rollback[..=index]
+                                    .iter()
+                                    .rev()
+                                    .flat_map(|steps| steps.iter().rev())
+                                    .take(completed_steps)
+                                    .map(|step| step.after_path.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                let progress = format!(
+                                    "写入失败: {error}\n已恢复 {completed_steps}/{total} 个文件步骤:\n{completed}\n待恢复:\n{pending}"
+                                );
+                                retry(
+                                    &AppError::context(progress.clone(), restore_error)
+                                        .at_path(&original.after_path),
+                                )
+                                .map_err(|ended| {
+                                    AppError::context(progress, ended).at_path(&original.after_path)
+                                })?;
+                            }
+                            None => {
+                                restore_errors
+                                    .push(format!("{}: {restore_error}", original.after_path));
+                                break;
+                            }
+                        },
+                    }
+                }
+            }
+            return Err(changeset_apply_error(error, restore_errors));
         }
+    }
+    Ok(())
+}
+
+fn validate_change_boundary(root: &str, change: &FileChangeRecord) -> AppResult<()> {
+    let boundary = FsRootBoundary::new(Path::new(root), "save root")?;
+    boundary.resolve_absolute(Path::new(&change.before_path), "save source")?;
+    if change.before_path != change.after_path {
+        boundary.resolve_absolute_target(Path::new(&change.after_path), "save destination")?;
     }
     Ok(())
 }
@@ -410,33 +618,16 @@ fn validate_relative_path(path: &str) -> AppResult<&Path> {
     validate_safe_relative_path(Path::new(path), "relative file")
 }
 
-fn apply_one(change: &FileChangeRecord, direction: FileChangeReplayDirection) -> AppResult<()> {
+fn apply_one(change: &FileChangeRecord) -> AppResult<()> {
     match change.kind {
-        FileChangeKind::File => apply_file_change(change, direction),
-        FileChangeKind::Directory => apply_directory_change(change, direction),
+        FileChangeKind::File => apply_file_change(change),
+        FileChangeKind::Directory => apply_directory_change(change),
     }
 }
 
-fn apply_file_change(
-    change: &FileChangeRecord,
-    direction: FileChangeReplayDirection,
-) -> AppResult<()> {
-    let (exists, text, data_base64) = match direction {
-        FileChangeReplayDirection::Undo => (
-            change.before_exists,
-            change.before_text.as_deref(),
-            change.before_data_base64.as_deref(),
-        ),
-        FileChangeReplayDirection::Redo => (
-            change.after_exists,
-            change.after_text.as_deref(),
-            change.after_data_base64.as_deref(),
-        ),
-    };
-    let (source, target) = match direction {
-        FileChangeReplayDirection::Undo => (&change.after_path, &change.before_path),
-        FileChangeReplayDirection::Redo => (&change.before_path, &change.after_path),
-    };
+fn apply_file_change(change: &FileChangeRecord) -> AppResult<()> {
+    let source = &change.before_path;
+    let target = &change.after_path;
     let path = Path::new(target);
     if path.exists() {
         validate_walk_entry(path, "file change")?;
@@ -448,17 +639,17 @@ fn apply_file_change(
         }
         fs::rename(source, path)?;
     }
-    if exists {
+    if change.after_exists {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        if let Some(text) = text {
+        if let Some(text) = &change.after_text {
             write_utf8_no_bom(path, text)?;
-        } else if let Some(data) = data_base64 {
+        } else if let Some(data) = &change.after_data_base64 {
             let bytes = general_purpose::STANDARD.decode(data).map_err(|e| {
                 AppError::context(format!("解码文件数据失败 ({})", path.display()), e.into())
             })?;
-            fs::write(path, bytes)?;
+            fs::write(path, &bytes)?;
         } else {
             return Err(AppError::message(
                 "changeset.missing_content",
@@ -471,14 +662,7 @@ fn apply_file_change(
     Ok(())
 }
 
-fn apply_directory_change(
-    change: &FileChangeRecord,
-    direction: FileChangeReplayDirection,
-) -> AppResult<()> {
-    let (exists, files) = match direction {
-        FileChangeReplayDirection::Undo => (change.before_exists, &change.before_files),
-        FileChangeReplayDirection::Redo => (change.after_exists, &change.after_files),
-    };
+fn apply_directory_change(change: &FileChangeRecord) -> AppResult<()> {
     let path = Path::new(&change.after_path);
     if change.before_path != change.after_path && Path::new(&change.before_path).exists() {
         require_rename_target(Path::new(&change.before_path), path)?;
@@ -488,9 +672,9 @@ fn apply_directory_change(
         validate_walk_entry(path, "directory change")?;
         fs::remove_dir_all(path)?;
     }
-    if exists {
+    if change.after_exists {
         fs::create_dir_all(path)?;
-        for file in files {
+        for file in &change.after_files {
             let rel = validate_relative_path(&file.rel_path)?;
             let target = path.join(rel);
             if let Some(parent) = target.parent() {
@@ -544,16 +728,6 @@ fn build_current_state(path: &Path) -> AppResult<FileChangeRecord> {
     })
 }
 
-fn rollback_changes(changes: &[FileChangeRecord]) -> Vec<String> {
-    let mut errors = Vec::new();
-    for change in changes.iter().rev() {
-        if let Err(error) = apply_one(change, FileChangeReplayDirection::Redo) {
-            errors.push(format!("{}: {}", change.after_path, error));
-        }
-    }
-    errors
-}
-
 fn changeset_apply_error(apply_error: AppError, rollback_errors: Vec<String>) -> AppError {
     if rollback_errors.is_empty() {
         return apply_error;
@@ -602,15 +776,15 @@ fn snapshot_file(path: &Path, rel_path: String) -> AppResult<FileSnapshot> {
 }
 
 fn snapshot_file_content(path: &Path) -> AppResult<(Option<String>, Option<String>)> {
-    match read_utf8_no_bom(path) {
+    let bytes = fs::read(path).map_err(|error| AppError::from(error).at_path(path))?;
+    #[cfg(test)]
+    super::csv_files::record_csv_disk_read(path);
+    match String::from_utf8(bytes) {
         Ok(text) => Ok((Some(text), None)),
-        // Only text-semantics failures degrade to a binary snapshot; IO and
-        // permission errors are real failures and must surface.
-        Err(error) if matches!(error.code(), "text.invalid_utf8" | "text.bom") => {
-            let bytes = fs::read(path)?;
-            Ok((None, Some(general_purpose::STANDARD.encode(bytes))))
-        }
-        Err(error) => Err(error),
+        Err(error) => Ok((
+            None,
+            Some(general_purpose::STANDARD.encode(error.into_bytes())),
+        )),
     }
 }
 
@@ -633,10 +807,248 @@ fn restore_snapshot_file(path: &Path, file: &FileSnapshot) -> AppResult<()> {
 }
 
 #[cfg(test)]
+type FileStep = Box<dyn FnMut(usize, &FileChangeRecord) -> AppResult<()>>;
+
+#[cfg(test)]
+thread_local! {
+    static FILE_STEP: RefCell<Option<FileStep>> = const { RefCell::new(None) };
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::read_utf8_no_bom;
     use crate::testutil::{temp_dir, temp_linked_dir};
     use std::{fs, sync::mpsc, thread, time::Duration};
+
+    #[test]
+    fn failed_file_step_restores_all_previous_bytes_and_partial_output() {
+        for failed in 0..3 {
+            let root = temp_dir("restore_file_positions");
+            let originals = [
+                vec![0x81, 0x93, 0x0d, 0x0a],
+                b"second\r\n".to_vec(),
+                vec![0xef, 0xbb, 0xbf, b'x'],
+            ];
+            for (index, bytes) in originals.iter().enumerate() {
+                fs::write(root.join(format!("{index}.txt")), bytes).unwrap();
+            }
+            FILE_STEP.with(|step| {
+                *step.borrow_mut() = Some(Box::new(move |index, change| {
+                    if index == failed {
+                        fs::write(&change.after_path, "partial")?;
+                        return Err(AppError::from(std::io::Error::from(
+                            std::io::ErrorKind::WriteZero,
+                        )));
+                    }
+                    Ok(())
+                }))
+            });
+            let retries = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let count = retries.clone();
+            let result = with_write_retry(
+                &root,
+                move |_| {
+                    count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Ok(())
+                },
+                || {
+                    let mut builder = FileChangeSetBuilder::new(&root)?;
+                    for index in 0..3 {
+                        builder.text_file(format!("{index}.txt"), Some("saved".into()))?;
+                    }
+                    builder.apply()
+                },
+            );
+            FILE_STEP.with(|step| *step.borrow_mut() = None);
+            assert!(result.is_err());
+            assert_eq!(retries.load(std::sync::atomic::Ordering::SeqCst), 0);
+            for (index, bytes) in originals.iter().enumerate() {
+                assert_eq!(fs::read(root.join(format!("{index}.txt"))).unwrap(), *bytes);
+            }
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    fn vanished_root_waits_for_restoration_without_recreating_it() {
+        let root = temp_dir("restore_vanished_root");
+        let held = root.with_extension("held");
+        fs::write(root.join("first.txt"), "first").unwrap();
+        fs::write(root.join("second.txt"), "second").unwrap();
+        let removed = root.clone();
+        let stored = held.clone();
+        FILE_STEP.with(|step| {
+            *step.borrow_mut() = Some(Box::new(move |index, _| {
+                if index == 1 {
+                    fs::rename(&removed, &stored)?;
+                }
+                Ok(())
+            }))
+        });
+        let restore_root = root.clone();
+        let restore_held = held.clone();
+        let recovered = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let calls = recovered.clone();
+        let result = with_write_retry(
+            &root,
+            move |error| {
+                assert!(
+                    error
+                        .location()
+                        .and_then(|location| location.path.as_ref())
+                        .is_some()
+                );
+                assert!(!restore_root.exists());
+                fs::rename(&restore_held, &restore_root)?;
+                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+            || {
+                let mut builder = FileChangeSetBuilder::new(&root)?;
+                builder.text_file("first.txt", Some("saved".into()))?;
+                builder.text_file("second.txt", Some("saved".into()))?;
+                builder.apply()
+            },
+        );
+        FILE_STEP.with(|step| *step.borrow_mut() = None);
+        assert!(result.is_err());
+        assert_eq!(recovered.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(fs::read_to_string(root.join("first.txt")).unwrap(), "first");
+        assert_eq!(
+            fs::read_to_string(root.join("second.txt")).unwrap(),
+            "second"
+        );
+        assert!(!held.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_business_save_restores_files_without_advancing_history_or_session() {
+        let root = temp_dir("restore_business_save");
+        fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let spec = root.join("data/hulls/original.ship");
+        let csv = root.join("data/hulls/ship_data.csv");
+        let original_spec = r#"{"hullId":"original","hullName":"Original"}"#;
+        let original_csv = "id,name,custom\r\noriginal,Original,001\r\nother,Other,002\r\n";
+        fs::write(&spec, original_spec).unwrap();
+        fs::write(&csv, original_csv).unwrap();
+        let manifest = crate::services::project::open_project_session_traced(
+            &root,
+            None,
+            &mut crate::services::project::PerformanceTrace::new("restore.business"),
+        )
+        .unwrap();
+        let info = crate::services::query_entity_edit_target(
+            &manifest.session_id,
+            crate::models::EntityKind::Ship,
+            "original",
+        )
+        .unwrap();
+        let intent = crate::services::query_entity_identity_intent(
+            &manifest.session_id,
+            &info.target,
+            "saved",
+        )
+        .unwrap();
+        let mut versions = info.base_versions;
+        versions.push(intent.destination_version);
+        let action = crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            target: info.target,
+            data: serde_json::json!({"hullId":"saved","hullName":"Captured"}),
+            base_versions: versions,
+            json_write: Default::default(),
+            ordered_json: None,
+        });
+        FILE_STEP.with(|step| {
+            *step.borrow_mut() = Some(Box::new(|index, change| {
+                if index == 1 {
+                    fs::write(&change.after_path, "partial")?;
+                    return Err(AppError::message("io.unexpected", "injected write failure"));
+                }
+                Ok(())
+            }))
+        });
+        let failed = with_write_retry(
+            &root,
+            |_| panic!("original files are available"),
+            || crate::services::write_transactions::commit_action(action.clone()),
+        );
+        FILE_STEP.with(|step| *step.borrow_mut() = None);
+        assert!(failed.is_err());
+        assert_eq!(fs::read(&spec).unwrap(), original_spec.as_bytes());
+        assert_eq!(fs::read(&csv).unwrap(), original_csv.as_bytes());
+        assert!(!root.join("data/hulls/saved.ship").exists());
+        assert!(
+            crate::services::write_transactions::query_history(
+                &manifest.session_id,
+                &manifest.mod_root
+            )
+            .unwrap()
+            .undo_stack
+            .is_empty()
+        );
+        assert!(
+            crate::services::query_entity(
+                &manifest.session_id,
+                crate::models::EntityKind::Ship,
+                "original"
+            )
+            .unwrap()
+            .is_some()
+        );
+        let saved = crate::services::write_transactions::commit_action(action).unwrap();
+        assert_eq!(saved.history.undo_stack.len(), 1);
+        crate::services::project::close_project_session(manifest.session_id).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn recovery_reverses_create_delete_rename_and_directory_steps() {
+        let root = temp_dir("restore_mixed_file_steps");
+        fs::write(root.join("deleted.bin"), [0, 255, 1]).unwrap();
+        fs::write(root.join("renamed.txt"), "old-name").unwrap();
+        fs::create_dir(root.join("directory")).unwrap();
+        fs::write(root.join("directory/nested.bin"), [0, 128]).unwrap();
+        FILE_STEP.with(|step| {
+            *step.borrow_mut() = Some(Box::new(|index, _| {
+                if index == 4 {
+                    return Err(AppError::message("io.unexpected", "injected file failure"));
+                }
+                Ok(())
+            }))
+        });
+        let result = with_write_retry(
+            &root,
+            |_| panic!("all original files remain accessible"),
+            || {
+                let mut builder = FileChangeSetBuilder::new(&root)?;
+                builder.text_file("created.txt", Some("new".into()))?;
+                builder.text_file("deleted.bin", None)?;
+                builder.rename_text_file("renamed.txt", "next.txt", "new-name".into())?;
+                builder.delete_directory("directory")?;
+                builder.text_file("last.txt", Some("last".into()))?;
+                builder.apply()
+            },
+        );
+        FILE_STEP.with(|step| *step.borrow_mut() = None);
+        assert!(result.is_err());
+        assert!(!root.join("created.txt").exists());
+        assert!(!root.join("last.txt").exists());
+        assert!(!root.join("next.txt").exists());
+        assert_eq!(fs::read(root.join("deleted.bin")).unwrap(), [0, 255, 1]);
+        assert_eq!(
+            fs::read_to_string(root.join("renamed.txt")).unwrap(),
+            "old-name"
+        );
+        assert_eq!(
+            fs::read(root.join("directory/nested.bin")).unwrap(),
+            [0, 128]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn rename_roundtrips_paths_and_content() {
@@ -661,10 +1073,20 @@ mod tests {
         );
         assert!(!old.exists());
         assert_eq!(fs::read_to_string(&next).unwrap(), "after");
-        apply_changes(&changes, FileChangeReplayDirection::Undo).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            changes.clone(),
+        )
+        .unwrap();
         assert!(!next.exists());
         assert_eq!(fs::read_to_string(&old).unwrap(), "before");
-        apply_changes(&changes, FileChangeReplayDirection::Redo).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            changes,
+        )
+        .unwrap();
         assert_eq!(fs::read_to_string(&next).unwrap(), "after");
         fs::remove_dir_all(root).unwrap();
     }
@@ -681,7 +1103,14 @@ mod tests {
         let mut failed = renamed.clone();
         failed.before_path = root.join("blocked").to_string_lossy().into();
         failed.after_path = failed.before_path.clone();
-        assert!(apply_changes(&[renamed, failed], FileChangeReplayDirection::Redo).is_err());
+        assert!(
+            apply_file_change_set(
+                &root.to_string_lossy(),
+                FileChangeReplayDirection::Redo,
+                vec![renamed, failed]
+            )
+            .is_err()
+        );
         assert_eq!(fs::read_to_string(root.join("old.spec")).unwrap(), "before");
         assert!(!root.join("new.spec").exists());
         fs::remove_dir_all(root).unwrap();
@@ -706,13 +1135,23 @@ mod tests {
                 .file_name()
         };
         assert_eq!(filename(), "demo.spec");
-        apply_changes(&changes, FileChangeReplayDirection::Undo).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            changes.clone(),
+        )
+        .unwrap();
         assert_eq!(filename(), "Demo.spec");
         assert_eq!(
             fs::read_to_string(root.join("Demo.spec")).unwrap(),
             "before"
         );
-        apply_changes(&changes, FileChangeReplayDirection::Redo).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            changes,
+        )
+        .unwrap();
         assert_eq!(filename(), "demo.spec");
         fs::remove_dir_all(root).unwrap();
     }
@@ -747,7 +1186,12 @@ mod tests {
                 .join("original.spec")
                 .to_string_lossy()
         );
-        apply_changes(&changes, FileChangeReplayDirection::Redo).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            changes.clone(),
+        )
+        .unwrap();
         assert_eq!(
             fs::read_dir(&root)
                 .unwrap()
@@ -763,7 +1207,12 @@ mod tests {
             FileChangeReplayDirection::Undo,
         )
         .unwrap();
-        apply_changes(&undo, FileChangeReplayDirection::Undo).unwrap();
+        apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Undo,
+            undo,
+        )
+        .unwrap();
         assert_eq!(
             fs::read_dir(&root)
                 .unwrap()
@@ -849,7 +1298,11 @@ mod tests {
             .share_mode(0)
             .open(&second)
             .unwrap();
-        let result = apply_changes(&changes, FileChangeReplayDirection::Redo);
+        let result = apply_file_change_set(
+            &root.to_string_lossy(),
+            FileChangeReplayDirection::Redo,
+            changes.to_vec(),
+        );
         let first_after = fs::read_to_string(&first).unwrap();
         drop(locked);
         fs::remove_dir_all(root).unwrap();
@@ -858,7 +1311,7 @@ mod tests {
     }
 
     #[test]
-    fn rollback_changes_reports_restore_errors() {
+    fn root_write_reports_apply_and_restore_errors() {
         let root = temp_dir("rollback_reports_restore_errors");
         fs::create_dir_all(&root).unwrap();
         let change = FileChangeRecord {
@@ -875,11 +1328,15 @@ mod tests {
             after_files: vec![],
         };
 
-        let errors = rollback_changes(&[change]);
+        let error = acquire_root_write_lock(&root)
+            .unwrap()
+            .apply_changes(&[change], FileChangeReplayDirection::Redo)
+            .unwrap_err()
+            .to_string();
 
         let _ = fs::remove_dir_all(root);
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("rollback_reports_restore_errors"));
+        assert!(error.contains("changeset apply failed and rollback failed"));
+        assert!(error.contains("rollback_reports_restore_errors"));
     }
 
     #[test]
@@ -1217,8 +1674,8 @@ mod tests {
         direction: FileChangeReplayDirection,
         changes: Vec<FileChangeRecord>,
     ) -> AppResult<()> {
-        let _lease = acquire_root_write_lock(Path::new(root))?;
+        let lease = acquire_root_write_lock(Path::new(root))?;
         let changes = resolve_change_paths(root, changes, direction)?;
-        apply_changes(&changes, direction)
+        lease.apply_changes(&changes, direction)
     }
 }

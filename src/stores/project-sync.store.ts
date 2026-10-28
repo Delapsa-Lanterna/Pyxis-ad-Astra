@@ -1,67 +1,96 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import type { CommittedWriteEvent, ErrorDiagnostic } from '@/shared/types';
-import { deepClone } from '@/shared/lib/starsector';
+import { computed, shallowReactive } from 'vue';
+import type { CommittedWriteEvent, ErrorDiagnostic, SaveDelivery } from '@/shared/types';
 import { normalizeFsPath } from '@/shared/lib/paths';
+
+export type SaveTask = () => void | boolean | SaveTask[] | Promise<void | boolean | SaveTask[]>;
 
 export interface PendingWriteSync {
   id: string;
   event: CommittedWriteEvent;
-  historyAccepted: boolean;
-  step: 'projection' | 'acceptance' | 'broadcast';
+  tasks: SaveTask[];
+  running: Promise<void> | null;
+  error: ErrorDiagnostic | null;
+}
+
+interface PreparingSave {
+  id: string;
+  event: null;
+  modRoot: string;
+  sessionId: string | null;
   error: ErrorDiagnostic | null;
 }
 
 export const useProjectSyncStore = defineStore('project-sync', () => {
-  const pending = ref<PendingWriteSync[]>([]);
-  const completed = new Map<string, Set<number>>();
-  const invalidatedProjections = new Map<string, Set<number>>();
-  function enqueue(event: CommittedWriteEvent) {
-    const id = JSON.stringify([normalizeFsPath(event.modRoot), event.result.commitId]);
-    const previous = pending.value.find((entry) => entry.id === id);
-    if (previous) return previous;
-    const entry: PendingWriteSync = { id, event: deepClone(event), historyAccepted: false, step: 'projection', error: null };
-    pending.value.push(entry);
-    return pending.value.find((entry) => entry.id === id)!;
+  const requests = shallowReactive(new Map<string, PendingWriteSync | PreparingSave>());
+  const waitingRoots = shallowReactive(new Set<string>());
+  const pending = computed(() => [...requests.values()].filter((work): work is PendingWriteSync => work.event !== null));
+  const blocked = computed(() =>
+    [...requests.values()]
+      .filter((work) => work.error !== null)
+      .map((work) => ({
+        requestId: work.id,
+        modRoot: work.event ? work.event.modRoot : work.modRoot,
+        sessionId: work.event ? work.event.sessionId : work.sessionId,
+        sessionIds: work.event ? work.event.result.sessionUpdates.map((update) => update.sessionId) : [],
+        phase: work.event ? 'content' : 'preparing',
+        diagnostic: work.error!,
+      })),
+  );
+  function receive(entry: PendingWriteSync) {
+    const owned = shallowReactive(entry);
+    requests.set(entry.id, owned);
+    return owned;
   }
-  function wasAccepted(event: Pick<CommittedWriteEvent, 'modRoot' | 'result'>) {
-    return completed.get(normalizeFsPath(event.modRoot))?.has(event.result.commitId) ?? false;
+  function isWaiting(modRoot: string | null | undefined) {
+    return !!modRoot && waitingRoots.has(normalizeFsPath(modRoot));
   }
-  function markAccepted(event: CommittedWriteEvent) {
-    const root = normalizeFsPath(event.modRoot);
-    if (!completed.has(root)) completed.set(root, new Set());
-    completed.get(root)!.add(event.result.commitId);
+  function setWaiting(modRoot: string, waiting: boolean) {
+    const root = normalizeFsPath(modRoot);
+    if (waiting) {
+      waitingRoots.add(root);
+      for (const work of requests.values()) {
+        const modRoot = work.event ? work.event.modRoot : work.modRoot;
+        if (normalizeFsPath(modRoot) === root) work.error = null;
+      }
+    } else {
+      waitingRoots.delete(root);
+      for (const work of requests.values()) {
+        const modRoot = work.event ? work.event.modRoot : work.modRoot;
+        if (normalizeFsPath(modRoot) === root && work.event === null) requests.delete(work.id);
+      }
+    }
+  }
+  function setBlocked(delivery: Extract<SaveDelivery, { kind: 'blocked' }>) {
+    waitingRoots.add(normalizeFsPath(delivery.modRoot));
+    const work = requests.get(delivery.requestId);
+    if (work) work.error = delivery.diagnostic;
+    else
+      requests.set(
+        delivery.requestId,
+        shallowReactive({
+          id: delivery.requestId,
+          event: null,
+          modRoot: delivery.modRoot,
+          sessionId: delivery.sessionId,
+          error: delivery.diagnostic,
+        }),
+      );
   }
   function complete(id: string) {
-    pending.value = pending.value.filter((entry) => entry.id !== id);
+    requests.delete(id);
   }
-  function removeModState(modRoot: string, sessionId: string | null) {
-    if (sessionId) invalidatedProjections.delete(sessionId);
-    pending.value = pending.value.filter((entry) => normalizeFsPath(entry.event.modRoot) !== normalizeFsPath(modRoot));
-    completed.delete(normalizeFsPath(modRoot));
+  function releaseWindow() {
+    requests.clear();
+    waitingRoots.clear();
   }
-  function markFailed(id: string, error: ErrorDiagnostic) {
-    const entry = pending.value.find((entry) => entry.id === id);
-    if (entry) entry.error = error;
+  function removeModState(modRoot: string, _sessionId: string | null) {
+    void _sessionId;
+    for (const work of requests.values()) {
+      const root = work.event ? work.event.modRoot : work.modRoot;
+      if (normalizeFsPath(root) === normalizeFsPath(modRoot)) complete(work.id);
+    }
+    setWaiting(modRoot, false);
   }
-  function wereProjectionCachesInvalidated(sessionId: string, revision: number) {
-    return invalidatedProjections.get(sessionId)?.has(revision) ?? false;
-  }
-
-  function markProjectionCachesInvalidated(sessionId: string, revision: number) {
-    if (!invalidatedProjections.has(sessionId)) invalidatedProjections.set(sessionId, new Set());
-    invalidatedProjections.get(sessionId)!.add(revision);
-  }
-
-  return {
-    wereProjectionCachesInvalidated,
-    markProjectionCachesInvalidated,
-    pending,
-    enqueue,
-    wasAccepted,
-    markAccepted,
-    complete,
-    removeModState,
-    markFailed,
-  };
+  return { pending, blocked, isWaiting, setWaiting, setBlocked, complete, releaseWindow, removeModState, receive };
 });

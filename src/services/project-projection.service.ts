@@ -1,12 +1,12 @@
 import { AppError } from '@/shared/lib/errors';
 
-const pendingSessions = new Map<string, number>();
+const pendingSessions = new Set<string>();
 
-export function markProjectionPending(sessionId: string, commitId: number) {
-  pendingSessions.set(sessionId, Math.max(pendingSessions.get(sessionId) ?? 0, commitId));
+export function markProjectionPending(sessionId: string) {
+  pendingSessions.add(sessionId);
 }
-export function markProjectionReady(sessionId: string, commitId?: number) {
-  if (commitId === undefined || commitId >= (pendingSessions.get(sessionId) ?? 0)) pendingSessions.delete(sessionId);
+export function markProjectionReady(sessionId: string) {
+  pendingSessions.delete(sessionId);
 }
 export function requireProjectionReady(sessionId: string) {
   if (pendingSessions.has(sessionId))

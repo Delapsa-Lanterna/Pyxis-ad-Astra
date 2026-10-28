@@ -6,26 +6,41 @@ import { useJsonListSelection } from './use-json-list-selection';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
-import type { AppFeedback, CommittedWriteEvent } from '@/shared/types';
+import type { AppFeedback } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   complete: vi.fn(),
-  retry: vi.fn(),
+  release: vi.fn(async () => {}),
+  contentError: vi.fn(),
+  content: null as null | { retryContent: () => Promise<unknown> },
   feedback: { success: vi.fn(), info: vi.fn(), error: vi.fn(), confirmWarning: vi.fn<AppFeedback['confirmWarning']>() },
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => mocks.feedback }));
-vi.mock('@/orchestrators/json-save.orchestrator', () => ({ completeJsonSave: mocks.complete }));
-vi.mock('@/orchestrators/project-sync.orchestrator', () => ({ retryPendingModSyncs: mocks.retry }));
+vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: mocks.release }));
+vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
+  ...(await import('@/test/unit/project-changes')),
+  beginSavedWrite: <T>(
+    write: () => Promise<T>,
+    accept: (value: Exclude<T, void | null>) => import('@/stores/project-sync.store').SaveTask[],
+  ) => {
+    const fixture = import('@/test/unit/project-changes');
+    const written = write();
+    const content = fixture.then(({ beginSavedWrite }) => {
+      const pending = beginSavedWrite(() => written, accept, mocks.complete);
+      mocks.content = pending;
+      return pending.content;
+    });
+    void content.catch(mocks.contentError);
+    return { id: 'selection-save', result: written };
+  },
+}));
 let wrapper: VueWrapper;
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
-  mocks.retry.mockResolvedValue(undefined);
-  mocks.complete.mockImplementation(async (modRoot: string, _session: string, result: CommittedWriteEvent['result']) => {
-    useProjectSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
-  });
+  mocks.complete.mockResolvedValue(undefined);
+  mocks.content = null;
 });
 afterEach(() => wrapper?.unmount());
 
@@ -43,7 +58,6 @@ function harness(discard?: (id: string) => Promise<boolean>) {
   useJsonEditorStore().activate({
     target: ref({ kind: 'mission', id: 'a', entity: null, sessionId: 's1', modRoot: 'M:/mod' }),
     saving: ref(false),
-    pendingSynchronization: ref(false),
     targetKey: ref('mission:a'),
     dirty,
     inputs: createFieldInputs(ref('mission:a')),
@@ -120,7 +134,9 @@ describe('config list selection and action boundaries', () => {
     dirty.value = true;
     selection.reconcile(['b']);
     const error = new Error('sync failed');
-    mocks.retry.mockRejectedValueOnce(error);
+    vi.spyOn(useJsonEditorStore().active!.inputs, 'commit').mockImplementationOnce(() => {
+      throw error;
+    });
     await selection.discardDeleted();
     expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '放弃战役编辑失败');
     expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
@@ -217,6 +233,7 @@ describe('config list selection and action boundaries', () => {
     expect(selection.writing.value).toBe(true);
     finish();
     expect(await pending).toBe(true);
+    await flushPromises();
     expect(accept).toHaveBeenCalledTimes(1);
     expect(selection.locked.value).toBe(false);
   });
@@ -264,20 +281,18 @@ describe('config list selection and action boundaries', () => {
     expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
   });
 
-  it.each(['projection', 'broadcast'] as const)('retains completed steps on %s failure and retries the original receipt', async (step) => {
+  it.each(['projection', 'broadcast'] as const)('keeps the project saved while retrying failed %s content work', async (step) => {
     const { selection } = harness();
     const action = mutation(selection);
-    mocks.complete.mockImplementationOnce(async (modRoot, _session, result) => {
-      if (step === 'broadcast') useProjectSyncStore().markAccepted({ modRoot, result } as CommittedWriteEvent);
-      throw new Error(step);
-    });
-    expect(await action.run()).toBe(false);
+    if (step === 'projection') mocks.release.mockRejectedValueOnce(new Error(step));
+    else mocks.complete.mockRejectedValueOnce(new Error(step));
+    expect(await action.run()).toBe(true);
+    await flushPromises();
+    expect(mocks.contentError).toHaveBeenCalledOnce();
+    expect(mocks.feedback.success).toHaveBeenCalledOnce();
     expect(selection.selectedId.value).toBe(step === 'broadcast' ? 'b' : 'a');
-    mocks.retry.mockImplementationOnce(async () => {
-      useProjectSyncStore().markAccepted({ modRoot: 'M:/mod', result: savedWriteFixture() } as CommittedWriteEvent);
-    });
-    const pending = useSaveCommandStore().waitForSaves('M:/mod');
-    if (pending) expect(await pending).toBe(true);
+    expect(useSaveCommandStore().waitForSaves('M:/mod')).toBeUndefined();
+    await mocks.content!.retryContent();
     expect(selection.selectedId.value).toBe('b');
     expect(action.write).toHaveBeenCalledTimes(1);
     expect(action.accept).toHaveBeenCalledTimes(1);
@@ -287,12 +302,15 @@ describe('config list selection and action boundaries', () => {
     const { selection } = harness();
     const accept = vi.fn(async () => false);
     const action = mutation(selection, { accept });
-    expect(await action.run()).toBe(false);
+    expect(await action.run()).toBe(true);
+    await flushPromises();
+    expect(mocks.contentError).toHaveBeenCalledOnce();
     accept.mockImplementationOnce(async () => {
       selection.selectedId.value = 'b';
       return true;
     });
-    expect(await useSaveCommandStore().waitForSaves('M:/mod')).toBe(true);
+    expect(useSaveCommandStore().waitForSaves('M:/mod')).toBeUndefined();
+    await mocks.content!.retryContent();
     expect(action.write).toHaveBeenCalledTimes(1);
     expect(selection.selectedId.value).toBe('b');
   });
@@ -324,7 +342,8 @@ describe('config list selection and action boundaries', () => {
     sessionId.value = 's2';
     finish(savedWriteFixture());
     expect(await pending).toBe(false);
-    expect(mocks.complete).toHaveBeenCalledWith('M:/mod', 's1', expect.anything(), 'Create');
+    await flushPromises();
+    expect(mocks.complete).toHaveBeenCalledExactlyOnceWith(expect.anything());
     expect(accept).not.toHaveBeenCalled();
     expect(mocks.feedback.success).not.toHaveBeenCalled();
     expect(selection.selectedId.value).toBeNull();
@@ -338,7 +357,7 @@ describe('config list selection and action boundaries', () => {
   ] as const)('releases a stale %s preparation error on %s', async (action, ending) => {
     const { selection, sessionId } = harness();
     let fail!: (error: Error) => void;
-    mocks.retry.mockImplementationOnce(
+    vi.spyOn(useJsonEditorStore().active!.inputs, 'commit').mockImplementationOnce(
       () =>
         new Promise((_, reject) => {
           fail = reject;

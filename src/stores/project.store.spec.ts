@@ -6,7 +6,6 @@ import { TABLE_KEYS, type ProjectManifest } from '@/shared/types';
 
 function manifest(sessionId: string, modRoot = 'M:/alpha'): ProjectManifest {
   const update = sessionUpdateFixture(sessionId, modRoot);
-  if (update.status !== 'ready') throw new Error('ready projection fixture');
   return update.projection.manifest;
 }
 
@@ -27,19 +26,19 @@ describe('project manifest ownership', () => {
     expect(project.tableWriteTargets.every((target) => target.sessionId === 'beta')).toBe(true);
   });
 
-  it('accepts increasing revisions only for the registered session and resets them for a new session', () => {
+  it('accepts queued content only for the registered session', () => {
     const project = useProjectStore();
     project.registerProjectManifest(manifest('old'));
-    project.replaceProjectManifest({ ...manifest('old'), modInfo: { name: 'latest' } }, 4);
-    project.replaceProjectManifest({ ...manifest('old'), modInfo: { name: 'late' } }, 3);
-    project.replaceProjectManifest(manifest('other'), 5);
-    expect(project.getManifest('M:/alpha')?.modInfo?.name).toBe('latest');
+    project.replaceProjectManifest({ ...manifest('old'), modInfo: { name: 'latest' } });
+    project.replaceProjectManifest({ ...manifest('old'), modInfo: { name: 'late' } });
+    project.replaceProjectManifest(manifest('other'));
+    expect(project.getManifest('M:/alpha')?.modInfo?.name).toBe('late');
     project.registerProjectManifest(manifest('new'));
-    project.replaceProjectManifest(manifest('old'), 6);
-    project.replaceProjectManifest({ ...manifest('new'), modInfo: { name: 'new' } }, 1);
+    project.replaceProjectManifest(manifest('old'));
+    project.replaceProjectManifest({ ...manifest('new'), modInfo: { name: 'new' } });
     expect(project.getManifest('M:/alpha')).toMatchObject({ sessionId: 'new', modInfo: { name: 'new' } });
     project.removeProjectManifest('M:/alpha');
-    project.replaceProjectManifest(manifest('new'), 8);
+    project.replaceProjectManifest(manifest('new'));
     expect(project.getManifest('M:/alpha')).toBeNull();
   });
 

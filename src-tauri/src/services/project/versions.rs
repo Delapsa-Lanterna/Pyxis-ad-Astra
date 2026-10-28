@@ -19,6 +19,7 @@ pub(super) fn version_for_path(session: &ProjectSession, path: &str) -> FileVers
 #[cfg(test)]
 mod tests {
     use crate::models::EntityKind;
+    use std::path::Path;
     #[test]
     fn session_versions_cover_mission_directory_and_skin_resource_override() {
         let root = crate::testutil::temp_dir("versioned_mission_skin");
@@ -59,8 +60,23 @@ mod tests {
         )
         .unwrap()
         .base_versions;
-        assert_eq!(mission.len(), 2);
-        assert!(mission.iter().all(|version| version.fingerprint.is_some()));
+        assert_eq!(mission.len(), 4);
+        for relative in [
+            "data/missions/demo",
+            "data/missions/demo/descriptor.json",
+            "data/missions/mission_list.csv",
+        ] {
+            assert!(
+                mission
+                    .iter()
+                    .any(|version| Path::new(&version.path).ends_with(relative)
+                        && version.fingerprint.is_some())
+            );
+        }
+        assert!(mission.iter().any(|version| {
+            Path::new(&version.path).ends_with("data/missions/demo/mission_text.txt")
+                && version.fingerprint.is_none()
+        }));
         crate::io::verify_versions(&manifest.mod_root, &mission).unwrap();
         std::fs::write(root.join("data/missions/demo/new.txt"), "external").unwrap();
         assert!(crate::io::verify_versions(&manifest.mod_root, &mission).is_err());

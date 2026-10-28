@@ -28,7 +28,7 @@ for (const [source, target, name] of [
   ['src/app/composables/use-example.ts', 'src/services/entity-query.service.ts', 'hasEntityInvalidation'],
   ['src/app/composables/use-example.ts', 'src/services/csv-table.service.ts', 'hasTableInvalidation'],
   ['src/app/composables/use-example.ts', 'src/services/source-options.service.ts', 'hasSourceInvalidation'],
-  ['src/services/resource-reference.service.ts', 'src/services/query-cache.service.ts', 'createLiveSessionQuery'],
+  ['src/services/resource-reference.service.ts', 'src/services/query-cache.service.ts', 'readLiveSessionQuery'],
 ])
   test(name + ' has a formal consumer', () => {
     const files = architectureFixtures({

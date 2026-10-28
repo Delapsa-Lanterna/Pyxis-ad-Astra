@@ -3,7 +3,7 @@ import type {
   JointEditDraft,
   JointEditPrepared,
   SaveJointEditPayload,
-  SaveCsvPatchPayload,
+  CsvSave,
   AppSettings,
   CsvTableIndex,
   CsvTableRowsRead,
@@ -15,9 +15,12 @@ import type {
   AppLogStatus,
   MiscConfigWrite,
   JsonRecoveryRequest,
+  SaveDelivery,
+  SaveRequest,
+  WriteResult,
 } from '@/shared/types';
 import { createSettingsFixture } from '../../fixtures/settings';
-import { sessionUpdateFixture } from '../../fixtures/write-result';
+import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
 import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
 import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
@@ -25,6 +28,7 @@ import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-so
 import type { RowData } from '@/shared/types';
 
 let model: BrowserModel;
+let saveChannel: { onmessage: (delivery: SaveDelivery) => void } | null = null;
 export function installBrowserModel(next: BrowserModel) {
   model = next;
 }
@@ -36,6 +40,11 @@ export function browserWindowLabel() {
 }
 
 export async function invoke<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
+  const request = command === 'save_project' ? (args.request as SaveRequest) : null;
+  if (request) {
+    command = request.action.kind;
+    args = { payload: request.action.input };
+  }
   if (command === 'query_joint_edit') {
     const delay = Number(new URLSearchParams(location.search).get('readDelay') ?? 0);
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
@@ -45,10 +54,38 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
     model.failures.delete(command);
     throw typeof failure === 'string' ? Error(failure) : failure;
   }
-  return structuredClone(await dispatch(command, args)) as T;
+  const result = await dispatch(command, args);
+  if (request) {
+    const { id } = request;
+    saveChannel!.onmessage({ kind: 'waiting', modRoot: model.manifest.modRoot, waiting: true });
+    saveChannel!.onmessage({
+      kind: 'saved',
+      requestId: id,
+      event: {
+        originWindowLabel: browserWindowLabel(),
+        sessionId: model.sessionId,
+        modRoot: model.manifest.modRoot,
+        reason: command === 'refresh_project_sources' ? 'refresh' : 'save',
+        result: structuredClone(result) as WriteResult,
+      },
+    });
+    saveChannel!.onmessage({ kind: 'waiting', modRoot: model.manifest.modRoot, waiting: false });
+  }
+  return structuredClone(result) as T;
 }
 async function dispatch(command: string, args: Record<string, unknown>): Promise<unknown> {
   switch (command) {
+    case 'register_save_window':
+      saveChannel = args.channel as typeof saveChannel;
+      return;
+    case 'unregister_save_window':
+      saveChannel = null;
+      return;
+    case 'resolve_save_sources':
+    case 'abandon_project_saves':
+    case 'retry_project_save':
+    case 'wait_project_saves':
+      return;
     case 'read_settings':
       return model.settingsSnapshot();
     case 'read_default_settings':
@@ -127,7 +164,7 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
         totalRows: model.rows.length,
         rowKeys: rows.map((r) => r.rowKey),
         rows: rows.slice(0, payload.initialCount),
-        baseVersions: [{ path: model.manifest.tableSummaries.ships.path, fingerprint: String(model.commitId) }],
+        baseVersions: [{ path: model.manifest.tableSummaries.ships.path, fingerprint: String(model.saveCount) }],
       } satisfies CsvTableIndex;
     }
     case 'query_csv_table_rows': {
@@ -137,11 +174,11 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       return {
         table: payload.table,
         rows: payload.rowKeys.map((key) => byKey.get(key)!),
-        baseVersions: [{ path: model.manifest.tableSummaries.ships.path, fingerprint: String(model.commitId) }],
+        baseVersions: [{ path: model.manifest.tableSummaries.ships.path, fingerprint: String(model.saveCount) }],
       } satisfies CsvTableRowsRead;
     }
     case 'save_csv_patch':
-      return model.saveCsv(args.payload as SaveCsvPatchPayload);
+      return model.saveCsv(args.payload as CsvSave);
     case 'query_misc_config_files':
       return MISC_CONFIG_FILES.map(({ kind, path }) => ({
         kind,
@@ -174,12 +211,12 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       });
       const definition = miscConfigFile(payload.kind);
       const path = model.manifest.modRoot + '/' + definition.path;
-      result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(result.commitId) : null }];
+      result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(model.saveCount) : null }];
       result.invalidation.paths = [path];
       result.invalidation.queryScopes = Object.entries(CONFIG_OPTION_SOURCES)
         .filter(([, relative]) => relative === definition.path)
         .map(([source]) => ({ kind: 'csv-source-options', source, table: null, entity: null, resource: null }));
-      if (result.sessionUpdates[0]!.status === 'ready') result.sessionUpdates[0]!.projection.invalidation = result.invalidation;
+      result.sessionUpdates[0]!.projection.invalidation = result.invalidation;
       const index = model.miscFiles.findIndex((file) => file.kind === payload.kind);
       if (index !== -1) model.miscFiles.splice(index, 1);
       if (command === 'save_misc_config')
@@ -314,17 +351,27 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       return model.context;
     case 'query_file_history':
       return { revision: 1, undoStack: [], redoStack: [] };
-    case 'synchronize_committed_write':
-      return model.commits.get((args.payload as { commitId: number }).commitId)!.sessionUpdates[0];
     case 'refresh_project_sources': {
-      const projection = sessionUpdateFixture(model.sessionId, model.manifest.modRoot, model.commitId).projection;
-      return {
+      const projection = sessionUpdateFixture(model.sessionId, model.manifest.modRoot).projection;
+      const result = {
         ...projection,
         manifest: model.manifest,
         invalidation: {
           ...projection.invalidation,
-          resources: (args.payload as import('@/shared/types').RefreshProjectSourcesPayload).sources,
+          resources: (args.payload as import('@/shared/types').SourceRefresh).sources,
         },
+      };
+      return {
+        ...savedWriteFixture(),
+        changes: [],
+        identityChanges: [],
+        keyMap: [],
+        content: null,
+        baseVersions: [],
+
+        history: { revision: 0, undoStack: [], redoStack: [] },
+        invalidation: result.invalidation,
+        sessionUpdates: [{ sessionId: model.sessionId, modRoot: model.manifest.modRoot, projection: result }],
       };
     }
     case 'update_edit_target_registration':

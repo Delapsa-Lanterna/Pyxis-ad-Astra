@@ -11,7 +11,7 @@ export interface FileHistorySnapshot {
   redoStack: FileHistoryEntrySummary[];
 }
 
-export interface ApplyFileChangeSetPayload {
+export interface FileReplay {
   sessionId: string;
   modRoot: string;
   direction: import('@/shared/types/file-changes.types').FileChangeReplayDirection;

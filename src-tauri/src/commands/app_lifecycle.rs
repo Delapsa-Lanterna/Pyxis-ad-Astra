@@ -34,28 +34,9 @@ pub fn reserve_window_targets(
     identities: Vec<WindowIdentity>,
 ) -> Result<(), AppError> {
     let displaced = services::windows::reserve_targets(&app, window.label(), identities)?;
-    close_displaced(&app, window.label(), displaced)
+    services::app_lifecycle::close_displaced(&app, window.label(), displaced)
 }
-fn close_displaced(
-    app: &tauri::AppHandle,
-    owner: &str,
-    displaced: Vec<String>,
-) -> Result<(), AppError> {
-    for label in displaced {
-        let result = services::app_lifecycle::close_clean_window(app, &label);
-        if !matches!(result, Ok(ref result) if result.status == crate::models::CloseStatus::Closed)
-        {
-            services::windows::release_targets(owner)?;
-            return result.and_then(|_| {
-                Err(AppError::message(
-                    "window.target_unsaved",
-                    "目标窗口交接已取消",
-                ))
-            });
-        }
-    }
-    Ok(())
-}
+
 #[command_macros::command(async)]
 pub fn retarget_managed_window(
     app: tauri::AppHandle,
@@ -66,7 +47,7 @@ pub fn retarget_managed_window(
 ) -> Result<crate::models::ManagedWindowContext, AppError> {
     let displaced =
         services::windows::reserve_targets(&app, window.label(), vec![identity.clone()])?;
-    close_displaced(&app, window.label(), displaced)?;
+    services::app_lifecycle::close_displaced(&app, window.label(), displaced)?;
     let result = services::windows::retarget_window(&app, window.label(), identity, &title, input);
     services::windows::release_targets(window.label())?;
     result?;
@@ -95,7 +76,10 @@ pub fn fail_window_startup(
 pub fn read_settings(
     app_handle: tauri::AppHandle,
 ) -> Result<crate::models::SettingsSnapshot, AppError> {
-    services::app_settings::read_settings(&app_handle, apply_settings_runtime)
+    services::app_settings::read_settings(
+        &app_handle,
+        services::app_lifecycle::apply_settings_runtime,
+    )
 }
 
 #[command_macros::command(async)]
@@ -108,14 +92,6 @@ pub fn save_settings(
         &app_handle,
         window.label(),
         payload.settings,
-        apply_settings_runtime,
+        services::app_lifecycle::apply_settings_runtime,
     )
-}
-
-fn apply_settings_runtime(value: &crate::models::AppSettings) -> Result<bool, AppError> {
-    services::app_log::configure_runtime(value)?;
-    services::project::configure_media_cache(&value.cache_limits.backend_media)?;
-    services::file_history::set_history_limit(value.file_history_limit as usize)?;
-    services::performance_monitor::initialize(value.performance_monitor_enabled);
-    Ok(services::performance_monitor::enabled())
 }

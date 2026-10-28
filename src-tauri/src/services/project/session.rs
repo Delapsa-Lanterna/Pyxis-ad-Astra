@@ -54,7 +54,6 @@ pub fn close_project_session(session_id: String) -> AppResult<()> {
     let removed = cache::lock_registry()?.remove(&session_id);
     if let Some(registered) = removed {
         let root = registered.root;
-        let _lease = crate::io::acquire_root_write_lock(Path::new(&root))?;
         let same_root = cache::lock_registry()?
             .values()
             .any(|registered| registered.root == root);
@@ -93,10 +92,8 @@ pub fn invalidate_project_session(
     )?);
     session.manifest.base_versions =
         vec![super::versions::version_for_path(&session, "mod_info.json")];
-    session.projection_revision += 1;
     session.projection_pending = false;
     Ok(ProjectSessionInvalidationResult {
-        projection_revision: session.projection_revision,
         manifest: session.manifest.clone(),
         invalidation,
     })
@@ -138,7 +135,6 @@ pub(crate) fn current_projection(session_id: &str) -> AppResult<ProjectSessionIn
     Ok(ProjectSessionInvalidationResult {
         manifest: session.manifest.clone(),
         invalidation: ProjectInvalidation::default(),
-        projection_revision: session.projection_revision,
     })
 }
 
@@ -296,8 +292,7 @@ pub(super) fn build_project_session(
             .collect(),
     };
     Ok(ProjectSession {
-        json_origins: Vec::new(),
-        projection_revision: 0,
+        loaded_edit_targets: Vec::new(),
         projection_pending: false,
         source_versions,
         manifest,
@@ -398,6 +393,17 @@ pub(super) fn build_registered_session_csv_tables() -> BTreeMap<String, SessionC
             row_index: None,
             header: super::model::mission_list_default_header(),
             path: MISSION_LIST_REL_PATH.to_string(),
+            rows: None,
+            next_row_seq: 0,
+            saved_text: None,
+        },
+    );
+    tables.insert(
+        "faction-index".to_string(),
+        SessionCsvTable {
+            row_index: None,
+            header: Vec::new(),
+            path: "data/world/factions/factions.csv".into(),
             rows: None,
             next_row_seq: 0,
             saved_text: None,
@@ -957,9 +963,7 @@ pub fn refresh_project_sources(
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root))?;
     let mut session = cache::lock_ready_session(&handle)?;
     let invalidation = super::invalidation::refresh_sources(&mut session, &sources)?;
-    session.projection_revision += 1;
     Ok(ProjectSessionInvalidationResult {
-        projection_revision: session.projection_revision,
         manifest: session.manifest.clone(),
         invalidation,
     })
@@ -969,6 +973,96 @@ pub fn refresh_project_sources(
 mod source_refresh_tests {
     use super::*;
     use crate::models::{CsvTableKey, InvalidatedResourceScope, ResourceSource};
+    #[test]
+    fn missing_unloaded_csv_reports_its_unavailable_recovery_source() {
+        let root = crate::testutil::temp_dir("missing_unloaded_csv");
+        std::fs::create_dir_all(root.join("data/hulls")).unwrap();
+        let path = root.join("data/hulls/ship_data.csv");
+        let original = "id,name\na,Original\nb,Other\n";
+        std::fs::write(&path, original).unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut PerformanceTrace::new("missing.unloaded"),
+        )
+        .unwrap();
+        invalidate_project_session(
+            &manifest.session_id,
+            vec![crate::io::build_text_change(&path, Some(original.into())).unwrap()],
+        )
+        .unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let error = crate::services::query_csv_table_index(
+            &manifest.session_id,
+            CsvTableKey::Ships,
+            1,
+            None,
+            crate::models::CsvSearchField::IdName,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "write.recovery_content_missing");
+        assert!(
+            error
+                .location()
+                .unwrap()
+                .path
+                .as_ref()
+                .unwrap()
+                .ends_with("ship_data.csv")
+        );
+        close_project_session(manifest.session_id).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn removed_project_root_releases_session_history_and_registration() {
+        let root = crate::testutil::temp_dir("release_removed_project");
+        std::fs::write(root.join("notes.txt"), "before").unwrap();
+        let manifest =
+            open_project_session_traced(&root, None, &mut PerformanceTrace::new("release.removed"))
+                .unwrap();
+        let transaction = crate::services::write_transactions::begin(
+            &crate::models::TextSave {
+                session_id: Some(manifest.session_id.clone()),
+                mod_root: manifest.mod_root.clone(),
+                path: root.join("notes.txt").to_string_lossy().into(),
+                text: "after".into(),
+                base_versions: vec![],
+            },
+            &[],
+        )
+        .unwrap();
+        let result = crate::services::file_editor::save_text_file(
+            &manifest.mod_root,
+            &root.join("notes.txt").to_string_lossy(),
+            "after".into(),
+        )
+        .unwrap();
+        let saved = transaction.commit(result, "saved").unwrap();
+        assert_eq!(saved.history.undo_stack.len(), 1);
+        std::fs::remove_dir_all(&root).unwrap();
+        crate::services::project_session::release_project_session(manifest.session_id.clone())
+            .unwrap();
+        assert!(
+            !registered_session_ids()
+                .unwrap()
+                .contains(&manifest.session_id)
+        );
+        assert!(
+            crate::services::file_history::query(&manifest.mod_root)
+                .unwrap()
+                .undo_stack
+                .is_empty()
+        );
+        assert_eq!(
+            crate::services::query_entity_list(
+                &manifest.session_id,
+                crate::models::EntityKind::Ship
+            )
+            .unwrap_err()
+            .code(),
+            "session.unknown"
+        );
+    }
     #[test]
     fn refresh_keeps_rows_and_rejects_escape() {
         let root = crate::testutil::temp_dir("source_refresh");

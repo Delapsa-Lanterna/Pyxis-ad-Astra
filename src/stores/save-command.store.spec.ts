@@ -7,22 +7,21 @@ import { useSaveCommandStore, type SaveSessionHandle } from './save-command.stor
 import { flushPromises } from '@vue/test-utils';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import type { DocumentSaveResult } from '@/shared/runtime/document-editor';
-import type { EditWriteTarget } from '@/shared/types';
 import { appLogQueue } from '@/shared/runtime/app-log-queue';
+import { useProjectSyncStore } from './project-sync.store';
 
 describe('useSaveCommandStore', () => {
-  it('waits for pending synchronization and allows the active save to trigger its retry', async () => {
+  it('waits for the registered save while dispatching the active action', async () => {
     const commands = useSaveCommandStore();
-    const pendingSynchronization = ref(true);
+    const saving = ref(true);
     const retry = vi.fn(async () => {
-      pendingSynchronization.value = false;
+      saving.value = false;
       return true;
     });
     commands.registerSaveSession({
       targetKey: ref('target'),
       modRoot: ref('M:/mod'),
-      saving: ref(false),
-      pendingSynchronization,
+      saving,
       waitForSave: retry,
     });
     const handler = vi.fn();
@@ -110,43 +109,6 @@ describe('useSaveCommandStore', () => {
       expect(accepts()).toBe(false);
     },
   );
-  it('matches complete participant scopes and releases registrations and held locks', () => {
-    const commands = useSaveCommandStore();
-    const target = { sessionId: 'session', modRoot: 'M:/mod', path: 'M:/mod/data/ships.csv' };
-    const releases = [vi.fn(), vi.fn()];
-    function register(key: string, targets: EditWriteTarget[], index = 0) {
-      return commands.registerSaveSession({
-        targetKey: ref(key),
-        modRoot: ref(target.modRoot),
-        saving: ref(false),
-        waitForSave: async () => true,
-        editing: {
-          targets: ref(targets),
-          label: key,
-          dirty: ref(false),
-          draftSession: { draftValue: ref({}), inputs: createFieldInputs() },
-          save: async () => ({ status: 'noop' as const }),
-          hold: () => releases[index]!,
-        },
-      });
-    }
-    const unregisterFile = register('file', [target]);
-    register('directory', [{ ...target, path: 'm:\\MOD\\data\\' }], 1);
-    register('other-session', [{ ...target, sessionId: 'other' }]);
-    register('other-mod', [{ ...target, modRoot: 'M:/other' }]);
-    register('prefix', [{ ...target, path: 'M:/mod/data/ships.csv.copy' }]);
-    const handles = commands.participantsForTargets([target]);
-    expect(handles.map((handle) => handle.targetKey.value).sort()).toEqual(['directory', 'file']);
-    const release = commands.holdParticipants(handles, 'request');
-    expect(commands.isEditTargetLocked('file')).toBe(true);
-    expect(commands.isEditTargetLocked('directory')).toBe(true);
-    unregisterFile();
-    expect(commands.isEditTargetLocked('file')).toBe(false);
-    expect(commands.participantsForTargets([target]).map((handle) => handle.targetKey.value)).toEqual(['directory']);
-    release();
-    expect(commands.isEditTargetLocked('directory')).toBe(false);
-    releases.forEach((callback) => expect(callback).toHaveBeenCalledOnce());
-  });
 });
 
 function deferred<T>() {
@@ -189,7 +151,7 @@ describe('document save queue', () => {
     expect(entries).toEqual(['save.queued', 'save.started', 'save.completed']);
     appLogQueue.setLevel('info');
   });
-  it('serializes different documents and reads the latest input when its turn begins', async () => {
+  it('captures each document immediately and delegates file ordering to the native queue', async () => {
     const first = deferred<DocumentSaveResult>(),
       second = deferred<DocumentSaveResult>();
     const order: string[] = [];
@@ -205,12 +167,12 @@ describe('document save queue', () => {
     const savingA = a.save(),
       savingB = b.save(),
       repeated = b.save();
-    expect(order).toEqual(['CSV']);
+    expect(order).toEqual(['CSV', 'queued']);
     raw.value = 'latest';
     first.resolve({ status: 'saved', receipt: savedWriteFixture() });
     await savingA;
     await flushPromises();
-    expect(order).toEqual(['CSV', 'latest']);
+    expect(order).toEqual(['CSV', 'queued']);
     second.resolve({ status: 'noop' });
     expect(await savingB).toEqual(await repeated);
     expect(b.handle.editing!.save).toHaveBeenCalledOnce();
@@ -229,59 +191,12 @@ describe('document save queue', () => {
     if (outcome === 'fail') first.reject(new Error('disk'));
     else first.resolve({ status: 'cancelled' });
     await expectedA;
-    expect(await savingB).toEqual({ status: outcome === 'fail' ? 'cancelled' : 'noop' });
+    expect(await savingB).toEqual({ status: 'noop' });
     expect(await savingC).toEqual({ status: 'noop' });
-    expect(b.handle.editing!.save).toHaveBeenCalledTimes(outcome === 'fail' ? 0 : 1);
+    expect(b.handle.editing!.save).toHaveBeenCalledOnce();
     expect(c.handle.editing!.save).toHaveBeenCalledOnce();
   });
-  it('fulfills an already queued prerequisite through the same result while its parent is running', async () => {
-    const gate = deferred<void>(),
-      commands = useSaveCommandStore();
-    const result: DocumentSaveResult = { status: 'saved', receipt: savedWriteFixture() };
-    const b = participant('B', async () => result);
-    const a = participant('A', async () => {
-      await gate.promise;
-      const prepared = await commands.savePreparedParticipant(b.handle, 'A');
-      expect(prepared).toEqual(result);
-      return { status: 'noop' };
-    });
-    const savingA = a.save(),
-      savingB = b.save();
-    gate.resolve();
-    expect(await savingA).toEqual({ status: 'noop' });
-    expect(await savingB).toEqual(result);
-    expect(b.handle.editing!.save).toHaveBeenCalledOnce();
-    expect(commands.isPreparingParticipant('B')).toBe(false);
-  });
-  it('queues remote preparation behind an unrelated document save', async () => {
-    const gate = deferred<DocumentSaveResult>(),
-      commands = useSaveCommandStore();
-    const a = participant('A', () => gate.promise),
-      b = participant('B', async () => ({ status: 'noop' }));
-    const savingA = a.save(),
-      savingB = commands.savePreparedParticipant(b.handle);
-    await flushPromises();
-    expect(b.handle.editing!.save).not.toHaveBeenCalled();
-    gate.resolve({ status: 'noop' });
-    await savingA;
-    expect(await savingB).toEqual({ status: 'noop' });
-    expect(b.handle.editing!.save).toHaveBeenCalledOnce();
-  });
-  it('joins a running prerequisite and cancels a queued request when its session is released', async () => {
-    const gate = deferred<DocumentSaveResult>(),
-      commands = useSaveCommandStore();
-    const a = participant('A', () => gate.promise),
-      b = participant('B', async () => ({ status: 'noop' }));
-    const savingA = a.save(),
-      joiningA = commands.savePreparedParticipant(a.handle),
-      savingB = b.save();
-    b.release();
-    expect(await savingB).toEqual({ status: 'cancelled' });
-    gate.resolve({ status: 'noop' });
-    expect(await savingA).toEqual(await joiningA);
-    expect(a.handle.editing!.save).toHaveBeenCalledOnce();
-    expect(b.handle.editing!.save).not.toHaveBeenCalled();
-  });
+
   it('waits for saves added during the wait and their synchronization', async () => {
     const gate = deferred<DocumentSaveResult>(),
       later = deferred<DocumentSaveResult>();
@@ -302,5 +217,25 @@ describe('document save queue', () => {
     later.resolve({ status: 'noop' });
     await savingB;
     expect(await waiting).toBe(true);
+  });
+  it('releases a close wait on a disk failure while retaining the active save for retry', async () => {
+    const commands = useSaveCommandStore();
+    const gate = deferred<DocumentSaveResult>();
+    const item = participant('A', () => gate.promise);
+    const saving = item.save();
+    const waiting = commands.waitForSaves();
+    useProjectSyncStore().setBlocked({
+      kind: 'blocked',
+      requestId: 'disk',
+      modRoot: item.handle.modRoot.value!,
+      sessionId: 's',
+      diagnostic: { code: 'io.unexpected', message: 'disk', location: null },
+    });
+    await expect(waiting).resolves.toBe(false);
+    expect(commands.hasPendingSave()).toBe(true);
+    useProjectSyncStore().setWaiting(item.handle.modRoot.value!, true);
+    gate.resolve({ status: 'saved', receipt: savedWriteFixture() });
+    await saving;
+    expect(commands.hasPendingSave()).toBe(false);
   });
 });

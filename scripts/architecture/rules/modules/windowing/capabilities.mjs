@@ -40,12 +40,26 @@ export const windowsCapabilities = [
     },
     {
       capability: 'entity-window-identity',
-      names: ['reserveNativeWindowTargets', 'releaseNativeWindowTargets'],
+      names: ['reserveNativeWindowTargets'],
       owners: [
         { layer: 'orchestrators', domain: 'edit-target-handoff' },
         { layer: 'orchestrators', domain: 'entity-identity' },
         { layer: 'orchestrators', domain: 'csv-save' },
         { layer: 'orchestrators', domain: 'json-save' },
+      ],
+    },
+    {
+      capability: 'window-target-release',
+      names: ['releaseNativeWindowTargets'],
+      owners: [
+        { layer: 'orchestrators', domain: 'edit-target-handoff' },
+        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'csv-save' },
+        { layer: 'orchestrators', domain: 'json-save' },
+        { layer: 'app', role: 'composable', domain: 'json-document-session' },
+        { layer: 'app', role: 'composable', domain: 'json-list-selection' },
+        { layer: 'app', role: 'composable', domain: 'spec-editor-window-view-model' },
+        { layer: 'app', role: 'composable', domain: 'file-editor-view-model' },
       ],
     },
     {

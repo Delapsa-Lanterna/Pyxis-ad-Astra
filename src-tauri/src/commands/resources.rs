@@ -1,4 +1,3 @@
-use super::ensure_session_mod_scope;
 use crate::{
     errors::AppError,
     models::{
@@ -28,7 +27,7 @@ pub fn query_resource_data_urls(
 pub fn resolve_mod_relative_path(
     payload: ResolveModRelativePathPayload,
 ) -> Result<String, AppError> {
-    ensure_session_mod_scope(&payload)?;
+    crate::services::project_session::ensure_session_mod_scope(&payload)?;
     services::resolve_mod_relative_path(&payload.mod_root, &payload.absolute_path)
 }
 

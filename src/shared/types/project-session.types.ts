@@ -27,7 +27,6 @@ export interface ProjectInvalidation {
 }
 
 export interface ProjectSessionInvalidationResult {
-  projectionRevision: number;
   manifest: ProjectManifest;
   invalidation: ProjectInvalidation;
 }
@@ -92,7 +91,7 @@ export interface InvalidateProjectSessionPayload {
   changes: import('@/shared/types/file-changes.types').FileChangeRecord[];
 }
 
-export interface RefreshProjectSourcesPayload {
+export interface SourceRefresh {
   sessionId: string;
   sources: readonly InvalidatedResourceScope[];
 }

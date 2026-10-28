@@ -96,7 +96,9 @@ describe('joint edit capability protocols', () => {
     };
     invoke.mockResolvedValue({ content: { target: { kind: 'joint', root: snapshot.root }, value: snapshot } });
     await saveJointEdit(payload);
-    expect(invoke).toHaveBeenLastCalledWith('save_joint_edit', { payload });
+    expect(invoke).toHaveBeenLastCalledWith('save_project', {
+      request: { id: expect.any(String), edits: [], action: { kind: 'save_joint_edit', input: payload } },
+    });
   });
   it('shares read-only candidate snapshots and invalidates them with the session', async () => {
     invoke.mockResolvedValue(snapshot);

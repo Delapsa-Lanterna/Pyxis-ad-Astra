@@ -1,3 +1,4 @@
+import { beginSavedWrite } from '@/test/unit/project-changes';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -545,6 +546,7 @@ describe('SchemaFieldRenderer smart mode', () => {
       {
         setup() {
           const draft = useEditTargetDraftSession({
+            beginSave: beginSavedWrite,
             emptyValue: [{ name: 'A' }, { name: 'B' }],
             load: () => ({ target: 'one', baseVersions: [], meta: null, value: [] as { name: string }[] }),
             targetKey: (id: string) => id,
@@ -819,6 +821,7 @@ describe('SchemaFieldRenderer plain mode', () => {
       {
         setup() {
           session = useEditTargetDraftSession({
+            beginSave: beginSavedWrite,
             emptyValue: {},
             load: () => ({ target: 'one', baseVersions: [], meta: null, value: { count: 4 } }),
             save,
@@ -843,6 +846,6 @@ describe('SchemaFieldRenderer plain mode', () => {
     expect(document.activeElement).toBe(wrapper.get('input').element);
     await wrapper.get('input').setValue('');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', {}, []);
+    expect(save).toHaveBeenCalledWith('one', {}, [], { count: 4 }, undefined);
   });
 });

@@ -1,9 +1,6 @@
 use crate::{
     errors::AppError,
-    models::{
-        JointEditDraft, JointEditPrepared, JointEditQuery, JointEditReadResult, JointEditSnapshot,
-        JointEditSubmission, WriteResult,
-    },
+    models::{JointEditDraft, JointEditPrepared, JointEditQuery, JointEditReadResult},
     services,
 };
 
@@ -19,12 +16,4 @@ pub fn query_joint_edit(payload: JointEditQuery) -> Result<JointEditReadResult, 
 #[command_macros::command(async)]
 pub fn prepare_joint_edit(payload: JointEditDraft) -> Result<JointEditPrepared, AppError> {
     services::prepare_joint_edit(&payload)
-}
-#[command_macros::command(async)]
-pub fn save_joint_edit(
-    payload: JointEditSubmission,
-) -> Result<WriteResult<JointEditSnapshot>, AppError> {
-    let transaction = services::write_transactions::begin(&payload, &payload.base_versions)?;
-    let result = services::save_joint_edit(&payload)?;
-    transaction.commit(result, "联合保存")
 }

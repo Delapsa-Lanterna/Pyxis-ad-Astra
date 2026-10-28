@@ -2,14 +2,13 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import { createAppFeedback, type FeedbackFileAction, type FeedbackLevel } from '@/app/app-feedback';
-import type { AppFeedback, FileWindowLocation, WriteResult } from '@/shared/types';
+import type { AppFeedback, FileWindowLocation } from '@/shared/types';
 import type { FileReference } from '@/shared/lib/errors';
 import { closestRootForPath, pathBelongsToRoot } from '@/shared/lib/paths';
 import { useProjectStore } from '@/stores/project.store';
 import { managedWindowContext } from '@/windows/window-context.window';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
-import { publishCommittedWrite } from '@/orchestrators/project-sync.orchestrator';
 
 interface FeedbackFileSession {
   modRoot: string;
@@ -89,17 +88,10 @@ async function transcodeReference(feedback: AppFeedback, reference: FileReferenc
     ],
   });
   if (encoding === null) return;
-  let result: WriteResult;
   try {
-    result = await transcodeFileToUtf8(session.sessionId, session.modRoot, reference.path, encoding);
+    await transcodeFileToUtf8(session.sessionId, session.modRoot, reference.path, encoding);
   } catch (error) {
     feedback.error(error, '转码为 UTF-8 失败');
-    return;
-  }
-  try {
-    await publishCommittedWrite(session.modRoot, result, session.sessionId);
-  } catch (error) {
-    feedback.error(error, '已转码为 UTF-8，项目同步失败');
     return;
   }
   feedback.success('已转码为 UTF-8：' + reference.path);

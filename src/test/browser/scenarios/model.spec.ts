@@ -5,7 +5,7 @@ import { listen, emitTo, eventListenerCount } from '../runtime/events';
 import { resourceImage } from '../../fixtures/resources';
 import { jointObject } from '@/domain/joint-edit';
 import { createSettingsFixture } from '../../fixtures/settings';
-import type { CsvTableIndex, JointEditKind, SaveCsvPatchPayload, SettingsSnapshot, PerformanceMonitorStatus } from '@/shared/types';
+import type { CsvTableIndex, JointEditKind, CsvSave, SettingsSnapshot, PerformanceMonitorStatus } from '@/shared/types';
 
 describe('browser sample service', () => {
   it('routes targeted events and releases their listeners', async () => {
@@ -95,7 +95,7 @@ describe('browser sample service', () => {
   it('saves mixed edits and complete row order, mapping new identities before reread', async () => {
     const model = createBrowserModel('csv', 4);
     installBrowserModel(model);
-    const payload: SaveCsvPatchPayload = {
+    const payload: CsvSave = {
       sessionId: model.sessionId,
       modRoot: sampleRoot,
       table: 'ships',
@@ -159,7 +159,7 @@ describe('browser sample service', () => {
   it('keeps a failed save unchanged and synchronizes the original successful commit', async () => {
     const model = createBrowserModel('csv', 2);
     installBrowserModel(model);
-    const payload: SaveCsvPatchPayload = {
+    const payload: CsvSave = {
       sessionId: model.sessionId,
       modRoot: sampleRoot,
       table: 'ships',
@@ -172,8 +172,8 @@ describe('browser sample service', () => {
     await expect(invoke('save_csv_patch', { payload })).rejects.toThrow('save failed');
     expect(model.rows[1]!.data.id).toBe('ship_1');
     const result = model.saveCsv(payload);
-    expect(await invoke('synchronize_committed_write', { payload: { commitId: result.commitId } })).toEqual(result.sessionUpdates[0]);
-    expect(model.commitId).toBe(1);
+    expect(result.sessionUpdates[0]?.projection.manifest).toEqual(model.manifest);
+    expect(model.saveCount).toBe(1);
   });
 
   it('replaces a sample module while accepting drafts belonging to the previous module', () => {

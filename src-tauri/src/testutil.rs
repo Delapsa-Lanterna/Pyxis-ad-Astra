@@ -135,3 +135,9 @@ pub(crate) fn persistent_cache_directory() -> &'static Path {
     static CACHE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-source-cache"))
 }
+pub fn commit_saved<T: serde::de::DeserializeOwned>(
+    action: crate::models::SaveAction,
+) -> crate::errors::AppResult<crate::models::WriteResult<T>> {
+    let result = crate::services::write_transactions::commit_action(action)?;
+    Ok(serde_json::from_value(serde_json::to_value(result)?)?)
+}

@@ -56,7 +56,7 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
     };
   }
 
-  function commit(prefix?: string, validate = false): Promise<boolean> | undefined {
+  function commit(prefix?: string, validate = false, accepted?: () => void): Promise<boolean> | undefined {
     const matches = (key: string) => prefix === undefined || key === prefix || key.startsWith(prefix + '/');
     const pending = [...fields].filter((field) => field.dirty.value && matches(field.key));
     const finish = [...finalizers]
@@ -68,10 +68,14 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
             finalize(validate),
       );
     if (pending.length === 0 && finish.length === 0) return;
-    return commitPending(pending, finish);
+    return commitPending(pending, finish, accepted);
   }
 
-  async function commitPending(pending: FieldInput[], finish: Array<() => void | boolean | Promise<void | boolean>>) {
+  async function commitPending(
+    pending: FieldInput[],
+    finish: Array<() => void | boolean | Promise<void | boolean>>,
+    accepted?: () => void,
+  ) {
     const key = targetKey.value;
     const started = generation;
     for (const field of pending) {
@@ -84,11 +88,13 @@ export function createFieldInputs(targetKey: Readonly<Ref<string | null>> = ref(
         if (generation !== started || targetKey.value !== key) return false;
         throw new AppError(`${field.label}：${error}`, { action: 'commit-field-inputs' });
       }
+      accepted?.();
       await nextTick();
     }
     if (generation !== started || targetKey.value !== key) return false;
     for (const finalize of finish) {
       if (generation !== started || targetKey.value !== key || (await finalize()) === false) return false;
+      accepted?.();
     }
     if (generation !== started || targetKey.value !== key) return false;
     return true;

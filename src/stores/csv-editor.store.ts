@@ -1,3 +1,4 @@
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import type { DocumentEditorActions } from '@/shared/runtime/document-editor';
 import {
   canRedoEntry,
@@ -43,6 +44,8 @@ import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import {
   applyCsvDraftOperation,
   applyCsvTableIndexDraft,
+  acceptSavedCsvTableIndex,
+  acceptSavedCsvTableRows,
   applyCsvTableRowsDraft,
   csvVisibleRowKeys,
   clearCsvTableExternalUpdateDraft,
@@ -66,7 +69,7 @@ interface CsvTableRuntime extends CsvTableState {
   history: UndoStackState<CsvTableHistoryEntry>;
   readGeneration: number;
   saving: boolean;
-  saveActions: Raw<Pick<DocumentEditorActions<CsvTableTarget>, 'save' | 'waitForSave' | 'saving' | 'pendingSynchronization'>> | null;
+  saveActions: Raw<Pick<DocumentEditorActions<CsvTableTarget>, 'save' | 'waitForSave' | 'saving'>> | null;
   editor: Raw<DocumentEditorActions<CsvTableTarget>> | null;
 }
 interface CsvModRuntime extends Omit<CsvModState, 'documents'> {
@@ -232,6 +235,14 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
   function applyTableIndex(target: CsvTableTarget, index: import('@/shared/types').DeepReadonly<CsvTableIndex>, filtered = false) {
     const state = stateMap.get(target.modRoot)!;
     applyCsvTableIndexDraft(state.documents[target.table], index, filtered, getTableInputs(target.modRoot, target.table).dirty.value);
+  }
+
+  function acceptSavedTableIndex(target: CsvTableTarget, index: import('@/shared/types').DeepReadonly<CsvTableIndex>, filtered = false) {
+    acceptSavedCsvTableIndex(stateMap.get(target.modRoot)!.documents[target.table], index, filtered);
+  }
+
+  function acceptSavedTableRows(target: CsvTableTarget, rows: import('@/shared/types').DeepReadonly<CsvTableRowsRead>) {
+    acceptSavedCsvTableRows(stateMap.get(target.modRoot)!.documents[target.table], rows.rows);
   }
 
   function applyTableRows(target: CsvTableTarget, rows: import('@/shared/types').DeepReadonly<CsvTableRowsRead>) {
@@ -481,7 +492,6 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
       inputs,
       dirty: computed(() => hasCsvTableDraftChanges(state.documents[target.table]) || inputs.dirty.value),
       saving: computed(() => runtime.saving || (runtime.saveActions?.saving.value ?? false)),
-      pendingSynchronization: computed(() => runtime.saveActions?.pendingSynchronization.value ?? false),
       canUndo: computed(() => canUndoCsvTable(target.modRoot, target.table) || inputs.dirty.value),
       canRedo: computed(() => canRedoCsvTable(target.modRoot, target.table) || inputs.dirty.value),
       undo: () => replay('undo'),
@@ -491,7 +501,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
 
   function bindSaveActions(
     target: CsvTableTarget,
-    actions: Pick<DocumentEditorActions<CsvTableTarget>, 'save' | 'waitForSave' | 'saving' | 'pendingSynchronization'>,
+    actions: Pick<DocumentEditorActions<CsvTableTarget>, 'save' | 'waitForSave' | 'saving'>,
   ) {
     const runtime = stateMap.get(target.modRoot)!.documents[target.table];
     runtime.saveActions = markRaw(actions);
@@ -550,8 +560,9 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     isTableLocked,
     canSaveCurrentTable: computed(
       () =>
-        hasCurrentTableChanges.value ||
-        Boolean(workspace.activeManifest && !workspace.activeManifest.tableSummaries[currentTab.value].available),
+        !useProjectSyncStore().isWaiting(workspace.activeModRoot) &&
+        (hasCurrentTableChanges.value ||
+          Boolean(workspace.activeManifest && !workspace.activeManifest.tableSummaries[currentTab.value].available)),
     ),
     hasCurrentTableChanges,
     hasCurrentRowOrderChanges,
@@ -589,6 +600,8 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     replaceTableForMod,
     discardTableDraftForReload,
     applyTableIndex,
+    acceptSavedTableIndex,
+    acceptSavedTableRows,
     applyTableRows,
     markTableExternalUpdate,
     clearTableExternalUpdate,

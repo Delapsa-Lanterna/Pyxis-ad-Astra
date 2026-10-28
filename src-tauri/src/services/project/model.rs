@@ -308,8 +308,7 @@ pub(super) struct SessionCsvRow {
 }
 
 pub(super) struct ProjectSession {
-    pub json_origins: Vec<crate::models::EntityEditTarget>,
-    pub projection_revision: u64,
+    pub loaded_edit_targets: Vec<crate::models::EntityEditTarget>,
     pub projection_pending: bool,
     pub source_versions: BTreeMap<String, crate::models::FileVersion>,
     pub manifest: ProjectManifest,

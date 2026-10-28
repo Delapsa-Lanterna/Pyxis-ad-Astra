@@ -257,7 +257,7 @@ pub struct JointEditPrepared {
     pub conflicts: Vec<JointEditConflict>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointEditSubmission {
     pub snapshot: JointEditSnapshot,

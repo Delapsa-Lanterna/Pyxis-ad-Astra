@@ -1,17 +1,29 @@
-import type {
-  InvalidateProjectSessionPayload,
-  RefreshProjectSourcesPayload,
-  FileChangeRecord,
-  ProjectSessionInvalidationResult,
-  SynchronizeCommittedWritePayload,
-  CommittedSessionUpdate,
-} from '@/shared/types';
-import { invokeCommand } from '@/shared/runtime/command.runtime';
+import type { InvalidateProjectSessionPayload, SourceRefresh, FileChangeRecord, ProjectSessionInvalidationResult } from '@/shared/types';
+import { commandChannel, invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
+import type { SaveDelivery } from '@/shared/types';
 
-export function synchronizeSessionCommit(sessionId: string, modRoot: string, commitId: number): Promise<CommittedSessionUpdate> {
-  return invokeCommand('synchronize_committed_write', {
-    payload: { sessionId, modRoot, commitId } satisfies SynchronizeCommittedWritePayload,
-  });
+export function registerSaveWindow(receive: (delivery: SaveDelivery) => void) {
+  return invokeCommand<void>('register_save_window', { channel: commandChannel(receive) });
+}
+
+export function abandonProjectSaves(modRoots: string[]) {
+  return invokeCommand<void>('abandon_project_saves', { modRoots });
+}
+
+export function resolveSaveSources(requestId: string, paths: string[], accepted: boolean) {
+  return invokeCommand<void>('resolve_save_sources', { requestId, paths, accepted });
+}
+
+export function unregisterSaveWindow() {
+  return invokeCommand<void>('unregister_save_window');
+}
+
+export function retryProjectSave(requestId: string) {
+  return invokeCommand<void>('retry_project_save', { requestId });
+}
+
+export function waitProjectSaves(modRoots: string[]) {
+  return invokeCommand<void>('wait_project_saves', { modRoots });
 }
 
 export function requestProjectSessionRefresh(sessionId: string, changes: FileChangeRecord[]): Promise<ProjectSessionInvalidationResult> {
@@ -21,6 +33,6 @@ export function requestProjectSessionRefresh(sessionId: string, changes: FileCha
 export function refreshProjectSources(
   sessionId: string,
   sources: readonly import('@/shared/types').InvalidatedResourceScope[],
-): Promise<ProjectSessionInvalidationResult> {
-  return invokeCommand('refresh_project_sources', { payload: { sessionId, sources } satisfies RefreshProjectSourcesPayload });
+): Promise<import('@/shared/types').WriteResult<unknown>> {
+  return invokeSaveCommand('refresh_project_sources', { payload: { sessionId, sources } satisfies SourceRefresh });
 }

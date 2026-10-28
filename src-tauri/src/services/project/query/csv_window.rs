@@ -13,6 +13,15 @@ use crate::{
     },
 };
 
+pub(crate) fn read_project_csv(
+    session_id: &str,
+    relative: &str,
+) -> AppResult<crate::models::CsvTable> {
+    let handle = session_handle(session_id)?;
+    let session = lock_ready_session(&handle)?;
+    super::super::cache::csv::read_retained_csv(&session, relative)
+}
+
 pub fn query_csv_table_index(
     session_id: &str,
     table: CsvTableKey,
@@ -54,6 +63,8 @@ pub fn query_csv_table_index(
         &session,
         &table_data.path,
     )];
+    #[cfg(test)]
+    crate::io::csv_files::record_csv_row_copies(rows.len());
     Ok(CsvTableIndex {
         base_versions,
         table,
@@ -104,6 +115,8 @@ pub fn query_csv_table_rows(
         &session,
         &registered_session_table(&session, table)?.path,
     )];
+    #[cfg(test)]
+    crate::io::csv_files::record_csv_row_copies(rows.len());
     Ok(CsvTableRowsRead {
         base_versions,
         table,
@@ -223,16 +236,18 @@ mod tests {
         assert_eq!(batch.rows[0].data["id"], "b");
         assert!(batch.rows[1].is_comment);
         assert_eq!(batch.rows[2].data["id"], "");
-        let saved = crate::commands::save_csv_patch(crate::models::SaveCsvPatchPayload {
-            session_id: manifest.session_id.clone(),
-            mod_root: manifest.mod_root.clone(),
-            table: CsvTableKey::Ships,
-            base_versions: index.base_versions.clone(),
-            patches: vec![],
-            associated_specs: vec![],
-            json_write: Default::default(),
-            row_order: Some(index.row_keys.iter().rev().cloned().collect()),
-        })
+        let saved = crate::services::write_transactions::commit_action(
+            crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
+                session_id: manifest.session_id.clone(),
+                mod_root: manifest.mod_root.clone(),
+                table: CsvTableKey::Ships,
+                base_versions: index.base_versions.clone(),
+                patches: vec![],
+                associated_specs: vec![],
+                json_write: Default::default(),
+                row_order: Some(index.row_keys.iter().rev().cloned().collect()),
+            }),
+        )
         .unwrap();
         assert_eq!(saved.changes.len(), 1);
         let batch =

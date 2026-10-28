@@ -1,10 +1,11 @@
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { onScopeDispose, shallowRef, watch, type Ref } from 'vue';
-import { listenEntityIdentityApplied } from '@/orchestrators/project-sync.orchestrator';
+import { listenSavedIdentity } from '@/orchestrators/project-sync.orchestrator';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import type { EditTargetDraftSession, EditTargetSnapshot } from '@/app/composables/use-edit-target-draft-session';
 import type { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import type { AppFeedback, EntityKind } from '@/shared/types';
+import { AppError } from '@/shared/lib/errors';
 
 export interface JsonDocumentIdentity<TValue, TTarget, TMeta> {
   kind: EntityKind;
@@ -38,7 +39,9 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
           content: '保留当前草稿、活动输入和历史，并接纳新的正式身份。',
           choices: [{ label: '保留编辑并跟随', value: 'follow', type: 'primary' }],
         });
-        if (choice !== 'follow' || disposed || pending.value !== handoff || !active.value) return;
+        if (disposed || pending.value !== handoff || !active.value) return;
+        if (choice !== 'follow')
+          throw new AppError('文档身份交接尚未确认', { code: 'write.identity_pending', action: 'follow-saved-identity' });
       }
       await adopt(handoff);
     } finally {
@@ -54,37 +57,32 @@ export function useJsonDocumentIdentity<TValue, TTarget extends { sessionId: str
     }
   }
   if (identity) {
-    void listenEntityIdentityApplied(async (event) => {
+    void listenSavedIdentity(async (event) => {
       const target = session.currentTarget.value;
       if (!target || target.sessionId !== event.sessionId || normalizeFsPath(target.modRoot) !== normalizeFsPath(event.modRoot)) return;
       const change = event.result.identityChanges.find(
         (change) => change.before.kind === identity.kind && change.before.id === target.id && change.before.id !== change.after.id,
       );
-      if (!change || !session.isTargetCommitCurrent(target, event.result.commitId)) return;
+      if (!change || !session.acceptsSaveDelivery(target, event.result.requestId)) return;
       try {
-        if (session.saving.value && !(await session.waitForSave())) return;
-        if (disposed || !session.isTargetCommitCurrent(target, event.result.commitId)) return;
-        await reads.consume(
-          'identity',
-          { target, commitId: event.result.commitId },
-          (signal) => identity.read(target, change.after.id, signal),
-          {
-            ready: (snapshot) => {
-              if (snapshot)
-                pending.value = {
-                  snapshot: { ...snapshot, commitId: event.result.commitId },
-                  previousId: change.before.id,
-                  nextId: change.after.id,
-                };
-            },
+        if (disposed || !session.acceptsSaveDelivery(target, event.result.requestId)) return;
+        await reads.consume('identity', { target }, (signal) => identity.read(target, change.after.id, signal), {
+          ready: (snapshot) => {
+            if (snapshot)
+              pending.value = {
+                snapshot: { ...snapshot },
+                previousId: change.before.id,
+                nextId: change.after.id,
+              };
           },
-        );
+        });
         const handoff = pending.value;
         if (!handoff || disposed) return;
-        if (session.dirty.value) await acceptPending();
+        if (session.dirty.value && active.value) await acceptPending();
         else await adopt(handoff);
       } catch (error) {
         if (!disposed) feedback.error(error, '同步文档重命名失败');
+        throw error;
       }
     })
       .then((listener) => {

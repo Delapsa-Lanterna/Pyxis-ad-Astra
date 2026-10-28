@@ -10,7 +10,7 @@ import {
   visibleModFiles,
   affectedModDirectories,
 } from '@/domain/mod-file-browser/file-tree';
-import { listenProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { listenSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { formatError } from '@/shared/lib/errors';
@@ -116,14 +116,14 @@ export function useModFileBrowserViewModel() {
       });
     });
   }
-  async function load(directory: string | null) {
+  async function load(directory: string | null, required = false) {
     const captured = target.value;
     if (!captured || disposed) return false;
-    const accepted = await directoryReads.request({ sessionId: captured.sessionId, directory });
+    const accepted = await directoryReads.request({ sessionId: captured.sessionId, directory }, 'foreground', required);
     if (accepted && captured.sessionId === target.value?.sessionId) afterDisplay(directory);
     return accepted;
   }
-  async function submitSearch() {
+  async function submitSearch(required = false) {
     cancelSearchTimer();
     const captured = target.value,
       query = state.value?.search.text.trim();
@@ -142,6 +142,7 @@ export function useModFileBrowserViewModel() {
       },
       error: (error) => {
         search.error = formatError(error);
+        if (required) throw error;
       },
       settled: () => {
         search.loading = false;
@@ -285,30 +286,34 @@ export function useModFileBrowserViewModel() {
   );
   function scheduleUpdates(paths: readonly string[]) {
     if (searching.value) {
-      if (paths.length) reads.schedule('search-update', () => void submitSearch());
-      return;
+      return paths.length ? [() => submitSearch(true)] : [];
     }
     const affected = affectedModDirectories(state.value!.directories, paths);
     directoryReads.revoke(({ directory }) => affected.includes(directory));
-    for (const directory of affected) reads.schedule('refresh:' + JSON.stringify(directory), () => void load(directory));
+    return affected.map((directory) => () => load(directory, true).then(() => {}));
   }
-  void listenProjectChanges((change) => {
-    const captured = target.value;
-    if (!captured || disposed || projectChangeSessionId(change) !== captured.sessionId) return;
-    if (change.kind === 'closed') {
+  void listenSavedContent(
+    (change) => {
+      const captured = target.value;
+      const projection = saveProjection(change, captured?.sessionId);
+      if (!projection) return;
+      if (!captured || disposed || projection.manifest.sessionId !== captured.sessionId) return;
+
+      if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(captured.modRoot)) return;
+      const paths = projection.invalidation.paths.map((path) =>
+        isAbsoluteFsPath(path) ? relativePathFromRoot(captured.modRoot, path) : path,
+      );
+      return scheduleUpdates(paths);
+    },
+    (sessionId) => {
+      if (sessionId !== target.value?.sessionId) return;
       cancelSearchTimer();
       reads.revoke('session');
       cancelPrefetch();
       directoryReads.revoke(() => true, 'session');
-      resetPending(change.sessionId);
-      return;
-    }
-    if (normalizeFsPath(change.projection.manifest.modRoot) !== normalizeFsPath(captured.modRoot)) return;
-    const paths = change.projection.invalidation.paths.map((path) =>
-      isAbsoluteFsPath(path) ? relativePathFromRoot(captured.modRoot, path) : path,
-    );
-    scheduleUpdates(paths);
-  })
+      resetPending(sessionId);
+    },
+  )
     .then((stop) => {
       if (disposed) stop();
       else stopWrites = stop;

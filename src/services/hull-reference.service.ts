@@ -1,14 +1,14 @@
 import type { HullReferencesResult, HullReferencesPayload, DeepReadonly } from '@/shared/types';
 
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { createCachedSessionQuery } from '@/services/query-cache.service';
+import { CachedSessionQuery } from '@/services/query-cache.service';
 import { hullReferenceOptions, hullWeaponSlotOptions, type HullSlotKind } from '@/domain/resources/hull-references';
 
 export function hasHullReferencesInvalidation(invalidation: import('@/shared/types').ProjectInvalidation) {
   return invalidation.session || invalidation.queryScopes.some((scope) => scope.kind === 'hull-references');
 }
 
-const readHullReferences = createCachedSessionQuery<Omit<HullReferencesPayload, 'sessionId'>, HullReferencesResult>({
+const readHullReferences = new CachedSessionQuery<Omit<HullReferencesPayload, 'sessionId'>, HullReferencesResult>({
   queryKind: 'hull-references',
   load: ({ sessionId, parameters }) =>
     invokeCommand<HullReferencesResult>('query_hull_references', { payload: { sessionId, ...parameters } satisfies HullReferencesPayload }),
@@ -21,7 +21,7 @@ export function querySessionHullReferences(
   signal?: AbortSignal,
 ): Promise<DeepReadonly<HullReferencesResult>> {
   const parameters = { referenceIds: [...new Set(referenceIds)].sort() };
-  return readHullReferences(sessionId, parameters, signal);
+  return readHullReferences.read(sessionId, parameters, signal);
 }
 
 export async function queryHullReferenceOptions(sessionId: string, referenceIds: readonly string[], signal?: AbortSignal) {

@@ -1,3 +1,4 @@
+import { beginSavedWrite } from '@/test/unit/project-changes';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { flushPromises, mount } from '@vue/test-utils';
 import { h } from 'vue';
@@ -23,6 +24,7 @@ async function harness(
     {
       setup() {
         session = useEditTargetDraftSession<RowData, string, null>({
+          beginSave: beginSavedWrite,
           emptyValue: {},
           targetKey: (target) => target,
           load: (target) => ({ target, value: { count: 4 }, baseVersions: [], meta: null }),
@@ -70,7 +72,7 @@ describe('Smart numeric input with real Naive UI', () => {
     await wrapper.get('[aria-label="增加"]').trigger('click', { shiftKey, ctrlKey });
     expect(session.draftValue.value.count).toBe(expected);
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { count: expected }, []);
+    expect(save).toHaveBeenCalledWith('one', { count: expected }, [], expect.any(Object), undefined);
     await wrapper.get('[aria-label="减少"]').trigger('click', { shiftKey, ctrlKey });
     expect(session.draftValue.value.count).toBe(4);
   });
@@ -121,14 +123,14 @@ describe('Smart numeric input with real Naive UI', () => {
     expect(save).not.toHaveBeenCalled();
     await input.setValue('12.5');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', { count: 12.5 }, []);
+    expect(save).toHaveBeenCalledWith('one', { count: 12.5 }, [], expect.any(Object), undefined);
     expect(session.dirty.value).toBe(false);
   });
   it('removes an optional key on save and retains required empty input', async () => {
     const { session, save } = await harness();
     await wrapper.get('input').setValue('');
     await session.saveDraft();
-    expect(save).toHaveBeenCalledWith('one', {}, []);
+    expect(save).toHaveBeenCalledWith('one', {}, [], expect.any(Object), undefined);
     wrapper.unmount();
     const required = await harness('required');
     await wrapper.get('input').setValue('');

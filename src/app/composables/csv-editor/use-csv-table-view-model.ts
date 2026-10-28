@@ -2,7 +2,7 @@ import { hasSourceInvalidation, querySourceOptionCatalog } from '@/services/sour
 import { hasTableInvalidation, queryTableRowPreviewDataUrl, queryTableIndex, queryTableRows } from '@/services/csv-table.service';
 import { relativePathFromRoot } from '@/shared/lib/paths';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths, subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { parseCsvSource } from '@/domain/schema/csv-source-options';
 import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -225,36 +225,42 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
       workspace.setColumnWidths(captured.modRoot, captured.table, { ...columnWidthOverrides.value, [key]: Math.max(40, width) });
   }
 
-  const stopQueryInvalidation = subscribeProjectChanges((event) => {
-    if (projectChangeSessionId(event) !== workspace.activeSessionId) return;
-    if (event.kind === 'closed') {
-      reads.revoke();
-      return;
-    }
-    const tableWindowChanged = hasTableInvalidation(event.projection.invalidation, 'csv-table-window', tables.currentTab);
-    if (tableWindowChanged) {
-      if (tables.saving || tables.currentTableLocked) {
-        refreshAfterSave = true;
-      } else if (
-        tables.hasTableDirtyChanges(tables.currentTab) ||
-        tables.getTableInputs(target.value!.modRoot, tables.currentTab).dirty.value
-      ) {
-        tables.markTableExternalUpdate(target.value!);
-      } else {
-        reads.schedule('window', () => {
-          void reloadCurrentTableWindow();
+  const stopQueryInvalidation = observeSavedContent(
+    (event) => {
+      const projection = saveProjection(event, workspace.activeSessionId);
+      if (!projection) return;
+      const tasks: import('@/stores/project-sync.store').SaveTask[] = [];
+      if (hasTableInvalidation(projection.invalidation, 'csv-table-window', tables.currentTab)) {
+        tasks.push(async () => {
+          const captured = target.value!;
+          reads.revoke();
+          clearRowQueue();
+          const index = await queryTableIndex(
+            captured.sessionId,
+            captured.table,
+            Math.max(lastRange.count, 240),
+            tables.searchText || null,
+            tables.searchField,
+          );
+          tables.acceptSavedTableIndex(captured, index, Boolean(tables.searchText.trim()));
+          refreshAfterSave = false;
+          widthSample.value = cloneQuerySnapshot<import('@/shared/types').CsvDraftRow[]>(index.rows);
+          windowReady.value = true;
+          lockColumnWidthsForLoadedModel();
         });
       }
-    }
-    const sources = visibleSourceIds();
-    const optionsChanged =
-      [...sources].some((source) => hasSourceInvalidation(event.projection.invalidation, source)) ||
-      hasResourceInvalidation(event.projection.invalidation, loadedSourceResourceRefs());
-    if (!optionsChanged) return;
-    reads.schedule('source', () => {
-      void reloadVisibleSourceOptions();
-    });
-  });
+      if (
+        [...visibleSourceIds()].some((source) => hasSourceInvalidation(projection.invalidation, source)) ||
+        hasResourceInvalidation(projection.invalidation, loadedSourceResourceRefs())
+      )
+        tasks.push(() => reloadVisibleSourceOptions(true));
+      return tasks;
+    },
+    (sessionId) => {
+      if (sessionId === workspace.activeSessionId) reads.revoke('session');
+    },
+  );
+
   watch(
     () => tables.saving || tables.currentTableLocked,
     (saving) => {
@@ -482,7 +488,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     pendingRows = new Set();
   }
 
-  async function reloadVisibleSourceOptions() {
+  async function reloadVisibleSourceOptions(required = false) {
     const sessionId = workspace.activeSessionId;
     if (!sessionId) return;
     const table = tables.currentTab;
@@ -503,7 +509,10 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
           loadedSourceOptions.value = new Map(entries);
           lockColumnWidthsForLoadedModel();
         },
-        error: (error) => feedback.error(error, '加载来源选项失败'),
+        error: (error) => {
+          feedback.error(error, '加载来源选项失败');
+          if (required) throw error;
+        },
       },
     );
   }

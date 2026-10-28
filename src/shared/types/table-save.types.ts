@@ -27,7 +27,7 @@ export interface CsvRowPatch {
   row: RowData;
 }
 
-export interface SaveCsvPatchPayload {
+export interface CsvSave {
   rowOrder: CsvRowOrderEntry[] | null;
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string;

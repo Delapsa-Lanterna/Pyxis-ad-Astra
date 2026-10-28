@@ -1,6 +1,6 @@
 import { hasJointEditInvalidation } from '@/services/joint-edit.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
-import { refreshProjectSourcePaths, subscribeProjectChanges, projectChangeSessionId } from '@/orchestrators/project-sync.orchestrator';
+import { refreshProjectSourcePaths, observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { computed, ref, shallowRef, watch, onScopeDispose } from 'vue';
 import type { JointEditRoot, ResourceRef, RowData } from '@/shared/types/index';
 import { querySpecShipWeaponSources } from '@/services/spec-ship-editor.service';
@@ -47,12 +47,12 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
       mediaFailures.value = items;
     },
   });
-  function load() {
+  function load(required = false) {
     const target = { ...root() },
       draft = ship();
     sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: '' };
     mediaFailures.value = [];
-    void reads.consume(
+    return reads.consume(
       'weapons',
       { ...target, builtInWeapons: draft.builtInWeapons },
       (signal) => querySpecShipWeaponSources(target, draft, signal),
@@ -62,24 +62,34 @@ export function useSpecShipWeapons(root: () => JointEditRoot, ship: () => RowDat
         },
         error: (error) => {
           sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: formatError(error) };
+
+          if (required) throw error;
         },
       },
     );
   }
-  watch(() => JSON.stringify([root(), ship().builtInWeapons]), load, { immediate: true });
+  watch(
+    () => JSON.stringify([root(), ship().builtInWeapons]),
+    () => {
+      void load();
+    },
+    { immediate: true },
+  );
   onScopeDispose(
-    subscribeProjectChanges((event) => {
-      if (
-        projectChangeSessionId(event) !== root().sessionId ||
-        (event.kind !== 'closed' && !hasJointEditInvalidation(event.projection.invalidation))
-      )
-        return;
-      if (event.kind === 'closed') {
+    observeSavedContent(
+      (event) => {
+        const projection = saveProjection(event, root().sessionId);
+        if (!projection) return;
+        if (projection.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(projection.invalidation)) return;
+        return load(true);
+      },
+      (sessionId) => {
+        if (sessionId !== root().sessionId) return;
         reads.revoke('session');
         sources.value = { baseVersions: [], hints: [], weapons: {}, diagnostic: '' };
         media.clear();
-      } else reads.schedule('weapons', load);
-    }),
+      },
+    ),
   );
   watch(
     resources,

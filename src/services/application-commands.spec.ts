@@ -8,7 +8,7 @@ import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-stat
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
-import { synchronizeSessionCommit, requestProjectSessionRefresh, refreshProjectSources } from './project-sync.service';
+import { requestProjectSessionRefresh, refreshProjectSources } from './project-sync.service';
 import { queryOriginalFont } from './font.service';
 import { openProject, closeProject } from './project-session.service';
 import {
@@ -75,11 +75,6 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
     () => refreshProjectSources('s1', [{ source: 'core', relPath: 'data/hulls/demo.ship' }]),
     { payload: { sessionId: 's1', sources: [{ source: 'core', relPath: 'data/hulls/demo.ship' }] } },
   ],
-  [
-    'synchronize_committed_write',
-    () => synchronizeSessionCommit('s1', 'M:/mod', 7),
-    { payload: { sessionId: 's1', modRoot: 'M:/mod', commitId: 7 } },
-  ],
   ['request_close', () => requestClose({ kind: 'window' }), { scope: { kind: 'window' } }],
   ['reply_close', () => replyNativeClose(1, 'hold', true), { operationId: 1, phase: 'hold', accepted: true, diagnostic: null }],
   ['ready_close', readyNativeClose, undefined],
@@ -111,6 +106,11 @@ beforeEach(() => {
 describe('application capability protocols', () => {
   it.each(cases)('%s maps the formal arguments to Tauri', async (command, action, args) => {
     await action();
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(command, args);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      command === 'refresh_project_sources' ? 'save_project' : command,
+      command === 'refresh_project_sources'
+        ? { request: { id: expect.any(String), edits: [], action: { kind: command, input: args!.payload } } }
+        : args,
+    );
   });
 });

@@ -71,7 +71,7 @@ function checkFlatSection(name, body, start, report) {
   }
   const min = MIN_SECTION_LINES[name];
   if (body.filter(Boolean).length < min) report(start, `${name} must contain at least ${min} entries`);
-  let previous = null;
+  const entries = new Set();
   for (let index = 0; index < body.length; index++) {
     const line = body[index];
     if (!/^- \S.*$/.test(line) || !plainLine(line.slice(2))) {
@@ -79,8 +79,8 @@ function checkFlatSection(name, body, start, report) {
       continue;
     }
     const key = line.slice(2).replace(/`/g, '');
-    if (previous !== null && previous >= key) report(start + index, `${name} entries must be unique and in dictionary order`);
-    previous = key;
+    if (entries.has(key)) report(start + index, `${name} entries must be unique`);
+    entries.add(key);
   }
 }
 

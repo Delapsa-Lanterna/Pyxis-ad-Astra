@@ -14,6 +14,7 @@ import { createCsvDeletedRow, createCsvDirtyCells, csvDirtyCells, hasCsvDirtyCel
 import { createTableRowKey } from '@/domain/csv-editor/table-row-key';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
+import { retainLaterDraft } from '@/domain/project/save-edits';
 
 export interface CsvDraftResult {
   changed: boolean;
@@ -73,6 +74,41 @@ export function applyCsvTableIndexDraft(
   acceptRows(state, record);
   updateCounts(state);
   return { changed: true };
+}
+
+export function acceptSavedCsvTableRows(state: CsvTableState, rows: DeepReadonly<CsvTableRowsRead['rows']>) {
+  for (const entry of rows) {
+    const before = state.baselineRows[entry.rowKey];
+    const current = state.rows[entry.rowKey];
+    if (current && before) {
+      current.data = retainLaterDraft(current.data, before.data, cloneQuerySnapshot<CsvDraftRow['data']>(entry.data));
+      current.isComment = retainLaterDraft(current.isComment, before.isComment, entry.isComment);
+    } else if (!state.dirty[entry.rowKey]) state.rows[entry.rowKey] = cloneQuerySnapshot<CsvDraftRow>(entry);
+    state.baselineRows[entry.rowKey] = cloneQuerySnapshot<CsvDraftRow>(entry);
+  }
+  rebuildDirty(state);
+  updateCounts(state);
+}
+
+export function acceptSavedCsvTableIndex(state: CsvTableState, index: DeepReadonly<CsvTableIndex>, filtered = false) {
+  acceptSavedCsvTableRows(state, index.rows);
+  if (filtered) state.queryRowKeys = [...index.rowKeys];
+  else {
+    const moved = hasCsvRowOrderChanges(state);
+    const formal = new Set(index.rowKeys);
+    for (const key of Object.keys(state.baselineRows)) {
+      if (formal.has(key)) continue;
+      if (!state.dirty[key]) delete state.rows[key];
+      delete state.baselineRows[key];
+    }
+    state.baselineRowOrder = [...index.rowKeys];
+    if (!moved) state.rowOrder = [...index.rowKeys];
+  }
+  state.header = [...index.header];
+  state.baseVersions = cloneQuerySnapshot<CsvTableIndex['baseVersions']>(index.baseVersions);
+  rebuildDirty(state);
+  state.externalUpdatePending = false;
+  updateCounts(state);
 }
 export function applyCsvTableRowsDraft(state: CsvTableState, record: DeepReadonly<CsvTableRowsRead>, pending = false): CsvDraftResult {
   if (!acceptsRows(state, record, pending)) return { changed: false, externalUpdateMarked: true };

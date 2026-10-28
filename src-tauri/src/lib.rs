@@ -52,6 +52,11 @@ pub fn run() {
                 diagnostics::record(format!("release window registration: {error}"));
             }
             if matches!(event, tauri::WindowEvent::Destroyed)
+                && let Err(error) = services::project_sync::release_window(window.label())
+            {
+                diagnostics::record(format!("release save delivery: {error}"));
+            }
+            if matches!(event, tauri::WindowEvent::Destroyed)
                 && let Err(error) = services::app_lifecycle::destroyed(window.label())
             {
                 diagnostics::record(format!("close lifecycle release: {error}"));
@@ -106,9 +111,9 @@ pub fn run() {
                     commands::release_window_targets,
                     commands::retarget_managed_window,
                     commands::query_file_history,
+                    commands::save_project,
                     commands::query_entity_edit_target,
                     commands::prepare_json_source_recovery,
-                    commands::recreate_json_sources,
                     commands::query_entity_identity_intent,
                     commands::clear_file_history,
                     commands::open_project_session,
@@ -122,26 +127,26 @@ pub fn run() {
                     commands::query_entity,
                     commands::query_misc_config_files,
                     commands::query_misc_config_file,
-                    commands::save_misc_config,
-                    commands::delete_misc_config,
                     commands::query_mod_directory,
                     commands::query_mod_file_search,
                     commands::query_mod_text_file_target,
                     commands::query_joint_edit,
                     commands::prepare_joint_edit,
-                    commands::save_joint_edit,
                     commands::query_entity_list,
                     commands::query_draft_resources,
                     commands::query_engine_render_assets,
                     commands::query_resource_data_urls,
                     commands::invalidate_project_session,
-                    commands::refresh_project_sources,
-                    commands::synchronize_committed_write,
+                    commands::register_save_window,
+                    commands::unregister_save_window,
+                    commands::abandon_project_saves,
+                    commands::resolve_save_sources,
+                    commands::retry_project_save,
+                    commands::wait_project_saves,
                     commands::invalidate_core_cache,
                     commands::detect_directory,
                     commands::scan_game_overview,
                     commands::create_mod,
-                    commands::save_csv_patch,
                     commands::resolve_mod_relative_path,
                     commands::load_workspace,
                     commands::save_workspace,
@@ -154,15 +159,6 @@ pub fn run() {
                     commands::read_default_settings,
                     commands::save_settings,
                     commands::query_system_fonts,
-                    commands::save_indexed_config_entity,
-                    commands::create_indexed_config_entity,
-                    commands::delete_indexed_config_entity,
-                    commands::save_variant_entity,
-                    commands::create_variant_entity,
-                    commands::delete_variant_entity,
-                    commands::save_skin_entity,
-                    commands::create_skin_entity,
-                    commands::delete_skin_entity,
                     commands::scan_core_fields,
                     commands::scan_core_graphics,
                     commands::query_original_font,
@@ -170,11 +166,6 @@ pub fn run() {
                     commands::query_text_identity_intent,
                     commands::follow_text_identity,
                     commands::load_imported_editor_spec_file,
-                    commands::save_text_file,
-                    commands::transcode_file_to_utf8,
-                    commands::save_editor_spec,
-                    commands::save_mod_info,
-                    commands::apply_file_change_set,
                 ]);
             handler
         })

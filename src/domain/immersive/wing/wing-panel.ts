@@ -43,7 +43,7 @@ export function projectWingPanel(
   const graph = projection ?? snapshot,
     hull = graph.hull;
   const indexed = hullDataIndex(graph.records, values);
-  const data = (key: string | undefined) => (key ? indexed(key) : {});
+  const data = (key: string | undefined) => (key ? indexed.get(key)! : {});
   const wingKey = snapshot.bindings.csv!,
     wing = data(wingKey);
   const columns = getCsvColumnSchemas('wings');

@@ -52,16 +52,13 @@ pub struct JsonRecoveryPlan {
     pub resource_refs: std::collections::BTreeMap<String, crate::models::ResourceRef>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RecreateJsonSourcesPayload {
+pub struct JsonSourceRestore {
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub plan: JsonRecoveryPlan,
     pub baseline: Value,
 }
 
-super::project_identity::impl_session_mod_scope_required!(
-    JsonRecoveryRequest,
-    RecreateJsonSourcesPayload
-);
+super::project_identity::impl_session_mod_scope_required!(JsonRecoveryRequest, JsonSourceRestore);

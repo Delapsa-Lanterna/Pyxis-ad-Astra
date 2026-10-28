@@ -6,12 +6,7 @@ import * as editor from '@/services/spec-editor.service';
 import * as fileHistory from '@/services/file-history.service';
 import * as fileService from '@/services/files.service';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
-import type {
-  DeleteIndexedConfigEntityPayload,
-  DeleteJsonEntityFilePayload,
-  IndexedConfigEntityPayload,
-  JsonEntityFilePayload,
-} from '@/shared/types';
+import type { IndexedConfigDelete, JsonFileDelete, IndexedConfigSave, JsonFileSave } from '@/shared/types';
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
@@ -22,7 +17,7 @@ const sessionId = 's1',
 const target = entityTargetFixture('ship', id);
 const data = { hullId: id, _business: { key: '0012' } };
 const jsonWrite = { preserveOriginalJson: true, confirmedSources: [] };
-const indexed: IndexedConfigEntityPayload = {
+const indexed: IndexedConfigSave = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -32,8 +27,8 @@ const indexed: IndexedConfigEntityPayload = {
   indexRow: { mission: id },
   entityData: { descriptor: { title: 'Demo' }, text: '' },
 };
-const deleteIndexed: DeleteIndexedConfigEntityPayload = { sessionId, modRoot, baseVersions: [], kind: 'mission', id, deleteTarget: true };
-const definition: JsonEntityFilePayload = {
+const deleteIndexed: IndexedConfigDelete = { sessionId, modRoot, baseVersions: [], kind: 'mission', id, deleteTarget: true };
+const definition: JsonFileSave = {
   sessionId,
   modRoot,
   baseVersions: [],
@@ -42,12 +37,27 @@ const definition: JsonEntityFilePayload = {
   relPath: null,
   data,
 };
-const deleteJsonEntity: DeleteJsonEntityFilePayload = {
+const deleteJsonEntity: JsonFileDelete = {
   sessionId,
   modRoot,
   baseVersions: [],
   relPath: 'data/variants/demo.variant',
   entityId: id,
+};
+const readCommands = new Set([
+  'load_editable_file',
+  'load_imported_editor_spec_file',
+  'query_text_identity_intent',
+  'follow_text_identity',
+  'query_file_history',
+  'clear_file_history',
+]);
+const edits: Record<string, import('@/shared/types').SaveEdit[]> = {
+  save_editor_spec: [{ kind: 'set', path: [], value: data }],
+  save_mod_info: [{ kind: 'set', path: [], value: data }],
+  save_indexed_config_entity: [{ kind: 'set', path: [], value: indexed.entityData }],
+  save_variant_entity: [{ kind: 'set', path: [], value: data }],
+  save_skin_entity: [{ kind: 'set', path: [], value: data }],
 };
 const cases: Array<[string, () => Promise<unknown>, object]> = [
   ['load_editable_file', () => fileService.loadEditableFileData(null, modRoot, path), { sessionId: null, modRoot, path }],
@@ -119,8 +129,15 @@ beforeEach(() => {
 describe('query and persistence transport protocols', () => {
   it.each(cases)('%s preserves its wire protocol', async (command, action, payload) => {
     const result = await action();
-    expect(result).toEqual({ ready: true });
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(command, { payload });
+    if (readCommands.has(command)) {
+      expect(result).toEqual({ ready: true });
+      expect(invoke).toHaveBeenCalledExactlyOnceWith(command, { payload });
+    } else {
+      expect(result).toEqual({ ready: true, requestId: expect.any(String) });
+      expect(invoke).toHaveBeenCalledExactlyOnceWith('save_project', {
+        request: { id: expect.any(String), edits: edits[command] ?? [], action: { kind: command, input: payload } },
+      });
+    }
   });
   it.each([
     [
@@ -138,24 +155,46 @@ describe('query and persistence transport protocols', () => {
     ],
   ] as const)('%s preserves omitted JSON options', async (command, action, payload) => {
     await action();
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(command, { payload });
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('save_project', {
+      request: { id: expect.any(String), edits: edits[command] ?? [], action: { kind: command, input: payload } },
+    });
   });
 
   it('orders faction JSON from its file while preserving the complete entity input', async () => {
-    const faction: IndexedConfigEntityPayload = { ...indexed, kind: 'faction', entityData: { file: { id, name: 'Faction' } } };
+    const faction: IndexedConfigSave = { ...indexed, kind: 'faction', entityData: { file: { id, name: 'Faction' } } };
     await configEntity.saveIndexedConfigEntity(faction, jsonWrite);
-    expect(invoke).toHaveBeenCalledExactlyOnceWith('save_indexed_config_entity', {
-      payload: { ...faction, jsonWrite, orderedJson: JSON.stringify(faction.entityData.file) },
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('save_project', {
+      request: {
+        id: expect.any(String),
+        edits: [{ kind: 'set', path: [], value: faction.entityData }],
+        action: {
+          kind: 'save_indexed_config_entity',
+          input: { ...faction, jsonWrite, orderedJson: JSON.stringify(faction.entityData.file) },
+        },
+      },
     });
   });
 
   it.each([null, sessionId])('text commands preserve session %s and loaded versions', async (session) => {
     const baseVersions = [{ path, fingerprint: 'loaded' }];
     await fileService.writeEditableFileText(session, modRoot, path, '{}', baseVersions);
-    expect(invoke).toHaveBeenLastCalledWith('save_text_file', { payload: { baseVersions, sessionId: session, modRoot, path, text: '{}' } });
+    expect(invoke).toHaveBeenLastCalledWith('save_project', {
+      request: {
+        id: expect.any(String),
+        edits: [],
+        action: { kind: 'save_text_file', input: { baseVersions, sessionId: session, modRoot, path, text: '{}' } },
+      },
+    });
     await fileService.transcodeFileToUtf8(session, modRoot, path, 'windows-1252', baseVersions);
-    expect(invoke).toHaveBeenLastCalledWith('transcode_file_to_utf8', {
-      payload: { baseVersions, sessionId: session, modRoot, path, encoding: 'windows-1252' },
+    expect(invoke).toHaveBeenLastCalledWith('save_project', {
+      request: {
+        id: expect.any(String),
+        edits: [],
+        action: {
+          kind: 'transcode_file_to_utf8',
+          input: { baseVersions, sessionId: session, modRoot, path, encoding: 'windows-1252' },
+        },
+      },
     });
     await fileService.loadEditableFileData(session, modRoot, path);
     expect(invoke).toHaveBeenLastCalledWith('load_editable_file', { payload: { sessionId: session, modRoot, path } });

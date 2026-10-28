@@ -3,6 +3,7 @@ import { replayNextFileRedo, replayNextFileUndo } from '@/orchestrators/file-his
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 
 export async function dispatchMainUndoCommand(feedback: AppFeedback) {
@@ -41,6 +42,7 @@ async function dispatchMainHistoryCommand(direction: 'undo' | 'redo', feedback: 
     feedback.error(error, label);
     return;
   }
+  if (useProjectSyncStore().isWaiting(modRoot)) return;
   const replay = direction === 'undo' ? replayNextFileUndo : replayNextFileRedo;
   await replay(useProjectStore(), tables, feedback);
 }

@@ -5,7 +5,7 @@ export interface EditableFileData {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
 }
 
-export interface SaveTextFilePayload {
+export interface TextSave {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string | null;
   modRoot: string;
@@ -13,7 +13,7 @@ export interface SaveTextFilePayload {
   text: string;
 }
 
-export interface TranscodeFilePayload {
+export interface TextTranscode {
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string | null;
   modRoot: string;

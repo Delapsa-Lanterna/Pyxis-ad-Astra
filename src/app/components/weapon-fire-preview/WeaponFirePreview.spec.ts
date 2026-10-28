@@ -12,7 +12,7 @@ import WeaponFirePreview from './WeaponFirePreview.vue';
 import * as previewRenderer from '@/app/renderers/weapon-fire-preview/scene';
 const mocks = vi.hoisted(() => ({ error: vi.fn(), invoke: vi.fn() }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
-vi.mock('@/shared/runtime/command.runtime', () => ({ invokeCommand: mocks.invoke }));
+vi.mock('@/shared/runtime/command.runtime', () => ({ invokeCommand: mocks.invoke, invokeSaveCommand: mocks.invoke }));
 let wrapper: VueWrapper | null = null;
 beforeEach(() => {
   setActivePinia(createPinia());

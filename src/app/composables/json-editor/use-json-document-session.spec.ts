@@ -1,4 +1,4 @@
-import { projectChangeFixture } from '@/test/unit/project-changes';
+import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
@@ -29,9 +29,10 @@ import type {
   JsonRecoveryRequest,
   JsonRecoveryPlan,
   WriteResult,
-  IndexedConfigEntityPayload,
+  IndexedConfigSave,
 } from '@/shared/types';
-import type { EntityIdentityAppliedEvent } from '@/windows/window.events';
+import type { CommittedWriteEvent } from '@/windows/window.events';
+vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   saveFile: vi.fn(),
@@ -42,7 +43,7 @@ const mocks = vi.hoisted(() => ({
   complete: vi.fn(),
   readMisc: vi.fn(),
   saveMisc: vi.fn(),
-  listeners: new Set<(event: EntityIdentityAppliedEvent) => Promise<void>>(),
+  listeners: new Set<(event: CommittedWriteEvent) => Promise<void>>(),
 }));
 vi.mock('@/services/entity-query.service', async (original) => ({
   ...(await original<typeof import('@/services/entity-query.service')>()),
@@ -56,16 +57,15 @@ vi.mock('@/services/misc-config.service', async (original) => ({
   saveMiscConfig: mocks.saveMisc,
 }));
 vi.mock('@/orchestrators/json-save.orchestrator', () => ({
-  saveVariantAction: mocks.saveFile,
-  saveSkinAction: mocks.saveFile,
+  saveJsonFileAction: (_kind: string, ...args: unknown[]) => mocks.saveFile(...args),
   saveIndexedEntityAction: mocks.saveIndexed,
   saveModInfoAction: mocks.saveMod,
-  completeJsonSave: mocks.complete,
   recreateJsonSourcesAction: mocks.recreate,
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
-  listenEntityIdentityApplied: async (handler: (event: EntityIdentityAppliedEvent) => Promise<void>) => {
+  beginSavedWrite: (await import('@/test/unit/project-changes')).withSavedCompletion(() => mocks.complete()),
+  listenSavedIdentity: async (handler: (event: CommittedWriteEvent) => Promise<void>) => {
     mocks.listeners.add(handler);
     return () => mocks.listeners.delete(handler);
   },
@@ -116,7 +116,8 @@ function edit(doc: ReturnType<typeof document>, definition: JsonDocumentDefiniti
 }
 function receipt(before: EntityData | null, after: EntityData | null): WriteResult {
   const result = savedWriteFixture();
-  result.commitId = ++commit;
+  commit++;
+
   result.baseVersions = (after?.baseVersions ?? [{ path: 'M:/one/mod_info.json' }]).map((version) => ({
     ...version,
     fingerprint: 'v' + commit,
@@ -199,7 +200,7 @@ beforeEach(() => {
       return { entity: { ...after, id, data, relPath: after.target.write.relPath, path: after.target.write.path }, receipt: result };
     },
   );
-  mocks.saveIndexed.mockImplementation(async (write: IndexedConfigEntityPayload) => {
+  mocks.saveIndexed.mockImplementation(async (write: IndexedConfigSave) => {
     const before = entities.get(write.sessionId + ':' + write.kind + ':' + write.previousId)!;
     const after = jsonEntityFixture(write.kind, write.nextId, '', write.modRoot);
     after.data = write.kind === 'faction' ? write.entityData.file! : { ...write.entityData, list: write.indexRow };
@@ -366,7 +367,7 @@ describe('complete JSON document runtime', () => {
       );
       expect(handles).toHaveLength(1);
       expect(doc.target.value).toEqual(initial.target);
-      const result = await useSaveCommandStore().savePreparedParticipant(handles[0]!);
+      const result = await useSaveCommandStore().requestSave(handles[0]!);
       expect(result.status).toBe('saved');
       expect(doc.dirty.value).toBe(false);
       expect(doc.record.value!.baseVersions.every((version) => version.fingerprint !== 'v1')).toBe(true);
@@ -415,9 +416,7 @@ describe('complete JSON document runtime', () => {
     expect(await a.undo()).toBe(true);
     expect(await a.undo()).toBe(true);
     expect(await a.undo()).toBeNull();
-    const key = a.targetKey.value!;
     useJsonEditorStore().releaseSession('s1');
-    expect(useSaveCommandStore().isEditTargetLocked(key)).toBe(false);
     expect(useSaveCommandStore().editTargets.filter((target) => target.sessionId === 's1')).toEqual([]);
     expect(other.target.value!.sessionId).toBe('s2');
     expect(mocks.listeners.size).toBe(definition.kind === 'mod-info' ? 0 : 1);
@@ -474,9 +473,13 @@ describe('complete JSON document runtime', () => {
       after = jsonEntityFixture(definition.kind as 'faction' | 'mission' | 'variant' | 'skin', 'next', 'External');
     entities.set('s1:' + definition.kind + ':next', after);
     const result = receipt(before, after);
-    await Promise.all([...mocks.listeners].map((listener) => listener({ sessionId: 's1', modRoot: 'M:/one', result })));
+    await Promise.all(
+      [...mocks.listeners].map((listener) =>
+        listener({ originWindowLabel: 'peer', reason: 'save', sessionId: 's1', modRoot: 'M:/one', result }),
+      ),
+    );
     if (dirty) {
-      expect(doc.target.value!.id).toBe('a');
+      expect(doc.target.value!.id).toBe('next');
       vi.mocked(feedback.choose).mockResolvedValueOnce('follow');
       doc.setActive(true);
       await flushPromises();
@@ -492,10 +495,12 @@ describe('complete JSON document runtime', () => {
     const doc = document();
     edit(doc, JSON_DOCUMENT_DEFINITIONS.variants, 'Draft', 'next');
     mocks.complete.mockRejectedValueOnce(new Error('broadcast'));
-    await expect(doc.save()).rejects.toMatchObject({ action: 'sync-saved-target' });
+    await doc.save();
+    await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('broadcast');
     const target = doc.target.value;
     edit(doc, JSON_DOCUMENT_DEFINITIONS.variants, 'Later');
-    expect(await useSaveCommandStore().waitForSaves()).toBe(true);
+    expect(useSaveCommandStore().waitForSaves()).toBeUndefined();
+    await savedContentWorks.at(-1)!.retryContent();
     expect(doc.target.value).toBe(target);
     expect(mocks.saveFile).toHaveBeenCalledOnce();
     expect(doc.dirty.value).toBe(true);
@@ -638,8 +643,12 @@ describe('complete JSON document runtime', () => {
         });
         mocks.complete.mockRejectedValueOnce(new Error('broadcast'));
       }
-      expect(await doc.recreateSources()).toBe(false);
-      if (outcome === 'synchronization') expect(await doc.waitForSave()).toBe(true);
+      expect(await doc.recreateSources()).toBe(outcome === 'synchronization');
+      if (outcome === 'synchronization') {
+        await expect(savedContentWorks.at(-1)!.content).rejects.toThrow('broadcast');
+        expect(await doc.waitForSave()).toBe(true);
+        await savedContentWorks.at(-1)!.retryContent();
+      }
       expect(doc.target.value).toEqual(baseline.target);
       expect(doc.dirty.value).toBe(true);
       expect(jsonDocumentId(JSON_DOCUMENT_DEFINITIONS.variants, doc.draftValue.value)).toBe('unsaved');
@@ -647,7 +656,7 @@ describe('complete JSON document runtime', () => {
       expect(feedback.success).toHaveBeenCalledTimes(outcome === 'synchronization' ? 1 : 0);
     },
   );
-  it('captures a queued document latest input and credentials at its turn', async () => {
+  it('preserves independently captured contents and later raw inputs', async () => {
     const a = document(),
       b = document(JSON_DOCUMENT_DEFINITIONS.variants, 'b');
     edit(a, JSON_DOCUMENT_DEFINITIONS.variants, 'A');
@@ -683,10 +692,9 @@ describe('complete JSON document runtime', () => {
     finish();
     await savingA;
     await savingB;
-    expect(mocks.saveFile.mock.lastCall![2]).toBe('b');
-    expect(mocks.saveFile.mock.lastCall![3]).toMatchObject({ displayName: 'Queued latest' });
-    expect(mocks.saveFile.mock.lastCall![7]).toEqual(external.baseVersions);
+    expect(mocks.saveFile.mock.calls.find((call) => call[2] === 'b')).toBeUndefined();
+    expect(raw.value).toBe(true);
     expect(a.dirty.value).toBe(false);
-    expect(b.dirty.value).toBe(false);
+    expect(b.dirty.value).toBe(true);
   });
 });

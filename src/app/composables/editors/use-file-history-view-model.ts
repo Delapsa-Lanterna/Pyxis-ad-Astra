@@ -3,6 +3,7 @@ import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { replayNextFileRedo, replayNextFileUndo } from '@/orchestrators/file-history-replay.orchestrator';
+import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -55,8 +56,16 @@ export function useFileHistoryViewModel() {
   const undoDisplayItems = computed(() => [...undoStack.value].reverse());
   const redoDisplayItems = computed(() => [...redoStack.value].reverse());
   const historyCount = computed(() => undoStack.value.length + redoStack.value.length);
-  const canUndo = computed(() => Boolean(fileHistory.peekSavedWriteUndo(activeMod.value?.modRoot ?? null)));
-  const canRedo = computed(() => Boolean(fileHistory.peekSavedWriteRedo(activeMod.value?.modRoot ?? null)));
+  const canUndo = computed(
+    () =>
+      !useProjectSyncStore().isWaiting(activeMod.value?.modRoot) &&
+      Boolean(fileHistory.peekSavedWriteUndo(activeMod.value?.modRoot ?? null)),
+  );
+  const canRedo = computed(
+    () =>
+      !useProjectSyncStore().isWaiting(activeMod.value?.modRoot) &&
+      Boolean(fileHistory.peekSavedWriteRedo(activeMod.value?.modRoot ?? null)),
+  );
 
   function confirmClear() {
     const modData = activeMod.value;
