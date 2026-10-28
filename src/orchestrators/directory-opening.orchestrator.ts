@@ -73,9 +73,10 @@ export async function openDirectoryTarget(path: string, knownStarsectorRoot: str
   return { type: 'unknown', message: detected.warnings[0]?.message ?? '未识别该目录' };
 }
 
-export async function openModFromOverview(modRoot: string): Promise<DirectoryOpeningOutcome> {
-  const workspace = useWorkspaceStore();
-  const starsectorRoot = workspace.gameOverview?.starsectorRoot ?? null;
+export async function openModFromOverview(
+  modRoot: string,
+  starsectorRoot = useWorkspaceStore().gameOverview?.starsectorRoot ?? null,
+): Promise<DirectoryOpeningOutcome> {
   const loaded = await openModProject(modRoot, starsectorRoot, 'mod');
   if (!loaded) return { type: 'cancelled', modRoot };
   return loaded.alreadyLoaded

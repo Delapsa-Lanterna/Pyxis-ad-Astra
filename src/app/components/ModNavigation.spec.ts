@@ -1,18 +1,22 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { defineComponent, h, provide } from 'vue';
+import { defineComponent, h, provide, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { contentNavigationKey, createContentNavigation } from '@/app/composables/use-content-navigation';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import ModNavigation from './ModNavigation.vue';
 import ModTabsBar from './ModTabsBar.vue';
 
-const actions = vi.hoisted(() => ({ showOverview: vi.fn() }));
-vi.mock('@/app/composables/use-workspace-navigation-actions', () => ({ useWorkspaceNavigationActions: () => actions }));
+const actions = vi.hoisted(() => ({ showOverview: vi.fn(), openCore: vi.fn() }));
+const coreModRoot = ref<string | null>(null);
+vi.mock('@/app/composables/use-workspace-navigation-actions', () => ({
+  useWorkspaceNavigationActions: () => ({ ...actions, coreModRoot }),
+}));
 
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
+  coreModRoot.value = null;
   const workspace = useWorkspaceStore();
   workspace.registerMod({ modRoot: 'M:/navigation', displayName: 'Navigation', version: '', status: 'ready' });
   workspace.activateModTab('M:/navigation');
@@ -60,14 +64,46 @@ describe('workspace navigation controls', () => {
     view.unmount();
   });
 
-  it('opens the workspace overview from the single leading tab-bar action', async () => {
+  it('opens the workspace overview and hides the bar after the last project closes', async () => {
     const view = mountNavigation(1000);
     const bar = view.get('.mod-tabs-bar');
     const overview = bar.get('[aria-label="打开工作区总览"]');
     expect(bar.element.firstElementChild).toBe(overview.element);
     expect(bar.element.lastElementChild?.getAttribute('role')).toBe('tablist');
+    expect(bar.find('[aria-label="打开原版"]').exists()).toBe(false);
     await overview.trigger('click');
     expect(actions.showOverview).toHaveBeenCalledExactlyOnceWith();
+    coreModRoot.value = 'D:/game/starsector-core';
+    useWorkspaceStore().removeLoadedModEntry('M:/navigation');
+    await flushPromises();
+    expect(view.find('.mod-tabs-bar').exists()).toBe(false);
+    view.unmount();
+  });
+
+  it.each([1000, 600])('places the Core action beside overview at window width %s', async (width) => {
+    coreModRoot.value = 'D:/game/starsector-core';
+    const workspace = useWorkspaceStore();
+    workspace.registerMod({ modRoot: coreModRoot.value, displayName: 'Core', version: '', status: 'ready' });
+    const view = mountNavigation(width);
+    const bar = view.get('.mod-tabs-bar');
+    const core = bar.get('[aria-label="打开原版"]');
+    expect(bar.element.children[1]).toBe(core.element);
+    expect(core.find('svg').exists()).toBe(true);
+    expect(
+      bar
+        .get('[role="tablist"]')
+        .findAll('[role="tab"]')
+        .map((tab) => tab.text()),
+    ).toEqual(['Navigation']);
+    await core.trigger('click');
+    expect(actions.openCore).toHaveBeenCalledExactlyOnceWith();
+    workspace.activateModTab(coreModRoot.value);
+    await flushPromises();
+    expect(core.attributes('aria-pressed')).toBe('true');
+    expect(core.classes()).toContain('active');
+    workspace.showOverview();
+    await flushPromises();
+    expect(core.attributes('aria-pressed')).toBe('false');
     view.unmount();
   });
 });

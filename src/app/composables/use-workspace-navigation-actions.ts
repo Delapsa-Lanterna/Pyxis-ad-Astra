@@ -6,11 +6,41 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import type { JsonEditorPageId, CsvTableKey } from '@/shared/types';
 import { debugLog } from '@/shared/runtime/app-log-queue';
+import { computed } from 'vue';
+import { useCoreAssetsStore } from '@/stores/core-assets.store';
+import { gameCoreDirectoryPath } from '@/shared/lib/paths';
+import { openModFromOverview } from '@/orchestrators/directory-opening.orchestrator';
 
 export function useWorkspaceNavigationActions() {
   const workspace = useWorkspaceStore();
   const tables = useCsvEditorStore();
   const feedback = useAppFeedback();
+  const core = useCoreAssetsStore();
+  const coreModRoot = computed(() => {
+    if (!core.root) return null;
+    const manifest = workspace.activeManifest;
+    const available =
+      manifest?.starsectorRoot === core.root
+        ? manifest.coreAvailable
+        : workspace.gameOverview?.starsectorRoot === core.root
+          ? workspace.gameOverview.coreAvailable
+          : true;
+    return available ? gameCoreDirectoryPath(core.root) : null;
+  });
+
+  function openCore(): void {
+    const modRoot = coreModRoot.value!;
+    const starsectorRoot = core.root;
+    confirmNavigation(() => {
+      if (workspace.mods.get(modRoot)?.status === 'ready') workspaceNavigation.activateModTab(modRoot);
+      else
+        void openModFromOverview(modRoot, starsectorRoot)
+          .then((outcome) => {
+            if (outcome.type === 'mod-loaded') for (const warning of outcome.warnings) feedback.warning(warning);
+          })
+          .catch((error: unknown) => feedback.error(error, '打开原版失败'));
+    });
+  }
 
   function navigateToModOverview(modRoot: string): void {
     confirmNavigation(() => workspaceNavigation.navigateToModOverview(modRoot));
@@ -89,6 +119,8 @@ export function useWorkspaceNavigationActions() {
   }
 
   return {
+    coreModRoot,
+    openCore,
     activateModTab,
     navigateToModFileHistory,
     navigateToModJson,

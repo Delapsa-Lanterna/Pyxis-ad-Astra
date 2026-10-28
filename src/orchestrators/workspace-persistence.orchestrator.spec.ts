@@ -57,30 +57,30 @@ describe('restorePersistedWorkspace', () => {
     expect(mocks.hydrateOpenedModRuntime).not.toHaveBeenCalled();
   });
 
-  it('restores each persisted mod and reports load warnings', async () => {
+  it.each(['C:/mods/alpha', 'D:/games/starsector/starsector-core'])('restores project %s and reports load warnings', async (modRoot) => {
     const workspace = useWorkspaceStore();
     mocks.loadPersistedWorkspace.mockResolvedValue({
-      mods: [{ modRoot: 'C:/mods/alpha', displayName: 'Alpha Folder', version: '0.9' }],
+      mods: [{ modRoot, displayName: 'Alpha Folder', version: '0.9' }],
       starsectorRoot: 'D:/games/starsector',
     });
     mocks.scanDirectoryGameOverview.mockResolvedValue({ starsectorRoot: 'D:/games/starsector', mods: [] });
-    mocks.openModProjectManifest.mockResolvedValue(manifestFixture('C:/mods/alpha'));
+    mocks.openModProjectManifest.mockResolvedValue(manifestFixture(modRoot));
     const onWarnings = vi.fn();
     const onError = vi.fn();
 
     await restorePersistedWorkspace({ onModRestoreError: onError, onModRestoreWarnings: onWarnings });
     expect(mocks.openModProjectManifest).toHaveBeenCalledWith(
-      'C:/mods/alpha',
+      modRoot,
       'D:/games/starsector',
-      workspace.getModGeneration('C:/mods/alpha'),
+      workspace.getModGeneration(modRoot),
       expect.any(Function),
     );
-    expect(mocks.hydrateOpenedModRuntime).toHaveBeenCalledWith('C:/mods/alpha', expect.anything(), false);
+    expect(mocks.hydrateOpenedModRuntime).toHaveBeenCalledWith(modRoot, expect.anything(), false);
     expect(onWarnings).toHaveBeenCalledWith('Alpha', [
       expect.objectContaining({ userMessage: 'scan warning (data/x.csv)', diagnostic: expect.objectContaining({ code: 'scan.warning' }) }),
     ]);
     expect(onError).not.toHaveBeenCalled();
-    const mod = workspace.mods.get('C:/mods/alpha');
+    const mod = workspace.mods.get(modRoot);
     expect(mod?.displayName).toBe('Alpha');
     expect(mod?.status).toBe('ready');
     expect(workspace.currentView).toBe('overview');

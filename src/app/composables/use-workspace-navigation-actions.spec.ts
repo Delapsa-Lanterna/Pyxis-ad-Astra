@@ -4,6 +4,7 @@ import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  openMod: vi.fn(),
   feedback: {
     success: vi.fn(),
     info: vi.fn(),
@@ -22,6 +23,8 @@ const mocks = vi.hoisted(() => ({
     activateModTab: vi.fn(),
   },
 }));
+
+vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({ openModFromOverview: mocks.openMod }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
@@ -44,11 +47,76 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import type { ProjectManifest } from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
+import { useCoreAssetsStore } from '@/stores/core-assets.store';
+import { gameCoreDirectoryPath } from '@/shared/lib/paths';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 
 describe('useWorkspaceNavigationActions', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    mocks.openMod.mockResolvedValue({ type: 'mod-loaded', warnings: [] });
+  });
+
+  it('follows the effective Core root and its release', () => {
+    const core = useCoreAssetsStore();
+    const actions = useWorkspaceNavigationActions();
+    expect(actions.coreModRoot.value).toBeNull();
+    for (const root of ['D:/game', 'E:/game']) {
+      core.reset(root);
+      expect(actions.coreModRoot.value).toBe(gameCoreDirectoryPath(root));
+    }
+    core.reset(null);
+    expect(actions.coreModRoot.value).toBeNull();
+  });
+
+  it.each([true, false])('uses the current project Core availability %s', (coreAvailable) => {
+    const workspace = useWorkspaceStore();
+    const manifest = sessionUpdateFixture('sample', 'M:/mod').projection.manifest;
+    Object.assign(manifest, { starsectorRoot: 'D:/game', coreAvailable });
+    useProjectStore().registerProjectManifest(manifest);
+    workspace.registerMod({ modRoot: manifest.modRoot, displayName: 'Sample', version: '', status: 'ready' });
+    workspace.activateModTab(manifest.modRoot);
+    useCoreAssetsStore().reset('D:/game');
+    expect(useWorkspaceNavigationActions().coreModRoot.value).toBe(coreAvailable ? gameCoreDirectoryPath('D:/game') : null);
+  });
+
+  it.each([true, false])('opens Core through the project flow with loaded status %s', async (loaded) => {
+    useCoreAssetsStore().reset('D:/game');
+    const modRoot = gameCoreDirectoryPath('D:/game');
+    if (loaded) useWorkspaceStore().registerMod({ modRoot, displayName: 'Core', version: '', status: 'ready' });
+    useWorkspaceNavigationActions().openCore();
+    await flushPromises();
+    if (loaded) expect(mocks.navigation.activateModTab).toHaveBeenCalledExactlyOnceWith(modRoot);
+    else expect(mocks.openMod).toHaveBeenCalledExactlyOnceWith(modRoot, 'D:/game');
+  });
+
+  it.each([true, false])('waits for save outcome %s before opening Core', async (saved) => {
+    const saving = ref(true);
+    let finish!: (saved: boolean) => void;
+    const pending = new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+    useSaveCommandStore().registerSaveSession({ targetKey: ref('sample'), modRoot: ref('M:/mod'), saving, waitForSave: () => pending });
+    useCoreAssetsStore().reset('D:/game');
+    useWorkspaceNavigationActions().openCore();
+    expect(mocks.openMod).not.toHaveBeenCalled();
+    saving.value = false;
+    finish(saved);
+    await flushPromises();
+    expect(mocks.openMod).toHaveBeenCalledTimes(saved ? 1 : 0);
+  });
+
+  it.each([true, false])('delivers Core opening feedback for failure %s', async (failed) => {
+    useCoreAssetsStore().reset('D:/game');
+    const error = new Error('sample failure');
+    const warning = { userMessage: 'Sample warning', diagnostic: null };
+    if (failed) mocks.openMod.mockRejectedValueOnce(error);
+    else mocks.openMod.mockResolvedValueOnce({ type: 'mod-loaded', warnings: [warning] });
+    useWorkspaceNavigationActions().openCore();
+    await flushPromises();
+    if (failed) expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '打开原版失败');
+    else expect(mocks.feedback.warning).toHaveBeenCalledExactlyOnceWith(warning);
   });
 
   it('navigates to a mod overview through the orchestrator', () => {

@@ -105,6 +105,13 @@ beforeEach(() => {
 });
 
 describe('workspace Mod opening navigation', () => {
+  it('passes the effective Core source through the existing project opening flow', async () => {
+    const modRoot = 'E:\\game\\starsector-core';
+    await openModFromOverview(modRoot, 'E:\\game');
+    expect(mocks.openProject).toHaveBeenCalledExactlyOnceWith(modRoot, 'E:\\game');
+    expect(mocks.workspaceStore.currentView).toBe('mod-overview');
+  });
+
   it('enters the opened Mod overview after its ProjectSession loads', async () => {
     const modRoot = 'D:\\game\\mods\\demo';
 

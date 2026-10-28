@@ -25,7 +25,8 @@
 .mod-tab:hover {
   background: var(--color-surface-hover);
 }
-.mod-tab.active {
+.mod-tab.active,
+.mod-tabs-overview.active {
   color: var(--color-primary);
   background: var(--color-primary-soft);
 }
