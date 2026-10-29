@@ -1,8 +1,12 @@
 import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-changes';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { ref } from 'vue';
-import { flushPromises } from '@vue/test-utils';
+import { h, ref } from 'vue';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
+import { editorUiStubs, nSelect } from '@/test/unit/ui-stubs';
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
+import { provideAppFeedback } from '@/app/composables/use-app-feedback';
 import { useJsonDocumentSession } from './use-json-document-session';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -30,6 +34,7 @@ import type {
   JsonRecoveryPlan,
   WriteResult,
   IndexedConfigSave,
+  SourceOptionGroup,
 } from '@/shared/types';
 import type { CommittedWriteEvent } from '@/windows/window.events';
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
@@ -73,6 +78,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
 let feedback: AppFeedback;
 let entities: Map<string, EntityData>;
 let commit: number;
+enableAutoUnmount(afterEach);
 const definitions = Object.values(JSON_DOCUMENT_DEFINITIONS).filter(
   (definition): definition is JsonDocumentDefinition & { kind: Exclude<JsonDocumentDefinition['kind'], 'misc-config'> } =>
     definition.kind !== 'misc-config',
@@ -229,28 +235,53 @@ afterEach(() => {
   useJsonEditorStore().releaseSession('s2');
 });
 describe('complete JSON document runtime', () => {
-  it.each(['smart', 'plain'] as const)('handles slot transfer and a single undo in %s mode', async (editMode) => {
-    initializeSettingsStore(createSettingsFixture({ editMode }));
+  it('adds a slot only after selection and transfers the weapon with one undo', async () => {
     const doc = document();
-    doc.draftValue.value = {
-      ...doc.draftValue.value,
-      weaponGroups: [
-        { mode: 'LINKED', weapons: { A: 'gun' } },
-        { mode: 'LINKED', weapons: {} },
-      ],
-    };
+    doc.draftValue.value = { ...doc.draftValue.value, weaponGroups: [{ weapons: { A: 'gun' } }, { weapons: { B: 'other' } }] };
     const before = deepClone(doc.draftValue.value);
-    doc.draftValue.value = {
-      ...before,
-      weaponGroups: [
-        { mode: 'LINKED', weapons: { A: 'gun' } },
-        { mode: 'LINKED', weapons: { A: '' } },
-      ],
-    };
-    expect(doc.draftValue.value.weaponGroups).toEqual([
-      { mode: 'LINKED', weapons: editMode === 'smart' ? {} : { A: 'gun' } },
-      { mode: 'LINKED', weapons: { A: editMode === 'smart' ? 'gun' : '' } },
-    ]);
+    const selectStub = { ...nSelect, methods: { focusInput: vi.fn() } };
+    const field = getSchema('variant')!
+      .sections!.flatMap((section) => section.fields)
+      .find((field) => field.key === 'weaponGroups')!;
+    const view = mount(
+      {
+        setup() {
+          provideFieldInputs(doc.inputs);
+          provideAppFeedback(feedback);
+          return () =>
+            h(SchemaFieldRenderer, {
+              field,
+              value: doc.draftValue.value.weaponGroups,
+              runtimeContext: {
+                sessionId: 's1',
+                modRoot: 'M:/one',
+                querySourceOptions: async (): Promise<SourceOptionGroup[]> => [
+                  {
+                    origin: 'mod',
+                    options: ['A', 'B'].map((value) => ({ value, label: value, origin: 'mod', resourceRef: null, description: null })),
+                  },
+                ],
+              },
+              onUpdate: (update) => {
+                if (update.kind === 'set') doc.draftValue.value = { ...doc.draftValue.value, weaponGroups: update.value as RowData[] };
+              },
+            });
+        },
+      },
+      { global: { stubs: { ...editorUiStubs, 'n-select': selectStub } } },
+    );
+    await flushPromises();
+    const destination = view.get('[data-field-path=\'weaponGroups[1]["weapons"]\']');
+    await destination.findAll('button').at(-1)!.trigger('click');
+    expect(doc.draftValue.value).toEqual(before);
+    await destination.findAll('select').at(-1)!.trigger('keydown', { key: 'Escape' });
+    expect(doc.draftValue.value).toEqual(before);
+    await destination.findAll('button').at(-1)!.trigger('click');
+    const picker = destination.findAllComponents(selectStub).at(-1)!;
+    picker.vm.$emit('update:show', false);
+    picker.vm.$emit('update:value', 'A');
+    await flushPromises();
+    expect(doc.draftValue.value.weaponGroups).toEqual([{ weapons: {} }, { weapons: { B: 'other', A: 'gun' } }]);
     expect(await doc.undo()).toBe(true);
     expect(doc.draftValue.value).toEqual(before);
   });

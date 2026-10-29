@@ -23,6 +23,7 @@
           class="field-map-key-editor"
           :value="row.key"
           :options="slotOptions.filter((option) => option.value === row.key || !names.has(option.value))"
+          :render-label="renderSlotLabel"
           filterable
           size="small"
           @click.stop
@@ -51,19 +52,36 @@
       v-if="canAdd && field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
       class="ui-control-row"
     >
-      <n-button
-        v-for="choice in choices"
-        :key="choice.label"
-        :disabled="Boolean(keyField.source) && !availableSlot"
-        size="tiny"
-        @click="add(choice)"
-        >+ {{ choice.label }}</n-button
-      >
+      <n-select
+        v-if="adding"
+        ref="slotSelect"
+        class="field-map-key-editor"
+        :value="null"
+        :options="availableSlots"
+        :render-label="renderSlotLabel"
+        :show="true"
+        filterable
+        size="small"
+        placeholder="选择槽位"
+        @update:value="add(adding!, $event)"
+        @update:show="!$event && closeSlotSelect()"
+        @keydown.esc="adding = null"
+      />
+      <template v-else v-for="choice in choices" :key="choice.label">
+        <n-button
+          :disabled="Boolean(keyField.source) && !availableSlots.length"
+          size="tiny"
+          @click="keyField.source ? (adding = choice) : add(choice)"
+        >
+          + {{ choice.label }}
+        </n-button>
+      </template>
     </div>
   </EditorCollapse>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, shallowRef, watch } from 'vue';
+import type { SelectInst } from 'naive-ui/es/select';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
@@ -71,7 +89,7 @@ import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vu
 import SchemaFieldRow from './SchemaFieldRow.vue';
 import SchemaScalarInput from './SchemaScalarInput.vue';
 import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
-import { flattenSelectOptions } from '@/domain/schema/schema-options';
+import { flattenSelectOptions, type FlatSelectOption } from '@/domain/schema/schema-options';
 import { useEditorRowIdentities } from '@/app/composables/editors/use-editor-row-identities';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
@@ -135,7 +153,22 @@ const { sourceOptions } = useSchemaSourceOptions({
   runtimeContext: () => props.runtimeContext,
 });
 const slotOptions = computed(() => flattenSelectOptions(sourceOptions.value));
-const availableSlot = computed(() => slotOptions.value.find((option) => !names.value.has(option.value)));
+const availableSlots = computed(() => slotOptions.value.filter((option) => !names.value.has(option.value)));
+const adding = shallowRef<FieldSchema | null>(null);
+function renderSlotLabel(option: FlatSelectOption, selected: boolean) {
+  return selected ? option.value : option.label;
+}
+const slotSelect = ref<SelectInst | null>(null);
+async function closeSlotSelect() {
+  // Select closes its menu before delivering the selected value.
+  await nextTick();
+  adding.value = null;
+}
+watch(slotSelect, (select) => select?.focusInput(), { flush: 'post' });
+watch(
+  () => [props.inputKey, props.fieldPath, props.runtimeContext?.sessionId, props.runtimeContext?.sourceContextKey, sourceOptions.value],
+  () => (adding.value = null),
+);
 interface Row {
   visible?: boolean;
   mounted?: boolean;
@@ -326,12 +359,9 @@ function remove(row: Row) {
     row.variable ? { kind: 'remove', index: dynamic.value.findIndex((entry) => entry.index === row.index) } : undefined,
   );
 }
-function add(choice: FieldSchema) {
-  const initial = keyField.value.source
-    ? availableSlot.value!.value
-    : props.field.keySchema
-      ? schemaInitialValue(props.field.keySchema)
-      : 'newField';
+function add(choice: FieldSchema, selected?: string) {
+  adding.value = null;
+  const initial = selected ?? (props.field.keySchema ? schemaInitialValue(props.field.keySchema) : 'newField');
   let key = array.value ? String(entries.value.length) : String(initial);
   for (let index = 1; names.value.has(key); index++) key = typeof initial === 'number' ? String(initial + index) : initial + String(index);
   publish([...entries.value, { key, val: schemaInitialValue(choice) }], { kind: 'insert', index: dynamic.value.length });

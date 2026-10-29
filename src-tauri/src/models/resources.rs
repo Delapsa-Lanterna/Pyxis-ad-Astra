@@ -73,6 +73,12 @@ pub struct HullReferencesResult {
 pub struct HullWeaponSlot {
     pub id: String,
     pub origin: ResourceSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mount: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

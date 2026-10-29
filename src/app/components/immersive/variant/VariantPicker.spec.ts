@@ -4,7 +4,7 @@ import { h, provide, ref, shallowRef, shallowReactive } from 'vue';
 import { immersiveBlockedKey } from '../immersive-render-context';
 import { NInput, NSelect, NButton, NModal } from 'naive-ui';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
-import type { JointVariantEntry } from '@/shared/types';
+import type { JointVariantEntry, ResourceSource } from '@/shared/types';
 import VariantPicker from './VariantPicker.vue';
 import VariantImmersivePanel from './VariantImmersivePanel.vue';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
@@ -13,9 +13,10 @@ import type { useImmersiveVariantEditor } from '@/app/composables/immersive-edit
 import { jointObject } from '@/domain/joint-edit';
 const deckMedia = vi.hoisted(() => ({ replaceCollection: vi.fn(), releaseCollection: vi.fn(), dataUrl: vi.fn(() => '') }));
 vi.mock('@/app/composables/use-resource-media-registry', () => ({ useResourceMediaRegistry: () => deckMedia }));
-const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[] }));
+const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], enabled: [] as Array<() => boolean> }));
 vi.mock('@/app/composables/use-thumbnail-preload', () => ({ useThumbnailPreload: () => ({ prepare: vi.fn(), url: () => '' }) }));
 beforeEach(() => {
+  mocks.enabled = [];
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(234);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     queueMicrotask(() => callback(performance.now()));
@@ -28,13 +29,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 vi.mock('@/app/composables/immersive-editor/variant/use-variant-catalog', () => ({
-  useVariantCatalog: () => ({
-    entries: shallowRef(mocks.entries),
-    snapshot: shallowRef(null),
-    loading: ref(false),
-    errorText: ref(''),
-    load: vi.fn(),
-  }),
+  useVariantCatalog: (_root: unknown, _kind: unknown, enabled: () => boolean) => {
+    mocks.enabled.push(enabled);
+    return {
+      entries: shallowRef(mocks.entries),
+      snapshot: shallowRef(null),
+      loading: ref(false),
+      errorText: ref(''),
+      load: vi.fn(),
+    };
+  },
 }));
 vi.mock('@/app/composables/use-visible-resource-media', () => ({
   useVisibleResourceMedia: () => ({ setMediaRoot: () => {}, mediaRef: () => () => {}, mediaSrc: () => '' }),
@@ -285,9 +289,12 @@ describe('variant candidate picker', () => {
     await flushPromises();
     expect(own.wrapper.findComponent(VariantPicker).props('kind')).toBe('variants');
     expect(own.wrapper.findComponent(VariantPicker).props('moduleContext')?.snapshot.root.id).toBe('aurora_refit');
+    await own.wrapper.get('[aria-label="引用 MOD"]').trigger('click');
     await own.wrapper.get('.test-blank').trigger('click');
     await flushPromises();
     expect(own.wrapper.find('.variant-picker').exists()).toBe(false);
+    await own.wrapper.get('.test-module').trigger('click');
+    expect(own.wrapper.findAll('[aria-checked=true]').map((toggle) => toggle.attributes('aria-label'))).toEqual(['本 MOD']);
     own.wrapper.unmount();
   });
   it('defaults modules to this Mod, combines sources, searches hull names and unloads the current module', async () => {
@@ -309,6 +316,43 @@ describe('variant candidate picker', () => {
     await own.picker.findAll('.variant-candidate-card')[0]!.trigger('click');
     expect(own.picker.emitted('select')?.at(-1)).toEqual(['', 'normal']);
     expect(own.picker.get('.variant-module-edit').attributes('disabled')).toBeDefined();
+    own.wrapper.unmount();
+  });
+  it.each(
+    (
+      [
+        [],
+        ['core'],
+        ['mod'],
+        ['reference'],
+        ['core', 'mod'],
+        ['core', 'reference'],
+        ['mod', 'reference'],
+        ['core', 'mod', 'reference'],
+      ] as ResourceSource[][]
+    ).map((sources) => ({ sources })),
+  )('filters module candidates by the selected sources $sources', async ({ sources }) => {
+    const own = harness('variants');
+    mocks.entries.push({ ...mocks.entries[0]!, id: 'referenced', source: { ...mocks.entries[0]!.source, source: 'reference' } });
+    const toggles = own.wrapper.findAll('[role=checkbox]');
+    expect(toggles.map((toggle) => toggle.attributes('aria-label'))).toEqual(['原版', '本 MOD', '引用 MOD']);
+    expect(toggles.map((toggle) => toggle.attributes('aria-checked'))).toEqual(['false', 'true', 'false']);
+    for (const [index, source] of (['core', 'mod', 'reference'] as const).entries()) {
+      if (sources.includes(source) !== (source === 'mod')) await toggles[index]!.trigger('click');
+    }
+    await flushPromises();
+    const visible = () =>
+      own.picker
+        .findAll('[data-entry-id]')
+        .filter((card) => card.isVisible())
+        .map((card) => card.attributes('data-entry-id'));
+    expect(visible().sort()).toEqual(
+      sources.map((source) => ({ core: 'incompatible', mod: 'compatible', reference: 'referenced' })[source]).sort(),
+    );
+    expect(mocks.enabled.map((enabled) => enabled())).toEqual([sources.some((source) => source !== 'core'), sources.includes('core')]);
+    await own.wrapper.find('input').setValue('referenced');
+    await flushPromises();
+    expect(visible()).toEqual(sources.includes('reference') ? ['referenced'] : []);
     own.wrapper.unmount();
   });
   it('retains filtered candidate nodes with hidden visibility', async () => {

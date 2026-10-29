@@ -32,7 +32,10 @@ async function show(reset = false) {
     if (query.has('readFailure')) model.failures.set('query_joint_edit', '样本来源读取失败，请重试');
     await host.open(model, false, query.has('workspace'));
     const definition = scenarios.find((item) => item.id === scene)!;
-    await until(() => Boolean(element.querySelector(definition.selector)), definition.label);
+    await until(
+      () => Boolean(element.querySelector(query.has('slots') ? '[data-field-path="weapons"]' : definition.selector)),
+      definition.label,
+    );
     host.setTheme(options.theme);
     status.textContent = definition.label + ' · ' + definition.capabilities.join('、');
     status.dataset.ready = 'true';

@@ -33,7 +33,7 @@
       @hover="showCandidate(currentId, $event)"
       @leave="hover.leave"
     />
-    <div v-if="kind === 'variants'" class="variant-picker-filters variant-module-filters ui-layout-grid">
+    <div v-if="kind === 'variants'" class="variant-picker-filters ui-layout-grid">
       <ImmersiveFilterToggle
         v-for="source in moduleSources"
         :key="source.value"
@@ -182,8 +182,9 @@ const surface = ref<HTMLElement | null>(null),
   manualId = ref(''),
   compare = ref(false);
 const moduleSources = [
-  { label: 'Mod 来源', value: 'mod' as const },
   { label: '原版', value: 'core' as const },
+  { label: '本 MOD', value: 'mod' as const },
+  { label: '引用 MOD', value: 'reference' as const },
 ];
 const selectedSources = ref<ResourceSource[]>(['mod']);
 const viewportWidth = ref(window.innerWidth);
@@ -211,7 +212,7 @@ function showCandidate(id: string, event: MouseEvent | FocusEvent) {
 const mainCatalog = useVariantCatalog(
   () => props.root,
   () => props.kind,
-  () => props.kind !== 'variants' || selectedSources.value.includes('mod'),
+  () => props.kind !== 'variants' || selectedSources.value.some((source) => source !== 'core'),
   () => (props.kind === 'variants' ? 'mod' : undefined),
 );
 const coreCatalog = useVariantCatalog(
@@ -223,7 +224,9 @@ const coreCatalog = useVariantCatalog(
 const entries = computed(() =>
   props.kind === 'variants'
     ? [
-        ...mainCatalog.entries.value.filter((entry) => selectedSources.value.includes('mod') && entry.source.source !== 'core'),
+        ...mainCatalog.entries.value.filter(
+          (entry) => entry.source.source !== 'core' && selectedSources.value.includes(entry.source.source),
+        ),
         ...coreCatalog.entries.value.filter((entry) => selectedSources.value.includes('core') && entry.source.source === 'core'),
       ]
     : mainCatalog.entries.value,
@@ -231,7 +234,7 @@ const entries = computed(() =>
 const loading = computed(() => mainCatalog.loading.value || coreCatalog.loading.value);
 const errorText = computed(() => mainCatalog.errorText.value || coreCatalog.errorText.value);
 function load() {
-  if (props.kind !== 'variants' || selectedSources.value.includes('mod')) void mainCatalog.load();
+  if (props.kind !== 'variants' || selectedSources.value.some((source) => source !== 'core')) void mainCatalog.load();
   if (props.kind === 'variants' && selectedSources.value.includes('core')) void coreCatalog.load();
 }
 const origins = [

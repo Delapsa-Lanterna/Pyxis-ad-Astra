@@ -9,14 +9,11 @@
   flex-wrap: nowrap;
 }
 .top-action-group:first-child {
-  width: 300px;
+  width: 220px;
 }
 .top-search-input.n-input {
   flex: 1 1 180px;
   min-width: 0;
-}
-.top-search-field-select {
-  flex: 0 0 112px;
 }
 .content-grid {
   grid-template-columns: minmax(0, 1fr) 280px;

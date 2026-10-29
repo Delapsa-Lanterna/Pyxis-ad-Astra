@@ -15,6 +15,9 @@
 .json-entity-list-header .json-entity-list-count {
   font: 400 10px/12px var(--font-sans);
 }
+.json-entity-list-search {
+  padding: 8px;
+}
 .json-entity-list-items {
   flex: 1;
   min-height: 0;

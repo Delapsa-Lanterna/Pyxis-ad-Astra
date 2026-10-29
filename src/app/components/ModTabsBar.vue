@@ -26,7 +26,7 @@
       data-refresh="core"
       @click="navigation.openCore()"
     >
-      <span class="ui-status ui-layout-row ui-layout-center"
+      <span class="mod-tab-activate ui-layout-row ui-layout-center"
         ><svg class="mod-tabs-overview-icon ui-control-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z" /></svg
         ><span v-if="hasDirtyChanges(coreModRoot)" class="mod-tab-dirty" title="有未保存修改" />

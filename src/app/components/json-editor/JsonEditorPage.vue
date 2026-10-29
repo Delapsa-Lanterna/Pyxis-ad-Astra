@@ -6,6 +6,8 @@
       :session-id="sessionId"
       :selected-id="selectedId"
       :items="items"
+      :search="search"
+      :set-search="setSearch"
       :load-failed="listFailed"
       :action-running="actionRunning"
       :hull-options="hullOptions"
@@ -75,6 +77,8 @@ const {
   retryFile,
   repairFile,
   items,
+  search,
+  setSearch,
   listFailed,
   selectedId,
   select,

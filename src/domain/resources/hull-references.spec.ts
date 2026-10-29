@@ -16,7 +16,8 @@ describe('built-in slot origins', () => {
         builtInWeaponSlots: {
           hull: [
             { id: 'CORE', origin: 'core' },
-            { id: 'MOD', origin: 'mod' },
+            { id: 'MOD', origin: 'mod', size: 'MEDIUM', type: 'ENERGY', mount: 'HARDPOINT' },
+            { id: 'CUSTOM', origin: 'mod', type: 'CUSTOM_TYPE' },
           ],
         },
       },
@@ -29,6 +30,11 @@ describe('built-in slot origins', () => {
     const options = mapSourceGroupsToSelectOptions(groups);
     expect(options[0]?.label).toBe('当前 Mod');
     expect(options[1]?.label).toBe('原版');
+    expect(options[0]?.children).toMatchObject([
+      { value: 'MOD', label: 'MOD · 能量 · 中型 · 固定' },
+      { value: 'CUSTOM', label: 'CUSTOM · CUSTOM_TYPE' },
+    ]);
+    expect(options[1]?.children?.[0]).toMatchObject({ value: 'CORE', label: 'CORE' });
   });
 });
 

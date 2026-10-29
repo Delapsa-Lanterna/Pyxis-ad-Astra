@@ -9,20 +9,34 @@
         <div class="top-action-group action-group">
           <n-input
             :value="tables.searchText"
-            :disabled="tables.currentTableLocked || csvTable.searchPending.value"
+            :disabled="searchDisabled"
             class="top-search-input"
             clearable
             :placeholder="csvSearchPlaceholder(tables.searchField)"
             @update:value="csvTable.setSearchText"
-          />
-          <n-select
-            :value="tables.searchField"
-            :disabled="tables.currentTableLocked || csvTable.searchPending.value"
-            @update:value="csvTable.setSearchField"
-            class="top-search-field-select"
-            :options="searchOptions"
-            placeholder="搜索项"
-          />
+          >
+            <template #suffix>
+              <n-dropdown
+                :key="csvTable.targetKey.value"
+                trigger="click"
+                :disabled="searchDisabled"
+                :value="tables.searchField"
+                :options="searchOptions"
+                :render-icon="searchIcon"
+                @select="csvTable.setSearchField"
+              >
+                <n-button
+                  text
+                  size="tiny"
+                  :disabled="searchDisabled"
+                  :title="csvSearchPlaceholder(tables.searchField)"
+                  aria-label="选择搜索项"
+                >
+                  <svg class="ui-control-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                </n-button>
+              </n-dropdown>
+            </template>
+          </n-input>
         </div>
         <div class="top-action-group action-group">
           <n-button :disabled="tables.currentTableLocked || !workspace.activeManifest" @click="actions.addNewRow">新建</n-button>
@@ -77,7 +91,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, h } from 'vue';
+import { NDropdown } from 'naive-ui/es/dropdown';
 import CsvTableEditor from '@/app/components/csv-editor/CsvTableEditor.vue';
 import CsvRowDetails from '@/app/components/csv-editor/CsvRowDetails.vue';
 import { useCsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
@@ -96,5 +111,20 @@ const csvTable = useCsvTableViewModel(async () => {
   return result?.status === 'saved' || result?.status === 'noop';
 });
 
-const searchOptions = computed(() => csvSearchOptions(tables.currentTab, tables.currentHeader));
+const searchDisabled = computed(() => tables.currentTableLocked || csvTable.searchPending.value);
+const searchOptions = computed(() =>
+  csvSearchOptions(tables.currentTab, tables.currentHeader).map((option) => ({
+    ...option,
+    key: option.value,
+    disabled: searchDisabled.value,
+  })),
+);
+const searchIcon = (option: { key?: string | number }) =>
+  option.key === tables.searchField
+    ? h(
+        'svg',
+        { class: 'ui-control-icon', width: 16, height: 16, viewBox: '0 0 24 24', 'aria-hidden': true },
+        h('path', { d: 'm5 12 4 4L19 6' }),
+      )
+    : null;
 </script>

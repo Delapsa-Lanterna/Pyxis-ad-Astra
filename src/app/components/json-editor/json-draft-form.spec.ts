@@ -6,6 +6,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import JsonEditorWorkspace from './JsonEditorWorkspace.vue';
 import JsonDocumentEditor from './JsonDocumentEditor.vue';
 import JsonDocumentList from './JsonDocumentList.vue';
+import { NInput } from 'naive-ui/es/input';
+import { NDropdown } from 'naive-ui/es/dropdown';
 import type { CommittedWriteEvent } from '@/windows/window.events';
 import SchemaFormRenderer from '@/app/components/schema/SchemaFormRenderer.vue';
 import { useJsonEditorStore } from '@/stores/json-editor.store';
@@ -18,7 +20,7 @@ import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { jsonEntityFixture } from '@/test/fixtures/json-editor';
 import { sessionUpdateFixture, savedWriteFixture } from '@/test/fixtures/write-result';
-import { editorUiStubs } from '@/test/unit/ui-stubs';
+import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
 
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
@@ -172,9 +174,12 @@ function register() {
       for (const id of ['a', 'b']) entities.set(key(session!, kind, id), jsonEntityFixture(kind, id, 'Saved', root));
   }
 }
-async function mountPage(page: JsonEditorPageId, root = 'M:/one') {
+async function mountPage(page: JsonEditorPageId, root = 'M:/one', input: import('vue').Component = nInput) {
   useWorkspaceStore().activateModJson(root, page);
-  wrapper = mount(JsonEditorWorkspace, { attachTo: document.body, global: { stubs: { ...editorUiStubs, 'n-modal': true } } });
+  wrapper = mount(JsonEditorWorkspace, {
+    attachTo: document.body,
+    global: { stubs: { ...editorUiStubs, 'n-input': input, 'n-modal': true } },
+  });
   useSaveCommandStore().registerActiveSaveHandler(async () => {
     try {
       await useJsonEditorStore().active!.save();
@@ -262,6 +267,129 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('JSON common workspace and form', () => {
+  it.each(['variants', 'skins', 'factions', 'mission', 'misc-config'] as const)('%s filters its displayed summaries', async (page) => {
+    await mountPage(page);
+    const list = wrapper!.getComponent(JsonDocumentList),
+      total = list.props('items').length;
+    const input = list.get('.json-entity-list-search input');
+    const text = page === 'misc-config' ? ' STRINGS.JSON ' : ' B ';
+    for (const field of ['id-name', 'id', 'name'] as const) {
+      const query = field === 'name' ? (page === 'misc-config' ? '文本' : ' SAVED ') : text;
+      await list.props('setSearch')(query, field);
+      await flushPromises();
+      const count = field === 'name' && page !== 'mission' && page !== 'misc-config' ? 2 : 1;
+      expect(list.findAll('.json-entity-list-item')).toHaveLength(count);
+      expect(list.get('.json-entity-list-count').text()).toBe(count + '/' + total + ' 项');
+    }
+    await input.setValue('unmatched');
+    await flushPromises();
+    expect(list.text()).toContain('没有匹配项');
+    expect(list.props('selectedId')).toBe(page === 'misc-config' ? 'strings' : 'a');
+    await input.setValue('   ');
+    await flushPromises();
+    expect(list.findAll('.json-entity-list-item')).toHaveLength(total);
+    expect(list.get('.json-entity-list-count').text()).toBe(total + ' 项');
+  });
+  it('commits draft names and IDs for filtering, keeps the editor and selects a result', async () => {
+    await mountPage('variants');
+    const list = wrapper!.getComponent(JsonDocumentList),
+      editor = useJsonEditorStore().active!;
+    await nameInput().setValue('Local');
+    await wrapper!.findAll('.schema-section input')[1]!.setValue('draft_id');
+    await list.props('setSearch')('DRAFT_ID', 'id');
+    await flushPromises();
+    expect(list.get('.json-entity-list-item').text()).toContain('Local');
+    await list.props('setSearch')('Local', 'name');
+    await flushPromises();
+    expect(list.findAll('.json-entity-list-item')).toHaveLength(1);
+    await list.props('setSearch')('b', 'id');
+    await flushPromises();
+    expect(useJsonEditorStore().active).toBe(editor);
+    expect(nameInput().element.value).toBe('Local');
+    await list.get('[data-entity-id="b"]').trigger('click');
+    await flushPromises();
+    expect(useJsonEditorStore().active!.target.value!.id).toBe('b');
+    expect(editor.dirty.value).toBe(true);
+  });
+  it('retains filtering across refresh, same-page returns and Mods, and resets it on another JSON page or release', async () => {
+    await mountPage('variants');
+    const list = wrapper!.getComponent(JsonDocumentList),
+      navigation = useWorkspaceNavigationActions(),
+      editors = useJsonEditorStore();
+    await list.props('setSearch')('b', 'id');
+    projectChangeFixture('s1', {
+      ...savedWriteFixture().invalidation,
+      queryScopes: [{ kind: 'entity-list', entity: { kind: 'variant', id: '' }, table: null, source: null, resource: null }],
+    });
+    await flushPromises();
+    expect(list.get('.json-entity-list-item').attributes('data-entity-id')).toBe('b');
+    navigation.showSettings();
+    await flushPromises();
+    for (const root of ['M:/one', 'M:/two', 'M:/one']) {
+      navigation.navigateToModJson(root, 'variants');
+      await flushPromises();
+      expect(wrapper!.getComponent(JsonDocumentList).props('search')).toMatchObject({
+        text: root === 'M:/one' ? 'b' : '',
+        field: root === 'M:/one' ? 'id' : 'id-name',
+      });
+    }
+    navigation.navigateToModJson('M:/one', 'skins');
+    await flushPromises();
+    expect(wrapper!.getComponent(JsonDocumentList).props('search')).toMatchObject({ text: '', field: 'id-name' });
+    wrapper!.unmount();
+    editors.releaseSession('s1');
+    expect(editors.search('s1', 'variant')).toMatchObject({ text: '', field: 'id-name' });
+  });
+  it('retains invalid input, focus and search when submission fails', async () => {
+    initializeSettingsStore(createSettingsFixture({ editMode: 'plain' }));
+    await mountPage('variants');
+    const field = wrapper!.get('[data-field-path="settings"] textarea');
+    await field.setValue('{invalid');
+    await wrapper!.getComponent(JsonDocumentList).props('setSearch')('b', 'id');
+    expect(wrapper!.getComponent(JsonDocumentList).props('search')).toMatchObject({ text: '', field: 'id-name' });
+    expect((field.element as HTMLTextAreaElement).value).toBe('{invalid');
+    expect(document.activeElement).toBe(field.element);
+    expect(mocks.feedback.error).toHaveBeenCalledOnce();
+  });
+  it.each(['page', 'mod', 'unmount'] as const)('rejects a filter waiting for saves after %s changes', async (change) => {
+    await mountPage('variants');
+    let finish!: (value: boolean) => void;
+    vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const list = wrapper!.getComponent(JsonDocumentList),
+      state = list.props('search');
+    const pending = list.props('setSearch')('late', 'name');
+    if (change === 'unmount') wrapper!.unmount();
+    else useWorkspaceStore().activateModJson(change === 'mod' ? 'M:/two' : 'M:/one', 'skins');
+    await flushPromises();
+    finish(true);
+    await pending;
+    expect(state).toMatchObject({ text: '', field: 'id-name' });
+  });
+  it('uses an arrow menu with a checked search field and preserves the keyword', async () => {
+    await mountPage('variants', 'M:/one', NInput);
+    const list = wrapper!.getComponent(JsonDocumentList);
+    expect(list.getComponent(NInput).props('clearable')).toBe(true);
+    await list.get('input').setValue('b');
+    await flushPromises();
+    await list.get('[aria-label="选择搜索项"]').trigger('click');
+    const menu = list.getComponent(NDropdown);
+    expect(menu.props('options')!.map((option) => option.label)).toEqual(['ID/名称', 'ID', '名称']);
+    menu.vm.$emit('select', 'id');
+    await flushPromises();
+    expect(menu.props('value')).toBe('id');
+    expect(document.querySelectorAll('.n-dropdown-menu .json-entity-icon')).toHaveLength(1);
+    expect(list.get('input').element.value).toBe('b');
+    expect(list.get('input').attributes('placeholder')).toBe('搜索 ID');
+    await list.get('input').trigger('focus');
+    await list.get('.n-base-clear__clear').trigger('click');
+    await flushPromises();
+    expect(list.findAll('.json-entity-list-item')).toHaveLength(2);
+    expect(list.get('input').element.value).toBe('');
+  });
   it.each(['skins', 'variants'] as const)('%s shows the common immersive action and opens its saved identity', async (page) => {
     await mountPage(page);
     const actions = wrapper!.findAll('.editor-actions button');

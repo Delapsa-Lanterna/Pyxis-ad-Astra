@@ -76,4 +76,7 @@ export interface HullReferencesPayload {
 export interface HullWeaponSlot {
   id: string;
   origin: ResourceSource;
+  size?: string;
+  type?: string;
+  mount?: string;
 }

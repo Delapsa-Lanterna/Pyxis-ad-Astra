@@ -2,14 +2,38 @@
   <aside ref="listElement" class="json-entity-list ui-layout-row ui-layout-stack ui-layout-clip ui-content-surface-muted">
     <header class="json-entity-list-header">
       <h3 class="json-entity-list-header-title ui-text-reset">{{ definition.label }}</h3>
-      <small class="json-entity-list-count">{{ items.length }} 项</small>
+      <small class="json-entity-list-count">{{ search.text.trim() ? filteredItems.length + '/' : '' }}{{ items.length }} 项</small>
     </header>
+    <div class="json-entity-list-search">
+      <n-input
+        :value="search.text"
+        size="small"
+        clearable
+        :placeholder="'搜索 ' + searchLabels[search.field]"
+        @update:value="setSearch($event, search.field)"
+      >
+        <template #suffix>
+          <n-dropdown
+            trigger="click"
+            :value="search.field"
+            :options="searchOptions"
+            :render-icon="searchIcon"
+            @select="setSearch(search.text, $event)"
+          >
+            <n-button text size="tiny" :title="'搜索项: ' + searchLabels[search.field]" aria-label="选择搜索项">
+              <svg class="json-entity-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </n-button>
+          </n-dropdown>
+        </template>
+      </n-input>
+    </div>
     <ul :ref="setMediaRoot" class="json-entity-list-items ui-text-reset">
+      <li v-if="items.length && !filteredItems.length" class="json-entity-list-empty ui-text-small">没有匹配项</li>
       <li v-if="!items.length" class="json-entity-list-empty ui-text-small">
         {{ loadFailed ? '读取失败，请通过错误提示修复文件后刷新。' : '未找到 ' + definition.directory + ' 下的' + definition.label + '。' }}
       </li>
       <li
-        v-for="item in items"
+        v-for="item in filteredItems"
         :key="item.key"
         :data-entity-id="item.key"
         :ref="mediaRef(item.key, item.resource)"
@@ -68,7 +92,8 @@
   </aside>
 </template>
 <script setup lang="ts">
-import { ref, watch, nextTick, useTemplateRef } from 'vue';
+import { computed, h, ref, watch, nextTick, useTemplateRef } from 'vue';
+import { NDropdown } from 'naive-ui/es/dropdown';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useVisibleResourceMedia } from '@/app/composables/use-visible-resource-media';
 import type { useJsonEditorViewModel } from '@/app/composables/json-editor/use-json-editor-view-model';
@@ -81,6 +106,8 @@ const props = defineProps<{
   sessionId: string;
   selectedId: string | null;
   items: ReturnType<typeof useJsonEditorViewModel>['items']['value'];
+  search: ReturnType<typeof useJsonEditorViewModel>['search'];
+  setSearch: ReturnType<typeof useJsonEditorViewModel>['setSearch'];
   actionRunning: boolean;
   loadFailed?: boolean;
   hullOptions: SelectOption[];
@@ -90,6 +117,21 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ select: [id: string] }>();
 const settings = useSettingsStore();
+const searchLabels = { 'id-name': 'ID/名称', id: 'ID', name: '名称' };
+const searchOptions = Object.entries(searchLabels).map(([key, label]) => ({ key, label }));
+const searchIcon = (option: { key?: string | number }) =>
+  option.key === props.search.field
+    ? h('svg', { class: 'json-entity-icon', viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: 'm5 12 4 4L19 6' }))
+    : null;
+const filteredItems = computed(() => {
+  const needle = props.search.text.trim().toLowerCase();
+  if (!needle) return props.items;
+  return props.items.filter(
+    (item) =>
+      (props.search.field !== 'name' && (item.filename || item.id).toLowerCase().includes(needle)) ||
+      (props.search.field !== 'id' && item.title.toLowerCase().includes(needle)),
+  );
+});
 const { mediaRef, mediaSrc, mediaVisible, recordListFirstFrame, setMediaRoot } = useVisibleResourceMedia({
   thumbnailSize: 20,
   sessionId: () => props.sessionId,
@@ -98,7 +140,7 @@ const { mediaRef, mediaSrc, mediaVisible, recordListFirstFrame, setMediaRoot } =
 });
 const listElement = useTemplateRef<HTMLElement>('listElement');
 watch(
-  () => [props.selectedId, props.items] as const,
+  () => [props.selectedId, filteredItems.value] as const,
   async () => {
     await nextTick();
     const row = listElement.value?.querySelector<HTMLElement>('[data-entity-id="' + CSS.escape(props.selectedId ?? '') + '"]');

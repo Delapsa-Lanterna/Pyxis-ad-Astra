@@ -10,7 +10,7 @@ import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { useJsonDocumentSession, type JsonDocumentSession } from './use-json-document-session';
 import { useJsonListSelection } from './use-json-list-selection';
 import { createJsonDocument, deleteJsonDocument } from './json-document-capabilities';
-import { useJsonEditorStore, type JsonDocumentState } from '@/stores/json-editor.store';
+import { useJsonEditorStore, type JsonDocumentState, type JsonSearchField } from '@/stores/json-editor.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import {
@@ -39,6 +39,15 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   const reads = useQueryReadOwner();
   const { kind } = definition;
   const { modRoot, sessionId, active } = context;
+  const search = editors.search(sessionId.value!, kind);
+  let disposed = false;
+  async function setSearch(text: string, field: JsonSearchField) {
+    try {
+      if (await selection.prepare()) Object.assign(search, { text, field });
+    } catch (error) {
+      if (!disposed && active.value) feedback.error(error, '筛选' + definition.label + '失败');
+    }
+  }
   const formal = shallowRef<Array<{ record: JsonDocumentRecord; document: JsonDocumentState | null }>>([]);
   const hullNames = ref<Record<string, string>>({});
   const hullOptions = shallowRef<SelectOption[]>([]);
@@ -396,11 +405,14 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     }),
   );
   onScopeDispose(() => {
+    disposed = true;
     if (current.value) {
       current.value.setActive(false);
     }
   });
   return {
+    search,
+    setSearch,
     current,
     selectedFile: computed(() => (kind === 'misc-config' && selectedId.value ? miscConfigFile(selectedId.value) : null)),
     fileError,

@@ -22,6 +22,27 @@ export function hullReferenceSourceGroups(result: DeepReadonly<HullReferencesRes
 
 export type HullSlotKind = 'builtInWeaponSlots' | 'weaponSlots' | 'moduleSlots';
 
+const SLOT_LABELS: Record<string, string> = {
+  SMALL: '小型',
+  MEDIUM: '中型',
+  LARGE: '大型',
+  BALLISTIC: '实弹',
+  ENERGY: '能量',
+  MISSILE: '导弹',
+  HYBRID: '混合',
+  SYNERGY: '协同',
+  COMPOSITE: '复合',
+  UNIVERSAL: '通用',
+  STATION_MODULE: '模块',
+  BUILT_IN: '内置',
+  DECORATIVE: '装饰',
+  SYSTEM: '系统',
+  LAUNCH_BAY: '机库',
+  HARDPOINT: '固定',
+  TURRET: '炮塔',
+  HIDDEN: '隐藏',
+};
+
 export function hullWeaponSlotOptions(
   result: DeepReadonly<HullReferencesResult>,
   hullId: string,
@@ -34,7 +55,10 @@ export function hullWeaponSlotOptions(
         .filter((slot) => slot.origin === origin)
         .map((slot) => ({
           value: slot.id,
-          label: slot.id,
+          label: [
+            slot.id,
+            ...[slot.type, slot.size, slot.mount].map((value) => value && (SLOT_LABELS[value] ?? value)).filter(Boolean),
+          ].join(' · '),
           origin: slot.origin,
           description: null,
           resourceRef: null,

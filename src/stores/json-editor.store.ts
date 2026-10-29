@@ -2,9 +2,10 @@ import type { JsonDocumentRecord, JsonDocumentKind, ConfigDocumentTarget } from 
 import type { RowData } from '@/shared/types';
 import type { DocumentEditorActions } from '@/shared/runtime/document-editor';
 import { defineStore } from 'pinia';
-import { ref, shallowReactive, shallowRef, type Ref } from 'vue';
+import { reactive, ref, shallowReactive, shallowRef, type Ref } from 'vue';
 
 export type JsonEditorHandle = DocumentEditorActions<ConfigDocumentTarget>;
+export type JsonSearchField = 'id-name' | 'id' | 'name';
 export interface JsonDocumentState {
   target: Readonly<Ref<ConfigDocumentTarget | null>>;
   draftValue: Readonly<Ref<RowData>>;
@@ -14,6 +15,11 @@ export interface JsonDocumentState {
   sourceTarget: Readonly<Ref<ConfigDocumentTarget>>;
 }
 export const useJsonEditorStore = defineStore('json-editor', () => {
+  const searches = new Map<string, { kind: JsonDocumentKind; text: string; field: JsonSearchField }>();
+  function search(sessionId: string, kind: JsonDocumentKind) {
+    if (searches.get(sessionId)?.kind !== kind) searches.set(sessionId, reactive({ kind, text: '', field: 'id-name' }));
+    return searches.get(sessionId)!;
+  }
   const selections = new Map<string, Ref<string | null>>();
   function selection(sessionId: string, kind: JsonDocumentKind) {
     const key = JSON.stringify([sessionId, kind]);
@@ -56,6 +62,7 @@ export const useJsonEditorStore = defineStore('json-editor', () => {
     documents.set(nextKey, document);
   }
   function releaseSession(sessionId: string) {
+    searches.delete(sessionId);
     for (const key of selections.keys()) if ((JSON.parse(key) as string[])[0] === sessionId) selections.delete(key);
     if (active.value?.target.value?.sessionId === sessionId) active.value = null;
     for (const [key, document] of documents) if (document.sessionId === sessionId) releaseDocument(key);
@@ -74,6 +81,7 @@ export const useJsonEditorStore = defineStore('json-editor', () => {
     retainDocument,
     rekeyDocument,
     selection,
+    search,
     releaseEntity,
     releaseSession,
   };

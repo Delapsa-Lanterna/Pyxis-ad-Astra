@@ -29,6 +29,9 @@ import { installBrowserModel } from './runtime/commands';
 import { emit } from './runtime/events';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { BrowserModel } from './scenarios/model';
+import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
+import { getSchema } from '@/domain/schema/config-schema-registry';
+import type { RowData } from '@/shared/types';
 import './style.css';
 
 const immersiveKinds = ['ship', 'skin', 'weapon', 'wing', 'variant'] as const;
@@ -105,6 +108,35 @@ export function createBrowserHost(element: HTMLElement) {
     const Scene = defineComponent({
       setup() {
         settings = useSettingsStore();
+        if (new URLSearchParams(location.search).has('slots')) {
+          settings.setEditMode('smart');
+          const field = getSchema('variant')!
+            .sections!.flatMap((section) => section.fields)
+            .find((field) => field.key === 'weaponGroups')!
+            .item!.nested!.find((field) => field.key === 'weapons')!;
+          const value = ref<RowData>({});
+          const options = ['S1 · 实弹 · 小型 · 固定', 'S2 · 能量 · 中型 · 炮塔', 'S3 · 导弹 · 大型 · 隐藏'].map((label) => ({
+            value: label.slice(0, 2),
+            label,
+            origin: 'mod' as const,
+            resourceRef: null,
+            description: null,
+          }));
+          const runtimeContext = {
+            sessionId: model.sessionId,
+            modRoot: model.manifest.modRoot,
+            querySourceOptions: async () => [{ origin: 'mod' as const, options }],
+          };
+          return () =>
+            h(SchemaFieldRenderer, {
+              field,
+              value: value.value,
+              runtimeContext,
+              onUpdate: (update) => {
+                if (update.kind === 'set') value.value = update.value as RowData;
+              },
+            });
+        }
         if (model.scene === 'settings') return () => h(SceneContent);
         if (kind) return () => h(SceneContent);
         const workspace = useWorkspaceStore();

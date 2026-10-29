@@ -4,6 +4,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CsvEditorWorkspace from './CsvEditorWorkspace.vue';
+import { NInput } from 'naive-ui/es/input';
+import { NDropdown } from 'naive-ui/es/dropdown';
 import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
 import type { AppFeedback } from '@/shared/types';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
@@ -13,7 +15,7 @@ import { navigateToModTable } from '@/orchestrators/workspace-navigation.orchest
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
-import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
+import { editorUiStubs } from '@/test/unit/ui-stubs';
 import type { CsvTableIndex } from '@/shared/types';
 import { mountSetup } from '@/test/unit/mount-setup';
 
@@ -56,7 +58,7 @@ async function mountWorkspace() {
   wrapper = mount(CsvEditorWorkspace, {
     props: { actions: mountSetup(() => useCsvEditorActions({ error: mocks.error } as unknown as AppFeedback)).value },
     attachTo: document.body,
-    global: { stubs: { ...editorUiStubs, CsvTableEditor: true, CsvRowDetails: true } },
+    global: { stubs: { ...editorUiStubs, 'n-input': NInput, CsvTableEditor: true, CsvRowDetails: true } },
   });
   await flushPromises();
 }
@@ -113,9 +115,9 @@ describe('table workspace search controls', () => {
 
   it('shows the declared fields and changes the search prompt while retaining the keyword', async () => {
     await mountWorkspace();
-    const select = wrapper.get('select');
-    expect(select.findAll('option').map((option) => option.text())).toEqual(['ID/名称', 'ID', '名称', 'tags']);
-    expect((select.element as HTMLSelectElement).value).toBe('"id-name"');
+    const menu = wrapper.getComponent(NDropdown);
+    expect(menu.props('options')!.map((option) => option.label)).toEqual(['ID/名称', 'ID', '名称', 'tags']);
+    expect(menu.props('value')).toBe('id-name');
     await wrapper.get('input').setValue('Alpha');
     await flushPromises();
     for (const [field, label] of [
@@ -123,11 +125,11 @@ describe('table workspace search controls', () => {
       ['name', '名称'],
       ['tags', 'tags'],
     ] as const) {
-      await select.setValue(JSON.stringify(field));
+      menu.vm.$emit('select', field);
       await flushPromises();
       expect(useCsvEditorStore().searchField).toBe(field);
       expect(useCsvEditorStore().searchText).toBe('Alpha');
-      expect(wrapper.getComponent(nInput).props('placeholder')).toBe(`搜索 ${label}`);
+      expect(wrapper.getComponent(NInput).props('placeholder')).toBe(`搜索 ${label}`);
       expect(mocks.query).toHaveBeenLastCalledWith(target.sessionId, 'ships', 0, 'Alpha', field, expect.any(AbortSignal));
     }
   });
@@ -138,9 +140,9 @@ describe('table workspace search controls', () => {
     await mountWorkspace();
     expect(
       wrapper
-        .get('select')
-        .findAll('option')
-        .map((option) => option.text()),
+        .getComponent(NDropdown)
+        .props('options')!
+        .map((option) => option.label),
     ).toEqual(['ID/名称', 'ID']);
     expect(tables.currentHeader).toEqual(['id']);
   });
@@ -149,10 +151,49 @@ describe('table workspace search controls', () => {
     useCsvEditorStore().lockTable(target, 'identity-handoff');
     await flushPromises();
     expect((wrapper.get('input').element as HTMLInputElement).disabled).toBe(true);
-    expect((wrapper.get('select').element as HTMLSelectElement).disabled).toBe(true);
+    expect(wrapper.get('[aria-label="选择搜索项"]').attributes('disabled')).toBeDefined();
+    expect(
+      wrapper
+        .getComponent(NDropdown)
+        .props('options')!
+        .every((option) => option.disabled),
+    ).toBe(true);
     useCsvEditorStore().releaseTableLock('identity-handoff');
     await flushPromises();
     expect((wrapper.get('input').element as HTMLInputElement).disabled).toBe(false);
-    expect((wrapper.get('select').element as HTMLSelectElement).disabled).toBe(false);
+    expect(wrapper.get('[aria-label="选择搜索项"]').attributes('disabled')).toBeUndefined();
+  });
+  it('opens a checked menu, clears the keyword and releases the old menu when switching tables', async () => {
+    await mountWorkspace();
+    await wrapper.get('input').setValue('Alpha');
+    await flushPromises();
+    await wrapper.get('[aria-label="选择搜索项"]').trigger('click');
+    await flushPromises();
+    expect(document.querySelectorAll('.n-dropdown-menu .ui-control-icon')).toHaveLength(1);
+    await wrapper.get('input').trigger('focus');
+    await wrapper.get('.n-base-clear__clear').trigger('click');
+    await flushPromises();
+    expect(useCsvEditorStore().searchText).toBe('');
+    expect(useCsvEditorStore().searchField).toBe('id-name');
+    await wrapper.get('[aria-label="选择搜索项"]').trigger('click');
+    await flushPromises();
+    navigateToModTable(target.modRoot, 'weapons');
+    await flushPromises();
+    expect(document.querySelector('.n-dropdown-menu')).toBeNull();
+  });
+  it('keeps the keyword and focus when clearing cannot submit a table input', async () => {
+    await mountWorkspace();
+    await wrapper.get('input').setValue('Alpha');
+    await flushPromises();
+    const focus = vi.fn();
+    useCsvEditorStore()
+      .getTableInputs(target.modRoot, target.table)
+      .register({ key: 'row/name', label: 'Name', dirty: ref(true), focus, cancel: vi.fn(), commit: () => 'Invalid' });
+    await wrapper.get('input').trigger('focus');
+    await wrapper.get('.n-base-clear__clear').trigger('click');
+    await flushPromises();
+    expect(useCsvEditorStore().searchText).toBe('Alpha');
+    expect(focus).toHaveBeenCalledOnce();
+    expect(mocks.error).toHaveBeenCalledOnce();
   });
 });

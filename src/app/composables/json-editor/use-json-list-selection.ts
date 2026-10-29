@@ -208,6 +208,7 @@ export function useJsonListSelection(options: {
     writing,
     isOwnSave: (id: string | undefined) => currentRequestId.value === id,
     reconcile,
+    prepare,
     select,
     mutate,
     discardDeleted: async () => {

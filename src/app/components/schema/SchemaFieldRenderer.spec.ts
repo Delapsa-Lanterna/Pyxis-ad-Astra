@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   queryCoreFields: vi.fn(async () => ({})),
   queryCoreGraphics: vi.fn(async () => ['graphics/one.png', 'graphics/two.png']),
 }));
+const slotUiStubs = { ...editorUiStubs, 'n-select': { ...nSelect, methods: { focusInput: vi.fn() } } };
 vi.mock('@/services/source-options.service', () => ({ queryImageSourceOptions: mocks.queryImages }));
 
 vi.mock('@/services/core-assets.service', () => ({
@@ -149,10 +150,12 @@ describe('SchemaFieldRenderer smart mode', () => {
               },
             }),
         },
-        { global: { stubs: editorUiStubs } },
+        { global: { stubs: slotUiStubs } },
       );
       await flushPromises();
       await wrapper.findAll('button').at(-1)!.trigger('click');
+      expect(value.value).toEqual(initial);
+      await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('M1'));
       await flushPromises();
       expect(value.value).toEqual(Array.isArray(initial) ? [{ M1: '' }] : { M1: '' });
       expect(
@@ -164,7 +167,7 @@ describe('SchemaFieldRenderer smart mode', () => {
       const reference = wrapper.findAllComponents({ name: 'SchemaReferenceInput' })[0]!;
       expect(reference.props('field')).toMatchObject({ type: 'enum', source: 'csv:variants.variantId' });
       expect(query.mock.calls.map(([source]) => source)).toContain('csv:variants.variantId');
-      reference.findComponent(nSelect).vm.$emit('update:value', 'sample_variant');
+      reference.findComponent(slotUiStubs['n-select']).vm.$emit('update:value', 'sample_variant');
       await flushPromises();
       expect(value.value).toEqual(Array.isArray(initial) ? [{ M1: 'sample_variant' }] : { M1: 'sample_variant' });
       await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('M2'));
@@ -197,7 +200,7 @@ describe('SchemaFieldRenderer smart mode', () => {
             },
           }),
       },
-      { global: { stubs: editorUiStubs } },
+      { global: { stubs: slotUiStubs } },
     );
     await flushPromises();
     expect(wrapper.find('input.field-map-key-editor').exists()).toBe(false);
@@ -210,10 +213,27 @@ describe('SchemaFieldRenderer smart mode', () => {
     await wrapper.get('select.field-map-key-editor').setValue(JSON.stringify('B'));
     expect(value.value).toEqual({ B: 'gun' });
     await wrapper.findAll('button').at(-1)!.trigger('click');
-    expect(value.value).toEqual({ B: 'gun', A: '' });
-    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined();
+    expect(value.value).toEqual({ B: 'gun' });
+    const pending = () => wrapper!.findAllComponents(slotUiStubs['n-select']).find((select) => select.props('value') === null)!;
+    expect(
+      pending()
+        .props('options')
+        .map((option: { value: string }) => option.value),
+    ).toEqual(['A']);
+    await pending().trigger('keydown', { key: 'Escape' });
+    expect(value.value).toEqual({ B: 'gun' });
+    await wrapper.findAll('button').at(-1)!.trigger('click');
+    pending().vm.$emit('update:show', false);
+    await flushPromises();
+    expect(value.value).toEqual({ B: 'gun' });
+    await wrapper.findAll('button').at(-1)!.trigger('click');
     context.value = { ...context.value, sourceContextKey: 'hull-b' };
     await flushPromises();
+    expect(pending()).toBeUndefined();
+    await wrapper.findAll('button').at(-1)!.trigger('click');
+    await pending().get('select').setValue(JSON.stringify('A'));
+    expect(value.value).toEqual({ B: 'gun', A: '' });
+    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined();
     expect(query).toHaveBeenCalledTimes(2);
   });
   it.each([undefined, false, true])('keeps object expansion permission %s independent of its contents', async (allowed) => {

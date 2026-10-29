@@ -63,6 +63,9 @@
   height: 28px;
   border-radius: 6px;
 }
+.mod-tabs-overview[data-refresh='core'] {
+  width: auto;
+}
 .mod-tab-close:hover,
 .mod-tabs-overview:hover {
   background: var(--color-surface-hover);

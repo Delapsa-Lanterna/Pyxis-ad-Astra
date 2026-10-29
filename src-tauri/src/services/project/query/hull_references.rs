@@ -296,25 +296,34 @@ fn resolve_weapon_slots(
                 slots.extend(added.keys().map(|key| (key.clone(), origin)));
             }
         }
+        let weapons: Vec<_> = weapons
+            .into_iter()
+            .filter_map(|(slot, origin)| {
+                let id = slot["id"].as_str()?.to_owned();
+                Some(crate::models::HullWeaponSlot {
+                    id,
+                    origin,
+                    size: string_field(&slot, "size"),
+                    r#type: string_field(&slot, "type"),
+                    mount: string_field(&slot, "mount"),
+                })
+            })
+            .collect();
         result.module_slots.insert(
             id.clone(),
             weapons
                 .iter()
-                .filter(|(slot, _)| slot["type"] == "STATION_MODULE")
-                .map(|(slot, origin)| crate::models::HullWeaponSlot {
-                    id: slot["id"].as_str().expect("module slot ID").into(),
-                    origin: *origin,
-                })
+                .filter(|slot| slot.r#type.as_deref() == Some("STATION_MODULE"))
+                .cloned()
                 .collect(),
         );
         result.weapon_slots.insert(
             id.clone(),
             weapons
-                .into_iter()
-                .filter_map(|(slot, origin)| {
-                    let id = slot["id"].as_str()?;
-                    (matches!(
-                        slot["type"].as_str(),
+                .iter()
+                .filter(|slot| {
+                    matches!(
+                        slot.r#type.as_deref(),
                         Some(
                             "BALLISTIC"
                                 | "ENERGY"
@@ -324,19 +333,23 @@ fn resolve_weapon_slots(
                                 | "COMPOSITE"
                                 | "UNIVERSAL"
                         )
-                    ) && !slots.contains_key(id))
-                    .then(|| crate::models::HullWeaponSlot {
-                        id: id.into(),
-                        origin,
-                    })
+                    ) && !slots.contains_key(&slot.id)
                 })
+                .cloned()
                 .collect(),
         );
+        let slot_by_id: BTreeMap<_, _> = weapons.iter().map(|slot| (&slot.id, slot)).collect();
         result.built_in_weapon_slots.insert(
             id.clone(),
             slots
                 .into_iter()
-                .map(|(id, origin)| crate::models::HullWeaponSlot { id, origin })
+                .map(|(id, origin)| crate::models::HullWeaponSlot {
+                    size: slot_by_id.get(&id).and_then(|slot| slot.size.clone()),
+                    r#type: slot_by_id.get(&id).and_then(|slot| slot.r#type.clone()),
+                    mount: slot_by_id.get(&id).and_then(|slot| slot.mount.clone()),
+                    id,
+                    origin,
+                })
                 .collect(),
         );
     }
@@ -427,7 +440,7 @@ mod tests {
         std::fs::create_dir_all(root.join("starsector-core/data/hulls/skins")).unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/mod_ship.ship"),
-            r#"{"hullId":"mod_ship","hullName":"Mod Ship","spriteName":"graphics/ships/mod_ship.png","builtInWeapons":{"WS001":"weapon_a","WS002":"weapon_a"},"weaponSlots":[{"id":"WS001","type":"BALLISTIC"},{"id":"A","type":"ENERGY"},{"id":"B","type":"UNIVERSAL"},{"id":"C","type":"MISSILE"},{"id":"D","type":"DECORATIVE"},{"id":"E","type":"BUILT_IN"},{"id":"F","type":"LAUNCH_BAY"},{"id":"G","type":"STATION_MODULE"},{"id":"H","type":"SYSTEM"}]}"#,
+            r#"{"hullId":"mod_ship","hullName":"Mod Ship","spriteName":"graphics/ships/mod_ship.png","builtInWeapons":{"WS001":"weapon_a","WS002":"weapon_a"},"weaponSlots":[{"id":"WS001","type":"BALLISTIC","size":"SMALL","mount":"HIDDEN"},{"id":"A","type":"ENERGY","size":"MEDIUM","mount":"TURRET"},{"id":"B","type":"UNIVERSAL"},{"id":"C","type":"MISSILE"},{"id":"D","type":"DECORATIVE"},{"id":"E","type":"BUILT_IN"},{"id":"F","type":"LAUNCH_BAY"},{"id":"G","type":"STATION_MODULE"},{"id":"H","type":"SYSTEM"}]}"#,
         )
         .unwrap();
         write_utf8_no_bom(
@@ -437,12 +450,12 @@ mod tests {
         .unwrap();
         write_utf8_no_bom(
             &mod_root.join("data/hulls/skins/mod_skin.skin"),
-            r#"{"skinHullId":"mod_skin","baseHullId":"mod_ship","removeBuiltInWeapons":["WS001"],"builtInWeapons":{"WS003":"weapon_b"},"removeWeaponSlots":["B"],"weaponSlotChanges":{"A":{"type":"STATION_MODULE"}}}"#,
+            r#"{"skinHullId":"mod_skin","baseHullId":"mod_ship","removeBuiltInWeapons":["WS001"],"builtInWeapons":{"WS003":"weapon_b"},"removeWeaponSlots":["B"],"weaponSlotChanges":{"A":{"type":"STATION_MODULE","size":"LARGE","mount":"HARDPOINT"}}}"#,
         )
         .unwrap();
         write_utf8_no_bom(
             &root.join("starsector-core/data/hulls/core_ship.ship"),
-            r#"{"hullId":"core_ship","hullName":"Core Ship","spriteName":"graphics/ships/core_ship.png","builtInWeapons":{"CORE_SLOT":"core_weapon"},"weaponSlots":[{"id":"CORE_EDITABLE","type":"BALLISTIC"}]}"#,
+            r#"{"hullId":"core_ship","hullName":"Core Ship","spriteName":"graphics/ships/core_ship.png","builtInWeapons":{"CORE_SLOT":"core_weapon"},"weaponSlots":[{"id":"CORE_EDITABLE","type":"BALLISTIC","size":"SMALL"}]}"#,
         )
         .unwrap();
         write_utf8_no_bom(
@@ -524,6 +537,24 @@ mod tests {
                 .map(|slot| slot.id.as_str())
                 .collect::<Vec<_>>(),
             vec!["A", "G"]
+        );
+        let metadata = [
+            &previews.weapon_slots["mod_ship"][0],
+            &previews.module_slots["mod_skin"][0],
+            &previews.built_in_weapon_slots["mod_ship"][0],
+            &previews.weapon_slots["core_skin"][0],
+        ];
+        assert_eq!(
+            metadata.map(|slot| slot.size.as_deref().unwrap()),
+            ["MEDIUM", "LARGE", "SMALL", "SMALL"]
+        );
+        assert_eq!(
+            metadata.map(|slot| slot.r#type.as_deref().unwrap()),
+            ["ENERGY", "STATION_MODULE", "BALLISTIC", "BALLISTIC"]
+        );
+        assert_eq!(
+            metadata.map(|slot| slot.mount.as_deref()),
+            [Some("TURRET"), Some("HARDPOINT"), Some("HIDDEN"), None]
         );
         let values: Vec<String> = catalog
             .groups
