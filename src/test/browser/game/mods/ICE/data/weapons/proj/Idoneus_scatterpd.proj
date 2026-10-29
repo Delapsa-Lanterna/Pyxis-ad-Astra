@@ -1,0 +1,71 @@
+{
+  "id": "Idoneus_scatterpd",
+  "specClass": "missile",
+  "missileType": "ROCKET",
+  "sprite": "graphics/projectiles/Idoneus_scatterpd/sprite.png",
+  "size": [
+    4,
+    18
+  ],
+  "center": [
+    2,
+    9
+  ],
+  "collisionRadius": 15,
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "explosionColor": [
+    255,
+    223,
+    128,
+    200
+  ],
+  "explosionRadius": 40,
+  "engineSpec": {
+    "turnAcc": 150,
+    "turnRate": 150,
+    "acc": 200,
+    "dec": 0
+  },
+  "engineSlots": [
+    {
+      "id": "ES1",
+      "loc": [
+        -11,
+        0
+      ],
+      "style": "IDONEUS_MISSILE",
+      "width": 8,
+      "length": 30,
+      "angle": 180
+    }
+  ],
+  "behaviorSpec": {
+    "behavior": "PROXIMITY_FUSE",
+    "range": 10,
+    "explosionSpec": {
+      "duration": "0.1f",
+      "radius": 100,
+      "coreRadius": 50,
+      "collisionClass": "PROJECTILE_FF",
+      "collisionClassByFighter": "PROJECTILE_FIGHTER",
+      "particleSizeMin": 3,
+      "particleSizeRange": 5,
+      "particleDuration": 1,
+      "particleCount": 8,
+      "particleColor": [
+        160,
+        240,
+        220,
+        255
+      ],
+      "explosionColor": [
+        125,
+        123,
+        93,
+        155
+      ],
+      "sound": "explosion_missile"
+    }
+  }
+}

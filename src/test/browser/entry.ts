@@ -1,6 +1,5 @@
 import { createBrowserHost } from './host';
 import {
-  createScenario,
   scenarios,
   scenarioHref,
   workspaceEntries,
@@ -28,6 +27,7 @@ import { listen as listenWindowEvent } from './runtime/native';
 import appIcon from '@/assets/app-icon.svg';
 import { mountSceneAppearance } from './appearance';
 import { mountBrowserHeader } from './header';
+import { createGamePreview } from './game-preview';
 import '@/styles/style.css';
 import './browser.css';
 
@@ -151,11 +151,7 @@ async function startScene() {
     definition.samples.map((id) => '<option value="' + id + '">' + (sampleLabels[id] ?? performanceLabel(id)) + '</option>').join('') +
     '</select></label><label ' +
     (definition.id !== 'pickers' ? 'hidden' : '') +
-    '>来源 <select id="source" aria-label="候选来源"><option value="mod">本 Mod</option><option value="core">原版</option><option value="all">全部来源</option></select></label><label ' +
-    (!['csv', 'pickers'].includes(definition.id) ? 'hidden' : '') +
-    '>规模 <input id="count" type="number" min="2" value="' +
-    (query.get('count') ?? (definition.id === 'csv' ? 50 : 30)) +
-    '"></label><button id="reopen">重新打开</button><button id="reset">恢复样本</button>' +
+    '>来源 <select id="source" aria-label="候选来源"><option value="mod">本 Mod</option><option value="core">原版</option><option value="all">全部来源</option></select></label><button id="reopen">重新打开</button><button id="reset">恢复样本</button>' +
     '<button id="close">关闭场景</button><div id="appearance"></div><span id="status" role="status">正在准备</span></div>';
   const element = document.querySelector<HTMLElement>('#app')!;
   const status = document.querySelector<HTMLElement>('#status')!;
@@ -179,10 +175,9 @@ async function startScene() {
     controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = true));
     try {
       appearance?.unmount();
-      options.count = Number(document.querySelector<HTMLInputElement>('#count')!.value);
       options.scene = document.querySelector<HTMLSelectElement>('#sample')!.value as ScenarioOptions['scene'];
       options.source = document.querySelector<HTMLSelectElement>('#source')!.value as ScenarioOptions['source'];
-      const model = reset || !host.model ? createScenario(options) : host.model;
+      const model = reset || !host.model ? createGamePreview(options) : host.model;
       if (query.has('readFailure')) model.failures.set('query_joint_edit', '样本来源读取失败，请重试');
       await host.open(model);
       await until(() => Boolean(element.querySelector(sampleSelector(options.scene))), definition.label);

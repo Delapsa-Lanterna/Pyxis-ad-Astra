@@ -1,0 +1,20 @@
+name,id,tier,rarity,tech/manufacturer,tags,uiTags,base value,unlocked,hidden,hiddenEverywhere,cost_frigate,cost_dest,cost_cruiser,cost_capital,script,desc,short,sModDesc,sprite
+伊甸圣宣构架,Idoneus_gravitonic_sensors_mod,,,ICS,,,,,TRUE,,0,0,0,0,data.hullmods.ExpandedMagazines,"伊甸堡垒所发掘出的一系列科技水平远超人们想象的技术应用规格，将舰船设计所展示的成果提升到了艺术层次。
+
+非传统传感器使基础射程低于 {%s} 的武器更靠近这一射程阈值，补足两者差距的 {%s}。
+
+内嵌式六角相位器可以直接操纵不被幅能场保护的物质。根据自身舰体等级，对附近的非友方舰船残骸以每秒大约 {%s} 次的频率造成 {%s}/{%s}/{%s}/{%s} 拆解伤害，并为自身恢复相当于伤害 {%s}/{%s} 的结构/装甲。对战机残骸也偶尔有效。
+
+结束战斗后立刻修复自身船体和装甲损伤的 {%s}。",ICS 内置插件,,graphics/icons/hullmods/Idoneus_gravitonic_sensors_mod/sprite.png
+流式修复,Idoneus_stream_repair_mod,,,ICS,hide_in_codex,,,,TRUE,,0,0,0,0,data.hullmods.HardenedShieldEmitter,"当舰船处于相位状态，减少维修武器与引擎所需的时间 {%s}。
+
+""相态稳定，固件扰动率已抑制至负，加速易损组件维修进程。""",提升修复速率,,graphics/icons/hullmods/Idoneus_stream_repair_mod/sprite.png
+Vast Bulk,Idoneus_vastbulk_mod,,,,hide_in_codex,,,,TRUE,TRUE,0,0,0,0,data.hullmods.HeavyArmor,Hidden.,,,graphics/hullmods/vast_bulk.png
+湍流滑阀,Idoneus_turbulence_valve_mod,3,,ICS,"idoneus_p, phase, defensive, special, merc",相位,6000,,,,6,12,18,30,data.hullmods.IntegratedTargetingUnit,"在相位线圈冷却时释放大量亚空间湍流，对附近的敌方单位每秒造成大约 %s/%s/%s/%s 能量伤害，伤害与范围随相位线圈冷却而线性减弱。
+对于安装了渐进式相位的舰船，时流倍率达到 {%s} 后才可触发效果。
+
+[仅适用于 ICS 相位舰船]",反小型目标,,graphics/icons/hullmods/Idoneus_turbulence_valve_mod/sprite.png
+弹药整备线,Idoneus_munitions_autofac_mod,2,,ICS,"idoneus_p, offensive, special, merc",特殊,5000,,,,8,12,20,32,data.hullmods.ReinforcedBulkheads,"配备专用整备线，进一步提高武器的弹药恢复速率，幅度与 弹药上限与武器装配消耗的比 正相关。
+为补充本舰武器弹药的维修无人机减轻 {%s} 冷却时间负担。
+
+[仅适用于 ICS 舰船]",重装弹药,,graphics/icons/hullmods/Idoneus_munitions_autofac_mod/sprite.png

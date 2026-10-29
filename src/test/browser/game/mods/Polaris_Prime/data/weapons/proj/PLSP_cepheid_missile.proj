@@ -1,0 +1,71 @@
+{
+  "id": "PLSP_cepheid_missile",
+  "specClass": "missile",
+  "missileType": "MISSILE",
+  "sprite": "graphics/projectiles/PLSP_cepheid_missile/sprite.png",
+  "size": [
+    20,
+    40
+  ],
+  "center": [
+    10,
+    20
+  ],
+  "collisionRadius": 10,
+  "collisionClass": "MISSILE_NO_FF",
+  "explosionColor": [
+    60,
+    60,
+    255,
+    255
+  ],
+  "explosionRadius": 60,
+  "engineSpec": {
+    "turnAcc": 3600,
+    "turnRate": 720,
+    "acc": 2400,
+    "dec": 1200
+  },
+  "fadeTime": 0.1,
+  "flameoutTime": 0.1,
+  "alwaysAccelerate": true,
+  "useHitGlowWhenDestroyed": true,
+  "noCollisionWhileFading": true,
+  "noDebrisWhenDestroyed": true,
+  "engineSlots": [
+    {
+      "id": "ES1",
+      "loc": [
+        15,
+        0
+      ],
+      "style": "CUSTOM",
+      "styleSpec": {
+        "mode": "QUAD_STRIP",
+        "engineColor": [
+          35,
+          240,
+          255,
+          10
+        ],
+        "contrailDuration": 1.5,
+        "contrailWidthMult": 20,
+        "contrailWidthAddedFractionAtEnd": -0.5,
+        "contrailMinSeg": 1,
+        "contrailMaxSpeedMult": "0f",
+        "contrailAngularVelocityMult": "0f",
+        "contrailSpawnDistMult": 0,
+        "contrailColor": [
+          35,
+          240,
+          255,
+          100
+        ],
+        "type": "GLOW"
+      },
+      "width": 1,
+      "length": 1,
+      "angle": 180
+    }
+  ]
+}

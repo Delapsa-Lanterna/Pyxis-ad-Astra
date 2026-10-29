@@ -1,9 +1,16 @@
 import { browserModel, browserWindowLabel, invoke as invokeScene } from './commands';
 import { listen as listenScene, emit as emitScene } from './events';
-import { clientWindowLabel, workspaceClient } from '../workspace-runtime';
+import { clientWindowLabel, workspaceClient } from '../workspace-client';
 export async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const workspace = workspaceClient();
-  return (workspace ? workspace.invoke(clientWindowLabel(), command, args ?? {}) : invokeScene(command, args)) as Promise<T>;
+  try {
+    return workspace
+      ? (structuredClone(await workspace.invoke(clientWindowLabel(), command, args ?? {})) as T)
+      : await invokeScene<T>(command, args);
+  } catch (error) {
+    const diagnostic = error as { code?: string; message: string; location?: unknown };
+    throw { code: diagnostic.code ?? 'browser.fixture', message: diagnostic.message, location: diagnostic.location ?? null };
+  }
 }
 export async function listen<T>(
   event: string,

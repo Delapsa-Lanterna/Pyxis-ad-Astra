@@ -1,0 +1,243 @@
+{
+  "Kratogen_capacitor_s_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_s_fire.ogg",
+      "pitch": 1,
+      "volume": 0.67
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_s_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_s_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.73
+    }
+  ],
+  "Kratogen_capacitor_m_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_m_fire.ogg",
+      "pitch": 1,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_m_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.73
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_m_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.76
+    }
+  ],
+  "Kratogen_capacitor_m_loop": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_m_loop.ogg",
+      "pitch": 1,
+      "volume": 0.7
+    }
+  ],
+  "Kratogen_capacitor_l_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_l_fire.ogg",
+      "pitch": 1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_l_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_l_fire.ogg",
+      "pitch": 0.9,
+      "volume": 1.1
+    }
+  ],
+  "Kratogen_capacitor_l_loop": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_capacitor_l_loop.ogg",
+      "pitch": 1,
+      "volume": 1
+    }
+  ],
+  "Kratogen_convection_s_fire": [
+    {
+      "file": "sounds/sfx_wpn_guns/rail_gun_fire_01.ogg",
+      "pitch": 1.5,
+      "volume": 0.5
+    },
+    {
+      "file": "sounds/sfx_wpn_guns/rail_gun_fire_01.ogg",
+      "pitch": 1.6,
+      "volume": 0.45
+    },
+    {
+      "file": "sounds/sfx_wpn_guns/rail_gun_fire_01.ogg",
+      "pitch": 1.7,
+      "volume": 0.5
+    },
+    {
+      "file": "sounds/sfx_wpn_guns/rail_gun_fire_01.ogg",
+      "pitch": 1.8,
+      "volume": 0.45
+    }
+  ],
+  "Kratogen_convection_m_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_m_fire.ogg",
+      "pitch": 1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_m_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_m_fire.ogg",
+      "pitch": 1,
+      "volume": 1.1
+    }
+  ],
+  "Kratogen_convection_l_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_l_fire.ogg",
+      "pitch": 1,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_l_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_l_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_l_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_convection_l_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.6
+    }
+  ],
+  "Kratogen_drizzle_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_drizzle_fire.ogg",
+      "pitch": 1,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_drizzle_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_drizzle_fire.ogg",
+      "pitch": 0.8,
+      "volume": 0.8
+    }
+  ],
+  "Kratogen_hydrate_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_hydrate_fire.ogg",
+      "pitch": 1,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_hydrate_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_hydrate_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1.1
+    }
+  ],
+  "Kratogen_flint_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_flint_fire.ogg",
+      "pitch": 1.4,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_flint_fire.ogg",
+      "pitch": 1.5,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_flint_fire.ogg",
+      "pitch": 1.6,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_flint_fire.ogg",
+      "pitch": 1.4,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_flint_fire.ogg",
+      "pitch": 1.5,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_flint_fire.ogg",
+      "pitch": 1.6,
+      "volume": 0.7
+    }
+  ],
+  "Kratogen_advection_m_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_m_fire.ogg",
+      "pitch": 1,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_m_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_m_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.6
+    }
+  ],
+  "Kratogen_advection_l_fire": [
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_l_fire.ogg",
+      "pitch": 1,
+      "volume": 5
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_l_fire.ogg",
+      "pitch": 1.1,
+      "volume": 5
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_l_fire.ogg",
+      "pitch": 0.9,
+      "volume": 6
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_l_fire.ogg",
+      "pitch": 1.1,
+      "volume": 5
+    },
+    {
+      "file": "sounds/sfx_weapon/Kratogen_advection_l_fire.ogg",
+      "pitch": 0.9,
+      "volume": 6
+    }
+  ]
+}

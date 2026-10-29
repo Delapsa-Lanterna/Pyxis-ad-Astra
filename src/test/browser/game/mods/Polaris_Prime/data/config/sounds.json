@@ -1,0 +1,299 @@
+{
+  "PLSP_phonon_s_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_s_fire.ogg",
+      "pitch": 1,
+      "volume": 0.9
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_s_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_s_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1
+    }
+  ],
+  "PLSP_phonon_m_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_m_fire.ogg",
+      "pitch": 1.3,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_m_fire.ogg",
+      "pitch": 1.4,
+      "volume": 1.4
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_m_fire.ogg",
+      "pitch": 1.3,
+      "volume": 1.4
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_m_fire.ogg",
+      "pitch": 1.4,
+      "volume": 1.3
+    }
+  ],
+  "PLSP_phonon_l_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_l_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.5
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_l_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_l_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_phonon_l_fire.ogg",
+      "pitch": 1.3,
+      "volume": 0.7
+    }
+  ],
+  "PLSP_impulse_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_fire.ogg",
+      "pitch": 1.4,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_fire.ogg",
+      "pitch": 1.5,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_fire.ogg",
+      "pitch": 1.6,
+      "volume": 1.1
+    }
+  ],
+  "PLSP_impulse_mid_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_mid_fire.ogg",
+      "pitch": 1.5,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_mid_fire.ogg",
+      "pitch": 1.4,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_mid_fire.ogg",
+      "pitch": 1.6,
+      "volume": 0.9
+    }
+  ],
+  "PLSP_impulse_large_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_large_fire.ogg",
+      "pitch": 1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_large_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_impulse_large_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.9
+    }
+  ],
+  "PLSC_impulse_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSC_impulse_fire.ogg",
+      "pitch": 1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_impulse_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_impulse_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.9
+    }
+  ],
+  "PLSP_magnetic_l_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_magnetic_fire.ogg",
+      "pitch": 1.3,
+      "volume": 0.9
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_magnetic_fire.ogg",
+      "pitch": 1.4,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_magnetic_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1
+    }
+  ],
+  "PLSC_pulser_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSC_pulser_fire.ogg",
+      "pitch": 1,
+      "volume": 0.5
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_pulser_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_pulser_fire.ogg",
+      "pitch": 1.1,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_pulser_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_pulser_fire.ogg",
+      "pitch": 0.8,
+      "volume": 0.5
+    }
+  ],
+  "PLSP_tracker_l_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_guidingpd_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_guidingpd_fire.ogg",
+      "pitch": 1.3,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_guidingpd_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.9
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_guidingpd_fire.ogg",
+      "pitch": 1.3,
+      "volume": 1
+    }
+  ],
+  "PLSC_tracker_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSC_tracker_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_tracker_fire.ogg",
+      "pitch": 1,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_tracker_fire.ogg",
+      "pitch": 1,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSC_tracker_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.7
+    }
+  ],
+  "PLSP_crystal_s_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_crystal_m_fire.ogg",
+      "pitch": 3,
+      "volume": 0.5
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_crystal_m_fire.ogg",
+      "pitch": 3.3,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_crystal_m_fire.ogg",
+      "pitch": 3.2,
+      "volume": 0.5
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_crystal_m_fire.ogg",
+      "pitch": 3.3,
+      "volume": 0.4
+    }
+  ],
+  "PLSP_stream_s_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_stream_s_fire.ogg",
+      "pitch": 1,
+      "volume": 1.1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_stream_s_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_stream_s_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.9
+    }
+  ],
+  "PLSP_stream_s_loop": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_stream_s_loop.ogg",
+      "pitch": 1,
+      "volume": 0.8
+    }
+  ],
+  "PLSP_nebula_blaster_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_nebula_blaster_fire.ogg",
+      "pitch": 2,
+      "volume": 0.9
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_nebula_blaster_fire.ogg",
+      "pitch": 2.2,
+      "volume": 1
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_nebula_blaster_fire.ogg",
+      "pitch": 2.4,
+      "volume": 0.8
+    }
+  ],
+  "PLSP_cepheid_fire": [
+    {
+      "file": "sounds/sfx_weapon/PLSP_cepheid_fire.ogg",
+      "pitch": 1.3,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_cepheid_fire.ogg",
+      "pitch": 1.4,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/sfx_weapon/PLSP_cepheid_fire.ogg",
+      "pitch": 1.6,
+      "volume": 1.3
+    }
+  ]
+}

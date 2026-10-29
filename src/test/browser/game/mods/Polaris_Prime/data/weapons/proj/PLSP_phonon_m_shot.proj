@@ -1,0 +1,25 @@
+{
+  "id": "PLSP_phonon_m_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC_AS_BEAM",
+  "collisionClass": "RAY",
+  "collisionClassByFighter": "RAY_FIGHTER",
+  "length": 130,
+  "width": 16,
+  "fadeTime": 0.15,
+  "fringeColor": [
+    25,
+    100,
+    155,
+    255
+  ],
+  "coreColor": [
+    225,
+    225,
+    255,
+    200
+  ],
+  "textureType": "ROUGH",
+  "textureScrollSpeed": -256,
+  "pixelsPerTexel": 1
+}

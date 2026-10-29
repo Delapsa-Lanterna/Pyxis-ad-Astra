@@ -1,0 +1,46 @@
+{
+  "id": "fragbomb",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "SMALL",
+  "turretSprite": "graphics/weapons/bomb_bay_turret_base.png",
+  "hardpointSprite": "graphics/weapons/bomb_bay_hardpoint_base.png",
+  "hardpointOffsets": [
+    0,
+    0
+  ],
+  "turretOffsets": [
+    0,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "renderHints": [
+    "RENDER_LOADED_MISSILES"
+  ],
+  "interruptibleBurst": false,
+  "projectileSpecId": "fragbomb_proj",
+  "animationType": "SMOKE",
+  "smokeSpec": {
+    "particleSizeMin": 10,
+    "particleSizeRange": 8,
+    "cloudParticleCount": 5,
+    "cloudDuration": 1.5,
+    "cloudRadius": 6,
+    "blowbackParticleCount": 0,
+    "blowbackDuration": 0.45,
+    "blowbackLength": 20,
+    "blowbackSpread": 6,
+    "particleColor": [
+      120,
+      140,
+      160,
+      95
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+id,name,order,tier,reqPoints,reqPointsPerExtraSkill,description,author,combat officer,admiral,admin,tags,icon,
+helmsmanship,操舵技术,10,1,0,,燃料混合比对了的话，引擎就会发出像这样...[轻哼]...的歌声。浑然天成，万物合一。这样干上一班的感觉和刚睡醒一样舒服。[大笑] 这种感觉没法告诉你。,Nachiketa 港区访谈录，第三集,TRUE,,,,graphics/icons/skills/helmsmanship.png,
+combat_endurance,战斗耐力,20,1,0,,"坚韧不拔，曾引导十四战群渡过灾难。
+坚持不懈，正引导霸主重建人之领。
+艰苦奋斗，将引导人类达成使命。",Kali Molina 海军上将，于 星历 49 年 发表的 [霸主宣言],TRUE,,,,graphics/icons/skills/combat_endurance3.png,

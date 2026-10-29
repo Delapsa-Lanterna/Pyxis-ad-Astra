@@ -1,0 +1,24 @@
+{
+  "quality": 0.5,
+  "displayName": "重型战斗机",
+  "hullId": "broadsword",
+  "variantId": "broadsword_Fighter",
+  "fluxVents": 0,
+  "fluxCapacitors": 0,
+  "hullMods": [],
+  "weaponGroups": [
+    {
+      "mode": "LINKED",
+      "weapons": {
+        "WS 001": "lightmg",
+        "WS 002": "lightmg"
+      }
+    },
+    {
+      "mode": "LINKED",
+      "weapons": {}
+    }
+  ],
+  "permaMods": [],
+  "sMods": []
+}

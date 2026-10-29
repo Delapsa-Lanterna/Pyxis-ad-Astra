@@ -1,0 +1,53 @@
+{
+  "displayName": "Assault",
+  "fluxCapacitors": 26,
+  "fluxVents": 14,
+  "goalVariant": true,
+  "hullId": "Kratogen_disconformity",
+  "hullMods": [
+    "targetingunit",
+    "Kratogen_backup_magazine"
+  ],
+  "permaMods": [],
+  "sMods": [],
+  "variantId": "Kratogen_disconformity_assault",
+  "weaponGroups": [
+    {
+      "autofire": false,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0007": "Kratogen_advection_m",
+        "WS0008": "Kratogen_advection_m"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "ALTERNATING",
+      "weapons": {
+        "WS0003": "Kratogen_drizzle",
+        "WS0006": "Kratogen_drizzle"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0005": "Kratogen_capacitor_m",
+        "WS0009": "Kratogen_capacitor_m"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0001": "Kratogen_flint",
+        "WS0002": "Kratogen_flint",
+        "WS0010": "Kratogen_flint"
+      }
+    }
+  ],
+  "wings": [
+    "Kratogen_fighter_sinter_wing",
+    "Kratogen_fighter_sinter_wing"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "locust",
+  "specClass": "projectile",
+  "type": "MISSILE",
+  "size": "LARGE",
+  "turretSprite": "graphics/weapons/locust_turret.png",
+  "hardpointSprite": "graphics/weapons/locust_hardpoint.png",
+  "turretOffsets": [
+    16,
+    -8,
+    16,
+    3,
+    16,
+    8,
+    16,
+    -3
+  ],
+  "turretAngleOffsets": [
+    -2,
+    1,
+    2,
+    -1
+  ],
+  "hardpointOffsets": [
+    26,
+    -8,
+    26,
+    3,
+    26,
+    8,
+    26,
+    -3
+  ],
+  "hardpointAngleOffsets": [
+    -2,
+    1,
+    2,
+    -1
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "SMOKE",
+  "interruptibleBurst": false,
+  "displayArcRadius": 500,
+  "smokeSpec": {
+    "particleSizeMin": 10,
+    "particleSizeRange": 16,
+    "cloudParticleCount": 3,
+    "cloudDuration": 0.9,
+    "cloudRadius": 8,
+    "blowbackParticleCount": 3,
+    "blowbackDuration": 1.1,
+    "blowbackLength": 20,
+    "blowbackSpread": 10,
+    "particleColor": [
+      170,
+      160,
+      150,
+      100
+    ]
+  },
+  "projectileSpecId": "locust",
+  "fireSoundTwo": "swarmer_fire"
+}

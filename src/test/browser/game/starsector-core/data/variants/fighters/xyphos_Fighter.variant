@@ -1,0 +1,27 @@
+{
+  "quality": 1,
+  "displayName": "支援战斗机",
+  "hullId": "xyphos",
+  "variantId": "xyphos_Fighter",
+  "fluxVents": 0,
+  "fluxCapacitors": 0,
+  "hullMods": [
+    "advancedoptics"
+  ],
+  "weaponGroups": [
+    {
+      "mode": "LINKED",
+      "weapons": {
+        "WS 001": "ionbeam"
+      }
+    },
+    {
+      "mode": "LINKED",
+      "weapons": {
+        "WS 002": "pdburst"
+      }
+    }
+  ],
+  "permaMods": [],
+  "sMods": []
+}

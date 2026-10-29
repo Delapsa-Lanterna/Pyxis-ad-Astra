@@ -1,0 +1,26 @@
+{
+  "id": "Kratogen_convection_m_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 100,
+  "width": 5,
+  "fadeTime": 0.3,
+  "fringeColor": [
+    255,
+    220,
+    50,
+    255
+  ],
+  "coreColor": [
+    255,
+    220,
+    200,
+    220
+  ],
+  "hitGlowRadius": 5,
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/missiles/shell_gauss_cannon.png"
+}

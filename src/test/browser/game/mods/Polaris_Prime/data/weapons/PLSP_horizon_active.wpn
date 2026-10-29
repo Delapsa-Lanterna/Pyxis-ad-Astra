@@ -1,0 +1,52 @@
+{
+  "id": "PLSP_horizon_active",
+  "specClass": "beam",
+  "type": "DECORATIVE",
+  "size": "LARGE",
+  "showDamageWhenDecorative": false,
+  "turretSprite": "graphics/weapons/PLSP_horizon_active/turretSprite.png",
+  "hardpointSprite": "graphics/weapons/PLSP_horizon_active/turretSprite.png",
+  "renderBelowAllWeapons": true,
+  "renderHints": [
+    "RENDER_ADDITIVE"
+  ],
+  "numFrames": 2,
+  "frameRate": 0,
+  "alwaysAnimate": "false",
+  "turretOffsets": [
+    0,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    0,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "fringeColor": [
+    255,
+    255,
+    255,
+    0
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    0
+  ],
+  "glowColor": [
+    255,
+    255,
+    255,
+    0
+  ],
+  "width": 1,
+  "textureType": "ROUGH",
+  "textureScrollSpeed": 1,
+  "pixelsPerTexel": 1
+}

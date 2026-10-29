@@ -1,0 +1,113 @@
+{
+  "id": "tritachyon",
+  "color": [
+    135,
+    206,
+    255,
+    255
+  ],
+  "displayName": "速子科技",
+  "displayNameWithArticle": "速子科技",
+  "displayNameLong": "三一速子科技公司",
+  "displayNameLongWithArticle": "三一速子科技公司",
+  "displayNameIsOrAre": "",
+  "personNamePrefixAOrAn": "",
+  "logo": "graphics/factions/tritachyon.png",
+  "crest": "graphics/factions/crest_tritachyon.png",
+  "shipNamePrefix": "TTS",
+  "names": {
+    "modern": 1,
+    "world": 1,
+    "future": 1,
+    "myth": 1
+  },
+  "custom": {
+    "offersCommissions": true,
+    "engagesInHostilities": true,
+    "buysAICores": true,
+    "AICoreValueMult": 3,
+    "AICoreRepMult": 0.5,
+    "buysSurveyData": true,
+    "hostilityImpactOnGrowth": true,
+    "punitiveExpeditionData": {
+      "vsCompetitors": false,
+      "vsFreePort": false,
+      "canBombard": true,
+      "territorial": true
+    },
+    "simulatorData": {
+      "showInSimulator": true
+    }
+  },
+  "portraits": {
+    "standard_male": [
+      "graphics/portraits/portrait_corporate01.png"
+    ],
+    "standard_female": [
+      "graphics/portraits/portrait_corporate02.png"
+    ]
+  },
+  "knownShips": {
+    "tags": [],
+    "hulls": [
+      "xyphos",
+      "broadsword",
+      "thunder",
+      "sarissa",
+      "wolf",
+      "hammerhead",
+      "mule",
+      "apogee",
+      "dominator",
+      "heron"
+    ]
+  },
+  "knownWeapons": {
+    "tags": [],
+    "weapons": [
+      "lightmg",
+      "lightdualmg",
+      "lightmortar",
+      "vulcan",
+      "lightac",
+      "lightdualac",
+      "lightag",
+      "fragbomb",
+      "clusterbomb",
+      "bomb",
+      "lightneedler",
+      "railgun",
+      "heavymg",
+      "heavymortar",
+      "flak",
+      "hveldriver",
+      "devastator",
+      "swarmer_fighter",
+      "annihilator",
+      "harpoon",
+      "sabot",
+      "sabotpod",
+      "annihilatorpod",
+      "pilum",
+      "pilum_large",
+      "locust",
+      "pdlaser",
+      "ioncannon",
+      "ioncannon_fighter",
+      "pdburst",
+      "heavyblaster",
+      "heavyburst",
+      "ionbeam",
+      "autopulse"
+    ]
+  },
+  "knownFighters": {
+    "tags": [],
+    "fighters": [
+      "thunder_wing",
+      "broadsword_wing",
+      "xyphos_wing",
+      "sarissa_wing"
+    ]
+  }
+}

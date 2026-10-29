@@ -1,0 +1,19 @@
+{
+  "PLSC_TECH": {
+    "mode": "QUAD_STRIP",
+    "contrailDuration": 1.5,
+    "contrailWidthMult": 0.67,
+    "contrailWidthAddedFractionAtEnd": "-1f",
+    "contrailMinSeg": 5,
+    "contrailMaxSpeedMult": "1.5f",
+    "contrailAngularVelocityMult": "0f",
+    "contrailColor": [50, 110, 255, 75],
+    "type": "GLOW",
+    "glowSprite": "graphics/fx/engineglow32b.png",
+    "glowOutline": "graphics/fx/engineflame32b.png",
+    "omegaMode": true,
+    "glowSizeMult": 1,
+    "glowAlternateColor": [50, 110, 255, 255],
+    "engineColor": [50, 110, 255, 0]
+  }
+}

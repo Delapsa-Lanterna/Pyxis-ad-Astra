@@ -1,0 +1,15 @@
+name,id,tier,rarity,tech/manufacturer,tags,uiTags,base value,unlocked,hidden,hiddenEverywhere,cost_frigate,cost_dest,cost_cruiser,cost_capital,script,desc,short,sModDesc,sprite
+天青素龙骨,PLSP_celestine_keel,,,天青工艺,,,,,TRUE,,0,0,0,0,data.hullmods.ExpandedMagazines,"舰体内分布着细密的、含有天青素成分的管线网。这种来源未知的无机材料可以显著改善任何与 ""传输""/""诱变"" 概念相关的系统，提高幅能耗散效率和火控测量精度。",北极星基础战斗模块,,graphics/icons/hullmods/PLSP_celestine_keel/sprite.png
+高能集成,PLSP_hei,,,天青工艺,,,,,TRUE,,0,0,0,0,data.hullmods.HardenedShieldEmitter,内嵌至核心区专于适配大体积能量武器的套件，精心设计的布线方案能显著减少对应武器必要链接设备所占用的空间。,降低装配消耗,,graphics/icons/hullmods/PLSP_hei/sprite.png
+光栅核心,PLSP_grating_core,,,天青工艺,,,,,TRUE,,0,0,0,0,data.hullmods.HeavyArmor,专为密集武器布局设计的核心，针对舰型优化排线，能减少小型能量武器必要链接设备所占用的空间。,降低装配消耗,,graphics/icons/hullmods/PLSP_grating_core/sprite.png
+星辉调频器,PLSP_twinkle_modulator,0,,天青工艺,"PLSP_p, offensive, special, merc",特殊,4000,,,,3,6,9,15,data.hullmods.IntegratedTargetingUnit,将一套含有精加工天青素器件的幅能收发端点安装在幅能核心的外置接口上。各个端点可互相传输幅能。,集群分担幅能,,graphics/icons/hullmods/PLSP_twinkle_modulator/sprite.png
+星核校准器,PLSP_starlight_calibrator,3,,天青工艺,"PLSP_p, offensive, defensive, special, merc",特殊,10000,,,,4,8,12,20,data.hullmods.ReinforcedBulkheads,含有精加工天青素器件的校准设备可以复制其他战舰的舰载系统相态，从而加速舰载系统的初始化速度。,减少战术系统冷却,,graphics/icons/hullmods/PLSP_starlight_calibrator/sprite.png
+星磁阻尼器,PLSP_magnet_damper,1,,天青工艺,"PLSP_p, defensive, merc, PLSP_flutter",防御,7000,,,,8,15,20,40,data.hullmods.ExpandedMagazines,安置在装甲与结构间隙的磁致伸缩合金，能够有效地缓解微小冲击的影响，且可以利用舰体颤振激活其进一步强化结构韧性。,提升装甲防御,,graphics/icons/hullmods/PLSP_magnet_damper/sprite.png
+星芒链接器,PLSP_radial_link,2,,天青工艺,"PLSP_p, special, non_phase, merc",战机,8000,,,,5,10,15,30,data.hullmods.HardenedShieldEmitter,为战机加装幅能同步子核心，并在航母上搭载的接收端。战机上无实体的幅能将作为一种状态被传回航母。,提高战机作战能力,,graphics/icons/hullmods/PLSP_radial_link/sprite.png
+KID,PLSP_kid,,,天青工艺,hide_in_codex,,,,TRUE,TRUE,0,0,0,0,data.hullmods.HeavyArmor,对战机行为稍作修改。,距离控制,,graphics/icons/hullmods/PLSP_kid/sprite.png
+异常晶体,PLSC_abnormal_apar,,,天青石,hide_in_codex,,,,TRUE,,0,0,0,0,data.hullmods.IntegratedTargetingUnit,光谱分析未在此样本上发现任何与硅元素相关的特征。进一步分析表明，这种晶格几何堪称完美的结构，其组成成分是本应凌乱的、多晶的、充满缺陷的...硫。,天青石构架,,graphics/icons/hullmods/PLSC_abnormal_apar/sprite.png
+天青光辉,PLSC_celestite_halo,,,天青石,hide_in_codex,,,,TRUE,,0,0,0,0,data.hullmods.ReinforcedBulkheads,奇特的光辉环绕着本不应发光的外壳，它似乎能有效抵抗爆炸冲击，还能显著中和高能效应。,天青石构架,,graphics/icons/hullmods/PLSC_celestite_halo/sprite.png
+星烁同步器,PLSP_core_synchronizer,0,,天青工艺,"PLSP_p, special, merc, PLSP_flutter",武器,8000,,,,4,8,15,25,data.hullmods.ExpandedMagazines,"颤振的本质是一种材料晶格中的非平衡态弹性畸变。这种亚稳态可储存大量能量，并可在特定电磁脉冲作用下被触发释放。偏离平衡过于严重的颤振实体会在其表面浮现出无害但值得警惕的电弧。
+
+借助主动同步系统温和地回收颤振势能，还可提高子系统的耐力。",理解颤振,,graphics/icons/hullmods/PLSP_core_synchronizer/sprite.png
+失活处理,PLSC_deactive,,,天青石,hide_in_codex,,,,TRUE,,0,0,0,0,data.hullmods.HardenedShieldEmitter,人工处理过的天青石驱逐舰标本，将内部天青石替换为 AI 核心操作舱，但因失去了异常加持而使其能力大幅下降。它最重要的用途是为研究提供参考。,天青石构架,,graphics/icons/hullmods/PLSC_deactive/sprite.png

@@ -28,6 +28,10 @@ import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-so
 import type { RowData } from '@/shared/types';
 
 let model: BrowserModel;
+const modelQueries = new WeakMap<BrowserModel, (command: string, payload: Record<string, unknown>) => unknown>();
+export function installModelQueries(model: BrowserModel, query: (command: string, payload: Record<string, unknown>) => unknown) {
+  modelQueries.set(model, query);
+}
 let saveChannel: { onmessage: (delivery: SaveDelivery) => void } | null = null;
 export function installBrowserModel(next: BrowserModel) {
   model = next;
@@ -74,6 +78,8 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   return structuredClone(result) as T;
 }
 export async function dispatch(command: string, args: Record<string, unknown>, model = browserModel()): Promise<unknown> {
+  const value = modelQueries.get(model)?.(command, (args.payload ?? {}) as Record<string, unknown>);
+  if (value !== undefined) return value;
   switch (command) {
     case 'register_save_window':
       saveChannel = args.channel as typeof saveChannel;

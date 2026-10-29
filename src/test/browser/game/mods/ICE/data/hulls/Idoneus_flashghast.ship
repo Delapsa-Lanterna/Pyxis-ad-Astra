@@ -1,0 +1,179 @@
+{
+  "hullName": "Flashghast",
+  "hullId": "Idoneus_flashghast",
+  "hullSize": "FRIGATE",
+  "spriteName": "graphics/ships/Idoneus_flashghast/spriteName.png",
+  "style": "IDONEUS",
+  "height": 116,
+  "width": 80,
+  "center": [
+    40,
+    58
+  ],
+  "collisionRadius": 77.5,
+  "shieldCenter": [
+    0,
+    0
+  ],
+  "shieldRadius": 71,
+  "viewOffset": 0,
+  "builtInMods": [
+    "Idoneus_gravitonic_sensors_mod",
+    "phasefield"
+  ],
+  "builtInWeapons": {
+    "LIGHTS": "Idoneus_flashghast_lights",
+    "SYSTEM": "Idoneus_flashghast_system"
+  },
+  "weaponSlots": [
+    {
+      "id": "WS0001",
+      "size": "SMALL",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": 10,
+      "locations": [
+        24,
+        8
+      ]
+    },
+    {
+      "id": "WS0002",
+      "size": "SMALL",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": -10,
+      "locations": [
+        24,
+        -8
+      ]
+    },
+    {
+      "id": "WS0003",
+      "size": "SMALL",
+      "type": "HYBRID",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": 0,
+      "locations": [
+        46,
+        7
+      ]
+    },
+    {
+      "id": "WS0004",
+      "size": "SMALL",
+      "type": "HYBRID",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": 0,
+      "locations": [
+        46,
+        -7
+      ]
+    },
+    {
+      "id": "WS0005",
+      "size": "MEDIUM",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": 0,
+      "locations": [
+        -24,
+        0
+      ]
+    },
+    {
+      "id": "LIGHTS",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "S01",
+      "size": "LARGE",
+      "type": "STATION_MODULE",
+      "mount": "HARDPOINT",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        26,
+        0
+      ]
+    },
+    {
+      "id": "SYSTEM",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        0,
+        0
+      ]
+    }
+  ],
+  "engineSlots": [
+    {
+      "location": [
+        -43,
+        19.5
+      ],
+      "length": 53.227371,
+      "width": 14.879107,
+      "angle": -175.601288,
+      "contrailSize": 14.879107,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -43,
+        -19.5
+      ],
+      "length": 53.227371,
+      "width": 14.879107,
+      "angle": 175.601288,
+      "contrailSize": 14.879107,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -42,
+        0
+      ],
+      "length": 105.5,
+      "width": 31,
+      "angle": 180,
+      "contrailSize": 31,
+      "style": "IDONEUS"
+    }
+  ],
+  "bounds": [
+    52,
+    -8.5,
+    -51,
+    -36.5,
+    -36.5,
+    -19.5,
+    -45,
+    -8.5,
+    -45,
+    8.5,
+    -36.5,
+    19.5,
+    -51,
+    36.5,
+    52,
+    8.5
+  ]
+}

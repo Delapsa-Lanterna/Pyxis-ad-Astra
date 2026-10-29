@@ -1,0 +1,299 @@
+{
+  "hullName": "Eidolon",
+  "hullId": "Idoneus_eidolon",
+  "hullSize": "CRUISER",
+  "spriteName": "graphics/ships/Idoneus_eidolon/spriteName.png",
+  "style": "IDONEUS",
+  "height": 246,
+  "width": 110,
+  "center": [
+    55,
+    123
+  ],
+  "collisionRadius": 148,
+  "shieldCenter": [
+    0,
+    0
+  ],
+  "shieldRadius": 140,
+  "viewOffset": 0,
+  "builtInMods": [
+    "Idoneus_gravitonic_sensors_mod",
+    "phasefield"
+  ],
+  "builtInWeapons": {
+    "BRACK_BACK": "Idoneus_eidolon_cover_bracket_back",
+    "BRACK_FRONT": "Idoneus_eidolon_cover_bracket_front",
+    "FRONT": "Idoneus_eidolon_cover_front",
+    "LIGHTS": "Idoneus_eidolon_lights",
+    "LIGHTS_BAY": "Idoneus_eidolon_cover_lights_bay",
+    "TOP": "Idoneus_eidolon_cover_top"
+  },
+  "weaponSlots": [
+    {
+      "id": "WS0001",
+      "size": "MEDIUM",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 5,
+      "angle": 0,
+      "locations": [
+        64,
+        -24
+      ]
+    },
+    {
+      "id": "WS0002",
+      "size": "MEDIUM",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 5,
+      "angle": 0,
+      "locations": [
+        64,
+        24
+      ]
+    },
+    {
+      "id": "WS0003",
+      "size": "SMALL",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 220,
+      "angle": -20,
+      "locations": [
+        90,
+        -28
+      ]
+    },
+    {
+      "id": "WS0004",
+      "size": "SMALL",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 220,
+      "angle": 20,
+      "locations": [
+        90,
+        28
+      ]
+    },
+    {
+      "id": "WS0005",
+      "size": "LARGE",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 5,
+      "angle": 0,
+      "locations": [
+        62,
+        0
+      ]
+    },
+    {
+      "id": "LIGHTS",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        0,
+        0
+      ],
+      "renderOrderMod": 10000
+    },
+    {
+      "id": "TOP",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        -47,
+        0
+      ],
+      "renderOrderMod": 30
+    },
+    {
+      "id": "FRONT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        12,
+        0
+      ],
+      "renderOrderMod": 20
+    },
+    {
+      "id": "BRACK_FRONT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        59,
+        0
+      ],
+      "renderOrderMod": 50
+    },
+    {
+      "id": "BRACK_BACK",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        -74,
+        0
+      ],
+      "renderOrderMod": 50
+    },
+    {
+      "id": "LIGHTS_BAY",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        10,
+        0
+      ]
+    },
+    {
+      "id": "LB 1",
+      "size": "LARGE",
+      "type": "LAUNCH_BAY",
+      "mount": "HIDDEN",
+      "arc": 360,
+      "angle": 0,
+      "locations": [
+        8.5,
+        18.5,
+        8.5,
+        23,
+        11.5,
+        18.5,
+        11.5,
+        22.5,
+        9,
+        -18.5,
+        8.5,
+        -22,
+        12,
+        -18.5,
+        12,
+        -22.5
+      ]
+    }
+  ],
+  "engineSlots": [
+    {
+      "location": [
+        -97,
+        33.5
+      ],
+      "length": 107,
+      "width": 28,
+      "angle": -175,
+      "contrailSize": 28,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -97,
+        -33.5
+      ],
+      "length": 107,
+      "width": 28,
+      "angle": 175,
+      "contrailSize": 28,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -89,
+        18.5
+      ],
+      "length": 68.5,
+      "width": 18,
+      "angle": -175,
+      "contrailSize": 18,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -89,
+        -18.5
+      ],
+      "length": 68.5,
+      "width": 18,
+      "angle": 175,
+      "contrailSize": 18,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -86,
+        6.5
+      ],
+      "length": 42,
+      "width": 13,
+      "angle": -175,
+      "contrailSize": 13,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -86,
+        -6.5
+      ],
+      "length": 42,
+      "width": 13,
+      "angle": 175,
+      "contrailSize": 13,
+      "style": "IDONEUS"
+    }
+  ],
+  "bounds": [
+    75.5,
+    -11.5,
+    116.5,
+    -28.5,
+    91,
+    -41.5,
+    49,
+    -40.5,
+    10.5,
+    -25.5,
+    -75,
+    -53.5,
+    -108,
+    -45,
+    -83,
+    -9.5,
+    -83,
+    9.5,
+    -108,
+    45,
+    -75,
+    53.5,
+    10.5,
+    25.5,
+    49,
+    40.5,
+    91,
+    41.5,
+    116.5,
+    28.5,
+    75.5,
+    11.5
+  ]
+}

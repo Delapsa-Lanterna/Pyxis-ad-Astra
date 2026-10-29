@@ -1,0 +1,34 @@
+{
+  "id": "Idoneus_wisp_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC_AS_BEAM",
+  "collisionClass": "RAY",
+  "collisionClassByFighter": "RAY_FIGHTER",
+  "length": 4,
+  "hitGlowRadius": 60,
+  "width": 12,
+  "fadeTime": 0.2,
+  "fringeColor": [
+    155,
+    255,
+    200,
+    225
+  ],
+  "coreColor": [
+    114,
+    247,
+    106,
+    180
+  ],
+  "glowColor": [
+    0,
+    97,
+    191,
+    75
+  ],
+  "glowRadius": 20,
+  "textureScrollSpeed": 200,
+  "textureType": "ROUGH2",
+  "pixelsPerTexel": 0.5,
+  "passThroughMissiles": true
+}

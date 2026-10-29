@@ -1,0 +1,57 @@
+{
+  "specClass": "beam",
+  "id": "Kratogen_capacitor_s",
+  "type": "ENERGY",
+  "size": "SMALL",
+  "collisionClass": "RAY",
+  "collisionClassByFighter": "RAY_FIGHTER",
+  "turretSprite": "graphics/weapons/Kratogen_capacitor_s/turretSprite.png",
+  "turretGlowSprite": "graphics/weapons/Kratogen_capacitor_s/turretGlowSprite.png",
+  "hardpointSprite": "graphics/weapons/Kratogen_capacitor_s/turretSprite.png",
+  "hardpointGlowSprite": "graphics/weapons/Kratogen_capacitor_s/hardpointGlowSprite.png",
+  "turretOffsets": [
+    13,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    15,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "fringeColor": [
+    140,
+    235,
+    235,
+    255
+  ],
+  "coreColor": [
+    170,
+    180,
+    200,
+    255
+  ],
+  "glowColor": [
+    150,
+    255,
+    255,
+    255
+  ],
+  "width": 18,
+  "textureType": [
+    "graphics/weapons/Kratogen_capacitor_s/textureType-0.png",
+    "graphics/weapons/Kratogen_capacitor_s/textureType-1.png"
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "pierceSet": [
+    "PROJECTILE_FF",
+    "PROJECTILE_NO_FF",
+    "PROJECTILE_FIGHTER"
+  ],
+  "fireSoundOne": "Kratogen_capacitor_s_fire"
+}

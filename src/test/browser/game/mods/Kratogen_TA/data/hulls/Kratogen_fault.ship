@@ -1,0 +1,174 @@
+{
+  "hullName": "Kratogen_fault",
+  "hullId": "Kratogen_fault",
+  "hullSize": "FRIGATE",
+  "spriteName": "graphics/ships/Kratogen_fault/spriteName.png",
+  "style": "Kratogen_TECH_MID",
+  "height": 98,
+  "width": 62,
+  "center": [
+    31,
+    49
+  ],
+  "collisionRadius": 70.5,
+  "shieldCenter": [
+    0,
+    0
+  ],
+  "shieldRadius": 61.5,
+  "viewOffset": 0,
+  "builtInMods": [
+    "Kratogen_glass_afterburner"
+  ],
+  "weaponSlots": [
+    {
+      "id": "WS0001",
+      "size": "SMALL",
+      "type": "HYBRID",
+      "mount": "HARDPOINT",
+      "arc": 5,
+      "angle": 0,
+      "locations": [
+        33,
+        0
+      ]
+    },
+    {
+      "id": "WS0002",
+      "size": "SMALL",
+      "type": "UNIVERSAL",
+      "mount": "HARDPOINT",
+      "arc": 5,
+      "angle": 0,
+      "locations": [
+        -2,
+        -14
+      ]
+    },
+    {
+      "id": "WS0003",
+      "size": "SMALL",
+      "type": "BALLISTIC",
+      "mount": "TURRET",
+      "arc": 120,
+      "angle": 0,
+      "locations": [
+        16,
+        0
+      ]
+    },
+    {
+      "id": "WS0004",
+      "size": "SMALL",
+      "type": "BALLISTIC",
+      "mount": "TURRET",
+      "arc": 210,
+      "angle": 60,
+      "locations": [
+        -9,
+        15
+      ]
+    }
+  ],
+  "engineSlots": [
+    {
+      "location": [
+        -38,
+        -16.5
+      ],
+      "length": 30,
+      "width": 6,
+      "angle": 180,
+      "contrailSize": 6,
+      "style": "MIDLINE"
+    },
+    {
+      "location": [
+        -48,
+        0
+      ],
+      "length": 39.5,
+      "width": 12,
+      "angle": 180,
+      "contrailSize": 12,
+      "style": "MIDLINE"
+    },
+    {
+      "location": [
+        -44,
+        -9.5
+      ],
+      "length": 32,
+      "width": 8,
+      "angle": 180,
+      "contrailSize": 128,
+      "style": "MIDLINE"
+    },
+    {
+      "location": [
+        -40,
+        13
+      ],
+      "length": 28,
+      "width": 4,
+      "angle": 180,
+      "contrailSize": 4,
+      "style": "MIDLINE"
+    },
+    {
+      "location": [
+        -7,
+        -19
+      ],
+      "length": 16.036037,
+      "width": 2.895189,
+      "angle": -149,
+      "contrailSize": 128,
+      "style": "MIDLINE"
+    },
+    {
+      "location": [
+        1,
+        16
+      ],
+      "length": 18.391869,
+      "width": 2.637527,
+      "angle": 130,
+      "contrailSize": 128,
+      "style": "MIDLINE"
+    },
+    {
+      "location": [
+        -45,
+        9
+      ],
+      "length": 32,
+      "width": 6,
+      "angle": 180,
+      "contrailSize": 128,
+      "style": "MIDLINE"
+    }
+  ],
+  "bounds": [
+    -42,
+    11,
+    -30.5,
+    21,
+    -24,
+    21,
+    -11,
+    28,
+    -11,
+    21,
+    43,
+    9,
+    38,
+    -7,
+    2,
+    -14,
+    -27,
+    -26,
+    -46,
+    -4
+  ]
+}

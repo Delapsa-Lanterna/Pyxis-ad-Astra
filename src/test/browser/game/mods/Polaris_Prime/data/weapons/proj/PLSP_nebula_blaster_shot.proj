@@ -1,0 +1,34 @@
+{
+  "id": "PLSP_nebula_blaster_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC_AS_BEAM",
+  "collisionClass": "RAY",
+  "collisionClassByFighter": "RAY_FIGHTER",
+  "length": 15,
+  "width": 50,
+  "fadeTime": 0.3,
+  "fringeColor": [
+    70,
+    240,
+    190,
+    255
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    200
+  ],
+  "glowColor": [
+    80,
+    150,
+    255,
+    25
+  ],
+  "glowRadius": 40,
+  "hitGlowRadius": 80,
+  "textureType": "ROUGH",
+  "textureScrollSpeed": -256,
+  "pixelsPerTexel": 1,
+  "passThroughMissiles": true
+}

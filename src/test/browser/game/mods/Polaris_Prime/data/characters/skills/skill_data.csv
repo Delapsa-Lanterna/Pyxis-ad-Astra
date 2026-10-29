@@ -1,0 +1,2 @@
+id,name,order,tier,reqPoints,reqPointsPerExtraSkill,description,author,combat officer,admiral,admin,tags,icon,
+PLSP_academic_achieved,学有所成,10500,0,,,谨以此书献给与我同届、同船但未能同命运的老朋友们，尤其是那个天天抄我笔记的小子。我很感激与你们共度的这二十年时光。,深空艺术，Ep.致谢,TRUE,,,"npc_only, player_only, codex_unlockable",graphics/icons/skills/PLSP_academic_achieved/icon.png,

@@ -1,0 +1,68 @@
+{
+  "id": "annihilator_rocket",
+  "specClass": "missile",
+  "missileType": "ROCKET",
+  "sprite": "graphics/missiles/missile_annihilator.png",
+  "size": [
+    4,
+    18
+  ],
+  "center": [
+    2,
+    9
+  ],
+  "collisionRadius": 12,
+  "collisionClass": "MISSILE_FF",
+  "explosionColor": [
+    255,
+    165,
+    0,
+    255
+  ],
+  "explosionRadius": 75,
+  "flameoutTime": 1,
+  "noEngineGlowTime": 0.5,
+  "fadeTime": 0.5,
+  "engineSpec": {
+    "turnAcc": 0,
+    "turnRate": 0,
+    "acc": 400,
+    "dec": 0
+  },
+  "engineSlots": [
+    {
+      "id": "ES1",
+      "loc": [
+        -11,
+        0
+      ],
+      "style": "CUSTOM",
+      "styleSpec": {
+        "mode": "QUAD_STRIP",
+        "engineColor": [
+          255,
+          125,
+          25,
+          255
+        ],
+        "contrailDuration": 0.5,
+        "contrailWidthMult": 2,
+        "contrailWidthAddedFractionAtEnd": 2,
+        "contrailMinSeg": 5,
+        "contrailMaxSpeedMult": ".0f",
+        "contrailAngularVelocityMult": "0.5f",
+        "contrailSpawnDistMult": "0f",
+        "contrailColor": [
+          75,
+          75,
+          75,
+          150
+        ],
+        "type": "SMOKE"
+      },
+      "width": 4,
+      "length": 30,
+      "angle": 180
+    }
+  ]
+}

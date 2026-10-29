@@ -1,0 +1,109 @@
+{
+  "id": "plsp",
+  "color": [
+    65,
+    210,
+    243,
+    255
+  ],
+  "baseUIColor": [
+    73,
+    214,
+    230,
+    175
+  ],
+  "darkUIColor": [
+    17,
+    75,
+    132,
+    200
+  ],
+  "gridUIColor": [
+    51,
+    247,
+    222,
+    75
+  ],
+  "displayName": "北极星",
+  "displayNameWithArticle": "北极星(Polaris)",
+  "displayNameLong": "北极星之首",
+  "displayNameLongWithArticle": "北极星之首(Polaris Prime)",
+  "displayNameIsOrAre": "is",
+  "personNamePrefixAOrAn": "a",
+  "logo": "graphics/factions/plsp.png",
+  "crest": "graphics/factions/crest_plsp.png",
+  "shipNamePrefix": "PCRS",
+  "names": {
+    "myth": 1,
+    "modern": 4,
+    "world": 4,
+    "future": 2
+  },
+  "custom": {
+    "postsNoBounties": true,
+    "offersCommissions": true,
+    "engagesInHostilities": true,
+    "buysAICores": true,
+    "AICoreValueMult": 1.5,
+    "AICoreRepMult": 0.5,
+    "buysSurveyData": true,
+    "hostilityImpactOnGrowth": true,
+    "caresAboutAtrocities": false,
+    "punitiveExpeditionData": {
+      "vsCompetitors": false,
+      "vsFreePort": false,
+      "canBombard": true,
+      "territorial": true
+    },
+    "simulatorData": {
+      "showInSimulator": true
+    }
+  },
+  "portraits": {
+    "standard_male": [
+      "graphics/portraits/PLSP_m_1.png"
+    ],
+    "standard_female": [
+      "graphics/portraits/PLSP_f_1.png"
+    ]
+  },
+  "knownShips": {
+    "tags": [],
+    "hulls": [
+      "PLSP_perturbation",
+      "PLSP_nutation",
+      "PLSP_blazar",
+      "PLSP_horizon",
+      "PLSC_tetragonal"
+    ]
+  },
+  "knownWeapons": {
+    "tags": [],
+    "weapons": [
+      "PLSP_phonon_s",
+      "PLSP_phonon_m",
+      "PLSP_phonon_l",
+      "PLSP_impulse_s",
+      "PLSP_impulse_m",
+      "PLSP_impulse_l",
+      "PLSP_tracker_l",
+      "PLSP_stream_s",
+      "PLSP_crystal_s",
+      "PLSP_magnetic_l",
+      "PLSP_nebula_blaster",
+      "PLSP_cepheid",
+      "PLSP_horizon_active",
+      "PLSP_horizon_bay",
+      "PLSC_impulse_celestite",
+      "PLSC_pulser_celestite",
+      "PLSC_tracker_celestite"
+    ]
+  },
+  "knownFighters": {
+    "tags": [],
+    "fighters": [
+      "PLSP_nutation_wing",
+      "PLSP_perturbation_wing"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "baseHullId": "PLSC_tetragonal",
+  "skinHullId": "PLSC_tetragonal_deactive",
+  "spriteName": "graphics/ships/skins/PLSC_tetragonal_deactive/spriteName.png",
+  "descriptionPrefix": "失活的标本，可以由 AI 控制，但威能远远不如当初",
+  "fleetPoints": 12,
+  "ordnancePoints": 120,
+  "builtInMods": [
+    "PLSC_deactive"
+  ],
+  "weaponSlotChanges": {
+    "WS0001": {
+      "type": "ENERGY"
+    },
+    "WS0002": {
+      "type": "ENERGY"
+    },
+    "WS0003": {
+      "type": "ENERGY"
+    },
+    "WS0004": {
+      "type": "ENERGY"
+    },
+    "WS0005": {
+      "type": "ENERGY"
+    }
+  }
+}

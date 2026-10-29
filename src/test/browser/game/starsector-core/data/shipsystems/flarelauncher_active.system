@@ -1,0 +1,8 @@
+{
+  "id": "flarelauncher_active",
+  "type": "WEAPON",
+  "aiType": "FLARE",
+  "weaponDataId": "flarelauncher3",
+  "outOfUsesSound": "gun_out_of_ammo",
+  "aiHints": {}
+}

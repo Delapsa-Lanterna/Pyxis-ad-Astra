@@ -1,0 +1,32 @@
+{
+  "id": "PLSP_tracker_l_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_NO_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 16,
+  "width": 16,
+  "fadeTime": 0.2,
+  "fringeColor": [
+    155,
+    255,
+    255,
+    0
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    255
+  ],
+  "glowColor": [
+    165,
+    230,
+    245,
+    75
+  ],
+  "hitGlowRadius": 40,
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/projectiles/PLSP_tracker_l_shot/bulletSprite.png"
+}

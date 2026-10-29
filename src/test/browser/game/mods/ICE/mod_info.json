@@ -1,0 +1,12 @@
+{
+  "id": "nbj_ice",
+  "name": "伊甸流亡舰队 [I.C.E.]",
+  "author": "AnyIDElse",
+  "version": {
+    "major": 0,
+    "minor": 0,
+    "patch": 1
+  },
+  "gameVersion": "0.98a-RC8",
+  "description": "ICE 武器舰船功能新异，涉及机动性、相位系统、护甲修复和弹药重装。"
+}

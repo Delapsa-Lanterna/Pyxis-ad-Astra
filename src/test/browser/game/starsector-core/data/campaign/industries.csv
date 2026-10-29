@@ -1,0 +1,3 @@
+id,name,cost mult,build time,income,upkeep,downgrade,upgrade,tags,data,image,plugin,desc,order,disruptDanger
+population,居住区 & 基础设施,,,10,3,,,"population, unraidable, no_saturation_bombardment",,graphics/icons/industry/population.png,com.fs.starfarer.api.impl.campaign.econ.impl.PopulationAndInfrastructure,从摇摇欲坠的轨道居住舱模块到繁华的不夜之都，这里包含了一切殖民地常住人口所需的基础设施。,100,
+farming,农业,15,60,,1,,,"farming, industry, rural",,graphics/icons/industry/farming.png,com.fs.starfarer.api.impl.campaign.econ.impl.Farming,农业是同文明本身一样悠久的技术和产业。千百年来，人类一直通过驾驭各种生物学机制来获取营养，无论是天然的、转基因的、还是人造的。只要人还为人，农业就将长期以往，亘古不变。,200,LOW

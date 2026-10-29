@@ -1,0 +1,10 @@
+name,id,flux/second,f/s (base rate),f/s (base cap),flux/use,f/u (base rate),f/u (base cap),cr/u,max uses,regen,charge up,active,down,cooldown,toggle,noDissipation,noHardDissipation,hardFlux,noFiring,noTurning,noStrafing,noAccel,noShield,noVent,isPhaseCloak,tags,icon
+闪现,displacer,,,,,,,,3,0.1,0.25,,0.25,0,,TRUE,,TRUE,,,,,,,,movement,graphics/icons/hullsys/displacer.png
+加速填弹器,ammofeed,,,,,,,,,,1,5,1,10,,,,,,,,,,,,offensive,graphics/icons/hullsys/ammo_feeder.png
+追踪热诱弹发射器,flarelauncher_active,,,,,,0.1,,,,,,,5,,,,,,,,,,,,defensive,graphics/icons/hullsys/active_flare_launcher.png
+烈焰驱动器,burndrive,1,,,,,,,,,2,5,1,10,TRUE,,,,,TRUE,TRUE,TRUE,TRUE,,,movement,graphics/icons/hullsys/burn_drive.png
+目标馈送系统,targetingfeed,,,,,,0.5,,,,0.5,20,0.5,10,,,,,,,,,,,,offensive,graphics/icons/hullsys/targeting_feed.png
+机动推进器,maneuveringjets,,,,,,,,,,1,5,1,5,,,,,,,,,,,,movement,graphics/icons/hullsys/maneuvering_jets.png
+诱饵发射器,flarelauncher_fighter,,,,,,,,1,0.033,,,,5,,,,,,,,,,,,defensive,graphics/icons/hullsys/decoy_flare.png
+罐式高射炮,canister_flak,,,,,,,,2,0.05,,,,3,,,,,,,,,,,,defensive,graphics/icons/hullsys/canister_flak.png
+低效闪现,displacer_degraded,,,,,,,,2,0.067,0.25,,0.25,0,,TRUE,,TRUE,,,,,,,,,graphics/icons/hullsys/skimmer_degraded.png

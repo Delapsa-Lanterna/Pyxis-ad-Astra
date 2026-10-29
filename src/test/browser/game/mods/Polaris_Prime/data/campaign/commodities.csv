@@ -1,0 +1,3 @@
+name,id,demand class,base price,export value,price variability,utility,origin,tags,stack size,cargo space,icon,sound id,sound id drop,order,economyTier,econUnitOrigUnused,econUnit,baseRaidDanger,eU * base value,iconWidthMult,plugin,desc
+天青石原石,PLSC_celestite,PLSC_celestite,1000,,0,1,,"nonecon, celestite, codex_unlockable",1000,1,graphics/icons/commodities/PLSC_celestite/icon.png,ai_core_pickup,ui_fighter_drop,30,,,,,,1,,
+天青石原石(A),PLSC_alpha_core,PLSC_celestite,,,0,150,,"nonecon, celestite, no_loss_from_combat, no_drop, hide_in_codex",1000,1,graphics/icons/commodities/PLSC_alpha_core/icon.png,ai_core_pickup,ui_alpha_core_drop,40,,,,EXTREME,,1,,

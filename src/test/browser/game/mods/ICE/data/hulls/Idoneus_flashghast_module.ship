@@ -1,0 +1,35 @@
+{
+  "hullName": "Idoneus_flashghast_module",
+  "hullId": "Idoneus_flashghast_module",
+  "hullSize": "FIGHTER",
+  "spriteName": "graphics/ships/Idoneus_flashghast_module/spriteName.png",
+  "style": "IDONEUS",
+  "height": 44,
+  "width": 22,
+  "center": [
+    11,
+    16
+  ],
+  "collisionRadius": 38.5,
+  "shieldCenter": [
+    -3,
+    0
+  ],
+  "shieldRadius": 32,
+  "viewOffset": 0,
+  "builtInMods": [
+    "Idoneus_vastbulk_mod"
+  ],
+  "weaponSlots": [],
+  "engineSlots": [],
+  "bounds": [
+    3,
+    0.5,
+    2,
+    0.5,
+    2,
+    -0.5,
+    3,
+    -0.5
+  ]
+}

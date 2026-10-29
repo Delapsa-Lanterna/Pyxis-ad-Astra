@@ -1,0 +1,27 @@
+{
+  "id": "PLSP_crystal_s_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 24,
+  "glowRadius": 0,
+  "hitGlowRadius": 60,
+  "width": 8,
+  "fadeTime": 0.1,
+  "fringeColor": [
+    255,
+    255,
+    50,
+    255
+  ],
+  "coreColor": [
+    200,
+    255,
+    200,
+    150
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/projectiles/PLSP_crystal_s_shot/bulletSprite.png"
+}

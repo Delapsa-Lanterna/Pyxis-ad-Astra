@@ -1,0 +1,55 @@
+{
+  "id": "Idoneus_hexac",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "MEDIUM",
+  "displayArcRadius": 300,
+  "turretSprite": "graphics/weapons/Idoneus_hexac/turretSprite.png",
+  "turretGunSprite": "graphics/weapons/Idoneus_hexac/turretGunSprite.png",
+  "hardpointSprite": "graphics/weapons/Idoneus_hexac/hardpointSprite.png",
+  "hardpointGunSprite": "graphics/weapons/Idoneus_hexac/hardpointGunSprite.png",
+  "renderHints": [
+    "RENDER_BARREL_BELOW"
+  ],
+  "visualRecoil": 3,
+  "turretOffsets": [
+    14,
+    -5,
+    14,
+    5
+  ],
+  "turretAngleOffsets": [
+    0,
+    0
+  ],
+  "hardpointOffsets": [
+    15,
+    -5,
+    15,
+    5
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    0
+  ],
+  "specialWeaponGlowWidth": 15,
+  "specialWeaponGlowHeight": 25,
+  "barrelMode": "ALTERNATING_BURST",
+  "animationType": "MUZZLE_FLASH",
+  "muzzleFlashSpec": {
+    "length": 30,
+    "spread": 16,
+    "particleSizeMin": 8,
+    "particleSizeRange": 10,
+    "particleDuration": 0.35,
+    "particleCount": 12,
+    "particleColor": [
+      255,
+      255,
+      150,
+      185
+    ]
+  },
+  "projectileSpecId": "Idoneus_hex_shot",
+  "fireSoundTwo": "Idoneus_hexgun_fire"
+}

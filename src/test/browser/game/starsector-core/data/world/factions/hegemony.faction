@@ -1,0 +1,113 @@
+{
+  "id": "hegemony",
+  "color": [
+    245,
+    150,
+    30,
+    255
+  ],
+  "displayName": "霸主",
+  "displayNameWithArticle": "霸主",
+  "displayNameIsOrAre": "",
+  "personNamePrefixAOrAn": "",
+  "logo": "graphics/factions/hegemony.png",
+  "crest": "graphics/factions/crest_hegemony.png",
+  "shipNamePrefix": "HSS",
+  "names": {
+    "old english": 1,
+    "modern": 1,
+    "world": 1,
+    "future": 1,
+    "myth": 1
+  },
+  "custom": {
+    "offersCommissions": true,
+    "engagesInHostilities": true,
+    "buysAICores": true,
+    "AICoreValueMult": 1,
+    "AICoreRepMult": 2,
+    "buysSurveyData": true,
+    "hostilityImpactOnGrowth": true,
+    "caresAboutAtrocities": true,
+    "punitiveExpeditionData": {
+      "vsCompetitors": false,
+      "vsFreePort": false,
+      "canBombard": false,
+      "territorial": true
+    },
+    "simulatorData": {
+      "showInSimulator": true
+    }
+  },
+  "portraits": {
+    "standard_male": [
+      "graphics/portraits/portrait_hegemony01.png"
+    ],
+    "standard_female": [
+      "graphics/portraits/portrait_hegemony03.png"
+    ]
+  },
+  "knownShips": {
+    "tags": [],
+    "hulls": [
+      "xyphos",
+      "broadsword",
+      "thunder",
+      "sarissa",
+      "wolf",
+      "hammerhead",
+      "mule",
+      "apogee",
+      "dominator",
+      "heron"
+    ]
+  },
+  "knownWeapons": {
+    "tags": [],
+    "weapons": [
+      "lightmg",
+      "lightdualmg",
+      "lightmortar",
+      "vulcan",
+      "lightac",
+      "lightdualac",
+      "lightag",
+      "fragbomb",
+      "clusterbomb",
+      "bomb",
+      "lightneedler",
+      "railgun",
+      "heavymg",
+      "heavymortar",
+      "flak",
+      "hveldriver",
+      "devastator",
+      "swarmer_fighter",
+      "annihilator",
+      "harpoon",
+      "sabot",
+      "sabotpod",
+      "annihilatorpod",
+      "pilum",
+      "pilum_large",
+      "locust",
+      "pdlaser",
+      "ioncannon",
+      "ioncannon_fighter",
+      "pdburst",
+      "heavyblaster",
+      "heavyburst",
+      "ionbeam",
+      "autopulse"
+    ]
+  },
+  "knownFighters": {
+    "tags": [],
+    "fighters": [
+      "thunder_wing",
+      "broadsword_wing",
+      "xyphos_wing",
+      "sarissa_wing"
+    ]
+  }
+}

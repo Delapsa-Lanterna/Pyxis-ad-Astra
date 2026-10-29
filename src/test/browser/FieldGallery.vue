@@ -66,7 +66,12 @@ const context = {
   modRoot: model.manifest.modRoot,
   querySourceOptions: (source: string, signal?: AbortSignal) =>
     source.startsWith('hull:')
-      ? queryBuiltInWeaponSlotOptions(model.sessionId, 'sample_hull', signal, source === 'hull:moduleSlots' ? 'moduleSlots' : 'weaponSlots')
+      ? queryBuiltInWeaponSlotOptions(
+          model.sessionId,
+          model.fieldHullId ?? model.graph('ship').root.id,
+          signal,
+          source === 'hull:moduleSlots' ? 'moduleSlots' : 'weaponSlots',
+        )
       : querySourceOptionCatalog(model.sessionId, source, signal),
 };
 function reset() {

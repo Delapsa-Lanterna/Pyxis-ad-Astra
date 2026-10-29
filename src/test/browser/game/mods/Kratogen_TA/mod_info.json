@@ -1,0 +1,12 @@
+{
+  "id": "Kratogen_TA",
+  "name": "地质协会 [Kratogen]",
+  "author": "AnyIDElse",
+  "version": {
+    "major": 0,
+    "minor": 0,
+    "patch": 1
+  },
+  "gameVersion": "0.98a-RC8",
+  "description": "以 \"巡洋学派\" 之下极端激进的 \"雪线设计\" 分支为名，为游戏添加一系列最具进攻性的突击组件。"
+}

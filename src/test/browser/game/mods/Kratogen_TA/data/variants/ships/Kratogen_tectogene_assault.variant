@@ -1,0 +1,52 @@
+{
+  "displayName": "Assault",
+  "fluxCapacitors": 17,
+  "fluxVents": 10,
+  "goalVariant": true,
+  "hullId": "Kratogen_tectogene",
+  "hullMods": [
+    "targetingunit",
+    "missleracks",
+    "Kratogen_backup_magazine"
+  ],
+  "permaMods": [],
+  "sMods": [],
+  "variantId": "Kratogen_tectogene_assault",
+  "weaponGroups": [
+    {
+      "autofire": false,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0001": "Kratogen_capacitor_l"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "ALTERNATING",
+      "weapons": {
+        "WS0002": "Kratogen_hydrate_m",
+        "WS0003": "Kratogen_hydrate_m"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0008": "heavymg",
+        "WS0009": "lightdualmg",
+        "WS0010": "lightdualmg",
+        "WS0011": "lightdualmg"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0004": "Kratogen_discrete_pd",
+        "WS0005": "Kratogen_discrete_pd",
+        "WS0006": "Kratogen_discrete_pd",
+        "WS0007": "Kratogen_discrete_pd"
+      }
+    }
+  ]
+}

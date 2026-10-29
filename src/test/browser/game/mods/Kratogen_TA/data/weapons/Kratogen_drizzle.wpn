@@ -1,0 +1,74 @@
+{
+  "id": "Kratogen_drizzle",
+  "specClass": "projectile",
+  "type": "MISSILE",
+  "size": "SMALL",
+  "turretSprite": "graphics/weapons/Kratogen_drizzle/turretSprite.png",
+  "hardpointSprite": "graphics/weapons/Kratogen_drizzle/hardpointSprite.png",
+  "turretOffsets": [
+    12,
+    0,
+    12,
+    -1,
+    12,
+    1,
+    12,
+    0,
+    12,
+    1,
+    12,
+    -1
+  ],
+  "turretAngleOffsets": [
+    0,
+    -0.5,
+    0.5,
+    0,
+    -1,
+    1
+  ],
+  "hardpointOffsets": [
+    11,
+    0,
+    11,
+    -1,
+    11,
+    1,
+    11,
+    0,
+    11,
+    1,
+    11,
+    -1
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    -0.5,
+    0.5,
+    0,
+    -1,
+    1
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "SMOKE",
+  "interruptibleBurst": false,
+  "smokeSpec": {
+    "particleSizeMin": 10,
+    "particleSizeRange": 14,
+    "cloudParticleCount": 3,
+    "cloudDuration": 1.5,
+    "cloudRadius": 12,
+    "blowbackParticleCount": 3,
+    "blowbackDuration": 0.45,
+    "blowbackLength": 20,
+    "blowbackSpread": 6,
+    "particleColor": [
+      190,
+      180,
+      160,
+      55
+    ]
+  },
+  "projectileSpecId": "Kratogen_drizzle_rocket",
+  "fireSoundTwo": "Kratogen_drizzle_fire"
+}

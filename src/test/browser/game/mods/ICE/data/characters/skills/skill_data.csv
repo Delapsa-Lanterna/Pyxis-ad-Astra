@@ -1,0 +1,3 @@
+id,name,order,tier,reqPoints,reqPointsPerExtraSkill,description,author,combat officer,admiral,admin,tags,icon,
+Idoneus_consumables_backcycling,消费馈反,10600,0,,,魔法一般的回收系统，从成品直接到原料，那真的是这鬼地方应该有的技术么？怪不得这么一点点贸易量就能养活这么大的移动工业，和这么多的人，听说他们内部的物价还和对外宣报的不一样？我得好好去看一看到底是怎么一回事。,流亡舰队传出的流言,,,TRUE,"npc_only, player_only, codex_unlockable",graphics/icons/skills/Idoneus_consumables_backcycling/icon.png,
+Idoneus_kermess_space,集贸空间,10601,0,,,没错，我亲眼见到他们的，那什么东西。我们把集装箱都卸完之后就按照规定尽快离开了，但我借故从酒馆溜出去偷偷跑回泊地看了一眼，然后...一种毛骨悚然的感觉，无数集装箱像是活了一样自己到处飞，最后停在它们应该在的地方，堆得整整齐齐。墙壁上那些看似滑稽的球，那时一直在发着诡异的光...,流亡舰队传出的流言,,,TRUE,"npc_only, player_only, codex_unlockable",graphics/icons/skills/Idoneus_kermess_space/icon.png,

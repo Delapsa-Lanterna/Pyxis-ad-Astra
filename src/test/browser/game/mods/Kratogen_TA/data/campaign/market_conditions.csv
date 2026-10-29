@@ -1,0 +1,3 @@
+name,id,tags,planetary,decivRemove,script,desc,icon,order
+地貌改造,Kratogen_terraformed,"show_in_codex, codex_unlockable",,,com.fs.starfarer.api.impl.campaign.econ.UrbanizedPolity,$market 进行过一系列由 地质协会 主导的环境改造，某些效果可能需要专业人员对相关设备的不断维护才能持续运作。,graphics/icons/marketConditions/Kratogen_terraformed/icon.png,30.2333
+勘探中心,Kratogen_exploration_center,"show_in_codex, codex_unlockable",,,com.fs.starfarer.api.impl.campaign.econ.IndustrialPolity,$market 拥有一个由 地质协会 直接运营的勘探中心，提供专业的地质勘探服务。,graphics/icons/marketConditions/Kratogen_exploration_center/icon.png,30.2334

@@ -1,0 +1,51 @@
+{
+  "id": "Idoneus_flamebolt",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "MEDIUM",
+  "turretSprite": "graphics/weapons/Idoneus_flamebolt/turretSprite.png",
+  "turretGunSprite": "graphics/weapons/Idoneus_flamebolt/turretGunSprite.png",
+  "turretGlowSprite": "graphics/weapons/Idoneus_flamebolt/turretGlowSprite.png",
+  "hardpointSprite": "graphics/weapons/Idoneus_flamebolt/hardpointSprite.png",
+  "hardpointGunSprite": "graphics/weapons/Idoneus_flamebolt/hardpointGunSprite.png",
+  "hardpointGlowSprite": "graphics/weapons/Idoneus_flamebolt/hardpointGlowSprite.png",
+  "visualRecoil": 7,
+  "turretOffsets": [
+    10,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    10,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "glowColor": [
+    255,
+    200,
+    70,
+    255
+  ],
+  "animationType": "GLOW_AND_FLASH",
+  "muzzleFlashSpec": {
+    "length": 40,
+    "spread": 5,
+    "particleSizeMin": 12,
+    "particleSizeRange": 14,
+    "particleDuration": 0.5,
+    "particleCount": 12,
+    "particleColor": [
+      255,
+      200,
+      145,
+      200
+    ]
+  },
+  "projectileSpecId": "Idoneus_flamebolt_shot",
+  "fireSoundTwo": "Idoneus_flamebolt_fire"
+}

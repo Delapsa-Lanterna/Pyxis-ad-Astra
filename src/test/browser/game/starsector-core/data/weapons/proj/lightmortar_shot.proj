@@ -1,0 +1,26 @@
+{
+  "id": "lightmortar_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 20,
+  "hitGlowRadius": 30,
+  "width": 8,
+  "fadeTime": 0.2,
+  "fringeColor": [
+    255,
+    150,
+    70,
+    235
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    170
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/missiles/mortar_round.png"
+}

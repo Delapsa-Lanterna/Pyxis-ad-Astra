@@ -118,17 +118,23 @@ async function fieldsCheck(page) {
   const weapons = page.locator('[data-case="weapons"]');
   await weapons.getByRole('button', { name: '+ 添加项' }).click();
   const menu = page.locator('.n-base-select-menu');
-  for (const detail of ['S1 · 实弹 · 小型 · 固定', 'S2 · 能量 · 中型 · 炮塔', 'S3 · 导弹 · 大型 · 隐藏'])
-    await menu.getByText(detail, { exact: true }).waitFor();
+  const options = await menu.locator('.n-base-select-option').allInnerTexts();
+  assert.ok(options.length > 2);
+  const selected = (options.at(-1) ?? '').trim(),
+    selectedId = selected.split(' · ')[0];
   await page.keyboard.press('Escape');
-  assert.ok(!(await page.locator('[data-gallery-value]').innerText()).includes('"S3"'));
+  assert.ok(!(await page.locator('[data-gallery-value]').innerText()).includes(JSON.stringify(selectedId)));
   await weapons.getByRole('button', { name: '+ 添加项' }).click();
-  await menu.getByText('S3 · 导弹 · 大型 · 隐藏', { exact: true }).click();
-  assert.equal(await weapons.locator('.field-map-key-editor').innerText(), 'S3');
+  await menu.getByText(selected, { exact: true }).click();
+  assert.equal(await weapons.locator('.field-map-key-editor').innerText(), selectedId);
   for (const key of ['modulesObject', 'modulesArray']) {
     const sample = page.locator('[data-case="' + key + '"]');
     await sample.getByRole('button', { name: '+ 添加项' }).click();
-    await page.locator('.n-base-select-menu').getByText('MODULE', { exact: false }).first().click();
+    const options = await page.locator('.n-base-select-menu .n-base-select-option').allInnerTexts();
+    assert.ok(options.length > 0);
+    const option = options[0].trim();
+    await page.locator('.n-base-select-menu').getByText(option, { exact: true }).click();
+    assert.equal(await sample.locator('.field-map-key-editor').innerText(), option.split(' · ')[0]);
   }
   const input = page.locator('[data-case="string"] input');
   await input.fill('Pending sample');
@@ -221,6 +227,11 @@ export async function verifyBrowserUI(browser, url, output) {
     await page.goto(url);
     const main = page.frameLocator('iframe[data-window="main"]');
     await main.getByRole('button', { name: '进入编辑' }).first().click();
+    await main.getByRole('button', { name: '打开原版' }).click();
+    await main.getByText('远行星号原版', { exact: true }).last().waitFor();
+    await main.getByText('正在加载 Mod', { exact: true }).waitFor({ state: 'detached' });
+    checks.push({ coreOpen: true });
+    await main.locator('.mod-tab').first().click();
     await customColorCheck(page, 'browserWorkspace');
     assert.equal(await page.locator('a[href*="1462"]').count(), 0);
     await page.locator('.workbench-catalog > summary').click();
@@ -232,29 +243,100 @@ export async function verifyBrowserUI(browser, url, output) {
       assert.match((await button.getAttribute('class')) ?? '', /\bactive\b/);
     }
     checks.push({ formalNavigation: 23 });
+    /** @type {{variantId:string,index:number,slot:{id:string,type:string,size:string,mount:string},weaponId:string,weaponName:string,originalEntries:number}} */
+    const variantPlan = await page.evaluate(() => {
+      const workspace =
+        /** @type {{projects:Array<{entities:Map<string,{kind:string,id:string,data:Record<string,unknown>}>,tables:Map<string,{rows:Array<{data:Record<string,unknown>}>}>}>}} */ (
+          Reflect.get(globalThis, 'browserWorkspace')
+        );
+      const project = workspace.projects[1];
+      for (const entity of project.entities.values()) {
+        if (entity.kind !== 'variant') continue;
+        const value = /** @type {{hullId:string,weaponGroups:Array<{weapons:Record<string,string>}>}} */ (entity.data),
+          hull = project.entities.get('ship:' + value.hullId),
+          groups = value.weaponGroups ?? [];
+        if (!hull || groups.length < 2) continue;
+        const occupied = new Set(
+          groups.flatMap((group /** @type {{weapons:Record<string,string>}} */) => Object.keys(group.weapons ?? {})),
+        );
+        for (let index = 0; index < groups.length; index++) {
+          const slots = /** @type {Array<{id:string,type:string,size:string,mount:string}>} */ (hull.data.weaponSlots);
+          const slot = slots.find(
+            (slot /** @type {{id:string,type:string,size:string,mount:string}} */) =>
+              !occupied.has(slot.id) && slot.mount !== 'HIDDEN' && !['SYSTEM', 'DECORATIVE', 'STATION_MODULE'].includes(slot.type),
+          );
+          if (!slot) continue;
+          const weapon = project.tables.get('weapons')?.rows.find((row /** @type {{data:Record<string,unknown>}} */) => {
+            const weaponEntity = project.entities.get('weapon:' + String(row.data.id));
+            const spec = /** @type {{size:string,type:string}|undefined} */ (weaponEntity?.data.spec);
+            return (
+              spec &&
+              spec.size === slot.size &&
+              ((slot.type === 'MISSILE' && spec.type === 'MISSILE') ||
+                (slot.type === 'ENERGY' && spec.type === 'ENERGY') ||
+                (['BALLISTIC', 'HYBRID', 'COMPOSITE', 'SYNERGY', 'UNIVERSAL'].includes(slot.type) && spec.type === 'BALLISTIC'))
+            );
+          });
+          if (weapon)
+            return {
+              variantId: entity.id,
+              index,
+              slot: { id: slot.id, type: slot.type, size: slot.size, mount: slot.mount },
+              weaponId: String(weapon.data.id),
+              weaponName: String(weapon.data.name),
+              originalEntries: Object.keys(groups[index]?.weapons ?? {}).length,
+            };
+        }
+      }
+      throw Error('No source variant has a free compatible hull slot');
+    });
     await page.goto(url + '/?navigation=json%3Avariants');
-    await main.locator('.json-entity-list-item').first().click();
-    for (const name of ['武器组 1', '武器组 2']) await main.getByText(name, { exact: true }).click();
+    await main.locator(`.json-entity-list-item[data-entity-id="${variantPlan.variantId}"]`).click();
     /** @param {string} name */
     const group = (name) =>
       main
         .locator('.n-collapse-item')
         .filter({ has: main.getByText(name, { exact: true }) })
         .last();
-    await group('武器组 2').getByRole('button', { name: '+ 添加项', exact: true }).click();
-    await main.locator('.n-base-select-menu').getByText('WS001 · 实弹 · 小型 · 固定', { exact: true }).click();
-    assert.equal(await group('武器组 1').locator('.field-map-key-editor').count(), 0);
-    assert.ok((await group('武器组 2').innerText()).includes('test_weapon'));
+    const groupName = '武器组 ' + (variantPlan.index + 1);
+    if (!(await group(groupName).evaluate((node) => node.classList.contains('n-collapse-item--active'))))
+      await group(groupName).locator('.n-collapse-item__header-main').click();
+    await group(groupName).getByRole('button', { name: '+ 添加项', exact: true }).first().click();
+    /** @type {Record<string,string>} */ const sizeLabels = { SMALL: '小型', MEDIUM: '中型', LARGE: '大型' };
+    /** @type {Record<string,string>} */ const typeLabels = {
+      BALLISTIC: '实弹',
+      ENERGY: '能量',
+      MISSILE: '导弹',
+      HYBRID: '混合',
+      COMPOSITE: '复合',
+      SYNERGY: '协同',
+      UNIVERSAL: '通用',
+    };
+    /** @type {Record<string,string>} */ const mountLabels = { HARDPOINT: '固定', TURRET: '炮塔', HIDDEN: '隐藏' };
+    const slotLabel = [
+      variantPlan.slot.id,
+      typeLabels[variantPlan.slot.type] ?? variantPlan.slot.type,
+      sizeLabels[variantPlan.slot.size] ?? variantPlan.slot.size,
+      mountLabels[variantPlan.slot.mount] ?? variantPlan.slot.mount,
+    ].join(' · ');
+    await main.locator('.n-base-select-menu').getByText(slotLabel, { exact: true }).click();
+    const slotKeys = group(groupName).locator('.field-map-key-editor');
+    assert.equal(await slotKeys.count(), variantPlan.originalEntries + 1);
+    assert.ok((await slotKeys.allInnerTexts()).includes(variantPlan.slot.id));
     await main.getByRole('button', { name: '撤销', exact: true }).click();
-    assert.equal(await group('武器组 1').locator('.field-map-key-editor').innerText(), 'WS001');
+    assert.equal(await group(groupName).locator('.field-map-key-editor').count(), variantPlan.originalEntries);
     await main.getByRole('button', { name: '重做', exact: true }).click();
+    await group(groupName).locator('.n-base-selection').last().click();
+    await main.locator('.n-base-select-menu').getByText(variantPlan.weaponName, { exact: true }).click();
     await main.getByRole('button', { name: '保存', exact: true }).click();
     await page.waitForFunction(
-      () =>
-        Reflect.get(globalThis, 'browserWorkspace').projects[1].entities.get('variant:aurora_refit').data.weaponGroups[1].weapons.WS001 ===
-        'test_weapon',
+      ({ variantId, index, slotId, weaponId }) =>
+        Reflect.get(globalThis, 'browserWorkspace').projects[1].entities.get('variant:' + variantId).data.weaponGroups[index].weapons[
+          slotId
+        ] === weaponId,
+      { variantId: variantPlan.variantId, index: variantPlan.index, slotId: variantPlan.slot.id, weaponId: variantPlan.weaponId },
     );
-    checks.push({ formalVariant: 'transfer, undo, redo, save', pass: true });
+    checks.push({ formalVariant: 'source slot, compatible weapon, undo, redo, save', pass: true, slot: variantPlan.slot.id });
     const routes = /** @type {{id:string,href:string,label:string}[]} */ (
       await page.evaluate(() => Reflect.get(globalThis, 'browserWorkspaceEntries'))
     );

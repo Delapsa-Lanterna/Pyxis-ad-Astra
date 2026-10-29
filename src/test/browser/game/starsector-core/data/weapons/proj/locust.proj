@@ -1,0 +1,65 @@
+{
+  "id": "locust",
+  "specClass": "missile",
+  "missileType": "MISSILE",
+  "sprite": "graphics/missiles/missile_locust.png",
+  "size": [
+    8,
+    14
+  ],
+  "center": [
+    4,
+    7
+  ],
+  "collisionRadius": 12,
+  "collisionClass": "MISSILE_NO_FF",
+  "explosionColor": [
+    255,
+    165,
+    50,
+    255
+  ],
+  "explosionRadius": 60,
+  "engineSpec": {
+    "turnAcc": 1720,
+    "turnRate": 240,
+    "acc": 2500,
+    "dec": 2500
+  },
+  "engineSlots": [
+    {
+      "id": "ES1",
+      "loc": [
+        -7,
+        0
+      ],
+      "style": "CUSTOM",
+      "styleSpec": {
+        "mode": "QUAD_STRIP",
+        "engineColor": [
+          255,
+          145,
+          75,
+          255
+        ],
+        "contrailDuration": 0.5,
+        "contrailWidthMult": 2,
+        "contrailWidthAddedFractionAtEnd": 2,
+        "contrailMinSeg": 15,
+        "contrailMaxSpeedMult": ".0f",
+        "contrailAngularVelocityMult": "0.5f",
+        "contrailSpawnDistMult": 0.5,
+        "contrailColor": [
+          100,
+          100,
+          100,
+          150
+        ],
+        "type": "SMOKE"
+      },
+      "width": 4,
+      "length": 20,
+      "angle": 180
+    }
+  ]
+}

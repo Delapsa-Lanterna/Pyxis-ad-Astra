@@ -1,0 +1,178 @@
+{
+  "Idoneus_hellblaze_fire": [
+    {
+      "file": "sounds/idoneus/weapons/hellblaze_fire.ogg",
+      "pitch": 1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/idoneus/weapons/hellblaze_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/idoneus/weapons/hellblaze_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/idoneus/weapons/hellblaze_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1
+    }
+  ],
+  "Idoneus_flamebolt_fire": [
+    {
+      "file": "sounds/idoneus/weapons/flamebolt_fire.ogg",
+      "pitch": 1,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/idoneus/weapons/flamebolt_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/idoneus/weapons/flamebolt_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1
+    },
+    {
+      "file": "sounds/idoneus/weapons/flamebolt_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.8
+    }
+  ],
+  "Idoneus_wisp_fire": [
+    {
+      "file": "sounds/idoneus/weapons/wisp_fire.ogg",
+      "pitch": 1.1,
+      "volume": 1.2
+    },
+    {
+      "file": "sounds/idoneus/weapons/wisp_fire.ogg",
+      "pitch": 1.2,
+      "volume": 1
+    },
+    {
+      "file": "sounds/idoneus/weapons/wisp_fire.ogg",
+      "pitch": 1,
+      "volume": 1
+    },
+    {
+      "file": "sounds/idoneus/weapons/wisp_fire.ogg",
+      "pitch": 1,
+      "volume": 1.2
+    }
+  ],
+  "Idoneus_hexchain_fire": [
+    {
+      "file": "sounds/idoneus/weapons/ich_fire1.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire2.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire3.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire4.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    }
+  ],
+  "Idoneus_hexgun_fire": [
+    {
+      "file": "sounds/idoneus/weapons/ich_fire1.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire2.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire3.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire4.ogg",
+      "pitch": 1.4,
+      "volume": 0.42
+    }
+  ],
+  "Idoneus_lighthexac_fire": [
+    {
+      "file": "sounds/idoneus/weapons/ich_fire1.ogg",
+      "pitch": 1.6,
+      "volume": 0.34
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire2.ogg",
+      "pitch": 1.6,
+      "volume": 0.34
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire3.ogg",
+      "pitch": 1.6,
+      "volume": 0.34
+    },
+    {
+      "file": "sounds/idoneus/weapons/ich_fire4.ogg",
+      "pitch": 1.6,
+      "volume": 0.34
+    }
+  ],
+  "Idoneus_scatterpd_fire": [
+    {
+      "file": "sounds/idoneus/weapons/scatterpd_fire.ogg",
+      "pitch": 1,
+      "volume": 0.7
+    },
+    {
+      "file": "sounds/idoneus/weapons/scatterpd_fire.ogg",
+      "pitch": 0.9,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/idoneus/weapons/scatterpd_fire.ogg",
+      "pitch": 1.2,
+      "volume": 0.6
+    },
+    {
+      "file": "sounds/idoneus/weapons/scatterpd_fire.ogg",
+      "pitch": 1.3,
+      "volume": 0.8
+    }
+  ],
+  "Idoneus_boomerang_fire": [
+    {
+      "file": "sounds/idoneus/weapons/boomerang_fire.ogg",
+      "pitch": 1.5,
+      "volume": 1
+    },
+    {
+      "file": "sounds/idoneus/weapons/boomerang_fire.ogg",
+      "pitch": 1.8,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/idoneus/weapons/boomerang_fire.ogg",
+      "pitch": 1.4,
+      "volume": 0.8
+    },
+    {
+      "file": "sounds/idoneus/weapons/boomerang_fire.ogg",
+      "pitch": 1.6,
+      "volume": 1
+    }
+  ]
+}

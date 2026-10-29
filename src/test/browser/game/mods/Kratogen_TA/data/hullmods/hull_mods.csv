@@ -1,0 +1,10 @@
+name,id,tier,rarity,tech/manufacturer,tags,uiTags,base value,unlocked,hidden,hiddenEverywhere,cost_frigate,cost_dest,cost_cruiser,cost_capital,script,desc,short,sModDesc,sprite
+镜化加力燃烧室,Kratogen_glass_afterburner,,,雪线设计,,,,,TRUE,,0,0,0,0,data.hullmods.ExpandedMagazines,雪线设计 舰船采用激进的加力燃烧室，强调速战速决。,协会舰船基础模块,,graphics/icons/hullmods/Kratogen_glass_afterburner/sprite.png
+至日助燃超驰,Kratogen_solstice,,,至日,,,,,TRUE,,0,0,0,0,data.hullmods.HardenedShieldEmitter,"太阳照常升起。但这次失败了。
+再试一次？",协会舰船精英模块,,graphics/icons/hullmods/Kratogen_solstice/sprite.png
+硬化壳层,Kratogen_hardened,,,雪线设计,hide_in_codex,,,,TRUE,,0,0,0,0,data.hullmods.HeavyArmor,"使用源于 雪线设计局 古老专利的特殊壳层，为舰船内部子系统提供更强大的物理抗扰动能力。峰值结束后 {CR} 衰减速率减少 {%s}。
+
+""硬化用于硬化子系统的硬化子系统。""",降低 CR 衰减,,graphics/icons/hullmods/Kratogen_hardened/sprite.png
+护盾过充,Kratogen_shield_overcharge,3,,雪线设计,"Kratogen_p, defensive, shields, merc",护盾,10000,,,,6,12,18,30,data.hullmods.IntegratedTargetingUnit,装载护盾过充系统，强充能后的护盾缓存将独立于幅能容量。,提高护盾效率,,graphics/icons/hullmods/Kratogen_shield_overcharge/sprite.png
+熔冰幅能核心,Kratogen_frost_core,2,,雪线设计,"Kratogen_p, offensive, defensive, merc","特殊, 防御",8000,,,,4,8,14,20,data.hullmods.ReinforcedBulkheads,延展于幅能核心的子调配器，一反常态地注重续航能力。,改善幅能耗散,,graphics/icons/hullmods/Kratogen_frost_core/sprite.png
+备用弹匣,Kratogen_backup_magazine,1,,雪线设计,"Kratogen_p, offensive, merc",武器,8000,,,,3,5,7,10,data.hullmods.ExpandedMagazines,为每个有弹量限制的武器安装提供额外备弹量的备用弹匣。,提升备弹量,,graphics/icons/hullmods/Kratogen_backup_magazine/sprite.png

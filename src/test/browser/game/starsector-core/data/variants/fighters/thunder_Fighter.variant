@@ -1,0 +1,32 @@
+{
+  "quality": 1,
+  "displayName": "重型截击机",
+  "hullId": "thunder",
+  "variantId": "thunder_Fighter",
+  "fluxVents": 0,
+  "fluxCapacitors": 0,
+  "mods": [],
+  "weaponGroups": [
+    {
+      "mode": "LINKED",
+      "weapons": {
+        "WS 001": "ioncannon_fighter"
+      }
+    },
+    {
+      "mode": "LINKED",
+      "weapons": {
+        "WS 002": "lightdualmg"
+      }
+    },
+    {
+      "mode": "LINKED",
+      "weapons": {
+        "WS 003": "swarmer_fighter"
+      }
+    }
+  ],
+  "hullMods": [],
+  "permaMods": [],
+  "sMods": []
+}

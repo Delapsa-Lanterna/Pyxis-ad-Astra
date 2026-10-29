@@ -1,0 +1,35 @@
+{
+  "displayName": "Assault",
+  "fluxCapacitors": 20,
+  "fluxVents": 8,
+  "goalVariant": true,
+  "hullId": "PLSP_blazar",
+  "hullMods": [
+    "PLSP_twinkle_modulator",
+    "PLSP_starlight_calibrator",
+    "PLSP_magnet_damper",
+    "magazines"
+  ],
+  "permaMods": [],
+  "sMods": [],
+  "variantId": "PLSP_blazar_assault",
+  "weaponGroups": [
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0002": "PLSP_phonon_s",
+        "WS0003": "PLSP_phonon_s"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0001": "PLSP_crystal_s",
+        "WS0004": "PLSP_crystal_s",
+        "WS0005": "PLSP_crystal_s"
+      }
+    }
+  ]
+}

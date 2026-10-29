@@ -28,6 +28,7 @@ import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { variantEditableRecords } from '@/domain/immersive/source-records';
 import { resourceImage } from '../../fixtures/resources';
 import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import type { OriginalFontResult, FontId } from '@/shared/types';
 
 export type BrowserScenario = import('../contracts').ScenarioOptions['scene'];
 export const sampleRoot = 'M:/browser-sample';
@@ -408,6 +409,7 @@ export function createBrowserModel(
   }
   return {
     scene,
+    fieldHullId: undefined as string | undefined,
     count,
     sessionId,
     rows,
@@ -435,6 +437,7 @@ export function createBrowserModel(
         : resourceSize
           ? resourceImage(resourceSize, path)
           : sampleImage,
+    fontResult: (fontId: FontId): OriginalFontResult => fallbackFontResult(fontId),
     rebase(settingsVersion: number, windowVersion: number) {
       revision = settingsVersion + 1;
       windowRevision = windowVersion;
@@ -464,6 +467,16 @@ export function createBrowserModel(
     get saveCount() {
       return saveCount;
     },
+  };
+}
+function fallbackFontResult(fontId: FontId): OriginalFontResult {
+  return {
+    status: 'available',
+    root: 'M:/game',
+    fontId,
+    path: 'sample.fnt',
+    definition: 'common lineHeight=16 base=14 scaleW=512 scaleH=16 pages=1 packed=0\npage id=0 file="sample.png"\n',
+    pages: [{ id: 0, path: 'sample.png', dataUrl: sampleImage }],
   };
 }
 export type BrowserModel = ReturnType<typeof createBrowserModel>;

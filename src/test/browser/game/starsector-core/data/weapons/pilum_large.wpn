@@ -1,0 +1,77 @@
+{
+  "id": "pilum_large",
+  "specClass": "projectile",
+  "type": "MISSILE",
+  "size": "LARGE",
+  "turretSprite": "graphics/weapons/pilum_launcher_large_turret.png",
+  "hardpointSprite": "graphics/weapons/pilum_launcher_large_hardpoint.png",
+  "hardpointOffsets": [
+    16,
+    -13,
+    18,
+    -8,
+    20,
+    -3,
+    20,
+    3,
+    18,
+    8,
+    16,
+    13
+  ],
+  "turretOffsets": [
+    15,
+    -13,
+    17,
+    -8,
+    19,
+    -3,
+    19,
+    3,
+    17,
+    8,
+    15,
+    13
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "turretAngleOffsets": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "SMOKE",
+  "renderHints": [
+    "RENDER_LOADED_MISSILES"
+  ],
+  "interruptibleBurst": false,
+  "smokeSpec": {
+    "particleSizeMin": 20,
+    "particleSizeRange": 20,
+    "cloudParticleCount": 9,
+    "cloudDuration": 1,
+    "cloudRadius": 20,
+    "blowbackParticleCount": 7,
+    "blowbackDuration": 2,
+    "blowbackLength": 30,
+    "blowbackSpread": 10,
+    "particleColor": [
+      100,
+      100,
+      100,
+      200
+    ]
+  },
+  "projectileSpecId": "type_1_lrm",
+  "fireSoundTwo": "pilum_lrm_fire"
+}

@@ -1,0 +1,279 @@
+{
+  "hullName": "Specter",
+  "hullId": "Idoneus_specter",
+  "hullSize": "FRIGATE",
+  "spriteName": "graphics/ships/Idoneus_specter/spriteName.png",
+  "style": "IDONEUS",
+  "height": 120,
+  "width": 90,
+  "center": [
+    45,
+    60
+  ],
+  "collisionRadius": 77.5,
+  "shieldCenter": [
+    0,
+    0
+  ],
+  "shieldRadius": 71,
+  "viewOffset": 0,
+  "builtInMods": [
+    "Idoneus_gravitonic_sensors_mod",
+    "phasefield"
+  ],
+  "builtInWeapons": {
+    "LIGHTS": "Idoneus_specter_lights",
+    "SYSTEM": "Idoneus_specter_system",
+    "TOP": "Idoneus_specter_cover_top",
+    "LIGHTS_TOP": "Idoneus_specter_cover_lights_top",
+    "SYSTEM_TOP": "Idoneus_specter_cover_system_top",
+    "FRONT": "Idoneus_specter_cover_front",
+    "WING_LEFT": "Idoneus_specter_cover_wing_left",
+    "WING_RIGHT": "Idoneus_specter_cover_wing_right",
+    "SYSTEM_WING_LEFT": "Idoneus_specter_cover_system_wing_left",
+    "SYSTEM_WING_RIGHT": "Idoneus_specter_cover_system_wing_right"
+  },
+  "weaponSlots": [
+    {
+      "id": "WS0001",
+      "size": "SMALL",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": 40,
+      "locations": [
+        -8.5,
+        11.5
+      ]
+    },
+    {
+      "id": "WS0002",
+      "size": "SMALL",
+      "type": "MISSILE",
+      "mount": "HARDPOINT",
+      "arc": 10,
+      "angle": -40,
+      "locations": [
+        -8.5,
+        -11.5
+      ]
+    },
+    {
+      "id": "WS0003",
+      "size": "SMALL",
+      "type": "HYBRID",
+      "mount": "HARDPOINT",
+      "arc": 15,
+      "angle": 0,
+      "locations": [
+        -7,
+        34
+      ]
+    },
+    {
+      "id": "WS0004",
+      "size": "SMALL",
+      "type": "HYBRID",
+      "mount": "HARDPOINT",
+      "arc": 15,
+      "angle": 0,
+      "locations": [
+        -7,
+        -34
+      ]
+    },
+    {
+      "id": "WS0005",
+      "size": "MEDIUM",
+      "type": "BALLISTIC",
+      "mount": "HARDPOINT",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        34,
+        0
+      ],
+      "renderOrderMod": 20
+    },
+    {
+      "id": "LIGHTS",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "SYSTEM",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "TOP",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        14,
+        0
+      ]
+    },
+    {
+      "id": "LIGHTS_TOP",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        14,
+        0
+      ],
+      "renderOrderMod": 200
+    },
+    {
+      "id": "SYSTEM_TOP",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        14,
+        0
+      ],
+      "renderOrderMod": 200
+    },
+    {
+      "id": "FRONT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 0,
+      "angle": 0,
+      "locations": [
+        32,
+        0
+      ]
+    },
+    {
+      "id": "WING_LEFT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 90,
+      "angle": 0,
+      "locations": [
+        -26,
+        28
+      ]
+    },
+    {
+      "id": "WING_RIGHT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 90,
+      "angle": 0,
+      "locations": [
+        -26,
+        -28
+      ]
+    },
+    {
+      "id": "SYSTEM_WING_LEFT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 90,
+      "angle": 0,
+      "locations": [
+        -26,
+        28
+      ],
+      "renderOrderMod": 20
+    },
+    {
+      "id": "SYSTEM_WING_RIGHT",
+      "size": "SMALL",
+      "type": "DECORATIVE",
+      "mount": "TURRET",
+      "arc": 90,
+      "angle": 0,
+      "locations": [
+        -26,
+        -28
+      ],
+      "renderOrderMod": 20
+    }
+  ],
+  "engineSlots": [
+    {
+      "location": [
+        -35,
+        11
+      ],
+      "length": 58,
+      "width": 18,
+      "angle": -177,
+      "contrailSize": 18,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -35,
+        -11
+      ],
+      "length": 58,
+      "width": 18,
+      "angle": 177,
+      "contrailSize": 18,
+      "style": "IDONEUS"
+    }
+  ],
+  "bounds": [
+    53,
+    -7.5,
+    21,
+    -19,
+    -3.5,
+    -5,
+    -17.5,
+    -14,
+    -11.5,
+    -35.5,
+    -39,
+    -17.5,
+    -27.5,
+    -5,
+    -56.5,
+    0,
+    -27.5,
+    5,
+    -39,
+    17.5,
+    -11.5,
+    35.5,
+    -17.5,
+    14,
+    -3.5,
+    5,
+    21,
+    19,
+    53,
+    7.5
+  ]
+}

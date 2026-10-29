@@ -57,6 +57,7 @@ import ResourceThumbnail from '@/app/components/media/ResourceThumbnail.vue';
 import FontText from '@/app/components/fonts/FontText.vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
+import { invalidateResourceMediaForSession } from '@/services/resource-media.service';
 import type { ResourceRef } from '@/shared/types';
 import { browserModel } from './runtime/commands';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -69,17 +70,12 @@ const state = ref<keyof typeof states>('ready'),
   url = ref(''),
   status = ref(''),
   generation = ref(0);
-const resource: ResourceRef = {
-  source: 'mod',
-  ownerKind: 'ship',
-  ownerId: 'sample_hull',
-  key: 'sprite',
-  relPath: 'graphics/sample-hull.svg',
-};
+const resource: ResourceRef = model.graph('ship').hull!.sprite!;
 let ticket = 0;
 onScopeDispose(() => ticket++);
 async function load() {
   const current = ++ticket;
+  invalidateResourceMediaForSession(model.sessionId);
   generation.value++;
   url.value = '';
   status.value = states[state.value];
@@ -88,7 +84,7 @@ async function load() {
   if (state.value === 'failed')
     model.failures.set('query_resource_data_urls', { code: 'sample.resource', message: '测试资源读取失败', location: null });
   try {
-    const urls = await queryResourceDataUrls(model.sessionId, [{ ...resource, relPath: 'graphics/gallery-' + current + '.svg' }]);
+    const urls = await queryResourceDataUrls(model.sessionId, [resource]);
     if (ticket === current) {
       url.value = urls[0] ?? '';
       status.value = '资源已加载';

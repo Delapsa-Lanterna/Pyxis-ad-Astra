@@ -1,0 +1,5 @@
+name,id,tags,tech/manufacturer,rarity,base price,stack size,cargo space,baseRaidDanger,icon,sound id,sound id drop,plugin,plugin params,desc,order
+基础船体插件,modspec,modspec,,,1,1000,1,,graphics/icons/cargo/modspec2.png,ui_chip_pickup,ui_modspec_drop,com.fs.starfarer.api.campaign.impl.items.ModSpecItemPlugin,,一组说明，实例与指导方针，使用户能够将此修改适配并应用于各种船体中。,50
+受损的纳米锻炉,corrupted_nanoforge,"nanoforge, pather4, colony_item, codex_unlockable",人之领管制科技,,50000,1000,1,HIGH,graphics/icons/cargo/nanoforge_corrupted.png,ui_cargo_special_industrial_pickup,ui_cargo_special_industrial_drop,com.fs.starfarer.api.campaign.impl.items.GenericSpecialItemPlugin,"heavyindustry, orbitalworks","全能而高效的制造设施，同时也是一个内部原理不明的 ""黑箱"" 装置。只需在足够的原材料与人力的帮助下，它就能作为核心自行扩增为无可匹敌的工业巨兽。
+
+这台纳米锻炉当前状态不佳，无法可靠地生产无缺陷的零部件。但对于制造星际飞船来说，能够使用纳米锻炉就是一个巨大的进步。",139

@@ -1,0 +1,11 @@
+{
+  "IDONEUS": {
+    "engineColor": [160, 240, 220, 120],
+    "contrailParticleSizeMult": 8,
+    "contrailParticleDuration": 3,
+    "contrailMaxSpeedMult": "0.1f",
+    "contrailAngularVelocityMult": "0.1f",
+    "contrailColor": [160, 240, 220, 5],
+    "type": "SMOKE"
+  }
+}

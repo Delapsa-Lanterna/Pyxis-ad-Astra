@@ -1,0 +1,125 @@
+{
+  "id": "PLSC_impulse_missile_celestite",
+  "specClass": "missile",
+  "missileType": "MISSILE",
+  "behaviorSpec": {
+    "behavior": "CUSTOM",
+    "minDelayBeforeTriggering": 0,
+    "triggerDistance": [
+      500,
+      550
+    ],
+    "preferredMinFireDistance": [
+      200,
+      400
+    ],
+    "turnRateBoost": 50,
+    "targetingTime": 0.99,
+    "firingTime": 1.25,
+    "targetingLaserId": "PLSC_impulse_celestite_targeting",
+    "targetingLaserFireOffset": [
+      6,
+      0
+    ],
+    "payloadWeaponId": "PLSC_impulse_celestite_sub",
+    "targetingLaserRange": 600,
+    "targetingLaserArc": 10,
+    "bombPumped": false,
+    "snapFacingToTargetIfCloseEnough": true,
+    "fadeOutEngineWhenFiring": false,
+    "destroyMissleWhenDoneFiring": false,
+    "destroyedExplosionColor": [
+      150,
+      255,
+      150,
+      255
+    ]
+  },
+  "sprite": "graphics/projectiles/PLSC_impulse_missile_celestite/sprite.png",
+  "size": [
+    10,
+    18
+  ],
+  "center": [
+    5,
+    9
+  ],
+  "collisionRadius": 12,
+  "collisionClass": "MISSILE_NO_FF",
+  "explosionColor": [
+    80,
+    135,
+    255,
+    255
+  ],
+  "explosionRadius": 50,
+  "explosionSpec": {
+    "duration": "0.1f",
+    "radius": 35,
+    "coreRadius": 75,
+    "collisionClass": "HITS_SHIPS_AND_ASTEROIDS",
+    "collisionClassByFighter": "HITS_SHIPS_AND_ASTEROIDS",
+    "particleSizeMin": 5,
+    "particleSizeRange": 3,
+    "particleDuration": 1,
+    "particleCount": 150,
+    "particleColor": [
+      125,
+      155,
+      255,
+      255
+    ]
+  },
+  "armingTime": 0.3,
+  "useHitGlowWhenDestroyed": true,
+  "noDebrisWhenDestroyed": true,
+  "engineSpec": {
+    "turnAcc": 200,
+    "turnRate": 45,
+    "acc": 1000,
+    "dec": 300
+  },
+  "engineSlots": [
+    {
+      "id": "ES1",
+      "loc": [
+        -7,
+        0
+      ],
+      "style": "CUSTOM",
+      "styleSpec": {
+        "mode": "QUAD_STRIP",
+        "engineColor": [
+          50,
+          110,
+          255,
+          0
+        ],
+        "glowSizeMult": 0.75,
+        "glowAlternateColor": [
+          50,
+          110,
+          255,
+          255
+        ],
+        "contrailDuration": 2,
+        "contrailWidthMult": 3,
+        "contrailWidthAddedFractionAtEnd": -0.5,
+        "contrailMinSeg": 5,
+        "contrailMaxSpeedMult": "-1f",
+        "contrailAngularVelocityMult": "0f",
+        "contrailSpawnDistMult": 0,
+        "contrailColor": [
+          50,
+          110,
+          255,
+          120
+        ],
+        "type": "GLOW"
+      },
+      "width": 4,
+      "length": 1,
+      "angle": 180
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "hullName": "Poltergeist",
+  "hullId": "Idoneus_poltergeist",
+  "hullSize": "FIGHTER",
+  "spriteName": "graphics/ships/Idoneus_poltergeist/spriteName.png",
+  "style": "IDONEUS",
+  "height": 26,
+  "width": 38,
+  "center": [
+    19,
+    13
+  ],
+  "collisionRadius": 22,
+  "shieldCenter": [
+    0,
+    0
+  ],
+  "shieldRadius": 20,
+  "viewOffset": 0,
+  "builtInMods": [
+    "advancedcore"
+  ],
+  "weaponSlots": [
+    {
+      "id": "WS0001",
+      "size": "SMALL",
+      "type": "BALLISTIC",
+      "mount": "HIDDEN",
+      "arc": 20,
+      "angle": 0,
+      "locations": [
+        6,
+        0
+      ]
+    },
+    {
+      "id": "WS0002",
+      "size": "SMALL",
+      "type": "ENERGY",
+      "mount": "HIDDEN",
+      "arc": 360,
+      "angle": 0,
+      "locations": [
+        -1.5,
+        0
+      ]
+    }
+  ],
+  "engineSlots": [
+    {
+      "location": [
+        -7.5,
+        10
+      ],
+      "length": 30,
+      "width": 10,
+      "angle": -175,
+      "contrailSize": 30,
+      "style": "IDONEUS"
+    },
+    {
+      "location": [
+        -7.5,
+        -10
+      ],
+      "length": 30,
+      "width": 10,
+      "angle": 175,
+      "contrailSize": 30,
+      "style": "IDONEUS"
+    }
+  ],
+  "bounds": [
+    8,
+    0,
+    -2.5,
+    -14.5,
+    -2.5,
+    14.5
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "lightag_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 30,
+  "hitGlowRadius": 40,
+  "width": 5,
+  "fadeTime": 0.2,
+  "fringeColor": [
+    255,
+    200,
+    70,
+    235
+  ],
+  "coreColor": [
+    255,
+    200,
+    200,
+    180
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/missiles/shell_large_yellow.png"
+}

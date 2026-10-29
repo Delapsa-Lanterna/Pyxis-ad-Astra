@@ -1,0 +1,3 @@
+id,name,order,tier,reqPoints,reqPointsPerExtraSkill,description,author,combat officer,admiral,admin,tags,icon,
+Kratogen_deja_vu,既视感,10500,0,,,幸存者偏差？我们在写战损分析反馈的时候根本没担心过统计问题。只有正面被高能脉冲均匀翻过一遍的船体已经算是完好的了，剩下的大多全舰上下就干脆没有一处看得出原样的装甲。,拆解代理处主任 Ts'ai Hsing-yuan，于 Arcadia 中转站,TRUE,,,"npc_only, player_only, restricted, codex_unlockable",graphics/icons/skills/Kratogen_deja_vu/icon.png,
+Kratogen_jamais_vu,未视感,10501,0,,,一次生，两次熟，三次爬上位。晋升比许多人以为的都快，毕竟没有哪个不够格的能活过头几次行动。,风险勘探队员 Felix Thornton，于星历 192 年 Lerad 行动开始前的评论,TRUE,,,"npc_only, player_only, restricted, codex_unlockable",graphics/icons/skills/Kratogen_jamais_vu/icon.png,

@@ -1,0 +1,46 @@
+{
+  "id": "PLSP_crystal_s",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "SMALL",
+  "turretSprite": "graphics/weapons/PLSP_crystal_s/turretSprite.png",
+  "turretGunSprite": "graphics/weapons/PLSP_crystal_s/turretGunSprite.png",
+  "hardpointSprite": "graphics/weapons/PLSP_crystal_s/hardpointSprite.png",
+  "hardpointGunSprite": "graphics/weapons/PLSP_crystal_s/hardpointGunSprite.png",
+  "visualRecoil": 4,
+  "renderHints": [
+    "RENDER_BARREL_BELOW"
+  ],
+  "turretOffsets": [
+    8,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    13,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "MUZZLE_FLASH",
+  "muzzleFlashSpec": {
+    "length": 10,
+    "spread": 20,
+    "particleSizeMin": 12,
+    "particleSizeRange": 14,
+    "particleDuration": 0.3,
+    "particleCount": 16,
+    "particleColor": [
+      255,
+      255,
+      75,
+      225
+    ]
+  },
+  "projectileSpecId": "PLSP_crystal_s_shot",
+  "fireSoundTwo": "PLSP_crystal_s_fire"
+}

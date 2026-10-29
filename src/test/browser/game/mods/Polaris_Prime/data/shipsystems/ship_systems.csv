@@ -1,0 +1,6 @@
+name,id,flux/second,f/s (base rate),f/s (base cap),flux/use,f/u (base rate),f/u (base cap),cr/u,max uses,regen,charge up,active,down,cooldown,toggle,noDissipation,noHardDissipation,hardFlux,noFiring,noTurning,noStrafing,noAccel,noShield,noVent,isPhaseCloak,tags,icon
+全向传感干扰,PLSP_sensor_disturb,,,,,,0.4,,,,0.5,6,0.5,15,,,,TRUE,TRUE,,,,,,,"offensive, defensive",graphics/icons/shipSystems/PLSP_sensor_disturb/icon.png
+界线链接,PLSP_repair_link,,,,,,0.3,,,,0.5,8,1.5,10,,,,,,,,,,,,"offensive, defensive",graphics/icons/shipSystems/PLSP_repair_link/icon.png
+护盾壳层,PLSP_shell_system,,,,,,0.1,,,,0.1,3,0.4,5,,,TRUE,,TRUE,,,,,,,defensive,graphics/icons/shipSystems/PLSP_shell_system/icon.png
+青辉驱动,PLSC_sparkling_drive,1,,,,,,,2,0.1,2,5,2,1,TRUE,,,,,TRUE,TRUE,TRUE,,,,"restricted, movement",graphics/icons/shipSystems/PLSC_sparkling_drive/icon.png
+力场集中,PLSC_halo_field,,0.35,,,,,,,,0.75,,0.5,2,TRUE,,TRUE,TRUE,,,,,,,,"restricted, defensive",graphics/icons/shipSystems/PLSC_halo_field/icon.png

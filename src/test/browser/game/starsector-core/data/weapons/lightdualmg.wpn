@@ -1,0 +1,53 @@
+{
+  "id": "lightdualmg",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "SMALL",
+  "displayArcRadius": 250,
+  "turretSprite": "graphics/weapons/mg_light_dual_turret_base.png",
+  "turretGunSprite": "graphics/weapons/mg_light_dual_turret_recoil.png",
+  "hardpointSprite": "graphics/weapons/mg_light_dual_hardpoint_base.png",
+  "hardpointGunSprite": "graphics/weapons/mg_light_dual_hardpoint_recoil.png",
+  "visualRecoil": 3,
+  "turretOffsets": [
+    12,
+    -2,
+    12,
+    2
+  ],
+  "turretAngleOffsets": [
+    0,
+    0
+  ],
+  "hardpointOffsets": [
+    17,
+    -2,
+    17,
+    2
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    0
+  ],
+  "renderHints": [
+    "RENDER_BARREL_BELOW"
+  ],
+  "barrelMode": "ALTERNATING_BURST",
+  "animationType": "MUZZLE_FLASH",
+  "muzzleFlashSpec": {
+    "length": 20,
+    "spread": 6,
+    "particleSizeMin": 6,
+    "particleSizeRange": 8,
+    "particleDuration": 0.15,
+    "particleCount": 7,
+    "particleColor": [
+      255,
+      240,
+      165,
+      200
+    ]
+  },
+  "projectileSpecId": "lightmg_shot",
+  "fireSoundTwo": "light_machinegun_fire"
+}

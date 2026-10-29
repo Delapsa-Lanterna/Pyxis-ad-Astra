@@ -1,0 +1,49 @@
+{
+  "id": "lightac",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "SMALL",
+  "displayArcRadius": 600,
+  "turretSprite": "graphics/weapons/light_autocannon_turret_base.png",
+  "turretGunSprite": "graphics/weapons/light_autocannon_turret_recoil.png",
+  "hardpointSprite": "graphics/weapons/light_autocannon_hardpoint_base.png",
+  "hardpointGunSprite": "graphics/weapons/light_autocannon_hardpoint_recoil.png",
+  "visualRecoil": 7,
+  "renderHints": [
+    "RENDER_BARREL_BELOW"
+  ],
+  "turretOffsets": [
+    10,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    15,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "specialWeaponGlowWidth": 12,
+  "specialWeaponGlowHeight": 30,
+  "barrelMode": "ALTERNATING",
+  "animationType": "MUZZLE_FLASH",
+  "muzzleFlashSpec": {
+    "length": 10,
+    "spread": 28,
+    "particleSizeMin": 12,
+    "particleSizeRange": 14,
+    "particleDuration": 0.2,
+    "particleCount": 18,
+    "particleColor": [
+      165,
+      225,
+      185,
+      175
+    ]
+  },
+  "projectileSpecId": "lightac_shot",
+  "fireSoundTwo": "light_autocannon_fire"
+}

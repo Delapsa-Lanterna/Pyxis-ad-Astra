@@ -1,0 +1,104 @@
+{
+  "id": "kratogen",
+  "color": [
+    255,
+    230,
+    155,
+    255
+  ],
+  "baseUIColor": [
+    250,
+    230,
+    160,
+    200
+  ],
+  "darkUIColor": [
+    50,
+    70,
+    90,
+    175
+  ],
+  "gridUIColor": [
+    60,
+    80,
+    100,
+    75
+  ],
+  "displayName": "地质协会",
+  "displayNameWithArticle": "地质协会(Kratogen)",
+  "displayNameLong": "泛古地貌改造协会",
+  "displayNameLongWithArticle": "泛古地貌改造协会(Kratogen-Terraform-Association)",
+  "displayNameIsOrAre": "is",
+  "personNamePrefixAOrAn": "a",
+  "logo": "graphics/factions/kratogen.png",
+  "crest": "graphics/factions/crest_kratogen.png",
+  "shipNamePrefix": "KMS",
+  "names": {
+    "old english": 1,
+    "modern": 4,
+    "world": 4,
+    "future": 1
+  },
+  "custom": {
+    "postsNoBounties": true,
+    "offersCommissions": false,
+    "engagesInHostilities": true,
+    "buysAICores": true,
+    "AICoreValueMult": 3.0,
+    "AICoreRepMult": 0.2,
+    "buysSurveyData": true,
+    "hostilityImpactOnGrowth": true,
+    "caresAboutAtrocities": true,
+    "punitiveExpeditionData": {
+      "vsCompetitors": false,
+      "vsFreePort": false,
+      "canBombard": false,
+      "territorial": false
+    },
+    "simulatorData": {
+      "showInSimulator": true
+    }
+  },
+  "portraits": {
+    "standard_male": [
+      "graphics/portraits/Kratogen_m_1.png"
+    ],
+    "standard_female": [
+      "graphics/portraits/Kratogen_f_1.png"
+    ]
+  },
+  "knownShips": {
+    "tags": [],
+    "hulls": [
+      "Kratogen_fighter_sinter",
+      "Kratogen_fault",
+      "Kratogen_tectogene",
+      "Kratogen_disconformity"
+    ]
+  },
+  "knownWeapons": {
+    "tags": [],
+    "weapons": [
+      "Kratogen_flint",
+      "Kratogen_advection_m",
+      "Kratogen_advection_l",
+      "Kratogen_convection_s",
+      "Kratogen_convection_m",
+      "Kratogen_convection_l",
+      "Kratogen_capacitor_s",
+      "Kratogen_capacitor_m",
+      "Kratogen_capacitor_l",
+      "Kratogen_drizzle",
+      "Kratogen_hydrate_m",
+      "Kratogen_discrete_pd",
+      "Kratogen_drizzle_f",
+      "Kratogen_tectogene_cover"
+    ]
+  },
+  "knownFighters": {
+    "tags": [],
+    "fighters": [
+      "Kratogen_fighter_sinter_wing"
+    ]
+  }
+}

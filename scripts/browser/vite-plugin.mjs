@@ -15,7 +15,8 @@ export function browserTestPlugin(mode = 'browser') {
       const paths = [];
       for (const folder of ['src', 'schemas', 'scripts/browser', 'scripts/shared']) {
         for (const path of await readdir(root + folder, { recursive: true }))
-          if (/\.(vue|ts|mjs|mts|css|json)$/.test(path)) paths.push(folder + '/' + path.replaceAll('\\', '/'));
+          if (/\.(vue|ts|mjs|mts|css|json|csv|ship|skin|wpn|proj|variant|system|skill|faction|txt)$/.test(path))
+            paths.push(folder + '/' + path.replaceAll('\\', '/'));
       }
       paths.push('package-lock.json', 'vite.config.ts');
       paths.sort();

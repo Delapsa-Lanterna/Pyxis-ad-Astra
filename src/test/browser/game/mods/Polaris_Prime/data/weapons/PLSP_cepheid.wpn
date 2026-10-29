@@ -1,0 +1,62 @@
+{
+  "id": "PLSP_cepheid",
+  "specClass": "projectile",
+  "type": "MISSILE",
+  "size": "SMALL",
+  "turretSprite": "graphics/weapons/PLSP_cepheid/turretSprite.png",
+  "turretGlowSprite": "graphics/weapons/PLSP_cepheid/turretGlowSprite.png",
+  "hardpointSprite": "",
+  "hardpointGlowSprite": "graphics/weapons/PLSP_cepheid/turretGlowSprite.png",
+  "glowColor": [
+    35,
+    240,
+    255,
+    255
+  ],
+  "turretOffsets": [
+    5,
+    0,
+    3,
+    -4,
+    3,
+    4
+  ],
+  "turretAngleOffsets": [
+    0,
+    45,
+    -45
+  ],
+  "hardpointOffsets": [
+    5,
+    0,
+    3,
+    -4,
+    3,
+    4
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    45,
+    -45
+  ],
+  "barrelMode": "LINKED",
+  "animationType": "GLOW_AND_FLASH",
+  "muzzleFlashSpec": {
+    "length": 30,
+    "spread": 15,
+    "particleSizeMin": 10,
+    "particleSizeRange": 12,
+    "particleDuration": 0.12,
+    "particleCount": 17,
+    "particleColor": [
+      100,
+      200,
+      255,
+      255
+    ]
+  },
+  "autocharge": true,
+  "requiresFullCharge": false,
+  "projectileSpecId": "PLSP_cepheid_missile",
+  "fireSoundTwo": "PLSP_cepheid_fire"
+}

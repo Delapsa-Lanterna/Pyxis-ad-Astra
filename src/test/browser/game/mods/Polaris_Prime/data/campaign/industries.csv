@@ -1,0 +1,2 @@
+id,name,cost mult,build time,income,upkeep,downgrade,upgrade,tags,data,image,plugin,desc,order
+PLSP_militaryacademy,北天极学院,100,180,,10,,,"military, unraidable, grounddefenses, codex_unlockable",,graphics/icons/industries/PLSP_militaryacademy/image.png,com.fs.starfarer.api.impl.campaign.econ.impl.PopulationAndInfrastructure,集理论教育中心和虚拟训练场与后勤建筑为一体的超大型设施。就其规模而言，只要保持正常运作，即可持续输出大量富有理论知识和拟真战斗经验的合格军官。不过最为关键的还是其建立者 天权 所使用的未知战术教材以及运营方式，但相关内容均被列为机密。,2700.12

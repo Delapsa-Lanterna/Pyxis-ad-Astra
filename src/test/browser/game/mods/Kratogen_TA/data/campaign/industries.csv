@@ -1,0 +1,9 @@
+id,name,cost mult,build time,income,upkeep,downgrade,upgrade,tags,data,image,plugin,desc,order,disruptDanger
+Kratogen_geology_node,局部地质节点,100,180,,10,,,"structure, unraidable, codex_unlockable",,graphics/icons/industries/Kratogen_geology_node/image.png,com.fs.starfarer.api.impl.campaign.econ.impl.PopulationAndInfrastructure,巨大的本地环境反应中心，用于预测气候的巨型数据库与不停运转的无人机起降设施保证了其准确性和高效性。这种中心节点连接着遍布全球的传感器阵列与次级工作站点，通过大量且不寻常的资源开销，维持着一颗星球或一座空间站在地貌改造领域的领先式示范地位。,2700.1,HIGH
+Kratogen_orbital_station,轨道站 - 雪线设计,50,90,,3,,Kratogen_battle_station,"station, sub_item, unraidable, structure","{
+radius:55,
+variant:Kratogen_station_1_standard,
+fleetName:Orbital Station,
+}",graphics/icons/industry/orbital_station.png,com.fs.starfarer.api.impl.campaign.econ.impl.Farming,"雪线设计局的改装轨道站，正面火力惊人，能够依靠扭力自由旋转。 
+
+它的存在将阻止任何轰炸行动的发生.",2010,

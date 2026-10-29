@@ -1,0 +1,48 @@
+{
+  "id": "flak_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 35,
+  "hitGlowRadius": 60,
+  "width": 6.5,
+  "fadeTime": 0.2,
+  "fringeColor": [
+    255,
+    50,
+    50,
+    255
+  ],
+  "coreColor": [
+    255,
+    255,
+    200,
+    150
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/missiles/shell_large_blue.png",
+  "behaviorSpec": {
+    "behavior": "PROXIMITY_FUSE",
+    "range": 35,
+    "explosionSpec": {
+      "duration": "0.1f",
+      "radius": 50,
+      "coreRadius": 35,
+      "collisionClass": "PROJECTILE_FF",
+      "collisionClassByFighter": "PROJECTILE_FIGHTER",
+      "particleSizeMin": 3,
+      "particleSizeRange": 3,
+      "particleDuration": 1,
+      "particleCount": 100,
+      "particleColor": [
+        255,
+        155,
+        155,
+        255
+      ],
+      "sound": "explosion_flak"
+    }
+  }
+}

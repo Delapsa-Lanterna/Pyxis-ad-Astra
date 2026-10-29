@@ -1,0 +1,69 @@
+{
+  "id": "Kratogen_discrete_pd",
+  "specClass": "beam",
+  "type": "ENERGY",
+  "size": "SMALL",
+  "collisionClass": "RAY_FIGHTER",
+  "collisionClassByFighter": "RAY_FIGHTER",
+  "turretSprite": "graphics/weapons/Kratogen_discrete_pd/turretSprite.png",
+  "turretGlowSprite": "graphics/weapons/Kratogen_discrete_pd/turretGlowSprite.png",
+  "hardpointSprite": "graphics/weapons/Kratogen_discrete_pd/hardpointSprite.png",
+  "hardpointGlowSprite": "graphics/weapons/Kratogen_discrete_pd/hardpointGlowSprite.png",
+  "turretOffsets": [
+    7,
+    0,
+    7,
+    -4,
+    7,
+    4
+  ],
+  "turretAngleOffsets": [
+    0,
+    0,
+    0
+  ],
+  "hardpointOffsets": [
+    8,
+    0,
+    8,
+    -4,
+    8,
+    4
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    0,
+    0
+  ],
+  "fringeColor": [
+    50,
+    210,
+    150,
+    220
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    85
+  ],
+  "glowColor": [
+    120,
+    200,
+    200,
+    200
+  ],
+  "darkCore": false,
+  "convergeOnPoint": true,
+  "width": 6,
+  "textureType": "SMOOTH",
+  "pierceSet": [
+    "PROJECTILE_FF",
+    "PROJECTILE_NO_FF",
+    "PROJECTILE_FIGHTER"
+  ],
+  "textureScrollSpeed": 292,
+  "pixelsPerTexel": 5,
+  "fireSoundOne": "laser_intro",
+  "fireSoundTwo": "pd_laser_loop"
+}

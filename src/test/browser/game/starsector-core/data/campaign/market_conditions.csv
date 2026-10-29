@@ -1,0 +1,3 @@
+name,id,tags,planetary,decivRemove,script,desc,icon,order
+城市化,urbanized_polity,,,TRUE,com.fs.starfarer.api.impl.campaign.econ.UrbanizedPolity,人口稠密的民族熔炉。各行各业的人们在城中的高层住宅群，商业港区与各种工业园区中生活与工作，直至度过余生。,graphics/icons/markets/urbanized_polity.png,130
+工业化,industrial_polity,,,TRUE,com.fs.starfarer.api.impl.campaign.econ.IndustrialPolity,一处繁荣的工业中心，因地方政府大肆鼓励工业发展，而牺牲了其他所有方面的利益。,graphics/icons/markets/urbanized_polity.png,130

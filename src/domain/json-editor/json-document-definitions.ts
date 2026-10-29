@@ -149,5 +149,7 @@ export function jsonDocumentSummary(
 }
 
 export function jsonDocumentMedia(record: JsonDocumentRecord) {
-  return record.target.kind === 'mission' ? null : (record.resources.sprite ?? record.resources.crest ?? record.resources.logo ?? null);
+  return record.target.kind === 'mission'
+    ? (record.resources.icon ?? null)
+    : (record.resources.sprite ?? record.resources.crest ?? record.resources.logo ?? null);
 }

@@ -1,0 +1,26 @@
+{
+  "id": "Kratogen_convection_s_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "hitGlowRadius": 15,
+  "length": 30,
+  "width": 3.5,
+  "fadeTime": 0.3,
+  "fringeColor": [
+    240,
+    220,
+    180,
+    200
+  ],
+  "coreColor": [
+    245,
+    245,
+    225,
+    80
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/missiles/shell_small_yellow.png"
+}

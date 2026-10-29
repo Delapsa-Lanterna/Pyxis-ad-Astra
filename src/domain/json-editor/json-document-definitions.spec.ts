@@ -16,6 +16,16 @@ it('summarizes indexed missions before loading their document and uses the edite
     data: { list: { mission: 'sample' } },
   });
   expect(jsonDocumentSummary(JSON_DOCUMENT_DEFINITIONS.mission, record)).toMatchObject({ id: 'sample', title: 'sample' });
+  expect(jsonDocumentMedia(record)).toBeNull();
+  const icon: ResourceRef = {
+    source: 'core',
+    ownerKind: 'mission',
+    ownerId: 'sample',
+    relPath: 'data/missions/sample/icon.jpg',
+    key: 'icon',
+  };
+  record.resources.icon = icon;
+  expect(jsonDocumentMedia(record)).toEqual(icon);
   expect(
     jsonDocumentSummary(JSON_DOCUMENT_DEFINITIONS.mission, record, { ...record.value, descriptor: { title: 'Edited title' } }),
   ).toMatchObject({ id: 'sample', title: 'Edited title' });

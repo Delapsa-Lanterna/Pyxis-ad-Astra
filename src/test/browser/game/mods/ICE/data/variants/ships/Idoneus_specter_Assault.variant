@@ -1,0 +1,38 @@
+{
+  "displayName": "Assault",
+  "fluxCapacitors": 4,
+  "fluxVents": 9,
+  "goalVariant": true,
+  "hullId": "Idoneus_specter",
+  "hullMods": [
+    "Idoneus_turbulence_valve_mod"
+  ],
+  "permaMods": [],
+  "sMods": [],
+  "variantId": "Idoneus_specter_Assault",
+  "weaponGroups": [
+    {
+      "autofire": false,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0003": "Idoneus_wisp",
+        "WS0004": "Idoneus_wisp"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "ALTERNATING",
+      "weapons": {
+        "WS0001": "Idoneus_boomerang",
+        "WS0002": "Idoneus_boomerang"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0005": "Idoneus_hexac"
+      }
+    }
+  ]
+}

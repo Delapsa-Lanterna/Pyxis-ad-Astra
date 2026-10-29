@@ -1,0 +1,163 @@
+{
+  "hullName": "PLSC_tetragonal",
+  "hullId": "PLSC_tetragonal",
+  "hullSize": "DESTROYER",
+  "spriteName": "graphics/ships/PLSC_tetragonal/spriteName.png",
+  "style": "PLSC_TECH",
+  "height": 140,
+  "width": 110,
+  "center": [
+    55,
+    70
+  ],
+  "collisionRadius": 102.5,
+  "shieldCenter": [
+    0,
+    0
+  ],
+  "shieldRadius": 82,
+  "viewOffset": 0,
+  "builtInMods": [
+    "automated",
+    "targetingunit",
+    "PLSC_abnormal_apar",
+    "PLSC_celestite_halo"
+  ],
+  "weaponSlots": [
+    {
+      "id": "WS0001",
+      "size": "MEDIUM",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 210,
+      "angle": 60,
+      "locations": [
+        -4,
+        33
+      ]
+    },
+    {
+      "id": "WS0002",
+      "size": "MEDIUM",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 210,
+      "angle": -45,
+      "locations": [
+        11,
+        -32
+      ]
+    },
+    {
+      "id": "WS0003",
+      "size": "MEDIUM",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 240,
+      "angle": -150,
+      "locations": [
+        -32,
+        -17
+      ]
+    },
+    {
+      "id": "WS0004",
+      "size": "SMALL",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 180,
+      "angle": 45,
+      "locations": [
+        39,
+        12
+      ]
+    },
+    {
+      "id": "WS0005",
+      "size": "SMALL",
+      "type": "UNIVERSAL",
+      "mount": "TURRET",
+      "arc": 180,
+      "angle": -30,
+      "locations": [
+        29,
+        -18
+      ]
+    }
+  ],
+  "engineSlots": [
+    {
+      "location": [
+        -17,
+        24
+      ],
+      "length": 30,
+      "width": 10,
+      "angle": 150,
+      "contrailSize": 30,
+      "style": "PLSC_TECH"
+    },
+    {
+      "location": [
+        -16.5,
+        -29
+      ],
+      "length": 30,
+      "width": 10,
+      "angle": -159.5,
+      "contrailSize": 30,
+      "style": "PLSC_TECH"
+    },
+    {
+      "location": [
+        -32.5,
+        39
+      ],
+      "length": 25,
+      "width": 7,
+      "angle": 165,
+      "contrailSize": 128,
+      "style": "HIGH_TECH"
+    },
+    {
+      "location": [
+        -26.5,
+        -39.5
+      ],
+      "length": 25,
+      "width": 7,
+      "angle": -165,
+      "contrailSize": 128,
+      "style": "HIGH_TECH"
+    },
+    {
+      "location": [
+        -53,
+        0
+      ],
+      "length": 64,
+      "width": 24,
+      "angle": 180,
+      "contrailSize": 128,
+      "style": "HIGH_TECH"
+    }
+  ],
+  "bounds": [
+    -62,
+    -6,
+    -18.5,
+    31,
+    -35.5,
+    49.5,
+    45,
+    21,
+    68,
+    -3,
+    14.5,
+    -2,
+    56.5,
+    -13,
+    -8.5,
+    -49
+  ]
+}

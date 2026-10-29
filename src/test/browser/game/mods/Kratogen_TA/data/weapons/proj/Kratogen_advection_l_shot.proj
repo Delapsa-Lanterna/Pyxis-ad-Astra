@@ -1,0 +1,34 @@
+{
+  "id": "Kratogen_advection_l_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC_AS_BEAM",
+  "collisionClass": "RAY",
+  "collisionClassByFighter": "RAY_FIGHTER",
+  "length": 50,
+  "hitGlowRadius": 75,
+  "glowRadius": 40,
+  "width": 8,
+  "fadeTime": 0.1,
+  "fringeColor": [
+    255,
+    230,
+    75,
+    255
+  ],
+  "coreColor": [
+    255,
+    230,
+    180,
+    255
+  ],
+  "glowColor": [
+    230,
+    220,
+    50,
+    100
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/projectiles/Kratogen_advection_l_shot/bulletSprite.png",
+  "passThroughMissiles": true
+}

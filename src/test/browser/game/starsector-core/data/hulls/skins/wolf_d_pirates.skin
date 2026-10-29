@@ -1,0 +1,25 @@
+{
+  "baseHullId": "wolf",
+  "skinHullId": "wolf_d_pirates",
+  "hullName": "野狼 (P)",
+  "descriptionId": "wolf",
+  "descriptionPrefix": "这艘船遭受了海盗船员的重度改装和低劣维护",
+  "tags": [
+    "pirate_bp"
+  ],
+  "tech": "海盗",
+  "ordnancePoints": 45,
+  "baseValueMult": 0.8,
+  "systemId": "displacer_degraded",
+  "spriteName": "graphics/ships/wolf/wolf_pirates.png",
+  "suppliesToRecover": 4,
+  "suppliesPerMonth": 4,
+  "removeWeaponSlots": [
+    "WS 002",
+    "WS 003"
+  ],
+  "removeEngineSlots": [],
+  "removeBuiltInMods": [],
+  "removeBuiltInWeapons": [],
+  "builtInWeapons": {}
+}

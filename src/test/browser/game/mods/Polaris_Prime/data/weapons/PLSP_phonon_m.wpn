@@ -1,0 +1,49 @@
+{
+  "id": "PLSP_phonon_m",
+  "specClass": "projectile",
+  "type": "ENERGY",
+  "size": "MEDIUM",
+  "turretSprite": "graphics/weapons/PLSP_phonon_m/turretSprite.png",
+  "turretGlowSprite": "graphics/weapons/PLSP_phonon_m/turretGlowSprite.png",
+  "hardpointSprite": "graphics/weapons/PLSP_phonon_m/hardpointSprite.png",
+  "hardpointGlowSprite": "graphics/weapons/PLSP_phonon_m/hardpointGlowSprite.png",
+  "glowColor": [
+    50,
+    200,
+    255,
+    255
+  ],
+  "turretOffsets": [
+    8,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    3,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "GLOW_AND_FLASH",
+  "muzzleFlashSpec": {
+    "length": 30,
+    "spread": 5,
+    "particleSizeMin": 15,
+    "particleSizeRange": 20,
+    "particleDuration": 0.12,
+    "particleCount": 10,
+    "particleColor": [
+      50,
+      150,
+      230,
+      255
+    ]
+  },
+  "autocharge": true,
+  "projectileSpecId": "PLSP_phonon_m_shot",
+  "fireSoundTwo": "PLSP_phonon_m_fire"
+}

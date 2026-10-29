@@ -1,0 +1,26 @@
+{
+  "id": "heavymortar_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 20,
+  "hitGlowRadius": 40,
+  "width": 10,
+  "fadeTime": 0.3,
+  "fringeColor": [
+    255,
+    150,
+    70,
+    235
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    170
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/missiles/shell_round_lrg.png"
+}

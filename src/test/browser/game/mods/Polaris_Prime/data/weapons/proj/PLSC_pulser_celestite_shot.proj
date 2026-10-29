@@ -1,0 +1,33 @@
+{
+  "id": "PLSC_pulser_celestite_shot",
+  "specClass": "projectile",
+  "spawnType": "BALLISTIC",
+  "collisionClass": "PROJECTILE_FF",
+  "collisionClassByFighter": "PROJECTILE_FIGHTER",
+  "length": 150,
+  "width": 8,
+  "hitGlowRadius": 25,
+  "fadeTime": 0.25,
+  "fringeColor": [
+    80,
+    230,
+    250,
+    255
+  ],
+  "coreColor": [
+    255,
+    255,
+    255,
+    155
+  ],
+  "glowRadius": 100,
+  "glowColor": [
+    80,
+    230,
+    250,
+    25
+  ],
+  "textureScrollSpeed": 64,
+  "pixelsPerTexel": 5,
+  "bulletSprite": "graphics/projectiles/PLSC_pulser_celestite_shot/bulletSprite.png"
+}

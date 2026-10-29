@@ -1,0 +1,49 @@
+{
+  "id": "ioncannon_fighter",
+  "specClass": "projectile",
+  "type": "ENERGY",
+  "size": "SMALL",
+  "turretSprite": "graphics/weapons/ion_cannon_turret_base.png",
+  "turretGlowSprite": "graphics/weapons/ion_cannon_turret_glow.png",
+  "hardpointSprite": "graphics/weapons/ion_cannon_hardpoint_base.png",
+  "hardpointGlowSprite": "graphics/weapons/ion_cannon_hardpoint_glow.png",
+  "glowColor": [
+    100,
+    200,
+    255,
+    255
+  ],
+  "turretOffsets": [
+    10,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    18,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "GLOW_AND_FLASH",
+  "muzzleFlashSpec": {
+    "length": 33,
+    "spread": 15,
+    "particleSizeMin": 10,
+    "particleSizeRange": 12,
+    "particleDuration": 0.12,
+    "particleCount": 17,
+    "particleColor": [
+      100,
+      200,
+      255,
+      255
+    ]
+  },
+  "autocharge": true,
+  "projectileSpecId": "ioncannon_shot",
+  "fireSoundTwo": "ion_cannon_fire"
+}

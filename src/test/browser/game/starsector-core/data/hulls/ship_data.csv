@@ -1,0 +1,11 @@
+name,id,designation,tech/manufacturer,system id,fleet pts,hitpoints,armor rating,max flux,8/6/5/4%,flux dissipation,ordnance points,fighter bays,max speed,acceleration,deceleration,max turn rate,turn acceleration,mass,shield type,defense id,shield arc,shield upkeep,shield efficiency,phase cost,phase upkeep,min crew,max crew,cargo,fuel,fuel/ly,range,max burn,base value,cr %/day,CR to deploy,peak CR sec,CR loss/sec,supplies/rec,supplies/mo,c/s,c/f,f/s,f/f,crew/s,crew/f,hints,tags,logistics n/a reason,codex variant id,rarity,breakProb,minPieces,maxPieces,travel drive,number
+希腊剑,xyphos,,高新技术,,,450,50,600,,50,0,,160,300,250,90,180,30,OMNI,,160,0,1,,,2,2,,,,,,,,,,,,,,,,,,,,,,,,0,,,,103
+阔剑,broadsword,,低端技术,flarelauncher_fighter,,750,100,80,,10,0,,200,400,350,90,180,30,NONE,,0,0,0,,,1,1,,,,,,,,,,,,,,,,,,,,,,,,0,,,,104
+雷霆,thunder,,中线技术,,,500,75,750,,100,0,,450,1000,750,225,500,30,NONE,,0,0,0,,,1,1,,,,,,,,,,,,,,,,,,,,,,,,0,,,,111
+希腊矛,sarissa,,低端技术,canister_flak,,750,200,180,,100,0,,140,250,200,100,200,40,NONE,,0,0,0,,,3,3,,,,,,,,,,,,,,,,,,,,,,,,0,,,,118.5
+野狼,wolf,护卫舰,高新技术,displacer,5,1500,150,2250,1875,150,55,,150,130,100,60,120,200,FRONT,,150,0.4,0.7,,,15,30,50,20,1,20,10,12000,10,20,180,0.25,5,5,,,,,,,,"hightech_bp, merc, ind",,,,0.5,2,2,,200
+锤头,hammerhead,驱逐舰,中线技术,ammofeed,10,5000,500,4200,4167,250,95,,90,60,40,30,60,400,FRONT,,300,0.4,0.8,,,50,100,100,60,2,30,9,40000,5,12,360,0.25,10,10,,,,,,,,"midline_bp, merc, ind",,,,0.5,2,3,,300
+骡子,mule,武装商舰,低端技术,maneuveringjets,9,5500,650,3000,2500,150,80,,60,40,20,20,15,500,OMNI,,120,0.4,1,,,40,100,250,80,2,40,9,34000,5,10,420,0.25,7,7,36,125,,,,,,"base_bp, ind",,,,0.5,2,3,,310
+至高点,apogee,巡洋舰,高新技术,flarelauncher_active,14,9000,750,12000,14000,700,140,,60,40,30,20,25,2000,FRONT,,360,0.6,0.7,,,150,450,400,200,2,100,8,140000,3,15,420,0.25,20,20,,,,,,,,"rare_bp, merc, ind",,,,0.6,2,3,,403
+统治者,dominator,重型巡洋舰,低端技术,burndrive,15,14000,1500,10000,10000,500,200,,30,20,10,12,12,2250,FRONT,,150,0.4,1,,,200,300,150,150,5,30,8,125000,4,12,540,0.25,25,25,,,,,,,,"lowtech_bp, merc, ind",,,,0.4,2,3,,404
+苍鹭,heron,高速航母,中线技术,targetingfeed,14,6000,750,5000,6000,300,100,3,80,60,40,20,25,800,OMNI,,180,0.5,0.8,,,150,250,90,60,3,20,8,120000,3,12,360,0.25,20,20,,,,,,,CARRIER,"midline_bp, merc, ind",,,,0.5,2,3,,407

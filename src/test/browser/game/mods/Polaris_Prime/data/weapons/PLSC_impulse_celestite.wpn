@@ -1,0 +1,49 @@
+{
+  "id": "PLSC_impulse_celestite",
+  "specClass": "projectile",
+  "type": "MISSILE",
+  "mountTypeOverride": "UNIVERSAL",
+  "size": "SMALL",
+  "turretSprite": "graphics/weapons/PLSC_impulse_celestite/turretSprite.png",
+  "hardpointSprite": "graphics/weapons/PLSC_impulse_celestite/hardpointSprite.png",
+  "hardpointOffsets": [
+    9,
+    0
+  ],
+  "turretOffsets": [
+    5,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "animationType": "SMOKE",
+  "interruptibleBurst": false,
+  "renderHints": [
+    "RENDER_LOADED_MISSILES"
+  ],
+  "displayArcRadius": 300,
+  "smokeSpec": {
+    "particleSizeMin": 20,
+    "particleSizeRange": 20,
+    "cloudParticleCount": 3,
+    "cloudDuration": 1,
+    "cloudRadius": 10,
+    "blowbackParticleCount": 3,
+    "blowbackDuration": 2,
+    "blowbackLength": 30,
+    "blowbackSpread": 10,
+    "particleColor": [
+      80,
+      100,
+      150,
+      200
+    ]
+  },
+  "projectileSpecId": "PLSC_impulse_missile_celestite",
+  "fireSoundTwo": "PLSC_impulse_fire"
+}

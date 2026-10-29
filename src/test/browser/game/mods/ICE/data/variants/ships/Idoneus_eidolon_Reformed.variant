@@ -1,0 +1,43 @@
+{
+  "displayName": "Reformed",
+  "fluxCapacitors": 5,
+  "fluxVents": 10,
+  "goalVariant": true,
+  "hullId": "Idoneus_eidolon",
+  "hullMods": [
+    "eccm",
+    "ecm"
+  ],
+  "permaMods": [],
+  "sMods": [],
+  "variantId": "Idoneus_eidolon_Reformed",
+  "weaponGroups": [
+    {
+      "autofire": false,
+      "mode": "ALTERNATING",
+      "weapons": {
+        "WS0005": "pilum_large"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "ALTERNATING",
+      "weapons": {
+        "WS0001": "pilum",
+        "WS0002": "pilum"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0003": "vulcan",
+        "WS0004": "vulcan"
+      }
+    }
+  ],
+  "wings": [
+    "broadsword_wing",
+    "broadsword_wing"
+  ]
+}

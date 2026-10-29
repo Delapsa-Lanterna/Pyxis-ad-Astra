@@ -1,0 +1,83 @@
+{
+  "id": "Kratogen_convection_s",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "SMALL",
+  "displayArcRadius": 250,
+  "turretSprite": "graphics/weapons/Kratogen_convection_s/turretSprite.png",
+  "turretGunSprite": "graphics/weapons/Kratogen_convection_s/turretGunSprite.png",
+  "hardpointSprite": "graphics/weapons/Kratogen_convection_s/hardpointSprite.png",
+  "hardpointGunSprite": "graphics/weapons/Kratogen_convection_s/hardpointGunSprite.png",
+  "renderHints": [
+    "RENDER_BARREL_BELOW"
+  ],
+  "visualRecoil": 6,
+  "turretOffsets": [
+    6,
+    0,
+    6,
+    0,
+    6,
+    0,
+    6,
+    0,
+    6,
+    0,
+    6,
+    0,
+    6,
+    0
+  ],
+  "turretAngleOffsets": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "hardpointOffsets": [
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0,
+    10,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "barrelMode": "LINKED",
+  "animationType": "MUZZLE_FLASH",
+  "muzzleFlashSpec": {
+    "length": 20,
+    "spread": 6,
+    "particleSizeMin": 6,
+    "particleSizeRange": 8,
+    "particleDuration": 0.15,
+    "particleCount": 7,
+    "particleColor": [
+      255,
+      240,
+      165,
+      200
+    ]
+  },
+  "projectileSpecId": "Kratogen_convection_s_shot",
+  "fireSoundTwo": "Kratogen_convection_s_fire"
+}

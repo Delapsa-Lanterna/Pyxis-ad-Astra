@@ -1,0 +1,27 @@
+{
+  "displayName": "护航机",
+  "quality": 0.5,
+  "fluxCapacitors": 0,
+  "fluxVents": 0,
+  "hullId": "Idoneus_poltergeist",
+  "hullMods": [],
+  "variantId": "Idoneus_poltergeist_Escort",
+  "weaponGroups": [
+    {
+      "autofire": false,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0001": "Idoneus_lighthexac"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0002": "pdburst"
+      }
+    }
+  ],
+  "permaMods": [],
+  "sMods": []
+}

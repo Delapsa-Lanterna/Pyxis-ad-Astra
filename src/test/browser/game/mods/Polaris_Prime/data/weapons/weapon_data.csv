@@ -1,0 +1,26 @@
+name,id,tier,rarity,base value,range,damage/second,damage/shot,emp,impact,turn rate,OPs,ammo,ammo/sec,reload size,type,energy/shot,energy/second,chargeup,chargedown,burst size,burst delay,min spread,max spread,spread/shot,spread decay/sec,beam speed,proj speed,launch speed,flight time,proj hitpoints,autofireAccBonus,extraArcForAI,hints,tags,groupTag,tech/manufacturer,for weapon tooltip>>,primaryRoleStr,speedStr,trackingStr,turnRateStr,accuracyStr,customPrimary,customPrimaryHL,customAncillary,customAncillaryHL,noDPSInTooltip,number
+谐振投射器,PLSP_phonon_s,1,,500,600,,35,,5,30,7,10,3,,ENERGY,35,,0.2,0,,,,,,,,1400,,,,,,FIRE_WHEN_INEFFICIENT,"energy9, merc, PLSP_p, PLSP_bp, PLSP_flutter",,天青工艺,,通用,,,,,命中目标时，施加 {%s} 层 {%s}。,1 | 晶格颤振,相关资料 [%s] 解析见插件描述：[%s],颤振 | 星烁同步器,,22.1
+谐振激波器,PLSP_phonon_m,2,,1800,700,,80,,10,15,13,8,2.5,,ENERGY,80,,0.2,0,,,,,,,,1400,,,,,,FIRE_WHEN_INEFFICIENT,"energy15, merc, PLSP_p, PLSP_bp, PLSP_flutter",,天青工艺,,通用,,,,,命中目标时，施加 {%s} 层 {%s}。,1 | 晶格颤振,相关资料 [%s] 解析见插件描述：[%s],颤振 | 星烁同步器,,22.2
+谐振崩解器,PLSP_phonon_l,3,,5500,800,,150,,10,10,30,,,,ENERGY,150,,0.3,0,,,,,,,,1400,,,,,,FIRE_WHEN_INEFFICIENT,"energy18, merc, PLSP_p, PLSP_rp, PLSP_flutter",,天青工艺,,通用,,,,,"命中目标时，施加 {%s} 层 {%s}。
+
+命中 {%s} 大于 {%s} 的目标时，有 {%s} 的概率消耗 {%s} 层并造成一次 {%s} 伤害的闪光颤振爆发。",1 | 晶格颤振 | 晶格颤振 | 150 | 15% | 30 | 1000%,相关资料 [%s] 解析见插件描述：[%s],颤振 | 星烁同步器,,22.3
+冲量 级 鱼雷发射管,PLSP_impulse_s,1,,800,1200,,1200,,50,10,5,3,,,KINETIC,0,,0,5,1,0,0,0,0,0,,600,500,3,450,,,GUIDED_POOR,"strike9, missile1, merc, PLSP_p, PLSP_bp",,天青工艺,,鱼雷,非常快,一般,,,,,,,TRUE,9.523
+冲量 级 鱼雷发射台,PLSP_impulse_m,2,,2000,1200,,1200,,50,10,14,14,,,KINETIC,0,,0,14.75,2,0.25,0,0,0,0,,600,500,3,450,,,GUIDED_POOR,"strike13, missile5, merc, PLSP_p, PLSP_bp",,天青工艺,,鱼雷,非常快,一般,,,,,,,TRUE,9.52
+冲量 级 鱼雷发射舱,PLSP_impulse_l,2,,6500,1600,,2000,,100,10,28,20,,,KINETIC,0,,0,14.5,2,0.5,0,0,0,0,,400,300,6,750,,,GUIDED_POOR,"strike18, missile12, merc, PLSP_p, PLSP_bp",,天青工艺,,鱼雷,较快,一般,,,,,,,TRUE,9.521
+阵列追迹 PD,PLSP_tracker_l,3,0.5,7000,800,,100,,25,16,22,,,,ENERGY,100,,0,1.85,6,0.08,0,0,0,0,,1200,,,30,,,"PD, ANTI_FTR, DO_NOT_AIM","pd20, merc, PLSP_p, PLSP_rp",,天青工艺,,点防御,,优秀,,,,,,,,3.115
+微波射流,PLSP_stream_s,1,,300,1200,200,,,0,30,4,,,,ENERGY,,220,0.5,0.2,1,1,,,,,100000,,,,,,,,"beam10, PLSP_p, PLSP_bp",,天青工艺,,通用,,,,,命中目标时，以平均每 {%s} 秒一个的速率持续产生橙色热诱弹，热诱弹吸引点防御并承受 {%s} 伤害。,0.6 | 100,,,,15.6141
+碎晶机炮,PLSP_crystal_s,1,,400,600,,50,,20,80,3,,,,KINETIC,50,,0,0.6667,1,,,,,,,1000,,,30,,,"ANTI_FTR, PD, PD_ALSO","pd7, merc, PLSP_p, PLSP_bp",,天青工艺,,点防御 (区域),,,,,,,,,,4.1
+磁陀星 MIRV 发射塔,PLSP_magnetic_l,2,,6500,6000,,1000,,100,10,20,6,0.2,2,HIGH_EXPLOSIVE,0,,0,5,2,1,0,0,0,0,,250,100,26,600,,,"DO_NOT_AIM, CONSERVE_1","utility18, strike14, missile14, merc, PLSP_p, PLSP_rp, PLSP_flutter",,天青工艺,,远程支援,较快,优秀,,,"提高[%s{*}%s]伤害与 EMP 。
+
+有随 {%s} 增加而提高的概率造成电弧颤振爆发，产生打击武器与引擎的电弧，电弧造成该武器命中目标时等值的额外伤害和 EMP 损害。
+
+每枚弹体还将连带产生 {%s} 枚更小的弹体，各造成 {%s} 伤害。",目标颤振层数 | 1% | 目标颤振层数 | 2 | 20%,相关资料 [%s] 解析见插件描述：[%s],颤振 | 星烁同步器,,33.521
+星云烈焰,PLSP_nebula_blaster,,,,500,,300,,50,0,,4,0.2,,ENERGY,75,,0,0.5,,,,,,,,800,,,,,,"SYSTEM, SHOW_IN_CODEX",SR,,天青工艺,,打击 (机载),,,,,,,,,,40.1
+光压 MRM,PLSP_cepheid,,,,2000,,300,,30,0,,3,,,HIGH_EXPLOSIVE,0,,0,1,,,,,,,,800,200,3.5,300,,,"DO_NOT_AIM, SYSTEM, SHOW_IN_CODEX",,,天青工艺,,打击 (机载),,,,,,,,,TRUE,11.5121
+视界线光效,PLSP_horizon_active,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,SYSTEM,,,天青工艺,,,,,,,,,,,,43.229
+视界线甲板,PLSP_horizon_bay,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,SYSTEM,,,天青工艺,,,,,,,,,,,,43.230
+功量 DEM 鱼雷,PLSC_impulse_celestite,4,,50000,1200,,1200,,50,10,9,2,0.05,,KINETIC,400,,0,5,1,0,0,0,0,0,,500,300,4,600,,,"GUIDED_POOR, DO_NOT_CONSERVE","no_drop, no_sell, no_dealer, no_drop_salvage, utility7, missile8, strike8, damage_special, damage_soft_flux, restricted, hide_in_codex, PLSC_p",,天青石,,鱼雷,非常快,一般,,,"每枚导弹在接近目标时会发射高功率射线，在短时间内造成约 {%s} 动能伤害。此伤害受导弹武器伤害效果影响，而不受能量武器伤害效果影响。
+
+射线发射完毕后，鱼雷将撞击目标。命中目标时，造成微量伤害并固定强制抬升目标 {%s} 点硬幅能。",1200 | 1000,,,,22.2
+侵彻式脉冲锥,PLSC_pulser_celestite,4,,100000,1000,,40,,5,12,18,,,,HIGH_EXPLOSIVE,50,,0.5,3.05,20,0.05,1,10,0.75,4,,800,,,10,,,,"no_drop, no_sell, no_dealer, no_drop_salvage, he18, restricted, hide_in_codex, PLSC_p",,天青石,,反装甲,,,,,命中装甲时，对弹体飞行方向上最近的单个非空装甲格造成 {%s} 额外伤害，但该伤害受到装甲减伤影响。,200%,,,,5.755
+追迹 AD,PLSC_tracker_celestite,4,,100000,800,,300,,30,40,19,,,,ENERGY,300,,0,1,1,,0,0,0,0,,1000,,,30,,,"PD, ANTI_FTR, DO_NOT_AIM","no_drop, no_sell, no_dealer, no_drop_salvage, pd16, missile9, strike6, restricted, hide_in_codex, PLSC_p",,天青石,,点防御,,良好,,,命中目标时，产生一次闪光十字爆发，对一片区域内其它所有目标造成 {%s} 能量伤害。,100%,,,,3.114

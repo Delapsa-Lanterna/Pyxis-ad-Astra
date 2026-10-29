@@ -1,0 +1,27 @@
+{
+  "displayName": "拦截机",
+  "fluxCapacitors": 0,
+  "fluxVents": 0,
+  "hullId": "Kratogen_fighter_sinter",
+  "hullMods": [],
+  "variantId": "Kratogen_fighter_sinter_variant",
+  "weaponGroups": [
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0001": "Kratogen_drizzle_f"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0002": "Kratogen_flint",
+        "WS0003": "Kratogen_flint"
+      }
+    }
+  ],
+  "permaMods": [],
+  "sMods": []
+}

@@ -1,0 +1,51 @@
+{
+  "id": "Idoneus_hellblaze",
+  "specClass": "projectile",
+  "type": "BALLISTIC",
+  "size": "LARGE",
+  "turretSprite": "graphics/weapons/Idoneus_hellblaze/turretSprite.png",
+  "turretGunSprite": "graphics/weapons/Idoneus_hellblaze/turretGunSprite.png",
+  "turretGlowSprite": "graphics/weapons/Idoneus_hellblaze/turretGlowSprite.png",
+  "hardpointSprite": "graphics/weapons/Idoneus_hellblaze/hardpointSprite.png",
+  "hardpointGunSprite": "graphics/weapons/Idoneus_hellblaze/hardpointGunSprite.png",
+  "hardpointGlowSprite": "graphics/weapons/Idoneus_hellblaze/hardpointGlowSprite.png",
+  "visualRecoil": 10,
+  "turretOffsets": [
+    10,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    10,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "barrelMode": "ALTERNATING",
+  "glowColor": [
+    255,
+    200,
+    70,
+    255
+  ],
+  "animationType": "GLOW_AND_FLASH",
+  "muzzleFlashSpec": {
+    "length": 60,
+    "spread": 6,
+    "particleSizeMin": 12,
+    "particleSizeRange": 14,
+    "particleDuration": 0.5,
+    "particleCount": 14,
+    "particleColor": [
+      255,
+      190,
+      165,
+      200
+    ]
+  },
+  "projectileSpecId": "Idoneus_hellblaze_shot",
+  "fireSoundTwo": "Idoneus_hellblaze_fire"
+}

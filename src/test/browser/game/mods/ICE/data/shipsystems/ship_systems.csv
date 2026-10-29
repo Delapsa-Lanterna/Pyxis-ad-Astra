@@ -1,0 +1,7 @@
+name,id,flux/second,f/s (base rate),f/s (base cap),flux/use,f/u (base rate),f/u (base cap),cr/u,max uses,regen,charge up,active,down,cooldown,toggle,noDissipation,noHardDissipation,hardFlux,noFiring,noTurning,noStrafing,noAccel,noShield,noVent,isPhaseCloak,tags,icon
+装甲修复矩阵,Idoneus_repairarmor,1,,,,,,,,,1,,1,2,TRUE,,TRUE,,,,,,TRUE,,,defensive,graphics/icons/hullsys/temporal_shell.png
+曲速相位,Idoneus_phasewarp,,,,,,,,,,0.25,2,0.25,2,,,TRUE,TRUE,TRUE,,,,TRUE,,TRUE,defensive,graphics/icons/hullsys/phase_cloak.png
+长巡航驱动,Idoneus_fluxdrive,,,,,,,,3,0.035,1,4,0.5,2,,,,TRUE,,,TRUE,TRUE,TRUE,TRUE,,movement,graphics/icons/hullsys/burn_drive.png
+闪灵无人机,Idoneus_drone_pd,,,,,,,,2,0.1,0,,0,0,,,,,,,,,,,,restricted,graphics/icons/hullsys/drone_sensor.png
+维护无人机,Idoneus_drone_mx,,,,,,,,3,0.015,0,,0,0,,,,,,,,,,,,,graphics/icons/hullsys/drone_pd_high.png
+渐进式相位,Idoneus_phasecloak,,,,,,,,,,0.5,,0.5,2,TRUE,,TRUE,TRUE,TRUE,,,,TRUE,,TRUE,defensive,graphics/icons/hullsys/phase_cloak.png

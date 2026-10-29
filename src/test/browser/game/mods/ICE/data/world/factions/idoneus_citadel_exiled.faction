@@ -1,0 +1,96 @@
+{
+  "id": "idoneus_citadel_exiled",
+  "color": [
+    12,
+    150,
+    131,
+    255
+  ],
+  "displayName": "伊甸流亡者",
+  "displayNameWithArticle": "伊甸流亡者(Idoneus Exiled)",
+  "displayNameLong": "伊甸堡垒流亡者",
+  "displayNameLongWithArticle": "伊甸堡垒流亡者(Idoneus Citadel Exiled)",
+  "logo": "graphics/idoneus/factions/ice_flag.png",
+  "crest": "graphics/idoneus/factions/crest_ice_flag.png",
+  "shipNamePrefix": "ICS",
+  "names": {
+    "scifi_authors": 1
+  },
+  "custom": {
+    "exemptFromFoodShortages": true,
+    "ignoreTradeWithEnemiesForReputation": true,
+    "offersCommissions": false,
+    "buysAICores": true,
+    "AICoreValueMult": 0.5,
+    "AICoreRepMult": 1.5,
+    "buysSurveyData": true,
+    "hostilityImpactOnGrowth": true,
+    "caresAboutAtrocities": true,
+    "allowsTransponderOffTrade": true,
+    "punitiveExpeditionData": {
+      "vsCompetitors": false,
+      "vsFreePort": false,
+      "canBombard": false,
+      "territorial": false
+    },
+    "simulatorData": {
+      "showInSimulator": true
+    }
+  },
+  "tariffFraction": 0.25,
+  "portraits": {
+    "standard_male": [
+      "graphics/portraits/portrait12.png"
+    ],
+    "standard_female": [
+      "graphics/portraits/portrait14.png"
+    ]
+  },
+  "knownShips": {
+    "tags": [],
+    "hulls": [
+      "Idoneus_poltergeist",
+      "Idoneus_flashghast_module",
+      "Idoneus_specter",
+      "Idoneus_flashghast",
+      "Idoneus_eidolon"
+    ]
+  },
+  "knownWeapons": {
+    "tags": [],
+    "weapons": [
+      "Idoneus_lighthexac",
+      "Idoneus_hexac",
+      "Idoneus_hexchain",
+      "Idoneus_wisp",
+      "Idoneus_flamebolt",
+      "Idoneus_hellblaze",
+      "Idoneus_scatterpd",
+      "Idoneus_boomerang",
+      "Idoneus_eidolon_cover_top",
+      "Idoneus_eidolon_cover_front",
+      "Idoneus_eidolon_cover_bracket_front",
+      "Idoneus_eidolon_cover_bracket_back",
+      "Idoneus_eidolon_cover_lights_bay",
+      "Idoneus_eidolon_lights",
+      "Idoneus_flashghast_system",
+      "Idoneus_flashghast_lights",
+      "Idoneus_specter_system",
+      "Idoneus_specter_lights",
+      "Idoneus_specter_cover_top",
+      "Idoneus_specter_cover_lights_top",
+      "Idoneus_specter_cover_system_top",
+      "Idoneus_specter_cover_front",
+      "Idoneus_specter_cover_wing_left",
+      "Idoneus_specter_cover_wing_right",
+      "Idoneus_specter_cover_system_wing_left",
+      "Idoneus_specter_cover_system_wing_right"
+    ]
+  },
+  "knownFighters": {
+    "tags": [],
+    "fighters": [
+      "Idoneus_poltergeist_wing"
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "specClass": "beam",
+  "id": "PLSP_stream_s",
+  "type": "ENERGY",
+  "size": "SMALL",
+  "beamFireOnlyOnFullCharge": true,
+  "turretSprite": "graphics/weapons/PLSP_stream_s/turretSprite.png",
+  "turretGlowSprite": "graphics/weapons/PLSP_stream_s/turretGlowSprite.png",
+  "hardpointSprite": "graphics/weapons/PLSP_stream_s/hardpointSprite.png",
+  "hardpointGlowSprite": "graphics/weapons/PLSP_stream_s/hardpointGlowSprite.png",
+  "turretOffsets": [
+    2,
+    0
+  ],
+  "turretAngleOffsets": [
+    0
+  ],
+  "hardpointOffsets": [
+    5,
+    0
+  ],
+  "hardpointAngleOffsets": [
+    0
+  ],
+  "fringeColor": [
+    255,
+    180,
+    150,
+    225
+  ],
+  "coreColor": [
+    255,
+    155,
+    130,
+    255
+  ],
+  "glowColor": [
+    255,
+    160,
+    120,
+    255
+  ],
+  "darkCore": true,
+  "width": 20,
+  "textureType": [
+    "graphics/weapons/PLSP_stream_s/textureType-0.png",
+    "graphics/weapons/PLSP_stream_s/textureType-1.png"
+  ],
+  "textureScrollSpeed": 480,
+  "pixelsPerTexel": 2,
+  "pierceSet": [
+    "PROJECTILE_FF",
+    "PROJECTILE_NO_FF",
+    "PROJECTILE_FIGHTER",
+    "ASTEROID"
+  ],
+  "fireSoundOne": "PLSP_stream_s_fire",
+  "fireSoundTwo": "PLSP_stream_s_loop"
+}

@@ -1,0 +1,23 @@
+name,id,tier,rarity,base value,range,damage/second,damage/shot,emp,impact,turn rate,OPs,ammo,ammo/sec,reload size,type,energy/shot,energy/second,chargeup,chargedown,burst size,burst delay,min spread,max spread,spread/shot,spread decay/sec,beam speed,proj speed,launch speed,flight time,proj hitpoints,autofireAccBonus,extraArcForAI,hints,tags,groupTag,tech/manufacturer,for weapon tooltip>>,primaryRoleStr,speedStr,trackingStr,turnRateStr,accuracyStr,customPrimary,customPrimaryHL,customAncillary,customAncillaryHL,noDPSInTooltip,number
+燧石 AC,Kratogen_flint,0,,350,300,,20,5,2,70,4,,,,FRAGMENTATION,3,,0,0.05,1,,0,10,1,10,,1000,,,10,,,PD,"pd10, SR, ind, Kratogen_p, Kratogen_bp",,雪线设计,,点防御,,,,,,,,,,1.51
+平流突击炮,Kratogen_advection_m,1,,800,700,,80,,5,14,14,18,2.5,6,KINETIC,60,,0,0.1,6,0.08,0,8,1,2,,800,,,10,,,,"kinetic10, merc, ind, Kratogen_p, Kratogen_bp, one_fire_all",,雪线设计,,反护盾,,,,,每次开火会持续射击，直至清空备弹。最大备弹量受到的增益越大，爆发间隔就越短。,,,,,5.754
+平流加速器,Kratogen_advection_l,1,,5000,900,,225,225,15,9,23,9,1,3,HIGH_EXPLOSIVE,300,,0,0.19,3,0.13,0,8,3,2,,1600,,,50,,,"USE_LESS_VS_SHIELDS, STRIKE, USE_VS_FRIGATES","he18, rare_bp, merc, ind, Kratogen_p, Kratogen_rp, Kratogen_advanced_autofire, one_fire_all",Kratogen_advection_l,雪线设计,,反装甲,,,,,每次开火会持续射击，直至清空备弹。,,,,,7.55
+对流霰炮,Kratogen_convection_s,0,,150,500,,40,,5,28,3,,,,KINETIC,24,,0,3.5,2,0.25,,,,,,700,,,10,,,,"kinetic6, SR, merc, ind, Kratogen_p, Kratogen_bp",,雪线设计,,反护盾,,,,一般,,,,,,1.753
+对流脉冲霰炮,Kratogen_convection_m,1,,1000,800,,65,,10,18,9,,,,HIGH_EXPLOSIVE,65,,0.5,2.5,3,0.3,0,,,,,800,,,50,,,,"he9, merc, ind, Kratogen_p, Kratogen_bp",,雪线设计,,反装甲,,,,一般,,,,,,4.7
+对流突击霰炮,Kratogen_convection_l,3,0.5,8000,700,,140,,10,8,30,,,,FRAGMENTATION,42,,0,0.28,,,0,,,,,1000,,,20,,,"ANTI_FTR, FIRE_WHEN_INEFFICIENT, PD, PD_ALSO","kinetic16, hist1t, rare_bp, ind, Kratogen_p, Kratogen_rp",,雪线设计,,反结构,,,,一般,如果射程内没有敌舰，则优先瞄准来袭的导弹。,,,,,8.523
+电容聚能枪,Kratogen_capacitor_s,0,,200,700,350,,175,0,60,3,4,1.5,,ENERGY,,350,0,0,0.15,0.05,,,,,100000,,,,,,,,"beam9, merc, ind, Kratogen_p, Kratogen_bp, one_fire_all",,雪线设计,,通用,,,,,"命中护盾时对目标额外施加硬幅能，数值相当于 {%s} 光束伤害。
+
+每次开火会持续射击，直至清空备弹。",15%,,,,26.266
+电容聚能束,Kratogen_capacitor_m,0,,1200,700,750,,350,0,25,11,10,2,5,ENERGY,,750,0,0,0.1,0,,,,,100000,,,,,,,,"beam11, merc, ind, Kratogen_p, Kratogen_bp, one_fire_all",,雪线设计,,通用,,,,,"命中护盾时对目标额外施加硬幅能，数值相当于 {%s} 光束伤害。
+
+每次开火会持续射击，直至清空备弹。",20%,,,,26.112
+电容聚能炮,Kratogen_capacitor_l,1,,4500,700,2400,,1200,0,14,22,10,1.2,5,ENERGY,,2200,0,0,0.1,0,,,,,100000,,,,,,,"STRIKE, USE_VS_FRIGATES","beam15, merc, ind, Kratogen_p, Kratogen_bp, one_fire_all",,雪线设计,,通用,,,,,"命中护盾时对目标额外施加硬幅能，数值相当于 {%s} 光束伤害。
+
+每次开火会持续射击，直至清空备弹。
+
+光束被分为 {%s} 束，因此穿甲力度略低。",15% | 4,,,,26.1121
+阵雨 火箭 发射器,Kratogen_drizzle,0,,300,1500,,200,200,10,25,5,60,,,ENERGY,0,,0,7,6,0.1,,,,,,550,300,3.5,100,,,CONSERVE_1,"strike0, rocket10, merc, ind, Kratogen_p, Kratogen_bp",,雪线设计,,压制,较快,无,,,,,,,,11.5
+可燃冰 鱼雷 发射器,Kratogen_hydrate_m,2,,1500,1200,,5000,,100,20,12,12,,,FRAGMENTATION,0,,0,15,2,0.25,,,,,,450,150,3.5,350,,,STRIKE,"strike12, rocket5, merc, Kratogen_p, Kratogen_bp",,雪线设计,,鱼雷,较快,无,,,,,,,TRUE,14.45
+分立 PD,Kratogen_discrete_pd,1,,650,300,350,,,0,120,5,,,,ENERGY,,200,0.1,0,0.2,0.1,,,,,100000,,,,,,,"PD, ANTI_FTR","pd9, SR, beam6, merc, ind, Kratogen_p, Kratogen_bp",,雪线设计,,点防御,,,,,,,,,,15.62
+阵雨 火箭 (机载),Kratogen_drizzle_f,,,,800,,100,200,5,10,,,,,ENERGY,0,,0,2,,,,,,,,400,300,2.5,100,,,SYSTEM,,,雪线设计,,压制 (机载),,,,,,,,,,12.3
+海渊舰体,Kratogen_tectogene_cover,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,SYSTEM,,,雪线设计,,,,,,,,,,,,43.222

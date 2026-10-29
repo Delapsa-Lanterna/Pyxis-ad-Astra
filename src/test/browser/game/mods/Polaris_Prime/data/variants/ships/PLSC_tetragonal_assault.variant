@@ -1,0 +1,41 @@
+{
+  "displayName": "Assault",
+  "fluxCapacitors": 15,
+  "fluxVents": 20,
+  "hullId": "PLSC_tetragonal",
+  "hullMods": [
+    "PLSP_magnet_damper",
+    "PLSP_starlight_calibrator",
+    "PLSP_core_synchronizer",
+    "heavyarmor",
+    "fluxbreakers"
+  ],
+  "permaMods": [],
+  "sMods": [],
+  "variantId": "PLSC_tetragonal_assault",
+  "weaponGroups": [
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0001": "PLSC_pulser_celestite",
+        "WS0002": "PLSC_pulser_celestite"
+      }
+    },
+    {
+      "autofire": false,
+      "mode": "ALTERNATING",
+      "weapons": {
+        "WS0004": "PLSC_impulse_celestite",
+        "WS0005": "PLSC_impulse_celestite"
+      }
+    },
+    {
+      "autofire": true,
+      "mode": "LINKED",
+      "weapons": {
+        "WS0003": "PLSC_tracker_celestite"
+      }
+    }
+  ]
+}
