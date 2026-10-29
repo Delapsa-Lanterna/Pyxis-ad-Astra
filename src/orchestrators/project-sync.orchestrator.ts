@@ -2,7 +2,7 @@ import { recordWindowEventHandlerError } from '@/orchestrators/window-event-erro
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectSyncStore, type PendingWriteSync, type SaveTask } from '@/stores/project-sync.store';
-import { markProjectionReady } from '@/services/project-projection.service';
+import { markProjectionReady, acceptReferenceRevision, setReferenceReadiness } from '@/services/project-projection.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { InvalidatedResourceScope, CommittedWriteEvent, ProjectSessionInvalidationResult } from '@/shared/types';
 import {
@@ -13,6 +13,7 @@ import {
   unregisterSaveWindow,
   resolveSaveSources,
   abandonProjectSaves,
+  setReferenceSources,
 } from '@/services/project-sync.service';
 import { managedWindowContext } from '@/windows/window-context.window';
 import type { CloseScope } from '@/shared/types';
@@ -35,6 +36,11 @@ interface SaveConsumers {
 }
 const windows = new WeakMap<ReturnType<typeof useProjectSyncStore>, SaveConsumers>();
 let displayReady: Promise<void> | null = null;
+
+export async function publishReferenceSources(sources: readonly Pick<import('@/shared/types').ReferenceSource, 'sessionId' | 'modRoot'>[]) {
+  await waitProjectSaves(sources.map((source) => source.modRoot));
+  await setReferenceSources(sources.map((source) => source.sessionId));
+}
 
 export function pauseProjectDisplay() {
   let resume!: () => void;
@@ -66,6 +72,10 @@ function consumers() {
   windows.set(sync, window);
   const registration = window;
   registration.ready = registerSaveWindow((delivery) => {
+    if (delivery.kind === 'references') {
+      if (!acceptReferenceRevision(delivery.snapshot.revision) || !delivery.event) return;
+      delivery = { kind: 'saved', requestId: `references:${delivery.snapshot.revision}`, event: delivery.event };
+    }
     if (delivery.kind === 'missing') {
       void confirmMissingSources(registration, delivery).catch((error) => recordWindowEventHandlerError(error, 'save-confirmation'));
       return;
@@ -145,6 +155,7 @@ function consumers() {
     };
     void consume(sync.receive(entry)).catch((error) => recordWindowEventHandlerError(error, 'save-delivery'));
   });
+  setReferenceReadiness(registration.ready);
   return registration;
 }
 

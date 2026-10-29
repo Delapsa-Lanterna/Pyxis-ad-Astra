@@ -1,4 +1,5 @@
 import type { ResourceRef, ResourceSource, SourceOptionGroup } from '@/shared/types';
+import { pathBasename } from '@/shared/lib/paths';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import type { DeepReadonly } from '@/shared/types';
 import { schemaArrayStringValues, schemaKeyValueEntries, schemaStringValue, schemaTagValues } from '@/domain/schema/schema-values';
@@ -37,7 +38,7 @@ const CURRENT_VALUE_OPTION_GROUP = {
 } as const;
 
 export function sourceGroupLabel(origin: ResourceSource): string {
-  return origin === 'core' ? '原版' : '当前 Mod';
+  return origin === 'core' ? '原版' : origin === 'reference' ? '其它 Mod' : '当前 Mod';
 }
 
 export function selectOptionValueExists(options: SelectOption[], value: string): boolean {
@@ -133,12 +134,12 @@ export function fieldSourceCurrentValues(field: FieldSchema, value: unknown): st
 export function mapSourceGroupsToSelectOptions(groups: DeepReadonly<SourceOptionGroup[]>): SelectOption[] {
   const options: SelectOption[] = groups
     .map((group): SelectOption => {
-      const label = sourceGroupLabel(group.origin);
+      const label = group.reference ? pathBasename(group.reference.modRoot) : sourceGroupLabel(group.origin);
       return {
         type: 'group',
-        key: `group:${label}`,
+        key: `group:${group.reference?.sessionId ?? label}`,
         label,
-        value: label,
+        value: group.reference?.sessionId ?? label,
         children: group.options
           .filter((option) => option.templateValue === undefined)
           .map((option) => ({

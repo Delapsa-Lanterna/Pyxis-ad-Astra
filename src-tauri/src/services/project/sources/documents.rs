@@ -40,6 +40,7 @@ pub(in crate::services::project) fn load_spec_records_from(
                 LoadedSpecRecord {
                     id,
                     location: EntityFileLocation {
+                        reference: None,
                         source,
                         root: root.to_string_lossy().to_string(),
                         rel_path,

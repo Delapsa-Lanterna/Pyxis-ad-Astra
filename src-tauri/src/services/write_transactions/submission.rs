@@ -53,6 +53,20 @@ pub async fn submit(owner: String, request: SaveRequest) -> AppResult<WriteResul
                 commit_action(action)
             },
         )?;
+        // Reference delivery must preserve the outcome of the completed file transaction.
+        if let Err(error) = services::project::reference_sources_changed(session_id.as_deref())
+            .and_then(|snapshot| {
+                if let Some(snapshot) = snapshot {
+                    services::project_sync::publish_references(
+                        snapshot,
+                        services::project::reference_updates()?,
+                    )?;
+                }
+                Ok(())
+            })
+        {
+            crate::diagnostics::record(format!("reference refresh delivery: {error}"));
+        }
         Ok(result)
     })
     .await

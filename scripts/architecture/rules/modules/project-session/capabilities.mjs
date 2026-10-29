@@ -3,6 +3,11 @@ import { capabilities, readOwners } from '../../capabilities/owners.mjs';
 export const projectCapabilities = [
   ...capabilities({ role: 'orchestrator', domain: 'project-sync' }, [
     {
+      capability: 'workspace-reference-sources',
+      names: ['publishReferenceSources'],
+      owners: [{ layer: 'app', role: 'composable', domain: 'workspace-shell-lifecycle' }],
+    },
+    {
       capability: 'close-display',
       names: ['pauseProjectDisplay'],
       owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
@@ -108,9 +113,10 @@ export const projectCapabilities = [
   ]),
   ...capabilities({ role: 'service', domain: 'project-projection' }, [
     { capability: 'projection-state', names: ['markProjectionPending'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
+    { capability: 'reference-readiness', names: ['setReferenceReadiness'], owners: [{ layer: 'orchestrators', domain: 'project-sync' }] },
     {
       capability: 'projection-state',
-      names: ['markProjectionReady'],
+      names: ['markProjectionReady', 'acceptReferenceRevision'],
       owners: [
         { layer: 'orchestrators', domain: 'project-sync' },
         { layer: 'orchestrators', domain: 'workspace-lifecycle' },
@@ -118,7 +124,7 @@ export const projectCapabilities = [
     },
     {
       capability: 'projection-read',
-      names: ['requireProjectionReady'],
+      names: ['requireProjectionReady', 'currentReferenceRevision', 'waitForReferenceSources'],
       owners: [
         { layer: 'services', domain: 'query-cache' },
         { layer: 'services', domain: 'resource-media' },
@@ -177,6 +183,7 @@ export const projectCapabilities = [
         'resolveSaveSources',
         'retryProjectSave',
         'waitProjectSaves',
+        'setReferenceSources',
       ],
       owners: [{ layer: 'orchestrators', domain: 'project-sync' }],
     },

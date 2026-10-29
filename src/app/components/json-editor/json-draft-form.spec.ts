@@ -317,12 +317,12 @@ describe('JSON common workspace and form', () => {
       rowKey: 'ship-row',
     });
   });
-  it('keeps the skin page and explains a Core base hull', async () => {
+  it.each(['core', 'reference'] as const)('keeps the skin page and explains a %s base hull', async (source) => {
     mocks.hullTarget.mockResolvedValueOnce({
       target: {
         kind: 'ship',
         id: 'hull',
-        source: { source: 'core', root: 'M:/game', relPath: 'data/hulls/ship_data.csv', path: 'M:/game/data/hulls/ship_data.csv' },
+        source: { source, root: 'M:/game', relPath: 'data/hulls/ship_data.csv', path: 'M:/game/data/hulls/ship_data.csv' },
         write: { source: 'mod', root: 'M:/one', relPath: 'data/hulls/ship_data.csv', path: 'M:/one/data/hulls/ship_data.csv' },
         state: 'existing',
         linkedRecord: null,
@@ -337,7 +337,7 @@ describe('JSON common workspace and form', () => {
     await flushPromises();
     expect(useWorkspaceStore().currentView).toBe('json-editor');
     expect(useWorkspaceStore().entityLocation).toBeNull();
-    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('船体「hull」来自原版。');
+    expect(mocks.feedback.info).toHaveBeenCalledExactlyOnceWith('船体「hull」来自' + (source === 'core' ? '原版' : '其他 Mod') + '。');
   });
   it.each(['variants', 'skins'] as const)('%s locates and scrolls to an exact entity while retaining another draft', async (page) => {
     const kind = page === 'skins' ? 'skin' : 'variant';

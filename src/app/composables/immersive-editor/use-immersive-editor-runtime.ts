@@ -1,4 +1,5 @@
 import { useProjectSyncStore } from '@/stores/project-sync.store';
+import { isExternalSource } from '@/shared/lib/resource-ref';
 import { hasSourceInvalidation } from '@/services/source-options.service';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import {
@@ -92,7 +93,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       ? snapshot.value.records.filter(
           (record) =>
             definition.editableRecords(snapshot.value!).includes(record.key) &&
-            (record.source?.source === 'core' || record.value.state === 'missing'),
+            (isExternalSource(record.source?.source) || record.value.state === 'missing'),
         )
       : [],
   );
@@ -113,7 +114,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
           if (
             projection.manifest.sessionId === root.sessionId &&
             (source === 'hull:ids'
-              ? projection.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
+              ? projection.invalidation.session || projection.invalidation.queryScopes.some((scope) => scope.kind === 'hull-references')
               : hasSourceInvalidation(projection.invalidation, source))
           )
             return listener();
@@ -204,7 +205,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     },
   );
   function editable(field: ImmersiveField) {
-    return snapshot.value?.records.find((record) => record.key === field.recordKey)?.source?.source !== 'core';
+    return !isExternalSource(snapshot.value?.records.find((record) => record.key === field.recordKey)?.source?.source);
   }
   function updateField(field: ImmersiveField, update: SchemaFieldUpdate) {
     updateFields([{ field, update }]);
@@ -251,7 +252,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   async function createOverrides(selected?: string[]) {
     const target = joint.currentTarget.value;
     const admitted = joint.inputs.captureContext();
-    const keys = selected ?? notices.value.filter((record) => record.source?.source === 'core').map((record) => record.key);
+    const keys = selected ?? notices.value.filter((record) => isExternalSource(record.source?.source)).map((record) => record.key);
     try {
       if (!active || !admitted() || joint.currentTarget.value !== target) return;
       await joint.createOverrides(keys);

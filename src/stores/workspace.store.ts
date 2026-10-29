@@ -50,12 +50,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const hasModOpeningFailures = computed(() => modOpeningFailures.value.size > 0);
   const hasWorkspaceContext = computed(() => hasGameWorkspace.value || hasLoadedMods.value);
 
-  function registerMod(entry: ModEntry) {
+  function registerMod(entry: Omit<ModEntry, 'referenceable'> & { referenceable?: boolean }) {
     const generation = ++nextModGeneration;
     modGenerations.set(entry.modRoot, generation);
-    mods.value.set(entry.modRoot, entry);
+    mods.value.set(entry.modRoot, { ...entry, referenceable: entry.referenceable ?? false });
     modNavigationContexts.value.set(entry.modRoot, createDefaultModNavigationContext());
     return generation;
+  }
+
+  function setModReferenceable(modRoot: string, referenceable: boolean) {
+    mods.value.get(modRoot)!.referenceable = referenceable;
+  }
+
+  function moveMod(modRoot: string, targetRoot: string, after: boolean) {
+    const entries = loadedModList.value.filter((mod) => mod.modRoot !== modRoot);
+    const target = entries.findIndex((mod) => mod.modRoot === targetRoot);
+    entries.splice(target + Number(after), 0, mods.value.get(modRoot)!);
+    mods.value = new Map(entries.map((mod) => [mod.modRoot, mod]));
   }
 
   function getModGeneration(modRoot: string): number | null {
@@ -181,9 +192,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     currentView.value = 'about';
   }
 
-  function setGameOverview(overview: GameOverviewData | null) {
+  function setGameOverview(overview: GameOverviewData | null, activateOverview = true) {
     gameOverview.value = overview;
-    showOverview();
+    if (activateOverview) showOverview();
   }
 
   function isModImported(modRoot: string): boolean {
@@ -194,7 +205,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     clearModOpeningFailures();
     modNavigationContexts.value = new Map();
     for (const mod of persisted.mods) {
-      registerMod({ modRoot: mod.modRoot, displayName: mod.displayName, version: mod.version, status: 'loading' });
+      registerMod({ ...mod, status: 'loading' });
     }
     activeModRoot.value = null;
     currentView.value = 'overview';
@@ -215,7 +226,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return {
       mods: loadedModList.value
         .filter((m) => m.status !== 'error')
-        .map((m) => ({ modRoot: m.modRoot, displayName: m.displayName, version: m.version })),
+        .map((m) => ({ modRoot: m.modRoot, displayName: m.displayName, version: m.version, referenceable: m.referenceable })),
       starsectorRoot: gameOverview.value?.starsectorRoot ?? null,
       gameMods: gameOverview.value?.mods ?? [],
       gameWarnings: gameOverview.value?.warnings ?? [],
@@ -283,6 +294,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isModImported,
     isModView,
     registerMod,
+    setModReferenceable,
+    moveMod,
     revokeWorkspaceGeneration,
     removeLoadedModEntry,
     setColumnWidths,

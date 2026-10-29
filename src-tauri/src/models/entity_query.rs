@@ -42,6 +42,7 @@ mod tests {
                 id: "demo_projectile".to_string(),
                 source: None,
                 write: crate::models::EntityFileLocation {
+                    reference: None,
                     source: crate::models::ResourceSource::Mod,
                     root: "mod".to_string(),
                     rel_path: "data/weapons/proj/demo_projectile.proj".to_string(),

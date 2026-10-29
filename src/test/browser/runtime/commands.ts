@@ -77,6 +77,7 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
   switch (command) {
     case 'register_save_window':
       saveChannel = args.channel as typeof saveChannel;
+      saveChannel!.onmessage({ kind: 'references', snapshot: { revision: 0, sources: [] }, event: null });
       return;
     case 'unregister_save_window':
       saveChannel = null;

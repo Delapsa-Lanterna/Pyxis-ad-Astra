@@ -203,6 +203,7 @@ pub fn save_mission_with_json(
     let changes = builder.apply()?;
     let root = boundary.root().to_string_lossy().to_string();
     let location = |rel: &str| EntityFileLocation {
+        reference: None,
         source: ResourceSource::Mod,
         root: root.clone(),
         rel_path: rel.to_string(),

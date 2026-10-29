@@ -7,7 +7,7 @@ import type {
   ResourceRef,
 } from '@/shared/types';
 import { invokeCommand } from '@/shared/runtime/command.runtime';
-import { requireProjectionReady } from '@/services/project-projection.service';
+import { requireProjectionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-projection.service';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
 import { AppError } from '@/shared/lib/errors';
@@ -51,8 +51,15 @@ const queued = new Map<string, QueuedMedia>();
 const listeners = new Set<(event: ResourceMediaInvalidationEvent) => void>();
 let flushHandle: ReturnType<typeof setTimeout> | null = null;
 
-export function mediaResourceKey(sessionId: string, resource: Pick<ResourceRef, 'source' | 'relPath'>): string {
-  return JSON.stringify([sessionId, resource.source, normalizeFsPath(resource.relPath)]);
+export function mediaResourceKey(sessionId: string, resource: Pick<ResourceRef, 'source' | 'relPath' | 'reference'>): string {
+  return JSON.stringify([
+    sessionId,
+    resource.source,
+    normalizeFsPath(resource.relPath),
+    resource.reference?.sessionId,
+    resource.reference?.modRoot,
+    currentReferenceRevision(),
+  ]);
 }
 function request(entry: MediaEntry): Promise<string | null> {
   if (entry.value.value !== undefined) return Promise.resolve(entry.value.value);
@@ -103,9 +110,17 @@ function dispatch(items: QueuedMedia[]) {
   }
   for (const [sessionId, batch] of batches) {
     const resources = batch.map((item) => item.entry.resource);
-    void invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', {
-      payload: { sessionId, resources } satisfies ResourceDataUrlBatchPayload,
-    })
+    const load = () => {
+      const revision = currentReferenceRevision();
+      return invokeCommand<ResourceDataUrlBatchResult>('query_resource_data_urls', {
+        payload: { sessionId, resources } satisfies ResourceDataUrlBatchPayload,
+      }).then((result) => {
+        requireProjectionReady(sessionId, revision);
+        return result;
+      });
+    };
+    const ready = waitForReferenceSources();
+    void (ready ? ready.then(load) : load())
       .then((result) => {
         if (
           result.entries.length !== resources.length ||

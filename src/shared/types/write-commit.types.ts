@@ -52,6 +52,7 @@ export interface CommittedWriteEvent {
 }
 
 export type SaveDelivery =
+  | { kind: 'references'; snapshot: import('./project-identity.types').ReferenceSources; event: CommittedWriteEvent | null }
   | { kind: 'missing'; requestId: string; paths: string[] }
   | { kind: 'saved'; requestId: string; event: CommittedWriteEvent }
   | { kind: 'blocked'; requestId: string; modRoot: string; sessionId: string | null; diagnostic: import('./error.types').ErrorDiagnostic }

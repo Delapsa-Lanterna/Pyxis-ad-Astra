@@ -11,6 +11,10 @@ use std::path::Path;
 #[derive(Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SaveDelivery {
+    References {
+        snapshot: super::ReferenceSources,
+        event: Option<Value>,
+    },
     Missing {
         #[serde(rename = "requestId")]
         request_id: String,

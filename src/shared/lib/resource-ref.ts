@@ -2,6 +2,9 @@ import { RESOURCE_OWNER_KINDS, RESOURCE_SOURCES, type ResourceRef } from '@/shar
 
 const resourceSources = new Set<string>(RESOURCE_SOURCES);
 const resourceOwnerKinds = new Set<string>(RESOURCE_OWNER_KINDS);
+export function isExternalSource(source: ResourceRef['source'] | undefined): boolean {
+  return source === 'core' || source === 'reference';
+}
 
 export function isResourceRef(value: unknown): value is ResourceRef {
   if (!value || typeof value !== 'object') return false;
@@ -20,6 +23,8 @@ export function isResourceRef(value: unknown): value is ResourceRef {
 export function sameResourceRef(left: ResourceRef, right: ResourceRef): boolean {
   return (
     left.source === right.source &&
+    left.reference?.sessionId === right.reference?.sessionId &&
+    left.reference?.modRoot === right.reference?.modRoot &&
     normalizeResourceRelPath(left.relPath) === normalizeResourceRelPath(right.relPath) &&
     left.ownerKind === right.ownerKind &&
     left.ownerId === right.ownerId &&

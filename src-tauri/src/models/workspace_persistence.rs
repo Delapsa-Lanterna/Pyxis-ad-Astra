@@ -24,6 +24,7 @@ pub struct PersistedMod {
     pub display_name: String,
     #[serde(default)]
     pub version: String,
+    pub referenceable: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -39,7 +40,7 @@ mod tests {
     #[test]
     fn persisted_workspace_uses_camel_case_and_defaults_collections() {
         let json = serde_json::json!({
-            "mods": [{ "modRoot": "C:/mods/a", "displayName": "A" }],
+            "mods": [{ "modRoot": "C:/mods/a", "displayName": "A", "referenceable": false }],
             "starsectorRoot": "D:/games/starsector"
         });
         let workspace: PersistedWorkspace = serde_json::from_value(json).expect("deserializable");
@@ -53,7 +54,7 @@ mod tests {
 
     #[test]
     fn persisted_mod_keeps_optional_version() {
-        let json = serde_json::json!({ "modRoot": "M:/x", "displayName": "X", "version": "1.2" });
+        let json = serde_json::json!({ "modRoot": "M:/x", "displayName": "X", "version": "1.2", "referenceable": false });
         let persisted: PersistedMod = serde_json::from_value(json).expect("deserializable");
         assert_eq!(persisted.version, "1.2");
     }

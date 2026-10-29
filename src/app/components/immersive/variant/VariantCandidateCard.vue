@@ -49,7 +49,7 @@
       /><ImmersiveText :active="active" v-if="current" text="点击卸下" font="caption" block /><ImmersiveText
         :active="active"
         class="variant-card-origin"
-        :text="entry.source.source === 'mod' ? '当前 Mod' : 'Core'"
+        :text="entry.source.source === 'mod' ? '当前 Mod' : entry.source.source === 'reference' ? pathBasename(entry.source.root) : 'Core'"
         font="caption"
       />
     </div>
@@ -72,6 +72,7 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue';
+import { pathBasename } from '@/shared/lib/paths';
 import type { ReadonlyVariantEntry, JointEditRoot, ResourceRef } from '@/shared/types';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { immersiveCatalogScene } from '@/domain/immersive/hull-scene';

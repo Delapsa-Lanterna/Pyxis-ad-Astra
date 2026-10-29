@@ -291,7 +291,7 @@ pub(super) struct ProjectContent {
 pub(super) struct SessionCsvTable {
     pub header: Vec<String>,
     pub path: String,
-    pub rows: Option<Vec<SessionCsvRow>>,
+    pub rows: Option<Arc<Vec<SessionCsvRow>>>,
     #[serde(skip)]
     pub row_index: Option<std::collections::HashMap<String, usize>>,
     /// Sole allocator state for `{table}:row:{seq}` keys; survives refresh of
@@ -307,23 +307,32 @@ pub(super) struct SessionCsvRow {
     pub is_comment: bool,
 }
 
+#[derive(Clone)]
 pub(super) struct ProjectSession {
+    pub reference_revision: u64,
+    pub references: Vec<Arc<ReferenceView>>,
     pub loaded_edit_targets: Vec<crate::models::EntityEditTarget>,
     pub projection_pending: bool,
-    pub source_versions: BTreeMap<String, crate::models::FileVersion>,
+    pub source_versions: Arc<BTreeMap<String, crate::models::FileVersion>>,
     pub manifest: ProjectManifest,
-    pub faction_files: BTreeMap<String, LoadedSpecRecord>,
+    pub faction_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
     pub faction_blueprint_tags: HashMap<String, String>,
-    pub csv_tables: BTreeMap<String, SessionCsvTable>,
-    pub ship_files: BTreeMap<String, LoadedSpecRecord>,
-    pub variant_files: Vec<VariantFile>,
-    pub skin_files: Vec<SkinFile>,
+    pub csv_tables: BTreeMap<String, Arc<SessionCsvTable>>,
+    pub ship_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
+    pub variant_files: Arc<Vec<VariantFile>>,
+    pub skin_files: Arc<Vec<SkinFile>>,
     pub variant_warnings: Vec<GameScanWarning>,
     pub skin_warnings: Vec<GameScanWarning>,
-    pub weapon_specs: BTreeMap<String, LoadedSpecRecord>,
-    pub projectile_specs: BTreeMap<String, LoadedSpecRecord>,
-    pub system_files: BTreeMap<String, LoadedSpecRecord>,
-    pub skill_files: BTreeMap<String, LoadedSpecRecord>,
+    pub weapon_specs: Arc<BTreeMap<String, LoadedSpecRecord>>,
+    pub projectile_specs: Arc<BTreeMap<String, LoadedSpecRecord>>,
+    pub system_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
+    pub skill_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
+}
+
+pub(super) struct ReferenceView {
+    pub identity: crate::models::ReferenceSource,
+    pub session: ProjectSession,
+    pub tables: std::sync::Mutex<BTreeMap<String, Arc<SessionCsvTable>>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

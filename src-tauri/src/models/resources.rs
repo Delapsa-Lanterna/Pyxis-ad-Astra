@@ -14,6 +14,8 @@ pub struct EngineRenderAssets {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceDataUrlBatchEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<super::ReferenceSource>,
     pub key: String,
     pub source: ResourceSource,
     pub rel_path: String,
@@ -48,6 +50,8 @@ pub enum HullReferenceKind {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct HullReferenceGroup {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<super::ReferenceSource>,
     pub origin: ResourceSource,
     pub kind: HullReferenceKind,
     pub options: Vec<HullReferenceOption>,

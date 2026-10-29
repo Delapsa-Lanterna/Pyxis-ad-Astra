@@ -1,5 +1,5 @@
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 import { useWindowLifecycleActions } from './use-window-close-state';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
@@ -14,6 +14,8 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
+import { publishReferenceSources } from '@/orchestrators/project-sync.orchestrator';
+import { useProjectStore } from '@/stores/project.store';
 
 // Main-window-only bootstrap: startup restore, workspace-state persistence and
 // window save events run once per application shell, never per page component.
@@ -26,6 +28,19 @@ export function useWorkspaceShellLifecycle(
   const workspace = useWorkspaceStore();
   let workspacePersistence: WorkspacePersistenceWatcher | null = null;
   let disposed = false;
+  let publishing = Promise.resolve();
+  watch(
+    () =>
+      workspace.loadedModList
+        .filter((mod) => mod.referenceable && mod.status === 'ready')
+        .map((mod) => ({ sessionId: useProjectStore().getSessionId(mod.modRoot)!, modRoot: mod.modRoot })),
+    (sources, previous) => {
+      if (sources.length === previous.length && sources.every((source, index) => source.sessionId === previous[index]!.sessionId)) return;
+      publishing = publishing
+        .then(() => (disposed ? undefined : publishReferenceSources(sources)))
+        .catch((error) => feedback.error(error, '更新引用来源失败'));
+    },
+  );
 
   onMounted(async () => {
     recordLogBestEffort({

@@ -115,6 +115,7 @@ mod tests {
                 mod_root: "D:/mods/test".to_string(),
                 display_name: "Test Mod".to_string(),
                 version: "1.0".to_string(),
+                referenceable: true,
             }],
             starsector_root: Some("D:/Starsector".to_string()),
             game_mods: vec![],

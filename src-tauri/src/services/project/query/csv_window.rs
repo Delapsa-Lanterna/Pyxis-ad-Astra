@@ -83,10 +83,7 @@ pub fn query_csv_table_rows(
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     ensure_registered_table_rows(&mut session, table)?;
-    let state = session
-        .csv_tables
-        .get_mut(table.as_str())
-        .expect("registered CSV table");
+    let state = super::super::cache::csv::session_table_mut(&mut session, table.as_str())?;
     let rows = state.rows.as_ref().expect("CSV rows have been loaded");
     let positions = state.row_index.get_or_insert_with(|| {
         rows.iter()

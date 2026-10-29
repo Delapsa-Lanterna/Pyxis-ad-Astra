@@ -64,6 +64,7 @@ pub fn close_project_session(session_id: String) -> AppResult<()> {
         }
     }
     cache::clear_sprite_media_for_session(&session_id);
+    cache::references::reference_sources_changed(Some(&session_id))?;
     Ok(())
 }
 
@@ -166,8 +167,10 @@ pub(crate) fn open_project_session_traced(
     guard.insert(
         manifest.session_id.clone(),
         cache::RegisteredSession {
+            session_id: manifest.session_id.clone(),
             root: manifest.mod_root.clone(),
             handle: Arc::new(Mutex::new(session)),
+            reference: None,
         },
     );
     drop(guard);
@@ -226,7 +229,8 @@ pub(super) fn build_project_session(
                         data: row.data,
                         is_comment: row.is_comment,
                     })
-                    .collect(),
+                    .collect::<Vec<_>>()
+                    .into(),
             );
             state.next_row_seq = state.rows.as_ref().expect("loaded rows").len() as u64;
         }
@@ -294,22 +298,27 @@ pub(super) fn build_project_session(
             .collect(),
     };
     Ok(ProjectSession {
+        reference_revision: 0,
+        references: Vec::new(),
         loaded_edit_targets: Vec::new(),
         projection_pending: false,
-        source_versions,
+        source_versions: source_versions.into(),
         manifest,
-        faction_files,
+        faction_files: faction_files.into(),
         faction_blueprint_tags,
-        csv_tables,
-        ship_files: spec_bundle.ship_files,
-        variant_files: spec_bundle.variant_files,
-        skin_files: spec_bundle.skin_files,
+        csv_tables: csv_tables
+            .into_iter()
+            .map(|(key, table)| (key, Arc::new(table)))
+            .collect(),
+        ship_files: spec_bundle.ship_files.into(),
+        variant_files: spec_bundle.variant_files.into(),
+        skin_files: spec_bundle.skin_files.into(),
         variant_warnings: spec_bundle.variant_warnings,
         skin_warnings: spec_bundle.skin_warnings,
-        weapon_specs: spec_bundle.weapon_specs,
-        projectile_specs: spec_bundle.projectile_specs,
-        system_files: spec_bundle.system_files,
-        skill_files: spec_bundle.skill_files,
+        weapon_specs: spec_bundle.weapon_specs.into(),
+        projectile_specs: spec_bundle.projectile_specs.into(),
+        system_files: spec_bundle.system_files.into(),
+        skill_files: spec_bundle.skill_files.into(),
     })
 }
 

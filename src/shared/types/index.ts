@@ -14,6 +14,8 @@ export type {
   ResourceOwnerKind,
   ResourceRef,
   ResourceSource,
+  ReferenceSource,
+  ReferenceSources,
   EntityIdentityIntentPayload,
 } from '@/shared/types/project-identity.types';
 export type {

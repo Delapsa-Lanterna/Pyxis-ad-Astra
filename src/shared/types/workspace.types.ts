@@ -4,6 +4,7 @@ export interface ModEntry {
   displayName: string;
   version: string;
   status: 'loading' | 'ready' | 'error';
+  referenceable: boolean;
   error?: string;
 }
 

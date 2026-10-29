@@ -10,6 +10,13 @@ test('session opening consumes the official settings root', () => {
   assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(context)), []);
 });
 
+test('session release publishes reference changes through project sync', () => {
+  const context = architectureFixtures({
+    'src-tauri/src/services/project_session.rs': 'fn release() { crate::services::project_sync::publish_references(snapshot, updates); }',
+  });
+  assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(context)), []);
+});
+
 test('application assembly consumes the media cache configuration capability', () => {
   assert.deepEqual(
     messages(

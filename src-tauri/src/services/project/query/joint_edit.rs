@@ -279,7 +279,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         })
         .collect::<BTreeSet<_>>();
     let parents = session.variant_files.clone();
-    for parent in parents {
+    for parent in parents.iter() {
         let (parent_version, content) = if !Path::new(&parent.path).exists()
             && crate::io::source_recreation_allowed(&session.manifest.mod_root, &parent.path)
         {
@@ -385,6 +385,16 @@ fn variant_catalog(
                     .find(|variant| variant.variant_id == id)
                     .map(|variant| (id.to_owned(), (variant.clone(), ResourceSource::Mod)))
                     .or_else(|| {
+                        session
+                            .references
+                            .iter()
+                            .flat_map(|view| view.session.variant_files.iter())
+                            .find(|variant| variant.variant_id == id)
+                            .map(|variant| {
+                                (id.to_owned(), (variant.clone(), ResourceSource::Reference))
+                            })
+                    })
+                    .or_else(|| {
                         core.as_ref()
                             .and_then(|data| {
                                 data.variant_files
@@ -432,14 +442,16 @@ fn variant_catalog(
         let mut spec_source = None;
         let mut spec_version = None;
         let spec = if matches!(kind, JointVariantCatalogKind::Weapons) {
+            let external = session.reference_spec(EntityKind::Weapon, &id);
             let source = session
                 .weapon_specs
                 .get(&id)
+                .or(external.as_ref())
                 .or_else(|| core.as_ref().and_then(|data| data.weapon_specs.get(&id)));
             if let Some(source) = source {
                 spec_source = Some(source.location.clone());
                 let (version, content) =
-                    crate::io::read_versioned_json(Path::new(&source.location.path))?;
+                    session.read_spec_source(EntityKind::Weapon, &id, &source.location)?;
                 spec_version = Some(version);
                 refs = super::super::definitions::entity_resources::weapon_resource_refs(
                     &id, &content,
@@ -447,6 +459,7 @@ fn variant_catalog(
                 for resource in refs.values_mut() {
                     resource.source = source.location.source;
                 }
+                session.reference_resource(&source.location, &mut refs);
                 Some(content)
             } else {
                 None
@@ -471,7 +484,7 @@ fn variant_catalog(
             .get("variant")
             .and_then(Value::as_str)
             .and_then(|id| wing_variants.get(id));
-        let projectile = if let Some(data) = &spec
+        let mut projectile = if let Some(data) = &spec
             && data
                 .get("renderHints")
                 .and_then(Value::as_array)
@@ -496,10 +509,19 @@ fn variant_catalog(
             session
                 .projectile_specs
                 .get(&id)
-                .or_else(|| core_projectiles.as_ref().and_then(|specs| specs.get(&id)))
+                .filter(|record| record.location.source == ResourceSource::Mod)
+                .cloned()
+                .or_else(|| session.reference_spec(EntityKind::Projectile, &id))
+                .or_else(|| session.projectile_specs.get(&id).cloned())
+                .or_else(|| {
+                    core_projectiles
+                        .as_ref()
+                        .and_then(|specs| specs.get(&id))
+                        .cloned()
+                })
                 .map(|source| -> AppResult<JointPreviewSpec> {
                     let (version, data) =
-                        crate::io::read_versioned_json(Path::new(&source.location.path))?;
+                        session.read_spec_source(EntityKind::Projectile, &id, &source.location)?;
                     let mut resource_refs =
                         super::super::definitions::entity_resources::projectile_resource_refs(
                             &id, &data,
@@ -524,19 +546,9 @@ fn variant_catalog(
             if let Some(resource) = hulls.sprites.get(&variant.hull_id) {
                 refs.insert("icon".into(), resource.clone());
             }
-            let root = match source {
-                ResourceSource::Mod => Path::new(&session.manifest.mod_root).to_path_buf(),
-                ResourceSource::Core => sources::core::core_dir(
-                    session
-                        .manifest
-                        .starsector_root
-                        .as_ref()
-                        .expect("Core variant has a configured root"),
-                )?,
-            };
-            let location = location(*source, &root, &variant.rel_path);
+            let (location, version) = variant_source(session, variant, *source)?;
             spec_source = Some(location);
-            spec_version = Some(file_version(Path::new(&variant.path))?);
+            spec_version = Some(version);
         }
         let label = if let (Some((variant, _)), Some(hulls)) = (wing_variant, &wing_hulls) {
             [
@@ -580,6 +592,12 @@ fn variant_catalog(
                     .and_then(Value::as_str)
                     .map(str::to_owned)
             });
+        session.reference_resource(&row.source, &mut refs);
+        if let Some(projectile) = &mut projectile
+            && let Some(source) = &projectile.source
+        {
+            session.reference_resource(source, &mut projectile.resource_refs);
+        }
         entries.push(JointVariantEntry {
             module_hull: None,
             id,
@@ -601,12 +619,52 @@ fn variant_catalog(
     Ok(JointVariantCatalog { kind, entries })
 }
 
+fn variant_source(
+    session: &ProjectSession,
+    variant: &VariantFile,
+    source: ResourceSource,
+) -> AppResult<(EntityFileLocation, FileVersion)> {
+    if source != ResourceSource::Core
+        && let Some(view) = session.references.iter().find(|view| {
+            Path::new(&view.identity.mod_root).join(&variant.rel_path) == Path::new(&variant.path)
+        })
+    {
+        return Ok((
+            view.location(&variant.rel_path),
+            view.session.source_versions[&variant.rel_path].clone(),
+        ));
+    }
+    let root = if source == ResourceSource::Core {
+        sources::core::core_dir(
+            session
+                .manifest
+                .starsector_root
+                .as_ref()
+                .expect("Core variant root"),
+        )?
+    } else {
+        session.manifest.mod_root.clone().into()
+    };
+    Ok((
+        location(source, &root, &variant.rel_path),
+        file_version(Path::new(&variant.path))?,
+    ))
+}
+
 fn module_variant_catalog(
     session: &mut ProjectSession,
     source: ResourceSource,
 ) -> AppResult<JointVariantCatalog> {
     let variants = if source == ResourceSource::Mod {
-        session.variant_files.clone()
+        let mut variants = session.variant_files.as_ref().clone();
+        for view in &session.references {
+            for file in view.session.variant_files.iter() {
+                if !variants.iter().any(|own| own.variant_id == file.variant_id) {
+                    variants.push(file.clone());
+                }
+            }
+        }
+        variants
     } else {
         session
             .manifest
@@ -624,7 +682,7 @@ fn module_variant_catalog(
                             .any(|own| own.variant_id == file.variant_id)
                     })
                     .cloned()
-                    .collect()
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default()
     };
@@ -650,21 +708,7 @@ fn module_variant_catalog(
     };
     let mut hulls = BTreeMap::new();
     let mut entries = Vec::new();
-    let source_root = if source == ResourceSource::Mod {
-        graph.session.manifest.mod_root.clone()
-    } else {
-        sources::core::core_dir(
-            graph
-                .session
-                .manifest
-                .starsector_root
-                .as_ref()
-                .expect("core catalog root"),
-        )?
-        .to_string_lossy()
-        .into_owned()
-    };
-    for variant in variants {
+    for variant in variants.iter() {
         if !hulls.contains_key(&variant.hull_id) {
             graph.records.clear();
             graph.visiting.clear();
@@ -704,19 +748,14 @@ fn module_variant_catalog(
         if !hull.hints.iter().any(|hint| hint == "MODULE") {
             continue;
         }
-        let location = EntityFileLocation {
-            source,
-            root: source_root.clone(),
-            path: variant.path.clone(),
-            rel_path: variant.rel_path.clone(),
-        };
+        let (location, version) = variant_source(graph.session, variant, source)?;
         entries.push(JointVariantEntry {
             id: variant.variant_id.clone(),
             label: string_field(&variant.data, "displayName")
                 .unwrap_or_else(|| variant.variant_id.clone()),
             data: serde_json::json!({"variantId":variant.variant_id,"hullId":variant.hull_id,"displayName":string_field(&variant.data, "displayName").unwrap_or_default()}),
             module_hull: Some(hull.clone()),
-            source_version: file_version(Path::new(&variant.path))?,
+            source_version: version,
             source: location,
             resource_refs: sprite
                 .clone()
@@ -838,14 +877,27 @@ fn reference_settings(
             .try_exists()
             .map_err(|error| AppError::from(error).at_path(&core))?
         {
-            roots.push((sources::core::core_dir(game)?, ResourceSource::Core));
+            roots.push((sources::core::core_dir(game)?, ResourceSource::Core, None));
         }
     }
+    roots.extend(session.references.iter().rev().map(|view| {
+        (
+            Path::new(&view.identity.mod_root).to_path_buf(),
+            ResourceSource::Reference,
+            Some(view.identity.clone()),
+        )
+    }));
     roots.push((
         Path::new(&session.manifest.mod_root).to_path_buf(),
         ResourceSource::Mod,
+        None,
     ));
-    for (root, source) in roots {
+    for (root, source, reference) in roots {
+        let resource = |path: &str, owner, id: &str, key: &str| {
+            let mut resource = super::super::resources::resource_ref(source, path, owner, id, key);
+            resource.reference = reference.clone();
+            resource
+        };
         let boundary = FsRootBoundary::new(&root, "joint reference settings")?;
         let path = boundary.resolve_relative("data/config/settings.json", "reference settings")?;
         if path.exists() {
@@ -887,13 +939,7 @@ fn reference_settings(
                 {
                     icons.insert(
                         damage.into(),
-                        super::super::resources::resource_ref(
-                            source,
-                            path,
-                            ResourceOwnerKind::Weapon,
-                            "damage-type",
-                            key,
-                        ),
+                        resource(path, ResourceOwnerKind::Weapon, "damage-type", key),
                     );
                 }
             }
@@ -930,13 +976,7 @@ fn reference_settings(
                 {
                     result.resources.insert(
                         key.into(),
-                        super::super::resources::resource_ref(
-                            source,
-                            path,
-                            ResourceOwnerKind::Ship,
-                            "refit-ui",
-                            key,
-                        ),
+                        resource(path, ResourceOwnerKind::Ship, "refit-ui", key),
                     );
                 }
             }
@@ -1178,8 +1218,8 @@ impl JointGraph<'_> {
         let source_read = target
             .source
             .as_ref()
-            .filter(|source| Path::new(&source.path).exists())
-            .map(|source| crate::io::read_versioned_json(Path::new(&source.path)))
+            .filter(|source| source.reference.is_some() || Path::new(&source.path).exists())
+            .map(|source| self.session.read_spec_source(kind, id, source))
             .transpose()?;
         let source_version = source_read.as_ref().map(|(version, _)| version.clone());
         let value = source_read.map(|(_, value)| value);
@@ -1230,6 +1270,9 @@ impl JointGraph<'_> {
             _ => BTreeMap::new(),
         };
         let mut resources = resources;
+        if let Some(source) = &source {
+            self.session.reference_resource(source, &mut resources);
+        }
         if source
             .as_ref()
             .is_some_and(|source| source.source == ResourceSource::Core)
@@ -1488,6 +1531,9 @@ impl JointGraph<'_> {
     }
 
     fn core_source(&mut self, kind: EntityKind, id: &str) -> AppResult<Option<EntityFileLocation>> {
+        if let Some(record) = self.session.reference_spec(kind, id) {
+            return Ok(Some(record.location));
+        }
         let Some(root) = &self.session.manifest.starsector_root else {
             return Ok(None);
         };
@@ -1561,6 +1607,7 @@ impl JointGraph<'_> {
 
 fn location(source: ResourceSource, root: &Path, rel_path: &str) -> EntityFileLocation {
     EntityFileLocation {
+        reference: None,
         source,
         root: root.to_string_lossy().into(),
         rel_path: rel_path.into(),
@@ -1815,6 +1862,12 @@ impl JointCsvCatalog {
             rows: BTreeMap::new(),
         };
         catalog.add_rows(table, &mod_rows, &write, &version)?;
+        for view in &session.references {
+            let rows = view.table(table)?;
+            let location = view.location(relative);
+            let version = super::super::versions::version_for_path(&view.session, relative);
+            catalog.add_rows(table, &rows, &location, &version)?;
+        }
         if let Some(root) = &session.manifest.starsector_root {
             let core = Path::new(root).join("starsector-core");
             let source_path = core.join(relative);

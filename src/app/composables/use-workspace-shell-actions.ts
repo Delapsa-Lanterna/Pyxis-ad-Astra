@@ -26,7 +26,8 @@ import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestr
 
 import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
-import { pathBasename } from '@/shared/lib/paths';
+import { pathBasename, normalizeFsPath, gameCoreDirectoryPath } from '@/shared/lib/paths';
+import { refreshCoreAssets } from '@/orchestrators/core-assets.orchestrator';
 
 export function useWorkspaceShellActions(feedback: AppFeedback) {
   const { requestClose } = useWindowLifecycleActions();
@@ -67,14 +68,11 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
       : workspace.currentView === 'mod-overview' && Boolean(workspace.activeManifest),
   );
 
-  async function refreshModOverview(modRoot: string) {
+  async function refreshModSources(modRoot: string, paths: string[]) {
     const target = project.getManifest(modRoot)!;
     const accepts = () => !disposed && project.getSessionId(modRoot) === target.sessionId;
     try {
-      await refreshProjectSourcePaths(target.sessionId, modRoot, [
-        ...target.baseVersions.map((version) => version.path),
-        modRoot + '/data',
-      ]);
+      await refreshProjectSourcePaths(target.sessionId, modRoot, paths);
       if (!accepts()) return;
       const refreshed = project.getManifest(modRoot)!;
       workspace.updateModInfo(
@@ -87,24 +85,62 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     }
   }
 
+  function refreshModOverview(modRoot: string) {
+    return refreshModSources(
+      modRoot,
+      ['mod_info.json', 'data', 'graphics'].map((path) => modRoot + '/' + path),
+    );
+  }
+
+  async function refreshTabInfo(modRoots: string[]) {
+    const targets = modRoots.map((root) => project.getManifest(root)!);
+    for (const target of targets) {
+      if (disposed) return;
+      if (project.getSessionId(target.modRoot) === target.sessionId)
+        await refreshModSources(target.modRoot, [target.modRoot + '/mod_info.json']);
+    }
+  }
+
+  async function refreshCore(root: string) {
+    const coreRoot = gameCoreDirectoryPath(root);
+    const targets = [...project.manifests.values()].filter(
+      (manifest) => normalizeFsPath(manifest.starsectorRoot ?? '') === normalizeFsPath(root),
+    );
+    if (!targets.length) return refreshCoreAssets(root);
+    for (const target of targets) {
+      if (disposed) return;
+      if (project.getSessionId(target.modRoot) !== target.sessionId) continue;
+      await refreshProjectSourcePaths(
+        target.sessionId,
+        target.modRoot,
+        normalizeFsPath(target.modRoot) === normalizeFsPath(coreRoot)
+          ? ['mod_info.json', 'data', 'graphics'].map((path) => target.modRoot + '/' + path)
+          : [],
+        [
+          { source: 'core', relPath: 'data' },
+          { source: 'core', relPath: 'graphics' },
+        ],
+      );
+    }
+  }
+
   async function refreshWorkspace() {
     const root = workspace.gameOverview?.starsectorRoot;
     const generation = workspace.getWorkspaceGeneration();
     const accepts = () => !disposed && workspace.getWorkspaceGeneration() === generation;
+    const targets = [...project.manifests.values()];
     try {
-      if (!root) {
-        const targets = [...project.manifests.values()];
-        for (const target of targets) {
-          if (!accepts()) return;
-          if (project.getSessionId(target.modRoot) !== target.sessionId) continue;
-          await refreshModOverview(target.modRoot);
-        }
-        return;
-      }
-      const overview = await scanDirectoryGameOverview(root);
+      const overview = root ? await scanDirectoryGameOverview(root) : null;
       if (!accepts() || workspace.gameOverview?.starsectorRoot !== root) return;
-      workspace.clearModOpeningFailures();
-      workspace.setGameOverview(overview);
+      if (overview) {
+        workspace.clearModOpeningFailures();
+        workspace.setGameOverview(overview, false);
+      }
+      for (const target of targets) {
+        if (!accepts()) return;
+        if (project.getSessionId(target.modRoot) === target.sessionId) await refreshModOverview(target.modRoot);
+      }
+      if (!overview || !accepts()) return;
       recordLogBestEffort({
         level: 'info',
         code: 'workspace.refreshed',
@@ -238,6 +274,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     openDirectory,
     refreshWorkspace,
     refreshModOverview,
+    refreshTabInfo,
+    refreshCore,
     canRefreshOverview,
   };
 }

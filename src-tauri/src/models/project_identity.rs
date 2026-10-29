@@ -85,6 +85,7 @@ pub enum EntityKind {
 #[serde(rename_all = "camelCase")]
 pub enum ResourceSource {
     Mod,
+    Reference,
     Core,
 }
 
@@ -92,6 +93,7 @@ impl ResourceSource {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Mod => "mod",
+            Self::Reference => "reference",
             Self::Core => "core",
         }
     }
@@ -136,11 +138,27 @@ impl From<EntityKind> for ResourceOwnerKind {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceRef {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<ReferenceSource>,
     pub source: ResourceSource,
     pub rel_path: String,
     pub owner_kind: ResourceOwnerKind,
     pub owner_id: String,
     pub key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceSource {
+    pub session_id: String,
+    pub mod_root: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceSources {
+    pub revision: u64,
+    pub sources: Vec<ReferenceSource>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -153,6 +171,8 @@ pub struct FileVersion {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityFileLocation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<Box<ReferenceSource>>,
     pub source: ResourceSource,
     pub root: String,
     pub rel_path: String,

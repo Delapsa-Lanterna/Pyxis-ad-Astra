@@ -32,6 +32,13 @@ pub fn query_engine_render_assets(
     if let Some(root) = game_root {
         roots.push(sources::core::core_dir(&root)?);
     }
+    let references = lock_ready_session(&handle)?.references.clone();
+    roots.extend(
+        references
+            .iter()
+            .rev()
+            .map(|view| view.identity.mod_root.clone().into()),
+    );
     roots.push(mod_root.into());
     let mut result = EngineRenderAssets {
         styles: BTreeMap::new(),
@@ -92,6 +99,7 @@ pub fn query_resource_data_urls(
     for resource in resources {
         let data_url = batch.data_url(&resource)?;
         entries.push(ResourceDataUrlBatchEntry {
+            reference: resource.reference,
             key: resource.key,
             source: resource.source,
             rel_path: resource.rel_path,
@@ -226,6 +234,7 @@ mod tests {
             &manifest.session_id,
             vec![
                 ResourceRef {
+                    reference: None,
                     source: ResourceSource::Mod,
                     rel_path: "graphics/ships/ship.png".to_string(),
                     owner_kind: ResourceOwnerKind::Ship,
@@ -233,6 +242,7 @@ mod tests {
                     key: "ship".to_string(),
                 },
                 ResourceRef {
+                    reference: None,
                     source: ResourceSource::Mod,
                     rel_path: "graphics/ships/missing.png".to_string(),
                     owner_kind: ResourceOwnerKind::Ship,
@@ -271,6 +281,7 @@ mod tests {
             &manifest.session_id,
             vec![
                 ResourceRef {
+                    reference: None,
                     source: ResourceSource::Mod,
                     rel_path: " graphics\\shared\\ICON.PNG/ ".to_string(),
                     owner_kind: ResourceOwnerKind::Ship,
@@ -278,6 +289,7 @@ mod tests {
                     key: "icon".to_string(),
                 },
                 ResourceRef {
+                    reference: None,
                     source: ResourceSource::Mod,
                     rel_path: "graphics/shared/icon.png".to_string(),
                     owner_kind: ResourceOwnerKind::Weapon,
@@ -301,6 +313,7 @@ mod tests {
         let cached = query_resource_data_urls(
             &manifest.session_id,
             vec![ResourceRef {
+                reference: result.entries[1].reference.clone(),
                 source: result.entries[1].source,
                 rel_path: result.entries[1].rel_path.clone(),
                 owner_kind: result.entries[1].owner_kind,
@@ -334,6 +347,7 @@ mod tests {
             &manifest.session_id,
             vec![
                 ResourceRef {
+                    reference: None,
                     source: ResourceSource::Mod,
                     rel_path: "graphics/shared/icon.png".to_string(),
                     owner_kind: ResourceOwnerKind::Ship,
@@ -341,6 +355,7 @@ mod tests {
                     key: "icon".to_string(),
                 },
                 ResourceRef {
+                    reference: None,
                     source: ResourceSource::Core,
                     rel_path: "graphics/shared/icon.png".to_string(),
                     owner_kind: ResourceOwnerKind::Ship,
@@ -366,6 +381,7 @@ mod tests {
         let error = query_resource_data_urls(
             &manifest.session_id,
             vec![ResourceRef {
+                reference: None,
                 source: ResourceSource::Core,
                 rel_path: "graphics/ships/ship.png".to_string(),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -399,6 +415,7 @@ mod tests {
         let result = query_resource_data_urls(
             &manifest.session_id,
             vec![ResourceRef {
+                reference: None,
                 source: ResourceSource::Mod,
                 rel_path: "graphics/ships/core_ship.png".to_string(),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -423,6 +440,7 @@ mod tests {
         let error = query_resource_data_urls(
             &manifest.session_id,
             vec![ResourceRef {
+                reference: None,
                 source: ResourceSource::Mod,
                 rel_path: "../outside.png".to_string(),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -451,6 +469,7 @@ mod tests {
         let result = query_resource_data_urls(
             &manifest.session_id,
             vec![ResourceRef {
+                reference: None,
                 source: ResourceSource::Mod,
                 rel_path: "linked/outside.png".to_string(),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -476,6 +495,7 @@ mod tests {
             crate::services::project::performance::PerformanceTrace::new("project.openSession");
         let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
         let resource = ResourceRef {
+            reference: None,
             source: ResourceSource::Mod,
             rel_path: "graphics/ships/demo.png".to_string(),
             owner_kind: ResourceOwnerKind::Ship,
@@ -517,6 +537,7 @@ mod tests {
             let name = format!("p{index:04}.png");
             std::fs::write(sprite_dir.join(&name), [index as u8]).unwrap();
             resources.push(ResourceRef {
+                reference: None,
                 source: ResourceSource::Mod,
                 rel_path: format!("graphics/ships/{name}"),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -533,6 +554,7 @@ mod tests {
         let oldest_still_cached = cached_sprite_media_contains(
             &manifest.session_id,
             &media_resource_key(&ResourceRef {
+                reference: None,
                 source: ResourceSource::Mod,
                 rel_path: "graphics/ships/p0000.png".to_string(),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -543,6 +565,7 @@ mod tests {
         let newest_still_cached = cached_sprite_media_contains(
             &manifest.session_id,
             &media_resource_key(&ResourceRef {
+                reference: None,
                 source: ResourceSource::Mod,
                 rel_path: format!("graphics/ships/p{:04}.png", count - 1),
                 owner_kind: ResourceOwnerKind::Ship,
@@ -565,6 +588,7 @@ mod tests {
         std::fs::create_dir_all(&sprite_dir).unwrap();
         std::fs::write(sprite_dir.join("demo.png"), [137, 80, 78, 71]).unwrap();
         let resource = ResourceRef {
+            reference: None,
             source: ResourceSource::Mod,
             rel_path: "graphics/ships/demo.png".to_string(),
             owner_kind: ResourceOwnerKind::Ship,

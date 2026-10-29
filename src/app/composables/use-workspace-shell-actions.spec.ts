@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   openFileEditorWindow: vi.fn(async () => {}),
   recordLogBestEffort: vi.fn(),
   refreshProjectSourcePaths: vi.fn(),
+  refreshCoreAssets: vi.fn(),
 }));
 
 vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: mocks.requestClose }) }));
@@ -51,6 +52,7 @@ vi.mock('@/services/app-log.service', () => ({
 vi.mock('@/orchestrators/project-sync.orchestrator', () => ({
   refreshProjectSourcePaths: mocks.refreshProjectSourcePaths,
 }));
+vi.mock('@/orchestrators/core-assets.orchestrator', () => ({ refreshCoreAssets: mocks.refreshCoreAssets }));
 
 import { useWorkspaceShellActions } from './use-workspace-shell-actions';
 import { useProjectStore } from '@/stores/project.store';
@@ -223,6 +225,7 @@ describe('useWorkspaceShellActions', () => {
     expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledWith('s1', manifest.modRoot, [
       manifest.modRoot + '/mod_info.json',
       manifest.modRoot + '/data',
+      manifest.modRoot + '/graphics',
     ]);
     expect(workspace.activeMod).toMatchObject({ displayName: 'After', version: '2' });
     workspace.activateModFileHistory(manifest.modRoot);
@@ -260,11 +263,13 @@ describe('useWorkspaceShellActions', () => {
   });
   it('reports a loaded-session refresh failure and retains its current entry', async () => {
     registerOverview('C:/mods/alpha', 's1');
+    registerOverview('C:/mods/beta', 's2');
     const feedback = feedbackStub();
     mocks.refreshProjectSourcePaths.mockRejectedValueOnce(new Error('read failed'));
     await useWorkspaceShellActions(feedback).refreshWorkspace();
     expect(feedback.error).toHaveBeenCalledWith(expect.any(Error), '刷新工作区失败');
     expect(useWorkspaceStore().loadedModList[0]!.displayName).toBe('Before');
+    expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes the workspace overview from the known root', async () => {
@@ -279,8 +284,66 @@ describe('useWorkspaceShellActions', () => {
     });
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
+    registerOverview('M:/loaded', 'loaded');
+    workspace.showSettings();
     await actions.refreshWorkspace();
     expect(mocks.scanDirectoryGameOverview).toHaveBeenCalledWith('D:/games/starsector');
     expect(feedback.success).toHaveBeenCalledWith(expect.stringContaining('1 个 Mod'));
+    expect(mocks.refreshProjectSourcePaths).toHaveBeenCalledWith('loaded', 'M:/loaded', [
+      'M:/loaded/mod_info.json',
+      'M:/loaded/data',
+      'M:/loaded/graphics',
+    ]);
+    expect(workspace.currentView).toBe('settings');
+  });
+
+  it('refreshes only tab metadata and preserves order, flags and the active draft', async () => {
+    const a = registerOverview('M:/alpha', 'a'),
+      b = registerOverview('M:/beta', 'b'),
+      workspace = useWorkspaceStore();
+    workspace.setModReferenceable(b.modRoot, true);
+    workspace.activateModTable(a.modRoot);
+    const dirty = ref(true);
+    useDraftSessionsStore().registerDraftSession(ref(a.modRoot), dirty);
+    mocks.refreshProjectSourcePaths.mockImplementation(async (sessionId, modRoot) => {
+      useProjectStore().replaceProjectManifest({ ...useProjectStore().getManifest(modRoot)!, modInfo: { name: sessionId, version: '2' } });
+    });
+    await useWorkspaceShellActions(feedbackStub()).refreshTabInfo([a.modRoot, b.modRoot]);
+    expect(mocks.refreshProjectSourcePaths.mock.calls).toEqual([
+      ['a', a.modRoot, [a.modRoot + '/mod_info.json']],
+      ['b', b.modRoot, [b.modRoot + '/mod_info.json']],
+    ]);
+    expect(workspace.loadedModList.map((mod) => [mod.modRoot, mod.referenceable])).toEqual([
+      [a.modRoot, false],
+      [b.modRoot, true],
+    ]);
+    expect([workspace.activeModRoot, workspace.currentView, dirty.value]).toEqual([a.modRoot, 'table', true]);
+    expect(workspace.mods.get(b.modRoot)).toMatchObject({ displayName: 'b', version: '2' });
+  });
+  it.each([false, true])('refreshes only projects belonging to the selected Core root, opened=%s', async (opened) => {
+    const root = 'M:/game';
+    for (const [name, game] of [['a', root], ['b', root], ['other', 'M:/elsewhere'], ...(opened ? [['game/starsector-core', root]] : [])]) {
+      const manifest = registerOverview('M:/' + name, name!);
+      useProjectStore().replaceProjectManifest({ ...manifest, starsectorRoot: game! });
+    }
+    await useWorkspaceShellActions(feedbackStub()).refreshCore(root);
+    expect(mocks.refreshProjectSourcePaths.mock.calls.map((args) => args[0])).toEqual(
+      opened ? ['a', 'b', 'game/starsector-core'] : ['a', 'b'],
+    );
+    for (const args of mocks.refreshProjectSourcePaths.mock.calls)
+      expect(args[3]).toEqual([
+        { source: 'core', relPath: 'data' },
+        { source: 'core', relPath: 'graphics' },
+      ]);
+    if (opened)
+      expect(mocks.refreshProjectSourcePaths.mock.lastCall![2]).toEqual([
+        'M:/game/starsector-core/mod_info.json',
+        'M:/game/starsector-core/data',
+        'M:/game/starsector-core/graphics',
+      ]);
+  });
+  it('refreshes an unused Core root through its existing index loader', async () => {
+    await useWorkspaceShellActions(feedbackStub()).refreshCore('M:/game');
+    expect(mocks.refreshCoreAssets).toHaveBeenCalledExactlyOnceWith('M:/game');
   });
 });

@@ -43,148 +43,101 @@ pub(super) fn build_hull_references(
     }
 
     ensure_registered_table_rows(session, CsvTableKey::Ships)?;
-    let mod_hull_names =
-        all_ship_names_from_rows(loaded_registered_csv_rows(session, CsvTableKey::Ships)?);
-    let mut resolver = HullReferenceResolver::new(session);
-    let mut groups = Vec::new();
-    let mut seen = BTreeSet::new();
-    let ship_options: Vec<HullReferenceOption> = session
-        .ship_files
-        .iter()
-        .map(|(hull_id, ship)| {
-            seen.insert(hull_id.clone());
-            let name = mod_hull_names
-                .get(hull_id)
-                .cloned()
-                .or_else(|| string_field(&ship.data, "hullName"));
-            let label = hull_reference_label(hull_id, name);
-            let resource_ref = string_field(&ship.data, "spriteName").map(|sprite| {
-                resource_ref(
-                    ResourceSource::Mod,
-                    &sprite,
-                    ResourceOwnerKind::Ship,
-                    hull_id,
-                    "thumbnail",
-                )
-            });
-            HullReferenceOption {
-                label,
-                value: hull_id.clone(),
-                origin: ResourceSource::Mod,
-                kind: HullReferenceKind::Ship,
-                resource_ref,
-            }
-        })
-        .collect();
-    if !ship_options.is_empty() {
-        push_non_empty_group(
-            &mut groups,
-            ResourceSource::Mod,
-            HullReferenceKind::Ship,
-            ship_options,
-        );
+    let mut sources = vec![(
+        ResourceSource::Mod,
+        None,
+        session.ship_files.clone(),
+        session.skin_files.clone(),
+        all_ship_names_from_rows(loaded_registered_csv_rows(session, CsvTableKey::Ships)?),
+    )];
+    for view in &session.references {
+        sources.push((
+            ResourceSource::Reference,
+            Some(view.identity.clone()),
+            view.session.ship_files.clone(),
+            view.session.skin_files.clone(),
+            all_ship_names_from_rows(&view.table(CsvTableKey::Ships)?),
+        ));
     }
-
-    let skin_options: Vec<HullReferenceOption> = session
-        .skin_files
-        .iter()
-        .map(|skin| {
-            seen.insert(skin.skin_hull_id.clone());
-            let name = resolver
-                .field(ResourceSource::Mod, &skin.skin_hull_id, "hullName")?
-                .map(|(name, _, _)| name);
-            let resource_ref = resolver.resource(ResourceSource::Mod, &skin.skin_hull_id)?;
-            Ok(HullReferenceOption {
-                label: hull_reference_label(&skin.skin_hull_id, name),
-                value: skin.skin_hull_id.clone(),
-                origin: ResourceSource::Mod,
-                kind: HullReferenceKind::Skin,
-                resource_ref,
-            })
-        })
-        .collect::<AppResult<_>>()?;
-    if !skin_options.is_empty() {
-        push_non_empty_group(
-            &mut groups,
-            ResourceSource::Mod,
-            HullReferenceKind::Skin,
-            skin_options,
-        );
-    }
-
     if let Some(root) = session.manifest.starsector_root.as_ref() {
-        let core_ship_files = load_core_ship_files(root)?;
-        let core_skin_files = load_core_skin_files(root)?;
-        let core_hull_names = load_core_csv_table(root, CsvTableKey::Ships)?
+        let names = load_core_csv_table(root, CsvTableKey::Ships)?
             .as_ref()
             .map(|table| loaded_csv_rows(table, CsvTableKey::Ships.as_str()))
             .transpose()?
             .map(all_ship_names_from_rows)
             .unwrap_or_default();
-
-        let mut core_ship_options = Vec::new();
-        for (hull_id, ship) in core_ship_files.iter() {
-            if seen.contains(hull_id) {
-                continue;
-            }
-            seen.insert(hull_id.clone());
-            let name = core_hull_names
-                .get(hull_id)
-                .cloned()
-                .or_else(|| string_field(&ship.data, "hullName"));
-            let label = hull_reference_label(hull_id, name);
-            let resource_ref = string_field(&ship.data, "spriteName").map(|sprite| {
-                resource_ref(
-                    ResourceSource::Core,
-                    &sprite,
-                    ResourceOwnerKind::Ship,
-                    hull_id,
-                    "thumbnail",
-                )
-            });
-            core_ship_options.push(HullReferenceOption {
-                label,
-                value: hull_id.clone(),
-                origin: ResourceSource::Core,
-                kind: HullReferenceKind::Ship,
-                resource_ref,
-            });
-        }
-        if !core_ship_options.is_empty() {
-            push_non_empty_group(
-                &mut groups,
-                ResourceSource::Core,
-                HullReferenceKind::Ship,
-                core_ship_options,
-            );
-        }
-
-        let mut core_skin_options = Vec::new();
-        for skin in core_skin_files.iter() {
-            if seen.contains(&skin.skin_hull_id) {
-                continue;
-            }
-            seen.insert(skin.skin_hull_id.clone());
-            let name = resolver
-                .field(ResourceSource::Core, &skin.skin_hull_id, "hullName")?
-                .map(|(name, _, _)| name);
-            let resource_ref = resolver.resource(ResourceSource::Core, &skin.skin_hull_id)?;
-            core_skin_options.push(HullReferenceOption {
-                label: hull_reference_label(&skin.skin_hull_id, name),
-                value: skin.skin_hull_id.clone(),
-                origin: ResourceSource::Core,
-                kind: HullReferenceKind::Skin,
-                resource_ref,
-            });
-        }
-        if !core_skin_options.is_empty() {
-            push_non_empty_group(
-                &mut groups,
-                ResourceSource::Core,
-                HullReferenceKind::Skin,
-                core_skin_options,
-            );
-        }
+        sources.push((
+            ResourceSource::Core,
+            None,
+            load_core_ship_files(root)?,
+            load_core_skin_files(root)?,
+            names,
+        ));
+    }
+    let mut resolver = HullReferenceResolver::new(session);
+    let mut groups = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (origin, reference, ships, skins, names) in sources {
+        let ships = ships
+            .iter()
+            .filter(|(id, _)| seen.insert((*id).clone()))
+            .map(|(id, ship)| {
+                let resource_ref = string_field(&ship.data, "spriteName").map(|sprite| {
+                    let mut resource =
+                        resource_ref(origin, &sprite, ResourceOwnerKind::Ship, id, "thumbnail");
+                    resource.reference = reference.clone();
+                    resource
+                });
+                HullReferenceOption {
+                    label: hull_reference_label(
+                        id,
+                        names
+                            .get(id)
+                            .cloned()
+                            .or_else(|| string_field(&ship.data, "hullName")),
+                    ),
+                    value: id.clone(),
+                    origin,
+                    kind: HullReferenceKind::Ship,
+                    resource_ref,
+                }
+            })
+            .collect();
+        push_non_empty_group(
+            &mut groups,
+            origin,
+            reference.clone(),
+            HullReferenceKind::Ship,
+            ships,
+        );
+        let lookup = if origin == ResourceSource::Core {
+            origin
+        } else {
+            ResourceSource::Mod
+        };
+        let skins = skins
+            .iter()
+            .filter(|skin| seen.insert(skin.skin_hull_id.clone()))
+            .map(|skin| {
+                let name = resolver
+                    .field(lookup, &skin.skin_hull_id, "hullName")?
+                    .map(|(name, _, _)| name);
+                Ok(HullReferenceOption {
+                    label: hull_reference_label(&skin.skin_hull_id, name),
+                    value: skin.skin_hull_id.clone(),
+                    origin,
+                    kind: HullReferenceKind::Skin,
+                    resource_ref: resolver.resource(lookup, &skin.skin_hull_id)?,
+                })
+            })
+            .collect::<AppResult<_>>()?;
+        push_non_empty_group(
+            &mut groups,
+            origin,
+            reference,
+            HullReferenceKind::Skin,
+            skins,
+        );
     }
 
     Ok(HullReferencesResult {
@@ -223,6 +176,13 @@ fn resolve_weapon_slots(
             .iter()
             .find(|skin| skin.skin_hull_id == current)
             .or_else(|| {
+                session
+                    .references
+                    .iter()
+                    .flat_map(|view| view.session.skin_files.iter())
+                    .find(|skin| skin.skin_hull_id == current)
+            })
+            .or_else(|| {
                 core_skins
                     .as_ref()
                     .and_then(|skins| skins.iter().find(|skin| skin.skin_hull_id == current))
@@ -240,6 +200,13 @@ fn resolve_weapon_slots(
                 .any(|candidate| std::ptr::eq(candidate, skin))
             {
                 ResourceSource::Mod
+            } else if session
+                .references
+                .iter()
+                .flat_map(|view| view.session.skin_files.iter())
+                .any(|candidate| std::ptr::eq(candidate, skin))
+            {
+                ResourceSource::Reference
             } else {
                 ResourceSource::Core
             };
@@ -248,12 +215,24 @@ fn resolve_weapon_slots(
         }
         let base_origin = if session.ship_files.contains_key(current) {
             ResourceSource::Mod
+        } else if session
+            .references
+            .iter()
+            .any(|view| view.session.ship_files.contains_key(current))
+        {
+            ResourceSource::Reference
         } else {
             ResourceSource::Core
         };
         let ship = session
             .ship_files
             .get(current)
+            .or_else(|| {
+                session
+                    .references
+                    .iter()
+                    .find_map(|view| view.session.ship_files.get(current))
+            })
             .or_else(|| core_ships.as_ref().and_then(|ships| ships.get(current)));
         let mut weapons: Vec<(serde_json::Value, ResourceSource)> = ship
             .and_then(|ship| ship.data.get("weaponSlots"))
@@ -409,6 +388,7 @@ fn resolve_requested_hull_sprites(
 fn push_non_empty_group(
     groups: &mut Vec<HullReferenceGroup>,
     origin: ResourceSource,
+    reference: Option<crate::models::ReferenceSource>,
     kind: HullReferenceKind,
     options: Vec<HullReferenceOption>,
 ) {
@@ -416,6 +396,7 @@ fn push_non_empty_group(
         return;
     }
     groups.push(HullReferenceGroup {
+        reference,
         origin,
         kind,
         options,

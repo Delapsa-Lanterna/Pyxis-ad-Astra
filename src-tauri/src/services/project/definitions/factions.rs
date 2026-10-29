@@ -73,6 +73,7 @@ pub(in crate::services::project) fn load_faction_files_from(
             LoadedSpecRecord {
                 id,
                 location: EntityFileLocation {
+                    reference: None,
                     source: ResourceSource::Mod,
                     root: boundary.root().to_string_lossy().to_string(),
                     rel_path,

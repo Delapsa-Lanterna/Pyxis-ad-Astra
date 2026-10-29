@@ -241,6 +241,7 @@ function createLoadingEntry(modRoot: string): ModEntry {
     displayName: modFolderDisplayName(modRoot),
     version: '',
     status: 'loading',
+    referenceable: false,
   };
 }
 

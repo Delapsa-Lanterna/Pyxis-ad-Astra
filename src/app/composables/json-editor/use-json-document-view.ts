@@ -15,6 +15,7 @@ import { hasResourceInvalidation } from '@/services/resource-media.service';
 import { queryFactionPreviewImages, queryMissionDraftIcon } from '@/services/json-entity.service';
 import { jsonDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { AppError } from '@/shared/lib/errors';
+import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { JsonDocumentSession } from './use-json-document-session';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { JsonDocumentDefinition } from '@/domain/json-editor/json-document-definitions';
@@ -123,8 +124,8 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
           ready: (info) => {
             if (!admitted() || document.target.value?.id !== target.id || String(document.draftValue.value.baseHullId ?? '').trim() !== id)
               return;
-            if (info.target.source?.source === 'core') {
-              feedback.info('船体「' + id + '」来自原版。');
+            if (isExternalSource(info.target.source?.source)) {
+              feedback.info('船体「' + id + '」来自' + (info.target.source?.source === 'core' ? '原版' : '其他 Mod') + '。');
               return;
             }
             if (info.target.source?.source !== 'mod')

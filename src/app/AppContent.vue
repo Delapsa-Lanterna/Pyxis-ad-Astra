@@ -4,7 +4,8 @@
     :narrow="contentNavigation.state.narrow"
     :navigation-expanded="contentNavigation.state.wideExpanded"
     :data-theme="settings.theme"
-    ><template #titlebar><TitleBar /></template><template #tabs><ModTabsBar @remove-mod="actions.confirmRemoveMod" /></template
+    ><template #titlebar><TitleBar /></template
+    ><template #tabs><ModTabsBar :refresh-actions="actions" @remove-mod="actions.confirmRemoveMod" /></template
     ><template #navigation><ModNavigation /></template><template #notice><WriteSyncNotice /></template
     ><OverviewPage
       v-if="workspace.currentView === 'overview'"

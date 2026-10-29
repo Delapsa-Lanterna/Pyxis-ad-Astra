@@ -15,6 +15,7 @@ export function hullReferenceOptions(result: DeepReadonly<HullReferencesResult>)
 export function hullReferenceSourceGroups(result: DeepReadonly<HullReferencesResult>): SourceOptionGroup[] {
   return result.groups.map((group) => ({
     origin: group.origin,
+    reference: group.reference,
     options: group.options.map((option) => ({ ...option, description: null })),
   }));
 }
@@ -26,7 +27,7 @@ export function hullWeaponSlotOptions(
   hullId: string,
   kind: HullSlotKind = 'builtInWeaponSlots',
 ): SourceOptionGroup[] {
-  return (['mod', 'core'] as const)
+  return (['mod', 'reference', 'core'] as const)
     .map((origin) => ({
       origin,
       options: (result[kind][hullId] ?? [])

@@ -182,7 +182,7 @@ const surface = ref<HTMLElement | null>(null),
   manualId = ref(''),
   compare = ref(false);
 const moduleSources = [
-  { label: '本 Mod', value: 'mod' as const },
+  { label: 'Mod 来源', value: 'mod' as const },
   { label: '原版', value: 'core' as const },
 ];
 const selectedSources = ref<ResourceSource[]>(['mod']);
@@ -223,7 +223,7 @@ const coreCatalog = useVariantCatalog(
 const entries = computed(() =>
   props.kind === 'variants'
     ? [
-        ...mainCatalog.entries.value.filter((entry) => selectedSources.value.includes('mod') && entry.source.source === 'mod'),
+        ...mainCatalog.entries.value.filter((entry) => selectedSources.value.includes('mod') && entry.source.source !== 'core'),
         ...coreCatalog.entries.value.filter((entry) => selectedSources.value.includes('core') && entry.source.source === 'core'),
       ]
     : mainCatalog.entries.value,

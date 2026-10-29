@@ -14,6 +14,8 @@ pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -
     json!([
         resource.source.as_str(),
         normalized_media_rel_path(&resource.rel_path),
+        resource.reference,
+        super::super::cache::references::reference_revision(),
     ])
     .to_string()
 }
@@ -30,6 +32,7 @@ pub(in crate::services::project) struct HullReferenceResolver<'a> {
     core_ships: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
     core_skins: Option<Arc<Vec<SkinFile>>>,
     core_names: Option<BTreeMap<String, String>>,
+    resolved_reference: Option<crate::models::ReferenceSource>,
 }
 
 impl<'a> HullReferenceResolver<'a> {
@@ -39,6 +42,7 @@ impl<'a> HullReferenceResolver<'a> {
             core_ships: None,
             core_skins: None,
             core_names: None,
+            resolved_reference: None,
         }
     }
 
@@ -49,6 +53,7 @@ impl<'a> HullReferenceResolver<'a> {
         field: &str,
     ) -> AppResult<Option<(String, ResourceSource, ResourceOwnerKind)>> {
         let mut current = id.to_string();
+        self.resolved_reference = None;
         let mut seen = BTreeSet::new();
         let mut owner = ResourceOwnerKind::Ship;
         loop {
@@ -81,8 +86,31 @@ impl<'a> HullReferenceResolver<'a> {
             } else {
                 None
             };
+            let external = if source != ResourceSource::Core {
+                self.session.references.iter().find_map(|view| {
+                    view.spec(crate::models::EntityKind::Skin, &current)
+                        .or_else(|| view.spec(crate::models::EntityKind::Ship, &current))
+                        .map(|record| (view, record))
+                })
+            } else {
+                None
+            };
             let (data, origin) = if let Some(data) = local {
                 (data, ResourceSource::Mod)
+            } else if let Some((view, record)) = &external {
+                self.resolved_reference = Some(view.identity.clone());
+                if field == "hullName"
+                    && let Some(name) = view
+                        .table(CsvTableKey::Ships)?
+                        .iter()
+                        .find(|row| {
+                            row.data.get("id").and_then(serde_json::Value::as_str) == Some(&current)
+                        })
+                        .and_then(|row| string_from_row(&row.data, "name"))
+                {
+                    return Ok(Some((name, ResourceSource::Reference, owner)));
+                }
+                (&record.data, ResourceSource::Reference)
             } else {
                 let Some(root) = &self.session.manifest.starsector_root else {
                     return Ok(None);
@@ -154,9 +182,14 @@ impl<'a> HullReferenceResolver<'a> {
     }
 
     pub fn resource(&mut self, source: ResourceSource, id: &str) -> AppResult<Option<ResourceRef>> {
-        Ok(self
-            .field(source, id, "spriteName")?
-            .map(|(path, origin, owner)| resource_ref(origin, &path, owner, id, "thumbnail")))
+        let value = self.field(source, id, "spriteName")?;
+        Ok(value.map(|(path, origin, owner)| {
+            let mut resource = resource_ref(origin, &path, owner, id, "thumbnail");
+            if origin == ResourceSource::Reference {
+                resource.reference = self.resolved_reference.clone();
+            }
+            resource
+        }))
     }
 }
 
@@ -168,6 +201,7 @@ pub(in crate::services::project) fn resource_ref(
     key: &str,
 ) -> ResourceRef {
     ResourceRef {
+        reference: None,
         source,
         rel_path: rel_path.replace('\\', "/"),
         owner_kind,

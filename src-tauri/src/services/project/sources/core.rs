@@ -441,7 +441,7 @@ pub(crate) fn load_core_csv_table(
                 row_index: None,
                 header: csv.header,
                 path: rel.to_string(),
-                rows: Some(rows),
+                rows: Some(rows.into()),
                 next_row_seq,
                 saved_text: None,
             })

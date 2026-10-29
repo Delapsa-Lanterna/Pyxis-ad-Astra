@@ -8,6 +8,7 @@ import { entityTargetFixture } from '@/test/fixtures/entity-target';
 const mocks = vi.hoisted(() => ({
   receive: null as null | ((message: SaveDelivery) => void),
   register: vi.fn(),
+  references: vi.fn(),
   unregister: vi.fn(),
   resolve: vi.fn(),
   wait: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('@/services/project-sync.service', () => ({
   resolveSaveSources: mocks.resolve,
   abandonProjectSaves: mocks.abandon,
   waitProjectSaves: mocks.wait,
+  setReferenceSources: mocks.references,
 }));
 vi.mock('@/services/query-cache.service', () => ({ invalidateQueryCacheByProject: mocks.query }));
 vi.mock('@/services/resource-media.service', () => ({ invalidateResourceMediaByProject: mocks.media }));
@@ -43,6 +45,7 @@ import {
   retryPendingSessionSyncs,
   startProjectSync,
   settleProjectSaves,
+  publishReferenceSources,
 } from './project-sync.orchestrator';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -82,6 +85,34 @@ beforeEach(() => {
 });
 
 describe('ordered save consumption', () => {
+  it('waits for source saves before publishing the captured reference order', async () => {
+    await publishReferenceSources([
+      { sessionId: 'source-b', modRoot: 'M:/beta' },
+      { sessionId: 'source-c', modRoot: 'M:/gamma' },
+    ]);
+    expect(mocks.wait).toHaveBeenCalledExactlyOnceWith(['M:/beta', 'M:/gamma']);
+    expect(mocks.references).toHaveBeenCalledExactlyOnceWith(['source-b', 'source-c']);
+  });
+
+  it('accepts a reference revision once and refreshes content through the existing delivery queue', async () => {
+    const content = vi.fn();
+    await listenSavedContent(content);
+    const update = event();
+    update.reason = 'refresh';
+    update.sessionId = null;
+    update.modRoot = '';
+    update.result.identityChanges = [];
+    update.result.sessionUpdates[0]!.projection.invalidation.session = true;
+    mocks.receive!({ kind: 'references', snapshot: { revision: 100, sources: [] }, event: update });
+    await flushPromises();
+    expect(content).toHaveBeenCalledOnce();
+    expect(mocks.query).toHaveBeenCalledWith('s1', expect.objectContaining({ session: true }));
+    expect(mocks.media).toHaveBeenCalledWith('s1', expect.objectContaining({ session: true }));
+    mocks.receive!({ kind: 'references', snapshot: { revision: 99, sources: [] }, event: event(2) });
+    await flushPromises();
+    expect(content).toHaveBeenCalledOnce();
+  });
+
   it('accepts captured content once after save completion and retains a later draft', async () => {
     const session = useEditTargetDraftSession<{ speed: number }, { id: string }>({
       emptyValue: { speed: 0 },

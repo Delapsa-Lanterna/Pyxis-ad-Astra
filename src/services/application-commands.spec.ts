@@ -8,7 +8,7 @@ import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-stat
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreRoot, queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
-import { requestProjectSessionRefresh, refreshProjectSources } from './project-sync.service';
+import { requestProjectSessionRefresh, refreshProjectSources, setReferenceSources } from './project-sync.service';
 import { queryOriginalFont } from './font.service';
 import { openProject, closeProject } from './project-session.service';
 import {
@@ -47,6 +47,7 @@ const request: NativeWindowRequest = {
 };
 const status: ManagedWindowStatus = { dirty: false, saving: false };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
+  ['set_reference_sources', () => setReferenceSources(['source-b', 'source-c']), { sessionIds: ['source-b', 'source-c'] }],
   ['read_settings', readSettings, undefined],
   ['read_default_settings', readDefaultSettings, undefined],
   ['query_system_fonts', querySystemFonts, undefined],

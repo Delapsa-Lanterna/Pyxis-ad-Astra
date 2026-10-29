@@ -30,7 +30,7 @@ async function show(reset = false) {
     options.count = Number(document.querySelector<HTMLInputElement>('#count')!.value);
     const model = reset || !host.model ? createScenario(options) : host.model;
     if (query.has('readFailure')) model.failures.set('query_joint_edit', '样本来源读取失败，请重试');
-    await host.open(model);
+    await host.open(model, false, query.has('workspace'));
     const definition = scenarios.find((item) => item.id === scene)!;
     await until(() => Boolean(element.querySelector(definition.selector)), definition.label);
     host.setTheme(options.theme);

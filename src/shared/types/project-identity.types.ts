@@ -18,7 +18,7 @@ export type JsonDocumentOrigin =
       target: { kind: Extract<EntityKind, 'faction' | 'mission' | 'variant' | 'skin'>; id: string; relPath: string | null };
     };
 
-export const RESOURCE_SOURCES = ['mod', 'core'] as const;
+export const RESOURCE_SOURCES = ['mod', 'reference', 'core'] as const;
 
 export type ResourceSource = (typeof RESOURCE_SOURCES)[number];
 
@@ -43,11 +43,21 @@ export const RESOURCE_OWNER_KINDS = [
 export type ResourceOwnerKind = (typeof RESOURCE_OWNER_KINDS)[number];
 
 export interface ResourceRef {
+  readonly reference?: ReferenceSource;
   readonly source: ResourceSource;
   readonly relPath: string;
   readonly ownerKind: ResourceOwnerKind;
   readonly ownerId: string;
   readonly key: string;
+}
+
+export interface ReferenceSource {
+  sessionId: string;
+  modRoot: string;
+}
+export interface ReferenceSources {
+  revision: number;
+  sources: ReferenceSource[];
 }
 
 export const TABLE_KEYS = [
@@ -75,6 +85,7 @@ export interface FileVersion {
 }
 
 export interface EntityFileLocation {
+  reference?: ReferenceSource;
   source: ResourceSource;
   root: string;
   relPath: string;

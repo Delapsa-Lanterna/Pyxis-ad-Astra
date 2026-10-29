@@ -13,6 +13,7 @@ use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
+    sync::Arc,
 };
 
 use super::{
@@ -176,6 +177,7 @@ fn invalidate_files(
         let state = session
             .csv_tables
             .get_mut(table.as_str())
+            .map(Arc::make_mut)
             .expect("registered CSV table");
         let retained = state.rows.is_some()
             && state.saved_text.is_some()
@@ -191,9 +193,10 @@ fn invalidate_files(
         let state = session
             .csv_tables
             .get_mut(table.as_str())
+            .map(Arc::make_mut)
             .expect("registered table");
         state.header = header;
-        state.rows = Some(rows);
+        state.rows = Some(rows.into());
         state.row_index = None;
         state.next_row_seq = next_seq;
         state.saved_text = None;
@@ -206,7 +209,7 @@ fn invalidate_files(
         summary.available = Path::new(&session.manifest.mod_root)
             .join(&state.path)
             .exists();
-        summary.total_rows = state.rows.as_ref().map(Vec::len);
+        summary.total_rows = state.rows.as_ref().map(|rows| rows.len());
     }
     for update in updates {
         update.apply(session);
@@ -218,6 +221,7 @@ fn invalidate_files(
         let table = session
             .csv_tables
             .get_mut(super::model::MISSION_LIST_TABLE_KEY)
+            .map(Arc::make_mut)
             .expect("registered mission table");
         table.rows = None;
         table.row_index = None;
@@ -227,6 +231,7 @@ fn invalidate_files(
         let table = session
             .csv_tables
             .get_mut("faction-index")
+            .map(Arc::make_mut)
             .expect("faction index is registered");
         table.header = csv.header.clone();
         table.rows = Some(
@@ -238,7 +243,8 @@ fn invalidate_files(
                     data: row.data.clone(),
                     is_comment: row.is_comment,
                 })
-                .collect(),
+                .collect::<Vec<_>>()
+                .into(),
         );
         table.next_row_seq = csv.rows.len() as u64;
         table.row_index = None;
@@ -257,7 +263,7 @@ fn invalidate_files(
         .cloned()
         .collect();
     sources.flush();
-    session.source_versions.extend(sources.versions);
+    Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(invalidation)
 }
 
@@ -718,6 +724,12 @@ pub(super) fn refresh_sources(
     let mut paths = Vec::new();
     for source in sources {
         let boundary = match source.source {
+            ResourceSource::Reference => {
+                return Err(crate::errors::AppError::message(
+                    "reference.refresh_owner",
+                    "请在来源 Mod 中刷新引用内容",
+                ));
+            }
             ResourceSource::Mod => mod_root.clone(),
             ResourceSource::Core => FsRootBoundary::new(
                 &super::sources::core::core_dir(
@@ -795,7 +807,7 @@ pub(super) fn refresh_sources(
     )?;
     if let Some(records) = core_projectiles {
         session.manifest.entity_summaries.projectiles = records.len();
-        session.projectile_specs = records;
+        session.projectile_specs = records.into();
         result.entities.push(InvalidatedEntityRef {
             kind: EntityKind::Projectile,
             id: None,

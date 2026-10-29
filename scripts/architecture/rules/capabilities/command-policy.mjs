@@ -16,6 +16,7 @@ export const commandOwners = {
   'src/services/project-sync.service.ts': [
     'invalidate_project_session',
     'register_save_window',
+    'set_reference_sources',
     'unregister_save_window',
     'abandon_project_saves',
     'resolve_save_sources',

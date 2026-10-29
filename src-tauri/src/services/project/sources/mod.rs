@@ -475,10 +475,10 @@ impl SourceReader {
                 retain(&record.location.rel_path, &record.data);
             }
         }
-        for file in &session.variant_files {
+        for file in session.variant_files.iter() {
             retain(&file.rel_path, &file.data);
         }
-        for file in &session.skin_files {
+        for file in session.skin_files.iter() {
             retain(&file.rel_path, &file.data);
         }
     }

@@ -12,6 +12,12 @@ import { createThemeColors } from '@/domain/settings/theme';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import { buildThemeOverrides } from '@/app/theme-overrides';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
+import ModTabsBar from './ModTabsBar.vue';
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { useProjectStore } from '@/stores/project.store';
+import { useCoreAssetsStore } from '@/stores/core-assets.store';
+import { useSaveCommandStore } from '@/stores/save-command.store';
+import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 const closeState = ref(false);
 vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowCloseState: () => closeState }));
 const mocks = vi.hoisted(() => ({
@@ -23,6 +29,10 @@ const mocks = vi.hoisted(() => ({
   exit: vi.fn(async () => {}),
   drag: vi.fn(async () => {}),
   error: vi.fn(),
+  refreshWorkspace: vi.fn(),
+  refreshModOverview: vi.fn(),
+  refreshTabInfo: vi.fn(),
+  refreshCore: vi.fn(),
 }));
 vi.mock('@/shared/runtime/clipboard.runtime', () => ({ readClipboardText: mocks.read, writeClipboardText: mocks.write }));
 vi.mock('@/windows/current.window', () => ({
@@ -33,7 +43,11 @@ vi.mock('@/windows/current.window', () => ({
   toggleMaximizeCurrentWindow: vi.fn(async () => {}),
 }));
 vi.mock('@/app/composables/use-workspace-navigation-actions', () => ({
-  useWorkspaceNavigationActions: () => ({ showSettings: mocks.settings, showAbout: mocks.about }),
+  useWorkspaceNavigationActions: () => ({
+    showSettings: mocks.settings,
+    showAbout: mocks.about,
+    coreModRoot: ref('M:/game/starsector-core'),
+  }),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: mocks.error }) }));
 let wrapper: ReturnType<typeof mount>;
@@ -78,7 +92,87 @@ afterEach(() => {
   wrapper?.unmount();
   vi.restoreAllMocks();
 });
+function setupTabs() {
+  const workspace = useWorkspaceStore();
+  for (const name of ['alpha', 'beta']) {
+    workspace.registerMod({ modRoot: `M:/${name}`, displayName: name, version: '', status: 'ready' });
+    useProjectStore().registerProjectManifest(sessionUpdateFixture(name, `M:/${name}`).projection.manifest);
+  }
+  workspace.activateModOverview('M:/alpha');
+  useCoreAssetsStore().reset('M:/game');
+  const parentRefresh = vi.fn();
+  wrapper = mount(ContextMenu, {
+    attachTo: document.body,
+    slots: {
+      default: defineComponent({
+        setup() {
+          useContextMenuScope({ identity: () => workspace.currentView, refresh: parentRefresh });
+          return () => h('main', [h(ModTabsBar, { refreshActions: mocks })]);
+        },
+      }),
+    },
+  });
+  return { workspace, parentRefresh };
+}
 describe('window context menu', () => {
+  it('toggles references on the clicked tab independently of the selected project', async () => {
+    const { workspace } = setupTabs();
+    const tab = wrapper.get('[data-mod-root="M:/beta"]');
+    await open(tab.element);
+    expect((dropdown().props('options')! as { key: string }[]).map((item) => item.key)).toEqual(['设为可引用', 'separator', '刷新']);
+    await select('设为可引用');
+    expect(workspace.mods.get('M:/beta')?.referenceable).toBe(true);
+    expect(tab.classes()).toContain('referenceable');
+    expect(workspace.activeModRoot).toBe('M:/alpha');
+    await open(tab.element);
+    await select('取消可引用');
+    expect(workspace.mods.get('M:/beta')?.referenceable).toBe(false);
+    expect(workspace.mods.get('M:/alpha')?.referenceable).toBe(false);
+  });
+
+  it.each([
+    ['[data-mod-root="M:/beta"]', 'refreshModOverview', ['M:/beta']],
+    ['[data-refresh="workspace"]', 'refreshWorkspace', []],
+    ['[data-refresh="core"]', 'refreshCore', ['M:/game']],
+    ['.mod-tabs-list', 'refreshTabInfo', [['M:/alpha', 'M:/beta']]],
+  ] as const)('refreshes the captured target for %s', async (selector, method, args) => {
+    const { workspace, parentRefresh } = setupTabs();
+    await open(wrapper.get(selector).element);
+    await select('刷新');
+    expect(mocks[method]).toHaveBeenCalledExactlyOnceWith(...args);
+    expect(parentRefresh).not.toHaveBeenCalled();
+    expect(workspace.activeModRoot).toBe('M:/alpha');
+  });
+  it.each(['ready', 'closed', 'reopened', 'unmounted', 'detached'])('checks the captured target after save waiting: %s', async (state) => {
+    const { workspace } = setupTabs();
+    let finish!: () => void;
+    vi.spyOn(useSaveCommandStore(), 'waitForSaves').mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finish = () => resolve(true);
+      }),
+    );
+    await open(wrapper.get('[data-mod-root="M:/beta"]').element);
+    await select('刷新');
+    workspace.showSettings();
+    if (state === 'closed' || state === 'reopened') workspace.removeLoadedModEntry('M:/beta');
+    if (state === 'reopened') workspace.registerMod({ modRoot: 'M:/beta', displayName: 'Beta', version: '', status: 'ready' });
+    if (state === 'unmounted') wrapper.unmount();
+    if (state === 'detached') wrapper.get('[data-mod-root="M:/beta"]').element.remove();
+    finish();
+    await flushPromises();
+    expect(mocks.refreshModOverview.mock.calls).toEqual(state === 'ready' ? [['M:/beta']] : []);
+  });
+  it.each(['loading', 'error'] as const)('keeps a %s tab refresh disabled and skips it by keyboard', async (status) => {
+    const { workspace } = setupTabs();
+    workspace.updateModStatus('M:/beta', status);
+    await flushPromises();
+    await open(wrapper.get('[data-mod-root="M:/beta"]').element);
+    expect(dropdown().props('options')).toContainEqual(expect.objectContaining({ key: '刷新', disabled: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
+    await flushPromises();
+    expect(dropdown().props('value')).toBeUndefined();
+  });
+
   it('closes an open menu and pauses new menus while its window is closing', async () => {
     const own = setup();
     await open(wrapper.get('main').element);

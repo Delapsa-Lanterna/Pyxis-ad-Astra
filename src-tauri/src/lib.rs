@@ -138,6 +138,7 @@ pub fn run() {
                     commands::query_resource_data_urls,
                     commands::invalidate_project_session,
                     commands::register_save_window,
+                    commands::set_reference_sources,
                     commands::unregister_save_window,
                     commands::abandon_project_saves,
                     commands::resolve_save_sources,

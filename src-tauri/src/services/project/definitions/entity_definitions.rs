@@ -351,35 +351,23 @@ fn mission_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>
 }
 
 fn variant_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    variant_entities(session, ResourceSource::Mod)
+    session
+        .variant_files
+        .iter()
+        .map(|item| variant_entity(session, ResourceSource::Mod, item))
+        .collect()
 }
 
 /// Core-only variant entities: the complement a variant reference domain
 /// offers on top of the Mod's own list when a Starsector root is configured.
 fn variant_core_list(session: &ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    variant_entities(session, ResourceSource::Core)
-}
-
-fn variant_entities(
-    session: &ProjectSession,
-    origin: ResourceSource,
-) -> AppResult<Vec<EntityProjection>> {
-    match origin {
-        ResourceSource::Mod => session
-            .variant_files
-            .iter()
-            .map(|item| variant_entity(session, origin, item))
-            .collect(),
-        ResourceSource::Core => {
-            let Some(root) = session.manifest.starsector_root.as_ref() else {
-                return Ok(Vec::new());
-            };
-            load_core_variant_files(root)?
-                .iter()
-                .map(|item| variant_entity(session, origin, item))
-                .collect()
-        }
-    }
+    let Some(root) = session.manifest.starsector_root.as_ref() else {
+        return Ok(Vec::new());
+    };
+    load_core_variant_files(root)?
+        .iter()
+        .map(|item| variant_entity(session, ResourceSource::Core, item))
+        .collect()
 }
 
 fn variant_entity(
@@ -712,7 +700,7 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
         Value::String(format!("data/missions/{clean}")),
     );
     sources.capture_changed_versions(&[&format!("data/missions/{clean}")])?;
-    session.source_versions.extend(sources.versions);
+    std::sync::Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(Some(Value::Object(data)))
 }
 
@@ -779,23 +767,23 @@ impl EntityRefresh {
         self.update_summary(&mut session.manifest.entity_summaries);
         match self {
             Self::Specs { kind, records } => match kind {
-                EntityKind::Ship => session.ship_files = records,
-                EntityKind::Weapon => session.weapon_specs = records,
-                EntityKind::Projectile => session.projectile_specs = records,
-                EntityKind::System => session.system_files = records,
-                EntityKind::Skill => session.skill_files = records,
+                EntityKind::Ship => session.ship_files = records.into(),
+                EntityKind::Weapon => session.weapon_specs = records.into(),
+                EntityKind::Projectile => session.projectile_specs = records.into(),
+                EntityKind::System => session.system_files = records.into(),
+                EntityKind::Skill => session.skill_files = records.into(),
                 _ => unreachable!("spec refresh kinds have a record map"),
             },
             Self::Variant { files, warnings } => {
-                session.variant_files = files;
+                session.variant_files = files.into();
                 session.variant_warnings = warnings;
             }
             Self::Skin { files, warnings } => {
-                session.skin_files = files;
+                session.skin_files = files.into();
                 session.skin_warnings = warnings;
             }
             Self::Faction { files, tags } => {
-                session.faction_files = files;
+                session.faction_files = files.into();
                 session.faction_blueprint_tags = tags;
             }
             Self::Mission(_) => {}

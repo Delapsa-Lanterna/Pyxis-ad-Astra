@@ -1,5 +1,23 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
 const cases = [
+  [
+    'reference-readiness',
+    'src/orchestrators/project-sync.orchestrator.ts',
+    'src/services/project-projection.service.ts',
+    'setReferenceReadiness',
+  ],
+  [
+    'reference-publication',
+    'src/app/composables/use-workspace-shell-lifecycle.ts',
+    'src/orchestrators/project-sync.orchestrator.ts',
+    'publishReferenceSources',
+  ],
+  [
+    'reference-registration',
+    'src/orchestrators/project-sync.orchestrator.ts',
+    'src/services/project-sync.service.ts',
+    'setReferenceSources',
+  ],
   ['save-retry', 'src/orchestrators/project-sync.orchestrator.ts', 'src/services/project-sync.service.ts', 'retryProjectSave'],
   [
     'commit-complete',

@@ -12,12 +12,32 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     let mut session = lock_ready_session(&handle)?;
     let definition = entity_definition(kind)?;
     (definition.prepare)(&mut session)?;
-    let data = (definition.detail)(&mut session, id)?;
+    let info = super::entity_targets::describe_entity_target(&mut session, kind, id)?;
+    let data = if let Some(source) = &info.target.source
+        && let Some(reference) = source.reference.as_deref()
+    {
+        let view = session
+            .references
+            .iter()
+            .find(|view| &view.identity == reference)
+            .expect("reference record owner");
+        view.read(|snapshot| {
+            (definition.prepare)(snapshot)?;
+            (definition.detail)(snapshot, id)
+        })?
+    } else {
+        (definition.detail)(&mut session, id)?
+    };
     let Some(data) = data else {
         return Ok(None);
     };
-    let resource_refs = (definition.resources)(&session, id, &data);
-    let info = super::entity_targets::describe_entity_target(&mut session, kind, id)?;
+    let mut resource_refs = (definition.resources)(&session, id, &data);
+    if kind != EntityKind::Variant
+        && !(kind == EntityKind::Skin && data.get("spriteName").is_none())
+        && let Some(source) = &info.target.source
+    {
+        session.reference_resource(source, &mut resource_refs);
+    }
     super::entity_targets::remember_edit_target(&mut session, &info.target);
     Ok(Some(EntityData {
         target: info.target,
@@ -215,9 +235,11 @@ mod tests {
             },
         );
         let session = super::super::super::model::ProjectSession {
+            reference_revision: 0,
+            references: Vec::new(),
             loaded_edit_targets: Vec::new(),
             projection_pending: false,
-            source_versions: BTreeMap::new(),
+            source_versions: Default::default(),
             manifest: crate::models::ProjectManifest {
                 base_versions: Vec::new(),
                 session_id: "test".to_string(),
@@ -231,18 +253,21 @@ mod tests {
                 entity_summaries: crate::models::EntitySummaries::default(),
                 warnings: Vec::new(),
             },
-            faction_files: BTreeMap::new(),
+            faction_files: Default::default(),
             faction_blueprint_tags: std::collections::HashMap::new(),
-            csv_tables,
-            ship_files: BTreeMap::new(),
-            variant_files: Vec::new(),
-            skin_files: Vec::new(),
+            csv_tables: csv_tables
+                .into_iter()
+                .map(|(key, table)| (key, std::sync::Arc::new(table)))
+                .collect(),
+            ship_files: Default::default(),
+            variant_files: Default::default(),
+            skin_files: Default::default(),
             variant_warnings: Vec::new(),
             skin_warnings: Vec::new(),
-            weapon_specs: BTreeMap::new(),
-            projectile_specs: BTreeMap::new(),
-            system_files: BTreeMap::new(),
-            skill_files: BTreeMap::new(),
+            weapon_specs: Default::default(),
+            projectile_specs: Default::default(),
+            system_files: Default::default(),
+            skill_files: Default::default(),
         };
 
         let error = registered_mission_rows(&session).unwrap_err().to_string();

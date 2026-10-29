@@ -49,6 +49,34 @@ function failure(modRoot: string, message: string): ModOpeningFailure {
 }
 
 describe('workspace active project projection', () => {
+  it('persists reference flags and tab order while retaining the selected project', () => {
+    const workspace = useWorkspaceStore();
+    for (const name of ['alpha', 'beta', 'gamma'])
+      workspace.registerMod({ modRoot: `M:/${name}`, displayName: name, version: '', status: 'ready' });
+    expect(workspace.loadedModList.every((mod) => !mod.referenceable)).toBe(true);
+    workspace.activateModJson('M:/alpha', 'skins');
+    const generation = workspace.getModGeneration('M:/beta');
+    const entry = workspace.mods.get('M:/beta');
+    workspace.setModReferenceable('M:/beta', true);
+    workspace.moveMod('M:/gamma', 'M:/alpha', false);
+    expect(workspace.loadedModList.map((mod) => mod.modRoot)).toEqual(['M:/gamma', 'M:/alpha', 'M:/beta']);
+    expect(workspace.mods.get('M:/beta')).toBe(entry);
+    expect(workspace.getModGeneration('M:/beta')).toBe(generation);
+    expect([workspace.activeModRoot, workspace.currentView, workspace.jsonPage]).toEqual(['M:/alpha', 'json-editor', 'skins']);
+    const snapshot = workspace.toPersistedState();
+    setActivePinia(createPinia());
+    const restored = useWorkspaceStore();
+    restored.applyPersistedWorkspaceSnapshot(snapshot);
+    expect(restored.loadedModList.map((mod) => [mod.modRoot, mod.referenceable])).toEqual([
+      ['M:/gamma', false],
+      ['M:/alpha', false],
+      ['M:/beta', true],
+    ]);
+    restored.removeLoadedModEntry('M:/beta');
+    restored.registerMod({ modRoot: 'M:/beta', displayName: 'beta', version: '', status: 'ready' });
+    expect(restored.mods.get('M:/beta')?.referenceable).toBe(false);
+  });
+
   it.each(['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'] as const)(
     'restores the %s view independently for each Mod',
     (view) => {

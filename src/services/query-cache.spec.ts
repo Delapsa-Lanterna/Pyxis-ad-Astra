@@ -5,7 +5,13 @@ import {
   invalidateQueryCacheByProject,
   invalidateQueryCacheForSession,
 } from './query-cache.service';
-import { markProjectionPending, markProjectionReady } from './project-projection.service';
+import {
+  markProjectionPending,
+  markProjectionReady,
+  setReferenceReadiness,
+  acceptReferenceRevision,
+  currentReferenceRevision,
+} from './project-projection.service';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { DeepReadonly, ProjectInvalidation } from '@/shared/types';
@@ -18,6 +24,41 @@ const createReader = (load: () => Promise<Array<{ name: string }>>) =>
   new CachedSessionQuery<{ id: string }, Array<{ name: string }>>({ queryKind: 'entity-list', load, invalidates: () => true });
 
 describe('session query ownership', () => {
+  it('waits for the first source snapshot before loading or using the cache', async () => {
+    let received!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    setReferenceReadiness(ready);
+    const load = vi.fn(async () => [{ name: 'Current' }]);
+    const read = createReader(load);
+    const value = read.read('reference-ready', { id: 'a' });
+    expect(load).not.toHaveBeenCalled();
+    received();
+    await expect(value).resolves.toEqual([{ name: 'Current' }]);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an old source result as soon as the reference revision changes', async () => {
+    let finish!: (value: []) => void;
+    const load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<[]>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue([{ name: 'New' }]);
+    const read = createReader(load);
+    const pending = read.read('reference-revision', { id: 'a' });
+    acceptReferenceRevision(currentReferenceRevision() + 1);
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
+    finish([]);
+    await rejected;
+    await expect(read.read('reference-revision', { id: 'a' })).resolves.toEqual([{ name: 'New' }]);
+  });
+
   it('logs query loading, sharing, cache hits and invalidation without request or response bodies', async () => {
     const records: AppLogEntry[] = [];
     appLogQueue.install(async (entries) => {

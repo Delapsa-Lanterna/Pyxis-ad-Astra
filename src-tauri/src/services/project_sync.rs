@@ -50,6 +50,7 @@ impl SaveWindow {
 }
 #[derive(Default)]
 struct ProjectSaves {
+    references: crate::models::ReferenceSources,
     windows: BTreeMap<String, SaveWindow>,
     roots: BTreeMap<String, VecDeque<QueuedSave>>,
 }
@@ -188,6 +189,10 @@ pub fn register(
 ) -> AppResult<()> {
     let mut saves = saves()?;
     let window = SaveWindow { root, channel };
+    window.channel.send(SaveDelivery::References {
+        snapshot: saves.references.clone(),
+        event: None,
+    })?;
     for root in saves.roots.keys().filter(|root| window.belongs_to(root)) {
         window.channel.send(SaveDelivery::Waiting {
             mod_root: root.clone(),
@@ -326,6 +331,35 @@ pub fn execute_queued<T: Serialize>(
     }
     saves.finish(&work.root);
     Ok(result)
+}
+
+pub fn publish_references(
+    snapshot: crate::models::ReferenceSources,
+    updates: Vec<crate::models::CommittedSessionUpdate>,
+) -> AppResult<()> {
+    let mut result = WriteResult::<()>::from_changes(Vec::new());
+    result.session_updates = updates;
+    let event = serde_json::to_value(crate::models::CommittedWriteEvent {
+        origin_window_label: "main",
+        mod_root: "",
+        session_id: None,
+        reason: "refresh",
+        result: &result,
+    })?;
+    let mut saves = saves()?;
+    if snapshot.revision < saves.references.revision {
+        return Ok(());
+    }
+    saves.references = snapshot.clone();
+    for window in saves.windows.values() {
+        if let Err(error) = window.channel.send(SaveDelivery::References {
+            snapshot: snapshot.clone(),
+            event: Some(event.clone()),
+        }) {
+            crate::diagnostics::record(format!("reference result delivery: {error}"));
+        }
+    }
+    Ok(())
 }
 
 fn wait_retry(work: &SaveWork, error: &AppError) -> AppResult<()> {

@@ -16,9 +16,10 @@ const action = (label: string, disabled = false): MenuAction => ({
 });
 export interface ContextMenuScope {
   identity: () => string;
-  refresh?: (current: () => boolean) => unknown;
-  canRefresh?: () => boolean;
+  refresh?: (current: () => boolean, target: HTMLElement) => unknown;
+  canRefresh?: (target: HTMLElement) => boolean;
   windowActions?: Record<WindowMenuAction, () => unknown>;
+  actions?: (target: HTMLElement) => Array<{ label: string; disabled?: boolean; run: () => unknown }>;
 }
 type Scope = ContextMenuScope & { root: () => Node | null; revision: number };
 const menuKey: InjectionKey<ReturnType<typeof provideContextMenu>> = Symbol('context-menu');
@@ -41,6 +42,7 @@ export function provideContextMenu() {
     value: string;
     refreshes: Scope[];
     identities: string[];
+    actions: ReturnType<NonNullable<ContextMenuScope['actions']>>;
   } | null>(null);
   const close = () => {
     menu.value = null;
@@ -72,8 +74,8 @@ export function provideContextMenu() {
         (candidate) =>
           !matches.some((other) => other !== candidate && candidate.root() !== other.root() && candidate.root()?.contains(other.root())),
       ) ?? [...scopes].filter((candidate) => !candidate.windowActions).at(-1);
-    const refreshes = (matches.length ? matches : scope ? [scope] : []).filter(
-      (candidate) => candidate.refresh && candidate.canRefresh?.() !== false,
+    const refreshes = (scope?.refresh ? [scope] : matches).filter(
+      (candidate) => candidate.refresh && candidate.canRefresh?.(target) !== false,
     );
     const input = target.closest(
       'textarea, input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=range]):not([type=color])',
@@ -88,6 +90,7 @@ export function provideContextMenu() {
       identity: scope ? scope.revision + ':' + scope.identity() : undefined,
       refreshes,
       identities: refreshes.map((candidate) => candidate.revision + ':' + candidate.identity()),
+      actions: scope?.actions?.(target) ?? [],
       start,
       end,
       value: input?.value ?? '',
@@ -101,6 +104,7 @@ export function provideContextMenu() {
     open,
     current: (captured: NonNullable<typeof menu.value>) =>
       active &&
+      captured.target.isConnected &&
       (!captured.scope ||
         (scopes.has(captured.scope) && captured.identity === captured.scope.revision + ':' + captured.scope.identity())) &&
       captured.refreshes.every(
@@ -151,7 +155,11 @@ export function useWindowContextMenu() {
             action('清空'),
             action('全选'),
           ];
-    return [...(captured.selection ? [action('复制'), divider] : []), action('刷新', !captured.refreshes.length)];
+    return [
+      ...(captured.actions.length ? [...captured.actions.map((item) => action(item.label, item.disabled)), divider] : []),
+      ...(captured.selection && !captured.actions.length ? [action('复制'), divider] : []),
+      action('刷新', !captured.refreshes.length),
+    ];
   });
   function preventBlur(event: MouseEvent) {
     event.preventDefault();
@@ -162,12 +170,14 @@ export function useWindowContextMenu() {
     close();
     try {
       if (!current(captured)) return;
-      if (captured.scope?.windowActions) await captured.scope.windowActions[key as WindowMenuAction]();
+      const business = captured.actions.find((item) => item.label === key);
+      if (business) await business.run();
+      else if (captured.scope?.windowActions) await captured.scope.windowActions[key as WindowMenuAction]();
       else if (key === '刷新') {
         if ((await commands.waitForSaves()) === false || !current(captured)) return;
         for (const scope of captured.refreshes) {
           if (!current(captured)) return;
-          await scope.refresh!(() => current(captured));
+          await scope.refresh!(() => current(captured), captured.target);
         }
       } else {
         const input = captured.target as HTMLInputElement | HTMLTextAreaElement;

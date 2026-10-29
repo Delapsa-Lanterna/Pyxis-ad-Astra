@@ -1,4 +1,5 @@
 import type { JointValue } from '@/shared/types';
+import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { ImmersiveEditorRuntime } from '../use-immersive-editor-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -16,7 +17,7 @@ export function useImmersiveWeaponEditor(runtime: ImmersiveEditorRuntime) {
   async function createOverrides(selected?: string[]) {
     const target = joint.currentTarget.value;
     const admitted = joint.inputs.captureContext();
-    const keys = selected ?? notices.value.filter((record) => record.source?.source === 'core').map((record) => record.key);
+    const keys = selected ?? notices.value.filter((record) => isExternalSource(record.source?.source)).map((record) => record.key);
     try {
       const records = snapshot.value!;
       const spec = records.records.find((record) => record.key === records.bindings.spec);

@@ -198,7 +198,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
     let mut parent_versions =
         std::collections::BTreeMap::<String, Vec<crate::models::FileVersion>>::new();
     if kind == EntityKind::Variant {
-        for parent in &session.variant_files {
+        for parent in session.variant_files.iter() {
             let content = &parent.data;
             for (_, id) in crate::domain::joint_hull::module_entries(content.get("modules")) {
                 parent_versions
@@ -211,14 +211,14 @@ pub(in crate::services::project) fn prepare_entity_targets(
     let mut sources = std::collections::BTreeMap::new();
     match kind {
         EntityKind::Variant => {
-            for record in &session.variant_files {
+            for record in session.variant_files.iter() {
                 sources
                     .entry(record.variant_id.clone())
                     .or_insert_with(|| location(root, &record.rel_path));
             }
         }
         EntityKind::Skin => {
-            for record in &session.skin_files {
+            for record in session.skin_files.iter() {
                 sources
                     .entry(record.skin_hull_id.clone())
                     .or_insert_with(|| location(root, &record.rel_path));
@@ -226,20 +226,22 @@ pub(in crate::services::project) fn prepare_entity_targets(
         }
         EntityKind::Mission => {}
         _ => {
-            let records = match kind {
-                EntityKind::Ship => &session.ship_files,
-                EntityKind::Weapon => &session.weapon_specs,
-                EntityKind::Projectile => &session.projectile_specs,
-                EntityKind::System => &session.system_files,
-                EntityKind::Skill => &session.skill_files,
-                EntityKind::Faction => &session.faction_files,
-                _ => unreachable!("file-backed entity kind"),
-            };
+            let records = session.spec_records(kind).expect("file-backed entity kind");
             sources.extend(
                 records
                     .iter()
                     .map(|(id, record)| (id.clone(), record.location.clone())),
             );
+        }
+    }
+    for view in &session.references {
+        for (id, location) in view.locations(kind) {
+            if sources
+                .get(&id)
+                .is_none_or(|source| source.source == ResourceSource::Core)
+            {
+                sources.insert(id, location);
+            }
         }
     }
     for target in session
@@ -267,7 +269,12 @@ pub(in crate::services::project) fn prepare_entity_targets(
             .csv_tables
             .get(table.as_str())
             .expect("registered table");
-        for row in state.rows.as_ref().expect("associated rows are loaded") {
+        for row in state
+            .rows
+            .as_ref()
+            .expect("associated rows are loaded")
+            .iter()
+        {
             if row.is_comment {
                 continue;
             }
@@ -442,6 +449,7 @@ pub(in crate::services::project) fn describe_entity_target(
 
 pub(crate) fn location(root: &str, rel_path: &str) -> EntityFileLocation {
     EntityFileLocation {
+        reference: None,
         source: ResourceSource::Mod,
         root: root.to_string(),
         rel_path: rel_path.to_string(),

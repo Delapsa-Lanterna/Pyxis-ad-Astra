@@ -1,5 +1,5 @@
 import { beginPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
-import { requireProjectionReady } from '@/services/project-projection.service';
+import { requireProjectionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-projection.service';
 import { createRuntimeCache, type RuntimeCache } from '@/shared/runtime/cache';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
 import { stableStringify } from '@/shared/lib/stable-compare';
@@ -101,12 +101,15 @@ export class CachedSessionQuery<TParameters extends object, TResult> {
   }
   read(sessionId: string, parameters: TParameters, signal?: AbortSignal): Promise<DeepReadonly<TResult>> {
     return observeSessionQuery(this.definition.queryKind, 'load', sessionId, async (observation) => {
+      const ready = waitForReferenceSources();
+      if (ready) await ready;
+      const revision = currentReferenceRevision();
       const definition = this.definition;
       const cache = this.cache;
       const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
       if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
       requireProjectionReady(sessionId);
-      const key = JSON.stringify([sessionId, definition.queryKind, stableStringify(identity.parameters)]);
+      const key = JSON.stringify([sessionId, definition.queryKind, stableStringify(identity.parameters), currentReferenceRevision()]);
       const cached = cache.get(key);
       if (cached) {
         if (observation) observation.cache = 'hit';
@@ -122,8 +125,8 @@ export class CachedSessionQuery<TParameters extends object, TResult> {
       );
       const completed = request.promise
         .then((result) => {
+          requireProjectionReady(sessionId, revision);
           request.accept();
-          requireProjectionReady(sessionId);
           const value = result as DeepReadonly<TResult>;
           if (cache.getPending(key)?.request === request) cache.set(key, { identity, value });
           return value;
@@ -144,6 +147,9 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
   signal?: AbortSignal,
 ): Promise<DeepReadonly<TResult>> {
   return observeSessionQuery(definition.queryKind, 'live', sessionId, async () => {
+    const ready = waitForReferenceSources();
+    if (ready) await ready;
+    const revision = currentReferenceRevision();
     const identity = deepClone({ sessionId, queryKind: definition.queryKind, parameters });
     if (signal?.aborted) throw invalidatedRead(identity, 'consumer');
     requireProjectionReady(sessionId);
@@ -156,8 +162,8 @@ export function readLiveSessionQuery<TParameters extends object, TResult>(
     liveQueries.add(entry);
     const completed = request.promise
       .then((value) => {
+        requireProjectionReady(sessionId, revision);
         request.accept();
-        requireProjectionReady(sessionId);
         return value as DeepReadonly<TResult>;
       })
       .finally(() => liveQueries.delete(entry));

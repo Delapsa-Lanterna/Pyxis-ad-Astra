@@ -340,7 +340,7 @@ export function projectVariantPanel(
         id: schemaStringValue(variant.variantId),
         name: [schemaStringValue(fieldValue('name')), schemaStringValue(variant.displayName)].filter(Boolean).join(' · '),
         source: record.source?.path ?? (record.target.kind === 'spec' ? record.target.target.write.path : record.target.write.path),
-        editable: record.source?.source !== 'core',
+        editable: !record.source || record.source.source === 'mod',
         hull,
         spec,
         weapons,

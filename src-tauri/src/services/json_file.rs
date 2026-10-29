@@ -127,12 +127,14 @@ pub fn save_json_entity_file(
     let result: WriteResult = WriteResult::new(changes, Vec::new(), None);
     let source_id = previous_id.as_deref().unwrap_or(&next_id);
     let before_location = crate::models::EntityFileLocation {
+        reference: None,
         source: crate::models::ResourceSource::Mod,
         root: boundary.root().to_string_lossy().to_string(),
         rel_path: source_rel_path.to_string(),
         path: source_path.to_string_lossy().to_string(),
     };
     let next_location = crate::models::EntityFileLocation {
+        reference: None,
         source: crate::models::ResourceSource::Mod,
         root: boundary.root().to_string_lossy().to_string(),
         rel_path: next_rel_path.clone(),

@@ -1,6 +1,6 @@
 import { watch, type Ref } from 'vue';
 import { useCoreAssetsStore, type CoreAssetState } from '@/stores/core-assets.store';
-import { queryCoreFields, queryCoreGraphics } from '@/services/core-assets.service';
+import { queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from '@/services/core-assets.service';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { errorContextOf, errorDiagnosticOf } from '@/shared/lib/errors';
 import { logFields } from '@/shared/lib/log-fields';
@@ -118,6 +118,15 @@ export function startCoreAssetsLoading(root: Readonly<Ref<string | null>>): () =
 
 export function loadCoreFields(): Promise<void> {
   return loaders.get(useCoreAssetsStore())!.fields.load();
+}
+
+export async function refreshCoreAssets(root: string): Promise<void> {
+  const store = useCoreAssetsStore(),
+    fields = store.fields,
+    runtime = loaders.get(store)!;
+  await invalidateCoreCacheForRoot(root);
+  if (store.root === root && store.fields === fields && loaders.get(store) === runtime)
+    await Promise.all([runtime.fields.load(true, true), runtime.graphics.load(true, true)]);
 }
 
 export function loadCoreGraphics(): Promise<void> {

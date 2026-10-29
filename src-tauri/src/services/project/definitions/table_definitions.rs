@@ -448,6 +448,9 @@ fn weapon_source_resource(
     session: &ProjectSession,
 ) -> AppResult<Option<ResourceRef>> {
     let sprite_path = match source {
+        ResourceSource::Reference => session
+            .reference_spec(crate::models::EntityKind::Weapon, value)
+            .and_then(|record| weapon_sprite_path(&record.data)),
         ResourceSource::Core => core_data.and_then(|core_data| {
             core_data
                 .weapon_specs
@@ -457,7 +460,12 @@ fn weapon_source_resource(
         ResourceSource::Mod => session
             .weapon_specs
             .get(value)
-            .and_then(|record| weapon_sprite_path(&record.data)),
+            .and_then(|record| weapon_sprite_path(&record.data))
+            .or_else(|| {
+                session
+                    .reference_spec(crate::models::EntityKind::Weapon, value)
+                    .and_then(|record| weapon_sprite_path(&record.data))
+            }),
     };
     Ok(sprite_path
         .map(|path| resource_ref(source, &path, ResourceOwnerKind::Weapon, value, "sprite")))
@@ -474,22 +482,8 @@ fn wing_source_resource(
     let Some(variant_id) = string_from_row(row, "variant") else {
         return Ok(None);
     };
-    let hull_id = match source {
-        ResourceSource::Core => core_data.and_then(|core_data| {
-            core_data
-                .variant_files
-                .iter()
-                .find(|variant| variant.variant_id == variant_id)
-                .map(|variant| variant.hull_id.as_str())
-        }),
-        ResourceSource::Mod => session
-            .variant_files
-            .iter()
-            .find(|variant| variant.variant_id == variant_id)
-            .map(|variant| variant.hull_id.as_str()),
-    };
-    match hull_id {
-        Some(hull_id) => hull_resource_ref(session, source, hull_id),
+    match source_variant(source, &variant_id, core_data, session) {
+        Some(variant) => hull_resource_ref(session, source, &variant.hull_id),
         None => Ok(None),
     }
 }
@@ -505,7 +499,22 @@ fn wing_source_display_name(
     let Some(variant_id) = string_from_row(row, "variant") else {
         return Ok(None);
     };
-    let variant = match source {
+    Ok(source_variant(source, &variant_id, core_data, session)
+        .and_then(|variant| string_field(&variant.data, "displayName")))
+}
+
+fn source_variant<'a>(
+    source: ResourceSource,
+    variant_id: &str,
+    core_data: Option<&'a CoreSourceData>,
+    session: &'a ProjectSession,
+) -> Option<&'a crate::models::VariantFile> {
+    match source {
+        ResourceSource::Reference => session
+            .references
+            .iter()
+            .flat_map(|view| view.session.variant_files.iter())
+            .find(|variant| variant.variant_id == variant_id),
         ResourceSource::Core => core_data.and_then(|data| {
             data.variant_files
                 .iter()
@@ -514,9 +523,19 @@ fn wing_source_display_name(
         ResourceSource::Mod => session
             .variant_files
             .iter()
+            .chain(
+                session
+                    .references
+                    .iter()
+                    .flat_map(|view| view.session.variant_files.iter()),
+            )
+            .chain(
+                core_data
+                    .into_iter()
+                    .flat_map(|data| data.variant_files.iter()),
+            )
             .find(|variant| variant.variant_id == variant_id),
-    };
-    Ok(variant.and_then(|variant| string_field(&variant.data, "displayName")))
+    }
 }
 
 fn icon_source_resource(

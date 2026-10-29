@@ -8,6 +8,7 @@ export interface PersistedMod {
   modRoot: string;
   displayName: string;
   version: string;
+  referenceable: boolean;
 }
 
 /** Persisted workspace state (stored to disk via Rust backend) */

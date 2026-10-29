@@ -1,5 +1,5 @@
 use super::super::{
-    cache::csv::read_table_snapshot,
+    cache::csv::{read_table_snapshot, session_table_mut},
     model::{ProjectSession, SessionCsvRow},
 };
 use crate::{
@@ -65,12 +65,10 @@ impl CsvTableDraft {
 
 impl StagedCsvWrite {
     pub(super) fn accept(self, session: &mut ProjectSession) {
-        let state = session
-            .csv_tables
-            .get_mut(self.draft.table.as_str())
+        let state = session_table_mut(session, self.draft.table.as_str())
             .expect("staged CSV table is registered");
         state.header = self.draft.header;
-        state.rows = Some(self.draft.rows);
+        state.rows = Some(self.draft.rows.into());
         state.row_index = None;
         state.next_row_seq = self.draft.next_row_seq;
         state.saved_text = Some(self.text);

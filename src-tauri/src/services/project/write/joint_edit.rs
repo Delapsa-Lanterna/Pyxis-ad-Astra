@@ -117,7 +117,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             && record
                 .source
                 .as_ref()
-                .is_none_or(|source| source.source != ResourceSource::Core)
+                .is_none_or(|source| source.source == ResourceSource::Mod)
         {
             return Err(AppError::message(
                 "joint.override_changed",

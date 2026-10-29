@@ -16,6 +16,10 @@ mod versions;
 pub(in crate::services) mod write;
 
 pub(crate) use cache::media::configure_media_cache;
+pub(crate) use cache::references::reference_updates;
+pub(crate) use cache::references::{
+    reference_revision, reference_sources, reference_sources_changed, set_reference_sources,
+};
 pub(crate) use performance::PerformanceTrace;
 pub(crate) use session::open_project_session_traced;
 pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};

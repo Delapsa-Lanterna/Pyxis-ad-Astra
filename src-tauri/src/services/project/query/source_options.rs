@@ -31,26 +31,35 @@ pub fn query_image_source_options(
     use crate::models::SourceOption;
     use std::path::Path;
     let handle = session_handle(session_id)?;
-    let (mod_root, game_root) = {
+    let (mod_root, game_root, references) = {
         let session = lock_ready_session(&handle)?;
         (
             session.manifest.mod_root.clone(),
             session.manifest.starsector_root.clone(),
+            session.references.clone(),
         )
     };
     if directories.is_empty() {
         return Ok(Vec::new());
     }
-    let mut roots = vec![(ResourceSource::Mod, mod_root.into())];
+    let mut roots = vec![(ResourceSource::Mod, mod_root.into(), None)];
+    roots.extend(references.iter().map(|view| {
+        (
+            ResourceSource::Reference,
+            view.identity.mod_root.clone().into(),
+            Some(view.identity.clone()),
+        )
+    }));
     if let Some(root) = game_root {
         roots.push((
             ResourceSource::Core,
             super::super::sources::core::core_dir(&root)?,
+            None,
         ));
     }
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
-    for (origin, root) in roots {
+    for (origin, root, reference) in roots {
         let boundary = FsRootBoundary::new(&root, "image source root")?;
         let base = mission_id
             .map(|id| {
@@ -109,7 +118,11 @@ pub fn query_image_source_options(
             })
             .collect::<Vec<_>>();
         if !options.is_empty() {
-            groups.push(SourceOptionGroup { origin, options });
+            groups.push(SourceOptionGroup {
+                origin,
+                options,
+                reference,
+            });
         }
     }
     drop(lock_ready_session(&handle)?);
@@ -253,28 +266,56 @@ pub fn query_csv_source_options(
 ) -> AppResult<Vec<SourceOptionGroup>> {
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
-    if let Some(groups) = config_source_option_groups(&session, source)? {
+    let (mut groups, core): (Vec<_>, Vec<_>) = source_catalog(&mut session, source, None)?
+        .into_iter()
+        .partition(|group| group.origin != ResourceSource::Core);
+    for view in &session.references {
+        for mut group in view
+            .read(|snapshot| source_catalog(snapshot, source, Some(&session)))?
+            .into_iter()
+            .filter(|group| group.origin == ResourceSource::Mod)
+        {
+            group.origin = ResourceSource::Reference;
+            group.reference = Some(view.identity.clone());
+            for option in &mut group.options {
+                option.origin = ResourceSource::Reference;
+                if let Some(resource) = &mut option.resource_ref {
+                    view.resource(resource);
+                }
+            }
+            groups.push(group);
+        }
+    }
+    groups.extend(core);
+    let mut seen = BTreeSet::new();
+    for group in &mut groups {
+        group
+            .options
+            .retain(|option| option.template_value.is_some() || seen.insert(option.value.clone()));
+    }
+    groups.retain(|group| !group.options.is_empty());
+    Ok(groups)
+}
+
+fn source_catalog(
+    session: &mut ProjectSession,
+    source: &str,
+    context: Option<&ProjectSession>,
+) -> AppResult<Vec<SourceOptionGroup>> {
+    if let Some(groups) = config_source_option_groups(session, source)? {
         return Ok(groups);
     }
-    if let Some(groups) = entity_source_option_groups(&mut session, source)? {
+    if let Some(groups) = entity_source_option_groups(session, source, context)? {
         return Ok(groups);
     }
     let (table, column) = parse_csv_source(source)?;
     let table_key = table.as_str();
-    ensure_registered_table_rows(&mut session, table)?;
-    {
-        let csv = session.csv_tables.get(table_key).ok_or_else(|| {
-            AppError::message("table.unknown", format!("unknown table: {table_key}"))
-        })?;
-        ensure_source_column(&csv.header, table_key, column)?;
-    }
-    let metadata_catalog = source_token_metadata_catalog(table, column, &mut session)?;
-    let csv = session
-        .csv_tables
-        .get(table_key)
-        .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {table_key}")))?;
+    ensure_registered_table_rows(session, table)?;
+    ensure_source_column(&session.csv_tables[table_key].header, table_key, column)?;
+    let metadata_catalog = source_token_metadata_catalog(table, column, session)?;
+    let csv = &session.csv_tables[table_key];
     let rows = loaded_csv_rows(csv, table_key)?;
-    let starsector_root = session.manifest.starsector_root.clone();
+    let starsector_root = context.unwrap_or(session).manifest.starsector_root.clone();
     let core_csv = if let Some(root) = starsector_root.as_ref() {
         load_core_csv_table(root, table)?
     } else {
@@ -288,12 +329,9 @@ pub fn query_csv_source_options(
         })
         .transpose()?;
     let core_data = if core_rows.is_some() {
-        let root = starsector_root.as_ref().ok_or_else(|| {
-            AppError::message(
-                "resource.core_root_required",
-                "core CSV requires a Starsector root",
-            )
-        })?;
+        let root = starsector_root
+            .as_ref()
+            .expect("Core rows have a configured root");
         Some(load_core_source_data(root, table)?)
     } else {
         None
@@ -306,63 +344,62 @@ pub fn query_csv_source_options(
     } else {
         None
     };
-    let mut resolver = HullReferenceResolver::new(&session);
+    let mut resolver = HullReferenceResolver::new(context.unwrap_or(session));
     let resource_context = SourceOptionResourceContext {
         metadata_catalog: metadata_catalog.as_ref(),
-        session: &session,
+        session: context.unwrap_or(session),
         table,
     };
     let mut seen = BTreeSet::new();
     let mut groups = Vec::new();
-    let mut options = source_options_from_rows(
-        ResourceSource::Mod,
-        rows,
-        column,
-        SourceOptionRowsContext {
-            core_data: None,
-            resource_context,
-            seen: &mut seen,
-        },
-    )?;
-    if table == CsvTableKey::Ships {
-        options.extend(skin_source_options(
-            &session.skin_files,
-            ResourceSource::Mod,
-            column,
-            &mut resolver,
-            resource_context,
-            &mut seen,
-        )?);
-    }
-    if !options.is_empty() {
-        groups.push(SourceOptionGroup {
-            origin: ResourceSource::Mod,
-            options,
-        });
-    }
-    let mut options = if let (Some(core_rows), Some(core_data)) = (core_rows, core_data.as_ref()) {
-        source_options_from_rows(
+    let own_skins = if table == CsvTableKey::Ships {
+        session.skin_files.as_slice()
+    } else {
+        &[]
+    };
+    let core_skins = core_skins.as_deref().map(Vec::as_slice).unwrap_or_default();
+    let mut options = Vec::new();
+    for (origin, rows, data, skins) in [
+        (ResourceSource::Mod, Some(rows), None, own_skins),
+        (
             ResourceSource::Core,
             core_rows,
-            column,
-            SourceOptionRowsContext {
-                core_data: Some(core_data),
-                resource_context,
-                seen: &mut seen,
-            },
-        )?
-    } else {
-        Vec::new()
-    };
-    if let Some(skins) = core_skins.as_ref() {
-        options.extend(skin_source_options(
+            core_data.as_ref(),
+            core_skins,
+        ),
+    ] {
+        let mut values = rows
+            .map(|rows| {
+                source_options_from_rows(
+                    origin,
+                    rows,
+                    column,
+                    SourceOptionRowsContext {
+                        core_data: data,
+                        resource_context,
+                        seen: &mut seen,
+                    },
+                )
+            })
+            .transpose()?
+            .unwrap_or_default();
+        values.extend(skin_source_options(
             skins,
-            ResourceSource::Core,
+            origin,
             column,
             &mut resolver,
             resource_context,
             &mut seen,
         )?);
+        if origin == ResourceSource::Core {
+            options = values;
+        } else if !values.is_empty() {
+            groups.push(SourceOptionGroup {
+                reference: None,
+                origin,
+                options: values,
+            });
+        }
     }
     if let Some(catalog) = metadata_catalog.as_ref().and_then(|catalog| catalog.known) {
         for (value, entry) in &catalog.values {
@@ -393,6 +430,7 @@ pub fn query_csv_source_options(
     }
     if !options.is_empty() {
         groups.push(SourceOptionGroup {
+            reference: None,
             origin: ResourceSource::Core,
             options,
         });
@@ -469,7 +507,11 @@ fn config_source_option_groups(
             })
             .collect::<Vec<_>>();
         if !options.is_empty() {
-            groups.push(SourceOptionGroup { origin, options });
+            groups.push(SourceOptionGroup {
+                origin,
+                options,
+                reference: None,
+            });
         }
     }
     Ok(Some(groups))
@@ -543,6 +585,7 @@ fn skin_source_options(
 fn entity_source_option_groups(
     session: &mut ProjectSession,
     source: &str,
+    context: Option<&ProjectSession>,
 ) -> AppResult<Option<Vec<SourceOptionGroup>>> {
     let key = source.strip_prefix("csv:").unwrap_or(source);
     if key
@@ -591,9 +634,14 @@ fn entity_source_option_groups(
         } else {
             continue;
         };
-        let options = entity_source_options(origin, session, entities, &mut seen)?;
+        let options =
+            entity_source_options(origin, context.unwrap_or(session), entities, &mut seen)?;
         if !options.is_empty() {
-            groups.push(SourceOptionGroup { origin, options });
+            groups.push(SourceOptionGroup {
+                origin,
+                options,
+                reference: None,
+            });
         }
     }
     Ok(Some(groups))
@@ -606,9 +654,17 @@ fn entity_source_options(
     seen: &mut BTreeSet<String>,
 ) -> AppResult<Vec<crate::models::SourceOption>> {
     let mut options = Vec::new();
-    for entity in entities {
+    for mut entity in entities {
         if !seen.insert(entity.id.clone()) {
             continue;
+        }
+        if entity.kind == EntityKind::Variant {
+            entity.resource_refs =
+                super::super::definitions::entity_resources::variant_resource_refs(
+                    session,
+                    ResourceSource::Mod,
+                    &entity.data,
+                );
         }
         options.push(crate::models::SourceOption {
             label: entity_source_option_label(origin, session, &entity)?,
@@ -620,7 +676,9 @@ fn entity_source_options(
                 .next()
                 .cloned()
                 .map(|mut resource| {
-                    resource.source = origin;
+                    if resource.source == ResourceSource::Mod && resource.reference.is_none() {
+                        resource.source = origin;
+                    }
                     resource
                 }),
             origin,

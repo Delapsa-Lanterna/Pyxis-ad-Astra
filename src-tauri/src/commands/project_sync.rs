@@ -33,6 +33,23 @@ pub fn unregister_save_window(window: tauri::WebviewWindow) -> Result<(), AppErr
     services::project_sync::release_window(window.label())
 }
 
+#[command_macros::command(async)]
+pub fn set_reference_sources(
+    window: tauri::WebviewWindow,
+    session_ids: Vec<String>,
+) -> Result<(), AppError> {
+    if window.label() != "main" {
+        return Err(AppError::message(
+            "reference.owner_mismatch",
+            "引用来源只允许由主窗口设置",
+        ));
+    }
+    services::project_sync::publish_references(
+        services::project::set_reference_sources(session_ids)?,
+        services::project::reference_updates()?,
+    )
+}
+
 #[command_macros::command]
 pub fn resolve_save_sources(
     window: tauri::WebviewWindow,

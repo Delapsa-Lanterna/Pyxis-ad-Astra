@@ -3,7 +3,20 @@ import { commandChannel, invokeCommand, invokeSaveCommand } from '@/shared/runti
 import type { SaveDelivery } from '@/shared/types';
 
 export function registerSaveWindow(receive: (delivery: SaveDelivery) => void) {
-  return invokeCommand<void>('register_save_window', { channel: commandChannel(receive) });
+  let received!: () => void;
+  const snapshot = new Promise<void>((resolve) => {
+    received = resolve;
+  });
+  return invokeCommand<void>('register_save_window', {
+    channel: commandChannel((delivery: SaveDelivery) => {
+      receive(delivery);
+      if (delivery.kind === 'references') received();
+    }),
+  }).then(() => snapshot);
+}
+
+export function setReferenceSources(sessionIds: string[]) {
+  return invokeCommand<void>('set_reference_sources', { sessionIds });
 }
 
 export function abandonProjectSaves(modRoots: string[]) {

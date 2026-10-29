@@ -9,6 +9,7 @@ export interface EngineRenderAssets {
 }
 
 export interface ResourceDataUrlBatchEntry {
+  reference?: import('./project-identity.types').ReferenceSource;
   key: string;
   source: ResourceSource;
   relPath: string;
@@ -32,6 +33,7 @@ export interface HullReferenceOption {
 export type HullReferenceKind = 'ship' | 'skin';
 
 export interface HullReferenceGroup {
+  reference?: import('./project-identity.types').ReferenceSource;
   origin: ResourceSource;
   kind: HullReferenceKind;
   options: HullReferenceOption[];

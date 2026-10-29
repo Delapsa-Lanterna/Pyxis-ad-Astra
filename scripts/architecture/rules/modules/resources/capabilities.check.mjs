@@ -7,6 +7,12 @@ const cases = [
   ['core-root-read', 'src/app/composables/use-core-assets.ts', 'src/services/core-assets.service.ts', 'queryCoreRoot'],
   ['core-fields-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreFields'],
   ['core-graphics-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreGraphics'],
+  [
+    'core-refresh-clear',
+    'src/orchestrators/core-assets.orchestrator.ts',
+    'src/services/core-assets.service.ts',
+    'invalidateCoreCacheForRoot',
+  ],
   ['hull-query', 'src/app/composables/use-sample.ts', 'src/services/hull-reference.service.ts', 'queryHullReferenceOptions'],
   [
     'immersive-hull-query',

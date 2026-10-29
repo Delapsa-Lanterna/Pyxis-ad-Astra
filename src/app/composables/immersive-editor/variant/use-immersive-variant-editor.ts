@@ -1,4 +1,5 @@
 import { ref, watch } from 'vue';
+import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { RowData } from '@/shared/types';
 import type { ImmersiveEditorRuntime } from '../use-immersive-editor-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -42,8 +43,8 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
     const admitted = joint.inputs.captureContext();
     try {
       if (!(await commitVariantInputs()) || !runtime.isActive() || !admitted() || joint.currentTarget.value !== target) return false;
-      const core = changes.filter(
-        (change) => snapshot.value!.records.find((record) => record.key === change.key)!.source?.source === 'core',
+      const core = changes.filter((change) =>
+        isExternalSource(snapshot.value!.records.find((record) => record.key === change.key)!.source?.source),
       );
       if (core.length) {
         await createOverrides(core.map((change) => change.key));
@@ -93,7 +94,7 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
         const captured = snapshot.value!,
           graph = displaySnapshot.value!;
         const record = captured.records.find((record) => record.key === key)!;
-        if (record.source?.source === 'core') {
+        if (isExternalSource(record.source?.source)) {
           if (inputCommitted && joint.saving.value) return null;
           await createOverrides([key]);
           return null;
@@ -247,7 +248,7 @@ export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
           return null;
         let graph = displaySnapshot.value!;
         let keys = variantBranchKeys(graph, joint.draftValue.value, key);
-        const core = keys.filter((key) => graph.records.find((record) => record.key === key)!.source?.source === 'core');
+        const core = keys.filter((key) => isExternalSource(graph.records.find((record) => record.key === key)!.source?.source));
         if (core.length) {
           if (!(await joint.createOverrides(core)) || signal.aborted || !runtime.isActive() || joint.currentTargetKey.value !== target)
             return null;

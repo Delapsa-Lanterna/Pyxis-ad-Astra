@@ -67,7 +67,10 @@ export const resourcesCapabilities = [
     {
       capability: 'core-cache-clear',
       names: ['invalidateCoreCacheForRoot'],
-      owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
+      owners: [
+        { layer: 'orchestrators', domain: 'workspace-lifecycle' },
+        { layer: 'orchestrators', domain: 'core-assets' },
+      ],
     },
   ]),
   ...capabilities({ role: 'service', domain: 'resource-reference' }, [

@@ -51,8 +51,10 @@ impl SpriteRoot {
 
 pub(in crate::services::project) struct SpriteReadBatch {
     session_id: String,
+    revision: u64,
     mod_root: SpriteRoot,
     core_root: Option<SpriteRoot>,
+    references: Vec<(crate::models::ReferenceSource, SpriteRoot)>,
     loaded: BTreeMap<String, Option<String>>,
 }
 
@@ -62,6 +64,7 @@ impl SpriteReadBatch {
         let session = lock_ready_session(&handle)?;
         Ok(Self {
             session_id: session_id.to_string(),
+            revision: session.reference_revision,
             mod_root: SpriteRoot::new(PathBuf::from(&session.manifest.mod_root)),
             core_root: session
                 .manifest
@@ -69,6 +72,16 @@ impl SpriteReadBatch {
                 .as_ref()
                 .map(|root| SpriteRoot::new(PathBuf::from(root).join("starsector-core"))),
             loaded: BTreeMap::new(),
+            references: session
+                .references
+                .iter()
+                .map(|view| {
+                    (
+                        view.identity.clone(),
+                        SpriteRoot::new(view.identity.mod_root.clone().into()),
+                    )
+                })
+                .collect(),
         })
     }
 
@@ -77,6 +90,20 @@ impl SpriteReadBatch {
         resource: &ResourceRef,
     ) -> AppResult<Option<String>> {
         let resource_key = media_resource_key(resource);
+        if self.revision != super::super::cache::references::reference_revision() {
+            return Err(AppError::message(
+                "reference.changed",
+                "引用来源已变化，请重新读取",
+            ));
+        }
+        let reference = (resource.source == ResourceSource::Reference)
+            .then(|| {
+                self.references
+                    .iter()
+                    .position(|(identity, _)| Some(identity) == resource.reference.as_ref())
+                    .ok_or_else(|| AppError::message("reference.unavailable", "引用来源已不可用"))
+            })
+            .transpose()?;
         if let Some(result) = self.loaded.get(&resource_key) {
             return Ok(result.clone());
         }
@@ -84,7 +111,21 @@ impl SpriteReadBatch {
             Some(url)
         } else {
             let rel_path = resource.rel_path.replace('\\', "/");
-            let loaded = self.load(resource.source, rel_path.trim().trim_end_matches('/'))?;
+            let loaded = if let Some(index) = reference {
+                let root = &mut self.references[index].1;
+                let loaded = load_sprite_from_boundary(
+                    root.boundary("reference resource root")?,
+                    &rel_path,
+                    "reference sprite",
+                )?;
+                if loaded.is_some() {
+                    loaded
+                } else {
+                    self.load(ResourceSource::Mod, &rel_path)?
+                }
+            } else {
+                self.load(resource.source, rel_path.trim().trim_end_matches('/'))?
+            };
             if let Some(loaded) = loaded {
                 let registry = lock_registry()?;
                 if registry.contains_key(&self.session_id) {
@@ -115,6 +156,15 @@ impl SpriteReadBatch {
             let boundary = self.mod_root.boundary("mod resource root")?;
             if let Some(loaded) = load_sprite_from_boundary(boundary, sprite, "sprite path")? {
                 return Ok(Some(loaded));
+            }
+            for (_, root) in &mut self.references {
+                if let Some(loaded) = load_sprite_from_boundary(
+                    root.boundary("reference resource root")?,
+                    sprite,
+                    "reference sprite",
+                )? {
+                    return Ok(Some(loaded));
+                }
             }
             let Some(core) = self.core_root.as_mut().filter(|root| root.path.exists()) else {
                 return Ok(None);
@@ -267,6 +317,8 @@ mod tests {
     pub(super) fn batch_at(mod_root: &Path, core: Option<&Path>) -> SpriteReadBatch {
         SpriteReadBatch {
             session_id: "sprite-test".into(),
+            revision: super::super::super::cache::references::reference_revision(),
+            references: Vec::new(),
             mod_root: SpriteRoot::new(mod_root.to_path_buf()),
             core_root: core.map(|path| SpriteRoot::new(path.to_path_buf())),
             loaded: BTreeMap::new(),

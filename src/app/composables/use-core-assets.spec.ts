@@ -2,7 +2,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({ ...(await im
 import { createPinia, setActivePinia } from 'pinia';
 import { effectScope, ref, type Ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics } from '@/orchestrators/core-assets.orchestrator';
+import { startCoreAssetsLoading, loadCoreFields, loadCoreGraphics, refreshCoreAssets } from '@/orchestrators/core-assets.orchestrator';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useCoreGraphics } from './use-core-assets';
 import { useCoreSchema } from './use-core-schema';
@@ -11,8 +11,12 @@ import { dispatchProjectChangeFixture, projectChangeListeners } from '@/test/uni
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { flushPromises } from '@vue/test-utils';
 
-const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn() }));
-vi.mock('@/services/core-assets.service', () => ({ queryCoreFields: mocks.fields, queryCoreGraphics: mocks.graphics }));
+const mocks = vi.hoisted(() => ({ fields: vi.fn(), graphics: vi.fn(), log: vi.fn(), clear: vi.fn() }));
+vi.mock('@/services/core-assets.service', () => ({
+  queryCoreFields: mocks.fields,
+  queryCoreGraphics: mocks.graphics,
+  invalidateCoreCacheForRoot: mocks.clear,
+}));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 const fields: Record<string, DiscoveredField[]> = { faction: [{ key: 'bonus', type: 'string', origin: 'core' }] };
 let stop: () => void;
@@ -34,6 +38,27 @@ afterEach(() => {
 });
 
 describe('Core asset ownership and acceptance', () => {
+  it.each([false, true])('clears and reloads an unused Core root with a changed lifetime=%s', async (changed) => {
+    await Promise.all([loadCoreFields(), loadCoreGraphics()]);
+    let finish!: () => void;
+    mocks.clear.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const pending = refreshCoreAssets('D:/A');
+    if (changed) {
+      root.value = 'D:/B';
+      root.value = 'D:/A';
+    }
+    await flushPromises();
+    const calls = mocks.fields.mock.calls.length;
+    finish();
+    await pending;
+    expect(mocks.clear).toHaveBeenCalledExactlyOnceWith('D:/A');
+    expect(mocks.fields).toHaveBeenCalledTimes(calls + Number(!changed));
+    expect(mocks.graphics).toHaveBeenCalledTimes(calls + Number(!changed));
+  });
   async function refresh(path: string, source: 'core' | 'mod' = 'core', gameRoot = 'd:/a') {
     const projection = sessionUpdateFixture('s', 'M:/mod').projection;
     projection.manifest.starsectorRoot = gameRoot;

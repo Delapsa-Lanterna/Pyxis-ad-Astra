@@ -25,6 +25,15 @@
 .mod-tab:hover {
   background: var(--color-surface-hover);
 }
+.mod-tab.referenceable {
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.mod-tab.drop-before {
+  border-left: 2px solid var(--color-primary);
+}
+.mod-tab.drop-after {
+  border-right: 2px solid var(--color-primary);
+}
 .mod-tab.active,
 .mod-tabs-overview.active {
   color: var(--color-primary);

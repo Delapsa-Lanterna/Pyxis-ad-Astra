@@ -2,6 +2,9 @@
 import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from 'vue';
 import { createPinia, disposePinia, type Pinia } from 'pinia';
 import WindowShell from '@/app/WindowShell.vue';
+import ModTabsBar from '@/app/components/ModTabsBar.vue';
+import MainWindowFrame from '@/app/components/MainWindowFrame.vue';
+import TitleBar from '@/app/TitleBar.vue';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { initializeSettings } from '@/orchestrators/settings-persistence.orchestrator';
@@ -14,6 +17,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
+import { useWorkspaceShellActions } from '@/app/composables/use-workspace-shell-actions';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { invalidateQueryCacheForSession } from '@/services/query-cache.service';
 import { resourceMediaStats } from '@/services/resource-media.service';
@@ -71,9 +75,10 @@ export function createBrowserHost(element: HTMLElement) {
     }
     pinia = null;
   }
-  async function open(next: BrowserModel, monitor = false) {
+  async function open(next: BrowserModel, monitor = false, workspacePreview = false) {
     await close();
     model = next;
+    if (workspacePreview) Object.assign(model.manifest, { starsectorRoot: 'M:/game', coreAvailable: true });
     model.rebase(settingsVersion, windowVersion);
     delete element.dataset.selectedId;
     installBrowserModel(model);
@@ -104,6 +109,9 @@ export function createBrowserHost(element: HTMLElement) {
         if (kind) return () => h(SceneContent);
         const workspace = useWorkspaceStore();
         workspace.registerMod({ modRoot: model.manifest.modRoot, displayName: '浏览器样本', version: '', status: 'ready' });
+        if (workspacePreview)
+          for (const name of ['Alpha', 'Beta'])
+            workspace.registerMod({ modRoot: `M:/preview/${name}`, displayName: name, version: '', status: 'ready' });
         useProjectStore().registerProjectManifest(model.manifest);
         if (model.scene === 'json') {
           workspace.activateModJson(model.manifest.modRoot, 'misc-config');
@@ -157,12 +165,29 @@ export function createBrowserHost(element: HTMLElement) {
               });
       },
     });
+    const Tabs = defineComponent({
+      setup() {
+        const refreshActions = useWorkspaceShellActions(useAppFeedback());
+        return () => h(ModTabsBar, { refreshActions });
+      },
+    });
     app = createApp({
       setup: () => () =>
         h(
           WindowShell,
           { mode: 'main', appearance: kind ? 'immersive' : 'application' },
-          { default: () => h('div', { class: 'browser-scene' }, [h(Scene)]) },
+          {
+            default: () =>
+              h('div', { class: 'browser-scene' }, [
+                workspacePreview
+                  ? h(
+                      MainWindowFrame,
+                      { navigationVisible: false, narrow: false, navigationExpanded: false },
+                      { titlebar: () => h(TitleBar), tabs: () => h(Tabs), default: () => h(Scene) },
+                    )
+                  : h(Scene),
+              ]),
+          },
         ),
     }).use(pinia);
     installNaiveUi(app);

@@ -17,7 +17,7 @@ pub(super) fn stage_variant_parents(
     }
     let boundary =
         FsRootBoundary::new(Path::new(&session.manifest.mod_root), "variant parent root")?;
-    for parent in &session.variant_files {
+    for parent in session.variant_files.iter() {
         if parent.variant_id == identity.before.id {
             continue;
         }

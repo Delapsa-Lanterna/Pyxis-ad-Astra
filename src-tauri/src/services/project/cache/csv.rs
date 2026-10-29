@@ -3,7 +3,7 @@ use crate::{
     io::read_versioned_csv,
     models::{CsvTable, CsvTableKey},
 };
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use super::super::model::{
     MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvRow, SessionCsvTable,
@@ -30,7 +30,11 @@ pub(in crate::services::project) fn read_table_snapshot(
                 .expect("retained CSV has complete rows");
             #[cfg(test)]
             crate::io::csv_files::record_csv_row_copies(rows.len());
-            return Ok((retained.header.clone(), rows.clone(), retained.next_row_seq));
+            return Ok((
+                retained.header.clone(),
+                rows.as_ref().clone(),
+                retained.next_row_seq,
+            ));
         }
         CsvTable {
             header: state.header.clone(),
@@ -80,7 +84,8 @@ fn missing_table_source<'a>(
     let retained = session
         .csv_tables
         .values()
-        .find(|table| table.path == relative && table.rows.is_some());
+        .find(|table| table.path == relative && table.rows.is_some())
+        .map(Arc::as_ref);
     if retained.is_none()
         && session
             .source_versions
@@ -119,7 +124,7 @@ pub(in crate::services::project) fn table_snapshot_from_csv(
         ))
     };
     let mut known = std::collections::BTreeMap::<String, std::collections::VecDeque<String>>::new();
-    for row in state.rows.as_deref().unwrap_or(&[]) {
+    for row in state.rows.as_deref().map(Vec::as_slice).unwrap_or(&[]) {
         known
             .entry(key(&row.data, row.is_comment)?)
             .or_default()
@@ -155,6 +160,7 @@ pub(crate) fn session_table<'a>(
     session
         .csv_tables
         .get(table)
+        .map(Arc::as_ref)
         .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {table}")))
 }
 
@@ -169,7 +175,7 @@ pub(crate) fn loaded_csv_rows<'a>(
     table: &'a SessionCsvTable,
     table_label: &str,
 ) -> AppResult<&'a [SessionCsvRow]> {
-    table.rows.as_deref().ok_or_else(|| {
+    table.rows.as_deref().map(Vec::as_slice).ok_or_else(|| {
         AppError::message(
             "table.rows_not_loaded",
             format!("CSV rows are not loaded: {table_label}"),
@@ -191,6 +197,7 @@ pub(crate) fn session_table_mut<'a>(
     session
         .csv_tables
         .get_mut(table)
+        .map(Arc::make_mut)
         .ok_or_else(|| AppError::message("table.unknown", format!("unknown table: {table}")))
 }
 
@@ -242,11 +249,13 @@ pub(crate) fn ensure_session_table_rows(
     if table_state.header.is_empty() {
         table_state.header = csv.header;
     }
-    table_state.rows = Some(rows);
+    table_state.rows = Some(rows.into());
     table_state.row_index = None;
     table_state.next_row_seq = next_row_seq;
     table_state.saved_text = None;
-    session.source_versions.insert(rel_path, version);
+    if session.source_versions.get(&rel_path) != Some(&version) {
+        Arc::make_mut(&mut session.source_versions).insert(rel_path, version);
+    }
     Ok(())
 }
 
@@ -274,9 +283,11 @@ mod tests {
     #[test]
     fn ensure_session_table_rows_rejects_unknown_table() {
         let mut session = ProjectSession {
+            reference_revision: 0,
+            references: Vec::new(),
             loaded_edit_targets: Vec::new(),
             projection_pending: false,
-            source_versions: BTreeMap::new(),
+            source_versions: Default::default(),
             manifest: ProjectManifest {
                 base_versions: Vec::new(),
                 session_id: "test".to_string(),
@@ -290,18 +301,18 @@ mod tests {
                 entity_summaries: EntitySummaries::default(),
                 warnings: Vec::new(),
             },
-            faction_files: BTreeMap::new(),
+            faction_files: Default::default(),
             faction_blueprint_tags: HashMap::new(),
             csv_tables: BTreeMap::new(),
-            ship_files: BTreeMap::new(),
-            variant_files: Vec::new(),
-            skin_files: Vec::new(),
+            ship_files: Default::default(),
+            variant_files: Default::default(),
+            skin_files: Default::default(),
             variant_warnings: Vec::new(),
             skin_warnings: Vec::new(),
-            weapon_specs: BTreeMap::new(),
-            projectile_specs: BTreeMap::new(),
-            system_files: BTreeMap::new(),
-            skill_files: BTreeMap::new(),
+            weapon_specs: Default::default(),
+            projectile_specs: Default::default(),
+            system_files: Default::default(),
+            skill_files: Default::default(),
         };
 
         let error = ensure_session_table_rows(&mut session, "missing")
@@ -327,9 +338,11 @@ mod tests {
         )
         .unwrap();
         let mut session = ProjectSession {
+            reference_revision: 0,
+            references: Vec::new(),
             loaded_edit_targets: Vec::new(),
             projection_pending: false,
-            source_versions: BTreeMap::new(),
+            source_versions: Default::default(),
             manifest: ProjectManifest {
                 base_versions: Vec::new(),
                 session_id: "test".to_string(),
@@ -343,7 +356,7 @@ mod tests {
                 entity_summaries: EntitySummaries::default(),
                 warnings: Vec::new(),
             },
-            faction_files: BTreeMap::new(),
+            faction_files: Default::default(),
             faction_blueprint_tags: HashMap::from([("demo_bp".to_string(), "demo".to_string())]),
             csv_tables: BTreeMap::from([
                 (
@@ -368,16 +381,19 @@ mod tests {
                         saved_text: None,
                     },
                 ),
-            ]),
-            ship_files: BTreeMap::new(),
-            variant_files: Vec::new(),
-            skin_files: Vec::new(),
+            ])
+            .into_iter()
+            .map(|(key, table)| (key, Arc::new(table)))
+            .collect(),
+            ship_files: Default::default(),
+            variant_files: Default::default(),
+            skin_files: Default::default(),
             variant_warnings: Vec::new(),
             skin_warnings: Vec::new(),
-            weapon_specs: BTreeMap::new(),
-            projectile_specs: BTreeMap::new(),
-            system_files: BTreeMap::new(),
-            skill_files: BTreeMap::new(),
+            weapon_specs: Default::default(),
+            projectile_specs: Default::default(),
+            system_files: Default::default(),
+            skill_files: Default::default(),
         };
 
         ensure_session_table_rows(&mut session, CsvTableKey::Ships.as_str()).unwrap();
@@ -397,9 +413,9 @@ mod tests {
         let (header, rows, sequence) = read_table_snapshot(&session, CsvTableKey::Ships).unwrap();
         let retained = read_retained_csv(&session, &expected.path).unwrap();
         assert_eq!(header, expected.header);
-        let saved_rows = expected.rows.unwrap();
+        let saved_rows = expected.rows.clone().unwrap();
         assert_eq!(rows.len(), saved_rows.len());
-        for (restored, saved) in rows.iter().zip(&saved_rows) {
+        for (restored, saved) in rows.iter().zip(saved_rows.iter()) {
             assert_eq!(restored.row_key, saved.row_key);
             assert_eq!(restored.data, saved.data);
             assert_eq!(restored.is_comment, saved.is_comment);
@@ -419,6 +435,7 @@ mod tests {
         session
             .csv_tables
             .get_mut(CsvTableKey::Ships.as_str())
+            .map(Arc::make_mut)
             .unwrap()
             .rows = None;
         for error in [
