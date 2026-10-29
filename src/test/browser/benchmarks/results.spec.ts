@@ -3,7 +3,7 @@ import { summarizeRun } from './results';
 import type { RunOptions, RoundResult } from '../contracts';
 
 const options: RunOptions = {
-  scene: 'settings',
+  scene: 'weapons',
   count: 30,
   resourceSize: 0,
   monitor: false,

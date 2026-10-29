@@ -2,7 +2,6 @@ import { nextTick } from 'vue';
 import type { createBrowserHost } from '../host';
 import { settled, until } from '../scenarios/registry';
 import type { Assertion } from '../contracts';
-import { flushSettings } from '@/orchestrators/settings-persistence.orchestrator';
 
 type Host = ReturnType<typeof createBrowserHost>;
 export const recordAssertion = (assertions: Assertion[], name: string, actual: Assertion['actual'], expected: Assertion['expected']) => {
@@ -27,21 +26,6 @@ export async function exercise(host: Host, element: HTMLElement, assertions: Ass
     recordAssertion(assertions, '候选项选择', element.dataset.selectedId ?? '', row.dataset.entryId!);
     return;
   }
-  if (scene === 'settings') {
-    const before = host.model.settings.theme;
-    element.querySelector<HTMLButtonElement>('.tool-switch')!.click();
-    await settled();
-    await flushSettings();
-    recordAssertion(assertions, '设置修改并保存', host.model.settings.theme !== before, true);
-    return;
-  }
-  if (scene === 'json') {
-    element.querySelector<HTMLElement>('.json-entity-list-item')!.click();
-    await until(() => Boolean(element.querySelector('.json-page input')), 'JSON 编辑器');
-  } else if (scene !== 'csv') {
-    element.querySelector<HTMLButtonElement>('button.immersive-stat-value')!.click();
-    await until(() => Boolean(document.querySelector('.immersive-field-popover input')), '沉浸式字段输入');
-  }
   let input: HTMLInputElement | HTMLTextAreaElement;
   const activate = performance.now();
   if (scene === 'csv') {
@@ -63,22 +47,9 @@ export async function exercise(host: Host, element: HTMLElement, assertions: Ass
   input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
   await settled();
   metrics.input = performance.now() - started;
-  if (!['csv', 'json'].includes(scene)) {
-    [...document.querySelectorAll<HTMLButtonElement>('.immersive-field-actions button')]
-      .find((button) => button.textContent === '提交')!
-      .click();
-    await until(() => !document.querySelector('.immersive-field-popover'), '字段提交');
-  }
   const commit = host.model.saveCount;
   const save = performance.now();
-  if (scene === 'csv' || scene === 'json') await host.save();
-  else {
-    const button = [...element.querySelectorAll<HTMLButtonElement>('.immersive-buttons button')].find(
-      (item) => item.textContent === '保存',
-    )!;
-    button.click();
-    await until(() => host.model.saveCount > commit, '编辑器保存');
-  }
+  await host.save();
   metrics.save = performance.now() - save;
   recordAssertion(assertions, '保存回执', host.model.saveCount > commit, true);
   if (scene === 'csv') recordAssertion(assertions, '保存值', String(host.model.rows[1]!.data.name), value);
@@ -88,18 +59,6 @@ export async function exercise(host: Host, element: HTMLElement, assertions: Ass
   if (scene === 'csv') {
     await until(() => element.textContent!.includes(value), 'CSV 保存后重新读取');
     recordAssertion(assertions, '重新打开显示保存值', element.textContent!.includes(value), true);
-  } else if (scene === 'json') {
-    element.querySelector<HTMLElement>('.json-entity-list-item')!.click();
-    await until(() => Boolean(element.querySelector('.json-page input')), 'JSON 重新读取');
-    recordAssertion(
-      assertions,
-      '重新读取保存值',
-      [...element.querySelectorAll('textarea,input')].some((item) => (item as HTMLInputElement).value === value),
-      true,
-    );
-  } else {
-    await until(() => element.textContent!.includes(value), '编辑器重新读取');
-    recordAssertion(assertions, '重新读取保存值', true, true);
   }
 }
 

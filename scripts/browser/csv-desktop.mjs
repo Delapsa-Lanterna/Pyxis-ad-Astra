@@ -107,7 +107,7 @@ async function prepare(client) {
   const environment = await client.evaluate('({width:innerWidth,height:innerHeight,dpr:devicePixelRatio})');
   if (environment.width !== 1360 || environment.height !== 860 || environment.dpr !== 1.5)
     throw Error('Unexpected viewport: ' + JSON.stringify(environment));
-  const browser = await readFile(new URL('../../src/app/components/csv-editor/csv-rendering.browser.ts', import.meta.url), 'utf8');
+  const browser = await readFile(new URL('../../src/test/browser/cases/csv-desktop.ts', import.meta.url), 'utf8');
   const code = ts
     .transpileModule(browser, { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } })
     .outputText.replace('export function installAudit', 'function installAudit');

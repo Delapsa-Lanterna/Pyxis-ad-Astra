@@ -73,7 +73,7 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   }
   return structuredClone(result) as T;
 }
-async function dispatch(command: string, args: Record<string, unknown>): Promise<unknown> {
+export async function dispatch(command: string, args: Record<string, unknown>, model = browserModel()): Promise<unknown> {
   switch (command) {
     case 'register_save_window':
       saveChannel = args.channel as typeof saveChannel;
@@ -125,7 +125,7 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
       return;
     case 'clear_app_log_file':
       model.logEntries = 0;
-      return dispatch('get_app_log_status', {});
+      return dispatch('get_app_log_status', {}, model);
     case 'open_config_dir':
       return;
     case 'performance_monitor_batch':
@@ -288,8 +288,14 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
         hullNames: { aurora: 'Aurora', sample_hull: 'Sample hull' },
         sprites: {},
         builtInWeaponSlots: {},
-        weaponSlots: {},
-        moduleSlots: {},
+        weaponSlots: {
+          sample_hull: [
+            { id: 'S1', type: 'BALLISTIC', size: 'SMALL', mount: 'HARDPOINT', origin: 'mod' },
+            { id: 'S2', type: 'ENERGY', size: 'MEDIUM', mount: 'TURRET', origin: 'mod' },
+            { id: 'S3', type: 'MISSILE', size: 'LARGE', mount: 'HIDDEN', origin: 'mod' },
+          ],
+        },
+        moduleSlots: { sample_hull: [{ id: 'MODULE', type: 'STATION_MODULE', size: 'LARGE', mount: 'TURRET', origin: 'mod' }] },
       };
     case 'query_joint_edit': {
       const payload = args.payload as JointEditQuery;
@@ -316,6 +322,7 @@ async function dispatch(command: string, args: Record<string, unknown>): Promise
     case 'query_engine_render_assets':
       return { styles: {}, resources: {}, versions: [] } satisfies EngineRenderAssets;
     case 'query_resource_data_urls':
+      if (model.resourceDelay) await new Promise((resolve) => setTimeout(resolve, model.resourceDelay));
       return {
         entries: (args.payload as { resources: { relPath: string }[] }).resources.map((resource) => ({
           ...resource,

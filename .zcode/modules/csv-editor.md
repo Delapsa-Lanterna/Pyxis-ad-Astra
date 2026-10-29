@@ -56,7 +56,6 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 ### 关联
 
-- `scripts/performance/csv-rendering.mjs`：真实 EXE 的首次进入、切表、滚动、字段完整性与绘制完成计时。
 - `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
 - `src-tauri/src/services/project/write/ship_description_tests.rs`：舰船身份与描述行联合更新的集成验证。
 - `src-tauri/src/services/project/write/weapon_description_tests.rs`：武器身份与描述行联合更新的集成验证。

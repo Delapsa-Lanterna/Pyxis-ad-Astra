@@ -1,15 +1,36 @@
-import { browserModel, browserWindowLabel, invoke } from './commands';
-import { listen, emit } from './events';
-export { invoke, listen, emit };
+import { browserModel, browserWindowLabel, invoke as invokeScene } from './commands';
+import { listen as listenScene, emit as emitScene } from './events';
+import { clientWindowLabel, workspaceClient } from '../workspace-runtime';
+export async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const workspace = workspaceClient();
+  return (workspace ? workspace.invoke(clientWindowLabel(), command, args ?? {}) : invokeScene(command, args)) as Promise<T>;
+}
+export async function listen<T>(
+  event: string,
+  handler: (event: { event: string; id: number; payload: T }) => void | Promise<void>,
+  options?: { target?: string },
+) {
+  const workspace = workspaceClient();
+  return workspace
+    ? workspace.listen(clientWindowLabel(), event, handler as never, options?.target)
+    : listenScene(event, handler as never, options);
+}
+export const emit = emitScene;
 export { emitTo } from './events';
 export class Channel<T> {
   constructor(public onmessage: (message: T) => void) {}
 }
 export function getCurrentWindow() {
   return {
-    label: browserWindowLabel(),
-    close: () => emit('browser-close', null),
-    onCloseRequested: (callback: () => void) => listen('browser-close-request', callback),
+    get label() {
+      return workspaceClient() ? clientWindowLabel() : browserWindowLabel();
+    },
+    close: () => {
+      const workspace = workspaceClient();
+      return workspace ? emitScene('browser-close-request', { preventDefault() {} }) : emit('browser-close', null);
+    },
+    onCloseRequested: (callback: (event: { preventDefault(): void }) => void) =>
+      listenScene('browser-close-request', (message) => callback(message.payload as { preventDefault(): void })),
     show: async () => {},
     minimize: async () => {},
     toggleMaximize: async () => {},

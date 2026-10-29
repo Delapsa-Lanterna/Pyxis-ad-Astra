@@ -43,7 +43,7 @@ describe('browser sample service', () => {
     }
   });
   it('delivers monitor samples and maintains reset, export and detailed recording state', async () => {
-    const model = createBrowserModel('settings');
+    const model = createBrowserModel('csv');
     installBrowserModel(model);
     await invoke('performance_monitor_batch', { batch: { samples: [{}, {}] } });
     expect(model.monitor.records).toBe(2);
@@ -58,7 +58,7 @@ describe('browser sample service', () => {
     expect(await invoke('performance_monitor_report', { action: 'reset' })).toMatchObject({ records: 0, overwritten: 0 });
   });
   it('saves settings with revisions and a change event, and restores formal defaults', async () => {
-    const model = createBrowserModel('settings');
+    const model = createBrowserModel('csv');
     installBrowserModel(model);
     const revisions: number[] = [];
     const before = eventListenerCount();

@@ -1,24 +1,11 @@
 import { createBrowserHost } from '../host';
-import { createScenario, scenarios, settled, until } from '../scenarios/registry';
+import { createScenario, performanceScenarios, settled, until } from '../scenarios/registry';
 import { eventListenerCount } from '../runtime/events';
 import { exercise, recordAssertion, scrollList } from '../cases/operations';
 import { summarizeRun } from './results';
 import type { RoundResult, RunOptions } from '../contracts';
 
-export const listCases = [
-  ['csv', 50],
-  ['csv', 300],
-  ['csv', 2000],
-  ['weapons', 30],
-  ['weapons', 100],
-  ['weapons', 800],
-  ['wings', 30],
-  ['wings', 100],
-  ['wings', 800],
-  ['hullmods', 30],
-  ['hullmods', 100],
-  ['hullmods', 800],
-] as const;
+export const listCases = performanceScenarios.flatMap(({ id, counts }) => counts.map((count) => [id, count] as const));
 export function createBenchmark(element: HTMLElement) {
   const host = createBrowserHost(element);
   let listenerBaseline: number | null = null;
@@ -31,20 +18,14 @@ export function createBenchmark(element: HTMLElement) {
       const prepared = performance.now();
       const model = createScenario(options, `${options.scene}-${iteration}`);
       const mounted = await host.open(model, options.monitor);
-      const definition = scenarios.find((scenario) => scenario.id === options.scene)!;
+      const definition = performanceScenarios.find((scenario) => scenario.id === options.scene)!;
       await until(() => Boolean(element.querySelector(definition.selector)), definition.label);
       await settled();
       result.metrics.open = performance.now() - mounted;
       result.metrics.prepare = mounted - prepared;
       if (options.workload !== 'stress' && ['csv', 'weapons', 'wings', 'hullmods'].includes(options.scene)) {
         const panel = element.querySelector<HTMLElement>('.table-panel,.variant-picker-list,.variant-hullmod-list')!;
-        await scrollList(
-          panel,
-          options.count,
-          options.scene === 'csv' ? 24 : options.scene === 'hullmods' ? 36 : 78,
-          options.scene === 'csv' ? '.csv-grid-row[data-row-key]' : '[data-entry-id]',
-          result.metrics,
-        );
+        await scrollList(panel, options.count, definition.rowHeight, definition.selector, result.metrics);
         recordAssertion(result.assertions, '返回后首行节点保留', result.metrics.firstNodeRetained!, 1);
       }
       if (options.workload === 'resources') {

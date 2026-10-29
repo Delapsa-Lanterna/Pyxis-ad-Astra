@@ -63,10 +63,8 @@
 
 ### 消费
 
-- `scripts/browser/`：必须消费浏览器模拟与性能测试台的公共启动工具。
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
 - `src/stores/workspace.store.ts`：当前 Mod、正式清单与 session 的工作区派生投影。
-- `src/test/browser/`：浏览器场景、正式窗口壳与独立样本的共享验收装配。
 - `src/test/unit/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
 - `src/windows/window-context.window.ts`：启动消费的原生 bootstrap、上下文与正式设置交接入口。
 

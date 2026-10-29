@@ -1,12 +1,16 @@
 export interface ScenarioOptions {
-  scene: 'settings' | 'json' | 'csv' | 'ship' | 'skin' | 'weapon' | 'wing' | 'variant' | 'weapons' | 'wings' | 'hullmods';
+  scene: 'csv' | 'ship' | 'skin' | 'weapon' | 'wing' | 'variant' | 'weapons' | 'wings' | 'hullmods' | 'fields' | 'resources' | 'feedback';
+  source?: 'mod' | 'core' | 'all';
   count: number;
   resourceSize: number;
   monitor: boolean;
   theme: 'light' | 'dark';
+  accent?: import('../../shared/types/app-settings.types').AccentPreset;
+  customAccent?: string;
 }
 
 export interface RunOptions extends ScenarioOptions {
+  scene: 'csv' | 'weapons' | 'wings' | 'hullmods';
   workload: 'benchmark' | 'stress' | 'resources';
   warmup: number;
   rounds: number;

@@ -29,20 +29,7 @@ import { variantEditableRecords } from '@/domain/immersive/source-records';
 import { resourceImage } from '../../fixtures/resources';
 import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 
-export const scenarioNames = [
-  'settings',
-  'json',
-  'csv',
-  'ship',
-  'skin',
-  'weapon',
-  'wing',
-  'variant',
-  'weapons',
-  'wings',
-  'hullmods',
-] as const;
-export type BrowserScenario = (typeof scenarioNames)[number];
+export type BrowserScenario = import('../contracts').ScenarioOptions['scene'];
 export const sampleRoot = 'M:/browser-sample';
 const builders = {
   skin: skinJointFixture,
@@ -62,6 +49,7 @@ export function createBrowserModel(
   count = scene === 'csv' ? 50 : 30,
   sessionId = 'browser-sample',
   resourceSize = 0,
+  modRoot = sampleRoot,
 ) {
   const header = [
     'id',
@@ -94,7 +82,7 @@ export function createBrowserModel(
           ),
         }))
       : [];
-  const manifest = sessionUpdateFixture(sessionId, sampleRoot).projection.manifest;
+  const manifest = sessionUpdateFixture(sessionId, modRoot).projection.manifest;
   manifest.modInfo = { name: '浏览器样本' };
   manifest.tableSummaries.ships = { path: 'data/hulls/ship_data.csv', header, available: scene === 'csv', totalRows: rows.length };
   const graphs = new Map<string, JointEditSnapshot>();
@@ -125,7 +113,7 @@ export function createBrowserModel(
     const key = kind + ':' + (id ?? 'default');
     if (!graphs.has(key)) {
       const data = builders[kind]();
-      data.root = { ...data.root, sessionId, modRoot: sampleRoot };
+      data.root = { ...data.root, sessionId, modRoot };
       if (id) {
         const record = data.records.find((r) => r.key === data.bindings[kind === 'wing' ? 'csv' : 'spec'])!;
         const previousId = data.root.id;
@@ -201,7 +189,7 @@ export function createBrowserModel(
             key: 'sprite',
             relPath: resourceSize ? `graphics/${resourceSize}/${id}.svg` : 'graphics/sample.svg',
           };
-          const location = fixtureLocation(sampleRoot, kind + '.csv');
+          const location = fixtureLocation(modRoot, kind + '.csv');
           const hull = previewHull;
           return {
             id,
@@ -262,7 +250,7 @@ export function createBrowserModel(
       value[item.target.kind === 'spec' ? entityContentIdField(item.target.target.kind) : 'id'] = id;
       item.value = { state: 'present', value };
       if (item.target.kind === 'spec') {
-        item.target.target = fixtureSpecTarget(item.target.target.kind, value, sampleRoot);
+        item.target.target = fixtureSpecTarget(item.target.target.kind, value, modRoot);
         item.source = item.target.target.write;
         item.sourceVersion = { path: item.source.path, fingerprint: 'fixture-v1' };
         item.baseVersions = [item.sourceVersion];
@@ -352,7 +340,7 @@ export function createBrowserModel(
       ...savedWriteFixture(),
       content: value === null ? null : { target, value },
     };
-    const update = sessionUpdateFixture(sessionId, sampleRoot);
+    const update = sessionUpdateFixture(sessionId, modRoot);
     update.projection.manifest = structuredClone(manifest);
     result.sessionUpdates = [update];
     return result;
@@ -384,7 +372,7 @@ export function createBrowserModel(
     manifest.tableSummaries.ships.totalRows = rows.length;
     result.baseVersions = [{ path: manifest.tableSummaries.ships.path, fingerprint: String(saveCount) }];
     result.invalidation.queryScopes = [{ kind: 'csv-table-window', table: 'ships', source: null, entity: null, resource: null }];
-    result.sessionUpdates[0] = sessionUpdateFixture(sessionId, sampleRoot);
+    result.sessionUpdates[0] = sessionUpdateFixture(sessionId, modRoot);
     result.sessionUpdates[0].projection.manifest = structuredClone(manifest);
     result.sessionUpdates[0].projection.invalidation = result.invalidation;
     return result;
@@ -427,6 +415,7 @@ export function createBrowserModel(
     manifest,
     monitor,
     failures,
+    resourceDelay: 0,
     miscFiles,
     graph,
     catalog,

@@ -22,6 +22,7 @@
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话投影、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
 - `src-tauri/src/services/project/model.rs`：会话、已加载来源记录、CSV 行及 Core 缓存内部运行模型。
+- `src-tauri/src/services/project/performance_retained_tests.rs`：后端 CSV 会话打开、窗口查询、搜索及写入的固定性能样本。
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭与投影生命周期，注册表句柄经缓存运行时交接。

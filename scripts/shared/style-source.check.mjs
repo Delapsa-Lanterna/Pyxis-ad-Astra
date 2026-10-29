@@ -11,6 +11,28 @@ test('fixed component geometry, local inheritance and feedback values remain ord
   assert.deepEqual(checkStyles(fixture('.control{--dot:green;width:72px;gap:8px;border-radius:50%;box-shadow:0 0 4px var(--dot)}')), []);
 });
 
+test('test directories own styles and imports outside the production style checks', () => {
+  assert.deepEqual(
+    checkStyles([
+      { rel: 'src/test/browser/browser.css', text: '@import "./missing.css"; .sample{display:invalid;color:var(--missing)}' },
+      { rel: 'src/test/browser/entry.ts', text: 'import "./browser.css"' },
+      { rel: 'src/test/browser/Scene.vue', text: '<template><div style="display:block" /></template><style>.sample{color:red}</style>' },
+      { rel: 'test/index.html', text: '<link rel="stylesheet" href="./fixture.css">' },
+      { rel: 'tools/test/fixture.css', text: 'broken {' },
+    ]),
+    [],
+  );
+  assert.ok(
+    checkStyles([{ rel: 'src/testing/fixture.css', text: '.sample{display:invalid}' }]).some((failure) => failure.includes('css.value')),
+  );
+  assert.ok(
+    checkStyles([
+      { rel: 'ui/style.css', text: '.sample{color:var(--test-only)}' },
+      { rel: 'src/test/browser/theme.ts', text: 'root.style.setProperty("--test-only", "red")' },
+    ]).some((failure) => failure.includes('css.variable')),
+  );
+});
+
 test('fixed styles in production templates and scripts belong in the stylesheet entry', () => {
   for (const [rel, text, position] of [
     ['ui/Control.vue', '<template>\n<div style="display:block" /></template>', '2:6'],

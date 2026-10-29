@@ -2,9 +2,6 @@
 import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from 'vue';
 import { createPinia, disposePinia, type Pinia } from 'pinia';
 import WindowShell from '@/app/WindowShell.vue';
-import ModTabsBar from '@/app/components/ModTabsBar.vue';
-import MainWindowFrame from '@/app/components/MainWindowFrame.vue';
-import TitleBar from '@/app/TitleBar.vue';
 import { installNaiveUi } from '@/app/naive-ui.runtime';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { initializeSettings } from '@/orchestrators/settings-persistence.orchestrator';
@@ -17,7 +14,6 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useWorkspaceShellActions } from '@/app/composables/use-workspace-shell-actions';
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { invalidateQueryCacheForSession } from '@/services/query-cache.service';
 import { resourceMediaStats } from '@/services/resource-media.service';
@@ -29,10 +25,9 @@ import { installBrowserModel } from './runtime/commands';
 import { emit } from './runtime/events';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import type { BrowserModel } from './scenarios/model';
-import SchemaFieldRenderer from '@/app/components/schema/SchemaFieldRenderer.vue';
-import { getSchema } from '@/domain/schema/config-schema-registry';
-import type { RowData } from '@/shared/types';
-import './style.css';
+import type { AppSettings } from '@/shared/types';
+import '@/styles/style.css';
+import './browser.css';
 
 const immersiveKinds = ['ship', 'skin', 'weapon', 'wing', 'variant'] as const;
 export function createBrowserHost(element: HTMLElement) {
@@ -78,10 +73,9 @@ export function createBrowserHost(element: HTMLElement) {
     }
     pinia = null;
   }
-  async function open(next: BrowserModel, monitor = false, workspacePreview = false) {
+  async function open(next: BrowserModel, monitor = false) {
     await close();
     model = next;
-    if (workspacePreview) Object.assign(model.manifest, { starsectorRoot: 'M:/game', coreAvailable: true });
     model.rebase(settingsVersion, windowVersion);
     delete element.dataset.selectedId;
     installBrowserModel(model);
@@ -97,9 +91,10 @@ export function createBrowserHost(element: HTMLElement) {
     stopMonitor = startPerformanceMonitor(pinia, monitor);
     model.monitor.enabled = monitor;
     const SceneContent = await (async () => {
-      if (model.scene === 'settings') return (await import('@/app/components/SettingsPage.vue')).default;
+      if (model.scene === 'fields') return (await import('./FieldGallery.vue')).default;
+      if (model.scene === 'resources') return (await import('./ResourceGallery.vue')).default;
+      if (model.scene === 'feedback') return (await import('./FeedbackGallery.vue')).default;
       if (model.scene === 'csv') return (await import('@/app/components/csv-editor/CsvEditorWorkspace.vue')).default;
-      if (model.scene === 'json') return (await import('@/app/components/json-editor/JsonEditorWorkspace.vue')).default;
       if (immersiveKinds.includes(model.scene as (typeof immersiveKinds)[number]))
         return (await import('@/app/ImmersiveEditorContent.vue')).default;
       if (model.scene === 'hullmods') return (await import('@/app/components/immersive/variant/VariantHullmodPicker.vue')).default;
@@ -108,58 +103,11 @@ export function createBrowserHost(element: HTMLElement) {
     const Scene = defineComponent({
       setup() {
         settings = useSettingsStore();
-        if (new URLSearchParams(location.search).has('slots')) {
-          settings.setEditMode('smart');
-          const field = getSchema('variant')!
-            .sections!.flatMap((section) => section.fields)
-            .find((field) => field.key === 'weaponGroups')!
-            .item!.nested!.find((field) => field.key === 'weapons')!;
-          const value = ref<RowData>({});
-          const options = ['S1 · 实弹 · 小型 · 固定', 'S2 · 能量 · 中型 · 炮塔', 'S3 · 导弹 · 大型 · 隐藏'].map((label) => ({
-            value: label.slice(0, 2),
-            label,
-            origin: 'mod' as const,
-            resourceRef: null,
-            description: null,
-          }));
-          const runtimeContext = {
-            sessionId: model.sessionId,
-            modRoot: model.manifest.modRoot,
-            querySourceOptions: async () => [{ origin: 'mod' as const, options }],
-          };
-          return () =>
-            h(SchemaFieldRenderer, {
-              field,
-              value: value.value,
-              runtimeContext,
-              onUpdate: (update) => {
-                if (update.kind === 'set') value.value = update.value as RowData;
-              },
-            });
-        }
-        if (model.scene === 'settings') return () => h(SceneContent);
+        if (['fields', 'resources', 'feedback'].includes(model.scene)) return () => h(SceneContent);
         if (kind) return () => h(SceneContent);
         const workspace = useWorkspaceStore();
         workspace.registerMod({ modRoot: model.manifest.modRoot, displayName: '浏览器样本', version: '', status: 'ready' });
-        if (workspacePreview)
-          for (const name of ['Alpha', 'Beta'])
-            workspace.registerMod({ modRoot: `M:/preview/${name}`, displayName: name, version: '', status: 'ready' });
         useProjectStore().registerProjectManifest(model.manifest);
-        if (model.scene === 'json') {
-          workspace.activateModJson(model.manifest.modRoot, 'misc-config');
-          const feedback = useAppFeedback();
-          const commands = useSaveCommandStore();
-          const save = async () => {
-            try {
-              await useJsonEditorStore().active?.save();
-            } catch (error) {
-              feedback.error(error, '保存杂项配置失败');
-            }
-          };
-          commands.registerActiveSaveHandler(save);
-          onScopeDispose(() => commands.unregisterActiveSaveHandler(save));
-          return () => h(SceneContent);
-        }
         if (model.scene === 'csv') {
           tables = useCsvEditorStore();
           tables.initializeModTables({ sessionId: model.sessionId, modRoot: model.manifest.modRoot, manifest: model.manifest });
@@ -197,28 +145,13 @@ export function createBrowserHost(element: HTMLElement) {
               });
       },
     });
-    const Tabs = defineComponent({
-      setup() {
-        const refreshActions = useWorkspaceShellActions(useAppFeedback());
-        return () => h(ModTabsBar, { refreshActions });
-      },
-    });
     app = createApp({
       setup: () => () =>
         h(
           WindowShell,
           { mode: 'main', appearance: kind ? 'immersive' : 'application' },
           {
-            default: () =>
-              h('div', { class: 'browser-scene' }, [
-                workspacePreview
-                  ? h(
-                      MainWindowFrame,
-                      { navigationVisible: false, narrow: false, navigationExpanded: false },
-                      { titlebar: () => h(TitleBar), tabs: () => h(Tabs), default: () => h(Scene) },
-                    )
-                  : h(Scene),
-              ]),
+            default: () => h('div', { class: 'browser-scene' }, [h(Scene)]),
           },
         ),
     }).use(pinia);
@@ -247,6 +180,14 @@ export function createBrowserHost(element: HTMLElement) {
     },
     get tables() {
       return tables;
+    },
+    get settings() {
+      return settings;
+    },
+    setAppearance(patch: Partial<Pick<AppSettings, 'theme' | 'accent' | 'customAccent'>>) {
+      if (patch.theme) settings.setTheme(patch.theme);
+      if (patch.accent) settings.setAccent(patch.accent);
+      if (patch.customAccent) settings.setCustomAccent(patch.customAccent);
     },
     setTheme: (theme: 'light' | 'dark') => settings.setTheme(theme),
   };

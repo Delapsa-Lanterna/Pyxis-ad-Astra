@@ -26,7 +26,7 @@ test('balances two and three comparison groups by rotating the first group', () 
 function report(time) {
   return {
     options: {
-      scene: 'settings',
+      scene: 'weapons',
       count: 30,
       resourceSize: 0,
       monitor: false,

@@ -32,21 +32,17 @@ npm.cmd run tauri -- build --no-bundle
 
 ## 浏览器模拟与性能测试台
 
-`npm.cmd run dev-browser` 启动场景模拟器，地址为 `http://127.0.0.1:1461`。
+`npm.cmd run dev-browser` 启动测试工作区，地址为 `http://127.0.0.1:1461`。
 `npm.cmd run dev-testbed` 启动性能测试台，地址为 `http://127.0.0.1:1462`。
 
-模拟器提供设置、JSON、CSV、舰船、武器、战机联队、装配及三类候选列表，共 10 个场景。
-地址参数 `?scene=csv&count=300&theme=dark` 选择场景、规模和主题。
-工具栏提供主题切换、重新打开、恢复样本和关闭。
-样本查询、编辑、保存与重新读取共享正式前端组件及内存模拟服务。
-场景显示已支持能力；原生目录和窗口操作返回样本结果。
+地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。
 
 共享基础位于 `src/test/`：
 数据工厂位于 `fixtures/`，单元测试辅助位于 `unit/`，
 浏览器模拟、场景、操作和基准位于 `browser/`。
 `scripts/browser/` 提供服务、生产构建、浏览器执行及报告。
 
-测试台提供规模基准、重复使用压力和资源压力。
+测试台提供 CSV 与三类候选列表的规模基准、重复使用压力和资源压力，点击预览或执行后加载样本。
 默认预热 2 次、正式测量 30 次；重复使用压力默认正式测量 100 次。
 资源压力使用 32、128、512 像素的独立固定生成图片。
 交替比较支持多份页面地址及监视开关，按轮次轮换起始组。
@@ -55,7 +51,7 @@ npm.cmd run tauri -- build --no-bundle
 ### 自动执行
 
 正式性能采样必须使用生产构建。
-下列命令构建测试台、启动 Edge、执行项目并保存 JSON 与 Markdown 报告：
+下列命令连接已运行的浏览器服务、启动 Edge、执行项目并保存 JSON 与 Markdown 报告：
 
 ```powershell
 npm.cmd run test:browser -- --suite smoke
@@ -64,7 +60,7 @@ npm.cmd run test:browser -- --suite browser-ui
 npm.cmd run test:browser -- --suite lists
 npm.cmd run test:browser -- --suite stress
 npm.cmd run test:browser -- --suite resources
-npm.cmd run test:browser -- --suite smoke --scene settings --aa
+npm.cmd run test:browser -- --suite smoke --scene weapons --aa
 npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compare
 ```
 
@@ -72,6 +68,7 @@ npm.cmd run test:browser -- --suite lists --scene csv --count 50 --monitor-compa
 `--first-open` 为每次首次打开创建新浏览器上下文并单独记录。
 `--output <report.json>` 指定报告位置。
 默认输出位于 `node_modules/.cache/browser/reports/`。
+`--url` 指定已运行服务；默认工作区验收连接 1461，其余项目连接 1462。
 
 两份构建的准备和执行方式如下：
 
@@ -92,7 +89,7 @@ npm.cmd run test:browser -- --url http://127.0.0.1:端口A --variant A,http://12
 逐轮顺序、预热及正式样本，以及最小值、最大值、均值、中位数和 nearest-rank P95。
 首次打开与预热后结果必须分别判读。
 CPU 采样由 `node scripts/performance/profile.mjs <DevTools地址> <输出.cpuprofile> <毫秒>` 执行。
-真实 EXE 的 CSV 测量由 `scripts/performance/csv-rendering.mjs` 执行。
+真实 EXE 的 CSV 测量由 `scripts/browser/csv-desktop.mjs` 执行。
 
 ## 改动要求
 

@@ -57,7 +57,6 @@
 
 ## 公共文件
 
-- `scripts/browser/`：浏览器模拟、测试台、生产样本构建、执行与报告的公共工具。
 - `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置及样本统计工具。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
@@ -70,7 +69,9 @@
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、可用 ID 规则与目标身份纯投影。
 - `src/shared/`：前端公共协议、原语、工具与控件。
 - `src/styles/`：按业务及关联组件组织的展示规则与样式入口。
-- `src/test/`：共享数据工厂、单元测试辅助、浏览器模拟运行时、场景、操作与基准。
+- `src/test/fixtures/`：共享测试数据工厂。
+- `src/test/test-foundations.spec.ts`：公共测试基础设施验证。
+- `src/test/unit/`：单元测试挂载、控件与运行时辅助。
 
 ## 模块索引
 
@@ -120,6 +121,7 @@
 - [Spec 战术系统编辑器](modules/spec-system-editor.md)：说明 `.system` spec、schema 表单、type 条件字段与独立窗口保存。
 - [资源与原版回退](modules/assets-core-fallback.md)：说明 `ResourceRef`、Mod/Core 优先级、媒体预算、可见资源集合、引擎样式与逐槽位贴图查询及 Core 来源目录缓存。
 - [后端文件读写与变更集](modules/rust-file-io-changeset.md)：说明 UTF-8 IO、canonical 路径、父链校验、文件或目录快照与 replay。
-- [性能监视](modules/performance-monitor.md)：说明自动计时、运行开关、独立缓冲、时间线报告与性能考核。
+- [性能监视](modules/performance-monitor.md)：说明正式应用自动计时、运行开关、独立缓冲、时间线报告与 CPU 采样。
+- [浏览器预览与测试](modules/browser-testing.md)：说明浏览器预览、场景与窗口替身、功能验收、testbed、性能评估与报告。
 - [静态检查系统](modules/static-checks.md)：说明文本、格式配置、架构静态检查与模块文档契约的入口、边界和规则自检原则。
 - [关于页面](modules/about-page.md)：说明主窗口只读信息页、构建时内联 `CHANGELOG.md`、marked 渲染与 about 路由。

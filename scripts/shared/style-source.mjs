@@ -10,6 +10,7 @@ import { sourcePositions } from './source-position.mjs';
 /** @typedef {{file: StyleFile, imports: Array<{path: string, node: import('css-tree').Atrule}>, definitions: Set<string>, uses: Array<{name: string, fallback: boolean, node: import('css-tree').Declaration}>}} Sheet */
 /** @param {Array<{rel: string, text: string}>} files */
 export function checkStyles(files) {
+  files = files.filter((file) => !file.rel.split('/').includes('test'));
   /** @type {string[]} */
   const failures = [];
   /** @type {Map<string, Sheet>} */
@@ -24,7 +25,7 @@ export function checkStyles(files) {
   }
   /** @param {ts.SourceFile} source @param {StyleFile} file @param {number} [offset] */
   function collectValues(source, file, offset = 0) {
-    const production = !/(?:\.spec\.[cm]?[jt]sx?|\.check\.mjs)$/.test(file.rel) && !file.rel.startsWith('src/test/');
+    const production = !/(?:\.spec\.[cm]?[jt]sx?|\.check\.mjs)$/.test(file.rel);
     /** @param {import('typescript').Node} node */
     function visit(node) {
       if (

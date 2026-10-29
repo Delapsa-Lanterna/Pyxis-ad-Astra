@@ -2,11 +2,11 @@ import { chromium } from 'playwright';
 import { parseArgs } from 'node:util';
 import { unlink, mkdir } from 'node:fs/promises';
 import { resolve, dirname, basename, join } from 'node:path';
-import { serve } from './serve.mjs';
 import { compare, markdown, rotation } from './report.mjs';
 import { verifyUI, verifyBrowserUI } from './ui.mjs';
 import { summarize } from '../shared/sample-statistics.mjs';
 import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
+import { performanceScenarios } from './scenarios.mjs';
 
 /** @typedef {import('../../src/test/browser/contracts').RunOptions} RunOptions */
 /** @typedef {import('../../src/test/browser/contracts').RoundResult} RoundResult */
@@ -45,40 +45,13 @@ try {
   await unlink(output);
   throw error;
 }
-/** @type {Awaited<ReturnType<typeof serve>> | null} */
-let serverToClose = null;
 /** @type {import('playwright').Browser | null} */
 let browserToClose = null;
 const errors = [];
 try {
   await mkdir(artifacts);
-  const server = values.url
-    ? null
-    : await serve({
-        production: !values['dev-smoke'],
-        directory: values.directory,
-        mode: values.suite === 'browser-ui' ? 'browser' : 'testbed',
-      });
-  const url = /** @type {string} */ (values.url ?? server?.url);
-  serverToClose = server;
-  const browser = await chromium.launch({
-    channel: 'msedge',
-    headless: true,
-    args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
-  });
-  browserToClose = browser;
-  const sceneNames = /** @type {const} */ ([
-    'settings',
-    'json',
-    'csv',
-    'ship',
-    'weapon',
-    'wing',
-    'variant',
-    'weapons',
-    'wings',
-    'hullmods',
-  ]);
+  const url = values.url ?? (values.suite === 'browser-ui' ? 'http://127.0.0.1:1461' : 'http://127.0.0.1:1462');
+  const sceneNames = performanceScenarios.map(({ id }) => id);
   const workloads = /** @type {const} */ ({ lists: 'benchmark', stress: 'stress', resources: 'resources', smoke: 'stress' });
   const suite = /** @type {keyof typeof workloads} */ (values.suite);
   /** @type {{ label: string, url: string, monitor: boolean, policy: 'disabled' | 'enabled' | 'code' }[]} */
@@ -101,9 +74,9 @@ try {
   /** @type {{scene: RunOptions['scene'], count: number, resourceSize: number}[]} */
   let cases =
     suite === 'lists'
-      ? ['csv', 'weapons', 'wings', 'hullmods'].flatMap((scene) =>
-          (scene === 'csv' ? [50, 300, 2000] : [30, 100, 800]).map((count) => ({
-            scene: /** @type {RunOptions['scene']} */ (scene),
+      ? performanceScenarios.flatMap(({ id: scene, counts }) =>
+          counts.map((count) => ({
+            scene,
             count,
             resourceSize: 0,
           })),
@@ -117,6 +90,13 @@ try {
       suite === 'lists'
         ? cases.filter((item) => item.count === Number(values.count))
         : cases.map((item) => ({ ...item, count: Number(values.count) }));
+  if (!['ui', 'browser-ui'].includes(values.suite) && !cases.length) throw Error('没有匹配的性能项目：' + (values.scene ?? values.suite));
+  const browser = await chromium.launch({
+    channel: 'msedge',
+    headless: true,
+    args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
+  });
+  browserToClose = browser;
   const warmup = Number(values.warmup);
   const rounds = Number(values.rounds ?? (suite === 'stress' ? 100 : suite === 'smoke' ? 1 : 30));
   /** @type {RunResult[]} */
@@ -134,9 +114,13 @@ try {
   async function newPage(endpoint) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
     const page = await context.newPage();
-    page.on('pageerror', (error) => console.error('PAGE_ERROR ' + error.message));
+    page.on('pageerror', (error) => errors.push(error));
+    page.on('console', (message) => {
+      if (['warning', 'error'].includes(message.type())) errors.push(new Error(message.type() + ': ' + message.text()));
+    });
     await page.goto(endpoint);
-    await page.waitForFunction(() => 'testbed' in globalThis);
+    if (values.suite === 'browser-ui') await page.locator('.browser-workspace-shell').waitFor();
+    else await page.waitForFunction(() => 'testbed' in globalThis);
     return { context, page };
   }
   if (values.suite === 'ui') uiChecks = await verifyUI(browser, url, join(artifacts, 'ui'));
@@ -270,11 +254,6 @@ try {
 } finally {
   try {
     await browserToClose?.close();
-  } catch (error) {
-    errors.push(error);
-  }
-  try {
-    await serverToClose?.close();
   } catch (error) {
     errors.push(error);
   }
