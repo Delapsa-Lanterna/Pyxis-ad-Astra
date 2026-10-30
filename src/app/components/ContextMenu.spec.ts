@@ -127,7 +127,34 @@ describe('window context menu', () => {
     await open(tab.element);
     await select('取消可引用');
     expect(workspace.mods.get('M:/beta')?.referenceable).toBe(false);
-    expect(workspace.mods.get('M:/alpha')?.referenceable).toBe(false);
+    expect(workspace.mods.get('M:/alpha')?.referenceable).toBeUndefined();
+  });
+
+  it('shows automatic references and restores them through the clicked tab menu', async () => {
+    const { workspace } = setupTabs();
+    const project = useProjectStore();
+    for (const id of ['alpha', 'beta']) {
+      const manifest = project.getManifest(`M:/${id}`)!;
+      project.replaceProjectManifest({ ...manifest, modInfo: { id, dependencies: id === 'alpha' ? [{ id: 'beta' }] : [] } });
+    }
+    await flushPromises();
+    const tab = wrapper.get('[data-mod-root="M:/beta"]');
+    expect(tab.classes()).toContain('referenceable');
+    await open(tab.element);
+    expect(dropdown().props('options')).toContainEqual(expect.objectContaining({ key: '取消可引用' }));
+    await select('取消可引用');
+    expect(tab.classes()).not.toContain('referenceable');
+    expect(workspace.toPersistedState().mods[1]?.referenceable).toBe(false);
+    await open(tab.element);
+    expect((dropdown().props('options')! as { key: string }[]).map((item) => item.key)).toEqual([
+      '设为可引用',
+      '恢复自动',
+      'separator',
+      '刷新',
+    ]);
+    await select('恢复自动');
+    expect(tab.classes()).toContain('referenceable');
+    expect(workspace.toPersistedState().mods[1]).not.toHaveProperty('referenceable');
   });
 
   it.each([

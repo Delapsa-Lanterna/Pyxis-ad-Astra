@@ -24,7 +24,8 @@ pub struct PersistedMod {
     pub display_name: String,
     #[serde(default)]
     pub version: String,
-    pub referenceable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub referenceable: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,5 +58,22 @@ mod tests {
         let json = serde_json::json!({ "modRoot": "M:/x", "displayName": "X", "version": "1.2", "referenceable": false });
         let persisted: PersistedMod = serde_json::from_value(json).expect("deserializable");
         assert_eq!(persisted.version, "1.2");
+    }
+
+    #[test]
+    fn persisted_mod_omits_automatic_reference_setting() {
+        for setting in [None, Some(false), Some(true)] {
+            let mut json = serde_json::json!({"modRoot":"M:/sample", "displayName":"Sample"});
+            if let Some(value) = setting {
+                json["referenceable"] = value.into();
+            }
+            let persisted: PersistedMod = serde_json::from_value(json).unwrap();
+            assert_eq!(persisted.referenceable, setting);
+            let saved = serde_json::to_value(persisted).unwrap();
+            assert_eq!(
+                saved.get("referenceable"),
+                setting.map(serde_json::Value::Bool).as_ref()
+            );
+        }
     }
 }

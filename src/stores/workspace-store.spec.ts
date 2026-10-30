@@ -68,13 +68,13 @@ describe('workspace active project projection', () => {
     const restored = useWorkspaceStore();
     restored.applyPersistedWorkspaceSnapshot(snapshot);
     expect(restored.loadedModList.map((mod) => [mod.modRoot, mod.referenceable])).toEqual([
-      ['M:/gamma', false],
-      ['M:/alpha', false],
+      ['M:/gamma', undefined],
+      ['M:/alpha', undefined],
       ['M:/beta', true],
     ]);
     restored.removeLoadedModEntry('M:/beta');
     restored.registerMod({ modRoot: 'M:/beta', displayName: 'beta', version: '', status: 'ready' });
-    expect(restored.mods.get('M:/beta')?.referenceable).toBe(false);
+    expect(restored.mods.get('M:/beta')?.referenceable).toBeUndefined();
   });
 
   it.each(['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'] as const)(
@@ -161,5 +161,60 @@ describe('workspace active project projection', () => {
     register('second', 'M:/alpha');
     expect(first.activeSessionId).toBe('first');
     expect(second.activeSessionId).toBeNull();
+  });
+});
+
+describe('workspace automatic references', () => {
+  function register(id: string, dependencies: string[] = [], status: 'loading' | 'ready' = 'ready') {
+    const modRoot = `M:/${id}`;
+    useWorkspaceStore().registerMod({ modRoot, displayName: id, version: '', status });
+    const manifest = sessionUpdateFixture(id, modRoot).projection.manifest;
+    useProjectStore().registerProjectManifest({ ...manifest, modInfo: { id, dependencies: dependencies.map((id) => ({ id })) } });
+    return modRoot;
+  }
+  it('follows ready dependents and retains a source until its last dependent closes', () => {
+    const workspace = useWorkspaceStore();
+    const source = register('beacon');
+    expect([...workspace.referenceableModRoots]).toEqual([]);
+    const first = register('atlas', ['beacon'], 'loading');
+    expect([...workspace.referenceableModRoots]).toEqual([]);
+    workspace.updateModStatus(first, 'ready');
+    expect([...workspace.referenceableModRoots]).toEqual([source]);
+    const second = register('comet', ['beacon']);
+    workspace.removeLoadedModEntry(first);
+    expect([...workspace.referenceableModRoots]).toEqual([source]);
+    workspace.removeLoadedModEntry(second);
+    expect([...workspace.referenceableModRoots]).toEqual([]);
+  });
+  it('derives chains and mutual dependencies from official manifests', () => {
+    const workspace = useWorkspaceStore();
+    const first = register('atlas', ['beacon']);
+    const second = register('beacon', ['comet']);
+    const third = register('comet');
+    expect([...workspace.referenceableModRoots]).toEqual([second, third]);
+    const manifest = useProjectStore().getManifest(second)!;
+    useProjectStore().replaceProjectManifest({ ...manifest, modInfo: { id: 'beacon', dependencies: [{ id: 'atlas' }] } });
+    expect([...workspace.referenceableModRoots]).toEqual([first, second]);
+    workspace.updateModStatus(second, 'loading');
+    expect([...workspace.referenceableModRoots]).toEqual([]);
+  });
+  it('persists only manual choices and restores automatic results from ready manifests', () => {
+    const workspace = useWorkspaceStore();
+    const first = register('atlas', ['beacon']);
+    const second = register('beacon');
+    const third = register('comet');
+    workspace.setModReferenceable(second, false);
+    workspace.setModReferenceable(third, true);
+    expect([...workspace.referenceableModRoots]).toEqual([third]);
+    const snapshot = workspace.toPersistedState();
+    expect(snapshot.mods.map((mod) => mod.referenceable)).toEqual([undefined, false, true]);
+    expect(snapshot.mods[0]).not.toHaveProperty('referenceable');
+    workspace.applyPersistedWorkspaceSnapshot(snapshot);
+    for (const root of [first, second, third]) workspace.updateModStatus(root, 'ready');
+    expect([...workspace.referenceableModRoots]).toEqual([third]);
+    workspace.setModReferenceable(second, undefined);
+    expect([...workspace.referenceableModRoots]).toEqual([second, third]);
+    expect(workspace.toPersistedState().mods[1]).not.toHaveProperty('referenceable');
+    expect(workspace.mods.get(second)).not.toHaveProperty('referenceable');
   });
 });

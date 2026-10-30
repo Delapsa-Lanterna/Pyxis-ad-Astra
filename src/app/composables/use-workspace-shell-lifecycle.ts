@@ -32,7 +32,7 @@ export function useWorkspaceShellLifecycle(
   watch(
     () =>
       workspace.loadedModList
-        .filter((mod) => mod.referenceable && mod.status === 'ready')
+        .filter((mod) => workspace.referenceableModRoots.has(mod.modRoot))
         .map((mod) => ({ sessionId: useProjectStore().getSessionId(mod.modRoot)!, modRoot: mod.modRoot })),
     (sources, previous) => {
       if (sources.length === previous.length && sources.every((source, index) => source.sessionId === previous[index]!.sessionId)) return;

@@ -40,7 +40,7 @@
         class="mod-tab ui-text-soft ui-layout-row ui-layout-center ui-text-normal ui-content-surface"
         :class="{
           active: workspace.isModView && workspace.activeModRoot === mod.modRoot,
-          referenceable: mod.referenceable,
+          referenceable: workspace.referenceableModRoots.has(mod.modRoot),
           'drop-before': dropTarget?.root === mod.modRoot && !dropTarget.after,
           'drop-after': dropTarget?.root === mod.modRoot && dropTarget.after,
         }"
@@ -118,6 +118,7 @@ useContextMenuScope({
       workspace.loadedModList.map((mod) => [
         mod.modRoot,
         mod.referenceable,
+        workspace.referenceableModRoots.has(mod.modRoot),
         mod.status,
         workspace.getModGeneration(mod.modRoot),
         project.getSessionId(mod.modRoot),
@@ -139,12 +140,16 @@ useContextMenuScope({
     const root = target.closest<HTMLElement>('[data-mod-root]')?.dataset.modRoot;
     if (!root) return [];
     const mod = workspace.mods.get(root)!;
+    const referenceable = workspace.referenceableModRoots.has(root);
     return [
       {
-        label: mod.referenceable ? '取消可引用' : '设为可引用',
+        label: referenceable ? '取消可引用' : '设为可引用',
         disabled: mod.status !== 'ready',
-        run: () => workspace.setModReferenceable(root, !mod.referenceable),
+        run: () => workspace.setModReferenceable(root, !referenceable),
       },
+      ...(mod.referenceable === undefined
+        ? []
+        : [{ label: '恢复自动', disabled: mod.status !== 'ready', run: () => workspace.setModReferenceable(root, undefined) }]),
     ];
   },
 });

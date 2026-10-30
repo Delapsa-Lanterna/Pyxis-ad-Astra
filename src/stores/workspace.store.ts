@@ -12,6 +12,7 @@ import type {
   WorkspaceView,
 } from '@/shared/types';
 import { gameModsDirectoryPath } from '@/shared/lib/paths';
+import { isRowData } from '@/shared/lib/row-data';
 import { useProjectStore } from '@/stores/project.store';
 
 interface ModNavigationContext {
@@ -43,6 +44,24 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeSessionId = computed(() => activeManifest.value?.sessionId ?? null);
   const isModView = computed(() => ['mod-overview', 'file-history', 'json-editor', 'table', 'mod-files'].includes(currentView.value));
   const loadedModList = computed(() => [...mods.value.values()]);
+  const referenceableModRoots = computed(() => {
+    const ready = loadedModList.value.filter((mod) => mod.status === 'ready');
+    const dependencyIds = new Set<string>();
+    for (const mod of ready) {
+      const dependencies = project.getManifest(mod.modRoot)?.modInfo?.dependencies;
+      if (Array.isArray(dependencies))
+        for (const dependency of dependencies)
+          if (isRowData(dependency) && typeof dependency.id === 'string') dependencyIds.add(dependency.id);
+    }
+    return new Set(
+      ready
+        .filter((mod) => {
+          const id = project.getManifest(mod.modRoot)?.modInfo?.id;
+          return mod.referenceable ?? (typeof id === 'string' && dependencyIds.has(id));
+        })
+        .map((mod) => mod.modRoot),
+    );
+  });
   const loadedModCount = computed(() => mods.value.size);
   const hasLoadedMods = computed(() => mods.value.size > 0);
   const hasGameWorkspace = computed(() => gameOverview.value !== null);
@@ -50,16 +69,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const hasModOpeningFailures = computed(() => modOpeningFailures.value.size > 0);
   const hasWorkspaceContext = computed(() => hasGameWorkspace.value || hasLoadedMods.value);
 
-  function registerMod(entry: Omit<ModEntry, 'referenceable'> & { referenceable?: boolean }) {
+  function registerMod(entry: ModEntry) {
     const generation = ++nextModGeneration;
     modGenerations.set(entry.modRoot, generation);
-    mods.value.set(entry.modRoot, { ...entry, referenceable: entry.referenceable ?? false });
+    mods.value.set(entry.modRoot, { ...entry });
     modNavigationContexts.value.set(entry.modRoot, createDefaultModNavigationContext());
     return generation;
   }
 
-  function setModReferenceable(modRoot: string, referenceable: boolean) {
-    mods.value.get(modRoot)!.referenceable = referenceable;
+  function setModReferenceable(modRoot: string, referenceable: boolean | undefined) {
+    const mod = mods.value.get(modRoot)!;
+    if (referenceable === undefined) delete mod.referenceable;
+    else mod.referenceable = referenceable;
   }
 
   function moveMod(modRoot: string, targetRoot: string, after: boolean) {
@@ -226,7 +247,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return {
       mods: loadedModList.value
         .filter((m) => m.status !== 'error')
-        .map((m) => ({ modRoot: m.modRoot, displayName: m.displayName, version: m.version, referenceable: m.referenceable })),
+        .map((m) => ({
+          modRoot: m.modRoot,
+          displayName: m.displayName,
+          version: m.version,
+          ...(m.referenceable === undefined ? {} : { referenceable: m.referenceable }),
+        })),
       starsectorRoot: gameOverview.value?.starsectorRoot ?? null,
       gameMods: gameOverview.value?.mods ?? [],
       gameWarnings: gameOverview.value?.warnings ?? [],
@@ -276,6 +302,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     hasWorkspaceContext,
     loadedModCount,
     loadedModList,
+    referenceableModRoots,
     modOpeningFailureList,
     modOpeningFailures,
     mods,

@@ -314,7 +314,7 @@ describe('useWorkspaceShellActions', () => {
       ['b', b.modRoot, [b.modRoot + '/mod_info.json']],
     ]);
     expect(workspace.loadedModList.map((mod) => [mod.modRoot, mod.referenceable])).toEqual([
-      [a.modRoot, false],
+      [a.modRoot, undefined],
       [b.modRoot, true],
     ]);
     expect([workspace.activeModRoot, workspace.currentView, dirty.value]).toEqual([a.modRoot, 'table', true]);

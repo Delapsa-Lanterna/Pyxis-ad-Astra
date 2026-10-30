@@ -111,12 +111,15 @@ mod tests {
     fn save_then_load_roundtrips() {
         let dir = TestWorkspace::new("ws_roundtrip");
         let state = PersistedWorkspace {
-            mods: vec![PersistedMod {
-                mod_root: "D:/mods/test".to_string(),
-                display_name: "Test Mod".to_string(),
-                version: "1.0".to_string(),
-                referenceable: true,
-            }],
+            mods: [None, Some(false), Some(true)]
+                .into_iter()
+                .map(|referenceable| PersistedMod {
+                    mod_root: "D:/mods/test".to_string(),
+                    display_name: "Test Mod".to_string(),
+                    version: "1.0".to_string(),
+                    referenceable,
+                })
+                .collect(),
             starsector_root: Some("D:/Starsector".to_string()),
             game_mods: vec![],
             game_warnings: vec![],
@@ -130,7 +133,15 @@ mod tests {
         };
         save_workspace(&dir, &state).unwrap();
         let loaded = load_workspace(&dir).unwrap();
-        assert_eq!(loaded.mods.len(), 1);
+        assert_eq!(loaded.mods.len(), 3);
+        assert_eq!(
+            loaded
+                .mods
+                .iter()
+                .map(|entry| entry.referenceable)
+                .collect::<Vec<_>>(),
+            vec![None, Some(false), Some(true)]
+        );
         assert_eq!(loaded.mods[0].display_name, "Test Mod");
         assert_eq!(loaded.column_widths["D:/mods/test"]["ships"]["id"], 120.0);
         dir.close().unwrap();
