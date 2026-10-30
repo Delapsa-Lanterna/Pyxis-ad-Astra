@@ -504,7 +504,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
       expect(vm.editorData.value?.spec).toBe(vm.draftValue.value);
       expect(vm.draftDirty.value).toBe(true);
       const external = { ...original, custom: 'external' };
-      savedSpecChange({
+      void savedSpecChange({
         kind,
         sessionId: 's1',
         modRoot: 'M:/mod',
@@ -557,7 +557,7 @@ describe('useSpecEditorWindowViewModel saving', () => {
     await vm.initializeEditorWindow();
     await flushPromises();
     vm.updateEditorDraft({ ...weapon, projectileSpecId: 'B' });
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       paths: [],
       tables: [],
       entities: [],
@@ -803,7 +803,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
         };
 
   function invalidateDetail() {
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       paths: [],
       tables: [],
       entities: [],
@@ -879,7 +879,7 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
     expect(vm.spriteData.value).toEqual(kind === 'ship' ? {} : {});
     expect(typeof vm.spriteData.value === 'string' ? vm.spriteData.value : (vm.spriteData.value[field] ?? '')).toBe('');
     expect(mocks.feedback.error).toHaveBeenCalledTimes(1);
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       paths: [],
       tables: [],
       entities: [],
@@ -902,12 +902,12 @@ describe.each(['ship', 'weapon'] as const)('%s draft resource lifecycle', (kind)
         spec: spec(path),
         writeResult: { ...writeResultFixture() },
       });
-    external('external.png');
+    void external('external.png');
     await flushPromises();
     expectImage(vm, 'external.png');
     vm.updateEditorDraft(spec('local.png'));
     await flushPromises();
-    external('pending.png');
+    void external('pending.png');
     await flushPromises();
     expectImage(vm, 'local.png');
     vm.loadPendingExternalSpec();

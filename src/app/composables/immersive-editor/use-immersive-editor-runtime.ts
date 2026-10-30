@@ -208,7 +208,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     return !isExternalSource(snapshot.value?.records.find((record) => record.key === field.recordKey)?.source?.source);
   }
   function updateField(field: ImmersiveField, update: SchemaFieldUpdate) {
-    updateFields([{ field, update }]);
+    return updateFields([{ field, update }]);
   }
 
   function updateFields(changes: ImmersiveFieldChange[]) {

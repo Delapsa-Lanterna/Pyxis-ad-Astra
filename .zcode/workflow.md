@@ -46,9 +46,12 @@
 - 必须按改动文件、受影响行为和依赖链选择检查，覆盖范围必须最小。
 - 严禁反复运行检查，检查只有在证明可能存在问题的情况下才允许进行。
 - 格式化、文案、注释和纯静态资源变动严禁仅为确认而运行检查。
-- 任何改动必须运行 `git diff --check`；文本格式必须运行 `lint:checks` 与对应工具，Prettier 必须限定改动文件，Rust 格式检查必须指定所属 Cargo 项目。
-- 前端代码改动必须运行 `lint` 与 `typecheck`；Rust 代码改动必须运行 `lint:rust`。
-- 架构、样式、标识符或编码约束改动必须运行对应检查；检查器实现或规则改动必须运行对应检查器测试。
+- 任何改动必须运行 `git diff --check`。
+- 文本格式必须运行 `lint:checks` 与其他对应工具。
+- 前端代码改动必须运行 `lint` 与 `typecheck`。
+- Rust 代码改动必须运行 `lint:rust`。
+- 架构、样式、标识符或编码约束改动必须运行对应检查。
+- 检查器实现或规则改动必须运行对应检查器测试。
 - 前端构建配置、依赖、资源装配或打包链路改动必须运行 `build`。
 - Tauri 配置、Rust 构建配置、依赖或应用装配改动必须运行 Tauri 构建；其中包含的前端构建必须计入已执行验证。
 - 视觉改动必须人工检查受影响界面。
@@ -77,7 +80,8 @@ git diff --check
 
 - 开发运行使用 `npm.cmd run tauri -- dev`。
 - 无安装包构建使用 `npm.cmd run tauri -- build --no-bundle`，产物位于 `src-tauri\target\release\pyxis-ad-astra.exe`。
-- 验证失败时必须报告完整命令、退出码、失败位置和阻塞条件；命令必须执行到自然结束。
+- 发布前运行完整 CI `format:check`、`lint:full`、`lint:checks`、`typecheck`、`test:checks`、`test:resources`、`test`、`lint:rust`、`test:rust`、`build`、`tauri -- build --no-bundle` 和 `git diff --check`，日常开发不要求完整运行所有重量级命令。
+- 验证失败时必须报告完整命令、退出码、失败位置和阻塞条件。
 
 ## 事后要求
 

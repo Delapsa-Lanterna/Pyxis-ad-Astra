@@ -67,6 +67,7 @@ import { useManagedWindowRequests } from '@/app/composables/use-managed-window-r
 import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/composables/immersive-editor-assembly';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { closeCurrentWindow } from '@/windows/current.window';
 import ImmersiveEditorShell from '@/app/components/immersive/ImmersiveEditorShell.vue';
@@ -88,6 +89,7 @@ const root: JointEditRoot & { kind: import('@/shared/types').JointEditKind; rowK
   ...(rowKey ? { rowKey } : {}),
 };
 const vm = useImmersiveEditorViewModel(root);
+const feedback = useAppFeedback();
 provideFieldInputs(vm.joint.inputs);
 useManagedWindowRequests(async (request) => {
   if (!(await vm.joint.waitForSave())) throw new Error('所属保存尚未完成');
@@ -106,7 +108,7 @@ const closeGuard = useDirtyWindowCloseGuard({
   content: `当前${label}有未保存草稿或活动输入，关闭前确认所属保存。`,
 });
 function closeWindow() {
-  void closeCurrentWindow();
+  void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));
 }
 useShortcutDispatch({
   commands: {

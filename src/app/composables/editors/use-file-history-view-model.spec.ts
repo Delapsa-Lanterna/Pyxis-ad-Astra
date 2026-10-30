@@ -181,10 +181,10 @@ describe('useFileHistoryViewModel', () => {
     expect(mocks.feedback.confirmWarning).not.toHaveBeenCalled();
   });
 
-  it('delegates undo and redo to the replay orchestrators', () => {
+  it('delegates undo and redo to the replay orchestrators', async () => {
     const { value: viewModel } = mountSetup(useFileHistoryViewModel);
-    viewModel.undoOne();
-    viewModel.redoOne();
+    await viewModel.undoOne();
+    await viewModel.redoOne();
     expect(mocks.replayNextFileUndo).toHaveBeenCalledTimes(1);
     expect(mocks.replayNextFileRedo).toHaveBeenCalledTimes(1);
   });

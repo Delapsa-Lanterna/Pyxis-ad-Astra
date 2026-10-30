@@ -97,7 +97,7 @@ const appearanceStyle = computed(() => browserThemeStyle(workspace.value.appeara
 const windowsVersion = ref(0);
 const stop = workspace.value.setWindowListener(() => windowsVersion.value++);
 const windowEntries = computed(() => {
-  windowsVersion.value;
+  void windowsVersion.value;
   return [...workspace.value.windows.entries()];
 });
 onUnmounted(stop);

@@ -66,7 +66,7 @@ describe('image directory candidate lifecycle', () => {
     await flushPromises();
     expect(mocks.error).toHaveBeenCalledOnce();
     expect(state.options.value).toEqual([]);
-    projectChangeFixture('one', savedWriteFixture().invalidation);
+    void projectChangeFixture('one', savedWriteFixture().invalidation);
     await flushPromises();
     expect(state.options.value[0]?.children).toHaveLength(1);
     closeProjectChangeFixture('one');

@@ -27,13 +27,20 @@ export function createAppFeedback(
   const reportedMedia = new WeakSet<MediaReadError>();
   function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '') {
     const actions = reference === null ? [] : fileActions(reference, level, code);
-    const content = () => renderToastContent(text, reference, actions);
+    const content = () => renderToastContent(text, reference, actions, runFileAction);
     if (level === 'error') message.error(content, { duration: 0 });
     else if (level === 'warning') message.warning(content);
     else if (level === 'info') message.info(content);
     else message.success(content);
   }
-  return {
+  async function runFileAction(action: FeedbackFileAction) {
+    try {
+      await action.run();
+    } catch (error) {
+      feedback.error(error, '文件操作失败');
+    }
+  }
+  const feedback: WindowFeedback = {
     fileActions,
     success: (text) => showToast('success', text),
     info: (text) => showToast('info', text),
@@ -76,9 +83,15 @@ export function createAppFeedback(
     confirmWarning: (options) => showConfirm(dialog, 'warning', options),
     choose: (options) => showChoose(dialog, options),
   };
+  return feedback;
 }
 
-function renderToastContent(text: string, reference: FileReference | null, actions: FeedbackFileAction[]): VNode {
+function renderToastContent(
+  text: string,
+  reference: FileReference | null,
+  actions: FeedbackFileAction[],
+  run: (action: FeedbackFileAction) => Promise<void>,
+): VNode {
   const rows: VNode[] = [h('span', { class: 'app-toast-text' }, text)];
   if (reference !== null) {
     const locationText = reference.line
@@ -94,7 +107,11 @@ function renderToastContent(text: string, reference: FileReference | null, actio
         {
           default: () =>
             actions.map((action) =>
-              h(NButton, { size: 'tiny', type: action.type, secondary: true, onClick: action.run }, { default: () => action.label }),
+              h(
+                NButton,
+                { size: 'tiny', type: action.type, secondary: true, onClick: () => void run(action) },
+                { default: () => action.label },
+              ),
             ),
         },
       ),

@@ -87,11 +87,11 @@ export function useFileHistoryViewModel() {
   }
 
   function undoOne() {
-    replayNextFileUndo(project, tables, feedback);
+    return replayNextFileUndo(project, tables, feedback);
   }
 
   function redoOne() {
-    replayNextFileRedo(project, tables, feedback);
+    return replayNextFileRedo(project, tables, feedback);
   }
 
   return {

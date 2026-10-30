@@ -121,7 +121,7 @@ describe('window close event isolation', () => {
     expect(main.reply).not.toHaveBeenCalled();
     expect(peer.reply).not.toHaveBeenCalled();
     expect(broadcast).toHaveBeenCalledTimes(4);
-    await stopBroadcast();
+    stopBroadcast();
     child.wrapper.unmount();
     await flushPromises();
     expect(main.wrapper.attributes('inert')).toBeUndefined();

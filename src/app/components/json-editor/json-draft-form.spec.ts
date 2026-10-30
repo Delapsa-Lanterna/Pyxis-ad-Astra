@@ -252,7 +252,9 @@ beforeEach(() => {
     return { request, missingPaths: [], baseVersions: source.baseVersions, currentSources: { file: source.modInfo }, resourceRefs: {} };
   });
   mocks.feedback.choose.mockResolvedValue('follow');
-  mocks.feedback.confirmWarning.mockImplementation((options) => options.onConfirm());
+  mocks.feedback.confirmWarning.mockImplementation((options) => {
+    void options.onConfirm();
+  });
   mocks.previews.mockResolvedValue({ logoSrc: '', crestSrc: '' });
   mocks.slots.mockResolvedValue([]);
   mocks.miscList.mockResolvedValue([
@@ -317,7 +319,7 @@ describe('JSON common workspace and form', () => {
       navigation = useWorkspaceNavigationActions(),
       editors = useJsonEditorStore();
     await list.props('setSearch')('b', 'id');
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       ...savedWriteFixture().invalidation,
       queryScopes: [{ kind: 'entity-list', entity: { kind: 'variant', id: '' }, table: null, source: null, resource: null }],
     });
@@ -886,7 +888,7 @@ describe('JSON common workspace and form', () => {
         ? { request, baseVersions: [], currentSources: {}, resourceRefs: {}, missingPaths: ['source.json'] }
         : prepare(request),
     );
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       ...savedWriteFixture().invalidation,
       queryScopes: [{ kind: 'entity-detail', entity: { kind, id: 'a' }, table: null, source: null, resource: null }],
     });
@@ -913,7 +915,7 @@ describe('JSON common workspace and form', () => {
         .find((button) => button.text() === '放弃编辑并继续')!
         .trigger('click');
       await flushPromises();
-      mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+      void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
     } else {
       expect(mocks.feedback.confirmDanger.mock.lastCall![0].content).toContain('源文件已不存在');
       await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
@@ -929,7 +931,7 @@ describe('JSON common workspace and form', () => {
       .find((button) => button.text() === (action === 'discard' ? '放弃编辑并继续' : '删除'))!
       .trigger('click');
     await flushPromises();
-    if (action === 'discard') mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    if (action === 'discard') void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
     else await mocks.feedback.confirmDanger.mock.lastCall![0].onConfirm();
     await flushPromises();
     expect(wrapper!.find('[data-entity-id="a"]').exists()).toBe(false);

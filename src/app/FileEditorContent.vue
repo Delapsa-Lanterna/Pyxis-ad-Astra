@@ -92,6 +92,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch 
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import { useWindowContext } from '@/windows/window-context.window';
@@ -100,6 +101,7 @@ import { pathBasename, pathBelongsToRoot, relativePathFromRoot } from '@/shared/
 
 const context = useWindowContext('file-editor').value;
 const settings = useSettingsStore();
+const feedback = useAppFeedback();
 const initialFilePath = context.identity.path;
 const modRoot = context.identity.modRoot;
 const sessionId = context.identity.type === 'file' ? context.identity.sessionId : null;
@@ -224,7 +226,11 @@ function loadExternalText() {
 }
 
 async function closeEditorWindow() {
-  await closeCurrentWindow();
+  try {
+    await closeCurrentWindow();
+  } catch (error) {
+    feedback.error(error, '关闭窗口失败');
+  }
 }
 
 // Text surface: undo/redo must work inside the textarea, so this surface opts in.
@@ -239,7 +245,7 @@ useShortcutDispatch({
 });
 
 onMounted(() => {
-  void closeGuard.install();
+  void closeGuard.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
 });
 
 watch([targetLine, targetColumn], () => void nextTick(scrollToTargetLine));

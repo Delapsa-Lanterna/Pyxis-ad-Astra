@@ -96,7 +96,7 @@ describe('joint snapshot session acceptance', () => {
       'identity',
     );
     mocks.open.mockResolvedValue({ ...snapshot, root: next });
-    projectChangeFixture('s', update.projection.invalidation);
+    void projectChangeFixture('s', update.projection.invalidation);
     await flushPromises();
     expect(mocks.open).toHaveBeenLastCalledWith(next);
     wrapper.unmount();

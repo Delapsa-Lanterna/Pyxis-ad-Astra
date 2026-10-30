@@ -139,7 +139,7 @@ describe('ship built-in read and image lifecycle', () => {
     own.created[0]!.onerror!();
     await flushPromises();
     expect(own.runtime.diagnostics.value).toContain('槽位 A · 武器 first：first.png 贴图解码失败');
-    projectChangeFixture('s', { ...savedWriteFixture().invalidation, paths: ['weapons'] });
+    void projectChangeFixture('s', { ...savedWriteFixture().invalidation, paths: ['weapons'] });
     await flushPromises();
     expect(mocks.query).toHaveBeenCalledTimes(2);
     own.created.at(-1)!.onload!();

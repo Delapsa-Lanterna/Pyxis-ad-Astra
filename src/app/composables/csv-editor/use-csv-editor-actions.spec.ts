@@ -52,7 +52,7 @@ describe('CSV editor actions', () => {
     const feedback = feedbackStub();
     const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
     const select = actions.selectAssociatedSpecs;
-    (feedback.choose as ReturnType<typeof vi.fn>).mockImplementationOnce(async (options: ChooseOptions) => {
+    vi.mocked(feedback.choose).mockImplementationOnce(async (options: ChooseOptions) => {
       const content = options.content as () => import('vue').VNode;
       const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
       try {

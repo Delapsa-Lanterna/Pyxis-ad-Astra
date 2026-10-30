@@ -54,7 +54,7 @@ void bootstrap().catch((error) => {
     installVueErrorHandlers(app);
     app.mount(target);
   }
-  void showCurrentWindow();
+  void showCurrentWindow().catch(reportStartupError);
 });
 
 function reportStartupError(error: unknown) {

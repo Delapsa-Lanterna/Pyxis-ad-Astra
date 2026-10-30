@@ -203,7 +203,7 @@ const closeGuard = useDirtyWindowCloseGuard({
 });
 
 function closeWindow() {
-  void closeCurrentWindow();
+  void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));
 }
 
 function openProjectile(projectileId: string) {
@@ -233,7 +233,7 @@ useShortcutDispatch({
 });
 
 onMounted(() => {
-  void closeGuard.install();
+  void closeGuard.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
 });
 
 onUnmounted(() => {

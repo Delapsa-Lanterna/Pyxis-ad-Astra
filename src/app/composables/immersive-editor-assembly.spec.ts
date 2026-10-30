@@ -788,7 +788,7 @@ describe('wing joint source handoff', () => {
     await vm.initialize();
     const panel = vm.panel.value;
     if (panel?.kind !== 'wing') throw new Error('wing fixture');
-    vm.updateField(panel.technical.find((stat) => stat.id === 'num')!.fields[0]!, { kind: 'set', value: 4 });
+    void vm.updateField(panel.technical.find((stat) => stat.id === 'num')!.fields[0]!, { kind: 'set', value: 4 });
     const saved = structuredClone(baseline);
     saved.root.id = 'next-wing';
     saved.records.find((record) => record.key === 'wing')!.value = {
@@ -836,7 +836,7 @@ describe('wing joint source handoff', () => {
     await vm.initialize();
     const panel = vm.panel.value;
     if (panel?.kind !== 'wing') throw new Error('wing fixture');
-    vm.updateField(panel.technical.find((stat) => stat.id === 'num')!.fields[0]!, { kind: 'set', value: 4 });
+    void vm.updateField(panel.technical.find((stat) => stat.id === 'num')!.fields[0]!, { kind: 'set', value: 4 });
     let raw = '1e';
     const inputDirty = ref(true);
     vm.joint.inputs.register({
@@ -864,7 +864,7 @@ describe('wing joint source handoff', () => {
     mocks.query.mockResolvedValue(next);
     const update = sessionUpdateFixture('s', 'M:/mod');
     update.projection.invalidation.paths = ['data/hulls/wing_data.csv'];
-    projectChangeFixture('s', update.projection.invalidation);
+    void projectChangeFixture('s', update.projection.invalidation);
     await flushPromises();
     expect(vm.joint.currentTarget.value!.id).toBe('renamed-wing');
     expect(vm.joint.draftValue.value['next-wing']).toMatchObject({ state: 'present', value: { id: 'renamed-wing', num: '4' } });
@@ -886,7 +886,9 @@ describe('wing joint source handoff', () => {
     const { vm, wrapper } = editor('wing');
     await vm.initialize();
     const fields = vm.panel.value!.heading[0]!.fields;
-    vm.updateFields(fields.map((field, index) => ({ field, update: { kind: 'set' as const, value: index ? 'New variant' : 'New hull' } })));
+    void vm.updateFields(
+      fields.map((field, index) => ({ field, update: { kind: 'set' as const, value: index ? 'New variant' : 'New hull' } })),
+    );
     expect(vm.panel.value!.heading[0]!.display).toBe('New hull New variant');
     expect(vm.joint.draftValue.value.wing).toMatchObject({ state: 'present', value: { id: 'sarissa_wing' } });
     await vm.undo();
@@ -900,9 +902,11 @@ describe('wing joint source handoff', () => {
     await vm.initialize();
     const panel = vm.panel.value;
     if (panel?.kind !== 'wing') throw new Error('wing fixture');
-    vm.updateField(panel.technical.find((stat) => stat.id === 'hitpoints')!.fields[0]!, { kind: 'set', value: 810 });
+    void vm.updateField(panel.technical.find((stat) => stat.id === 'hitpoints')!.fields[0]!, { kind: 'set', value: 810 });
     mocks.choose.mockResolvedValue(null);
-    await vm.updateFields([{ field: panel.sources[0]!.fields[0]!, update: { kind: 'set', value: 'other' } }]);
+    const changed = vm.updateField(panel.sources[0]!.fields[0]!, { kind: 'set', value: 'other' });
+    expect(changed).toBeInstanceOf(Promise);
+    await changed;
     expect(vm.joint.draftValue.value.wing).toMatchObject({ state: 'present', value: { variant: 'sarissa_Fighter' } });
     expect(vm.joint.draftValue.value['hull-csv']).toMatchObject({ state: 'present', value: { hitpoints: '810' } });
     expect(vm.referenceChanging.value).toBe(false);
@@ -915,7 +919,7 @@ describe('wing joint source handoff', () => {
     await vm.initialize();
     const panel = vm.panel.value;
     if (panel?.kind !== 'wing') throw new Error('wing fixture');
-    vm.updateField(panel.technical.find((stat) => stat.id === 'hitpoints')!.fields[0]!, { kind: 'set', value: 810 });
+    void vm.updateField(panel.technical.find((stat) => stat.id === 'hitpoints')!.fields[0]!, { kind: 'set', value: 810 });
     mocks.choose.mockResolvedValue('save');
     let commit = 0;
     mocks.save.mockImplementation(async (draft) => {
@@ -964,7 +968,7 @@ describe('immersive ship lifecycle and reference channels', () => {
       line: null,
       fields: { sessionId: 's', modRoot: 'M:/mod', kind: 'ship', id: 'lasher', waitMs: '12000', phase: 'read' },
     });
-    vm.updateField(vm.panel.value!.heading[0]!.fields[0]!, { kind: 'set', value: 'Draft name' });
+    void vm.updateField(vm.panel.value!.heading[0]!.fields[0]!, { kind: 'set', value: 'Draft name' });
     mocks.query.mockRejectedValueOnce(new Error('Refresh unavailable'));
     await vm.retry();
     expect(vm.errorText.value).toContain('Refresh unavailable');
@@ -991,7 +995,7 @@ describe('immersive ship lifecycle and reference channels', () => {
       label: '弹体引用',
       dirty,
       commit: () => {
-        vm.updateField(panel.projectile!.fields[0]!, { kind: 'set', value: 'new_shot' });
+        void vm.updateField(panel.projectile!.fields[0]!, { kind: 'set', value: 'new_shot' });
         dirty.value = false;
         return null;
       },
@@ -1101,7 +1105,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     const panel = vm.panel.value;
     if (panel?.kind !== 'weapon') throw new Error('weapon panel');
     const fields = panel.primary.find((stat) => stat.id === 'dps')!.fields;
-    vm.updateFields([
+    void vm.updateFields([
       { field: fields.find((field) => field.schema.key === 'damage/shot')!, update: { kind: 'set', value: 90 } },
       { field: fields.find((field) => field.schema.key === 'chargedown')!, update: { kind: 'set', value: 0.3 } },
     ]);
@@ -1109,7 +1113,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     await vm.undo();
     expect(vm.joint.draftValue.value.csv).toMatchObject({ state: 'present', value: { 'damage/shot': '75', chargedown: '0.15' } });
     expect(vm.history.canUndo.value).toBe(false);
-    vm.updateField(panel.branch.fields[0]!, { kind: 'set', value: 'beam' });
+    void vm.updateField(panel.branch.fields[0]!, { kind: 'set', value: 'beam' });
     expect(vm.joint.draftValue.value.spec).toMatchObject({
       state: 'present',
       value: { specClass: 'beam', textureType: 'SMOOTH', unknown: { retained: true } },
@@ -1168,7 +1172,7 @@ describe('immersive ship lifecycle and reference channels', () => {
       value: { id: 'ammofeed', name: 'Selected system' },
     };
     mocks.projection.mockResolvedValue(projection);
-    vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
+    void vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
     await flushPromises();
     expect(shipPanel(vm).system.display).toBe('Selected system');
     const actual = shipJointFixture();
@@ -1212,7 +1216,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     const { vm, wrapper } = editor();
     await vm.initialize();
     await flushPromises();
-    vm.updateField(vm.panel.value!.heading[0]!.fields[0]!, { kind: 'set', value: 'My name' });
+    void vm.updateField(vm.panel.value!.heading[0]!.fields[0]!, { kind: 'set', value: 'My name' });
     const before = shipJointFixture().records[0]!;
     if (before.target.kind !== 'spec') throw new Error('spec fixture');
     const after = { ...before.target.target, id: 'renamed' };
@@ -1256,7 +1260,7 @@ describe('immersive ship lifecycle and reference channels', () => {
     await flushPromises();
     expect(Object.keys(vm.joint.draftValue.value)).toEqual(['spec', 'csv', 'description']);
     const field = shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.fields[0]!;
-    vm.updateField(field, { kind: 'set', value: 1800 });
+    void vm.updateField(field, { kind: 'set', value: 1800 });
     await flushPromises();
     expect(shipPanel(vm).combat.find((stat) => stat.id === 'hitpoints')!.display).toBe('1800');
     expect(vm.history.canUndo.value).toBe(true);
@@ -1277,7 +1281,7 @@ describe('immersive ship lifecycle and reference channels', () => {
         }),
     );
     const field = shipPanel(vm).system.fields[0]!;
-    vm.updateField(field, { kind: 'set', value: 'first' });
+    void vm.updateField(field, { kind: 'set', value: 'first' });
     await flushPromises();
     const firstSignal = mocks.projection.mock.calls[0]![1] as AbortSignal;
     const latest = shipJointFixture();
@@ -1286,7 +1290,7 @@ describe('immersive ship lifecycle and reference channels', () => {
       value: { id: 'ammofeed', name: 'Latest system' },
     };
     mocks.projection.mockResolvedValueOnce(latest);
-    vm.updateField(field, { kind: 'set', value: 'second' });
+    void vm.updateField(field, { kind: 'set', value: 'second' });
     await flushPromises();
     expect(firstSignal.aborted).toBe(true);
     expect(shipPanel(vm).system.display).toBe('Latest system');
@@ -1307,7 +1311,7 @@ describe('immersive ship lifecycle and reference channels', () => {
           finish = resolve;
         }),
     );
-    vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
+    void vm.updateField(shipPanel(vm).system.fields[0]!, { kind: 'set', value: 'next' });
     await flushPromises();
     closeProjectChangeFixture('s');
     expect(vm.joint.currentTarget.value).toBeNull();

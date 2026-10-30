@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
@@ -69,6 +69,29 @@ describe('window feedback presentation', () => {
     wrapper.unmount();
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
     expect(actions).toHaveBeenCalledOnce();
+  });
+  it.each(['sync', 'async'] as const)('reports a %s file action failure through the window feedback', async (kind) => {
+    const failure = new Error('File action failed');
+    const actions: FeedbackFileActions = () => [
+      {
+        label: '定位',
+        type: 'warning',
+        run:
+          kind === 'sync'
+            ? () => {
+                throw failure;
+              }
+            : () => Promise.reject(failure),
+      },
+    ];
+    const { feedback, messages } = harness(actions);
+    feedback.error({ code: 'parse.json', message: 'Invalid', location: { path: 'M:/mod/demo.json', line: 1, column: null } });
+    wrapper = mount({ render: messages.error.mock.lastCall![0] });
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+    expect(messages.error).toHaveBeenCalledTimes(2);
+    expect(mocks.log).toHaveBeenLastCalledWith(expect.objectContaining({ message: failure.message, fields: { action: '文件操作失败' } }));
+    expect(messages.error.mock.lastCall![1]).toEqual({ duration: 0 });
   });
   it('keeps warning copy separate from diagnostics and preserves provider durations for ordinary messages', () => {
     const { feedback, messages } = harness();

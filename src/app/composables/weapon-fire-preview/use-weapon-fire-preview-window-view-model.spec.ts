@@ -150,7 +150,7 @@ describe('weapon fire preview source and read lifetime', () => {
     expect(vm.data.value).toBe(accepted);
     expect(vm.loading.value).toBe(false);
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error), '刷新开火预览失败');
-    invalidate();
+    void invalidate();
     await flushPromises();
     expect(vm.data.value?.weapon.id).toBe('w');
   });
@@ -187,7 +187,7 @@ describe('weapon fire preview source and read lifetime', () => {
           finish = resolve;
         }),
     );
-    invalidate();
+    void invalidate();
     await flushPromises();
     const signal = mocks.query.mock.lastCall![3] as AbortSignal;
     vm.dispose();

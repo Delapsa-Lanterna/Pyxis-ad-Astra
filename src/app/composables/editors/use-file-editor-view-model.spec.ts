@@ -95,7 +95,7 @@ function textApplied(event: { sessionId: string; modRoot: string; path: string; 
   const path = event.path.startsWith(event.modRoot) ? event.path : event.modRoot + '/' + event.path;
   const result = savedWriteFixture({ text: event.text }, { kind: 'text', path });
   result.baseVersions = [{ path, fingerprint: 'saved' }];
-  dispatchProjectChangeFixture(committedChangeFixture(result, event.sessionId, event.modRoot));
+  void dispatchProjectChangeFixture(committedChangeFixture(result, event.sessionId, event.modRoot));
 }
 describe('useFileEditorViewModel loading', () => {
   it('loads the file text into the draft and tracks the line count', async () => {
@@ -281,7 +281,7 @@ describe('useFileEditorViewModel external text', () => {
     result.baseVersions = [{ path: target.write.path, fingerprint: 'saved' }];
     result.invalidation.paths = [target.write.path];
     result.identityChanges = complete ? [{ before: target, after: target }] : [];
-    dispatchProjectChangeFixture(committedChangeFixture(result, 's1', 'C:/mods/alpha'));
+    void dispatchProjectChangeFixture(committedChangeFixture(result, 's1', 'C:/mods/alpha'));
     await flushPromises();
     expect(mocks.loadEditableFileData).toHaveBeenCalledTimes(complete ? 0 : 1);
     expect(vm.text.value).toBe('external');

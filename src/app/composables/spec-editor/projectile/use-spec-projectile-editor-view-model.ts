@@ -196,14 +196,14 @@ export function useSpecProjectileEditorViewModel(
     });
   }
   function addEngineSlot() {
-    document.command((projectile) => {
+    return document.command((projectile) => {
       const slots = projectile.engineSlots as RowData[];
       slots.push(createProjectileEngineSlot(slots));
     });
   }
   function removeEngineSlot(i: number) {
     const slot = engineSlots.value[i]!;
-    document.command((projectile) => {
+    return document.command((projectile) => {
       const slots = projectile.engineSlots as RowData[];
       slots.splice(slots.indexOf(slot), 1);
     });

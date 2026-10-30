@@ -613,7 +613,7 @@ describe('complete JSON document runtime', () => {
         entity.baseVersions = entity.baseVersions.map((v) => ({ ...v, fingerprint: 'external' }));
         entities.set('s1:' + definition.kind + ':a', entity);
       }
-      projectChangeFixture('s1', {
+      void projectChangeFixture('s1', {
         ...savedWriteFixture().invalidation,
         queryScopes: [
           {

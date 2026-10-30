@@ -79,16 +79,16 @@ describe('catalog-driven candidate cards', () => {
   });
   it.each(['weapons', 'wings'] as const)('accepts the latest queued scroll visibility for %s', async (kind) => {
     const own = harness(kind);
-    own.showBatch([false, true]);
+    await own.showBatch([false, true]);
     await flushPromises();
     expect(own.wrapper.find('canvas').exists()).toBe(true);
-    own.showBatch([true, false]);
+    await own.showBatch([true, false]);
     await flushPromises();
     expect(own.wrapper.find('canvas').exists()).toBe(true);
     expect(own.wrapper.findComponent({ name: kind === 'weapons' ? 'ImmersiveWeaponIcon' : 'ImmersiveHullThumbnail' }).props('active')).toBe(
       false,
     );
-    own.showBatch([false, true, false, true]);
+    await own.showBatch([false, true, false, true]);
     await flushPromises();
     expect(own.wrapper.find('canvas').exists()).toBe(true);
     own.wrapper.unmount();
@@ -96,21 +96,21 @@ describe('catalog-driven candidate cards', () => {
   it('renders metadata immediately and acquires visible weapon layers without a detail query', async () => {
     const own = harness('weapons');
     expect(own.wrapper.text()).toContain('测试用途，500');
-    own.show(true);
+    await own.show(true);
     await flushPromises();
     const icon = own.wrapper.findComponent({ name: 'ImmersiveWeaponIcon' });
     expect(icon.props('mountType')).toBe('ENERGY');
     expect(icon.props('layers')[0].resource.relPath).toBe('weapon.png');
     expect(media.replace).not.toHaveBeenCalled();
     expect(media.query).not.toHaveBeenCalled();
-    own.show(false);
+    await own.show(false);
     await flushPromises();
     expect(media.replace).not.toHaveBeenCalled();
     own.wrapper.unmount();
   });
   it('renders wing formation from the catalog preview without querying the candidate', async () => {
     const own = harness('wings');
-    own.show(true);
+    await own.show(true);
     await flushPromises();
     const scene = own.wrapper.findComponent({ name: 'ImmersiveHullThumbnail' });
     expect(scene.props('wingLayout').points).toHaveLength(3);

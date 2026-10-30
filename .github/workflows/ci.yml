@@ -30,8 +30,8 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-      - name: ESLint
-        run: npm run lint
+      - name: ESLint full check
+        run: npm run lint:full
 
       - name: Architecture, styles, identifier length and encoding checks
         run: npm run lint:checks

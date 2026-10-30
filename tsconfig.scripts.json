@@ -8,6 +8,6 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["eslint.config.js", "scripts/**/*.mjs", "scripts/**/*.d.ts"],
+  "include": ["eslint.config.js", "eslint.full.config.js", "scripts/**/*.mjs", "scripts/**/*.d.ts"],
   "exclude": ["scripts/browser/**"]
 }

@@ -202,7 +202,7 @@ export function useSpecEditorWindowViewModel(
         const choice = await handleMissingSpec(params.kind, target);
         if (missingSpecIntent !== intent) return;
         if (choice.action === 'cancel') {
-          void closeCurrentWindow();
+          await closeCurrentWindow();
           return;
         }
         if (choice.action === 'import') applyImportedSpec(choice.data);

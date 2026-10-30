@@ -84,7 +84,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
     const table = tables.currentTab;
     try {
       if ((await commitCurrentInput()) === false || root !== tables.activeModRoot || table !== tables.currentTab) return;
-      const created = await tables.addNewRow();
+      const created = tables.addNewRow();
       recordLogBestEffort({
         level: 'info',
         code: 'tables.row_created',
@@ -115,7 +115,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
         tables.setActiveCell(null, target.modRoot);
       } else if ((await commitCurrentInput()) === false) return;
       if (root !== tables.activeModRoot || table !== tables.currentTab || rowKey !== tables.selectedRowKey) return;
-      const deleted = await tables.deleteSelected();
+      const deleted = tables.deleteSelected();
       recordLogBestEffort({
         level: 'info',
         code: 'tables.row_deleted',

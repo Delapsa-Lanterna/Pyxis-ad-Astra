@@ -289,11 +289,11 @@ describe('mod file browser actions and read lifetime', () => {
     ];
     result.invalidation.paths = ['data/old.wpn', 'data/new.wpn'];
     const change = committedChangeFixture(result, 's1', 'M:/A');
-    for (const task of (await mocks.handler!(change)) ?? []) await task();
+    for (const task of mocks.handler!(change) ?? []) await task();
     await flushPromises();
     expect(mocks.directory).toHaveBeenCalledExactlyOnceWith('s1', 'data');
     mocks.directory.mockClear();
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       paths: ['data/spec.wpn'],
       tables: [],
       entities: [],
@@ -383,7 +383,7 @@ describe('directory preload and display continuity', () => {
     );
     const old = vm.actions.load(null);
     mocks.directory.mockResolvedValueOnce({ directory: null, entries: [entry('current')] });
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       paths: ['current'],
       tables: [],
       entities: [],
@@ -551,7 +551,7 @@ describe('full Mod search state and input boundary', () => {
     vm.actions.setSearch('find');
     await vm.actions.submitSearch();
     mocks.search.mockClear();
-    projectChangeFixture('s1', {
+    void projectChangeFixture('s1', {
       paths: ['new/file.txt'],
       tables: [],
       entities: [],

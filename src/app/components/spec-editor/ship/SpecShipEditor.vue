@@ -106,13 +106,13 @@
                   @remove="actions.removeField"
                   @update="actions.setProperty"
                 >
-                  <template #id="{ value, path }">
+                  <template #id="{ value, path: fieldPath }">
                     <SchemaScalarInput
-                      :field="{ ...SHIP_SLOT_FIELDS[0]!, key: path }"
+                      :field="{ ...SHIP_SLOT_FIELDS[0]!, key: fieldPath }"
                       :value="value"
-                      :input-key="path"
+                      :input-key="fieldPath"
                       :validate="view.validateSlotId"
-                      @update="$event.kind === 'set' && actions.setProperty(path, $event.value as string)"
+                      @update="$event.kind === 'set' && actions.setProperty(fieldPath, $event.value as string)"
                     />
                   </template>
                 </SpecFieldList>

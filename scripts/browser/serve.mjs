@@ -35,21 +35,22 @@ export async function serve({
   const output = workspace?.root ?? resolve(root, directory);
   try {
     if (rebuild) await buildBrowser({ mode, directory: output, monitorCode, base });
-    const server = createHttpServer(async (request, response) => {
-      const pathname = new URL(/** @type {string} */ (request.url), 'http://localhost').pathname;
-      if (!pathname.startsWith(base)) {
-        response.writeHead(404).end();
-        return;
-      }
-      const localPath = '/' + pathname.slice(base.length);
-      const relative =
-        localPath === '/' ? 'index.html' : localPath === '/environment' ? 'environment.json' : decodeURIComponent(localPath.slice(1));
-      const path = resolve(output, relative);
-      if (!path.startsWith(output + sep)) {
-        response.writeHead(403).end();
-        return;
-      }
+    /** @param {import('node:http').IncomingMessage} request @param {import('node:http').ServerResponse} response */
+    async function respond(request, response) {
       try {
+        const pathname = new URL(/** @type {string} */ (request.url), 'http://localhost').pathname;
+        if (!pathname.startsWith(base)) {
+          response.writeHead(404).end();
+          return;
+        }
+        const localPath = '/' + pathname.slice(base.length);
+        const relative =
+          localPath === '/' ? 'index.html' : localPath === '/environment' ? 'environment.json' : decodeURIComponent(localPath.slice(1));
+        const path = resolve(output, relative);
+        if (!path.startsWith(output + sep)) {
+          response.writeHead(403).end();
+          return;
+        }
         const data = await readFile(path);
         const mime = /** @type {Record<string, string>} */ ({
           '.html': 'text/html; charset=utf-8',
@@ -61,9 +62,10 @@ export async function serve({
         response.setHeader('Content-Type', mime[extname(path)] ?? 'application/octet-stream');
         response.end(data);
       } catch (error) {
-        response.writeHead(404).end(String(error));
+        response.writeHead(error instanceof URIError ? 400 : 404).end(String(error));
       }
-    });
+    }
+    const server = createHttpServer((request, response) => void respond(request, response));
     await new Promise((done, reject) => {
       server.once('error', reject);
       server.listen(port, '127.0.0.1', () => done(undefined));
@@ -107,6 +109,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     monitorCode: !process.argv.includes('--no-monitor-code'),
   });
   console.log(mode.toUpperCase() + ' ' + server.url);
-  process.once('SIGINT', () => void server.close());
-  process.once('SIGTERM', () => void server.close());
+  function close() {
+    void server.close().catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+  }
+  process.once('SIGINT', close);
+  process.once('SIGTERM', close);
 }

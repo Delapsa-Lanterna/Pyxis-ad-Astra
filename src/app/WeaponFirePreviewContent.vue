@@ -31,14 +31,16 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import WeaponFirePreview from '@/app/components/weapon-fire-preview/WeaponFirePreview.vue';
 import { useWeaponFirePreviewWindowViewModel } from '@/app/composables/weapon-fire-preview/use-weapon-fire-preview-window-view-model';
 const settings = useSettingsStore();
+const feedback = useAppFeedback();
 const { target, data, loading, errorText, contentReady, dispose } = useWeaponFirePreviewWindowViewModel();
 const closeGuard = useDirtyWindowCloseGuard({ dirty: ref(false), title: '关闭开火预览？', content: '关闭开火预览窗口。' });
 function closeWindow() {
-  void closeCurrentWindow();
+  void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));
 }
 useShortcutDispatch({ commands: { close: closeWindow } });
 onMounted(async () => {

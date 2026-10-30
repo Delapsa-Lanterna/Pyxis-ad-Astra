@@ -228,14 +228,14 @@ const drag = useCsvRowDrag({
 watch(
   () => [props.model.rowKeys, props.model.columns],
   () => {
-    nextTick(syncViewportMetrics);
+    void nextTick(syncViewportMetrics);
   },
 );
 
 const resizeObserver = new ResizeObserver(useLayoutFrame(syncViewportMetrics));
 onMounted(() => {
   resizeObserver.observe(panelRef.value!);
-  nextTick(syncViewportMetrics);
+  void nextTick(syncViewportMetrics);
 });
 onScopeDispose(() => resizeObserver.disconnect());
 

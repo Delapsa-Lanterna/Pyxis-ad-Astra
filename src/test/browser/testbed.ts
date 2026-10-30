@@ -64,13 +64,13 @@ const selected = (): RunOptions => ({
   customAccent: benchmark?.host.model ? benchmark.host.settings.customAccent : '#2563eb',
 });
 async function execute(options: RunOptions[]) {
-  await loadBenchmark();
   appearance?.unmount();
   delete status.dataset.complete;
   controls.querySelector<HTMLDetailsElement>('.testbed-results')!.open = false;
   controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = true));
   runs = [];
   try {
+    await loadBenchmark();
     for (const option of options) {
       runs.push(await benchmark.run(option, (text) => (status.textContent = text)));
       report = showResults(results, runs);
@@ -79,7 +79,7 @@ async function execute(options: RunOptions[]) {
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : String(error);
   } finally {
-    mountAppearance();
+    if (benchmark) mountAppearance();
     status.dataset.complete = 'true';
     controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = false));
   }
@@ -153,9 +153,9 @@ async function compareSelected(variants: Variant[]) {
   delete status.dataset.complete;
   const options = selected();
   appearance?.unmount();
-  await benchmark?.host.close();
   controls.querySelectorAll<HTMLButtonElement>('button').forEach((button) => (button.disabled = true));
   try {
+    await benchmark?.host.close();
     report = await comparePages(variants, options, (text) => (status.textContent = text));
     runs = report.runs;
     results.textContent = markdown(report);
@@ -185,7 +185,7 @@ document.querySelector<HTMLButtonElement>('#monitor-compare')!.onclick = () =>
     [false, true].map((monitor) => ({ label: monitor ? 'enabled' : 'disabled', url: location.origin, monitor, policy: 'enabled' })),
   );
 if (new URLSearchParams(location.search).has('worker')) {
-  window.addEventListener('message', async (event) => {
+  async function handleRequest(event: MessageEvent) {
     if (event.source !== parent || event.data.type !== 'testbed-request') return;
     const { id, method, options, iteration, phase, samples } = event.data;
     try {
@@ -198,7 +198,8 @@ if (new URLSearchParams(location.search).has('worker')) {
     } catch (error) {
       parent.postMessage({ type: 'testbed-result', id, error: String(error) }, event.origin);
     }
-  });
+  }
+  window.addEventListener('message', (event) => void handleRequest(event));
   parent.postMessage({ type: 'testbed-ready' }, '*');
 }
 Object.assign(globalThis, {

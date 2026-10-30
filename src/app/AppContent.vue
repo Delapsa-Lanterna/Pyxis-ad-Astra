@@ -156,6 +156,6 @@ onUnmounted(() => {
 });
 
 onMounted(() => {
-  void closeGuard.install();
+  void closeGuard.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
 });
 </script>

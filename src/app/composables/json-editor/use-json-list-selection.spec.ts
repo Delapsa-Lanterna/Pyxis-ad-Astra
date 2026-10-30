@@ -123,7 +123,7 @@ describe('config list selection and action boundaries', () => {
     expect(selection.selectedId.value).toBe('a');
     const confirmed = selection.discardDeleted();
     await flushPromises();
-    mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
     await confirmed;
     expect(selection.selectedId.value).toBe('b');
     expect(selection.deletedTarget.value).toBe(false);
@@ -175,7 +175,7 @@ describe('config list selection and action boundaries', () => {
     const { selection } = harness(discard);
     const pending = action === 'discard' ? selection.discardDeleted() : selection.discardMissing('a');
     await flushPromises();
-    if (action === 'discard') mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    if (action === 'discard') void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
     await pending;
     expect(discard).toHaveBeenCalledExactlyOnceWith('a');
     expect(mocks.feedback.error).toHaveBeenCalledExactlyOnceWith(error, '放弃战役编辑失败');
@@ -208,7 +208,7 @@ describe('config list selection and action boundaries', () => {
     const pending = selection.discardDeleted();
     await flushPromises();
     await selection.select('b');
-    mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
+    void mocks.feedback.confirmWarning.mock.lastCall![0].onConfirm();
     await pending;
     expect(discard).not.toHaveBeenCalled();
     expect(selection.selectedId.value).toBe('b');

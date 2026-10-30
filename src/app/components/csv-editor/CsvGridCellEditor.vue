@@ -285,7 +285,7 @@ function cancel() {
 }
 
 async function focus() {
-  await focusActive();
+  focusActive();
   await nextTick();
   textEditorRef.value?.focus();
   pickerRef.value?.focus();
@@ -300,9 +300,9 @@ registerFieldInput({
   },
   dirty,
   commit,
-  focus: () => {
-    focusFieldInput(inputRef.value);
-    return focus();
+  focus: async () => {
+    await focusFieldInput(inputRef.value);
+    await focus();
   },
   cancel,
 });
