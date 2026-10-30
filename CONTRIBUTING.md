@@ -74,8 +74,8 @@ npm.cmd run build
 
 ### 启动预览与测试台
 
-- 浏览器测试工作区：`npm.cmd run dev-browser`，默认地址为 `http://127.0.0.1:1461`。
-- 性能测试台：`npm.cmd run dev-testbed`，默认地址为 `http://127.0.0.1:1462`。
+- 浏览器测试工作区：`npm.cmd run dev:browser`，默认地址为 `http://127.0.0.1:1461`。
+- 性能测试台：`npm.cmd run dev:testbed`，默认地址为 `http://127.0.0.1:1462`。
 
 地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。测试台提供各类候选列表的规模基准、重复使用压力和资源压力，点击预览或执行后加载样本。
 
