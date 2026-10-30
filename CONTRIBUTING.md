@@ -35,21 +35,19 @@ npm.cmd run tauri -- build --no-bundle
 `npm.cmd run dev-browser` 启动测试工作区，地址为 `http://127.0.0.1:1461`。
 `npm.cmd run dev-testbed` 启动性能测试台，地址为 `http://127.0.0.1:1462`。
 
-`npm.cmd run build:demo -- --base /Pyxis-ad-Astra/` 构建公开演示，产物位于 `dist/browser-demo/`。
-`node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463` 提供该产物的本地预览。
-
 地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。
+测试台提供各类候选列表的规模基准、重复使用压力和资源压力，点击预览或执行后加载样本。
 
 共享基础位于 `src/test/`：
 数据工厂位于 `fixtures/`，单元测试辅助位于 `unit/`，
 浏览器模拟、场景、操作和基准位于 `browser/`。
+
 `scripts/browser/` 提供服务、生产构建、浏览器执行及报告。
 
-测试台提供 CSV 与三类候选列表的规模基准、重复使用压力和资源压力，点击预览或执行后加载样本。
-默认预热 2 次、正式测量 30 次；重复使用压力默认正式测量 100 次。
-资源压力使用 32、128、512 像素的独立固定生成图片。
-交替比较支持多份页面地址及监视开关，按轮次轮换起始组。
-同对象双组对照使用同一地址的两个独立页面。
+## 演示产物
+
+`npm.cmd run build:demo -- --base /Pyxis-ad-Astra/` 构建公开演示，产物位于 `dist/browser-demo/`。
+`node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463` 提供该产物的本地预览。
 
 ### 自动执行
 
