@@ -1,4 +1,5 @@
 name: Browser demo
+run-name: Demo
 on:
   push:
     branches: [main]
