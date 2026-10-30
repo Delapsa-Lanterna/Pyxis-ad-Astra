@@ -57,7 +57,7 @@ pub struct AppendAppLogsPayload {
 }
 
 /// Frozen on-disk log file name; every writer and validator must share it.
-pub const LOG_FILE: &str = "circinus-ad-astra.log";
+pub const LOG_FILE: &str = "pyxis-ad-astra.log";
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Circinus ad Astra",
+  "productName": "Pyxis ad Astra",
   "version": "0.1.0",
-  "identifier": "com.caopancake.circinus-ad-astra",
+  "identifier": "com.delapsa-lanterna.pyxis-ad-astra",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -16,7 +16,7 @@
     },
     "windows": [
       {
-        "title": "Circinus ad Astra",
+        "title": "Pyxis ad Astra",
         "width": 1366,
         "height": 768,
         "minWidth": 800,

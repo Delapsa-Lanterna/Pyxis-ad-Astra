@@ -10,8 +10,8 @@ import {
   type SectionSchema,
 } from '@/domain/schema/schema.types';
 
-const FIELD_SCHEMA_VERSION = 'circinus-ad-astra/field-schema/v1';
-const CSV_COLUMNS_VERSION = 'circinus-ad-astra/csv-columns/v1';
+const FIELD_SCHEMA_VERSION = 'pyxis-ad-astra/field-schema/v1';
+const CSV_COLUMNS_VERSION = 'pyxis-ad-astra/csv-columns/v1';
 
 // Runtime shape validation: schema assets become typed output only through this entry.
 

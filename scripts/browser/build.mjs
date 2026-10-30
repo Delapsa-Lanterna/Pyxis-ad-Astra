@@ -32,6 +32,6 @@ export function buildBrowser({ mode = 'browser', directory, base = '/', demo = f
   });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const { values } = parseArgs({ options: { base: { type: 'string', default: '/Circinus-ad-Astra/' } } });
+  const { values } = parseArgs({ options: { base: { type: 'string', default: '/Pyxis-ad-Astra/' } } });
   await buildBrowser({ directory: resolve(root, 'dist/browser-demo'), base: values.base, demo: true, monitorCode: false });
 }

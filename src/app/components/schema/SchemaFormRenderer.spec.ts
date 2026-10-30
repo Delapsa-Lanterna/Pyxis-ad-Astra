@@ -13,7 +13,7 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn() }) }));
 
 const schema: FileSchema = {
-  $schema: 'circinus-ad-astra/field-schema/v1',
+  $schema: 'pyxis-ad-astra/field-schema/v1',
   id: 'fixture',
   sections: [
     { id: 'main', label: '主要', fields: [{ key: 'name', type: 'string', label: '名称' }] },

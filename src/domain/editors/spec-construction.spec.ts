@@ -7,7 +7,7 @@ import type { RowData } from '@/shared/types';
 
 describe('shared game spec construction', () => {
   it('constructs all seven branches from the shared defaults with explicit identity', () => {
-    expect(defaults.$schema).toBe('circinus-ad-astra/spec-defaults/v1');
+    expect(defaults.$schema).toBe('pyxis-ad-astra/spec-defaults/v1');
     expect(createShipSpec('ship', 'Ship')).toEqual({ ...defaults.ship, hullId: 'ship', hullName: 'Ship' });
     for (const specClass of ['projectile', 'beam'] as const)
       expect(createWeaponSpec('weapon', specClass)).toEqual({ ...defaults.weapon[specClass], id: 'weapon' });

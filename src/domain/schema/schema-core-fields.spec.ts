@@ -8,7 +8,7 @@ function field(key: string, extra: Partial<FieldSchema> = {}): FieldSchema {
 
 function schemaFixture(sections: { id: string; fields: FieldSchema[] }[], sources?: FileSchema['sources']): FileSchema {
   return {
-    $schema: 'circinus-ad-astra/field-schema/v1',
+    $schema: 'pyxis-ad-astra/field-schema/v1',
     id: 'fixture',
     allowExtraFields: true,
     sources,

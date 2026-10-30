@@ -1,8 +1,8 @@
 [package]
-name = "circinus-ad-astra"
+name = "pyxis-ad-astra"
 version = "0.1.0"
-description = "Native Starsector mod configuration tool"
-authors = ["Circinus ad Astra"]
+description = "Starsector mod development tool"
+authors = ["Delapsa-Lanterna"]
 edition = "2024"
 rust-version = "1.99.1"
 
@@ -10,7 +10,7 @@ rust-version = "1.99.1"
 members = ["command-macros"]
 
 [lib]
-name = "circinus_ad_astra_lib"
+name = "pyxis_ad_astra_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

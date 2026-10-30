@@ -1,5 +1,5 @@
 {
-  "$schema": "circinus-ad-astra/well-known-labels/v2",
+  "$schema": "pyxis-ad-astra/well-known-labels/v2",
   "gameVersion": "0.98a-RC8",
   "groups": [
     {

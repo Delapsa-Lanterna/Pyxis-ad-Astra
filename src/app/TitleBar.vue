@@ -5,11 +5,9 @@
     @dblclick="toggleMaximize"
   >
     <div class="titlebar-brand ui-control-row ui-control-reset ui-layout-shrink">
-      <img class="titlebar-mark ui-image" :src="appIcon" alt="星界罗盘 [Circinus ad Astra]" draggable="false" />
+      <img class="titlebar-mark ui-image" :src="appIcon" alt="星界罗盘 [Pyxis ad Astra]" draggable="false" />
       <div class="titlebar-text ui-layout-grid ui-layout-shrink">
-        <strong class="titlebar-text-value ui-emphasis ui-text-truncate ui-text-small">{{
-          title || '星界罗盘 [Circinus ad Astra]'
-        }}</strong>
+        <strong class="titlebar-text-value ui-emphasis ui-text-truncate ui-text-small">{{ title || '星界罗盘 [Pyxis ad Astra]' }}</strong>
         <span
           class="titlebar-text-label ui-text-truncate ui-text-meta ui-text-muted"
           :title="subtitle ?? workspace.activeManifest?.modRoot ?? ''"

@@ -1,5 +1,5 @@
 {
-  "$schema": "circinus-ad-astra/spec-defaults/v1",
+  "$schema": "pyxis-ad-astra/spec-defaults/v1",
   "ship": {
     "hullId": "",
     "hullName": "",

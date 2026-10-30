@@ -28,9 +28,9 @@ jobs:
       - run: npm run build:demo -- --base '${{ steps.pages.outputs.base_path }}/'
       - run: npx playwright install --with-deps chromium
       - name: Serve demo artifact
-        run: node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Circinus-ad-Astra/ --port 1463 &
+        run: node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463 &
       - name: Verify demo artifact
-        run: node scripts/browser/demo.mjs http://127.0.0.1:1463/Circinus-ad-Astra/
+        run: node scripts/browser/demo.mjs http://127.0.0.1:1463/Pyxis-ad-Astra/
       - uses: actions/upload-artifact@v4
         if: always()
         with:

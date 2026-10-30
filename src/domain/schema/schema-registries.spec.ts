@@ -49,7 +49,7 @@ describe('schema asset registries', () => {
     for (const id of CONFIG_SCHEMA_IDS) {
       const schema = getSchema(id);
       expect(schema, id).not.toBeNull();
-      expect(schema?.$schema).toBe('circinus-ad-astra/field-schema/v1');
+      expect(schema?.$schema).toBe('pyxis-ad-astra/field-schema/v1');
       expect(schema?.id).toBe(id);
       expect(Boolean(schema?.root) || Boolean(schema?.sections?.length)).toBe(true);
       for (const section of schema?.sections ?? []) {

@@ -1,5 +1,5 @@
 {
-  "$schema": "circinus-ad-astra/field-schema/v1",
+  "$schema": "pyxis-ad-astra/field-schema/v1",
   "id": "spec-weapon",
   "sections": [
     {

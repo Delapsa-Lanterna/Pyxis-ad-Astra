@@ -49,7 +49,7 @@
 
 - Rust 设置服务拥有正式 revision 与 snapshot，主窗口拥有编辑值和唯一保存队列。
 - `appearance` 提供沉浸式固定颜色；设计类型与槽位语义颜色归所属领域投影。
-- settings 持久化目标是工具 app-data，私有根由 Tauri 标识 `com.caopancake.circinus-ad-astra` 解析。
+- settings 持久化目标是工具 app-data，私有根由 Tauri 标识 `com.delapsa-lanterna.pyxis-ad-astra` 解析。
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。

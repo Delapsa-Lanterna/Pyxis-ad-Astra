@@ -10,7 +10,7 @@ import { summarize } from '../shared/sample-statistics.mjs';
 
 const { values } = parseArgs({
   options: {
-    exe: { type: 'string', default: 'src-tauri/target/release/circinus-ad-astra.exe' },
+    exe: { type: 'string', default: 'src-tauri/target/release/pyxis-ad-astra.exe' },
     mod: { type: 'string' },
     rounds: { type: 'string', default: '30' },
     phase: { type: 'string', default: 'all' },
@@ -191,7 +191,7 @@ const statistics = Object.fromEntries(
 );
 const bytes = await readFile(exe),
   settings = JSON.parse(
-    await readFile(resolve(/** @type {string} */ (process.env.APPDATA), 'com.caopancake.circinus-ad-astra/settings.json'), 'utf8'),
+    await readFile(resolve(/** @type {string} */ (process.env.APPDATA), 'com.delapsa-lanterna.pyxis-ad-astra/settings.json'), 'utf8'),
   );
 const report = {
   exe,

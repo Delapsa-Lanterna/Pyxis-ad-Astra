@@ -1,12 +1,12 @@
 # Contributing
 
-感谢你帮助改进 星界罗盘 [Circinus ad Astra]。本项目是 Windows 桌面 Mod 编辑器；任何贡献都应保持 Mod 数据隔离、文件写入边界和可回放的保存历史。
+感谢你帮助改进 星界罗盘 [Pyxis ad Astra]。本项目是 Windows 桌面 Mod 编辑器；任何贡献都应保持 Mod 数据隔离、文件写入边界和可回放的保存历史。
 
 ## 提交 Issue
 
 请先搜索现有 Issue。新问题应尽量提供：
 
-- 星界罗盘 [Circinus ad Astra] 版本、Windows 版本，以及从 Release 运行还是从源码运行；
+- 星界罗盘 [Pyxis ad Astra] 版本、Windows 版本，以及从 Release 运行还是从源码运行；
 - Starsector 目录还是独立 Mod 目录、相关游戏版本，以及是否配置了游戏目录；
 - 最小复现步骤、预期结果、实际结果和截图；
 - 可脱敏的报错文本或日志上下文。
@@ -28,15 +28,15 @@ npm.cmd run tauri -- dev
 npm.cmd run tauri -- build --no-bundle
 ```
 
-产物默认位于 `src-tauri\target\release\circinus-ad-astra.exe`。不要在仍需保留的运行实例上直接使用 `build.ps1` 或 `build.bat`：这两个便捷脚本会强制关闭应用并删除前端构建目录。
+产物默认位于 `src-tauri\target\release\pyxis-ad-astra.exe`。不要在仍需保留的运行实例上直接使用 `build.ps1` 或 `build.bat`：这两个便捷脚本会强制关闭应用并删除前端构建目录。
 
 ## 浏览器模拟与性能测试台
 
 `npm.cmd run dev-browser` 启动测试工作区，地址为 `http://127.0.0.1:1461`。
 `npm.cmd run dev-testbed` 启动性能测试台，地址为 `http://127.0.0.1:1462`。
 
-`npm.cmd run build:demo -- --base /Circinus-ad-Astra/` 构建公开演示，产物位于 `dist/browser-demo/`。
-`node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Circinus-ad-Astra/ --port 1463` 提供该产物的本地预览。
+`npm.cmd run build:demo -- --base /Pyxis-ad-Astra/` 构建公开演示，产物位于 `dist/browser-demo/`。
+`node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Pyxis-ad-Astra/ --port 1463` 提供该产物的本地预览。
 
 地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。
 

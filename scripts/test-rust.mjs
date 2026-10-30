@@ -16,10 +16,10 @@ const { values } = parseArgs({
 });
 const started = performance.now();
 const reports = await TestWorkspace.create(resolve('node_modules/.cache/rust-tests'), 'run');
-const work = await TestWorkspace.create(tmpdir(), 'circinus-rust-tests');
-/** @type {NodeJS.ProcessEnv & {CIRCINUS_TEST_ROOT:string, CIRCINUS_TEST_REPORTS:string}} */
-const environment = { ...process.env, CIRCINUS_TEST_ROOT: work.root, CIRCINUS_TEST_REPORTS: reports.path('workspaces') };
-if (values['keep-failed']) environment.CIRCINUS_KEEP_FAILED = '1';
+const work = await TestWorkspace.create(tmpdir(), 'pyxis-rust-tests');
+/** @type {NodeJS.ProcessEnv & {PYXIS_TEST_ROOT:string, PYXIS_TEST_REPORTS:string}} */
+const environment = { ...process.env, PYXIS_TEST_ROOT: work.root, PYXIS_TEST_REPORTS: reports.path('workspaces') };
+if (values['keep-failed']) environment.PYXIS_KEEP_FAILED = '1';
 /** @type {Array<{command:string, exitCode:number, milliseconds:number}>} */
 const commands = [];
 /** @type {Array<{test:string, reason:string}>} */
@@ -62,7 +62,7 @@ async function windowsPath(form) {
       `
 Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class TestNames { [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern uint GetLongPathName(string p, StringBuilder b, uint n); [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern uint GetShortPathName(string p, StringBuilder b, uint n); }'
 $b = [Text.StringBuilder]::new(32768)
-$n = [TestNames]::${form === 'Short' ? 'GetShortPathName' : 'GetLongPathName'}($env:CIRCINUS_TEST_ROOT, $b, 32768)
+$n = [TestNames]::${form === 'Short' ? 'GetShortPathName' : 'GetLongPathName'}($env:PYXIS_TEST_ROOT, $b, 32768)
 if ($n -eq 0 -or $n -ge 32768) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
 [Console]::Write($b.ToString())
 `,
@@ -116,13 +116,13 @@ async function unsupportedTests(names, capabilities) {
 }
 
 try {
-  await mkdir(environment.CIRCINUS_TEST_REPORTS);
-  if (process.platform === 'win32') environment.CIRCINUS_TEST_ROOT = await windowsPath('Long');
+  await mkdir(environment.PYXIS_TEST_REPORTS);
+  if (process.platform === 'win32') environment.PYXIS_TEST_ROOT = await windowsPath('Long');
   if (values['path-form'] === 'Beyond260') {
-    const nested = join(environment.CIRCINUS_TEST_ROOT, ...Array.from({ length: 12 }, (_, i) => `long-directory-${i}-中文 spaces`));
+    const nested = join(environment.PYXIS_TEST_ROOT, ...Array.from({ length: 12 }, (_, i) => `long-directory-${i}-中文 spaces`));
     await mkdir(nested, { recursive: true });
     if (nested.length <= 260) throw new Error('The requested path does not exceed 260 characters');
-    environment.CIRCINUS_TEST_ROOT = process.platform === 'win32' ? toNamespacedPath(nested) : nested;
+    environment.PYXIS_TEST_ROOT = process.platform === 'win32' ? toNamespacedPath(nested) : nested;
   }
   const built = await run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--no-run', '--message-format', 'json'], false);
   if (built.exitCode) throw new Error(built.stderr);
@@ -133,7 +133,7 @@ try {
     .filter((item) => item.reason === 'compiler-artifact' && item.profile.test && item.executable)
     .map((item) => item.executable);
   if (!binaries.length) throw new Error('Cargo did not return any test executables');
-  const library = binaries.find((binary) => binary.includes('circinus_ad_astra_lib'));
+  const library = binaries.find((binary) => binary.includes('pyxis_ad_astra_lib'));
   const probe = await run(library, ['--exact', 'testutil::tests::workspace_capabilities', '--ignored', '--nocapture'], false);
   if (probe.exitCode) throw new Error(probe.stdout + probe.stderr);
   const result = probe.stdout.split('\n').find((line) => line.startsWith('TEST_CAPABILITIES '));
@@ -142,7 +142,7 @@ try {
   if (values['path-form'] === 'Short') {
     if (capabilities.short) {
       unavailable.push({ test: 'path-form:Short', reason: capabilities.short });
-    } else environment.CIRCINUS_TEST_ROOT = await windowsPath('Short');
+    } else environment.PYXIS_TEST_ROOT = await windowsPath('Short');
   }
   for (const binary of binaries) {
     const listed = await run(binary, ['--list'], false);
@@ -167,8 +167,8 @@ try {
   testsExitCode = 1;
 } finally {
   try {
-    for (const name of await readdir(environment.CIRCINUS_TEST_REPORTS))
-      workspaces.push(JSON.parse(await readFile(join(environment.CIRCINUS_TEST_REPORTS, name), 'utf8')));
+    for (const name of await readdir(environment.PYXIS_TEST_REPORTS))
+      workspaces.push(JSON.parse(await readFile(join(environment.PYXIS_TEST_REPORTS, name), 'utf8')));
   } catch (error) {
     if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') {
       failure = [failure, String(error)].filter(Boolean).join('\n');
@@ -191,7 +191,7 @@ try {
     status,
     exitCode,
     pathForm: values['path-form'],
-    testRoot: environment.CIRCINUS_TEST_ROOT,
+    testRoot: environment.PYXIS_TEST_ROOT,
     unavailable,
     workspaces,
     commands,

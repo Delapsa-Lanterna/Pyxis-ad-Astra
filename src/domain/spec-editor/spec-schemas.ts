@@ -21,7 +21,7 @@ function resolve(field: FieldSchema): FieldSchema {
     const asset = getSchema(id!)!;
     let value: unknown = asset;
     for (const key of pointer!.split('/')) value = Reflect.get(value as object, key);
-    const target = parseFileSchema('reference', { $schema: 'circinus-ad-astra/field-schema/v1', id: 'reference', root: value }).root!;
+    const target = parseFileSchema('reference', { $schema: 'pyxis-ad-astra/field-schema/v1', id: 'reference', root: value }).root!;
     const own = { ...field };
     delete own.ref;
     field = { ...resolve(target), ...own };

@@ -71,7 +71,7 @@ static CATALOGS: LazyLock<BTreeMap<String, WellKnownCatalog>> = LazyLock::new(||
     let asset: LabelAsset =
         serde_json::from_str(include_str!("../../../schemas/well-known-labels.json"))
             .expect("embedded original label catalog must parse");
-    assert_eq!(asset.schema, "circinus-ad-astra/well-known-labels/v2");
+    assert_eq!(asset.schema, "pyxis-ad-astra/well-known-labels/v2");
     assert_eq!(asset.game_version, "0.98a-RC8");
     let mut catalogs: BTreeMap<String, WellKnownCatalog> = BTreeMap::new();
     for group in asset.groups {

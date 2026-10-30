@@ -9,7 +9,7 @@ import { TestWorkspace } from '../shared/test-workspace.mjs';
 const execute = promisify(execFile);
 
 test('an unmatched performance selection fails with an explicit report', async () => {
-  const root = await TestWorkspace.create(tmpdir(), 'circinus-browser-empty');
+  const root = await TestWorkspace.create(tmpdir(), 'pyxis-browser-empty');
   try {
     const output = root.path('empty.json');
     await assert.rejects(
@@ -25,7 +25,7 @@ test('an unmatched performance selection fails with an explicit report', async (
 });
 
 test('browser connection failures retain reports without changing the test workspace', async () => {
-  const root = await TestWorkspace.create(tmpdir(), 'circinus-browser-failure');
+  const root = await TestWorkspace.create(tmpdir(), 'pyxis-browser-failure');
   try {
     const output = root.path('failed.json');
     await assert.rejects(
@@ -58,7 +58,7 @@ test('browser connection failures retain reports without changing the test works
 });
 
 test('parallel browser runs report an unavailable shared service independently', async () => {
-  const root = await TestWorkspace.create(tmpdir(), 'circinus-browser-parallel');
+  const root = await TestWorkspace.create(tmpdir(), 'pyxis-browser-parallel');
   try {
     const results = await Promise.allSettled(
       [0, 1].map((index) =>

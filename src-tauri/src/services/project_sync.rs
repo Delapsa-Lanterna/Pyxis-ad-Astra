@@ -595,6 +595,11 @@ mod tests {
         }
     }
 
+    fn assert_project_idle(root: &str) {
+        let saves = saves().unwrap();
+        assert!(!saves.roots.contains_key(&saves.registered_root(root)));
+    }
+
     fn save_empty(owner: &str, id: &str, root: &str) {
         execute(owner, id.into(), root, None, "save", |_, _| {
             Ok(WriteResult::<()>::from_changes(Vec::new()))
@@ -614,7 +619,7 @@ mod tests {
         save_empty("observer", "broken-channel", &root.to_string_lossy());
         release_window("observer").unwrap();
         save_empty("observer", "released", &root.to_string_lossy());
-        assert!(saves().unwrap().roots.is_empty());
+        assert_project_idle(&root.to_string_lossy());
         root.close().unwrap();
     }
 
@@ -670,7 +675,7 @@ mod tests {
             .unwrap();
             std::fs::remove_dir_all(&root).unwrap();
             wait_projects(&[text]).unwrap();
-            assert!(saves().unwrap().roots.is_empty());
+            assert_project_idle(&root.to_string_lossy());
         }
     }
 
@@ -697,7 +702,7 @@ mod tests {
         .unwrap();
         worker.join().unwrap();
         receive.recv_timeout(Duration::from_secs(5)).unwrap();
-        assert!(saves().unwrap().roots.is_empty());
+        assert_project_idle(&root.to_string_lossy());
         root.close().unwrap();
     }
 
@@ -728,6 +733,7 @@ mod tests {
         }
         assert!(wait_projects(std::slice::from_ref(&text)).is_err());
         save_empty("other", "independent", &other.to_string_lossy());
+        assert_project_idle(&other.to_string_lossy());
         assert_eq!(saves().unwrap().roots[&following.root].len(), 2);
         release_window("recovery-owner").unwrap();
         std::fs::write(root.join("available.txt"), "ready").unwrap();
@@ -737,7 +743,8 @@ mod tests {
             Ok(WriteResult::<()>::from_changes(Vec::new()))
         })
         .unwrap();
-        assert!(saves().unwrap().roots.is_empty());
+        assert_project_idle(&root.to_string_lossy());
+        assert_project_idle(&other.to_string_lossy());
         root.close().unwrap();
         other.close().unwrap();
     }
@@ -801,7 +808,7 @@ mod tests {
             } else {
                 assert!(!path.exists());
             }
-            assert!(saves().unwrap().roots.is_empty());
+            assert_project_idle(&root.to_string_lossy());
             release_window(owner).unwrap();
             root.close().unwrap();
         }
@@ -903,7 +910,7 @@ mod tests {
             "write.abandoned"
         );
         wait_projects(&[text]).unwrap();
-        assert!(saves().unwrap().roots.is_empty());
+        assert_project_idle(&root.to_string_lossy());
         release_window("abandon-owner").unwrap();
         root.close().unwrap();
     }
@@ -1030,7 +1037,7 @@ mod tests {
         let b = saved(&second);
         assert_eq!(a["event"], b["event"]);
         assert_eq!(a["event"]["result"]["changes"].as_array().unwrap().len(), 3);
-        assert!(saves().unwrap().roots.is_empty());
+        assert_project_idle(&root.to_string_lossy());
         release_window("multifile-first").unwrap();
         release_window("multifile-second").unwrap();
         crate::services::project::close_project_session(manifest.session_id).unwrap();

@@ -79,7 +79,7 @@ fn project_workspace_releases_its_registered_sessions_on_unwind() {
             .unwrap()
             .contains(&session)
     );
-    if std::env::var_os("CIRCINUS_KEEP_FAILED").is_none() {
+    if std::env::var_os("PYXIS_KEEP_FAILED").is_none() {
         assert!(!owned.exists());
     }
 }
@@ -144,11 +144,11 @@ fn failure_cleanup_and_retention_preserve_the_original_error() {
                 "--ignored",
                 "--nocapture",
             ])
-            .env("CIRCINUS_FAILURE_MODE", mode)
-            .env_remove("CIRCINUS_TEST_REPORTS")
-            .env_remove("CIRCINUS_KEEP_FAILED");
+            .env("PYXIS_FAILURE_MODE", mode)
+            .env_remove("PYXIS_TEST_REPORTS")
+            .env_remove("PYXIS_KEEP_FAILED");
         if mode == "retain" {
-            command.env("CIRCINUS_KEEP_FAILED", "1");
+            command.env("PYXIS_KEEP_FAILED", "1");
         }
         let output = command.output().unwrap();
         assert!(!output.status.success());
@@ -183,7 +183,7 @@ fn failure_cleanup_and_retention_preserve_the_original_error() {
 #[test]
 #[ignore = "test workspace failure subprocess fixture"]
 fn workspace_failure_child() {
-    let mode = std::env::var("CIRCINUS_FAILURE_MODE").unwrap();
+    let mode = std::env::var("PYXIS_FAILURE_MODE").unwrap();
     let root = TestWorkspace::new("failure_child");
     println!("FAILURE_WORKSPACE {}", root.outer().display());
     fs::write(root.join("notes.txt"), "evidence").unwrap();
@@ -207,11 +207,11 @@ fn workspace_failure_child() {
 #[test]
 #[ignore = "test workspace subprocess fixture"]
 fn workspace_child() {
-    let parent = std::env::var_os("CIRCINUS_TEST_ROOT")
+    let parent = std::env::var_os("PYXIS_TEST_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     let occupied = parent.join(format!(
-        "circinus_test_{}_0_process_same_name",
+        "pyxis_test_{}_0_process_same_name",
         std::process::id()
     ));
     fs::create_dir(&occupied).unwrap();

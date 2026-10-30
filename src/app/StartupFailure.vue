@@ -3,7 +3,7 @@
     <header class="titlebar ui-control-row" @pointerdown="drag" @dblclick="perform(toggleMaximizeCurrentWindow)">
       <div class="titlebar-brand ui-control-row">
         <img class="titlebar-mark ui-image" :src="appIcon" alt="" draggable="false" />
-        <strong class="ui-text-small">星界罗盘 [Circinus ad Astra]</strong>
+        <strong class="ui-text-small">星界罗盘 [Pyxis ad Astra]</strong>
       </div>
       <div class="titlebar-controls ui-control-row" @pointerdown.stop @dblclick.stop>
         <button

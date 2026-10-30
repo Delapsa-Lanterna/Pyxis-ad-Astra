@@ -7,9 +7,9 @@ describe('schema asset validation', () => {
     'preserves image directories $imageDirectories in fields and CSV columns',
     ({ imageDirectories }) => {
       const root = { key: 'image', label: 'Image', type: 'path-image', imageDirectories };
-      expect(parseFileSchema('images', { $schema: 'circinus-ad-astra/field-schema/v1', id: 'images', root }).root).toEqual(root);
+      expect(parseFileSchema('images', { $schema: 'pyxis-ad-astra/field-schema/v1', id: 'images', root }).root).toEqual(root);
       const column = { key: 'icon', control: 'path-image', imageDirectories };
-      expect(parseCsvColumnSchemas('ships', { $schema: 'circinus-ad-astra/csv-columns/v1', table: 'ships', columns: [column] })).toEqual([
+      expect(parseCsvColumnSchemas('ships', { $schema: 'pyxis-ad-astra/csv-columns/v1', table: 'ships', columns: [column] })).toEqual([
         column,
       ]);
     },
@@ -19,7 +19,7 @@ describe('schema asset validation', () => {
     (imageDirectories) => {
       expect(() =>
         parseFileSchema('images', {
-          $schema: 'circinus-ad-astra/field-schema/v1',
+          $schema: 'pyxis-ad-astra/field-schema/v1',
           id: 'images',
           root: { key: 'icon', label: 'Icon', type: 'path-image', imageDirectories },
         }),
@@ -53,7 +53,7 @@ describe('schema asset validation', () => {
     expect({ images, empty, files }).toEqual({ images: 46, empty: 3, files: 18 });
   });
   const fieldSchema = {
-    $schema: 'circinus-ad-astra/field-schema/v1',
+    $schema: 'pyxis-ad-astra/field-schema/v1',
     id: 'sample',
     sections: [{ id: 'main', label: 'Main', fields: [{ key: 'name', label: 'Name', type: 'string' }] }],
   };
@@ -178,14 +178,14 @@ describe('schema asset validation', () => {
     };
     expect(
       parseCsvColumnSchemas('ships', {
-        $schema: 'circinus-ad-astra/csv-columns/v1',
+        $schema: 'pyxis-ad-astra/csv-columns/v1',
         table: 'ships',
         columns: [column],
       }),
     ).toEqual([column]);
     expect(
       parseCsvColumnSchemas('ships', {
-        $schema: 'circinus-ad-astra/csv-columns/v1',
+        $schema: 'pyxis-ad-astra/csv-columns/v1',
         table: 'ships',
         columns: [{ key: 'minimal', control }],
       }),
@@ -209,10 +209,10 @@ describe('schema asset validation', () => {
   });
   it.each([
     { $schema: 'invalid', table: 'ships', columns: [] },
-    { $schema: 'circinus-ad-astra/csv-columns/v1', table: 'other', columns: [] },
-    { $schema: 'circinus-ad-astra/csv-columns/v1', table: 'ships', columns: [{ key: 'x', control: 'invalid' }] },
+    { $schema: 'pyxis-ad-astra/csv-columns/v1', table: 'other', columns: [] },
+    { $schema: 'pyxis-ad-astra/csv-columns/v1', table: 'ships', columns: [{ key: 'x', control: 'invalid' }] },
     {
-      $schema: 'circinus-ad-astra/csv-columns/v1',
+      $schema: 'pyxis-ad-astra/csv-columns/v1',
       table: 'ships',
       columns: [{ key: 'x', control: 'reference', source: 'config:missing' }],
     },

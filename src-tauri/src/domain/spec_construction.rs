@@ -9,7 +9,7 @@ static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
     let defaults: Value = serde_json::from_str(include_str!("../../../schemas/spec-defaults.json"))
         .expect("embedded spec defaults must parse");
     assert_eq!(
-        defaults["$schema"], "circinus-ad-astra/spec-defaults/v1",
+        defaults["$schema"], "pyxis-ad-astra/spec-defaults/v1",
         "embedded spec defaults must declare the formal format"
     );
     defaults

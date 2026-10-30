@@ -5,7 +5,7 @@ import { writeFile, readFile, mkdir, symlink, access } from 'node:fs/promises';
 import { TestWorkspace, reserveTestOutput } from './test-workspace.mjs';
 
 test('concurrent runs own separate directories and exact filenames', async () => {
-  const roots = await Promise.all(Array.from({ length: 32 }, () => TestWorkspace.create(tmpdir(), 'circinus-node-test')));
+  const roots = await Promise.all(Array.from({ length: 32 }, () => TestWorkspace.create(tmpdir(), 'pyxis-node-test')));
   try {
     assert.equal(new Set(roots.map((root) => root.root)).size, 32);
     await Promise.all(roots.map((root, index) => writeFile(root.path('notes.txt'), String(index))));
@@ -16,7 +16,7 @@ test('concurrent runs own separate directories and exact filenames', async () =>
 });
 
 test('explicit output conflicts preserve the existing report', async () => {
-  const root = await TestWorkspace.create(tmpdir(), 'circinus-node-report');
+  const root = await TestWorkspace.create(tmpdir(), 'pyxis-node-report');
   try {
     const output = await reserveTestOutput(root.path('run.json'));
     try {
@@ -32,8 +32,8 @@ test('explicit output conflicts preserve the existing report', async () => {
 });
 
 test('cleanup releases a junction while preserving its external target', async () => {
-  const root = await TestWorkspace.create(tmpdir(), 'circinus-node-link');
-  const outside = await TestWorkspace.create(tmpdir(), 'circinus-node-outside');
+  const root = await TestWorkspace.create(tmpdir(), 'pyxis-node-link');
+  const outside = await TestWorkspace.create(tmpdir(), 'pyxis-node-outside');
   try {
     await mkdir(root.path('nested'));
     await writeFile(outside.path('kept.txt'), 'outside');

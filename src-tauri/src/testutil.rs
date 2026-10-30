@@ -30,13 +30,13 @@ impl TestWorkspace {
         &self.path
     }
     pub fn new(label: &str) -> Self {
-        let parent = std::env::var_os("CIRCINUS_TEST_ROOT")
+        let parent = std::env::var_os("PYXIS_TEST_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         loop {
             let sequence = WORKSPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
             let root = parent.join(format!(
-                "circinus_test_{}_{sequence}_{label}",
+                "pyxis_test_{}_{sequence}_{label}",
                 std::process::id()
             ));
             match fs::create_dir(&root) {
@@ -175,7 +175,7 @@ impl WorkspaceFiles {
             .map(|release| release(&self.root))
             .unwrap_or_default();
         let retained = (failed || self.failed.load(Ordering::Relaxed))
-            && std::env::var_os("CIRCINUS_KEEP_FAILED").is_some();
+            && std::env::var_os("PYXIS_KEEP_FAILED").is_some();
         if retained {
             eprintln!(
                 "TEST_WORKSPACE_RETAINED test={} path={}",
@@ -188,7 +188,7 @@ impl WorkspaceFiles {
         if !errors.is_empty() || retained || failed || self.failed.load(Ordering::Relaxed) {
             let report = serde_json::json!({"test":self.test,"path":self.root,"retained":retained,"errors":errors});
             eprintln!("TEST_WORKSPACE_RESULT {report}");
-            if let Some(directory) = std::env::var_os("CIRCINUS_TEST_REPORTS") {
+            if let Some(directory) = std::env::var_os("PYXIS_TEST_REPORTS") {
                 let sequence = WORKSPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
                 let path = PathBuf::from(directory)
                     .join(format!("{}-{sequence}.json", std::process::id()));
@@ -288,12 +288,12 @@ pub(crate) fn isolated_test() -> bool {
         .name()
         .expect("named test thread")
         .to_string();
-    if std::env::var("CIRCINUS_ISOLATED_TEST").as_deref() == Ok(&name) {
+    if std::env::var("PYXIS_ISOLATED_TEST").as_deref() == Ok(&name) {
         return false;
     }
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args(["--exact", &name, "--nocapture"])
-        .env("CIRCINUS_ISOLATED_TEST", &name)
+        .env("PYXIS_ISOLATED_TEST", &name)
         .output()
         .unwrap();
     assert!(

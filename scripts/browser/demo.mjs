@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 
-const url = process.argv[2] ?? 'http://127.0.0.1:1463/Circinus-ad-Astra/';
+const url = process.argv[2] ?? 'http://127.0.0.1:1463/Pyxis-ad-Astra/';
 const output = 'node_modules/.cache/browser/demo';
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined });

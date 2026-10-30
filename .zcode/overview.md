@@ -1,6 +1,6 @@
 # Overview
 
-星界罗盘 [Circinus ad Astra] 是一个 Windows 桌面 Starsector Mod 配置工具，统一管理 Mod 表格、规格、配置实体和文件编辑，并提供受控的保存、历史、资源和窗口能力。
+星界罗盘 [Pyxis ad Astra] 是一个 Windows 桌面 Starsector Mod 配置工具，统一管理 Mod 表格、规格、配置实体和文件编辑，并提供受控的保存、历史、资源和窗口能力。
 
 ## 项目目标
 

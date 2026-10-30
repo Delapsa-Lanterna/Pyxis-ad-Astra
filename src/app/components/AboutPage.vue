@@ -3,7 +3,7 @@
     <header class="page-header">
       <div class="page-identity">
         <h1 class="page-title">关于</h1>
-        <p class="page-description">星界罗盘 [Circinus ad Astra] 的版本、作者和更新记录。</p>
+        <p class="page-description">星界罗盘 [Pyxis ad Astra] 的版本、作者和更新记录。</p>
       </div>
     </header>
 
@@ -11,7 +11,7 @@
       <h3 class="panel-section-title">应用信息</h3>
       <div class="ui-layout-grid">
         <FieldRow readonly label="名称"
-          ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">星界罗盘 [Circinus ad Astra]</strong></FieldRow
+          ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">星界罗盘 [Pyxis ad Astra]</strong></FieldRow
         >
         <FieldRow readonly label="当前版本"
           ><strong class="ui-emphasis ui-text-normal ui-layout-shrink ui-text-wrap">0.1.0</strong></FieldRow

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the Circinus ad Astra main window.",
+  "description": "Default permissions for the Pyxis ad Astra main window.",
   "windows": ["main", "managed-*"],
   "permissions": [
     "core:default",
