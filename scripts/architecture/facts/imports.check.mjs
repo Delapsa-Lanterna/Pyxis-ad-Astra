@@ -33,12 +33,15 @@ test('relative, alias, explicit and index imports resolve one actual module per 
   });
   const file = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts');
   assert.equal(file.dependencies.length, 1);
+  assert.ok(file.dependencies[0]);
   assert.equal(file.dependencies[0].resolved, 'src/domain/sample.ts');
   const indexed = architectureFixtures({
     'src/app/sample.ts': "import { run } from '@/domain/folder';",
     'src/domain/folder/index.ts': 'export function run() {}',
   });
-  assert.equal(fixtureFile(indexed, (file) => file.rel === 'src/app/sample.ts').dependencies[0].resolved, 'src/domain/folder/index.ts');
+  const dependency = fixtureFile(indexed, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+  assert.ok(dependency);
+  assert.equal(dependency.resolved, 'src/domain/folder/index.ts');
 });
 
 test('the resolver consumes declared aliases and asset query suffixes', () => {
@@ -54,6 +57,30 @@ test('the resolver consumes declared aliases and asset query suffixes', () => {
   );
 });
 
+for (const [request, target] of /** @type {const} */ ([
+  ['./model.js', 'model.ts'],
+  ['./model.js', 'model.tsx'],
+  ['./model.js', 'model.d.ts'],
+  ['./model.jsx', 'model.tsx'],
+  ['./model.mjs', 'model.mts'],
+  ['./model.mjs', 'model.d.mts'],
+  ['./model.cjs', 'model.cts'],
+  ['./model.cjs', 'model.d.cts'],
+])) {
+  test('extension substitution resolves ' + request + ' to ' + target, () => {
+    const files = architectureFixtures({
+      'src/domain/consumer.ts': `import type { Value } from '${request}';`,
+      ['src/domain/' + target]: 'export interface Value {}',
+    });
+    const file = fixtureFile(files, (entry) => entry.rel === 'src/domain/consumer.ts');
+    assert.deepEqual(
+      file.dependencies.map((edge) => edge.resolved),
+      ['src/domain/' + target],
+    );
+    assert.deepEqual(file.dependencyFailures, []);
+  });
+}
+
 test('Vue script and setup imports retain their original file positions', () => {
   const files = architectureFixtures({
     'src/app/Sample.vue':
@@ -66,6 +93,7 @@ test('Vue script and setup imports retain their original file positions', () => 
     [2, 5],
   );
   assert.equal(file.dependencies.length, 1);
+  assert.ok(file.dependencies[0]);
   assert.equal(file.dependencies[0].bindings.length, 2);
 });
 
@@ -116,6 +144,7 @@ test('reexports and imported aliases retain the protected capability origin', ()
   });
   const nodes = new Map(files.files.map((file) => [file.rel, file]));
   const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+  assert.ok(edge);
   assert.deepEqual(
     dependencyOrigins(edge, nodes, (rel, name) => Boolean(capabilityFor(rel, name))),
     [{ rel: 'src/services/csv-table.service.ts', name: 'saveCsvPatch' }],
@@ -130,10 +159,10 @@ test('namespace, export-star, export namespace and dynamic imports expand runtim
       'src/app/sample.ts': source,
     });
     const nodes = new Map(files.files.map((file) => [file.rel, file]));
+    const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+    assert.ok(edge);
     assert.deepEqual(
-      dependencyOrigins(fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0], nodes, (rel, name) =>
-        Boolean(capabilityFor(rel, name)),
-      ),
+      dependencyOrigins(edge, nodes, (rel, name) => Boolean(capabilityFor(rel, name))),
       [{ rel: 'src/services/csv-table.service.ts', name: 'saveCsvPatch' }],
     );
   }
@@ -143,12 +172,11 @@ test('namespace, export-star, export namespace and dynamic imports expand runtim
     'src/app/sample.ts': "import { write } from '@/shared/bridge';",
   });
   const nodes = new Map(files.files.map((file) => [file.rel, file]));
-  assert.equal(
-    dependencyOrigins(fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0], nodes, (rel, name) =>
-      Boolean(capabilityFor(rel, name)),
-    )[0].name,
-    'saveCsvPatch',
-  );
+  const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+  assert.ok(edge);
+  const [origin] = dependencyOrigins(edge, nodes, (rel, name) => Boolean(capabilityFor(rel, name)));
+  assert.ok(origin);
+  assert.equal(origin.name, 'saveCsvPatch');
 });
 
 test('type-only export-star has no runtime capability origin and cyclic barrels terminate', () => {
@@ -159,10 +187,10 @@ test('type-only export-star has no runtime capability origin and cyclic barrels 
     'src/app/sample.ts': "import * as first from '@/shared/first';",
   });
   const nodes = new Map(files.files.map((file) => [file.rel, file]));
+  const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+  assert.ok(edge);
   assert.deepEqual(
-    dependencyOrigins(fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0], nodes, (rel, name) =>
-      Boolean(capabilityFor(rel, name)),
-    ),
+    dependencyOrigins(edge, nodes, (rel, name) => Boolean(capabilityFor(rel, name))),
     [{ rel: 'src/shared/second.ts', name: 'plain' }],
   );
 });
@@ -227,6 +255,7 @@ test('explicit exports own their name when a star export offers the same name', 
   });
   const nodes = new Map(files.files.map((file) => [file.rel, file]));
   const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+  assert.ok(edge);
   assert.deepEqual(
     dependencyOrigins(edge, nodes, (rel, name) => Boolean(capabilityFor(rel, name))),
     [{ rel: 'src/shared/bridge.ts', name: 'saveCsvPatch' }],
@@ -242,6 +271,7 @@ test('star exports preserve default export visibility and config comments are pa
   });
   const nodes = new Map(files.files.map((file) => [file.rel, file]));
   const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+  assert.ok(edge);
   assert.deepEqual(
     dependencyOrigins(edge, nodes, () => false),
     [{ rel: 'src/shared/source.ts', name: 'visible' }],
@@ -259,13 +289,16 @@ test('alias targets are resolved relative to the configured base URL', () => {
     'src/app/sample.ts': "import { run } from '@/domain/sample';",
     'src/domain/sample.ts': 'export function run() {}',
   });
-  assert.equal(fixtureFile(files, (file) => file.rel.endsWith('app/sample.ts')).dependencies[0].resolved, 'src/domain/sample.ts');
+  const dependency = fixtureFile(files, (file) => file.rel.endsWith('app/sample.ts')).dependencies[0];
+  assert.ok(dependency);
+  assert.equal(dependency.resolved, 'src/domain/sample.ts');
 });
 
 test('computed dynamic dependencies require an explicit authorization target', () => {
   const files = architectureFixtures({ 'src/app/sample.ts': 'const target = "module"; const loaded = import(target);' });
   const file = fixtureFile(files, (file) => file.rel.endsWith('sample.ts'));
   assert.equal(file.dependencies.length, 0);
+  assert.ok(file.dependencyFailures[0]);
   assert.match(file.dependencyFailures[0].message, /dynamic dependencies must declare a literal module specifier/);
   assert.equal(file.dependencyFailures[0].target, 'import(target)');
   assert.equal(file.dependencyFailures[0].symbol, 'import');
@@ -291,12 +324,16 @@ test('TypeScript generic arrows and TSX scripts use their declared syntax mode',
     'src/app/Sample.vue':
       '<script setup lang="tsx">const view = <div />; const load = () => import("@/domain/target");</script><template><div /></template>',
   });
-  assert.equal(fixtureFile(files, (file) => file.rel.endsWith('sample.ts')).imports[0].kind, 'dynamic');
-  assert.equal(fixtureFile(files, (file) => file.rel.endsWith('Sample.vue')).dependencies[0].resolved, 'src/domain/target.ts');
+  const binding = fixtureFile(files, (file) => file.rel.endsWith('sample.ts')).imports[0];
+  assert.ok(binding);
+  assert.equal(binding.kind, 'dynamic');
+  const dependency = fixtureFile(files, (file) => file.rel.endsWith('Sample.vue')).dependencies[0];
+  assert.ok(dependency);
+  assert.equal(dependency.resolved, 'src/domain/target.ts');
 });
 
 test('local, namespace and default forwarding retain the defining runtime symbol', () => {
-  for (const [forwarding, consumer] of [
+  for (const [forwarding, consumer] of /** @type {const} */ ([
     [
       "import {saveCsvPatch as remote} from '@/services/csv-table.service'; const local=remote; export {local as submit};",
       "import {submit} from '@/shared/bridge';",
@@ -313,13 +350,14 @@ test('local, namespace and default forwarding retain the defining runtime symbol
       "import * as remote from '@/services/csv-table.service'; const local=remote; export {local as commands};",
       "import {commands} from '@/shared/bridge';",
     ],
-  ]) {
+  ])) {
     const files = architectureFixtures({
       'src/services/csv-table.service.ts': 'export function saveCsvPatch() {}',
       'src/shared/bridge.ts': forwarding,
       'src/app/sample.ts': consumer,
     });
     const edge = fixtureFile(files, (file) => file.rel === 'src/app/sample.ts').dependencies[0];
+    assert.ok(edge);
     assert.deepEqual(
       dependencyOrigins(edge, files.byPath, (rel, name) => Boolean(capabilityFor(rel, name))),
       [{ rel: 'src/services/csv-table.service.ts', name: 'saveCsvPatch' }],

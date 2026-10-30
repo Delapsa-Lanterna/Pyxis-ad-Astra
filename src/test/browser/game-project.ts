@@ -407,6 +407,7 @@ export function createWorkspaceProject(root: string, index: number) {
           }
         : queryJoint(input);
     }
+    return undefined;
   });
   model.resourceDataUrl = (path) => {
     return (

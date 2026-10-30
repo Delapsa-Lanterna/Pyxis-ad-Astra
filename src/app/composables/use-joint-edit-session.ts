@@ -113,18 +113,18 @@ export function useJointEditSession(
     (change) => {
       const root = session.currentTarget.value;
       const projection = saveProjection(change, root?.sessionId);
-      if (!projection) return;
-      if (!root || projection.manifest.sessionId !== root.sessionId) return;
+      if (!projection) return undefined;
+      if (!root || projection.manifest.sessionId !== root.sessionId) return undefined;
 
-      if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(root.modRoot)) return;
+      if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(root.modRoot)) return undefined;
       const receipt = change.reason === 'refresh' ? null : change.result;
-      if (receipt && !session.acceptsSaveDelivery(root, receipt.requestId)) return;
+      if (receipt && !session.acceptsSaveDelivery(root, receipt.requestId)) return undefined;
       if (
         receipt?.identityChanges.some(
           (identity) => identity.after.kind === root.kind && identity.after.id === root.id && identity.before.id !== identity.after.id,
         )
       )
-        return;
+        return undefined;
       const content = receipt?.content as WriteContent<JointEditSnapshot> | null;
       if (content?.target.kind === 'joint' && stableDeepEqual(content.target.root, root)) {
         const snapshot = cloneQuerySnapshot(content.value);
@@ -141,6 +141,7 @@ export function useJointEditSession(
       } else if (projection.invalidation.paths.length || projection.invalidation.session) {
         return (options.onProjection ? options.onProjection(root) : session.refreshTarget(root, true)).then(() => {});
       }
+      return undefined;
     },
     (sessionId) => {
       if (sessionId === session.currentTarget.value?.sessionId) session.clearTarget();

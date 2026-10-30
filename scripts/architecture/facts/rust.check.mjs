@@ -14,11 +14,14 @@ test('Rust masking preserves offsets through nested comments, raw strings, chars
   );
   assert.equal(code.includes('hidden'), false);
   const file = architectureFixtures({ 'src-tauri/src/services/sample.rs': text }).rust[0];
+  assert.ok(file);
   const edge = file.rust.references.find((edge) => edge.target.join('::') === 'io::read_utf8_no_bom');
   assert.ok(edge);
   assert.equal(edge.line, 5);
   assert.equal(edge.column, 37);
-  assert.equal(file.rust.functions[0].name, 'read');
+  const fn = file.rust.functions[0];
+  assert.ok(fn);
+  assert.equal(fn.name, 'read');
 });
 test('Rust module and local aliases retain lexical scopes and service definitions', () => {
   const context = architectureFixtures({

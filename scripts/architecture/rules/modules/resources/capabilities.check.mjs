@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { architectureFixtures } from '../../../testing/fixtures.mjs';
 import { projectResourcesBoundaryRule } from './project-resources-boundary.mjs';
+/** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
   ['core-root-read', 'src/app/composables/use-core-assets.ts', 'src/services/core-assets.service.ts', 'queryCoreRoot'],
   ['core-fields-read', 'src/orchestrators/core-assets.orchestrator.ts', 'src/services/core-assets.service.ts', 'queryCoreFields'],
@@ -64,5 +65,6 @@ test('Core commands reject a second Schema backend route even when the Project R
   });
   const diagnostics = projectResourcesBoundaryRule.check(files);
   assert.equal(diagnostics.length, 1);
+  assert.ok(diagnostics[0]);
   assert.equal(diagnostics[0].expected, 'services::project::resources::core_assets');
 });

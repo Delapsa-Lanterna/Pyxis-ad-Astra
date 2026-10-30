@@ -1,4 +1,5 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
+/** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
   [
     'window-close-provider',

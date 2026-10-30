@@ -20,6 +20,7 @@ test('invalidation scopes carry source and path without granting ResourceRef own
       ),
     );
     assert.equal(failures.length, 1);
+    assert.ok(failures[0]);
     assert.match(failures[0], /backend query output/);
   }
 });

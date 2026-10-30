@@ -58,7 +58,7 @@
                 自定义
               </button>
               <ColorPicker
-                v-model="customAccentDraft"
+                :model-value="customAccentDraft"
                 class="color-picker-palette-input"
                 channels="rgb"
                 output="hex-rgb"

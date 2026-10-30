@@ -26,6 +26,8 @@ for (const [index, source] of imports.entries()) {
     const failures = commandBoundaryRule.check(files);
     assert.equal(failures.length, 1);
     const markers = ['run(', 'wire.invokeCommand(', 'run(', 'run(', 'wire.invokeCommand(', '(await ', 'run('];
+    const marker = markers[index];
+    assert.ok(marker);
     assert.deepEqual(
       { ...failures[0], message: undefined },
       {
@@ -34,13 +36,14 @@ for (const [index, source] of imports.entries()) {
         source: commandBoundaryRule.source,
         file: 'src/services/example.service.ts',
         line: 1,
-        column: source.indexOf(markers[index]) + 1,
+        column: source.indexOf(marker) + 1,
         target: COMMAND_TRANSPORT,
         symbol: 'read_settings',
         expected: 'src/services/app-settings.service.ts',
         message: undefined,
       },
     );
+    assert.ok(failures[0]);
     assert.match(failures[0].message, /read_settings: command must be owned/);
   });
 }
@@ -63,6 +66,7 @@ test('ordered save transport retains command ownership through aliases and re-ex
   });
   const failures = commandBoundaryRule.check(files);
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.equal(failures[0].file, 'src/services/example.service.ts');
   assert.equal(failures[0].symbol, 'save_editor_spec');
 });
@@ -73,6 +77,7 @@ test('scoped aliases and shadowed parameters retain their lexical ownership', ()
   const files = architectureFixtures({ [COMMAND_TRANSPORT]: provider, 'src/services/example.service.ts': source });
   const failures = messages(commandBoundaryRule.check(files));
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.match(failures[0], /read_settings/);
 });
 

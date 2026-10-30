@@ -37,6 +37,7 @@ test('file history cannot invent an empty changeset', () => {
     'src/app/composables/use-history-actions.ts': 'const changes: FileChangeRecord[] = [];',
   });
   const [diagnostic] = fileHistoryBoundaryRule.check(context);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.ruleId, 'file-history-boundary');
   assert.equal(diagnostic.expected, 'WriteResult.changes');
 });
@@ -48,6 +49,7 @@ test('file editor replay events belong to the replay orchestrator', () => {
       "import {emitWindowEvent} from '@/windows/tauri.events'; emitWindowEvent(WINDOW_EVENTS.fileEditorTextApplied, payload);",
   });
   const [diagnostic] = fileHistoryBoundaryRule.check(context);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.symbol, 'fileEditorTextApplied');
   assert.equal(diagnostic.expected, 'orchestrators/file-history-replay');
 });

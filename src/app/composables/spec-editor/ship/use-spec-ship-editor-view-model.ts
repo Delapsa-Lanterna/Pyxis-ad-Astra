@@ -70,7 +70,7 @@ export function useSpecShipEditorViewModel(
   const settings = useSettingsStore();
   const state = createCanvasState<ShipHoverPreview>();
   const mode = ref<ShipEditorMode>('overview'),
-    expandedSections = ref(['basic']),
+    expandedSections = ref<(string | number)[]>(['basic']),
     spriteSize = ref({ width: 0, height: 0 });
   const viewport = useCanvasViewport(canvasRef, 1, 10);
   let fitPending = true,

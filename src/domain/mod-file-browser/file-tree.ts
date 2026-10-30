@@ -1,5 +1,5 @@
 import type { ModDirectoryState, ModFileEntry, ModFileSearch, ModFileSort } from '@/shared/types';
-export interface ModFileNode {
+export type ModFileNode = {
   key: string;
   label: string;
   isLeaf: boolean;
@@ -10,7 +10,7 @@ export interface ModFileNode {
   sizeText?: string;
   modifiedText?: string;
   matched?: boolean;
-}
+};
 const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
 
 export function modFileType(entry: Pick<ModFileEntry, 'name' | 'kind'>) {

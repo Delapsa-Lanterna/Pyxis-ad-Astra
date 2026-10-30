@@ -2,7 +2,7 @@ import { defineRule } from '../../diagnostics.mjs';
 
 export const ruleBoundaryRule = defineRule('rule-boundary', '.zcode/modules/static-checks.md#规范', import.meta.url, (context, report) => {
   for (const rule of context.registeredRules) {
-    const reference = rule.reference.split('#')[0];
+    const [reference] = /** @type {[string, ...string[]]} */ (rule.reference.split('#'));
     if (!context.paths.has(reference))
       report({ rel: rule.source }, { line: 1, column: 1 }, 'architecture rules must reference an existing contract', {
         target: reference,

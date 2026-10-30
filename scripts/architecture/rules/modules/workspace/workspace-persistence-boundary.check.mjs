@@ -15,6 +15,7 @@ for (const command of ['load_workspace', 'save_workspace'])
     });
     const diagnostics = workspacePersistenceBoundaryRule.check(invalid);
     assert.equal(diagnostics.length, 1);
+    assert.ok(diagnostics[0]);
     assert.equal(diagnostics[0].ruleId, 'workspace-persistence-boundary');
     assert.equal(diagnostics[0].line, 2);
     assert.equal(diagnostics[0].expected, 'services::workspace_persistence');

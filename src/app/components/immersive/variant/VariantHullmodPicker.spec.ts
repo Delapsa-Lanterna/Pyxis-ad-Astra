@@ -11,9 +11,10 @@ import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-ed
 import { projectVariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { createFieldInputs, provideFieldInputs } from '@/shared/runtime/field-inputs';
 import VariantHullmodPicker from './VariantHullmodPicker.vue';
-const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], media: vi.fn(), dataUrl: vi.fn() }));
+const mocks = vi.hoisted(() => ({ entries: [] as JointVariantEntry[], media: vi.fn(), dataUrl: vi.fn(), load: vi.fn(), errorText: '' }));
 const mediaRevision = ref(0);
 beforeEach(() => {
+  mocks.errorText = '';
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(234);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     queueMicrotask(() => callback(performance.now()));
@@ -40,8 +41,8 @@ vi.mock('@/app/composables/immersive-editor/variant/use-variant-catalog', () => 
       },
     }),
     loading: ref(false),
-    errorText: ref(''),
-    load: vi.fn(),
+    errorText: ref(mocks.errorText),
+    load: mocks.load,
   }),
 }));
 vi.mock('@/app/composables/use-visible-resource-media', () => ({
@@ -122,6 +123,15 @@ function harness(count = 6) {
   return { wrapper, inputs, variant, picker: wrapper.findComponent(VariantHullmodPicker) };
 }
 describe('original hullmod picker', () => {
+  it('retries the catalog using the normal read mode', async () => {
+    mocks.errorText = 'Catalog fixture unavailable';
+    const own = harness();
+    await flushPromises();
+    const retry = own.wrapper.findAll('button').find((button) => button.text() === '重试')!;
+    await retry.trigger('click');
+    expect(mocks.load).toHaveBeenCalledWith();
+    own.wrapper.unmount();
+  });
   it.each(['normal', 'permanent', 's'] as const)('uses visible %s status media and local icons through replacement', async (category) => {
     const own = harness();
     await flushPromises();

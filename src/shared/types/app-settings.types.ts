@@ -1,4 +1,4 @@
-import type { CacheLimits } from './cache-limits.types';
+import type { CacheLimits } from './cache-limits.types.js';
 
 export const APP_THEMES = ['light', 'dark'] as const;
 export type AppTheme = (typeof APP_THEMES)[number];

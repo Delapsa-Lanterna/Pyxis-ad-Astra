@@ -4,7 +4,7 @@ import { architectureFixtures } from './fixtures.mjs';
 import { capabilityBoundaryRule } from '../rules/capabilities/capability-boundary.mjs';
 import { frontendLayerBoundaryRule } from '../rules/dependencies/frontend-layer-boundary.mjs';
 
-/** @param {string[][]} cases */
+/** @param {[string, string, string, string][]} cases */
 export function testCapabilities(cases) {
   for (const [capability, from, target, name] of cases) {
     const statement = `import { ${name} } from '@/${target.slice(4, -3)}';`;
@@ -21,6 +21,7 @@ export function testCapabilities(cases) {
       const context = architectureFixtures({ ...provider, 'src/windows/audit.window.ts': statement });
       const failures = capabilityBoundaryRule.check(context).filter((diagnostic) => diagnostic.file === 'src/windows/audit.window.ts');
       assert.equal(failures.length, 1);
+      assert.ok(failures[0]);
       assert.equal(failures[0].ruleId, 'capability-boundary');
       assert.ok(failures[0].symbol?.includes(name));
       assert.ok(failures[0].target && failures[0].expected);

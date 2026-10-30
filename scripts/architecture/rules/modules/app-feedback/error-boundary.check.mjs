@@ -12,6 +12,7 @@ for (const layer of ['services', 'orchestrators']) {
     assert.deepEqual(errorBoundaryRule.check(legal), []);
     const invalid = architectureFixtures({ [rel]: '\nfunction run(){ throw new Error("sample"); }' });
     const [diagnostic] = errorBoundaryRule.check(invalid);
+    assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'error-boundary');
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.symbol, 'Error');

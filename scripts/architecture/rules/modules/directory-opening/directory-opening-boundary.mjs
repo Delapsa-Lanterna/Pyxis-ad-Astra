@@ -11,9 +11,9 @@ export const directoryOpeningBoundaryRule = defineRule(
     for (const file of context.rust) {
       if (file.rel.startsWith('src-tauri/src/models/') && !file.rel.endsWith('/directory_opening.rs'))
         for (const match of file.rust.code.matchAll(/\b(?:struct|enum)\s+([A-Za-z0-9_]+)/g))
-          if (openingModelTypes.has(match[1]))
+          if (openingModelTypes.has(/** @type {string} */ (match[1])))
             report(file, { line: 1, column: 1 }, 'Directory Opening wire models must live in models/directory_opening.rs', {
-              symbol: match[1],
+              symbol: /** @type {string} */ (match[1]),
               expected: 'src-tauri/src/models/directory_opening.rs',
             });
       if (!file.rel.startsWith('src-tauri/src/commands/')) continue;

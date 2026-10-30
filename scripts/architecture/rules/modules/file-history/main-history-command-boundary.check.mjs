@@ -15,6 +15,7 @@ test('shortcuts consume command parsing and dispatch without owning history stor
     'src/stores/file-history.store.ts': 'export function useFileHistoryStore() {}',
   });
   const [diagnostic] = mainHistoryCommandBoundaryRule.check(invalid);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.ruleId, 'main-history-command-boundary');
   assert.equal(diagnostic.line, 2);
   assert.equal(diagnostic.target, 'src/stores/file-history.store.ts');

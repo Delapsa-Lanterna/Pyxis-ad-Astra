@@ -15,6 +15,7 @@ for (const source of [
     assert.deepEqual(readTicketBoundaryRule.check(legal), []);
     const context = architectureFixtures({ ...declarations, 'src/app/components/Sample.vue': '<script setup>\n' + source + '</script>' });
     const [diagnostic] = readTicketBoundaryRule.check(context);
+    assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'read-ticket-boundary');
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.target, ticket);
@@ -105,6 +106,8 @@ for (const handoff of [
   'const owner = { active: task }; const alias = owner; alias.active.accept(); alias.active.invalidate();',
   'function finish(input) { input.accept(); input.invalidate(); } finish(task);',
   'const pending = new Map(); pending.set(id, { task }); const item = pending.get(id); item.task.accept(); item.task.invalidate();',
+  'const pending = new Map(); pending.set(undefined, { task }); const item = pending.get(); item.task.accept(); item.task.invalidate();',
+  'const pending = new Map(); pending.set(undefined, task); pending.get().accept(); pending.get(undefined).invalidate();',
   'const pending = new Set(); pending.add({ task }); for (const item of pending) { item.task.accept(); item.task.invalidate(); }',
   'const pending = new Map(); const queued = { active: new Map() }; const item = {}; pending.set(id, item); queued.active.set(id, item); function start(job) { job.ticket = task; } start(queued.active.values().next().value); for (const [key, job] of pending) { job.ticket.accept(); job.ticket.invalidate(); }',
 ]) {

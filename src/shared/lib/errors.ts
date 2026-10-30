@@ -7,7 +7,7 @@ export class AppError extends Error {
   readonly code?: string;
   readonly command?: string;
   readonly location: ErrorLocation | null;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   readonly userMessage?: string;
   readonly fileTarget?: FeedbackFileTarget;
 

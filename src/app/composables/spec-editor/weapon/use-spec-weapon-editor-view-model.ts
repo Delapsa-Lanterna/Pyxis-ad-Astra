@@ -64,7 +64,7 @@ export function useSpecWeaponEditorViewModel(
   const settings = useSettingsStore();
   const viewMode = ref<WeaponViewMode>('turret'),
     glowPreviewEnabled = ref(false),
-    expandedSections = ref(['basic']),
+    expandedSections = ref<(string | number)[]>(['basic']),
     viewport = useCanvasViewport(canvasRef, 2, 20);
   const document = useEditorDocument({
     source: () => props.weapon,
@@ -240,6 +240,7 @@ export function useSpecWeaponEditorViewModel(
         localWeapon.value = changeWeaponSpecClass(localWeapon.value, value as WeaponSpecClass);
       });
     document.change((weapon) => updateSpecField(weapon, path, value));
+    return undefined;
   }
   return {
     document: localWeapon,

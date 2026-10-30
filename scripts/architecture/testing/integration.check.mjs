@@ -16,6 +16,7 @@ test('a ViewModel may observe a cache while project invalidation has its own own
   });
   const failures = messages(capabilityBoundaryRule.check(files));
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.match(failures[0], /project-cache-invalidate \(invalidateQueryCacheByProject\).*orchestrators\/project-sync/);
 });
 
@@ -67,7 +68,9 @@ test('an imported alias in a forwarding module retains its original symbol permi
     'src/shared/bridge.ts': "import { saveCsvPatch as patch } from '@/services/csv-table.service'; export const submit = patch;",
     'src/services/csv-table.service.ts': 'export function saveCsvPatch() {}',
   });
-  assert.match(messages(capabilityBoundaryRule.check(files))[0], /table-write \(saveCsvPatch\)/);
+  const message = messages(capabilityBoundaryRule.check(files))[0];
+  assert.ok(message);
+  assert.match(message, /table-write \(saveCsvPatch\)/);
 });
 
 test('file history public aliases form their formal capability boundary', () => {
@@ -92,7 +95,9 @@ test('independent layer and capability violations each produce a diagnostic', ()
 
 test('runtime exports at protected providers declare their capability contract', () => {
   const files = architectureFixtures({ 'src/services/csv-table.service.ts': 'export function writeExtra() {}' });
-  assert.match(messages(capabilityBoundaryRule.check(files))[0], /writeExtra: public runtime exports must declare/);
+  const message = messages(capabilityBoundaryRule.check(files))[0];
+  assert.ok(message);
+  assert.match(message, /writeExtra: public runtime exports must declare/);
 });
 
 test('production fixture consumption has one diagnostic and tests may consume production', () => {
@@ -106,6 +111,7 @@ test('production fixture consumption has one diagnostic and tests may consume pr
     });
     const failures = rules.flatMap((rule) => messages(rule.check(files))).filter((failure) => failure.includes('src/domain/example.ts'));
     assert.equal(failures.length, 1);
+    assert.ok(failures[0]);
     assert.match(failures[0], /domain must not import test/);
   }
   const files = architectureFixtures({
@@ -140,13 +146,17 @@ test('invoke aliases and namespace imports remain wire capabilities', () => {
   for (const source of ["import { invoke as send } from '@tauri-apps/api/core';", "import * as core from '@tauri-apps/api/core';"]) {
     const files = architectureFixtures({ 'src/windows/audit.window.ts': source });
     assert.equal([...messages(frontendLayerBoundaryRule.check(files)), ...messages(capabilityBoundaryRule.check(files))].length, 1);
-    assert.match(messages(capabilityBoundaryRule.check(files))[0], /invoke-wire/);
+    const message = messages(capabilityBoundaryRule.check(files))[0];
+    assert.ok(message);
+    assert.match(message, /invoke-wire/);
   }
   const files = architectureFixtures({
     'src/app/composables/use-sample.ts': "import { send } from '@/shared/runtime/bridge';",
     'src/shared/runtime/bridge.ts': "export { invoke as send } from '@tauri-apps/api/core';",
   });
-  assert.match(messages(capabilityBoundaryRule.check(files))[0], /invoke-wire/);
+  const message = messages(capabilityBoundaryRule.check(files))[0];
+  assert.ok(message);
+  assert.match(message, /invoke-wire/);
 });
 
 test('the window assembly consumes the feedback factory through its declared capability', () => {
@@ -158,7 +168,9 @@ test('the window assembly consumes the feedback factory through its declared cap
     'src/app/composables/use-sample.ts': "import { createAppFeedback } from '@/app/app-feedback';",
   });
   assert.equal(messages(capabilityBoundaryRule.check(files)).length, 1);
-  assert.match(messages(capabilityBoundaryRule.check(files))[0], /feedback-factory/);
+  const message = messages(capabilityBoundaryRule.check(files))[0];
+  assert.ok(message);
+  assert.match(message, /feedback-factory/);
 });
 
 test('a pure domain with the same semantic name retains its own ownership', () => {
@@ -190,5 +202,6 @@ test('window settings consumption is constrained through the actual settings cap
     .flatMap((rule) => messages(rule.check(files)))
     .filter((failure) => failure.includes('src/windows/audit.window.ts'));
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.match(failures[0], /settings-read/);
 });

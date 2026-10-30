@@ -50,11 +50,9 @@ test('service exports retain actual definitions through grouped imports and loca
     const paths = rustServicePaths(source, 'src-tauri/src/commands/example.rs', exports);
     assert.ok(paths.some((edge) => edge.exported && edge.target.join('::') === 'services::project::query::entities::query_entity'));
   }
-  assert.deepEqual(rustServicePaths('crate::services::project::close_project_session();', '', exports)[0].target, [
-    'services',
-    'project',
-    'close_project_session',
-  ]);
+  const reference = rustServicePaths('crate::services::project::close_project_session();', '', exports)[0];
+  assert.ok(reference);
+  assert.deepEqual(reference.target, ['services', 'project', 'close_project_session']);
 });
 
 test('raw string delimiters retain complete masking and original offsets', () => {

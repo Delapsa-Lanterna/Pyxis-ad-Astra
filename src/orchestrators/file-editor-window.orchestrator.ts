@@ -15,7 +15,7 @@ export function committedFileText(result: WriteResult<unknown>, path: string): s
       const matches = (file: { relPath: string }) =>
         normalizeFsPath(joinRootRelativePath(change.afterPath, file.relPath)) === normalizeFsPath(path);
       const after = change.afterFiles.find(matches);
-      if (after?.dataBase64) return;
+      if (after?.dataBase64) return undefined;
       if (after) return after.text ?? '';
       if (change.beforeFiles.some(matches)) return '';
     } else if (
@@ -25,4 +25,5 @@ export function committedFileText(result: WriteResult<unknown>, path: string): s
     )
       return change.afterText ?? '';
   }
+  return undefined;
 }

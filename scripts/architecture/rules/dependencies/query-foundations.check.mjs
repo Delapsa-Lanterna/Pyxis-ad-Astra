@@ -4,7 +4,7 @@ import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 import { frontendLayerBoundaryRule } from './frontend-layer-boundary.mjs';
 import { capabilityBoundaryRule } from '../capabilities/capability-boundary.mjs';
 
-for (const [source, target] of [
+for (const [source, target] of /** @type {const} */ ([
   ['src/shared/types/query-cache.types.ts', 'src/shared/types/resources.types.ts'],
   ['src/shared/types/query-cache.types.ts', 'src/shared/types/joint-edit.types.ts'],
   ['src/shared/types/query-cache.types.ts', 'src/shared/types/tables.types.ts'],
@@ -14,7 +14,7 @@ for (const [source, target] of [
   ['src/services/query-cache.service.ts', 'src/services/source-options.service.ts'],
   ['src/services/query-cache.service.ts', 'src/services/hull-reference.service.ts'],
   ['src/services/query-cache.service.ts', 'src/services/resource-reference.service.ts'],
-]) {
+])) {
   for (const typeOnly of [true, false])
     test(source + ' retains its foundation boundary to ' + target + ' type=' + typeOnly, () => {
       const files = architectureFixtures({
@@ -24,12 +24,12 @@ for (const [source, target] of [
       assert.equal([...messages(frontendLayerBoundaryRule.check(files)), ...messages(capabilityBoundaryRule.check(files))].length, 1);
     });
 }
-for (const [source, target, name] of [
+for (const [source, target, name] of /** @type {const} */ ([
   ['src/app/composables/use-example.ts', 'src/services/entity-query.service.ts', 'hasEntityInvalidation'],
   ['src/app/composables/use-example.ts', 'src/services/csv-table.service.ts', 'hasTableInvalidation'],
   ['src/app/composables/use-example.ts', 'src/services/source-options.service.ts', 'hasSourceInvalidation'],
   ['src/services/resource-reference.service.ts', 'src/services/query-cache.service.ts', 'readLiveSessionQuery'],
-])
+]))
   test(name + ' has a formal consumer', () => {
     const files = architectureFixtures({
       [source]: 'import { ' + name + " } from '@/" + target.slice(4, -3) + "';",

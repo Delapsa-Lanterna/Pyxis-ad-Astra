@@ -2,7 +2,7 @@ import { defineRule } from '../../diagnostics.mjs';
 
 const SECTION_ORDER = ['定义', '参考', '边界', '链路', '规范'];
 const REFERENCE_GROUPS = ['拥有', '消费', '装配', '关联'];
-/** @type {Record<string, number>} */
+/** @satisfies {Record<string, number>} */
 const MIN_SECTION_LINES = { 参考: 3, 边界: 5, 规范: 5 };
 const MAX_DOC_LINES = 300;
 
@@ -31,11 +31,12 @@ function checkDocStructure(file, title, paths) {
   if (lines.at(-1) === '') lines.pop();
   else report(lines.length - 1, 'module doc must end with one newline');
   if (lines.length > MAX_DOC_LINES) report(0, `module doc exceeds ${MAX_DOC_LINES} lines (${lines.length})`);
+  const titleLine = lines[0] ?? '';
   if (
-    !/^# [^#\s].*$/.test(lines[0]) ||
-    !plainLine(lines[0]?.slice(2)) ||
-    /\s#+$/.test(lines[0]) ||
-    (title !== undefined && lines[0] !== '# ' + title)
+    !/^# [^#\s].*$/.test(titleLine) ||
+    !plainLine(titleLine.slice(2)) ||
+    /\s#+$/.test(titleLine) ||
+    (title !== undefined && titleLine !== '# ' + title)
   )
     report(0, 'module title must be one H1 matching its module map title');
   if (lines[1] !== '') report(1, 'module title must have one blank separator');
@@ -44,14 +45,12 @@ function checkDocStructure(file, title, paths) {
     report(0, 'H2 headings must occur exactly once in this order: 定义、参考、边界、链路、规范');
     return failures;
   }
-  if (headings[0].index !== 2) report(2, '定义 must immediately follow the title separator');
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
+  if (/** @type {{index: number}} */ (headings[0]).index !== 2) report(2, '定义 must immediately follow the title separator');
+  for (const [index, line] of lines.entries()) {
     if (line !== line.trimEnd() || /\r/.test(line)) report(index, 'trailing whitespace and stray CR are forbidden');
     if (line === '' && (index === lines.length - 1 || lines[index + 1] === '')) report(index, 'extra blank lines are forbidden');
   }
-  for (let section = 0; section < headings.length; section++) {
-    const { index, name } = headings[section];
+  for (const [section, { index, name }] of headings.entries()) {
     const end = headings[section + 1]?.index ?? lines.length;
     if (lines[index - 1] !== '' || lines[index + 1] !== '') report(index, 'H2 must have one blank line before and after');
     if (section < headings.length - 1 && lines[end - 1] !== '') report(end, 'H2 must have one blank line before');
@@ -69,11 +68,10 @@ function checkFlatSection(name, body, start, report) {
     if (body.length !== 1 || !plainLine(body[0])) report(start, '定义 must contain exactly one plain text line');
     return;
   }
-  const min = MIN_SECTION_LINES[name];
+  const min = MIN_SECTION_LINES[/** @type {keyof typeof MIN_SECTION_LINES} */ (name)];
   if (body.filter(Boolean).length < min) report(start, `${name} must contain at least ${min} entries`);
   const entries = new Set();
-  for (let index = 0; index < body.length; index++) {
-    const line = body[index];
+  for (const [index, line] of body.entries()) {
     if (!/^- \S.*$/.test(line) || !plainLine(line.slice(2))) {
       report(start + index, `${name} must contain only a compact - unordered list`);
       continue;
@@ -92,8 +90,7 @@ function checkReferences(body, start, paths, report) {
   /** @type {string | null} */
   let previous = null;
   const references = new Set();
-  for (let index = 0; index < body.length; index++) {
-    const line = body[index];
+  for (const [index, line] of body.entries()) {
     if (line.startsWith('### ')) {
       const next = REFERENCE_GROUPS.indexOf(line.slice(4));
       if (next < 0 || next <= group) report(start + index, 'reference H3 must be unique and ordered: 拥有、消费、装配、关联');
@@ -117,7 +114,7 @@ function checkReferences(body, start, paths, report) {
     }
     count++;
     entries++;
-    const path = match[1],
+    const path = /** @type {string} */ (match[1]),
       identity = path.replace(/\/$/, '');
     const parts = identity.split('/');
     if (
@@ -142,8 +139,7 @@ function checkChains(body, start, report) {
   let heading = false;
   let step = 0;
   const names = new Set();
-  for (let index = 0; index < body.length; index++) {
-    const line = body[index];
+  for (const [index, line] of body.entries()) {
     if (/^### \S.*$/.test(line) && !/\s#+$/.test(line) && plainLine(line.slice(4))) {
       if (heading && !step) report(start + index, 'each chain H3 must have an ordered list');
       if (index && (body[index - 1] !== '' || !step)) report(start + index, 'chain headings must have one blank separator');

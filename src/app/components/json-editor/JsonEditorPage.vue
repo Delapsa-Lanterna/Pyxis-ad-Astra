@@ -34,7 +34,7 @@
         <template v-if="fileError">
           <p class="ui-text-reset">{{ fileErrorText }}</p>
           <div class="action-group ui-control-center">
-            <n-button @click="retryFile">重试</n-button><n-button @click="repairFile">修复文件</n-button>
+            <n-button @click="retryFile()">重试</n-button><n-button @click="repairFile">修复文件</n-button>
           </div>
         </template>
         <p v-else-if="fileLoading" class="ui-text-reset">正在读取 {{ selectedFile.filename }}…</p>

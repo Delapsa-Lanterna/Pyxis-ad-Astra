@@ -15,6 +15,7 @@ for (const command of ['detect_directory', 'scan_game_overview'])
     });
     const diagnostics = directoryOpeningBoundaryRule.check(invalid);
     assert.equal(diagnostics.length, 1);
+    assert.ok(diagnostics[0]);
     assert.equal(diagnostics[0].ruleId, 'directory-opening-boundary');
     assert.equal(diagnostics[0].line, 2);
     assert.equal(diagnostics[0].symbol, command);
@@ -26,6 +27,7 @@ test('Directory Opening wire models stay in their model module', () => {
     'src-tauri/src/models/project.rs': 'pub struct OpenDirectoryResult { pub root: String }',
   });
   const [diagnostic] = directoryOpeningBoundaryRule.check(invalid);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.symbol, 'OpenDirectoryResult');
   assert.equal(diagnostic.expected, 'src-tauri/src/models/directory_opening.rs');
 });

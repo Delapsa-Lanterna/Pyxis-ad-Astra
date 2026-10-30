@@ -185,7 +185,9 @@ const statistics = Object.fromEntries(
     const rows = samples.filter((sample) => sample.name === name);
     return [
       name,
-      Object.fromEntries(/** @type {const} */ (['ms', 'namesMs', 'imagesMs']).map((key) => [key, summarize(rows.map((row) => row[key]))])),
+      /** @type {Record<'ms' | 'namesMs' | 'imagesMs', ReturnType<typeof summarize>>} */ (
+        Object.fromEntries(/** @type {const} */ (['ms', 'namesMs', 'imagesMs']).map((key) => [key, summarize(rows.map((row) => row[key]))]))
+      ),
     ];
   }),
 );

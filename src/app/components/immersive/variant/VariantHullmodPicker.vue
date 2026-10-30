@@ -36,7 +36,7 @@
       </header>
       <div ref="list" class="variant-hullmod-list ui-control-border" :style="{ height: listHeight + 'px' }" @scroll="scroll">
         <ImmersiveText v-if="loading" text="正在读取插件目录" />
-        <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load">重试</n-button></div>
+        <div v-else-if="errorText"><ImmersiveText :text="errorText" block /><n-button @click="load()">重试</n-button></div>
         <template v-else>
           <template v-for="view in viewport.entries.value" :key="view.key">
             <div v-if="view.kind === 'gap'" :style="{ height: view.height + 'px' }" data-retained-gap aria-hidden="true" />

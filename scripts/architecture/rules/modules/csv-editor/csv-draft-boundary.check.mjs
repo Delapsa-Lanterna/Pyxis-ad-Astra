@@ -16,6 +16,7 @@ for (const statement of [
   test('CSV mutation ownership follows ' + statement, () => {
     const invalid = architectureFixtures({ ...provider, 'src/app/composables/use-sample.ts': '\n' + statement });
     const [diagnostic] = csvDraftBoundaryRule.check(invalid);
+    assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'csv-draft-boundary');
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.symbol, 'setCsvCellValueDraft');
@@ -36,6 +37,7 @@ test('CSV store cannot write a table draft dictionary directly', () => {
     'src/stores/csv-editor.store.ts': 'const state = { documents: {} }; state.documents[table].dirty[rowKey] = true;',
   });
   const [diagnostic] = csvDraftBoundaryRule.check(context);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.ruleId, 'csv-draft-boundary');
   assert.equal(diagnostic.symbol, undefined);
   assert.equal(diagnostic.expected, 'src/domain/csv-editor/csv-table-draft.ts');

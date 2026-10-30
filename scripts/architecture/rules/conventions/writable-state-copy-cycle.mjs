@@ -109,6 +109,7 @@ export const writableStateCopyCycleRule = defineRule(
               if (binding) return { module: binding.edge.resolved, name: node.name.getText() };
             }
           }
+          return undefined;
         }
         /** @param {ts.Node} node */
         function factory(node) {

@@ -12,6 +12,7 @@ test('workspace activation is delegated through the navigation owner', () => {
     'src/app/components/csv-editor/Surface.vue': '<script setup>\n' + activate + '</script>',
   });
   const [diagnostic] = workspaceModuleBoundaryRule.check(invalid);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.ruleId, 'workspace-module-boundary');
   assert.equal(diagnostic.line, 3);
   assert.equal(diagnostic.symbol, 'activateModTable');
@@ -23,6 +24,7 @@ test('workspace assignments follow their actual receiver', () => {
     "import {useWorkspaceStore} from '@/stores/workspace.store'; const state=useWorkspaceStore(); const local={currentView:'sample'};\nlocal.currentView='other'; const empty=!state.activeModRoot;\nstate.currentView='other';";
   const diagnostics = workspaceModuleBoundaryRule.check(architectureFixtures({ ...provider, 'src/app/composables/use-sample.ts': source }));
   assert.equal(diagnostics.length, 1);
+  assert.ok(diagnostics[0]);
   assert.equal(diagnostics[0].line, 3);
   assert.equal(diagnostics[0].symbol, 'currentView');
 });

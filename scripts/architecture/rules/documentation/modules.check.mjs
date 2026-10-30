@@ -62,6 +62,7 @@ for (const section of ['边界', '规范']) {
     const doc = validDoc.slice(0, start) + validDoc.slice(start).replace(/(- A [^\n]+)(\n- B [^\n]+\n)- C [^\n]+/, '$1$2$1');
     const failures = moduleStructureRule.check(fixtures(doc));
     assert.equal(failures.length, 1);
+    assert.ok(failures[0]);
     assert.equal(failures[0].message, `${section} entries must be unique`);
     assert.equal(failures[0].file, moduleRel);
     assert.equal(failures[0].column, 1);

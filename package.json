@@ -10,7 +10,12 @@
     "dev": "vite",
     "dev:browser": "node scripts/browser/serve.mjs browser",
     "dev:testbed": "node scripts/browser/serve.mjs testbed",
-    "typecheck": "vue-tsc --noEmit && vue-tsc -p tsconfig.node.json --noEmit",
+    "typecheck": "npm run typecheck:app && npm run typecheck:test && npm run typecheck:node && npm run typecheck:scripts && npm run typecheck:browser-scripts",
+    "typecheck:app": "vue-tsc -p tsconfig.json",
+    "typecheck:test": "vue-tsc -p tsconfig.test.json",
+    "typecheck:node": "tsc -p tsconfig.node.json",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json",
+    "typecheck:browser-scripts": "tsc -p tsconfig.browser-scripts.json",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
@@ -23,7 +28,7 @@
     "test:resources": "node --test scripts/browser/run-resources.test.mjs",
     "test:browser": "node scripts/browser/run.mjs",
     "build": "npm run typecheck && vite build",
-    "build:demo": "node scripts/browser/build.mjs",
+    "build:demo": "npm run typecheck && node scripts/browser/build.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

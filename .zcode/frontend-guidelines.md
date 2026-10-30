@@ -13,6 +13,8 @@
 - 抽取 helper、adapter、composable、hook 或参数化函数前，必须证明共享不变量成立，并且能减少公开入口、状态 owner 或重复生命周期逻辑。
 - 枚举、联合类型和常量对象的选择必须在同一类问题中保持一致；禁止同一值域在不同模块使用多套表达。
 - 组件文件使用 `PascalCase`；composable 使用 `use*`；store 文件使用 `*.store.ts`；类型使用 `PascalCase`。
+- 应用与单元测试必须分别消费浏览器及 Vitest 类型环境，共同严格检查必须由 tsconfig.base.json 维护。
+- 模板必须检查组件、事件及值的类型契约，属性透传必须遵循组件既有运行边界。
 
 ## 状态与模块
 

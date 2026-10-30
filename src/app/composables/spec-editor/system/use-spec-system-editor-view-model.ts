@@ -35,7 +35,7 @@ export function useSpecSystemEditorViewModel(props: Readonly<SpecSystemEditorPro
   const localSystem = document.value,
     fields = useEditorFields(document);
 
-  const expandedSections = ref(['basic']);
+  const expandedSections = ref<(string | number)[]>(['basic']);
 
   useSpecProblems(() => systemSpecIssues(localSystem.value));
   return {

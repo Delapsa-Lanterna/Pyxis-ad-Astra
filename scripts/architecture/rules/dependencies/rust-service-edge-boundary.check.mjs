@@ -38,5 +38,6 @@ test('settings consumers keep unrelated project capabilities at their owner', ()
     ),
   );
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.match(failures[0], /must not depend on service project/);
 });

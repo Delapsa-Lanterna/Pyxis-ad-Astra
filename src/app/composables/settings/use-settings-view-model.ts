@@ -25,10 +25,10 @@ export function useSettingsViewModel(onReset?: () => void) {
   const configActions = useAppConfigActions();
   const reads = useQueryReadOwner();
   const monitorStatus = ref<PerformanceMonitorStatus | null>(null);
-  const traceSeconds = ref(15);
+  const traceSeconds = ref<number | null>(15);
   let traceRefresh: ReturnType<typeof setTimeout> | undefined;
   async function monitorAction(action: 'status' | 'reset' | 'export' | 'traceStart' | 'traceStop') {
-    await reads.consume('monitor', { action }, () => controlPerformanceMonitor(action, traceSeconds.value), {
+    await reads.consume('monitor', { action }, () => controlPerformanceMonitor(action, traceSeconds.value ?? undefined), {
       ready: (status) => {
         monitorStatus.value = status;
         clearTimeout(traceRefresh);

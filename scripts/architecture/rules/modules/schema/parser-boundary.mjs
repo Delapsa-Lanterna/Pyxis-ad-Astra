@@ -16,7 +16,7 @@ export const parserBoundaryRule = defineRule(
   (context, report) => {
     for (const file of context.rust) {
       const parts = modulePartsFromRel(file.rel);
-      const role = parts[0];
+      const role = /** @type {string} */ (parts[0]);
       const owner = parts.slice(0, 2).join('::');
       const csvWrite =
         ['services::config_entity', 'services::json_file', 'services::spec_editor'].includes(owner) ||

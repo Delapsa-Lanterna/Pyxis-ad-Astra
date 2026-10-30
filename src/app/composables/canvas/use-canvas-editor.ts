@@ -33,7 +33,7 @@ export function useCanvasEditor<TPreview>(options: {
   document: ReturnType<typeof useEditorDocument>;
   stageRef: Readonly<ShallowRef<HTMLElement | null>>;
   windowRef: Readonly<ShallowRef<HTMLElement | null>>;
-  expandedSections: Ref<string[]>;
+  expandedSections: Ref<(string | number)[]>;
   viewport: CanvasViewport;
   state: CanvasState<TPreview>;
   hooks: {

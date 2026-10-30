@@ -1,4 +1,5 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
+/** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
   ['config-write', 'src/orchestrators/json-save.orchestrator.ts', 'src/services/json-entity.service.ts', 'saveModInfo'],
   ['definition-write', 'src/orchestrators/json-save.orchestrator.ts', 'src/services/json-file.service.ts', 'saveVariantEntity'],

@@ -77,7 +77,7 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
         }
       }
       if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
-        const binding = node.initializer.declarations[0].name;
+        const binding = /** @type {ts.VariableDeclaration} */ (node.initializer.declarations[0]).name;
         const target = ts.isArrayBindingPattern(binding) ? binding.elements[1] : binding;
         const source = pathOf(node.expression);
         if (target && source)
@@ -95,7 +95,8 @@ export function readTicketLifecycles(file, creations, files = new Map([[file.rel
   for (const read of firstReads) {
     const base = read.slice(0, read.indexOf('.[first:'));
     const slots = aliases.map(({ to }) => to).filter((path) => path.startsWith(base + '.[') && !path.includes('.[first:'));
-    const first = slots[0]?.slice(0, slots[0].indexOf(']', base.length) + 1);
+    const slot = slots[0];
+    const first = slot?.slice(0, slot.indexOf(']', base.length) + 1);
     if (first) aliases.push({ from: first, to: read.slice(0, read.indexOf(']', base.length) + 1) });
   }
   propagateAliases(
@@ -142,9 +143,9 @@ function methodCall(node, pathOf) {
 function aliasEdges(node, pathOf) {
   const pair =
     ts.isVariableDeclaration(node) && node.initializer
-      ? [node.name, node.initializer]
+      ? /** @type {const} */ ([node.name, node.initializer])
       : ts.isBinaryExpression(node) && isAssignment(node.operatorToken.kind)
-        ? [node.left, node.right]
+        ? /** @type {const} */ ([node.left, node.right])
         : null;
   if (!pair) return [];
   const [target, value] = pair;
@@ -246,8 +247,10 @@ function expressionPath(node, checker, offset, channels = new Map()) {
     while (owner && !ts.isClassDeclaration(owner) && !ts.isClassExpression(owner)) owner = owner.parent;
     return owner ? `${offset + owner.getStart()}#this` : '';
   }
-  if (ts.isArrayLiteralExpression(node) && node.elements.length === 1 && ts.isSpreadElement(node.elements[0]))
-    return expressionPath(node.elements[0].expression, checker, offset, channels);
+  if (ts.isArrayLiteralExpression(node) && node.elements.length === 1) {
+    const element = /** @type {ts.Expression} */ (node.elements[0]);
+    if (ts.isSpreadElement(element)) return expressionPath(element.expression, checker, offset, channels);
+  }
   if (ts.isIdentifier(node)) {
     const symbol = ts.isShorthandPropertyAssignment(node.parent)
       ? checker.getShorthandAssignmentValueSymbol(node.parent)
@@ -380,8 +383,9 @@ function collectionChannels(ast, checker, offset, file, files) {
   return channels;
 }
 
-/** @param {ts.Node} node @param {ts.TypeChecker} checker @param {number} offset @param {Map<string, CollectionChannel>} channels @returns {string} */
+/** @param {ts.Node | undefined} node @param {ts.TypeChecker} checker @param {number} offset @param {Map<string, CollectionChannel>} channels @returns {string} */
 function collectionKey(node, checker, offset, channels) {
+  if (!node) return encodeURIComponent('global:undefined');
   if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node))
     return encodeURIComponent(JSON.stringify([ts.isNumericLiteral(node) ? 'number' : 'string', node.text])).replaceAll('.', '%2E');
   if (ts.isIdentifier(node)) {

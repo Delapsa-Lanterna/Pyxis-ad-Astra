@@ -99,7 +99,7 @@
             placement="bottom-end"
             :disabled="blocked || !variant.editable"
             :show-arrow="false"
-            :to="surface?.closest<HTMLElement>('[role=dialog]')"
+            :to="surface?.closest<HTMLElement>('[role=dialog]') ?? undefined"
           >
             <template #trigger
               ><button

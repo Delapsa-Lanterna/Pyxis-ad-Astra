@@ -391,9 +391,9 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
   );
   onScopeDispose(
     observeSavedContent((event) => {
-      if (selection.isOwnSave(event.result.requestId)) return;
+      if (selection.isOwnSave(event.result.requestId)) return undefined;
       const projection = saveProjection(event, sessionId.value);
-      if (!projection) return;
+      if (!projection) return undefined;
       if (
         projection.manifest.sessionId === sessionId.value &&
         (kind === 'mod-info' ||
@@ -402,6 +402,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
             : hasEntityInvalidation(projection.invalidation, 'entity-list', kind)))
       )
         return load(true);
+      return undefined;
     }),
   );
   onScopeDispose(() => {

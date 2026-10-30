@@ -1,17 +1,10 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2023",
     "lib": ["ES2023"],
     "types": ["node"],
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "skipLibCheck": true,
-    "strict": true,
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true
+    "moduleResolution": "Bundler"
   },
-  "include": ["vite.config.ts", "scripts/**/*.mjs", "scripts/**/*.d.ts"]
+  "include": ["vite.config.ts"]
 }

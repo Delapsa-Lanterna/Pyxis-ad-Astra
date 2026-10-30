@@ -17,7 +17,7 @@ export function moduleFacts(text) {
     } else if (line.startsWith('### ')) group = line.slice(4);
     if (/\bcss\b/i.test(line)) styleLines.push(index + 1);
     const reference = section === '参考' ? /^- `([^`]+)`：/.exec(line) : null;
-    if (reference) references.push({ path: reference[1], group, line: index + 1 });
+    if (reference) references.push({ path: /** @type {string} */ (reference[1]), group, line: index + 1 });
   }
   return { lines, headings, references, styleLines };
 }
@@ -65,13 +65,13 @@ function readSharedPaths(map, paths, report) {
     const match = /^- `([^`]+)`：(\S.*)$/.exec(line);
     if (
       !match ||
-      /[\\:*?"<>|]/.test(match[1]) ||
-      match[1].split('/').some((part, i, all) => (!part && i !== all.length - 1) || part === '.' || part === '..')
+      /[\\:*?"<>|]/.test(/** @type {string} */ (match[1])) ||
+      /** @type {string} */ (match[1]).split('/').some((part, i, all) => (!part && i !== all.length - 1) || part === '.' || part === '..')
     ) {
       report(index + 1, `public files require a literal path and responsibility`);
       continue;
     }
-    const target = match[1].replace(/\/$/, '');
+    const target = /** @type {string} */ (match[1]).replace(/\/$/, '');
     if (!paths.has(target) && !paths.has(target + '/')) report(index + 1, `public path does not exist: ${target}`);
     if (previous && previous >= target) report(index + 1, `public paths must be unique and sorted`);
     previous = target;
@@ -99,13 +99,13 @@ function readModuleIndex(file, report) {
     report(1, `module map must have exactly one 正式模块 index`);
     return entries;
   }
-  const start = starts[0];
+  const start = /** @type {number} */ (starts[0]);
   if (lines[start + 1] !== '') report(start + 2, `index heading must have one blank separator`);
   if (!lines[start + 2]) report(start + 3, `module index must start after one blank separator`);
   let inItems = false;
   let ended = false;
   for (let index = start + 2; index < lines.length; index++) {
-    const line = lines[index];
+    const line = /** @type {string} */ (lines[index]);
     if (line.startsWith('#')) break;
     if (line === '') {
       if (inItems) ended = true;
@@ -114,19 +114,19 @@ function readModuleIndex(file, report) {
     if (ended) report(index + 1, `module index must be a compact list`);
     inItems = true;
     const match = /^- \[([^[\]]+)\]\(modules\/([^()]+)\)：(\S.*)$/.exec(line);
-    if (!match || !MODULE_NAME.test(match[2])) {
+    if (!match || !MODULE_NAME.test(/** @type {string} */ (match[2]))) {
       report(index + 1, `module index entry must be - [title](modules/kebab-case.md)：remark`);
       continue;
     }
     const rel = MODULE_DIRECTORY + match[2];
     if (entries.has(rel)) report(index + 1, `duplicate module index entry ${rel}`);
-    if (titles.has(match[1])) report(index + 1, `duplicate module index title ${match[1]}`);
-    titles.add(match[1]);
+    if (titles.has(/** @type {string} */ (match[1]))) report(index + 1, `duplicate module index title ${match[1]}`);
+    titles.add(/** @type {string} */ (match[1]));
     entryLines.add(index);
-    entries.set(rel, { title: match[1], line: index + 1 });
+    entries.set(rel, { title: /** @type {string} */ (match[1]), line: index + 1 });
   }
   for (let index = 0; index < lines.length; index++) {
-    if (lines[index].includes('](modules/') && !entryLines.has(index))
+    if (/** @type {string} */ (lines[index]).includes('](modules/') && !entryLines.has(index))
       report(index + 1, `module links must be valid entries inside 正式模块`);
   }
   if (!entries.size) report(1, `module index must contain entries`);

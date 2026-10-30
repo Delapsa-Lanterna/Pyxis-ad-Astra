@@ -360,18 +360,18 @@ export function useSpecEditorWindowViewModel(
   function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = editorWindowTarget();
     const projection = saveProjection(change, target?.sessionId);
-    if (!projection) return;
-    if (!target || projection.manifest.sessionId !== target.sessionId) return;
+    if (!projection) return undefined;
+    if (!target || projection.manifest.sessionId !== target.sessionId) return undefined;
 
-    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
     const receipt = change.reason === 'refresh' ? null : change.result;
-    if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return;
+    if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
     if (
       receipt?.identityChanges.some(
         (identity) => identity.after.kind === target.kind && identity.after.id === target.id && identity.before.id !== identity.after.id,
       )
     )
-      return;
+      return undefined;
     const content = receipt?.content;
     const owner = content?.target.kind === 'spec' ? content.target.target : null;
     if (
@@ -391,10 +391,11 @@ export function useSpecEditorWindowViewModel(
         },
         true,
       );
-      return;
+      return undefined;
     }
     if (hasEntityInvalidation(projection.invalidation, 'entity-detail', target.kind, target.id))
       return queryEditorData({ promptForMissing: false, showLoading: false });
+    return undefined;
   }
   function editorWindowTarget(): SpecEditorTarget | null {
     if (!params.sessionId || !params.modRoot || !params.id) return null;

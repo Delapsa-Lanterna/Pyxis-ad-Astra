@@ -73,8 +73,8 @@ export function useSpecEditorDraftImages<TImageData>(
   const stop = observeSavedContent(
     (event) => {
       const projection = saveProjection(event, options.target.value?.sessionId);
-      if (!projection) return;
-      if (projection.manifest.sessionId !== options.target.value?.sessionId) return;
+      if (!projection) return undefined;
+      if (projection.manifest.sessionId !== options.target.value?.sessionId) return undefined;
 
       const paths = [
         ...(value.value?.resourceRefs ?? []).map((resource) => resource.relPath),
@@ -83,6 +83,7 @@ export function useSpecEditorDraftImages<TImageData>(
       const resources = projection.invalidation.resources;
       if (projection.invalidation.session || resources.some((resource) => paths.includes(normalizeFsPath(resource.relPath))))
         return refresh(true);
+      return undefined;
     },
     (sessionId) => {
       if (sessionId === options.target.value?.sessionId) {

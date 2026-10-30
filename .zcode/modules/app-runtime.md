@@ -51,14 +51,19 @@
 - `src/app/composables/immersive-editor-assembly.ts`：沉浸式实现选择、会话交接及展示协议适配。
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备及设置提交装配。
+- `src/app/naive-ui.d.ts`：模板全局组件及项目包装组件的类型声明。
 - `src/app/naive-ui.runtime.ts`：Naive UI 按需注册。
 - `src/app/theme-overrides.ts`：Naive UI 主题覆盖构建，消费主题令牌生成 provider 覆盖。
 - `src/assets/app-icon.svg`：标题栏透明罗盘图标资源。
 - `src/env.d.ts`：Vite 环境及构建常量的声明入口。
 - `src/main.ts`：启动入口，消费原生上下文窗口类型、加载 settings、初始化 settings store、创建 Vue 与 Pinia、注册 Naive UI，并按窗口类型异步加载唯一窗口根。
 - `src/services/app-lifecycle.service.ts`：关闭范围、阶段回复与启动就绪的类型化 IPC。
-- `tsconfig.json`：应用 TypeScript 编译与路径配置。
-- `tsconfig.node.json`：工程脚本 TypeScript 编译配置。
+- `tsconfig.base.json`：共同严格检查与逐文件转换约束。
+- `tsconfig.browser-scripts.json`：Node 浏览器自动化与页面类型配置。
+- `tsconfig.json`：应用与浏览器预览的 TypeScript 编译及路径配置。
+- `tsconfig.node.json`：Vite 配置加载环境的 TypeScript 配置。
+- `tsconfig.scripts.json`：Node 工程脚本与 ESLint 配置的 TypeScript 配置。
+- `tsconfig.test.json`：Vitest 与 jsdom 单元测试的 TypeScript 配置。
 - `vite.config.ts`：前端构建、alias、测试与版本常量装配。
 
 ### 消费
@@ -123,6 +128,7 @@
 - 启动失败必须经当前窗口显示能力呈现已创建窗口，原始失败消息必须由统一错误容器承载。
 - 启动失败页面必须提供重试、复制诊断和退出，必须提供原生窗口控制；退出必须等待启动失败交接并消费现有关闭流程，展示必须独立于 settings、业务 store 和 Provider 初始化。
 - 启动链路的控件注册必须显式登记，严禁通过副作用自动注册控件。
+- 全局组件类型必须与实际注册入口一一对应，项目包装组件必须消费所属实现的组件类型。
 - 启动错误呈现必须 HTML 转义消息内容，严禁拼接未转义文本。
 - 图片预览必须消费统一注册控件并随所属窗口关闭锁禁用，图片必须按比例显示。
 - 应用关闭必须先完成主窗口确认和设置提交，再逐个销毁子窗口与独立恢复窗口、释放会话并最后销毁主窗口。

@@ -46,6 +46,7 @@ test('component dependency rejection has one owner and one source-positioned dia
   });
   const failures = messages(frontendLayerBoundaryRule.check(files));
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.match(failures[0], /Audit.vue:2:\d+: src\/services\/csv-table.service.ts: components must consume/);
 });
 
@@ -82,6 +83,7 @@ test('window persistence access is treated as a global browser store', () => {
     'src/app/composables/use-sample.ts': 'window.localStorage.setItem("workspace", "value");',
   });
   const [diagnostic] = frontendLayerBoundaryRule.check(context);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.symbol, 'localStorage');
   assert.equal(diagnostic.expected, 'app config services');
 });

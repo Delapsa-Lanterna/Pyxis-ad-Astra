@@ -145,7 +145,6 @@ async function loadRoot(bootstrap: Awaited<ReturnType<typeof initializeWindowCon
     case 'weapon-fire-preview':
       return (await import('@/app/WeaponFirePreviewApp.vue')).default;
   }
-  return (await import('@/app/App.vue')).default;
 }
 async function startScene() {
   const definition = scenarios.find((scene) => scene.id === query.get('scene'))!;

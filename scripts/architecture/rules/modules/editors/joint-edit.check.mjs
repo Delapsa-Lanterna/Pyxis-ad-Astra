@@ -61,5 +61,6 @@ test('joint commands have a single capability owner and reject a second payload 
   });
   const failures = messages(commandBoundaryRule.check(files));
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.ok(failures[0].includes('src/services/spec-editor.service.ts'));
 });

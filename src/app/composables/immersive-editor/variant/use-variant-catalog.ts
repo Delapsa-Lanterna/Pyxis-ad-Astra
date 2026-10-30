@@ -57,9 +57,10 @@ export function useVariantCatalog(
     observeSavedContent(
       (event) => {
         const projection = saveProjection(event, root().sessionId);
-        if (!projection) return;
-        if (!enabled() || projection.manifest.sessionId !== root().sessionId) return;
+        if (!projection) return undefined;
+        if (!enabled() || projection.manifest.sessionId !== root().sessionId) return undefined;
         if (hasJointEditInvalidation(projection.invalidation)) return load(true);
+        return undefined;
       },
       (sessionId) => {
         if (sessionId !== root().sessionId) return;

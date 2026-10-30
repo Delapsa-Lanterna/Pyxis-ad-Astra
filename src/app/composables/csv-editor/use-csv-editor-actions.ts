@@ -40,6 +40,7 @@ export function useCsvEditorActions(feedback: AppFeedback) {
     } catch (error) {
       feedback.error(error, '保存 CSV 失败');
     }
+    return undefined;
   }
 
   async function selectAssociatedSpecs(candidates: AssociatedSpecCandidate[]) {

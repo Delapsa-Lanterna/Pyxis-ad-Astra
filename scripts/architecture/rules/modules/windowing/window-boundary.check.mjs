@@ -11,6 +11,7 @@ for (const name of ['EditorSpecSavedEvent', 'FileEditorSavedEvent'])
     assert.deepEqual(windowBoundaryRule.check(legal), []);
     const invalid = architectureFixtures({ 'src/windows/window.events.ts': '\nexport interface ' + name + ' { changes: string[] }' });
     const [diagnostic] = windowBoundaryRule.check(invalid);
+    assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'window-boundary');
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.symbol, name);

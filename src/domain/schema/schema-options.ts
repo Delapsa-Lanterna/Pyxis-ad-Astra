@@ -121,6 +121,7 @@ export function numericSelectOption(options: SelectOption[], value: string): Sel
       return { label: option.label.replace(option.value, value), value, description: option.description };
     }
   }
+  return undefined;
 }
 
 export function fieldSourceCurrentValues(field: FieldSchema, value: unknown): string[] {

@@ -44,7 +44,7 @@ export const saveBackendBoundaryRule = defineRule(
         for (const edge of file.rust.references) {
           if (edge.offset < fn.start || edge.offset >= fn.end) continue;
           const parts = edge.target;
-          if (parts[0] === 'services' && parts.length > 1 && !allowed.has(parts[1]))
+          if (parts[0] === 'services' && parts.length > 1 && !allowed.has(/** @type {string} */ (parts[1])))
             report(file, edge, fn.name + ' must consume its business backend', {
               target: parts.join('::'),
               symbol: fn.name,

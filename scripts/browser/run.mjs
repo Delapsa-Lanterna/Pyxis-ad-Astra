@@ -8,9 +8,9 @@ import { summarize } from '../shared/sample-statistics.mjs';
 import { TestWorkspace, reserveTestOutput } from '../shared/test-workspace.mjs';
 import { performanceScenarios } from './scenarios.mjs';
 
-/** @typedef {import('../../src/test/browser/contracts').RunOptions} RunOptions */
-/** @typedef {import('../../src/test/browser/contracts').RoundResult} RoundResult */
-/** @typedef {import('../../src/test/browser/contracts').RunResult} RunResult */
+/** @typedef {import('../../src/test/browser/contracts.js').RunOptions} RunOptions */
+/** @typedef {import('../../src/test/browser/contracts.js').RoundResult} RoundResult */
+/** @typedef {import('../../src/test/browser/contracts.js').RunResult} RunResult */
 /** @typedef {{ environment(): Promise<Record<string, unknown>>, sampleRound(options: RunOptions, iteration: number, phase: RoundResult['phase']): Promise<RoundResult>, summarizeRun(options: RunOptions, samples: RoundResult[], environment: Record<string, unknown>): RunResult }} PageApi */
 const { values } = parseArgs({
   options: {
@@ -58,6 +58,7 @@ try {
   const variants = values.variant
     ? values.variant.map((value) => {
         const [label, endpoint, monitor = 'off', policy = 'code'] = value.split(',');
+        if (!label || !endpoint) throw Error('--variant requires label,url[,monitor,policy]');
         return { label, url: endpoint, monitor: monitor === 'on', policy: /** @type {'disabled' | 'enabled' | 'code'} */ (policy) };
       })
     : values['monitor-compare']
@@ -157,7 +158,7 @@ try {
       }
       for (let iteration = 0; iteration < warmup + rounds; iteration++) {
         for (const index of rotation(entries.length, iteration)) {
-          const entry = entries[index];
+          const entry = /** @type {(typeof entries)[number]} */ (entries[index]);
           const phase = /** @type {'warmup' | 'measurement'} */ (iteration < warmup ? 'warmup' : 'measurement');
           await entry.page.bringToFront();
           const sample = await entry.page.evaluate(
@@ -201,8 +202,10 @@ try {
         group.push(run);
       }
       for (let index = 1; index < group.length; index++) {
-        const policy = entries[index].variant.policy;
-        comparisons.push(compare(group[policy === 'enabled' ? index - 1 : 0], group[index], policy));
+        const policy = /** @type {(typeof entries)[number]} */ (entries[index]).variant.policy;
+        comparisons.push(
+          compare(/** @type {RunResult} */ (group[policy === 'enabled' ? index - 1 : 0]), /** @type {RunResult} */ (group[index]), policy),
+        );
       }
     } finally {
       for (const entry of entries) await entry.context.close();
@@ -236,7 +239,10 @@ try {
                     sample.options.count === item.count &&
                     sample.options.resourceSize === item.resourceSize,
                 )
-                .flatMap((sample) => (metric in sample.result.metrics ? [sample.result.metrics[metric]] : [])),
+                .flatMap((sample) => {
+                  const value = sample.result.metrics[metric];
+                  return value === undefined ? [] : [value];
+                }),
             ),
           ]),
         ),

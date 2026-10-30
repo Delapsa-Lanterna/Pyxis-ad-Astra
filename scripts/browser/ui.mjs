@@ -85,7 +85,9 @@ export async function verifyUI(browser, url, output) {
       await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + Math.min(100, bounds.height / 2));
       await page.mouse.wheel(0, 500);
       await page.waitForFunction(
-        () => Reflect.get(globalThis, 'document').querySelector('.table-panel,.variant-picker-list,.variant-hullmod-list').scrollTop > 0,
+        () =>
+          (Reflect.get(globalThis, 'document').querySelector('.table-panel,.variant-picker-list,.variant-hullmod-list')?.scrollTop ?? 0) >
+          0,
       );
       checks.push({ performance: item.id, wheel: true });
       checks.push(...(await appearanceMatrix(page, output, item.id, 'testbed')));
@@ -95,9 +97,13 @@ export async function verifyUI(browser, url, output) {
     await page.locator('#rounds').fill('2');
     await page.locator('.testbed-results > summary').click();
     await page.locator('#aa').click();
-    await page.waitForFunction(() => Reflect.get(globalThis, 'document').querySelector('#status').dataset.complete === 'true', undefined, {
-      timeout: 120000,
-    });
+    await page.waitForFunction(
+      () => Reflect.get(globalThis, 'document').querySelector('#status')?.getAttribute('data-complete') === 'true',
+      undefined,
+      {
+        timeout: 120000,
+      },
+    );
     assert.equal(await page.locator('#status').textContent(), '对照通过');
     for (const format of ['json', 'md']) {
       const download = page.waitForEvent('download');
@@ -132,6 +138,7 @@ async function fieldsCheck(page) {
     await sample.getByRole('button', { name: '+ 添加项' }).click();
     const options = await page.locator('.n-base-select-menu .n-base-select-option').allInnerTexts();
     assert.ok(options.length > 0);
+    assert.ok(options[0]);
     const option = options[0].trim();
     await page.locator('.n-base-select-menu').getByText(option, { exact: true }).click();
     assert.equal(await sample.locator('.field-map-key-editor').innerText(), option.split(' · ')[0]);
@@ -173,7 +180,7 @@ async function pickerCheck(page) {
   await row.focus();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => Boolean(Reflect.get(globalThis, 'document').querySelector('#app').dataset.selectedId));
+  await page.waitForFunction(() => Boolean(Reflect.get(globalThis, 'document').querySelector('#app')?.getAttribute('data-selected-id')));
   const selected = await page.locator('#app').getAttribute('data-selected-id');
   assert.ok(selected);
   await row.click();
@@ -209,7 +216,7 @@ async function feedbackCheck(page) {
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() =>
-    Reflect.get(globalThis, 'document').querySelector('[data-feedback-result]').textContent.includes('菜单动作已执行'),
+    Reflect.get(globalThis, 'document').querySelector('[data-feedback-result]')?.textContent?.includes('菜单动作已执行'),
   );
   await page.getByRole('button', { name: '打开浮层' }).click();
   await page.locator('.n-popover').waitFor();
@@ -250,6 +257,7 @@ export async function verifyBrowserUI(browser, url, output) {
           Reflect.get(globalThis, 'browserWorkspace')
         );
       const project = workspace.projects[1];
+      if (!project) throw Error('Expected the registered Mod fixture project');
       for (const entity of project.entities.values()) {
         if (entity.kind !== 'variant') continue;
         const value = /** @type {{hullId:string,weaponGroups:Array<{weapons:Record<string,string>}>}} */ (entity.data),

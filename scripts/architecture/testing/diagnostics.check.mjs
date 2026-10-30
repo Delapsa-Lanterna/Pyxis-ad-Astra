@@ -24,6 +24,7 @@ test('registered contracts have stable unique identities and deterministically o
     ],
   );
   assert.deepEqual(sortedDiagnostics([...diagnostics].reverse()), diagnostics);
+  assert.ok(diagnostics[0]);
   assert.match(
     formatDiagnostic(diagnostics[0]),
     /^src\/domain\/alpha\.ts:2:\d+: \[frontend-layer-boundary\] src\/services\/sample.service.ts:/,

@@ -14,7 +14,7 @@
       display-directive="if"
       :show="active"
       :disabled="blocked"
-      :to="trigger?.closest<HTMLElement>('[role=dialog]')"
+      :to="trigger?.closest<HTMLElement>('[role=dialog]') ?? undefined"
       @update:show="$emit('toggle', $event)"
       :show-arrow="false"
     >

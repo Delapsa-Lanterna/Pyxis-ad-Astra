@@ -9,8 +9,8 @@ export function splitTopLevel(value) {
   let depth = 0;
   let start = 0;
   for (let index = 0; index < value.length; index++) {
-    if ('([{<'.includes(value[index])) depth++;
-    if (')]}>'.includes(value[index])) depth--;
+    if ('([{<'.includes(value.charAt(index))) depth++;
+    if (')]}>'.includes(value.charAt(index))) depth--;
     if (value[index] === ',' && depth === 0) {
       parts.push(value.slice(start, index));
       start = index + 1;
@@ -80,8 +80,8 @@ export function stripRustTestBlocks(text) {
     let end = match.index + match[0].length;
     let depth = 0;
     for (; end < text.length; end++) {
-      if ('(['.includes(text[end])) depth++;
-      else if (')]'.includes(text[end])) depth--;
+      if ('(['.includes(text.charAt(end))) depth++;
+      else if (')]'.includes(text.charAt(end))) depth--;
       else if (!depth && (text[end] === '{' || text[end] === ';')) break;
     }
     if (match[0].startsWith('#!')) end = text.length;

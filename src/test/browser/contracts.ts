@@ -5,7 +5,7 @@ export interface ScenarioOptions {
   resourceSize: number;
   monitor: boolean;
   theme: 'light' | 'dark';
-  accent?: import('../../shared/types/app-settings.types').AccentPreset;
+  accent?: import('../../shared/types/app-settings.types.js').AccentPreset;
   customAccent?: string;
 }
 

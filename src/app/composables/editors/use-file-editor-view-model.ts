@@ -366,12 +366,12 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   function handleCommittedWriteEvent(change: CommittedWriteEvent) {
     const target = draftSession.currentTarget.value;
     const projection = saveProjection(change, target?.sessionId);
-    if (!projection) return;
-    if (!target || disposed || pendingIdentity || projection.manifest.sessionId !== target.sessionId) return;
+    if (!projection) return undefined;
+    if (!target || disposed || pendingIdentity || projection.manifest.sessionId !== target.sessionId) return undefined;
 
-    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return;
+    if (normalizeFsPath(projection.manifest.modRoot) !== normalizeFsPath(target.modRoot)) return undefined;
     const receipt = change.reason === 'refresh' ? null : change.result;
-    if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return;
+    if (receipt && !draftSession.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
     if (
       receipt?.identityChanges.some(
         (identity) =>
@@ -380,7 +380,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
             normalizeFsPath(identity.before.write.path) !== normalizeFsPath(identity.after.write.path)),
       )
     )
-      return;
+      return undefined;
     const entity = draftSession.baselineSnapshot.value!.meta.entity;
     const identity = receipt?.identityChanges.find((entry) => normalizeFsPath(entry.after.write.path) === normalizeFsPath(target.filePath));
     const content = receipt ? committedFileText(receipt, target.filePath) : undefined;
@@ -399,12 +399,13 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
         },
         true,
       );
-      return;
+      return undefined;
     }
     const affected = projection.invalidation.paths.some((path) =>
       pathBelongsToRoot(target.filePath, isAbsoluteFsPath(path) ? path : joinRootRelativePath(target.modRoot, path)),
     );
     if (affected || projection.invalidation.session) return draftSession.refreshTarget(target, true).then(() => {});
+    return undefined;
   }
 
   function applyLocation(location: import('@/shared/types').FileWindowLocation) {

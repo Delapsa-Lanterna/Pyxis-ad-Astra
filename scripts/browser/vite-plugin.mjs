@@ -26,7 +26,13 @@ export function browserTestPlugin(mode = 'browser') {
       paths.sort();
       const sources = await Promise.all(paths.map((path) => readFile(root + path, 'utf8')));
       const hash = createHash('sha256');
-      paths.forEach((path, index) => hash.update(path).update('\0').update(sources[index]).update('\0'));
+      paths.forEach((path, index) =>
+        hash
+          .update(path)
+          .update('\0')
+          .update(/** @type {string} */ (sources[index]))
+          .update('\0'),
+      );
       metadata = { sourceHash: hash.digest('hex'), operationVersion: '1', build: environment.command + ':' + environment.mode, mode };
       const characters = [
         ...new Set(
@@ -70,7 +76,7 @@ export function browserTestPlugin(mode = 'browser') {
         styles = '';
       const hash = createHash('sha256');
       for (const name of Object.keys(bundle).sort()) {
-        const item = bundle[name];
+        const item = /** @type {(typeof bundle)[string]} */ (bundle[name]);
         hash.update(name).update(item.type === 'chunk' ? item.code : item.source);
         if (item.type === 'chunk' && item.isEntry) script = base + item.fileName;
         if (item.fileName.endsWith('.css')) styles += '<link rel="stylesheet" href="' + base + item.fileName + '">';

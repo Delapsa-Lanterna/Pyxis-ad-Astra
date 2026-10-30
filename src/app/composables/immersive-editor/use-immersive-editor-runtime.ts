@@ -221,6 +221,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     }
     joint.setDraft(after);
     history.push(before, after);
+    return undefined;
   }
   function dismissStat() {
     selectionIntent = null;
@@ -266,16 +267,16 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     let previous: Record<string, JointValue> | null = null;
     try {
       const submitting = inputCommitted && joint.saving.value;
-      if (!submitting && (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false)) return;
-      if (!active || joint.currentTargetKey.value !== key) return;
+      if (!submitting && (!(await joint.waitForSave()) || (await joint.inputs.commit()) === false)) return undefined;
+      if (!active || joint.currentTargetKey.value !== key) return undefined;
       if (!submitting && joint.dirty.value) {
         const choice = await feedback.choose({
           title: '保存后切换关联来源？',
           content: `保存当前${definition.label}及关联来源的编辑，再接入所选来源。`,
           choices: [{ label: '保存并切换', value: 'save', type: 'primary' }],
         });
-        if (choice !== 'save' || !active || joint.currentTargetKey.value !== key) return;
-        if (!(await joint.saveDraft()) || joint.dirty.value || !active || joint.currentTargetKey.value !== key) return;
+        if (choice !== 'save' || !active || joint.currentTargetKey.value !== key) return undefined;
+        if (!(await joint.saveDraft()) || joint.dirty.value || !active || joint.currentTargetKey.value !== key) return undefined;
       }
       previous = deepClone(joint.draftValue.value);
       let next = previous;
@@ -294,7 +295,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       const saved = await joint.saveDraft();
       if (!saved) {
         joint.setDraft(previous);
-        return;
+        return undefined;
       }
       previous = null;
       if (active && joint.currentTargetKey.value === key) {
@@ -308,6 +309,7 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     } finally {
       referenceChanging.value = false;
     }
+    return undefined;
   }
   async function undo() {
     try {

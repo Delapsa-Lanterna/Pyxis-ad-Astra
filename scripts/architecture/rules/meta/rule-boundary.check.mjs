@@ -13,6 +13,7 @@ test('registered rule source consumes parsed facts', () => {
   assert.deepEqual(ruleBoundaryRule.check(context('export const rule=(context)=>context.frontend;')), []);
   for (const text of ["\nimport {readFile} from 'node:fs/promises';", '\nexport const rule=(file)=>file.text.includes("sample");']) {
     const [diagnostic] = ruleBoundaryRule.check(context(text));
+    assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'rule-boundary');
     assert.equal(diagnostic.line, 2);
   }
@@ -30,6 +31,7 @@ test('registered implementation helpers inherit the fact consumption boundary', 
     '.zcode/module-map.md': '',
   });
   const [diagnostic] = ruleBoundaryRule.check({ ...fixtures, registeredRules: [registered] });
+  assert.ok(diagnostic);
   assert.equal(diagnostic.file, helper);
   assert.equal(diagnostic.line, 2);
   assert.equal(diagnostic.ruleId, 'rule-boundary');

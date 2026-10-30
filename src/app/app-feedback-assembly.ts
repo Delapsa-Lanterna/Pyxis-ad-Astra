@@ -57,6 +57,7 @@ export function createWindowFeedback(message: MessageApiInjection, dialog: Dialo
         type: 'warning',
         run: () => {
           if (accepting()) return useSaveCommandStore().trackCloseAction(transcodeReference(feedback, reference, session, accepting));
+          return undefined;
         },
       });
     return actions;

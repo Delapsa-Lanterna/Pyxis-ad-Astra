@@ -26,6 +26,7 @@ export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {
         .waitForSave()
         .then((saved) => {
           if (saved && runtime.isActive() && joint.currentTarget.value) return refreshWingBaseline(joint.currentTarget.value);
+          return undefined;
         })
         .catch((error) => feedback.error(error, '等待战机联队保存失败'));
       return;

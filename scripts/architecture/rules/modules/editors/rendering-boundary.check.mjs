@@ -12,6 +12,7 @@ for (const [code, symbol] of [
   test('rendering ownership is source positioned for ' + code, () => {
     const context = architectureFixtures({ 'src/app/composables/editors/use-sample.ts': '\n' + code });
     const [diagnostic] = renderingBoundaryRule.check(context);
+    assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'rendering-boundary');
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.symbol, symbol);
@@ -31,6 +32,7 @@ test('engine rendering composables cannot create RGB colors locally', () => {
     'src/app/composables/editors/use-engine-rendering.ts': "ctx.fillStyle = 'rgb(1, 2, 3)';",
   });
   const [diagnostic] = renderingBoundaryRule.check(files);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.ruleId, 'rendering-boundary');
   assert.equal(diagnostic.expected, 'engine-renderer');
 });

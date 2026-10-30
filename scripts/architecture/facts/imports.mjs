@@ -5,6 +5,13 @@ import { parseArchitectureFrontend } from './frontend.mjs';
 /** @typedef {import('../../shared/frontend-source.mjs').ImportSpecifierInfo} ImportSpecifierInfo */
 /** @typedef {{ specifier: string, resolved: string, typeOnly: boolean, bindings: ImportSpecifierInfo[], line: number, column: number }} ResolvedImport */
 /** @typedef {{ rel: string, name: string }} ExportOrigin */
+/** @type {Record<string, string[]>} */
+const extensionSubstitutions = {
+  '.js': ['.ts', '.tsx', '.d.ts'],
+  '.jsx': ['.tsx', '.d.ts'],
+  '.mjs': ['.mts', '.d.mts'],
+  '.cjs': ['.cts', '.d.cts'],
+};
 /** @typedef {import('../../shared/files.mjs').SourceFile & ReturnType<typeof parseArchitectureFrontend> & {dependencies: ResolvedImport[], referenceBindings: Map<string, {edge: ResolvedImport, binding: ImportSpecifierInfo}>, repositoryPaths: ReadonlySet<string>}} ResolvedFile */
 
 /** @param {import('../../shared/files.mjs').SourceFile[]} sources @param {string[]} [available] @returns {ResolvedFile[]} */
@@ -97,7 +104,7 @@ export function importedProjectPaths(file) {
 
 /** @param {string} fromRel @param {string} request @param {Set<string>} paths @param {Record<string, string[]>} aliases @returns {string | null} */
 function resolveProjectImport(fromRel, request, paths, aliases) {
-  const specifier = request.split(/[?#]/)[0];
+  const [specifier] = /** @type {[string, ...string[]]} */ (request.split(/[?#]/));
   /** @type {string[]} */
   const candidates = [];
   if (specifier.startsWith('.')) candidates.push(posix.join(posix.dirname(fromRel), specifier));
@@ -117,7 +124,9 @@ function resolveProjectImport(fromRel, request, paths, aliases) {
   if (!candidates.length) return specifier;
   for (const candidate of candidates) {
     const path = normalizeProjectPath(candidate);
+    const extension = posix.extname(path);
     const alternatives = [
+      ...(extensionSubstitutions[extension] ?? []).map((suffix) => path.slice(0, -extension.length) + suffix),
       path,
       ...['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.json', '.vue'].map((extension) => path + extension),
       ...['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json', '.vue'].map((extension) => path + '/index' + extension),

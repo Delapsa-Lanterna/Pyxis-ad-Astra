@@ -22,7 +22,7 @@ test('balances two and three comparison groups by rotating the first group', () 
   );
 });
 
-/** @param {number} time @returns {import('../../src/test/browser/contracts').RunResult} */
+/** @param {number} time @returns {import('../../src/test/browser/contracts.js').RunResult} */
 function report(time) {
   return {
     options: {

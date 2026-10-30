@@ -40,7 +40,7 @@ function isTestPath(rel) {
 
 /** @param {string} text @returns {string[]} */
 function vueScriptBlocks(text) {
-  return [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  return [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((match) => /** @type {string} */ (match[1]));
 }
 
 /** @param {string} rel @param {string} text @param {string[]} output @returns {void} */
@@ -81,10 +81,10 @@ function checkBindingName(rel, name, kind, output) {
 function checkRustFile(rel, text, output) {
   const clean = productionRustSource(text);
   for (const match of clean.matchAll(/\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/g)) {
-    checkIdentifier(rel, match[1], 'function', output);
+    checkIdentifier(rel, /** @type {string} */ (match[1]), 'function', output);
   }
   for (const match of clean.matchAll(/\blet\s+(?:mut\s+)?([^=;]+?)(?::|=|;)/g)) {
-    for (const name of rustPatternIdentifiers(match[1])) checkIdentifier(rel, name, 'variable', output);
+    for (const name of rustPatternIdentifiers(/** @type {string} */ (match[1]))) checkIdentifier(rel, name, 'variable', output);
   }
   for (const params of rustFunctionParamLists(clean)) {
     for (const name of rustParamIdentifiers(params)) checkIdentifier(rel, name, 'variable', output);

@@ -47,7 +47,9 @@ test('a command attribute belongs to its function and never authorizes nested he
     diagnostics.map(({ symbol }) => symbol),
     ['helper', 'after'],
   );
-  assert.equal(check('#[command_macros::command]\nfn save() {}\n#[test] fn test() {}\nfn after() {}')[0].symbol, 'after');
+  const diagnostic = check('#[command_macros::command]\nfn save() {}\n#[test] fn test() {}\nfn after() {}')[0];
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.symbol, 'after');
   assert.equal(check('trait Hidden { fn helper(); }').length, 1);
   assert.equal(check('#[command_macros::save]\nfn save() {}').length, 1);
 });
@@ -61,6 +63,7 @@ test('raw names, generic bounds and const generic defaults retain command obliga
   ]) {
     const diagnostics = check(source);
     assert.equal(diagnostics.length, 1);
+    assert.ok(diagnostics[0]);
     assert.equal(diagnostics[0].ruleId, 'rust-command-functions');
     assert.equal(diagnostics[0].line, 1);
     assert.equal(diagnostics[0].expected, '#[command_macros::command]');

@@ -86,9 +86,10 @@ export function useVariantCandidate(root: () => JointEditRoot, kind: () => 'weap
     observeSavedContent(
       (event) => {
         const projection = saveProjection(event, root().sessionId);
-        if (!projection) return;
-        if (projection.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(projection.invalidation)) return;
+        if (!projection) return undefined;
+        if (projection.manifest.sessionId !== root().sessionId || !hasJointEditInvalidation(projection.invalidation)) return undefined;
         if (id()) return load(true);
+        return undefined;
       },
       (sessionId) => {
         if (sessionId !== root().sessionId) return;

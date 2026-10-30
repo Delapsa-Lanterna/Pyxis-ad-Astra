@@ -1,14 +1,15 @@
 /** @param {number} groups @param {number} iteration */
 export const rotation = (groups, iteration) => Array.from({ length: groups }, (_, offset) => (iteration + offset) % groups);
 
-/** @param {import('../../src/test/browser/contracts').RunResult} before @param {import('../../src/test/browser/contracts').RunResult} after @param {'disabled' | 'enabled' | 'code'} policy */
+/** @param {import('../../src/test/browser/contracts.js').RunResult} before @param {import('../../src/test/browser/contracts.js').RunResult} after @param {'disabled' | 'enabled' | 'code'} policy */
 export function compare(before, after, policy = 'code') {
   const ratio = policy === 'disabled' ? 0.01 : 0.1;
   const floor = policy === 'disabled' ? 1 : 5;
   return ['open', 'roundTrip', 'traverse', 'activate', 'close'].flatMap((metric) => {
-    if (!before.metrics[metric]) return [];
+    const measured = before.metrics[metric];
+    if (!measured) return [];
     return /** @type {const} */ (['median', 'p95']).map((statistic) => {
-      const baseline = before.metrics[metric][statistic];
+      const baseline = measured[statistic];
       const actual = after.metrics[metric]?.[statistic] ?? Infinity;
       const maximum = policy === 'code' ? null : baseline + Math.max(baseline * ratio, floor);
       return { metric, statistic, baseline, actual, maximum, pass: maximum === null || actual <= maximum };
@@ -16,7 +17,7 @@ export function compare(before, after, policy = 'code') {
   });
 }
 
-/** @param {{ pass: boolean, runs: import('../../src/test/browser/contracts').RunResult[], [key: string]: unknown }} report */
+/** @param {{ pass: boolean, runs: import('../../src/test/browser/contracts.js').RunResult[], [key: string]: unknown }} report */
 export function markdown(report) {
   const lines = [
     '# 浏览器测试报告',

@@ -68,5 +68,5 @@ export const rustServiceEdgeBoundaryRule = defineRule(
 function topLevelServiceModule(rel) {
   const match = /^src-tauri\/src\/services\/([^/]+?)(?:\.rs|\/)/.exec(rel);
   if (!match) return null;
-  return ['project', 'mod'].includes(match[1]) ? null : match[1];
+  return ['project', 'mod'].includes(/** @type {string} */ (match[1])) ? null : /** @type {string} */ (match[1]);
 }

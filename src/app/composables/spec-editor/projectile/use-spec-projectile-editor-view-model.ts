@@ -72,7 +72,7 @@ export function useSpecProjectileEditorViewModel(
   const localProjectile = document.value;
   useShortcutDispatch({ commands: { undo: () => void document.undo(), redo: () => void document.redo() } });
 
-  const expandedSections = ref(['basic']);
+  const expandedSections = ref<(string | number)[]>(['basic']);
   const geometry = computed(() => projectProjectileGeometry(localProjectile.value));
   const engines = useEngineRendering(
     () => props.sessionId,

@@ -13,6 +13,7 @@ test('weapon catalogue and projectile details have distinct query owners', () =>
   });
   const diagnostics = editorQueryBoundaryRule.check(context);
   assert.equal(diagnostics.length, 1);
+  assert.ok(diagnostics[0]);
   assert.equal(diagnostics[0].ruleId, 'editor-query-boundary');
   assert.equal(diagnostics[0].file, 'src/services/weapon-data.service.ts');
   assert.equal(diagnostics[0].line, 2);

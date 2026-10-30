@@ -49,6 +49,7 @@ beforeEach(() => {
         }
       }
     }
+    return undefined;
   });
 });
 afterEach(async () => {

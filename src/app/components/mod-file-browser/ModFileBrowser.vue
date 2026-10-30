@@ -18,7 +18,7 @@
         placeholder="搜索整个 Mod 的文件名"
         :input-props="{ 'aria-label': '搜索整个 Mod 的文件名' }"
         @update:value="actions.setSearch"
-        @keydown.enter.prevent="actions.submitSearch"
+        @keydown.enter.prevent="actions.submitSearch()"
       />
       <div class="mod-files-tools ui-layout-row">
         <n-button :disabled="!view.searchText" @click="actions.clearSearch">清空搜索</n-button

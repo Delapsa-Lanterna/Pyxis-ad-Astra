@@ -39,14 +39,15 @@ export function useCsvRowPreview(options: {
   const stopQuery = observeSavedContent(
     (event) => {
       const projection = saveProjection(event, options.target()?.sessionId);
-      if (!projection) return;
-      if (projection.manifest.sessionId !== options.target()?.sessionId) return;
+      if (!projection) return undefined;
+      if (projection.manifest.sessionId !== options.target()?.sessionId) return undefined;
 
       if (
         hasTableInvalidation(projection.invalidation, 'csv-row-preview', options.target()!.table) ||
         projection.invalidation.resources.length > 0
       )
         return load(true);
+      return undefined;
     },
     (sessionId) => {
       if (sessionId === options.target()?.sessionId) reads.revoke('session');

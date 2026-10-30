@@ -7,9 +7,9 @@ export function sourcePositions(text) {
     let high = starts.length;
     while (low + 1 < high) {
       const middle = (low + high) >>> 1;
-      if (starts[middle] <= offset) low = middle;
+      if (/** @type {number} */ (starts[middle]) <= offset) low = middle;
       else high = middle;
     }
-    return { line: low + 1, column: offset - starts[low] + 1 };
+    return { line: low + 1, column: offset - /** @type {number} */ (starts[low]) + 1 };
   };
 }

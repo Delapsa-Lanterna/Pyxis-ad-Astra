@@ -9,7 +9,7 @@ export const projectResourcesBoundaryRule = defineRule(
   import.meta.url,
   (context, report) => {
     for (const file of context.rust) {
-      const module = file.rel.replace('src-tauri/src/services/', '').split(/[/.]/)[0];
+      const [module] = /** @type {[string, ...string[]]} */ (file.rel.replace('src-tauri/src/services/', '').split(/[/.]/));
       if (entityBackends.has(module))
         for (const edge of file.rust.references)
           if (edge.target.at(-1) === 'ResourceRef')

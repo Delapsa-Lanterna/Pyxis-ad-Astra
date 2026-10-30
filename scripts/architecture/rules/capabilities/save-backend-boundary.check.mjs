@@ -32,7 +32,9 @@ for (const source of [
     const files = architectureFixtures({
       'src-tauri/src/services/project/write/entity_description.rs': source,
     });
-    assert.match(messages(rustProjectLayerBoundaryRule.check(files))[0], /CSV draft and staging/);
+    const message = messages(rustProjectLayerBoundaryRule.check(files))[0];
+    assert.ok(message);
+    assert.match(message, /CSV draft and staging/);
   });
 }
 
@@ -45,7 +47,9 @@ for (const business of ['entity_description', 'entity_identity', 'csv_patch', 'j
       const files = architectureFixtures({
         'src-tauri/src/services/project/write/csv_staging.rs': source,
       });
-      assert.match(messages(rustProjectLayerBoundaryRule.check(files))[0], /CSV draft and staging/);
+      const message = messages(rustProjectLayerBoundaryRule.check(files))[0];
+      assert.ok(message);
+      assert.match(message, /CSV draft and staging/);
     });
   }
 }
@@ -139,6 +143,7 @@ test('each command retains its own backend when several commands share a file', 
   });
   const failures = messages(saveBackendBoundaryRule.check(files));
   assert.equal(failures.length, 1);
+  assert.ok(failures[0]);
   assert.match(failures[0], /file_editor.*save_mod_info/);
 });
 
@@ -183,7 +188,9 @@ for (const module of [
     const command = architectureFixtures({ 'src-tauri/src/commands/example.rs': source });
     const service = architectureFixtures({ 'src-tauri/src/services/example.rs': source });
     assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(command)), []);
-    assert.match(messages(rustProjectLayerBoundaryRule.check(service))[0], /command payload models/);
+    const message = messages(rustProjectLayerBoundaryRule.check(service))[0];
+    assert.ok(message);
+    assert.match(message, /command payload models/);
   });
 }
 

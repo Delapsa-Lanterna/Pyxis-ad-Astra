@@ -404,6 +404,7 @@ onScopeDispose(
       if (!accepted) manualId.value = id;
       return accepted;
     }
+    return undefined;
   }, prefix),
 );
 async function manual() {

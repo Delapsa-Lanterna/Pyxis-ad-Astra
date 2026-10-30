@@ -108,10 +108,10 @@ export function useWeaponFirePreviewWindowViewModel() {
               (change) => change.before.kind === 'weapon' && change.before.id !== change.after.id && change.after.id === target.value.id,
             )
           )
-            return;
+            return undefined;
           const projection = saveProjection(event, target.value.sessionId);
-          if (!projection) return;
-          if (projection.manifest.sessionId !== target.value.sessionId) return;
+          if (!projection) return undefined;
+          if (projection.manifest.sessionId !== target.value.sessionId) return undefined;
 
           const projectileId = data.value?.weapon.projectileSpecId;
           if (
@@ -121,6 +121,7 @@ export function useWeaponFirePreviewWindowViewModel() {
             hasResourceInvalidation(projection.invalidation, resourceRefs.value)
           )
             return refresh(true);
+          return undefined;
         },
         (sessionId) => {
           if (sessionId === target.value.sessionId) {

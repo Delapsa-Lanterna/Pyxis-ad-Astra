@@ -17,7 +17,7 @@ export function rustFacts(file, code, exports) {
       if (code[end] === '[') depth++;
       if (code[end] === ']') depth--;
     }
-    attributes.push({ path: match[1], start: match.index, end });
+    attributes.push({ path: /** @type {string} */ (match[1]), start: match.index, end });
   }
   for (const match of code.matchAll(
     /\b(?:pub(?:\([^)]*\))?\s+)?(?:(?:async|const|unsafe|extern)\s+)*fn\s+((?:r#)?[A-Za-z_][A-Za-z0-9_]*)\s*/g,
@@ -26,7 +26,7 @@ export function rustFacts(file, code, exports) {
     let angles = 0;
     let groups = 0;
     for (; opening < code.length; opening++) {
-      const character = code[opening];
+      const character = code.charAt(opening);
       if (character === '(' && !angles && !groups) break;
       if ('([{'.includes(character)) groups++;
       else if (')]}'.includes(character)) groups--;
@@ -51,14 +51,14 @@ export function rustFacts(file, code, exports) {
     const attached = [];
     let start = match.index;
     for (let index = attributes.length - 1; index >= 0; index--) {
-      const attribute = attributes[index];
+      const attribute = /** @type {{path: string, start: number, end: number}} */ (attributes[index]);
       if (attribute.end > start) continue;
       if (!/^(?:\s|pub(?:\([^)]*\))?|async|const|unsafe|extern)*$/.test(code.slice(attribute.end, start))) break;
       attached.unshift(attribute.path);
       start = attribute.start;
     }
     functions.push({
-      name: match[1],
+      name: /** @type {string} */ (match[1]),
       attributes: attached,
       start: match.index,
       end,

@@ -4,7 +4,10 @@
 export function frontendDependencyFailure(current, target, edge) {
   if (current.role === 'bootstrap' && target.layer === 'styles') return null;
   if (!validFrontendDependency(current.layer, target.layer))
-    return { message: `${current.layer} must not import ${target.layer}`, expected: layers[current.layer].join(', ') };
+    return {
+      message: `${current.layer} must not import ${target.layer}`,
+      expected: /** @type {string[]} */ (layers[current.layer]).join(', '),
+    };
   const queryKernel = current.path === 'src/services/query-cache.service.ts' || current.path === 'src/shared/types/query-cache.types.ts';
   const businessQuery = [
     'src/services/entity-query.service.ts',

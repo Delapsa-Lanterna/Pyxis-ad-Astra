@@ -39,7 +39,11 @@ function jsonValueCandidates(text) {
     /^(?:label|description|title|name|displayName|message|text|content|placeholder|alt|ariaLabel|heading|summary|hint|error|warning|success|actionText)$/u;
   for (const match of text.matchAll(/"([^"\\]+)"\s*:\s*"((?:\\.|[^"\\])*)"/gu)) {
     const start = match.index ?? 0;
-    candidates.push({ start: start + match[0].indexOf(match[2]), text: match[2], strictOuter: visibleKey.test(match[1]) });
+    candidates.push({
+      start: start + match[0].indexOf(/** @type {string} */ (match[2])),
+      text: /** @type {string} */ (match[2]),
+      strictOuter: visibleKey.test(/** @type {string} */ (match[1])),
+    });
   }
   return candidates;
 }
@@ -72,8 +76,8 @@ function vueCandidates(text) {
     if (plain.trim()) candidates.push({ start: cursor, text: plain, strictOuter: true });
     for (const attribute of tag.matchAll(/(?<![:\w-])(?:title|aria-label|alt|placeholder|label|text|content)\s*=\s*(["'])([\s\S]*?)\1/gu)) {
       candidates.push({
-        start: tagStart + (attribute.index ?? 0) + attribute[0].indexOf(attribute[2]),
-        text: attribute[2],
+        start: tagStart + (attribute.index ?? 0) + attribute[0].indexOf(/** @type {string} */ (attribute[2])),
+        text: /** @type {string} */ (attribute[2]),
         strictOuter: true,
       });
     }
@@ -133,7 +137,7 @@ function scanCandidate(rel, source, candidate, failures) {
   if (!checkOuterSpace) return;
   const quoteOpen = new Map();
   for (let index = 0; index < candidate.text.length; index += 1) {
-    const character = candidate.text[index];
+    const character = candidate.text.charAt(index);
     const apostrophe =
       character === "'" && /[A-Za-z0-9]/u.test(candidate.text[index - 1] ?? '') && /[A-Za-z0-9]/u.test(candidate.text[index + 1] ?? '');
     if (!['"', "'", '(', ')'].includes(character) || apostrophe) continue;

@@ -59,6 +59,19 @@ beforeEach(() => {
 });
 
 describe('settings limit controls', () => {
+  it('keeps the color draft at its declared string output', async () => {
+    const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
+    const color = wrapper.getComponent(ColorPicker);
+    const original = color.props('modelValue');
+    color.vm.$emit('update:modelValue', [10, 20, 30]);
+    await wrapper.vm.$nextTick();
+    expect(color.props('modelValue')).toBe(original);
+    color.vm.$emit('update:modelValue', '#4477aa');
+    await wrapper.vm.$nextTick();
+    expect(color.props('modelValue')).toBe('#4477aa');
+    expect(useSettingsStore().customAccent).toBe('#4477aa');
+    wrapper.unmount();
+  });
   it('resets local invalid color input when the saved default color is unchanged', async () => {
     const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
     const color = wrapper.getComponent(ColorPicker);

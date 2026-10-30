@@ -24,6 +24,7 @@ for (const [factory, create] of [
       }),
     );
     assert.equal(diagnostics.length, 1);
+    assert.ok(diagnostics[0]);
     assert.equal(diagnostics[0].ruleId, 'writable-state-copy-cycle');
     assert.ok(diagnostics[0].column > 0 && diagnostics[0].reference && diagnostics[0].source);
     assert.equal(diagnostics[0].expected, 'one writable owner with derived consumers');
@@ -43,6 +44,7 @@ for (const body of [
   test('resolved direct copy cycle: ' + body, () => {
     const diagnostics = check(body);
     assert.equal(diagnostics.length, 1);
+    assert.ok(diagnostics[0]);
     assert.match(diagnostics[0].message, / -> /);
   });
 
@@ -96,6 +98,7 @@ test('namespace factories retain the same direct copy evidence', () => {
 test('every assignment between the same storage locations retains its evidence', () => {
   const diagnostics = check('const a=ref(0),b=ref(0);\na.value=b.value;\na.value=b.value;\nb.value=a.value;');
   assert.equal(diagnostics.length, 1);
+  assert.ok(diagnostics[0]);
   for (const line of [3, 4, 5]) assert.ok(diagnostics[0].message.includes(`${source}:${line}:`));
 });
 
@@ -130,5 +133,6 @@ test('Vue diagnostics retain the original script position', () => {
     }),
   );
   assert.equal(diagnostics.length, 1);
+  assert.ok(diagnostics[0]);
   assert.equal(diagnostics[0].line, 4);
 });

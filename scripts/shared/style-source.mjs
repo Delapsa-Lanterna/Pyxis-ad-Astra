@@ -65,7 +65,7 @@ export function checkStyles(files) {
           const source = ts.createSourceFile('style.ts', `(${property.exp.content})`, ts.ScriptTarget.Latest, true);
           collectValues(source, file, property.exp.loc.start.offset - 1);
           const statement = source.statements[0];
-          if (ts.isExpressionStatement(statement) && isFixedStyleObject(statement.expression))
+          if (statement && ts.isExpressionStatement(statement) && isFixedStyleObject(statement.expression))
             report(file, property, 'css.entry', 'fixed style bindings belong in the stylesheet entry');
         }
       }

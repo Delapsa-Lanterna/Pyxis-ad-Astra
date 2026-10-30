@@ -24,7 +24,7 @@ export function installAudit() {
     if (current && !current.isUnmounted) return current;
     function find(node: unknown): ComponentInternalInstance | undefined {
       const vnode = node as VNode | null | undefined;
-      if (!vnode) return;
+      if (!vnode) return undefined;
       const component = vnode.component;
       if (component && (component.type as { __name?: string }).__name === 'CsvGrid') return component;
       if (component) {
@@ -37,6 +37,7 @@ export function installAudit() {
           if (found) return found;
         }
       if (vnode.suspense) return find(vnode.suspense.activeBranch);
+      return undefined;
     }
     return (current = find((document.querySelector('#app') as AppHost).__vue_app__._container._vnode));
   }

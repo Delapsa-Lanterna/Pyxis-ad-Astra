@@ -176,6 +176,7 @@ describe('file information toolbar', () => {
     expect(actions.setSearch.mock.lastCall?.[0]).toBe('file');
     await wrapper.get('input').trigger('keydown', { key: 'Enter' });
     expect(actions.submitSearch).toHaveBeenCalledOnce();
+    expect(actions.submitSearch).toHaveBeenCalledWith();
     view.searchText = 'file';
     view.expanded = ['data'];
     await wrapper.vm.$nextTick();

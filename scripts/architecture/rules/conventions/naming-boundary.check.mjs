@@ -12,10 +12,12 @@ test('file responsibility suffixes and store identities use the declared convent
     'src/stores/sample.store.ts': "import {defineStore as store} from 'pinia';\nstore('SampleState',()=>({}));",
   });
   const [diagnostic] = namingBoundaryRule.check(invalid);
+  assert.ok(diagnostic);
   assert.equal(diagnostic.ruleId, 'naming-boundary');
   assert.equal(diagnostic.line, 2);
   assert.equal(diagnostic.symbol, 'SampleState');
   const [suffix] = namingBoundaryRule.check(architectureFixtures({ 'src/services/sample.ts': 'export function read() {}' }));
+  assert.ok(suffix);
   assert.equal(suffix.file, 'src/services/sample.ts');
   assert.match(suffix.message, /\.service\.ts/);
 });

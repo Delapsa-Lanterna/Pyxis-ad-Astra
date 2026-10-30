@@ -209,18 +209,18 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     observeSavedContent(
       (event) => {
         const projection = saveProjection(event, record.target?.sessionId);
-        if (!projection) return;
-        if (projection.manifest.sessionId !== record.target.sessionId) return;
+        if (!projection) return undefined;
+        if (projection.manifest.sessionId !== record.target.sessionId) return undefined;
 
         const target = session.currentTarget.value!;
         const receipt = event.reason === 'refresh' ? null : event.result;
-        if (receipt && !session.acceptsSaveDelivery(target, receipt.requestId)) return;
+        if (receipt && !session.acceptsSaveDelivery(target, receipt.requestId)) return undefined;
         if (
           receipt?.identityChanges.some(
             (change) => change.after.kind === target.kind && change.after.id === target.id && change.before.id !== change.after.id,
           )
         )
-          return;
+          return undefined;
         const content = receipt?.content;
         if (
           content &&
@@ -239,7 +239,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
               },
               true,
             );
-            return;
+            return undefined;
           }
           if (target.kind === 'mod-info' || target.kind === 'misc-config') {
             const value =
@@ -256,7 +256,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
               },
               true,
             );
-            return;
+            return undefined;
           }
         }
         if (
@@ -265,12 +265,13 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
             ? hasMiscConfigInvalidation(projection.invalidation, record.target.modRoot, miscConfigFile(record.target.id).kind)
             : hasEntityInvalidation(projection.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
         )
-          return;
+          return undefined;
         if (active.value)
           return refresh().catch((error) => {
             feedback.error(error, '刷新 JSON 文档失败');
             throw error;
           });
+        return undefined;
       },
       (sessionId) => {
         if (sessionId === record.target.sessionId) {
