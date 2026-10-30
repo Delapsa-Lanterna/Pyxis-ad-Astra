@@ -57,7 +57,10 @@ struct Member {
 #[derive(Clone, Debug)]
 enum NodeKind {
     Object(Vec<Member>),
-    Array(Vec<Node>),
+    Array {
+        elements: Vec<Node>,
+        separators: Vec<Range<usize>>,
+    },
     Scalar,
 }
 
@@ -269,20 +272,26 @@ impl<'a> Scanner<'a> {
     fn parse_array(&mut self, start: usize) -> Option<Node> {
         let close = if self.take()? == '[' { ']' } else { ')' };
         let mut elements = Vec::new();
+        let mut separators = Vec::new();
         loop {
             self.skip_space();
             if self.peek() == Some(close) {
                 self.take();
                 return Some(Node {
                     span: start..self.previous_end(),
-                    kind: NodeKind::Array(elements),
+                    kind: NodeKind::Array {
+                        elements,
+                        separators,
+                    },
                 });
             }
             elements.push(self.parse_value()?);
             self.skip_space();
             match self.peek()? {
                 ',' | ';' => {
+                    let separator_start = self.offset();
                     self.take();
+                    separators.push(separator_start..self.previous_end());
                 }
                 ch if ch == close => {}
                 _ => return None,
@@ -557,24 +566,26 @@ fn collect_edits(
             }
             Some(())
         }
-        (NodeKind::Array(elements), Value::Array(before), Value::Array(after))
-            if elements.len() == before.len() && before.len() == after.len() =>
-        {
-            for (index, element) in elements.iter().enumerate() {
-                let ordered_child = ordered.and_then(|node| match &node.kind {
-                    NodeKind::Array(items) => items.get(index),
-                    _ => None,
-                });
-                collect_edits(
+        (
+            NodeKind::Array {
+                elements,
+                separators,
+            },
+            Value::Array(before),
+            Value::Array(after),
+        ) => {
+            edits.push(Edit {
+                span: node.span.clone(),
+                text: render_array(
                     source,
-                    element,
-                    &before[index],
-                    &after[index],
-                    ordered_child,
-                    order_source,
-                    edits,
-                )?;
-            }
+                    node,
+                    elements,
+                    separators,
+                    before,
+                    after,
+                    (ordered, order_source),
+                )?,
+            });
             Some(())
         }
         _ => {
@@ -588,6 +599,229 @@ fn collect_edits(
             Some(())
         }
     }
+}
+
+fn render_array(
+    source: &str,
+    node: &Node,
+    elements: &[Node],
+    separators: &[Range<usize>],
+    before: &[Value],
+    after: &[Value],
+    submitted: (Option<&Node>, Option<&str>),
+) -> Option<String> {
+    let (ordered, order_source) = submitted;
+    let mut matched = vec![None; after.len()];
+    let mut used = vec![false; before.len()];
+    for (next, value) in after.iter().enumerate() {
+        if let Some(old) = before
+            .iter()
+            .enumerate()
+            .position(|(i, old)| !used[i] && old == value)
+        {
+            matched[next] = Some(old);
+            used[old] = true;
+        }
+    }
+    let new_count = matched.iter().filter(|old| old.is_none()).count();
+    if used.iter().filter(|used| !**used).count() > new_count && new_count > 0 {
+        return None;
+    }
+    let mut available = used
+        .iter()
+        .enumerate()
+        .filter_map(|(i, used)| (!used).then_some(i));
+    for next in &mut matched {
+        if next.is_none() {
+            *next = available.next();
+        }
+    }
+
+    let (open_end, close_start) = (node.span.start + 1, node.span.end - 1);
+    let multiline = source[node.span.clone()].contains('\n');
+    let indent = elements.first().map_or_else(
+        || format!("{}  ", line_indent(source, node.span.start)),
+        |element| line_indent(source, element.span.start),
+    );
+    let eol = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut prefixes = Vec::with_capacity(elements.len());
+    let mut comments = Vec::with_capacity(elements.len());
+    let mut gaps = Vec::with_capacity(elements.len() + 1);
+    for (index, element) in elements.iter().enumerate() {
+        let separator = separators.get(index);
+        let leading = separator.map_or("", |separator| &source[element.span.end..separator.start]);
+        if leading.contains('\n') {
+            return None;
+        }
+        let start = separator.map_or(element.span.end, |separator| separator.end);
+        let end = elements
+            .get(index + 1)
+            .map_or(close_start, |next| next.span.start);
+        let after = &source[start..end];
+        let line_end = after.find('\n').unwrap_or(after.len());
+        let line = &after[..line_end];
+        let comment = line
+            .find('#')
+            .filter(|index| line[..*index].trim().is_empty());
+        prefixes.push(format!(
+            "{leading}{}",
+            if separator.is_none() {
+                comment.map_or("", |i| &line[..i])
+            } else {
+                ""
+            }
+        ));
+        comments.push(comment.map_or_else(String::new, |i| {
+            if separator.is_some() {
+                line.to_string()
+            } else {
+                line[i..].to_string()
+            }
+        }));
+        gaps.push(if comment.is_some() {
+            after[line_end..].to_string()
+        } else {
+            after.to_string()
+        });
+    }
+    if elements.is_empty() {
+        gaps.push(if !after.is_empty() && multiline {
+            format!("{eol}{}", line_indent(source, node.span.start))
+        } else {
+            source[open_end..close_start].to_string()
+        });
+    }
+    let prefix = elements.first().map_or_else(
+        || {
+            if !after.is_empty() && multiline {
+                format!("{eol}{indent}")
+            } else {
+                String::new()
+            }
+        },
+        |element| source[open_end..element.span.start].to_string(),
+    );
+    let ordered_elements = ordered.and_then(|node| match &node.kind {
+        NodeKind::Array { elements, .. } => Some(elements.as_slice()),
+        _ => None,
+    });
+    let delimiter = separators
+        .first()
+        .and_then(|span| source.get(span.clone()))
+        .unwrap_or(",");
+    if separators
+        .iter()
+        .any(|span| source.get(span.clone()) != Some(delimiter))
+    {
+        return None;
+    }
+    let trailing_comma = separators.len() == elements.len() && !elements.is_empty();
+    let mut rendered = source[node.span.start..open_end].to_string();
+    rendered.push_str(&prefix);
+    if after.is_empty() {
+        if elements.is_empty() {
+            rendered.push_str(&gaps[0]);
+        } else {
+            for gap in &gaps {
+                rendered.push_str(&standalone_comments(gap));
+            }
+        }
+    } else {
+        for (index, value) in after.iter().enumerate() {
+            let raw = if let Some(old_index) = matched[index] {
+                render_node(
+                    source,
+                    &elements[old_index],
+                    &before[old_index],
+                    value,
+                    ordered_elements.and_then(|items| items.get(index)),
+                    order_source,
+                )?
+            } else {
+                submitted_value_text(
+                    order_source,
+                    ordered_elements.and_then(|items| items.get(index)),
+                    value,
+                )?
+            };
+            rendered.push_str(&raw);
+            let old_index = matched[index];
+            if let Some(old_index) = old_index {
+                rendered.push_str(&prefixes[old_index]);
+            }
+            if index + 1 < after.len() || trailing_comma {
+                rendered.push_str(delimiter);
+            }
+            if let Some(old_index) = old_index {
+                rendered.push_str(&comments[old_index]);
+            }
+            if index + 1 < after.len() {
+                rendered.push_str(
+                    gaps.get(index)
+                        .filter(|_| index + 1 < elements.len())
+                        .map(String::as_str)
+                        .unwrap_or(if multiline { "\n" } else { "" }),
+                );
+                if multiline && gaps.get(index).is_none_or(|_| index + 1 >= elements.len()) {
+                    rendered.push_str(&indent);
+                }
+            } else {
+                for gap in gaps
+                    .iter()
+                    .skip(index)
+                    .take(elements.len().saturating_sub(after.len()))
+                {
+                    rendered.push_str(&standalone_comments(gap));
+                }
+                rendered.push_str(gaps.last().map(String::as_str).unwrap_or(if multiline {
+                    eol
+                } else {
+                    ""
+                }));
+            }
+        }
+    }
+    rendered.push_str(&source[close_start..node.span.end]);
+    Some(rendered)
+}
+
+fn render_node(
+    source: &str,
+    node: &Node,
+    before: &Value,
+    after: &Value,
+    ordered: Option<&Node>,
+    order_source: Option<&str>,
+) -> Option<String> {
+    let mut edits = Vec::new();
+    collect_edits(
+        source,
+        node,
+        before,
+        after,
+        ordered,
+        order_source,
+        &mut edits,
+    )?;
+    edits.sort_by_key(|edit| std::cmp::Reverse(edit.span.start));
+    let mut rendered = source[node.span.clone()].to_string();
+    for edit in edits {
+        rendered.replace_range(
+            edit.span.start - node.span.start..edit.span.end - node.span.start,
+            &edit.text,
+        );
+    }
+    Some(rendered)
+}
+
+fn standalone_comments(gap: &str) -> String {
+    gap.split_inclusive('\n')
+        .filter(|line| line.trim_start().starts_with('#'))
+        .collect()
 }
 
 fn submitted_value_text(
@@ -691,5 +925,81 @@ mod tests {
         let text = preserved(source, json!({"keep":2}), r#"{"keep":2}"#);
         assert!(text.contains("# standalone"));
         assert!(!text.contains("# inline"));
+    }
+
+    #[test]
+    fn array_deletions_keep_only_standalone_comments_and_preserve_line_endings() {
+        let source = "{ items: [\r\n  # keep\r\n  { id: 'a' }, # remove\r\n  { id: 'b' },\r\n], tail: true }";
+        let mut value = parse_starsector_json(source).unwrap();
+        value["items"] = json!([]);
+        let text = preserved(source, value, r#"{"items":[],"tail":true}"#);
+        assert!(text.contains("[\r\n  # keep\r\n  ]"), "{text:?}");
+        assert!(text.contains("tail: true"));
+        assert!(!text.contains("# remove"));
+    }
+
+    #[test]
+    fn appends_first_item_to_empty_multiline_array() {
+        let source = "{\n  groups: [\n  ]\n}";
+        let text = preserved(
+            source,
+            json!({"groups":[{"id":"new"}]}),
+            r#"{"groups":[{"id":"new"}]}"#,
+        );
+        assert_eq!(text, "{\n  groups: [\n    {\"id\":\"new\"}\n  ]\n}");
+    }
+
+    #[test]
+    fn array_insertions_and_deletions_preserve_retained_entry_text() {
+        let source = "{ items: ['a', 'b', 'c'] }";
+        let cases: &[&[&str]] = &[
+            &["x", "a", "b", "c"],
+            &["a", "x", "b", "c"],
+            &["a", "b", "c", "x"],
+            &["b", "c"],
+            &["a", "c"],
+            &["a", "b"],
+            &[],
+        ];
+        for ids in cases {
+            let mut value = parse_starsector_json(source).unwrap();
+            value["items"] = json!(ids);
+            let order = serde_json::to_string(&value).unwrap();
+            let text = preserved(source, value, &order);
+            for id in ["a", "b", "c"] {
+                if ids.contains(&id) {
+                    assert!(text.contains(&format!("'{id}'")), "{text}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reordered_items_carry_inline_comments_and_keep_standalone_comments_in_place() {
+        let source = "{ items: [\n  { id: 'a' }, # item a\n  # fixed position\n  { id: 'b' }\n] }";
+        let mut value = parse_starsector_json(source).unwrap();
+        value["items"].as_array_mut().unwrap().swap(0, 1);
+        let text = preserved(source, value, r#"{"items":[{"id":"b"},{"id":"a"}]}"#);
+        assert!(text.find("{ id: 'b' }").unwrap() < text.find("# item a").unwrap());
+        assert!(text.find("# fixed position").unwrap() < text.find("{ id: 'a' }").unwrap());
+    }
+
+    #[test]
+    fn changed_nested_array_item_keeps_unmodified_fields() {
+        let source = "{\n  groups: [\n    { id: 'a', slots: ['A'] },\n    { id: 'b', slots: ['B'] }\n  ],\n  tail: true\n}";
+        let mut value = parse_starsector_json(source).unwrap();
+        value["groups"][0]["id"] = json!("updated");
+        value["groups"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id":"c","slots":[]}));
+        let text = preserved(
+            source,
+            value,
+            r#"{"groups":[{"id":"updated","slots":["A"]},{"id":"b","slots":["B"]},{"id":"c","slots":[]}],"tail":true}"#,
+        );
+        assert!(text.contains("id: \"updated\", slots: ['A']"));
+        assert!(text.contains("id: 'b', slots: ['B']"));
+        assert!(text.contains("tail: true"));
     }
 }

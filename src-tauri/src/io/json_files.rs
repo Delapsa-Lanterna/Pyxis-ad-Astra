@@ -177,6 +177,32 @@ mod tests {
     }
 
     #[test]
+    fn adding_a_variant_weapon_group_preserves_existing_json_text() {
+        let dir = TestWorkspace::new("json_write_batch_array_append");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("demo.variant");
+        let source = "{\n  hullId: 'demo',\n  weaponGroups: [\n    { mode: 'LINKED', weapons: { A: 'one' } },\n    { mode: 'ALTERNATING', weapons: { B: 'two' } }\n  ],\n  unknown: '007'\n}";
+        crate::io::write_utf8_no_bom(&path, source).unwrap();
+        let mut value = parse_starsector_json(source).unwrap();
+        value["weaponGroups"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"mode":"LINKED","weapons":{}}));
+        let ordered = serde_json::to_string(&value).unwrap();
+        let mut batch = JsonWriteBatch::new(JsonWriteOptions {
+            preserve_original_json: true,
+            confirmed_sources: Vec::new(),
+        });
+        let rendered = batch.render(&path, &value, Some(&ordered)).unwrap();
+        batch.finish().unwrap();
+        assert!(rendered.contains("{ mode: 'LINKED', weapons: { A: 'one' } }"));
+        assert!(rendered.contains("{ mode: 'ALTERNATING', weapons: { B: 'two' } }"));
+        assert!(rendered.contains("unknown: '007'"));
+        assert_eq!(parse_starsector_json(&rendered).unwrap(), value);
+        dir.close().unwrap();
+    }
+
+    #[test]
     fn confirmation_is_rejected_after_source_changes() {
         let dir = TestWorkspace::new("json_write_batch_changed_source");
         fs::create_dir_all(&dir).unwrap();
