@@ -13,7 +13,7 @@ export const WEAPON_COLORS = {
   STATION_MODULE: 'rgb(182 50 182)',
 } satisfies Record<string, string>;
 
-export const SLOT_RADIUS = { LARGE: 32, MEDIUM: 24, SMALL: 16 } satisfies Record<string, number>;
+export const SLOT_RADIUS = { LARGE: 40, MEDIUM: 30, SMALL: 20 } satisfies Record<string, number>;
 
 export function rgba(color: unknown, alpha = 1): string {
   const c = Array.isArray(color) ? color : [255, 255, 255, 255];

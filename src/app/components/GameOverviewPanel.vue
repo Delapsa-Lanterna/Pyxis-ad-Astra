@@ -16,11 +16,7 @@
       </div>
     </div>
 
-    <ModOpeningFailureList
-      :failures="openingFailures"
-      @edit-failure-file="$emit('edit-failure-file', $event)"
-      @dismiss-failure="$emit('dismiss-failure', $event)"
-    />
+    <ModOpeningFailureList :failures="openingFailures" @dismiss-failure="$emit('dismiss-failure', $event)" />
 
     <div v-if="overview.warnings.length > 0" class="game-warning-list ui-layout-grid">
       <div v-for="warning in overview.warnings" :key="warningKey(warning)" class="game-warning-item ui-layout-grid ui-layout-center">
@@ -29,9 +25,7 @@
           <span class="game-warning-content-label ui-text-truncate ui-text-muted ui-layout-shrink">{{ warning.path }}</span>
         </div>
         <div class="game-overview-actions action-group">
-          <n-button v-if="warning.editTarget" size="small" secondary type="warning" @click="$emit('edit-warning-file', warning)">
-            打开文件
-          </n-button>
+          <FeedbackFileActions :notice="scanWarningNotice(warning)" level="warning" />
           <n-button size="small" @click="$emit('dismiss-warning', warning)">关闭提示</n-button>
         </div>
       </div>
@@ -76,6 +70,8 @@
 
 <script setup lang="ts">
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
+import FeedbackFileActions from '@/app/components/FeedbackFileActions.vue';
+import { scanWarningNotice } from '@/domain/project/load-diagnostics';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 import { modStatusLabel } from '@/domain/workspace/mod-status';
 import { appendFileReferenceLocation, extractFileReferenceFromError, formatError } from '@/shared/lib/errors';
@@ -87,8 +83,6 @@ defineEmits<{
   'create-mod': [];
   'refresh-workspace': [];
   'close-workspace': [];
-  'edit-warning-file': [warning: GameScanWarning];
-  'edit-failure-file': [failure: ModOpeningFailure];
   'dismiss-failure': [modRoot: string];
   'dismiss-warning': [warning: GameScanWarning];
   'load-mod': [modRoot: string];

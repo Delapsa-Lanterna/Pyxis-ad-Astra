@@ -137,6 +137,56 @@ fn reference_priority_content_and_lifecycle() {
     content(&b_root, "beta", &["shared", "local", "beta_only"], 2);
     fs::remove_file(b_root.join("data/hulls/hull.ship")).unwrap();
     content(&root.join("c"), "gamma", &["shared", "gamma_only"], 3);
+    let plugin_ids = [
+        "builtin_fixture",
+        "normal_fixture",
+        "permanent_fixture",
+        "s_fixture",
+    ];
+    let hull_path = root.join("c/data/hulls/hull.ship");
+    let mut hull: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&hull_path).unwrap()).unwrap();
+    hull["builtInMods"] = json!([plugin_ids[0]]);
+    write_utf8_no_bom(&hull_path, &hull.to_string()).unwrap();
+    fs::create_dir_all(b_root.join("data/hullmods")).unwrap();
+    fs::write(
+        b_root.join("data/hullmods/hull_mods.csv"),
+        format!(
+            "id,name,sprite\n{}",
+            plugin_ids
+                .iter()
+                .map(|id| format!("{id},{id},graphics/shared.png\n"))
+                .collect::<String>()
+        ),
+    )
+    .unwrap();
+    let mut variant: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(b_root.join("data/variants/module.variant")).unwrap(),
+    )
+    .unwrap();
+    for (field, id) in ["builtInMods", "hullMods", "permaMods", "sMods"]
+        .into_iter()
+        .zip(plugin_ids)
+    {
+        variant[field] = json!([id]);
+    }
+    write_utf8_no_bom(
+        &b_root.join("data/variants/module.variant"),
+        &variant.to_string(),
+    )
+    .unwrap();
+    let mut csv = fs::read_to_string(b_root.join("data/weapons/weapon_data.csv")).unwrap();
+    csv.push_str("split_fixture,Split,ENERGY,SMALL,1\n");
+    fs::write(b_root.join("data/weapons/weapon_data.csv"), csv).unwrap();
+    let mut split: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root.join("c/data/weapons/shared.wpn")).unwrap())
+            .unwrap();
+    split["id"] = json!("split_fixture");
+    write_utf8_no_bom(
+        &root.join("c/data/weapons/split_fixture.wpn"),
+        &split.to_string(),
+    )
+    .unwrap();
     let a = open(&root.join("a"), Some(&game));
     let b = open(&b_root, None);
     let c = open(&root.join("c"), None);
@@ -253,6 +303,68 @@ fn reference_priority_content_and_lifecycle() {
     let catalog =
         query::joint_edit::query_variant_catalog(&target, JointVariantCatalogKind::Weapons, None)
             .unwrap();
+    let split = catalog
+        .catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == "split_fixture")
+        .unwrap();
+    assert_eq!(resource_source(&split.resource_refs["icon"]), c.session_id);
+    assert!(
+        query::resources::query_resource_data_urls(
+            &a.session_id,
+            vec![split.resource_refs["icon"].clone()]
+        )
+        .unwrap()
+        .entries[0]
+            .data_url
+            .as_ref()
+            .unwrap()
+            .ends_with("Aw==")
+    );
+    let installed = query::joint_edit::query_joint_edit(&JointEditRoot {
+        kind: JointEditKind::Variant,
+        id: "module".into(),
+        ..target.clone()
+    })
+    .unwrap();
+    let icons: Vec<_> = installed
+        .records
+        .iter()
+        .filter_map(|record| record.resource_refs.get("icon"))
+        .collect();
+    assert_eq!(icons.len(), 4);
+    for icon in icons {
+        assert_eq!(resource_source(icon), b.session_id);
+        assert!(
+            query::resources::query_resource_data_urls(&a.session_id, vec![icon.clone()])
+                .unwrap()
+                .entries[0]
+                .data_url
+                .as_ref()
+                .unwrap()
+                .ends_with("Ag==")
+        );
+    }
+    for (kind, id) in [
+        (JointEditKind::Ship, "hull"),
+        (JointEditKind::Skin, "beta_skin"),
+        (JointEditKind::Wing, "alpha_wing"),
+    ] {
+        let snapshot = query::joint_edit::query_joint_edit(&JointEditRoot {
+            kind,
+            id: id.into(),
+            ..target.clone()
+        })
+        .unwrap();
+        let icon = snapshot
+            .records
+            .iter()
+            .filter_map(|record| record.resource_refs.get("icon"))
+            .find(|icon| icon.owner_id == plugin_ids[0])
+            .unwrap();
+        assert_eq!(resource_source(icon), b.session_id);
+    }
     let weapon = catalog
         .catalog
         .entries
@@ -296,7 +408,16 @@ fn reference_priority_content_and_lifecycle() {
     );
     session::close_project_session(reopened.session_id).unwrap();
     set_reference_sources(Vec::new()).unwrap();
-    assert!(query::resources::query_resource_data_urls(&a.session_id, vec![image]).is_err());
+    assert_eq!(
+        query::resources::query_resource_data_urls(&a.session_id, vec![image])
+            .unwrap()
+            .entries[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .code,
+        "reference.unavailable"
+    );
     assert_eq!(
         owner(&options(&a, "csv:weapons.id"), "shared"),
         ResourceSource::Core

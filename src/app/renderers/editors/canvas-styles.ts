@@ -1,5 +1,4 @@
 import type { CanvasPalette } from '@/domain/editors/lib/canvas-palette';
-import { WEAPON_COLORS } from '@/shared/lib/starsector';
 
 export interface OutlineStyle {
   color: string;
@@ -39,20 +38,6 @@ export function centerMarkerStyle(palette: CanvasPalette, selected: boolean, hov
   };
 }
 
-export function weaponSlotColor(type: string): string {
-  return WEAPON_COLORS[type.toUpperCase() as keyof typeof WEAPON_COLORS] ?? '#9ca3af';
-}
-
-export function launchBayPortStyle(alpha: number, hovered = false, accent = false) {
-  return {
-    alpha,
-    color: weaponSlotColor('LAUNCH_BAY'),
-    radius: 10,
-    centerRadius: accent ? 4.5 : 2.2,
-    width: hovered || accent ? 1.8 : 1.1,
-  };
-}
-
 export function barrelStyle(palette: CanvasPalette, selected: boolean, hovered = false, mirrored = false) {
   return {
     alpha: selected || hovered || mirrored ? 0.8 : 0.5,
@@ -60,8 +45,4 @@ export function barrelStyle(palette: CanvasPalette, selected: boolean, hovered =
     control: controlPointStyle(palette, selected, hovered),
     label: { color: palette.marker, outline: palette.outline, width: 1, alpha: 1 },
   };
-}
-
-export function weaponSlotStyle(type: string, alpha: number) {
-  return { alpha, color: weaponSlotColor(type), outlineWidth: 2.2, arcWidth: 2, facingColor: '#d8d8d8', facingWidth: 2, centerRadius: 5 };
 }

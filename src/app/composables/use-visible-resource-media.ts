@@ -6,6 +6,7 @@ import { recordPerformance, performanceMonitorEnabled } from '@/shared/runtime/p
 import { warningNotice } from '@/shared/lib/errors';
 import { useThumbnailPreload } from './use-thumbnail-preload';
 import { resourceThumbnailRequest } from './use-resource-thumbnail';
+import { useLayoutFrame } from './use-layout-frame';
 
 interface RegisteredMedia {
   id: string;
@@ -37,6 +38,7 @@ export function useVisibleResourceMedia(args: {
   let rootHeight = -1;
   let disposed = false;
   let firstFrameRequestId = 0;
+  const scheduleResize = useLayoutFrame(rebuildObserverWhenHeightChanges);
 
   function setMediaRoot(element: Element | ComponentPublicInstance | null): void {
     const nextRoot = element instanceof HTMLElement ? element : null;
@@ -47,7 +49,7 @@ export function useVisibleResourceMedia(args: {
     root?.setAttribute('data-media-viewport', '');
     rootHeight = -1;
     if (root) {
-      resizeObserver = new ResizeObserver(() => rebuildObserverWhenHeightChanges());
+      resizeObserver = new ResizeObserver(scheduleResize);
       resizeObserver.observe(root);
     }
     rebuildObserver();

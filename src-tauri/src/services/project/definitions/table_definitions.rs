@@ -447,28 +447,39 @@ fn weapon_source_resource(
     core_data: Option<&CoreSourceData>,
     session: &ProjectSession,
 ) -> AppResult<Option<ResourceRef>> {
-    let sprite_path = match source {
-        ResourceSource::Reference => session
-            .reference_spec(crate::models::EntityKind::Weapon, value)
-            .and_then(|record| weapon_sprite_path(&record.data)),
-        ResourceSource::Core => core_data.and_then(|core_data| {
-            core_data
-                .weapon_specs
-                .get(value)
-                .and_then(|record| weapon_sprite_path(&record.data))
-        }),
+    let record = match source {
+        ResourceSource::Reference => {
+            session.reference_spec(crate::models::EntityKind::Weapon, value)
+        }
+        ResourceSource::Core => core_data
+            .and_then(|data| data.weapon_specs.get(value))
+            .cloned(),
         ResourceSource::Mod => session
             .weapon_specs
             .get(value)
-            .and_then(|record| weapon_sprite_path(&record.data))
+            .filter(|record| record.location.source == ResourceSource::Mod)
+            .cloned()
+            .or_else(|| session.reference_spec(crate::models::EntityKind::Weapon, value))
+            .or_else(|| session.weapon_specs.get(value).cloned())
             .or_else(|| {
-                session
-                    .reference_spec(crate::models::EntityKind::Weapon, value)
-                    .and_then(|record| weapon_sprite_path(&record.data))
+                core_data
+                    .and_then(|data| data.weapon_specs.get(value))
+                    .cloned()
             }),
     };
-    Ok(sprite_path
-        .map(|path| resource_ref(source, &path, ResourceOwnerKind::Weapon, value, "sprite")))
+    Ok(record.and_then(|record| {
+        weapon_sprite_path(&record.data).map(|path| {
+            let mut resource = resource_ref(
+                record.location.source,
+                &path,
+                ResourceOwnerKind::Weapon,
+                value,
+                "sprite",
+            );
+            resource.reference = record.location.reference.as_deref().cloned();
+            resource
+        })
+    }))
 }
 
 fn wing_source_resource(

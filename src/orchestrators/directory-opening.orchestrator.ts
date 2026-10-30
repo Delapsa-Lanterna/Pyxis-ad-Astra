@@ -12,7 +12,8 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { closeProject, openProject } from '@/services/project-session.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from '@/services/directory.service';
-import { buildModOpeningFailure, formatLoadWarnings, scanWarningNotice } from '@/domain/project/load-diagnostics';
+import { buildModOpeningFailure, modOpeningFailureNotice, formatLoadWarnings, scanWarningNotice } from '@/domain/project/load-diagnostics';
+import { AppError, formatError, errorCodeOf } from '@/shared/lib/errors';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import { navigateToModOverview } from '@/orchestrators/workspace-navigation.orchestrator';
@@ -139,14 +140,19 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
     if (afterOpenView === 'overview') workspace.showOverview();
     return { alreadyLoaded: false, displayName, warnings: formatLoadWarnings(loaded) };
   } catch (error) {
+    const failure = buildModOpeningFailure(modRoot, error);
     if (workspace.getModGeneration(modRoot) === generation) {
-      workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
+      workspace.setModOpeningFailure(failure);
       workspace.showOverview();
       const sessionId = useProjectStore().getSessionId(modRoot);
       if (sessionId) await closeProject(sessionId);
       removeModRuntimeState(modRoot);
     }
-    throw error;
+    throw new AppError(formatError(error), {
+      cause: error,
+      code: errorCodeOf(error),
+      fileTarget: modOpeningFailureNotice(failure).diagnostic.fileTarget,
+    });
   }
 }
 

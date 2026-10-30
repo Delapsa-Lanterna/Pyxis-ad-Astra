@@ -22,6 +22,8 @@ pub struct ResourceDataUrlBatchEntry {
     pub owner_kind: ResourceOwnerKind,
     pub owner_id: String,
     pub data_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<crate::errors::ErrorDiagnostic>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -257,13 +257,27 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
   }
   if (command === 'query_resource_data_urls')
     return {
-      entries: (payload.resources as T.ResourceRef[]).map((resource) => ({
-        ...resource,
-        dataUrl:
-          gameImages.get(
-            (resource.source === 'core' ? coreRoot : (resource.reference?.modRoot ?? project.manifest.modRoot)) + '/' + resource.relPath,
-          ) ?? null,
-      })),
+      entries: (payload.resources as T.ResourceRef[]).map((resource) => {
+        const unavailable =
+          resource.source === 'reference' &&
+          !sources.some(
+            (source) =>
+              source !== project &&
+              source.manifest.sessionId === resource.reference?.sessionId &&
+              source.manifest.modRoot === resource.reference?.modRoot,
+          );
+        return {
+          ...resource,
+          ...(unavailable ? { error: { code: 'reference.unavailable', message: '引用来源已不可用', location: null } } : {}),
+          dataUrl: unavailable
+            ? null
+            : (gameImages.get(
+                (resource.source === 'core' ? coreRoot : (resource.reference?.modRoot ?? project.manifest.modRoot)) +
+                  '/' +
+                  resource.relPath,
+              ) ?? null),
+        };
+      }),
     };
   if (command === 'query_engine_render_assets') {
     const styles = Object.assign(

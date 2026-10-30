@@ -26,6 +26,8 @@
 - `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。
 - `src/app/composables/immersive-editor/use-immersive-editor-runtime.ts`：联合会话、历史、字段与关联读取运行态。
 - `src/app/composables/immersive-editor/use-immersive-thumbnails.ts`：必须交付武器与船体缩略图的实际绘制参数、依赖和成品需求。
+- `src/app/composables/use-layout-frame.spec.ts`：必须验证布局帧合并、后续更新与销毁释放。
+- `src/app/composables/use-layout-frame.ts`：必须交付所属展示的单帧布局调度。
 - `src/app/renderers/immersive/`：共同挂载形状与船体层序绘制。
 - `src/app/renderers/immersive/weapon-mount.ts`：挂载形状的无状态 Canvas 绘制。
 - `src/assets/immersive/damage/`：伤害类型的本地回退资产。
@@ -84,6 +86,7 @@
 
 ## 规范
 
+- 尺寸观察回调只允许登记下一帧布局工作，同一 owner 必须合并待处理帧并在销毁时取消；位置与尺寸必须按实际变化写入。
 - Core 修改必须通过明确来源选择与覆盖确认，缺失记录必须消费正式构造器和授权目标；缺失字段必须由显式字段提交建立。
 - `FieldInputs` 必须登记手填引用与临时调整；保存必须等待异步 finalizer 并消费接纳结果，取消或错误必须阻断当前保存并保留所属原文。
 - `JointEditRoot` 必须完整表达 `sessionId`、`modRoot`、kind 与 id；战机联队行身份必须由 CSV `rowKey` 解析，身份接纳必须共同映射窗口、草稿、输入和历史。
@@ -95,6 +98,7 @@
 - 内容渲染器必须显式消费只读或编辑模式；编辑模式必须由所属会话提供字段能力，只读模式只允许消费投影、来源与媒体结果。
 - 只读信息必须消费所属领域内容投影，草稿、原始输入、历史、保存及目标登记必须归所属编辑会话。
 - 场景只允许消费只读展示输入，装备修改必须由所属业务动作提交。
+- 武器槽位必须向唯一槽位 renderer 交付船体缩放、即时选中高亮和内置身份；普通轮廓必须按闲置 0.66 与高亮 1 的比例缩放，内置轮廓必须保持 0.66，射界、朝向线及中心点必须消费既有屏幕样式。
 - 多来源浮层必须逐字段判定编辑权限，原版字段必须独立保留只读展示；空白皮肤字段必须提交移除以恢复继承，查看及提交未改动输入必须保持来源内容。
 - 字体选择必须经领域角色映射交付实际身份，文字与截断测量必须消费字体模块的同一排布能力。
 - 字段身份必须使用稳定来源角色与路径；单行输入必须以 Enter 提交、Esc 取消，多行描述必须以 Ctrl+Enter 提交，未完成输入必须参与 dirty、保存和关闭交接。

@@ -1,10 +1,10 @@
 import { inject, provide, type InjectionKey } from 'vue';
-import type { AppFeedback } from '@/shared/types';
+import type { WindowFeedback } from '@/shared/types';
 
-const feedbackKey: InjectionKey<AppFeedback> = Symbol('app-feedback');
-export function provideAppFeedback(feedback: AppFeedback) {
+const feedbackKey: InjectionKey<WindowFeedback> = Symbol('app-feedback');
+export function provideAppFeedback(feedback: WindowFeedback) {
   provide(feedbackKey, feedback);
 }
-export function useAppFeedback(): AppFeedback {
+export function useAppFeedback(): WindowFeedback {
   return inject(feedbackKey)!;
 }

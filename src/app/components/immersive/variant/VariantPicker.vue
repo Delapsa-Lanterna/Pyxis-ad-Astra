@@ -131,6 +131,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { useLayoutFrame } from '@/app/composables/use-layout-frame';
 import { computed, ref, onMounted, onScopeDispose, watch, type ComputedRef } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
@@ -441,10 +442,11 @@ function compareKey(event: KeyboardEvent) {
     [...listSurface.value!.querySelectorAll<HTMLElement>('[data-entry-id]')].find((item) => item.dataset.entryId === id)!.focus();
   });
 }
+const scheduleLocate = useLayoutFrame(locate);
 onMounted(() => {
   surface.value!.focus({ preventScroll: true });
   locate();
-  observer = new ResizeObserver(locate);
+  observer = new ResizeObserver(scheduleLocate);
   observer.observe(surface.value!);
   window.addEventListener('resize', locate);
 });

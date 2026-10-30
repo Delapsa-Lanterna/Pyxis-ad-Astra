@@ -12,7 +12,7 @@
         }}</span>
       </div>
       <div class="game-overview-actions action-group">
-        <n-button v-if="failure.file" size="small" secondary type="error" @click="$emit('edit-failure-file', failure)"> 打开文件 </n-button>
+        <FeedbackFileActions :notice="modOpeningFailureNotice(failure)" level="error" />
         <n-button size="small" @click="$emit('dismiss-failure', failure.modRoot)">关闭提示</n-button>
       </div>
     </div>
@@ -22,10 +22,11 @@
 <script setup lang="ts">
 import type { ModOpeningFailure } from '@/shared/types';
 import { appendFileReferenceLocation } from '@/shared/lib/errors';
+import FeedbackFileActions from '@/app/components/FeedbackFileActions.vue';
+import { modOpeningFailureNotice } from '@/domain/project/load-diagnostics';
 
 defineProps<{ failures: ModOpeningFailure[] }>();
 defineEmits<{
-  'edit-failure-file': [failure: ModOpeningFailure];
   'dismiss-failure': [modRoot: string];
 }>();
 

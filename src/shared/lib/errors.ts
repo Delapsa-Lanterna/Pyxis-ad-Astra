@@ -1,5 +1,6 @@
-import type { ErrorDiagnostic, ErrorLocation, FeedbackNotice } from '@/shared/types';
+import type { ErrorDiagnostic, ErrorLocation, FeedbackNotice, FeedbackFileTarget, FileReference } from '@/shared/types';
 import { commandErrorCopy } from '@/shared/lib/error-messages';
+export type { FileReference } from '@/shared/types';
 
 export class AppError extends Error {
   readonly action?: string;
@@ -8,6 +9,7 @@ export class AppError extends Error {
   readonly location: ErrorLocation | null;
   readonly cause?: unknown;
   readonly userMessage?: string;
+  readonly fileTarget?: FeedbackFileTarget;
 
   constructor(
     message: string,
@@ -18,6 +20,7 @@ export class AppError extends Error {
       location?: ErrorLocation | null;
       cause?: unknown;
       userMessage?: string;
+      fileTarget?: FeedbackFileTarget;
     } = {},
   ) {
     super(message);
@@ -28,6 +31,7 @@ export class AppError extends Error {
     this.location = options.location ?? null;
     this.cause = options.cause;
     this.userMessage = options.userMessage;
+    this.fileTarget = options.fileTarget;
   }
 }
 
@@ -35,11 +39,17 @@ export function withCause(message: string, cause: unknown, action?: string): App
   return new AppError(message, { action, cause });
 }
 
+export class MediaReadError extends AppError {
+  constructor(readonly failures: ErrorDiagnostic[]) {
+    super(`图片读取失败：${failures.length} 项`, { code: 'resource.read_failed', command: 'query_resource_data_urls' });
+  }
+}
+
 function wireDiagnostic(error: unknown): ErrorDiagnostic | null {
   if (typeof error !== 'object' || error === null) return null;
   const candidate = error as Partial<ErrorDiagnostic>;
   if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') return null;
-  return { code: candidate.code, message: candidate.message, location: candidate.location ?? null };
+  return { code: candidate.code, message: candidate.message, location: candidate.location ?? null, fileTarget: candidate.fileTarget };
 }
 
 export function errorDiagnosticOf(error: unknown): ErrorDiagnostic {
@@ -49,6 +59,7 @@ export function errorDiagnosticOf(error: unknown): ErrorDiagnostic {
       code: error.code ?? source?.code ?? 'ui.action_failed',
       message: source?.message ?? error.message,
       location: error.location ?? source?.location ?? null,
+      fileTarget: error.fileTarget ?? source?.fileTarget,
     };
   }
   const wire = wireDiagnostic(error);
@@ -97,21 +108,16 @@ export function warningNotice(userMessage: string, code: string, message: string
   return { userMessage, diagnostic: { code, message, location: null } };
 }
 
-export interface FileReference {
-  path: string;
-  line?: number;
-  column?: number;
-  message: string;
-}
-
 export function extractFileReferenceFromError(error: unknown): FileReference | null {
   const diagnostic = errorDiagnosticOf(error);
   const location = diagnostic.location;
-  if (!location?.path) return null;
+  const path = diagnostic.fileTarget?.path ?? location?.path;
+  if (!path) return null;
   return {
-    path: location.path,
-    line: location.line ?? undefined,
-    column: location.column ?? undefined,
+    target: diagnostic.fileTarget,
+    path,
+    line: location?.line ?? undefined,
+    column: location?.column ?? undefined,
     message: formatError(error),
   };
 }

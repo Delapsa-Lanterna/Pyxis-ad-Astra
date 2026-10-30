@@ -1,12 +1,11 @@
 import { computed, getCurrentScope, onScopeDispose } from 'vue';
-import type { AppFeedback, GameScanWarning, ModOpeningFailure } from '@/shared/types';
+import type { AppFeedback } from '@/shared/types';
 
 import { useProjectStore } from '@/stores/project.store';
 import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.service';
 
 import { useSaveCommandStore } from '@/stores/save-command.store';
 
-import { openGameWarningFileEditor, openModOpeningFailureFileEditor } from '@/windows/file-editor.window';
 import {
   openDirectoryTarget,
   openModFromOverview,
@@ -184,14 +183,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return intent;
   }
 
-  function openGameWarningFile(warning: GameScanWarning) {
-    openGameWarningFileEditor(warning)?.catch((error) => feedback.error(error, '打开警告文件失败'));
-  }
-
-  function openModOpeningFailureFile(failure: ModOpeningFailure) {
-    openModOpeningFailureFileEditor(failure)?.catch((error) => feedback.error(error, '打开错误文件失败'));
-  }
-
   function handleDirectoryOpeningOutcome(outcome: DirectoryOpeningOutcome, path: string | null = null) {
     if (outcome.type === 'cancelled') return;
     if (outcome.type === 'game-overview') {
@@ -269,8 +260,6 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     confirmCloseWorkspace,
     confirmRemoveMod,
     loadOverviewMod,
-    openGameWarningFile,
-    openModOpeningFailureFile,
     openDirectory,
     refreshWorkspace,
     refreshModOverview,

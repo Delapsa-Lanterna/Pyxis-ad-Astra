@@ -16,6 +16,7 @@ export interface ResourceDataUrlBatchEntry {
   ownerKind: ResourceOwnerKind;
   ownerId: string;
   dataUrl: string | null;
+  error?: import('./error.types').ErrorDiagnostic;
 }
 
 export interface ResourceDataUrlBatchResult {

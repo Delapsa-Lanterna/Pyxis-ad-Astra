@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import { createAppFeedback, type FeedbackFileActions } from './app-feedback';
-import { AppError, withCause } from '@/shared/lib/errors';
+import { AppError, withCause, MediaReadError } from '@/shared/lib/errors';
 const mocks = vi.hoisted(() => ({ log: vi.fn() }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 let wrapper: VueWrapper | null = null;
@@ -22,6 +22,18 @@ function harness(actions: FeedbackFileActions = () => []) {
   };
 }
 describe('window feedback presentation', () => {
+  it('reports a shared media batch once and logs each original diagnostic', () => {
+    const { feedback, messages } = harness();
+    const failures = [1, 2].map((index) => ({ code: 'reference.unavailable', message: 'fixture ' + index, location: null }));
+    const error = new MediaReadError(failures);
+    feedback.error(error, '预读');
+    feedback.error(error, '缩略图');
+    expect(messages.error).toHaveBeenCalledTimes(1);
+    expect(mocks.log).toHaveBeenCalledTimes(2);
+    expect(mocks.log.mock.calls.map(([entry]) => entry.message)).toEqual(['fixture 1', 'fixture 2']);
+    feedback.error(new MediaReadError(failures));
+    expect(messages.error).toHaveBeenCalledTimes(2);
+  });
   it('preserves raw diagnostics, mapped text, location, command and action', () => {
     const { feedback, messages } = harness();
     feedback.error(

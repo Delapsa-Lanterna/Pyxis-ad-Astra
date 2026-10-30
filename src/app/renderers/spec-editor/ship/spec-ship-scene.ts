@@ -1,20 +1,13 @@
+import { drawWeaponSlotVisual, drawLaunchBayPortVisual, weaponSlotStyle, launchBayPortStyle } from '../../editors/weapon-slot-renderer';
 import type { ShipEditorMode, ShipHoverPreview, EditorTarget } from '@/domain/editors/editor-types';
-import { centerMarkerStyle, weaponSlotStyle, launchBayPortStyle, controlPointStyle } from '../../editors/canvas-styles';
+import { centerMarkerStyle, controlPointStyle } from '../../editors/canvas-styles';
 import { drawEngineVisual, type EngineImages, type EngineKind } from '../../editors/engine-renderer';
 import type { ShipGeometry } from '@/domain/spec-editor/ship/spec-ship-editing';
 
 import { bayPorts } from '@/domain/spec-editor/ship/spec-ship-editing';
 import { shipCanvasPoint, shipRelativeToAbsolute } from '@/domain/editors/lib/geometry';
 import { mirrorAngleDeg, mirrorOffsetPoint, mirrorBayPort, MIRROR_EPSILON } from '@/domain/editors/lib/mirror';
-import {
-  drawCrossMarker,
-  drawControlPoint,
-  drawLaunchBayPortVisual,
-  drawRadiusField,
-  drawRadiusFill,
-  drawWeaponSlotVisual,
-  drawXMarker,
-} from '../../editors/canvas-visuals';
+import { drawCrossMarker, drawControlPoint, drawRadiusField, drawRadiusFill, drawXMarker } from '../../editors/canvas-visuals';
 import { drawPixelImage } from '../../editors/canvas-drawing';
 import { renderCanvasBounds, renderCanvasBase, renderCanvasCursor, type CanvasScene } from '../../editors/canvas-scene';
 import { renderMountedWeapons, type MountedWeaponScene } from '../../editors/weapon-images';

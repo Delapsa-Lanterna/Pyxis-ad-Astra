@@ -7,6 +7,32 @@ import { createBrowserWorkspace } from './workspace-runtime';
 import { createWorkspaceProject, coreRoot, gameRoot, workspaceRoots } from './workspace-project';
 
 describe('complete browser workspace fixtures', () => {
+  it('delivers resource failures per item and withdraws closed reference sources', async () => {
+    const workspace = createBrowserWorkspace(),
+      owner = workspace.projects[0]!,
+      external = workspace.projects[1]!;
+    await workspace.invoke('main', 'set_reference_sources', { sessionIds: [external.manifest.sessionId] });
+    const resource = Object.values(
+      [...external.entities.values()].find((entity) => Object.keys(entity.resourceRefs).length)!.resourceRefs,
+    )[0]!;
+    const reference: T.ResourceRef = {
+      ...resource,
+      source: 'reference',
+      reference: {
+        sessionId: external.manifest.sessionId,
+        modRoot: external.manifest.modRoot,
+      },
+    };
+    const read = (resources: T.ResourceRef[]) =>
+      workspace.invoke('main', 'query_resource_data_urls', {
+        payload: { sessionId: owner.manifest.sessionId, resources },
+      }) as Promise<T.ResourceDataUrlBatchResult>;
+    const mixed = await read([reference, { ...reference, reference: undefined }]);
+    expect(mixed.entries[0]!.error).toBeUndefined();
+    expect(mixed.entries[1]).toMatchObject({ dataUrl: null, error: { code: 'reference.unavailable' } });
+    await workspace.invoke('main', 'set_reference_sources', { sessionIds: [] });
+    expect((await read([reference])).entries[0]!.error?.code).toBe('reference.unavailable');
+  });
   it('scans Mod metadata from its files through saves and sample restoration', async () => {
     const workspace = createBrowserWorkspace(),
       owner = workspace.projects[1]!,

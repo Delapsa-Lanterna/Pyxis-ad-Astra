@@ -96,8 +96,16 @@ pub fn query_resource_data_urls(
 ) -> AppResult<ResourceDataUrlBatchResult> {
     let mut batch = SpriteReadBatch::new(session_id)?;
     let mut entries = Vec::with_capacity(resources.len());
+    let mut outcomes = BTreeMap::new();
     for resource in resources {
-        let data_url = batch.data_url(&resource)?;
+        let key = super::super::resources::media_resource_key(&resource);
+        let (data_url, error) = outcomes
+            .entry(key)
+            .or_insert_with(|| match batch.data_url(&resource) {
+                Ok(value) => (value, None),
+                Err(error) => (None, Some(error.diagnostic())),
+            })
+            .clone();
         entries.push(ResourceDataUrlBatchEntry {
             reference: resource.reference,
             key: resource.key,
@@ -106,6 +114,7 @@ pub fn query_resource_data_urls(
             owner_kind: resource.owner_kind,
             owner_id: resource.owner_id,
             data_url,
+            error,
         });
     }
     Ok(ResourceDataUrlBatchResult { entries })
@@ -139,6 +148,46 @@ mod tests {
     use crate::services::project::test_support::project_workspace;
 
     use crate::testutil::TestWorkspace;
+
+    #[test]
+    fn media_batch_preserves_successes_and_reports_each_failed_identity() {
+        let root = project_workspace("partial_media_batch");
+        std::fs::create_dir_all(root.join("graphics")).unwrap();
+        std::fs::write(root.join("graphics/icon.png"), [1, 2, 3]).unwrap();
+        let manifest = open_project_session_traced(
+            &root,
+            None,
+            &mut crate::services::project::PerformanceTrace::new("media.batch"),
+        )
+        .unwrap();
+        let resources: Vec<_> = (0..10)
+            .map(|index| ResourceRef {
+                reference: None,
+                source: if index == 9 {
+                    ResourceSource::Reference
+                } else {
+                    ResourceSource::Mod
+                },
+                rel_path: "graphics/icon.png".into(),
+                owner_kind: ResourceOwnerKind::Ship,
+                owner_id: format!("fixture_{index}"),
+                key: "icon".into(),
+            })
+            .collect();
+        let result = query_resource_data_urls(&manifest.session_id, resources.clone()).unwrap();
+        assert_eq!(result.entries.len(), 10);
+        for (index, entry) in result.entries.iter().enumerate() {
+            assert_eq!(entry.owner_id, resources[index].owner_id);
+            assert_eq!(entry.data_url.is_some(), index != 9);
+            assert_eq!(entry.error.is_some(), index == 9);
+        }
+        assert_eq!(
+            result.entries[9].error.as_ref().unwrap().code,
+            "reference.unavailable"
+        );
+        close_project_session(manifest.session_id).unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn engine_assets_merge_sources_and_keep_images_independent_of_styles() {
@@ -389,8 +438,13 @@ mod tests {
                 key: "ship".to_string(),
             }],
         )
-        .unwrap_err()
-        .to_string();
+        .unwrap()
+        .entries[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .message
+            .clone();
 
         let _ = close_project_session(manifest.session_id);
         assert!(error.contains("core resource requires starsector root"));
@@ -448,8 +502,13 @@ mod tests {
                 key: "sprite".to_string(),
             }],
         )
-        .unwrap_err()
-        .to_string();
+        .unwrap()
+        .entries[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .message
+            .clone();
 
         let _ = close_project_session(manifest.session_id);
         assert!(error.contains("sprite path is outside resource root"));
@@ -479,7 +538,7 @@ mod tests {
         );
 
         let _ = close_project_session(manifest.session_id);
-        assert!(result.is_err());
+        assert!(result.unwrap().entries[0].error.is_some());
         root.close().unwrap();
     }
 

@@ -217,10 +217,25 @@ fn append_duplicate_id_warnings(mods: &[GameModSummary], warnings: &mut Vec<Game
         if counts.get(summary.id.as_str()).copied().unwrap_or_default() > 1 {
             warnings.push(GameScanWarning {
                 code: "scan.mod_id_duplicate".to_string(),
-                location: None,
+                location: summary.has_mod_info.then(|| crate::errors::ErrorLocation {
+                    path: Some(
+                        Path::new(&summary.mod_root)
+                            .join("mod_info.json")
+                            .to_string_lossy()
+                            .to_string(),
+                    ),
+                    line: None,
+                    column: None,
+                }),
                 path: summary.mod_root.clone(),
                 message: format!("重复 Mod id: {}", summary.id),
-                edit_target: None,
+                edit_target: summary.has_mod_info.then(|| GameWarningEditTarget {
+                    mod_root: summary.mod_root.clone(),
+                    path: Path::new(&summary.mod_root)
+                        .join("mod_info.json")
+                        .to_string_lossy()
+                        .to_string(),
+                }),
             });
         }
     }
@@ -317,6 +332,23 @@ mod tests {
                 .iter()
                 .any(|w| w.message.contains("重复 Mod id"))
         );
+        let duplicates: Vec<_> = overview
+            .warnings
+            .iter()
+            .filter(|warning| warning.code == "scan.mod_id_duplicate")
+            .collect();
+        assert_eq!(duplicates.len(), 2);
+        for warning in duplicates {
+            let target = warning.edit_target.as_ref().unwrap();
+            assert_eq!(
+                Path::new(&target.mod_root).join("mod_info.json"),
+                Path::new(&target.path)
+            );
+            assert_eq!(
+                warning.location.as_ref().unwrap().path.as_deref(),
+                Some(target.path.as_str())
+            );
+        }
         root.close().unwrap();
     }
 

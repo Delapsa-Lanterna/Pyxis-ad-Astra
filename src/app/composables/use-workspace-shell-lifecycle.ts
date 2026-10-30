@@ -12,7 +12,8 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { debugLog } from '@/shared/runtime/app-log-queue';
-import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
+import { buildModOpeningFailure, modOpeningFailureNotice } from '@/domain/project/load-diagnostics';
+import { AppError, formatError } from '@/shared/lib/errors';
 import { useCsvSaveParticipants } from '@/app/composables/csv-editor/use-csv-save-participants';
 import { publishReferenceSources } from '@/orchestrators/project-sync.orchestrator';
 import { useProjectStore } from '@/stores/project.store';
@@ -61,10 +62,17 @@ export function useWorkspaceShellLifecycle(
           isCurrent: () => !disposed,
           onModRestoreError: async (modRoot, displayName, error) => {
             if (disposed) return;
+            const failure = buildModOpeningFailure(modRoot, error);
             await removeLoadedModRuntime(modRoot, requestClose);
             if (disposed) return;
-            workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
-            feedback.error(error, `恢复 ${displayName} 失败`);
+            workspace.setModOpeningFailure(failure);
+            feedback.error(
+              new AppError(formatError(error), {
+                cause: error,
+                fileTarget: modOpeningFailureNotice(failure).diagnostic.fileTarget,
+              }),
+              `恢复 ${displayName} 失败`,
+            );
           },
           onModRestoreWarnings: (displayName, warnings) => {
             if (disposed) return;

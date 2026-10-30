@@ -50,14 +50,27 @@ export function buildGameJoint(
         sourceVersion: source.version(path),
         baseVersions: [source.version(path)],
         value,
-        resourceRefs: source.resources(
-          table === 'ships' || table === 'wings' || table === 'descriptions' || table === 'simOpponents'
-            ? 'ship'
-            : table === 'weapons'
-              ? 'weapon'
-              : table,
-          id,
-          row?.data ?? {},
+        resourceRefs: Object.fromEntries(
+          Object.entries(
+            source.resources(
+              table === 'ships' || table === 'wings' || table === 'descriptions' || table === 'simOpponents'
+                ? 'ship'
+                : table === 'weapons'
+                  ? 'weapon'
+                  : table,
+              id,
+              row?.data ?? {},
+            ),
+          ).map(([key, resource]) => [
+            key,
+            resource.source === 'core' || location.source !== 'reference'
+              ? resource
+              : {
+                  ...resource,
+                  source: 'reference',
+                  reference: location.reference,
+                },
+          ]),
         ),
         referencedBy: [],
       });

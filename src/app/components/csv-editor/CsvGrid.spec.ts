@@ -203,6 +203,7 @@ describe('CsvGrid', () => {
     await grid.find('.row-slot').trigger('click');
     const requests = grid.emitted('request-window')!.length;
     resize();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     await grid.vm.$nextTick();
     expect(grid.emitted('request-window')!.length).toBeGreaterThan(requests);
     expect(fixture.activeCell.value).toMatchObject({ rowKey: 'key-0', column: 'id' });

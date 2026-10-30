@@ -76,6 +76,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLayoutFrame } from '@/app/composables/use-layout-frame';
 import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { useCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/composables/csv-editor/use-csv-floating-panel';
 import { cell } from '@/shared/lib/starsector';
@@ -193,9 +194,18 @@ function focusActive() {
 function updateAnchor() {
   if (usesNativeInput.value) return;
   const rect = props.anchorElement?.getBoundingClientRect();
-  if (rect) pickerAnchor.value = { height: rect.height, left: rect.left, top: rect.top, width: rect.width };
+  const previous = pickerAnchor.value;
+  if (
+    rect &&
+    (!previous ||
+      rect.height !== previous.height ||
+      rect.left !== previous.left ||
+      rect.top !== previous.top ||
+      rect.width !== previous.width)
+  )
+    pickerAnchor.value = { height: rect.height, left: rect.left, top: rect.top, width: rect.width };
 }
-const anchorObserver = new ResizeObserver(updateAnchor);
+const anchorObserver = new ResizeObserver(useLayoutFrame(updateAnchor));
 onMounted(() => {
   if (props.anchorElement && !usesNativeInput.value) anchorObserver.observe(props.anchorElement);
   if (usesNativeInput.value || !pickerAnchor.value) focusActive();

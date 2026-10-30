@@ -90,6 +90,7 @@ it('rebuilds resized roots and clears old range requests on session changes', as
     first = activeObserver();
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(480);
   TestResizeObserver.instances.at(-1)!.trigger();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   expect(first.disconnected).toBe(true);
   expect(activeObserver().options?.rootMargin).toBe('480px 0px 480px 0px');
   await wrapper.setProps({ session: 'session-b' });

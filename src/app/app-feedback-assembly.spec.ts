@@ -10,6 +10,11 @@ import { useProjectStore } from '@/stores/project.store';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
+import { buildModOpeningFailure, modOpeningFailureNotice, scanWarningNotice, formatLoadWarnings } from '@/domain/project/load-diagnostics';
+import FeedbackFileActions from '@/app/components/FeedbackFileActions.vue';
+import { provideAppFeedback } from '@/app/composables/use-app-feedback';
+import { h } from 'vue';
+import { nButton } from '@/test/unit/ui-stubs';
 
 const mocks = vi.hoisted(() => ({
   log: vi.fn(),
@@ -52,6 +57,45 @@ function feedbackHarness(accepting = () => true) {
 }
 
 describe('feedback diagnostics, file authorization and actions', () => {
+  it.each(['failure', 'scan', 'loaded'] as const)('shares %s file actions between lists and toasts', async (kind) => {
+    const { feedback, messages } = feedbackHarness();
+    const diagnostic = { code: 'text.invalid_utf8', message: 'fixture bytes', location: { path: 'M:/mod/source.csv', line: 4, column: 2 } };
+    const warning = { ...diagnostic, path: diagnostic.location.path, editTarget: { modRoot: 'M:/mod', path: diagnostic.location.path } };
+    const notice =
+      kind === 'failure'
+        ? modOpeningFailureNotice(buildModOpeningFailure('M:/mod', diagnostic))
+        : kind === 'scan'
+          ? scanWarningNotice(warning)
+          : formatLoadWarnings({ ...useProjectStore().getManifest('M:/mod')!, warnings: [warning] })[0]!;
+    useProjectStore().removeProjectManifest('M:/mod');
+    wrapper = mount(
+      {
+        setup() {
+          provideAppFeedback(feedback);
+          return () => h(FeedbackFileActions, { notice, level: 'warning' });
+        },
+      },
+      { global: { stubs: { 'n-button': nButton } } },
+    );
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['打开文件', '转码为 UTF-8']);
+    await wrapper.get('button').trigger('click');
+    expect(mocks.open).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: kind === 'loaded' ? 'session' : 'recovery',
+        sessionId: kind === 'loaded' ? 's1' : null,
+        path: diagnostic.location.path,
+        line: 4,
+        column: 2,
+        contextSeverity: 'warning',
+      }),
+    );
+    const listRequest = mocks.open.mock.lastCall;
+    wrapper.unmount();
+    feedback.warning(notice);
+    wrapper = mount({ render: messages.warning.mock.lastCall![0] });
+    await wrapper.get('button').trigger('click');
+    expect(mocks.open.mock.lastCall).toEqual(listRequest);
+  });
   it('holds feedback recovery actions during close preparation', async () => {
     const { feedback, messages, dialogs } = feedbackHarness(() => false);
     feedback.error({ code: 'text.invalid_utf8', message: 'fixture', location: { path: 'M:/mod/notes.txt', line: null, column: null } });
@@ -187,6 +231,54 @@ function receipt(): WriteResult {
   };
 }
 describe('window recovery completion', () => {
+  it.each(['session', 'recovery'] as const)('transcodes the captured %s target and opens its latest file', async (mode) => {
+    const { feedback, dialogs, messages } = feedbackHarness();
+    const path = 'M:/mod/encoding.csv';
+    const sessionId = mode === 'session' ? 's1' : null;
+    feedback.warning({
+      userMessage: 'fixture encoding',
+      diagnostic: {
+        code: 'text.invalid_utf8',
+        message: 'fixture bytes',
+        location: null,
+        fileTarget: { mode, modRoot: 'M:/mod', path, sessionId },
+      },
+    });
+    wrapper = mount({ render: messages.warning.mock.lastCall![0] });
+    mocks.transcode.mockResolvedValueOnce(receipt());
+    await startTranscode(dialogs);
+    expect(mocks.transcode).toHaveBeenLastCalledWith(sessionId, 'M:/mod', path, 'gb18030');
+    await wrapper.get('button').trigger('click');
+    expect(mocks.open).toHaveBeenLastCalledWith(expect.objectContaining({ mode, path, sessionId }));
+    expect(messages.success).toHaveBeenCalledTimes(1);
+  });
+  it('treats a stale transcode action as information after external conversion', async () => {
+    const { dialogs, messages } = showEncodingError();
+    mocks.transcode.mockRejectedValueOnce({ code: 'text.transcode_not_needed', message: 'fixture UTF-8', location: null });
+    await startTranscode(dialogs);
+    expect(messages.error).toHaveBeenCalledTimes(1);
+    expect(messages.success).toHaveBeenCalledTimes(0);
+    wrapper!.unmount();
+    wrapper = mount({ render: messages.info.mock.lastCall![0] });
+    expect(wrapper.text()).toBe('文件已是 UTF-8，可直接打开');
+  });
+  it('ends an encoding selection when its window begins closing', async () => {
+    let accepting = true;
+    const { feedback, messages, dialogs } = feedbackHarness(() => accepting);
+    feedback.error({
+      code: 'text.invalid_utf8',
+      message: 'fixture bytes',
+      location: { path: 'M:/mod/source.csv', line: null, column: null },
+    });
+    wrapper = mount({ render: messages.error.mock.lastCall![0] });
+    mocks.transcode.mockClear();
+    dialogs.create.mockImplementationOnce(() => {
+      accepting = false;
+      return { destroy: vi.fn() };
+    });
+    await startTranscode(dialogs);
+    expect(mocks.transcode).toHaveBeenCalledTimes(0);
+  });
   it('captures the original session before a different project is registered', async () => {
     const { feedback, messages } = feedbackHarness();
     feedback.error({ code: 'parse.json', message: 'Invalid', location: { path: 'M:/mod/demo.skin', line: 1, column: 2 } });

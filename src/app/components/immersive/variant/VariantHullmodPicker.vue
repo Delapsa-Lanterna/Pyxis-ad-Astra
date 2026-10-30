@@ -126,6 +126,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { useLayoutFrame } from '@/app/composables/use-layout-frame';
 import { computed, ref, watch, nextTick, onMounted, onScopeDispose, type ComputedRef } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { JointEditRoot } from '@/shared/types';
@@ -335,7 +336,8 @@ function positionDetails() {
   const bounds = row.getBoundingClientRect(),
     detail = tooltip.value.getBoundingClientRect();
   const left = bounds.right + detail.width <= window.innerWidth - 7 ? bounds.right : Math.max(7, bounds.left - detail.width);
-  tooltipPosition.value = { left: left + 'px', top: Math.max(7, Math.min(bounds.top, window.innerHeight - detail.height - 7)) + 'px' };
+  const next = { left: left + 'px', top: Math.max(7, Math.min(bounds.top, window.innerHeight - detail.height - 7)) + 'px' };
+  if (next.left !== tooltipPosition.value.left || next.top !== tooltipPosition.value.top) tooltipPosition.value = next;
 }
 function scroll() {
   viewport.setViewportMetrics({ scrollTop: list.value!.scrollTop, clientHeight: list.value!.clientHeight });
@@ -414,6 +416,7 @@ function navigate(event: KeyboardEvent) {
   });
 }
 let observer: ResizeObserver;
+const scheduleMeasure = useLayoutFrame(measure);
 watch(
   tooltip,
   (next, previous) => {
@@ -424,7 +427,7 @@ watch(
 );
 onMounted(() => {
   surface.value!.focus({ preventScroll: true });
-  observer = new ResizeObserver(measure);
+  observer = new ResizeObserver(scheduleMeasure);
   observer.observe(table.value!);
   observer.observe(list.value!);
   observer.observe(auxiliary.value!);

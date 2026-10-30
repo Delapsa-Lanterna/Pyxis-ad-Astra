@@ -22,6 +22,7 @@ const global = {
   stubs: { 'n-input': nInput, 'n-button': nButton, NSelect: nSelect, NSwitch: nSwitch },
 };
 const feedback = {
+  fileActions: vi.fn(() => []),
   success: vi.fn(),
   info: vi.fn(),
   warning: vi.fn(),

@@ -339,6 +339,15 @@ mod tests {
 
         assert_eq!(String::from_utf8(saved).unwrap(), "舰船注释");
         assert_eq!(result.changes.len(), 1);
+        let converted = fs::read(&target).unwrap();
+        let repeated = transcode_file_to_utf8(
+            &root.to_string_lossy(),
+            &target.to_string_lossy(),
+            "windows-1252",
+        )
+        .unwrap_err();
+        assert_eq!(repeated.code(), "text.transcode_not_needed");
+        assert_eq!(fs::read(&target).unwrap(), converted);
         root.close().unwrap();
     }
 
@@ -346,7 +355,13 @@ mod tests {
     fn transcode_refuses_already_utf8_file() {
         let root = project_workspace("transcode_refuses_utf8");
         let target = root.join("notes.txt");
-        write_utf8_no_bom(&target, "已是 UTF-8").unwrap();
+        fs::write(&target, [0x81u8]).unwrap();
+        assert_eq!(
+            read_utf8_no_bom(&target).unwrap_err().code(),
+            "text.invalid_utf8"
+        );
+        let edited = "外部已转码并修改\r\n";
+        write_utf8_no_bom(&target, edited).unwrap();
 
         let result = transcode_file_to_utf8(
             &root.to_string_lossy(),
@@ -354,7 +369,8 @@ mod tests {
             "gb18030",
         );
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "text.transcode_not_needed");
+        assert_eq!(fs::read(&target).unwrap(), edited.as_bytes());
         root.close().unwrap();
     }
 

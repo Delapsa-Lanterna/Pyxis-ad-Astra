@@ -1,8 +1,8 @@
 use crate::{
     domain::json_documents::{build_skin_file, build_variant_file},
-    errors::{AppError, AppResult},
+    errors::{AppError, AppResult, ErrorLocation},
     io::forward_slash_relative_path,
-    models::{GameScanWarning, SkinFile, VariantFile},
+    models::{GameScanWarning, GameWarningEditTarget, SkinFile, VariantFile},
 };
 #[cfg(test)]
 use std::path::Path;
@@ -41,13 +41,20 @@ pub(in crate::services::project) fn load_variant_files_from(
         {
             warnings.push(GameScanWarning {
                 code: "scan.variant_id_duplicate".to_string(),
-                location: None,
+                location: Some(ErrorLocation {
+                    path: Some(path.to_string_lossy().to_string()),
+                    line: None,
+                    column: None,
+                }),
                 path: path.to_string_lossy().to_string(),
                 message: format!(
                     "重复 variantId {}，已保留第一个文件并跳过后续文件：{previous}",
                     file.variant_id
                 ),
-                edit_target: None,
+                edit_target: Some(GameWarningEditTarget {
+                    mod_root: mod_root.to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                }),
             });
             continue;
         }
@@ -83,13 +90,20 @@ pub(in crate::services::project) fn load_skin_files_from(
         ) {
             warnings.push(GameScanWarning {
                 code: "scan.skin_id_duplicate".to_string(),
-                location: None,
+                location: Some(ErrorLocation {
+                    path: Some(path.to_string_lossy().to_string()),
+                    line: None,
+                    column: None,
+                }),
                 path: path.to_string_lossy().to_string(),
                 message: format!(
                     "重复 skinHullId {}，已保留第一个文件并跳过后续文件：{previous}",
                     file.skin_hull_id
                 ),
-                edit_target: None,
+                edit_target: Some(GameWarningEditTarget {
+                    mod_root: mod_root.to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                }),
             });
             continue;
         }
@@ -196,6 +210,45 @@ mod tests {
                 .message
                 .contains("重复 variantId kite_hegemony_Interceptor")
         );
+        root.close().unwrap();
+    }
+
+    #[test]
+    fn duplicate_document_warnings_deliver_authorized_file_targets() {
+        let root = project_workspace("duplicate_document_targets");
+        for (directory, extension, text) in [
+            (
+                "data/variants",
+                "variant",
+                r#"{"variantId":"fixture","hullId":"hull"}"#,
+            ),
+            (
+                "data/hulls/skins",
+                "skin",
+                r#"{"skinHullId":"fixture","baseHullId":"hull"}"#,
+            ),
+        ] {
+            std::fs::create_dir_all(root.join(directory)).unwrap();
+            for name in ["first", "second"] {
+                write_utf8_no_bom(&root.join(format!("{directory}/{name}.{extension}")), text)
+                    .unwrap();
+            }
+        }
+        let mut sources = super::super::super::sources::SourceReader::new(&root).unwrap();
+        let (_, variants) = load_variant_files_from(&mut sources).unwrap();
+        let (_, skins) = load_skin_files_from(&mut sources).unwrap();
+        for warnings in [variants, skins] {
+            assert_eq!(warnings.len(), 1);
+            let warning = &warnings[0];
+            let target = warning.edit_target.as_ref().unwrap();
+            assert_eq!(target.path, warning.path);
+            assert_eq!(
+                warning.location.as_ref().unwrap().path.as_deref(),
+                Some(target.path.as_str())
+            );
+            assert_eq!(target.mod_root, sources.root().to_string_lossy());
+        }
+        drop(sources);
         root.close().unwrap();
     }
 }

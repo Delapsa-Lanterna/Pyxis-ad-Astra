@@ -131,7 +131,10 @@ describe('workspace Mod opening navigation', () => {
       location: { path: 'D:\\game\\mods\\demo\\data\\hulls\\ship_data.csv', line: 5, column: null },
     });
 
-    await expect(openModFromOverview(modRoot)).rejects.toMatchObject({ code: 'parse.csv' });
+    await expect(openModFromOverview(modRoot)).rejects.toMatchObject({
+      code: 'parse.csv',
+      fileTarget: { mode: 'recovery', sessionId: null, modRoot, path: 'D:\\game\\mods\\demo\\data\\hulls\\ship_data.csv' },
+    });
 
     expect(mocks.workspaceStore.removeLoadedModEntry).toHaveBeenCalledWith(modRoot);
     expect(mocks.fileBrowser.removeModState).toHaveBeenCalledWith(modRoot);

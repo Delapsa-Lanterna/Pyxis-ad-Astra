@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLayoutFrame } from '@/app/composables/use-layout-frame';
 import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import type { CsvCellTarget, CsvRowRecord, CsvModState } from '@/shared/types';
 import { csvRenderColumns, type CsvGridColumn, type CsvGridModel, type CsvRenderColumn } from '@/domain/csv-editor/csv-grid-model';
@@ -231,7 +232,7 @@ watch(
   },
 );
 
-const resizeObserver = new ResizeObserver(syncViewportMetrics);
+const resizeObserver = new ResizeObserver(useLayoutFrame(syncViewportMetrics));
 onMounted(() => {
   resizeObserver.observe(panelRef.value!);
   nextTick(syncViewportMetrics);

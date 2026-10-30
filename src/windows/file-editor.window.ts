@@ -1,7 +1,5 @@
 import { requestWindow } from '@/windows/managed.window';
 import type { FileWindowLocation } from '@/shared/types';
-import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
-import { extractFileReferenceFromError } from '@/shared/lib/errors';
 
 export interface FileEditorRequest {
   mode?: 'session' | 'recovery';
@@ -17,41 +15,6 @@ export interface FileEditorRequest {
 }
 
 export type OpenFileEditorWindowRequest = FileEditorRequest;
-
-export function openGameWarningFileEditor(warning: GameScanWarning) {
-  const target = warning.editTarget;
-  if (!target) return null;
-  const reference = extractFileReferenceFromError(warning);
-  return openFileEditorWindow({
-    mode: 'recovery',
-    modRoot: target.modRoot,
-    path: target.path,
-    sessionId: null,
-    line: reference?.line,
-    column: reference?.column,
-    title: '文件编辑器',
-    contextLabel: '错误',
-    contextSeverity: 'error',
-    message: warning.message,
-  });
-}
-
-export function openModOpeningFailureFileEditor(failure: ModOpeningFailure) {
-  const target = failure.file;
-  if (!target) return null;
-  return openFileEditorWindow({
-    mode: 'recovery',
-    modRoot: failure.modRoot,
-    path: target.path,
-    sessionId: null,
-    line: target.line,
-    column: target.column,
-    title: '文件编辑器',
-    contextLabel: '错误',
-    contextSeverity: 'error',
-    message: failure.message,
-  });
-}
 
 export function openFileEditorWindow(request: OpenFileEditorWindowRequest) {
   return requestWindow({

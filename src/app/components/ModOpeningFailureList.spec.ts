@@ -1,8 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
 import { nButton } from '@/test/unit/ui-stubs';
 import type { ModOpeningFailure } from '@/shared/types';
+
+const open = vi.hoisted(() => vi.fn());
+vi.mock('@/app/composables/use-app-feedback', () => ({
+  useAppFeedback: () => ({
+    fileActions: (reference: import('@/shared/lib/errors').FileReference) =>
+      reference.target ? [{ label: '打开文件', type: 'error', run: open }] : [],
+  }),
+}));
 
 let wrapper: VueWrapper | null = null;
 
@@ -19,7 +27,7 @@ describe('ModOpeningFailureList', () => {
     expect(wrapper.get('.mod-opening-failure-item').text()).toContain('第 5 行');
     expect(wrapper.get('button').text()).toBe('打开文件');
     await wrapper.get('button').trigger('click');
-    expect(wrapper.emitted('edit-failure-file')).toEqual([[failure]]);
+    expect(open).toHaveBeenCalled();
     expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['打开文件', '关闭提示']);
     await wrapper.findAll('button')[1]!.trigger('click');
     expect(wrapper.emitted('dismiss-failure')).toEqual([[failure.modRoot]]);

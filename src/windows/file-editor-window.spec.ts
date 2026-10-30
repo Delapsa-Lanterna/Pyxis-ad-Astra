@@ -4,28 +4,31 @@ const requestWindow = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
 vi.mock('@/windows/managed.window', () => ({ requestWindow }));
 
-import { openGameWarningFileEditor, openModOpeningFailureFileEditor } from '@/windows/file-editor.window';
+import { openFileEditorWindow } from '@/windows/file-editor.window';
+import { scanWarningNotice, modOpeningFailureNotice } from '@/domain/project/load-diagnostics';
+import { extractFileReferenceFromError } from '@/shared/lib/errors';
 import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 describe('workspace warning file editor window', () => {
   it('opens recovery mode with the structured target and parsed position', async () => {
     const warning = editableWarning();
 
-    await openGameWarningFileEditor(warning);
+    const reference = extractFileReferenceFromError(scanWarningNotice(warning).diagnostic)!;
+    await openFileEditorWindow({ ...reference.target!, ...reference, contextLabel: '错误', contextSeverity: 'error' });
 
     expect(requestWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { type: 'recovery', modRoot: warning.editTarget?.modRoot, path: warning.editTarget?.path },
         input: {
           kind: 'file-editor',
-          location: { contextLabel: '错误', contextSeverity: 'error', message: warning.message, line: 5, column: 44 },
+          location: { contextLabel: '错误', contextSeverity: 'error', message: 'JSON 语法错误', line: 5, column: 44 },
         },
       }),
     );
   });
 
   it('ignores warnings without a structured edit target', () => {
-    const result = openGameWarningFileEditor({
+    const notice = scanWarningNotice({
       code: 'scan.mods_missing',
       location: null,
       path: 'D:\\game',
@@ -33,7 +36,7 @@ describe('workspace warning file editor window', () => {
       editTarget: null,
     });
 
-    expect(result).toBeNull();
+    expect(extractFileReferenceFromError(notice.diagnostic)).toBeNull();
     expect(requestWindow).not.toHaveBeenCalled();
   });
 
@@ -45,14 +48,15 @@ describe('workspace warning file editor window', () => {
       file: { path: 'D:\\game\\mods\\broken\\data.csv', line: 7 },
     };
 
-    await openModOpeningFailureFileEditor(failure);
+    const reference = extractFileReferenceFromError(modOpeningFailureNotice(failure).diagnostic)!;
+    await openFileEditorWindow({ ...reference.target!, ...reference, contextLabel: '错误', contextSeverity: 'error' });
 
     expect(requestWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: { type: 'recovery', modRoot: failure.modRoot, path: failure.file?.path },
         input: {
           kind: 'file-editor',
-          location: { contextLabel: '错误', contextSeverity: 'error', message: failure.message, line: 7, column: null },
+          location: { contextLabel: '错误', contextSeverity: 'error', message: 'CSV 解析失败', line: 7, column: null },
         },
       }),
     );

@@ -27,7 +27,7 @@ import {
 import { getSchema } from '@/domain/schema/config-schema-registry';
 import { deepClone } from '@/shared/lib/starsector';
 import type {
-  AppFeedback,
+  WindowFeedback,
   EntityData,
   RowData,
   JsonRecoveryRequest,
@@ -75,7 +75,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
     return () => mocks.listeners.delete(handler);
   },
 }));
-let feedback: AppFeedback;
+let feedback: WindowFeedback;
 let entities: Map<string, EntityData>;
 let commit: number;
 enableAutoUnmount(afterEach);
@@ -172,6 +172,7 @@ beforeEach(() => {
     useProjectStore().registerProjectManifest(manifest);
   }
   feedback = {
+    fileActions: vi.fn(() => []),
     choose: vi.fn(async () => 'recreate'),
     error: vi.fn(),
     success: vi.fn(),

@@ -20,6 +20,8 @@ describe('canvas surface resolution', () => {
     expect(canvas.height).toBe(302);
     expect(surface.size()).toEqual({ width: 401.5, height: 201.25 });
     expect(setTransform).toHaveBeenLastCalledWith(602 / 401.5, 0, 0, 302 / 201.25, 0, 0);
+    expect(surface.resize()).toBe(false);
+    expect(setTransform).toHaveBeenCalledTimes(1);
     vi.stubGlobal('devicePixelRatio', 2);
     surface.resize();
     expect(canvas.width).toBe(803);

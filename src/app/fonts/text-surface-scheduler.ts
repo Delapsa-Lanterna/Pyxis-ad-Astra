@@ -6,6 +6,7 @@ export interface TextSurface {
 }
 const surfaces = new Map<HTMLElement, TextSurface>();
 const paints = new Set<TextSurface>();
+const widths = new Map<HTMLElement, number>();
 let observer: ResizeObserver | null = null,
   frame = 0;
 function schedule() {
@@ -17,6 +18,8 @@ function repaint() {
 }
 function flush() {
   frame = 0;
+  for (const [element, width] of widths) surfaces.get(element)?.resize(width);
+  widths.clear();
   for (const surface of paints) surface.paint();
   paints.clear();
   const writes = [...surfaces.values()].map((surface) => surface.align());
@@ -30,7 +33,8 @@ export function queueTextPaint(surface: TextSurface) {
 export function registerTextSurface(surface: TextSurface) {
   if (!observer) {
     observer = new ResizeObserver((entries) => {
-      for (const entry of entries) surfaces.get(entry.target as HTMLElement)?.resize(entry.contentRect.width);
+      for (const entry of entries) widths.set(entry.target as HTMLElement, entry.contentRect.width);
+      schedule();
     });
     window.addEventListener('scroll', schedule, true);
     window.addEventListener('resize', repaint);
@@ -41,6 +45,7 @@ export function registerTextSurface(surface: TextSurface) {
   return () => {
     observer!.unobserve(surface.element);
     surfaces.delete(surface.element);
+    widths.delete(surface.element);
     paints.delete(surface);
     if (!surfaces.size) {
       observer!.disconnect();

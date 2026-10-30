@@ -29,7 +29,6 @@
   </div>
 </template>
 <script setup lang="ts">
-import { weaponSlotStyle } from '@/app/renderers/editors/canvas-styles';
 import { computed, ref, shallowRef, watch, onMounted, onScopeDispose } from 'vue';
 import type { ImmersiveHullProjection } from '@/domain/immersive/hull-scene';
 import { schemaStringValue } from '@/domain/schema/schema-values';
@@ -40,9 +39,9 @@ import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigat
 import { useCanvasSelection } from '@/app/composables/canvas/use-canvas-selection';
 import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
-import { drawWeaponSlotVisual } from '@/app/renderers/editors/canvas-visuals';
+import { useLayoutFrame } from '@/app/composables/use-layout-frame';
+import { drawWeaponSlotVisual, weaponSlotStyle } from '@/app/renderers/editors/weapon-slot-renderer';
 import { paintImmersiveHull } from '@/app/renderers/immersive/hull-scene';
-import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';
 import { immersiveHullPoint, type ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { IMMERSIVE_COLORS } from '@/domain/immersive/appearance';
 import { useResourceImages } from '@/app/composables/use-resource-images';
@@ -236,6 +235,7 @@ function paintScene(engineImages: EngineImages) {
     drawVariant(ctx, props.variant, new Set(), engineImages);
   }
   ctx.restore();
+  if (!props.iconSize) drawSlots(ctx);
   if (props.iconSize && decoded.ready() && resources().length) {
     const finished = document.createElement('canvas');
     finished.width = surface.width;
@@ -257,34 +257,27 @@ function drawVariant(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjec
       afterHull: (ctx, variant) => {
         if (!props.iconSize && !variant.hull.hints.includes('RENDER_ENGINES_BELOW_HULL')) drawEngines(ctx, variant, engineImages);
       },
-      afterWeapons: drawSlots,
     },
     parents,
   );
 }
-function drawSlots(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection) {
-  if (props.iconSize || variant.key !== props.variant.key) return;
-  for (const [index, weapon] of variant.weapons.entries()) {
-    const location = Array.isArray(weapon.slot.locations) ? weapon.slot.locations : [0, 0];
-    const p = immersiveHullPoint(location.map(Number)),
-      slot = weapon.slot;
+function drawSlots(ctx: CanvasRenderingContext2D) {
+  for (const [index, weapon] of props.variant.weapons.entries()) {
+    const slot = weapon.slot;
     if (['DECORATIVE', 'LAUNCH_BAY', 'SYSTEM'].includes(schemaStringValue(slot.type))) continue;
-    const active = variant.key === props.variant.key && (state.selected.value === index || state.hovered.value?.i === index);
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.scale(active ? 0.66 : 0.44, active ? 0.66 : 0.44);
-    drawWeaponMount(ctx, schemaStringValue(slot.type), schemaStringValue(slot.size), (weapon.id ? 0.3 : 0.5) * (active ? 1 : 0.25));
-    ctx.restore();
-    if (active || slot.type === 'STATION_MODULE')
-      drawWeaponSlotVisual(ctx, {
-        point: p,
-        angle: Number(slot.angle ?? 0) + 90,
-        arc: Number(slot.arc ?? 0),
-        mount: schemaStringValue(slot.mount),
-        type: schemaStringValue(slot.type),
-        size: schemaStringValue(slot.size),
-        style: weaponSlotStyle(schemaStringValue(slot.type), active ? (state.selected.value === index ? 1 : 0.6) : 0.15),
-      });
+    drawWeaponSlotVisual(ctx, {
+      showArc: state.hovered.value?.i === index,
+      point: point(slot),
+      angle: Number(slot.angle ?? 0) + 90,
+      arc: Number(slot.arc ?? 0),
+      mount: schemaStringValue(slot.mount),
+      type: schemaStringValue(slot.type),
+      size: schemaStringValue(slot.size),
+      ...(slot.type === 'STATION_MODULE'
+        ? {}
+        : { refit: { scale: viewport.scale.value, highlighted: state.selected.value === index, builtin: weapon.builtin } }),
+      style: weaponSlotStyle(schemaStringValue(slot.type), state.selected.value === index ? 1 : 0.6),
+    });
   }
 }
 function drawEngines(ctx: CanvasRenderingContext2D, variant: ImmersiveHullProjection, engineImages: EngineImages) {
@@ -377,8 +370,9 @@ function fit() {
 watch(() => props.variant.key, fit);
 watch(() => [props.variant, props.wingLayout], paint, { flush: 'post' });
 let observer: ResizeObserver, stopRatio: () => void;
+const scheduleResize = useLayoutFrame(resize);
 onMounted(() => {
-  observer = new ResizeObserver(resize);
+  observer = new ResizeObserver(scheduleResize);
   observer.observe(stage.value!);
   stopRatio = watchCanvasPixelRatio(resize);
   resize();

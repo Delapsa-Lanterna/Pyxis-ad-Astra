@@ -10,7 +10,7 @@ import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { requireProjectionReady, currentReferenceRevision, waitForReferenceSources } from '@/services/project-projection.service';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { sameResourceRef } from '@/shared/lib/resource-ref';
-import { AppError } from '@/shared/lib/errors';
+import { AppError, MediaReadError } from '@/shared/lib/errors';
 import { createResidentCache } from '@/shared/runtime/resident-cache';
 import { createReadTicket, waitForRead, invalidatedRead, type ReadTicket } from '@/shared/runtime/read-request';
 import { subscribeCacheLimits, windowCacheLimits } from '@/shared/runtime/cache-limits';
@@ -129,7 +129,13 @@ function dispatch(items: QueuedMedia[]) {
           )
         )
           throw new AppError('资源批量查询返回内容与请求不一致', { action: 'query-resource-data-urls' });
-        batch.forEach((item, index) => item.resolve(result.entries[index]!.dataUrl));
+        const failures = result.entries.flatMap((item) => (item.error ? [item.error] : []));
+        const error = failures.length ? new MediaReadError(failures) : null;
+        batch.forEach((item, index) => {
+          const entry = result.entries[index]!;
+          if (entry.error) item.reject(error);
+          else item.resolve(entry.dataUrl);
+        });
       })
       .catch((error) => batch.forEach((item) => item.reject(error)));
   }

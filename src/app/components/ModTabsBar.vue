@@ -149,7 +149,7 @@ useContextMenuScope({
       },
       ...(mod.referenceable === undefined
         ? []
-        : [{ label: '恢复自动', disabled: mod.status !== 'ready', run: () => workspace.setModReferenceable(root, undefined) }]),
+        : [{ label: '恢复自动引用', disabled: mod.status !== 'ready', run: () => workspace.setModReferenceable(root, undefined) }]),
     ];
   },
 });

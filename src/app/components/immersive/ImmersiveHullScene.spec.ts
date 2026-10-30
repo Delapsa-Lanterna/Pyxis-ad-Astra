@@ -110,17 +110,16 @@ describe('variant scene pointer dismissal', () => {
     const slot = { ...weapon.slot, type: 'STATION_MODULE', mount: 'HIDDEN' };
     const scene = { ...variant, weapons: [{ ...weapon, slot, id: '', name: '', builtin: false }] };
     const module = { slot, variant: { ...variant, key: 'module', name: 'Sample module', modules: [] } };
-    const drawSlot = vi.spyOn(await import('@/app/renderers/editors/canvas-visuals'), 'drawWeaponSlotVisual');
-    const drawMount = vi.spyOn(await import('@/app/renderers/immersive/weapon-mount'), 'drawWeaponMount');
+    const drawSlot = vi.spyOn(await import('@/app/renderers/editors/weapon-slot-renderer'), 'drawWeaponSlotVisual');
     const own = mount(ImmersiveHullScene, {
       props: { variant: { ...scene, modules: [module] }, sessionId: 's' },
       global: { stubs: { ImmersiveText: { props: ['text'], template: '<span>{{ text }}</span>' } } },
     });
     expect(drawSlot).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'STATION_MODULE', mount: 'HIDDEN' }));
-    expect(drawMount.mock.calls.every(([, type]) => type === 'STATION_MODULE')).toBe(true);
-    drawMount.mockClear();
+    expect(drawSlot.mock.calls.every(([, slot]) => slot.type === 'STATION_MODULE')).toBe(true);
+    drawSlot.mockClear();
     await own.setProps({ variant: module.variant });
-    expect(new Set(drawMount.mock.calls.map(([, type]) => type))).toEqual(
+    expect(new Set(drawSlot.mock.calls.map(([, slot]) => slot.type))).toEqual(
       new Set(module.variant.weapons.map((weapon) => weapon.slot.type)),
     );
     await own.setProps({ variant: { ...scene, modules: [module] } });
@@ -147,8 +146,40 @@ describe('variant scene pointer dismissal', () => {
     await own.setProps({
       variant: { ...variant, weapons: [{ ...weapon, slot: { ...weapon.slot, mount: 'HIDDEN' }, name: 'Sample weapon', builtin: true }] },
     });
-    expect(drawMount).toHaveBeenCalledWith(expect.anything(), weapon.slot.type, weapon.slot.size, expect.any(Number));
     expect(own.get('.variant-slot-label').text()).toBe('Sample weapon（内置）');
+    for (const [id, builtin] of [
+      ['', false],
+      ['sample_weapon', false],
+      ['sample_weapon', true],
+    ] as const) {
+      await own.setProps({ variant: { ...variant, weapons: [{ ...weapon, id, builtin }] } });
+      await own.get('canvas').trigger('mousemove', { clientX: 20, clientY: 20 });
+      expect(drawSlot).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          point: { x: 390, y: 350 },
+          showArc: false,
+          refit: { scale: 1, highlighted: false, builtin },
+          style: expect.objectContaining({ alpha: 0.6, outlineWidth: 2.2, arcWidth: 2 }),
+        }),
+      );
+      await own.get('canvas').trigger('mousemove', { clientX: 390, clientY: 350 });
+      expect(drawSlot).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          showArc: true,
+          refit: { scale: 1, highlighted: true, builtin },
+          style: expect.objectContaining({ alpha: 1 }),
+        }),
+      );
+      await own.get('canvas').trigger('mouseleave');
+      expect(drawSlot.mock.lastCall![1]).toMatchObject({ showArc: false, refit: { highlighted: true } });
+    }
+    const initialPoint = drawSlot.mock.lastCall![1].point;
+    await own.get('canvas').trigger('wheel', { deltaY: -1 });
+    expect(drawSlot.mock.lastCall![1].point).not.toEqual(initialPoint);
+    expect(drawSlot.mock.lastCall![1].refit).toEqual({ scale: 1.25, highlighted: true, builtin: true });
+    expect(drawSlot.mock.lastCall![1].style).toMatchObject({ outlineWidth: 2.2, arcWidth: 2, facingWidth: 2 });
     own.unmount();
   });
   it('shares three bundled SVG decodes and returns their ready images synchronously', async () => {

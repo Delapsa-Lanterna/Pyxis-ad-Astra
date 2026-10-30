@@ -446,7 +446,9 @@ fn variant_catalog(
             let source = session
                 .weapon_specs
                 .get(&id)
+                .filter(|record| record.location.source == ResourceSource::Mod)
                 .or(external.as_ref())
+                .or_else(|| session.weapon_specs.get(&id))
                 .or_else(|| core.as_ref().and_then(|data| data.weapon_specs.get(&id)));
             if let Some(source) = source {
                 spec_source = Some(source.location.clone());
@@ -469,7 +471,10 @@ fn variant_catalog(
         };
         if let Some(resource) =
             super::super::definitions::table_definitions::csv_table_source_resource_ref(
-                row.source.source,
+                spec_source
+                    .as_ref()
+                    .map(|location| location.source)
+                    .unwrap_or(row.source.source),
                 table,
                 &id,
                 &row.data,
@@ -1170,6 +1175,9 @@ impl JointGraph<'_> {
                 )
         {
             resource_refs.insert("icon".into(), icon);
+            if let Some(source) = &source {
+                self.session.reference_resource(source, &mut resource_refs);
+            }
         }
         let record = JointEditRecord {
             key: key.clone(),

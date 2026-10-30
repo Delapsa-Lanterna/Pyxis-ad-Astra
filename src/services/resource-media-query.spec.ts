@@ -28,6 +28,26 @@ vi.mock('@/shared/runtime/command.runtime', () => ({
 }));
 
 describe('resource media query', () => {
+  it('delivers nine successes, shares one batch failure and retries its failed resources', async () => {
+    const resources = Array.from({ length: 10 }, (_, index) => resource(1200 + index));
+    mocks.queryBatch.mockResolvedValueOnce({
+      entries: resources.map((item, index) => ({
+        ...item,
+        dataUrl: index === 9 ? null : 'data:' + item.relPath,
+        ...(index === 9 ? { error: { code: 'reference.unavailable', message: 'fixture source closed', location: null } } : {}),
+      })),
+    });
+    const leases = resources.map((item) => resourceMediaService.acquireResourceMedia('partial-batch', item));
+    const duplicate = resourceMediaService.acquireResourceMedia('partial-batch', resources[9]!);
+    const settled = await Promise.allSettled([...leases, duplicate].map((lease) => lease.ready));
+    expect(settled.filter((item) => item.status === 'fulfilled')).toHaveLength(9);
+    const failures = settled.filter((item) => item.status === 'rejected');
+    expect(failures).toHaveLength(2);
+    expect(failures[0]!.reason).toBe(failures[1]!.reason);
+    expect(failures[0]!.reason.failures).toEqual([{ code: 'reference.unavailable', message: 'fixture source closed', location: null }]);
+    [...leases, duplicate].forEach((lease) => lease.release());
+    expect(await queryResources('partial-batch', resources)).toHaveLength(10);
+  });
   it('validates the whole batch before caching any result', async () => {
     const first = resource(950),
       second = resource(951);

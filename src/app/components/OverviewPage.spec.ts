@@ -6,6 +6,14 @@ import { nButton } from '@/test/unit/ui-stubs';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
+const open = vi.hoisted(() => vi.fn());
+vi.mock('@/app/composables/use-app-feedback', () => ({
+  useAppFeedback: () => ({
+    fileActions: (reference: import('@/shared/lib/errors').FileReference) =>
+      reference.target ? [{ label: '打开文件', type: 'error', run: open }] : [],
+  }),
+}));
+
 vi.mock('@/app/composables/use-workspace-navigation-actions', () => ({
   useWorkspaceNavigationActions: () => ({ navigateToModOverview: vi.fn() }),
 }));
@@ -76,7 +84,7 @@ describe('OverviewPage external Mod opening failures', () => {
     expect(buttons).toContain('打开文件');
     expect(buttons).toContain('关闭提示');
     await wrapper.get('.mod-opening-failure-item button').trigger('click');
-    expect(wrapper.emitted('edit-failure-file')).toEqual([[failure]]);
+    expect(open).toHaveBeenCalled();
     workspace.setModOpeningFailure({ ...failure, modRoot: 'D:/mods/other' });
     await wrapper.vm.$nextTick();
     await wrapper.get('.mod-opening-failure-item').findAll('button')[1]!.trigger('click');

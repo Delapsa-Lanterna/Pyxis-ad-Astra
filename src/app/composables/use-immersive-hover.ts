@@ -1,5 +1,6 @@
 import { inject, ref, shallowRef, watch, nextTick, onScopeDispose } from 'vue';
 import { immersiveBlockedKey } from '@/app/components/immersive/immersive-render-context';
+import { useLayoutFrame } from './use-layout-frame';
 
 export function useImmersiveHover<T>(width: () => number, side: () => 'left' | 'right' = () => 'right') {
   const blocked = inject(immersiveBlockedKey, ref(false));
@@ -23,10 +24,11 @@ export function useImmersiveHover<T>(width: () => number, side: () => 'left' | '
     const right = origin.right + 3,
       left = origin.left - paneWidth - 3;
     const preferred = side() === 'left' ? (left >= 7 ? left : right) : right + paneWidth + 7 <= window.innerWidth ? right : left;
-    position.value = {
+    const next = {
       left: Math.max(7, Math.min(preferred, window.innerWidth - paneWidth - 7)) + 'px',
       top: Math.max(7, Math.min(origin.top, window.innerHeight - bounds.height - 7)) + 'px',
     };
+    if (next.left !== position.value.left || next.top !== position.value.top) position.value = next;
   }
   function show(value: T, element: HTMLElement, intent: 'hover' | 'focus' | 'click' = 'hover') {
     if (blocked.value || restoringFocus || (dismissedAnchor === element && intent !== 'click')) return;
@@ -66,7 +68,7 @@ export function useImmersiveHover<T>(width: () => number, side: () => 'left' | '
     closeTimer = window.setTimeout(() => close(), 100);
   }
   watch(blocked, () => close(), { flush: 'sync' });
-  const observer = new ResizeObserver(locate);
+  const observer = new ResizeObserver(useLayoutFrame(locate));
   watch(
     surface,
     (next, previous) => {

@@ -148,11 +148,11 @@ describe('window context menu', () => {
     await open(tab.element);
     expect((dropdown().props('options')! as { key: string }[]).map((item) => item.key)).toEqual([
       '设为可引用',
-      '恢复自动',
+      '恢复自动引用',
       'separator',
       '刷新',
     ]);
-    await select('恢复自动');
+    await select('恢复自动引用');
     expect(tab.classes()).toContain('referenceable');
     expect(workspace.toPersistedState().mods[1]).not.toHaveProperty('referenceable');
   });

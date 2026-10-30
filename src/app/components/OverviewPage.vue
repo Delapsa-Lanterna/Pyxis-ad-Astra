@@ -20,19 +20,13 @@
       @create-mod="beginCreateMod"
       @refresh-workspace="$emit('refresh-workspace')"
       @close-workspace="$emit('close-workspace')"
-      @edit-warning-file="$emit('edit-warning-file', $event)"
-      @edit-failure-file="$emit('edit-failure-file', $event)"
       @dismiss-failure="workspace.clearModOpeningFailure"
       @dismiss-warning="workspace.clearGameScanWarning"
       @load-mod="$emit('load-mod', $event)"
     />
 
     <div v-else class="overview-page-content ui-content-grid">
-      <ModOpeningFailureList
-        :failures="workspace.modOpeningFailureList"
-        @edit-failure-file="$emit('edit-failure-file', $event)"
-        @dismiss-failure="workspace.clearModOpeningFailure"
-      />
+      <ModOpeningFailureList :failures="workspace.modOpeningFailureList" @dismiss-failure="workspace.clearModOpeningFailure" />
 
       <section v-if="!workspace.hasWorkspaceContext" class="overview-empty-state empty-state ui-text-muted ui-layout-grid ui-text-normal">
         <h1 class="page-title">选择一个 Starsector / Mod 目录</h1>
@@ -79,14 +73,11 @@ import LoadedModsPanel from '@/app/components/LoadedModsPanel.vue';
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
 import { useCreateModViewModel } from '@/app/composables/config/use-create-mod-view-model';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import type { GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
 defineEmits<{
   'import-mod': [];
   'refresh-workspace': [];
   'close-workspace': [];
-  'edit-warning-file': [warning: GameScanWarning];
-  'edit-failure-file': [failure: ModOpeningFailure];
   'load-mod': [modRoot: string];
 }>();
 

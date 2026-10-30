@@ -10,20 +10,21 @@ import {
   formatError,
   errorDiagnosticOf,
   errorContextOf,
+  MediaReadError,
   type FileReference,
 } from '@/shared/lib/errors';
-import type { AppFeedback, ChooseOptions, ConfirmOptions } from '@/shared/types';
+import type { ChooseOptions, ConfirmOptions } from '@/shared/types';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
+import type { FeedbackLevel, FeedbackFileAction, FeedbackFileActions, WindowFeedback } from '@/shared/types';
 
-export type FeedbackLevel = 'success' | 'info' | 'warning' | 'error';
-export interface FeedbackFileAction {
-  label: string;
-  type: 'default' | 'success' | 'warning' | 'error';
-  run: () => void | Promise<void>;
-}
-export type FeedbackFileActions = (reference: FileReference, level: FeedbackLevel, code: string) => FeedbackFileAction[];
-export function createAppFeedback(message: MessageApiInjection, dialog: DialogApiInjection, fileActions: FeedbackFileActions): AppFeedback {
+export type { FeedbackLevel, FeedbackFileAction, FeedbackFileActions } from '@/shared/types';
+export function createAppFeedback(
+  message: MessageApiInjection,
+  dialog: DialogApiInjection,
+  fileActions: FeedbackFileActions,
+): WindowFeedback {
+  const reportedMedia = new WeakSet<MediaReadError>();
   function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '') {
     const actions = reference === null ? [] : fileActions(reference, level, code);
     const content = () => renderToastContent(text, reference, actions);
@@ -33,6 +34,7 @@ export function createAppFeedback(message: MessageApiInjection, dialog: DialogAp
     else message.success(content);
   }
   return {
+    fileActions,
     success: (text) => showToast('success', text),
     info: (text) => showToast('info', text),
     warning: (notice) => {
@@ -48,22 +50,27 @@ export function createAppFeedback(message: MessageApiInjection, dialog: DialogAp
       });
     },
     error: (error, contextMessage) => {
+      if (error instanceof MediaReadError) {
+        if (reportedMedia.has(error)) return;
+        reportedMedia.add(error);
+      }
       const text = contextMessage ? contextMessage + '：' + formatError(error) : formatError(error);
       const diagnostic = errorDiagnosticOf(error);
       const reference = extractFileReferenceFromError(error);
       showToast('error', text, reference, diagnostic.code);
-      recordLogBestEffort({
-        level: 'error',
-        code: diagnostic.code,
-        message: diagnostic.message,
-        path: reference?.path ?? null,
-        line: reference?.line ?? null,
-        fields: logFields({
-          ...errorContextOf(error),
-          action: errorContextOf(error).action ?? contextMessage,
-          column: diagnostic.location?.column,
-        }),
-      });
+      for (const diagnostic of error instanceof MediaReadError ? error.failures : [errorDiagnosticOf(error)])
+        recordLogBestEffort({
+          level: 'error',
+          code: diagnostic.code,
+          message: diagnostic.message,
+          path: diagnostic.location?.path ?? null,
+          line: diagnostic.location?.line ?? null,
+          fields: logFields({
+            ...errorContextOf(error),
+            action: errorContextOf(error).action ?? contextMessage,
+            column: diagnostic.location?.column,
+          }),
+        });
     },
     confirmDanger: (options) => showConfirm(dialog, 'error', options),
     confirmWarning: (options) => showConfirm(dialog, 'warning', options),

@@ -41,8 +41,6 @@ vi.mock('@/orchestrators/workspace-lifecycle.orchestrator', () => ({
 
 vi.mock('@/windows/file-editor.window', () => ({
   openFileEditorWindow: mocks.openFileEditorWindow,
-  openGameWarningFileEditor: vi.fn(() => null),
-  openModOpeningFailureFileEditor: vi.fn(() => null),
 }));
 
 vi.mock('@/services/app-log.service', () => ({

@@ -7,6 +7,7 @@ interface CanvasSize {
 
 export function useCanvasSurface(canvasRef: Readonly<Ref<HTMLCanvasElement | null | undefined>>) {
   let dimensions: CanvasSize | null = null;
+  let ratio = 0;
 
   function size(): CanvasSize {
     if (dimensions) return dimensions;
@@ -18,7 +19,10 @@ export function useCanvasSurface(canvasRef: Readonly<Ref<HTMLCanvasElement | nul
     const canvas = canvasRef.value;
     if (!canvas) return false;
     const rect = canvas.getBoundingClientRect();
-    dimensions = { width: Math.max(1, width ?? rect.width), height: Math.max(1, height ?? rect.height) };
+    const next = { width: Math.max(1, width ?? rect.width), height: Math.max(1, height ?? rect.height) };
+    if (dimensions?.width === next.width && dimensions.height === next.height && ratio === window.devicePixelRatio) return false;
+    dimensions = next;
+    ratio = window.devicePixelRatio;
     canvas.width = Math.round(dimensions.width * window.devicePixelRatio);
     canvas.height = Math.round(dimensions.height * window.devicePixelRatio);
     const ctx = canvas.getContext('2d');

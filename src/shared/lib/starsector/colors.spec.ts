@@ -34,6 +34,6 @@ describe('weapon slot palettes', () => {
     ]) {
       expect(WEAPON_COLORS[type as keyof typeof WEAPON_COLORS], type).toBeTruthy();
     }
-    expect(SLOT_RADIUS).toEqual({ LARGE: 32, MEDIUM: 24, SMALL: 16 });
+    expect(SLOT_RADIUS).toEqual({ LARGE: 40, MEDIUM: 30, SMALL: 20 });
   });
 });

@@ -4,6 +4,14 @@ import GameOverviewPanel from '@/app/components/GameOverviewPanel.vue';
 import { nButton } from '@/test/unit/ui-stubs';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
+const open = vi.hoisted(() => vi.fn());
+vi.mock('@/app/composables/use-app-feedback', () => ({
+  useAppFeedback: () => ({
+    fileActions: (reference: import('@/shared/lib/errors').FileReference) =>
+      reference.target ? [{ label: '打开文件', type: 'warning', run: open }] : [],
+  }),
+}));
+
 vi.mock('@/stores/workspace.store', () => ({
   useWorkspaceStore: () => ({ activeModRoot: null, isModImported: () => false, isModView: false, mods: new Map() }),
 }));
@@ -39,7 +47,7 @@ describe('GameOverviewPanel warning file actions', () => {
 
     await item.get('button').trigger('click');
 
-    expect(wrapper.emitted('edit-warning-file')).toEqual([[warning]]);
+    expect(open).toHaveBeenCalled();
     expect(item.findAll('button').map((button) => button.text())).toEqual(['打开文件', '关闭提示']);
     await item.findAll('button')[1]!.trigger('click');
     expect(wrapper.emitted('dismiss-warning')).toEqual([[warning]]);

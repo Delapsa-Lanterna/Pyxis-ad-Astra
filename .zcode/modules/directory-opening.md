@@ -24,6 +24,7 @@
 
 - `src-tauri/src/models/directory_opening.rs`：目录识别、游戏概览及打开诊断 wire 契约。
 - `src-tauri/src/services/project_session.rs`：打开动作的 ProjectSession 建立交接能力。
+- `src/app/components/FeedbackFileActions.vue`：必须消费统一文件动作并展示扫描警告与打开失败的恢复按钮。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
 - `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
 - `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
@@ -77,6 +78,8 @@
 ## 规范
 
 - Mod 打开失败与游戏扫描警告必须逐条提供关闭提示按钮，关闭事件必须交付工作区拥有的状态动作。
+- Mod 打开失败必须在清理运行态前捕获恢复目标，列表与后续弹出提示必须消费同一目标及窗口反馈动作。
+- 游戏扫描发现的文件问题必须交付结构化文件位置与编辑目标，概览按钮必须消费统一文件动作。
 - loading 条目必须先于后端调用注册，避免窗口期重复触发。
 - manifest 登记、运行态水合与失败回滚必须属于发起打开时的 Mod 代次；移除后到达的成功响应必须关闭对应 session。
 - 回滚后必须回到工作区总览，严禁停留在半初始化页面。

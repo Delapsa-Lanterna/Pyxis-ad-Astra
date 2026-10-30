@@ -8,6 +8,22 @@ export interface ErrorDiagnostic {
   code: string;
   message: string;
   location: ErrorLocation | null;
+  fileTarget?: FeedbackFileTarget;
+}
+
+export interface FeedbackFileTarget {
+  mode: 'session' | 'recovery';
+  modRoot: string;
+  sessionId: string | null;
+  path: string;
+}
+
+export interface FileReference {
+  target?: FeedbackFileTarget;
+  path: string;
+  line?: number;
+  column?: number;
+  message: string;
 }
 
 export interface FeedbackNotice {

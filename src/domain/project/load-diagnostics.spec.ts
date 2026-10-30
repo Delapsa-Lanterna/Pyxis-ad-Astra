@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildModOpeningFailure } from './load-diagnostics';
+import { errorDiagnosticOf, AppError, extractFileReferenceFromError } from '@/shared/lib/errors';
+import { modOpeningFailureNotice } from './load-diagnostics';
 
 const diagnostic = {
   code: 'parse.json_syntax',
@@ -13,5 +15,11 @@ describe('Mod opening diagnostics', () => {
     expect(failure.file).toEqual({ path: diagnostic.location.path, line: 5, column: 44 });
     expect(failure.diagnostic).toEqual(diagnostic);
     expect(buildModOpeningFailure('D:/mods/other', diagnostic).file).toBeNull();
+    const notice = modOpeningFailureNotice(failure);
+    const wrapped = new AppError('fixture', {
+      cause: new AppError('fixture', { cause: diagnostic, fileTarget: notice.diagnostic.fileTarget }),
+    });
+    expect(errorDiagnosticOf(wrapped).fileTarget).toEqual(notice.diagnostic.fileTarget);
+    expect(extractFileReferenceFromError(wrapped)).toMatchObject({ path: diagnostic.location.path, line: 5, column: 44 });
   });
 });

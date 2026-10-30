@@ -1,5 +1,13 @@
 import type { VNodeChild } from 'vue';
-import type { FeedbackNotice } from '@/shared/types/error.types';
+import type { FeedbackNotice, FileReference } from '@/shared/types/error.types';
+
+export type FeedbackLevel = 'success' | 'info' | 'warning' | 'error';
+export interface FeedbackFileAction {
+  label: string;
+  type: 'default' | 'success' | 'warning' | 'error';
+  run: () => void | Promise<void>;
+}
+export type FeedbackFileActions = (reference: FileReference, level: FeedbackLevel, code: string) => FeedbackFileAction[];
 
 export interface ConfirmOptions {
   title: string;
@@ -19,6 +27,10 @@ export interface ChooseOptions {
   title: string;
   content?: string | (() => VNodeChild);
   choices: ChoiceOption[];
+}
+
+export interface WindowFeedback extends AppFeedback {
+  fileActions: FeedbackFileActions;
 }
 
 export interface AppFeedback {
