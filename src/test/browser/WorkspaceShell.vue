@@ -1,7 +1,8 @@
 <template>
   <main class="browser-workspace-shell browser-chrome" :style="appearanceStyle">
-    <BrowserHeader title="测试工作区">
-      <details class="workbench-menu">
+    <BrowserHeader :title="demo ? '浏览器演示' : '测试工作区'">
+      <template v-if="demo" #status>编辑仅在当前页面会话保留，刷新后恢复样本。</template>
+      <details v-if="!demo" class="workbench-menu">
         <summary>打开子窗口</summary>
         <div class="workbench-menu-panel">
           <label
@@ -26,8 +27,8 @@
         </div>
       </details>
       <button class="workbench-primary" @click="workspace.restoreSample()">恢复样本</button>
-      <button @click="workspace.reopen()">重开窗口</button>
-      <details class="workbench-menu">
+      <button v-if="!demo" @click="workspace.reopen()">重开窗口</button>
+      <details v-if="!demo" class="workbench-menu">
         <summary>校对工具</summary>
         <div class="workbench-menu-panel">
           <button @click="workspace.externalUpdate()">注入外部更新</button>
@@ -37,7 +38,7 @@
           <button @click="workspace.closeApplication()">关闭工作区</button>
         </div>
       </details>
-      <details class="workbench-menu">
+      <details v-if="!demo" class="workbench-menu">
         <summary>窗口尺寸</summary>
         <div class="workbench-menu-panel workbench-size-options">
           <button :aria-pressed="width === 0" @click="width = 0">适应工作区</button>
@@ -45,7 +46,7 @@
           <button :aria-pressed="width === 720" @click="width = 720">720 px</button>
         </div>
       </details>
-      <details class="workbench-menu workbench-catalog">
+      <details v-if="!demo" class="workbench-menu workbench-catalog">
         <summary>功能校对目录</summary>
         <div class="workbench-menu-panel workbench-catalog-panel">
           <a v-for="scene in scenarios" :key="scene.id" :data-scene-id="scene.id" :href="scenarioHref(scene.id)">{{ scene.label }}</a>
@@ -63,7 +64,7 @@
         :key="label + window.generation"
         :data-window="label"
         :title="window.context?.title || '主窗口'"
-        :src="`/?window=${encodeURIComponent(label)}`"
+        :src="`${base}?window=${encodeURIComponent(label)}`"
         :style="{ width: width ? width + 'px' : '100%' }"
       />
     </section>
@@ -79,6 +80,8 @@ import { browserThemeStyle } from './appearance';
 import type { SpecEditorKind, JointEditKind } from '@/shared/types';
 import './browser.css';
 const windowKinds = ['editor', 'file-editor', 'immersive-editor', 'weapon-fire-preview'] as const;
+const demo = import.meta.env.VITE_BROWSER_DEMO === true;
+const base = import.meta.env.BASE_URL;
 const windowLabels = {
   editor: '规格编辑器',
   'file-editor': '文件编辑器',

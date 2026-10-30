@@ -45,12 +45,12 @@
 <script setup lang="ts">
 import { ACCENT_PRESETS } from '@/domain/settings/theme';
 import type { AppSettings } from '@/shared/types';
-import { computed } from 'vue';
-import { NSwitch } from 'naive-ui/es/switch';
+import { computed, defineAsyncComponent } from 'vue';
 import { NColorPicker } from 'naive-ui/es/color-picker';
 import { normalizeHex } from '@/domain/settings/rules';
 import { darkTheme, lightTheme } from 'naive-ui/es/themes';
 import './browser.css';
+const NSwitch = defineAsyncComponent(async () => (await import('naive-ui/es/switch')).NSwitch);
 export type BrowserAppearanceState = Pick<AppSettings, 'theme' | 'accent' | 'customAccent'>;
 const props = defineProps<{ settings: BrowserAppearanceState }>();
 const emit = defineEmits<{ change: [patch: Partial<BrowserAppearanceState>] }>();

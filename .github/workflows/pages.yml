@@ -1,0 +1,43 @@
+name: Browser demo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/configure-pages@v5
+        id: pages
+      - run: npm run build:demo -- --base '${{ steps.pages.outputs.base_path }}/'
+      - run: npx playwright install --with-deps chromium
+      - name: Serve demo artifact
+        run: node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Circinus-ad-Astra/ --port 1463 &
+      - name: Verify demo artifact
+        run: node scripts/browser/demo.mjs http://127.0.0.1:1463/Circinus-ad-Astra/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-verification
+          path: node_modules/.cache/browser/demo
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/browser-demo
+      - uses: actions/deploy-pages@v4
+        id: deployment

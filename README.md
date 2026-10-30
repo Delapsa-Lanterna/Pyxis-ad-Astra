@@ -4,6 +4,8 @@
 
 Windows 桌面版 Starsector Mod 配置工具，使用 Tauri 2 + Vue 3 + TypeScript + Rust 构建。
 
+[浏览器演示](https://caopancake.github.io/Circinus-ad-Astra/)：使用固定样本体验编辑流程，编辑内容在当前页面会话中保留，刷新后恢复样本。
+
 > 项目处于 `0.1.0` 的早期公开阶段。请在修改 Mod 前自行备份，并通过 Issue 提供可复现步骤反馈问题。
 > <img width="2133" height="1160" alt="image" src="https://github.com/user-attachments/assets/a2e8da40-76b6-416e-852d-5b6ba7037d84" />
 > <img width="2133" height="1160" alt="image" src="https://github.com/user-attachments/assets/b8c95e7a-5966-477b-b578-b88440466cbd" />

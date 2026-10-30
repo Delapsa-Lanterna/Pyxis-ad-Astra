@@ -89,22 +89,22 @@ export const workspaceNavigation = buildModNavigationSections(null).flatMap((sec
   section.items.map(({ id, label }) => ({ id, label })),
 );
 export const workspaceEntries = [
-  { id: 'workspace', label: '工作区总览', href: '/' },
-  { id: 'global-settings', label: '应用设置', href: '/?page=settings' },
-  { id: 'global-about', label: '关于应用', href: '/?page=about' },
+  { id: 'workspace', label: '工作区总览', href: import.meta.env.BASE_URL },
+  { id: 'global-settings', label: '应用设置', href: import.meta.env.BASE_URL + '?page=settings' },
+  { id: 'global-about', label: '关于应用', href: import.meta.env.BASE_URL + '?page=about' },
   ...workspaceNavigation.map((item) => ({
     id: 'navigation-' + item.id,
     label: item.label,
-    href: '/?navigation=' + encodeURIComponent(item.id),
+    href: import.meta.env.BASE_URL + '?navigation=' + encodeURIComponent(item.id),
   })),
   ...[
     ['spec', '规格编辑窗口'],
     ['file', '文件编辑窗口'],
     ['immersive', '沉浸式编辑窗口'],
     ['preview', '开火预览窗口'],
-  ].map(([id, label]) => ({ id: id + '-window', label: label!, href: '/?sampleWindow=' + id + '-window' })),
+  ].map(([id, label]) => ({ id: id + '-window', label: label!, href: import.meta.env.BASE_URL + '?sampleWindow=' + id + '-window' })),
 ];
-export const scenarioHref = (id: string) => (id === 'workspace' ? '/' : '/?scene=' + id);
+export const scenarioHref = (id: string) => import.meta.env.BASE_URL + (id === 'workspace' ? '' : '?scene=' + id);
 export function sceneDefinition(sample: ScenarioOptions['scene']) {
   return scenarios.find((scene) => scene.samples.includes(sample))!;
 }

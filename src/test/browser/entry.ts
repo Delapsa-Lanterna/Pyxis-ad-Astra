@@ -32,6 +32,9 @@ import '@/styles/style.css';
 import './browser.css';
 
 const query = new URLSearchParams(location.search);
+if (import.meta.env.VITE_BROWSER_DEMO === true) {
+  for (const key of [...query.keys()]) if (key !== 'window') query.delete(key);
+}
 Object.assign(globalThis, {
   browserScenarios: scenarios.map((scene) => ({ ...scene, href: scenarioHref(scene.id) })),
   browserWorkspaceEntries: workspaceEntries,
@@ -40,7 +43,14 @@ const icon = document.createElement('link');
 icon.rel = 'icon';
 icon.href = appIcon;
 document.head.append(icon);
-document.title = query.has('scene') ? '前端场景预览' : query.has('window') ? '应用子窗口 · 浏览器验收' : '前端测试工作区';
+document.title =
+  import.meta.env.VITE_BROWSER_DEMO === true
+    ? '星界罗盘 · 浏览器演示'
+    : query.has('scene')
+      ? '前端场景预览'
+      : query.has('window')
+        ? '应用子窗口 · 浏览器验收'
+        : '前端测试工作区';
 if (!query.has('scene') && !query.has('window')) {
   document.body.classList.add('browser-preview-layout');
   const controls = document.querySelector<HTMLElement>('#controls')!;
@@ -143,7 +153,9 @@ async function startScene() {
   const controls = document.querySelector<HTMLElement>('#controls')!;
   controls.className = 'browser-controls browser-chrome';
   controls.innerHTML =
-    '<div id="browser-header"></div><div class="testbed-actions"><a href="/">完整测试工作区</a><details class="workbench-menu workbench-catalog"><summary>场景目录</summary><nav class="workbench-menu-panel workbench-catalog-panel">' +
+    '<div id="browser-header"></div><div class="testbed-actions"><a href="' +
+    import.meta.env.BASE_URL +
+    '">完整测试工作区</a><details class="workbench-menu workbench-catalog"><summary>场景目录</summary><nav class="workbench-menu-panel workbench-catalog-panel">' +
     scenarios.map((item) => '<a href="' + scenarioHref(item.id) + '">' + item.label + '</a>').join('') +
     '</nav></details><label ' +
     (definition.samples.length === 1 ? 'hidden' : '') +

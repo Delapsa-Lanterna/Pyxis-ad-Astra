@@ -35,6 +35,9 @@ npm.cmd run tauri -- build --no-bundle
 `npm.cmd run dev-browser` 启动测试工作区，地址为 `http://127.0.0.1:1461`。
 `npm.cmd run dev-testbed` 启动性能测试台，地址为 `http://127.0.0.1:1462`。
 
+`npm.cmd run build:demo -- --base /Circinus-ad-Astra/` 构建公开演示，产物位于 `dist/browser-demo/`。
+`node scripts/browser/serve.mjs browser --production --existing --directory dist/browser-demo --base /Circinus-ad-Astra/ --port 1463` 提供该产物的本地预览。
+
 地址参数 `?scene=csv&count=300&theme=dark` 选择独立场景、规模和主题。
 
 共享基础位于 `src/test/`：

@@ -8,9 +8,13 @@ export function browserTestPlugin(mode = 'browser') {
   const entry = 'src/test/browser/' + (mode === 'browser' ? 'entry.ts' : 'testbed.ts');
   /** @type {Record<string, string>} */
   let metadata;
+  let base = '/';
   /** @type {import('vite').Plugin} */
   const plugin = {
     name: 'browser-simulation',
+    configResolved(config) {
+      base = config.base;
+    },
     async config(_config, environment) {
       const paths = [];
       for (const folder of ['src', 'schemas', 'scripts/browser', 'scripts/shared']) {
@@ -68,8 +72,8 @@ export function browserTestPlugin(mode = 'browser') {
       for (const name of Object.keys(bundle).sort()) {
         const item = bundle[name];
         hash.update(name).update(item.type === 'chunk' ? item.code : item.source);
-        if (item.type === 'chunk' && item.isEntry) script = '/' + item.fileName;
-        if (item.fileName.endsWith('.css')) styles += '<link rel="stylesheet" href="/' + item.fileName + '">';
+        if (item.type === 'chunk' && item.isEntry) script = base + item.fileName;
+        if (item.fileName.endsWith('.css')) styles += '<link rel="stylesheet" href="' + base + item.fileName + '">';
       }
       metadata.buildHash = hash.digest('hex');
       this.emitFile({ type: 'asset', fileName: 'index.html', source: html(script, styles, mode) });

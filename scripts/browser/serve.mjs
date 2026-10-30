@@ -1,12 +1,13 @@
-import { createServer, build } from 'vite';
+import { createServer } from 'vite';
 import { createServer as createHttpServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { browserTestPlugin, root } from './vite-plugin.mjs';
 import { TestWorkspace } from '../shared/test-workspace.mjs';
+import { buildBrowser } from './build.mjs';
 
-/** @param {{ mode?: 'browser' | 'testbed', production?: boolean, directory?: string, port?: number, rebuild?: boolean, monitorCode?: boolean }} options */
+/** @param {{ mode?: 'browser' | 'testbed', production?: boolean, directory?: string, port?: number, rebuild?: boolean, monitorCode?: boolean, base?: string }} options */
 export async function serve({
   mode = 'testbed',
   production = false,
@@ -14,6 +15,7 @@ export async function serve({
   port = 0,
   rebuild = true,
   monitorCode = true,
+  base = '/',
 } = {}) {
   if (!production) {
     const server = await createServer({
@@ -32,22 +34,16 @@ export async function serve({
   const workspace = rebuild ? await TestWorkspace.create(resolve(root, directory), 'build') : null;
   const output = workspace?.root ?? resolve(root, directory);
   try {
-    if (rebuild)
-      await build({
-        configFile: resolve(root, 'vite.config.ts'),
-        logLevel: 'warn',
-        plugins: [browserTestPlugin(mode)],
-        define: { 'import.meta.env.VITE_PERFORMANCE_MONITOR': JSON.stringify(monitorCode ? '1' : '0') },
-        build: {
-          outDir: output,
-          emptyOutDir: false,
-          rollupOptions: { input: resolve(root, 'src/test/browser/' + (mode === 'browser' ? 'entry.ts' : 'testbed.ts')) },
-        },
-      });
+    if (rebuild) await buildBrowser({ mode, directory: output, monitorCode, base });
     const server = createHttpServer(async (request, response) => {
       const pathname = new URL(/** @type {string} */ (request.url), 'http://localhost').pathname;
+      if (!pathname.startsWith(base)) {
+        response.writeHead(404).end();
+        return;
+      }
+      const localPath = '/' + pathname.slice(base.length);
       const relative =
-        pathname === '/' ? 'index.html' : pathname === '/environment' ? 'environment.json' : decodeURIComponent(pathname.slice(1));
+        localPath === '/' ? 'index.html' : localPath === '/environment' ? 'environment.json' : decodeURIComponent(localPath.slice(1));
       const path = resolve(output, relative);
       if (!path.startsWith(output + sep)) {
         response.writeHead(403).end();
@@ -99,10 +95,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const mode = process.argv[2] === 'browser' ? 'browser' : 'testbed';
   const production = process.argv.includes('--production');
   const directoryFlag = process.argv.indexOf('--directory');
+  const baseFlag = process.argv.indexOf('--base');
+  const portFlag = process.argv.indexOf('--port');
   const server = await serve({
     mode,
     production,
-    port: production ? 0 : mode === 'browser' ? 1461 : 1462,
+    port: portFlag < 0 ? (production ? 0 : mode === 'browser' ? 1461 : 1462) : Number(process.argv[portFlag + 1]),
+    base: baseFlag < 0 ? '/' : process.argv[baseFlag + 1],
     directory: directoryFlag < 0 ? undefined : process.argv[directoryFlag + 1],
     rebuild: !process.argv.includes('--existing'),
     monitorCode: !process.argv.includes('--no-monitor-code'),

@@ -23,6 +23,7 @@
     "test:resources": "node --test scripts/browser/run-resources.test.mjs",
     "test:browser": "node scripts/browser/run.mjs",
     "build": "vue-tsc --noEmit && vite build",
+    "build:demo": "node scripts/browser/build.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
