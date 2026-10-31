@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({ openModFromOverview: mocks.openMod }));
+vi.mock('@/orchestrators/workspace-opening.orchestrator', () => ({ openWorkspaceMod: mocks.openMod }));
 
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,

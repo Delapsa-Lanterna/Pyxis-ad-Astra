@@ -15,9 +15,11 @@
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
 - `src/app/components/OverviewPage.vue`：工作区概览、已载入 Mod 与游戏扫描组合。
 - `src/app/components/workspace/WorkspaceFileHistory.vue`：当前 Mod 的历史摘要、双栈及回放动作展示。
+- `src/app/components/workspace/WorkspaceGameOverview.vue`：游戏概览与当前工作区 Mod 状态、导航及用户动作。
 - `src/app/components/workspace/WorkspaceModOverview.vue`：Mod 信息、目录、资源和数据摘要展示。
 - `src/app/composables/use-main-window-shortcuts.ts`：主窗口保存与工作区历史命令装配。
 - `src/app/composables/use-workspace-file-history-view-model.ts`：工作区历史页的读取寿命、菜单、确认及用户动作。
+- `src/app/composables/use-workspace-mod-creation.ts`：总览创建目的地、对话框状态及创建结果的工作区接纳。
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
@@ -28,6 +30,7 @@
 - `src/orchestrators/workspace-history.orchestrator.ts`：当前编辑面草稿历史选择、文件回放确认与展示交接。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
 - `src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航，同步跨 store 运行态。
+- `src/orchestrators/workspace-opening.orchestrator.ts`：工作区目录识别分流、Mod 打开代次、清单接纳、编辑初始化及失败清理。
 - `src/orchestrators/workspace-persistence.orchestrator.ts`：workspace 快照保存与启动恢复。
 - `src/services/workspace-state.service.ts`：workspace 持久化签名与协议装配。
 - `src/stores/workspace.store.ts`：运行态，拥有当前 Mod、当前清单与 session 投影、全局页、Mod 页面上下文、概览、打开失败状态、列宽与持久化投影。
@@ -39,6 +42,8 @@
 - `src/app/components/json-editor/JsonEditorWorkspace.vue`：展示当前 JSON 页面并消费所属文档运行态。
 - `src/app/composables/use-window-shortcuts.ts`：窗口键盘监听、命中路由及关闭屏蔽。
 - `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的回放计划、复核及实际结果。
+- `src/orchestrators/mod-creation.orchestrator.ts`：最小 Mod 骨架的实际创建结果。
+- `src/services/directory.service.ts`：目录识别与游戏概览扫描结果。
 - `src/shared/types/workspace-persistence.types.ts`：工作区保存请求、目录、Mod、扫描结果及列宽快照。
 - `src/shared/types/workspace.types.ts`：工作区页面与 Mod 导航契约。
 - `src/stores/project.store.ts`：按 Mod 根查询正式清单与 session，当前项目投影消费原清单引用。
@@ -59,7 +64,7 @@
 - 持久化编排投影可恢复数据，Rust service 读写工具私有 workspace 文件。
 - 文件浏览模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 mod-files 页面及 Mod 页面记忆。
 - 生命周期编排消费 Rust 实际释放结果，拥有所属 Mod 清理和前端缓存释放。
-- 目录打开提供 outcome 和迟到 session 清理，工作区接纳成功建立的运行态。
+- 工作区打开动作持有捕获代次、共享 manifest 等待及迟到 session 清理，接纳成功建立的运行态。
 - 来源切换拥有捕获的恢复快照及完整关闭等待，设置模块交付正式设置提交闭包。
 - 历史命令消费当前可见编辑面的草稿动作，文件回放确认与 CSV 选择交接归工作区动作。
 
@@ -67,7 +72,7 @@
 
 ### 加载 Mod 进入运行态
 
-1. 目录打开编排成功建立 ProjectSession。
+1. 工作区打开动作消费目录识别结果并建立 ProjectSession。
 2. workspace 注册已加载 Mod 条目并激活目标页面。
 3. 导航编排按 `modRoot` 同步 project/tables/editor/history 运行态。
 
@@ -107,6 +112,14 @@
 
 ## 规范
 
+- 工作区创建必须在提交时捕获工作区代次；实际创建结果必须独立交付，创建后的打开必须服从原工作区的接纳权。
+- 总览创建必须从当前游戏概览捕获目的地或请求明确父目录；创建请求期间必须禁用提交并呈现保存中状态。
+- 创建后的打开必须以新加载结果判定成功；已加载冲突及打开失败必须交付所属窗口反馈，取消必须保留实际创建结果。
+- 工作区打开必须区分游戏概览、新加载、已加载、取消及未知结果；取消必须结束所属打开动作。
+- loading 条目与 Mod 代次必须先于 session 请求登记；相同工作区、根、来源和代次的 manifest 请求必须共享所属等待。
+- manifest 登记、编辑初始化与失败清理必须服从发起代次；移除或关闭后到达的 session 必须经正式关闭入口释放。
+- 已加载 Mod 的重复打开必须消费现有运行态和工作区导航；失败必须保留结构化诊断并清理所属未完成运行态。
+- 目录探测与创建后的概览扫描必须捕获工作区代次；结果接纳必须核对原代次，工作区关闭必须撤销其接纳权。
 - CSV 与 JSON 历史动作必须分别返回已处理、输入拒绝或草稿耗尽；只有草稿耗尽才允许进入文件历史。
 - 工作区历史动作必须捕获 Mod、session、页面、当前表及 JSON 页面；输入提交后的目标变化必须结束本次草稿分派。
 - 文件回放确认必须呈现实际影响路径，确认后的执行必须持续消费捕获目标，CSV 选择交接必须核对所属当前 Mod 与 session。

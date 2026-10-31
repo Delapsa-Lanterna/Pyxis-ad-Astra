@@ -13,7 +13,7 @@
       <n-button v-if="!workspace.gameOverview" size="small" @click="beginCreateMod">创建新 Mod</n-button>
     </header>
 
-    <GameOverviewPanel
+    <WorkspaceGameOverview
       v-if="workspace.gameOverview"
       :overview="workspace.gameOverview"
       :opening-failures="workspace.modOpeningFailureList"
@@ -68,10 +68,10 @@
 <script setup lang="ts">
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import { computed } from 'vue';
-import GameOverviewPanel from '@/app/components/GameOverviewPanel.vue';
+import WorkspaceGameOverview from '@/app/components/workspace/WorkspaceGameOverview.vue';
 import LoadedModsPanel from '@/app/components/LoadedModsPanel.vue';
 import ModOpeningFailureList from '@/app/components/ModOpeningFailureList.vue';
-import { useCreateModViewModel } from '@/app/composables/config/use-create-mod-view-model';
+import { useWorkspaceModCreation } from '@/app/composables/use-workspace-mod-creation';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
 defineEmits<{
@@ -89,7 +89,7 @@ const {
   submitCreateMod,
   template: createModTemplate,
   visible: createModVisible,
-} = useCreateModViewModel();
+} = useWorkspaceModCreation();
 
 const subtitle = computed(() => {
   if (workspace.gameOverview) return `${workspace.gameOverview.mods.length} 个 Mod 可用，当前仅显示游戏目录概览`;

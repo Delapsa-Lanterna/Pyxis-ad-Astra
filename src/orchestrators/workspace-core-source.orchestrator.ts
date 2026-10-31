@@ -5,7 +5,7 @@ import {
   closeWorkspaceRuntime,
   removeLoadedModRuntime,
 } from '@/orchestrators/workspace-lifecycle.orchestrator';
-import { settleDirectoryOpenings } from '@/orchestrators/directory-opening.orchestrator';
+import { settleWorkspaceOpenings } from '@/orchestrators/workspace-opening.orchestrator';
 import {
   beginWorkspaceRestore,
   finishWorkspaceRestore,
@@ -22,7 +22,7 @@ export async function switchWorkspaceCoreSource(
 ) {
   const commands = useSaveCommandStore();
   await commands.settleCloseActions();
-  await settleDirectoryOpenings();
+  await settleWorkspaceOpenings();
   if (root && (await detectDirectoryTarget(root, null)).kind !== 'game-root')
     throw new AppError(`请选择 Starsector 游戏安装目录: ${root}`, { action: 'core-source' });
   const workspace = useWorkspaceStore();

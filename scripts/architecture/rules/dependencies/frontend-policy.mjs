@@ -10,7 +10,7 @@ export function frontendDependencyFailure(current, target, edge) {
     };
   if (
     current.path === 'src/orchestrators/settings-persistence.orchestrator.ts' &&
-    ((target.layer === 'orchestrators' && (target.domain?.startsWith('workspace-') || target.domain === 'directory-opening')) ||
+    ((target.layer === 'orchestrators' && target.domain?.startsWith('workspace-')) ||
       (target.layer === 'stores' && ['workspace', 'save-command'].includes(target.domain ?? '')) ||
       target.path === 'src/services/directory.service.ts' ||
       target.path === 'src/domain/project/load-diagnostics.ts')

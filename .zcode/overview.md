@@ -61,7 +61,7 @@
 - 写后接纳：项目保存队列 → 文件、历史及正式内容登记 → 实际 `WriteResult` 发布与保存工作释放 → 消费者有序接纳历史、清单、缓存、身份及内容
 - 历史回放：workspace history dispatch → 当前编辑面的 JSON 或 CSV draft history → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
 - 查询与编辑目标：组件 → `ViewModel/composable` → query service → `command.runtime` → Rust `ProjectSession` query → parser/IO/cache → `EntityData`、`EntityEditTarget` 与 `ResourceRef` → 前端 query cache
-- 目录与会话：目录选择 → `directory-opening orchestrator` → `detect_directory` → canonical root → `open_project_session` → `ProjectSession` → workspace runtime
+- 目录与会话：目录选择 → `workspace-opening orchestrator` → 目录识别与 canonical root → `open_project_session` → 捕获代次的清单接纳 → workspace runtime
 - 窗口生命周期：业务 identity → window service → Rust native registry → 原生窗口上下文与请求 → 接纳回执 → 标题、目标和 dirty 接纳 → close guard 与释放
 - 资源读取：`ResourceRef` → resource-reference service → Rust root authorization → Mod/Core resource query → resource/media cache → 组件展示
 

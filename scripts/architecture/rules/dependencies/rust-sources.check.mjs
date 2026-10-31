@@ -3,10 +3,10 @@ import test from 'node:test';
 import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 import { rustProjectLayerBoundaryRule } from './rust-project-layer-boundary.mjs';
 
-test('source reading consumes IO and project record types', () => {
+test('source reading consumes IO and source-owned record types', () => {
   const files = architectureFixtures({
     'src-tauri/src/services/project/sources/mod.rs':
-      'fn read() { crate::io::read_versioned_json(); crate::services::project::model::LoadedSpecRecord; }',
+      'fn read() { crate::io::read_versioned_json(); crate::services::project::sources::documents::LoadedSpecRecord; }',
   });
   assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
 });

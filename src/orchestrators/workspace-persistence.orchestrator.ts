@@ -5,7 +5,7 @@ import { cell, formatModVersion } from '@/shared/lib/starsector';
 import type { PersistedMod, PersistedWorkspace, ProjectManifest, FeedbackNotice } from '@/shared/types';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { formatLoadWarnings } from '@/domain/project/load-diagnostics';
-import { hydrateOpenedModRuntime, openModProjectManifest } from '@/orchestrators/directory-opening.orchestrator';
+import { initializeWorkspaceModRuntime, loadWorkspaceModManifest } from '@/orchestrators/workspace-opening.orchestrator';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { scanDirectoryGameOverview } from '@/services/directory.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from '@/services/workspace-state.service';
@@ -109,9 +109,9 @@ async function restorePersistedModProject(
   generation: number,
   current: () => boolean,
 ): Promise<ProjectManifest | null> {
-  const loaded = await openModProjectManifest(mod.modRoot, starsectorRoot, generation, current);
+  const loaded = await loadWorkspaceModManifest(mod.modRoot, starsectorRoot, generation, current);
   if (!current()) return null;
   if (!loaded || useWorkspaceStore().getModGeneration(mod.modRoot) !== generation) return null;
-  hydrateOpenedModRuntime(mod.modRoot, loaded, false);
+  initializeWorkspaceModRuntime(mod.modRoot, loaded, false);
   return loaded;
 }

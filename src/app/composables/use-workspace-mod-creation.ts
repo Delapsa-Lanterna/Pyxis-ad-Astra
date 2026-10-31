@@ -1,13 +1,14 @@
 import { computed, reactive, ref } from 'vue';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { createModProject, openCreatedModProject } from '@/orchestrators/mod-creation.orchestrator';
+import { createModProject } from '@/orchestrators/mod-creation.orchestrator';
+import { openCreatedWorkspaceMod } from '@/orchestrators/workspace-opening.orchestrator';
 import { pickDirectoryDialog } from '@/shared/runtime/dialog.runtime';
 import { createDefaultNewModTemplate, validateNewModTemplate } from '@/domain/mod-creation/new-mod-template';
 import type { NewModDestination, NewModTemplate } from '@/shared/types';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { warningNotice } from '@/shared/lib/errors';
 
-export function useCreateModViewModel() {
+export function useWorkspaceModCreation() {
   const workspace = useWorkspaceStore();
   const feedback = useAppFeedback();
   const visible = ref(false);
@@ -45,6 +46,7 @@ export function useCreateModViewModel() {
       feedback.warning(warningNotice(validationError, 'mod_creation.template_invalid', `New Mod template invalid: ${validationError}`));
       return false;
     }
+    const workspaceGeneration = workspace.getWorkspaceGeneration();
     saving.value = true;
     try {
       const created = await createModProject({
@@ -52,6 +54,10 @@ export function useCreateModViewModel() {
         template: { ...template },
       });
       visible.value = false;
+      if (workspace.getWorkspaceGeneration() !== workspaceGeneration) {
+        feedback.success('Mod 已创建');
+        return true;
+      }
       feedback.info('Mod 已创建，正在打开');
       void settleCreatedModOpening(created);
       return true;
@@ -65,7 +71,7 @@ export function useCreateModViewModel() {
 
   async function settleCreatedModOpening(created: Awaited<ReturnType<typeof createModProject>>) {
     try {
-      const opened = await openCreatedModProject(created);
+      const opened = await openCreatedWorkspaceMod(created);
       if (!opened) return;
       feedback.success(`Mod 已创建并打开：${opened.modName}`);
       for (const warning of opened.warnings) feedback.warning(warning);

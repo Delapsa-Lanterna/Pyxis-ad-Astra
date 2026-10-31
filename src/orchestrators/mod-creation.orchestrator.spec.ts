@@ -2,22 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createNewModProject: vi.fn(),
-  openCreatedModTarget: vi.fn(),
 }));
 
 vi.mock('@/services/mod-creation.service', () => ({
   createNewModProject: mocks.createNewModProject,
 }));
 
-vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({
-  openCreatedModTarget: mocks.openCreatedModTarget,
-}));
-
 vi.mock('@/services/app-log.service', () => ({
   recordLogBestEffort: vi.fn(),
 }));
 
-import { createModProject, openCreatedModProject } from './mod-creation.orchestrator';
+import { createModProject } from './mod-creation.orchestrator';
 
 const createdFixture = { modRoot: 'C:/games/mods/new_mod', starsectorRoot: 'D:/games/starsector' };
 const requestFixture = {
@@ -35,31 +30,5 @@ describe('createModProject', () => {
   it('propagates creation failures', async () => {
     mocks.createNewModProject.mockRejectedValue(new Error('target exists'));
     await expect(createModProject(requestFixture)).rejects.toThrow('target exists');
-  });
-});
-
-describe('openCreatedModProject', () => {
-  it('returns cancellation after the created Mod is removed during opening', async () => {
-    mocks.openCreatedModTarget.mockResolvedValue({ type: 'cancelled', modRoot: createdFixture.modRoot });
-    await expect(openCreatedModProject(createdFixture)).resolves.toBeNull();
-  });
-  it('returns the opened mod name and warnings', async () => {
-    mocks.openCreatedModTarget.mockResolvedValue({ type: 'mod-loaded', modName: 'New Mod', warnings: ['warn a'] });
-    await expect(openCreatedModProject(createdFixture)).resolves.toEqual({ modName: 'New Mod', warnings: ['warn a'] });
-  });
-
-  it('rejects an already-loaded outcome as an invalid create result', async () => {
-    mocks.openCreatedModTarget.mockResolvedValue({ type: 'already-loaded', modName: 'New Mod' });
-    await expect(openCreatedModProject(createdFixture)).rejects.toMatchObject({ action: 'open-created-mod' });
-  });
-
-  it('rejects an unknown outcome with its message', async () => {
-    mocks.openCreatedModTarget.mockResolvedValue({ type: 'unknown', message: 'unreadable' });
-    await expect(openCreatedModProject(createdFixture)).rejects.toThrow('unreadable');
-  });
-
-  it('rejects unexpected outcome shapes', async () => {
-    mocks.openCreatedModTarget.mockResolvedValue({ type: 'game-overview', availableModCount: 0, root: '', warnings: [] });
-    await expect(openCreatedModProject(createdFixture)).rejects.toMatchObject({ action: 'open-created-mod' });
   });
 });

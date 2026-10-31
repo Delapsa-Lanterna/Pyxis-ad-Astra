@@ -8,6 +8,16 @@ export const directoryOpeningBoundaryRule = defineRule(
   '.zcode/modules/directory-opening.md#边界',
   import.meta.url,
   (context, report) => {
+    for (const file of context.frontend) {
+      const reader = ['src/services/directory.service.ts', 'src/app/components/ModOpeningFailureList.vue'].includes(file.rel);
+      if (reader)
+        for (const edge of file.dependencies)
+          if (edge.resolved === 'src/stores/workspace.store.ts' || edge.resolved.startsWith('src/orchestrators/workspace-'))
+            report(file, edge, 'directory results must be consumed by workspace actions', {
+              target: edge.resolved,
+              expected: 'directory reading or diagnostic display',
+            });
+    }
     for (const file of context.rust) {
       if (file.rel.startsWith('src-tauri/src/models/') && !file.rel.endsWith('/directory_opening.rs'))
         for (const match of file.rust.code.matchAll(/\b(?:struct|enum)\s+([A-Za-z0-9_]+)/g))

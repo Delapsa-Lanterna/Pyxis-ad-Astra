@@ -93,7 +93,7 @@ vi.mock('@/services/window.service', () => ({
 }));
 vi.mock('@/orchestrators/workspace-navigation.orchestrator', () => ({ navigateToModOverview: vi.fn() }));
 
-import { openModFromOverview } from '@/orchestrators/directory-opening.orchestrator';
+import { openWorkspaceMod } from '@/orchestrators/workspace-opening.orchestrator';
 
 beforeEach(() => {
   mocks.workspaceStore.activeModRoot = null;
@@ -107,7 +107,7 @@ beforeEach(() => {
 describe('workspace Mod opening navigation', () => {
   it('passes the effective Core source through the existing project opening flow', async () => {
     const modRoot = 'E:\\game\\starsector-core';
-    await openModFromOverview(modRoot, 'E:\\game');
+    await openWorkspaceMod(modRoot, 'E:\\game');
     expect(mocks.openProject).toHaveBeenCalledExactlyOnceWith(modRoot, 'E:\\game');
     expect(mocks.workspaceStore.currentView).toBe('mod-overview');
   });
@@ -115,7 +115,7 @@ describe('workspace Mod opening navigation', () => {
   it('enters the opened Mod overview after its ProjectSession loads', async () => {
     const modRoot = 'D:\\game\\mods\\demo';
 
-    const outcome = await openModFromOverview(modRoot);
+    const outcome = await openWorkspaceMod(modRoot);
 
     expect(outcome).toEqual({ type: 'mod-loaded', modRoot, modName: 'Demo', warnings: [] });
     expect(mocks.workspaceStore.activeModRoot).toBe(modRoot);
@@ -131,7 +131,7 @@ describe('workspace Mod opening navigation', () => {
       location: { path: 'D:\\game\\mods\\demo\\data\\hulls\\ship_data.csv', line: 5, column: null },
     });
 
-    await expect(openModFromOverview(modRoot)).rejects.toMatchObject({
+    await expect(openWorkspaceMod(modRoot)).rejects.toMatchObject({
       code: 'parse.csv',
       fileTarget: { mode: 'recovery', sessionId: null, modRoot, path: 'D:\\game\\mods\\demo\\data\\hulls\\ship_data.csv' },
     });

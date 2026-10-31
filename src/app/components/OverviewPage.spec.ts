@@ -18,10 +18,10 @@ vi.mock('@/app/composables/use-workspace-navigation-actions', () => ({
   useWorkspaceNavigationActions: () => ({ navigateToModOverview: vi.fn() }),
 }));
 
-vi.mock('@/app/composables/config/use-create-mod-view-model', async () => {
+vi.mock('@/app/composables/use-workspace-mod-creation', async () => {
   const { ref } = await import('vue');
   return {
-    useCreateModViewModel: () => ({
+    useWorkspaceModCreation: () => ({
       beginCreateMod: vi.fn(),
       destinationText: ref('D:\\mods'),
       saving: ref(false),

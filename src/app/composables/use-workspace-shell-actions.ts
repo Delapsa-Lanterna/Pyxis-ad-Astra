@@ -7,11 +7,11 @@ import { pickDirectory, scanDirectoryGameOverview } from '@/services/directory.s
 import { useSaveCommandStore } from '@/stores/save-command.store';
 
 import {
-  openDirectoryTarget,
-  openModFromOverview,
-  settleDirectoryOpenings,
-  type DirectoryOpeningOutcome,
-} from '@/orchestrators/directory-opening.orchestrator';
+  openWorkspaceDirectory,
+  openWorkspaceMod,
+  settleWorkspaceOpenings,
+  type WorkspaceOpeningOutcome,
+} from '@/orchestrators/workspace-opening.orchestrator';
 import {
   captureWorkspaceCloseTarget,
   closeWorkspaceRuntime,
@@ -45,8 +45,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     try {
       const selected = await pickDirectory();
       if (!selected) return;
-      const outcome = await openDirectoryTarget(selected, workspace.gameOverview?.starsectorRoot ?? null);
-      handleDirectoryOpeningOutcome(outcome, selected);
+      const outcome = await openWorkspaceDirectory(selected, workspace.gameOverview?.starsectorRoot ?? null);
+      handleWorkspaceOpeningOutcome(outcome, selected);
     } catch (err) {
       feedback.error(err);
     }
@@ -54,8 +54,8 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
 
   async function loadOverviewMod(modRoot: string) {
     try {
-      const outcome = await openModFromOverview(modRoot);
-      handleDirectoryOpeningOutcome(outcome, modRoot);
+      const outcome = await openWorkspaceMod(modRoot);
+      handleWorkspaceOpeningOutcome(outcome, modRoot);
     } catch (err) {
       feedback.error(err);
     }
@@ -183,7 +183,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
     return intent;
   }
 
-  function handleDirectoryOpeningOutcome(outcome: DirectoryOpeningOutcome, path: string | null = null) {
+  function handleWorkspaceOpeningOutcome(outcome: WorkspaceOpeningOutcome, path: string | null = null) {
     if (outcome.type === 'cancelled') return;
     if (outcome.type === 'game-overview') {
       feedback.success(`游戏目录已扫描：${outcome.availableModCount} 个 Mod`);
@@ -225,7 +225,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
 
   async function removeMod(modRoot: string) {
     await saveCommands.settleCloseActions();
-    await settleDirectoryOpenings();
+    await settleWorkspaceOpenings();
     if (disposed) return;
     if (!(await removeLoadedModRuntime(modRoot, requestClose))) return;
     recordLogBestEffort({
@@ -241,7 +241,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
 
   async function closeWorkspace() {
     await saveCommands.settleCloseActions();
-    await settleDirectoryOpenings();
+    await settleWorkspaceOpenings();
     const target = captureWorkspaceCloseTarget();
     if (!(await closeWorkspaceRuntime(target, requestClose))) return false;
     recordLogBestEffort({
@@ -256,7 +256,7 @@ export function useWorkspaceShellActions(feedback: AppFeedback) {
   }
 
   return {
-    settleDirectoryOpenings,
+    settleWorkspaceOpenings,
     confirmCloseWorkspace,
     confirmRemoveMod,
     loadOverviewMod,

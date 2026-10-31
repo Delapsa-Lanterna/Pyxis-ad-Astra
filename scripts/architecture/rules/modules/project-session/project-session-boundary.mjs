@@ -6,7 +6,7 @@ const projectSources = new Set(['src/stores/project.store.ts']);
 const mutationNames = new Set(['registerProjectManifest', 'replaceProjectManifest', 'removeProjectManifest']);
 const mutationOwners = new Set([
   'stores/project',
-  'orchestrators/directory-opening',
+  'orchestrators/workspace-opening',
   'orchestrators/project-sync',
   'orchestrators/workspace-lifecycle',
   'app/workspace-shell-actions',

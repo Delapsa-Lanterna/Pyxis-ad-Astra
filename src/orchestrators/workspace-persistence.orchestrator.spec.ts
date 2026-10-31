@@ -6,8 +6,8 @@ const mocks = vi.hoisted(() => ({
   loadPersistedWorkspace: vi.fn(),
   savePersistedWorkspace: vi.fn(async () => {}),
   scanDirectoryGameOverview: vi.fn(),
-  openModProjectManifest: vi.fn(),
-  hydrateOpenedModRuntime: vi.fn(),
+  loadWorkspaceModManifest: vi.fn(),
+  initializeWorkspaceModRuntime: vi.fn(),
 }));
 
 vi.mock('@/services/workspace-state.service', () => ({
@@ -19,9 +19,9 @@ vi.mock('@/services/directory.service', () => ({
   scanDirectoryGameOverview: mocks.scanDirectoryGameOverview,
 }));
 
-vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({
-  openModProjectManifest: mocks.openModProjectManifest,
-  hydrateOpenedModRuntime: mocks.hydrateOpenedModRuntime,
+vi.mock('@/orchestrators/workspace-opening.orchestrator', () => ({
+  loadWorkspaceModManifest: mocks.loadWorkspaceModManifest,
+  initializeWorkspaceModRuntime: mocks.initializeWorkspaceModRuntime,
 }));
 
 import { restorePersistedWorkspace, watchWorkspacePersistence } from './workspace-persistence.orchestrator';
@@ -53,8 +53,8 @@ describe('restorePersistedWorkspace', () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ mods: [], starsectorRoot: null });
     await restorePersistedWorkspace({ onModRestoreError: vi.fn() });
     expect(mocks.scanDirectoryGameOverview).not.toHaveBeenCalled();
-    expect(mocks.openModProjectManifest).not.toHaveBeenCalled();
-    expect(mocks.hydrateOpenedModRuntime).not.toHaveBeenCalled();
+    expect(mocks.loadWorkspaceModManifest).not.toHaveBeenCalled();
+    expect(mocks.initializeWorkspaceModRuntime).not.toHaveBeenCalled();
   });
 
   it.each(['C:/mods/alpha', 'D:/games/starsector/starsector-core'])('restores project %s and reports load warnings', async (modRoot) => {
@@ -64,18 +64,18 @@ describe('restorePersistedWorkspace', () => {
       starsectorRoot: 'D:/games/starsector',
     });
     mocks.scanDirectoryGameOverview.mockResolvedValue({ starsectorRoot: 'D:/games/starsector', mods: [] });
-    mocks.openModProjectManifest.mockResolvedValue(manifestFixture(modRoot));
+    mocks.loadWorkspaceModManifest.mockResolvedValue(manifestFixture(modRoot));
     const onWarnings = vi.fn();
     const onError = vi.fn();
 
     await restorePersistedWorkspace({ onModRestoreError: onError, onModRestoreWarnings: onWarnings });
-    expect(mocks.openModProjectManifest).toHaveBeenCalledWith(
+    expect(mocks.loadWorkspaceModManifest).toHaveBeenCalledWith(
       modRoot,
       'D:/games/starsector',
       workspace.getModGeneration(modRoot),
       expect.any(Function),
     );
-    expect(mocks.hydrateOpenedModRuntime).toHaveBeenCalledWith(modRoot, expect.anything(), false);
+    expect(mocks.initializeWorkspaceModRuntime).toHaveBeenCalledWith(modRoot, expect.anything(), false);
     expect(onWarnings).toHaveBeenCalledWith('Alpha', [
       expect.objectContaining({ userMessage: 'scan warning (data/x.csv)', diagnostic: expect.objectContaining({ code: 'scan.warning' }) }),
     ]);
@@ -92,7 +92,7 @@ describe('restorePersistedWorkspace', () => {
       mods: [{ modRoot: 'C:/mods/broken', displayName: 'Broken', version: '' }],
       starsectorRoot: null,
     });
-    mocks.openModProjectManifest.mockRejectedValue(new Error('broken mod_info'));
+    mocks.loadWorkspaceModManifest.mockRejectedValue(new Error('broken mod_info'));
     const onError = vi.fn(async () => {});
 
     await restorePersistedWorkspace({ onModRestoreError: onError });
@@ -105,10 +105,10 @@ describe('restorePersistedWorkspace', () => {
       mods: [{ modRoot: 'C:/mods/alpha', displayName: 'Alpha', version: '' }],
       starsectorRoot: null,
     });
-    mocks.openModProjectManifest.mockResolvedValue(null);
+    mocks.loadWorkspaceModManifest.mockResolvedValue(null);
     const onError = vi.fn();
     await restorePersistedWorkspace({ onModRestoreError: onError });
-    expect(mocks.hydrateOpenedModRuntime).not.toHaveBeenCalled();
+    expect(mocks.initializeWorkspaceModRuntime).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -126,7 +126,7 @@ describe('restorePersistedWorkspace', () => {
     finish({ mods: [{ modRoot: 'M:/late', displayName: 'Late', version: '' }], starsectorRoot: null });
     await pending;
     expect(useWorkspaceStore().mods.size).toBe(0);
-    expect(mocks.openModProjectManifest).not.toHaveBeenCalled();
+    expect(mocks.loadWorkspaceModManifest).not.toHaveBeenCalled();
   });
 });
 

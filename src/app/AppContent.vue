@@ -95,7 +95,7 @@ useContextMenuScope({
   refresh: () => (workspace.currentView === 'overview' ? actions.refreshWorkspace() : actions.refreshModOverview(workspace.activeModRoot!)),
 });
 const closeGuard = useDirtyWindowCloseGuard({
-  settle: actions.settleDirectoryOpenings,
+  settle: actions.settleWorkspaceOpenings,
   dirtyForScope: (scope) =>
     scope.kind === 'sessions'
       ? [...project.manifests.values()].some(

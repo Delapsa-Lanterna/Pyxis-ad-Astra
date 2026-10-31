@@ -170,12 +170,12 @@ export const projectCapabilities = [
     },
   ]),
   ...capabilities({ role: 'service', domain: 'project-session' }, [
-    { capability: 'session-open', names: ['openProject'], owners: [{ layer: 'orchestrators', domain: 'directory-opening' }] },
+    { capability: 'session-open', names: ['openProject'], owners: [{ layer: 'orchestrators', domain: 'workspace-opening' }] },
     {
       capability: 'session-close',
       names: ['closeProject'],
       owners: [
-        { layer: 'orchestrators', domain: 'directory-opening' },
+        { layer: 'orchestrators', domain: 'workspace-opening' },
         { layer: 'orchestrators', domain: 'workspace-lifecycle' },
       ],
     },
@@ -205,7 +205,7 @@ export const projectCapabilities = [
       capability: 'directory-detect',
       names: ['detectDirectoryTarget'],
       owners: [
-        { layer: 'orchestrators', domain: 'directory-opening' },
+        { layer: 'orchestrators', domain: 'workspace-opening' },
         { layer: 'orchestrators', domain: 'workspace-core-source' },
       ],
     },
@@ -213,7 +213,7 @@ export const projectCapabilities = [
       capability: 'directory-read',
       names: ['pickDirectory', 'scanDirectoryGameOverview'],
       owners: [
-        { layer: 'orchestrators', domain: 'directory-opening' },
+        { layer: 'orchestrators', domain: 'workspace-opening' },
         { layer: 'orchestrators', domain: 'workspace-persistence' },
         { layer: 'app', domain: 'workspace-shell-actions' },
       ],

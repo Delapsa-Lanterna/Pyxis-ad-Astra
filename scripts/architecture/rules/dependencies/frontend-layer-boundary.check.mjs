@@ -8,7 +8,7 @@ test('settings persistence dependencies follow actual workspace responsibilities
   for (const target of [
     'src/orchestrators/workspace-core-source.orchestrator.ts',
     'src/orchestrators/workspace-lifecycle.orchestrator.ts',
-    'src/orchestrators/directory-opening.orchestrator.ts',
+    'src/orchestrators/workspace-opening.orchestrator.ts',
     'src/stores/workspace.store.ts',
     'src/stores/save-command.store.ts',
     'src/services/directory.service.ts',

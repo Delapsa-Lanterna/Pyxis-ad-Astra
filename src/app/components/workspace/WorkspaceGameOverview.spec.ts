@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import GameOverviewPanel from '@/app/components/GameOverviewPanel.vue';
+import WorkspaceGameOverview from '@/app/components/workspace/WorkspaceGameOverview.vue';
 import { nButton } from '@/test/unit/ui-stubs';
 import type { GameOverviewData, GameScanWarning, ModOpeningFailure } from '@/shared/types';
 
@@ -37,7 +37,7 @@ afterEach(() => {
   wrapper = null;
 });
 
-describe('GameOverviewPanel warning file actions', () => {
+describe('WorkspaceGameOverview warning file actions', () => {
   it('renders the recovery button and emits the structured warning', async () => {
     wrapper = mountPanel([warning]);
 
@@ -88,7 +88,7 @@ function mountPanel(warnings: GameScanWarning[], openingFailures: ModOpeningFail
     mods: [],
     warnings,
   };
-  return mount(GameOverviewPanel, {
+  return mount(WorkspaceGameOverview, {
     props: { openingFailures, overview },
     global: {
       stubs: {

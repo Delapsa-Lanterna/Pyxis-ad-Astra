@@ -2,14 +2,14 @@ import { createPinia, setActivePinia } from 'pinia';
 import type { AppFeedback, ProjectManifest } from '@/shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type DirectoryOpeningOutcomeLike = Record<string, unknown> & { type: string };
+type WorkspaceOpeningOutcomeLike = Record<string, unknown> & { type: string };
 
 const mocks = vi.hoisted(() => ({
   requestClose: vi.fn(),
   pickDirectory: vi.fn(),
   scanDirectoryGameOverview: vi.fn(),
-  openDirectoryTarget: vi.fn(),
-  openModFromOverview: vi.fn(),
+  openWorkspaceDirectory: vi.fn(),
+  openWorkspaceMod: vi.fn(),
   captureWorkspaceCloseTarget: vi.fn(),
   closeWorkspaceRuntime: vi.fn(async () => true),
   removeLoadedModRuntime: vi.fn(async () => true),
@@ -26,10 +26,10 @@ vi.mock('@/services/directory.service', () => ({
   scanDirectoryGameOverview: mocks.scanDirectoryGameOverview,
 }));
 
-vi.mock('@/orchestrators/directory-opening.orchestrator', () => ({
-  openDirectoryTarget: mocks.openDirectoryTarget,
-  openModFromOverview: mocks.openModFromOverview,
-  settleDirectoryOpenings: vi.fn(async () => {}),
+vi.mock('@/orchestrators/workspace-opening.orchestrator', () => ({
+  openWorkspaceDirectory: mocks.openWorkspaceDirectory,
+  openWorkspaceMod: mocks.openWorkspaceMod,
+  settleWorkspaceOpenings: vi.fn(async () => {}),
 }));
 
 vi.mock('@/orchestrators/workspace-lifecycle.orchestrator', () => ({
@@ -84,8 +84,8 @@ describe('useWorkspaceShellActions', () => {
     const workspace = useWorkspaceStore();
     workspace.setGameOverview({ starsectorRoot: 'D:/games/starsector', coreAvailable: true, modsDir: 'mods', mods: [], warnings: [] });
     mocks.pickDirectory.mockResolvedValue('D:/games/starsector');
-    const outcome: DirectoryOpeningOutcomeLike = { type: 'game-overview', root: 'D:/games/starsector', availableModCount: 3 };
-    mocks.openDirectoryTarget.mockResolvedValue(outcome);
+    const outcome: WorkspaceOpeningOutcomeLike = { type: 'game-overview', root: 'D:/games/starsector', availableModCount: 3 };
+    mocks.openWorkspaceDirectory.mockResolvedValue(outcome);
 
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
@@ -97,7 +97,7 @@ describe('useWorkspaceShellActions', () => {
 
   it('reports unknown directories as an error', async () => {
     mocks.pickDirectory.mockResolvedValue('C:/random');
-    mocks.openDirectoryTarget.mockResolvedValue({ type: 'unknown', message: '未识别该目录' });
+    mocks.openWorkspaceDirectory.mockResolvedValue({ type: 'unknown', message: '未识别该目录' });
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
     await actions.openDirectory();
@@ -106,7 +106,7 @@ describe('useWorkspaceShellActions', () => {
 
   it('reports directory opening failures through feedback', async () => {
     mocks.pickDirectory.mockResolvedValue('C:/broken');
-    mocks.openDirectoryTarget.mockRejectedValue(new Error('scan failed'));
+    mocks.openWorkspaceDirectory.mockRejectedValue(new Error('scan failed'));
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
     await actions.openDirectory();
@@ -118,7 +118,7 @@ describe('useWorkspaceShellActions', () => {
     const feedback = feedbackStub();
     const actions = useWorkspaceShellActions(feedback);
     await actions.openDirectory();
-    expect(mocks.openDirectoryTarget).not.toHaveBeenCalled();
+    expect(mocks.openWorkspaceDirectory).not.toHaveBeenCalled();
   });
 
   it('confirms removing a mod with unsaved changes and removes after confirmation', async () => {

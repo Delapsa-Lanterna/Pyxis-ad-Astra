@@ -89,9 +89,9 @@
 - [应用日志](modules/app-log.md)：说明四档记录、自动过程事件、批量写入、进程停写及文件维护。
 - [工具配置维护](modules/app-config.md)：说明工具私有目录创建与系统打开。
 - [Core 索引与加载](modules/core-assets.md)：说明根代次、fields/graphics 独立状态、读取与释放。
-- [目录打开](modules/directory-opening.md)：说明目录选择、游戏或 Mod 识别、canonical root、ProjectSession 建立与打开 outcome。
-- [新建 Mod](modules/mod-creation.md)：说明 Mod 父目录、最小目录骨架、`mod_info.json` renderer 与创建后的受信 session 打开。
-- [工作区运行态与持久化](modules/workspace.md)：说明多 Mod 页签、导航上下文、workspace 快照、启动恢复、移除 Mod 与活动 Mod 同步。
+- [目录打开](modules/directory-opening.md)：说明授权目录识别、游戏 Mod 扫描与结构化诊断。
+- [新建 Mod](modules/mod-creation.md)：说明 Mod 父目录、最小目录骨架、`mod_info.json` renderer 与实际创建结果。
+- [工作区运行态与持久化](modules/workspace.md)：说明多 Mod 页签、项目打开、创建结果接纳、导航上下文、快照恢复及运行态释放。
 - [项目会话与投影](modules/project-session.md)：说明 `sessionId + modRoot`、生命周期、原子投影、提交恢复与代次接纳。
 - [项目来源读取](modules/project-sources.md)：说明授权来源、带版本读取、解析复用、来源缓存与持久化。
 - [项目同步](modules/project-sync.md)：说明来源刷新、提交接纳、同步重试、缓存失效与跨窗口通知。

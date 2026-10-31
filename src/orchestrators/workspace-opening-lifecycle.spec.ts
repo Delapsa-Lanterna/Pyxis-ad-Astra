@@ -6,7 +6,7 @@ const requestClose = vi.fn(async (scope: import('@/shared/types').CloseScope) =>
   diagnostic: null,
 }));
 import { createPinia, setActivePinia } from 'pinia';
-import { openDirectoryTarget, openModFromOverview } from '@/orchestrators/directory-opening.orchestrator';
+import { openWorkspaceDirectory, openWorkspaceMod, openCreatedWorkspaceMod } from '@/orchestrators/workspace-opening.orchestrator';
 import {
   captureWorkspaceCloseTarget,
   closeWorkspaceRuntime,
@@ -42,7 +42,7 @@ vi.mock('@/services/workspace-state.service', () => ({
   savePersistedWorkspace: vi.fn(async () => {}),
 }));
 vi.mock('@/stores/csv-editor.store', () => ({
-  useCsvEditorStore: () => ({ initializeModTables: mocks.initializeModTables, removeModState: vi.fn() }),
+  useCsvEditorStore: () => ({ initializeModTables: mocks.initializeModTables, removeModState: vi.fn(), activateFor: vi.fn() }),
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 
@@ -81,10 +81,10 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-describe('directory opening lifecycle', () => {
+describe('workspace opening lifecycle', () => {
   it('closes a late session after its loading Mod is removed', async () => {
     const pending = pendingOpen();
-    const opening = openModFromOverview(modRoot);
+    const opening = openWorkspaceMod(modRoot);
     await removeLoadedModRuntime(modRoot, requestClose);
     pending.resolve(manifest('stale'));
     await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot });
@@ -101,7 +101,7 @@ describe('directory opening lifecycle', () => {
         resolveDetection = resolve;
       }),
     );
-    const opening = openDirectoryTarget(modRoot, null);
+    const opening = openWorkspaceDirectory(modRoot, null);
     await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     resolveDetection({ kind: 'unknown', modRoot: null, starsectorRoot: null, overview: null, warnings: [] });
     await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot });
@@ -109,10 +109,10 @@ describe('directory opening lifecycle', () => {
 
   it('keeps the new opening when the previous request succeeds later', async () => {
     const pending = pendingOpen();
-    const oldOpening = openModFromOverview(modRoot);
+    const oldOpening = openWorkspaceMod(modRoot);
     await removeLoadedModRuntime(modRoot, requestClose);
     mocks.openProject.mockResolvedValueOnce(manifest('current'));
-    await openModFromOverview(modRoot);
+    await openWorkspaceMod(modRoot);
     pending.resolve(manifest('stale'));
     await oldOpening;
     expect(useProjectStore().getSessionId(modRoot)).toBe('current');
@@ -123,10 +123,10 @@ describe('directory opening lifecycle', () => {
 
   it('keeps the new opening when the previous request fails later', async () => {
     const pending = pendingOpen();
-    const oldOpening = openModFromOverview(modRoot);
+    const oldOpening = openWorkspaceMod(modRoot);
     await removeLoadedModRuntime(modRoot, requestClose);
     mocks.openProject.mockResolvedValueOnce(manifest('current'));
-    await openModFromOverview(modRoot);
+    await openWorkspaceMod(modRoot);
     pending.reject(new Error('old opening failed'));
     await expect(oldOpening).resolves.toEqual({ type: 'cancelled', modRoot });
     expect(useProjectStore().getSessionId(modRoot)).toBe('current');
@@ -135,7 +135,7 @@ describe('directory opening lifecycle', () => {
 
   it('closes every late session after the captured workspace is closed', async () => {
     const pending = pendingOpen();
-    const opening = openModFromOverview(modRoot);
+    const opening = openWorkspaceMod(modRoot);
     await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
     pending.resolve(manifest('stale'));
     await opening;
@@ -188,5 +188,43 @@ describe('directory opening lifecycle', () => {
     await restoring;
     expect(useWorkspaceStore().gameOverview).toBeNull();
     expect(mocks.openProject).not.toHaveBeenCalled();
+  });
+});
+
+describe('created Mod workspace acceptance', () => {
+  it('accepts the created session through the current workspace opening', async () => {
+    mocks.openProject.mockResolvedValueOnce(manifest('created'));
+    await expect(openCreatedWorkspaceMod({ modRoot, starsectorRoot: null })).resolves.toEqual({ modName: 'Demo', warnings: [] });
+    expect(useProjectStore().getSessionId(modRoot)).toBe('created');
+    expect(mocks.initializeModTables).toHaveBeenCalledOnce();
+  });
+  it('closes a created session that finishes after its Mod is removed', async () => {
+    const pending = pendingOpen();
+    const opening = openCreatedWorkspaceMod({ modRoot, starsectorRoot: null });
+    await removeLoadedModRuntime(modRoot, requestClose);
+    pending.resolve(manifest('late-created'));
+    await expect(opening).resolves.toBeNull();
+    expect(mocks.closeProject).toHaveBeenCalledExactlyOnceWith('late-created');
+    expect(mocks.initializeModTables).not.toHaveBeenCalled();
+  });
+  it('keeps the workspace closed after a created Mod overview scan arrives late', async () => {
+    let finish!: (overview: unknown) => void;
+    mocks.scanDirectoryGameOverview.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const opening = openCreatedWorkspaceMod({ modRoot, starsectorRoot: 'D:/game' });
+    await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose);
+    finish({ starsectorRoot: 'D:/game', mods: [], warnings: [] });
+    await expect(opening).resolves.toBeNull();
+    expect(useWorkspaceStore().gameOverview).toBeNull();
+    expect(mocks.openProject).not.toHaveBeenCalled();
+  });
+  it('reports a created target already accepted by the workspace', async () => {
+    mocks.openProject.mockResolvedValueOnce(manifest('existing'));
+    await openWorkspaceMod(modRoot);
+    await expect(openCreatedWorkspaceMod({ modRoot, starsectorRoot: null })).rejects.toMatchObject({ action: 'open-created-mod' });
+    expect(mocks.openProject).toHaveBeenCalledOnce();
   });
 });

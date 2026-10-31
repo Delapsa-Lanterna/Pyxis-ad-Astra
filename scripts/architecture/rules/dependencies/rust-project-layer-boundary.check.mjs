@@ -114,7 +114,7 @@ test('source products are consumed by session models while source reads stay ind
     'src-tauri/src/services/project/model.rs': 'use crate::services::project::sources::documents::LoadedSpecRecord;',
   });
   assert.deepEqual(rustProjectLayerBoundaryRule.check(allowed), []);
-  for (const target of ['crate::services::project::model::ProjectSession', 'crate::domain::json_documents::build_variant_file']) {
+  for (const target of ['crate::services::project::model::ProjectSession', 'crate::domain::schema::validate_field']) {
     const denied = architectureFixtures({ 'src-tauri/src/services/project/sources/core.rs': '\nfn read() { ' + target + '(); }' });
     const [diagnostic] = rustProjectLayerBoundaryRule.check(denied);
     assert.ok(diagnostic);

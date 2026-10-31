@@ -142,8 +142,8 @@ describe('formal settings commits', () => {
     );
     api.open.mockImplementation(async () => sessionUpdateFixture('after', 'M:/waiting').projection.manifest);
     api.detect.mockResolvedValue({ kind: 'game-root' });
-    const { openModFromOverview } = await import('./directory-opening.orchestrator');
-    const opening = openModFromOverview('M:/waiting', null);
+    const { openWorkspaceMod } = await import('./workspace-opening.orchestrator');
+    const opening = openWorkspaceMod('M:/waiting', null);
     const close = vi.fn(async () => {
       await commands.settleCloseActions();
       return { status: 'closed' as const, destroyedWindows: [], releasedSessions: ['before'], diagnostic: null };

@@ -1,8 +1,3 @@
-const openings = new Set<Promise<unknown>>();
-const openingByWorkspace = new WeakMap<ReturnType<typeof useWorkspaceStore>, Map<string, Promise<ProjectManifest | null>>>();
-export async function settleDirectoryOpenings() {
-  while (openings.size) await Promise.all([...openings]);
-}
 import type { CreatedMod, ModEntry, ProjectManifest, FeedbackNotice, GameScanWarning } from '@/shared/types';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { pathBasename } from '@/shared/lib/paths';
@@ -19,7 +14,13 @@ import { logFields } from '@/shared/lib/log-fields';
 import { navigateToModOverview } from '@/orchestrators/workspace-navigation.orchestrator';
 import { removeModRuntimeState } from '@/orchestrators/workspace-lifecycle.orchestrator';
 
-export type DirectoryOpeningOutcome =
+const pendingOpenings = new Set<Promise<unknown>>();
+const workspaceOpenings = new WeakMap<ReturnType<typeof useWorkspaceStore>, Map<string, Promise<ProjectManifest | null>>>();
+export async function settleWorkspaceOpenings() {
+  while (pendingOpenings.size) await Promise.all([...pendingOpenings]);
+}
+
+export type WorkspaceOpeningOutcome =
   | { type: 'game-overview'; root: string; availableModCount: number }
   | { type: 'mod-loaded'; modRoot: string; modName: string; warnings: FeedbackNotice[] }
   | { type: 'already-loaded'; modRoot: string; modName: string }
@@ -30,7 +31,7 @@ type OpenModResult =
   { alreadyLoaded: true; displayName: string } | { alreadyLoaded: false; displayName: string; warnings: FeedbackNotice[] } | null;
 type AfterOpenView = 'overview' | 'mod';
 
-export async function openDirectoryTarget(path: string, knownStarsectorRoot: string | null): Promise<DirectoryOpeningOutcome> {
+export async function openWorkspaceDirectory(path: string, knownStarsectorRoot: string | null): Promise<WorkspaceOpeningOutcome> {
   const workspace = useWorkspaceStore();
   const workspaceGeneration = workspace.getWorkspaceGeneration();
   const detected = await detectDirectoryTarget(path, knownStarsectorRoot);
@@ -74,10 +75,10 @@ export async function openDirectoryTarget(path: string, knownStarsectorRoot: str
   return { type: 'unknown', message: detected.warnings[0]?.message ?? '未识别该目录' };
 }
 
-export async function openModFromOverview(
+export async function openWorkspaceMod(
   modRoot: string,
   starsectorRoot = useWorkspaceStore().gameOverview?.starsectorRoot ?? null,
-): Promise<DirectoryOpeningOutcome> {
+): Promise<WorkspaceOpeningOutcome> {
   const loaded = await openModProject(modRoot, starsectorRoot, 'mod');
   if (!loaded) return { type: 'cancelled', modRoot };
   return loaded.alreadyLoaded
@@ -85,22 +86,26 @@ export async function openModFromOverview(
     : { type: 'mod-loaded', modRoot, modName: loaded.displayName, warnings: loaded.warnings };
 }
 
-export async function openCreatedModTarget(created: CreatedMod): Promise<DirectoryOpeningOutcome> {
+export interface OpenedCreatedMod {
+  modName: string;
+  warnings: FeedbackNotice[];
+}
+
+export async function openCreatedWorkspaceMod(created: CreatedMod): Promise<OpenedCreatedMod | null> {
   const workspace = useWorkspaceStore();
   const workspaceGeneration = workspace.getWorkspaceGeneration();
   const afterOpenView: AfterOpenView = created.starsectorRoot ? 'overview' : 'mod';
 
   if (created.starsectorRoot) {
     const overview = await scanDirectoryGameOverview(created.starsectorRoot);
-    if (workspace.getWorkspaceGeneration() !== workspaceGeneration) return { type: 'cancelled', modRoot: created.modRoot };
+    if (workspace.getWorkspaceGeneration() !== workspaceGeneration) return null;
     workspace.setGameOverview(overview);
   }
 
   const loaded = await openModProject(created.modRoot, created.starsectorRoot, afterOpenView);
-  if (!loaded) return { type: 'cancelled', modRoot: created.modRoot };
-  return loaded.alreadyLoaded
-    ? { type: 'already-loaded', modRoot: created.modRoot, modName: loaded.displayName }
-    : { type: 'mod-loaded', modRoot: created.modRoot, modName: loaded.displayName, warnings: loaded.warnings };
+  if (!loaded) return null;
+  if (loaded.alreadyLoaded) throw new AppError(`新建 Mod 已意外存在于工作区：${loaded.displayName}`, { action: 'open-created-mod' });
+  return { modName: loaded.displayName, warnings: loaded.warnings };
 }
 
 async function openModProject(modRoot: string, starsectorRoot: string | null, afterOpenView: AfterOpenView): Promise<OpenModResult> {
@@ -108,15 +113,15 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
   if (workspace.isModImported(modRoot)) {
     const entry = workspace.mods.get(modRoot);
     if (entry?.status === 'loading') {
-      const generation = workspace.getModGeneration(modRoot)!;
-      const loaded = await openModProjectManifest(modRoot, starsectorRoot, generation);
-      if (!loaded || workspace.getModGeneration(modRoot) !== generation) return null;
+      const modGeneration = workspace.getModGeneration(modRoot)!;
+      const loaded = await loadWorkspaceModManifest(modRoot, starsectorRoot, modGeneration);
+      if (!loaded || workspace.getModGeneration(modRoot) !== modGeneration) return null;
       if (workspace.mods.get(modRoot)?.status === 'ready') {
         return { alreadyLoaded: true, displayName: workspace.mods.get(modRoot)?.displayName ?? modFolderDisplayName(modRoot) };
       }
       const displayName = updateLoadedEntry(modRoot, loaded);
       const stillActive = workspace.activeModRoot === modRoot;
-      hydrateOpenedModRuntime(modRoot, loaded, stillActive);
+      initializeWorkspaceModRuntime(modRoot, loaded, stillActive);
       return { alreadyLoaded: false, displayName, warnings: formatLoadWarnings(loaded) };
     }
     if (afterOpenView === 'overview') {
@@ -128,20 +133,20 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
     return { alreadyLoaded: true, displayName: loadedEntry?.displayName ?? modFolderDisplayName(modRoot) };
   }
 
-  const generation = workspace.registerMod(createLoadingEntry(modRoot));
+  const modGeneration = workspace.registerMod(createLoadingEntry(modRoot));
   workspace.activateModOverview(modRoot);
 
   try {
-    const loaded = await openModProjectManifest(modRoot, starsectorRoot, generation);
-    if (!loaded || workspace.getModGeneration(modRoot) !== generation) return null;
+    const loaded = await loadWorkspaceModManifest(modRoot, starsectorRoot, modGeneration);
+    if (!loaded || workspace.getModGeneration(modRoot) !== modGeneration) return null;
     const displayName = updateLoadedEntry(modRoot, loaded);
     const stillActive = workspace.activeModRoot === modRoot;
-    hydrateOpenedModRuntime(modRoot, loaded, stillActive);
+    initializeWorkspaceModRuntime(modRoot, loaded, stillActive);
     if (afterOpenView === 'overview') workspace.showOverview();
     return { alreadyLoaded: false, displayName, warnings: formatLoadWarnings(loaded) };
   } catch (error) {
     const failure = buildModOpeningFailure(modRoot, error);
-    if (workspace.getModGeneration(modRoot) === generation) {
+    if (workspace.getModGeneration(modRoot) === modGeneration) {
       workspace.setModOpeningFailure(failure);
       workspace.showOverview();
       const sessionId = useProjectStore().getSessionId(modRoot);
@@ -156,24 +161,24 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
   }
 }
 
-export function openModProjectManifest(
+export function loadWorkspaceModManifest(
   modRoot: string,
   starsectorRoot: string | null,
-  generation: number,
+  modGeneration: number,
   accepts: () => boolean = () => true,
 ): Promise<ProjectManifest | null> {
   const workspace = useWorkspaceStore();
-  const registry = openingByWorkspace.get(workspace) ?? new Map<string, Promise<ProjectManifest | null>>();
-  openingByWorkspace.set(workspace, registry);
-  const key = `${modRoot.toLowerCase()}|${starsectorRoot?.toLowerCase() ?? ''}|${workspace.getWorkspaceGeneration()}|${generation}`;
+  const registry = workspaceOpenings.get(workspace) ?? new Map<string, Promise<ProjectManifest | null>>();
+  workspaceOpenings.set(workspace, registry);
+  const key = `${modRoot.toLowerCase()}|${starsectorRoot?.toLowerCase() ?? ''}|${workspace.getWorkspaceGeneration()}|${modGeneration}`;
   const existing = registry.get(key);
   if (existing) return existing;
-  const operation = openManifest(modRoot, starsectorRoot, generation, accepts);
+  const operation = openManifest(modRoot, starsectorRoot, modGeneration, accepts);
   registry.set(key, operation);
-  openings.add(operation);
+  pendingOpenings.add(operation);
   void operation
     .finally(() => {
-      openings.delete(operation);
+      pendingOpenings.delete(operation);
       if (registry.get(key) === operation) registry.delete(key);
     })
     .catch(() => {});
@@ -182,20 +187,20 @@ export function openModProjectManifest(
 async function openManifest(
   modRoot: string,
   starsectorRoot: string | null,
-  generation: number,
+  modGeneration: number,
   accepts: () => boolean = () => true,
 ): Promise<ProjectManifest | null> {
   const workspace = useWorkspaceStore();
   const project = useProjectStore();
-  if (!accepts() || workspace.getModGeneration(modRoot) !== generation) return null;
+  if (!accepts() || workspace.getModGeneration(modRoot) !== modGeneration) return null;
   let loaded: ProjectManifest;
   try {
     loaded = await openProject(modRoot, starsectorRoot);
   } catch (error) {
-    if (!accepts() || workspace.getModGeneration(modRoot) !== generation) return null;
+    if (!accepts() || workspace.getModGeneration(modRoot) !== modGeneration) return null;
     throw error;
   }
-  if (!accepts() || workspace.getModGeneration(modRoot) !== generation) {
+  if (!accepts() || workspace.getModGeneration(modRoot) !== modGeneration) {
     await closeProject(loaded.sessionId);
     return null;
   }
@@ -218,7 +223,7 @@ async function openManifest(
   return loaded;
 }
 
-export function hydrateOpenedModRuntime(modRoot: string, loaded: ProjectManifest, activate: boolean) {
+export function initializeWorkspaceModRuntime(modRoot: string, loaded: ProjectManifest, activate: boolean) {
   const tables = useCsvEditorStore();
   const fileHistory = useFileHistoryStore();
   tables.initializeModTables({ sessionId: loaded.sessionId, modRoot, manifest: loaded });

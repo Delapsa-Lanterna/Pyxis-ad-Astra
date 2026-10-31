@@ -9,7 +9,7 @@ import { debugLog } from '@/shared/runtime/app-log-queue';
 import { computed } from 'vue';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { gameCoreDirectoryPath } from '@/shared/lib/paths';
-import { openModFromOverview } from '@/orchestrators/directory-opening.orchestrator';
+import { openWorkspaceMod } from '@/orchestrators/workspace-opening.orchestrator';
 
 export function useWorkspaceNavigationActions() {
   const workspace = useWorkspaceStore();
@@ -34,7 +34,7 @@ export function useWorkspaceNavigationActions() {
     confirmNavigation(() => {
       if (workspace.mods.get(modRoot)?.status === 'ready') workspaceNavigation.activateModTab(modRoot);
       else
-        void openModFromOverview(modRoot, starsectorRoot)
+        void openWorkspaceMod(modRoot, starsectorRoot)
           .then((outcome) => {
             if (outcome.type === 'mod-loaded') for (const warning of outcome.warnings) feedback.warning(warning);
           })

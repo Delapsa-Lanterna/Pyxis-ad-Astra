@@ -82,7 +82,7 @@
 
 ### 打开 ProjectSession
 
-1. 目录打开编排请求打开目标 Mod。
+1. 工作区打开编排请求打开目标 Mod。
 2. 后端计算 canonical root 并校验 Mod 结构。
 3. 读取来源记录及匹配版本，构造完整索引、统计与诊断并持久化来源成果。
 4. 建立 session 与 manifest 并返回前端。

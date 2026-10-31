@@ -31,3 +31,14 @@ test('Directory Opening wire models stay in their model module', () => {
   assert.equal(diagnostic.symbol, 'OpenDirectoryResult');
   assert.equal(diagnostic.expected, 'src-tauri/src/models/directory_opening.rs');
 });
+
+test('directory readers and notice lists accept explicit input while workspace owns lifecycle', () => {
+  for (const file of ['src/services/directory.service.ts', 'src/app/components/ModOpeningFailureList.vue']) {
+    const body = "import {useWorkspaceStore} from '@/stores/workspace.store';";
+    const source = file.endsWith('.vue') ? '<script setup>' + body + '</script>' : body;
+    const context = architectureFixtures({ [file]: source, 'src/stores/workspace.store.ts': 'export function useWorkspaceStore() {}' });
+    const [diagnostic] = directoryOpeningBoundaryRule.check(context);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.target, 'src/stores/workspace.store.ts');
+  }
+});

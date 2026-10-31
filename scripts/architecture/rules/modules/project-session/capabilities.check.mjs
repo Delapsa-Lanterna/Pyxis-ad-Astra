@@ -19,7 +19,7 @@ const cases = [
   ],
   [
     'opening-directory-detect',
-    'src/orchestrators/directory-opening.orchestrator.ts',
+    'src/orchestrators/workspace-opening.orchestrator.ts',
     'src/services/directory.service.ts',
     'detectDirectoryTarget',
   ],
@@ -105,9 +105,9 @@ const cases = [
     'src/services/query-cache.service.ts',
     'invalidateQueryCacheForSession',
   ],
-  ['session-open', 'src/orchestrators/directory-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'openProject'],
+  ['session-open', 'src/orchestrators/workspace-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'openProject'],
   ['session-close', 'src/orchestrators/workspace-lifecycle.orchestrator.ts', 'src/services/project-session.service.ts', 'closeProject'],
-  ['late-session-close', 'src/orchestrators/directory-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'closeProject'],
+  ['late-session-close', 'src/orchestrators/workspace-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'closeProject'],
   [
     'session-refresh',
     'src/orchestrators/project-sync.orchestrator.ts',
