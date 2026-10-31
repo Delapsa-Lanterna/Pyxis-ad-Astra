@@ -3,13 +3,17 @@ import { projectChangeFixture, savedContentWorks } from '@/test/unit/project-cha
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
-import { h, computed, effectScope } from 'vue';
+import { h, computed, effectScope, provide } from 'vue';
 import { useSpecEditorDraftImages } from './use-spec-editor-draft-images';
 import { useSpecWeaponEditorDependencies } from './weapon/use-spec-weapon-editor-dependencies';
 import { specEditorDefinitions } from '../spec-editor-assembly';
 import { createPinia, setActivePinia } from 'pinia';
 import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue';
 import SpecWeaponEditor from '@/app/components/spec-editor/weapon/SpecWeaponEditor.vue';
+import SpecProjectileEditor from '@/app/components/spec-editor/projectile/SpecProjectileEditor.vue';
+import SpecSystemEditor from '@/app/components/spec-editor/system/SpecSystemEditor.vue';
+import { specSchemaContext } from './spec-schema-context';
+import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { installCanvas2DStub } from '@/test/unit/canvas-stub';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
@@ -17,6 +21,7 @@ import { editorUiStubs } from '@/test/unit/ui-stubs';
 
 import type { SpecEditorData, SpecEditorKind, WriteResult, RowData } from '@/shared/types/index';
 import * as projectSync from '@/orchestrators/project-sync.orchestrator';
+import * as sourceOptions from '@/services/source-options.service';
 import { committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
@@ -214,6 +219,122 @@ async function initializedViewModel(kind: SpecEditorKind = 'ship', bundle: SpecE
   await vi.waitFor(() => expect(viewModel.editorData.value).not.toBeNull());
   return viewModel;
 }
+
+describe.each(['ship', 'weapon', 'projectile', 'system'] as const)('%s composed field editing', (kind) => {
+  it.each([false, true])('keeps editor actions and local saves aligned with source layers: %s', async (layered) => {
+    vi.clearAllMocks();
+    mocks.feedback.choose.mockResolvedValue('save');
+    const sourceQuery = vi.spyOn(sourceOptions, 'querySourceOptionCatalog').mockResolvedValue([]);
+    installCanvas2DStub();
+    const base =
+      kind === 'ship'
+        ? createShipSpec('XY')
+        : kind === 'weapon'
+          ? createWeaponSpec('XY', 'projectile')
+          : kind === 'projectile'
+            ? createProjectileSpec('XY')
+            : createSystemSpec('XY');
+    Object.assign(base, {
+      spriteName: 'graphics/sample.png',
+      moduleAnchor: [0, 0],
+      turretSprite: 'graphics/sample.png',
+      hardpointSprite: 'graphics/sample.png',
+      projectileSpecId: 'sample',
+      sprite: 'graphics/sample.png',
+    });
+    const field = kind === 'ship' ? 'hullName' : kind === 'system' ? 'type' : 'specClass',
+      next = kind === 'ship' ? 'Edited' : kind === 'system' ? 'ENGINE_MOD' : kind === 'weapon' ? 'beam' : 'missile',
+      local = layered
+        ? { [kind === 'ship' ? 'hullId' : 'id']: 'XY', [field]: base[field]!, extension: 'local' }
+        : { ...base, extension: 'local' },
+      target = entityTargetFixture(kind, 'XY');
+    const vm = await initializedViewModel(kind, {
+      kind,
+      target,
+      spec: local,
+      baseVersions: [],
+      isNew: false,
+      composition: {
+        layers: layered
+          ? [
+              {
+                source: target.write,
+                version: { path: target.write.path, fingerprint: 'base' },
+                data: { ...base, inherited: 'source' },
+                replace: false,
+              },
+            ]
+          : [],
+        excluded: [],
+        replace: false,
+      },
+    });
+    const wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(vm.inputs);
+          provide(specSchemaContext, vm.schemaRuntimeContext);
+          return () => {
+            const common = {
+                modRoot: 'M:/mod',
+                sessionId: 's1',
+                editContext: vm.editContext.value,
+                dirty: vm.draftDirty.value,
+                canSave: vm.canSaveSpec.value,
+                saving: vm.draftSaving.value,
+                externalUpdateNotice: vm.externalUpdateNotice.value,
+                onDraftChanged: vm.updateEditorDraft,
+              },
+              spec = vm.editorData.value!.spec;
+            if (kind === 'ship') return h(SpecShipEditor, { ...common, hullId: 'XY', ship: spec });
+            if (kind === 'weapon') return h(SpecWeaponEditor, { ...common, weaponId: 'XY', weapon: spec });
+            if (kind === 'projectile') return h(SpecProjectileEditor, { ...common, projectileId: 'XY', projectile: spec });
+            return h(SpecSystemEditor, { ...common, systemId: 'XY', system: spec });
+          };
+        },
+      },
+      { global: { stubs: editorUiStubs }, attachTo: document.body },
+    );
+    try {
+      const control = wrapper.get(`[data-field-path="${field}"]`).get(kind === 'ship' ? 'input' : 'select');
+      await control.setValue(kind === 'ship' ? next : JSON.stringify(next));
+      await vm.commitInputs();
+      await flushPromises();
+      expect(vm.draftValue.value[field]).toBe(next);
+      expect(wrapper.get(`[data-field-path="${field}"]`).getComponent({ name: 'SchemaValueInput' }).props('value')).toBe(next);
+      expect(vm.editorData.value!.spec.extension).toBe('local');
+      expect(vm.draftDirty.value).toBe(true);
+      if (layered) {
+        expect(vm.editorData.value!.spec.inherited).toBe('source');
+        expect(vm.draftValue.value).not.toHaveProperty('inherited');
+      }
+      if (kind === 'weapon') expect(vm.draftValue.value).toHaveProperty('textureType', 'SMOOTH');
+      if (kind === 'projectile') expect(vm.draftValue.value).toHaveProperty('engineSpec.acc');
+      if (kind !== 'system') {
+        wrapper.get('.editor-window').element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+        await flushPromises();
+        expect(vm.draftValue.value[field]).toBe(base[field]);
+        wrapper
+          .get('.editor-window')
+          .element.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true, bubbles: true }));
+        await flushPromises();
+        expect(vm.draftValue.value[field]).toBe(next);
+      }
+      mocks.saveSpecEditorSpecByKind.mockImplementationOnce(async (_session, _root, _target, draft) => ({
+        ...writeResultFixture(draft),
+        identityChanges: [{ before: target, after: target }],
+      }));
+      await vm.saveEditorData();
+      expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3]).toEqual(vm.draftValue.value);
+      expect(mocks.saveSpecEditorSpecByKind.mock.lastCall![3][field]).toBe(next);
+      expect(mocks.feedback.error).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+      sourceQuery.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 describe('useSpecEditorWindowViewModel save gating', () => {
   it('can retry the same identity receipt after a failed authoritative read', async () => {

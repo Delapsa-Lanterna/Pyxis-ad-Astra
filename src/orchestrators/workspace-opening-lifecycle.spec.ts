@@ -82,6 +82,21 @@ beforeEach(() => {
 });
 
 describe('workspace opening lifecycle', () => {
+  it('releases a late Core session when its last isolated Mod closes', async () => {
+    const external = 'A:/detached/demo',
+      core = 'B:/game/starsector-core';
+    const workspace = useWorkspaceStore();
+    workspace.registerMod({ modRoot: external, displayName: 'External', version: '', status: 'ready' });
+    useProjectStore().registerProjectManifest({ ...manifest('external'), modRoot: external });
+    const pending = pendingOpen(),
+      opening = openWorkspaceMod(core, 'B:/game');
+    await removeLoadedModRuntime(external, requestClose);
+    expect(workspace.hasWorkspaceContext).toBe(false);
+    pending.resolve({ ...manifest('late-core'), modRoot: core, starsectorRoot: 'B:/game' });
+    await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot: core });
+    expect(mocks.closeProject).toHaveBeenCalledExactlyOnceWith('late-core');
+    expect(useProjectStore().manifests.size).toBe(0);
+  });
   it('closes a late session after its loading Mod is removed', async () => {
     const pending = pendingOpen();
     const opening = openWorkspaceMod(modRoot);

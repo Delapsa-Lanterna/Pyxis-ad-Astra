@@ -9,6 +9,7 @@ import { initializeWorkspaceModRuntime, loadWorkspaceModManifest } from '@/orche
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { scanDirectoryGameOverview } from '@/services/directory.service';
 import { loadPersistedWorkspace, savePersistedWorkspace } from '@/services/workspace-state.service';
+import { pathBasename } from '@/shared/lib/paths';
 
 interface RestoreWorkspaceOptions {
   isCurrent?: () => boolean;
@@ -68,7 +69,7 @@ export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions
   const current = () => workspace.getWorkspaceGeneration() === generation && (options.isCurrent?.() ?? true);
   const persisted = snapshot ?? (await loadPersistedWorkspace());
   if (!current()) return;
-  if (persisted.mods.length === 0 && !persisted.starsectorRoot) return;
+  if (!persisted.starsectorRoot && persisted.mods.every((mod) => pathBasename(mod.modRoot).toLowerCase() === 'starsector-core')) return;
 
   workspace.applyPersistedWorkspaceSnapshot(persisted);
   const restoreTargets = persisted.mods.map((mod) => ({ mod, generation: workspace.getModGeneration(mod.modRoot)! }));

@@ -24,7 +24,12 @@ vi.mock('@/orchestrators/workspace-opening.orchestrator', () => ({
   initializeWorkspaceModRuntime: mocks.initializeWorkspaceModRuntime,
 }));
 
-import { restorePersistedWorkspace, watchWorkspacePersistence } from './workspace-persistence.orchestrator';
+import {
+  restorePersistedWorkspace,
+  watchWorkspacePersistence,
+  beginWorkspaceRestore,
+  finishWorkspaceRestore,
+} from './workspace-persistence.orchestrator';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
 function manifestFixture(modRoot: string): ProjectManifest {
@@ -55,6 +60,49 @@ describe('restorePersistedWorkspace', () => {
     expect(mocks.scanDirectoryGameOverview).not.toHaveBeenCalled();
     expect(mocks.loadWorkspaceModManifest).not.toHaveBeenCalled();
     expect(mocks.initializeWorkspaceModRuntime).not.toHaveBeenCalled();
+  });
+
+  it.each(['D:/games/starsector/starsector-core', '\\\\?\\D:\\games\\starsector\\STARSECTOR-CORE\\'])(
+    'finishes an unattached Core snapshot as an empty workspace: %s',
+    async (modRoot) => {
+      mocks.loadPersistedWorkspace.mockResolvedValue({
+        mods: [{ modRoot, displayName: 'Core', version: '' }],
+        starsectorRoot: null,
+        gameMods: [],
+        gameWarnings: [],
+        columnWidths: { [modRoot]: { ships: { id: 120 } } },
+      });
+      beginWorkspaceRestore();
+      await restorePersistedWorkspace({ onModRestoreError: vi.fn() });
+      expect(useWorkspaceStore().hasWorkspaceContext).toBe(false);
+      expect(useWorkspaceStore().activeModRoot).toBeNull();
+      expect(mocks.loadWorkspaceModManifest).not.toHaveBeenCalled();
+      expect(mocks.scanDirectoryGameOverview).not.toHaveBeenCalled();
+      await finishWorkspaceRestore();
+      expect(mocks.savePersistedWorkspace).toHaveBeenCalledExactlyOnceWith({
+        mods: [],
+        starsectorRoot: null,
+        gameMods: [],
+        gameWarnings: [],
+        columnWidths: {},
+      });
+    },
+  );
+
+  it('restores Core together with an isolated ordinary Mod', async () => {
+    const roots = ['D:/game/starsector-core', 'A:/detached/demo'];
+    mocks.loadPersistedWorkspace.mockResolvedValue({
+      mods: roots.map((modRoot) => ({ modRoot, displayName: modRoot, version: '' })),
+      starsectorRoot: null,
+      gameMods: [],
+      gameWarnings: [],
+      columnWidths: {},
+    });
+    mocks.loadWorkspaceModManifest.mockImplementation(async (root: string) => manifestFixture(root));
+    await restorePersistedWorkspace({ onModRestoreError: vi.fn() });
+    expect(useWorkspaceStore().loadedModList.map((mod) => mod.modRoot)).toEqual(roots);
+    expect(mocks.loadWorkspaceModManifest).toHaveBeenCalledTimes(2);
+    expect(mocks.initializeWorkspaceModRuntime).toHaveBeenCalledTimes(2);
   });
 
   it.each(['C:/mods/alpha', 'D:/games/starsector/starsector-core'])('restores project %s and reports load warnings', async (modRoot) => {

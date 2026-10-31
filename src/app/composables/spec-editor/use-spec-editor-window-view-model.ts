@@ -26,7 +26,7 @@ import { captureIdentityVersions } from '@/domain/project/entity-versions';
 import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/spec-editor-identity.orchestrator';
 import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
-import { composeJson, editComposedJson, setCompositionValue, compositionPath, compositionValue } from '@/domain/schema/json-composition';
+import { composeJson, editComposedJson, compositionPath, compositionValue } from '@/domain/schema/json-composition';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -178,13 +178,6 @@ export function useSpecEditorWindowViewModel(
       runtime = { modRoot: currentTarget.value.modRoot, sessionId: currentTarget.value.sessionId };
     return {
       ...runtime,
-      composition: draftSession.baselineSnapshot.value?.meta.data.composition
-        ? {
-            local: () => draftSession.draftValue.value,
-            sources: () => draftSession.baselineSnapshot.value?.meta.data.composition,
-            apply: (path, value) => draftSession.setDraft(setCompositionValue(draftSession.draftValue.value, path, value)),
-          }
-        : undefined,
       sourceContextKey: JSON.stringify([currentTarget.value.modRoot, currentTarget.value.kind, currentTarget.value.id]),
       querySourceOptions: async (source: string, signal?: AbortSignal) => {
         try {

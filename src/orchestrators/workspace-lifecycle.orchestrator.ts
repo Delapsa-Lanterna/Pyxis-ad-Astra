@@ -14,6 +14,7 @@ import type { CloseScope, CloseResult, ProjectManifest } from '@/shared/types';
 type RequestClose = (scope: CloseScope) => Promise<CloseResult>;
 import { markProjectionReady } from '@/services/project-projection.service';
 import { releaseProjectSession } from '@/orchestrators/project-sync.orchestrator';
+import { pathBasename } from '@/shared/lib/paths';
 
 export interface WorkspaceCloseTarget {
   gameOverviewRoot: string | null;
@@ -73,12 +74,18 @@ export function removeModRuntimeState(modRoot: string) {
 }
 
 export async function removeLoadedModRuntime(modRoot: string, requestClose: RequestClose) {
-  const target = useProjectStore().getManifest(modRoot);
-  if (!target) {
-    removeModRuntimeState(modRoot);
-    return true;
-  }
-  return closeTargets([target], requestClose);
+  const workspace = useWorkspaceStore(),
+    project = useProjectStore();
+  // Core is an attached tab when no game overview owns the workspace.
+  const roots =
+    !workspace.hasGameWorkspace &&
+    workspace.loadedModList.every((mod) => mod.modRoot === modRoot || pathBasename(mod.modRoot).toLowerCase() === 'starsector-core')
+      ? workspace.loadedModList.map((mod) => mod.modRoot)
+      : [modRoot];
+  const targets = roots.flatMap((root) => project.getManifest(root) ?? []);
+  if (targets.length && !(await closeTargets(targets, requestClose))) return false;
+  for (const root of roots) if (!targets.some((target) => target.modRoot === root)) removeModRuntimeState(root);
+  return true;
 }
 
 function removeClosedMod(modRoot: string) {
