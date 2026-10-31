@@ -91,7 +91,7 @@ import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
@@ -232,7 +232,7 @@ async function closeEditorWindow() {
 }
 
 // Text surface: undo/redo must work inside the textarea, so this surface opts in.
-useShortcutDispatch({
+useWindowShortcuts({
   undoRedoInEditable: true,
   commands: {
     close: () => void closeEditorWindow(),

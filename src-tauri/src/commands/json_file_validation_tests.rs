@@ -41,7 +41,7 @@ fn skin_engine_index_save() {
         data: json!({"skinHullId":"sample","baseHullId":"middle","removeEngineSlots":[0],"engineSlotChanges":{index:{"width":2.5}}}),
     };
     assert_eq!(
-        crate::services::write_transactions::commit_action(
+        crate::services::project_save::execute_save_action(
             crate::models::SaveAction::CreateSkinEntity(write("1"))
         )
         .unwrap_err()
@@ -50,7 +50,7 @@ fn skin_engine_index_save() {
     );
     let path = root.join("data/hulls/skins/sample.skin");
     assert!(!path.exists());
-    crate::services::write_transactions::commit_action(
+    crate::services::project_save::execute_save_action(
         crate::models::SaveAction::CreateSkinEntity(write("0")),
     )
     .unwrap();

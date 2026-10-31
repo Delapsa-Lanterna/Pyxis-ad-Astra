@@ -9,7 +9,10 @@
 ### 拥有
 
 - `src-tauri/src/services/project/sources/`：来源记录、发现、读取、Core 文档运行态、持久化与行为验证。
+- `src-tauri/src/services/project/sources/core.rs`：按根共享 Core 产品、只读 CSV、单飞读取及缓存释放。
+- `src-tauri/src/services/project/sources/documents.rs`：来源规格记录、实际位置及内容构造。
 - `src-tauri/src/services/project/sources/engine_styles.rs`：必须经正式来源读取交付引擎样式与匹配版本。
+- `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 文件产品、目录装载及重复诊断。
 - `src-tauri/src/services/project/sources/roots.rs`：游戏及 Mod 根识别、游戏 mods 授权、位置推断及正式来源根选择。
 
 ### 消费
@@ -19,7 +22,6 @@
 - `src-tauri/src/io/file_versions.rs`：文件与目录凭据的生成及核对。
 - `src-tauri/src/io/json_files.rs`：带版本的 JSON 字节读取与解析。
 - `src-tauri/src/io/paths.rs`：实际根、规范路径及父链授权。
-- `src-tauri/src/services/project/model.rs`：来源投影消费的记录与表格类型。
 
 ### 装配
 
@@ -31,7 +33,7 @@
 - Core 文档运行态按实际游戏根持有只读目录、共享引用及待持久化成果。
 - IO 拥有字节与路径授权，parser 拥有格式语义，来源读取持有匹配的内容与版本。
 - 来源根维护游戏与 Mod 布局判定、规范根授权及覆盖优先级，目录识别和创建消费正式根入口。
-- 写后失效从已接纳会话重用未变化实体记录与 CSV 摘要。
+- 来源记录按明确内容、摘要及匹配版本接纳会话投影的复用输入。
 - 同一根和产品的并发读取只保留一个实际任务，后续请求等待其结果。
 - 持久快照保存来源版本及可重建成果，业务索引与诊断归实际消费者构造。
 - 来源记录按规范根和相对路径隔离，Mod 的编辑内容与稳定行身份归所属会话。
@@ -61,7 +63,7 @@
 - Core 文档加载必须在条目锁外执行，嵌套请求必须保留各目录成果；已释放句柄的迟到结果严禁写入重新登记的根。
 - Core 目录命中必须交付共享只读引用，持久化必须在所属打开完成或显式失效释放入口执行。
 - 内容和版本必须来自同一次字节读取，业务内容严禁搭配另一次磁盘读取的凭据。
-- 原始字节必须按文件处理和释放，完整 CSV 行必须由所属表格运行态接纳。
+- 原始字节必须按文件处理和释放，Core CSV 必须交付只读解析行，Mod 可编辑表格必须由所属会话接纳稳定行身份。
 - 引擎样式对象必须递归合并，数组及叶值必须整体替换，合并结果必须保留各来源匹配版本。
 - 引擎样式必须由独立来源入口读取，缺失必须交付空样式及缺失版本，解析和读取错误必须保留所属路径与正式错误。
 - 持久化必须按规范来源根隔离并校验当前内容版本，匹配记录只允许复用所属解析成果。

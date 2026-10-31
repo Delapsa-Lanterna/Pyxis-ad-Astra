@@ -14,7 +14,10 @@
 - `src/app/components/ModNavigation.vue`：当前 Mod 的页面与业务导航。
 - `src/app/components/ModTabsBar.vue`：Mod 页签选择与移除动作展示。
 - `src/app/components/OverviewPage.vue`：工作区概览、已载入 Mod 与游戏扫描组合。
+- `src/app/components/workspace/WorkspaceFileHistory.vue`：当前 Mod 的历史摘要、双栈及回放动作展示。
 - `src/app/components/workspace/WorkspaceModOverview.vue`：Mod 信息、目录、资源和数据摘要展示。
+- `src/app/composables/use-main-window-shortcuts.ts`：主窗口保存与工作区历史命令装配。
+- `src/app/composables/use-workspace-file-history-view-model.ts`：工作区历史页的读取寿命、菜单、确认及用户动作。
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
@@ -22,6 +25,7 @@
 - `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
 - `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。
 - `src/orchestrators/workspace-core-source.orchestrator.ts`：原版来源切换，拥有关闭、设置提交交接、Mod 重开及最终快照的完整等待。
+- `src/orchestrators/workspace-history.orchestrator.ts`：当前编辑面草稿历史选择、文件回放确认与展示交接。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
 - `src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航，同步跨 store 运行态。
 - `src/orchestrators/workspace-persistence.orchestrator.ts`：workspace 快照保存与启动恢复。
@@ -32,8 +36,9 @@
 
 - `src-tauri/src/app_data_dir.rs`：工作区快照持久化的工具私有目录解析。
 - `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
-- `src/app/components/file-history/WorkspaceFileHistory.vue`：文件历史页面与回放交互。
 - `src/app/components/json-editor/JsonEditorWorkspace.vue`：展示当前 JSON 页面并消费所属文档运行态。
+- `src/app/composables/use-window-shortcuts.ts`：窗口键盘监听、命中路由及关闭屏蔽。
+- `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的回放计划、复核及实际结果。
 - `src/shared/types/workspace-persistence.types.ts`：工作区保存请求、目录、Mod、扫描结果及列宽快照。
 - `src/shared/types/workspace.types.ts`：工作区页面与 Mod 导航契约。
 - `src/stores/project.store.ts`：按 Mod 根查询正式清单与 session，当前项目投影消费原清单引用。
@@ -56,6 +61,7 @@
 - 生命周期编排消费 Rust 实际释放结果，拥有所属 Mod 清理和前端缓存释放。
 - 目录打开提供 outcome 和迟到 session 清理，工作区接纳成功建立的运行态。
 - 来源切换拥有捕获的恢复快照及完整关闭等待，设置模块交付正式设置提交闭包。
+- 历史命令消费当前可见编辑面的草稿动作，文件回放确认与 CSV 选择交接归工作区动作。
 
 ## 链路
 
@@ -101,6 +107,10 @@
 
 ## 规范
 
+- CSV 与 JSON 历史动作必须分别返回已处理、输入拒绝或草稿耗尽；只有草稿耗尽才允许进入文件历史。
+- 工作区历史动作必须捕获 Mod、session、页面、当前表及 JSON 页面；输入提交后的目标变化必须结束本次草稿分派。
+- 文件回放确认必须呈现实际影响路径，确认后的执行必须持续消费捕获目标，CSV 选择交接必须核对所属当前 Mod 与 session。
+- 主窗口保存必须分派给当前窗口唯一登记的保存动作，历史失败必须由所属用户动作交付一次最终反馈。
 - 新打开的 Mod 必须默认自动引用；自动状态必须按全部已就绪 Mod 正式清单的依赖 ID 匹配已就绪来源，全部已打开 Mod 必须共用按标签顺序排列的可引用来源。
 - 引用设置必须以 `referenceable` 的 `true` 表示手动开启、`false` 表示手动关闭、字段缺省表示自动；手动设置必须优先于自动结果，保存必须只写入手动值，恢复必须按正式清单派生实际状态并保留标签顺序。
 - 标签右键必须操作命中的 Mod，拖动必须在放下时提交顺序并保留当前页面、草稿和会话身份。

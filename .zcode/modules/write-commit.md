@@ -9,10 +9,8 @@
 ### 拥有
 
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
-- `src-tauri/src/services/project/write/save_requests.rs`：联合来源与实体当前内容准备。
-- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及测试提交结果交付。
+- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式投影提交。
 - `src-tauri/src/services/write_transactions/committed.rs`：未完成投影及恢复期间的内容持有。
-- `src-tauri/src/services/write_transactions/submission.rs`：保存请求接入、业务动作分派及所属事务提交。
 - `src/domain/project/save-edits.ts`：本次保存的实际字段赋值、移除及数组整体修改提取。
 
 ### 消费
@@ -26,7 +24,6 @@
 - `src-tauri/src/models/write_commit.rs`：字段修改、实际结果及内容交付。
 - `src-tauri/src/services/file_history.rs`：文件撤销重做。
 - `src-tauri/src/services/project/mod.rs`：会话授权和正式结果。
-- `src-tauri/src/services/project_sync.rs`：项目队列、来源确认和恢复控制。
 - `src/shared/types/document-identity.types.ts`：JSON 文档来源与内容身份。
 - `src/shared/types/joint-target.types.ts`：联合保存的根身份。
 - `src/shared/types/json-write.types.ts`：JSON 原文保留与逐源确认输入。
@@ -36,7 +33,8 @@
 ### 装配
 
 - `src-tauri/command-macros/`：正式保存命令接入。
-- `src-tauri/src/commands/project_sync.rs`：统一保存命令、窗口通道与处理回执。
+- `src-tauri/src/commands/project_save.rs`：统一保存命令的完整请求入口。
+- `src-tauri/src/services/project_save.rs`：完整保存请求的业务准备、事务执行及实际结果交付。
 - `src/orchestrators/project-sync.orchestrator.ts`：保存结果的窗口消费。
 
 ## 边界

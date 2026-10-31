@@ -1,19 +1,11 @@
+use super::sources::{core::CoreSourceRequirements, documents::LoadedSpecRecord};
 use crate::models::{
-    CsvTableKey, DiscoveredField, EntityFileLocation, EntitySummaries, GameScanWarning,
-    ProjectManifest, SkinFile, VariantFile,
+    CsvTableKey, EntitySummaries, GameScanWarning, ProjectManifest, SkinFile, VariantFile,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LoadedSpecRecord {
-    pub id: String,
-    pub location: EntityFileLocation,
-    pub data: serde_json::Value,
-}
 
 pub(super) const MISSION_LIST_TABLE_KEY: &str = "missions";
 
@@ -43,12 +35,6 @@ pub(super) const WEAPON_SPRITE_FIELDS: [&str; 8] = [
 
 /// Pure per-table metadata shared by every project layer; extraction behavior
 /// stays in `table_definitions` and joins onto these specs.
-#[derive(Clone, Copy)]
-pub(super) struct CoreSourceRequirements {
-    pub ships: bool,
-    pub weapons: bool,
-    pub variants: bool,
-}
 
 #[derive(Clone, Copy)]
 pub(super) struct CsvTableSpec {
@@ -333,40 +319,6 @@ pub(super) struct ReferenceView {
     pub identity: crate::models::ReferenceSource,
     pub session: ProjectSession,
     pub tables: std::sync::Mutex<BTreeMap<String, Arc<SessionCsvTable>>>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub(super) struct CoreCache {
-    pub csv_tables: BTreeMap<String, Arc<SessionCsvTable>>,
-    pub fields: Option<Arc<BTreeMap<String, Vec<DiscoveredField>>>>,
-    pub graphics: Option<Arc<Vec<String>>>,
-    pub ship_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
-    pub variant_files: Option<Arc<Vec<VariantFile>>>,
-    pub skin_files: Option<Arc<Vec<SkinFile>>>,
-    pub weapon_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
-    pub projectile_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
-}
-
-impl CoreCache {
-    pub(super) fn empty() -> Self {
-        Self {
-            csv_tables: BTreeMap::new(),
-            fields: None,
-            graphics: None,
-            ship_files: None,
-            variant_files: None,
-            skin_files: None,
-            weapon_specs: None,
-            projectile_specs: None,
-        }
-    }
-}
-
-#[derive(Clone, Default)]
-pub(super) struct CoreSourceData {
-    pub ship_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
-    pub variant_files: Arc<Vec<VariantFile>>,
-    pub weapon_specs: Arc<BTreeMap<String, LoadedSpecRecord>>,
 }
 
 pub(super) fn string_from_row(row: &Map<String, Value>, key: &str) -> Option<String> {

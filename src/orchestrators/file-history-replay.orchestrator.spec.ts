@@ -18,13 +18,8 @@ vi.mock('@/services/file-history.service', async () => ({
   },
   loadFileHistory: mocks.loadFileHistory,
 }));
-import {
-  createFileReplayPlan,
-  executeFileReplayPlan,
-  replayNextFileRedo,
-  replayNextFileUndo,
-  refreshLoadedFileHistory,
-} from './file-history-replay.orchestrator';
+import { createFileReplayPlan, executeFileReplayPlan, refreshLoadedFileHistory } from './file-history-replay.orchestrator';
+import { replayWorkspaceFileRedo, replayWorkspaceFileUndo } from './workspace-history.orchestrator';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -140,7 +135,7 @@ describe('authoritative file history replay', () => {
 
   it('submits the entry id and adopts actual replay history before synchronization', async () => {
     const plan = createFileReplayPlan(project(), 'undo', root)!;
-    await executeFileReplayPlan(plan, project(), tables());
+    await executeFileReplayPlan(plan, project());
     expect(mocks.replayFileChangeSet).toHaveBeenCalledWith('s1', root, 'undo', 1, 1);
     expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(savedResult().history);
     expect(mocks.acceptContent).toHaveBeenCalledWith(root, savedResult(), 's1', 'undo');
@@ -149,28 +144,28 @@ describe('authoritative file history replay', () => {
   it('keeps committed backend history when refresh fails', async () => {
     mocks.acceptContent.mockRejectedValue(new Error('parse failed'));
     const plan = createFileReplayPlan(project(), 'undo', root)!;
-    await expect(executeFileReplayPlan(plan, project(), tables())).rejects.toThrow('parse failed');
+    await expect(executeFileReplayPlan(plan, project())).rejects.toThrow('parse failed');
     expect(useFileHistoryStore().getHistoryStacks(root)).toEqual(savedResult().history);
   });
 
   it('preserves the projection when disk replay fails', async () => {
     mocks.replayFileChangeSet.mockRejectedValue(new Error('disk full'));
     const plan = createFileReplayPlan(project(), 'undo', root)!;
-    await expect(executeFileReplayPlan(plan, project(), tables())).rejects.toThrow('disk full');
+    await expect(executeFileReplayPlan(plan, project())).rejects.toThrow('disk full');
     expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(1);
   });
 
   it('rejects changed session and changed history targets before writing', async () => {
     const plan = createFileReplayPlan(project(), 'undo', root)!;
-    await expect(executeFileReplayPlan(plan, project('s2'), tables())).rejects.toMatchObject({ action: 'execute-file-history-replay' });
+    await expect(executeFileReplayPlan(plan, project('s2'))).rejects.toMatchObject({ action: 'execute-file-history-replay' });
     useFileHistoryStore().applySnapshot(root, { revision: 2, undoStack: [entry(2)], redoStack: [] });
-    await expect(executeFileReplayPlan(plan, project(), tables())).rejects.toMatchObject({ action: 'execute-file-history-replay' });
+    await expect(executeFileReplayPlan(plan, project())).rejects.toMatchObject({ action: 'execute-file-history-replay' });
     expect(mocks.replayFileChangeSet).not.toHaveBeenCalled();
   });
 
   it('requires confirmation after reading the latest backend history', async () => {
     const messages = feedback();
-    expect(await replayNextFileUndo(project(), tables(), messages)).toBe(true);
+    expect(await replayWorkspaceFileUndo(project(), tables(), messages)).toBe(true);
     expect(mocks.loadFileHistory).toHaveBeenCalledWith('s1', root);
     expect(mocks.replayFileChangeSet).not.toHaveBeenCalled();
     await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
@@ -191,7 +186,7 @@ describe('authoritative file history replay', () => {
         }),
     );
     const messages = feedback();
-    const action = replayNextFileUndo(projects, tables(), messages);
+    const action = replayWorkspaceFileUndo(projects, tables(), messages);
     workspace.showSettings();
     finish({ revision: 1, undoStack: [entry()], redoStack: [] });
     expect(await action).toBe(true);
@@ -203,7 +198,7 @@ describe('authoritative file history replay', () => {
     useFileHistoryStore().applySnapshot(root, { revision: 2, undoStack: [], redoStack: [entry()] });
     mocks.replayFileChangeSet.mockRejectedValue(new Error('disk full'));
     const messages = feedback();
-    await replayNextFileRedo(project(), tables(), messages);
+    await replayWorkspaceFileRedo(project(), tables(), messages);
     await (messages.confirmWarning as ReturnType<typeof vi.fn>).mock.calls[0]![0].onConfirm();
     expect(messages.error).toHaveBeenCalledWith(expect.anything(), '重做文件历史失败');
   });
@@ -221,7 +216,7 @@ describe('authoritative file history replay', () => {
     }
     const messages = feedback();
     const table = { currentTab: 'ships', selectRowByKey: vi.fn() };
-    await replayNextFileUndo(projects, table as never, messages);
+    await replayWorkspaceFileUndo(projects, table as never, messages);
     workspace.activateModOverview('C:/mods/beta');
     const result = savedResult();
     result.sessionUpdates = [sessionUpdateFixture('s1', root)];
@@ -236,7 +231,7 @@ describe('authoritative file history replay', () => {
 
   it('uses the backend snapshot to reject a stale empty projection', async () => {
     mocks.loadFileHistory.mockResolvedValue({ revision: 3, undoStack: [], redoStack: [] });
-    expect(await replayNextFileUndo(project(), tables(), feedback())).toBe(false);
+    expect(await replayWorkspaceFileUndo(project(), tables(), feedback())).toBe(false);
     expect(useFileHistoryStore().getHistoryStacks(root).revision).toBe(3);
   });
 
@@ -259,7 +254,7 @@ describe('authoritative file history replay', () => {
       },
     ];
     mocks.replayFileChangeSet.mockResolvedValue(result);
-    await executeFileReplayPlan(createFileReplayPlan(project(), 'undo', root)!, project(), tables());
+    await executeFileReplayPlan(createFileReplayPlan(project(), 'undo', root)!, project());
     expect(mocks.acceptContent).toHaveBeenCalledWith(root, result, 's1', 'undo');
   });
 });

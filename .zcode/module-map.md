@@ -107,9 +107,9 @@
 - [沉浸式战机联队编辑器](modules/immersive-wing-editor.md)：说明战机联队信息、来源补全、引用与行身份跟随。
 - [沉浸式装配编辑器](modules/immersive-variant-editor.md)：说明装配投影、装备动作、模块导航与候选交互。
 - [字体](modules/fonts.md)：说明原版字体读取、逐字体回退、缺字问号、文字测量、共享图集和展示生命周期。
+- [项目保存调度](modules/project-save.md)：说明完整保存请求、业务准备、项目排队及实际结果返回。
 - [保存提交](modules/write-commit.md)：说明公共保存事务、提交记录、保存回执及指定提交恢复。
 - [文件历史与回放](modules/file-history.md)：说明已写盘 changeset、按 Mod 隔离的文件级 undo/redo、确认回放与 session refresh。
-- [主窗口历史命令与快捷键分发](modules/main-history-command.md)：说明快捷键命令映射、统一分发器、当前编辑面的 JSON／CSV 草稿与文件 history 分派。
 - [Spec 编辑器基础](modules/spec-editor.md)：说明规格宿主、基础契约、文档交接与四类实现装配。
 - [画布编辑器骨架](modules/editor-canvas.md)：说明画布交互、选区、镜像、动作提交及唯一共享引擎绘制与运行态。
 - [Mod 文件浏览器](modules/mod-file-browser.md)：说明按 session 隔离的目录树、内容判定、读取接纳与文本窗口交付。

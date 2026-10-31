@@ -4,8 +4,9 @@ import { callsFrom } from '../../../facts/imports.mjs';
 const historyStore = new Set(['src/stores/file-history.store.ts']);
 const historyService = new Set(['src/services/file-history.service.ts']);
 const snapshotOwners = new Set([
-  'src/app/composables/editors/use-file-history-view-model.ts',
+  'src/app/composables/use-workspace-file-history-view-model.ts',
   'src/orchestrators/file-history-replay.orchestrator.ts',
+  'src/orchestrators/workspace-history.orchestrator.ts',
   'src/orchestrators/project-sync.orchestrator.ts',
 ]);
 const replayOwners = new Set(['src/orchestrators/file-history-replay.orchestrator.ts']);

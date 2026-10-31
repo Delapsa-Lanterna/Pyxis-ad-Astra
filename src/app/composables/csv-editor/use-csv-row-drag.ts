@@ -1,7 +1,7 @@
 import { onScopeDispose, shallowRef, watch, type Ref } from 'vue';
 import type { FieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 
 export function useCsvRowDrag(options: {
   panel: Readonly<Ref<HTMLElement | null>>;
@@ -119,7 +119,7 @@ export function useCsvRowDrag(options: {
     if (from >= 0 && from !== to) options.move(current.rowKey, to);
   }
   watch(() => [options.disabled(), options.context()], cancel, { flush: 'sync' });
-  useShortcutDispatch({
+  useWindowShortcuts({
     priority: (event) => {
       if (event.key !== 'Escape' || !request) return false;
       cancel();

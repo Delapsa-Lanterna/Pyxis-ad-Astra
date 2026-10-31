@@ -89,7 +89,7 @@ import { h, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'v
 import type { TreeInst, TreeProps } from 'naive-ui/es/tree';
 import type { ModFileSortKey } from '@/shared/types';
 import { useModFileBrowserViewModel } from '@/app/composables/mod-file-browser/use-mod-file-browser-view-model';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 const { view, actions } = useModFileBrowserViewModel();
 const columns: Array<{ key: ModFileSortKey; label: string }> = [
   { key: 'name', label: '文件名' },
@@ -190,7 +190,7 @@ onScopeDispose(() => {
   scrollRestore = null;
   if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
 });
-useShortcutDispatch({
+useWindowShortcuts({
   keyScope: (event) =>
     event.target instanceof HTMLElement && Boolean(stage.value?.contains(event.target)) && !event.target.closest('button'),
   keys: Object.fromEntries(

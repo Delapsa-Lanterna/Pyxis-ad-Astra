@@ -5,7 +5,7 @@ import type { CanvasViewport } from './use-canvas-viewport';
 import type { useEditorDocument } from '@/app/composables/editors/use-editor-document';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useFieldInputs } from '@/shared/runtime/field-inputs';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { watchCanvasPixelRatio } from './use-canvas-surface';
 import { useCanvasSelection } from './use-canvas-selection';
 import { useCanvasNavigation } from './use-canvas-navigation';
@@ -201,7 +201,7 @@ export function useCanvasEditor<TPreview>(options: {
     state.reset();
   }
 
-  useShortcutDispatch({
+  useWindowShortcuts({
     commands: { undo: () => void document.undo(), redo: () => void document.redo() },
     keys: {
       ' ': () =>

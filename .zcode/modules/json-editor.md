@@ -10,7 +10,6 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/commands/json_file.rs`：装配与皮肤的保存、创建、删除及会话来源核对。
 - `src-tauri/src/commands/json_recovery.rs`：来源重建准备、事务版本复核与 changeset 提交。
-- `src-tauri/src/domain/json_documents.rs`：Variant 与 Skin 的正式内容构造及计数投影。
 - `src-tauri/src/services/config_entity.rs`：Mod 信息保存、战役索引及任务目录的保存、创建和删除。
 - `src-tauri/src/services/json_file.rs`：装配与皮肤文件查询、保存、创建、删除和重命名。
 - `src-tauri/src/services/project/query/json_recovery.rs`：按已读取原目标重新授权来源、索引及版本。
@@ -35,6 +34,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/models/config_entity.rs`：Mod 信息与索引实体请求、刷新内容及势力索引结构。
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
 - `src-tauri/src/models/json_recovery.rs`：来源重建请求、计划和版本协议。
+- `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 的实际来源文件产品构造。
 - `src/app/components/schema/SchemaFormRenderer.vue`：schema 字段表单展示。
 - `src/app/composables/use-edit-target-draft-session.ts`：目标快照、草稿、保存与外部版本交接。
 - `src/app/composables/use-field-input-actions.ts`：字段输入提交、取消与外部版本确认。
@@ -45,8 +45,8 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/domain/schema/config-schema-registry.ts`：装配与皮肤 schema。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：装配沉浸式编辑器打开动作。
 - `src/orchestrators/json-write-confirmation.orchestrator.ts`：原文保留、规范化写入确认与重试。
-- `src/orchestrators/main-history-command.orchestrator.ts`：主窗口活动 JSON 草稿撤销与重做分派。
 - `src/orchestrators/project-sync.orchestrator.ts`：提交 receipt 接纳、来源刷新及跨窗口通知。
+- `src/orchestrators/workspace-history.orchestrator.ts`：主窗口活动 JSON 草稿撤销与重做分派。
 - `src/services/entity-query.service.ts`：实体列表、详情、正式目标和身份意图查询。
 - `src/services/hull-reference.service.ts`：船体名称、Hull 引用和内置武器槽查询。
 - `src/services/query-cache.service.ts`：实体与引用查询失效订阅。

@@ -232,7 +232,7 @@ mod tests {
         assert_eq!(batch.rows[0].data["id"], "b");
         assert!(batch.rows[1].is_comment);
         assert_eq!(batch.rows[2].data["id"], "");
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),

@@ -1,11 +1,11 @@
-use super::super::cache::{loaded_csv_rows, loaded_registered_csv_rows};
+use super::super::cache::loaded_registered_csv_rows;
 use super::super::model::{ProjectSession, string_field, string_from_row};
 use crate::errors::{AppError, AppResult};
 use crate::models::{CsvTableKey, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
-use crate::services::project::model::LoadedSpecRecord;
 use crate::services::project::sources::core::{
     load_core_csv_table, load_core_ship_files, load_core_skin_files,
 };
+use crate::services::project::sources::documents::LoadedSpecRecord;
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -120,14 +120,16 @@ impl<'a> HullReferenceResolver<'a> {
                 }
                 if field == "hullName" {
                     if self.core_names.is_none() {
-                        let table = load_core_csv_table(root, CsvTableKey::Ships)?;
+                        let table = load_core_csv_table(
+                            root,
+                            crate::services::project::model::csv_table_spec(CsvTableKey::Ships)
+                                .rel_path,
+                        )?;
                         self.core_names = Some(
                             table
                                 .as_ref()
-                                .map(|table| loaded_csv_rows(table, "ships"))
-                                .transpose()?
-                                .unwrap_or_default()
-                                .iter()
+                                .into_iter()
+                                .flat_map(|table| table.rows.iter())
                                 .filter(|row| !row.is_comment)
                                 .filter_map(|row| {
                                     Some((

@@ -63,7 +63,7 @@ const AboutPage = defineAsyncComponent(() => import('@/app/components/AboutPage.
 const CsvEditorWorkspace = defineAsyncComponent(() => import('@/app/components/csv-editor/CsvEditorWorkspace.vue'));
 const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-file-browser/ModFileBrowser.vue'));
 const WorkspaceModOverview = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceModOverview.vue'));
-const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/file-history/WorkspaceFileHistory.vue'));
+const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceFileHistory.vue'));
 const JsonEditorWorkspace = defineAsyncComponent(() => import('@/app/components/json-editor/JsonEditorWorkspace.vue'));
 const contentNavigation = createContentNavigation();
 const detailPaneExpanded = ref(true);

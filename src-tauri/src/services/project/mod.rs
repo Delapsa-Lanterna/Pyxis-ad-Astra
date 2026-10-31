@@ -34,3 +34,5 @@ pub(crate) use sources::resolve_core_root;
 pub(crate) use sources::roots::{
     infer_starsector_root, is_game_root, is_mod_root, resolve_game_mods_directory,
 };
+
+pub(crate) use sources::json_documents::{build_skin_file, build_variant_file};

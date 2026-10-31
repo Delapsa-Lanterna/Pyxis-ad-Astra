@@ -15,7 +15,7 @@ test('history snapshots retain their actual consumer owners', () => {
       "import {useFileHistoryStore} from '@/stores/file-history.store'; useFileHistoryStore().applySnapshot(root, snapshot);",
     'src/orchestrators/file-history-replay.orchestrator.ts':
       "import {useFileHistoryStore} from '@/stores/file-history.store'; useFileHistoryStore().applySnapshot(root, snapshot);",
-    'src/app/composables/editors/use-file-history-view-model.ts':
+    'src/app/composables/use-workspace-file-history-view-model.ts':
       "import {useFileHistoryStore} from '@/stores/file-history.store'; useFileHistoryStore().applySnapshot(root, snapshot);",
   });
   assert.deepEqual(fileHistoryBoundaryRule.check(legal), []);

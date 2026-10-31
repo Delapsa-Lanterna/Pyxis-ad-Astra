@@ -45,10 +45,6 @@ pub fn path_is_or_in_dir(path: &str, dir: &str) -> bool {
     path == dir || path.starts_with(&format!("{dir}/"))
 }
 
-pub fn path_affects_target(path: &str, target: &str) -> bool {
-    path.is_empty() || path == target || target.starts_with(&format!("{path}/"))
-}
-
 fn is_entity_id(value: &str) -> bool {
     let mut chars = value.chars();
     let Some(first) = chars.next() else {

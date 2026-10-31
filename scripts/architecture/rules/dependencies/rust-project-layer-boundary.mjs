@@ -57,7 +57,21 @@ export const rustProjectLayerBoundaryRule = defineRule(
             'crate::services::project::session::lock_registry',
             'crate::services::project::session::references::reference_revision',
           ].includes(reference);
-        if (!runtimeSettings && !runtimeMonitor && !sessionAccess && !validRustDependency(from, to) && !rejected.has(to)) {
+        const projectionAccess =
+          from === 'project-root' &&
+          [
+            'crate::services::project::session::source_projection::sources_from_projection',
+            'crate::services::project::session::source_projection::retain_projection_sources',
+            'crate::services::project::session::source_projection::capture_projection_versions',
+          ].includes(reference);
+        if (
+          !runtimeSettings &&
+          !runtimeMonitor &&
+          !sessionAccess &&
+          !projectionAccess &&
+          !validRustDependency(from, to) &&
+          !rejected.has(to)
+        ) {
           report(file, edge, from + ' must not depend on ' + to, { target: reference, expected: from });
           rejected.add(to);
         }
@@ -121,8 +135,9 @@ function validRustDependency(from, to) {
       'project-cache',
       'project-session',
       'project-root',
+      'project-model',
     ].includes(from);
-  if (from === 'project-sources') return ['project-model', 'domain', 'io', 'parsers', 'models'].includes(to);
+  if (from === 'project-sources') return ['io', 'parsers', 'models'].includes(to);
   if (from === 'service-assembly') return ['services', 'project-query', 'project-write', 'project-resources'].includes(to);
   if (from === 'session-entry') return ['project-session', 'project-cache', 'project-root'].includes(to);
   if (from === 'commands') return ['services', 'project-root', 'models'].includes(to);

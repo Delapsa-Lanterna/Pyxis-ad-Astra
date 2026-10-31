@@ -110,7 +110,7 @@ other,unrelated
         plan: crate::models::JsonRecoveryPlan,
     ) -> Result<crate::models::WriteResult<crate::models::JsonRecoveryPlan>, crate::errors::AppError>
     {
-        crate::services::write_transactions::commit_saved::<crate::models::JsonRecoveryPlan>(
+        crate::services::project_save::execute_typed_save::<crate::models::JsonRecoveryPlan>(
             crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
                 session_id: self.request.session_id.clone(),
                 mod_root: self.request.mod_root.clone(),

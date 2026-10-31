@@ -1,15 +1,15 @@
 import type { AppFeedback } from '@/shared/types';
-import { dispatchMainRedoCommand, dispatchMainUndoCommand } from '@/orchestrators/main-history-command.orchestrator';
+import { dispatchWorkspaceHistoryCommand } from '@/orchestrators/workspace-history.orchestrator';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 
 export function useMainWindowShortcuts(feedback: AppFeedback) {
   const saveCommand = useSaveCommandStore();
-  useShortcutDispatch({
+  useWindowShortcuts({
     commands: {
       save: () => saveCommand.dispatchSaveCommand(),
-      undo: () => void dispatchMainUndoCommand(feedback),
-      redo: () => void dispatchMainRedoCommand(feedback),
+      undo: () => void dispatchWorkspaceHistoryCommand('undo', feedback),
+      redo: () => void dispatchWorkspaceHistoryCommand('redo', feedback),
     },
   });
 }

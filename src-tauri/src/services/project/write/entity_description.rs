@@ -44,12 +44,14 @@ pub(super) fn rename_description_row(
         next_row_seq: sequence,
         ..
     } = table;
-    let matches = |row: &SessionCsvRow, id: &str| {
-        !row.is_comment
-            && row.data.get("id").and_then(Value::as_str) == Some(id)
-            && row.data.get("type").and_then(Value::as_str) == Some(typ)
+    let matches = |data: &serde_json::Map<String, Value>, is_comment: bool, id: &str| {
+        !is_comment
+            && data.get("id").and_then(Value::as_str) == Some(id)
+            && data.get("type").and_then(Value::as_str) == Some(typ)
     };
-    let source = rows.iter().position(|row| matches(row, previous));
+    let source = rows
+        .iter()
+        .position(|row| matches(&row.data, row.is_comment, previous));
     let core = if source.is_none() {
         session
             .manifest
@@ -58,7 +60,7 @@ pub(super) fn rename_description_row(
             .map(|root| {
                 crate::services::project::sources::core::load_core_csv_table(
                     root,
-                    CsvTableKey::Descriptions,
+                    super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
                 )
             })
             .transpose()?
@@ -66,10 +68,12 @@ pub(super) fn rename_description_row(
     } else {
         None
     };
-    let inherited = core
-        .as_ref()
-        .and_then(|table| table.rows.as_ref())
-        .and_then(|rows| rows.iter().find(|row| matches(row, previous)));
+    let inherited = core.as_ref().and_then(|table| {
+        table
+            .rows
+            .iter()
+            .find(|row| matches(&row.data, row.is_comment, previous))
+    });
     if source.is_none() && inherited.is_none() {
         return Ok(false);
     }
@@ -80,7 +84,7 @@ pub(super) fn rename_description_row(
         .map(|root| {
             crate::services::project::sources::core::load_core_csv_table(
                 root,
-                CsvTableKey::Descriptions,
+                super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
             )
         })
         .transpose()?
@@ -88,10 +92,14 @@ pub(super) fn rename_description_row(
         .is_some_and(|table| {
             table
                 .rows
-                .as_ref()
-                .is_some_and(|rows| rows.iter().any(|row| matches(row, next)))
+                .iter()
+                .any(|row| matches(&row.data, row.is_comment, next))
         });
-    if rows.iter().any(|row| matches(row, next)) || core_collision {
+    if rows
+        .iter()
+        .any(|row| matches(&row.data, row.is_comment, next))
+        || core_collision
+    {
         return Err(AppError::message(
             if typ == "SHIP" {
                 "ship.description_target_exists"

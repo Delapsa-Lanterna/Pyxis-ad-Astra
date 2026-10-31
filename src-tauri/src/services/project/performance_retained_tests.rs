@@ -121,7 +121,7 @@ fn retained_csv_performance() {
         );
         for _ in 0..30 {
             let started = Instant::now();
-            let result = crate::services::write_transactions::commit_action(
+            let result = crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
@@ -158,7 +158,7 @@ fn retained_csv_performance() {
                                 .into(),
                         ],
                     )?;
-                    crate::services::write_transactions::commit_action(
+                    crate::services::project_save::execute_save_action(
                         crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                             session_id: manifest.session_id.clone(),
                             mod_root: manifest.mod_root.clone(),

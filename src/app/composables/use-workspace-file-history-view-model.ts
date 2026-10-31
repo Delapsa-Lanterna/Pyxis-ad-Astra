@@ -2,7 +2,7 @@ import { computed, watch } from 'vue';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { replayNextFileRedo, replayNextFileUndo } from '@/orchestrators/file-history-replay.orchestrator';
+import { replayWorkspaceFileRedo, replayWorkspaceFileUndo } from '@/orchestrators/workspace-history.orchestrator';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -10,7 +10,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { clearSavedFileHistory, loadFileHistory } from '@/services/file-history.service';
 
-export function useFileHistoryViewModel() {
+export function useWorkspaceFileHistoryViewModel() {
   const project = useProjectStore();
   const workspace = useWorkspaceStore();
   const tables = useCsvEditorStore();
@@ -87,11 +87,11 @@ export function useFileHistoryViewModel() {
   }
 
   function undoOne() {
-    return replayNextFileUndo(project, tables, feedback);
+    return replayWorkspaceFileUndo(project, tables, feedback);
   }
 
   function redoOne() {
-    return replayNextFileRedo(project, tables, feedback);
+    return replayWorkspaceFileRedo(project, tables, feedback);
   }
 
   return {

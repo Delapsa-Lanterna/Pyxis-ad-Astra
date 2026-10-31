@@ -19,13 +19,14 @@
 - `src-tauri/src/services/project/definitions/projectiles.rs`：Mod 弹体及 Core 回退的正式读取。
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话投影、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
-- `src-tauri/src/services/project/model.rs`：会话、已加载来源记录、CSV 行及 Core 缓存内部运行模型。
+- `src-tauri/src/services/project/model.rs`：会话、引用视图、可编辑 CSV 行身份及表格业务元数据。
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、投影与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
 - `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
 - `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与投影就绪门控。
+- `src-tauri/src/services/project/session/source_projection.rs`：会话来源复用、完整项目及变化来源版本范围交接。
 - `src-tauri/src/services/project/test_support.rs`：项目测试工作区的会话、历史及 Core 缓存释放与异常退出验证。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
@@ -132,7 +133,7 @@
 - manifest 接纳必须核对所属 session 并服从保存交付顺序，缓存失效与内容交接必须由项目同步完成。
 - 未完成保存和内容读取必须分别保留稳定码、原始 message 与 nullable location，呈现必须消费所属文案投影。
 - session 注册表只允许短暂访问句柄，锁序必须为根事务租约、session 状态与缓存；query 严禁写盘，write 必须更新现有会话投影。
-- 会话与 Core CSV 缓存必须分别保存业务 data、`isComment` 与 `rowKey`，严禁覆盖文件中的同名业务键。
+- 会话 CSV 必须保存稳定行键、业务 data 与 `isComment`，Core 来源必须交付只读解析行；业务内容中的同名字段必须保留。
 - 会话根入口必须只交付生命周期、授权、投影及缓存配置，严禁转导出查询、资源和业务保存函数。
 - 写后失效对无法解析的实体只发出该实体种类的 `id: null` scope，严禁阻断其它实体或扩大失效范围。
 - 初始化、缓存恢复和失效重建必须消费同一所属来源构造；每次投影中的受影响族必须去重且各构造一次。

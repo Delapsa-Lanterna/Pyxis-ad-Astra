@@ -19,7 +19,7 @@ import { editorModuleBoundaryRule } from './rules/modules/editors/editor-module-
 import { editorQueryBoundaryRule } from './rules/modules/editors/editor-query-boundary.mjs';
 import { renderingBoundaryRule } from './rules/modules/editors/rendering-boundary.mjs';
 import { fileHistoryBoundaryRule } from './rules/modules/file-history/file-history-boundary.mjs';
-import { mainHistoryCommandBoundaryRule } from './rules/modules/file-history/main-history-command-boundary.mjs';
+import { workspaceHistoryBoundaryRule } from './rules/modules/file-history/workspace-history-boundary.mjs';
 import { projectSessionBoundaryRule } from './rules/modules/project-session/project-session-boundary.mjs';
 import { projectResourcesBoundaryRule } from './rules/modules/resources/project-resources-boundary.mjs';
 import { resourceBoundaryRule } from './rules/modules/resources/resource-boundary.mjs';
@@ -49,7 +49,7 @@ export const rules = [
   editorQueryBoundaryRule,
   renderingBoundaryRule,
   fileHistoryBoundaryRule,
-  mainHistoryCommandBoundaryRule,
+  workspaceHistoryBoundaryRule,
   projectSessionBoundaryRule,
   projectResourcesBoundaryRule,
   resourceBoundaryRule,

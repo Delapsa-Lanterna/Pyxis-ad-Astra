@@ -66,7 +66,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useFileHistoryViewModel } from '@/app/composables/editors/use-file-history-view-model';
+import { useWorkspaceFileHistoryViewModel } from '@/app/composables/use-workspace-file-history-view-model';
 import type { FileHistoryEntrySummary } from '@/shared/types';
 
 const {
@@ -81,7 +81,7 @@ const {
   confirmClear,
   undoOne,
   redoOne,
-} = useFileHistoryViewModel();
+} = useWorkspaceFileHistoryViewModel();
 const historyGroups = computed(() => [
   {
     id: 'undo',

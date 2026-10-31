@@ -5,14 +5,6 @@ use crate::{
 };
 
 #[command_macros::command]
-pub async fn save_project(
-    window: tauri::WebviewWindow,
-    request: crate::models::SaveRequest,
-) -> Result<crate::models::WriteResult<serde_json::Value>, AppError> {
-    services::write_transactions::submit(window.label().to_owned(), request).await
-}
-
-#[command_macros::command]
 pub fn register_save_window(
     window: tauri::WebviewWindow,
     channel: tauri::ipc::Channel<crate::models::SaveDelivery>,

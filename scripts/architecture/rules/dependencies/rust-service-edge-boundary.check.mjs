@@ -56,3 +56,18 @@ test('settings consumers keep unrelated project capabilities at their owner', ()
   assert.ok(failures[0]);
   assert.match(failures[0], /must not depend on service project/);
 });
+
+test('project save dispatch consumes transactions and editing services from its owner', () => {
+  for (const target of ['project_sync', 'file_editor', 'config_entity', 'json_file', 'misc_config']) {
+    const allowed = architectureFixtures({
+      'src-tauri/src/services/project_save.rs': 'fn save() { crate::services::' + target + '::run(); }',
+    });
+    assert.deepEqual(rustServiceEdgeBoundaryRule.check(allowed), []);
+    const denied = architectureFixtures({
+      'src-tauri/src/services/write_transactions.rs': '\nfn save() { crate::services::' + target + '::run(); }',
+    });
+    const [diagnostic] = rustServiceEdgeBoundaryRule.check(denied);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.line, 2);
+  }
+});

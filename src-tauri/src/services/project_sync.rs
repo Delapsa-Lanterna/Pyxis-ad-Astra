@@ -998,7 +998,7 @@ mod tests {
                 Some(&scope.session_id),
                 "save",
                 |_, _| {
-                    crate::services::write_transactions::commit_saved::<
+                    crate::services::project_save::execute_typed_save::<
                         crate::models::JointEditSnapshot,
                     >(crate::models::SaveAction::SaveJointEdit(Box::new(
                         payload.clone(),

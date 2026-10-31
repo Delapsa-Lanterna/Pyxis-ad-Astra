@@ -52,7 +52,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 - `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：所属窗口的响应式编辑历史容量绑定。
-- `src/orchestrators/main-history-command.orchestrator.ts`：当前表格输入提交与表格历史分派。
+- `src/orchestrators/workspace-history.orchestrator.ts`：当前表格输入提交与表格历史分派。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：所属 Mod 的草稿历史释放。
 
 ### 关联

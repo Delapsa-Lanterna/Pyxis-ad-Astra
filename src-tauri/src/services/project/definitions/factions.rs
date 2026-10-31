@@ -1,4 +1,4 @@
-use crate::services::project::model::LoadedSpecRecord;
+use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, forward_slash_path},

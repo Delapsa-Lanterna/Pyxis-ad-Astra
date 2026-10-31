@@ -339,7 +339,7 @@ pub(crate) fn prepare_indexed_request(
     {
         return Ok(());
     }
-    let current = crate::services::prepare_json_save(
+    let current = crate::services::config_entity::prepare_json_entity_save(
         &payload.session_id,
         payload.kind.into(),
         payload.previous_id.as_ref().unwrap_or(&payload.next_id),
@@ -449,6 +449,28 @@ pub fn delete_indexed_request(
     Ok(result)
 }
 
+pub fn prepare_json_entity_save(
+    session_id: &str,
+    kind: crate::models::EntityKind,
+    source_id: &str,
+    edits: &[crate::models::SaveEdit],
+    identities: &[crate::models::EntityIdentityChange],
+) -> Result<crate::models::EntityData, AppError> {
+    let mut id = source_id.to_string();
+    for identity in identities {
+        if identity.before.kind == kind && identity.before.id == id {
+            id = identity.after.id.clone();
+        }
+    }
+    let mut current = crate::services::query_entity(session_id, kind, &id)?
+        .ok_or_else(|| AppError::message("write.target_removed", "保存目标已删除"))?;
+    if kind == crate::models::EntityKind::Faction {
+        current.data = serde_json::json!({"file": current.data});
+    }
+    crate::domain::save_edits::apply_save_edits(&mut current.data, edits);
+    Ok(current)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,7 +517,7 @@ mod tests {
                 entity_kind,
                 previous.unwrap_or(next),
             )?;
-            crate::services::write_transactions::commit_action(
+            crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveIndexedConfigEntity(
                     crate::models::IndexedConfigSave {
                         session_id: manifest.session_id.clone(),
@@ -551,7 +573,7 @@ mod tests {
             };
             let info =
                 crate::services::query_entity_edit_target(&manifest.session_id, entity_kind, id)?;
-            crate::services::write_transactions::commit_action(
+            crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::DeleteIndexedConfigEntity(
                     crate::models::IndexedConfigDelete {
                         session_id: manifest.session_id.clone(),
@@ -600,7 +622,7 @@ mod tests {
             info.target.linked_record,
             Some(EntityLinkedRecord::Index { row_index: 2, .. })
         ));
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveIndexedConfigEntity(crate::models::IndexedConfigSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -626,7 +648,7 @@ mod tests {
             "next",
         )
         .unwrap();
-        let deleted = crate::services::write_transactions::commit_action(
+        let deleted = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::DeleteIndexedConfigEntity(
                 crate::models::IndexedConfigDelete {
                     session_id: manifest.session_id.clone(),

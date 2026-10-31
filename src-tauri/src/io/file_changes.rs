@@ -975,7 +975,7 @@ mod tests {
         let failed = with_write_retry(
             &root,
             |_| panic!("original files are available"),
-            || crate::services::write_transactions::commit_action(action.clone()),
+            || crate::services::project_save::execute_save_action(action.clone()),
         );
         FILE_STEP.with(|step| *step.borrow_mut() = None);
         assert!(failed.is_err());
@@ -1000,7 +1000,7 @@ mod tests {
             .unwrap()
             .is_some()
         );
-        let saved = crate::services::write_transactions::commit_action(action).unwrap();
+        let saved = crate::services::project_save::execute_save_action(action).unwrap();
         assert_eq!(saved.history.undo_stack.len(), 1);
         crate::services::project::close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();

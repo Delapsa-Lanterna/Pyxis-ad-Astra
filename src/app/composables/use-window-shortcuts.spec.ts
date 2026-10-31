@@ -1,16 +1,16 @@
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useShortcutDispatch } from './use-shortcut-dispatch';
+import { useWindowShortcuts } from './use-window-shortcuts';
 import { h } from 'vue';
 import { provideWindowCloseState } from './use-window-close-state';
 
 const wrappers: VueWrapper[] = [];
 
-function mountDispatch(handlers: Parameters<typeof useShortcutDispatch>[0]) {
+function mountDispatch(handlers: Parameters<typeof useWindowShortcuts>[0]) {
   wrappers.push(
     mount({
       setup() {
-        useShortcutDispatch(handlers);
+        useWindowShortcuts(handlers);
         return () => null;
       },
     }),
@@ -28,7 +28,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('useShortcutDispatch plain keys', () => {
+describe('useWindowShortcuts plain keys', () => {
   it('dispatches plain key handlers and prevents the default behavior', () => {
     const alpha = vi.fn();
     mountDispatch({ keys: { a: alpha } });
@@ -83,12 +83,12 @@ describe('useShortcutDispatch plain keys', () => {
   });
 });
 
-describe('useShortcutDispatch commands', () => {
+describe('useWindowShortcuts commands', () => {
   it('pauses business shortcuts during a window close and restores them afterwards', () => {
     const save = vi.fn();
     const Child = {
       setup() {
-        useShortcutDispatch({ commands: { save } });
+        useWindowShortcuts({ commands: { save } });
         return () => null;
       },
     };

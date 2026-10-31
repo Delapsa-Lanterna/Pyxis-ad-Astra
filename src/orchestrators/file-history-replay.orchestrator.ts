@@ -1,9 +1,5 @@
-import { h } from 'vue';
-import type { AppFeedback, FileChangeReplayDirection, FileHistoryEntrySummary } from '@/shared/types';
-import { useProjectSyncStore } from '@/stores/project-sync.store';
+import type { FileChangeReplayDirection, FileHistoryEntrySummary } from '@/shared/types';
 import { useProjectStore } from '@/stores/project.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
-import type { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
 import { replayFileChangeSet, loadFileHistory } from '@/services/file-history.service';
 
@@ -12,7 +8,6 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 
 type ProjectStore = ReturnType<typeof useProjectStore>;
-type TablesStore = ReturnType<typeof useCsvEditorStore>;
 export type FileHistoryReplayDirection = FileChangeReplayDirection;
 
 export async function refreshLoadedFileHistory(accepts: () => boolean): Promise<void> {
@@ -46,14 +41,6 @@ interface FileHistoryReplayBehavior {
   peekEntry: (modRoot: string) => FileHistoryEntrySummary | null;
 }
 
-export function replayNextFileUndo(project: ProjectStore, tables: TablesStore, feedback: AppFeedback) {
-  return replayNextFileHistoryEntry('undo', project, tables, feedback);
-}
-
-export function replayNextFileRedo(project: ProjectStore, tables: TablesStore, feedback: AppFeedback) {
-  return replayNextFileHistoryEntry('redo', project, tables, feedback);
-}
-
 export function createFileReplayPlan(
   project: ProjectStore,
   direction: FileHistoryReplayDirection,
@@ -75,13 +62,13 @@ export function createFileReplayPlan(
   };
 }
 
-export async function executeFileReplayPlan(plan: FileHistoryReplayPlan, project: ProjectStore, tables: TablesStore): Promise<void> {
-  const tableTarget = { sessionId: plan.sessionId, modRoot: plan.modRoot, table: tables.currentTab };
+export async function executeFileReplayPlan(
+  plan: FileHistoryReplayPlan,
+  project: ProjectStore,
+): Promise<import('@/shared/types').WriteResult> {
   assertReplayPlanStillCurrent(plan, project);
   const result = await replayFileChangeSet(plan.sessionId, plan.modRoot, plan.direction, plan.entry.id, plan.revision);
-  if (project.getSessionId(plan.modRoot) !== plan.sessionId) return;
-  if (useWorkspaceStore().activeModRoot === plan.modRoot && result.sessionUpdates.some((update) => update.modRoot === plan.modRoot))
-    tables.selectRowByKey(tableTarget, null);
+  if (project.getSessionId(plan.modRoot) !== plan.sessionId) return result;
   recordLogBestEffort({
     level: 'info',
     code: 'history.replayed',
@@ -97,65 +84,7 @@ export async function executeFileReplayPlan(plan: FileHistoryReplayPlan, project
       changes: result.changes.length,
     }),
   });
-}
-
-async function replayNextFileHistoryEntry(
-  direction: FileHistoryReplayDirection,
-  project: ProjectStore,
-  tables: TablesStore,
-  feedback: AppFeedback,
-) {
-  const root = useWorkspaceStore().activeModRoot;
-  if (useProjectSyncStore().isWaiting(root)) return false;
-  const session = root ? project.getSessionId(root) : null;
-  if (root && session) {
-    try {
-      const snapshot = await loadFileHistory(session, root);
-      if (project.getSessionId(root) !== session) return false;
-      useFileHistoryStore().applySnapshot(root, snapshot);
-    } catch (error) {
-      feedback.error(error, '读取文件历史失败');
-      return false;
-    }
-  }
-  const plan = createFileReplayPlan(project, direction, root);
-  if (!plan) return false;
-  confirmFileHistoryReplay(feedback, plan, async () => {
-    try {
-      await executeFileReplayPlan(plan, project, tables);
-      feedback.success(`文件历史已${plan.actionText}`);
-    } catch (error) {
-      feedback.error(error, `${plan.actionText}文件历史失败`);
-    }
-  });
-  return true;
-}
-
-function confirmFileHistoryReplay(feedback: AppFeedback, plan: FileHistoryReplayPlan, onConfirm: () => Promise<void>) {
-  feedback.confirmWarning({
-    title: `${plan.actionText}文件历史`,
-    content: () => renderConfirmContent(plan.entry, plan.actionText),
-    actionText: plan.actionText,
-    onConfirm,
-  });
-}
-
-function renderConfirmContent(entry: FileHistoryEntrySummary, action: string) {
-  const paths = historyEntryPaths(entry);
-  return h('div', { class: 'file-history-confirm' }, [
-    h('p', `${action}会直接写回磁盘。`),
-    h('p', `历史记录：${entry.label}`),
-    h('p', `涉及路径：${paths.length} 条`),
-    h(
-      'ul',
-      { class: 'file-history-confirm-list' },
-      paths.map((path) => h('li', { key: path }, path)),
-    ),
-  ]);
-}
-
-function historyEntryPaths(entry: FileHistoryEntrySummary): string[] {
-  return entry.paths;
+  return result;
 }
 
 function assertReplayPlanStillCurrent(plan: FileHistoryReplayPlan, project: ProjectStore): void {

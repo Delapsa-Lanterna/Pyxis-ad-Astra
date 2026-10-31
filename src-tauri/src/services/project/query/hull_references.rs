@@ -1,6 +1,4 @@
-use super::super::cache::{
-    ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
-};
+use super::super::cache::{ensure_registered_table_rows, loaded_registered_csv_rows};
 use super::super::model::{ProjectSession, SessionCsvRow, string_field, string_from_row};
 use super::super::resources::{HullReferenceResolver, resource_ref};
 use super::super::session::{lock_ready_session, session_handle};
@@ -60,12 +58,21 @@ pub(super) fn build_hull_references(
         ));
     }
     if let Some(root) = session.manifest.starsector_root.as_ref() {
-        let names = load_core_csv_table(root, CsvTableKey::Ships)?
-            .as_ref()
-            .map(|table| loaded_csv_rows(table, CsvTableKey::Ships.as_str()))
-            .transpose()?
-            .map(all_ship_names_from_rows)
-            .unwrap_or_default();
+        let names = load_core_csv_table(
+            root,
+            crate::services::project::model::csv_table_spec(CsvTableKey::Ships).rel_path,
+        )?
+        .as_ref()
+        .map(|table| {
+            all_ship_names_from_data(
+                table
+                    .rows
+                    .iter()
+                    .filter(|row| !row.is_comment)
+                    .map(|row| &row.data),
+            )
+        })
+        .unwrap_or_default();
         sources.push((
             ResourceSource::Core,
             None,
@@ -372,13 +379,17 @@ fn resolve_requested_hull_names(
 }
 
 fn all_ship_names_from_rows(rows: &[SessionCsvRow]) -> BTreeMap<String, String> {
-    rows.iter()
-        .filter(|row| !row.is_comment)
-        .filter_map(|row| {
-            let id = string_from_row(&row.data, "id")?;
-            let name = string_from_row(&row.data, "name")?;
-            Some((id, name))
-        })
+    all_ship_names_from_data(
+        rows.iter()
+            .filter(|row| !row.is_comment)
+            .map(|row| &row.data),
+    )
+}
+
+fn all_ship_names_from_data<'a>(
+    rows: impl Iterator<Item = &'a serde_json::Map<String, serde_json::Value>>,
+) -> BTreeMap<String, String> {
+    rows.filter_map(|row| Some((string_from_row(row, "id")?, string_from_row(row, "name")?)))
         .collect()
 }
 
