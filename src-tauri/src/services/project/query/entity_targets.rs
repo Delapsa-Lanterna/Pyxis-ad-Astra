@@ -456,3 +456,107 @@ pub(crate) fn location(root: &str, rel_path: &str) -> EntityFileLocation {
         path: Path::new(root).join(rel_path).to_string_lossy().to_string(),
     }
 }
+
+#[cfg(test)]
+#[cfg(windows)]
+mod tests {
+    use super::*;
+    use crate::services::project;
+    use serde_json::json;
+
+    #[test]
+    fn unicode_parent_paths_keep_independent_versions() {
+        let work = project::test_support::project_workspace("unicode_parent_versions");
+        let directory = work.join("data/variants");
+        std::fs::create_dir_all(&directory).unwrap();
+        for (name, id, modules) in [
+            ("child.variant", "child", json!({})),
+            ("\u{130}.variant", "first_parent", json!({"slot":"child"})),
+            ("i\u{307}.variant", "second_parent", json!({"slot":"child"})),
+        ] {
+            let data = json!({"variantId":id,"hullId":"hull","modules":modules});
+            std::fs::write(directory.join(name), data.to_string()).unwrap();
+        }
+        let first = directory.join("\u{130}.variant").canonicalize().unwrap();
+        let second = directory.join("i\u{307}.variant").canonicalize().unwrap();
+        assert_ne!(first, second);
+        let old_equal = first
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&second.to_string_lossy());
+        assert!(!old_equal);
+        assert_ne!(
+            windows_path_key(&first.to_string_lossy()),
+            windows_path_key(&second.to_string_lossy())
+        );
+        std::fs::create_dir_all(work.join("data/hulls")).unwrap();
+        std::fs::write(work.join("data/hulls/hull.ship"), r#"{"hullId":"hull","hullName":"Hull","hullSize":"FRIGATE","width":10,"height":10,"center":[0,0],"weaponSlots":[],"engineSlots":[]}"#).unwrap();
+        let manifest = project::open_project_session_traced(
+            &work,
+            None,
+            &mut project::PerformanceTrace::new("unicode.parents"),
+        )
+        .unwrap();
+        let files =
+            crate::services::query_entity_list(&manifest.session_id, EntityKind::Variant).unwrap();
+        let info =
+            query_entity_edit_target(&manifest.session_id, EntityKind::Variant, "child").unwrap();
+        let paths = info
+            .base_versions
+            .iter()
+            .map(|version| version.path.clone())
+            .collect::<Vec<_>>();
+        let joint = project::query::joint_edit::query_joint_edit(&crate::models::JointEditRoot {
+            session_id: manifest.session_id.clone(),
+            mod_root: manifest.mod_root.clone(),
+            kind: crate::models::JointEditKind::Variant,
+            id: "child".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            joint
+                .base_versions
+                .iter()
+                .filter(|version| version.path.ends_with(".variant"))
+                .count(),
+            3
+        );
+        for parent in [&first, &second] {
+            let original = std::fs::read(parent).unwrap();
+            let mut modified = crate::io::read_json_file(parent).unwrap();
+            modified["displayName"] = json!("External");
+            let external = modified.to_string();
+            std::fs::write(parent, &external).unwrap();
+            let error = crate::services::project_save::execute_save_action(
+                crate::models::SaveAction::SaveVariantEntity(crate::models::JsonFileSave {
+                    session_id: manifest.session_id.clone(),
+                    mod_root: manifest.mod_root.clone(),
+                    previous_id: Some("child".into()),
+                    next_id: "child".into(),
+                    rel_path: Some("data/variants/child.variant".into()),
+                    data: json!({"variantId":"child","hullId":"hull","displayName":"Draft"}),
+                    json_write: Default::default(),
+                    ordered_json: None,
+                    base_versions: info.base_versions.clone(),
+                }),
+            )
+            .unwrap_err();
+            assert_eq!(error.code(), "write.version_conflict");
+            assert_eq!(std::fs::read_to_string(parent).unwrap(), external);
+            assert!(
+                crate::io::read_json_file(&directory.join("child.variant"))
+                    .unwrap()
+                    .get("displayName")
+                    .is_none()
+            );
+            std::fs::write(parent, original).unwrap();
+        }
+        project::close_project_session(manifest.session_id).unwrap();
+        work.close().unwrap();
+        assert_eq!(files.len(), 3);
+        assert_eq!(
+            paths.len(),
+            3,
+            "each real file needs its own version: {paths:?}"
+        );
+    }
+}

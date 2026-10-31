@@ -9,6 +9,8 @@ import { gameQuery, gameCatalog } from './game-queries';
 import { gameImages, gameAudio } from './game-files';
 import { gameCommands } from './game-queries';
 import { normalizeFsPath } from '@/shared/lib/paths';
+import { initializeWindowsPathCase } from '@/shared/lib/paths';
+import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
@@ -16,6 +18,7 @@ import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.SaveDelivery) => void };
 export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
+  initializeWindowsPathCase(windowsPathCaseFixture);
   let references: T.ReferenceSource[] = [];
   const buildProjects = () => [coreRoot, ...workspaceRoots].map(createWorkspaceProject);
   let projects = buildProjects();
@@ -189,8 +192,14 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
     switch (command) {
       case 'get_window_bootstrap':
         return current.context
-          ? { kind: 'managed', context: current.context, restoring: true, modName: String(receiver.manifest.modInfo!.name) }
-          : { kind: 'main' };
+          ? {
+              kind: 'managed',
+              context: current.context,
+              restoring: true,
+              modName: String(receiver.manifest.modInfo!.name),
+              windowsPathCaseMap: windowsPathCaseFixture,
+            }
+          : { kind: 'main', windowsPathCaseMap: windowsPathCaseFixture };
       case 'get_current_window_context':
         return current.context;
       case 'get_current_window_request':

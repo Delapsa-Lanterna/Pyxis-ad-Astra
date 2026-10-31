@@ -1,10 +1,25 @@
+let windowsPathCaseMap: ReadonlyMap<number, number>;
+
+export function initializeWindowsPathCase(mapping: ReadonlyArray<readonly [number, number]>) {
+  windowsPathCaseMap = new Map(mapping);
+}
+
+function windowsPathCase(path: string): string {
+  // Windows ordinal rules operate on UTF-16 units and preserve path offsets.
+  return path
+    .split('')
+    .map((unit) => String.fromCharCode(windowsPathCaseMap.get(unit.charCodeAt(0)) ?? unit.charCodeAt(0)))
+    .join('');
+}
+
 export function normalizeFsPath(path: string): string {
-  const normalized = path
-    .replace(/\\/g, '/')
-    .replace(/^\/\/\?\/UNC\//i, '//')
-    .replace(/^\/\/\?\//, '')
-    .replace(/\/+$/, '')
-    .toLowerCase();
+  const normalized = windowsPathCase(
+    path
+      .replace(/\\/g, '/')
+      .replace(/^\/\/\?\/UNC\//i, '//')
+      .replace(/^\/\/\?\//, '')
+      .replace(/\/+$/, ''),
+  );
   const prefix = normalized.startsWith('//') ? '//' : normalized.startsWith('/') ? '/' : '';
   return prefix + normalized.split('/').filter(Boolean).join('/');
 }

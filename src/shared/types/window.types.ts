@@ -55,7 +55,10 @@ export type ManagedWindowContext = WindowContextMeta &
       }
   );
 export type WindowContextFor<K extends ManagedWindowContext['kind']> = Extract<ManagedWindowContext, { kind: K }>;
-export type WindowBootstrap = { kind: 'main' } | { kind: 'managed'; context: ManagedWindowContext; restoring: boolean; modName: string };
+export type WindowsPathCaseMap = ReadonlyArray<readonly [number, number]>;
+export type WindowBootstrap = { windowsPathCaseMap: WindowsPathCaseMap } & (
+  { kind: 'main' } | { kind: 'managed'; context: ManagedWindowContext; restoring: boolean; modName: string }
+);
 export interface WindowRequestReceipt {
   label: string;
   requestId: number;

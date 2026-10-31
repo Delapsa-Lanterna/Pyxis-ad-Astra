@@ -78,8 +78,51 @@ impl WindowIdentity {
         }
     }
 }
+#[cfg(windows)]
+#[link(name = "ntdll")]
+unsafe extern "system" {
+    fn RtlUpcaseUnicodeChar(source: u16) -> u16;
+}
+
+static WINDOWS_PATH_CASE: std::sync::LazyLock<Vec<u16>> = std::sync::LazyLock::new(|| {
+    (0..=u16::MAX)
+        .map(|unit| {
+            // Windows ordinal ignore-case maps UTF-16 units without Unicode expansion.
+            #[cfg(windows)]
+            let mapped = unsafe { RtlUpcaseUnicodeChar(unit) };
+            #[cfg(not(windows))]
+            let mapped = unit;
+            if (65..=90).contains(&mapped) {
+                mapped + 32
+            } else {
+                mapped
+            }
+        })
+        .collect()
+});
+
+pub fn windows_path_case_map() -> &'static [(u16, u16)] {
+    static MAPPING: std::sync::LazyLock<Vec<(u16, u16)>> = std::sync::LazyLock::new(|| {
+        (0..=u16::MAX)
+            .filter_map(|unit| {
+                let mapped = WINDOWS_PATH_CASE[usize::from(unit)];
+                (mapped != unit).then_some((unit, mapped))
+            })
+            .collect()
+    });
+    &MAPPING
+}
+
+pub fn windows_path_case(path: &str) -> String {
+    let units = path
+        .encode_utf16()
+        .map(|unit| WINDOWS_PATH_CASE[usize::from(unit)])
+        .collect::<Vec<_>>();
+    String::from_utf16(&units).expect("Windows case mapping preserves UTF-16 validity")
+}
+
 pub fn windows_path_key(path: &str) -> String {
-    let normalized = path.replace('\\', "/").to_lowercase();
+    let normalized = windows_path_case(&path.replace('\\', "/"));
     let normalized = if let Some(unc) = normalized.strip_prefix("//?/unc/") {
         format!("//{unc}")
     } else {
@@ -103,6 +146,94 @@ pub fn windows_path_key(path: &str) -> String {
             .collect::<Vec<_>>()
             .join("/")
     )
+}
+
+#[cfg(all(test, windows))]
+mod windows_path_tests {
+    use super::*;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn CompareStringOrdinal(
+            a: *const u16,
+            a_len: i32,
+            b: *const u16,
+            b_len: i32,
+            ignore_case: i32,
+        ) -> i32;
+    }
+    fn windows_compare(a: &[u16], b: &[u16]) -> i32 {
+        let result = unsafe {
+            CompareStringOrdinal(a.as_ptr(), a.len() as i32, b.as_ptr(), b.len() as i32, 1)
+        };
+        assert_ne!(result, 0);
+        result
+    }
+    #[test]
+    fn windows_mapping_matches_all_utf16_units_and_collisions() {
+        let started = std::time::Instant::now();
+        let mapping = windows_path_case_map();
+        let initialization = started.elapsed();
+        for unit in 0..=u16::MAX {
+            let mapped = WINDOWS_PATH_CASE[usize::from(unit)];
+            assert_eq!(windows_compare(&[unit], &[mapped]), 2, "{unit:04X}");
+            assert_eq!(WINDOWS_PATH_CASE[usize::from(mapped)], mapped);
+        }
+        let mut units = (0..=u16::MAX).collect::<Vec<_>>();
+        units.sort_by(|a, b| windows_compare(&[*a], &[*b]).cmp(&2));
+        for pair in units.windows(2) {
+            assert_eq!(
+                windows_compare(&pair[..1], &pair[1..]) == 2,
+                WINDOWS_PATH_CASE[usize::from(pair[0])] == WINDOWS_PATH_CASE[usize::from(pair[1])]
+            );
+        }
+        assert!(std::ptr::eq(
+            windows_path_case_map(),
+            windows_path_case_map()
+        ));
+        println!(
+            "WINDOWS_PATH_CASE_MAP {}",
+            serde_json::to_string(mapping).unwrap()
+        );
+        println!(
+            "WINDOWS_PATH_METRICS {}",
+            serde_json::json!({"entries":mapping.len(),"jsonBytes":serde_json::to_vec(mapping).unwrap().len(),"initializationMicros":initialization.as_micros()})
+        );
+    }
+    #[test]
+    fn windows_unicode_keys_preserve_samples_and_identity() {
+        let samples: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+            "../../../src/test/fixtures/windows-path-cases.json"
+        ))
+        .unwrap();
+        for sample in samples {
+            let a = sample["first"].as_str().unwrap();
+            let b = sample["second"].as_str().unwrap();
+            let same = sample["same"].as_bool().unwrap();
+            if a.ends_with(".variant") {
+                assert_eq!(
+                    windows_compare(
+                        &a.encode_utf16().collect::<Vec<_>>(),
+                        &b.encode_utf16().collect::<Vec<_>>()
+                    ) == 2,
+                    same
+                );
+            }
+            assert_eq!(windows_path_key(a) == windows_path_key(b), same);
+            assert_eq!(
+                windows_path_case(a).encode_utf16().count(),
+                a.encode_utf16().count()
+            );
+            let first = WindowIdentity::Recovery {
+                mod_root: None,
+                path: a.into(),
+            };
+            let second = WindowIdentity::Recovery {
+                mod_root: None,
+                path: b.into(),
+            };
+            assert_eq!(first.comparison_key() == second.comparison_key(), same);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,8 +340,13 @@ pub struct ManagedWindowContext {
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WindowBootstrap {
-    Main,
+    Main {
+        #[serde(rename = "windowsPathCaseMap")]
+        windows_path_case_map: &'static [(u16, u16)],
+    },
     Managed {
+        #[serde(rename = "windowsPathCaseMap")]
+        windows_path_case_map: &'static [(u16, u16)],
         context: Box<ManagedWindowContext>,
         restoring: bool,
         #[serde(rename = "modName")]

@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises } from '@vue/test-utils';
 import type { ManagedWindowContext } from '@/shared/types';
+import { windowsPathCaseFixture } from '@/test/fixtures/windows-path-case';
 const api = vi.hoisted(() => ({
   listen: vi.fn(),
   request: vi.fn(),
@@ -164,11 +165,35 @@ describe('window context request reception', () => {
     expect(api.startup).toHaveBeenCalledWith(expect.objectContaining({ message: '监听失败' }));
   });
   it('accepts only newer settings and identity revisions across bootstrap and notifications', async () => {
-    api.bootstrap.mockResolvedValue({ kind: 'managed', context: request(4), restoring: false, modName: 'Fixture Mod' });
+    api.bootstrap.mockResolvedValue({
+      kind: 'managed',
+      context: request(4),
+      restoring: false,
+      modName: 'Fixture Mod',
+      windowsPathCaseMap: windowsPathCaseFixture,
+    });
     const runtime = await import('./window-context.window');
     await runtime.initializeWindowContext();
     expect(runtime.windowModName.value).toBe('Fixture Mod');
     runtime.publishWindowContext(request(3));
     expect(runtime.managedWindowContext.value?.revision).toBe(4);
+  });
+  it.each(['main', 'managed'] as const)('installs Windows rules from one %s bootstrap before exposing paths', async (kind) => {
+    api.bootstrap.mockResolvedValue({
+      kind,
+      windowsPathCaseMap: windowsPathCaseFixture,
+      context: request(4),
+      restoring: false,
+      modName: 'Fixture',
+    });
+    const runtime = await import('./window-context.window');
+    await runtime.initializeWindowContext();
+    const { normalizeFsPath } = await import('@/shared/lib/paths');
+    for (let index = 0; index < 100; index++) {
+      expect(normalizeFsPath('D:/\u0130.variant')).not.toBe(normalizeFsPath('D:/i\u0307.variant'));
+      expect(normalizeFsPath('D:/Ä.variant')).toBe(normalizeFsPath('D:/ä.variant'));
+    }
+    expect(api.bootstrap).toHaveBeenCalledTimes(1);
+    expect(api.context).toHaveBeenCalledTimes(0);
   });
 });

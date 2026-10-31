@@ -11,6 +11,13 @@ const counter = 'src-tauri/src/io/work.rs';
 /** @param {string} text @param {string} [file] */
 const check = (text, file = source) => pathBoundaryRule.check(architectureFixtures({ [file]: text }));
 
+test('Windows path owners consume native case rules in both languages', () => {
+  for (const expression of ['path.toLowerCase()', 'path.toUpperCase()', 'path.toLocaleLowerCase()', 'path.toLocaleUpperCase()'])
+    assert.equal(check('export const key = (path: string) => ' + expression, 'src/shared/lib/paths.ts').length, 1);
+  for (const expression of ['path.to_lowercase()', 'path.to_uppercase()'])
+    assert.equal(check('fn windows_path_key(path: &str) { ' + expression + '; }', 'src-tauri/src/models/window.rs').length, 1);
+});
+
 test('path expansion belongs to the formal IO boundary across invocation forms', () => {
   for (const text of [
     'fn run(path: &Path) { path.canonicalize(); }',
@@ -36,6 +43,8 @@ test('path expansion belongs to the formal IO boundary across invocation forms',
 test('filesystem identity operations consume shared string keys', () => {
   for (const body of [
     'root.to_lowercase()',
+    'root.to_uppercase()',
+    'root.to_ascii_uppercase()',
     'root.to_string_lossy()\n.to_lowercase()',
     'version.path.eq_ignore_ascii_case(&other.path)',
     'path.to_string_lossy().to_lowercase()',

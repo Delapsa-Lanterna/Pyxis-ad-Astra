@@ -607,7 +607,9 @@ pub(crate) fn register_window_request(
 
 pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
     if label == "main" {
-        return Ok(WindowBootstrap::Main);
+        return Ok(WindowBootstrap::Main {
+            windows_path_case_map: crate::models::windows_path_case_map(),
+        });
     }
     let mut state = registry()?;
     state
@@ -654,6 +656,7 @@ pub fn current_window_bootstrap(label: &str) -> AppResult<WindowBootstrap> {
             .unwrap_or_else(|| "未关联 Mod".into())
     });
     Ok(WindowBootstrap::Managed {
+        windows_path_case_map: crate::models::windows_path_case_map(),
         context: Box::new(context),
         restoring,
         mod_name,
@@ -1284,6 +1287,35 @@ mod tests {
             identity("Demo", "D:/Mod/", "s").comparison_key(),
             identity("Demo", r"\\?\d:\mod", "s").comparison_key()
         );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_unicode_file_windows_keep_independent_owners() {
+        let mut state = WindowRegistry::default();
+        let first = WindowIdentity::File {
+            session_id: "s".into(),
+            mod_root: "D:/Mod".into(),
+            path: "D:/Mod/İ.variant".into(),
+        };
+        let second = WindowIdentity::File {
+            session_id: "s".into(),
+            mod_root: "D:/Mod".into(),
+            path: "D:/Mod/i\u{307}.variant".into(),
+        };
+        let first_label = register(&mut state, first.clone());
+        let second_label = register(&mut state, second.clone());
+        assert_ne!(first_label, second_label);
+        assert_eq!(
+            state.focus_target("main", &first),
+            Some(first_label.clone())
+        );
+        assert_eq!(
+            state.focus_target("main", &second),
+            Some(second_label.clone())
+        );
+        state.release(&first_label);
+        assert_eq!(state.focus_target("main", &second), Some(second_label));
     }
     #[test]
     fn reservation_and_retarget_keep_instance_and_release_occupancy() {

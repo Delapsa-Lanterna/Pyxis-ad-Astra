@@ -21,10 +21,7 @@ pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -
 }
 
 fn normalized_media_rel_path(path: &str) -> String {
-    path.replace('\\', "/")
-        .trim()
-        .trim_end_matches('/')
-        .to_lowercase()
+    crate::models::windows_path_case(path.replace('\\', "/").trim().trim_end_matches('/'))
 }
 
 pub(in crate::services::project) struct HullReferenceResolver<'a> {
@@ -265,6 +262,30 @@ mod tests {
         );
 
         assert_eq!(media_resource_key(&left), media_resource_key(&right));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_unicode_media_keys_keep_distinct_files() {
+        for (a, b, same) in [
+            ("İ", "i\u{307}", false),
+            ("Ä", "ä", true),
+            ("ß", "SS", false),
+        ] {
+            let resource = |name: &str| {
+                resource_ref(
+                    ResourceSource::Mod,
+                    &format!("graphics/{name}.png"),
+                    ResourceOwnerKind::Ship,
+                    "ship",
+                    "sprite",
+                )
+            };
+            assert_eq!(
+                media_resource_key(&resource(a)) == media_resource_key(&resource(b)),
+                same
+            );
+        }
     }
 
     #[test]

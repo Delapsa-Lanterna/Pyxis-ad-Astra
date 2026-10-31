@@ -276,6 +276,33 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
+    fn windows_unicode_history_roots_remain_independent() {
+        let work = TestWorkspace::new("windows_unicode_history");
+        let roots = [work.join("İ"), work.join("i\u{307}")];
+        for (index, root) in roots.iter().enumerate() {
+            std::fs::create_dir(root).unwrap();
+            let change =
+                crate::io::build_text_change(&root.join("entry.txt"), Some(index.to_string()))
+                    .unwrap();
+            record(&root.to_string_lossy(), &[change], &[], &index.to_string()).unwrap();
+        }
+        for (index, root) in roots.iter().enumerate() {
+            assert_eq!(
+                query(&root.to_string_lossy()).unwrap().undo_stack[0].label,
+                index.to_string()
+            );
+        }
+        release_history(&roots[0].to_string_lossy()).unwrap();
+        assert_eq!(
+            query(&roots[1].to_string_lossy()).unwrap().undo_stack.len(),
+            1
+        );
+        release_history(&roots[1].to_string_lossy()).unwrap();
+        work.close().unwrap();
+    }
+
+    #[test]
     fn recorded_writes_replay_and_clear_through_the_history_owner() {
         let directory = TestWorkspace::new("history_owner");
         let root = directory.to_string_lossy().to_lowercase();

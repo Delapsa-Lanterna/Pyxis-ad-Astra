@@ -8,9 +8,17 @@ export const pathBoundaryRule = defineRule(
   '.zcode/modules/rust-file-io-changeset.md#规范',
   import.meta.url,
   (context, report) => {
+    for (const file of context.frontend) {
+      if (file.rel !== 'src/shared/lib/paths.ts') continue;
+      for (const property of file.frontend.properties)
+        if (['toLowerCase', 'toUpperCase', 'toLocaleLowerCase', 'toLocaleUpperCase'].includes(property.name))
+          report(file, property, 'Windows path identity must consume the native UTF-16 mapping', { expected: 'initializeWindowsPathCase' });
+    }
     for (const file of context.rust) {
       if (!file.rel.startsWith('src-tauri/src/') || file.rel === 'src-tauri/src/test_support.rs') continue;
       for (const call of file.rust.calls) {
+        if (file.rel === keyOwner && ['to_lowercase', 'to_uppercase'].includes(call.name))
+          report(file, call, 'Windows path identity must consume the native UTF-16 mapping', { expected: 'windows_path_case' });
         if (call.target.split('::').at(-1) === 'canonicalize' && file.rel !== pathOwner)
           report(file, call, 'disk path expansion belongs to the IO path boundary', { target: call.target, expected: pathOwner });
       }
@@ -35,7 +43,7 @@ export const pathBoundaryRule = defineRule(
           const operand = /\b((?:\w+\s*\.\s*)*\w+)\s*(?:\.\s*to_string_lossy\s*\(\s*\)\s*)?\.\s*$/.exec(prefix)?.[1]?.replace(/\s/g, '');
           if (
             operand &&
-            ['to_lowercase', 'to_ascii_lowercase', 'eq_ignore_ascii_case'].includes(call.name) &&
+            ['to_lowercase', 'to_uppercase', 'to_ascii_lowercase', 'to_ascii_uppercase', 'eq_ignore_ascii_case'].includes(call.name) &&
             (paths.has(operand) || /(?:^|\.)(?:root|mod_root|canonical_root)$|\.path$/.test(operand))
           )
             report(file, call, 'filesystem identity comparison must consume the shared path key', {

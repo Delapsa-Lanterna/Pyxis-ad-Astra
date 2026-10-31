@@ -20,6 +20,7 @@ import type {
   WriteResult,
 } from '@/shared/types';
 import { createSettingsFixture } from '../../fixtures/settings';
+import { windowsPathCaseFixture } from '../../fixtures/windows-path-case';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
 import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
@@ -356,7 +357,9 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'get_current_window_request':
       return null;
     case 'get_window_bootstrap':
-      return model.context ? { kind: 'managed', context: model.context, restoring: true, modName: '浏览器样本' } : { kind: 'main' };
+      return model.context
+        ? { kind: 'managed', context: model.context, restoring: true, modName: '浏览器样本', windowsPathCaseMap: windowsPathCaseFixture }
+        : { kind: 'main', windowsPathCaseMap: windowsPathCaseFixture };
     case 'accept_window_request':
       return true;
     case 'retarget_managed_window':

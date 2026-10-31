@@ -32,8 +32,11 @@ vi.mock('@/services/app-settings.service', () => ({
   listenSettingsChanged: api.listen,
 }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
+  const { initializeWindowsPathCase } = await import('@/shared/lib/paths');
+  const { windowsPathCaseFixture } = await import('@/test/fixtures/windows-path-case');
+  initializeWindowsPathCase(windowsPathCaseFixture);
   vi.clearAllMocks();
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());

@@ -83,6 +83,7 @@ export type {
   WindowContextFor,
   FileWindowLocation,
   WindowBootstrap,
+  WindowsPathCaseMap,
   WindowRequestReceipt,
   WindowRequestResult,
 } from '@/shared/types/window.types';

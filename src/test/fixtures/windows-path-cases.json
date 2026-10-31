@@ -1,0 +1,10 @@
+[
+  { "first": "D:/Mod/İ.variant", "second": "D:/Mod/i̇.variant", "same": false },
+  { "first": "D:/Mod/Ä.variant", "second": "D:/Mod/ä.variant", "same": true },
+  { "first": "D:/Mod/ß.variant", "second": "D:/Mod/SS.variant", "same": false },
+  { "first": "D:/Mod/ᾀ.variant", "second": "D:/Mod/ᾈ.variant", "same": true },
+  { "first": "D:/Mod/𐐀.variant", "second": "D:/Mod/𐐨.variant", "same": false },
+  { "first": "D:/Mod//nested/", "second": "d:\\mod\\nested", "same": true },
+  { "first": "\\\\?\\UNC\\Server\\Share\\Mod\\", "second": "//server/share/mod", "same": true },
+  { "first": "\\\\?\\D:\\Mod\\file", "second": "d:/mod/file", "same": true }
+]

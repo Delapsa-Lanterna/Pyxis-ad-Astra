@@ -12,6 +12,7 @@ import { WINDOW_EVENTS } from './window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { DeepReadonly, ManagedWindowContext, WindowContextFor } from '@/shared/types';
 import { debugLog } from '@/shared/runtime/app-log-queue';
+import { initializeWindowsPathCase } from '@/shared/lib/paths';
 let requestDrain: Promise<void> = Promise.resolve();
 export function settleWindowRequests() {
   return requestDrain;
@@ -28,6 +29,7 @@ export function publishWindowContext(next: ManagedWindowContext) {
 }
 export async function initializeWindowContext() {
   const bootstrap = await getNativeWindowBootstrap();
+  initializeWindowsPathCase(bootstrap.windowsPathCaseMap);
   if (bootstrap.kind === 'managed') {
     modName.value = bootstrap.modName;
     publishWindowContext(bootstrap.context);

@@ -67,6 +67,7 @@
 
 ## 项目内关键链路
 
+- Windows 路径身份必须消费当前系统的 UTF-16 大小写映射；全部窗口必须在接纳上下文前初始化同一映射，路径展开必须归 IO。
 - 同路径 JSON 必须分别维护本地内容与有序来源，原版必须始终可引用，组合预览必须按前序可引用 Mod 与当前草稿计算，事务必须只写所属本地内容。
 - Core fields 与 graphics 必须由同一 WindowShell 生命周期分别加载；root、generation、A-B-A、根清空和窗口销毁是唯一接纳条件。
 - JSON draft history、CSV draft history 与 File History 分别归所属 owner；当前文档快照与表格 operation 必须先于文件回放处理。
