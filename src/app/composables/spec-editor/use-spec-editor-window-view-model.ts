@@ -23,7 +23,9 @@ import { requireRowData } from '@/shared/lib/row-data';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
-import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveEntityIntent, retargetEntityWindow, chooseIdentityFilename } from '@/orchestrators/entity-identity.orchestrator';
+import { entityContentIdField } from '@/domain/project/entity-definitions';
+import { composeJson, editComposedJson, setCompositionValue, compositionPath, compositionValue } from '@/domain/schema/json-composition';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -75,10 +77,22 @@ export function useSpecEditorWindowViewModel(
       },
       save: async (target, draft, baseVersions, original, request) => {
         const submittedData = deepClone(editorData.value!);
-        const intent = await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
-        const versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
+        const nextId = String(draft[entityContentIdField(target.kind)] ?? submittedData.target.id);
+        const keepFilename = await chooseIdentityFilename(feedback, submittedData.target, nextId);
+        if (keepFilename === null) return;
+        const intent = keepFilename ? null : await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
+        const versions = intent ? captureIdentityVersions(baseVersions, intent.destinationVersion) : baseVersions;
         const result = await runConfirmedJsonWrite(feedback, (options) =>
-          saveSpecEditorSpecByKind(target.sessionId, target.modRoot, submittedData.target, draft, options, versions, original, request),
+          saveSpecEditorSpecByKind(
+            target.sessionId,
+            target.modRoot,
+            submittedData.target,
+            draft,
+            keepFilename ? { ...options, keepFilename } : options,
+            versions,
+            original,
+            request,
+          ),
         );
         if (!result) return;
         const value = result.content!.value;
@@ -109,7 +123,13 @@ export function useSpecEditorWindowViewModel(
         await releaseNativeWindowTargets();
       },
     });
-  const problems = createSpecProblems(draftSession.inputs, () => definition.validate?.(draftSession.draftValue.value) ?? []);
+  const problems = createSpecProblems(draftSession.inputs, () => {
+    const sources = draftSession.baselineSnapshot.value?.meta.data.composition;
+    const value = composeJson(draftSession.draftValue.value, sources);
+    return (definition.validate?.(value) ?? []).filter(
+      (issue) => !sources || sources.layers.length || compositionValue(value, compositionPath(issue.path)) !== undefined,
+    );
+  });
   watch(draftSession.context, () => problems.clearFailure(), { flush: 'sync' });
   const unregisterSave = useSaveCommandStore().registerSaveSession({
     targetKey: draftSession.currentTargetKey,
@@ -144,7 +164,7 @@ export function useSpecEditorWindowViewModel(
   let disposed = false;
   const editorData = computed(() => {
     const data = draftSession.baselineSnapshot.value?.meta.data;
-    return data ? { ...data, spec: draftSession.draftValue.value } : null;
+    return data ? { ...data, spec: composeJson(draftSession.draftValue.value, data.composition) } : null;
   });
   const draftDirty = draftSession.dirty;
   const currentTarget = computed(editorWindowTarget);
@@ -157,6 +177,13 @@ export function useSpecEditorWindowViewModel(
       runtime = { modRoot: currentTarget.value.modRoot, sessionId: currentTarget.value.sessionId };
     return {
       ...runtime,
+      composition: draftSession.baselineSnapshot.value?.meta.data.composition
+        ? {
+            local: () => draftSession.draftValue.value,
+            sources: () => draftSession.baselineSnapshot.value?.meta.data.composition,
+            apply: (path, value) => draftSession.setDraft(setCompositionValue(draftSession.draftValue.value, path, value)),
+          }
+        : undefined,
       sourceContextKey: JSON.stringify([currentTarget.value.modRoot, currentTarget.value.kind, currentTarget.value.id]),
       querySourceOptions: async (source: string, signal?: AbortSignal) => {
         try {
@@ -269,7 +296,11 @@ export function useSpecEditorWindowViewModel(
   function updateEditorDraft(data: RowData): void {
     const target = editorWindowTarget();
     if (!target || !editorData.value) return;
-    draftSession.setDraft(data);
+    draftSession.setDraft(
+      editorData.value.composition
+        ? editComposedJson(draftSession.draftValue.value, definition.normalize?.(editorData.value.spec) ?? editorData.value.spec, data)
+        : data,
+    );
   }
 
   function loadPendingExternalSpec(): void {
@@ -423,6 +454,7 @@ export function useSpecEditorWindowViewModel(
     contentReady: computed(() => editorData.value !== null),
     errorText,
     draftValue: draftSession.draftValue,
+    previewValue: computed(() => editorData.value?.spec ?? draftSession.draftValue.value),
     commitInputs: () => draftSession.inputs.commit(),
     resetDraft: draftSession.resetDraft,
     draftDirty,

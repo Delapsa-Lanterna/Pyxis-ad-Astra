@@ -108,18 +108,24 @@ pub fn save_entity_spec(
     options: JsonWriteOptions,
     ordered_json: Option<&str>,
 ) -> AppResult<WriteResult<Value>> {
+    let composition = super::super::composition_for_session(session_id, &target.write.rel_path)?;
+    let effective = crate::domain::json_composition::compose_game_json(&composition, &data)?;
     if let Some(schema) = match target.kind {
         EntityKind::Variant => Some("variant"),
         EntityKind::Faction => Some("faction"),
         EntityKind::Skin => Some("skin"),
         _ => None,
     } {
-        crate::domain::schema::validate_document(crate::parsers::bundled_schema(schema), &data)?;
-    }
-    if target.kind == EntityKind::Weapon {
-        crate::domain::spec_construction::validate_weapon_editor_spec(
+        crate::domain::schema::validate_partial_document(
+            crate::parsers::bundled_schema(schema),
             &data,
+        )?;
+    }
+    if target.kind == EntityKind::Weapon && effective.get("specClass").is_some() {
+        crate::domain::spec_construction::validate_weapon_editor_spec(
+            &effective,
             Path::new(&target.write.path),
+            crate::parsers::bundled_schema("spec-weapon"),
         )?;
     }
     save_entity_content(session_id, target, data, options, ordered_json, None)
@@ -171,6 +177,7 @@ pub fn save_entity_text(
     session_id: &str,
     target: &EntityEditTarget,
     text: String,
+    options: JsonWriteOptions,
 ) -> AppResult<WriteResult<Value>> {
     let data = crate::parsers::parse_starsector_json(&text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", target.write.path), error)
@@ -178,26 +185,15 @@ pub fn save_entity_text(
     })?;
     let definition =
         entity_spec_definition(target.kind).expect("recognized text has a format definition");
-    let raw_id = data
-        .get(definition.id_field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::message("spec.id_missing", format!("缺少 {}", definition.id_field))
-        })?;
-    let id = validate_entity_id(raw_id, definition.invalid_id_message)?;
-    let text = if raw_id == id {
+    let raw_id =
+        crate::models::file_content_id(&data, definition.id_field, Path::new(&target.write.path));
+    let id = validate_entity_id(&raw_id, definition.invalid_id_message)?;
+    let text = if raw_id == id || data.get(definition.id_field).is_none() {
         text
     } else {
         crate::parsers::replace_root_string(&text, definition.id_field, id)?
     };
-    let result = save_entity_content(
-        session_id,
-        target,
-        data,
-        Default::default(),
-        None,
-        Some(&text),
-    )?;
+    let result = save_entity_content(session_id, target, data, options, None, Some(&text))?;
     let owner = crate::models::WriteContentTarget::Text {
         path: result.identity_changes[0].after.write.path.clone(),
     };
@@ -290,14 +286,12 @@ pub(in crate::services::project) fn stage_entity_content(
 ) -> AppResult<StagedEntityWrite> {
     let definition = entity_spec_definition(target.kind)
         .ok_or_else(|| AppError::message("spec.kind_unknown", "实体规格格式不存在"))?;
-    let next_id = data
-        .get(definition.id_field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::message("spec.id_missing", format!("缺少 {}", definition.id_field))
-        })?;
-    let next_id = validate_entity_id(next_id, definition.invalid_id_message)?.to_string();
-    data[definition.id_field] = Value::String(next_id.clone());
+    let next_id =
+        crate::models::file_content_id(&data, definition.id_field, Path::new(&target.write.path));
+    let next_id = validate_entity_id(&next_id, definition.invalid_id_message)?.to_string();
+    if data.get(definition.id_field).is_some() {
+        data[definition.id_field] = Value::String(next_id.clone());
+    }
     if target.kind == EntityKind::Variant {
         crate::domain::joint_hull::rename_module_reference(&mut data, &target.id, &next_id);
     }
@@ -318,12 +312,11 @@ pub(in crate::services::project) fn stage_entity_content(
         .map(|location| read_json_file(Path::new(&location.path)))
         .transpose()?;
     if target.state == EntityTargetState::Existing
-        && original
-            .as_ref()
-            .unwrap_or(&data)
-            .get(definition.id_field)
-            .and_then(Value::as_str)
-            != Some(&target.id)
+        && crate::models::file_content_id(
+            original.as_ref().unwrap_or(&data),
+            definition.id_field,
+            &source,
+        ) != target.id
     {
         return Err(AppError::message(
             "spec.path_id_mismatch",
@@ -338,7 +331,7 @@ pub(in crate::services::project) fn stage_entity_content(
     );
     let next_rel = if target.state == EntityTargetState::Create {
         definition.default_rel_path(&next_id)
-    } else if next_id != target.id {
+    } else if next_id != target.id && !json.keep_filename() {
         crate::io::forward_slash_path(
             &Path::new(&target.write.rel_path)
                 .with_file_name(format!("{next_id}{}", definition.extension)),
@@ -380,8 +373,12 @@ pub(in crate::services::project) fn stage_entity_content(
             ));
         }
     }
-    if target.kind == EntityKind::Weapon {
-        crate::domain::spec_construction::validate_weapon_spec_class(&data, &destination)?;
+    if target.kind == EntityKind::Weapon && data.get("specClass").is_some() {
+        crate::domain::spec_construction::validate_weapon_spec_class(
+            &data,
+            &destination,
+            crate::parsers::bundled_schema("spec-weapon"),
+        )?;
     }
     let text = if let Some(text) = raw_text {
         text.to_string()
@@ -406,7 +403,9 @@ pub(in crate::services::project) fn stage_entity_content(
         row.data.insert("id".into(), Value::String(next_id.clone()));
         linked_csv = Some(csv);
     }
-    if target.kind == EntityKind::Faction {
+    if target.kind == EntityKind::Faction
+        && (target.linked_record.is_some() || target.state == EntityTargetState::Create)
+    {
         let index_rel = "data/world/factions/factions.csv";
         let mut index = super::super::cache::csv::read_retained_csv(session, index_rel)?;
         if let Some(EntityLinkedRecord::Index { row_index, .. }) = &target.linked_record {
@@ -504,7 +503,11 @@ pub fn prepare_spec_save(
     }
     let current = crate::services::query_entity(session_id, target.kind, &target.id)?;
     if let Some(current) = current {
-        *data = current.data;
+        *data = if matches!(target.kind, EntityKind::Weapon | EntityKind::Skill) {
+            current.data["spec"].clone()
+        } else {
+            current.data
+        };
         *target = current.target;
         *base_versions = current.base_versions;
         crate::domain::save_edits::apply_save_edits(data, edits);
@@ -792,6 +795,7 @@ mod tests {
         let text = "{hullId:'new', # keep\n hullName:'Edited', extra:{'_key':1}}\n";
         let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
+                json_write: Default::default(),
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),
                 path: loaded.path,
@@ -1032,6 +1036,7 @@ mod tests {
         let text = "{hullId:' next ', # keep\n extra:{hullId:' untouched '}}\n";
         let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
+                json_write: Default::default(),
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),
                 path: path.to_string_lossy().to_string(),

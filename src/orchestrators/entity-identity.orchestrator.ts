@@ -5,6 +5,24 @@ import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus
 import { specEditorWindowTitle } from '@/domain/spec-editor/spec-editor-definitions';
 import type { EntityEditTarget, SpecEditorKind, RowData, WindowIdentity } from '@/shared/types';
 
+export async function chooseIdentityFilename(
+  feedback: import('@/shared/types').AppFeedback | undefined,
+  source: EntityEditTarget,
+  nextId: string,
+) {
+  if (!feedback || source.state === 'create' || source.id === nextId) return false;
+  const nextPath = source.write.relPath.replace(/[^/]+$/, nextId + source.write.relPath.slice(source.write.relPath.lastIndexOf('.')));
+  const choice = await feedback.choose({
+    title: '修改 ID 后如何保存？',
+    content: `当前文件：${source.write.relPath}\n改名目标：${nextPath}\n同路径基础内容随文件路径变化；保留文件名将继续匹配当前路径。`,
+    choices: [
+      { label: '同时改名', value: 'rename', type: 'warning' },
+      { label: '保留文件名', value: 'keep' },
+    ],
+  });
+  return choice === null ? null : choice === 'keep';
+}
+
 export async function retargetEntityWindow(sessionId: string, modRoot: string, kind: SpecEditorKind, id: string) {
   const identity: WindowIdentity = { type: 'spec', sessionId, modRoot, kind, id };
   publishWindowContext(await retargetNativeWindow(identity, specEditorWindowTitle(kind, id)));

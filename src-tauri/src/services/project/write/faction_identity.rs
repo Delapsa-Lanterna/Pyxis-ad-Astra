@@ -25,21 +25,21 @@ pub fn save_faction_entity(
         EntityKind::Faction,
         previous_id.unwrap_or(next_id),
     )?;
-    if previous_id.is_none() && info.target.linked_record.is_some() {
+    if previous_id.is_none() && info.target.state == crate::models::EntityTargetState::Existing {
         return Err(AppError::message("config.entity_exists", "势力 ID 已存在"));
     }
-    if let Some(previous_id) = previous_id
-        && info.target.linked_record.is_none()
+    if let Some(previous) = previous_id
+        && info.target.state == crate::models::EntityTargetState::Create
     {
         return Err(AppError::message(
             "config.index_missing",
-            format!("势力索引不存在: {}", previous_id),
+            format!("势力索引不存在: {previous}"),
         ));
     }
     let file = data.get("file").ok_or_else(|| {
         AppError::message("config.missing_faction_file", "missing faction file data")
     })?;
-    if file.get("id").and_then(Value::as_str) != Some(next_id) {
+    if crate::models::file_content_id(file, "id", Path::new(&info.target.write.path)) != next_id {
         return Err(AppError::message(
             "spec.id_mismatch",
             "势力内容 ID 与保存身份不一致",
@@ -78,10 +78,15 @@ pub fn delete_faction_entity(
     let root = lock_session(&handle)?.manifest.mod_root.clone();
     let lease = acquire_root_write_lock(Path::new(&root))?;
     let info = query_entity_edit_target(session_id, EntityKind::Faction, id)?;
-    let Some(EntityLinkedRecord::Index { path, row_index }) = &info.target.linked_record else {
-        return Err(AppError::message("config.index_missing", "势力索引不存在"));
-    };
     let boundary = FsRootBoundary::new(Path::new(&root), "faction delete root")?;
+    if info.target.linked_record.is_none() {
+        let mut builder = FileChangeSetBuilder::new_with_lock(boundary.root(), lease)?;
+        builder.text_file(&info.target.write.rel_path, None)?;
+        return Ok(WriteResult::new(builder.apply()?, Vec::new(), None));
+    }
+    let Some(EntityLinkedRecord::Index { path, row_index }) = &info.target.linked_record else {
+        unreachable!("faction index record");
+    };
     let mut index = read_csv_data(&boundary.resolve_relative(path, "faction index")?)?;
     index.rows.remove(*row_index);
     let mut builder = FileChangeSetBuilder::new_with_lock(boundary.root(), lease)?;

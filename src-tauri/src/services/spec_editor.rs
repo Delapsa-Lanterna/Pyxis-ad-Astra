@@ -229,6 +229,7 @@ mod tests {
                 "demo",
                 persisted.clone(),
                 JsonWriteOptions {
+                    keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),
                 },
@@ -285,6 +286,7 @@ mod tests {
             "demo",
             serde_json::json!({"id":"demo","specClass":"projectile","weaponType":"ENERGY","turretOffsets":[0,0],"hardpointOffsets":[0,0]}),
             JsonWriteOptions {
+                keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
             },

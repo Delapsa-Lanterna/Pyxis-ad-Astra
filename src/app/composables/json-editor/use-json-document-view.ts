@@ -19,6 +19,7 @@ import { isExternalSource } from '@/shared/lib/resource-ref';
 import type { JsonDocumentSession } from './use-json-document-session';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import type { JsonDocumentDefinition } from '@/domain/json-editor/json-document-definitions';
+import { composeJson, setCompositionValue } from '@/domain/schema/json-composition';
 
 export function useJsonDocumentView(document: JsonDocumentSession, definition: JsonDocumentDefinition) {
   const feedback = useAppFeedback();
@@ -32,7 +33,24 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
   );
   const schemaRuntimeContext = computed<SchemaRuntimeContext>(() => {
     const target = document.target.value!;
-    const context = { modRoot: target.modRoot, sessionId: target.sessionId };
+    const context = {
+      modRoot: target.modRoot,
+      sessionId: target.sessionId,
+      composition: document.composition.value
+        ? {
+            local: () => document.draftValue.value,
+            sources: () => {
+              const sources = document.composition.value!;
+              return definition.kind === 'skin'
+                ? sources
+                : { ...sources, layers: sources.layers.map((layer) => ({ ...layer, data: { file: layer.data } })) };
+            },
+            apply: (path: string[], value: import('@/shared/types').JsonValue | undefined) => {
+              document.draftValue.value = setCompositionValue(document.draftValue.value, path, value);
+            },
+          }
+        : undefined,
+    };
     if (definition.kind === 'mission') return { ...context, missionId: target.id };
     if (definition.kind !== 'skin' && definition.kind !== 'variant') return context;
     const hullId = String(document.draftValue.value[definition.kind === 'variant' ? 'hullId' : 'baseHullId'] ?? '');
@@ -64,7 +82,7 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
   watch(
     () => {
       if (definition.kind !== 'faction' && definition.kind !== 'mission') return [];
-      const data = jsonDocumentContent(definition.kind, document.draftValue.value);
+      const data = composeJson(jsonDocumentContent(definition.kind, document.draftValue.value), document.composition.value);
       return [data.logo, data.crest, data.icon, revision.value, document.active.value];
     },
     async () => {
@@ -80,7 +98,7 @@ export function useJsonDocumentView(document: JsonDocumentSession, definition: J
             ? queryFactionPreviewImages(
                 target.sessionId,
                 target.id,
-                jsonDocumentContent(definition.kind, document.draftValue.value),
+                composeJson(jsonDocumentContent(definition.kind, document.draftValue.value), document.composition.value),
                 signal,
               )
             : { icon: await queryMissionDraftIcon(target.sessionId, target.id, document.draftValue.value, signal) },

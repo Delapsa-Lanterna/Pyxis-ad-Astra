@@ -11,6 +11,8 @@ import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.sto
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { FieldSchema } from '@/domain/schema/schema.types';
 import SchemaValueInput from './SchemaValueInput.vue';
+import { composeJson, setCompositionValue } from '@/domain/schema/json-composition';
+import type { JsonComposition, RowData } from '@/shared/types';
 
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: vi.fn(async () => 'discard') }) }));
 let wrapper: ReturnType<typeof mount>;
@@ -43,6 +45,71 @@ function harness(field: Partial<FieldSchema> = {}, initial: unknown = 4) {
 }
 
 describe('Schema numeric controls with real Naive UI', () => {
+  it.each(['string', 'float', 'boolean'] as const)('shows inherited %s and saves only local input', async (type) => {
+    const base = type === 'string' ? 'inherited name' : type === 'float' ? 10 : true;
+    const composition: JsonComposition = {
+      excluded: [],
+      replace: false,
+      layers: [
+        {
+          source: { source: 'reference', root: 'M:/base', path: 'M:/base/a', relPath: 'a' },
+          version: { path: 'M:/base/a', fingerprint: 'v1' },
+          data: { count: base },
+          replace: false,
+        },
+      ],
+    };
+    const local = ref<RowData>({});
+    const inputs = createFieldInputs();
+    wrapper = mount(
+      {
+        setup() {
+          provideFieldInputs(inputs);
+          return () =>
+            h(SchemaValueInput, {
+              field: { key: 'count', label: 'Count', type },
+              value: composeJson(local.value, composition).count,
+              runtimeContext: {
+                sessionId: 's1',
+                modRoot: 'M:/local',
+                composition: {
+                  local: () => local.value,
+                  sources: () => composition,
+                  apply: (path, value) => {
+                    local.value = setCompositionValue(local.value, path, value);
+                  },
+                },
+              },
+            });
+        },
+      },
+      { global: { components: { NInputNumber, NInput, NSwitch, NButton } } },
+    );
+    expect(local.value).toEqual({});
+    if (type === 'boolean') {
+      expect(wrapper.findComponent(NSwitch).props('value')).toBe(true);
+      await wrapper.get('[role="switch"]').trigger('click');
+      expect(local.value).toEqual({ count: false });
+    } else {
+      const input = wrapper.get<HTMLInputElement>('input');
+      expect(input.element.placeholder).toBe(String(base));
+      expect(input.element.value).toBe('');
+      if (type === 'float') {
+        await wrapper.findAll('button')[1]!.trigger('click');
+        expect(local.value.count).toBe(11);
+        local.value = {};
+        await flushPromises();
+      }
+      await input.setValue(type === 'string' ? 'local name' : '0');
+      await inputs.commit();
+      expect(local.value.count).toBe(type === 'string' ? 'local name' : 0);
+      await input.setValue('');
+      await inputs.commit();
+      await flushPromises();
+      expect(local.value).toEqual({});
+      expect(wrapper.get<HTMLInputElement>('input').element.placeholder).toBe(String(base));
+    }
+  });
   it.each(['integer', 'float'] as const)('increments and decrements %s by one', async (type) => {
     const { value, inputs } = harness({ type });
     await wrapper.findAll('button')[1]!.trigger('click');

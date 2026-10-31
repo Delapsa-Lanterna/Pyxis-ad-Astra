@@ -3,7 +3,8 @@ use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry},
     models::{
-        CsvTable, DiscoveredField, DiscoveredFieldType, ResourceSource, SkinFile, VariantFile,
+        CsvTable, DiscoveredField, DiscoveredFieldType, EntityFileLocation, ResourceSource,
+        SkinFile, VariantFile,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -95,6 +96,7 @@ pub(in crate::services::project) fn release_test_roots(root: &Path) -> Vec<Strin
 }
 
 struct CoreFlight {
+    product: &'static str,
     result: Mutex<Option<Result<(), SharedCoreError>>>,
     ready: Condvar,
 }
@@ -163,18 +165,40 @@ pub(crate) fn flush_core_cache(starsector_root: &str) -> AppResult<()> {
 
 fn core_cache_handle(starsector_root: &str) -> AppResult<Arc<Mutex<CoreCacheEntry>>> {
     let cache_key = core_cache_key(starsector_root)?;
-    if let Some(cache) = lock_core_caches()?.get(&cache_key).cloned() {
-        return Ok(cache);
+    let flight_key = format!("root:{cache_key}");
+    loop {
+        if let Some(cache) = lock_core_caches()?.get(&cache_key).cloned() {
+            return Ok(cache);
+        }
+        let (flight, leader) = begin_core_flight(flight_key.clone(), "root")?;
+        if !leader {
+            wait_core_flight(&flight)?;
+            continue;
+        }
+        let result = (|| {
+            if let Some(cache) = lock_core_caches()?.get(&cache_key).cloned() {
+                return Ok(cache);
+            }
+            #[cfg(test)]
+            crate::io::work::record("core-create", Path::new(starsector_root));
+            let cache = Arc::new(Mutex::new(CoreCacheEntry {
+                data: CoreCache::empty(),
+                dirty: false,
+                sources: super::super::sources::SourceReader::new(&core_dir(starsector_root)?)?,
+            }));
+            lock_core_caches()?.insert(cache_key.clone(), cache.clone());
+            Ok(cache)
+        })();
+        finish_core_flight(
+            &flight_key,
+            &flight,
+            result
+                .as_ref()
+                .map(|_| ())
+                .map_err(SharedCoreError::from_error),
+        );
+        return result;
     }
-    let cache = Arc::new(Mutex::new(CoreCacheEntry {
-        data: CoreCache::empty(),
-        dirty: false,
-        sources: super::super::sources::SourceReader::new(&core_dir(starsector_root)?)?,
-    }));
-    Ok(lock_core_caches()?
-        .entry(cache_key)
-        .or_insert(cache)
-        .clone())
 }
 
 fn lock_core_cache(handle: &Mutex<CoreCacheEntry>) -> AppResult<MutexGuard<'_, CoreCacheEntry>> {
@@ -183,7 +207,32 @@ fn lock_core_cache(handle: &Mutex<CoreCacheEntry>) -> AppResult<MutexGuard<'_, C
         .map_err(|_| AppError::message("cache.lock_poisoned", "core cache lock poisoned"))
 }
 
-fn begin_core_flight(key: String) -> AppResult<(Arc<CoreFlight>, bool)> {
+pub(in crate::services::project) fn read_core_json_layer(
+    game: &str,
+    relative: &str,
+) -> AppResult<Option<crate::models::JsonSourceLayer>> {
+    let handle = core_cache_handle(game)?;
+    let mut entry = lock_core_cache(&handle)?;
+    let path = entry.sources.path(relative)?;
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let data = entry.sources.json(&path)?;
+    Ok(Some(crate::models::JsonSourceLayer {
+        source: EntityFileLocation {
+            reference: None,
+            source: ResourceSource::Core,
+            root: core_dir(game)?.to_string_lossy().into(),
+            rel_path: relative.into(),
+            path: path.to_string_lossy().into(),
+        },
+        version: entry.sources.versions[relative].clone(),
+        data,
+        replace: false,
+    }))
+}
+
+fn begin_core_flight(key: String, product: &'static str) -> AppResult<(Arc<CoreFlight>, bool)> {
     let mut flights = CORE_FLIGHTS
         .lock()
         .map_err(|_| AppError::message("cache.lock_poisoned", "core flight lock poisoned"))?;
@@ -191,6 +240,7 @@ fn begin_core_flight(key: String) -> AppResult<(Arc<CoreFlight>, bool)> {
         return Ok((flight.clone(), false));
     }
     let flight = Arc::new(CoreFlight {
+        product,
         result: Mutex::new(None),
         ready: Condvar::new(),
     });
@@ -246,14 +296,22 @@ where
 {
     let cache = core_cache_handle(starsector_root)?;
     let mut load = Some(load);
-    let flight_key = format!("{:p}:{product}", Arc::as_ptr(&cache));
+    // Source products hand off parsed files before the next product forks them.
+    let lane = match product {
+        "fields" | "ships" | "weapons" | "projectiles" | "variants" | "skins" | "csv" => "sources",
+        _ => product,
+    };
+    let flight_key = format!("{:p}:{lane}", Arc::as_ptr(&cache));
     loop {
         if let Some(value) = get(&lock_core_cache(&cache)?.data) {
             return Ok(value.clone());
         }
-        let (flight, leader) = begin_core_flight(flight_key.clone())?;
+        let (flight, leader) = begin_core_flight(flight_key.clone(), product)?;
         if !leader {
-            wait_core_flight(&flight)?;
+            let result = wait_core_flight(&flight);
+            if flight.product == product {
+                result?;
+            }
             continue;
         }
         let result = (|| {
@@ -261,6 +319,8 @@ where
                 return Ok(value.clone());
             }
             let mut sources = lock_core_cache(&cache)?.sources.fork_loaded();
+            #[cfg(test)]
+            crate::io::work::record("core-product", &Path::new(starsector_root).join(product));
             let value = Arc::new(load.take().expect("core loader")(&mut sources)?);
             let mut entry = lock_core_cache(&cache)?;
             store(&mut entry.data, value.clone());
@@ -627,6 +687,119 @@ mod tests {
         thread,
         time::Duration,
     };
+
+    fn read_product(root: &str, product: &str) -> AppResult<()> {
+        match product {
+            "fields" => load_core_fields(root).map(|_| ()),
+            "graphics" => load_core_graphics(root).map(|_| ()),
+            "ships" => load_core_ship_files(root).map(|_| ()),
+            "weapons" => load_core_weapon_specs(root).map(|_| ()),
+            "projectiles" => load_core_projectile_specs(root).map(|_| ()),
+            "variants" => load_core_variant_files(root).map(|_| ()),
+            "skins" => load_core_skin_files(root).map(|_| ()),
+            "csv" => load_core_csv_table(root, "data/hulls/ship_data.csv").map(|_| ()),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn real_core_products_construct_and_load_once_per_root_lifetime() {
+        for product in [
+            "fields",
+            "graphics",
+            "ships",
+            "weapons",
+            "projectiles",
+            "variants",
+            "skins",
+            "csv",
+        ] {
+            let root = project_workspace(&format!("core_product_work_{product}"));
+            for (relative, content) in [
+                ("data/hulls/sample.ship", r#"{"hullId":"sample"}"#),
+                ("data/weapons/sample.wpn", r#"{"id":"sample"}"#),
+                ("data/weapons/proj/sample.proj", r#"{"id":"sample"}"#),
+                (
+                    "data/variants/sample.variant",
+                    r#"{"variantId":"sample","hullId":"sample"}"#,
+                ),
+                (
+                    "data/hulls/skins/sample.skin",
+                    r#"{"skinHullId":"sample","baseHullId":"sample"}"#,
+                ),
+                ("data/hulls/ship_data.csv", "id,name\nsample,Sample\n"),
+                ("graphics/sample.png", "image"),
+            ] {
+                let path = root.join("starsector-core").join(relative);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, content).unwrap();
+            }
+            let barrier = Arc::new(Barrier::new(8));
+            let text = root.to_string_lossy().to_string();
+            let workers: Vec<_> = (0..8)
+                .map(|_| {
+                    let root = text.clone();
+                    let barrier = barrier.clone();
+                    thread::spawn(move || {
+                        barrier.wait();
+                        read_product(&root, product).unwrap();
+                    })
+                })
+                .collect();
+            for worker in workers {
+                worker.join().unwrap();
+            }
+            read_product(&text, product).unwrap();
+            assert_eq!(crate::io::work::count("core-create", &root), 1, "{product}");
+            assert_eq!(
+                crate::io::work::count("core-product", &root.join(product)),
+                1,
+                "{product}"
+            );
+            if product == "ships" {
+                load_core_fields(&text).unwrap();
+                let path = root.join("starsector-core/data/hulls/sample.ship");
+                assert_eq!(crate::io::work::count("read", &path), 1);
+                assert_eq!(crate::io::work::count("parse", &path), 1);
+            }
+            invalidate_core_cache(&text).unwrap();
+            read_product(&text, product).unwrap();
+            read_product(&text, product).unwrap();
+            assert_eq!(crate::io::work::count("core-create", &root), 2, "{product}");
+            assert_eq!(
+                crate::io::work::count("core-product", &root.join(product)),
+                2,
+                "{product}"
+            );
+            invalidate_core_cache(&text).unwrap();
+            root.close().unwrap();
+        }
+    }
+
+    #[test]
+    fn concurrent_fields_and_ship_products_share_file_reads_and_parses() {
+        let root = project_workspace("core_cross_product_work");
+        let path = root.join("starsector-core/data/hulls/sample.ship");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"hullId":"sample","width":20}"#).unwrap();
+        let barrier = Barrier::new(2);
+        thread::scope(|scope| {
+            let fields = scope.spawn(|| {
+                barrier.wait();
+                load_core_fields(&root.to_string_lossy()).unwrap();
+            });
+            let ships = scope.spawn(|| {
+                barrier.wait();
+                load_core_ship_files(&root.to_string_lossy()).unwrap();
+            });
+            fields.join().unwrap();
+            ships.join().unwrap();
+        });
+        assert_eq!(crate::io::work::count("read", &path), 1);
+        assert_eq!(crate::io::work::count("parse", &path), 1);
+        invalidate_core_cache(&root.to_string_lossy()).unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn fields_and_graphics_are_cached_with_the_core_root() {

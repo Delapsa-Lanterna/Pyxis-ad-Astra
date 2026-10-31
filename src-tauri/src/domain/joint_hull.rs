@@ -12,6 +12,8 @@ pub fn project_joint_hull(
     records: &[JointEditRecord],
     variant_key: &str,
 ) -> AppResult<Option<JointHullProjection>> {
+    let records = effective_records(records)?;
+    let records = records.as_ref();
     let variant = record(records, variant_key);
     let Some(hull_id) = value(variant)
         .and_then(|data| data.get("hullId"))
@@ -26,10 +28,40 @@ pub fn project_ship_hull(
     records: &[JointEditRecord],
     root_key: &str,
 ) -> AppResult<Option<JointHullProjection>> {
+    let records = effective_records(records)?;
+    let records = records.as_ref();
     let JointRecordTarget::Spec { target } = &record(records, root_key).target else {
         unreachable!("ship hull root is a spec");
     };
     project_hull(records, root_key, &target.id)
+}
+
+fn effective_records(
+    records: &[JointEditRecord],
+) -> AppResult<std::borrow::Cow<'_, [JointEditRecord]>> {
+    if records.iter().all(|record| {
+        record
+            .composition
+            .as_ref()
+            .is_none_or(|sources| sources.layers.is_empty())
+    }) {
+        return Ok(std::borrow::Cow::Borrowed(records));
+    }
+    records
+        .iter()
+        .cloned()
+        .map(|mut record| {
+            if let (Some(sources), JointValue::Present(value)) =
+                (&record.composition, &record.value)
+            {
+                record.value = JointValue::Present(
+                    crate::domain::json_composition::compose_game_json(sources, value)?,
+                );
+            }
+            Ok(record)
+        })
+        .collect::<AppResult<Vec<_>>>()
+        .map(std::borrow::Cow::Owned)
 }
 
 fn project_hull(

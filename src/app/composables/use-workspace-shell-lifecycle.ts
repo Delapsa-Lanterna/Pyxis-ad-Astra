@@ -31,14 +31,19 @@ export function useWorkspaceShellLifecycle(
   let disposed = false;
   let publishing = Promise.resolve();
   watch(
-    () =>
-      workspace.loadedModList
-        .filter((mod) => workspace.referenceableModRoots.has(mod.modRoot))
-        .map((mod) => ({ sessionId: useProjectStore().getSessionId(mod.modRoot)!, modRoot: mod.modRoot })),
-    (sources, previous) => {
-      if (sources.length === previous.length && sources.every((source, index) => source.sessionId === previous[index]!.sessionId)) return;
+    () => {
+      const sessions = workspace.loadedModList
+        .filter((mod) => mod.status === 'ready')
+        .map((mod) => ({ sessionId: useProjectStore().getSessionId(mod.modRoot)!, modRoot: mod.modRoot }));
+      return {
+        order: sessions.map((session) => session.sessionId),
+        sources: sessions.filter((session) => workspace.referenceableModRoots.has(session.modRoot)),
+      };
+    },
+    ({ sources, order }, previous) => {
+      if (JSON.stringify([sources, order]) === JSON.stringify([previous.sources, previous.order])) return;
       publishing = publishing
-        .then(() => (disposed ? undefined : publishReferenceSources(sources)))
+        .then(() => (disposed ? undefined : publishReferenceSources(sources, order)))
         .catch((error) => feedback.error(error, '更新引用来源失败'));
     },
   );

@@ -3,6 +3,7 @@
     class="ui-field-autosize"
     ref="input"
     :value="raw"
+    :placeholder="inherited ? cell(value) : undefined"
     :class="{ 'ui-field-number': field.type === 'integer' || field.type === 'float', 'field-json-input': field.type === 'json' }"
     :disabled="field.editable === false"
     :type="multiline ? 'textarea' : 'text'"
@@ -33,11 +34,15 @@ import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { AppError } from '@/shared/lib/errors';
 import { focusFieldInput } from '@/shared/runtime/focus-field-input';
 import { cell } from '@/shared/lib/starsector';
+import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
+import { compositionPath, compositionOrigin } from '@/domain/schema/json-composition';
+import { computed } from 'vue';
 import { formatJsonInput, parseJsonInput } from '@/shared/lib/json-input';
 import type { JsonInputShape } from '@/shared/types';
 
 const props = defineProps<{
   field: FieldSchema;
+  runtimeContext?: SchemaRuntimeContext | null;
   value: unknown;
   inputKey: string;
   fieldPath?: string;
@@ -46,6 +51,11 @@ const props = defineProps<{
   validate?: (value: unknown) => string | null;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate]; cancel: [] }>();
+const inherited = computed(() => {
+  const context = props.runtimeContext?.composition,
+    sources = context?.sources();
+  return context && sources && compositionOrigin(context.local(), sources, compositionPath(props.fieldPath ?? props.field.key)) !== null;
+});
 const multiline = props.field.type === 'text' || props.field.type === 'json';
 const input = ref<{ inputElRef: HTMLInputElement | null; textareaElRef: HTMLTextAreaElement | null; focus: () => void } | null>(null);
 const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
@@ -53,16 +63,19 @@ const { raw, invalid, update, commit, cancel } = useRawFieldInput<unknown>({
   path: props.fieldPath ?? props.field.key,
   label: props.field.label,
   text: () =>
-    props.field.type === 'json'
-      ? formatJsonInput(props.value, props.shape ?? 'json')
-      : props.field.type === 'string-array'
-        ? formatSchemaCommaList(schemaArrayStringValues(props.value))
-        : props.field.type === 'tag-select'
-          ? formatSchemaCommaList(schemaTagValues(props.value))
-          : props.field.type === 'boolean'
-            ? schemaPlainBooleanText(props.value)
-            : cell(props.value),
+    inherited.value
+      ? ''
+      : props.field.type === 'json'
+        ? formatJsonInput(props.value, props.shape ?? 'json')
+        : props.field.type === 'string-array'
+          ? formatSchemaCommaList(schemaArrayStringValues(props.value))
+          : props.field.type === 'tag-select'
+            ? formatSchemaCommaList(schemaTagValues(props.value))
+            : props.field.type === 'boolean'
+              ? schemaPlainBooleanText(props.value)
+              : cell(props.value),
   convert: (text) => {
+    if (props.runtimeContext?.composition && text === '') return { kind: 'remove' };
     if (props.field.type === 'json') return parseJsonInput(text, props.shape ?? 'json');
     if (props.field.type === 'string-array' || props.field.type === 'tag-select')
       return {
@@ -94,7 +107,7 @@ if (inputs && (props.field.required || props.field.requiredWhen))
   onScopeDispose(
     inputs.registerFinalizer(async (validate) => {
       if (!validate || inputs.hasDocumentValidation.value) return;
-      if (props.field.required && raw.value.trim() === '') {
+      if (props.field.required && raw.value.trim() === '' && !props.runtimeContext?.composition) {
         await focusFieldInput((multiline ? input.value?.textareaElRef : input.value?.inputElRef) ?? null);
         input.value?.focus();
         throw new AppError(`${props.field.label}：必填字段不能为空`, { action: 'commit-field-inputs' });

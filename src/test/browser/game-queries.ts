@@ -181,6 +181,14 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       else table.rows.splice(patch.insertAt ?? table.rows.length, 0, { rowKey: patch.rowKey, data: patch.row, isComment: patch.isComment });
     }
     const rows = input.rowOrder ? input.rowOrder.map((key) => table.rows.find((row) => row.rowKey === key)!) : table.rows;
+    const keyMap: T.CsvRowKeyMapping[] = [];
+    rows.forEach((row, rowIndex) => {
+      if (row.rowKey.startsWith(input.table + ':new:')) {
+        const previousKey = row.rowKey;
+        row.rowKey = project.nextCsvRowKey(input.table);
+        keyMap.push({ previousKey, nextKey: row.rowKey, rowIndex });
+      }
+    });
     const path = project.manifest.modRoot + '/' + gameTablePaths[input.table];
     for (const { change, target } of input.associatedSpecs ?? []) {
       if (change.action === 'delete' || change.action === 'rename') project.textFiles.delete(target.source?.path ?? target.write.path);
@@ -205,10 +213,12 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       ),
     );
     table.rows = rows;
-    return project.write(null, { kind: 'csv', table: input.table }, [
+    const result = project.write(null, { kind: 'csv', table: input.table }, [
       path,
       ...(input.associatedSpecs ?? []).map(({ target }) => target.write.path),
     ]);
+    result.keyMap = keyMap;
+    return result;
   }
   if (command === 'query_hull_references') {
     const result: T.HullReferencesResult = {
@@ -304,7 +314,8 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
     return { styles, resources, versions: [] };
   }
   if (command === 'query_csv_row_preview') {
-    const row = project.tables.get(payload.table as T.CsvTableKey)!.rows.find((row) => row.rowKey === payload.rowKey)!;
+    const row = project.tables.get(payload.table as T.CsvTableKey)!.rows.find((row) => row.rowKey === payload.rowKey);
+    if (!row || row.isComment) return { resourceRef: null };
     const id = String(row.data.id);
     if (payload.table === 'wings') return { resourceRef: project.graph('wing', id).hull!.sprite };
     if (payload.table === 'simOpponents') return { resourceRef: project.graph('variant', String(row.data['variant id'])).hull!.sprite };

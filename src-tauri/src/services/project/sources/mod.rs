@@ -169,6 +169,8 @@ impl SourceReader {
             _ => {
                 self.dirty = true;
                 let text = crate::io::decode_text(path, &bytes)?;
+                #[cfg(test)]
+                crate::io::work::record("parse", path);
                 parse_starsector_json(&text).map_err(|error| {
                     AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error)
                         .at_path(path)
@@ -220,6 +222,11 @@ impl SourceReader {
             self.versions.insert(key, crate::io::file_version(path)?);
             return Ok(0);
         }
+        if self.loaded.contains(&key)
+            && let ParsedSource::Csv { count, .. } = &self.records[&key].parsed
+        {
+            return Ok(*count);
+        }
         let (version, bytes) = crate::io::read_versioned_bytes(path)?;
         let (header, count) = match self
             .records
@@ -255,12 +262,13 @@ impl SourceReader {
         };
         self.versions.insert(key.clone(), version.clone());
         self.records.insert(
-            key,
+            key.clone(),
             SourceRecord {
                 version,
                 parsed: ParsedSource::Csv { header, count },
             },
         );
+        self.loaded.insert(key);
         Ok(count)
     }
     pub fn walk(&mut self, directory: &str, extension: &str) -> AppResult<Vec<(PathBuf, Value)>> {
@@ -295,6 +303,8 @@ impl SourceReader {
                     format!("JSON 目录不是目录: {}", dir.display()),
                 ));
             }
+            #[cfg(test)]
+            crate::io::work::record("walk", &dir);
             for entry in walkdir::WalkDir::new(&dir) {
                 let entry = entry.map_err(|error| {
                     AppError::message("io.walk_failed", error.to_string()).at_path(&dir)

@@ -9,12 +9,12 @@
     @mousedown.left.prevent
     @click="handleClick"
   >
-    <div class="csv-grid-cell csv-row-handle-cell" role="rowheader" :title="reorderDisabledReason || '拖动调整行序'">
+    <div class="csv-grid-cell csv-row-handle-cell" role="rowheader" :title="reorderDisabledReason || '拖动调整行序，Ctrl+左键拖动复制整行'">
       <button
         class="csv-row-handle ui-control-reset"
         type="button"
         :disabled="Boolean(reorderDisabledReason)"
-        aria-label="拖动调整行序"
+        aria-label="拖动调整行序，Ctrl+左键拖动复制整行"
         @pointerdown.left.prevent.stop="$emit('start-row-drag', row.rowKey, $event)"
         @click.stop="$emit('select-row', row.rowKey)"
       >

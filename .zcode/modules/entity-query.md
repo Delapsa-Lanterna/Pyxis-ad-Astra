@@ -9,8 +9,10 @@
 ### 拥有
 
 - `src-tauri/src/commands/entity_query.rs`：实体、目标及身份意图查询 command。
+- `src-tauri/src/domain/json_composition.rs`：游戏同路径 JSON 的纯合并规则。
 - `src-tauri/src/services/project/query/entities.rs`：按实际来源装配详情与列表。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实际编辑目标、身份意图及正式版本范围。
+- `src-tauri/src/services/project/query/json_composition.rs`：有序同路径来源、版本、加载规则与资源归属。
 - `src/services/entity-query.service.ts`：四类查询定义、正式请求与实体失效选择。
 
 ### 消费
@@ -50,6 +52,9 @@
 
 ## 规范
 
+- 合并预览必须按原版、前序可引用 Mod、本地内容的顺序计算；实体列表只允许展示本地文件。
+- 查询必须分别交付本地内容与已保存的引用来源；本地缺省 ID 必须从文件名推断，游戏身份必须从合并结果读取。
+- 同路径合并必须消费游戏的数组追加、首项清空标记、颜色与音乐数组、标量转换、类型冲突、replace 声明及设置字段排除规则。
 - Rust 对外实体查询和版本范围核对必须消费服务装配的正式函数入口，内部来源读取必须复用会话能力。
 - 实体列表必须在一次查询内装配来源和关联记录，严禁逐实体重读索引或目标。
 - 实体列表必须消费所属登记来源。

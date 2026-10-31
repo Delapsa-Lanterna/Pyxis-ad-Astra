@@ -2,7 +2,7 @@ import type { SpecSave, LoadImportedEditorSpecPayload } from '@/shared/types';
 import { querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
-import { entityContentId } from '@/domain/project/entity-definitions';
+import { entityContentId, entityContentIdField } from '@/domain/project/entity-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { captureSaveEdits } from '@/domain/project/save-edits';
@@ -55,9 +55,17 @@ export function saveSpecEditorSpec(
 }
 
 export function querySpecEditorIdentityIntent(sessionId: string, source: EntityEditTarget, content: RowData, signal?: AbortSignal) {
-  return querySessionEntityIdentityIntent(sessionId, source, entityContentId(source.kind, content), signal).then((intent) =>
-    cloneQuerySnapshot<import('@/shared/types/index').EntityIdentityIntent>(intent),
-  );
+  return querySessionEntityIdentityIntent(
+    sessionId,
+    source,
+    content[entityContentIdField(source.kind)] === undefined
+      ? source.write.relPath
+          .split('/')
+          .at(-1)!
+          .replace(/\.[^.]+$/, '')
+      : entityContentId(source.kind, content),
+    signal,
+  ).then((intent) => cloneQuerySnapshot<import('@/shared/types/index').EntityIdentityIntent>(intent));
 }
 
 export async function loadSpecEditorImport(kind: SpecEditorKind, path: string): Promise<RowData> {

@@ -51,6 +51,7 @@ import { cell } from '@/shared/lib/starsector';
 const props = withDefaults(
   defineProps<{
     value: unknown;
+    inheritedValue?: number;
     integer?: boolean;
     inputKey?: string;
     label?: string;
@@ -64,6 +65,7 @@ const props = withDefaults(
     placeholder?: string;
   }>(),
   {
+    inheritedValue: undefined,
     integer: false,
     inputKey: undefined,
     label: '数值',
@@ -130,7 +132,7 @@ function adjust(direction: number, event: MouseEvent) {
     commit();
     return;
   }
-  const current = converted.kind === 'value' ? converted.value : null;
+  const current = converted.kind === 'value' ? converted.value : (props.inheritedValue ?? null);
   const multiplier = event.shiftKey ? (event.ctrlKey ? 50 : 5) : event.ctrlKey ? 0.5 : 1;
   const scaled = (Math.abs(props.step ?? 1) || 1) * multiplier;
   const offset = props.integer ? Math.max(1, Math.round(scaled)) : scaled;

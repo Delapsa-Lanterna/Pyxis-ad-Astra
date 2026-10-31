@@ -40,6 +40,7 @@ export interface ReferenceSource {
   modRoot: string;
 }
 export interface ReferenceSources {
+  order?: string[];
   revision: number;
   sources: ReferenceSource[];
 }

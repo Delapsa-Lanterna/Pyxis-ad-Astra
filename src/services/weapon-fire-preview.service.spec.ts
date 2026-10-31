@@ -65,8 +65,11 @@ describe('weapon fire preview queries', () => {
     expect(bundle.weapon.projectileSpecId).toBe('proj_b');
     expect(bundle.projectile).toEqual({ id: 'proj_b', specClass: 'projectile', length: 42 });
     expect(bundle.resources.weapon.turretSprite?.relPath).toBe('graphics/draft.png');
-    expect(mocks.queryResourceDataUrls).toHaveBeenCalledTimes(0);
-    expect(mocks.querySessionDraftResources).toHaveBeenCalledWith(
+    expect(mocks.querySessionEntity.mock.calls).toEqual([
+      ['s1', 'weapon', 'railgun', undefined],
+      ['s1', 'projectile', 'proj_b', undefined],
+    ]);
+    expect(mocks.querySessionDraftResources).toHaveBeenCalledExactlyOnceWith(
       's1',
       'weapon',
       'railgun',
@@ -92,6 +95,13 @@ describe('weapon fire preview queries', () => {
     expect(draft.projectile).toEqual({ id: 'draft', specClass: 'projectile', length: 42 });
     expect(saved.projectile).toEqual({ id: 'saved', specClass: 'projectile', length: 10 });
     expect(source.weapon.projectileSpecId).toBe('draft');
+    expect(mocks.querySessionEntity.mock.calls).toEqual([
+      ['s1', 'weapon', 'railgun', undefined],
+      ['s1', 'projectile', 'draft', undefined],
+      ['s1', 'weapon', 'railgun', undefined],
+      ['s1', 'projectile', 'saved', undefined],
+    ]);
+    expect(mocks.querySessionDraftResources).toHaveBeenCalledTimes(1);
   });
 
   it.each(['saved', 'draft'] as const)('loads %s beam previews with an empty projectile dependency', async (kind) => {

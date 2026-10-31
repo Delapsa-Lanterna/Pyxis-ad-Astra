@@ -10,6 +10,7 @@ import {
   applyCsvTableRowsDraft,
   commitCsvTableSaveDraft,
   createCsvRowDraft,
+  copyCsvRowDraft,
   setCsvCellValueDraft,
   moveCsvRowDraft,
   hasCsvRowOrderChanges,
@@ -39,6 +40,61 @@ function fixture(count = 6, loaded = Array.from({ length: count }, (_, index) =>
   return { state, index };
 }
 describe('CSV keyed baseline, order and draft acceptance', () => {
+  it.each([0, 1, 2, 3].flatMap((position) => [false, true].map((comment) => ({ position, comment }))))(
+    'copies complete independent rows to $position with comment=$comment through history',
+    ({ position, comment }) => {
+      const { state } = fixture(3),
+        document = state.documents.ships;
+      const source = document.rows[key(1)]!;
+      source.data.extra = '001';
+      source.isComment = comment;
+      const operation = copyCsvRowDraft(document, source.rowKey, position).historyOperation!;
+      const copy = document.rows[operation.rowKey]!;
+      expect(copy.data).toEqual(source.data);
+      expect(copy.data).not.toBe(source.data);
+      expect(copy.isComment).toBe(comment);
+      expect(copy.rowKey).toContain(':new:');
+      expect(document.rowOrder[position]).toBe(copy.rowKey);
+      expect(document.totalRowCount).toBe(4);
+      expect(document.filteredRowCount).toBe(4);
+      expect(document.dirty[copy.rowKey]?.action).toBe('upsert');
+      setCsvCellValueDraft(document, copy.rowKey, 'extra', 'edited');
+      expect(source.data.extra).toBe('001');
+      applyCsvDraftOperation(document, operation, 'undo');
+      expect(document.rowOrder).toEqual([0, 1, 2].map(key));
+      applyCsvDraftOperation(document, operation, 'redo');
+      expect(document.rowOrder[position]).toBe(copy.rowKey);
+      expect(document.rows[copy.rowKey]!.data.extra).toBe('001');
+    },
+  );
+  it('selects consecutive copies and accepts saved identities into their order and history', () => {
+    const { state } = fixture(2),
+      document = state.documents.ships,
+      tables = useCsvEditorStore();
+    const target = { sessionId: 'session', modRoot: 'M:/mod', table: 'ships' as const };
+    tables.copyRow(target, key(1), 0);
+    const first = state.selectedRowKey!;
+    tables.copyRow(target, first, 1);
+    const second = state.selectedRowKey!;
+    expect(first).not.toBe(second);
+    expect(document.rowOrder).toEqual([first, second, key(0), key(1)]);
+    expect(document.history.undoStack).toHaveLength(2);
+    const order = [...document.rowOrder];
+    const patches = [first, second].map((rowKey) => ({
+      rowKey,
+      action: 'upsert' as const,
+      row: { ...document.rows[rowKey]!.data },
+      isComment: true,
+    }));
+    const mapping = [first, second].map((previousKey, rowIndex) => ({ previousKey, nextKey: key(8 + rowIndex), rowIndex }));
+    commitCsvTableSaveDraft(document, patches, mapping, order);
+    tables.applySavedRowKeyMap(target.modRoot, target.table, mapping);
+    expect(document.rowOrder).toEqual([key(8), key(9), key(0), key(1)]);
+    expect(state.selectedRowKey).toBe(key(9));
+    expect(document.history.undoStack.map((entry) => entry.operation.rowKey)).toEqual([key(8), key(9)]);
+    expect(document.baselineRows[key(8)]).toMatchObject({ data: { id: 'row-1', name: 'Name 1' }, isComment: true });
+    expect(hasCsvTableDraftChanges(document)).toBe(false);
+  });
   it('accepts saved A while preserving unrelated B draft values and history', () => {
     const { state, index } = fixture();
     const document = state.documents.ships;

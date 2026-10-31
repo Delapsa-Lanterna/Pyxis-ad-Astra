@@ -8,12 +8,21 @@ use std::path::Path;
 
 pub fn file_version(path: &Path) -> AppResult<FileVersion> {
     let canonical = super::canonical_path(path, "versioned file")?;
-    version_from_path(&canonical, &[])
+    version_from_path(&canonical, &[], &[])
+}
+
+pub(crate) fn directory_version_from_files(
+    path: &Path,
+    versions: &[FileVersion],
+) -> AppResult<FileVersion> {
+    let canonical = super::canonical_path(path, "versioned directory")?;
+    version_from_path(&canonical, &[], versions)
 }
 
 fn version_from_path(
     path: &Path,
     recreated: &[(std::path::PathBuf, String)],
+    known: &[FileVersion],
 ) -> AppResult<FileVersion> {
     let fingerprint = if path.is_file() {
         let bytes = std::fs::read(path)?;
@@ -35,10 +44,20 @@ fn version_from_path(
                             .expect("walk entry belongs to root"),
                     ),
                     {
-                        let bytes = std::fs::read(entry.path())?;
-                        #[cfg(test)]
-                        super::csv_files::record_csv_disk_read(entry.path());
-                        fingerprint(&bytes)
+                        if let Some(version) = known
+                            .iter()
+                            .find(|version| Path::new(&version.path) == entry.path())
+                        {
+                            version
+                                .fingerprint
+                                .clone()
+                                .expect("existing source has a fingerprint")
+                        } else {
+                            let bytes = std::fs::read(entry.path())?;
+                            #[cfg(test)]
+                            super::csv_files::record_csv_disk_read(entry.path());
+                            fingerprint(&bytes)
+                        }
                     },
                 ));
             }
@@ -153,7 +172,7 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
     }
     for expected in versions {
         let path = boundary.resolve_absolute(Path::new(&expected.path), "versioned file")?;
-        let current = version_from_path(&path, &recreated)?;
+        let current = version_from_path(&path, &recreated, &[])?;
         if current.fingerprint.is_none() && super::source_recreation_allowed(root, &expected.path) {
             continue;
         }

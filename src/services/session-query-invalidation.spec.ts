@@ -161,6 +161,33 @@ beforeEach(() => invoke.mockReset());
 afterEach(() => invalidateQueryCacheForSession(session));
 
 describe('business-owned query invalidation', () => {
+  it.each(
+    cases.filter(({ name }) =>
+      ['entity-detail', 'entity-list', 'csv-table-window', 'csv-row-preview', 'csv-source-options', 'hull-references'].includes(name),
+    ),
+  )('$name shares pending and ready results and reloads once after invalidation', async ({ read, matching, unrelated, value }) => {
+    let finish!: (value: unknown) => void;
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = read(),
+      second = read();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    finish(value);
+    await Promise.all([first, second]);
+    await read();
+    invalidateQueryCacheByProject(session, unrelated);
+    await read();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    invalidateQueryCacheByProject(session, matching);
+    invoke.mockResolvedValue(value);
+    await Promise.all([read(), read()]);
+    await read();
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
   it.each(cases)('$name ends a matching pending request', async ({ read, matching, value }) => {
     let finish!: (value: unknown) => void;
     invoke.mockImplementationOnce(

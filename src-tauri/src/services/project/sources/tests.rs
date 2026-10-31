@@ -5,6 +5,34 @@ use super::*;
 use crate::io::{file_version, read_versioned_json, verify_versions};
 
 #[test]
+fn source_reads_parses_and_directory_walks_are_reused_per_reader() {
+    let root = project_workspace("source_work_counts");
+    std::fs::create_dir_all(root.join("data/hulls/nested")).unwrap();
+    let json = root.join("data/hulls/nested/sample.ship");
+    let csv = root.join("data/hulls/table.csv");
+    std::fs::write(&json, r#"{"hullId":"sample"}"#).unwrap();
+    std::fs::write(&csv, "id,name\nsample,Sample\n").unwrap();
+    let mut sources = SourceReader::new(&root).unwrap();
+    crate::io::csv_files::take_csv_work();
+    for _ in 0..2 {
+        assert_eq!(sources.json(&json).unwrap()["hullId"], "sample");
+        assert_eq!(sources.count(&csv, "id").unwrap(), 1);
+        assert_eq!(sources.csv(&csv).unwrap().rows.len(), 1);
+        assert_eq!(sources.files("data/hulls").unwrap().len(), 2);
+        assert_eq!(sources.files("data/hulls/nested").unwrap().len(), 1);
+    }
+    assert_eq!(crate::io::work::count("read", &json), 1);
+    assert_eq!(crate::io::work::count("parse", &json), 1);
+    assert_eq!(crate::io::csv_files::take_csv_work(), (1, 1, 0));
+    assert_eq!(crate::io::work::count("walk", &root.join("data/hulls")), 1);
+    assert_eq!(
+        crate::io::work::count("walk", &root.join("data/hulls/nested")),
+        0
+    );
+    root.close().unwrap();
+}
+
+#[test]
 fn resolved_source_drives_session_fields_graphics_and_media() {
     use crate::models::{ResourceOwnerKind, ResourceSource};
     use crate::services::project::{
@@ -118,6 +146,7 @@ fn source_version_matches_content() {
     let path = root.join("document.ship");
     std::fs::write(&path, b"\xef\xbb\xbf{\"hullId\":\"before\"}").unwrap();
     let (version, value) = read_versioned_json(&path).unwrap();
+    assert_eq!(crate::io::work::count("read", &path), 1);
     assert_eq!(value["hullId"], "before");
     assert_eq!(version, file_version(&path).unwrap());
     std::fs::write(&path, r#"{"hullId":"after"}"#).unwrap();
@@ -144,16 +173,49 @@ fn source_cache_partial_reuse() {
     let mut initial = SourceReader::new(&root).unwrap();
     initial.json(&first).unwrap();
     initial.json(&second).unwrap();
+    assert_eq!(crate::io::work::count("parse", &first), 1);
+    assert_eq!(crate::io::work::count("parse", &second), 1);
     initial.flush();
     std::fs::write(&first, r#"{"hullId":"changed"}"#).unwrap();
     let mut reopened = SourceReader::new(&root).unwrap();
     assert_eq!(reopened.json(&first).unwrap()["hullId"], "changed");
     assert_eq!(reopened.json(&second).unwrap()["hullId"], "second");
     assert!(reopened.reused());
+    reopened.json(&first).unwrap();
+    reopened.json(&second).unwrap();
+    assert_eq!(crate::io::work::count("read", &first), 2);
+    assert_eq!(crate::io::work::count("read", &second), 2);
+    assert_eq!(crate::io::work::count("parse", &first), 2);
+    assert_eq!(crate::io::work::count("parse", &second), 1);
     assert_eq!(
         reopened.versions["first.ship"],
         file_version(&first).unwrap()
     );
+    root.close().unwrap();
+}
+
+#[test]
+fn persisted_csv_summary_is_read_once_and_parsed_only_after_content_changes() {
+    if crate::test_support::isolated_test() {
+        return;
+    }
+    let root = project_workspace("csv_summary_reuse");
+    configure_persistent_index_cache(&root.outer().join("cache")).unwrap();
+    let file = root.join("table.csv");
+    std::fs::write(&file, "id\nfirst\n").unwrap();
+    let mut sources = SourceReader::new(&root).unwrap();
+    assert_eq!(sources.count(&file, "id").unwrap(), 1);
+    sources.flush();
+    crate::io::csv_files::take_csv_work();
+    let mut reopened = SourceReader::new(&root).unwrap();
+    assert_eq!(reopened.count(&file, "id").unwrap(), 1);
+    assert_eq!(reopened.count(&file, "id").unwrap(), 1);
+    assert_eq!(crate::io::csv_files::take_csv_work(), (1, 0, 0));
+    std::fs::write(&file, "id\nfirst\nsecond\n").unwrap();
+    let mut changed = SourceReader::new(&root).unwrap();
+    assert_eq!(changed.count(&file, "id").unwrap(), 2);
+    assert_eq!(changed.count(&file, "id").unwrap(), 2);
+    assert_eq!(crate::io::csv_files::take_csv_work(), (1, 1, 0));
     root.close().unwrap();
 }
 

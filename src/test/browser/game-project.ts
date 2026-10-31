@@ -25,6 +25,12 @@ export function createWorkspaceProject(root: string, index: number) {
   const textFiles = new Map([...gameFiles].filter(([path]) => path.startsWith(root + '/')));
   const versions = new Map([...textFiles.keys()].map((path) => [path, '1']));
   const tables = new Map<T.CsvTableKey, { header: string[]; rows: T.CsvRowRecord[] }>();
+  const rowSequences = new Map<T.CsvTableKey, number>();
+  function nextCsvRowKey(table: T.CsvTableKey) {
+    const sequence = rowSequences.get(table) ?? 0;
+    rowSequences.set(table, sequence + 1);
+    return table + ':row:' + sequence;
+  }
   const entities = new Map<string, T.EntityData>();
   const entityKey = (kind: T.EntityKind, id: string) => kind + ':' + id;
   let revision = 1;
@@ -61,14 +67,13 @@ export function createWorkspaceProject(root: string, index: number) {
       const path = root + '/' + gameTablePaths[table],
         text = textFiles.get(path);
       const parsed = text === undefined ? { header: [], rows: [] } : readGameCsv(text);
-      const old = tables.get(table)?.rows ?? [];
-      const rows = parsed.rows.map((data, i) => ({
-        rowKey:
-          old.find((row) => row.data.id === data.id && row.data['variant id'] === data['variant id'] && row.data.type === data.type)
-            ?.rowKey ?? table + ':row:' + i,
-        data,
-        isComment: false,
-      }));
+      const old = [...(tables.get(table)?.rows ?? [])];
+      const rows = parsed.rows.map((data) => {
+        const index = old.findIndex(
+          (row) => row.data.id === data.id && row.data['variant id'] === data['variant id'] && row.data.type === data.type,
+        );
+        return { rowKey: index >= 0 ? old.splice(index, 1)[0]!.rowKey : nextCsvRowKey(table), data, isComment: false };
+      });
       tables.set(table, { header: parsed.header, rows });
       manifest.tableSummaries[table] = {
         path: gameTablePaths[table],
@@ -364,6 +369,7 @@ export function createWorkspaceProject(root: string, index: number) {
     model,
     manifest,
     tables,
+    nextCsvRowKey,
     entities,
     textFiles,
     versions,

@@ -4,7 +4,14 @@ import type { RowData, SpecWeaponEditorData } from '@/shared/types/index';
 
 export async function querySpecWeaponEditorData(sessionId: string, id: string, signal?: AbortSignal): Promise<SpecWeaponEditorData> {
   const data = await queryWeaponSpecData(sessionId, id, undefined, signal);
-  return { kind: 'weapon', spec: data.weapon, target: data.target, baseVersions: data.baseVersions, isNew: data.isNew };
+  return {
+    kind: 'weapon',
+    spec: data.weapon,
+    composition: data.composition,
+    target: data.target,
+    baseVersions: data.baseVersions,
+    isNew: data.isNew,
+  };
 }
 export async function querySpecWeaponEditorImages(sessionId: string, id: string, draft: RowData, signal?: AbortSignal) {
   const refs = await querySessionDraftResources(sessionId, 'weapon', id, draft, signal);

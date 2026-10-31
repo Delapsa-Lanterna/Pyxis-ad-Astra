@@ -84,6 +84,7 @@ const emit = defineEmits<{
   'resize-column': [key: string, width: number];
   'select-row': [rowKey: string];
   'move-row': [rowKey: string, index: number];
+  'copy-row': [rowKey: string, index: number];
 }>();
 
 const panelRef = useTemplateRef<HTMLDivElement>('panelRef');
@@ -222,6 +223,7 @@ const drag = useCsvRowDrag({
   context: () => props.reorderContext ?? JSON.stringify(context.target),
   select: (rowKey) => emit('select-row', rowKey),
   move: (rowKey, index) => emit('move-row', rowKey, index),
+  copy: (rowKey, index) => emit('copy-row', rowKey, index),
   scrolled: syncViewportMetrics,
 });
 

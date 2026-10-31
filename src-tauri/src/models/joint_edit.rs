@@ -139,6 +139,8 @@ pub enum JointValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JointEditRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub composition: Option<super::JsonComposition>,
     pub key: String,
     pub target: JointRecordTarget,
     pub source: Option<EntityFileLocation>,

@@ -58,6 +58,7 @@ vi.mock('@/services/spec-weapon-editor.service', () => ({
 }));
 vi.mock('@/services/spec-projectile-editor.service', () => ({ querySpecProjectileEditorData: vi.fn() }));
 vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
+  chooseIdentityFilename: vi.fn(async () => false),
   reserveEntityIntent: async (
     _session: string,
     _root: string,

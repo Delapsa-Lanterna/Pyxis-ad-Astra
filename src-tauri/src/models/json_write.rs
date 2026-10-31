@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct JsonWriteOptions {
     #[serde(default)]
+    pub keep_filename: bool,
+    #[serde(default)]
     pub preserve_original_json: bool,
     #[serde(default)]
     pub confirmed_sources: Vec<JsonSourceConfirmation>,

@@ -6,6 +6,8 @@ use serde_json::Value;
 use std::{path::Path, sync::LazyLock};
 
 static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
+    #[cfg(test)]
+    crate::io::work::record("asset-parse", Path::new("spec-defaults"));
     let defaults: Value = serde_json::from_str(include_str!("../../../schemas/spec-defaults.json"))
         .expect("embedded spec defaults must parse");
     assert_eq!(
@@ -18,6 +20,8 @@ static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
 pub fn skin_hull_fields() -> &'static std::collections::BTreeMap<String, Vec<String>> {
     static FIELDS: LazyLock<std::collections::BTreeMap<String, Vec<String>>> =
         LazyLock::new(|| {
+            #[cfg(test)]
+            crate::io::work::record("asset-parse", Path::new("skin-hull-fields"));
             serde_json::from_str(include_str!("../../../schemas/skin-hull-fields.json"))
                 .expect("embedded skin hull fields must parse")
         });
@@ -48,10 +52,6 @@ pub fn create_associated_spec(params: &AssociatedSpecCreateParams) -> Value {
     content
 }
 
-static WEAPON_VALIDATION: LazyLock<Value> = LazyLock::new(|| {
-    serde_json::from_str(include_str!("../../../schemas/spec-weapon.schema.json"))
-        .expect("embedded weapon schema must parse")
-});
 fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> AppResult<()> {
     let key = rule["key"].as_str().expect("bundled weapon field");
     crate::domain::schema::validate_field(rule, content.get(key).unwrap_or(&Value::Null), key, true)
@@ -71,15 +71,19 @@ fn validate_weapon_rule(content: &Value, path: &Path, rule: &'static Value) -> A
             .at_path(path)
         })
 }
-pub fn validate_weapon_spec_class(content: &Value, path: &Path) -> AppResult<()> {
-    validate_weapon_rule(
-        content,
-        path,
-        &WEAPON_VALIDATION["definitions"]["save"]["nested"][0],
-    )
+pub fn validate_weapon_spec_class(
+    content: &Value,
+    path: &Path,
+    schema: &'static Value,
+) -> AppResult<()> {
+    validate_weapon_rule(content, path, &schema["definitions"]["save"]["nested"][0])
 }
-pub fn validate_weapon_editor_spec(content: &Value, path: &Path) -> AppResult<()> {
-    for rule in WEAPON_VALIDATION["definitions"]["save"]["nested"]
+pub fn validate_weapon_editor_spec(
+    content: &Value,
+    path: &Path,
+    schema: &'static Value,
+) -> AppResult<()> {
+    for rule in schema["definitions"]["save"]["nested"]
         .as_array()
         .expect("bundled weapon rules")
     {
@@ -92,6 +96,9 @@ pub fn validate_weapon_editor_spec(content: &Value, path: &Path) -> AppResult<()
 mod tests {
     use super::*;
     use serde_json::json;
+    static WEAPON_SCHEMA: LazyLock<Value> = LazyLock::new(|| {
+        serde_json::from_str(include_str!("../../../schemas/spec-weapon.schema.json")).unwrap()
+    });
 
     #[test]
     fn associated_creation_uses_shared_typed_templates_and_explicit_parameters() {
@@ -147,9 +154,11 @@ mod tests {
     fn structured_weapon_type_error_has_stable_code_and_field_location() {
         let path = Path::new("data/weapons/demo.wpn");
         for spec_class in ["projectile", "beam"] {
-            validate_weapon_spec_class(&json!({"specClass":spec_class}), path).unwrap();
+            validate_weapon_spec_class(&json!({"specClass":spec_class}), path, &WEAPON_SCHEMA)
+                .unwrap();
         }
-        let error = validate_weapon_spec_class(&json!({"specClass":"pulse"}), path).unwrap_err();
+        let error = validate_weapon_spec_class(&json!({"specClass":"pulse"}), path, &WEAPON_SCHEMA)
+            .unwrap_err();
         assert_eq!(error.code(), "spec.weapon_class_unsupported");
         assert!(error.to_string().contains("specClass"));
         assert!(error.to_string().contains("demo.wpn"));
@@ -161,7 +170,7 @@ mod tests {
         for spec_class in ["projectile", "beam"] {
             let valid =
                 json!({"specClass":spec_class,"turretOffsets":[0,0],"hardpointOffsets":[2,3,4,5]});
-            validate_weapon_editor_spec(&valid, path).unwrap();
+            validate_weapon_editor_spec(&valid, path, &WEAPON_SCHEMA).unwrap();
             for (field, code) in [
                 ("turretOffsets", "spec.weapon_turret_barrel_required"),
                 ("hardpointOffsets", "spec.weapon_hardpoint_barrel_required"),
@@ -178,7 +187,8 @@ mod tests {
                     if let Some(value) = invalid {
                         content[field] = value;
                     }
-                    let error = validate_weapon_editor_spec(&content, path).unwrap_err();
+                    let error =
+                        validate_weapon_editor_spec(&content, path, &WEAPON_SCHEMA).unwrap_err();
                     assert_eq!(error.code(), code);
                     assert_eq!(error.location().unwrap().path.as_deref(), path.to_str());
                     assert!(error.to_string().contains(field));

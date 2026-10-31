@@ -9,6 +9,7 @@ import { createWeaponSpec, inferWeaponSpecClass } from '@/domain/editors/weapon-
 import { WEAPON_SPRITE_FIELDS } from '@/shared/lib/starsector/weapon-sprite-fields';
 import type { DeepReadonly, EntityData, EntityEditInfo, SpecEditorKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
 export interface WeaponData extends EntityEditInfo {
+  composition?: import('@/shared/types').JsonComposition;
   weapon: RowData;
   weaponCsvRow: RowData;
   resourceRefs: ResourceRef[];
@@ -31,6 +32,7 @@ export async function queryWeaponSpecData(
     ? await querySessionDraftResources(sessionId, 'weapon', id, weaponOverride, signal)
     : weapon.resourceRefs;
   return {
+    composition: weapon.composition,
     weapon: weaponSpec,
     target: weapon.target,
     baseVersions: weapon.baseVersions,

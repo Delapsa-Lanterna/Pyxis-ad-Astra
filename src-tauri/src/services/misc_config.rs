@@ -6,8 +6,8 @@ use crate::{
         read_versioned_json,
     },
     models::{
-        FileVersion, MiscConfigEntry, MiscConfigFile, MiscConfigKind, MiscConfigState,
-        MiscConfigWrite, WriteResult,
+        FileVersion, MiscConfigEntry, MiscConfigFile, MiscConfigKind, MiscConfigRead,
+        MiscConfigState, MiscConfigWrite, WriteResult,
     },
 };
 use serde_json::Value;
@@ -54,12 +54,22 @@ pub fn query_misc_config_file(
     let (version, data) = read_versioned_json(&path)?;
     validate_misc_config(kind, &data).map_err(|error| error.at_path(&path))?;
     Ok(Some(MiscConfigFile {
+        composition: Default::default(),
         kind,
         path: path.to_string_lossy().into(),
         rel_path: misc_config_path(kind).into(),
         data,
         base_versions: vec![version],
     }))
+}
+
+pub fn query_project_misc_config(payload: MiscConfigRead) -> AppResult<Option<MiscConfigFile>> {
+    let mut file = query_misc_config_file(&payload.mod_root, payload.kind)?;
+    if let Some(file) = &mut file {
+        file.composition =
+            crate::services::project::composition_for_session(&payload.session_id, &file.rel_path)?;
+    }
+    Ok(file)
 }
 
 pub fn prepare_misc_save(
@@ -117,25 +127,22 @@ fn require_version(path: &Path, versions: &[FileVersion]) -> AppResult<()> {
 }
 pub fn save_misc_config(
     payload: MiscConfigWrite,
-    core_root: Option<&Path>,
+    _core_root: Option<&Path>,
 ) -> AppResult<WriteResult<Value>> {
     let path = target_path(&payload.mod_root, payload.kind)?;
     require_version(&path, &payload.base_versions)?;
     validate_misc_config(payload.kind, &payload.data).map_err(|error| error.at_path(&path))?;
-    let mut effective = Value::Object(Default::default());
-    if let Some(root) = core_root {
-        let source = FsRootBoundary::new(root, "core config root")?
-            .resolve_relative(misc_config_path(payload.kind), "core config")?;
-        if source.try_exists().map_err(AppError::from)? {
-            effective = crate::io::read_json_file(&source)?;
-        }
-    }
-    crate::json_overlay::overlay_json_value(&mut effective, payload.data.clone());
+    let composition = crate::services::project::composition_for_session(
+        &payload.session_id,
+        misc_config_path(payload.kind),
+    )?;
+    let effective =
+        crate::domain::json_composition::compose_game_json(&composition, &payload.data)?;
     crate::domain::schema::validate_field(
         config_schema(payload.kind),
         &effective,
         misc_config_path(payload.kind),
-        true,
+        !composition.layers.is_empty(),
     )
     .map_err(|error| error.at_path(&path))?;
     if payload.kind == MiscConfigKind::Sounds {

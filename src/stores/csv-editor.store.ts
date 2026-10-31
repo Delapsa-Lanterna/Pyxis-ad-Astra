@@ -50,6 +50,7 @@ import {
   csvVisibleRowKeys,
   clearCsvTableExternalUpdateDraft,
   createCsvRowDraft,
+  copyCsvRowDraft,
   deleteCsvRowDraft,
   discardCsvTableWindowForReloadDraft,
   hasCsvTableDraftChanges,
@@ -317,16 +318,28 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     return csvRowTargetOf(result);
   }
 
-  function moveRow(target: CsvTableTarget, rowKey: string, nextIndex: number) {
+  function rowDragDisabled(target: CsvTableTarget) {
     const state = stateMap.get(target.modRoot)!;
-    if (
+    return (
       isTableLocked(target.modRoot, target.table) ||
-      state.searchText.trim() ||
+      Boolean(state.searchText.trim()) ||
       state.documents[target.table].filteredRowCount !== state.documents[target.table].totalRowCount
-    )
-      return;
+    );
+  }
+
+  function moveRow(target: CsvTableTarget, rowKey: string, nextIndex: number) {
+    if (rowDragDisabled(target)) return;
+    const state = stateMap.get(target.modRoot)!;
     const result = moveCsvRowDraft(state.documents[target.table], rowKey, nextIndex);
     if (result.changed && state.currentTab === target.table) state.selectedRowKey = rowKey;
+    pushCsvDraftResult(target.table, result, target.modRoot);
+  }
+
+  function copyRow(target: CsvTableTarget, rowKey: string, rowIndex: number) {
+    if (rowDragDisabled(target)) return;
+    const state = stateMap.get(target.modRoot)!;
+    const result = copyCsvRowDraft(state.documents[target.table], rowKey, rowIndex);
+    if (state.currentTab === target.table) state.selectedRowKey = csvRowTargetOf(result)!.rowKey;
     pushCsvDraftResult(target.table, result, target.modRoot);
   }
 
@@ -576,6 +589,7 @@ export const useCsvEditorStore = defineStore('csv-editor', () => {
     addNewRow,
     deleteSelected,
     moveRow,
+    copyRow,
     selectRowByKey,
     setSearchText,
     setSearchField,

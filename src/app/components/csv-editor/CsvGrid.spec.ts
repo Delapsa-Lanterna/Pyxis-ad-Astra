@@ -75,7 +75,7 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
           CsvGridBody: {
             name: 'CsvGridBody',
             props: ['entries', 'columns'],
-            emits: ['activate-cell', 'select-row'],
+            emits: ['activate-cell', 'select-row', 'start-row-drag'],
             template: `<div class="body-stub">
             <div
               v-for="row in entries.filter(entry => entry.kind === 'item')"
@@ -99,6 +99,26 @@ function mountGrid(model = modelFixture(), smart = false, anchored = false) {
 }
 
 describe('CsvGrid', () => {
+  it('forwards a Ctrl drag after committing the latest input', async () => {
+    const grid = mountGrid();
+    const panel = grid.get('.table-panel');
+    Object.assign(panel.element, { setPointerCapture: vi.fn(), hasPointerCapture: () => false });
+    const commit = vi.fn(() => null);
+    fixture.inputs.register({ key: 'raw', label: 'Raw', dirty: ref(true), commit, cancel: vi.fn(), focus: vi.fn() });
+    grid.findComponent({ name: 'CsvGridBody' }).vm.$emit('start-row-drag', 'key-0', {
+      button: 0,
+      pointerId: 7,
+      clientX: 10,
+      clientY: 30,
+      ctrlKey: true,
+    });
+    await flushPromises();
+    const up = new MouseEvent('pointerup', { bubbles: true, clientX: 10, clientY: 45 });
+    Object.defineProperty(up, 'pointerId', { value: 7 });
+    panel.element.dispatchEvent(up);
+    expect(commit).toHaveBeenCalledOnce();
+    expect(grid.emitted('copy-row')).toEqual([['key-0', 1]]);
+  });
   it.each([0, 1, 2])('reserves only the left button for row interactions (button %s)', (button) => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());

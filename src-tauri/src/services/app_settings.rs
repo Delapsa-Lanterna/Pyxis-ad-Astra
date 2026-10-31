@@ -47,14 +47,30 @@ pub fn read_settings(
     app: &tauri::AppHandle,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
 ) -> AppResult<crate::models::SettingsSnapshot> {
+    read_settings_with(
+        || {
+            Ok(load_settings_report(&app_data_dir::data_directory(
+                app.clone(),
+            )?))
+        },
+        apply_runtime,
+        |snapshot| app.emit("app-settings-changed", snapshot),
+    )
+}
+
+fn read_settings_with(
+    load: impl FnOnce() -> AppResult<(AppSettings, Vec<String>)>,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
+    notify: impl FnOnce(&crate::models::SettingsSnapshot) -> tauri::Result<()>,
+) -> AppResult<crate::models::SettingsSnapshot> {
     let _guard = SETTINGS_WRITE_LOCK
         .lock()
         .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
     if let Some(snapshot) = snapshot_state()?.clone() {
         return Ok(snapshot);
     }
-    let (value, diagnostics) = load_settings_report(&app_data_dir::data_directory(app.clone())?);
-    let snapshot = commit_settings(app, value, apply_runtime)?;
+    let (value, diagnostics) = load()?;
+    let snapshot = commit_snapshot(value, apply_runtime, notify)?;
     drop(_guard);
     diagnostics.into_iter().for_each(crate::diagnostics::record);
     Ok(snapshot)
@@ -64,6 +80,16 @@ fn commit_settings(
     value: AppSettings,
     apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
 ) -> AppResult<crate::models::SettingsSnapshot> {
+    commit_snapshot(value, apply_runtime, |snapshot| {
+        app.emit("app-settings-changed", snapshot)
+    })
+}
+
+fn commit_snapshot(
+    value: AppSettings,
+    apply_runtime: impl FnOnce(&AppSettings) -> AppResult<bool>,
+    notify: impl FnOnce(&crate::models::SettingsSnapshot) -> tauri::Result<()>,
+) -> AppResult<crate::models::SettingsSnapshot> {
     ALLOW_CORE_EDITING.store(value.allow_core_editing, Ordering::Release);
     let performance_monitor_active = apply_runtime(&value)?;
     let snapshot = crate::models::SettingsSnapshot {
@@ -72,7 +98,7 @@ fn commit_settings(
         value,
     };
     *snapshot_state()? = Some(snapshot.clone());
-    if let Err(error) = app.emit("app-settings-changed", &snapshot) {
+    if let Err(error) = notify(&snapshot) {
         crate::diagnostics::record(format!("settings notification failed: {error}"));
     }
     Ok(snapshot)
@@ -394,6 +420,61 @@ pub fn settings_path(app_data_dir: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn settings_snapshot_initializes_once_for_concurrent_and_repeated_reads() {
+        if crate::test_support::isolated_test() {
+            return;
+        }
+        use std::sync::{Barrier, atomic::AtomicUsize};
+        let dir = TestWorkspace::new("settings_snapshot_work");
+        save_settings(&dir, &AppSettings::default()).unwrap();
+        let loads = AtomicUsize::new(0);
+        let applies = AtomicUsize::new(0);
+        let notifications = AtomicUsize::new(0);
+        let read = || {
+            read_settings_with(
+                || {
+                    loads.fetch_add(1, Ordering::Relaxed);
+                    Ok(load_settings_report(&dir))
+                },
+                |_| {
+                    applies.fetch_add(1, Ordering::Relaxed);
+                    Ok(false)
+                },
+                |_| {
+                    notifications.fetch_add(1, Ordering::Relaxed);
+                    Ok(())
+                },
+            )
+            .unwrap()
+        };
+        let barrier = Barrier::new(8);
+        let snapshots = std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        read()
+                    })
+                })
+                .collect();
+            workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        let repeated = read();
+        for snapshot in snapshots {
+            assert_eq!(snapshot.revision, repeated.revision);
+            assert_eq!(snapshot.value, repeated.value);
+        }
+        assert_eq!(repeated.revision, 1);
+        assert_eq!(loads.load(Ordering::Relaxed), 1);
+        assert_eq!(applies.load(Ordering::Relaxed), 1);
+        assert_eq!(notifications.load(Ordering::Relaxed), 1);
+        assert_eq!(crate::io::work::count("read", &settings_path(&dir)), 1);
+        dir.close().unwrap();
+    }
     #[test]
     fn all_log_levels_roundtrip_through_saved_settings() {
         use crate::models::AppLogLevel;

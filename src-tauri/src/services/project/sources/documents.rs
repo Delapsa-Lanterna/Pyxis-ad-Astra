@@ -37,8 +37,8 @@ pub(in crate::services::project) fn load_spec_records_from(
     let mut files = sources.walk(directory, extension)?;
     files.sort_by(|left, right| left.0.cmp(&right.0));
     for (path, data) in files {
-        if let Some(id) = data.get(id_field).and_then(serde_json::Value::as_str) {
-            let id = id.to_string();
+        {
+            let id = crate::models::file_content_id(&data, id_field, &path);
             let rel_path = forward_slash_path(
                 path.strip_prefix(&root)
                     .expect("loaded spec belongs to its root"),

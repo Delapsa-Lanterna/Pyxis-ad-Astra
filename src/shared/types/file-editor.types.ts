@@ -6,6 +6,7 @@ export interface EditableFileData {
 }
 
 export interface TextSave {
+  jsonWrite?: import('./json-write.types').JsonWriteOptions;
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   sessionId: string | null;
   modRoot: string;

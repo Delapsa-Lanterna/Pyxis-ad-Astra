@@ -7,7 +7,8 @@
     <div v-for="(field, index) in stat.fields" :key="field.id">
       <ImmersiveFieldInput
         :field="field"
-        :value="immersiveFieldValue(values, field)"
+        :value="inherited(field) ? undefined : immersiveFieldValue(values, field)"
+        :inherited-value="effectiveValue(field)"
         :input-key="fieldKey(field)"
         :runtime-context="runtimeContext"
         :active="active"
@@ -35,6 +36,8 @@ import { useFieldInputs } from '@/shared/runtime/field-inputs';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import ImmersiveFieldInput from './ImmersiveFieldInput.vue';
 import ImmersiveText from './ImmersiveText.vue';
+import { composeJson, compositionValue, compositionPath } from '@/domain/schema/json-composition';
+import { jointObject } from '@/domain/joint-edit';
 const props = defineProps<{
   stat: ImmersiveStat;
   values: Record<string, JointValue>;
@@ -46,6 +49,21 @@ const props = defineProps<{
 const emit = defineEmits<{ update: [changes: ImmersiveFieldChange[]]; submitted: []; close: [] }>();
 const inputs = useFieldInputs()!;
 const feedback = useAppFeedback();
+function inherited(field: ImmersiveField) {
+  return (
+    props.snapshot.records.find((record) => record.key === field.recordKey)?.composition &&
+    immersiveFieldValue(props.values, field) === undefined
+  );
+}
+function effectiveValue(field: ImmersiveField) {
+  const record = props.snapshot.records.find((record) => record.key === field.recordKey)!;
+  return record.composition
+    ? compositionValue(
+        composeJson(jointObject(props.values[field.recordKey]) as import('@/shared/types').RowData, record.composition),
+        compositionPath(field.schema.key),
+      )
+    : undefined;
+}
 const prefix = JSON.stringify(['immersive', props.stat.id]);
 const pending = shallowReactive(new Map<string, SchemaFieldUpdate>());
 onScopeDispose(

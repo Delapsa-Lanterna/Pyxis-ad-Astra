@@ -37,19 +37,12 @@ pub fn save_json_entity_file(
     } = input;
     let definition = spec_entity_definition(kind)?;
     let next_id = validate_entity_id(next_id, definition.invalid_id_message)?.to_string();
-    let content_id = data
-        .get(definition.id_field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::message(
-                "spec.id_mismatch",
-                format!(
-                    "{}数据缺少 {}",
-                    definition.display_name, definition.id_field
-                ),
-            )
-        })?;
-    if validate_entity_id(content_id, definition.invalid_id_message)? != next_id {
+    let content_id = crate::models::file_content_id(
+        &data,
+        definition.id_field,
+        Path::new(source_rel_path.unwrap_or(&next_id)),
+    );
+    if validate_entity_id(&content_id, definition.invalid_id_message)? != next_id {
         return Err(AppError::message(
             "spec.id_mismatch",
             format!(
@@ -58,7 +51,9 @@ pub fn save_json_entity_file(
             ),
         ));
     }
-    data[definition.id_field] = Value::String(next_id.clone());
+    if data.get(definition.id_field).is_some() {
+        data[definition.id_field] = Value::String(next_id.clone());
+    }
     let mod_root = Path::new(mod_root);
     let previous_id = previous_id
         .filter(|value| !value.trim().is_empty())
@@ -68,7 +63,7 @@ pub fn save_json_entity_file(
     let next_rel_path = if let Some(source) = source_rel_path {
         let source_id = previous_id.as_deref().unwrap_or(&next_id);
         require_spec_file_target(mod_root, definition, kind, source_id, source)?;
-        if renamed {
+        if renamed && !json_write.keep_filename {
             crate::io::forward_slash_path(
                 &Path::new(source).with_file_name(format!("{next_id}{}", definition.extension)),
             )
@@ -116,7 +111,7 @@ pub fn save_json_entity_file(
         Vec::new()
     } else {
         let mut builder = FileChangeSetBuilder::new_with_lock(mod_root, write_lock)?;
-        if renamed {
+        if renamed && source_rel_path != next_rel_path {
             builder.rename_text_file(source_rel_path, &next_rel_path, rendered)?;
         } else {
             builder.text_file(&next_rel_path, Some(rendered))?;
@@ -272,10 +267,11 @@ pub(crate) fn prepare_file_save(
     payload.base_versions = current.base_versions;
     payload.rel_path = Some(current.target.write.rel_path);
     payload.data = current.data;
-    payload.next_id = payload.data[id_field]
-        .as_str()
-        .expect("validated entity ID")
-        .to_string();
+    payload.next_id = crate::models::file_content_id(
+        &payload.data,
+        id_field,
+        Path::new(payload.rel_path.as_ref().expect("entity path")),
+    );
     payload.ordered_json = Some(serde_json::to_string(&payload.data)?);
     Ok(())
 }
@@ -357,7 +353,15 @@ pub fn write_variant_request(payload: JsonFileSave) -> Result<WriteResult<Value>
 }
 
 pub fn write_skin_request(payload: JsonFileSave) -> Result<WriteResult<Value>, AppError> {
-    crate::services::validate_skin_engine_changes(&payload.session_id, &payload.data)?;
+    let composition = crate::services::project::composition_for_session(
+        &payload.session_id,
+        payload.rel_path.as_deref().expect("skin source path"),
+    )?;
+    let effective =
+        crate::domain::json_composition::compose_game_json(&composition, &payload.data)?;
+    if effective.get("baseHullId").is_some() {
+        crate::services::validate_skin_engine_changes(&payload.session_id, &effective)?;
+    }
     crate::services::require_entity_version_scope(
         &payload.session_id,
         EntityKind::Skin,
@@ -427,7 +431,7 @@ fn build_spec_file(
     rel_path: &str,
     data: &Value,
 ) -> AppResult<(String, Value)> {
-    crate::domain::schema::validate_document(
+    crate::domain::schema::validate_partial_document(
         crate::parsers::bundled_schema(if kind == EntityKind::Variant {
             "variant"
         } else {
@@ -494,6 +498,7 @@ mod tests {
                 target_exists_in_index: false,
                 data: json!({"hullId":"demo","variantId":"new"}),
                 json_write: JsonWriteOptions {
+                    keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),
                 },
@@ -741,6 +746,7 @@ mod tests {
                 "old",
                 JsonEntityFileInput {
                     json_write: JsonWriteOptions {
+                        keep_filename: false,
                         preserve_original_json: true,
                         confirmed_sources: Vec::new(),
                     },
@@ -759,6 +765,7 @@ mod tests {
                 "new",
                 JsonEntityFileInput {
                     json_write: JsonWriteOptions {
+                        keep_filename: false,
                         preserve_original_json: true,
                         confirmed_sources: Vec::new(),
                     },

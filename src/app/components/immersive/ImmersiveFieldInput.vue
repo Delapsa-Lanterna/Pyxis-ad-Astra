@@ -17,7 +17,7 @@
     <n-input
       class="ui-field-autosize immersive-field-autosize"
       :disabled="disabled"
-      :placeholder="field.inheritOnEmpty ? '空白继承' : undefined"
+      :placeholder="inheritedValue !== undefined ? schemaStringValue(inheritedValue) : field.inheritOnEmpty ? '空白继承' : undefined"
       v-else
       ref="input"
       :value="raw"
@@ -44,6 +44,7 @@ import ImmersiveText from './ImmersiveText.vue';
 const props = defineProps<{
   field: ImmersiveField;
   value: unknown;
+  inheritedValue?: unknown;
   inputKey: string;
   runtimeContext: SchemaRuntimeContext;
   active: boolean;
@@ -62,7 +63,7 @@ const { raw, invalid, update } = useRawFieldInput<unknown>({
   label: props.field.schema.label,
   text: () => (jsonShape.value ? formatJsonInput(props.value, jsonShape.value) : schemaStringValue(props.value)),
   convert: (text) => {
-    if (props.field.inheritOnEmpty && !text.trim()) return { kind: 'remove' };
+    if ((props.field.inheritOnEmpty || props.inheritedValue !== undefined) && !text.trim()) return { kind: 'remove' };
     const schema = props.field.schema;
     if (jsonShape.value) return parseJsonInput(text, jsonShape.value);
     if (schema.type === 'integer' || schema.type === 'float' || schema.type === 'boolean') {

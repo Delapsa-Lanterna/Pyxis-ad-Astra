@@ -65,6 +65,7 @@ export async function querySpecShipEditorData(
   const info = data ?? (await querySessionEntityEditTarget(sessionId, 'ship', id, signal));
   return {
     kind: 'ship',
+    composition: data?.composition,
     spec: data ? requireRowData(data.data, '舰船 ' + id + ' 数据无效') : createShipSpec(id),
     target: info.target,
     baseVersions: cloneQuerySnapshot<import('@/shared/types/index').FileVersion[]>(info.baseVersions),

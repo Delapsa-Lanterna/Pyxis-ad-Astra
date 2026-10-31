@@ -36,6 +36,7 @@ import { querySessionHullReferences } from '@/services/hull-reference.service';
 import { hullReferenceSourceGroups } from '@/domain/resources/hull-references';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
+import { composeJson } from '@/domain/schema/json-composition';
 
 export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   root: JointEditRoot & { rowKey?: string },
@@ -90,7 +91,16 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
       ? joint.draftValue.value
       : accepted;
   });
-  const panel = computed(() => (snapshot.value ? definition.project(snapshot.value, displayValues.value, displaySnapshot.value) : null));
+  const panel = computed(() => {
+    if (!snapshot.value) return null;
+    const values = { ...displayValues.value };
+    for (const record of snapshot.value.records) {
+      const value = values[record.key];
+      if (record.composition && value?.state === 'present')
+        values[record.key] = { state: 'present', value: composeJson(value.value as import('@/shared/types').RowData, record.composition) };
+    }
+    return definition.project(snapshot.value, values, displaySnapshot.value);
+  });
   const notices = computed(() =>
     snapshot.value
       ? snapshot.value.records.filter(

@@ -70,6 +70,8 @@ fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalF
         let bytes = fs::read(&image).map_err(|error| {
             AppError::context("Read font page failed", error.into()).at_path(&image)
         })?;
+        #[cfg(test)]
+        crate::io::work::record("read", &image);
         pages.push(OriginalFontPage {
             id,
             path: image.to_string_lossy().into_owned(),
@@ -107,6 +109,16 @@ mod tests {
         let root = project_workspace("original_font_pages");
         install(&root, "original");
         let result = read_original_font(&root, FontId::Orbitron12condensed).unwrap();
+        for name in ["orbitron12condensed.fnt", "orbitron12_0.png", "page1.png"] {
+            assert_eq!(
+                crate::io::work::count(
+                    "read",
+                    &root.join("starsector-core/graphics/fonts").join(name)
+                ),
+                1,
+                "{name}"
+            );
+        }
         let OriginalFontResult::Available {
             pages,
             path,

@@ -212,6 +212,17 @@ export function createCsvRowDraft(state: CsvTableState, selectedRowKey: string |
     historyOperation: { type: 'row-created', tab, rowKey: row.rowKey, rowIndex, row: deepClone(row) },
   };
 }
+export function copyCsvRowDraft(state: CsvTableState, rowKey: string, rowIndex: number): CsvDraftResult {
+  const source = state.rows[rowKey]!;
+  const row: CsvDraftRow = {
+    rowKey: createTableRowKey(state.table, state.nextRowKey++),
+    data: deepClone(source.data),
+    isComment: source.isComment,
+  };
+  const operation: CsvDraftOperation = { type: 'row-created', tab: state.table, rowKey: row.rowKey, rowIndex, row };
+  applyCsvDraftOperation(state, operation, 'redo');
+  return { changed: true, historyLabel: '复制 ' + state.table + ' 行', historyOperation: operation };
+}
 export function deleteCsvRowDraft(state: CsvTableState, rowKey: string): CsvDraftResult {
   const tab = state.table;
   const row = state.rows[rowKey],

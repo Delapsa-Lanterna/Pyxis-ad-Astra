@@ -67,6 +67,7 @@
 
 ## 项目内关键链路
 
+- 同路径 JSON 必须分别维护本地内容与有序来源，原版必须始终可引用，组合预览必须按前序可引用 Mod 与当前草稿计算，事务必须只写所属本地内容。
 - Core fields 与 graphics 必须由同一 WindowShell 生命周期分别加载；root、generation、A-B-A、根清空和窗口销毁是唯一接纳条件。
 - JSON draft history、CSV draft history 与 File History 分别归所属 owner；当前文档快照与表格 operation 必须先于文件回放处理。
 - `ReadTicket` 必须同时拥有读取身份、取消信号、Promise 和接纳状态；失效或关闭只结束所属等待，迟到结果不得写入新生命周期。

@@ -7,6 +7,7 @@ export type WeaponSpecClass = 'projectile' | 'beam';
 export type ProjectileSpecClass = 'projectile' | 'missile';
 
 export interface SpecEditorData<K extends SpecEditorKind = SpecEditorKind> extends EntityEditInfo {
+  composition?: import('./json-composition.types').JsonComposition;
   kind: K;
   spec: RowData;
   isNew: boolean;

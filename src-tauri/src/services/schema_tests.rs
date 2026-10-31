@@ -8,6 +8,60 @@ fn validate_document(id: &str, data: &Value) -> AppResult<()> {
 }
 
 #[test]
+fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
+    use crate::domain::{spec_construction, well_known_labels};
+    use crate::models::{AssociatedSpecCreateParams, CsvTableKey};
+    use std::{path::Path, sync::Barrier};
+    let schemas = include!(concat!(env!("OUT_DIR"), "/config_schemas.rs"));
+    let barrier = Barrier::new(8);
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
+                barrier.wait();
+                for _ in 0..2 {
+                    for (id, _) in &schemas {
+                        assert_eq!(bundled_schema(id)["id"], *id);
+                    }
+                    spec_construction::skin_hull_fields();
+                    spec_construction::create_associated_spec(&AssociatedSpecCreateParams::Ship {
+                        id: "asset-sample".into(),
+                        hull_name: "Asset sample".into(),
+                    });
+                    spec_construction::validate_weapon_spec_class(
+                        &json!({"specClass":"beam"}),
+                        Path::new("sample.wpn"),
+                        bundled_schema("spec-weapon"),
+                    )
+                    .unwrap();
+                    assert!(
+                        well_known_labels::well_known_catalog(CsvTableKey::Weapons, "hints")
+                            .is_some()
+                    );
+                }
+            });
+        }
+    });
+    for (id, _) in &schemas {
+        assert_eq!(
+            crate::io::work::count("schema-parse", Path::new(id)),
+            1,
+            "{id}"
+        );
+    }
+    for name in ["spec-defaults", "skin-hull-fields", "well-known-labels"] {
+        assert_eq!(
+            crate::io::work::count("asset-parse", Path::new(name)),
+            1,
+            "{name}"
+        );
+    }
+    assert_eq!(
+        crate::io::work::count("asset-build", Path::new("well-known-labels")),
+        1
+    );
+}
+
+#[test]
 fn variant_weapon_group_limit() {
     for count in [0, 6, 7, 8] {
         let data = json!({"weaponGroups":vec![json!({"mode":"LINKED","weapons":{}}); count]});

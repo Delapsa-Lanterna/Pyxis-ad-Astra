@@ -35,6 +35,7 @@
       >
     </EditorHeader>
     <div class="editor-fields ui-content-scroll">
+      <p v-if="document.composition.value" class="ui-text-muted">{{ compositionNotice }}</p>
       <div v-if="Object.values(previews).some(Boolean)" class="panel-card ui-layout-row ui-control-border ui-content-surface">
         <div
           v-for="(src, label) in previews"
@@ -58,6 +59,7 @@
 </template>
 <script setup lang="ts">
 import { computed, h, ref } from 'vue';
+import { composeJson } from '@/domain/schema/json-composition';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
@@ -86,6 +88,12 @@ const { canNavigateHull, navigateToHull, previews, schemaRuntimeContext, openImm
   props.definition,
 );
 const draft = props.document.draftValue;
+const compositionNotice = computed(() => {
+  const sources = props.document.composition.value;
+  const effective = composeJson(jsonDocumentContent(props.definition.kind, draft.value), sources);
+  const id = effective.id ?? effective.hullId ?? effective.skinHullId;
+  return `${props.document.target.value?.entity?.write.relPath.split('/').at(-1) ?? props.document.target.value?.id} · ${id ? '目标：' + id : '当前仅预览本模组内容，基础定义尚未提供'}`;
+});
 const title = computed(() => {
   if (props.definition.kind === 'misc-config') return miscConfigFile(props.document.target.value!.id).label;
   const data = jsonDocumentContent(props.definition.kind, draft.value);

@@ -39,6 +39,7 @@ pub fn save_project_text_file(
     path: &str,
     text: String,
     versions: &[crate::models::FileVersion],
+    options: crate::models::JsonWriteOptions,
 ) -> AppResult<WriteResult<Value>> {
     let path = FsRootBoundary::new(Path::new(mod_root), "mod root")?
         .resolve_absolute(Path::new(path), "file path")?;
@@ -52,7 +53,7 @@ pub fn save_project_text_file(
             &info.target.id,
             versions,
         )?;
-        crate::services::save_entity_text(session_id, &info.target, text)
+        crate::services::save_entity_text(session_id, &info.target, text, options)
     } else {
         Ok(save_text_file(mod_root, &path, text.clone())?.with_content(
             crate::models::WriteContentTarget::Text {
@@ -74,13 +75,12 @@ pub fn query_text_identity_intent(
     })?;
     let definition = crate::domain::entity_definitions::entity_spec_definition(source.kind)
         .expect("recognized file has spec definition");
-    let next = content
-        .get(definition.id_field)
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| {
-            AppError::message("spec.id_missing", format!("缺少 {}", definition.id_field))
-        })?;
-    crate::services::query_entity_identity_intent(session_id, source, next)
+    let next = crate::models::file_content_id(
+        &content,
+        definition.id_field,
+        Path::new(&source.write.path),
+    );
+    crate::services::query_entity_identity_intent(session_id, source, &next)
 }
 
 pub fn prepare_text_save(

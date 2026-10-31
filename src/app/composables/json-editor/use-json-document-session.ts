@@ -67,6 +67,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     getMergedSchema(definition.kind === 'misc-config' ? miscConfigFile(record.target.id).schema : definition.kind)!,
   );
   const active = ref(false);
+  const composition = ref(record.composition);
   const reads = useQueryReadOwner();
   const modRoot = computed(() => record.target.modRoot);
   const session = useEditTargetDraftSession<RowData, ConfigDocumentTarget, JsonDocumentMeta>({
@@ -88,7 +89,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
       feedback.success(snapshot.meta.recovery ? 'JSON 来源已重新创建' : '当前 JSON 文档已保存');
     },
   });
-  session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources } });
+  session.loadBaseForTarget({ ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } });
   const history = useSnapshotHistory<RowData>(
     session.context,
     computed(() => settings.editHistoryLimit),
@@ -158,6 +159,12 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   }
   async function refresh() {
     const target = session.currentTarget.value!;
+    if (composition.value)
+      await reads.consume('composition', target, (signal) => loadJsonDocument(target, signal), {
+        ready: (latest) => {
+          composition.value = latest.meta.composition;
+        },
+      });
     const plan = await recovery.refresh();
     if (plan && active.value && !recovery.missing.value && !identity.pending.value)
       session.applyExternalForTarget({
@@ -293,6 +300,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
     setActive,
     externalUpdateNotice: session.externalUpdateNotice,
     schema,
+    composition: computed(() => composition.value ?? session.baselineSnapshot.value?.meta.composition),
     draftValue: computed({ get: () => session.draftValue.value, set: setDraft }),
     sourceTarget: computed(() => identity.pending.value?.snapshot.target ?? session.currentTarget.value!),
     sourceMissing: recovery.missing,

@@ -1,0 +1,27 @@
+[
+  { "name": "append", "base": { "a": [1, 2] }, "local": { "a": [3] }, "expected": { "a": [1, 2, 3] } },
+  { "name": "empty array", "base": { "a": [1, 2] }, "local": { "a": [] }, "expected": { "a": [1, 2] } },
+  { "name": "clear", "base": { "a": [1, 2] }, "local": { "a": ["core_clearArray", 3] }, "expected": { "a": ["core_clearArray", 3] } },
+  {
+    "name": "sentinel position",
+    "base": { "a": [1] },
+    "local": { "a": [2, "core_clearArray"] },
+    "expected": { "a": [1, 2, "core_clearArray"] }
+  },
+  { "name": "rgba", "base": { "color": [1, 2, 3, 4] }, "local": { "color": [5, 6, 7, 8] }, "expected": { "color": [5, 6, 7, 8] } },
+  { "name": "rgb", "base": { "color": [1, 2, 3] }, "local": { "color": [5, 6, 7] }, "expected": { "color": [1, 2, 3, 5, 6, 7] } },
+  { "name": "music", "base": { "music_test": [1] }, "local": { "music_test": [2] }, "expected": { "music_test": [2] } },
+  { "name": "object", "base": { "o": { "a": 1, "b": 2 } }, "local": { "o": { "b": 3 } }, "expected": { "o": { "a": 1, "b": "3" } } },
+  { "name": "null", "base": { "o": { "a": 1 } }, "local": { "o": null }, "expected": { "o": "null" } },
+  { "name": "number", "base": { "a": 1 }, "local": { "a": 2 }, "expected": { "a": "2" } },
+  { "name": "boolean", "base": { "a": true }, "local": { "a": false }, "expected": { "a": "false" } },
+  { "name": "array type", "base": { "a": 1 }, "local": { "a": [2] }, "error": true },
+  { "name": "object type", "base": { "a": [1] }, "local": { "a": { "b": 2 } }, "error": true },
+  {
+    "name": "excluded",
+    "base": { "devMode": false, "nested": { "devMode": false, "x": 1 } },
+    "local": { "devMode": true, "nested": { "devMode": true, "x": 2 } },
+    "excluded": ["devMode"],
+    "expected": { "devMode": false, "nested": { "devMode": false, "x": "2" } }
+  }
+]

@@ -62,7 +62,6 @@
 - `src-tauri/src/app_data_dir.rs`：Tauri 工具私有数据目录解析。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
-- `src-tauri/src/json_overlay.rs`：JSON 值的对象递归覆盖与数组、叶值整体替换纯运算。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
 - `src-tauri/src/test_support.rs`：Rust 测试共享文件工作区、路径夹具与进程隔离。
 - `src-tauri/src/test_support_tests.rs`：Rust 测试工作区的分配、释放与并发验证。

@@ -350,10 +350,11 @@ pub(crate) fn prepare_indexed_request(
     payload.base_versions = current.base_versions;
     payload.entity_data = current.data;
     if payload.kind == crate::models::IndexedConfigKind::Faction {
-        payload.next_id = payload.entity_data["file"]["id"]
-            .as_str()
-            .expect("validated faction ID")
-            .to_string();
+        payload.next_id = crate::models::file_content_id(
+            &payload.entity_data["file"],
+            "id",
+            Path::new(&current.target.write.path),
+        );
         payload.ordered_json = Some(serde_json::to_string(&payload.entity_data["file"])?);
     } else {
         payload.ordered_json = Some(serde_json::to_string(&payload.entity_data["descriptor"])?);
@@ -717,6 +718,7 @@ mod tests {
                 index_row: Map::new(),
                 entity_data: serde_json::json!({"file":{"displayName":"New","id":"demo"}}),
                 json_write: JsonWriteOptions {
+                    keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: Vec::new(),
                 },
@@ -944,6 +946,7 @@ mod tests {
             &root.to_string_lossy(),
             serde_json::json!({"id":"demo"}),
             JsonWriteOptions {
+                keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
             },

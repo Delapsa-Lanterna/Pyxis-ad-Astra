@@ -19,8 +19,14 @@ export function writeEditableFileText(
   text: string,
   baseVersions: import('@/shared/types').FileVersion[],
   request?: import('@/shared/runtime/command.runtime').SaveCommandRequest,
+  jsonWrite?: import('@/shared/types').JsonWriteOptions,
 ): Promise<WriteResult> {
-  return invokeSaveCommand('save_text_file', { payload: { baseVersions, sessionId, modRoot, path, text } satisfies TextSave }, [], request);
+  return invokeSaveCommand(
+    'save_text_file',
+    { payload: { baseVersions, sessionId, modRoot, path, text, ...(jsonWrite ? { jsonWrite } : {}) } satisfies TextSave },
+    [],
+    request,
+  );
 }
 
 export function transcodeFileToUtf8(

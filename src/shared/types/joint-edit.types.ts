@@ -67,6 +67,7 @@ export type JointRecordTarget =
   | { kind: 'text'; write: EntityFileLocation };
 export type JointValue = { state: 'missing' } | { state: 'present'; value: JsonValue };
 export interface JointEditRecord {
+  composition?: import('./json-composition.types').JsonComposition;
   key: string;
   target: JointRecordTarget;
   source: EntityFileLocation | null;

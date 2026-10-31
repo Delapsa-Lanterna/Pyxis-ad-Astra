@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   writeDeleteSkinEntity: vi.fn(),
 }));
 
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({ reserveFileIdentityIntent: vi.fn(async () => {}) }));
+vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
+  reserveFileIdentityIntent: vi.fn(async () => {}),
+  chooseIdentityFilename: vi.fn(async () => false),
+}));
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 
 vi.mock('@/services/json-entity.service', async () => ({

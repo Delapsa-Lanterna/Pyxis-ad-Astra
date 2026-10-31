@@ -7,6 +7,54 @@ import { createBrowserWorkspace } from './workspace-runtime';
 import { createWorkspaceProject, coreRoot, gameRoot, workspaceRoots } from './workspace-project';
 
 describe('complete browser workspace fixtures', () => {
+  it('returns an empty preview for draft and comment rows', async () => {
+    const workspace = createBrowserWorkspace(),
+      project = workspace.projects[1]!;
+    const payload = { sessionId: project.manifest.sessionId, table: 'ships' };
+    expect(await workspace.invoke('main', 'query_csv_row_preview', { payload: { ...payload, rowKey: 'ships:new:0' } })).toEqual({
+      resourceRef: null,
+    });
+    const row = project.tables.get('ships')!.rows[0]!;
+    row.isComment = true;
+    expect(await workspace.invoke('main', 'query_csv_row_preview', { payload: { ...payload, rowKey: row.rowKey } })).toEqual({
+      resourceRef: null,
+    });
+  });
+  it('preserves independent duplicate row identities through consecutive saves and reloads', async () => {
+    const workspace = createBrowserWorkspace(),
+      project = workspace.projects[1]!;
+    const original = structuredClone(project.tables.get('ships')!.rows);
+    const save = async (rowKey: string, data: T.RowData, order: string[]) =>
+      workspace.invoke('main', 'save_csv_patch', {
+        payload: {
+          sessionId: project.manifest.sessionId,
+          table: 'ships',
+          patches: [{ rowKey, action: 'upsert', row: data, isComment: false }],
+          rowOrder: order,
+          associatedSpecs: [],
+        },
+      }) as Promise<T.WriteResult<null>>;
+    const result = await save('ships:new:0', { ...original[0]!.data }, [
+      original[0]!.rowKey,
+      'ships:new:0',
+      ...original.slice(1).map((row) => row.rowKey),
+    ]);
+    const saved = project.tables.get('ships')!.rows;
+    expect(result.keyMap).toEqual([{ previousKey: 'ships:new:0', nextKey: saved[1]!.rowKey, rowIndex: 1 }]);
+    expect(new Set(saved.map((row) => row.rowKey)).size).toBe(original.length + 1);
+    expect(saved[0]!.data).toEqual(saved[1]!.data);
+    const copiedKey = saved[1]!.rowKey;
+    await save(
+      copiedKey,
+      { ...saved[1]!.data, name: 'Independent copy' },
+      saved.map((row) => row.rowKey),
+    );
+    project.write(null, { kind: 'csv', table: 'ships' }, []);
+    const reloaded = project.tables.get('ships')!.rows;
+    expect(reloaded.map((row) => row.rowKey)).toEqual(saved.map((row) => row.rowKey));
+    expect(reloaded[0]!.data).toEqual(original[0]!.data);
+    expect(reloaded[1]!.data.name).toBe('Independent copy');
+  });
   it('delivers resource failures per item and withdraws closed reference sources', async () => {
     const workspace = createBrowserWorkspace(),
       owner = workspace.projects[0]!,

@@ -47,6 +47,7 @@
         </div>
       </template>
       <slot :row="currentRow(row.id)" :update="(update: SchemaFieldUpdate) => updateRow(currentRow(row.id), update)" />
+      <small v-if="origin(row.path)" class="ui-text-muted">来自 {{ origin(row.path) }}</small>
     </component>
     <div
       v-if="canAdd && field.editable !== false && field.operations?.add !== false && entries.length < (field.maxEntries ?? Infinity)"
@@ -83,6 +84,7 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue';
 import type { SelectInst } from 'naive-ui/es/select';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
+import { compositionOrigin, compositionPath } from '@/domain/schema/json-composition';
 import type { SchemaRuntimeContext } from '@/domain/schema/schema-runtime';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
@@ -113,6 +115,11 @@ const props = defineProps<{
   runtimeContext?: SchemaRuntimeContext | null;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
+function origin(path: string) {
+  const context = props.runtimeContext?.composition,
+    sources = context?.sources();
+  return context && sources ? compositionOrigin(context.local(), sources, compositionPath(path)) : null;
+}
 const inputs = useFieldInputs();
 const mode = useInputEditMode();
 const array = computed(() => props.field.type === 'array');

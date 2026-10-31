@@ -4,7 +4,6 @@ mod diagnostics;
 mod domain;
 mod errors;
 mod io;
-mod json_overlay;
 mod models;
 mod parsers;
 mod services;

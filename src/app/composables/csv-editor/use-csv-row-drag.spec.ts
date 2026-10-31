@@ -20,6 +20,7 @@ function fixture() {
   const rowKeys = ref(Array.from({ length: 8 }, (_, index) => 'row-' + index));
   const inputs = createFieldInputs(ref('one')),
     move = vi.fn(),
+    copy = vi.fn(),
     select = vi.fn(),
     scrolled = vi.fn();
   const frames = new Map<number, FrameRequestCallback>();
@@ -41,6 +42,7 @@ function fixture() {
           context: () => context.value,
           inputs,
           move,
+          copy,
           select,
           scrolled,
         });
@@ -59,16 +61,52 @@ function fixture() {
     },
   });
   Object.defineProperty(panel.value!, 'clientHeight', { value: 120 });
-  const event = (y: number) => ({ button: 0, pointerId: 7, clientX: 10, clientY: y }) as PointerEvent;
+  const event = (y: number, ctrlKey = false) => ({ button: 0, pointerId: 7, clientX: 10, clientY: y, ctrlKey }) as PointerEvent;
   const advance = (time: number) => {
     const [id, callback] = [...frames][0]!;
     frames.delete(id);
     callback(time);
   };
-  return { drag, inputs, disabled, context, rowKeys, move, select, scrolled, event, frames, advance };
+  return { drag, inputs, disabled, context, rowKeys, move, copy, select, scrolled, event, frames, advance };
 }
 
 describe('CSV row drag lifecycle', () => {
+  it.each([false, true])('fixes the copy mode at pointer down with Ctrl=%s', async (ctrl) => {
+    const { drag, move, copy, event } = fixture();
+    drag.start('row-0', event(30, ctrl));
+    await flushPromises();
+    drag.onMove(event(95, !ctrl));
+    drag.onUp(event(95, !ctrl));
+    drag.onUp(event(95, !ctrl));
+    expect(copy.mock.calls).toEqual(ctrl ? [['row-0', 3]] : []);
+    expect(move.mock.calls).toEqual(ctrl ? [] : [['row-0', 2]]);
+  });
+  it.each([
+    [25, 0],
+    [40, 1],
+    [215, 8],
+  ])('copies at pointer y=%i to boundary %i', async (y, boundary) => {
+    const { drag, copy, event } = fixture();
+    drag.start('row-0', event(30, true));
+    await flushPromises();
+    drag.onMove(event(y));
+    drag.onUp(event(y));
+    expect(copy).toHaveBeenCalledExactlyOnceWith('row-0', boundary);
+  });
+  it.each(['threshold', 'escape', 'cancel', 'disabled', 'baseline', 'unmount'])('releases a copy on %s', async (boundary) => {
+    const { drag, copy, disabled, context, event, frames } = fixture();
+    drag.start('row-0', event(30, true));
+    await flushPromises();
+    drag.onMove(event(boundary === 'threshold' ? 32 : 95));
+    if (boundary === 'escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    if (boundary === 'cancel') drag.cancel();
+    if (boundary === 'disabled') disabled.value = '搜索中';
+    if (boundary === 'baseline') context.value = 'two';
+    if (boundary === 'unmount') wrapper.unmount();
+    drag.onUp(event(boundary === 'threshold' ? 32 : 95));
+    expect(copy).not.toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+  });
   it('commits one drop after input acceptance and selects the same record', async () => {
     const { drag, move, select, event } = fixture();
     drag.start('row-0', event(30));
@@ -97,12 +135,12 @@ describe('CSV row drag lifecycle', () => {
     expect(move).not.toHaveBeenCalled();
     expect(frames.size).toBe(0);
   });
-  it('keeps invalid input and focus at their owner', async () => {
-    const { drag, inputs, move, select, event } = fixture();
+  it.each([false, true])('keeps invalid input and focus at their owner with Ctrl=%s', async (ctrl) => {
+    const { drag, inputs, move, copy, select, event } = fixture();
     const dirty = ref(true),
       input = wrapper.get('input').element;
     inputs.register({ key: 'raw', label: 'Raw', dirty, commit: () => 'Incomplete', cancel: vi.fn(), focus: () => input.focus() });
-    drag.start('row-0', event(30));
+    drag.start('row-0', event(30, ctrl));
     await flushPromises();
     drag.onMove(event(95));
     drag.onUp(event(95));
@@ -110,10 +148,11 @@ describe('CSV row drag lifecycle', () => {
     expect(dirty.value).toBe(true);
     expect(select).not.toHaveBeenCalled();
     expect(move).not.toHaveBeenCalled();
+    expect(copy).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalled();
   });
-  it('ends a short pointer action before delayed input finalization', async () => {
-    const { drag, inputs, move, event } = fixture();
+  it.each([false, true])('ends a short pointer action before delayed input finalization with Ctrl=%s', async (ctrl) => {
+    const { drag, inputs, move, copy, event } = fixture();
     let finish!: () => void;
     inputs.registerFinalizer(
       () =>
@@ -121,16 +160,17 @@ describe('CSV row drag lifecycle', () => {
           finish = resolve;
         }),
     );
-    drag.start('row-0', event(30));
+    drag.start('row-0', event(30, ctrl));
     drag.onMove(event(95));
     drag.onUp(event(95));
     finish();
     await flushPromises();
     expect(move).not.toHaveBeenCalled();
+    expect(copy).not.toHaveBeenCalled();
   });
-  it('scrolls at the edge, updates the insertion and releases the frame loop', async () => {
+  it.each([false, true])('scrolls at the edge, updates the insertion and releases the frame loop with Ctrl=%s', async (ctrl) => {
     const { drag, scrolled, event, advance, frames } = fixture();
-    drag.start('row-0', event(30));
+    drag.start('row-0', event(30, ctrl));
     await flushPromises();
     drag.onMove(event(119));
     advance(10);

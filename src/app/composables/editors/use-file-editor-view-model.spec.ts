@@ -63,6 +63,7 @@ vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
   }),
 }));
 vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
+  chooseIdentityFilename: vi.fn(async () => false),
   reserveFileIdentityIntent: vi.fn(async () => {}),
   retargetFileWindow: vi.fn(async () => {}),
 }));
@@ -287,6 +288,7 @@ describe('useFileEditorViewModel editing', () => {
       'saved text',
       [],
       undefined,
+      { keepFilename: false },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledTimes(1);
     expect(mocks.feedback.success).toHaveBeenCalledWith('文件已保存');
@@ -317,6 +319,7 @@ describe('useFileEditorViewModel editing', () => {
       'recovered',
       [],
       undefined,
+      { keepFilename: false },
     );
     expect(mocks.publishCommittedWrite).toHaveBeenCalledWith('C:/mods/alpha', expect.any(Object), null);
     viewModel.dispose();

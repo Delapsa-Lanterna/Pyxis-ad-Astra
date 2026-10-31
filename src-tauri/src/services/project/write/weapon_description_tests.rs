@@ -54,6 +54,7 @@ fn rename(
         ),
         "text" => crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
+                json_write: Default::default(),
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),
                 path: root.join("data/weapons/old.wpn").to_string_lossy().into(),

@@ -18,7 +18,7 @@ import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { reserveFileIdentityIntent, retargetFileWindow } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveFileIdentityIntent, retargetFileWindow, chooseIdentityFilename } from '@/orchestrators/entity-identity.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
 import type { CommittedWriteEvent } from '@/shared/types';
@@ -93,15 +93,23 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     save: async (target, draft, baseVersions, _original, request) => {
       const entity = draftSession.baselineSnapshot.value!.meta.entity;
       let versions = baseVersions;
+      let keepFilename = false;
       if (entity && target.sessionId) {
         const intent = await queryFileTextIdentityIntent(target.sessionId, entity.target, draft).catch(async (error) => {
           await focusEntityIdentityConflict(target.sessionId!, target.modRoot, error);
           throw error;
         });
-        await reserveFileIdentityIntent(target.sessionId, target.modRoot, intent);
-        versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
+        const choice = await chooseIdentityFilename(feedback, entity.target, intent.nextId);
+        if (choice === null) return;
+        keepFilename = choice;
+        if (!keepFilename) {
+          await reserveFileIdentityIntent(target.sessionId, target.modRoot, intent);
+          versions = captureIdentityVersions(baseVersions, intent.destinationVersion);
+        }
       }
-      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, versions, request);
+      const result = await writeEditableFileText(target.sessionId, target.modRoot, target.filePath, draft, versions, request, {
+        keepFilename,
+      });
       const change = result.identityChanges[0];
       return {
         target: { ...target, filePath: change?.after.write.path ?? target.filePath },

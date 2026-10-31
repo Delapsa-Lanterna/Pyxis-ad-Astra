@@ -38,9 +38,15 @@ interface SaveConsumers {
 const windows = new WeakMap<ReturnType<typeof useProjectSyncStore>, SaveConsumers>();
 let displayReady: Promise<void> | null = null;
 
-export async function publishReferenceSources(sources: readonly Pick<import('@/shared/types').ReferenceSource, 'sessionId' | 'modRoot'>[]) {
+export async function publishReferenceSources(
+  sources: readonly Pick<import('@/shared/types').ReferenceSource, 'sessionId' | 'modRoot'>[],
+  order = sources.map((source) => source.sessionId),
+) {
   await waitProjectSaves(sources.map((source) => source.modRoot));
-  await setReferenceSources(sources.map((source) => source.sessionId));
+  await setReferenceSources(
+    sources.map((source) => source.sessionId),
+    order,
+  );
 }
 
 export function pauseProjectDisplay() {

@@ -15,6 +15,7 @@
     :reorder-disabled-reason="csvTable.reorderDisabledReason.value"
     :reorder-context="csvTable.reorderContext.value"
     @move-row="(rowKey, index) => csvTable.tables.moveRow(target, rowKey, index)"
+    @copy-row="(rowKey, index) => csvTable.tables.copyRow(target, rowKey, index)"
     @request-window="csvTable.loadTableWindow"
     @resize-column="csvTable.setColumnWidth"
     @select-row="csvTable.tables.selectRowByKey(target, $event)"

@@ -28,7 +28,7 @@ import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 
-import { reserveFileIdentityIntent } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveFileIdentityIntent, chooseIdentityFilename } from '@/orchestrators/entity-identity.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
@@ -89,16 +89,31 @@ export async function saveIndexedEntityAction(
   original?: RowData,
   request?: SaveCommandRequest,
 ): Promise<SavedConfig<IndexedConfigEntityData> | null> {
+  const { info: source } = await captureConfigIdentityIntent(
+    write.sessionId,
+    write.kind,
+    write.previousId ?? write.nextId,
+    write.previousId ?? write.nextId,
+  );
+  const keepFilename = await chooseIdentityFilename(feedback, source.target, write.nextId);
+  if (keepFilename === null) return null;
   const versions = await capturedVersions(
     write.sessionId,
     write.modRoot,
     write.kind,
     write.previousId ?? write.nextId,
-    write.nextId,
+    keepFilename ? source.target.id : write.nextId,
     write.baseVersions,
   );
   const result = await retainConfigReservation(
-    runConfirmedJsonWrite(feedback, (options) => saveIndexedConfigEntity({ ...write, baseVersions: versions }, options, original, request)),
+    runConfirmedJsonWrite(feedback, (options) =>
+      saveIndexedConfigEntity(
+        { ...write, baseVersions: versions },
+        keepFilename ? { ...options, keepFilename } : options,
+        original,
+        request,
+      ),
+    ),
   );
   if (!result) return null;
   const entity = indexedConfigEntityData(result);
@@ -137,11 +152,19 @@ export async function saveJsonFileAction(
   original?: RowData,
   request?: SaveCommandRequest,
 ): Promise<SavedConfig<JsonEntityFile> | null> {
+  const { info: source } = await captureConfigIdentityIntent(sessionId, kind, previousId ?? id, previousId ?? id);
+  const keepFilename = await chooseIdentityFilename(feedback, source.target, id);
+  if (keepFilename === null) return null;
   const saveEntity = kind === 'variant' ? saveVariantEntity : saveSkinEntity;
-  baseVersions = await capturedVersions(sessionId, modRoot, kind, previousId ?? id, id, baseVersions);
+  baseVersions = await capturedVersions(sessionId, modRoot, kind, previousId ?? id, keepFilename ? source.target.id : id, baseVersions);
   const result = await retainConfigReservation(
     runConfirmedJsonWrite<WriteResult<VariantFile | SkinFile>>(feedback, (options) =>
-      saveEntity({ baseVersions, sessionId, modRoot, previousId, nextId: id, data, relPath }, options, original, request),
+      saveEntity(
+        { baseVersions, sessionId, modRoot, previousId, nextId: id, data, relPath },
+        keepFilename ? { ...options, keepFilename } : options,
+        original,
+        request,
+      ),
     ),
   );
   return result ? { entity: jsonEntitySavedData(result), receipt: result } : null;

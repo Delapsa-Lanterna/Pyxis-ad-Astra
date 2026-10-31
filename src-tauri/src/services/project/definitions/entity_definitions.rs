@@ -307,10 +307,25 @@ fn ship_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
 }
 
 fn weapon_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    registered_weapon_rows(session)?
+    let mut rows = registered_weapon_rows(session)?
         .into_iter()
         .map(|entry| build_weapon_list_entity(session, EntityKind::Weapon, &entry.id, entry.data))
-        .collect()
+        .collect::<AppResult<Vec<_>>>()?;
+    for id in session
+        .weapon_specs
+        .keys()
+        .filter(|id| !rows.iter().any(|row| &row.id == *id))
+        .cloned()
+        .collect::<Vec<_>>()
+    {
+        rows.push(build_weapon_list_entity(
+            session,
+            EntityKind::Weapon,
+            &id,
+            Map::new(),
+        )?);
+    }
+    Ok(rows)
 }
 
 fn projectile_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
@@ -330,10 +345,25 @@ fn system_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>>
 }
 
 fn skill_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
-    registered_skill_rows(session)?
+    let mut rows = registered_skill_rows(session)?
         .into_iter()
         .map(|entry| build_skill_list_entity(session, EntityKind::Skill, &entry.id, entry.data))
-        .collect()
+        .collect::<AppResult<Vec<_>>>()?;
+    for id in session
+        .skill_files
+        .keys()
+        .filter(|id| !rows.iter().any(|row| &row.id == *id))
+        .cloned()
+        .collect::<Vec<_>>()
+    {
+        rows.push(build_skill_list_entity(
+            session,
+            EntityKind::Skill,
+            &id,
+            Map::new(),
+        )?);
+    }
+    Ok(rows)
 }
 
 fn faction_list(session: &mut ProjectSession) -> AppResult<Vec<EntityProjection>> {
@@ -588,7 +618,10 @@ fn build_weapon_entity_data(session: &mut ProjectSession, id: &str) -> AppResult
         .find(|row| row.id == id)
         .map(|row| Value::Object(row.data))
     else {
-        return Ok(None);
+        return Ok(session
+            .weapon_specs
+            .get(id)
+            .map(|record| serde_json::json!({"spec": record.data, "csvRow":{}})));
     };
     let spec = session
         .weapon_specs
@@ -631,7 +664,10 @@ fn build_skill_entity_data(session: &mut ProjectSession, id: &str) -> AppResult<
         .find(|row| row.id == id)
         .map(|row| Value::Object(row.data))
     else {
-        return Ok(None);
+        return Ok(session
+            .skill_files
+            .get(id)
+            .map(|record| serde_json::json!({"spec":record.data,"csvRow":{}})));
     };
     let spec = session
         .skill_files

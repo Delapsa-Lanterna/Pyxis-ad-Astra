@@ -25,7 +25,7 @@ export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>
     if (params && typeof params === 'object' && !Array.isArray(params)) {
       const part = params.damage,
         shots = params.numShots;
-      damage = typeof part === 'number' && typeof shots === 'number' ? part * shots : NaN;
+      damage = Number(part) * Number(shots);
     } else damage = NaN;
   }
   const ammo = n('ammo', 2147483647),
@@ -36,7 +36,7 @@ export function weaponStatistics(csv: Readonly<RowData>, spec: Readonly<RowData>
   if (beam) {
     const rate = n('damage/second');
     if (burst > 0) {
-      const effectiveCharge = spec.beamFireOnlyOnFullCharge ? 0 : charge;
+      const effectiveCharge = spec.beamFireOnlyOnFullCharge === true || spec.beamFireOnlyOnFullCharge === 'true' ? 0 : charge;
       const damageTime = (effectiveCharge + down) * 0.333 + burst;
       cycle = charge + down + burst + delay;
       burstDamage = rate * damageTime;

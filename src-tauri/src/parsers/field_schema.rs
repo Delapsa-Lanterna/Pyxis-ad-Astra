@@ -6,6 +6,8 @@ pub fn bundled_schema(id: &str) -> &'static Value {
         include!(concat!(env!("OUT_DIR"), "/config_schemas.rs"))
             .into_iter()
             .map(|(id, text)| {
+                #[cfg(test)]
+                crate::io::work::record("schema-parse", std::path::Path::new(id));
                 (
                     id,
                     super::parse_persisted_json(text).expect("bundled field schema is valid JSON"),

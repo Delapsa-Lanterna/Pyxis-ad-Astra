@@ -6,6 +6,8 @@ use std::collections::BTreeMap;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub composition: Option<super::JsonComposition>,
     pub target: crate::models::EntityEditTarget,
     pub base_versions: Vec<crate::models::FileVersion>,
     pub kind: EntityKind,
@@ -37,6 +39,7 @@ mod tests {
     #[test]
     fn entity_data_serializes_empty_resource_refs_explicitly() {
         let entity = EntityData {
+            composition: None,
             target: crate::models::EntityEditTarget {
                 kind: EntityKind::Projectile,
                 id: "demo_projectile".to_string(),

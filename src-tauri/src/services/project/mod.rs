@@ -17,10 +17,13 @@ pub(in crate::services) mod write;
 
 pub(crate) use cache::media::configure_media_cache;
 pub(crate) use performance::PerformanceTrace;
+pub(in crate::services) use query::json_composition::composition_for_session;
+pub(in crate::services::project) use query::json_composition::json_composition;
 pub(crate) use session::open_project_session_traced;
 pub(crate) use session::references::reference_updates;
 pub(crate) use session::references::{
-    reference_revision, reference_sources, reference_sources_changed, set_reference_sources,
+    reference_revision, reference_sources, reference_sources_changed, set_reference_order,
+    set_reference_sources,
 };
 pub(crate) use session::{affected_session_ids, current_projection, mark_projection_pending};
 pub use session::{

@@ -91,7 +91,7 @@ describe('ordered save consumption', () => {
       { sessionId: 'source-c', modRoot: 'M:/gamma' },
     ]);
     expect(mocks.wait).toHaveBeenCalledExactlyOnceWith(['M:/beta', 'M:/gamma']);
-    expect(mocks.references).toHaveBeenCalledExactlyOnceWith(['source-b', 'source-c']);
+    expect(mocks.references).toHaveBeenCalledExactlyOnceWith(['source-b', 'source-c'], ['source-b', 'source-c']);
   });
 
   it('accepts a reference revision once and refreshes content through the existing delivery queue', async () => {

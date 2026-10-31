@@ -1,8 +1,17 @@
 <template>
-  <SchemaScalarInput v-if="plainMode" :field="field" :value="value" :input-key="inputKey" @update="emit('update', $event)" />
+  <SchemaScalarInput
+    v-if="plainMode"
+    :field="field"
+    :value="value"
+    :input-key="inputKey"
+    :field-path="fieldPath"
+    :runtime-context="runtimeContext"
+    @update="emit('update', $event)"
+  />
   <n-select
     v-else-if="field.type === 'enum'"
     ref="referenceSelect"
+    :theme-overrides="inherited ? { peers: { InternalSelection: { textColor: 'var(--color-muted)' } } } : undefined"
     :show="reference ? referenceOpen : undefined"
     :value="strVal"
     :options="displayOptions"
@@ -90,6 +99,7 @@ import { NTag } from 'naive-ui/es/tag';
 import SchemaScalarInput from './SchemaScalarInput.vue';
 import ResourceOptionThumbnail from '@/app/components/media/ResourceOptionThumbnail.vue';
 import { useSchemaSourceOptions } from '@/app/composables/editors/use-schema-source-options';
+import { compositionOrigin, compositionPath } from '@/domain/schema/json-composition';
 import { useSchemaPathPicker } from '@/app/composables/editors/use-schema-path-picker';
 import { useSchemaSelectMedia } from '@/app/composables/use-schema-select-media';
 import { useImageSourceOptions } from '@/app/composables/editors/use-image-source-options';
@@ -124,6 +134,11 @@ const props = defineProps<{
   runtimeContext?: SchemaRuntimeContext | null;
 }>();
 const emit = defineEmits<{ update: [update: SchemaFieldUpdate] }>();
+const inherited = computed(() => {
+  const context = props.runtimeContext?.composition,
+    sources = context?.sources();
+  return context && sources && compositionOrigin(context.local(), sources, compositionPath(props.fieldPath ?? props.field.key)) !== null;
+});
 const mode = useInputEditMode();
 const plainMode = computed(() => mode.value === 'plain');
 const fieldInputKey = computed(() => props.inputKey);

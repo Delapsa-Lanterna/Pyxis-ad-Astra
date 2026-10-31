@@ -570,6 +570,7 @@ mod tests {
         let manifest =
             super::super::project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let payload = TextSave {
+            json_write: Default::default(),
             session_id: Some(manifest.session_id.clone()),
             mod_root: manifest.mod_root.clone(),
             path: path.to_string_lossy().to_string(),
@@ -631,6 +632,7 @@ mod tests {
         let manifest =
             super::super::project::open_project_session_traced(&root, None, &mut trace).unwrap();
         let payload = TextSave {
+            json_write: Default::default(),
             session_id: Some(manifest.session_id.clone()),
             mod_root: manifest.mod_root.clone(),
             path: path.to_string_lossy().to_string(),

@@ -133,8 +133,12 @@ pub fn build_variant_file(mod_root: &Path, rel_path: &str, data: &Value) -> AppR
 }
 
 pub fn build_skin_file(mod_root: &Path, rel_path: &str, data: &Value) -> AppResult<SkinFile> {
-    let skin_hull_id = required_string(data, "skinHullId", "舰船皮肤")?;
-    let base_hull_id = required_string(data, "baseHullId", "舰船皮肤")?;
+    let skin_hull_id = crate::models::file_content_id(data, "skinHullId", Path::new(rel_path));
+    let base_hull_id = data
+        .get("baseHullId")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
     Ok(SkinFile {
         skin_hull_id,
         base_hull_id,

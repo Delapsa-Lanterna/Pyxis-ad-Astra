@@ -236,9 +236,19 @@ fn reject_stale_recovery() {
 fn recovery_snapshot_versions() {
     for kind in ["modInfo", "variant", "skin", "faction", "mission"] {
         let fixture = Fixture::new(kind);
+        let before: Vec<_> = fixture
+            .paths
+            .iter()
+            .map(|path| crate::io::work::count("read", &fixture.root.join(path)))
+            .collect();
         let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
         assert!(plan.missing_paths.is_empty(), "{kind}");
-        for path in &fixture.paths {
+        for (path, before) in fixture.paths.iter().zip(before) {
+            assert_eq!(
+                crate::io::work::count("read", &fixture.root.join(path)) - before,
+                1,
+                "{kind}: {path}"
+            );
             let expected = crate::io::file_version(&fixture.root.join(path)).unwrap();
             assert!(plan.base_versions.contains(&expected), "{kind}: {path}");
         }

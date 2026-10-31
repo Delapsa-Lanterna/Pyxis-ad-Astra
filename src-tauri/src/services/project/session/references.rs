@@ -29,6 +29,16 @@ pub(crate) fn reference_sources() -> AppResult<ReferenceSources> {
     Ok(state()?.clone())
 }
 
+pub(crate) fn set_reference_order(order: Vec<String>) -> AppResult<()> {
+    let mut current = state()?;
+    if current.order != order {
+        current.order = order;
+        current.revision += 1;
+        REVISION.store(current.revision, std::sync::atomic::Ordering::Release);
+    }
+    Ok(())
+}
+
 pub(crate) fn reference_updates() -> AppResult<Vec<CommittedSessionUpdate>> {
     let registered = registry::lock_registry()?
         .values()
@@ -246,6 +256,17 @@ impl ReferenceView {
 }
 
 impl ProjectSession {
+    pub fn preceding_references(&self) -> AppResult<impl Iterator<Item = &Arc<ReferenceView>>> {
+        let order = state()?.order.clone();
+        // The workspace owns tab order; consumers receive the eligible source sequence.
+        Ok(self.references.iter().filter(move |view| {
+            order
+                .iter()
+                .position(|id| id == &view.identity.session_id)
+                .is_none_or(|index| !order[..=index].contains(&self.manifest.session_id))
+        }))
+    }
+
     pub fn read_spec_source(
         &self,
         kind: EntityKind,

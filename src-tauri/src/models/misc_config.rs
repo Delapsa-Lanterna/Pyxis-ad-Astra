@@ -34,6 +34,7 @@ pub struct MiscConfigEntry {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiscConfigFile {
+    pub composition: super::JsonComposition,
     pub kind: MiscConfigKind,
     pub path: String,
     pub rel_path: String,

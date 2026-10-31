@@ -1,10 +1,10 @@
 use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::{
-    errors::{AppError, AppResult},
+    errors::AppResult,
     io::{FsRootBoundary, forward_slash_path},
-    models::{EntityFileLocation, FactionIndexEntry, ResourceSource},
+    models::{EntityFileLocation, ResourceSource},
 };
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 #[cfg(test)]
 use std::path::Path;
@@ -15,14 +15,6 @@ pub(in crate::services::project) fn faction_blueprint_tags(
     let mut tags_by_faction = HashMap::new();
     for (id, record) in files {
         let obj = &record.data;
-        if obj
-            .get("displayName")
-            .or_else(|| obj.get("displayNameLong"))
-            .and_then(Value::as_str)
-            .is_none()
-        {
-            continue;
-        }
         for section in ["knownShips", "knownWeapons", "knownFighters"] {
             if let Some(tags) = obj
                 .get(section)
@@ -52,7 +44,13 @@ pub(in crate::services::project) fn load_faction_files_from(
     let mod_root = sources.root().to_path_buf();
     let boundary = FsRootBoundary::new(&mod_root, "faction root")?;
     let table = sources.csv(&sources.path("data/world/factions/factions.csv")?)?;
-    let mut defs = BTreeMap::new();
+    let mut defs = super::super::sources::documents::load_spec_records_from(
+        sources,
+        "data/world/factions",
+        "faction",
+        "id",
+        ResourceSource::Mod,
+    )?;
     for entry in crate::io::faction_index_entries(&boundary, &table)? {
         if !entry.path.exists() {
             sources.versions.insert(
@@ -61,7 +59,8 @@ pub(in crate::services::project) fn load_faction_files_from(
             );
             continue;
         }
-        let (id, obj) = faction_object(&entry, sources.json(&entry.path)?)?;
+        let data = sources.json(&entry.path)?;
+        let id = crate::models::file_content_id(&data, "id", &entry.path);
         let rel_path = forward_slash_path(
             entry
                 .path
@@ -79,39 +78,11 @@ pub(in crate::services::project) fn load_faction_files_from(
                     rel_path,
                     path: entry.path.to_string_lossy().to_string(),
                 },
-                data: Value::Object(obj),
+                data,
             },
         );
     }
     Ok(defs)
-}
-
-fn faction_object(
-    entry: &FactionIndexEntry,
-    value: Value,
-) -> AppResult<(String, Map<String, Value>)> {
-    match value {
-        Value::Object(obj) => {
-            let id = obj
-                .get("id")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    AppError::message(
-                        "faction.id_missing",
-                        format!("势力文件缺少字符串 id: {}", entry.path.display()),
-                    )
-                })?
-                .to_string();
-            Ok((id, obj))
-        }
-        _ => Err(AppError::message(
-            "faction.file_not_object",
-            format!(
-                "faction file must be a JSON object: {}",
-                entry.path.display()
-            ),
-        )),
-    }
 }
 
 fn is_owned_faction_blueprint_tag(tag: &str, faction_id: &str) -> bool {
@@ -198,7 +169,7 @@ mod tests {
 
         assert!(files.contains_key("plsp"));
         assert!(files.contains_key("celestite"));
-        assert!(!files.contains_key("mercenary"));
+        assert!(files.contains_key("mercenary"));
         assert_eq!(files["plsp"].data["displayName"], "Polaris");
         root.close().unwrap();
     }

@@ -11,6 +11,7 @@ use crate::{
     },
 };
 use std::collections::BTreeMap;
+use std::path::Path;
 
 pub fn query_engine_render_assets(
     session_id: &str,
@@ -19,40 +20,28 @@ pub fn query_engine_render_assets(
     use super::super::{resources::resource_ref, sources};
     use crate::models::{EngineRenderAssets, ResourceOwnerKind, ResourceSource};
     let handle = session_handle(session_id)?;
-    let (mod_root, game_root) = {
-        let session = lock_ready_session(&handle)?;
-        (
-            session.manifest.mod_root.clone(),
-            session.manifest.starsector_root.clone(),
-        )
-    };
-    let mut roots = Vec::new();
-    if let Some(root) = game_root {
-        roots.push(sources::core::core_dir(&root)?);
-    }
-    let references = lock_ready_session(&handle)?.references.clone();
-    roots.extend(
-        references
-            .iter()
-            .rev()
-            .map(|view| view.identity.mod_root.clone().into()),
-    );
-    roots.push(mod_root.into());
     let mut result = EngineRenderAssets {
         styles: BTreeMap::new(),
         versions: Vec::new(),
         resources: BTreeMap::new(),
     };
-    for root in roots {
-        let (styles, version) = sources::engine_styles::read_engine_styles(&root)?;
-        for (key, value) in styles {
-            crate::json_overlay::overlay_json_value(
-                result.styles.entry(key).or_insert(serde_json::Value::Null),
-                value,
-            );
-        }
-        result.versions.push(version);
-    }
+    let session = lock_ready_session(&handle)?;
+    let composition =
+        super::super::json_composition(&session, sources::engine_styles::ENGINE_STYLES_PATH)?;
+    let (local, version) =
+        sources::engine_styles::read_engine_styles(Path::new(&session.manifest.mod_root))?;
+    let effective = crate::domain::json_composition::compose_game_json(
+        &composition,
+        &serde_json::to_value(local)?,
+    )?;
+    result.styles = serde_json::from_value(effective)?;
+    result.versions = composition
+        .layers
+        .into_iter()
+        .map(|layer| layer.version)
+        .chain(std::iter::once(version))
+        .collect();
+    drop(session);
     let mut paths = std::collections::BTreeSet::new();
     for style in result.styles.values().chain(inline_styles) {
         for field in ["glowSprite", "glowOutline"] {
@@ -125,15 +114,37 @@ pub fn query_draft_resources(
     draft: &serde_json::Value,
 ) -> AppResult<BTreeMap<String, ResourceRef>> {
     let handle = session_handle(session_id)?;
-    let _session = lock_ready_session(&handle)?;
-    Ok(match kind {
+    let session = lock_ready_session(&handle)?;
+    let mut resources = match kind {
         DraftResourceEntityKind::Ship => ship_resource_refs(id, draft),
         DraftResourceEntityKind::Weapon => weapon_resource_refs(id, draft),
         DraftResourceEntityKind::Faction => faction_resource_refs(id, draft),
         DraftResourceEntityKind::Mission => mission_resource_refs(id, draft),
         DraftResourceEntityKind::Projectile => projectile_resource_refs(id, draft),
         DraftResourceEntityKind::System => BTreeMap::new(),
-    })
+    };
+    let entity_kind = match kind {
+        DraftResourceEntityKind::Ship => Some(crate::models::EntityKind::Ship),
+        DraftResourceEntityKind::Weapon => Some(crate::models::EntityKind::Weapon),
+        DraftResourceEntityKind::Faction => Some(crate::models::EntityKind::Faction),
+        DraftResourceEntityKind::Projectile => Some(crate::models::EntityKind::Projectile),
+        _ => None,
+    };
+    if let Some(record) = entity_kind
+        .and_then(|kind| session.spec_records(kind))
+        .and_then(|records| records.get(id))
+    {
+        let sources = super::super::json_composition(&session, &record.location.rel_path)?;
+        let effective = crate::domain::json_composition::compose_game_json(&sources, &record.data)?;
+        let mut local = record.data.clone();
+        for (key, value) in draft.as_object().expect("resource draft object") {
+            if effective.get(key) != Some(value) {
+                local[key] = value.clone();
+            }
+        }
+        super::json_composition::resource_origins(&mut resources, &local, &sources);
+    }
+    Ok(resources)
 }
 
 #[cfg(test)]
@@ -213,7 +224,7 @@ mod tests {
         assert_eq!(assets.styles["A"]["glowSizeMult"], 2);
         assert_eq!(
             assets.styles["A"]["nested"],
-            serde_json::json!({"a":1,"b":2})
+            serde_json::json!({"a":1,"b":"2"})
         );
         assert_eq!(
             assets.resources["graphics/custom.png"].rel_path,
@@ -221,7 +232,7 @@ mod tests {
         );
         assert_eq!(
             assets.styles["A"]["engineColor"],
-            serde_json::json!([7, 8, 9])
+            serde_json::json!([1, 2, 3, 7, 8, 9])
         );
         assert_eq!(
             assets.styles["B"]["engineColor"],
@@ -561,6 +572,7 @@ mod tests {
         };
 
         let session_id = manifest.session_id.clone();
+        let before = sprite_read_count(&sprite);
         let first = query_resource_data_urls(&session_id, vec![resource.clone()])
             .unwrap()
             .entries[0]
@@ -575,6 +587,17 @@ mod tests {
             .data_url
             .clone()
             .unwrap();
+        assert_eq!(sprite_read_count(&sprite) - before, 2);
+        let repeat = ResourceRef {
+            reference: None,
+            source: ResourceSource::Mod,
+            rel_path: "graphics/ships/demo.png".into(),
+            owner_kind: ResourceOwnerKind::Ship,
+            owner_id: "repeat".into(),
+            key: "sprite".into(),
+        };
+        query_resource_data_urls(&session_id, vec![repeat]).unwrap();
+        assert_eq!(sprite_read_count(&sprite) - before, 2);
 
         close_project_session(session_id).unwrap();
         assert_ne!(first, second);
@@ -631,10 +654,23 @@ mod tests {
             }),
         );
 
-        let _ = close_project_session(manifest.session_id);
         assert_eq!(result.entries.len(), count);
         assert!(!oldest_still_cached);
         assert!(newest_still_cached);
+        let oldest = ResourceRef {
+            reference: None,
+            source: ResourceSource::Mod,
+            rel_path: "graphics/ships/p0000.png".into(),
+            owner_kind: ResourceOwnerKind::Ship,
+            owner_id: "ship".into(),
+            key: "oldest".into(),
+        };
+        let path = sprite_dir.join("p0000.png");
+        assert_eq!(sprite_read_count(&path), 1);
+        query_resource_data_urls(&manifest.session_id, vec![oldest.clone()]).unwrap();
+        query_resource_data_urls(&manifest.session_id, vec![oldest]).unwrap();
+        assert_eq!(sprite_read_count(&path), 2);
+        close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -669,6 +705,13 @@ mod tests {
             &session_id,
             &media_resource_key(&resource)
         ));
+        let path = sprite_dir.join("demo.png");
+        assert_eq!(sprite_read_count(&path), 1);
+        let reopened = open_project_session_traced(&root, None, &mut trace).unwrap();
+        query_resource_data_urls(&reopened.session_id, vec![resource.clone()]).unwrap();
+        query_resource_data_urls(&reopened.session_id, vec![resource]).unwrap();
+        assert_eq!(sprite_read_count(&path), 2);
+        close_project_session(reopened.session_id).unwrap();
         root.close().unwrap();
     }
 

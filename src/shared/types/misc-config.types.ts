@@ -20,6 +20,7 @@ export interface MiscConfigEntry {
   error: ErrorDiagnostic | null;
 }
 export interface MiscConfigFile {
+  composition?: import('./json-composition.types').JsonComposition;
   kind: MiscConfigKind;
   path: string;
   relPath: string;

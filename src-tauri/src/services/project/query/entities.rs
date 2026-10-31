@@ -29,7 +29,36 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
     let Some(data) = data else {
         return Ok(None);
     };
-    let mut resource_refs = (definition.resources)(&session, id, &data);
+    let composition = definition
+        .spec
+        .filter(|_| {
+            kind != EntityKind::Variant
+                && info
+                    .target
+                    .source
+                    .as_ref()
+                    .is_some_and(|source| source.source == crate::models::ResourceSource::Mod)
+        })
+        .map(|_| super::super::json_composition(&session, &info.target.write.rel_path))
+        .transpose()?;
+    let content = if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
+        &data["spec"]
+    } else {
+        &data
+    };
+    let effective = composition
+        .as_ref()
+        .map(|composition| crate::domain::json_composition::compose_game_json(composition, content))
+        .transpose()?;
+    let mut resource_data = data.clone();
+    if let Some(effective) = &effective {
+        if matches!(kind, EntityKind::Weapon | EntityKind::Skill) {
+            resource_data["spec"] = effective.clone();
+        } else {
+            resource_data = effective.clone();
+        }
+    }
+    let mut resource_refs = (definition.resources)(&session, id, &resource_data);
     if kind != EntityKind::Variant
         && !(kind == EntityKind::Skin && data.get("spriteName").is_none())
         && let Some(source) = &info.target.source
@@ -37,7 +66,11 @@ pub fn query_entity(session_id: &str, kind: EntityKind, id: &str) -> AppResult<O
         session.reference_resource(source, &mut resource_refs);
     }
     super::entity_targets::remember_edit_target(&mut session, &info.target);
+    if let Some(composition) = &composition {
+        super::json_composition::resource_origins(&mut resource_refs, content, composition);
+    }
     Ok(Some(EntityData {
+        composition,
         target: info.target,
         base_versions: info.base_versions,
         resource_refs,
@@ -59,6 +92,7 @@ pub fn query_entity_list(session_id: &str, kind: EntityKind) -> AppResult<Vec<En
         .map(|projection| {
             let info = targets.describe(&session, &projection.id);
             EntityData {
+                composition: None,
                 target: info.target,
                 base_versions: info.base_versions,
                 kind: projection.kind,
@@ -353,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    fn weapon_entity_list_uses_csv_registration_boundary() {
+    fn weapon_entity_list_includes_local_spec_files() {
         let root = project_workspace("weapon_entity_list_csv_boundary");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
@@ -373,7 +407,7 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Weapon).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        assert_eq!(entities.len(), 1);
+        assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].id, "csv_weapon");
         assert_eq!(entities[0].data["csvRow"]["range"], "700");
         assert_eq!(entities[0].data["spec"], Value::Object(Map::new()));
@@ -402,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn weapon_entity_query_returns_none_for_unregistered_spec() {
+    fn weapon_entity_query_reads_local_spec_without_csv_row() {
         let root = project_workspace("weapon_entity_unregistered_spec");
         std::fs::create_dir_all(root.join("data/weapons")).unwrap();
         write_utf8_no_bom(
@@ -422,12 +456,12 @@ mod tests {
         let entity = query_entity(&manifest.session_id, EntityKind::Weapon, "demo_weapon").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        assert!(entity.is_none());
+        assert_eq!(entity.unwrap().data["spec"]["specClass"], "beam");
         root.close().unwrap();
     }
 
     #[test]
-    fn skill_entity_list_uses_csv_registration_boundary() {
+    fn skill_entity_list_includes_local_spec_files() {
         let root = project_workspace("skill_entity_list_csv_boundary");
         std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
@@ -452,7 +486,7 @@ mod tests {
         let entities = query_entity_list(&manifest.session_id, EntityKind::Skill).unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        assert_eq!(entities.len(), 1);
+        assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].id, "skill_one");
         assert_eq!(entities[0].data["spec"]["effect"], "demo");
         assert_eq!(entities[0].data["csvRow"]["name"], "Skill One");
@@ -491,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn skill_entity_query_returns_none_for_unregistered_skill() {
+    fn skill_entity_query_reads_local_spec_without_csv_row() {
         let root = project_workspace("skill_entity_unregistered");
         std::fs::create_dir_all(root.join("data/characters/skills")).unwrap();
         write_utf8_no_bom(
@@ -511,7 +545,7 @@ mod tests {
         let entity = query_entity(&manifest.session_id, EntityKind::Skill, "missing").unwrap();
 
         let _ = close_project_session(manifest.session_id);
-        assert!(entity.is_none());
+        assert_eq!(entity.unwrap().data["spec"]["id"], "missing");
         root.close().unwrap();
     }
 

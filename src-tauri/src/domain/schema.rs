@@ -2,12 +2,20 @@ use crate::errors::{AppError, AppResult};
 use serde_json::Value;
 
 pub fn validate_document(schema: &Value, data: &Value) -> AppResult<()> {
+    validate_document_fields(schema, data, true)
+}
+
+pub fn validate_partial_document(schema: &Value, data: &Value) -> AppResult<()> {
+    validate_document_fields(schema, data, false)
+}
+
+fn validate_document_fields(schema: &Value, data: &Value, complete: bool) -> AppResult<()> {
     if let Some(root) = schema.get("root") {
         return validate_field(
             root,
             data,
             schema["id"].as_str().expect("bundled schema ID"),
-            true,
+            complete,
         );
     }
     for section in schema["sections"].as_array().expect("bundled sections") {
@@ -15,7 +23,7 @@ pub fn validate_document(schema: &Value, data: &Value) -> AppResult<()> {
             let key = field["key"].as_str().expect("bundled field key");
             let key = key.strip_prefix("file.").unwrap_or(key);
             if let Some(value) = data.get(key) {
-                validate_field(field, value, key, true)?;
+                validate_field(field, value, key, complete)?;
             }
         }
     }

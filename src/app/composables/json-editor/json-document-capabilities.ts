@@ -37,6 +37,7 @@ import type { EditTargetSnapshot } from '@/app/composables/use-edit-target-draft
 import type { AppFeedback, FileVersion, JsonRecoveryPlan, JsonValue, RowData, WriteResult } from '@/shared/types';
 
 export interface JsonDocumentMeta {
+  composition?: import('@/shared/types').JsonComposition;
   resources?: Record<string, import('@/shared/types').ResourceRef>;
   receipt: WriteResult<unknown> | null;
   recovery?: JsonRecoveryPlan;
@@ -52,7 +53,10 @@ export async function loadJsonDocument(target: ConfigDocumentTarget, signal?: Ab
       target,
       value: miscConfigValue(target.id, cloneQuerySnapshot<JsonValue>(file.data)),
       baseVersions: [...file.baseVersions],
-      meta: { receipt: null },
+      meta: {
+        receipt: null,
+        composition: file.composition ? cloneQuerySnapshot<import('@/shared/types').JsonComposition>(file.composition) : undefined,
+      },
     };
   }
   if (kind === 'mod-info') {
@@ -67,7 +71,7 @@ export async function loadJsonDocument(target: ConfigDocumentTarget, signal?: Ab
   const entity = await querySessionEntity(target.sessionId, kind, target.id, signal);
   if (!entity) throw new AppError('JSON 文档来源已删除', { action: 'read-json-document', code: 'json.source_missing' });
   const record = jsonDocumentRecord(target.sessionId, target.modRoot, entity);
-  return { ...record, meta: { receipt: null, resources: record.resources } };
+  return { ...record, meta: { receipt: null, resources: record.resources, composition: record.composition } };
 }
 
 export async function saveJsonDocument(
@@ -108,7 +112,13 @@ export async function saveJsonDocument(
       requestId: receipt.requestId,
     };
   }
-  const nextId = jsonDocumentId(definition, data);
+  const nextId =
+    jsonDocumentId(definition, data) ||
+    target.entity?.write.relPath
+      .split('/')
+      .at(-1)!
+      .replace(/\.[^.]+$/, '') ||
+    id;
   if (kind !== 'mod-info' && !isEntityId(nextId))
     throw new AppError(entityIdInvalidMessage(definition.idField, nextId), { action: 'save-json-document', code: 'config.id_invalid' });
   let value: RowData;
@@ -127,7 +137,7 @@ export async function saveJsonDocument(
     receipt = result;
     value = jsonDocumentValue(kind, result.content?.value as RowData);
   } else if (kind === 'variant' || kind === 'skin') {
-    if (!String(data[file!.companionField] ?? '').trim())
+    if (kind === 'variant' && !String(data[file!.companionField] ?? '').trim())
       throw new AppError(file!.companionField + ' 不能为空', { action: 'save-json-document', code: 'config.missing_field' });
     const result = await saveJsonFileAction(
       kind,
@@ -146,7 +156,7 @@ export async function saveJsonDocument(
     receipt = result.receipt;
     value = result.entity.data;
   } else {
-    const draft = kind === 'faction' ? configFactionSaveDraft(data, schema) : configMissionSaveDraft(data, schema);
+    const draft = kind === 'faction' ? configFactionSaveDraft(data, schema, nextId) : configMissionSaveDraft(data, schema);
     const result = await saveIndexedEntityAction(
       {
         sessionId,

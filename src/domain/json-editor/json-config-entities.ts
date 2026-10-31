@@ -159,10 +159,10 @@ export function configFactionEditorModel(file: RowData): RowData {
   return aggregateSchemaSources({ file });
 }
 
-export function configFactionSaveDraft(local: RowData, schema: FileSchema): ConfigFactionSaveDraft {
+export function configFactionSaveDraft(local: RowData, schema: FileSchema, fileId = ''): ConfigFactionSaveDraft {
   const split = splitSchemaSources(local, schema);
   const file = requireConfigObjectSource(split.file, '势力文件数据无效');
-  const nextId = trimmedConfigStringField(file, 'id');
+  const nextId = trimmedConfigStringField(file, 'id') || fileId;
   if (!nextId) {
     throw new AppError('势力 id 不能为空', { action: 'config-faction-save-draft' });
   }

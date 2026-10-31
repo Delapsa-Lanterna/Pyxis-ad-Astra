@@ -97,6 +97,7 @@ impl Fixture {
                 data,
                 base_versions,
                 json_write: crate::models::JsonWriteOptions {
+                    keep_filename: false,
                     preserve_original_json: true,
                     confirmed_sources: vec![],
                 },
@@ -298,6 +299,7 @@ fn config_formats_replay() {
                     data,
                     base_versions,
                     json_write: crate::models::JsonWriteOptions {
+                        keep_filename: false,
                         preserve_original_json: true,
                         confirmed_sources: vec![],
                     },
@@ -496,6 +498,7 @@ fn engine_source_preservation() {
             ordered_json: content.to_string(),
             data: content,
             json_write: crate::models::JsonWriteOptions {
+                keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: vec![],
             },

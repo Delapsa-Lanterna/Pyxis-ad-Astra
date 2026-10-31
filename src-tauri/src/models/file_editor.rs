@@ -15,6 +15,8 @@ pub struct EditableFileData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextSave {
+    #[serde(default)]
+    pub json_write: super::JsonWriteOptions,
     pub base_versions: Vec<crate::models::FileVersion>,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,

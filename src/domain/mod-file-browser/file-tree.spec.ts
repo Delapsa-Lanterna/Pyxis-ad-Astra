@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createModFileTreeProjection,
   sortModFiles,
@@ -97,6 +97,35 @@ describe('file metadata and sorting', () => {
 });
 
 describe('cached visible directory projection', () => {
+  it('sorts each changed directory once and formats each stable entry once', () => {
+    const { directories, projection, project } = setup();
+    const reads = [...directories.values()]
+      .flatMap((state) => state.entries!)
+      .map((item) => {
+        const read = vi.fn(() => 1700000000000);
+        Object.defineProperty(item, 'modifiedAt', { get: read });
+        return read;
+      });
+    const sorts = vi.spyOn(Array.prototype, 'sort');
+    try {
+      project(['data', 'other']);
+      expect(sorts).toHaveBeenCalledTimes(3);
+      for (const read of reads) expect(read).toHaveBeenCalledTimes(1);
+      project(['data', 'other']);
+      expect(sorts).toHaveBeenCalledTimes(3);
+      for (const read of reads) expect(read).toHaveBeenCalledTimes(1);
+      directories.get('data')!.entries = [entry('data/replacement')];
+      project(['data', 'other']);
+      expect(sorts).toHaveBeenCalledTimes(4);
+      for (const read of reads) expect(read).toHaveBeenCalledTimes(1);
+      projection.clear();
+      project(['data', 'other']);
+      expect(sorts).toHaveBeenCalledTimes(7);
+      for (const read of reads.slice(0, 3)) expect(read).toHaveBeenCalledTimes(2);
+    } finally {
+      sorts.mockRestore();
+    }
+  });
   function setup() {
     const directories = new Map<string | null, ModDirectoryState>([
       [null, { entries: [entry('data', 'directory'), entry('other', 'directory'), entry('README')], loading: false, error: '' }],

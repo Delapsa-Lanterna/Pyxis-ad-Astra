@@ -127,6 +127,7 @@ pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResu
                 &input.path,
                 input.text,
                 &input.base_versions,
+                input.json_write,
             )?,
             "保存文本",
         ),
@@ -364,6 +365,7 @@ mod tests {
             let (action, relative) = match kind {
                 "text" => (
                     SaveAction::SaveTextFile(TextSave {
+                        json_write: Default::default(),
                         session_id: Some(manifest.session_id.clone()),
                         mod_root: manifest.mod_root.clone(),
                         path: root.join("notes.txt").to_string_lossy().into(),

@@ -748,7 +748,7 @@ mod tests {
     }
 
     #[test]
-    fn open_project_session_rejects_skin_missing_required_ids() {
+    fn open_project_session_accepts_partial_skin() {
         let root = project_workspace("skin_missing_ids");
         std::fs::create_dir_all(root.join("data/hulls/skins")).unwrap();
         write_utf8_no_bom(
@@ -758,12 +758,9 @@ mod tests {
         .unwrap();
 
         let mut trace = PerformanceTrace::new("project.openSession");
-        let error = open_project_session_traced(&root, None, &mut trace)
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("bad.skin"));
-        assert!(error.contains("baseHullId"));
+        let manifest = open_project_session_traced(&root, None, &mut trace).unwrap();
+        assert_eq!(manifest.entity_summaries.skins, 1);
+        close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
 
@@ -1042,6 +1039,7 @@ mod source_refresh_tests {
                 .unwrap();
         let transaction = crate::services::write_transactions::begin(
             &crate::models::TextSave {
+                json_write: Default::default(),
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),
                 path: root.join("notes.txt").to_string_lossy().into(),

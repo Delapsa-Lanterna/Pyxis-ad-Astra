@@ -29,6 +29,7 @@ pub fn unregister_save_window(window: tauri::WebviewWindow) -> Result<(), AppErr
 pub fn set_reference_sources(
     window: tauri::WebviewWindow,
     session_ids: Vec<String>,
+    order: Vec<String>,
 ) -> Result<(), AppError> {
     if window.label() != "main" {
         return Err(AppError::message(
@@ -36,6 +37,7 @@ pub fn set_reference_sources(
             "引用来源只允许由主窗口设置",
         ));
     }
+    services::project::set_reference_order(order)?;
     services::project_sync::publish_references(
         services::project::set_reference_sources(session_ids)?,
         services::project::reference_updates()?,

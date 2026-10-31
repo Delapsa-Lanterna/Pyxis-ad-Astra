@@ -36,6 +36,7 @@
 </template>
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
+import { composeJson, editComposedJson } from '@/domain/schema/json-composition';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import NCollapseItem from '@/app/components/editors/common/EditorCollapseItem.vue';
 import { extraJsonFieldKeys } from '@/shared/lib/json-fields';
@@ -61,7 +62,14 @@ const props = defineProps<{
   runtimeContext?: SchemaRuntimeContext | null;
 }>();
 
-const modelValue = defineModel<RowData>({ required: true });
+const localValue = defineModel<RowData>({ required: true });
+const modelValue = computed({
+  get: () =>
+    props.runtimeContext?.composition ? composeJson(localValue.value, props.runtimeContext.composition.sources()) : localValue.value,
+  set: (next) => {
+    localValue.value = props.runtimeContext?.composition ? editComposedJson(localValue.value, modelValue.value, next) : next;
+  },
+});
 
 const sections = computed<SectionSchema[]>(() => getSchemaSections(props.schema));
 

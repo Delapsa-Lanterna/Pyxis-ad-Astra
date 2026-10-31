@@ -15,8 +15,8 @@ export function registerSaveWindow(receive: (delivery: SaveDelivery) => void) {
   }).then(() => snapshot);
 }
 
-export function setReferenceSources(sessionIds: string[]) {
-  return invokeCommand<void>('set_reference_sources', { sessionIds });
+export function setReferenceSources(sessionIds: string[], order: string[] = sessionIds) {
+  return invokeCommand<void>('set_reference_sources', { sessionIds, order });
 }
 
 export function abandonProjectSaves(modRoots: string[]) {

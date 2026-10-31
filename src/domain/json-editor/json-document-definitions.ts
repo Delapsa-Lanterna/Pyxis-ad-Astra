@@ -33,6 +33,7 @@ export function jsonDocumentOrigin(target: ConfigDocumentTarget): import('@/shar
       : { kind: 'entity', target: { kind: target.kind, id: target.id, relPath: target.entity!.write.relPath } };
 }
 export interface JsonDocumentRecord {
+  composition?: import('@/shared/types').JsonComposition;
   target: ConfigDocumentTarget;
   value: RowData;
   baseVersions: FileVersion[];
@@ -111,6 +112,7 @@ export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecove
 export function jsonDocumentRecord(sessionId: string, modRoot: string, record: DeepReadonly<EntityData>): JsonDocumentRecord {
   const entity = cloneQuerySnapshot<EntityData>(record);
   return {
+    composition: entity.composition,
     target: { sessionId, modRoot, kind: entity.kind as JsonDocumentKind, id: entity.id, entity: entity.target },
     value: jsonDocumentValue(entity.kind as JsonDocumentKind, requireRowData(entity.data, 'JSON 文档内容无效')),
     baseVersions: entity.baseVersions,
@@ -132,7 +134,7 @@ export function jsonDocumentSummary(
 ) {
   const { kind } = definition;
   const data = kind === 'mission' ? ((draft.descriptor ?? draft.list) as RowData) : jsonDocumentContent(kind, draft);
-  const id = kind === 'misc-config' ? record.target.id : jsonDocumentId(definition, draft);
+  const id = kind === 'misc-config' ? record.target.id : jsonDocumentId(definition, draft) || record.target.id;
   const file = definition.file;
   const title =
     kind === 'misc-config'

@@ -4,6 +4,7 @@ export interface JsonSourceConfirmation {
 }
 
 export interface JsonWriteOptions {
+  keepFilename?: boolean;
   preserveOriginalJson?: boolean;
   confirmedSources?: JsonSourceConfirmation[];
 }

@@ -105,10 +105,11 @@ pub fn prepare_json_source_recovery(request: JsonRecoveryRequest) -> AppResult<J
     }
     if let Some(target) = original.as_ref() {
         if target.kind == EntityKind::Mission {
-            versions.push(file_version(&boundary.resolve_relative_target(
-                &target.write.rel_path,
-                "mission recovery directory",
-            )?)?);
+            let directory = boundary
+                .resolve_relative_target(&target.write.rel_path, "mission recovery directory")?;
+            versions.push(crate::io::directory_version_from_files(
+                &directory, &versions,
+            )?);
         }
         let index_path = match target.kind {
             EntityKind::Faction => Some("data/world/factions/factions.csv"),

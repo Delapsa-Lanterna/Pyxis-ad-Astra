@@ -1,7 +1,8 @@
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import CsvTableEditor from './CsvTableEditor.vue';
+import CsvGrid from './CsvGrid.vue';
 import type { CsvTableViewModel } from '@/app/composables/csv-editor/use-csv-table-view-model';
 import { createFieldInputs } from '@/shared/runtime/field-inputs';
 import { createPinia, setActivePinia } from 'pinia';
@@ -54,7 +55,7 @@ function mountTable(vm: CsvTableViewModel) {
         'n-button': { emits: ['click'], template: `<button @click="$emit('click', $event)"><slot /></button>` },
         CsvGrid: {
           props: ['model', 'selectedRowKey', 'editing', 'isDirty'],
-          emits: ['request-window', 'resize-column', 'select-row', 'update-cell'],
+          emits: ['request-window', 'resize-column', 'select-row', 'update-cell', 'copy-row'],
           template: '<div class="csv-grid-stub" />',
         },
       },
@@ -64,6 +65,17 @@ function mountTable(vm: CsvTableViewModel) {
 }
 
 describe('CsvTableEditor', () => {
+  it('copies through its captured table target', () => {
+    const copyRow = vi.fn();
+    const fixture = tableVmFixture({ tables: { copyRow } });
+    const currentTarget = ref(fixture.target.value);
+    const vm = { ...fixture, target: computed(() => currentTarget.value) };
+    const target = vm.target.value;
+    const mounted = mountTable(vm);
+    currentTarget.value = { sessionId: 'other', modRoot: 'M:/other', table: 'weapons' };
+    mounted.findComponent(CsvGrid).vm.$emit('copy-row', 'source', 3);
+    expect(copyRow).toHaveBeenCalledExactlyOnceWith(target, 'source', 3);
+  });
   it('renders the grid without notices for a clean table with columns', () => {
     const mounted = mountTable(tableVmFixture());
     expect(mounted.find('.table-external-update-note').exists()).toBe(false);

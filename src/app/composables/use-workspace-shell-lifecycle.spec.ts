@@ -113,6 +113,44 @@ describe('workspace shell listener lifecycle', () => {
     if (stage === 'restore-error') wrapper.unmount();
   });
 
+  it('publishes only ready sessions while restored tabs load and fail', async () => {
+    const wrapper = mountShell();
+    await flushPromises();
+    const workspace = useWorkspaceStore();
+    const project = useProjectStore();
+    workspace.applyPersistedWorkspaceSnapshot({
+      mods: ['atlas', 'beacon', 'comet'].map((id) => ({ modRoot: `M:/${id}`, displayName: id, version: '', referenceable: true })),
+      starsectorRoot: null,
+      gameMods: [],
+      gameWarnings: [],
+      columnWidths: {},
+    });
+    await flushPromises();
+    expect(mocks.publish).toHaveBeenCalledTimes(0);
+    project.registerProjectManifest(sessionUpdateFixture('beacon', 'M:/beacon').projection.manifest);
+    await flushPromises();
+    expect(mocks.publish).toHaveBeenCalledTimes(0);
+    workspace.updateModStatus('M:/beacon', 'ready');
+    await flushPromises();
+    const beacon = { sessionId: 'beacon', modRoot: 'M:/beacon' };
+    expect(mocks.publish).toHaveBeenCalledExactlyOnceWith([beacon], ['beacon']);
+    workspace.updateModStatus('M:/comet', 'error');
+    await flushPromises();
+    expect(mocks.publish).toHaveBeenCalledTimes(1);
+    project.registerProjectManifest(sessionUpdateFixture('atlas', 'M:/atlas').projection.manifest);
+    workspace.updateModStatus('M:/atlas', 'ready');
+    await flushPromises();
+    const atlas = { sessionId: 'atlas', modRoot: 'M:/atlas' };
+    expect(mocks.publish).toHaveBeenNthCalledWith(2, [atlas, beacon], ['atlas', 'beacon']);
+    workspace.removeLoadedModEntry('M:/beacon');
+    project.removeProjectManifest('M:/beacon');
+    await flushPromises();
+    expect(mocks.publish).toHaveBeenNthCalledWith(3, [atlas], ['atlas']);
+    expect(mocks.publish).toHaveBeenCalledTimes(3);
+    expect(feedback.error).toHaveBeenCalledTimes(0);
+    wrapper.unmount();
+  });
+
   it('publishes changed reference sequences and releases the shell after startup', async () => {
     mocks.restore.mockImplementation(async () => {});
     const wrapper = mountShell();
@@ -130,22 +168,22 @@ describe('workspace shell listener lifecycle', () => {
     await flushPromises();
     const beacon = { sessionId: 'beacon', modRoot: 'M:/beacon' };
     const comet = { sessionId: 'comet', modRoot: 'M:/comet' };
-    expect(mocks.publish).toHaveBeenCalledExactlyOnceWith([beacon, comet]);
+    expect(mocks.publish).toHaveBeenCalledExactlyOnceWith([beacon, comet], ['atlas', 'beacon', 'comet']);
     workspace.setModReferenceable('M:/beacon', true);
     await flushPromises();
     expect(mocks.publish).toHaveBeenCalledTimes(1);
     workspace.moveMod('M:/comet', 'M:/beacon', false);
     await flushPromises();
-    expect(mocks.publish).toHaveBeenLastCalledWith([comet, beacon]);
+    expect(mocks.publish).toHaveBeenLastCalledWith([comet, beacon], ['atlas', 'comet', 'beacon']);
     workspace.setModReferenceable('M:/beacon', false);
     await flushPromises();
-    expect(mocks.publish).toHaveBeenLastCalledWith([comet]);
+    expect(mocks.publish).toHaveBeenLastCalledWith([comet], ['atlas', 'comet', 'beacon']);
     workspace.setModReferenceable('M:/beacon', undefined);
     await flushPromises();
-    expect(mocks.publish).toHaveBeenLastCalledWith([comet, beacon]);
+    expect(mocks.publish).toHaveBeenLastCalledWith([comet, beacon], ['atlas', 'comet', 'beacon']);
     project.replaceProjectManifest({ ...manifest, modInfo: { id: 'atlas' } });
     await flushPromises();
-    expect(mocks.publish).toHaveBeenLastCalledWith([]);
+    expect(mocks.publish).toHaveBeenLastCalledWith([], ['atlas', 'comet', 'beacon']);
     expect(mocks.publish).toHaveBeenCalledTimes(5);
     wrapper.unmount();
     await flushPromises();

@@ -2,6 +2,7 @@ import type { EntityKind, ResourceRef } from '@/shared/types/project-identity.ty
 import type { JsonValue } from '@/shared/types/json.types';
 
 export interface EntityData {
+  composition?: import('./json-composition.types').JsonComposition;
   target: import('@/shared/types/project-identity.types').EntityEditTarget;
   baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
   kind: EntityKind;

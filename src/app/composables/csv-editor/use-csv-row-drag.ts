@@ -11,12 +11,22 @@ export function useCsvRowDrag(options: {
   inputs: FieldInputs;
   select: (rowKey: string) => void;
   move: (rowKey: string, index: number) => void;
+  copy: (rowKey: string, index: number) => void;
   scrolled: () => void;
 }) {
   const feedback = useAppFeedback();
   const insertion = shallowRef<{ rowKey: string; after: boolean; index: number } | null>(null);
   const dragging = shallowRef(false);
-  let request: { rowKey: string; pointerId: number; x: number; y: number; latestX: number; latestY: number; ready: boolean } | null = null;
+  let request: {
+    rowKey: string;
+    pointerId: number;
+    x: number;
+    y: number;
+    latestX: number;
+    latestY: number;
+    ready: boolean;
+    copy: boolean;
+  } | null = null;
   let frame = 0,
     previousTime = 0;
 
@@ -78,6 +88,7 @@ export function useCsvRowDrag(options: {
       latestX: event.clientX,
       latestY: event.clientY,
       ready: false,
+      copy: event.ctrlKey,
     };
     request = current;
     options.panel.value!.setPointerCapture(event.pointerId);
@@ -113,8 +124,12 @@ export function useCsvRowDrag(options: {
       active = dragging.value;
     cancel();
     if (!current.ready || !active || !drop || options.disabled()) return;
-    const from = options.rowKeys.value.indexOf(current.rowKey);
     const boundary = drop.index + Number(drop.after);
+    if (current.copy) {
+      options.copy(current.rowKey, boundary);
+      return;
+    }
+    const from = options.rowKeys.value.indexOf(current.rowKey);
     const to = boundary - Number(from < boundary);
     if (from >= 0 && from !== to) options.move(current.rowKey, to);
   }

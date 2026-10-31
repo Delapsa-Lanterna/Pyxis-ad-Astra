@@ -47,7 +47,11 @@ const request: NativeWindowRequest = {
 };
 const status: ManagedWindowStatus = { dirty: false, saving: false };
 const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]> = [
-  ['set_reference_sources', () => setReferenceSources(['source-b', 'source-c']), { sessionIds: ['source-b', 'source-c'] }],
+  [
+    'set_reference_sources',
+    () => setReferenceSources(['source-b', 'source-c']),
+    { sessionIds: ['source-b', 'source-c'], order: ['source-b', 'source-c'] },
+  ],
   ['read_settings', readSettings, undefined],
   ['read_default_settings', readDefaultSettings, undefined],
   ['query_system_fonts', querySystemFonts, undefined],

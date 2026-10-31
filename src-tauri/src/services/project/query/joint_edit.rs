@@ -311,6 +311,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         }
         let source = info.target.source.clone();
         records.push(JointEditRecord {
+            composition: None,
             key,
             target: JointRecordTarget::Spec {
                 target: info.target,
@@ -1187,6 +1188,7 @@ impl JointGraph<'_> {
             }
         }
         let record = JointEditRecord {
+            composition: None,
             key: key.clone(),
             target: JointRecordTarget::Csv {
                 table,
@@ -1239,6 +1241,22 @@ impl JointGraph<'_> {
         let source_version = source_read.as_ref().map(|(version, _)| version.clone());
         let value = source_read.map(|(_, value)| value);
         let value = self.projected_value(&key, value);
+        let composition = (kind != EntityKind::Variant
+            && target
+                .source
+                .as_ref()
+                .is_some_and(|source| source.source == ResourceSource::Mod))
+        .then(|| super::super::json_composition(self.session, &target.write.rel_path))
+        .transpose()?;
+        let effective = value
+            .as_ref()
+            .map(|value| {
+                composition.as_ref().map_or_else(
+                    || Ok(value.clone()),
+                    |sources| crate::domain::json_composition::compose_game_json(sources, value),
+                )
+            })
+            .transpose()?;
         let source = target.source.clone();
         let mut versions = vec![
             source_version
@@ -1258,7 +1276,7 @@ impl JointGraph<'_> {
                 versions.push(version);
             }
         }
-        let resources = match (&value, kind) {
+        let resources = match (&effective, kind) {
             (Some(data), EntityKind::Ship) => {
                 super::super::definitions::entity_resources::ship_resource_refs(id, data)
             }
@@ -1299,6 +1317,7 @@ impl JointGraph<'_> {
         self.records.insert(
             key,
             JointEditRecord {
+                composition: composition.clone(),
                 key: serde_json::to_string(&("spec", kind, id))?,
                 target: JointRecordTarget::Spec { target },
                 source,
@@ -1308,7 +1327,12 @@ impl JointGraph<'_> {
                     .map(JointValue::Present)
                     .unwrap_or(JointValue::Missing),
                 base_versions: versions,
-                resource_refs: resources,
+                resource_refs: {
+                    if let (Some(local), Some(sources)) = (&value, &composition) {
+                        super::json_composition::resource_origins(&mut resources, local, sources);
+                    }
+                    resources
+                },
                 referenced_by: vec![parent.into()],
             },
         );
@@ -1389,7 +1413,7 @@ impl JointGraph<'_> {
             }
             self.spec(EntityKind::System, &system, id)?;
         }
-        let Some(data) = value else {
+        let Some(data) = effective else {
             return Ok(());
         };
         if self.scope == JointGraphScope::Editing {

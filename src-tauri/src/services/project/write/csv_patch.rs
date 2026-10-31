@@ -444,7 +444,7 @@ fn rewrite_associated_spec_id(
     };
     object.insert(id_field.to_string(), Value::String(new_id.to_string()));
     if table == CsvTableKey::Weapons {
-        validate_weapon_spec_class(&value, path)?;
+        validate_weapon_spec_class(&value, path, crate::parsers::bundled_schema("spec-weapon"))?;
     }
     Ok((json.render(path, &value, None)?, description_rename))
 }
@@ -1406,6 +1406,7 @@ mod tests {
                 },
             }],
             crate::models::JsonWriteOptions {
+                keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
             },
@@ -1462,6 +1463,7 @@ mod tests {
                 },
             }],
             crate::models::JsonWriteOptions {
+                keep_filename: false,
                 preserve_original_json: true,
                 confirmed_sources: Vec::new(),
             },

@@ -159,6 +159,7 @@ pub struct ReferenceSource {
 pub struct ReferenceSources {
     pub revision: u64,
     pub sources: Vec<ReferenceSource>,
+    pub order: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

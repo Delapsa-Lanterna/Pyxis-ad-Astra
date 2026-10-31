@@ -68,6 +68,8 @@ impl NumericLabel {
 }
 
 static CATALOGS: LazyLock<BTreeMap<String, WellKnownCatalog>> = LazyLock::new(|| {
+    #[cfg(test)]
+    crate::io::work::record("asset-parse", std::path::Path::new("well-known-labels"));
     let asset: LabelAsset =
         serde_json::from_str(include_str!("../../../schemas/well-known-labels.json"))
             .expect("embedded original label catalog must parse");
@@ -96,6 +98,8 @@ static CATALOGS: LazyLock<BTreeMap<String, WellKnownCatalog>> = LazyLock::new(||
                 .push(pattern.clone());
         }
     }
+    #[cfg(test)]
+    crate::io::work::record("asset-build", std::path::Path::new("well-known-labels"));
     catalogs
 });
 
