@@ -1,4 +1,5 @@
 import type { CacheLimits } from './cache-limits.types.js';
+import type { FeedbackLevel } from './feedback.types.js';
 
 export const APP_THEMES = ['light', 'dark'] as const;
 export type AppTheme = (typeof APP_THEMES)[number];
@@ -12,8 +13,11 @@ export type EditMode = (typeof EDIT_MODES)[number];
 export const LOG_LEVELS = ['debug', 'info', 'warning', 'error'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+export type ToastDurations = Record<FeedbackLevel, number>;
+
 export interface AppSettings {
   performanceMonitorEnabled: boolean;
+  toastDurations: ToastDurations;
   cacheLimits: CacheLimits;
   theme: AppTheme | null;
   accent: AccentPreset;

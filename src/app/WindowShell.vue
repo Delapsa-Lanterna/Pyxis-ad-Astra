@@ -1,6 +1,6 @@
 <template>
   <n-config-provider :theme="naiveTheme" :theme-overrides="themeOverrides">
-    <n-message-provider :duration="10000" closable keep-alive-on-hover>
+    <n-message-provider :duration="0" closable container-class="app-toast-container">
       <n-dialog-provider>
         <WindowRuntime
           ><WindowTooltip /><ContextMenu

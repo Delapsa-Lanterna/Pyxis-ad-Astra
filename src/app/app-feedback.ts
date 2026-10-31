@@ -13,7 +13,7 @@ import {
   MediaReadError,
   type FileReference,
 } from '@/shared/lib/errors';
-import type { ChooseOptions, ConfirmOptions } from '@/shared/types';
+import type { ChooseOptions, ConfirmOptions, ToastDurations } from '@/shared/types';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { logFields } from '@/shared/lib/log-fields';
 import type { FeedbackLevel, FeedbackFileAction, FeedbackFileActions, WindowFeedback } from '@/shared/types';
@@ -23,15 +23,28 @@ export function createAppFeedback(
   message: MessageApiInjection,
   dialog: DialogApiInjection,
   fileActions: FeedbackFileActions,
+  toastDurations: () => ToastDurations,
 ): WindowFeedback {
   const reportedMedia = new WeakSet<MediaReadError>();
   function showToast(level: FeedbackLevel, text: string, reference: FileReference | null = null, code = '') {
     const actions = reference === null ? [] : fileActions(reference, level, code);
-    const content = () => renderToastContent(text, reference, actions, runFileAction);
-    if (level === 'error') message.error(content, { duration: 0 });
-    else if (level === 'warning') message.warning(content);
-    else if (level === 'info') message.info(content);
-    else message.success(content);
+    const seconds = toastDurations()[level];
+    // The countdown animation owns expiry so hover pauses the same clock shown by the bar.
+    const instance = message[level](
+      () =>
+        h('div', { class: 'app-toast-content' }, [
+          renderToastContent(text, reference, actions, runFileAction),
+          seconds > 0
+            ? h('span', {
+                class: 'app-toast-countdown',
+                'aria-hidden': true,
+                style: { '--app-toast-duration': seconds + 's', '--app-toast-color': `var(--n-icon-color-${level})` },
+                onAnimationend: () => instance.destroy(),
+              })
+            : null,
+        ]),
+      { duration: 0 },
+    );
   }
   async function runFileAction(action: FeedbackFileAction) {
     try {

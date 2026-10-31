@@ -7,7 +7,7 @@ import { createWindowFeedback } from './app-feedback-assembly';
 import type { ManagedWindowContext, WriteResult } from '@/shared/types';
 import { AppError, withCause } from '@/shared/lib/errors';
 import { useProjectStore } from '@/stores/project.store';
-import { initializeSettingsStore } from '@/stores/settings.store';
+import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { buildModOpeningFailure, modOpeningFailureNotice, scanWarningNotice, formatLoadWarnings } from '@/domain/project/load-diagnostics';
@@ -50,7 +50,12 @@ function feedbackHarness(accepting = () => true) {
   return {
     messages,
     dialogs,
-    feedback: createWindowFeedback(messages as unknown as MessageApiInjection, dialogs as unknown as DialogApiInjection, accepting),
+    feedback: createWindowFeedback(
+      messages as unknown as MessageApiInjection,
+      dialogs as unknown as DialogApiInjection,
+      () => useSettingsStore().toastDurations,
+      accepting,
+    ),
   };
 }
 

@@ -9,11 +9,13 @@ import {
   type AppTheme,
   type EditMode,
   type LogLevel,
+  type ToastDurations,
 } from '@/shared/types';
 
 export const MAX_HISTORY_LIMIT = 1000;
 export const MAX_LOG_ROTATION_SIZE_MIB = 1024;
 export const MAX_LOG_BACKUP_COUNT = 20;
+export const MAX_TOAST_DURATION = 3600;
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -34,6 +36,7 @@ export function assertValidSettings(settings: AppSettings): void {
   if (typeof settings.performanceMonitorEnabled !== 'boolean') throw new Error('Invalid performance monitor setting');
   readTheme(settings.theme);
   readCacheLimits(settings.cacheLimits);
+  readToastDurations(settings.toastDurations);
   readAccent(settings.accent);
   readCustomAccent(settings.customAccent);
   readGeneralFont(settings.generalFont);
@@ -72,6 +75,16 @@ export function readCustomAccent(value: string): string {
   const customAccent = normalizeHex(value);
   if (!customAccent) throw new Error(`Invalid custom accent: ${value}`);
   return customAccent;
+}
+
+export function readToastDuration(value: number): number {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_TOAST_DURATION) throw new Error(`Invalid toast duration: ${value}`);
+  return value;
+}
+
+export function readToastDurations(value: ToastDurations): ToastDurations {
+  for (const level of ['success', 'info', 'warning', 'error'] as const) readToastDuration(value[level]);
+  return value;
 }
 
 export function readHistoryLimit(value: number): number {

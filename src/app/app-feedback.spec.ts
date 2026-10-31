@@ -4,6 +4,7 @@ import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvide
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import { createAppFeedback, type FeedbackFileActions } from './app-feedback';
 import { AppError, withCause, MediaReadError } from '@/shared/lib/errors';
+import { createSettingsFixture } from '@/test/fixtures/settings';
 const mocks = vi.hoisted(() => ({ log: vi.fn() }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log }));
 let wrapper: VueWrapper | null = null;
@@ -12,16 +13,46 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
 });
-function harness(actions: FeedbackFileActions = () => []) {
+function harness(actions: FeedbackFileActions = () => [], durations = createSettingsFixture().toastDurations) {
   const messages = { error: vi.fn(), warning: vi.fn(), success: vi.fn(), info: vi.fn() };
   const dialogs = { warning: vi.fn(), error: vi.fn(), create: vi.fn() };
+  for (const create of Object.values(messages)) create.mockImplementation(() => ({ destroy: vi.fn() }));
   return {
     messages,
     dialogs,
-    feedback: createAppFeedback(messages as unknown as MessageApiInjection, dialogs as unknown as DialogApiInjection, actions),
+    feedback: createAppFeedback(
+      messages as unknown as MessageApiInjection,
+      dialogs as unknown as DialogApiInjection,
+      actions,
+      () => durations,
+    ),
   };
 }
 describe('window feedback presentation', () => {
+  it.each(['success', 'info', 'warning', 'error'] as const)('captures %s duration and expires the corresponding message', async (level) => {
+    const durations = createSettingsFixture().toastDurations,
+      { feedback, messages } = harness(() => [], durations);
+    const show = () =>
+      level === 'warning'
+        ? feedback.warning({ userMessage: 'fixture', diagnostic: { code: 'fixture', message: 'fixture', location: null } })
+        : feedback[level]('fixture');
+    show();
+    wrapper = mount({ render: messages[level].mock.lastCall![0] });
+    const seconds = durations[level];
+    expect(wrapper.findAll('.app-toast-countdown')).toHaveLength(seconds > 0 ? 1 : 0);
+    wrapper.unmount();
+    durations[level] = 9;
+    wrapper = mount({ render: messages[level].mock.lastCall![0] });
+    expect(wrapper.findAll('.app-toast-countdown')).toHaveLength(seconds > 0 ? 1 : 0);
+    if (seconds > 0) expect(wrapper.get('.app-toast-countdown').attributes('style')).toContain(seconds + 's');
+    wrapper.unmount();
+    show();
+    wrapper = mount({ render: messages[level].mock.lastCall![0] });
+    expect(wrapper.get('.app-toast-countdown').attributes('style')).toContain('9s');
+    await wrapper.get('.app-toast-countdown').trigger('animationend');
+    expect(messages[level].mock.results[1]!.value.destroy).toHaveBeenCalledOnce();
+    expect(messages[level].mock.results[0]!.value.destroy).not.toHaveBeenCalled();
+  });
   it('reports a shared media batch once and logs each original diagnostic', () => {
     const { feedback, messages } = harness();
     const failures = [1, 2].map((index) => ({ code: 'reference.unavailable', message: 'fixture ' + index, location: null }));
@@ -93,19 +124,19 @@ describe('window feedback presentation', () => {
     expect(mocks.log).toHaveBeenLastCalledWith(expect.objectContaining({ message: failure.message, fields: { action: '文件操作失败' } }));
     expect(messages.error.mock.lastCall![1]).toEqual({ duration: 0 });
   });
-  it('keeps warning copy separate from diagnostics and preserves provider durations for ordinary messages', () => {
+  it('keeps warning copy separate from diagnostics and lets the countdown own expiry', () => {
     const { feedback, messages } = harness();
     feedback.warning({ userMessage: '读取任务失败', diagnostic: { code: 'parse.json', message: 'Raw detail', location: null } });
     wrapper = mount({ render: messages.warning.mock.lastCall![0] });
     expect(wrapper.text()).toContain('读取任务失败');
     expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({ message: 'Raw detail' }));
-    expect(messages.warning.mock.lastCall).toHaveLength(1);
+    expect(messages.warning.mock.lastCall![1]).toEqual({ duration: 0 });
     mocks.log.mockClear();
     feedback.success('已完成');
     feedback.info('信息');
     expect(mocks.log).not.toHaveBeenCalled();
-    expect(messages.success.mock.lastCall).toHaveLength(1);
-    expect(messages.info.mock.lastCall).toHaveLength(1);
+    expect(messages.success.mock.lastCall![1]).toEqual({ duration: 0 });
+    expect(messages.info.mock.lastCall![1]).toEqual({ duration: 0 });
   });
   it.each(['confirmWarning', 'confirmDanger'] as const)('forwards confirmation and all cancellation routes through %s', (kind) => {
     const { feedback, dialogs } = harness();

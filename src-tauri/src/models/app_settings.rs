@@ -31,12 +31,34 @@ pub enum EditMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ToastDurations {
+    pub success: u32,
+    pub info: u32,
+    pub warning: u32,
+    pub error: u32,
+}
+
+impl Default for ToastDurations {
+    fn default() -> Self {
+        Self {
+            success: 5,
+            info: 7,
+            warning: 7,
+            error: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default)]
     pub performance_monitor_enabled: bool,
     #[serde(default)]
     pub cache_limits: CacheLimits,
+    #[serde(default)]
+    pub toast_durations: ToastDurations,
     #[serde(default)]
     pub theme: Option<AppTheme>,
     #[serde(default = "default_accent")]
@@ -81,6 +103,7 @@ impl Default for AppSettings {
         Self {
             performance_monitor_enabled: false,
             cache_limits: CacheLimits::default(),
+            toast_durations: ToastDurations::default(),
             theme: None,
             accent: default_accent(),
             custom_accent: default_custom_accent(),

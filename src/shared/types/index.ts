@@ -96,6 +96,7 @@ export type {
   LogLevel,
   SaveAppSettingsPayload,
   SettingsSnapshot,
+  ToastDurations,
 } from '@/shared/types/app-settings.types';
 export { ACCENT_PRESET_VALUES, APP_THEMES, EDIT_MODES, LOG_LEVELS } from '@/shared/types/app-settings.types';
 export type { AppLogEntry, AppLogLevel, AppLogStatus, AppendAppLogsPayload } from '@/shared/types/app-log.types';

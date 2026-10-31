@@ -100,9 +100,7 @@
             >清除</n-button
           >
         </div>
-        <template #hint
-          ><FieldHints description="选择直接存放游戏同名 .fnt 文件及配套图片的目录。选择或清除后立即生效，各种字体分别回退。"
-        /></template>
+        <template #hint><FieldHints description="选择直接存放游戏同名 .fnt 文件及配套图片的目录。" /></template>
       </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
@@ -121,6 +119,9 @@
       ></FieldRow>
       <FieldRow label="展开字段解析">
         <n-switch class="tool-switch" :value="settings.expandFieldDescriptions" @update:value="settings.setExpandFieldDescriptions" />
+        <template #hint>
+          <FieldHints description="完全展开解析，关闭时字段解析将收入悬浮框。" />
+        </template>
       </FieldRow>
       <FieldRow label="允许编辑原版">
         <n-switch class="tool-switch" :value="settings.allowCoreEditing" @update:value="settings.setAllowCoreEditing" />
@@ -128,10 +129,7 @@
           <FieldHints description="允许写入 Starsector 原版内容。" warning="修改原版文件可能影响游戏运行，操作前请备份并谨慎修改。" />
         </template>
       </FieldRow>
-    </section>
-    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
-      <h3 class="panel-section-title">JSON 保存</h3>
-      <FieldRow label="原样保存"
+      <FieldRow label="JSON 原样保存"
         ><n-switch class="tool-switch" :value="settings.preserveOriginalJson" @update:value="settings.setPreserveOriginalJson" /><template
           #hint
           ><FieldHints description="尽量保留结构化 JSON 文件的注释与字段顺序。无法保留时会在写入前请求确认。" /></template
@@ -140,6 +138,7 @@
     <section class="settings-cache-panel panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">缓存限制</h3>
       <h4 class="panel-section-title">撤销与历史</h4>
+      <FieldHints description="工作区的全局撤销，与表格的局部撤销。" />
       <FieldRow v-for="(row, key) in HISTORY_FIELDS" :key="key" :label="row[0]"
         ><n-input-number
           class="ui-field-number"
@@ -151,7 +150,7 @@
           @update:value="settings[row[2]]($event ?? settings[key])" /><template #hint><FieldHints :description="row[1]" /></template
       ></FieldRow>
       <h4 class="panel-section-title">图片与媒体</h4>
-      <FieldHints description="保存成功后立即生效。0 表示不保留相应缓存；较久未用的内容优先清理，正在使用的图片继续保留。" />
+      <FieldHints description="0 表示不保留相应缓存；较久未用的内容优先清理，正在使用的图片继续保留。" />
       <FieldRow v-for="(row, key) in MEDIA_CACHES" :key="key" :label="row[0]">
         <div class="action-group">
           <label v-for="unit in ['entries', 'MiB'] as const" :key="unit" class="action-group">
@@ -202,6 +201,23 @@
           <template #hint><FieldHints description="每张原版字体图集保留的着色字形成品数量。" /></template>
         </FieldRow>
       </div>
+    </section>
+    <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
+      <h3 class="panel-section-title">提示时长</h3>
+      <FieldHints description="单位为秒，范围 0–3600。0 表示持续显示。修改后对新出现的提示生效。" />
+      <FieldRow v-for="(label, level) in TOAST_LEVELS" :key="level" :label="label">
+        <label class="action-group">
+          <n-input-number
+            class="ui-field-number"
+            :value="settings.toastDurations[level]"
+            :min="0"
+            :max="MAX_TOAST_DURATION"
+            :step="1"
+            :precision="0"
+            @update:value="settings.setToastDuration(level, $event ?? settings.toastDurations[level])"
+          />秒
+        </label>
+      </FieldRow>
     </section>
     <section class="panel-card ui-layout-shrink ui-control-border ui-content-surface ui-layout-grid ui-layout-stretch">
       <h3 class="panel-section-title">配置文件</h3>
@@ -305,12 +321,13 @@ import FieldHints from '@/shared/ui/FieldHints.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { JsonValue, LogLevel } from '@/shared/types';
 import { useSettingsStore } from '@/stores/settings.store';
-import { MAX_HISTORY_LIMIT, MAX_LOG_ROTATION_SIZE_MIB, MAX_LOG_BACKUP_COUNT } from '@/domain/settings/rules';
+import { MAX_HISTORY_LIMIT, MAX_LOG_ROTATION_SIZE_MIB, MAX_LOG_BACKUP_COUNT, MAX_TOAST_DURATION } from '@/domain/settings/rules';
 import { ACCENT_PRESETS } from '@/domain/settings/theme';
 import ColorPicker from '@/shared/ui/ColorPicker.vue';
 import { useSettingsViewModel } from '@/app/composables/settings/use-settings-view-model';
 import type { CacheLimits } from '@/shared/types';
 
+const TOAST_LEVELS = { success: '成功', info: '信息', warning: '警告', error: '错误' } as const;
 const MEDIA_CACHES = {
   mediaData: ['媒体数据', '每个窗口保留的图片数据，可减少重复读取与传输。'],
   decodedImages: ['解码图片', '每个窗口保留的已解码原图，可减少重复解码。'],

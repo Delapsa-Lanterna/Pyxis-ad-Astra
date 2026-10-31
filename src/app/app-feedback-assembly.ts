@@ -2,7 +2,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
 import { createAppFeedback, type FeedbackFileAction } from '@/app/app-feedback';
-import type { AppFeedback } from '@/shared/types';
+import type { AppFeedback, ToastDurations } from '@/shared/types';
 import { errorCodeOf, type FileReference } from '@/shared/lib/errors';
 import type { FeedbackFileTarget, WindowFeedback } from '@/shared/types';
 import { closestRootForPath, pathBelongsToRoot } from '@/shared/lib/paths';
@@ -11,41 +11,51 @@ import { managedWindowContext } from '@/windows/window-context.window';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
 
-export function createWindowFeedback(message: MessageApiInjection, dialog: DialogApiInjection, accepting = () => true): WindowFeedback {
-  const feedback = createAppFeedback(message, dialog, (reference, level, code) => {
-    const session = reference.target ?? resolveSessionForPath(reference.path);
-    if (session === null) return [];
-    const actions: FeedbackFileAction[] = [
-      {
-        label: '打开文件',
-        type: level === 'info' ? 'default' : level,
-        run: async () => {
-          if (!accepting()) return;
-          try {
-            await openFileEditorWindow({
-              ...session,
-              path: reference.path,
-              line: reference.line,
-              column: reference.column,
-              title: '文件编辑器',
-            });
-          } catch (error) {
-            feedback.error(error, '打开文件失败');
-          }
+export function createWindowFeedback(
+  message: MessageApiInjection,
+  dialog: DialogApiInjection,
+  toastDurations: () => ToastDurations,
+  accepting = () => true,
+): WindowFeedback {
+  const feedback = createAppFeedback(
+    message,
+    dialog,
+    (reference, level, code) => {
+      const session = reference.target ?? resolveSessionForPath(reference.path);
+      if (session === null) return [];
+      const actions: FeedbackFileAction[] = [
+        {
+          label: '打开文件',
+          type: level === 'info' ? 'default' : level,
+          run: async () => {
+            if (!accepting()) return;
+            try {
+              await openFileEditorWindow({
+                ...session,
+                path: reference.path,
+                line: reference.line,
+                column: reference.column,
+                title: '文件编辑器',
+              });
+            } catch (error) {
+              feedback.error(error, '打开文件失败');
+            }
+          },
         },
-      },
-    ];
-    if (code === 'text.invalid_utf8')
-      actions.push({
-        label: '转码为 UTF-8',
-        type: 'warning',
-        run: () => {
-          if (accepting()) return useSaveCommandStore().trackCloseAction(transcodeReference(feedback, reference, session, accepting));
-          return undefined;
-        },
-      });
-    return actions;
-  });
+      ];
+      if (code === 'text.invalid_utf8')
+        actions.push({
+          label: '转码为 UTF-8',
+          type: 'warning',
+          run: () => {
+            if (accepting()) return useSaveCommandStore().trackCloseAction(transcodeReference(feedback, reference, session, accepting));
+            return undefined;
+          },
+        });
+      return actions;
+    },
+    toastDurations,
+  );
   return feedback;
 }
 

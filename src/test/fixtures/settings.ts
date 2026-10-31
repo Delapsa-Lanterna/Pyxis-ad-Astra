@@ -3,6 +3,7 @@ import type { AppSettings } from '@/shared/types';
 export function createSettingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
   return {
     performanceMonitorEnabled: false,
+    toastDurations: { success: 5, info: 7, warning: 7, error: 0 },
     cacheLimits: {
       mediaData: { entries: 2048, MiB: 64 },
       decodedImages: { entries: 1024, MiB: 96 },

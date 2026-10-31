@@ -12,6 +12,24 @@ beforeEach(() => {
 });
 
 describe('settings integer limits', () => {
+  it.each(['success', 'info', 'warning', 'error'] as const)('validates and mirrors %s toast durations', (level) => {
+    const settings = useSettingsStore();
+    expect(settings.toastDurations).toEqual({ success: 5, info: 7, warning: 7, error: 0 });
+    for (const seconds of [0, 3600]) {
+      settings.setToastDuration(level, seconds);
+      const saved = settings.settingsSnapshot();
+      expect(saved.toastDurations[level]).toBe(seconds);
+      settings.replaceSettings(saved);
+      expect(settings.toastDurations[level]).toBe(seconds);
+    }
+    for (const seconds of [-1, 1.5, 3601, NaN, Infinity]) {
+      const invalid = createSettingsFixture({ toastDurations: { ...snapshot.toastDurations, [level]: seconds } });
+      expect(() => settings.setToastDuration(level, seconds)).toThrow();
+      expect(() => settings.replaceSettings(invalid)).toThrow();
+      expect(() => initializeSettingsStore(invalid)).toThrow();
+      expect(settings.toastDurations[level]).toBe(3600);
+    }
+  });
   it('publishes, mirrors and clears the immersive font directory', () => {
     const settings = useSettingsStore();
     expect(settings.immersiveFontDirectory).toBeNull();

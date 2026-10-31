@@ -12,7 +12,14 @@ import { provideAppFeedback } from '@/app/composables/use-app-feedback';
 import { useEditTargetHandoff } from '@/app/composables/use-edit-target-handoff';
 import { watch } from 'vue';
 import { applicationLogError } from '@/shared/runtime/app-log-queue';
-const feedback = createWindowFeedback(useMessage(), useDialog(), () => !closing.value);
+import { useSettingsStore } from '@/stores/settings.store';
+const settings = useSettingsStore();
+const feedback = createWindowFeedback(
+  useMessage(),
+  useDialog(),
+  () => settings.toastDurations,
+  () => !closing.value,
+);
 provideAppFeedback(feedback);
 const closing = useAppLifecycleAssembly(feedback);
 useEditTargetHandoff(feedback);

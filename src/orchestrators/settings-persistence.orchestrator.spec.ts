@@ -62,6 +62,17 @@ async function setup() {
   };
 }
 describe('formal settings commits', () => {
+  it('saves toast durations and restores their defaults through reset', async () => {
+    const { runtime, stop, settings } = await setup();
+    settings.setToastDuration('success', 0);
+    settings.setToastDuration('error', 3600);
+    await runtime.flushSettings();
+    expect(api.save.mock.lastCall![0].toastDurations).toEqual({ success: 0, info: 7, warning: 7, error: 3600 });
+    await runtime.resetSettings(vi.fn());
+    expect(settings.toastDurations).toEqual({ success: 5, info: 7, warning: 7, error: 0 });
+    expect(api.save.mock.lastCall![0].toastDurations).toEqual(settings.toastDurations);
+    stop();
+  });
   const stages = ['success', 'clear', 'reset', 'cancel', 'validate', 'close', 'save', 'open', 'overview', 'workspace'] as const;
   it.each(stages)('switches the whole source lifecycle: %s', async (stage) => {
     const previous = createSettingsFixture({ starsectorRoot: 'G:/previous' });
@@ -334,9 +345,11 @@ describe('formal settings commits', () => {
     const receive = api.listen.mock.calls[0]![0];
     const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' });
     next.cacheLimits.decodedImages.entries = 7;
+    next.toastDurations = { success: 0, info: 3600, warning: 8, error: 9 };
     receive({ revision: 4, value: next });
     receive({ revision: 3, value: createSettingsFixture({ generalFont: 'Earlier Font' }) });
     expect(useSettingsStore().generalFont).toBe('Latest Font');
+    expect(useSettingsStore().toastDurations).toEqual(next.toastDurations);
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
     expect(useSettingsStore().immersiveFontDirectory).toBe('F:/fonts');
     expect((await import('@/shared/runtime/cache-limits')).windowCacheLimits().decodedImages.entries).toBe(7);

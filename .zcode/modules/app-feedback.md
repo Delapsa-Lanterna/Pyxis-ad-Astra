@@ -17,6 +17,7 @@
 - `src-tauri/src/errors.rs`：后端稳定码、原始错误链、位置与附加 payload。
 - `src/shared/lib/error-messages.ts`：稳定错误码对应的用户文案。
 - `src/shared/lib/errors.ts`：`AppError`、诊断与文案投影。
+- `src/shared/types/app-settings.types.ts`：窗口宿主注入的提示时长。
 - `src/shared/types/error.types.ts`：诊断与通知对象。
 - `src/shared/types/feedback.types.ts`：反馈公开交接类型。
 
@@ -60,7 +61,8 @@
 - 反馈实现与注入入口严禁依赖文件编辑、项目状态或窗口恢复业务；恢复动作必须由应用装配交付。
 - 反馈工厂必须由窗口宿主注入 message、dialog 与文件动作生成函数；同窗口消费者必须取得同一实例。
 - 所属编辑器提供简短 userMessage 时，通知必须消费该文案，日志、错误码、位置与原始错误链必须继续消费原诊断。
-- 提示基线必须由唯一 WindowShell provider 承载，可手动关闭且悬浮暂停；普通提示 10 秒，error duration 必须为 0。
+- 提示由唯一 WindowShell provider 承载，创建时捕获对应设置时长；有限提示的倒计时条与到期关闭共用同一动画进度，整框悬停时暂停，移出后继续剩余进度。
+- 零秒提示持续显示并提供关闭按钮；有限提示提供同级主题色倒计时条，关闭后随提示节点释放。
 - 提示必须由工厂统一渲染文件位置和授权恢复按钮，调用方严禁自建时长、关闭与渲染选项。
 - 文件位置必须从 location 消费，行列必须从 1 开始，列必须按 UTF-16 单元表达。
 - 文件恢复目标只允许消费应用装配捕获的会话身份或所属来源交付的显式恢复目标，错误包装必须保留目标。

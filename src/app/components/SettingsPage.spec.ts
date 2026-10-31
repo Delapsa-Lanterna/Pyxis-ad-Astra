@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { mount, type VueWrapper } from '@vue/test-utils';
 import { ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -59,6 +59,25 @@ beforeEach(() => {
 });
 
 describe('settings limit controls', () => {
+  it('places toast durations below cache limits and edits all four levels in seconds', async () => {
+    const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
+    const sections = wrapper.findAll('section'),
+      index = sections.findIndex((section) => section.get('h3').text() === '提示时长'),
+      section = sections[index]!;
+    expect(sections[index - 1]!.get('h3').text()).toBe('缓存限制');
+    expect(section.findAll('.field-label').map((label) => label.text())).toEqual(['成功', '信息', '警告', '错误']);
+    const controls: VueWrapper[] = section.findAllComponents(nInputNumber);
+    expect(controls.map((control) => control.get<HTMLInputElement>('input').element.value)).toEqual(['5', '7', '7', '0']);
+    expect(section.text()).toContain('0 表示持续显示');
+    for (const control of controls) {
+      expect(control.props()).toMatchObject({ min: 0, max: 3600, step: 1 });
+      expect(control.attributes('precision')).toBe('0');
+      await control.get('input').setValue('3600');
+      expect(control.get<HTMLInputElement>('input').element.value).toBe('3600');
+    }
+    expect(Object.values(useSettingsStore().settingsSnapshot().toastDurations)).toEqual([3600, 3600, 3600, 3600]);
+    wrapper.unmount();
+  });
   it('keeps the color draft at its declared string output', async () => {
     const wrapper = mount(SettingsPage, { global: { stubs: { ...editorUiStubs, ColorPicker: true } } });
     const color = wrapper.getComponent(ColorPicker);
@@ -161,9 +180,14 @@ describe('settings limit controls', () => {
       },
     });
     const sections = wrapper.findAll('section');
-    expect(sections.map((section) => section.get('h3').text()).slice(1, 6)).toEqual(['外观', '字体', '编辑', 'JSON 保存', '缓存限制']);
+    expect(sections.map((section) => section.get('h3').text()).slice(1, 6)).toEqual(['外观', '字体', '编辑', '缓存限制', '提示时长']);
     const editing = sections[3]!;
-    expect(editing.findAll('.field-label').map((label) => label.text())).toEqual(['引用式编辑', '展开字段解析', '允许编辑原版']);
+    expect(editing.findAll('.field-label').map((label) => label.text())).toEqual([
+      '引用式编辑',
+      '展开字段解析',
+      '允许编辑原版',
+      'JSON 原样保存',
+    ]);
     expect(useSettingsStore().expandFieldDescriptions).toBe(false);
     await editing.get('.n-switch-stub').trigger('click');
     expect(useSettingsStore().editMode).toBe('plain');
@@ -171,7 +195,7 @@ describe('settings limit controls', () => {
     expect(useSettingsStore().editMode).toBe('smart');
     await editing.findAll('.n-switch-stub')[1]!.trigger('click');
     expect(useSettingsStore().expandFieldDescriptions).toBe(true);
-    const core = editing.findAll('.schema-field').at(-1)!;
+    const core = editing.findAll('.schema-field')[2]!;
     expect(core.get('.field-description').text()).toBe('允许写入 Starsector 原版内容。');
     expect(core.get('.field-warning').text()).toBe('注意：修改原版文件可能影响游戏运行，操作前请备份并谨慎修改。');
     await core.get('.n-switch-stub').trigger('click');

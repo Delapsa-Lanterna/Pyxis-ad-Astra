@@ -1,5 +1,5 @@
 import type { VNodeChild } from 'vue';
-import type { FeedbackNotice, FileReference } from '@/shared/types/error.types';
+import type { FeedbackNotice, FileReference } from './error.types.js';
 
 export type FeedbackLevel = 'success' | 'info' | 'warning' | 'error';
 export interface FeedbackFileAction {

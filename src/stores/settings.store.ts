@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { darkTheme, lightTheme } from 'naive-ui/es/themes';
-import type { AccentPreset, AppSettings, AppTheme, EditMode, LogLevel } from '@/shared/types';
+import type { AccentPreset, AppSettings, AppTheme, EditMode, FeedbackLevel, LogLevel } from '@/shared/types';
 import { ACCENT_PRESETS, createThemeColors } from '@/domain/settings/theme';
 import { generalFontFamily } from '@/domain/settings/fonts';
 import { initializeCacheLimits } from '@/shared/runtime/cache-limits';
@@ -24,6 +24,8 @@ import {
   readPreserveOriginalJson,
   readAllowCoreEditing,
   readTheme,
+  readToastDuration,
+  readToastDurations,
   normalizeHex,
 } from '@/domain/settings/rules';
 
@@ -43,6 +45,7 @@ export const useSettingsStore = defineStore('settings', () => {
     performanceMonitorEnabled.value = enabled;
   }
   const cacheLimits = ref(structuredClone(initialSettings.cacheLimits));
+  const toastDurations = ref(structuredClone(initialSettings.toastDurations));
   const systemTheme = ref<AppTheme>('light');
   const theme = computed(() => themePreference.value ?? systemTheme.value);
   const accent = ref<AccentPreset>(readAccent(initialSettings.accent));
@@ -110,6 +113,10 @@ export const useSettingsStore = defineStore('settings', () => {
     cacheLimits.value = readCacheLimits(next);
   }
 
+  function setToastDuration(level: FeedbackLevel, seconds: number) {
+    toastDurations.value = { ...toastDurations.value, [level]: readToastDuration(seconds) };
+  }
+
   function setEditHistoryLimit(limit: number) {
     editHistoryLimit.value = readHistoryLimit(limit);
   }
@@ -166,6 +173,7 @@ export const useSettingsStore = defineStore('settings', () => {
     return {
       performanceMonitorEnabled: performanceMonitorEnabled.value,
       cacheLimits: deepClone(cacheLimits.value),
+      toastDurations: deepClone(toastDurations.value),
       theme: themePreference.value,
       accent: accent.value,
       customAccent: customAccent.value,
@@ -189,6 +197,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function replaceSettings(settings: AppSettings) {
     performanceMonitorEnabled.value = settings.performanceMonitorEnabled;
     const nextCacheLimits = readCacheLimits(settings.cacheLimits);
+    const nextToastDurations = readToastDurations(settings.toastDurations);
     const nextGeneralFont = readGeneralFont(settings.generalFont);
     const nextExpandFieldDescriptions = readExpandFieldDescriptions(settings.expandFieldDescriptions);
     const nextImmersiveGameFont = readImmersiveGameFont(settings.immersiveGameFont);
@@ -202,6 +211,7 @@ export const useSettingsStore = defineStore('settings', () => {
     customAccent.value = readCustomAccent(settings.customAccent);
     generalFont.value = nextGeneralFont;
     cacheLimits.value = structuredClone(nextCacheLimits);
+    toastDurations.value = structuredClone(nextToastDurations);
     fileHistoryLimit.value = nextFileHistoryLimit;
     editHistoryLimit.value = nextEditHistoryLimit;
     logRotationSizeMiB.value = nextLogRotationSizeMiB;
@@ -227,6 +237,8 @@ export const useSettingsStore = defineStore('settings', () => {
     performanceMonitorEnabled,
     setPerformanceMonitorEnabled,
     cacheLimits,
+    toastDurations,
+    setToastDuration,
     setCacheLimit,
     accent,
     activeAccentHex,

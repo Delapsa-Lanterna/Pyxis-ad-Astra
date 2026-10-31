@@ -1,3 +1,22 @@
+.app-toast-container .n-message {
+  position: relative;
+}
+.app-toast-countdown {
+  position: absolute;
+  inset: auto 0 0;
+  height: 4px;
+  background-color: var(--app-toast-color);
+  transform-origin: left;
+  animation: app-toast-countdown var(--app-toast-duration) linear forwards;
+}
+.app-toast-container .n-message:hover .app-toast-countdown {
+  animation-play-state: paused;
+}
+@keyframes app-toast-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
 .ui-field-autosize {
   --input-min-rows: 1;
   --input-max-rows: 10;

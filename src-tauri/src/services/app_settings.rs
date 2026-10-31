@@ -284,6 +284,20 @@ fn validate_settings(settings: &AppSettings) -> AppResult<()> {
             ));
         }
     }
+    let durations = &settings.toast_durations;
+    for value in [
+        durations.success,
+        durations.info,
+        durations.warning,
+        durations.error,
+    ] {
+        if value > 3600 {
+            return Err(AppError::message(
+                "settings.limit_invalid",
+                format!("Invalid toast duration: {value}; expected 0..=3600"),
+            ));
+        }
+    }
     if let Some(font) = &settings.general_font
         && (font.trim().is_empty() || font.chars().any(char::is_control))
     {
@@ -502,6 +516,35 @@ mod tests {
     use crate::test_support::TestWorkspace;
 
     #[test]
+    fn toast_durations_roundtrip_and_validate_each_level() {
+        let dir = TestWorkspace::new("toast_durations");
+        let defaults = serde_json::to_value(AppSettings::default()).unwrap();
+        assert_eq!(
+            defaults["toastDurations"],
+            serde_json::json!({"success": 5, "info": 7, "warning": 7, "error": 0})
+        );
+        for level in ["success", "info", "warning", "error"] {
+            for value in [0, 3600] {
+                let mut wire = defaults.clone();
+                wire["toastDurations"][level] = serde_json::json!(value);
+                let settings: AppSettings = serde_json::from_value(wire).unwrap();
+                save_settings(&dir, &settings).unwrap();
+                assert_eq!(load_settings(&dir).unwrap(), settings);
+            }
+            for value in [
+                serde_json::json!(-1),
+                serde_json::json!(1.5),
+                serde_json::json!(3601),
+            ] {
+                let mut wire = defaults.clone();
+                wire["toastDurations"][level] = value;
+                assert!(decode_settings(wire).is_err());
+            }
+        }
+        dir.close().unwrap();
+    }
+
+    #[test]
     fn settings_limits_validate_read_and_write_boundaries() {
         let dir = TestWorkspace::new("settings_limit_boundaries");
         for (field, maximum) in [
@@ -673,7 +716,7 @@ mod tests {
         valid["editHistoryLimit"] = serde_json::json!(321);
         valid["cacheLimits"]["mediaData"]["entries"] = serde_json::json!(17);
         let paths = setting_paths(&defaults, "");
-        assert_eq!(paths.len(), 43);
+        assert_eq!(paths.len(), 48);
         for pointer in paths.into_iter().skip(1) {
             for missing in [false, true] {
                 let mut source = valid.clone();
