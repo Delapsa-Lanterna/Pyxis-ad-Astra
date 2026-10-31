@@ -586,10 +586,14 @@ mod tests {
         receive
     }
 
-    fn saved(receive: &mpsc::Receiver<Value>) -> Value {
+    fn delivery_for_request(
+        receive: &mpsc::Receiver<Value>,
+        kind: &str,
+        request_id: &str,
+    ) -> Value {
         loop {
             let delivery = receive.recv_timeout(Duration::from_secs(5)).unwrap();
-            if delivery["kind"] == "saved" {
+            if delivery["kind"] == kind && delivery["requestId"] == request_id {
                 return delivery;
             }
         }
@@ -613,7 +617,10 @@ mod tests {
         let root = project_workspace("save_subscribers");
         let receiver = window("observer");
         save_empty("observer", "first", &root.to_string_lossy());
-        assert_eq!(saved(&receiver)["requestId"], "first");
+        assert_eq!(
+            delivery_for_request(&receiver, "saved", "first")["requestId"],
+            "first"
+        );
         assert!(work("first").is_err());
         drop(receiver);
         save_empty("observer", "broken-channel", &root.to_string_lossy());
@@ -726,11 +733,7 @@ mod tests {
             })
             .unwrap()
         });
-        loop {
-            if receiver.recv_timeout(Duration::from_secs(5)).unwrap()["kind"] == "blocked" {
-                break;
-            }
-        }
+        delivery_for_request(&receiver, "blocked", "recover");
         assert!(wait_projects(std::slice::from_ref(&text)).is_err());
         save_empty("other", "independent", &other.to_string_lossy());
         assert_project_idle(&other.to_string_lossy());
@@ -783,18 +786,12 @@ mod tests {
                 .unwrap_err()
                 .code()
             });
-            loop {
-                let delivery = receive.recv_timeout(Duration::from_secs(5)).unwrap();
-                if delivery["kind"] == "missing" {
-                    let paths: Vec<String> =
-                        serde_json::from_value(delivery["paths"].clone()).unwrap();
-                    if reappeared {
-                        std::fs::write(&path, "external").unwrap();
-                    }
-                    resolve_sources(owner, owner, &paths, reappeared).unwrap();
-                    break;
-                }
+            let delivery = delivery_for_request(&receive, "missing", owner);
+            let paths: Vec<String> = serde_json::from_value(delivery["paths"].clone()).unwrap();
+            if reappeared {
+                std::fs::write(&path, "external").unwrap();
             }
+            resolve_sources(owner, owner, &paths, reappeared).unwrap();
             assert_eq!(
                 worker.join().unwrap(),
                 if reappeared {
@@ -847,20 +844,12 @@ mod tests {
             )
             .unwrap()
         });
-        let paths = loop {
-            let delivery = source.recv_timeout(Duration::from_secs(5)).unwrap();
-            if delivery["kind"] == "missing" {
-                break serde_json::from_value::<Vec<String>>(delivery["paths"].clone()).unwrap();
-            }
-        };
+        let delivery = delivery_for_request(&source, "missing", "confirmation");
+        let paths = serde_json::from_value::<Vec<String>>(delivery["paths"].clone()).unwrap();
         release_window("confirmation-source").unwrap();
         assert!(work("confirmation").is_ok());
         let receiver = window("confirmation-receiver");
-        loop {
-            if receiver.recv_timeout(Duration::from_secs(5)).unwrap()["kind"] == "missing" {
-                break;
-            }
-        }
+        delivery_for_request(&receiver, "missing", "confirmation");
         assert_eq!(
             resolve_sources("confirmation-source", "confirmation", &paths, true)
                 .unwrap_err()
@@ -868,7 +857,10 @@ mod tests {
             "write.confirmation_owner"
         );
         resolve_sources("confirmation-receiver", "confirmation", &paths, true).unwrap();
-        assert_eq!(saved(&receiver)["requestId"], "confirmation");
+        assert_eq!(
+            delivery_for_request(&receiver, "saved", "confirmation")["requestId"],
+            "confirmation"
+        );
         worker.join().unwrap();
         assert!(work("confirmation").is_err());
         release_window("confirmation-receiver").unwrap();
@@ -894,11 +886,7 @@ mod tests {
             .unwrap_err()
             .code()
         });
-        loop {
-            if receive.recv_timeout(Duration::from_secs(5)).unwrap()["kind"] == "blocked" {
-                break;
-            }
-        }
+        delivery_for_request(&receive, "blocked", "blocked");
         abandon(std::slice::from_ref(&text)).unwrap();
         assert_eq!(worker.join().unwrap(), "write.recovery_abandoned");
         assert_eq!(
@@ -1008,11 +996,7 @@ mod tests {
             .unwrap()
         });
         for receiver in [&first, &second] {
-            loop {
-                if receiver.recv_timeout(Duration::from_secs(5)).unwrap()["kind"] == "blocked" {
-                    break;
-                }
-            }
+            delivery_for_request(receiver, "blocked", "multifile");
         }
         assert_eq!(
             crate::services::write_transactions::query_history(
@@ -1024,6 +1008,8 @@ mod tests {
             .len(),
             1
         );
+        let unrelated = project_workspace("save_unrelated_delivery");
+        save_empty("unrelated-owner", "unrelated", &unrelated.to_string_lossy());
         std::fs::remove_file(broken).unwrap();
         retry("multifile").unwrap();
         let result = worker.join().unwrap();
@@ -1035,13 +1021,14 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(paths.len(), 3);
         assert_eq!(result.history.undo_stack.len(), 1);
-        let a = saved(&first);
-        let b = saved(&second);
+        let a = delivery_for_request(&first, "saved", "multifile");
+        let b = delivery_for_request(&second, "saved", "multifile");
         assert_eq!(a["event"], b["event"]);
         assert_eq!(a["event"]["result"]["changes"].as_array().unwrap().len(), 3);
         assert_project_idle(&root.to_string_lossy());
         release_window("multifile-first").unwrap();
         release_window("multifile-second").unwrap();
+        unrelated.close().unwrap();
         crate::services::project::close_project_session(manifest.session_id).unwrap();
         root.close().unwrap();
     }
