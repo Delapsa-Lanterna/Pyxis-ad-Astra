@@ -21,7 +21,6 @@
 - `src-tauri/src/models/save_action.rs`：统一保存入口消费的请求与业务动作。
 - `src-tauri/src/models/write_commit.rs`：实际保存结果、窗口交付及公共写入协议。
 - `src-tauri/src/services/windows.rs`：窗口范围、关闭及释放。
-- `src-tauri/src/services/write_transactions.rs`：写盘事务、历史与投影恢复。
 - `src/services/project-projection.service.ts`：正式读取门控。
 - `src/services/query-cache.service.ts`：所属查询和在途读取失效。
 - `src/services/resource-media.service.ts`：资源缓存与租约失效。
@@ -31,6 +30,7 @@
 
 ### 装配
 
+- `src-tauri/src/services/project_save.rs`：完整保存请求捕获、业务准备与队列执行交付。
 - `src/app/composables/use-app-lifecycle-assembly.ts`：窗口通道建立和释放。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：项目关闭与运行态释放。
 

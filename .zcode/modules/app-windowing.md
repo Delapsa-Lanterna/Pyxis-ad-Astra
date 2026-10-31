@@ -14,6 +14,7 @@
 - `src/app/composables/use-dirty-window-close-guard.ts`：窗口内容准备、稳定摘要、所属确认及阶段回复。
 - `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
 - `src/app/composables/use-window-close-state.ts`：窗口关闭操作锁与装配动作的提供和消费。
+- `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/orchestrators/entity-identity.orchestrator.ts`：规格身份占用与原生窗口身份交接。
 - `src/orchestrators/window-event-errors.orchestrator.ts`：窗口事件失败的统一反馈交接。
 - `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作。
@@ -27,6 +28,7 @@
 
 - `src-tauri/src/models/window.rs`：规格、文本与恢复窗口的判别身份、Windows 路径比较键与生命周期消息。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：规格窗口名称、初始及最小尺寸的定义入口。
+- `src/shared/lib/keyboard-shortcuts.ts`：四种键盘命令及可编辑目标的公共纯规则。
 - `src/shared/runtime/event.runtime.ts`：公共事件注册、载荷和错误交接，解除由窗口运行态持有。
 - `src/shared/types/window.types.ts`：前端窗口输入、上下文与交付结果模型。
 - `src/windows/file-editor.window.ts`：文件编辑器窗口请求，承载常规与错误恢复两种请求形状。
@@ -85,6 +87,10 @@
 
 ## 规范
 
+- 窗口快捷键必须消费统一键位纯规则；监听必须随所属作用域挂载和卸载，关闭期间必须消费所属窗口屏蔽状态。
+- 菜单优先按键必须先于业务快捷键执行，已处理事件必须保留处理结果；纯键必须服从所属表面范围和输入焦点。
+- 可编辑目标的焦点豁免必须归键位纯规则，文本编辑面必须按声明启用 undo/redo；save 与 close 必须消费共同键位语义。
+- 已注册命令及纯键命中必须阻止默认行为，命令处理器必须由所属业务表面交付。
 - Windows 辅助窗口必须拦截普通关闭指令，并保留运行时销毁能力。
 - dirty 或 saving 关闭必须立即 preventDefault，并在保存与同步结束后核对最新 dirty；重复关闭必须合并同一意图，取消或失败必须保留窗口。
 - `sessionId`、kind 与实体 ID 必须按原值比较；Mod 与文件路径必须统一处理分隔符、大小写、尾部分隔符及扩展路径前缀。

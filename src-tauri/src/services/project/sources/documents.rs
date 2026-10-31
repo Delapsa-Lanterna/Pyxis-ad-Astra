@@ -1,10 +1,18 @@
-use crate::services::project::model::LoadedSpecRecord;
 use crate::{
     errors::AppResult,
     io::forward_slash_path,
     models::{EntityFileLocation, ResourceSource},
 };
+use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LoadedSpecRecord {
+    pub id: String,
+    pub location: EntityFileLocation,
+    pub data: serde_json::Value,
+}
 
 pub(crate) fn load_spec_records(
     root: &Path,

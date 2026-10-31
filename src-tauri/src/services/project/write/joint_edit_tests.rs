@@ -351,7 +351,7 @@ fn variant_rename_all_mod_parents() {
     assert_eq!(info.base_versions.len(), 3);
     let mut versions = info.base_versions;
     versions.push(crate::io::file_version(&dir.join("data/variants/new.variant")).unwrap());
-    let result = crate::services::write_transactions::commit_action(
+    let result = crate::services::project_save::execute_save_action(
         crate::models::SaveAction::SaveVariantEntity(crate::models::JsonFileSave {
             session_id: root.session_id.clone(),
             mod_root: root.mod_root.clone(),

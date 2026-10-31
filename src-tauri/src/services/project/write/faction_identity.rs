@@ -148,7 +148,7 @@ mod tests {
                 .iter()
                 .all(|version| version.fingerprint.is_some())
         );
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveIndexedConfigEntity(IndexedConfigSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -183,7 +183,7 @@ mod tests {
             "data/custom/nested/next.faction"
         );
         assert_eq!(contents.rows[1].data["note"], "keep");
-        let result = crate::services::write_transactions::commit_action(
+        let result = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::DeleteIndexedConfigEntity(IndexedConfigDelete {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),

@@ -678,7 +678,7 @@ mod tests {
             }) {
                 base_versions.push(intent.destination_version);
             }
-            let saved = crate::services::write_transactions::commit_action(
+            let saved = crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                     row_order: None,
                     session_id: manifest.session_id.clone(),
@@ -841,7 +841,7 @@ mod tests {
         .unwrap();
         let keys: Vec<_> = window.rows.iter().map(|row| row.row_key.clone()).collect();
         for order in [vec![0, 0, 2, 3], vec![0, 1, 2], vec![0, 1, 2, 9]] {
-            let result = crate::services::write_transactions::commit_action(
+            let result = crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                     row_order: Some(
                         order
@@ -865,7 +865,7 @@ mod tests {
             assert!(result.is_err());
             assert_eq!(read_utf8_no_bom(&path).unwrap(), before);
         }
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                 row_order: Some(vec![
                     keys[3].clone(),
@@ -1014,7 +1014,7 @@ mod tests {
         );
         let mut data = window.rows[1].data.clone();
         data.insert("name".into(), Value::String("#edited".into()));
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                 row_order: None,
                 session_id: manifest.session_id.clone(),

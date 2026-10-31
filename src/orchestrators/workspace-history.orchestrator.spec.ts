@@ -22,15 +22,20 @@ const mocks = vi.hoisted(() => ({
   tables: { currentTab: 'ships', currentTableLocked: false, activeEditor: null as unknown },
 }));
 vi.mock('@/orchestrators/file-history-replay.orchestrator', () => ({
-  replayNextFileUndo: mocks.fileUndo,
-  replayNextFileRedo: mocks.fileRedo,
+  createFileReplayPlan: (_project: unknown, direction: string) => {
+    (direction === 'undo' ? mocks.fileUndo : mocks.fileRedo)();
+    return null;
+  },
 }));
+vi.mock('@/services/file-history.service', () => ({ loadFileHistory: vi.fn() }));
 vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => ({ isWaiting: () => false }) }));
 vi.mock('@/stores/csv-editor.store', () => ({ useCsvEditorStore: () => mocks.tables }));
-vi.mock('@/stores/project.store', () => ({ useProjectStore: () => ({}) }));
+vi.mock('@/stores/project.store', () => ({ useProjectStore: () => ({ getSessionId: () => null }) }));
 vi.mock('@/stores/workspace.store', () => ({ useWorkspaceStore: () => mocks.workspace }));
 vi.mock('@/stores/json-editor.store', () => ({ useJsonEditorStore: () => ({ active: mocks.json }) }));
-import { dispatchMainRedoCommand, dispatchMainUndoCommand } from './main-history-command.orchestrator';
+import { dispatchWorkspaceHistoryCommand } from './workspace-history.orchestrator';
+const dispatchUndo = (feedback: AppFeedback) => dispatchWorkspaceHistoryCommand('undo', feedback);
+const dispatchRedo = (feedback: AppFeedback) => dispatchWorkspaceHistoryCommand('redo', feedback);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -38,8 +43,8 @@ beforeEach(() => {
   Object.assign(mocks.tables, { currentTab: 'ships', currentTableLocked: false, activeEditor: mocks.csv });
 });
 describe.each([
-  ['undo', dispatchMainUndoCommand],
-  ['redo', dispatchMainRedoCommand],
+  ['undo', dispatchUndo],
+  ['redo', dispatchRedo],
 ] as const)('main %s', (direction, dispatch) => {
   it.each(['table', 'json-editor'] as const)('dispatches only the visible %s document', async (view) => {
     mocks.workspace.currentView = view;

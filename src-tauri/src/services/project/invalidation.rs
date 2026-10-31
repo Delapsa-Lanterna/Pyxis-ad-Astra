@@ -1,6 +1,6 @@
 use crate::{
-    domain::entity_identity::path_affects_target,
     errors::AppResult,
+    io::relative_path_contains,
     io::{FsRootBoundary, parse_csv_text},
     models::{
         CsvTableKey, EntityKind, FileChangeKind, FileChangeRecord, InvalidatedEntityRef,
@@ -27,7 +27,7 @@ pub(crate) fn invalidate_session_changes(
 ) -> AppResult<ProjectInvalidation> {
     let boundary = FsRootBoundary::new(Path::new(&session.manifest.mod_root), "mod root")?;
     let files = changed_project_files(changes, &boundary)?;
-    let mut sources = super::sources::SourceReader::from_session(session)?;
+    let mut sources = super::session::source_projection::sources_from_projection(session)?;
     sources.accept_changes(changes)?;
     let invalidation = invalidate_files(session, files, false, sources)?;
     session.loaded_edit_targets.retain(|target| {
@@ -68,7 +68,8 @@ fn invalidate_files(
         );
     }
     if !affected_kinds.is_empty() {
-        sources.retain_projection(
+        super::session::source_projection::retain_projection_sources(
+            &mut sources,
             session,
             &files
                 .iter()
@@ -156,7 +157,8 @@ fn invalidate_files(
         })
         .collect::<Vec<_>>();
     let tables = tables.into_iter().collect::<Vec<_>>();
-    sources.capture_changed_versions(
+    super::session::source_projection::capture_projection_versions(
+        &mut sources,
         &files
             .iter()
             .map(|file| file.path.as_str())
@@ -216,7 +218,7 @@ fn invalidate_files(
     }
     if files
         .iter()
-        .any(|file| path_affects_target(&file.path, super::model::MISSION_LIST_REL_PATH))
+        .any(|file| relative_path_contains(&file.path, super::model::MISSION_LIST_REL_PATH))
     {
         let table = session
             .csv_tables
@@ -307,7 +309,7 @@ impl ChangedProjectPath {
             .collect();
         Self {
             csv_tables: affected_csv_tables(changed_path),
-            refresh_mod_info: path_affects_target(changed_path, "mod_info.json"),
+            refresh_mod_info: relative_path_contains(changed_path, "mod_info.json"),
             affected_entities,
         }
     }
@@ -652,7 +654,7 @@ fn query_scopes_for_invalidation(
     }
     for resource in resources {
         for &(source, path, _) in super::definitions::config_sources::CONFIG_OPTION_SOURCES {
-            if path_affects_target(&resource.rel_path, path) {
+            if relative_path_contains(&resource.rel_path, path) {
                 push_source_option_query_scope(&mut scopes, source.into());
             }
         }
@@ -710,7 +712,7 @@ fn affected_csv_tables(path: &str) -> Vec<CsvTableKey> {
     table_definitions::csv_table_definitions()
         .iter()
         .filter_map(|definition| {
-            path_affects_target(path, definition.spec.rel_path).then_some(definition.spec.key)
+            relative_path_contains(path, definition.spec.rel_path).then_some(definition.spec.key)
         })
         .collect()
 }
@@ -777,8 +779,8 @@ pub(super) fn refresh_sources(
     }
     let core_projectiles = if sources.iter().any(|source| {
         source.source == ResourceSource::Core
-            && (path_affects_target(&source.rel_path, "data/weapons/proj")
-                || path_affects_target("data/weapons/proj", &source.rel_path))
+            && (relative_path_contains(&source.rel_path, "data/weapons/proj")
+                || relative_path_contains("data/weapons/proj", &source.rel_path))
     }) {
         let core = super::sources::core::load_core_projectile_specs(
             session
@@ -803,7 +805,7 @@ pub(super) fn refresh_sources(
         session,
         files,
         true,
-        super::sources::SourceReader::from_session(session)?,
+        super::session::source_projection::sources_from_projection(session)?,
     )?;
     if let Some(records) = core_projectiles {
         session.manifest.entity_summaries.projectiles = records.len();

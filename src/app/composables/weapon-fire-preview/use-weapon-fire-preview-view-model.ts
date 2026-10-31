@@ -12,7 +12,7 @@ import {
   advanceWeaponFirePreview,
   weaponGlowLevel,
 } from '@/domain/weapon-fire-preview/simulation';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
 import { useCanvasViewport } from '@/app/composables/canvas/use-canvas-viewport';
 import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigation';
@@ -219,7 +219,7 @@ export function useWeaponFirePreviewViewModel(
     viewport.resize(rect?.width, rect?.height);
     refreshView();
   }
-  useShortcutDispatch({ keys: { u: () => setView('turret'), h: () => setView('hardpoint') } });
+  useWindowShortcuts({ keys: { u: () => setView('turret'), h: () => setView('hardpoint') } });
   onMounted(() => {
     stopDpi = watchCanvasPixelRatio(resize);
     resize();

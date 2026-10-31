@@ -1,10 +1,11 @@
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
     cache,
-    model::{LoadedSpecRecord, ProjectSession, csv_table_spec, string_field},
+    model::{ProjectSession, csv_table_spec, string_field},
     query::entity_targets::{EntityTargetProjection, prepare_entity_targets},
 };
 use crate::services::project::sources;
+use crate::services::project::sources::documents::LoadedSpecRecord;
 use crate::{
     domain::joint_hull::description_id,
     errors::{AppError, AppResult},
@@ -373,7 +374,12 @@ fn variant_catalog(
         .manifest
         .starsector_root
         .as_ref()
-        .map(|root| crate::services::project::sources::core::load_core_source_data(root, table))
+        .map(|root| {
+            crate::services::project::sources::core::load_core_source_data(
+                root,
+                crate::services::project::model::csv_table_spec(table).core_source_requirements,
+            )
+        })
         .transpose()?;
     let wing_variants = if matches!(kind, JointVariantCatalogKind::Wings) {
         rows.rows

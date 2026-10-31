@@ -88,7 +88,7 @@ impl Fixture {
         data: Value,
         base_versions: Vec<FileVersion>,
     ) -> Result<crate::models::WriteResult<Value>, crate::errors::AppError> {
-        crate::services::write_transactions::commit_action(
+        crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveMiscConfig(MiscConfigWrite {
                 session_id: self.scope.session_id.clone(),
                 mod_root: self.scope.mod_root.clone(),
@@ -144,7 +144,7 @@ fn create_edit_delete_history() {
             .any(|path| std::path::Path::new(path) == f.path().canonicalize().unwrap())
     );
     let bytes = std::fs::read(f.path()).unwrap();
-    let deleted = crate::services::write_transactions::commit_action(
+    let deleted = crate::services::project_save::execute_save_action(
         crate::models::SaveAction::DeleteMiscConfig(MiscConfigDelete {
             session_id: f.scope.session_id.clone(),
             mod_root: f.scope.mod_root.clone(),
@@ -243,7 +243,7 @@ fn recreate_missing_source() {
     let plan = prepare_json_source_recovery(request).unwrap();
     assert_eq!(plan.missing_paths, ["data/strings/strings.json"]);
     let restored =
-        crate::services::write_transactions::commit_saved::<crate::models::JsonRecoveryPlan>(
+        crate::services::project_save::execute_typed_save::<crate::models::JsonRecoveryPlan>(
             crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),
@@ -289,7 +289,7 @@ fn config_formats_replay() {
             kind,
         };
         let save = |data: Value, base_versions| {
-            crate::services::write_transactions::commit_action(
+            crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveMiscConfig(MiscConfigWrite {
                     kind,
                     session_id: f.scope.session_id.clone(),
@@ -334,7 +334,7 @@ fn config_formats_replay() {
             content
         );
         let bytes = std::fs::read(&path).unwrap();
-        let deleted = crate::services::write_transactions::commit_action(
+        let deleted = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::DeleteMiscConfig(MiscConfigDelete {
                 kind,
                 session_id: f.scope.session_id.clone(),
@@ -380,7 +380,7 @@ fn config_formats_replay() {
             plan.missing_paths,
             [crate::domain::misc_config::misc_config_path(kind)]
         );
-        crate::services::write_transactions::commit_saved::<crate::models::JsonRecoveryPlan>(
+        crate::services::project_save::execute_typed_save::<crate::models::JsonRecoveryPlan>(
             crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),
@@ -487,7 +487,7 @@ fn engine_source_preservation() {
     assert_eq!(read.data["SAMPLE"]["contrailMaxSpeedMult"], "0.5f");
     let mut content = read.data;
     content["SAMPLE"]["engineColor"] = json!([10, 20, 30, 255]);
-    crate::services::write_transactions::commit_action(crate::models::SaveAction::SaveMiscConfig(
+    crate::services::project_save::execute_save_action(crate::models::SaveAction::SaveMiscConfig(
         MiscConfigWrite {
             kind: MiscConfigKind::EngineStyles,
             session_id: f.scope.session_id.clone(),
@@ -533,7 +533,7 @@ fn merged_config_save_validation() {
         let path = f
             .root
             .join(crate::domain::misc_config::misc_config_path(kind));
-        crate::services::write_transactions::commit_action(
+        crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveMiscConfig(MiscConfigWrite {
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),

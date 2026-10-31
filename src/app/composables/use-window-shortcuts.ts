@@ -1,8 +1,8 @@
 import { onMounted, onUnmounted } from 'vue';
 import { useWindowCloseState } from './use-window-close-state';
-import { isEditableKeyTarget, shortcutCommandFromKeyEvent, type ShortcutCommand } from '@/domain/workspace/main-window-commands';
+import { isEditableKeyTarget, shortcutCommandFromKeyEvent, type ShortcutCommand } from '@/shared/lib/keyboard-shortcuts';
 
-export interface ShortcutDispatchHandlers {
+export interface WindowShortcutHandlers {
   priority?: (event: KeyboardEvent) => boolean;
   commands?: Partial<Record<ShortcutCommand, () => void>>;
   // Plain keys (no Ctrl/Alt/Meta): never fire inside inputs, textareas, selects or
@@ -12,10 +12,7 @@ export interface ShortcutDispatchHandlers {
   keyScope?: (event: KeyboardEvent) => boolean;
 }
 
-// Sole shortcut dispatch entry of the app: command parsing lives in the domain
-// (shortcutCommandFromKeyEvent); this composable only owns the window listener,
-// command routing and plain-key table dispatch.
-export function useShortcutDispatch(handlers: ShortcutDispatchHandlers) {
+export function useWindowShortcuts(handlers: WindowShortcutHandlers) {
   const closing = useWindowCloseState();
   function onKeyDown(event: KeyboardEvent) {
     if (closing?.value) return;

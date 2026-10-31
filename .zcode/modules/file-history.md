@@ -8,23 +8,19 @@
 
 ### 拥有
 
-- `src-tauri/src/commands/file_history.rs`：文件历史查询、清空与按条目回放 command。
+- `src-tauri/src/commands/file_history.rs`：文件历史查询与清空 command。
 - `src-tauri/src/services/file_history.rs`：文件历史内存状态，按 canonical Mod 根持有快照、双栈与版本。
-- `src/app/components/file-history/WorkspaceFileHistory.vue`：历史摘要、确认与回放动作的展示入口。
-- `src/app/composables/editors/use-file-history-view-model.ts`：文件历史视图 ViewModel。
-- `src/orchestrators/file-history-replay.orchestrator.ts`：历史编排，拥有已加载会话摘要刷新、回放计划、确认交互、执行与确认 UI。
+- `src/orchestrators/file-history-replay.orchestrator.ts`：明确目标的历史摘要刷新、回放计划、复核、执行及实际结果交付。
 - `src/services/file-history.service.ts`：历史读取、清空与按条目回放能力包装。
 - `src/stores/file-history.store.ts`：带版本的历史摘要投影。
 
 ### 消费
 
 - `src-tauri/src/models/file_history.rs`：历史查询、清空与回放请求、条目摘要及双栈快照。
-- `src/orchestrators/main-history-command.orchestrator.ts`：主窗口历史分派。
 - `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话投影。
 - `src/shared/types/file-history.types.ts`：历史查询、清空与回放请求、条目摘要及双栈快照契约。
 - `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
-- `src/stores/workspace.store.ts`：当前 Mod 选择、清单与 session 的派生投影。
 
 ### 关联
 
@@ -36,7 +32,7 @@
 - dirty 文本窗口消费外部暂存，回放结果由项目同步的有序保存通道交付。
 - 主窗口历史命令按当前编辑面的草稿优先分派，settings 的 `fileHistoryLimit` 提供文件保存历史容量。
 - 保存及回放共用实际 changeset 和提交同步，目录事件逐文件展开失效范围。
-- 前端 store 持有带版本的摘要，回放编排拥有计划、影响确认和执行。
+- 前端 store 持有带版本的摘要，回放编排拥有明确目标的计划、复核和执行，工作区拥有影响确认及展示交接。
 - 后端文件历史按 canonical Mod 根持有已写盘 changeset、双栈和版本，登记、回放准备、回放接纳及清空统一归所属入口。
 - 待同步记录归事务运行态，前端消费 receipt 和可重试进度。
 - 根事务协调磁盘应用、失败恢复与历史推进，IO 核对当前路径及父链。
@@ -52,9 +48,9 @@
 
 ### 回放计划
 
-1. 主窗口命令分派捕获 Mod 根与 session，进入所属文件历史回放。
-2. 编排读取后端最新历史摘要，以栈顶条目 ID 与历史版本构造回放计划。
-3. 以确认交互向用户呈现影响文件并等待确认。
+1. 工作区动作捕获 Mod 根与 session，读取后端最新历史摘要。
+2. 文件历史按明确目标、栈顶条目 ID 与历史版本构造回放计划。
+3. 工作区向用户呈现影响文件并等待确认。
 
 ### 回放执行
 
@@ -72,7 +68,7 @@
 
 ## 规范
 
-- applySnapshot 必须由项目同步、历史回放或文件历史 ViewModel 接纳正式后端快照，并核对所属读取寿命、项目身份及版本。
+- applySnapshot 必须由项目同步、文件历史读取或工作区历史动作及 ViewModel 接纳正式后端快照，并核对所属读取寿命、项目身份及版本。
 - 文件历史撤销与重做的展示动作必须返回所属回放任务，调用者必须按实际用途等待或交接完成状态。
 - commit 与 replay 必须共用正式结果登记；磁盘与历史已完成时，投影失败必须由当前项目工作继续处理。
 - dirty 文件编辑器只允许暂存回放文本并提示，严禁覆盖当前输入。

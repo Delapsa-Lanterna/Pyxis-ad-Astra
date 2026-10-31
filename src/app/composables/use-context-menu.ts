@@ -1,5 +1,5 @@
 import { useWindowCloseState } from '@/app/composables/use-window-close-state';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { readClipboardText, writeClipboardText } from '@/shared/runtime/clipboard.runtime';
@@ -220,7 +220,7 @@ export function useWindowContextMenu() {
           : (selected.value + (event.key === 'ArrowUp' ? -1 : 1) + available.length) % available.length;
     return true;
   }
-  useShortcutDispatch({ priority: handleKey });
+  useWindowShortcuts({ priority: handleKey });
   onMounted(() => {
     document.addEventListener('contextmenu', open);
     document.addEventListener('input', close, true);

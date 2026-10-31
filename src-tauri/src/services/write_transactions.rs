@@ -10,18 +10,6 @@ use crate::{
 };
 use std::path::Path;
 mod committed;
-mod submission;
-#[cfg(test)]
-pub use submission::commit_action;
-pub use submission::submit;
-
-#[cfg(test)]
-pub fn commit_saved<T: serde::de::DeserializeOwned>(
-    action: crate::models::SaveAction,
-) -> AppResult<WriteResult<T>> {
-    let result = commit_action(action)?;
-    Ok(serde_json::from_value(serde_json::to_value(result)?)?)
-}
 
 pub struct WriteTransaction {
     root: String,
@@ -257,7 +245,7 @@ mod tests {
             "demo",
         )
         .unwrap();
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveVariantEntity(crate::models::JsonFileSave {
                 session_id: first.session_id.clone(),
                 mod_root: first.mod_root.clone(),
@@ -344,7 +332,7 @@ mod tests {
                 Ok(())
             },
             || {
-                crate::services::write_transactions::commit_action(
+                crate::services::project_save::execute_save_action(
                     crate::models::SaveAction::SaveVariantEntity(crate::models::JsonFileSave {
                         session_id: manifest.session_id.clone(),
                         mod_root: manifest.mod_root.clone(),
@@ -493,7 +481,7 @@ mod tests {
         )
         .unwrap()
         .base_versions;
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveIndexedConfigEntity(crate::models::IndexedConfigSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -718,7 +706,7 @@ mod tests {
             json_write: Default::default(),
             base_versions: original.base_versions,
         };
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveCsvPatch(payload),
         )
         .unwrap();

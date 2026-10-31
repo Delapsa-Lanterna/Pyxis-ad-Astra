@@ -28,11 +28,14 @@ const allowedServiceEdges = new Set([
   'write_transactions -> app_settings',
   'write_transactions -> file_history',
   'write_transactions -> project',
-  'write_transactions -> project_sync',
-  'write_transactions -> file_editor',
-  'write_transactions -> config_entity',
-  'write_transactions -> json_file',
-  'write_transactions -> misc_config',
+  'project_save -> project',
+  'project_save -> project_sync',
+  'project_save -> write_transactions',
+  'project_save -> file_editor',
+  'project_save -> config_entity',
+  'project_save -> json_file',
+  'project_save -> misc_config',
+  'json_file -> config_entity',
 ]);
 
 export const rustServiceEdgeBoundaryRule = defineRule(

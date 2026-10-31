@@ -66,7 +66,7 @@ import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/composables/immersive-editor-assembly';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
 import { closeCurrentWindow } from '@/windows/current.window';
@@ -110,7 +110,7 @@ const closeGuard = useDirtyWindowCloseGuard({
 function closeWindow() {
   void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));
 }
-useShortcutDispatch({
+useWindowShortcuts({
   commands: {
     save: () => {
       void vm.save();

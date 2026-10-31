@@ -1,5 +1,5 @@
 use crate::{
-    domain::entity_identity::{path_affects_target, path_is_or_in_dir},
+    domain::entity_identity::path_is_or_in_dir,
     errors::{AppError, AppResult},
     models::{CsvTableKey, EntityKind, SpecEditorKind},
 };
@@ -18,7 +18,7 @@ pub struct EntitySpecDefinition {
 
 impl EntitySpecDefinition {
     pub fn path_matches(self, path: &str) -> bool {
-        path_affects_target(path, self.dir)
+        (path.is_empty() || path_is_or_in_dir(self.dir, path))
             || (path_is_or_in_dir(path, self.dir) && path.ends_with(self.extension))
     }
 

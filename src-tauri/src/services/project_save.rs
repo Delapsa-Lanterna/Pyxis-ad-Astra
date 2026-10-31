@@ -9,7 +9,10 @@ use crate::{
 use serde::Serialize;
 use serde_json::Value;
 
-pub async fn submit(owner: String, request: SaveRequest) -> AppResult<WriteResult<Value>> {
+pub async fn submit_project_save(
+    owner: String,
+    request: SaveRequest,
+) -> AppResult<WriteResult<Value>> {
     let (root, session_id, reason) = match &request.action {
         SaveAction::RefreshProjectSources(input) => (
             services::project::current_projection(&input.session_id)?
@@ -49,8 +52,8 @@ pub async fn submit(owner: String, request: SaveRequest) -> AppResult<WriteResul
                     versions,
                     identities,
                 )?;
-                prepare_action(&mut action, &request.edits, identities)?;
-                commit_action(action)
+                prepare_save_action(&mut action, &request.edits, identities)?;
+                execute_save_action(action)
             },
         )?;
         // Reference delivery must preserve the outcome of the completed file transaction.
@@ -73,7 +76,7 @@ pub async fn submit(owner: String, request: SaveRequest) -> AppResult<WriteResul
     .map_err(|error| AppError::message("write.execution_wait", error.to_string()))?
 }
 
-fn prepare_action(
+fn prepare_save_action(
     action: &mut SaveAction,
     edits: &[crate::models::SaveEdit],
     identities: &[EntityIdentityChange],
@@ -100,12 +103,12 @@ fn prepare_action(
     }
 }
 
-pub fn commit_action(mut action: SaveAction) -> AppResult<WriteResult<Value>> {
+pub(crate) fn execute_save_action(mut action: SaveAction) -> AppResult<WriteResult<Value>> {
     let transaction = match &mut action {
         SaveAction::ApplyFileChangeSet(_) | SaveAction::RefreshProjectSources(_) => None,
         file_action => {
             let versions = file_action.versions().to_vec();
-            Some(super::begin(
+            Some(services::write_transactions::begin(
                 file_action
                     .scope()
                     .expect("file action owns its project scope"),
@@ -274,6 +277,14 @@ fn json_result<T: Serialize>(result: WriteResult<T>) -> AppResult<WriteResult<Va
         base_versions: result.base_versions,
         history: result.history,
     })
+}
+
+#[cfg(test)]
+pub fn execute_typed_save<T: serde::de::DeserializeOwned>(
+    action: crate::models::SaveAction,
+) -> AppResult<WriteResult<T>> {
+    let result = execute_save_action(action)?;
+    Ok(serde_json::from_value(serde_json::to_value(result)?)?)
 }
 
 #[cfg(test)]
@@ -563,7 +574,9 @@ mod tests {
             let (completed, completion) = mpsc::channel();
             let worker = std::thread::spawn(move || {
                 completed
-                    .send(tauri::async_runtime::block_on(submit(label, request)))
+                    .send(tauri::async_runtime::block_on(submit_project_save(
+                        label, request,
+                    )))
                     .unwrap();
             });
             loop {

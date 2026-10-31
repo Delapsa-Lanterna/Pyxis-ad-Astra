@@ -231,6 +231,10 @@ fn is_reparse_point(_metadata: &fs::Metadata) -> bool {
     false
 }
 
+pub fn relative_path_contains(scope: &str, target: &str) -> bool {
+    scope.is_empty() || scope == target || target.starts_with(&format!("{scope}/"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::FsRootBoundary;

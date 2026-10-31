@@ -30,7 +30,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
 import WeaponFirePreview from '@/app/components/weapon-fire-preview/WeaponFirePreview.vue';
@@ -42,7 +42,7 @@ const closeGuard = useDirtyWindowCloseGuard({ dirty: ref(false), title: '关闭�
 function closeWindow() {
   void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));
 }
-useShortcutDispatch({ commands: { close: closeWindow } });
+useWindowShortcuts({ commands: { close: closeWindow } });
 onMounted(async () => {
   await closeGuard.install();
 });

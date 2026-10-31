@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shortcutCommandFromKeyEvent } from './main-window-commands';
+import { shortcutCommandFromKeyEvent } from './keyboard-shortcuts';
 
 function keyEvent(init: { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean; inInput?: boolean }): KeyboardEvent {
   const input = document.createElement(init.inInput ? 'input' : 'div');

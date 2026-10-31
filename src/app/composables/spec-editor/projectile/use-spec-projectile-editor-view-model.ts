@@ -4,7 +4,7 @@ import { createSpecObject, updateSpecField } from '@/domain/editors/spec-constru
 import { projectileSections, projectileSpecIssues } from '@/domain/spec-editor/projectile/spec-projectile-fields';
 import { useSpecProblems } from '../use-spec-problems';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 
 import type { RowData, EditContext, ProjectileSpecClass, ResourceRef } from '@/shared/types/index';
 import { str } from '@/shared/lib/starsector/index';
@@ -70,7 +70,7 @@ export function useSpecProjectileEditorViewModel(
     draw,
   });
   const localProjectile = document.value;
-  useShortcutDispatch({ commands: { undo: () => void document.undo(), redo: () => void document.redo() } });
+  useWindowShortcuts({ commands: { undo: () => void document.undo(), redo: () => void document.redo() } });
 
   const expandedSections = ref<(string | number)[]>(['basic']);
   const geometry = computed(() => projectProjectileGeometry(localProjectile.value));

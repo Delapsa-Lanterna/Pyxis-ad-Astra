@@ -1,6 +1,7 @@
 use super::super::cache::csv;
-use super::super::model::{LoadedSpecRecord, ProjectSession, ReferenceView, SessionCsvRow};
+use super::super::model::{ProjectSession, ReferenceView, SessionCsvRow};
 use super::registry;
+use crate::services::project::sources::documents::LoadedSpecRecord;
 #[cfg(test)]
 #[path = "references_tests.rs"]
 mod tests;

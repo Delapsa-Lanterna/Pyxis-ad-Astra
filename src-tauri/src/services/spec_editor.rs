@@ -45,7 +45,7 @@ pub fn save_editor_spec_with_json_options(
             definition.entity_kind,
             id,
         )?;
-        crate::services::write_transactions::commit_action(
+        crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -121,7 +121,7 @@ mod tests {
             )
             .unwrap();
             let save = |data| {
-                crate::services::write_transactions::commit_action(
+                crate::services::project_save::execute_save_action(
                     crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                         session_id: manifest.session_id.clone(),
                         mod_root: manifest.mod_root.clone(),

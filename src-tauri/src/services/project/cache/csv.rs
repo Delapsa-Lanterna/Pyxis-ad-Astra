@@ -223,9 +223,12 @@ pub(crate) fn ensure_session_table_rows(
             csv.header = mission_list_default_header();
         } else if let Some(table_key) = CsvTableKey::from_key(table) {
             csv.header = match &session.manifest.starsector_root {
-                Some(root) => load_core_csv_table(root, table_key)?
-                    .map(|core| core.header.clone())
-                    .unwrap_or_default(),
+                Some(root) => load_core_csv_table(
+                    root,
+                    crate::services::project::model::csv_table_spec(table_key).rel_path,
+                )?
+                .map(|core| core.header.clone())
+                .unwrap_or_default(),
                 None => Vec::new(),
             };
             if csv.header.is_empty() {

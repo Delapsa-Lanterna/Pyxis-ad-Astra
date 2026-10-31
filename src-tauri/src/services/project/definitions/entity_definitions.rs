@@ -30,9 +30,10 @@ use crate::{
         associated_spec_definition as domain_associated_spec_definition,
         associated_spec_tables as domain_associated_spec_tables,
     },
-    domain::entity_identity::{path_affects_target, path_is_or_in_dir},
+    domain::entity_identity::path_is_or_in_dir,
     errors::{AppError, AppResult},
     io::read_json_file,
+    io::relative_path_contains,
     models::{
         CsvTableKey, EntityKind, InvalidatedQueryKind, ResourceOwnerKind, ResourceRef,
         ResourceSource, SkinFile, VariantFile,
@@ -227,7 +228,7 @@ fn faction_path_matches(_definition: &ProjectEntityDefinition, path: &str) -> bo
 }
 
 fn mission_path_matches(_definition: &ProjectEntityDefinition, path: &str) -> bool {
-    path_is_or_in_dir(path, "data/missions") || path_affects_target(path, MISSION_LIST_REL_PATH)
+    path_is_or_in_dir(path, "data/missions") || relative_path_contains(path, MISSION_LIST_REL_PATH)
 }
 
 fn prepare_weapon(session: &mut ProjectSession) -> AppResult<()> {
@@ -699,7 +700,10 @@ fn build_mission_entity(session: &mut ProjectSession, id: &str) -> AppResult<Opt
         "relPath".to_string(),
         Value::String(format!("data/missions/{clean}")),
     );
-    sources.capture_changed_versions(&[&format!("data/missions/{clean}")])?;
+    super::super::session::source_projection::capture_projection_versions(
+        &mut sources,
+        &[&format!("data/missions/{clean}")],
+    )?;
     std::sync::Arc::make_mut(&mut session.source_versions).extend(sources.versions);
     Ok(Some(Value::Object(data)))
 }
@@ -729,7 +733,7 @@ fn mission_icon_resource_ref(session: &ProjectSession, id: &str) -> AppResult<Op
 pub(in crate::services::project) enum EntityRefresh {
     Specs {
         kind: EntityKind,
-        records: BTreeMap<String, crate::services::project::model::LoadedSpecRecord>,
+        records: BTreeMap<String, crate::services::project::sources::documents::LoadedSpecRecord>,
     },
     Variant {
         files: Vec<VariantFile>,
@@ -740,7 +744,7 @@ pub(in crate::services::project) enum EntityRefresh {
         warnings: Vec<crate::models::GameScanWarning>,
     },
     Faction {
-        files: BTreeMap<String, crate::services::project::model::LoadedSpecRecord>,
+        files: BTreeMap<String, crate::services::project::sources::documents::LoadedSpecRecord>,
         tags: std::collections::HashMap<String, String>,
     },
     Mission(usize),

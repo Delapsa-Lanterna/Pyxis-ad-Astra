@@ -156,7 +156,7 @@ pub fn save_variant_entity(
         .as_ref()
         .expect("variant save returns data")
         .value;
-    let refreshed = crate::domain::json_documents::build_variant_file(
+    let refreshed = crate::services::project::sources::json_documents::build_variant_file(
         Path::new(&after.write.root),
         &after.write.rel_path,
         content,
@@ -349,10 +349,18 @@ pub(in crate::services::project) fn stage_entity_content(
     let destination = boundary.resolve_relative_target(&next_rel, "entity target")?;
     match target.kind {
         EntityKind::Variant => {
-            crate::domain::json_documents::build_variant_file(boundary.root(), &next_rel, &data)?;
+            crate::services::project::sources::json_documents::build_variant_file(
+                boundary.root(),
+                &next_rel,
+                &data,
+            )?;
         }
         EntityKind::Skin => {
-            crate::domain::json_documents::build_skin_file(boundary.root(), &next_rel, &data)?;
+            crate::services::project::sources::json_documents::build_skin_file(
+                boundary.root(),
+                &next_rel,
+                &data,
+            )?;
         }
         _ => {}
     }
@@ -572,7 +580,7 @@ mod tests {
             )
             .unwrap();
             content[definition.id_field] = "next".into();
-            let receipt = crate::services::write_transactions::commit_action(
+            let receipt = crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
@@ -672,7 +680,7 @@ mod tests {
             CsvSearchField::IdName,
         )
         .unwrap();
-        let result = crate::services::write_transactions::commit_action(
+        let result = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -742,7 +750,7 @@ mod tests {
             "missing",
         )
         .unwrap();
-        let result = crate::services::write_transactions::commit_action(
+        let result = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -782,7 +790,7 @@ mod tests {
         assert_eq!(loaded.entity.as_ref().unwrap().target.id, "old");
         assert_eq!(loaded.base_versions.len(), 2);
         let text = "{hullId:'new', # keep\n hullName:'Edited', extra:{'_key':1}}\n";
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),
@@ -836,7 +844,7 @@ mod tests {
         );
         assert_eq!(info.target.write.rel_path, "data/weapons/proj/core.proj");
         assert_eq!(info.base_versions[0].fingerprint, None);
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -931,7 +939,7 @@ mod tests {
             "id,name\ndemo,External\n",
         )
         .unwrap();
-        let failed = crate::services::write_transactions::commit_action(
+        let failed = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -978,7 +986,7 @@ mod tests {
             vec![info.base_versions[0].clone()],
             vec![info.base_versions[1].clone()],
         ] {
-            let error = crate::services::write_transactions::commit_action(
+            let error = crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                     session_id: manifest.session_id.clone(),
                     mod_root: manifest.mod_root.clone(),
@@ -1022,7 +1030,7 @@ mod tests {
         )
         .unwrap();
         let text = "{hullId:' next ', # keep\n extra:{hullId:' untouched '}}\n";
-        let saved = crate::services::write_transactions::commit_action(
+        let saved = crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),

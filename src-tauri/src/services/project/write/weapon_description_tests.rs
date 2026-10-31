@@ -41,7 +41,7 @@ fn rename(
     let mut data = read_json_file(&root.join("data/weapons/old.wpn"))?;
     data["id"] = json!("new");
     match mode {
-        "spec" => crate::services::write_transactions::commit_action(
+        "spec" => crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveEditorSpec(crate::models::SpecSave {
                 session_id: manifest.session_id.clone(),
                 mod_root: manifest.mod_root.clone(),
@@ -52,7 +52,7 @@ fn rename(
                 ordered_json: None,
             }),
         ),
-        "text" => crate::services::write_transactions::commit_action(
+        "text" => crate::services::project_save::execute_save_action(
             crate::models::SaveAction::SaveTextFile(crate::models::TextSave {
                 session_id: Some(manifest.session_id.clone()),
                 mod_root: manifest.mod_root.clone(),
@@ -67,7 +67,7 @@ fn rename(
             else {
                 unreachable!()
             };
-            crate::services::write_transactions::commit_action(
+            crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveCsvPatch(crate::models::CsvSave {
                     row_order: None,
                     session_id: manifest.session_id.clone(),
@@ -131,7 +131,7 @@ fn rename(
                 baseline,
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
-            crate::services::write_transactions::commit_saved::<crate::models::JointEditSnapshot>(
+            crate::services::project_save::execute_typed_save::<crate::models::JointEditSnapshot>(
                 crate::models::SaveAction::SaveJointEdit(Box::new(JointEditSubmission {
                     base_versions: prepared.snapshot.base_versions.clone(),
                     snapshot: prepared.snapshot,

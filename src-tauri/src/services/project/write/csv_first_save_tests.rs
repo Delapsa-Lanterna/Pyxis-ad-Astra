@@ -51,7 +51,7 @@ fn csv_headers_and_first_save() {
             assert_eq!(index.total_rows, 0);
             let file = mod_root.join(spec.rel_path);
             assert_eq!(file.exists(), source == "existing");
-            let result = crate::services::write_transactions::commit_action(
+            let result = crate::services::project_save::execute_save_action(
                 crate::models::SaveAction::SaveCsvPatch(CsvSave {
                     row_order: None,
                     base_versions: index.base_versions,

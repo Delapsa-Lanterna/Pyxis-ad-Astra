@@ -1,11 +1,12 @@
-use crate::services::project::model::LoadedSpecRecord;
+use super::documents::LoadedSpecRecord;
 use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, forward_slash_relative_path, validate_walk_entry},
     models::{
-        CsvTableKey, DiscoveredField, DiscoveredFieldType, ResourceSource, SkinFile, VariantFile,
+        CsvTable, DiscoveredField, DiscoveredFieldType, ResourceSource, SkinFile, VariantFile,
     },
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
@@ -13,9 +14,46 @@ use std::{
     sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard},
 };
 
-use super::super::model::{
-    CoreCache, CoreSourceData, SessionCsvRow, SessionCsvTable, csv_table_spec,
-};
+#[derive(Clone, Copy)]
+pub(in crate::services::project) struct CoreSourceRequirements {
+    pub ships: bool,
+    pub weapons: bool,
+    pub variants: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct CoreCache {
+    pub csv_tables: BTreeMap<String, Arc<CsvTable>>,
+    pub fields: Option<Arc<BTreeMap<String, Vec<DiscoveredField>>>>,
+    pub graphics: Option<Arc<Vec<String>>>,
+    pub ship_files: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+    pub variant_files: Option<Arc<Vec<VariantFile>>>,
+    pub skin_files: Option<Arc<Vec<SkinFile>>>,
+    pub weapon_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+    pub projectile_specs: Option<Arc<BTreeMap<String, LoadedSpecRecord>>>,
+}
+
+impl CoreCache {
+    fn empty() -> Self {
+        Self {
+            csv_tables: BTreeMap::new(),
+            fields: None,
+            graphics: None,
+            ship_files: None,
+            variant_files: None,
+            skin_files: None,
+            weapon_specs: None,
+            projectile_specs: None,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub(in crate::services::project) struct CoreSourceData {
+    pub ship_files: Arc<BTreeMap<String, LoadedSpecRecord>>,
+    pub variant_files: Arc<Vec<VariantFile>>,
+    pub weapon_specs: Arc<BTreeMap<String, LoadedSpecRecord>>,
+}
 use super::{
     documents::load_spec_records_from,
     json_documents::{load_skin_files_from, load_variant_files_from},
@@ -409,10 +447,8 @@ fn load_core_graphics_from(
 
 pub(crate) fn load_core_csv_table(
     starsector_root: &str,
-    table: CsvTableKey,
-) -> AppResult<Option<Arc<SessionCsvTable>>> {
-    let table_key = table.as_str();
-    let rel = csv_table_spec(table).rel_path;
+    relative_path: &str,
+) -> AppResult<Option<Arc<CsvTable>>> {
     let core_dir = core_dir(starsector_root)?;
     if !core_dir.exists() {
         return Ok(None);
@@ -420,32 +456,11 @@ pub(crate) fn load_core_csv_table(
     get_or_load_core(
         starsector_root,
         "csv",
-        |cache| cache.csv_tables.get(table_key),
+        |cache| cache.csv_tables.get(relative_path),
         |cache, csv| {
-            cache.csv_tables.insert(table_key.to_string(), csv);
+            cache.csv_tables.insert(relative_path.to_string(), csv);
         },
-        |sources| {
-            let csv = sources.csv(&sources.path(rel)?)?;
-            let rows: Vec<SessionCsvRow> = csv
-                .rows
-                .into_iter()
-                .enumerate()
-                .map(|(index, row)| SessionCsvRow {
-                    row_key: format!("core:{table_key}:row:{index}"),
-                    data: row.data,
-                    is_comment: row.is_comment,
-                })
-                .collect();
-            let next_row_seq = rows.len() as u64;
-            Ok(SessionCsvTable {
-                row_index: None,
-                header: csv.header,
-                path: rel.to_string(),
-                rows: Some(rows.into()),
-                next_row_seq,
-                saved_text: None,
-            })
-        },
+        |sources| sources.csv(&sources.path(relative_path)?),
     )
     .map(Some)
 }
@@ -526,10 +541,9 @@ pub(crate) fn load_core_skin_files(starsector_root: &str) -> AppResult<Arc<Vec<S
 
 pub(crate) fn load_core_source_data(
     starsector_root: &str,
-    table: CsvTableKey,
+    requirements: CoreSourceRequirements,
 ) -> AppResult<CoreSourceData> {
     let mut data = CoreSourceData::default();
-    let requirements = csv_table_spec(table).core_source_requirements;
     if requirements.ships {
         data.ship_files = load_core_ship_files(starsector_root)?;
     }
@@ -562,10 +576,11 @@ pub(in crate::services::project) fn invalidate_core_sources(
         .filter(|source| source.source == ResourceSource::Core)
     {
         let matches = |path: &str| {
-            crate::domain::entity_identity::path_affects_target(&source.rel_path, path)
-                || crate::domain::entity_identity::path_affects_target(path, &source.rel_path)
+            crate::io::relative_path_contains(&source.rel_path, path)
+                || crate::io::relative_path_contains(path, &source.rel_path)
         };
-        data.csv_tables.retain(|_, table| !matches(&table.path));
+        data.csv_tables
+            .retain(|relative_path, _| !matches(relative_path));
         if matches("data/world/factions") || matches("data/hulls") || matches("data/weapons") {
             data.fields = None;
         }
@@ -915,14 +930,12 @@ mod tests {
         .unwrap();
 
         let loaded = load_core_ship_files(&root.to_string_lossy()).unwrap();
-        let table = load_core_csv_table(&root.to_string_lossy(), CsvTableKey::Ships)
+        let table = load_core_csv_table(&root.to_string_lossy(), "data/hulls/ship_data.csv")
             .unwrap()
             .unwrap();
         assert_eq!(
             table
                 .rows
-                .as_ref()
-                .unwrap()
                 .iter()
                 .map(|row| row.is_comment)
                 .collect::<Vec<_>>(),
@@ -932,23 +945,18 @@ mod tests {
         // is what lands the build on disk.
         flush_core_cache(&root.to_string_lossy()).unwrap();
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
-        let stored_table = load_core_csv_table(&root.to_string_lossy(), CsvTableKey::Ships)
+        let stored_table = load_core_csv_table(&root.to_string_lossy(), "data/hulls/ship_data.csv")
             .unwrap()
             .unwrap();
-        assert_eq!(
-            stored_table.rows.as_ref().unwrap()[1].data["name"],
-            "#quoted"
-        );
-        assert!(!stored_table.rows.as_ref().unwrap()[1].is_comment);
+        assert_eq!(stored_table.rows[1].data["name"], "#quoted");
+        assert!(!stored_table.rows[1].is_comment);
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
-        let restored = load_core_csv_table(&root.to_string_lossy(), CsvTableKey::Ships)
+        let restored = load_core_csv_table(&root.to_string_lossy(), "data/hulls/ship_data.csv")
             .unwrap()
             .unwrap();
         assert_eq!(
             restored
                 .rows
-                .as_ref()
-                .unwrap()
                 .iter()
                 .map(|row| row.is_comment)
                 .collect::<Vec<_>>(),

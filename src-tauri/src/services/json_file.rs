@@ -261,7 +261,7 @@ pub(crate) fn prepare_file_save(
         return Ok(());
     }
     let id_field = spec_entity_definition(kind)?.id_field;
-    let current = crate::services::prepare_json_save(
+    let current = crate::services::config_entity::prepare_json_entity_save(
         &payload.session_id,
         kind,
         payload.previous_id.as_ref().unwrap_or(&payload.next_id),
@@ -437,12 +437,12 @@ fn build_spec_file(
     )?;
     match kind {
         EntityKind::Variant => {
-            let file = crate::domain::json_documents::build_variant_file(mod_root, rel_path, data)?;
+            let file = crate::services::project::build_variant_file(mod_root, rel_path, data)?;
             let entity_id = file.variant_id.clone();
             Ok((entity_id, serde_json::to_value(file)?))
         }
         EntityKind::Skin => {
-            let file = crate::domain::json_documents::build_skin_file(mod_root, rel_path, data)?;
+            let file = crate::services::project::build_skin_file(mod_root, rel_path, data)?;
             let entity_id = file.skin_hull_id.clone();
             Ok((entity_id, serde_json::to_value(file)?))
         }

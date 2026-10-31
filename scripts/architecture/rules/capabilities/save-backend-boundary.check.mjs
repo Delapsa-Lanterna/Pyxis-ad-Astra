@@ -115,6 +115,7 @@ test('production permissions exclude test-only imports through formal service ex
 });
 
 for (const [command, backend] of [
+  ['save_project', 'project_save'],
   ['save_editor_spec', 'project'],
   ['load_imported_editor_spec_file', 'spec_editor'],
   ['save_mod_info', 'config_entity'],

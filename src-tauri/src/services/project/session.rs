@@ -3,6 +3,7 @@ use super::test_support::project_workspace;
 mod access;
 pub(super) mod references;
 mod registry;
+pub(in crate::services::project) mod source_projection;
 use crate::services::project::sources::json_documents::{
     load_skin_files_from, load_variant_files_from,
 };
@@ -213,7 +214,7 @@ pub(super) fn build_project_session(
         .as_ref()
         .is_some_and(|root| root.join("starsector-core").exists());
     let content = load_project_content(&mut sources, starsector_root.as_deref(), trace)?;
-    sources.capture_versions()?;
+    source_projection::capture_project_versions(&mut sources)?;
     trace.record_stage("source_records", source_timer, || {
         vec![(
             "result",

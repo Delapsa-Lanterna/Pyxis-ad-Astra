@@ -108,3 +108,28 @@ test('project cache and service signatures keep their ownership boundaries', () 
   assert.equal(messages(rustProjectLayerBoundaryRule.check(cache)).length, 1);
   assert.equal(messages(rustProjectLayerBoundaryRule.check(service)).length, 1);
 });
+
+test('source products are consumed by session models while source reads stay independent', () => {
+  const allowed = architectureFixtures({
+    'src-tauri/src/services/project/model.rs': 'use crate::services::project::sources::documents::LoadedSpecRecord;',
+  });
+  assert.deepEqual(rustProjectLayerBoundaryRule.check(allowed), []);
+  for (const target of ['crate::services::project::model::ProjectSession', 'crate::domain::json_documents::build_variant_file']) {
+    const denied = architectureFixtures({ 'src-tauri/src/services/project/sources/core.rs': '\nfn read() { ' + target + '(); }' });
+    const [diagnostic] = rustProjectLayerBoundaryRule.check(denied);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.line, 2);
+  }
+});
+
+test('project definitions consume projection capture while session lifecycle stays owned', () => {
+  const file = 'src-tauri/src/services/project/definitions/entity_definitions.rs';
+  const allowed = architectureFixtures({
+    [file]: 'fn read() { crate::services::project::session::source_projection::capture_projection_versions(sources, paths); }',
+  });
+  assert.deepEqual(rustProjectLayerBoundaryRule.check(allowed), []);
+  const denied = architectureFixtures({ [file]: '\nfn read() { crate::services::project::session::lock_registry(); }' });
+  const [diagnostic] = rustProjectLayerBoundaryRule.check(denied);
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.line, 2);
+});

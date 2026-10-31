@@ -13,7 +13,7 @@
 - `src-tauri/src/domain/joint_edit.rs`：三方业务值比较与冲突投影。
 - `src-tauri/src/domain/joint_hull.rs`：有效船体字段来源、Skin 继承与有效武器槽的纯投影。
 - `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配。
-- `src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接。
+- `src-tauri/src/services/project/write/joint_edit.rs`：联合当前来源图准备、身份与修改接纳及实际保存。
 - `src-tauri/src/services/project/write/variant_identity.rs`：装配身份改名消费当前 Mod 父引用并装配同根 changeset 的写入。
 - `src/app/components/JointEditConflictChoices.vue`：三个来源与字段选择展示。
 - `src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期。

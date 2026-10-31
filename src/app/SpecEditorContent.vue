@@ -116,7 +116,7 @@ import SpecProjectileEditor from '@/app/components/spec-editor/projectile/SpecPr
 import SpecSystemEditor from '@/app/components/spec-editor/system/SpecSystemEditor.vue';
 import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useShortcutDispatch } from '@/app/composables/use-shortcut-dispatch';
+import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -226,7 +226,7 @@ function openPreview(weapon: import('@/shared/types/index').RowData) {
   }).catch((error) => feedback.error(error, '打开开火预览失败'));
 }
 
-useShortcutDispatch({
+useWindowShortcuts({
   commands: {
     save: () => void saveEditorData(),
   },

@@ -15,6 +15,7 @@ pub mod file_editor;
 pub mod file_history;
 pub mod mod_creation;
 pub mod project;
+pub mod project_save;
 pub mod project_session;
 pub mod project_sync;
 pub mod system_open;
@@ -58,9 +59,9 @@ pub(crate) use project::write::entity_identity::{
     save_entity_spec, save_entity_text, save_variant_entity, validate_skin_engine_changes,
 };
 pub(crate) use project::write::faction_identity::{delete_faction_entity, save_faction_entity};
+pub(crate) use project::write::joint_edit::prepare_joint_save;
 pub(crate) use project::write::joint_edit::save_joint_edit;
 pub(crate) use project::write::json_recovery::restore_source_request;
-pub(crate) use project::write::save_requests::{prepare_joint_save, prepare_json_save};
 
 pub use project::write::json_recovery::recreate_json_sources;
 pub mod performance_monitor;

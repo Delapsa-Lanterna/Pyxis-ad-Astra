@@ -6,9 +6,10 @@ use super::super::{
         entity_definitions::entity_definitions,
         table_definitions::{csv_table_source_display_name, csv_table_source_resource_ref},
     },
-    model::{CoreSourceData, ProjectSession, SessionCsvRow, string_from_row},
+    model::{ProjectSession, string_from_row},
     resources::HullReferenceResolver,
 };
+use crate::services::project::sources::core::CoreSourceData;
 use crate::services::project::sources::core::{
     load_core_csv_table, load_core_skin_files, load_core_source_data,
 };
@@ -315,7 +316,10 @@ fn source_catalog(
     let rows = loaded_csv_rows(csv, table_key)?;
     let starsector_root = context.unwrap_or(session).manifest.starsector_root.clone();
     let core_csv = if let Some(root) = starsector_root.as_ref() {
-        load_core_csv_table(root, table)?
+        load_core_csv_table(
+            root,
+            crate::services::project::model::csv_table_spec(table).rel_path,
+        )?
     } else {
         None
     };
@@ -323,14 +327,17 @@ fn source_catalog(
         .as_ref()
         .map(|csv| {
             ensure_source_column(&csv.header, table_key, column)?;
-            loaded_csv_rows(csv, table_key)
+            Ok::<_, AppError>(csv.rows.as_slice())
         })
         .transpose()?;
     let core_data = if core_rows.is_some() {
         let root = starsector_root
             .as_ref()
             .expect("Core rows have a configured root");
-        Some(load_core_source_data(root, table)?)
+        Some(load_core_source_data(
+            root,
+            crate::services::project::model::csv_table_spec(table).core_source_requirements,
+        )?)
     } else {
         None
     };
@@ -357,30 +364,37 @@ fn source_catalog(
     };
     let core_skins = core_skins.as_deref().map(Vec::as_slice).unwrap_or_default();
     let mut options = Vec::new();
-    for (origin, rows, data, skins) in [
-        (ResourceSource::Mod, Some(rows), None, own_skins),
-        (
-            ResourceSource::Core,
-            core_rows,
-            core_data.as_ref(),
-            core_skins,
-        ),
+    for (origin, skins) in [
+        (ResourceSource::Mod, own_skins),
+        (ResourceSource::Core, core_skins),
     ] {
-        let mut values = rows
-            .map(|rows| {
-                source_options_from_rows(
-                    origin,
-                    rows,
-                    column,
-                    SourceOptionRowsContext {
-                        core_data: data,
-                        resource_context,
-                        seen: &mut seen,
-                    },
-                )
-            })
-            .transpose()?
-            .unwrap_or_default();
+        let context = SourceOptionRowsContext {
+            core_data: if origin == ResourceSource::Core {
+                core_data.as_ref()
+            } else {
+                None
+            },
+            resource_context,
+            seen: &mut seen,
+        };
+        let mut values = if origin == ResourceSource::Mod {
+            source_options_from_rows(
+                origin,
+                rows.iter().map(|row| (&row.data, row.is_comment)),
+                column,
+                context,
+            )?
+        } else {
+            source_options_from_rows(
+                origin,
+                core_rows
+                    .into_iter()
+                    .flatten()
+                    .map(|row| (&row.data, row.is_comment)),
+                column,
+                context,
+            )?
+        };
         values.extend(skin_source_options(
             skins,
             origin,
@@ -752,16 +766,16 @@ fn ensure_source_column(header: &[String], table: &str, column: &str) -> AppResu
     ))
 }
 
-fn source_options_from_rows(
+fn source_options_from_rows<'a>(
     resource_source: ResourceSource,
-    rows: &[SessionCsvRow],
+    rows: impl Iterator<Item = (&'a Map<String, Value>, bool)>,
     column: &str,
     context: SourceOptionRowsContext<'_>,
 ) -> AppResult<Vec<crate::models::SourceOption>> {
     let is_id_column = column == "id";
     let mut options = Vec::new();
-    for row in rows.iter().filter(|row| !row.is_comment) {
-        let Some(cell_value) = row.data.get(column).and_then(serde_json::Value::as_str) else {
+    for (row, _) in rows.filter(|(_, is_comment)| !is_comment) {
+        let Some(cell_value) = row.get(column).and_then(serde_json::Value::as_str) else {
             continue;
         };
         if cell_value.trim().is_empty() {
@@ -795,7 +809,7 @@ fn source_options_from_rows(
 
 fn source_option_from_row(
     resource_source: ResourceSource,
-    row: &SessionCsvRow,
+    row: &Map<String, Value>,
     column: &str,
     value: &str,
     core_data: Option<&CoreSourceData>,
@@ -806,7 +820,7 @@ fn source_option_from_row(
             resource_source,
             context.table,
             value,
-            &row.data,
+            row,
             core_data,
             context.session,
         )?
@@ -833,7 +847,7 @@ fn source_option_from_row(
 
 fn source_option_label_for_row(
     resource_source: ResourceSource,
-    row: &SessionCsvRow,
+    row: &Map<String, Value>,
     column: &str,
     value: &str,
     core_data: Option<&CoreSourceData>,
@@ -844,7 +858,7 @@ fn source_option_label_for_row(
             resource_source,
             context.table,
             value,
-            &row.data,
+            row,
             core_data,
             context.session,
         )? && display_name != value
@@ -852,9 +866,8 @@ fn source_option_label_for_row(
             return Ok(format!("{display_name} ({value})"));
         }
         let name = row
-            .data
             .get("name")
-            .or_else(|| row.data.get("displayName"))
+            .or_else(|| row.get("displayName"))
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default();
         if name.trim().is_empty() || name == value {
@@ -947,13 +960,14 @@ fn add_core_blueprint_package_metadata(
     let Some(root) = session.manifest.starsector_root.as_ref() else {
         return Ok(());
     };
-    let Some(table) = load_core_csv_table(root, CsvTableKey::SpecialItems)? else {
+    let Some(table) = load_core_csv_table(
+        root,
+        crate::services::project::model::csv_table_spec(CsvTableKey::SpecialItems).rel_path,
+    )?
+    else {
         return Ok(());
     };
-    let Some(rows) = table.rows.as_ref() else {
-        return Ok(());
-    };
-    for row in rows.iter().filter(|row| !row.is_comment) {
+    for row in table.rows.iter().filter(|row| !row.is_comment) {
         add_blueprint_package_metadata(metadata, &row.data);
     }
     Ok(())

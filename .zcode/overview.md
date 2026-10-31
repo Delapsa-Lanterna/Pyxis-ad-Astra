@@ -43,6 +43,7 @@
 - `src-tauri/src/parsers/`：保存 CSV-like、JSON-like、spec 和文本解析、渲染及诊断位置。
 - `src-tauri/src/services/project/sources/`：按实际来源根交付匹配内容与版本，维护解析成果复用、Core 文档目录及来源持久化。
 - `src-tauri/src/services/project/`：按 root、session、query、write、resources、cache 和 model 分工；session 拥有存活登记、引用来源和就绪读取；query 只读，write 返回实际 changeset、版本和 invalidation。
+- `src-tauri/src/services/project_save.rs`：完整保存请求捕获、所属业务准备与执行分派，消费项目队列及文件事务。
 - `src-tauri/src/services/write_transactions/`：保存提交模块维护项目文件事务、失败恢复与正式结果登记；项目同步持有所属项目队列并独立发布结果。
 - `src-tauri/src/services/`：提供目录打开、workspace、ProjectSession、配置、文件、设置、日志、Core、资源和窗口能力；业务函数由服务装配直接从所属实现导出。
 
@@ -58,7 +59,7 @@
 - workspace 生命周期：workspace action → Rust 关闭范围登记 → 内容准备与逐窗确认 → Destroyed → session 释放 → 实际释放结果 → 前端运行态清理
 - 保存事务：`EditSession` → save orchestrator → 目标与版本准备 → write service → `command.runtime` → Rust FIFO transaction → changeset、`File History` 与 `ProjectSession projection` → `WriteResult`
 - 写后接纳：项目保存队列 → 文件、历史及正式内容登记 → 实际 `WriteResult` 发布与保存工作释放 → 消费者有序接纳历史、清单、缓存、身份及内容
-- 历史回放：main history dispatch → 当前编辑面的 JSON 或 CSV draft history → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
+- 历史回放：workspace history dispatch → 当前编辑面的 JSON 或 CSV draft history → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
 - 查询与编辑目标：组件 → `ViewModel/composable` → query service → `command.runtime` → Rust `ProjectSession` query → parser/IO/cache → `EntityData`、`EntityEditTarget` 与 `ResourceRef` → 前端 query cache
 - 目录与会话：目录选择 → `directory-opening orchestrator` → `detect_directory` → canonical root → `open_project_session` → `ProjectSession` → workspace runtime
 - 窗口生命周期：业务 identity → window service → Rust native registry → 原生窗口上下文与请求 → 接纳回执 → 标题、目标和 dirty 接纳 → close guard 与释放

@@ -1,14 +1,14 @@
 use super::super::{
     model::{
-        ABILITIES_SPEC, COMMODITIES_SPEC, CoreSourceData, CsvTableSpec, DESCRIPTIONS_SPEC,
-        HULLMODS_SPEC, INDUSTRIES_SPEC, MARKET_CONDITIONS_SPEC, ProjectSession, SHIP_SYSTEMS_SPEC,
-        SHIPS_SPEC, SIM_OPPONENTS_SPEC, SKILLS_SPEC, SPECIAL_ITEMS_SPEC, SUBMARKETS_SPEC,
-        WEAPONS_SPEC, WINGS_SPEC, csv_table_spec, string_field, string_from_row,
-        weapon_sprite_path,
+        ABILITIES_SPEC, COMMODITIES_SPEC, CsvTableSpec, DESCRIPTIONS_SPEC, HULLMODS_SPEC,
+        INDUSTRIES_SPEC, MARKET_CONDITIONS_SPEC, ProjectSession, SHIP_SYSTEMS_SPEC, SHIPS_SPEC,
+        SIM_OPPONENTS_SPEC, SKILLS_SPEC, SPECIAL_ITEMS_SPEC, SUBMARKETS_SPEC, WEAPONS_SPEC,
+        WINGS_SPEC, csv_table_spec, string_field, string_from_row, weapon_sprite_path,
     },
     resources::{HullReferenceResolver, resource_ref},
     sources::core::load_core_variant_files,
 };
+use crate::services::project::sources::core::CoreSourceData;
 use crate::{
     errors::AppResult,
     models::{CsvTableKey, EntitySummaries, ResourceOwnerKind, ResourceRef, ResourceSource},
