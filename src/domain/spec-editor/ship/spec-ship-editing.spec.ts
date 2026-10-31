@@ -139,17 +139,42 @@ describe('ship edit operations', () => {
     deleteShipElement(source, target, true);
     expect((source.weaponSlots as RowData[]).map((x) => x.id)).toEqual(['LB 1']);
   });
-  it('inserts into the same bounds segment shown by the preview', () => {
-    const source = ship(),
-      keys = input({ ctrlKey: true }),
-      absolute = shipRelativeToAbsolute([5, 21], [10, 20]);
-    const preview = previewShipOperation(source, 'bounds', { kind: 'bound', i: 0 }, keys, absolute, true)!;
-    expect(preview.kind).toBe('boundInsert');
-    const gesture = beginShipOperation(source, 'boundInsert', { kind: 'bound', i: 0 }, absolute, true)!;
+  const outline = [0, 10, 20, 10, 20, -10, 0, -10];
+  it.each([
+    ['boundAppend', [], [5, 2], true, [5, -2, 5, 2]],
+    ['boundAppend', outline, [5, 12], true, [5, -12, ...outline, 5, 12]],
+    ['boundAppend', outline, [5, 0], true, [...outline, 5, 0]],
+    ['boundAppend', outline, [5, 12], false, [...outline, 5, 12]],
+    ['boundInsert', [], [5, 2], false, [5, 2]],
+    ['boundInsert', [], [5, 2], true, [5, -2, 5, 2]],
+    ['boundInsert', [0, 10], [5, 2], false, [0, 10, 5, 2]],
+    ['boundInsert', [0, 10], [5, 2], true, [5, -2, 0, 10, 5, 2]],
+    ['boundInsert', [0, 10, 20, 10], [5, 2], false, [0, 10, 20, 10, 5, 2]],
+    ['boundInsert', [0, 10, 20, 10], [5, 2], true, [5, -2, 0, 10, 20, 10, 5, 2]],
+    ['boundInsert', [0, 10, 20, 10, 20, -10], [5, 12], false, [0, 10, 5, 12, 20, 10, 20, -10]],
+    ['boundInsert', outline, [5, 12], false, [0, 10, 5, 12, 20, 10, 20, -10, 0, -10]],
+    ['boundInsert', outline, [5, 12], true, [0, 10, 5, 12, 20, 10, 20, -10, 5, -12, 0, -10]],
+    ['boundInsert', outline, [5, -12], true, [0, 10, 5, 12, 20, 10, 20, -10, 5, -12, 0, -10]],
+    ['boundInsert', outline, [22, 2], true, [0, 10, 20, 10, 22, 2, 22, -2, 20, -10, 0, -10]],
+    ['boundInsert', outline, [-2, 2], true, [...outline, -2, 2, -2, -2]],
+    ['boundInsert', outline, [22, 0], true, [0, 10, 20, 10, 22, 0, 20, -10, 0, -10]],
+    ['boundInsert', [0, 10, 20, 10, 20, 0, 0, 0], [5, 11], true, [0, 10, 5, 11, 20, 10, 20, 0, 5, -11, 0, 0]],
+  ] as const)('applies %s to %j at %j with mirror %s', (kind, bounds, coord, mirror, expected) => {
+    const source = { ...ship(), bounds: [...bounds] },
+      keys = input(kind === 'boundAppend' ? { ctrlKey: true } : { shiftKey: true }),
+      absolute = shipRelativeToAbsolute([...coord], [10, 20]);
+    expect(shipOperationKind('bounds', keys, null)).toBe(kind);
+    const preview = previewShipOperation(source, 'bounds', null, keys, absolute, mirror)!;
+    expect(preview).toMatchObject({ kind, coord });
+    expect(source.bounds).toEqual(bounds);
+    const gesture = beginShipOperation(source, kind, null, absolute, mirror)!;
     updateShipOperation(source, gesture, absolute);
+    expect(source.bounds).toEqual(expected);
+    expect(source.bounds.slice(gesture.target.i * 2, gesture.target.i * 2 + 2)).toEqual(coord);
     if (preview.kind === 'boundInsert')
-      expect((source.bounds as number[]).slice((preview.insertAfter + 1) * 2, (preview.insertAfter + 2) * 2)).toEqual(preview.coord);
-    expect((source.bounds as number[]).slice(gesture.pair!.i * 2, gesture.pair!.i * 2 + 2)).toEqual([5, -21]);
+      expect(source.bounds.slice((preview.insertAfter + 1) * 2, (preview.insertAfter + 2) * 2)).toEqual(preview.coord);
+    if (mirror && coord[1] !== 0) expect(source.bounds.slice(gesture.pair!.i * 2, gesture.pair!.i * 2 + 2)).toEqual([coord[0], -coord[1]]);
+    else expect(gesture.pair).toBeNull();
   });
   it('adds paired ports inside one bay, addresses the exact port and removes the final bay', () => {
     const source = ship(),

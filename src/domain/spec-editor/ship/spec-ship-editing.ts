@@ -98,7 +98,7 @@ export interface ShipGesture {
 }
 export function shipOperationKind(mode: ShipEditorMode, m: CanvasModifiers, target: EditorTarget | null): ShipOperationKind | null {
   if (mode === 'overview') return null;
-  if (mode === 'bounds') return m.shiftKey ? 'boundAppend' : m.ctrlKey ? 'boundInsert' : target ? 'bound' : null;
+  if (mode === 'bounds') return m.ctrlKey ? 'boundAppend' : m.shiftKey ? 'boundInsert' : target ? 'bound' : null;
   if (mode === 'launchBay') return m.ctrlKey ? 'launchBayAdd' : m.shiftKey ? 'launchBayPortAdd' : target ? 'launchBayPort' : null;
   if (mode === 'weapon') return m.shiftKey ? 'weaponCopy' : target ? (m.altKey ? 'weaponArc' : m.ctrlKey ? 'weapon' : 'weaponAngle') : null;
   if (mode === 'engine')
@@ -118,6 +118,18 @@ export function nextShipSlotId(ship: RowData, bay = false) {
   );
   return nextFormattedId(used, bay ? formatLaunchBayId : formatWeaponSlotId);
 }
+export function addShipBound(bounds: number[], point: number[], mirror: boolean, insert = false) {
+  // Resolve both positions on the original outline before either insertion shifts its indexes.
+  const inserting = insert && bounds.length >= 6,
+    paired = mirror && Math.abs(point[1] || 0) > MIRROR_EPSILON,
+    at = inserting ? nearestBoundsSegment(bounds, point) + 1 : bounds.length / 2,
+    other = inserting && paired ? nearestBoundsSegment(bounds, mirrorOffsetPoint(point)) + 1 : 0;
+  const i = at + (paired && (other < at || !inserting) ? 1 : 0),
+    pair = paired ? { kind: 'bound', i: other + (inserting && at <= other ? 1 : 0) } : null;
+  bounds.splice(at * 2, 0, ...point);
+  if (pair) bounds.splice(pair.i * 2, 0, ...mirrorOffsetPoint(point));
+  return { target: { kind: 'bound', i }, pair };
+}
 export function addShipElement(
   ship: RowData,
   kind: 'weapon' | 'launchBay' | 'engine' | 'bound',
@@ -126,13 +138,7 @@ export function addShipElement(
   source: RowData = {},
 ): { target: EditorTarget; pair: EditorTarget | null } {
   const g = shipCollections(ship);
-  if (kind === 'bound') {
-    const i = g.bounds.length / 2;
-    g.bounds.push(...point);
-    const paired = mirror && Math.abs(point[1] || 0) > MIRROR_EPSILON;
-    if (paired) g.bounds.push(...mirrorOffsetPoint(point));
-    return { target: { kind: 'bound', i }, pair: paired ? { kind: 'bound', i: i + 1 } : null };
-  }
+  if (kind === 'bound') return addShipBound(g.bounds, point, mirror);
   const engine = kind === 'engine',
     bay = kind === 'launchBay',
     items = engine ? g.engines : g.slots,
@@ -182,13 +188,7 @@ export function beginShipOperation(
     };
   }
   if (kind === 'boundAppend') return { kind: 'bound', ...addShipElement(ship, 'bound', relative, mirror) };
-  if (kind === 'boundInsert') {
-    const at = (nearestBoundsSegment(g.bounds, relative) + 1) * 2,
-      paired = mirror && Math.abs(relative[1] || 0) > MIRROR_EPSILON;
-    g.bounds.splice(at, 0, ...relative);
-    if (paired) g.bounds.splice(at + 2, 0, ...mirrorOffsetPoint(relative));
-    return { kind: 'bound', target: { kind: 'bound', i: at / 2 }, pair: paired ? { kind: 'bound', i: at / 2 + 1 } : null };
-  }
+  if (kind === 'boundInsert') return { kind: 'bound', ...addShipBound(g.bounds, relative, mirror, true) };
   if (kind === 'launchBayPortAdd') {
     if (!target || str(g.slots[target.i]!.type).toUpperCase() !== 'LAUNCH_BAY') return null;
     const slot = g.slots[target.i]!,

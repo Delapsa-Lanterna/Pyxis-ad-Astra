@@ -4,7 +4,7 @@ import { centerMarkerStyle, controlPointStyle } from '../../editors/canvas-style
 import { drawEngineVisual, type EngineImages, type EngineKind } from '../../editors/engine-renderer';
 import type { ShipGeometry } from '@/domain/spec-editor/ship/spec-ship-editing';
 
-import { bayPorts } from '@/domain/spec-editor/ship/spec-ship-editing';
+import { addShipBound, bayPorts } from '@/domain/spec-editor/ship/spec-ship-editing';
 import { shipCanvasPoint, shipRelativeToAbsolute } from '@/domain/editors/lib/geometry';
 import { mirrorAngleDeg, mirrorOffsetPoint, mirrorBayPort, MIRROR_EPSILON } from '@/domain/editors/lib/mirror';
 import { drawCrossMarker, drawControlPoint, drawRadiusField, drawRadiusFill, drawXMarker } from '../../editors/canvas-visuals';
@@ -41,16 +41,10 @@ function relativeToCanvas(scene: SpecShipEditorScene, loc: number[]) {
 
 function renderPreviewBounds(ctx: CanvasRenderingContext2D, scene: SpecShipEditorScene, preview: NonNullable<ShipHoverPreview>) {
   if (preview.kind !== 'boundAppend' && preview.kind !== 'boundInsert') return;
+  const bounds = [...scene.geometry.bounds];
+  const { target } = addShipBound(bounds, preview.coord, scene.interaction.mirror, preview.kind === 'boundInsert');
   const points = [];
-  for (let i = 0; i < scene.geometry.bounds.length; i += 2) points.push([scene.geometry.bounds[i] ?? 0, scene.geometry.bounds[i + 1] ?? 0]);
-  if (preview.kind === 'boundAppend') {
-    points.push(preview.coord);
-    if (scene.interaction.mirror && Math.abs(preview.coord[1] || 0) > MIRROR_EPSILON) points.push(mirrorOffsetPoint(preview.coord));
-  } else {
-    points.splice(preview.insertAfter + 1, 0, preview.coord);
-    if (scene.interaction.mirror && Math.abs(preview.coord[1] || 0) > MIRROR_EPSILON)
-      points.splice(preview.insertAfter + 2, 0, mirrorOffsetPoint(preview.coord));
-  }
+  for (let i = 0; i < bounds.length; i += 2) points.push([bounds[i] ?? 0, bounds[i + 1] ?? 0]);
   if (points.length < 2) return;
   ctx.save();
   ctx.globalAlpha = 0.55;
@@ -58,8 +52,8 @@ function renderPreviewBounds(ctx: CanvasRenderingContext2D, scene: SpecShipEdito
     ctx,
     scene.base.palette,
     points.map((point) => relativeToCanvas(scene, point)),
-    points.length - 1,
-    points.length - 1,
+    target.i,
+    target.i,
   );
   ctx.restore();
 }

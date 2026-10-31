@@ -10,6 +10,7 @@ import { createFieldInputs, provideFieldInputs, type FieldInputs } from '@/share
 import type { SpecShipEditorProps } from '@/app/composables/spec-editor/ship/use-spec-ship-editor-view-model';
 import type { RowData } from '@/shared/types/index';
 import SpecShipEditor from './SpecShipEditor.vue';
+import * as canvasScene from '@/app/renderers/editors/canvas-scene';
 vi.mock('@/services/engine-assets.service', () => ({
   queryEngineRenderAssets: async () => ({ styles: { fixture_engine: {} }, versions: [], resources: {} }),
   hasEngineAssetsInvalidation: () => false,
@@ -87,6 +88,26 @@ function observeReveal(editor: Pick<ReturnType<typeof mount>, 'get'>) {
   return vi.spyOn(scroll, 'querySelector');
 }
 describe('ship pointer and inspector actions', () => {
+  it.each([
+    ['ctrlKey', [5, -11.5, 0, 10, 20, 10, 20, -10, 0, -10, 5, 11.5]],
+    ['shiftKey', [0, 10, 5, 11.5, 20, 10, 20, -10, 5, -11.5, 0, -10]],
+  ] as const)('previews and commits the same snapped bounds using %s', async (key, expected) => {
+    const editor = openShip({ ship: { center: [0, 0], bounds: [0, 10, 20, 10, 20, -10, 0, -10] } });
+    await shortcut(editor, 'b');
+    await shortcut(editor, ' ');
+    const draw = vi.spyOn(canvasScene, 'renderCanvasBounds'),
+      canvas = editor.get('canvas'),
+      pointer = { [key]: true, clientX: 255.2, clientY: 238.3 };
+    await canvas.trigger('mousemove', pointer);
+    const preview = draw.mock.calls.at(-1)![2];
+    expect(preview).toEqual(
+      Array.from({ length: expected.length / 2 }, (_, i) => ({ x: 250 + expected[i * 2]!, y: 250 - expected[i * 2 + 1]! })),
+    );
+    await canvas.trigger('mousedown', { button: 0, ...pointer });
+    await canvas.trigger('mouseup');
+    await flushPromises();
+    expect(editor.emitted('draft-changed')!.at(-1)![0]).toHaveProperty('bounds', expected);
+  });
   it('derives fixed weapon inputs from built-in slots and preserves unrelated records', async () => {
     const editor = openShip({
       ship: {
