@@ -24,10 +24,6 @@
 - `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
-### 关联
-
-- `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
-
 ## 边界
 
 - 开火预览拥有完整弹体读取、模拟和播放，武器编辑动作交付独立草稿快照。

@@ -16,9 +16,11 @@ const mocks = vi.hoisted(() => ({
   writeDeleteSkinEntity: vi.fn(),
 }));
 
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
+vi.mock('@/orchestrators/window-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
-  chooseIdentityFilename: vi.fn(async () => false),
+}));
+vi.mock('@/orchestrators/entity-write.orchestrator', () => ({
+  chooseEntityFilename: vi.fn(async () => false),
 }));
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 
@@ -54,7 +56,7 @@ import {
   saveJsonFileAction,
 } from '@/orchestrators/json-save.orchestrator';
 import { deleteJsonDocument } from '@/app/composables/json-editor/json-document-capabilities';
-import { createDefaultVariant } from '@/domain/json-editor/json-file-defaults';
+import { createDefaultVariant } from '@/domain/entity-write/spec-construction';
 
 const MOD_ROOT = 'M:\\test-mod';
 const SESSION_ID = 'sess-1';

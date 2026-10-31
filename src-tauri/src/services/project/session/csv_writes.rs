@@ -1,19 +1,19 @@
 use super::super::{
-    cache::csv::{read_table_snapshot, session_table_mut},
     model::{ProjectSession, SessionCsvRow},
+    session::csv_tables::{read_table_snapshot, session_table_mut},
 };
 use crate::{
     errors::AppResult, io::FileChangeSetBuilder, models::CsvTableKey, parsers::render_csv_text,
 };
 
-pub(super) struct CsvTableDraft {
+pub(in crate::services::project) struct CsvTableDraft {
     pub table: CsvTableKey,
     pub header: Vec<String>,
     pub rows: Vec<SessionCsvRow>,
     pub next_row_seq: u64,
 }
 
-pub(super) struct StagedCsvWrite {
+pub(in crate::services::project) struct StagedCsvWrite {
     pub draft: CsvTableDraft,
     text: String,
 }
@@ -25,12 +25,16 @@ thread_local! {
 }
 
 #[cfg(test)]
-pub(super) fn take_render_counts() -> std::collections::BTreeMap<CsvTableKey, usize> {
+pub(in crate::services::project) fn take_render_counts()
+-> std::collections::BTreeMap<CsvTableKey, usize> {
     RENDER_COUNTS.with(|counts| std::mem::take(&mut *counts.borrow_mut()))
 }
 
 impl CsvTableDraft {
-    pub(super) fn read(session: &ProjectSession, table: CsvTableKey) -> AppResult<Self> {
+    pub(in crate::services::project) fn read(
+        session: &ProjectSession,
+        table: CsvTableKey,
+    ) -> AppResult<Self> {
         let (header, rows, next_row_seq) = read_table_snapshot(session, table)?;
         Ok(Self {
             table,
@@ -40,7 +44,7 @@ impl CsvTableDraft {
         })
     }
 
-    pub(super) fn stage(
+    pub(in crate::services::project) fn stage(
         self,
         session: &ProjectSession,
         builder: &mut FileChangeSetBuilder,
@@ -64,7 +68,7 @@ impl CsvTableDraft {
 }
 
 impl StagedCsvWrite {
-    pub(super) fn accept(self, session: &mut ProjectSession) {
+    pub(in crate::services::project) fn accept(self, session: &mut ProjectSession) {
         let state = session_table_mut(session, self.draft.table.as_str())
             .expect("staged CSV table is registered");
         state.header = self.draft.header;
@@ -82,7 +86,8 @@ mod tests {
     use crate::{
         io::{read_utf8_no_bom, write_utf8_no_bom},
         services::project::{
-            PerformanceTrace, cache::ensure_registered_table_rows, session::build_project_session,
+            PerformanceTrace, session::build_project_session,
+            session::csv_tables::ensure_registered_table_rows,
         },
         test_support::TestWorkspace,
     };
@@ -90,7 +95,7 @@ mod tests {
     use std::fs;
 
     fn fixture() -> (TestWorkspace, ProjectSession) {
-        let root = project_workspace("csv_staging");
+        let root = project_workspace("csv_writes");
         fs::create_dir_all(root.join("data/hulls")).unwrap();
         write_utf8_no_bom(
             &root.join("data/hulls/ship_data.csv"),

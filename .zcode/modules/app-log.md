@@ -11,6 +11,7 @@
 - `src-tauri/src/commands/app_log.rs`：批量追加、停写报告与日志维护命令。
 - `src-tauri/src/services/app_log.rs`：进程状态、原生记录队列、批量文件写入和轮转。
 - `src/app/application-log.ts`：窗口停写监听和 Pinia 动作记录装配。
+- `src/app/runtime-error-monitor.ts`：窗口和 Vue 运行错误的监听、上下文及结构化日志接入。
 - `src/services/app-log.service.ts`：日志命令、停写通知、状态读取与维护动作。
 
 ### 消费

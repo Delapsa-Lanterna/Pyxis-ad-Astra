@@ -8,8 +8,6 @@ pub mod json_files;
 pub(crate) mod mod_creation;
 pub mod paths;
 pub mod text;
-#[cfg(test)]
-pub(crate) mod work;
 
 pub use csv_files::*;
 pub use faction_index::*;

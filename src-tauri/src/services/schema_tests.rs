@@ -9,7 +9,7 @@ fn validate_document(id: &str, data: &Value) -> AppResult<()> {
 
 #[test]
 fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
-    use crate::domain::{spec_construction, well_known_labels};
+    use crate::domain::{entity_construction, joint_hull, well_known_labels};
     use crate::models::{AssociatedSpecCreateParams, CsvTableKey};
     use std::{path::Path, sync::Barrier};
     let schemas = include!(concat!(env!("OUT_DIR"), "/config_schemas.rs"));
@@ -22,12 +22,14 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
                     for (id, _) in &schemas {
                         assert_eq!(bundled_schema(id)["id"], *id);
                     }
-                    spec_construction::skin_hull_fields();
-                    spec_construction::create_associated_spec(&AssociatedSpecCreateParams::Ship {
-                        id: "asset-sample".into(),
-                        hull_name: "Asset sample".into(),
-                    });
-                    spec_construction::validate_weapon_spec_class(
+                    joint_hull::skin_hull_fields();
+                    entity_construction::create_associated_spec(
+                        &AssociatedSpecCreateParams::Ship {
+                            id: "asset-sample".into(),
+                            hull_name: "Asset sample".into(),
+                        },
+                    );
+                    entity_construction::validate_weapon_spec_class(
                         &json!({"specClass":"beam"}),
                         Path::new("sample.wpn"),
                         bundled_schema("spec-weapon"),
@@ -43,20 +45,20 @@ fn bundled_assets_parse_and_build_once_across_concurrent_consumers() {
     });
     for (id, _) in &schemas {
         assert_eq!(
-            crate::io::work::count("schema-parse", Path::new(id)),
+            crate::test_support::work_counts::count("schema-parse", Path::new(id)),
             1,
             "{id}"
         );
     }
     for name in ["spec-defaults", "skin-hull-fields", "well-known-labels"] {
         assert_eq!(
-            crate::io::work::count("asset-parse", Path::new(name)),
+            crate::test_support::work_counts::count("asset-parse", Path::new(name)),
             1,
             "{name}"
         );
     }
     assert_eq!(
-        crate::io::work::count("asset-build", Path::new("well-known-labels")),
+        crate::test_support::work_counts::count("asset-build", Path::new("well-known-labels")),
         1
     );
 }

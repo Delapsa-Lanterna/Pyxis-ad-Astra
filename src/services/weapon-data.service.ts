@@ -4,7 +4,8 @@ import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { AppError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { createWeaponSpec, inferWeaponSpecClass } from '@/domain/editors/weapon-spec';
+import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
+import { inferWeaponSpecClass } from '@/domain/editors/weapon-spec';
 
 import { WEAPON_SPRITE_FIELDS } from '@/shared/lib/starsector/weapon-sprite-fields';
 import type { DeepReadonly, EntityData, EntityEditInfo, SpecEditorKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';

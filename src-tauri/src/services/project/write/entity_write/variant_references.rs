@@ -1,4 +1,4 @@
-use super::super::model::ProjectSession;
+use super::super::super::model::ProjectSession;
 use crate::{
     errors::AppResult,
     io::{FileChangeSetBuilder, FsRootBoundary, JsonWriteBatch, read_json_file},
@@ -6,7 +6,7 @@ use crate::{
 };
 use std::path::Path;
 
-pub(super) fn stage_variant_parents(
+pub(in crate::services::project) fn stage_variant_parents(
     session: &ProjectSession,
     builder: &mut FileChangeSetBuilder,
     json: &mut JsonWriteBatch,
@@ -23,7 +23,7 @@ pub(super) fn stage_variant_parents(
         }
         let path = boundary.resolve_relative(&parent.rel_path, "variant parent")?;
         let mut content = read_json_file(&path)?;
-        if crate::domain::joint_hull::rename_module_reference(
+        if crate::domain::variant_modules::rename_module_reference(
             &mut content,
             &identity.before.id,
             &identity.after.id,

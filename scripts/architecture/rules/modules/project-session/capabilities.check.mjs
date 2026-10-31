@@ -64,7 +64,7 @@ const cases = [
   ['entity-target-query', 'src/services/spec-editor.service.ts', 'src/services/entity-query.service.ts', 'querySessionEntityEditTarget'],
   [
     'identity-target-query',
-    'src/orchestrators/entity-identity.orchestrator.ts',
+    'src/orchestrators/spec-editor-identity.orchestrator.ts',
     'src/services/entity-query.service.ts',
     'querySessionEntityEditTarget',
   ],

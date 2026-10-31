@@ -64,7 +64,7 @@ export const projectCapabilities = [
       names: ['querySessionEntityEditTarget'],
       owners: [
         { layer: 'orchestrators', domain: 'edit-target-handoff' },
-        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'spec-editor-identity' },
         { layer: 'orchestrators', domain: 'window-target-focus' },
         { layer: 'services' },
         { layer: 'app', role: 'composable', domain: 'csv-editor-actions' },

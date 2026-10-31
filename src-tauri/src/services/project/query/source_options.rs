@@ -1,6 +1,5 @@
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache::{ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows},
     definitions::{
         config_sources::CONFIG_OPTION_SOURCES,
         entity_definitions::entity_definitions,
@@ -8,6 +7,9 @@ use super::super::{
     },
     model::{ProjectSession, string_from_row},
     resources::HullReferenceResolver,
+    session::csv_tables::{
+        ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
+    },
 };
 use crate::services::project::sources::core::CoreSourceData;
 use crate::services::project::sources::core::{

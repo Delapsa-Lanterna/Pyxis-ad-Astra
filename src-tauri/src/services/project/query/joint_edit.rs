@@ -1,8 +1,8 @@
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache,
     model::{ProjectSession, csv_table_spec, string_field},
     query::entity_targets::{EntityTargetProjection, prepare_entity_targets},
+    session::csv_tables,
 };
 use crate::services::project::sources;
 use crate::services::project::sources::documents::LoadedSpecRecord;
@@ -51,8 +51,8 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
         };
         let handle = session_handle(&root.session_id)?;
         let mut session = lock_ready_session(&handle)?;
-        cache::ensure_registered_table_rows(&mut session, table)?;
-        let (_, rows, _) = cache::csv::read_table_snapshot(&session, table)?;
+        csv_tables::ensure_registered_table_rows(&mut session, table)?;
+        let (_, rows, _) = csv_tables::read_table_snapshot(&session, table)?;
         let row = rows
             .iter()
             .find(|row| row.row_key == *row_key && !row.is_comment)
@@ -289,7 +289,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
         } else {
             crate::io::read_versioned_json(Path::new(&parent.path))?
         };
-        if !crate::domain::joint_hull::module_entries(content.get("modules"))
+        if !crate::domain::variant_modules::module_entries(content.get("modules"))
             .iter()
             .any(|(_, id)| variant_ids.contains(id))
         {
@@ -324,7 +324,7 @@ pub(in crate::services::project) fn query_joint_edit_values(
             referenced_by: vec!["module-parent".into()],
         });
     }
-    cache::ensure_registered_table_rows(&mut session, CsvTableKey::Wings)?;
+    csv_tables::ensure_registered_table_rows(&mut session, CsvTableKey::Wings)?;
     let references = reference_catalog(&session)?;
     for record in &mut records {
         if let Some(owners) = references.get(&record.key) {
@@ -369,7 +369,7 @@ fn variant_catalog(
         JointVariantCatalogKind::Hullmods => CsvTableKey::Hullmods,
         JointVariantCatalogKind::Variants => unreachable!("module catalogs use hull summaries"),
     };
-    cache::ensure_registered_table_rows(session, table)?;
+    csv_tables::ensure_registered_table_rows(session, table)?;
     let rows = JointCsvCatalog::load(session, table)?;
     let core = session
         .manifest
@@ -435,7 +435,7 @@ fn variant_catalog(
         damage_icons,
     )?;
     let descriptions = if matches!(kind, JointVariantCatalogKind::Weapons) {
-        cache::ensure_registered_table_rows(session, CsvTableKey::Descriptions)?;
+        csv_tables::ensure_registered_table_rows(session, CsvTableKey::Descriptions)?;
         Some(JointCsvCatalog::load(session, CsvTableKey::Descriptions)?)
     } else {
         None
@@ -1146,7 +1146,7 @@ impl JointGraph<'_> {
             });
         }
         if !self.tables.contains_key(&table) {
-            cache::ensure_registered_table_rows(self.session, table)?;
+            csv_tables::ensure_registered_table_rows(self.session, table)?;
             self.tables
                 .insert(table, JointCsvCatalog::load(self.session, table)?);
         }
@@ -1462,7 +1462,9 @@ impl JointGraph<'_> {
         }
         if kind == EntityKind::Variant {
             if self.scope == JointGraphScope::Editing {
-                for (_, module) in crate::domain::joint_hull::module_entries(data.get("modules")) {
+                for (_, module) in
+                    crate::domain::variant_modules::module_entries(data.get("modules"))
+                {
                     self.spec(EntityKind::Variant, &module, id)?;
                 }
             }
@@ -1822,7 +1824,7 @@ fn reference_catalog(session: &ProjectSession) -> AppResult<BTreeMap<String, BTr
                     }
                 }
             }
-            for (_, module) in crate::domain::joint_hull::module_entries(data.get("modules")) {
+            for (_, module) in crate::domain::variant_modules::module_entries(data.get("modules")) {
                 add(
                     serde_json::to_string(&("spec", EntityKind::Variant, &module))?,
                     owner.clone(),
@@ -1882,14 +1884,14 @@ impl JointCsvCatalog {
             .map_err(|error| AppError::from(error).at_path(&path))?
         {
             let (version, csv) = crate::io::read_versioned_csv(&path)?;
-            let (_, rows, _) = cache::csv::table_snapshot_from_csv(
+            let (_, rows, _) = csv_tables::table_snapshot_from_csv(
                 &session.csv_tables[table.as_str()],
                 table,
                 csv,
             )?;
             (version, rows)
         } else {
-            let (_, rows, _) = cache::csv::read_table_snapshot(session, table)?;
+            let (_, rows, _) = csv_tables::read_table_snapshot(session, table)?;
             (
                 super::super::versions::version_for_path(session, relative),
                 rows,

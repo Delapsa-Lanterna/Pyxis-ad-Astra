@@ -15,8 +15,8 @@
 - `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
 - `src/app/composables/use-window-close-state.ts`：窗口关闭操作锁与装配动作的提供和消费。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
-- `src/orchestrators/entity-identity.orchestrator.ts`：规格身份占用与原生窗口身份交接。
 - `src/orchestrators/window-event-errors.orchestrator.ts`：窗口事件失败的统一反馈交接。
+- `src/orchestrators/window-identity.orchestrator.ts`：已准备文件身份的预约和原生窗口身份交接。
 - `src/orchestrators/window-target-focus.orchestrator.ts`：冲突目标、已加载路径与规格或文本窗口聚焦的动作。
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/windows/current.window.ts`：当前窗口生命周期，提供关闭请求、关闭监听、最小化、最大化、拖拽、重载与显示。

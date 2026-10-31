@@ -1,13 +1,13 @@
 use super::super::{
-    cache::{
-        ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
-        loaded_registered_csv_rows,
-    },
     model::{
         EntityProjection, MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession,
         SessionCsvRow, string_from_row,
     },
     resources::resource_ref,
+    session::csv_tables::{
+        ensure_registered_table_rows, ensure_session_table_rows, loaded_csv_rows,
+        loaded_registered_csv_rows,
+    },
 };
 use super::{
     entity_resources::{

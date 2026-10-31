@@ -57,8 +57,10 @@ vi.mock('@/services/spec-weapon-editor.service', () => ({
     mocks.queryDraftEditorImages(session, 'weapon', id, draft, signal),
 }));
 vi.mock('@/services/spec-projectile-editor.service', () => ({ querySpecProjectileEditorData: vi.fn() }));
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
-  chooseIdentityFilename: vi.fn(async () => false),
+vi.mock('@/orchestrators/entity-write.orchestrator', () => ({
+  chooseEntityFilename: vi.fn(async () => false),
+}));
+vi.mock('@/orchestrators/spec-editor-identity.orchestrator', () => ({
   reserveEntityIntent: async (
     _session: string,
     _root: string,
@@ -105,9 +107,9 @@ vi.mock('@/windows/current.window', () => ({
 }));
 
 import { useSpecEditorWindowViewModel } from './use-spec-editor-window-view-model';
-import { createShipSpec, createSystemSpec } from '@/domain/editors/spec-construction';
-import { createWeaponSpec } from '@/domain/editors/weapon-spec';
-import { createProjectileSpec } from '@/domain/spec-editor/projectile/spec-projectile-model';
+import { createShipSpec, createSystemSpec } from '@/domain/entity-write/spec-construction';
+import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
+import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import { formatError } from '@/shared/lib/errors';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 

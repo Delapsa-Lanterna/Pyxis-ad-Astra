@@ -21,12 +21,15 @@ fn source_reads_parses_and_directory_walks_are_reused_per_reader() {
         assert_eq!(sources.files("data/hulls").unwrap().len(), 2);
         assert_eq!(sources.files("data/hulls/nested").unwrap().len(), 1);
     }
-    assert_eq!(crate::io::work::count("read", &json), 1);
-    assert_eq!(crate::io::work::count("parse", &json), 1);
+    assert_eq!(crate::test_support::work_counts::count("read", &json), 1);
+    assert_eq!(crate::test_support::work_counts::count("parse", &json), 1);
     assert_eq!(crate::io::csv_files::take_csv_work(), (1, 1, 0));
-    assert_eq!(crate::io::work::count("walk", &root.join("data/hulls")), 1);
     assert_eq!(
-        crate::io::work::count("walk", &root.join("data/hulls/nested")),
+        crate::test_support::work_counts::count("walk", &root.join("data/hulls")),
+        1
+    );
+    assert_eq!(
+        crate::test_support::work_counts::count("walk", &root.join("data/hulls/nested")),
         0
     );
     root.close().unwrap();
@@ -146,7 +149,7 @@ fn source_version_matches_content() {
     let path = root.join("document.ship");
     std::fs::write(&path, b"\xef\xbb\xbf{\"hullId\":\"before\"}").unwrap();
     let (version, value) = read_versioned_json(&path).unwrap();
-    assert_eq!(crate::io::work::count("read", &path), 1);
+    assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
     assert_eq!(value["hullId"], "before");
     assert_eq!(version, file_version(&path).unwrap());
     std::fs::write(&path, r#"{"hullId":"after"}"#).unwrap();
@@ -173,8 +176,8 @@ fn source_cache_partial_reuse() {
     let mut initial = SourceReader::new(&root).unwrap();
     initial.json(&first).unwrap();
     initial.json(&second).unwrap();
-    assert_eq!(crate::io::work::count("parse", &first), 1);
-    assert_eq!(crate::io::work::count("parse", &second), 1);
+    assert_eq!(crate::test_support::work_counts::count("parse", &first), 1);
+    assert_eq!(crate::test_support::work_counts::count("parse", &second), 1);
     initial.flush();
     std::fs::write(&first, r#"{"hullId":"changed"}"#).unwrap();
     let mut reopened = SourceReader::new(&root).unwrap();
@@ -183,10 +186,10 @@ fn source_cache_partial_reuse() {
     assert!(reopened.reused());
     reopened.json(&first).unwrap();
     reopened.json(&second).unwrap();
-    assert_eq!(crate::io::work::count("read", &first), 2);
-    assert_eq!(crate::io::work::count("read", &second), 2);
-    assert_eq!(crate::io::work::count("parse", &first), 2);
-    assert_eq!(crate::io::work::count("parse", &second), 1);
+    assert_eq!(crate::test_support::work_counts::count("read", &first), 2);
+    assert_eq!(crate::test_support::work_counts::count("read", &second), 2);
+    assert_eq!(crate::test_support::work_counts::count("parse", &first), 2);
+    assert_eq!(crate::test_support::work_counts::count("parse", &second), 1);
     assert_eq!(
         reopened.versions["first.ship"],
         file_version(&first).unwrap()

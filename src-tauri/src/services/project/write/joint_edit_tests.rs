@@ -2,8 +2,8 @@
 use crate::services::project::test_support::project_workspace;
 #[path = "joint_skin_tests.rs"]
 mod skin_tests;
-use super::super::csv_staging;
 use super::*;
+use crate::services::project::session::csv_writes;
 
 use crate::services::prepare_joint_edit;
 use crate::{
@@ -1381,10 +1381,10 @@ fn rename_keeps_csv_field_edits() {
                 .insert(record.key.clone(), JointValue::Present(value));
         }
     }
-    csv_staging::take_render_counts();
+    csv_writes::take_render_counts();
     let saved = submit(&input).unwrap();
     assert_eq!(
-        csv_staging::take_render_counts(),
+        csv_writes::take_render_counts(),
         BTreeMap::from([(CsvTableKey::Ships, 1), (CsvTableKey::Descriptions, 1)])
     );
     assert_eq!(saved.content.unwrap().value.root.id, "A");
@@ -1829,10 +1829,10 @@ fn missing_columns_keep_comments() {
         value["hitpoints"] = json!("999");
         value["name"] = json!("#Literal");
     }
-    csv_staging::take_render_counts();
+    csv_writes::take_render_counts();
     let result = submit(&input).unwrap();
     assert_eq!(
-        csv_staging::take_render_counts(),
+        csv_writes::take_render_counts(),
         BTreeMap::from([(CsvTableKey::Ships, 1)])
     );
     let csv = read_csv_data(&dir.join("data/hulls/ship_data.csv")).unwrap();
@@ -2052,7 +2052,7 @@ fn core_pulse_requires_legal_override() {
         let JointValue::Present(mut data) = input.values[&key].clone() else {
             unreachable!()
         };
-        let template = crate::domain::spec_construction::create_associated_spec(
+        let template = crate::domain::entity_construction::create_associated_spec(
             &AssociatedSpecCreateParams::Weapon {
                 id: "pulse".into(),
                 spec_class,

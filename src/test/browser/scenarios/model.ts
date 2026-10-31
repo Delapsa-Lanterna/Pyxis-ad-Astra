@@ -27,7 +27,7 @@ import { jointObject } from '@/domain/joint-edit';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { variantEditableRecords } from '@/domain/immersive/source-records';
 import { resourceImage } from '../../fixtures/resources';
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { OriginalFontResult, FontId } from '@/shared/types';
 
 export type BrowserScenario = import('../contracts').ScenarioOptions['scene'];

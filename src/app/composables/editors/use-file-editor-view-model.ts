@@ -18,7 +18,8 @@ import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useFieldInputActions } from '@/app/composables/use-field-input-actions';
 import { useSaveCommandStore } from '@/stores/save-command.store';
-import { reserveFileIdentityIntent, retargetFileWindow, chooseIdentityFilename } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveFileIdentityIntent, retargetFileWindow } from '@/orchestrators/window-identity.orchestrator';
+import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
 import type { CommittedWriteEvent } from '@/shared/types';
@@ -99,7 +100,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
           await focusEntityIdentityConflict(target.sessionId!, target.modRoot, error);
           throw error;
         });
-        const choice = await chooseIdentityFilename(feedback, entity.target, intent.nextId);
+        const choice = await chooseEntityFilename(feedback, entity.target, intent.nextId);
         if (choice === null) return;
         keepFilename = choice;
         if (!keepFilename) {

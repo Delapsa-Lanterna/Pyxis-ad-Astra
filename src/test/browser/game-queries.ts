@@ -4,8 +4,8 @@ import { coreRoot, gameImages, gameTablePaths } from './game-files';
 import { renderGameCsv } from './game-format';
 import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
 import { parseCsvSource } from '@/domain/schema/csv-source-options';
-import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/editors/spec-construction';
-import { createWeaponSpec } from '@/domain/editors/weapon-spec';
+import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/entity-write/spec-construction';
+import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
 const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   hullmods: 'sprite',

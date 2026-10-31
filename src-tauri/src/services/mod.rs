@@ -54,14 +54,21 @@ pub(crate) use project::resources::fonts::query_original_font;
 pub(crate) use project::resources::sprites::resolve_mod_relative_path;
 pub(crate) use project::write::csv_patch::save_csv_patch_snapshot;
 pub(crate) use project::write::csv_patch::{prepare_csv_save, write_csv_request};
-pub(crate) use project::write::entity_identity::{prepare_spec_save, write_spec_request};
-pub(crate) use project::write::entity_identity::{
-    save_entity_spec, save_entity_text, save_variant_entity, validate_skin_engine_changes,
+pub(crate) use project::write::entity_write::content::{prepare_spec_save, write_spec_request};
+pub(crate) use project::write::entity_write::content::{save_entity_spec, save_entity_text};
+pub(crate) use project::write::entity_write::faction_index::delete_faction_entity;
+pub(crate) use project::write::entity_write::single_files::{
+    save_variant_entity, validate_skin_engine_changes,
 };
-pub(crate) use project::write::faction_identity::{delete_faction_entity, save_faction_entity};
+pub(crate) use project::write::faction_identity::save_faction_entity;
 pub(crate) use project::write::joint_edit::prepare_joint_save;
 pub(crate) use project::write::joint_edit::save_joint_edit;
 pub(crate) use project::write::json_recovery::restore_source_request;
 
 pub use project::write::json_recovery::recreate_json_sources;
 pub mod performance_monitor;
+
+pub(crate) use project::write::entity_write::single_files::{
+    JsonEntityFileInput, create_json_entity_file, delete_json_entity_file, save_json_entity_file,
+    spec_entity_definition,
+};

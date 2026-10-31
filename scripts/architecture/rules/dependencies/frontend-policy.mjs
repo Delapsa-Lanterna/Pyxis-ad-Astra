@@ -27,6 +27,11 @@ export function frontendDependencyFailure(current, target, edge) {
       message: 'consumer projections must use their own rules and shared contracts',
       expected: 'owned projection or shared contract',
     };
+  if (
+    current.path === 'src/orchestrators/window-identity.orchestrator.ts' &&
+    ((target.role === 'service' && target.domain === 'spec-editor') || target.path === 'src/domain/spec-editor/spec-editor-definitions.ts')
+  )
+    return { message: 'native identity handoff consumes prepared identities and titles', expected: 'window identity capability' };
   const queryKernel = current.path === 'src/services/query-cache.service.ts' || current.path === 'src/shared/types/query-cache.types.ts';
   const businessQuery = [
     'src/services/entity-query.service.ts',

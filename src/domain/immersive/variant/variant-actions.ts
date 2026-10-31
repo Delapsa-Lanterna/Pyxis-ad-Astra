@@ -1,4 +1,4 @@
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { JsonValue, RowData, JointHullProjection, JointEditSnapshot, JointValue } from '@/shared/types';
 import { deepClone } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';

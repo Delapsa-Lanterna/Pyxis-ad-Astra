@@ -1,8 +1,8 @@
 <template>
   <MainWindowFrame
     :navigation-visible="workspace.isModView"
-    :narrow="contentNavigation.state.narrow"
-    :navigation-expanded="contentNavigation.state.wideExpanded"
+    :narrow="modNavigationPanel.state.narrow"
+    :navigation-expanded="modNavigationPanel.state.wideExpanded"
     :data-theme="settings.theme"
     ><template #titlebar><TitleBar /></template
     ><template #tabs><ModTabsBar :refresh-actions="actions" @remove-mod="actions.confirmRemoveMod" /></template
@@ -38,7 +38,7 @@ import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useCsvEditorActions } from '@/app/composables/csv-editor/use-csv-editor-actions';
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, watch } from 'vue';
-import { createContentNavigation, contentNavigationKey } from '@/app/composables/use-content-navigation';
+import { createModNavigationPanel, modNavigationPanelKey } from '@/app/composables/use-mod-navigation-panel';
 import MainWindowFrame from '@/app/components/MainWindowFrame.vue';
 import TitleBar from '@/app/TitleBar.vue';
 import WriteSyncNotice from '@/app/components/WriteSyncNotice.vue';
@@ -65,9 +65,9 @@ const ModFileBrowser = defineAsyncComponent(() => import('@/app/components/mod-f
 const WorkspaceModOverview = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceModOverview.vue'));
 const WorkspaceFileHistory = defineAsyncComponent(() => import('@/app/components/workspace/WorkspaceFileHistory.vue'));
 const JsonEditorWorkspace = defineAsyncComponent(() => import('@/app/components/json-editor/JsonEditorWorkspace.vue'));
-const contentNavigation = createContentNavigation();
+const modNavigationPanel = createModNavigationPanel();
 const detailPaneExpanded = ref(true);
-provide(contentNavigationKey, contentNavigation);
+provide(modNavigationPanelKey, modNavigationPanel);
 const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
 const project = useProjectStore();

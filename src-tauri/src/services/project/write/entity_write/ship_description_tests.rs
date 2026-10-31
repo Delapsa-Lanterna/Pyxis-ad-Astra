@@ -154,10 +154,10 @@ fn default_description_command_rename() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(false);
         let shared = std::fs::read(root.join("data/hulls/other.ship")).unwrap();
-        super::csv_staging::take_render_counts();
+        crate::services::project::session::csv_writes::take_render_counts();
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert_eq!(
-            super::csv_staging::take_render_counts(),
+            crate::services::project::session::csv_writes::take_render_counts(),
             BTreeMap::from([(CsvTableKey::Ships, 1), (CsvTableKey::Descriptions, 1)]),
             "{mode}"
         );

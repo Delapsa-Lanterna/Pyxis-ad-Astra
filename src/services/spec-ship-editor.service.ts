@@ -3,7 +3,7 @@ import { querySessionDraftResources } from '@/services/resource-reference.servic
 import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { queryJointCandidate } from '@/services/joint-edit.service';
 import { jointObject } from '@/domain/joint-edit';
-import { createShipSpec } from '@/domain/editors/spec-construction';
+import { createShipSpec } from '@/domain/entity-write/spec-construction';
 import { shipBuiltInWeaponIds, type ShipWeaponSources, type ShipWeaponSource } from '@/domain/spec-editor/ship/spec-ship-weapons';
 import { formatError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';

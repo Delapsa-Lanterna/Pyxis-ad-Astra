@@ -472,7 +472,10 @@ mod tests {
         assert_eq!(loads.load(Ordering::Relaxed), 1);
         assert_eq!(applies.load(Ordering::Relaxed), 1);
         assert_eq!(notifications.load(Ordering::Relaxed), 1);
-        assert_eq!(crate::io::work::count("read", &settings_path(&dir)), 1);
+        assert_eq!(
+            crate::test_support::work_counts::count("read", &settings_path(&dir)),
+            1
+        );
         dir.close().unwrap();
     }
     #[test]

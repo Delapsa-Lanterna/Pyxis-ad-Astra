@@ -2,7 +2,8 @@ import { computed, reactive, ref, watch, type EmitFn, type ShallowRef } from 'vu
 import type { RowData, EditContext } from '@/shared/types/index';
 import type { CanvasInput, ShipEditorMode, ShipHoverPreview } from '@/domain/editors/editor-types';
 import { num, str } from '@/shared/lib/starsector/index';
-import { createSpecObject, specFieldParent, updateSpecField } from '@/domain/editors/spec-construction';
+import { createSpecObject } from '@/domain/entity-write/spec-construction';
+import { specFieldParent, updateSpecField } from '@/domain/spec-editor/spec-fields';
 import { shipBuiltInWeaponsSchema, shipSpecIssues } from '@/domain/spec-editor/ship/spec-ship-fields';
 import { useSpecProblems } from '../use-spec-problems';
 import {

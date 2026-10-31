@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createShipSpec, createSkillSpec, createSystemSpec } from './spec-construction';
-import { changeWeaponSpecClass, createWeaponSpec } from '@/domain/editors/weapon-spec';
-import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/spec-editor/projectile/spec-projectile-model';
+import {
+  createDefaultVariant,
+  createDefaultSkin,
+  createShipSpec,
+  createSkillSpec,
+  createSystemSpec,
+} from '@/domain/entity-write/spec-construction';
+import { changeWeaponSpecClass, createWeaponSpec } from '@/domain/entity-write/spec-construction';
+import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import defaults from '../../../schemas/spec-defaults.json';
 import type { RowData } from '@/shared/types';
 
@@ -92,5 +98,23 @@ describe('shared game spec construction', () => {
     const missile = changeProjectileSpecClass({ id: 'm', custom: [{ _field: 2 }], engineSpec: { acc: 50 } }, 'missile');
     expect(missile.engineSpec).toEqual({ acc: 50, turnAcc: 0, turnRate: 0, dec: 0 });
     expect(missile.custom).toEqual([{ _field: 2 }]);
+  });
+});
+
+describe('JSON entity defaults', () => {
+  it('creates independent Skin defaults without description identity fields', () => {
+    const skin = createDefaultSkin('base', 'skin');
+    expect(skin).toMatchObject({ skinHullId: 'skin', baseHullId: 'base', hullName: 'skin' });
+    expect(Object.hasOwn(skin, 'descriptionId')).toBe(false);
+    expect(Object.hasOwn(skin, 'descriptionPrefix')).toBe(false);
+    skin.builtInMods = ['changed'];
+    expect(createDefaultSkin('base', 'next').builtInMods).toEqual([]);
+  });
+
+  it('creates independent Variant collection defaults', () => {
+    const variant = createDefaultVariant('hull', 'variant');
+    expect(variant).toMatchObject({ variantId: 'variant', hullId: 'hull', weaponGroups: [], wings: [] });
+    variant.weaponGroups = [{}];
+    expect(createDefaultVariant('hull', 'next').weaponGroups).toEqual([]);
   });
 });

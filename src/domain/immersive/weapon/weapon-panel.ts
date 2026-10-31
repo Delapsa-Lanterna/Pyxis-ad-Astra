@@ -1,5 +1,5 @@
 import { immersiveNumber, updateImmersiveField } from '../fields';
-import { changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
+import { changeWeaponSpecClass } from '@/domain/entity-write/spec-construction';
 import type { JointEditSnapshot, JointValue, ResourceRef } from '@/shared/types';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import { immersiveSourceRecords } from '../source-records';

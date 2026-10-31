@@ -17,7 +17,7 @@ import {
 } from '@/domain/immersive/variant/variant-actions';
 import { queryJointVariantCatalog } from '@/services/joint-edit.service';
 import { readModuleCandidateIssue } from './use-variant-candidate';
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 
 export function useImmersiveVariantEditor(runtime: ImmersiveEditorRuntime) {
   const { joint, snapshot, displaySnapshot, history, reads, createOverrides, dismissStat } = runtime;

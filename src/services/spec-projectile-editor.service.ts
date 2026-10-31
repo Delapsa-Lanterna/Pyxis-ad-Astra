@@ -4,7 +4,7 @@ import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { str } from '@/shared/lib/starsector/index';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { requireRowData } from '@/shared/lib/row-data';
-import { createProjectileSpec } from '@/domain/spec-editor/projectile/spec-projectile-model';
+import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import type { EntityData, SpecProjectileEditorData } from '@/shared/types/index';
 
 export async function querySpecProjectileEditorData(

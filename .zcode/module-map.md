@@ -61,9 +61,11 @@
 - `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置及样本统计工具。
 - `src-tauri/src/app_data_dir.rs`：Tauri 工具私有数据目录解析。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
+- `src-tauri/src/domain/variant_modules.rs`：装配模块格式的纯读取与引用替换。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
 - `src-tauri/src/models/window.rs`：窗口公共协议及 Windows 路径身份、原生字符映射与启动交付。
+- `src-tauri/src/test_support/`：Rust 共享测试的资源操作计数。
 - `src-tauri/src/test_support.rs`：Rust 测试共享文件工作区、路径夹具与进程隔离。
 - `src-tauri/src/test_support_tests.rs`：Rust 测试工作区的分配、释放与并发验证。
 - `src/app/components/editors/common/`：编辑与预览共同的标题、页脚、检查器和保留输入的分组展示。
@@ -80,6 +82,7 @@
 
 ### 正式模块
 
+- [实体文件写入与身份联动](modules/entity-write.md)：说明实体内容构造、实际文件写入、关联表、描述、父引用与身份结果。
 - [统一右键菜单](modules/context-menu.md)：说明业务根登记、选区操作、刷新回调与标题栏动作。
 - [应用启动与窗口挂载](modules/app-runtime.md)：说明原生窗口上下文、settings 初始化、唯一窗口壳、窗口根装配和应用启动失败呈现。
 - [多窗口机制](modules/app-windowing.md)：说明类型化 identity、Rust 原生实例登记、目标占用、跨窗口事件与会话关闭守卫。

@@ -13,7 +13,7 @@ import { formatJsonInput } from '@/shared/lib/json-input';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { isRowData } from '@/shared/lib/row-data';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { renameVariantModules } from '@/domain/json-editor/json-variant-modules';
+import { renameVariantModules } from '@/shared/lib/starsector/variant-modules';
 
 export function jointObject(value: DeepReadonly<JointValue> | undefined): Readonly<RowData> {
   return value?.state === 'present' && isRowData(value.value) ? value.value : {};

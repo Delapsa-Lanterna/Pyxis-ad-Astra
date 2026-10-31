@@ -18,6 +18,7 @@
 - `src/app/components/workspace/WorkspaceGameOverview.vue`：游戏概览与当前工作区 Mod 状态、导航及用户动作。
 - `src/app/components/workspace/WorkspaceModOverview.vue`：Mod 信息、目录、资源和数据摘要展示。
 - `src/app/composables/use-main-window-shortcuts.ts`：主窗口保存与工作区历史命令装配。
+- `src/app/composables/use-mod-navigation-panel.ts`：Mod 导航面板的宽窄布局、展开、焦点和监听释放。
 - `src/app/composables/use-workspace-file-history-view-model.ts`：工作区历史页的读取寿命、菜单、确认及用户动作。
 - `src/app/composables/use-workspace-mod-creation.ts`：总览创建目的地、对话框状态及创建结果的工作区接纳。
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。

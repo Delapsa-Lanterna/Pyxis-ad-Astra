@@ -21,14 +21,15 @@ import {
   captureConfigIdentityIntent,
 } from '@/services/json-entity.service';
 import { createSkinEntity, createVariantEntity, saveSkinEntity, saveVariantEntity } from '@/services/json-file.service';
-import { createDefaultSkin, createDefaultVariant } from '@/domain/json-editor/json-file-defaults';
+import { createDefaultSkin, createDefaultVariant } from '@/domain/entity-write/spec-construction';
 import { indexedConfigEntityData } from '@/domain/json-editor/json-config-records';
 import { jsonEntitySavedData } from '@/domain/json-editor/json-file-records';
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
 
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 
-import { reserveFileIdentityIntent, chooseIdentityFilename } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveFileIdentityIntent } from '@/orchestrators/window-identity.orchestrator';
+import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
@@ -95,7 +96,7 @@ export async function saveIndexedEntityAction(
     write.previousId ?? write.nextId,
     write.previousId ?? write.nextId,
   );
-  const keepFilename = await chooseIdentityFilename(feedback, source.target, write.nextId);
+  const keepFilename = await chooseEntityFilename(feedback, source.target, write.nextId);
   if (keepFilename === null) return null;
   const versions = await capturedVersions(
     write.sessionId,
@@ -153,7 +154,7 @@ export async function saveJsonFileAction(
   request?: SaveCommandRequest,
 ): Promise<SavedConfig<JsonEntityFile> | null> {
   const { info: source } = await captureConfigIdentityIntent(sessionId, kind, previousId ?? id, previousId ?? id);
-  const keepFilename = await chooseIdentityFilename(feedback, source.target, id);
+  const keepFilename = await chooseEntityFilename(feedback, source.target, id);
   if (keepFilename === null) return null;
   const saveEntity = kind === 'variant' ? saveVariantEntity : saveSkinEntity;
   baseVersions = await capturedVersions(sessionId, modRoot, kind, previousId ?? id, keepFilename ? source.target.id : id, baseVersions);

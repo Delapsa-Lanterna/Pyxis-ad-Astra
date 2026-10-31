@@ -1,5 +1,5 @@
-use super::super::cache::loaded_registered_csv_rows;
 use super::super::model::{ProjectSession, string_field, string_from_row};
+use super::super::session::csv_tables::loaded_registered_csv_rows;
 use crate::errors::{AppError, AppResult};
 use crate::models::{CsvTableKey, ResourceOwnerKind, ResourceRef, ResourceSource, SkinFile};
 use crate::services::project::sources::core::{

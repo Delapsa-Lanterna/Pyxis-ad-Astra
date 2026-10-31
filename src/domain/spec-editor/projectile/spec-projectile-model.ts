@@ -1,7 +1,6 @@
-import defaults from '../../../../schemas/spec-defaults.json';
-import { fillRequiredFields, createSpecObject } from '@/domain/editors/spec-construction';
+import { createSpecObject } from '@/domain/entity-write/spec-construction';
 import { deepClone, str, num } from '@/shared/lib/starsector';
-import type { ProjectileSpecClass, RowData } from '@/shared/types';
+import type { RowData } from '@/shared/types';
 import { nextFormattedId } from '@/shared/lib/next-formatted-id';
 import type { Point } from '@/domain/editors/editor-types';
 import { projectileAppearance } from '@/domain/editors/projectile-appearance';
@@ -17,25 +16,6 @@ export function createProjectileEngineSlot(slots: RowData[]): RowData {
     style: 'CUSTOM',
     styleSpec: createSpecObject('styleSpec'),
   };
-}
-
-export function createProjectileSpec(id: string, specClass: ProjectileSpecClass = 'projectile'): RowData {
-  return { ...deepClone(defaults.projectile[specClass]), id };
-}
-
-const PROJECTILE_REQUIRED_FIELDS: Record<ProjectileSpecClass, readonly string[]> = {
-  projectile: ['spawnType', 'collisionClass', 'collisionClassByFighter', 'width', 'fadeTime'],
-  missile: ['missileType', 'sprite', 'size', 'center', 'collisionRadius', 'collisionClass', 'engineSpec'],
-};
-
-export function changeProjectileSpecClass(content: RowData, specClass: ProjectileSpecClass): RowData {
-  const next = fillRequiredFields(content, defaults.projectile[specClass], PROJECTILE_REQUIRED_FIELDS[specClass]);
-  if (specClass === 'missile') {
-    const engine = next.engineSpec as RowData;
-    next.engineSpec = fillRequiredFields(engine, defaults.projectile.missile.engineSpec, ['turnAcc', 'turnRate', 'acc', 'dec']);
-  }
-  next.specClass = specClass;
-  return next;
 }
 export function normalizeProjectileSpec(projectile: RowData): RowData {
   const normalized = deepClone(projectile);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renameVariantModules, setVariantModule, variantModuleEntries } from './json-variant-modules';
+import { renameVariantModules, setVariantModule, variantModuleEntries } from './variant-modules';
 import type { JsonValue } from '@/shared/types';
 
 describe('variant module identity', () => {

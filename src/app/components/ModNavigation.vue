@@ -1,21 +1,21 @@
 <template>
   <Transition name="mod-navigation-mask"
     ><button
-      v-if="workspace.isModView && contentNavigation.state.narrow && contentNavigation.state.narrowExpanded"
+      v-if="workspace.isModView && modNavigationPanel.state.narrow && modNavigationPanel.state.narrowExpanded"
       class="mod-navigation-backdrop ui-button"
       aria-label="收起导航栏"
-      @click="contentNavigation.close"
+      @click="modNavigationPanel.close"
   /></Transition>
-  <Transition name="mod-navigation-slide" :css="contentNavigation.state.narrow">
+  <Transition name="mod-navigation-slide" :css="modNavigationPanel.state.narrow">
     <div
       v-if="workspace.isModView"
-      v-show="!contentNavigation.state.narrow || contentNavigation.expanded.value"
+      v-show="!modNavigationPanel.state.narrow || modNavigationPanel.expanded.value"
       id="mod-navigation-content"
       class="mod-navigation-container ui-content-contained"
-      :class="{ 'is-overlay': contentNavigation.state.narrow }"
-      :inert="!contentNavigation.expanded.value"
-      :aria-hidden="!contentNavigation.expanded.value"
-      @keydown.esc="contentNavigation.close"
+      :class="{ 'is-overlay': modNavigationPanel.state.narrow }"
+      :inert="!modNavigationPanel.expanded.value"
+      :aria-hidden="!modNavigationPanel.expanded.value"
+      @keydown.esc="modNavigationPanel.close"
     >
       <aside class="nav-pane ui-content-contained ui-layout-row ui-layout-stack ui-content-surface-muted ui-layout-clip">
         <template v-if="workspace.isModView && workspace.activeMod">
@@ -55,26 +55,26 @@
   <button
     v-if="workspace.isModView"
     class="mod-navigation-toggle ui-panel-toggle ui-button ui-control-button ui-control-reset"
-    :class="{ 'is-collapsed': !contentNavigation.expanded.value }"
+    :class="{ 'is-collapsed': !modNavigationPanel.expanded.value }"
     type="button"
-    :title="contentNavigation.expanded.value ? '收起导航栏' : '展开导航栏'"
-    :aria-label="contentNavigation.expanded.value ? '收起导航栏' : '展开导航栏'"
-    :aria-expanded="contentNavigation.expanded.value"
+    :title="modNavigationPanel.expanded.value ? '收起导航栏' : '展开导航栏'"
+    :aria-label="modNavigationPanel.expanded.value ? '收起导航栏' : '展开导航栏'"
+    :aria-expanded="modNavigationPanel.expanded.value"
     aria-controls="mod-navigation-content"
-    @click="contentNavigation.toggle"
-    @keydown.esc="contentNavigation.close"
+    @click="modNavigationPanel.toggle"
+    @keydown.esc="modNavigationPanel.close"
   />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useContentNavigation } from '@/app/composables/use-content-navigation';
+import { useModNavigationPanel } from '@/app/composables/use-mod-navigation-panel';
 import { buildModNavigationSections, isModNavigationItemActive, type ModNavigationItem } from '@/domain/workspace/mod-navigation';
 import { useWorkspaceNavigationActions } from '@/app/composables/use-workspace-navigation-actions';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 
-const contentNavigation = useContentNavigation();
+const modNavigationPanel = useModNavigationPanel();
 const workspace = useWorkspaceStore();
 const tables = useCsvEditorStore();
 const navigation = useWorkspaceNavigationActions();
@@ -85,7 +85,7 @@ function isActive(item: ModNavigationItem): boolean {
 }
 
 function navigate(item: ModNavigationItem) {
-  if (contentNavigation.state.narrow) contentNavigation.close();
+  if (modNavigationPanel.state.narrow) modNavigationPanel.close();
   const modRoot = workspace.activeModRoot;
   if (!modRoot) return;
   if (item.target.type === 'mod-files') {

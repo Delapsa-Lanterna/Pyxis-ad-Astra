@@ -35,21 +35,25 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/models/json_file.rs`：JSON 文件写入与删除请求协议。
 - `src-tauri/src/models/json_recovery.rs`：来源重建请求、计划和版本协议。
 - `src-tauri/src/services/project/sources/json_documents.rs`：Variant 与 Skin 的实际来源文件产品构造。
+- `src-tauri/src/services/project/write/entity_write.rs`：Variant、Skin、势力及关联文件的实际写入。
 - `src/app/components/schema/SchemaFormRenderer.vue`：schema 字段表单展示。
 - `src/app/composables/use-edit-target-draft-session.ts`：目标快照、草稿、保存与外部版本交接。
 - `src/app/composables/use-field-input-actions.ts`：字段输入提交、取消与外部版本确认。
 - `src/app/composables/use-query-read-owner.ts`：所属读取票据与读取生命周期。
 - `src/app/composables/use-snapshot-history.ts`：按 EditContext 绑定的前后值撤销历史。
+- `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、通用 ID 规则与重命名身份投影。
 - `src/domain/project/entity-versions.ts`：目标版本凭据与改名目标凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：装配与皮肤 schema。
+- `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
 - `src/orchestrators/immersive-editor.orchestrator.ts`：装配沉浸式编辑器打开动作。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：原文保留、规范化写入确认与重试。
+- `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
 - `src/orchestrators/project-sync.orchestrator.ts`：提交 receipt 接纳、来源刷新及跨窗口通知。
 - `src/orchestrators/workspace-history.orchestrator.ts`：主窗口活动 JSON 草稿撤销与重做分派。
 - `src/services/entity-query.service.ts`：实体列表、详情、正式目标和身份意图查询。
 - `src/services/hull-reference.service.ts`：船体名称、Hull 引用和内置武器槽查询。
 - `src/services/query-cache.service.ts`：实体与引用查询失效订阅。
+- `src/shared/lib/starsector/variant-modules.ts`：装配模块格式及引用修改。
 - `src/shared/runtime/document-editor.ts`：活动文档的输入、保存与历史动作契约。
 - `src/shared/types/config-entity.types.ts`：Mod 信息与索引实体保存请求、刷新内容及编辑投影契约。
 - `src/shared/types/json-file.types.ts`：JSON 文件命令协议和编辑文件投影。
@@ -66,10 +70,6 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 
 - `src-tauri/src/services/mod.rs`：后端正式业务函数入口。
 - `src/app/AppContent.vue`：主窗口持续挂载 JSON 页面宿主。
-
-### 关联
-
-- `src-tauri/src/services/project/write/entity_identity.rs`：装配改名涉及父装配引用、CSV 和联合保存范围。
 
 ## 边界
 

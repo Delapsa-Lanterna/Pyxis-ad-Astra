@@ -1,5 +1,5 @@
-use super::super::model::{ProjectSession, SessionCsvRow};
-use super::csv_staging::CsvTableDraft;
+use super::super::super::model::{ProjectSession, SessionCsvRow};
+use super::super::super::session::csv_writes::CsvTableDraft;
 use crate::{
     errors::{AppError, AppResult},
     models::{CsvTableKey, EntityKind},
@@ -7,13 +7,13 @@ use crate::{
 use serde_json::Value;
 
 #[derive(Clone)]
-pub(super) struct DescriptionRename {
-    pub previous: String,
-    pub next: String,
-    pub typ: &'static str,
+pub(in crate::services::project) struct DescriptionRename {
+    pub previous_id: String,
+    pub next_id: String,
+    pub description_type: &'static str,
 }
 
-pub(super) fn description_rename(
+pub(in crate::services::project) fn description_rename(
     kind: EntityKind,
     previous: &str,
     next: &str,
@@ -25,13 +25,13 @@ pub(super) fn description_rename(
         _ => return None,
     };
     (previous != next).then(|| DescriptionRename {
-        previous: previous.into(),
-        next: next.into(),
-        typ,
+        previous_id: previous.into(),
+        next_id: next.into(),
+        description_type: typ,
     })
 }
 
-pub(super) fn rename_description_row(
+pub(in crate::services::project) fn rename_description_row(
     session: &ProjectSession,
     table: &mut CsvTableDraft,
     previous: &str,
@@ -60,7 +60,7 @@ pub(super) fn rename_description_row(
             .map(|root| {
                 crate::services::project::sources::core::load_core_csv_table(
                     root,
-                    super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
+                    super::super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
                 )
             })
             .transpose()?
@@ -84,7 +84,7 @@ pub(super) fn rename_description_row(
         .map(|root| {
             crate::services::project::sources::core::load_core_csv_table(
                 root,
-                super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
+                super::super::super::model::csv_table_spec(CsvTableKey::Descriptions).rel_path,
             )
         })
         .transpose()?
@@ -139,7 +139,7 @@ pub(super) fn rename_description_row(
     Ok(true)
 }
 
-pub(super) fn prepare_description_renames(
+pub(in crate::services::project) fn prepare_description_renames(
     session: &ProjectSession,
     renames: &[DescriptionRename],
 ) -> AppResult<Option<CsvTableDraft>> {
@@ -152,9 +152,9 @@ pub(super) fn prepare_description_renames(
         changed |= rename_description_row(
             session,
             &mut table,
-            &rename.previous,
-            &rename.next,
-            rename.typ,
+            &rename.previous_id,
+            &rename.next_id,
+            rename.description_type,
         )?;
     }
     if !changed {

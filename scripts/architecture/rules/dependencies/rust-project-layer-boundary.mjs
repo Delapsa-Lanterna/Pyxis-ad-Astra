@@ -11,7 +11,6 @@ export const rustProjectLayerBoundaryRule = defineRule(
     for (const file of context.rust) {
       const from = rustLayer(file.rel);
       const modulePath = modulePartsFromRel(file.rel);
-      const writeSource = modulePath.slice(0, 3).join('::') === 'services::project::write' ? modulePath[3] : null;
       const rejected = new Set();
       for (const edge of file.rust.references) {
         const parts = edge.target;
@@ -25,13 +24,14 @@ export const rustProjectLayerBoundaryRule = defineRule(
         if (!to) continue;
         const writeTarget = parts.slice(0, 3).join('::') === 'services::project::write' ? parts[3] : null;
         if (
-          (writeSource === 'entity_description' && writeTarget === 'entity_identity') ||
-          (writeSource === 'csv_staging' && writeTarget && writeTarget !== 'csv_staging')
+          (modulePath.slice(3, 5).join('::') === 'entity_write::descriptions' &&
+            parts.slice(3, 5).join('::') === 'entity_write::content') ||
+          (modulePath.slice(0, 4).join('::') === 'services::project::session::csv_writes' && writeTarget)
         ) {
           if (!rejected.has('csv-staging'))
             report(file, edge, 'CSV draft and staging dependencies must stay one-way', {
               target: reference,
-              expected: 'shared CSV staging',
+              expected: 'session CSV draft and write acceptance',
             });
           rejected.add('csv-staging');
         }
@@ -57,6 +57,10 @@ export const rustProjectLayerBoundaryRule = defineRule(
             'crate::services::project::session::lock_registry',
             'crate::services::project::session::references::reference_revision',
           ].includes(reference);
+        const tableAccess =
+          ['project-root', 'project-query', 'project-write', 'project-resources', 'project-session'].includes(from) &&
+          ['csv_tables', 'csv_writes'].includes(parts[3] ?? '') &&
+          parts.slice(0, 3).join('::') === 'services::project::session';
         const projectionAccess =
           from === 'project-root' &&
           [
@@ -69,6 +73,7 @@ export const rustProjectLayerBoundaryRule = defineRule(
           !runtimeMonitor &&
           !sessionAccess &&
           !projectionAccess &&
+          !tableAccess &&
           !validRustDependency(from, to) &&
           !rejected.has(to)
         ) {

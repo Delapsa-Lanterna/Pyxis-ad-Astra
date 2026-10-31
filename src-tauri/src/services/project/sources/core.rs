@@ -180,7 +180,7 @@ fn core_cache_handle(starsector_root: &str) -> AppResult<Arc<Mutex<CoreCacheEntr
                 return Ok(cache);
             }
             #[cfg(test)]
-            crate::io::work::record("core-create", Path::new(starsector_root));
+            crate::test_support::work_counts::record("core-create", Path::new(starsector_root));
             let cache = Arc::new(Mutex::new(CoreCacheEntry {
                 data: CoreCache::empty(),
                 dirty: false,
@@ -320,7 +320,10 @@ where
             }
             let mut sources = lock_core_cache(&cache)?.sources.fork_loaded();
             #[cfg(test)]
-            crate::io::work::record("core-product", &Path::new(starsector_root).join(product));
+            crate::test_support::work_counts::record(
+                "core-product",
+                &Path::new(starsector_root).join(product),
+            );
             let value = Arc::new(load.take().expect("core loader")(&mut sources)?);
             let mut entry = lock_core_cache(&cache)?;
             store(&mut entry.data, value.clone());
@@ -750,24 +753,32 @@ mod tests {
                 worker.join().unwrap();
             }
             read_product(&text, product).unwrap();
-            assert_eq!(crate::io::work::count("core-create", &root), 1, "{product}");
             assert_eq!(
-                crate::io::work::count("core-product", &root.join(product)),
+                crate::test_support::work_counts::count("core-create", &root),
+                1,
+                "{product}"
+            );
+            assert_eq!(
+                crate::test_support::work_counts::count("core-product", &root.join(product)),
                 1,
                 "{product}"
             );
             if product == "ships" {
                 load_core_fields(&text).unwrap();
                 let path = root.join("starsector-core/data/hulls/sample.ship");
-                assert_eq!(crate::io::work::count("read", &path), 1);
-                assert_eq!(crate::io::work::count("parse", &path), 1);
+                assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
+                assert_eq!(crate::test_support::work_counts::count("parse", &path), 1);
             }
             invalidate_core_cache(&text).unwrap();
             read_product(&text, product).unwrap();
             read_product(&text, product).unwrap();
-            assert_eq!(crate::io::work::count("core-create", &root), 2, "{product}");
             assert_eq!(
-                crate::io::work::count("core-product", &root.join(product)),
+                crate::test_support::work_counts::count("core-create", &root),
+                2,
+                "{product}"
+            );
+            assert_eq!(
+                crate::test_support::work_counts::count("core-product", &root.join(product)),
                 2,
                 "{product}"
             );
@@ -795,8 +806,8 @@ mod tests {
             fields.join().unwrap();
             ships.join().unwrap();
         });
-        assert_eq!(crate::io::work::count("read", &path), 1);
-        assert_eq!(crate::io::work::count("parse", &path), 1);
+        assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
+        assert_eq!(crate::test_support::work_counts::count("parse", &path), 1);
         invalidate_core_cache(&root.to_string_lossy()).unwrap();
         root.close().unwrap();
     }

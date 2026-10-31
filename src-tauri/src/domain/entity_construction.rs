@@ -7,7 +7,7 @@ use std::{path::Path, sync::LazyLock};
 
 static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
     #[cfg(test)]
-    crate::io::work::record("asset-parse", Path::new("spec-defaults"));
+    crate::test_support::work_counts::record("asset-parse", Path::new("spec-defaults"));
     let defaults: Value = serde_json::from_str(include_str!("../../../schemas/spec-defaults.json"))
         .expect("embedded spec defaults must parse");
     assert_eq!(
@@ -16,17 +16,6 @@ static SPEC_DEFAULTS: LazyLock<Value> = LazyLock::new(|| {
     );
     defaults
 });
-
-pub fn skin_hull_fields() -> &'static std::collections::BTreeMap<String, Vec<String>> {
-    static FIELDS: LazyLock<std::collections::BTreeMap<String, Vec<String>>> =
-        LazyLock::new(|| {
-            #[cfg(test)]
-            crate::io::work::record("asset-parse", Path::new("skin-hull-fields"));
-            serde_json::from_str(include_str!("../../../schemas/skin-hull-fields.json"))
-                .expect("embedded skin hull fields must parse")
-        });
-    &FIELDS
-}
 
 pub fn create_associated_spec(params: &AssociatedSpecCreateParams) -> Value {
     let (template, id_field) = match params {

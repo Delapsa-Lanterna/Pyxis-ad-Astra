@@ -1,6 +1,7 @@
 import { computed, reactive, ref, watch, onMounted, onScopeDispose, type EmitFn, type ShallowRef } from 'vue';
 import { useEditorDocument } from '../../editors/use-editor-document';
-import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
+import { createSpecObject } from '@/domain/entity-write/spec-construction';
+import { updateSpecField } from '@/domain/spec-editor/spec-fields';
 import { projectileSections, projectileSpecIssues } from '@/domain/spec-editor/projectile/spec-projectile-fields';
 import { useSpecProblems } from '../use-spec-problems';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -8,9 +9,8 @@ import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 
 import type { RowData, EditContext, ProjectileSpecClass, ResourceRef } from '@/shared/types/index';
 import { str } from '@/shared/lib/starsector/index';
+import { changeProjectileSpecClass, createProjectileSpec } from '@/domain/entity-write/spec-construction';
 import {
-  changeProjectileSpecClass,
-  createProjectileSpec,
   normalizeProjectileSpec,
   createProjectileEngineSlot,
   projectProjectileGeometry,

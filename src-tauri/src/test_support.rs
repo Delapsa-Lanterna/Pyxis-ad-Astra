@@ -1,3 +1,4 @@
+pub(crate) mod work_counts;
 use std::{
     fs,
     path::{Path, PathBuf},

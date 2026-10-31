@@ -3,7 +3,7 @@ import type { WorkspaceProject } from './game-project';
 import { gameTablePaths } from './game-files';
 import { entityTargetFixture } from '../fixtures/entity-target';
 import { jointObject } from '@/domain/joint-edit';
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import skinFields from '../../../schemas/skin-hull-fields.json';
 
 export function buildGameJoint(

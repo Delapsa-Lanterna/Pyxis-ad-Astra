@@ -12,6 +12,7 @@
 - `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及正式投影提交。
 - `src-tauri/src/services/write_transactions/committed.rs`：未完成投影及恢复期间的内容持有。
 - `src/domain/project/save-edits.ts`：本次保存的实际字段赋值、移除及数组整体修改提取。
+- `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、逐源重排确认及版本绑定的写入重试。
 
 ### 消费
 

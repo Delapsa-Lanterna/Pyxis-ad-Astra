@@ -4,7 +4,7 @@ import type { ImmersiveEditorRuntime } from '../use-immersive-editor-runtime';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useSettingsStore } from '@/stores/settings.store';
 import { jointObject } from '@/domain/joint-edit';
-import { changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
+import { changeWeaponSpecClass } from '@/domain/entity-write/spec-construction';
 import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
 import { openWeaponFirePreviewWindow } from '@/windows/weapon-fire-preview.window';
 import { deepClone } from '@/shared/lib/starsector';

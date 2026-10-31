@@ -1,6 +1,6 @@
-use super::super::cache::{ensure_registered_table_rows, loaded_registered_csv_rows};
 use super::super::model::{ProjectSession, SessionCsvRow, string_field, string_from_row};
 use super::super::resources::{HullReferenceResolver, resource_ref};
+use super::super::session::csv_tables::{ensure_registered_table_rows, loaded_registered_csv_rows};
 use super::super::session::{lock_ready_session, session_handle};
 use crate::services::project::sources::core::{
     load_core_csv_table, load_core_ship_files, load_core_skin_files,

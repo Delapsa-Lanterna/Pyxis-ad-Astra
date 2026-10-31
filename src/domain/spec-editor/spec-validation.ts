@@ -6,7 +6,7 @@ import {
   schemaFieldVariant,
   schemaKeyValueEntries,
 } from '@/domain/schema/schema-values';
-import { specFieldParent, type SpecField } from '@/domain/editors/spec-construction';
+import { specFieldParent, type SpecField } from '@/domain/spec-editor/spec-fields';
 import type { RowData } from '@/shared/types';
 import { isEntityId, entityIdInvalidMessage } from '@/domain/project/entity-definitions';
 

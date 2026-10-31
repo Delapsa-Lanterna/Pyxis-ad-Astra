@@ -239,13 +239,13 @@ fn recovery_snapshot_versions() {
         let before: Vec<_> = fixture
             .paths
             .iter()
-            .map(|path| crate::io::work::count("read", &fixture.root.join(path)))
+            .map(|path| crate::test_support::work_counts::count("read", &fixture.root.join(path)))
             .collect();
         let plan = prepare_json_source_recovery(fixture.request.clone()).unwrap();
         assert!(plan.missing_paths.is_empty(), "{kind}");
         for (path, before) in fixture.paths.iter().zip(before) {
             assert_eq!(
-                crate::io::work::count("read", &fixture.root.join(path)) - before,
+                crate::test_support::work_counts::count("read", &fixture.root.join(path)) - before,
                 1,
                 "{kind}: {path}"
             );

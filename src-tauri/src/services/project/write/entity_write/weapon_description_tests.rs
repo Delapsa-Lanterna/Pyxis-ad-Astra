@@ -156,10 +156,10 @@ fn rename(
 fn weapon_description_replay() {
     for mode in ["csv", "spec", "text", "joint"] {
         let (root, manifest) = fixture(false);
-        super::csv_staging::take_render_counts();
+        crate::services::project::session::csv_writes::take_render_counts();
         let receipt = rename(&root, &manifest, mode).unwrap();
         assert_eq!(
-            super::csv_staging::take_render_counts(),
+            crate::services::project::session::csv_writes::take_render_counts(),
             BTreeMap::from([(CsvTableKey::Weapons, 1), (CsvTableKey::Descriptions, 1)]),
             "{mode}"
         );

@@ -13,7 +13,7 @@ use std::{
 pub fn read_json_file(path: &Path) -> AppResult<Value> {
     let text = read_utf8_no_bom(path)?;
     #[cfg(test)]
-    crate::io::work::record("parse", path);
+    crate::test_support::work_counts::record("parse", path);
     parse_starsector_json(&text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
     })
@@ -23,7 +23,7 @@ pub fn read_versioned_json(path: &Path) -> AppResult<(crate::models::FileVersion
     let (version, bytes) = super::read_versioned_bytes(path)?;
     let text = super::decode_text(path, &bytes)?;
     #[cfg(test)]
-    crate::io::work::record("parse", path);
+    crate::test_support::work_counts::record("parse", path);
     let value = parse_starsector_json(&text).map_err(|error| {
         AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error).at_path(path)
     })?;
@@ -161,7 +161,7 @@ mod tests {
         });
         let value = serde_json::json!({"a":[1,null,2],"b":4});
         let _ = batch.render(&path, &value, None).unwrap();
-        assert_eq!(crate::io::work::count("read", &path), 1);
+        assert_eq!(crate::test_support::work_counts::count("read", &path), 1);
         let files = match batch.finish().unwrap_err() {
             AppError::JsonRewriteRequired { files } => files,
             error => panic!("unexpected error: {error}"),
@@ -181,7 +181,7 @@ mod tests {
             }],
         });
         let rendered = confirmed.render(&path, &value, None).unwrap();
-        assert_eq!(crate::io::work::count("read", &path), 2);
+        assert_eq!(crate::test_support::work_counts::count("read", &path), 2);
         confirmed.finish().unwrap();
         assert_eq!(parse_starsector_json(&rendered).unwrap(), value);
         assert!(rendered.ends_with("\nEND"));

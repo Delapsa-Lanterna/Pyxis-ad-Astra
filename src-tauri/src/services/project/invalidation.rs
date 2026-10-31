@@ -108,7 +108,7 @@ fn invalidate_files(
             .map(|table| {
                 let state = &session.csv_tables[table.as_str()];
                 let csv = sources.csv(&sources.path(&state.path)?)?;
-                super::cache::csv::table_snapshot_from_csv(state, *table, csv)
+                super::session::csv_tables::table_snapshot_from_csv(state, *table, csv)
                     .map(|rows| (*table, rows))
             })
             .collect::<AppResult<Vec<_>>>()?
@@ -1146,8 +1146,11 @@ mod tests {
         let mut trace = PerformanceTrace::new("project.openSession");
         let mut session =
             super::super::session::build_project_session(&root, None, &mut trace).unwrap();
-        super::super::cache::ensure_registered_table_rows(&mut session, CsvTableKey::Ships)
-            .unwrap();
+        super::super::session::csv_tables::ensure_registered_table_rows(
+            &mut session,
+            CsvTableKey::Ships,
+        )
+        .unwrap();
         write_utf8_no_bom(
             &root.join("data/world/factions/demo.faction"),
             r#"{"id":"demo","displayName":"Demo","knownShips":{"tags":["demo_new_bp"]}}"#,

@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn core_composition_reads_once_across_calls_threads_and_invalidation() {
         use super::super::super::sources::core;
-        use crate::io::work::count;
+        use crate::test_support::work_counts::count;
         let work = project::test_support::project_workspace("composition_read_counts");
         let path = work.join("starsector-core/data/config/settings.json");
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();

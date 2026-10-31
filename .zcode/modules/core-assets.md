@@ -9,6 +9,7 @@ Core 索引与加载模块按游戏根管理字段和图形目录的独立读取
 ### 拥有
 
 - `src-tauri/src/commands/core_assets.rs`：Core command。
+- `src-tauri/src/services/project/resources/core_assets.rs`：有效 Core 根选择与字段和图形产品查询。
 - `src/app/composables/use-core-assets.ts`：图形门面与显式根输入的窗口生命周期。
 - `src/app/composables/use-core-schema.ts`：配置 schema 与当前 Core 字段的响应式合并门面。
 - `src/orchestrators/core-assets.orchestrator.ts`：显式响应式根输入、根代次、共享 Promise、接纳与失败日志。

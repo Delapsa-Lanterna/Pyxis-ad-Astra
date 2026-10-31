@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import type { AppFeedback } from '@/shared/types';
-import { chooseIdentityFilename } from './entity-identity.orchestrator';
+import { chooseEntityFilename } from './entity-write.orchestrator';
 
 describe('identity filename confirmation', () => {
   it.each([
@@ -12,7 +12,7 @@ describe('identity filename confirmation', () => {
     const source = entityTargetFixture('faction', 'sample');
     const choose = vi.fn<AppFeedback['choose']>(async () => choice);
     const feedback = { choose } as Pick<AppFeedback, 'choose'> as AppFeedback;
-    expect(await chooseIdentityFilename(feedback, source, 'next')).toBe(expected);
+    expect(await chooseEntityFilename(feedback, source, 'next')).toBe(expected);
     expect(choose).toHaveBeenCalledOnce();
     const options = choose.mock.calls[0]![0];
     expect(options.content).toContain(source.write.relPath);
@@ -22,7 +22,7 @@ describe('identity filename confirmation', () => {
   it('keeps same-ID saves free of a rename prompt', async () => {
     const source = entityTargetFixture('faction', 'sample');
     const choose = vi.fn<AppFeedback['choose']>(async () => 'rename');
-    expect(await chooseIdentityFilename({ choose } as Pick<AppFeedback, 'choose'> as AppFeedback, source, 'sample')).toBe(false);
+    expect(await chooseEntityFilename({ choose } as Pick<AppFeedback, 'choose'> as AppFeedback, source, 'sample')).toBe(false);
     expect(choose).not.toHaveBeenCalled();
   });
 });

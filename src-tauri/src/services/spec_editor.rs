@@ -102,7 +102,7 @@ mod tests {
             let root = project_workspace("weapon_editor_required_points");
             fs::create_dir_all(root.join("data/weapons")).unwrap();
             let path = root.join("data/weapons/fixture.wpn");
-            let mut valid = crate::domain::spec_construction::create_associated_spec(
+            let mut valid = crate::domain::entity_construction::create_associated_spec(
                 &AssociatedSpecCreateParams::Weapon {
                     id: "fixture".into(),
                     spec_class,

@@ -23,7 +23,8 @@ import { requireRowData } from '@/shared/lib/row-data';
 import { normalizeFsPath } from '@/shared/lib/paths';
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
-import { reserveEntityIntent, retargetEntityWindow, chooseIdentityFilename } from '@/orchestrators/entity-identity.orchestrator';
+import { reserveEntityIntent, retargetEntityWindow } from '@/orchestrators/spec-editor-identity.orchestrator';
+import { chooseEntityFilename } from '@/orchestrators/entity-write.orchestrator';
 import { entityContentIdField } from '@/domain/project/entity-definitions';
 import { composeJson, editComposedJson, setCompositionValue, compositionPath, compositionValue } from '@/domain/schema/json-composition';
 
@@ -78,7 +79,7 @@ export function useSpecEditorWindowViewModel(
       save: async (target, draft, baseVersions, original, request) => {
         const submittedData = deepClone(editorData.value!);
         const nextId = String(draft[entityContentIdField(target.kind)] ?? submittedData.target.id);
-        const keepFilename = await chooseIdentityFilename(feedback, submittedData.target, nextId);
+        const keepFilename = await chooseEntityFilename(feedback, submittedData.target, nextId);
         if (keepFilename === null) return;
         const intent = keepFilename ? null : await reserveEntityIntent(target.sessionId, target.modRoot, submittedData.target, draft);
         const versions = intent ? captureIdentityVersions(baseVersions, intent.destinationVersion) : baseVersions;

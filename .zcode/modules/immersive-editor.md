@@ -45,9 +45,9 @@
 
 - `schemas/skin-hull-fields.json`：船体标量属性与皮肤来源的统一映射。
 - `src/app/composables/use-joint-edit-session.ts`：消费编辑会话原语的联合目标适配器。
-- `src/domain/json-editor/json-file-defaults.ts`：装配与皮肤的初始 JSON 内容。
-- `src/domain/json-editor/json-variant-modules.ts`：装配模块字段的对象/数组读取与写回。
+- `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/shared/lib/starsector/variant-modules.ts`：装配模块的共同格式规则。
 - `src/shared/runtime/use-layout-frame.ts`：展示尺寸与位置更新的帧合并和作用域释放。
 
 ### 装配

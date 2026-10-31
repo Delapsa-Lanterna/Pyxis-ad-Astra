@@ -1,5 +1,5 @@
 import { querySessionEntity, querySessionEntityEditTarget } from '@/services/entity-query.service';
-import { createSystemSpec } from '@/domain/editors/spec-construction';
+import { createSystemSpec } from '@/domain/entity-write/spec-construction';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import type { EntityData, ProjectSessionId } from '@/shared/types';

@@ -10,13 +10,13 @@
 
 - `src-tauri/src/commands/app_config.rs`：配置维护 command。
 - `src-tauri/src/services/app_config.rs`：工具目录创建与系统打开交接。
+- `src-tauri/src/services/system_open.rs`：操作系统文件管理器路径打开适配。
 - `src/app/composables/settings/use-app-config-actions.ts`：目录打开动作与错误反馈。
 - `src/services/app-config.service.ts`：配置目录打开 command 装配。
 
 ### 消费
 
 - `src-tauri/src/app_data_dir.rs`：工具私有数据目录的公共解析能力。
-- `src-tauri/src/services/system_open.rs`：系统文件管理器路径打开适配。
 - `src/app/components/SettingsPage.vue`：设置页面的目录打开入口。
 - `src/app/composables/settings/use-settings-view-model.ts`：设置页消费配置维护动作。
 

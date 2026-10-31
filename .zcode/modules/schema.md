@@ -25,6 +25,7 @@
 - `schemas/variant.schema.json`：装配字段模式资产。
 - `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
 - `src-tauri/src/commands/source_options.rs`：字段来源与声明目录图片候选 command。
+- `src-tauri/src/domain/csv_column_order.rs`：CSV 标准列资产与补列顺序。
 - `src-tauri/src/domain/schema.rs`：对象完整性、分支与字段值类型校验。
 - `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
 - `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。

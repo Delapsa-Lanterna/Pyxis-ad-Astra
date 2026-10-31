@@ -23,7 +23,7 @@ pub(crate) fn record_csv_row_copies(count: usize) {
 
 #[cfg(test)]
 pub(crate) fn record_csv_disk_read(path: &Path) {
-    super::work::record("read", path);
+    crate::test_support::work_counts::record("read", path);
     if !path
         .extension()
         .and_then(|extension| extension.to_str())

@@ -8,7 +8,7 @@ import { jointObject, rebaseJointDraft } from '@/domain/joint-edit';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { openImmersiveEditorWindow } from '@/windows/immersive-editor.window';
 import { retargetImmersiveWindow } from '@/orchestrators/immersive-editor.orchestrator';
-import { createShipSpec } from '@/domain/editors/spec-construction';
+import { createShipSpec } from '@/domain/entity-write/spec-construction';
 import { deepClone } from '@/shared/lib/starsector';
 
 export function useImmersiveWingEditor(runtime: ImmersiveEditorRuntime) {

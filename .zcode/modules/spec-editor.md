@@ -8,7 +8,6 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 
 ### 拥有
 
-- `schemas/spec-defaults.json`：舰船、武器、弹体、系统与技能规格的默认模板资产。
 - `src-tauri/src/commands/spec_editor.rs`：规格保存及外部规格导入 command。
 - `src-tauri/src/services/spec_editor.rs`：正式外部规格导入及保存链路的测试适配。
 - `src/app/components/spec-editor/SpecFieldList.vue`：同构字段、默认值展示和辅助动作事件。
@@ -19,10 +18,11 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/app/composables/spec-editor/use-spec-editor-window-view-model.ts`：四类规格目标会话、保存、身份与外部基线接纳。
 - `src/app/composables/spec-editor/use-spec-problems.ts`：会话问题聚合、原文优先级、失败保留及共享展示。
 - `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
-- `src/domain/editors/spec-construction.ts`：规格模板、字段定义和所属路径更新。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
+- `src/domain/spec-editor/spec-fields.ts`：字段声明、嵌套路径定位及字段更新。
 - `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
 - `src/domain/spec-editor/spec-validation.ts`：字段类型、必填与声明约束的共同问题投影。
+- `src/orchestrators/spec-editor-identity.orchestrator.ts`：规格身份意图、冲突聚焦及规格窗口身份交接。
 - `src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
@@ -37,11 +37,13 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/app/components/schema/SchemaValueInput.vue`：声明来源的规格引用字段控件。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
 - `src/domain/edit-session.ts`：编辑会话与撤销栈原语，拥有 base/draft/dirty/revision/pending external 状态机与双栈状态工厂。
+- `src/domain/entity-write/spec-construction.ts`：规格与嵌套对象初始内容。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：规格内联引擎样式消费的正式对象定义。
 - `src/domain/schema/schema.types.ts`：对象字段与扩展权限的共同声明。
-- `src/orchestrators/json-write-confirmation.orchestrator.ts`：JSON 原文保留、重排确认与写入重试交接。
+- `src/orchestrators/entity-write.orchestrator.ts`：实体保存的文件名选择。
+- `src/orchestrators/json-write-confirmation.orchestrator.ts`：保存提交所属的 JSON 原文保留和逐源重排确认。
 - `src/shared/runtime/dialog.runtime.ts`：目录、文件、规格与图片的原生选择适配。
 - `src/shared/types/spec-editor.types.ts`：规格种类、分支、保存及导入请求与窗口业务读取投影。
 - `src/shared/ui/FieldLabel.vue`：显式名称、字段键与完整路径的共同标签。

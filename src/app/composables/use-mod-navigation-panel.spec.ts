@@ -1,17 +1,17 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createContentNavigation } from './use-content-navigation';
+import { createModNavigationPanel } from './use-mod-navigation-panel';
 
 afterEach(() => vi.restoreAllMocks());
 describe('content navigation', () => {
   it('keeps the wide-window choice through narrow-window navigation', async () => {
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1000);
-    let navigation!: ReturnType<typeof createContentNavigation>;
+    let navigation!: ReturnType<typeof createModNavigationPanel>;
     const view = mount(
       defineComponent({
         setup() {
-          navigation = createContentNavigation();
+          navigation = createModNavigationPanel();
           return () => h('div');
         },
       }),
@@ -31,11 +31,11 @@ describe('content navigation', () => {
   });
   it('moves focus into an open overlay and returns it to the entry on close', async () => {
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(600);
-    let navigation!: ReturnType<typeof createContentNavigation>;
+    let navigation!: ReturnType<typeof createModNavigationPanel>;
     const view = mount(
       defineComponent({
         setup() {
-          navigation = createContentNavigation();
+          navigation = createModNavigationPanel();
           return () =>
             h('div', [
               h('button', { 'aria-controls': 'mod-navigation-content' }, 'Open'),
@@ -53,12 +53,12 @@ describe('content navigation', () => {
     view.unmount();
   });
   it('keeps state independent between window instances', async () => {
-    let first!: ReturnType<typeof createContentNavigation>, second!: ReturnType<typeof createContentNavigation>;
+    let first!: ReturnType<typeof createModNavigationPanel>, second!: ReturnType<typeof createModNavigationPanel>;
     const view = mount(
       defineComponent({
         setup() {
-          first = createContentNavigation();
-          second = createContentNavigation();
+          first = createModNavigationPanel();
+          second = createModNavigationPanel();
           return () => h('div');
         },
       }),

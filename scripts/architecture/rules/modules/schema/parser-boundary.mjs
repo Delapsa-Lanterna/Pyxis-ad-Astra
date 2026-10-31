@@ -3,7 +3,8 @@ import { modulePartsFromRel } from '../../../facts/rust-crate-paths.mjs';
 
 const toolJson = new Set([
   'domain::well_known_labels',
-  'domain::spec_construction',
+  'domain::entity_construction',
+  'domain::joint_hull',
   'domain::csv_column_order',
   'services::app_settings',
   'services::workspace_persistence',
@@ -20,7 +21,8 @@ export const parserBoundaryRule = defineRule(
       const owner = parts.slice(0, 2).join('::');
       const csvWrite =
         ['services::config_entity', 'services::json_file', 'services::spec_editor'].includes(owner) ||
-        parts.slice(0, 3).join('::') === 'services::project::write';
+        parts.slice(0, 3).join('::') === 'services::project::write' ||
+        parts.slice(0, 4).join('::') === 'services::project::session::csv_writes';
       for (const edge of file.rust.references) {
         const target = edge.target.join('::');
         if (target === 'serde_json::from_str' && role !== 'parsers' && !toolJson.has(owner))

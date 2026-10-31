@@ -1,8 +1,10 @@
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache::{ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table},
     definitions::table_definitions::csv_table_row_resource_ref,
     model::SessionCsvRow,
+    session::csv_tables::{
+        ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table,
+    },
 };
 use crate::{
     errors::{AppError, AppResult},
@@ -17,7 +19,7 @@ pub(crate) fn read_project_csv(
 ) -> AppResult<crate::models::CsvTable> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
-    super::super::cache::csv::read_retained_csv(&session, relative)
+    super::super::session::csv_tables::read_retained_csv(&session, relative)
 }
 
 pub fn query_csv_table_index(
@@ -81,7 +83,7 @@ pub fn query_csv_table_rows(
     let handle = session_handle(session_id)?;
     let mut session = lock_ready_session(&handle)?;
     ensure_registered_table_rows(&mut session, table)?;
-    let state = super::super::cache::csv::session_table_mut(&mut session, table.as_str())?;
+    let state = super::super::session::csv_tables::session_table_mut(&mut session, table.as_str())?;
     let rows = state.rows.as_ref().expect("CSV rows have been loaded");
     let positions = state.row_index.get_or_insert_with(|| {
         rows.iter()

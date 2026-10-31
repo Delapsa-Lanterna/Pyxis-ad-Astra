@@ -170,7 +170,7 @@ impl SourceReader {
                 self.dirty = true;
                 let text = crate::io::decode_text(path, &bytes)?;
                 #[cfg(test)]
-                crate::io::work::record("parse", path);
+                crate::test_support::work_counts::record("parse", path);
                 parse_starsector_json(&text).map_err(|error| {
                     AppError::context(format!("解析 JSON 文件失败 ({})", path.display()), error)
                         .at_path(path)
@@ -304,7 +304,7 @@ impl SourceReader {
                 ));
             }
             #[cfg(test)]
-            crate::io::work::record("walk", &dir);
+            crate::test_support::work_counts::record("walk", &dir);
             for entry in walkdir::WalkDir::new(&dir) {
                 let entry = entry.map_err(|error| {
                     AppError::message("io.walk_failed", error.to_string()).at_path(&dir)

@@ -7,7 +7,7 @@ import { collectArchitectureContext } from '../../facts/context.mjs';
 import { pathBoundaryRule } from './path-boundary.mjs';
 
 const source = 'src-tauri/src/services/sample.rs';
-const counter = 'src-tauri/src/io/work.rs';
+const counter = 'src-tauri/src/test_support/work_counts.rs';
 /** @param {string} text @param {string} [file] */
 const check = (text, file = source) => pathBoundaryRule.check(architectureFixtures({ [file]: text }));
 

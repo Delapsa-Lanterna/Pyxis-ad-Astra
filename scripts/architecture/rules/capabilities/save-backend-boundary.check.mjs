@@ -8,13 +8,14 @@ import { projectResourcesBoundaryRule } from '../modules/resources/project-resou
 import { rustServiceEdgeBoundaryRule } from '../dependencies/rust-service-edge-boundary.mjs';
 
 const serviceAssembly =
-  'pub(crate) use project::query::entities::query_entity; pub(crate) use project::write::entity_identity::save_entity_spec;';
+  'pub(crate) use project::query::entities::query_entity; pub(crate) use project::write::entity_write::content::save_entity_spec;';
 
-for (const owner of ['entity_description', 'entity_identity', 'csv_patch', 'joint_edit']) {
+for (const owner of ['entity_write/descriptions', 'entity_write/content', 'csv_patch', 'joint_edit']) {
   test(owner + ' consumes the common CSV draft without a reverse business dependency', () => {
     const files = architectureFixtures({
-      ['src-tauri/src/services/project/write/' + owner + '.rs']: 'use super::csv_staging::CsvTableDraft; fn stage() {}',
-      'src-tauri/src/services/project/write/csv_staging.rs':
+      ['src-tauri/src/services/project/write/' + owner + '.rs']:
+        'use crate::services::project::session::csv_writes::CsvTableDraft; fn stage() {}',
+      'src-tauri/src/services/project/session/csv_writes.rs':
         'use super::super::{cache::csv::read_table_snapshot, model::ProjectSession}; use crate::parsers::render_csv_text;',
     });
     assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
@@ -22,15 +23,15 @@ for (const owner of ['entity_description', 'entity_identity', 'csv_patch', 'join
 }
 
 for (const source of [
-  'type Draft = super::entity_identity::StagedIdentityCsv;',
-  'use super::entity_identity::{StagedIdentityCsv as Draft};',
-  'use super::entity_identity as identity; fn stage() { identity::save_entity_spec(); }',
-  'fn stage() { crate::services::project::write::entity_identity::save_entity_spec(); }',
-  'pub use super::entity_identity::StagedIdentityCsv;',
+  'type Draft = super::content::StagedEntityWrite;',
+  'use super::content::{StagedEntityWrite as Draft};',
+  'use super::content as identity; fn stage() { identity::save_entity_spec(); }',
+  'fn stage() { crate::services::project::write::entity_write::content::save_entity_spec(); }',
+  'pub use super::content::StagedEntityWrite;',
 ]) {
   test('description rejects reverse identity dependencies: ' + source, () => {
     const files = architectureFixtures({
-      'src-tauri/src/services/project/write/entity_description.rs': source,
+      'src-tauri/src/services/project/write/entity_write/descriptions.rs': source,
     });
     const message = messages(rustProjectLayerBoundaryRule.check(files))[0];
     assert.ok(message);
@@ -38,14 +39,14 @@ for (const source of [
   });
 }
 
-for (const business of ['entity_description', 'entity_identity', 'csv_patch', 'joint_edit']) {
+for (const business of ['entity_write/descriptions', 'entity_write/content', 'csv_patch', 'joint_edit']) {
   for (const source of [
-    'use super::' + business + '::{run as save};',
-    'fn stage() { crate::services::project::write::' + business + '::run(); }',
+    'use crate::services::project::write::' + business.replaceAll('/', '::') + '::{run as save};',
+    'fn stage() { crate::services::project::write::' + business.replaceAll('/', '::') + '::run(); }',
   ]) {
     test('CSV staging rejects business dependencies: ' + source, () => {
       const files = architectureFixtures({
-        'src-tauri/src/services/project/write/csv_staging.rs': source,
+        'src-tauri/src/services/project/session/csv_writes.rs': source,
       });
       const message = messages(rustProjectLayerBoundaryRule.check(files))[0];
       assert.ok(message);
@@ -56,8 +57,8 @@ for (const business of ['entity_description', 'entity_identity', 'csv_patch', 'j
 
 test('test-only identity references keep the CSV production dependency direction', () => {
   const files = architectureFixtures({
-    'src-tauri/src/services/project/write/entity_description.rs':
-      '#[cfg(test)] mod tests { use super::super::entity_identity::save_entity_spec; }',
+    'src-tauri/src/services/project/write/entity_write/descriptions.rs':
+      '#[cfg(test)] mod tests { use super::super::content::save_entity_spec; }',
   });
   assert.deepEqual(messages(rustProjectLayerBoundaryRule.check(files)), []);
 });
@@ -85,7 +86,7 @@ for (const source of [
 test('session entry rejects business reexports while service assembly connects actual definitions', () => {
   for (const branch of [
     'query::entities::query_entity',
-    'write::entity_identity::save_entity_spec',
+    'write::entity_write::content::save_entity_spec',
     'resources::core_graphics::scan_core_graphics',
   ]) {
     const invalid = architectureFixtures({ 'src-tauri/src/services/project/mod.rs': 'pub use self::' + branch + ';' });

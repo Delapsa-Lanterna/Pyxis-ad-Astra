@@ -3,7 +3,8 @@ import { normalizeShipSpec } from '@/domain/spec-editor/ship/spec-ship-editing';
 import { normalizeSystemSpec } from '@/domain/spec-editor/system/spec-system-fields';
 import { normalizeWeaponSpec } from '@/domain/editors/weapon-spec';
 import { normalizeProjectileSpec } from '@/domain/spec-editor/projectile/spec-projectile-model';
-import { createSpecObject, specFieldParent, updateSpecField } from '@/domain/editors/spec-construction';
+import { createSpecObject } from '@/domain/entity-write/spec-construction';
+import { specFieldParent, updateSpecField } from '@/domain/spec-editor/spec-fields';
 
 describe('normalizeShipSpec', () => {
   it('fills missing collections with empty defaults', () => {

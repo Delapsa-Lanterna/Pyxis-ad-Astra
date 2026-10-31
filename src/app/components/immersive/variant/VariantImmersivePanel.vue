@@ -145,7 +145,7 @@ import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { equipVariantWing, setVariantHullmod, type HullmodCategory } from '@/domain/immersive/variant/variant-actions';
 import type { JointVariantCatalogKind, ReadonlyVariantEntry } from '@/shared/types';
 import { jointObject } from '@/domain/joint-edit';
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { useImmersiveVariantEditor } from '@/app/composables/immersive-editor/variant/use-immersive-variant-editor';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import ImmersiveText from '../ImmersiveText.vue';

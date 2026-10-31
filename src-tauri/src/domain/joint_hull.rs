@@ -7,6 +7,7 @@ use crate::{
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::LazyLock;
 
 pub fn project_joint_hull(
     records: &[JointEditRecord],
@@ -142,7 +143,7 @@ fn project_hull(
             });
         }
     }
-    for (path, paths) in crate::domain::spec_construction::skin_hull_fields() {
+    for (path, paths) in crate::domain::joint_hull::skin_hull_fields() {
         let inputs = fields.entry(path.clone()).or_insert_with(|| {
             vec![JointFieldBinding {
                 record_key: csv.key.clone(),
@@ -325,7 +326,7 @@ fn project_hull(
         built_in_wings: wings,
         modules: value(variant)
             .map(|data| {
-                module_entries(data.get("modules"))
+                crate::domain::variant_modules::module_entries(data.get("modules"))
                     .into_iter()
                     .map(|(slot_id, id)| JointModuleBinding {
                         slot_id,
@@ -389,44 +390,6 @@ pub fn description_id(kind: EntityKind, id: &str, data: Option<&Value>) -> Optio
     (!description.is_empty()).then_some(description)
 }
 
-pub fn module_entries(value: Option<&Value>) -> Vec<(String, String)> {
-    match value {
-        Some(Value::Object(items)) => items
-            .iter()
-            .filter_map(|(slot, id)| id.as_str().map(|id| (slot.clone(), id.into())))
-            .collect(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter_map(Value::as_object)
-            .flat_map(|item| item.iter())
-            .filter_map(|(slot, id)| id.as_str().map(|id| (slot.clone(), id.into())))
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-pub fn rename_module_reference(data: &mut Value, previous: &str, next: &str) -> bool {
-    fn replace(items: &mut serde_json::Map<String, Value>, previous: &str, next: &str) -> bool {
-        let mut changed = false;
-        for value in items.values_mut() {
-            if value.as_str() == Some(previous) {
-                *value = Value::String(next.into());
-                changed = true;
-            }
-        }
-        changed
-    }
-    match data.get_mut("modules") {
-        Some(Value::Object(items)) => replace(items, previous, next),
-        Some(Value::Array(items)) => {
-            let mut changed = false;
-            for item in items.iter_mut().filter_map(Value::as_object_mut) {
-                changed |= replace(item, previous, next);
-            }
-            changed
-        }
-        _ => false,
-    }
-}
 fn add_mods(mods: &mut BTreeSet<String>, data: &Value) {
     if let Some(items) = data.get("builtInMods").and_then(Value::as_array) {
         mods.extend(items.iter().filter_map(Value::as_str).map(str::to_owned));
@@ -460,4 +423,18 @@ fn add_weapons(weapons: &mut BTreeMap<String, String>, data: &Value) {
             }
         }
     }
+}
+
+pub fn skin_hull_fields() -> &'static std::collections::BTreeMap<String, Vec<String>> {
+    static FIELDS: LazyLock<std::collections::BTreeMap<String, Vec<String>>> =
+        LazyLock::new(|| {
+            #[cfg(test)]
+            crate::test_support::work_counts::record(
+                "asset-parse",
+                std::path::Path::new("skin-hull-fields"),
+            );
+            serde_json::from_str(include_str!("../../../schemas/skin-hull-fields.json"))
+                .expect("embedded skin hull fields must parse")
+        });
+    &FIELDS
 }

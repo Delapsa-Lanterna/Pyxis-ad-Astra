@@ -4,8 +4,10 @@ import { computed, reactive, ref, type EmitFn, type ShallowRef } from 'vue';
 import type { RowData, EditContext, WeaponSpecClass } from '@/shared/types/index';
 import type { WeaponOperationPreview } from '@/domain/editors/editor-types';
 import { str, deepClone } from '@/shared/lib/starsector/index';
-import { normalizeWeaponSpec, changeWeaponSpecClass } from '@/domain/editors/weapon-spec';
-import { createSpecObject, updateSpecField } from '@/domain/editors/spec-construction';
+import { normalizeWeaponSpec } from '@/domain/editors/weapon-spec';
+import { changeWeaponSpecClass } from '@/domain/entity-write/spec-construction';
+import { createSpecObject } from '@/domain/entity-write/spec-construction';
+import { updateSpecField } from '@/domain/spec-editor/spec-fields';
 import { weaponSections, weaponSpecIssues } from '@/domain/spec-editor/weapon/spec-weapon-fields';
 import { useSpecProblems } from '../use-spec-problems';
 

@@ -1,5 +1,5 @@
 import type { JointEditSnapshot, JointEditRecord } from '@/shared/types';
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import { jointObject } from '@/domain/joint-edit';
 
 export function immersiveSourceRecords(snapshot: JointEditSnapshot): {

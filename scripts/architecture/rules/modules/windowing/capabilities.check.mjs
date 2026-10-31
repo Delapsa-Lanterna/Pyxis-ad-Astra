@@ -19,9 +19,14 @@ const cases = [
   ['window-status', 'src/app/composables/use-dirty-window-close-guard.ts', 'src/services/window.service.ts', 'updateNativeWindowStatus'],
   ['window-close-cancel', 'src/app/composables/use-app-lifecycle-assembly.ts', 'src/services/app-lifecycle.service.ts', 'readyNativeClose'],
   ['window-session-close', 'src/app/composables/use-app-lifecycle-assembly.ts', 'src/services/app-lifecycle.service.ts', 'requestClose'],
-  ['window-reserve', 'src/orchestrators/entity-identity.orchestrator.ts', 'src/services/window.service.ts', 'reserveNativeWindowTargets'],
+  [
+    'window-reserve',
+    'src/orchestrators/spec-editor-identity.orchestrator.ts',
+    'src/services/window.service.ts',
+    'reserveNativeWindowTargets',
+  ],
   ['window-release', 'src/orchestrators/csv-save.orchestrator.ts', 'src/services/window.service.ts', 'releaseNativeWindowTargets'],
-  ['window-retarget', 'src/orchestrators/entity-identity.orchestrator.ts', 'src/services/window.service.ts', 'retargetNativeWindow'],
+  ['window-retarget', 'src/orchestrators/spec-editor-identity.orchestrator.ts', 'src/services/window.service.ts', 'retargetNativeWindow'],
 ];
 
 testCapabilities(cases);

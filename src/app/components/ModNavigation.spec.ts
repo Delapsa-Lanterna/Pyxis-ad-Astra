@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, provide, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { contentNavigationKey, createContentNavigation } from '@/app/composables/use-content-navigation';
+import { modNavigationPanelKey, createModNavigationPanel } from '@/app/composables/use-mod-navigation-panel';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useCoreAssetsStore } from '@/stores/core-assets.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
@@ -31,7 +31,7 @@ function mountNavigation(width: number) {
   return mount(
     defineComponent({
       setup() {
-        provide(contentNavigationKey, createContentNavigation());
+        provide(modNavigationPanelKey, createModNavigationPanel());
         return () => h('div', [h(ModTabsBar, { refreshActions }), h(ModNavigation)]);
       },
     }),

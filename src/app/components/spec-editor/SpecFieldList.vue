@@ -58,7 +58,7 @@ import { specSchemaContext } from '@/app/composables/spec-editor/spec-schema-con
 import FieldRow from '@/shared/ui/FieldRow.vue';
 import { toOptions } from '@/domain/editors/lib/editor-constants';
 import { schemaCollection, schemaFieldRequired } from '@/domain/schema/schema-values';
-import { specFieldParent, type SpecField } from '@/domain/editors/spec-construction';
+import { specFieldParent, type SpecField } from '@/domain/spec-editor/spec-fields';
 import type { JsonValue, RowData } from '@/shared/types';
 import type { SchemaFieldUpdate } from '@/domain/schema/schema.types';
 const props = withDefaults(defineProps<{ content: RowData; fields: SpecField[]; prefix?: string; readonlyFields?: string[] }>(), {

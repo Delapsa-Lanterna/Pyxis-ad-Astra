@@ -62,8 +62,10 @@ vi.mock('@/orchestrators/edit-target-handoff.orchestrator', () => ({
     dispose: vi.fn(),
   }),
 }));
-vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
-  chooseIdentityFilename: vi.fn(async () => false),
+vi.mock('@/orchestrators/entity-write.orchestrator', () => ({
+  chooseEntityFilename: vi.fn(async () => false),
+}));
+vi.mock('@/orchestrators/window-identity.orchestrator', () => ({
   reserveFileIdentityIntent: vi.fn(async () => {}),
   retargetFileWindow: vi.fn(async () => {}),
 }));

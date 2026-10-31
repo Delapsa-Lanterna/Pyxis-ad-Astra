@@ -1,6 +1,8 @@
 #[cfg(test)]
 use super::test_support::project_workspace;
 mod access;
+pub(in crate::services::project) mod csv_tables;
+pub(in crate::services::project) mod csv_writes;
 pub(super) mod references;
 mod registry;
 pub(in crate::services::project) mod source_projection;
@@ -37,11 +39,11 @@ pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
 pub fn registered_session_ids() -> AppResult<Vec<String>> {
     Ok(lock_registry()?.keys().cloned().collect())
 }
+use super::cache;
 use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
 };
 use super::{
-    cache,
     definitions::{factions, projectiles, table_definitions},
     performance::PerformanceTrace,
     sources,
@@ -1092,7 +1094,7 @@ mod source_refresh_tests {
         let manifest =
             open_project_session_traced(&root, None, &mut PerformanceTrace::new("test")).unwrap();
         let handle = session_handle(&manifest.session_id).unwrap();
-        cache::ensure_registered_table_rows(
+        csv_tables::ensure_registered_table_rows(
             &mut lock_session(&handle).unwrap(),
             CsvTableKey::Ships,
         )

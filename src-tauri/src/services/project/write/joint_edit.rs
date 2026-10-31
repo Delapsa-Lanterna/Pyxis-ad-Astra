@@ -1,11 +1,11 @@
 #[cfg(test)]
 use super::super::query::joint_edit::query_joint_edit;
+use super::super::session::csv_writes::CsvTableDraft;
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
     model::{SessionCsvRow, csv_table_spec},
-    write::stage_entity_content,
+    write::entity_write::content::stage_entity_content,
 };
-use super::csv_staging::CsvTableDraft;
 use crate::{
     errors::{AppError, AppResult},
     io::{FileChangeSetBuilder, JsonWriteBatch, read_csv_data},
@@ -82,7 +82,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
         if let JointValue::Present(data) = &mut value {
             let mut changed = false;
             for (previous, next) in &renames {
-                changed |= crate::domain::joint_hull::rename_module_reference(data, previous, next);
+                changed |=
+                    crate::domain::variant_modules::rename_module_reference(data, previous, next);
             }
             if changed {
                 values.insert(record.key.clone(), value);
@@ -157,7 +158,7 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                         }
                     };
                     let mut content =
-                        crate::domain::spec_construction::create_associated_spec(&params);
+                        crate::domain::entity_construction::create_associated_spec(&params);
                     let edited = data.as_object().ok_or_else(|| {
                         AppError::message("joint.value_shape", "规格内容必须为对象")
                     })?;
@@ -400,17 +401,18 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
     if !description_renames.is_empty() {
         if let Some(table) = tables.get_mut(&CsvTableKey::Descriptions) {
             for rename in &description_renames {
-                super::entity_description::rename_description_row(
+                super::entity_write::descriptions::rename_description_row(
                     &session,
                     table,
-                    &rename.previous,
-                    &rename.next,
-                    rename.typ,
+                    &rename.previous_id,
+                    &rename.next_id,
+                    rename.description_type,
                 )?;
             }
-        } else if let Some(csv) =
-            super::entity_description::prepare_description_renames(&session, &description_renames)?
-        {
+        } else if let Some(csv) = super::entity_write::descriptions::prepare_description_renames(
+            &session,
+            &description_renames,
+        )? {
             tables.insert(csv.table, csv);
         }
     }
@@ -474,8 +476,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             let renamed = (*table == CsvTableKey::Descriptions)
                 .then(|| {
                     description_renames.iter().find(|rename| {
-                        identity.get("id") == Some(&rename.previous)
-                            && identity.get("type").map(String::as_str) == Some(rename.typ)
+                        identity.get("id") == Some(&rename.previous_id)
+                            && identity.get("type").map(String::as_str)
+                                == Some(rename.description_type)
                     })
                 })
                 .flatten();
@@ -483,8 +486,9 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
                 renamed.and_then(|rename| {
                     rows.iter().find(|row| {
                         !row.is_comment
-                            && row.data.get("id").and_then(Value::as_str) == Some(&rename.next)
-                            && row.data.get("type").and_then(Value::as_str) == Some(rename.typ)
+                            && row.data.get("id").and_then(Value::as_str) == Some(&rename.next_id)
+                            && row.data.get("type").and_then(Value::as_str)
+                                == Some(rename.description_type)
                     })
                 })
             });

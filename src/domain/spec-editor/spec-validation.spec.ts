@@ -5,9 +5,9 @@ import { weaponSpecIssues } from './weapon/spec-weapon-fields';
 import { projectileSpecIssues } from './projectile/spec-projectile-fields';
 import { systemSpecIssues } from './system/spec-system-fields';
 import { specFieldIssues } from './spec-validation';
-import { createShipSpec, createSystemSpec, createSpecObject } from '@/domain/editors/spec-construction';
-import { createWeaponSpec } from '@/domain/editors/weapon-spec';
-import { createProjectileSpec } from './projectile/spec-projectile-model';
+import { createShipSpec, createSystemSpec, createSpecObject } from '@/domain/entity-write/spec-construction';
+import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
+import { createProjectileSpec } from '@/domain/entity-write/spec-construction';
 
 describe('Spec schema validation', () => {
   it.each([

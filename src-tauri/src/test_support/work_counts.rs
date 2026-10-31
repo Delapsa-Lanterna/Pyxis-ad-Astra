@@ -26,7 +26,7 @@ pub(crate) fn count(operation: &'static str, path: &Path) -> usize {
 fn resource_key(path: &Path) -> String {
     // Disk aliases share physical identity; embedded assets retain their logical names.
     let path = if path.is_absolute() {
-        super::canonical_path(path, "work counter")
+        crate::io::canonical_path(path, "work counter")
             .expect("counted resource has an existing parent")
     } else {
         path.to_path_buf()
@@ -43,7 +43,7 @@ fn aliases_share_counts_across_calls_and_threads() {
     let long = file.canonicalize().unwrap();
     let short = crate::test_support::short_path(&file);
     for (index, path) in [&long, &short].into_iter().enumerate() {
-        super::read_versioned_json(path).unwrap();
+        crate::io::read_versioned_json(path).unwrap();
         for alias in [&file, &long, &short] {
             assert_eq!(count("read", alias), index + 1);
             assert_eq!(count("parse", alias), index + 1);
@@ -52,7 +52,7 @@ fn aliases_share_counts_across_calls_and_threads() {
     std::thread::scope(|scope| {
         let tasks = [&long, &short, &long, &short]
             .into_iter()
-            .map(|path| scope.spawn(|| super::read_versioned_json(path).unwrap()))
+            .map(|path| scope.spawn(|| crate::io::read_versioned_json(path).unwrap()))
             .collect::<Vec<_>>();
         for task in tasks {
             task.join().unwrap();

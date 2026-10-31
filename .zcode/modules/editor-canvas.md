@@ -40,12 +40,10 @@
 
 ### 消费
 
-- `schemas/spec-defaults.json`：四类规格创建与分支转换的默认模板资产。
 - `src/app/components/editors/common/editor-collapse.ts`：共同分组的关闭完成等待。
 - `src/app/composables/spec-editor/use-spec-editor-draft-images.ts`：草稿图像读取票据、状态诊断、资源失效及投影接纳的共享运行态。
 - `src/app/composables/use-snapshot-history.ts`：编辑文档消费的目标快照历史适配器。
 - `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
-- `src/domain/editors/spec-construction.ts`：规格默认模板加载、创建及分支必读字段补齐。
 - `src/shared/lib/entry-keys.ts`：稳定条目键，为列表渲染提供结构化稳定 key。
 - `src/shared/lib/next-formatted-id.ts`：舰船及弹体消费的编号分配纯原语。
 - `src/shared/lib/starsector/colors.ts`：挂载类型颜色、槽位半径与 RGBA 样式投影。

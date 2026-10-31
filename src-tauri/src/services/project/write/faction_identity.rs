@@ -1,13 +1,8 @@
-use super::super::session::{lock_session, session_handle};
-
 use crate::services::project::query::entity_targets::query_entity_edit_target;
 use crate::{
     errors::{AppError, AppResult},
-    io::{FileChangeSetBuilder, FsRootBoundary, acquire_root_write_lock, read_csv_data},
-    models::{
-        EntityKind, EntityLinkedRecord, IndexedConfigEntityRefresh, JsonWriteOptions, WriteResult,
-    },
-    parsers::render_csv_text,
+    io::read_csv_data,
+    models::{EntityKind, IndexedConfigEntityRefresh, JsonWriteOptions, WriteResult},
 };
 use serde_json::Value;
 use std::path::Path;
@@ -45,7 +40,7 @@ pub fn save_faction_entity(
             "势力内容 ID 与保存身份不一致",
         ));
     }
-    let result = super::entity_identity::save_entity_spec(
+    let result = super::entity_write::content::save_entity_spec(
         session_id,
         &info.target,
         file.clone(),
@@ -67,45 +62,6 @@ pub fn save_faction_entity(
             entity_data: data,
         })?,
     ))
-}
-
-pub fn delete_faction_entity(
-    session_id: &str,
-    id: &str,
-    delete_target: bool,
-) -> AppResult<WriteResult<Value>> {
-    let handle = session_handle(session_id)?;
-    let root = lock_session(&handle)?.manifest.mod_root.clone();
-    let lease = acquire_root_write_lock(Path::new(&root))?;
-    let info = query_entity_edit_target(session_id, EntityKind::Faction, id)?;
-    let boundary = FsRootBoundary::new(Path::new(&root), "faction delete root")?;
-    if info.target.linked_record.is_none() {
-        let mut builder = FileChangeSetBuilder::new_with_lock(boundary.root(), lease)?;
-        builder.text_file(&info.target.write.rel_path, None)?;
-        return Ok(WriteResult::new(builder.apply()?, Vec::new(), None));
-    }
-    let Some(EntityLinkedRecord::Index { path, row_index }) = &info.target.linked_record else {
-        unreachable!("faction index record");
-    };
-    let mut index = read_csv_data(&boundary.resolve_relative(path, "faction index")?)?;
-    index.rows.remove(*row_index);
-    let mut builder = FileChangeSetBuilder::new_with_lock(boundary.root(), lease)?;
-    builder.text_file(
-        path,
-        Some(render_csv_text(
-            &index.header,
-            &index
-                .rows
-                .iter()
-                .map(|row| (&row.data, row.is_comment))
-                .collect::<Vec<_>>(),
-        )?),
-    )?;
-    if delete_target {
-        builder.text_file(&info.target.write.rel_path, None)?;
-    }
-    let changes = builder.apply()?;
-    Ok(WriteResult::new(changes, Vec::new(), None))
 }
 
 #[cfg(test)]

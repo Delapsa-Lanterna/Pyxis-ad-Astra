@@ -25,7 +25,6 @@
 ### 关联
 
 - `scripts/architecture/rules/modules/editors/`：规格编辑、查询与绘制职责规则。
-- `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
 
 ## 边界
 

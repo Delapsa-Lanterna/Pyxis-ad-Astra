@@ -1,8 +1,8 @@
 use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache::{ensure_registered_table_rows, ensure_session_table_rows},
     definitions::entity_definitions::entity_definition,
     model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_row},
+    session::csv_tables::{ensure_registered_table_rows, ensure_session_table_rows},
     versions::version_for_path,
 };
 use crate::{
@@ -64,7 +64,7 @@ pub fn require_csv_version_scope(
 ) -> AppResult<()> {
     let handle = session_handle(session_id)?;
     let session = lock_ready_session(&handle)?;
-    let state = super::super::cache::registered_session_table(&session, table)?;
+    let state = super::super::session::csv_tables::registered_session_table(&session, table)?;
     let required = version_for_path(&session, &state.path);
     if !supplied.iter().any(|version| {
         crate::models::windows_path_key(&version.path)
@@ -199,7 +199,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
     if kind == EntityKind::Variant {
         for parent in session.variant_files.iter() {
             let content = &parent.data;
-            for (_, id) in crate::domain::joint_hull::module_entries(content.get("modules")) {
+            for (_, id) in crate::domain::variant_modules::module_entries(content.get("modules")) {
                 parent_versions
                     .entry(id)
                     .or_default()
@@ -289,7 +289,7 @@ pub(in crate::services::project) fn prepare_entity_targets(
         let index = "data/world/factions/factions.csv";
         let boundary =
             crate::io::FsRootBoundary::new(Path::new(&session.manifest.mod_root), "faction root")?;
-        let table = super::super::cache::csv::read_retained_csv(session, index)?;
+        let table = super::super::session::csv_tables::read_retained_csv(session, index)?;
         let entries = crate::io::faction_index_entries(&boundary, &table)?;
         let mut paths = std::collections::BTreeMap::new();
         for entry in entries {

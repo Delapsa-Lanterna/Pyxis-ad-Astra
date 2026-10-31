@@ -5,7 +5,7 @@ import type { RowData, EditContext } from '@/shared/types/index';
 import { normalizeSystemSpec, systemSections, systemSpecIssues } from '@/domain/spec-editor/system/spec-system-fields';
 
 import { useSpecProblems } from '../use-spec-problems';
-import { createSystemSpec } from '@/domain/editors/spec-construction';
+import { createSystemSpec } from '@/domain/entity-write/spec-construction';
 
 export interface SpecSystemEditorProps {
   systemId: string;

@@ -1,5 +1,5 @@
-use super::super::cache::csv;
 use super::super::model::{ProjectSession, ReferenceView, SessionCsvRow};
+use super::csv_tables as csv;
 use super::registry;
 use crate::services::project::sources::documents::LoadedSpecRecord;
 #[cfg(test)]

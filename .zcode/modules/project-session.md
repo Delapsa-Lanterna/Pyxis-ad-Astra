@@ -11,7 +11,7 @@
 - `src-tauri/src/commands/project_session.rs`：session 生命周期 command。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
-- `src-tauri/src/services/project/cache/mod.rs`：CSV 与媒体缓存的模块登记和能力导出。
+- `src-tauri/src/services/project/cache/mod.rs`：媒体缓存的模块登记和会话释放能力导出。
 - `src-tauri/src/services/project/definitions/config_sources.rs`：配置引用目录的来源名称、固定路径与对象分组登记。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
@@ -24,6 +24,8 @@
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
 - `src-tauri/src/services/project/session.rs`：会话打开、关闭、投影与内部登记及就绪访问能力交付。
 - `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/csv_tables.rs`：正式表格内容、稳定行身份、来源保留及加载版本。
+- `src-tauri/src/services/project/session/csv_writes.rs`：表格写入缓冲、最终文本与实际应用后的正式状态接纳。
 - `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
 - `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与投影就绪门控。
 - `src-tauri/src/services/project/session/source_projection.rs`：会话来源复用、完整项目及变化来源版本范围交接。
@@ -45,7 +47,6 @@
 - `src-tauri/src/models/project_identity.rs`：会话、实体、表、资源、目标及版本身份与 session 范围实现宏。
 - `src-tauri/src/models/project_session.rs`：会话请求、清单、摘要与正式失效结果。
 - `src-tauri/src/models/serde_fields.rs`：会话输入字段的空值转换与非空字符串归一化。
-- `src-tauri/src/services/project/cache/csv.rs`：表格 owner 的快照、稳定行身份与加载交接。
 - `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
 - `src-tauri/src/services/project/resources/refs.rs`：资源身份、来源根和船体引用解析。
@@ -63,7 +64,6 @@
 
 ### 关联
 
-- `src-tauri/src/services/project/write/entity_identity.rs`：规格、装配与文本身份写入及关联 CSV、父引用暂存。
 - `src/shared/lib/paths.ts`：文件系统、资源及游戏目录的路径纯规则。
 
 ## 边界
@@ -73,6 +73,8 @@
 - 前端 project store 必须持有全部 manifest 和正式清单，工作区必须按根查询，项目同步必须顺序交付完整投影。
 - 势力及蓝图包提供 tags 元数据，来源变化参与全部相关表的失效。
 - 后端 query 消费会话索引并返回只读结果，write 发布 changeset 和结构化投影。
+- 正式 CSV 内容、稳定行身份、来源版本和缺失来源保留归会话表格能力。
+- 表格写入缓冲持有候选行和最终文本，实际变更集应用成功后由会话能力接纳正式状态。
 - 媒体和查询等待按 session 释放，投影恢复归事务与提交同步入口。
 - 持久化来源成果由来源读取交付，query 消费所属会话投影。
 - 来源目录、实体记录和草稿资源由后端定义装配，前端能力交付所属消费者。

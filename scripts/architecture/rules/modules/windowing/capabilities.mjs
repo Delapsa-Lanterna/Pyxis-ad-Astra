@@ -43,7 +43,8 @@ export const windowsCapabilities = [
       names: ['reserveNativeWindowTargets'],
       owners: [
         { layer: 'orchestrators', domain: 'edit-target-handoff' },
-        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'spec-editor-identity' },
+        { layer: 'orchestrators', domain: 'window-identity' },
         { layer: 'orchestrators', domain: 'csv-save' },
         { layer: 'orchestrators', domain: 'json-save' },
       ],
@@ -53,7 +54,8 @@ export const windowsCapabilities = [
       names: ['releaseNativeWindowTargets'],
       owners: [
         { layer: 'orchestrators', domain: 'edit-target-handoff' },
-        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'spec-editor-identity' },
+        { layer: 'orchestrators', domain: 'window-identity' },
         { layer: 'orchestrators', domain: 'csv-save' },
         { layer: 'orchestrators', domain: 'json-save' },
         { layer: 'app', role: 'composable', domain: 'json-document-session' },
@@ -66,7 +68,8 @@ export const windowsCapabilities = [
       capability: 'window-identity-handoff',
       names: ['retargetNativeWindow'],
       owners: [
-        { layer: 'orchestrators', domain: 'entity-identity' },
+        { layer: 'orchestrators', domain: 'spec-editor-identity' },
+        { layer: 'orchestrators', domain: 'window-identity' },
         { layer: 'orchestrators', domain: 'immersive-editor' },
         { layer: 'orchestrators', domain: 'weapon-fire-preview' },
       ],

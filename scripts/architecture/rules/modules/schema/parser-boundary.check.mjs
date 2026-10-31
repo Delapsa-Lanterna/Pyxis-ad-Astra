@@ -5,7 +5,7 @@ import { parserBoundaryRule } from './parser-boundary.mjs';
 
 test('the spec construction owner parses its embedded strict JSON template', () => {
   const files = architectureFixtures({
-    'src-tauri/src/domain/spec_construction.rs':
+    'src-tauri/src/domain/entity_construction.rs':
       'let defaults = serde_json::from_str(include_str!("../../../schemas/spec-defaults.json"));',
   });
   assert.deepEqual(messages(parserBoundaryRule.check(files)), []);

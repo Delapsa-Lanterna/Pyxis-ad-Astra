@@ -8,7 +8,7 @@ import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics } from '../weapon/weapon-statistics';
 import { variantWeaponGroups, weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
-import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
+import { variantModuleEntries } from '@/shared/lib/starsector/variant-modules';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
 import {
   mountedWeaponImages,

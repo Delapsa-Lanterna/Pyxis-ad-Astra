@@ -21,7 +21,9 @@ export function architectureContext(sources, available = sources.map((file) => f
         file.rel,
         /_tests?\.rs$/.test(file.rel)
           ? ' '.repeat(file.text.length)
-          : productionRustSource(file.rel === 'src-tauri/src/io/work.rs' ? file.text.replace('#![cfg(test)]', ' '.repeat(13)) : file.text),
+          : productionRustSource(
+              file.rel === 'src-tauri/src/test_support/work_counts.rs' ? file.text.replace('#![cfg(test)]', ' '.repeat(13)) : file.text,
+            ),
       ]),
   );
   const exports = serviceExportsFromSource(rustCode.get('src-tauri/src/services/mod.rs') ?? '');
