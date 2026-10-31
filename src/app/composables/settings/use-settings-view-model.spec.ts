@@ -17,10 +17,12 @@ const mocks = vi.hoisted(() => ({
   },
   pickDirectoryDialog: vi.fn(async () => null as string | null),
   saveLogDirectory: vi.fn(async () => {}),
-  saveStarsectorRoot: vi.fn(async () => true),
+  saveStarsectorRoot: vi.fn<typeof import('@/orchestrators/settings-persistence.orchestrator').saveStarsectorRoot>(async () => true),
+  switchWorkspaceCoreSource: vi.fn(async () => true),
+  requestClose: vi.fn(),
   loadLogStatus: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   openConfigFolder: vi.fn(async () => {}),
-  resetSettings: vi.fn(async () => true),
+  resetSettings: vi.fn<typeof import('@/orchestrators/settings-persistence.orchestrator').resetSettings>(async () => true),
   clearLog: vi.fn(async () => ({ path: 'C:/log/app.log', sizeBytes: 0 })),
   querySystemFonts: vi.fn(async () => ['Arial', 'Microsoft YaHei']),
 }));
@@ -28,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
-vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: vi.fn() }) }));
+vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: mocks.requestClose }) }));
 
 vi.mock('@/shared/runtime/dialog.runtime', () => ({
   pickDirectoryDialog: mocks.pickDirectoryDialog,
@@ -47,6 +49,8 @@ vi.mock('@/orchestrators/settings-persistence.orchestrator', () => ({
   saveLogDirectory: mocks.saveLogDirectory,
   resetSettings: mocks.resetSettings,
 }));
+
+vi.mock('@/orchestrators/workspace-core-source.orchestrator', () => ({ switchWorkspaceCoreSource: mocks.switchWorkspaceCoreSource }));
 
 import { useSettingsViewModel } from './use-settings-view-model';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
@@ -132,6 +136,19 @@ describe('useSettingsViewModel', () => {
     expect(mocks.saveStarsectorRoot).toHaveBeenCalledWith('D:/games/starsector', expect.any(Function));
   });
 
+  it.each(['root', 'reset'] as const)('binds the window close and commit for %s', async (action) => {
+    const { value: viewModel } = mountSetup(useSettingsViewModel);
+    if (action === 'root') await viewModel.changeStarsectorRoot('G:/selected');
+    else {
+      viewModel.confirmResetSettings();
+      await mocks.feedback.confirmDanger.mock.calls[0]![0].onConfirm();
+    }
+    const changeSource = action === 'root' ? mocks.saveStarsectorRoot.mock.calls[0]![1] : mocks.resetSettings.mock.calls[0]![0];
+    const commit = vi.fn(async () => {});
+    mocks.switchWorkspaceCoreSource.mockResolvedValueOnce(false);
+    expect(await changeSource('G:/committed', commit)).toBe(false);
+    expect(mocks.switchWorkspaceCoreSource).toHaveBeenCalledExactlyOnceWith('G:/committed', mocks.requestClose, commit);
+  });
   it('ignores a cancelled starsector directory pick', async () => {
     mocks.pickDirectoryDialog.mockResolvedValue(null);
     const { value: viewModel } = mountSetup(useSettingsViewModel);

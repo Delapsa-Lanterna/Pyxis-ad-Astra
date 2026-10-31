@@ -8,12 +8,14 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import type { AppFeedback } from '@/shared/types';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useProjectStore } from '@/stores/project.store';
+import { useSaveCommandStore } from '@/stores/save-command.store';
 import { sessionUpdateFixture } from '@/test/fixtures/write-result';
 const mocks = vi.hoisted(() => ({
   identity: vi.fn(),
   events: vi.fn(),
   restore: vi.fn(),
   stopPersistence: vi.fn(),
+  finishRestore: vi.fn(async () => {}),
   publish: vi.fn(async () => {}),
 }));
 vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => ({
@@ -23,33 +25,97 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async (importOriginal) => (
 vi.mock('@/orchestrators/editor-window.orchestrator', () => ({ listenEditorSpecSaved: mocks.events }));
 vi.mock('@/orchestrators/workspace-persistence.orchestrator', () => ({
   restorePersistedWorkspace: mocks.restore,
-  watchWorkspacePersistence: () => ({ beginRestore: vi.fn(), finishRestore: vi.fn(), stop: mocks.stopPersistence }),
+  watchWorkspacePersistence: () => ({ beginRestore: vi.fn(), finishRestore: mocks.finishRestore, stop: mocks.stopPersistence }),
 }));
 vi.mock('@/orchestrators/core-assets.orchestrator', () => ({ loadCoreFields: vi.fn() }));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.restore.mockResolvedValue(undefined);
+  mocks.finishRestore.mockResolvedValue(undefined);
   setActivePinia(createPinia());
   initializeSettingsStore(createSettingsFixture());
 });
+const feedback: AppFeedback = {
+  success: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+  error: vi.fn(),
+  confirmDanger: vi.fn(),
+  confirmWarning: vi.fn(),
+  choose: vi.fn(async () => null),
+};
+
+function mountShell() {
+  return mount({
+    setup() {
+      useWorkspaceShellLifecycle(feedback, async () => []);
+      return () => null;
+    },
+  });
+}
+
 describe('workspace shell listener lifecycle', () => {
+  it.each([
+    ['active', false],
+    ['active', true],
+    ['released', false],
+    ['released', true],
+  ] as const)('holds closing until the %s shell finalizes its snapshot, rejected=%s', async (owner, rejected) => {
+    let finish!: () => void, fail!: (error: Error) => void;
+    const error = new Error('snapshot unavailable');
+    mocks.finishRestore.mockReturnValueOnce(
+      new Promise<void>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      }),
+    );
+    const wrapper = mountShell();
+    await flushPromises();
+    expect(mocks.finishRestore).toHaveBeenCalledExactlyOnceWith(true);
+    let settled = false;
+    const closing = useSaveCommandStore()
+      .settleCloseActions()
+      .then(() => {
+        settled = true;
+      });
+    await flushPromises();
+    expect(settled).toBe(false);
+    if (owner === 'released') wrapper.unmount();
+    if (rejected) fail(error);
+    else finish();
+    await closing;
+    await flushPromises();
+    expect(settled).toBe(true);
+    expect(feedback.error).toHaveBeenCalledTimes(rejected && owner === 'active' ? 1 : 0);
+    if (rejected && owner === 'active') expect(feedback.error).toHaveBeenCalledWith(error, '保存工作区状态失败');
+    if (owner === 'active') wrapper.unmount();
+    expect(mocks.stopPersistence).toHaveBeenCalledOnce();
+  });
+  it.each(['restore-error', 'released'] as const)('finishes without persisting a %s restore', async (stage) => {
+    let finish!: () => void, fail!: (error: Error) => void;
+    const error = new Error('restore unavailable');
+    mocks.restore.mockReturnValueOnce(
+      new Promise<void>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      }),
+    );
+    const wrapper = mountShell();
+    await flushPromises();
+    if (stage === 'released') {
+      wrapper.unmount();
+      finish();
+    } else fail(error);
+    await flushPromises();
+    expect(mocks.finishRestore).toHaveBeenCalledExactlyOnceWith(false);
+    expect(feedback.error).toHaveBeenCalledTimes(stage === 'restore-error' ? 1 : 0);
+    if (stage === 'restore-error') wrapper.unmount();
+  });
+
   it('publishes changed reference sequences and releases the shell after startup', async () => {
     mocks.restore.mockImplementation(async () => {});
-    const feedback: AppFeedback = {
-      success: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-      error: vi.fn(),
-      confirmDanger: vi.fn(),
-      confirmWarning: vi.fn(),
-      choose: vi.fn(async () => null),
-    };
-    const wrapper = mount({
-      setup() {
-        useWorkspaceShellLifecycle(feedback, async () => []);
-        return () => null;
-      },
-    });
+    const wrapper = mountShell();
     await flushPromises();
     const workspace = useWorkspaceStore();
     const project = useProjectStore();

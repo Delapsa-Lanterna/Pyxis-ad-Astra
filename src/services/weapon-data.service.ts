@@ -4,10 +4,9 @@ import { queryResourceDataUrls } from '@/services/resource-media.service';
 import { AppError } from '@/shared/lib/errors';
 import { requireRowData } from '@/shared/lib/row-data';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { createWeaponSpec } from '@/domain/editors/weapon-spec';
+import { createWeaponSpec, inferWeaponSpecClass } from '@/domain/editors/weapon-spec';
 
-import { inferWeaponSpecClass } from '@/domain/csv-editor/associated-spec-creation';
-import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
+import { WEAPON_SPRITE_FIELDS } from '@/shared/lib/starsector/weapon-sprite-fields';
 import type { DeepReadonly, EntityData, EntityEditInfo, SpecEditorKind, ProjectSessionId, ResourceRef, RowData } from '@/shared/types';
 export interface WeaponData extends EntityEditInfo {
   weapon: RowData;

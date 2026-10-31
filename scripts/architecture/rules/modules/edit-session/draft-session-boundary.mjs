@@ -2,6 +2,11 @@ import { defineRule } from '../../../diagnostics.mjs';
 import { classifyFrontendPath } from '../../../facts/classify.mjs';
 
 const adapters = new Set(['app/draft-session', 'app/snapshot-history', 'stores/file-history', 'stores/csv-editor']);
+const acceptanceConsumers = new Set([
+  'src/app/composables/use-edit-target-draft-session.ts',
+  'src/domain/csv-editor/csv-table-draft.ts',
+  'src/orchestrators/csv-save.orchestrator.ts',
+]);
 
 export const draftSessionBoundaryRule = defineRule(
   'draft-session-boundary',
@@ -28,8 +33,12 @@ export const draftSessionBoundaryRule = defineRule(
             expected: 'edit target draft session',
           });
         const overlapConsumer = owner === 'stores/save-command' || owner === 'orchestrators/edit-target-handoff';
-        const onlyComparison = edge.bindings.every((binding) => binding.importedName === 'editTargetsOverlap');
-        if (target.layer === 'domain' && target.domain === 'edit-session' && !adapters.has(owner) && !(overlapConsumer && onlyComparison))
+        const onlyOwnedPrimitives = edge.bindings.every(
+          (binding) =>
+            (overlapConsumer && binding.importedName === 'editTargetsOverlap') ||
+            (acceptanceConsumers.has(file.rel) && binding.importedName === 'retainLaterDraft'),
+        );
+        if (target.layer === 'domain' && target.domain === 'edit-session' && !adapters.has(owner) && !onlyOwnedPrimitives)
           report(file, edge, 'edit session primitives must be consumed through their adapters', {
             target: edge.resolved,
             expected: [...adapters].join(', '),

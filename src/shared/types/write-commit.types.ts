@@ -10,15 +10,17 @@ export interface CsvRowKeyMapping {
   rowIndex: number;
 }
 
+export type SaveAcceptanceTask = () => void | boolean | SaveAcceptanceTask[] | Promise<void | boolean | SaveAcceptanceTask[]>;
+
 export type SaveEdit = { path: string[]; kind: 'set'; value: import('./json.types').JsonValue } | { path: string[]; kind: 'remove' };
 
 export type WriteContentTarget =
   | { kind: 'csv'; table: import('./project-identity.types').CsvTableKey }
   | { kind: 'spec'; target: import('./project-identity.types').EntityEditTarget }
   | { kind: 'text'; path: string }
-  | { kind: 'json'; origin: import('./project-identity.types').JsonDocumentOrigin }
-  | { kind: 'joint'; root: import('./project-identity.types').JointEditRoot }
-  | { kind: 'recovery'; origin: import('./project-identity.types').JsonDocumentOrigin };
+  | { kind: 'json'; origin: import('./document-identity.types').JsonDocumentOrigin }
+  | { kind: 'joint'; root: import('./joint-target.types').JointEditRoot }
+  | { kind: 'recovery'; origin: import('./document-identity.types').JsonDocumentOrigin };
 export interface WriteContent<T> {
   target: WriteContentTarget;
   value: T;
@@ -57,13 +59,3 @@ export type SaveDelivery =
   | { kind: 'saved'; requestId: string; event: CommittedWriteEvent }
   | { kind: 'blocked'; requestId: string; modRoot: string; sessionId: string | null; diagnostic: import('./error.types').ErrorDiagnostic }
   | { kind: 'waiting'; modRoot: string; waiting: boolean };
-
-export interface JsonSourceConfirmation {
-  path: string;
-  sourceFingerprint: string;
-}
-
-export interface JsonWriteOptions {
-  preserveOriginalJson?: boolean;
-  confirmedSources?: JsonSourceConfirmation[];
-}

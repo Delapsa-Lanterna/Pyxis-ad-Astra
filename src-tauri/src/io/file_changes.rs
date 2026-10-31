@@ -819,7 +819,7 @@ mod tests {
     use super::*;
     use crate::io::read_utf8_no_bom;
     use crate::services::project::test_support::project_workspace;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::{fs, sync::mpsc, thread, time::Duration};
 
     #[test]
@@ -1164,7 +1164,7 @@ mod tests {
         fs::write(root.join("Original.spec"), "before").unwrap();
         let mut change =
             build_text_change(&root.join("Original.spec"), Some("after".into())).unwrap();
-        let short_root = crate::testutil::short_path(&root);
+        let short_root = crate::test_support::short_path(&root);
         change.before_path = short_root.join("Original.spec").to_string_lossy().into();
         change.after_path = short_root.join("original.spec").to_string_lossy().into();
         let changes = super::resolve_change_paths(

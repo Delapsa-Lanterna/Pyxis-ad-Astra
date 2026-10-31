@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { useLayoutFrame } from '@/app/composables/use-layout-frame';
+import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { computed, nextTick, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { useCsvFloatingViewport, type CsvFloatingAnchor } from '@/app/composables/csv-editor/use-csv-floating-panel';
 import { cell } from '@/shared/lib/starsector';

@@ -5,7 +5,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'misc_config.shape_invalid': 'strings.json 应按分组组织，每组包含文本键和字符串内容',
   'schema.key_duplicate': '该名称已存在，请使用其它名称',
   'query.invalidated': '读取目标已更新，本次读取已结束',
-  'app_paths.resolve_failed': '无法解析工具数据目录',
+  'desktop.data_directory_unavailable': '无法解析工具数据目录',
   'cache.lock_poisoned': '内部缓存状态异常，请重试',
   'session.projection_pending': '内容已保存，等待项目同步，请重试同步',
   'write.commit_unknown': '所属提交同步记录已释放，请重新加载项目',

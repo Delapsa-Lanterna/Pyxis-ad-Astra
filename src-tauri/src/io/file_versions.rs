@@ -169,16 +169,16 @@ pub fn verify_versions(root: &str, versions: &[FileVersion]) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     #[test]
     #[cfg(windows)]
     fn alias_reads_return_long_path_credentials_and_keep_conflicts() {
         let root = TestWorkspace::new("version_alias_identity");
         let path = root.join("Long version filename.txt");
         std::fs::write(&path, "before").unwrap();
-        let version = super::file_version(&crate::testutil::short_path(&path)).unwrap();
+        let version = super::file_version(&crate::test_support::short_path(&path)).unwrap();
         super::verify_versions(
-            &crate::testutil::short_path(&root).to_string_lossy(),
+            &crate::test_support::short_path(&root).to_string_lossy(),
             std::slice::from_ref(&version),
         )
         .unwrap();
@@ -190,7 +190,7 @@ mod tests {
                 .code(),
             "write.version_conflict"
         );
-        let missing = crate::testutil::short_path(&root).join("nested/new.txt");
+        let missing = crate::test_support::short_path(&root).join("nested/new.txt");
         let version = super::file_version(&missing).unwrap();
         assert_eq!(
             version.path,

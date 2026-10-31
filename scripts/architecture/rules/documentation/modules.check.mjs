@@ -110,13 +110,13 @@ test('reference groups express distinct roles with compact, independently sorted
     assert.ok(messages(moduleDiagnostics(fixtures(invalid, indexText, { 'AGENTS.md': '' }))).length > 0);
 });
 
-test('colocated tests keep the corresponding production owner', () => {
+test('ownership inference retains the corresponding production owner independently of document grammar', () => {
   const map = indexText + '- [另一模块](modules/other.md)：其它职责。\n';
   const other = validDoc
     .replace('# 样例模块', '# 另一模块')
     .replace('### 拥有\n\n', '### 拥有\n\n- `src/domain/sample.spec.ts`：行为验证。\n\n### 消费\n\n');
   const failures = messages(
-    moduleDiagnostics(
+    moduleOwnershipRule.check(
       fixtures(validDoc, map, {
         '.zcode/modules/other.md': other,
         'src/domain/sample.spec.ts': '',
@@ -125,6 +125,38 @@ test('colocated tests keep the corresponding production owner', () => {
   );
   assert.ok(failures.some((failure) => failure.includes('test ownership conflicts')));
   assert.equal(failures.length, 1);
+});
+
+test('every module reference group rejects test entry files', () => {
+  for (const group of ['拥有', '消费', '装配', '关联'])
+    for (const path of [
+      'src/domain/sample.spec.ts',
+      'src/domain/sample.test.tsx',
+      'scripts/sample.check.mjs',
+      'src-tauri/src/sample_test.rs',
+      'src-tauri/src/sample_tests.rs',
+    ]) {
+      const doc = validDoc.replace('### 拥有', '### ' + group).replace('src/domain/sample.ts', path);
+      const context = fixtures(doc, indexText, { [path]: '' });
+      const failure = moduleStructureRule.check(context).find((item) => item.message.includes('must not reference test files'));
+      assert.ok(failure);
+      assert.equal(failure.ruleId, 'module-structure');
+      assert.equal(failure.file, moduleRel);
+      assert.equal(failure.line, doc.split('\n').findIndex((line) => line.includes('- `' + path + '`')) + 1);
+      assert.equal(failure.column, 1);
+    }
+});
+
+test('production check entry points and shared fixture helpers remain valid references', () => {
+  for (const path of ['scripts/architecture/check.mjs', 'src/test/fixtures/settings.ts', 'src/test/unit/ui-stubs.ts']) {
+    const doc = validDoc.replace('src/domain/sample.ts', path);
+    assert.equal(
+      moduleStructureRule
+        .check(fixtures(doc, indexText, { [path]: '' }))
+        .some((item) => item.message.includes('must not reference test files')),
+      false,
+    );
+  }
 });
 
 test('owned directory descendants have one owner while consumption may be shared', () => {

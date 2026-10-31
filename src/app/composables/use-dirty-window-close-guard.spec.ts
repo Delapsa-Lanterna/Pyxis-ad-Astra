@@ -38,8 +38,8 @@ vi.mock('@/windows/current.window', () => ({
     return vi.fn();
   },
 }));
-vi.mock('@/windows/tauri.events', () => ({
-  listenWindowEvent: async (_event: string, handler: (intent: WindowCloseIntent) => unknown) => {
+vi.mock('@/shared/runtime/event.runtime', () => ({
+  listenAppEvent: async (_event: string, handler: (intent: WindowCloseIntent) => unknown) => {
     api.listener.mockImplementation(handler);
     return vi.fn();
   },

@@ -2,8 +2,11 @@ pub(super) mod core;
 pub(super) mod documents;
 pub(super) mod engine_styles;
 pub(super) mod json_documents;
+pub(super) mod roots;
 #[cfg(test)]
 mod tests;
+
+pub(crate) use roots::resolve_core_root;
 
 use crate::{
     errors::{AppError, AppResult},
@@ -20,25 +23,6 @@ use std::{
 };
 
 static CACHE_ROOT: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
-
-/// Resolve one authorized Core source for opening and window queries.
-pub(crate) fn resolve_core_root(
-    override_root: Option<&str>,
-    game_root: Option<&str>,
-    mod_root: Option<&Path>,
-) -> AppResult<Option<PathBuf>> {
-    if let Some(root) = override_root {
-        return crate::services::directory_opening::resolve_game_mods_directory(Path::new(root))
-            .map(|(root, _)| Some(root));
-    }
-    let root = game_root
-        .map(PathBuf::from)
-        .or_else(|| mod_root.and_then(crate::services::directory_opening::infer_starsector_root));
-    root.map(|root| {
-        FsRootBoundary::new(&root, "starsector root").map(|boundary| boundary.root().to_path_buf())
-    })
-    .transpose()
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 enum ParsedSource {

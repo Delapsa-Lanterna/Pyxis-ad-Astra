@@ -30,7 +30,8 @@
 
 - 模块文档只允许最多 300 行。
 - `参考` 必须按拥有、消费、装配、关联的固定顺序使用 H3，空分组必须省略。
-- 拥有必须登记本模块维护的实现、契约、测试及资产。
+- 拥有必须登记本模块维护的实现、契约及资产，测试文件必须继承实现归属。
+- 模块文档严禁引用 .spec、.test、.check 及 Rust _test、_tests 命名的测试文件；测试归属必须按实现或所属目录推导。
 - 消费必须登记本模块使用的外部能力；装配必须登记连接本模块的外部宿主。
 - 关联必须登记上下文、跨职责内容或其它关联证据。
 - 参考分组必须使用紧凑 `- 反引号路径+全角冒号+非空备注` 列表，组内必须按路径字典序排列。
@@ -58,11 +59,13 @@
 ## 公共文件
 
 - `scripts/shared/`：工程检查与浏览器验收共享的仓库遍历、语言解析、位置及样本统计工具。
+- `src-tauri/src/app_data_dir.rs`：Tauri 工具私有数据目录解析。
 - `src-tauri/src/diagnostics.rs`：跨层诊断写入接口。
 - `src-tauri/src/errors.rs`：错误、位置与诊断公共定义。
+- `src-tauri/src/json_overlay.rs`：JSON 值的对象递归覆盖与数组、叶值整体替换纯运算。
 - `src-tauri/src/models/`：前后端协议、模型与公共数据转换。
-- `src-tauri/src/testutil.rs`：Rust 测试共享夹具。
-- `src-tauri/src/testutil_tests.rs`：Rust 测试工作区的分配、释放与并发验证。
+- `src-tauri/src/test_support.rs`：Rust 测试共享文件工作区、路径夹具与进程隔离。
+- `src-tauri/src/test_support_tests.rs`：Rust 测试工作区的分配、释放与并发验证。
 - `src/app/components/editors/common/`：编辑与预览共同的标题、页脚、检查器和保留输入的分组展示。
 - `src/app/composables/use-query-read-owner.ts`：Vue 读取票据的作用域交接。
 - `src/domain/cache-limits.ts`：缓存预算的前端校验。
@@ -84,7 +87,7 @@
 - [后端能力与 IPC 传输](modules/backend-capabilities.md)：说明最小传输、透明错误、command 归属与公开能力授权。
 - [应用反馈与错误恢复](modules/app-feedback.md)：说明反馈工厂、确认、诊断文案和授权文件恢复。
 - [应用日志](modules/app-log.md)：说明四档记录、自动过程事件、批量写入、进程停写及文件维护。
-- [工具配置维护](modules/app-config.md)：说明工具私有目录解析、创建与系统打开。
+- [工具配置维护](modules/app-config.md)：说明工具私有目录创建与系统打开。
 - [Core 索引与加载](modules/core-assets.md)：说明根代次、fields/graphics 独立状态、读取与释放。
 - [目录打开](modules/directory-opening.md)：说明目录选择、游戏或 Mod 识别、canonical root、ProjectSession 建立与打开 outcome。
 - [新建 Mod](modules/mod-creation.md)：说明 Mod 父目录、最小目录骨架、`mod_info.json` renderer 与创建后的受信 session 打开。

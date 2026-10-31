@@ -26,9 +26,9 @@ export interface ImmersiveEditorDefinition<TPanel extends ImmersivePanelState = 
   label: string;
   editableRecords: (snapshot: JointEditSnapshot) => string[];
   project: (snapshot: JointEditSnapshot, values: Record<string, JointValue>, projection: JointEditSnapshot | null) => TPanel;
-  references: (snapshot: JointEditSnapshot, values: Record<string, JointValue>) => unknown[];
-  media: (panel: TPanel) => ResourceRef[];
-  retainDisplayReferences: boolean;
+  projectionInputs: (snapshot: JointEditSnapshot, values: Record<string, JointValue>) => JsonValue;
+  displayResources: (panel: TPanel) => ResourceRef[];
+  retainProjectedContent: boolean;
   updateField?: typeof updateImmersiveField;
 }
 

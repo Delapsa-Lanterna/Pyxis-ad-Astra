@@ -9,7 +9,6 @@
 ### 拥有
 
 - `src-tauri/src/commands/misc_config.rs`：会话范围校验、根事务及正式提交。
-- `src-tauri/src/commands/misc_config_tests.rs`：文件读写、版本冲突、内容保留与历史回放验证。
 - `src-tauri/src/domain/misc_config.rs`：文件种类、固定路径与所属内容校验。
 - `src-tauri/src/services/misc_config.rs`：完整目录、逐文件读取、JSON 渲染与文件变更集。
 - `src/services/misc-config.service.ts`：读取票据、路径失效和写入协议包装。
@@ -22,7 +21,9 @@
 - `schemas/sounds.schema.json`：音效、声音组与音乐格式及字段定义。
 - `src-tauri/src/domain/schema.rs`：字段结构、条件必填及分支约束校验。
 - `src-tauri/src/io/`：路径授权、版本、JSON 原文保留与文件变更集。
-- `src-tauri/src/models/misc_config.rs`：文件种类、查询记录、保存与删除协议。
+- `src-tauri/src/json_overlay.rs`：有效配置校验前消费的公共 JSON 值覆盖纯运算。
+- `src-tauri/src/models/document_identity.rs`：配置文件类别与文档来源身份。
+- `src-tauri/src/models/misc_config.rs`：配置查询记录、保存与删除协议。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产读取。
 - `src-tauri/src/services/write_transactions.rs`：根事务、版本校验、历史及提交同步。
 - `src/domain/json-editor/misc-config-files.ts`：文件种类、用途、文件名、路径、表单、初始内容与文档投影。

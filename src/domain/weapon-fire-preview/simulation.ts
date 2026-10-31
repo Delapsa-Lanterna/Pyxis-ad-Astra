@@ -3,7 +3,7 @@ import type { DeepReadonly, RowData } from '@/shared/types';
 import { arr, num, str } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';
 import { createFiringState, scheduleShots } from './firing';
-import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import type { WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 import type { ProjectileAppearance } from '@/domain/editors/projectile-appearance';
 import type { WeaponFirePreviewDefinition } from './preview-definition';
 

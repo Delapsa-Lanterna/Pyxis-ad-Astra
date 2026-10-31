@@ -6,7 +6,7 @@ import { recordPerformance, performanceMonitorEnabled } from '@/shared/runtime/p
 import { warningNotice } from '@/shared/lib/errors';
 import { useThumbnailPreload } from './use-thumbnail-preload';
 import { resourceThumbnailRequest } from './use-resource-thumbnail';
-import { useLayoutFrame } from './use-layout-frame';
+import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 
 interface RegisteredMedia {
   id: string;

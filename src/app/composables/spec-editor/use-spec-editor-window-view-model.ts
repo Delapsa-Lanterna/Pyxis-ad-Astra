@@ -14,7 +14,6 @@ import type { SpecEditorDefinition, SpecEditorTarget } from './spec-editor.types
 import { isReadInvalidated } from '@/shared/runtime/read-request';
 import { computed, shallowReactive, shallowRef, watch } from 'vue';
 import { createSpecProblems } from './use-spec-problems';
-import type { UnlistenFn } from '@/windows/tauri.events';
 import { loadSpecEditorImport, saveSpecEditorSpecByKind } from '@/services/spec-editor.service';
 import type { SpecEditorKind, RowData, WriteResult, SpecEditorData, CommittedWriteEvent } from '@/shared/types/index';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -140,8 +139,8 @@ export function useSpecEditorWindowViewModel(
   const loading = draftSession.loading;
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
   const errorText = shallowRef('');
-  let unlistenChanges: UnlistenFn | null = null;
-  let unlistenIdentity: UnlistenFn | null = null;
+  let unlistenChanges: Awaited<ReturnType<typeof listenSavedContent>> | null = null;
+  let unlistenIdentity: Awaited<ReturnType<typeof listenSavedIdentity>> | null = null;
   let disposed = false;
   const editorData = computed(() => {
     const data = draftSession.baselineSnapshot.value?.meta.data;

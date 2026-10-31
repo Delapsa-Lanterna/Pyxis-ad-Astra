@@ -1,8 +1,14 @@
 #[cfg(test)]
 use super::test_support::project_workspace;
+mod access;
+pub(super) mod references;
+mod registry;
 use crate::services::project::sources::json_documents::{
     load_skin_files_from, load_variant_files_from,
 };
+pub(crate) use access::lock_ready_session;
+pub(super) use registry::{RegisteredSession, lock_registry};
+pub(crate) use registry::{lock_session, session_handle};
 use std::sync::{RwLock, RwLockWriteGuard, atomic::AtomicBool};
 static OPENINGS: RwLock<()> = RwLock::new(());
 static OPENINGS_HELD: AtomicBool = AtomicBool::new(false);
@@ -28,13 +34,13 @@ pub fn hold_session_openings() -> AppResult<SessionOpeningPause> {
     }
 }
 pub fn registered_session_ids() -> AppResult<Vec<String>> {
-    Ok(cache::lock_registry()?.keys().cloned().collect())
+    Ok(lock_registry()?.keys().cloned().collect())
 }
 use super::model::{
     MISSION_LIST_REL_PATH, MISSION_LIST_TABLE_KEY, ProjectSession, SessionCsvTable, SpecBundle,
 };
 use super::{
-    cache::{self, lock_session, session_handle},
+    cache,
     definitions::{factions, projectiles, table_definitions},
     performance::PerformanceTrace,
     sources,
@@ -53,10 +59,10 @@ use std::{
 };
 
 pub fn close_project_session(session_id: String) -> AppResult<()> {
-    let removed = cache::lock_registry()?.remove(&session_id);
+    let removed = lock_registry()?.remove(&session_id);
     if let Some(registered) = removed {
         let root = registered.root;
-        let same_root = cache::lock_registry()?
+        let same_root = lock_registry()?
             .values()
             .any(|registered| registered.root == root);
         if !same_root {
@@ -64,7 +70,7 @@ pub fn close_project_session(session_id: String) -> AppResult<()> {
         }
     }
     cache::clear_sprite_media_for_session(&session_id);
-    cache::references::reference_sources_changed(Some(&session_id))?;
+    references::reference_sources_changed(Some(&session_id))?;
     Ok(())
 }
 
@@ -110,7 +116,7 @@ pub(crate) fn affected_session_ids(
     changes: &[FileChangeRecord],
 ) -> AppResult<Vec<(String, String)>> {
     let mut affected = Vec::new();
-    for (session_id, registered) in cache::lock_registry()?.iter() {
+    for (session_id, registered) in lock_registry()?.iter() {
         let root_key = crate::models::windows_path_key(&registered.root);
         if changes.iter().any(|change| {
             [&change.before_path, &change.after_path]
@@ -134,7 +140,7 @@ pub(crate) fn mark_projection_pending(session_id: &str) -> AppResult<()> {
 
 pub(crate) fn current_projection(session_id: &str) -> AppResult<ProjectSessionInvalidationResult> {
     let handle = session_handle(session_id)?;
-    let session = cache::lock_ready_session(&handle)?;
+    let session = lock_ready_session(&handle)?;
     Ok(ProjectSessionInvalidationResult {
         manifest: session.manifest.clone(),
         invalidation: ProjectInvalidation::default(),
@@ -163,10 +169,10 @@ pub(crate) fn open_project_session_traced(
     }
     let session = build_project_session(mod_root, starsector_root_override, trace)?;
     let manifest = session.manifest.clone();
-    let mut guard = cache::lock_registry()?;
+    let mut guard = lock_registry()?;
     guard.insert(
         manifest.session_id.clone(),
-        cache::RegisteredSession {
+        RegisteredSession {
             session_id: manifest.session_id.clone(),
             root: manifest.mod_root.clone(),
             handle: Arc::new(Mutex::new(session)),
@@ -792,7 +798,7 @@ mod tests {
 
     #[test]
     fn persistent_project_index_reuses_matching_sources_and_rebuilds_changed_sources() {
-        if crate::testutil::isolated_test() {
+        if crate::test_support::isolated_test() {
             return;
         }
         use super::sources::json_documents::take_load_counts;
@@ -972,12 +978,9 @@ pub fn refresh_project_sources(
     sources: Vec<crate::models::InvalidatedResourceScope>,
 ) -> AppResult<ProjectSessionInvalidationResult> {
     let handle = session_handle(session_id)?;
-    let root = cache::lock_ready_session(&handle)?
-        .manifest
-        .mod_root
-        .clone();
+    let root = lock_ready_session(&handle)?.manifest.mod_root.clone();
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root))?;
-    let mut session = cache::lock_ready_session(&handle)?;
+    let mut session = lock_ready_session(&handle)?;
     let invalidation = super::invalidation::refresh_sources(&mut session, &sources)?;
     Ok(ProjectSessionInvalidationResult {
         manifest: session.manifest.clone(),

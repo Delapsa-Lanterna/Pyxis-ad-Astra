@@ -8,7 +8,6 @@
 
 ### 拥有
 
-- `src/app/app-feedback.spec.ts`：诊断、文案、确认和动作展示验证。
 - `src/app/app-feedback.ts`：提示、确认、诊断日志及文件动作展示。
 - `src/app/components/FeedbackFileActions.vue`：必须消费窗口反馈交付的文件动作并渲染列表按钮。
 - `src/app/composables/use-app-feedback.ts`：窗口反馈的提供与消费入口。

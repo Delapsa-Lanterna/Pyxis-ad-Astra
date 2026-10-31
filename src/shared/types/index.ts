@@ -111,15 +111,15 @@ export type {
   CsvRowOrderEntry,
   CsvSave,
 } from '@/shared/types/table-save.types';
+export type { JsonSourceConfirmation, JsonWriteOptions } from './json-write.types';
 export type { SaveAction, SaveRequest } from '@/shared/types/save-action.types';
 export type {
   CsvRowKeyMapping,
-  JsonSourceConfirmation,
-  JsonWriteOptions,
   WriteResult,
   WriteContent,
   WriteContentTarget,
   SaveDelivery,
+  SaveAcceptanceTask,
   SaveEdit,
   CommittedSessionUpdate,
   CommittedWriteEvent,

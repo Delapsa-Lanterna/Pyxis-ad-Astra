@@ -25,7 +25,6 @@ import { projectResourcesBoundaryRule } from './rules/modules/resources/project-
 import { resourceBoundaryRule } from './rules/modules/resources/resource-boundary.mjs';
 import { parserBoundaryRule } from './rules/modules/schema/parser-boundary.mjs';
 import { schemaModuleBoundaryRule } from './rules/modules/schema/schema-module-boundary.mjs';
-import { windowBoundaryRule } from './rules/modules/windowing/window-boundary.mjs';
 import { workspaceModuleBoundaryRule } from './rules/modules/workspace/workspace-module-boundary.mjs';
 import { workspacePersistenceBoundaryRule } from './rules/modules/workspace/workspace-persistence-boundary.mjs';
 import { moduleStructureRule } from './rules/documentation/module-structure.mjs';
@@ -56,7 +55,6 @@ export const rules = [
   resourceBoundaryRule,
   parserBoundaryRule,
   schemaModuleBoundaryRule,
-  windowBoundaryRule,
   workspaceModuleBoundaryRule,
   workspacePersistenceBoundaryRule,
   capabilityBoundaryRule,

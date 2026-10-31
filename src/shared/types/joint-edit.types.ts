@@ -1,15 +1,10 @@
-import type {
-  EntityEditTarget,
-  EntityFileLocation,
-  CsvTableKey,
-  ResourceRef,
-  FileVersion,
-  JointEditRoot,
-} from '@/shared/types/project-identity.types';
+import type { EntityEditTarget, EntityFileLocation, CsvTableKey, ResourceRef, FileVersion } from '@/shared/types/project-identity.types';
 import type { JsonValue, DeepReadonly } from './json.types';
-import type { JsonWriteOptions, WriteResult } from './write-commit.types';
+import type { JsonWriteOptions } from './json-write.types';
+import type { WriteResult } from './write-commit.types';
 
-export type { JointEditKind, JointEditRoot } from './project-identity.types';
+import type { JointEditRoot } from './joint-target.types';
+export type { JointEditKind, JointEditRoot } from './joint-target.types';
 export interface JointEditQuery {
   root: JointEditRoot;
   rowKey: string | null;

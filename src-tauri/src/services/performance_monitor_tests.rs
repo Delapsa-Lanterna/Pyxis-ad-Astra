@@ -1,6 +1,6 @@
 use super::*;
 #[cfg(test)]
-use crate::testutil::TestWorkspace;
+use crate::test_support::TestWorkspace;
 
 fn sample(duration: f64) -> PerformanceSample {
     PerformanceSample {

@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch, type ShallowRef } from 'vue';
 import type { DeepReadonly, RowData, WeaponFirePreviewData } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
-import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import type { WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 import { createWeaponFirePreviewDefinition, type WeaponFirePreviewDefinition } from '@/domain/weapon-fire-preview/preview-definition';
 import {
   createWeaponFirePreviewState,

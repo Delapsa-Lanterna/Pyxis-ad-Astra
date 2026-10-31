@@ -1,6 +1,6 @@
 import { inject, ref, shallowRef, watch, nextTick, onScopeDispose } from 'vue';
 import { immersiveBlockedKey } from '@/app/components/immersive/immersive-render-context';
-import { useLayoutFrame } from './use-layout-frame';
+import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 
 export function useImmersiveHover<T>(width: () => number, side: () => 'left' | 'right' = () => 'right') {
   const blocked = inject(immersiveBlockedKey, ref(false));

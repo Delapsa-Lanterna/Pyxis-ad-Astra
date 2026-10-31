@@ -1,4 +1,5 @@
-use super::{JsonWriteOptions, ProjectSessionId, required_nullable};
+use super::serde_fields::deserialize_nullable;
+use super::{JsonWriteOptions, ProjectSessionId};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -59,7 +60,7 @@ pub struct IndexedConfigSave {
     pub session_id: ProjectSessionId,
     pub mod_root: String,
     pub kind: IndexedConfigKind,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub previous_id: Option<String>,
     pub next_id: String,
     pub index_row: Map<String, Value>,

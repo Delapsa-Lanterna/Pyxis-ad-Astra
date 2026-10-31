@@ -1,4 +1,5 @@
-use super::super::cache::{lock_session, session_handle};
+use super::super::session::{lock_session, session_handle};
+
 use crate::services::project::query::entity_targets::query_entity_edit_target;
 use crate::{
     errors::{AppError, AppResult},

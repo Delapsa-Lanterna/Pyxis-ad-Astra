@@ -1,7 +1,8 @@
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 import { useProjectStore } from '@/stores/project.store';
 import { useFileHistoryStore } from '@/stores/file-history.store';
-import { useProjectSyncStore, type PendingWriteSync, type SaveTask } from '@/stores/project-sync.store';
+import { useProjectSyncStore, type PendingWriteSync } from '@/stores/project-sync.store';
+import type { SaveAcceptanceTask } from '@/shared/types';
 import { markProjectionReady, acceptReferenceRevision, setReferenceReadiness } from '@/services/project-projection.service';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { InvalidatedResourceScope, CommittedWriteEvent, ProjectSessionInvalidationResult } from '@/shared/types';
@@ -21,7 +22,7 @@ import { pathBelongsToRoot, relativePathFromRoot, normalizeRelPath } from '@/sha
 import { invalidateQueryCacheByProject } from '@/services/query-cache.service';
 import { invalidateResourceMediaByProject } from '@/services/resource-media.service';
 
-type SaveHandler = (event: CommittedWriteEvent) => ReturnType<SaveTask>;
+type SaveHandler = (event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>;
 interface ContentOwner {
   handler: SaveHandler;
   release?: (sessionId: string) => void;
@@ -32,7 +33,7 @@ interface SaveConsumers {
   identity: Set<SaveHandler>;
   ready: Promise<void>;
   processing: Promise<void>;
-  sources: Map<string, { receive: () => SaveTask[]; fail: (error: unknown) => void }>;
+  sources: Map<string, { receive: () => SaveAcceptanceTask[]; fail: (error: unknown) => void }>;
 }
 const windows = new WeakMap<ReturnType<typeof useProjectSyncStore>, SaveConsumers>();
 let displayReady: Promise<void> | null = null;
@@ -138,7 +139,7 @@ function consumers() {
       tasks.push(async () => {
         if (identity.has(handler)) return handler(event);
       });
-    function ownedTask(owner: ContentOwner, task: SaveTask): SaveTask {
+    function ownedTask(owner: ContentOwner, task: SaveAcceptanceTask): SaveAcceptanceTask {
       return async () => {
         if (!content.has(owner)) return;
         const result = await task();
@@ -222,7 +223,7 @@ export type SavedWriteOperation<T> = import('@/shared/runtime/command.runtime').
 
 export function beginSavedWrite<T>(
   write: (request: import('@/shared/runtime/command.runtime').SaveCommandRequest) => Promise<T>,
-  accept: (value: Exclude<T, void | null>) => SaveTask[],
+  accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[],
 ): SavedWriteOperation<T> {
   const id = crypto.randomUUID();
   const window = consumers();

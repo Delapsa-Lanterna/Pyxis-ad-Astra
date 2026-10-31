@@ -9,7 +9,7 @@ import {
   weaponBarrelOffsetsFor,
   weaponOffsetsKey,
   weaponSpriteDrawOrder,
-} from './weapon-sprite-fields';
+} from '@/shared/lib/starsector/weapon-sprite-fields';
 
 describe('weapon sprite field registry', () => {
   it.each(['turret', 'hardpoint'] as const)('orders %s layers using the barrel rendering hint', (mode) => {

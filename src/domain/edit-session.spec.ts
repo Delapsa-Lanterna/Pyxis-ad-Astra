@@ -15,6 +15,7 @@ import {
   pushRedoEntry,
   pushUndoEntry,
   setUndoStackLimit,
+  retainLaterDraft,
 } from './edit-session';
 import type { EditWriteTarget } from '@/shared/types';
 
@@ -256,5 +257,22 @@ describe('createUndoStackState', () => {
     expect(count.value).toBe(1);
     popUndoEntry(stack);
     expect(count.value).toBe(0);
+  });
+});
+
+describe('saved draft acceptance', () => {
+  it('retains a later undo while accepting the other fields from the actual saved result', () => {
+    expect(retainLaterDraft({ speed: 80, name: 'before' }, { speed: 100, name: 'before' }, { speed: 100, name: 'after' })).toEqual({
+      speed: 80,
+      name: 'after',
+    });
+  });
+  it('preserves later removal, addition, arrays and prototype-named business fields', () => {
+    const current = JSON.parse('{"__proto__":{"v":2},"list":[2],"added":3}');
+    const submitted = JSON.parse('{"__proto__":{"v":1},"list":[1],"removed":2}');
+    const saved = JSON.parse('{"__proto__":{"v":1,"other":4},"list":[1],"removed":2}');
+    const result = retainLaterDraft(current, submitted, saved);
+    expect(result).toEqual(JSON.parse('{"__proto__":{"v":2,"other":4},"list":[2],"added":3}'));
+    expect(Object.hasOwn(result, '__proto__')).toBe(true);
   });
 });

@@ -21,7 +21,7 @@ import { committedChangeFixture, dispatchProjectChangeFixture } from '@/test/uni
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
-  identityHandler: null as null | ((event: import('@/windows/window.events').CommittedWriteEvent) => Promise<void>),
+  identityHandler: null as null | ((event: import('@/shared/types').CommittedWriteEvent) => Promise<void>),
   querySpecEditorData: vi.fn(),
   saveSpecEditorSpecByKind: vi.fn(),
   loadSpecEditorImport: vi.fn(),

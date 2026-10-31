@@ -116,6 +116,8 @@ function checkReferences(body, start, paths, report) {
     entries++;
     const path = /** @type {string} */ (match[1]),
       identity = path.replace(/\/$/, '');
+    if (/(?:^|[/.])(?:spec|test)\.[cm]?[jt]sx?$/.test(path) || /\.check\.[cm]?[jt]sx?$/.test(path) || /_tests?\.rs$/.test(path))
+      report(start + index, 'module documents must not reference test files: ' + path);
     const parts = identity.split('/');
     if (
       path !== path.trim() ||

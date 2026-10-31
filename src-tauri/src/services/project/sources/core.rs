@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn persistent_core_cache_rejects_changed_source_content() {
-        if crate::testutil::isolated_test() {
+        if crate::test_support::isolated_test() {
             return;
         }
         let root = project_workspace("persistent_core_cache");

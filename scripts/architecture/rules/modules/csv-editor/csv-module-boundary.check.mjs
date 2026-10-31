@@ -18,3 +18,32 @@ test('grid cell selection retains its dedicated picker boundary', () => {
   });
   assert.equal(messages(csvModuleBoundaryRule.check(files)).length, 1);
 });
+
+test('history capacity references belong to window assembly with or without a grid', () => {
+  for (const withGrid of [false, true])
+    for (const expression of ['csv.setHistoryLimit(1);', 'watch(limit,csv.setHistoryLimit);']) {
+      const source = "import {useCsvEditorStore as history} from '@/stores/csv-editor.store'; const csv=history();\n" + expression;
+      const provider = { 'src/stores/csv-editor.store.ts': 'export function useCsvEditorStore() {}' };
+      /** @type {Record<string, string>} */
+      const grid = withGrid ? { 'src/app/components/csv-editor/CsvGrid.vue': '<template><div /></template>' } : {};
+      const legal = architectureFixtures({ ...provider, ...grid, 'src/app/composables/use-app-lifecycle-assembly.ts': source });
+      assert.deepEqual(csvModuleBoundaryRule.check(legal), []);
+      const invalid = architectureFixtures({ ...provider, ...grid, 'src/orchestrators/settings-persistence.orchestrator.ts': source });
+      const [diagnostic] = csvModuleBoundaryRule.check(invalid);
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.ruleId, 'csv-module-boundary');
+      assert.equal(diagnostic.file, 'src/orchestrators/settings-persistence.orchestrator.ts');
+      assert.equal(diagnostic.line, 2);
+      assert.ok(diagnostic.column > 0);
+      assert.equal(diagnostic.symbol, 'setHistoryLimit');
+      assert.equal(diagnostic.target, 'src/stores/csv-editor.store.ts');
+      assert.equal(diagnostic.expected, 'src/app/composables/use-app-lifecycle-assembly.ts');
+    }
+});
+
+test('local history functions retain their local meaning', () => {
+  const local = architectureFixtures({
+    'src/app/composables/use-history.ts': 'function setHistoryLimit() {} setHistoryLimit(); watch(limit,setHistoryLimit);',
+  });
+  assert.deepEqual(csvModuleBoundaryRule.check(local), []);
+});

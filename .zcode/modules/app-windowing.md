@@ -20,14 +20,14 @@
 - `src/services/window.service.ts`：窗口 command 的类型化签名与参数装配。
 - `src/windows/current.window.ts`：当前窗口生命周期，提供关闭请求、关闭监听、最小化、最大化、拖拽、重载与显示。
 - `src/windows/managed.window.ts`：请求交付，等待所属请求的终结回执。
-- `src/windows/tauri.events.ts`：跨窗口事件监听与发送封装。
-- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及设置版本的前端运行态。
-- `src/windows/window.events.ts`：窗口事件名与 payload 类型。
+- `src/windows/window-context.window.ts`：只读上下文、请求监听接纳及上下文版本的前端运行态。
+- `src/windows/window.events.ts`：窗口关闭、请求可用与实例释放的协议事件名。
 
 ### 消费
 
 - `src-tauri/src/models/window.rs`：规格、文本与恢复窗口的判别身份、Windows 路径比较键与生命周期消息。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：规格窗口名称、初始及最小尺寸的定义入口。
+- `src/shared/runtime/event.runtime.ts`：公共事件注册、载荷和错误交接，解除由窗口运行态持有。
 - `src/shared/types/window.types.ts`：前端窗口输入、上下文与交付结果模型。
 - `src/windows/file-editor.window.ts`：文件编辑器窗口请求，承载常规与错误恢复两种请求形状。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
@@ -39,7 +39,7 @@
 ## 边界
 
 - Rust 登记拥有原生 label 范围的身份、标题、最近接纳输入、最新待交付请求、递增版本与终结结果。
-- 事件注册表拥有事件名与 payload，监听入口拥有接纳、错误交付和卸载释放。
+- 窗口事件名归窗口协议，公共运行时交付监听，窗口上下文和关闭守卫持有接纳、顺序及解除。
 - 保存及身份编排消费原生登记、预约、聚焦和释放能力。
 - 关闭守卫消费会话与活动输入的聚合 dirty，并拥有同一关闭意图的等待与确认。
 - 前端上下文运行态拥有只读投影、通知监听及回执编排，业务 ViewModel 拥有输入转换和业务状态。
@@ -117,7 +117,7 @@
 - 获准窗口必须在销毁前完成性能尾批交付；观测交付失败必须继续已确认的关闭。
 - 规格、文本、CSV 关联和配置身份准备遇到目标已存在时，必须消费错误中的正式 target 聚焦所属实例，再报告原始冲突；配置列表的同 ID 拒绝必须消费所属已加载目标。
 - 规格身份必须分别表达 `sessionId`、kind、`modRoot` 与 id；文本身份必须分别表达 `sessionId`、`modRoot` 与 path；恢复身份必须分别表达 nullable `modRoot` 与 path。
-- 跨窗口事件必须使用事件名注册表的常量，严禁裸字符串事件名。
+- 窗口生命周期事件必须消费窗口事件常量，日志与设置通知必须消费所属 service 的类型化入口。
 - 身份交接必须共同更新原生登记、可重载上下文、ViewModel 目标、标题与事件过滤；再次打开新身份必须复用已交接实例。
 - 身份改名必须登记下一规格身份与文本路径占用；联合编辑的物理预约必须由保存准备完成后的目标集合提供，并保留已协调窗口。
 - 重载当前窗口必须走当前窗口生命周期 owner，与实现保持同一命名。

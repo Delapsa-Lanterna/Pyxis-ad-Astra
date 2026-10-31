@@ -1,7 +1,6 @@
 import { defineRule } from '../../diagnostics.mjs';
 
 const allowedServiceEdges = new Set([
-  'app_config -> app_paths',
   'app_lifecycle -> windows',
   'app_lifecycle -> project',
   'app_lifecycle -> project_session',
@@ -9,13 +8,9 @@ const allowedServiceEdges = new Set([
   'app_lifecycle -> file_history',
   'app_lifecycle -> performance_monitor',
   'app_config -> system_open',
-  'app_log -> app_paths',
   'app_log -> app_settings',
   'app_log -> system_open',
-  'app_settings -> app_paths',
   'app_settings -> workspace_persistence',
-  'performance_monitor -> app_paths',
-  'project_session -> app_paths',
   'project_session -> app_settings',
   'project_session -> directory_opening',
   'project_session -> project',
@@ -28,8 +23,8 @@ const allowedServiceEdges = new Set([
   'json_file -> project',
   'misc_config -> project',
   'windows -> project',
-  'mod_creation -> directory_opening',
-  'workspace_persistence -> app_paths',
+  'directory_opening -> project',
+  'mod_creation -> project',
   'write_transactions -> app_settings',
   'write_transactions -> file_history',
   'write_transactions -> project',

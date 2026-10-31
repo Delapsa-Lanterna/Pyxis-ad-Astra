@@ -7,7 +7,7 @@ use crate::{
         EntityKind, JsonDocumentOrigin, JsonRecoveryRequest, JsonSourceIdentity, JsonSourceRestore,
     },
     services::{project, query_entity},
-    testutil::TestWorkspace,
+    test_support::TestWorkspace,
 };
 use serde_json::{Value, json};
 
@@ -110,7 +110,7 @@ other,unrelated
         plan: crate::models::JsonRecoveryPlan,
     ) -> Result<crate::models::WriteResult<crate::models::JsonRecoveryPlan>, crate::errors::AppError>
     {
-        crate::testutil::commit_saved::<crate::models::JsonRecoveryPlan>(
+        crate::services::write_transactions::commit_saved::<crate::models::JsonRecoveryPlan>(
             crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
                 session_id: self.request.session_id.clone(),
                 mod_root: self.request.mod_root.clone(),

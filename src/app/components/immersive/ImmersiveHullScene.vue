@@ -39,7 +39,7 @@ import { useCanvasNavigation } from '@/app/composables/canvas/use-canvas-navigat
 import { useCanvasSelection } from '@/app/composables/canvas/use-canvas-selection';
 import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { watchCanvasPixelRatio } from '@/app/composables/canvas/use-canvas-surface';
-import { useLayoutFrame } from '@/app/composables/use-layout-frame';
+import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { drawWeaponSlotVisual, weaponSlotStyle } from '@/app/renderers/editors/weapon-slot-renderer';
 import { paintImmersiveHull } from '@/app/renderers/immersive/hull-scene';
 import { immersiveHullPoint, type ImmersiveWingLayout } from '@/domain/immersive/hull-scene';

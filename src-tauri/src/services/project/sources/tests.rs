@@ -132,7 +132,7 @@ fn source_version_matches_content() {
 
 #[test]
 fn source_cache_partial_reuse() {
-    if crate::testutil::isolated_test() {
+    if crate::test_support::isolated_test() {
         return;
     }
     let root = project_workspace("partial_source_cache");

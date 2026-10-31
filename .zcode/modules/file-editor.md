@@ -14,7 +14,6 @@
 - `src/app/composables/editors/use-file-editor-view-model.ts`：编辑 ViewModel，拥有文本 Draft Session、加载、保存、undo/redo 与行列聚焦。
 - `src/orchestrators/file-editor-window.orchestrator.ts`：从正式回执及变更集提取所属路径的完整文本。
 - `src/services/files.service.ts`：文本读取、身份交接、保存与转码的 IPC 参数装配。
-- `src/windows/file-editor-window.spec.ts`：诊断文件的结构化恢复窗口交付验证。
 - `src/windows/file-editor.window.ts`：必须消费完整文件请求并交付常规与恢复模式窗口身份。
 
 ### 消费
@@ -24,7 +23,7 @@
 - `src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/shared/types/file-editor.types.ts`：文本读取、保存、转码与身份请求协议。
-- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 
 ### 装配
 

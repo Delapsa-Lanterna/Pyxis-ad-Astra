@@ -36,7 +36,7 @@ import type {
   IndexedConfigSave,
   SourceOptionGroup,
 } from '@/shared/types';
-import type { CommittedWriteEvent } from '@/windows/window.events';
+import type { CommittedWriteEvent } from '@/shared/types';
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),

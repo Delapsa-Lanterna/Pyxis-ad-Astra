@@ -1,6 +1,7 @@
+use super::collections::push_unique_all;
+use super::serde_fields::deserialize_non_empty_string;
 use super::{
     CsvTableKey, EntityKind, FileChangeRecord, GameScanWarning, ProjectSessionId, ResourceSource,
-    push_unique_all, required_nullable_non_empty_string,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -103,7 +104,7 @@ pub struct EntitySummaries {
 #[serde(rename_all = "camelCase")]
 pub struct OpenProjectSessionPayload {
     pub mod_root: String,
-    #[serde(deserialize_with = "required_nullable_non_empty_string")]
+    #[serde(deserialize_with = "deserialize_non_empty_string")]
     pub starsector_root: Option<String>,
 }
 

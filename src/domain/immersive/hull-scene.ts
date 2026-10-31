@@ -11,7 +11,7 @@ import type {
 import { hullFieldValue, hullDataIndex } from './hull-fields';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
-import { mountedWeaponImages, type MountedWeaponImages } from '@/domain/editors/weapon-images';
+import { mountedWeaponImages, type MountedWeaponImages } from '@/shared/lib/starsector/weapon-images';
 
 export interface ImmersiveHullProjection {
   key: string;

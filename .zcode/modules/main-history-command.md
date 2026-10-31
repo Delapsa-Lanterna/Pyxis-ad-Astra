@@ -11,7 +11,6 @@
 - `src/app/composables/use-main-window-shortcuts.ts`：主窗口快捷键装配，连接保存注册表与历史编排。
 - `src/app/composables/use-shortcut-dispatch.ts`：快捷键分发唯一，拥有 window 监听、命令路由、纯键表分发与命中拦截。
 - `src/domain/workspace/main-window-commands.ts`：快捷键命令映射唯一，拥有 undo/redo/save/close 键位表与输入焦点豁免策略。
-- `src/orchestrators/main-history-command.orchestrator.spec.ts`：JSON、CSV 与文件历史的分派优先级验证。
 - `src/orchestrators/main-history-command.orchestrator.ts`：历史分派，当前 JSON 草稿与 CSV 草稿优先于文件 history。
 
 ### 消费

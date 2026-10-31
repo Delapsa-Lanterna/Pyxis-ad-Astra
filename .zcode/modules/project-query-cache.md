@@ -9,7 +9,6 @@
 ### 拥有
 
 - `src/services/query-cache.service.ts`：类型化缓存实例、共享请求、即时读取、门控及失效通知。
-- `src/services/query-cache.spec.ts`：参数类型、请求共享、门控、失效、零预算及迟到结果验证。
 
 ### 消费
 

@@ -48,13 +48,16 @@ export const rustProjectLayerBoundaryRule = defineRule(
           modulePath.join('::') === 'commands::app_lifecycle' && reference === 'crate::services::file_history::set_history_limit';
         const runtimeMonitor =
           modulePath.join('::') === 'services::project::performance' && parts.slice(0, 2).join('::') === 'services::performance_monitor';
-        const sourceRoot =
-          modulePath.join('::') === 'services::project::sources' &&
+        const sessionAccess =
+          ['project-query', 'project-write', 'project-resources'].includes(from) &&
           [
-            'crate::services::directory_opening::resolve_game_mods_directory',
-            'crate::services::directory_opening::infer_starsector_root',
+            'crate::services::project::session::lock_ready_session',
+            'crate::services::project::session::session_handle',
+            'crate::services::project::session::lock_session',
+            'crate::services::project::session::lock_registry',
+            'crate::services::project::session::references::reference_revision',
           ].includes(reference);
-        if (!runtimeSettings && !runtimeMonitor && !sourceRoot && !validRustDependency(from, to) && !rejected.has(to)) {
+        if (!runtimeSettings && !runtimeMonitor && !sessionAccess && !validRustDependency(from, to) && !rejected.has(to)) {
           report(file, edge, from + ' must not depend on ' + to, { target: reference, expected: from });
           rejected.add(to);
         }
@@ -105,6 +108,10 @@ export const rustProjectLayerBoundaryRule = defineRule(
 /** @param {RustLayer} from @param {RustLayer} to @returns {boolean} */
 function validRustDependency(from, to) {
   if (from === to) return true;
+  if (from === 'shared') return false;
+  if (to === 'shared') return true;
+  if (to === 'app-data-dir') return ['services', 'session-entry'].includes(from);
+  if (from === 'app-data-dir') return to === 'models';
   if (to === 'project-sources')
     return [
       'session-entry',

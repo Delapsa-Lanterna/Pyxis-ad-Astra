@@ -9,7 +9,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { provideWindowCloseState } from './use-window-close-state';
 import { useDirtyWindowCloseGuard } from './use-dirty-window-close-guard';
 import { WINDOW_EVENTS } from '@/windows/window.events';
-import { listenWindowEvent } from '@/windows/tauri.events';
+import { listenAppEvent } from '@/shared/runtime/event.runtime';
 
 vi.mock('@/services/window.service', () => ({ updateNativeWindowStatus: vi.fn(async () => {}) }));
 vi.mock('@/windows/window-context.window', () => ({ settleWindowRequests: async () => {} }));
@@ -108,7 +108,7 @@ async function phase(label: string, step: WindowCloseIntent['phase'], operationI
 describe('window close event isolation', () => {
   it.each(['immersive', 'spec', 'file', 'preview'])('keeps surviving windows interactive after closing a clean %s window', async (kind) => {
     const broadcast = vi.fn();
-    const stopBroadcast = await listenWindowEvent<WindowCloseIntent>(WINDOW_EVENTS.windowCloseIntent, broadcast, vi.fn());
+    const stopBroadcast = await listenAppEvent<WindowCloseIntent>(WINDOW_EVENTS.windowCloseIntent, broadcast, vi.fn());
     const main = await openWindow('main');
     const peer = await openWindow('peer-fixture');
     const label = `${kind}-fixture`;

@@ -1,8 +1,6 @@
+use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache::{
-        ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows,
-        lock_ready_session, session_handle,
-    },
+    cache::{ensure_registered_table_rows, loaded_csv_rows, loaded_registered_csv_rows},
     definitions::{
         config_sources::CONFIG_OPTION_SOURCES,
         entity_definitions::entity_definitions,
@@ -137,7 +135,7 @@ mod image_tests {
         PerformanceTrace,
         session::{close_project_session, open_project_session_traced},
     };
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::fs;
 
     #[test]

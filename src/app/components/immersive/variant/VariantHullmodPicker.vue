@@ -126,7 +126,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { useLayoutFrame } from '@/app/composables/use-layout-frame';
+import { useLayoutFrame } from '@/shared/runtime/use-layout-frame';
 import { computed, ref, watch, nextTick, onMounted, onScopeDispose, type ComputedRef } from 'vue';
 import { debugLog } from '@/shared/runtime/app-log-queue';
 import type { JointEditRoot } from '@/shared/types';

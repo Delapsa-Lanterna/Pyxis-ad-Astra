@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const invoke = vi.hoisted(() => vi.fn());
+const listen = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
+vi.mock('@/shared/runtime/event.runtime', () => ({ listenAppEvent: listen }));
 const status = { path: 'C:/fixture/app.log', sizeBytes: 0, recording: 'active', level: 'info', lastError: null, dropped: 0, pending: 0 };
 const entry = { level: 'warning' as const, code: 'demo', message: 'raw', path: null, line: null, fields: null };
 beforeEach(() => {
@@ -49,12 +51,23 @@ describe('application log lifecycle', () => {
     expect(invoke.mock.calls.map(([command]) => command)).toEqual(['append_app_logs', 'clear_app_log_file']);
   });
 
-  it('accepts a stopped process and reports local pending state', async () => {
+  it('reports process and local pending state while leaving acceptance to the log owner', async () => {
     const service = await import('./app-log.service');
     invoke.mockResolvedValue({ ...status, recording: 'stopped', dropped: 3, lastError: 'write failed' });
-    expect(await service.loadLogStatus()).toMatchObject({ recording: 'stopped', dropped: 3, pending: 0 });
     service.recordLogBestEffort(entry);
+    expect(await service.loadLogStatus()).toMatchObject({ recording: 'stopped', dropped: 3, pending: 1 });
+    expect((await import('@/shared/runtime/app-log-queue')).appLogQueue.status().error).toBe('');
     await service.flushApplicationLogs();
-    expect(invoke.mock.calls.filter(([command]) => command === 'append_app_logs')).toHaveLength(0);
+  });
+  it('binds log notifications and returns their registration task unchanged', async () => {
+    const service = await import('./app-log.service');
+    const handler = vi.fn(),
+      failed = vi.fn(),
+      stop = vi.fn();
+    const registration = Promise.resolve(stop);
+    listen.mockReturnValue(registration);
+    expect(service.listenLogStopped(handler, failed)).toBe(registration);
+    expect(listen).toHaveBeenCalledExactlyOnceWith('app-log-stopped', handler, failed);
+    expect(await registration).toBe(stop);
   });
 });

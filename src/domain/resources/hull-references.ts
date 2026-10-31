@@ -1,8 +1,9 @@
-import type { HullReferencesResult, SourceOptionGroup } from '@/shared/types';
+import type { HullReferencesResult, HullReferenceOption, SourceOptionGroup } from '@/shared/types';
 import type { DeepReadonly } from '@/shared/types';
-import type { SelectOption } from '@/domain/schema/schema-options';
 
-export function hullReferenceOptions(result: DeepReadonly<HullReferencesResult>): SelectOption[] {
+export function hullReferenceOptions(
+  result: DeepReadonly<HullReferencesResult>,
+): Pick<DeepReadonly<HullReferenceOption>, 'label' | 'value' | 'resourceRef'>[] {
   return result.groups.flatMap((group) =>
     group.options.map((option) => ({
       label: option.label,

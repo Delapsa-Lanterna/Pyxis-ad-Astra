@@ -1,4 +1,4 @@
-use super::required_nullable_non_empty_string;
+use super::serde_fields::deserialize_non_empty_string;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -64,7 +64,7 @@ pub struct GameWarningEditTarget {
 #[serde(rename_all = "camelCase")]
 pub struct DetectDirectoryPayload {
     pub path: String,
-    #[serde(deserialize_with = "required_nullable_non_empty_string")]
+    #[serde(deserialize_with = "deserialize_non_empty_string")]
     pub known_starsector_root: Option<String>,
 }
 

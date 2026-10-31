@@ -103,7 +103,7 @@ impl AssociatedSpecChange {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvSave {
-    #[serde(deserialize_with = "super::required_nullable")]
+    #[serde(deserialize_with = "super::serde_fields::deserialize_nullable")]
     pub row_order: Option<Vec<CsvRowOrderEntry>>,
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,

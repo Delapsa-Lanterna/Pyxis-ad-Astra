@@ -43,14 +43,13 @@
 - `src/app/WindowRuntime.vue`：窗口唯一反馈、关闭操作锁的建立与提供，以及目标交接挂载。
 - `src/app/WindowShell.vue`：唯一窗口壳，以 main/child 模式区分设置持久化与设置镜像，统一挂载 Provider、主题与 Core 加载生命周期。
 - `src/app/app-feedback-assembly.ts`：文件会话定位、授权恢复动作、转码及保存同步。
-- `src/app/components/AppImage.spec.ts`：统一图片控件的属性交接、预览关闭锁及释放验证。
 - `src/app/components/AppImage.vue`：统一图片控件的等比展示与窗口关闭锁适配。
 - `src/app/components/AppSelect.vue`：统一下拉框的展开状态、箭头收起与内部聚焦。
 - `src/app/components/MainWindowFrame.vue`：主窗口空间及主内容区域的展示框架。
 - `src/app/components/WindowTooltip.vue`：窗口统一接管原生 title 提示，持有悬浮等待、主题展示与释放。
-- `src/app/composables/immersive-editor-assembly.ts`：沉浸式实现选择、会话交接及展示协议适配。
+- `src/app/composables/immersive-editor-assembly.ts`：舰船、皮肤、武器、联队和装配的实现选择、会话交接及展示媒体适配。
 - `src/app/composables/spec-editor-assembly.ts`：Spec 查询定义与依赖实现选择。
-- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备及设置提交装配。
+- `src/app/composables/use-app-lifecycle-assembly.ts`：窗口关闭、项目展示准备、设置提交与编辑历史容量装配。
 - `src/app/naive-ui.d.ts`：模板全局组件及项目包装组件的类型声明。
 - `src/app/naive-ui.runtime.ts`：Naive UI 按需注册。
 - `src/app/theme-overrides.ts`：Naive UI 主题覆盖构建，消费主题令牌生成 provider 覆盖。
@@ -69,14 +68,16 @@
 ### 消费
 
 - `src/services/app-settings.service.ts`：启动消费的主窗口 settings 读取能力。
+- `src/stores/csv-editor.store.ts`：窗口装配消费的历史容量正式输入入口。
+- `src/stores/settings.store.ts`：窗口装配消费的当前编辑历史偏好。
 - `src/stores/workspace.store.ts`：当前 Mod、正式清单与 session 的工作区派生投影。
 - `src/test/unit/ui-stubs.ts`：应用测试的 Naive UI 控件装配。
 - `src/windows/window-context.window.ts`：启动消费的原生 bootstrap、上下文与正式设置交接入口。
 
 ### 关联
 
-- `src-tauri/src/models/mod.rs`：模型导出及 serde 字段转换。
-- `src-tauri/src/testutil.rs`：Rust 测试的目录、环境及链接构造。
+- `src-tauri/src/models/mod.rs`：模型登记及聚合导出。
+- `src-tauri/src/test_support.rs`：Rust 测试的目录、环境及链接构造。
 - `src/shared/types/index.ts`：业务 wire 契约的聚合转导出入口。
 
 ## 边界
@@ -120,6 +121,7 @@
 
 ## 规范
 
+- 启动入口必须在页面释放时结束接纳权，上下文、窗口根与设置、日志等待后的挂载、显示及失败呈现必须服从该寿命。
 - 内容窗口的关闭保护登记与用户关闭动作失败必须进入所属窗口反馈，启动失败后的显示失败必须进入原始启动诊断入口。
 - 主窗口与子窗口的模式差异必须由唯一窗口壳的 mode 参数表达，严禁出现第二份 Provider 栈。
 - 主窗口必须通过 MainWindowFrame 分配标题栏、页签、导航、通知与唯一主内容区域，导航实例与工作区动作必须归 AppContent。

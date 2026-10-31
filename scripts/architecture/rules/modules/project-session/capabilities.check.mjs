@@ -1,6 +1,28 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { architectureFixtures } from '../../../testing/fixtures.mjs';
+import { capabilityBoundaryRule } from '../../capabilities/capability-boundary.mjs';
 /** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
+  [
+    'workspace-core-source',
+    'src/app/composables/settings/use-settings-view-model.ts',
+    'src/orchestrators/workspace-core-source.orchestrator.ts',
+    'switchWorkspaceCoreSource',
+  ],
+  [
+    'source-directory-detect',
+    'src/orchestrators/workspace-core-source.orchestrator.ts',
+    'src/services/directory.service.ts',
+    'detectDirectoryTarget',
+  ],
+  [
+    'opening-directory-detect',
+    'src/orchestrators/directory-opening.orchestrator.ts',
+    'src/services/directory.service.ts',
+    'detectDirectoryTarget',
+  ],
   [
     'reference-readiness',
     'src/orchestrators/project-sync.orchestrator.ts',
@@ -102,3 +124,25 @@ const cases = [
 ];
 
 testCapabilities(cases);
+
+test('source switching directory authorization follows its actual detection capability', () => {
+  const provider = {
+    'src/services/directory.service.ts':
+      'export function detectDirectoryTarget() {} export function scanDirectoryGameOverview() {} export function pickDirectory() {}',
+  };
+  for (const [consumer, symbol] of /** @type {[string, string][]} */ ([
+    ['src/orchestrators/settings-persistence.orchestrator.ts', 'detectDirectoryTarget'],
+    ['src/orchestrators/workspace-core-source.orchestrator.ts', 'scanDirectoryGameOverview'],
+    ['src/orchestrators/workspace-core-source.orchestrator.ts', 'pickDirectory'],
+  ])) {
+    const context = architectureFixtures({
+      ...provider,
+      [consumer]: `import {${symbol} as run} from '@/services/directory.service'; run();`,
+    });
+    const [diagnostic] = capabilityBoundaryRule.check(context);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.file, consumer);
+    assert.equal(diagnostic.symbol, symbol);
+    assert.equal(diagnostic.line, 1);
+  }
+});

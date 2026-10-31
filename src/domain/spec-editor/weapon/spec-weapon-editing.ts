@@ -3,7 +3,7 @@ import type { Point, CanvasModifiers, WeaponOperationPreview } from '@/domain/ed
 import { pointAngleScreen } from '@/domain/editors/lib/geometry';
 import { snapToStep } from '@/domain/editors/lib/editor-constants';
 import { findMirrorBarrelIndex, mirrorLateral, mirrorAngleDeg, MIRROR_EPSILON } from '@/domain/editors/lib/mirror';
-import { weaponOffsetsKey, weaponAnglesKey, type WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import { weaponOffsetsKey, weaponAnglesKey, type WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 
 export function projectWeaponBarrels(weapon: RowData, mode: WeaponViewMode) {
   return { offsets: weapon[weaponOffsetsKey(mode)] as number[], angles: weapon[weaponAnglesKey(mode)] as number[] };

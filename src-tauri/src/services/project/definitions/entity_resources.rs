@@ -1,6 +1,5 @@
 use super::super::model::{ProjectSession, WEAPON_SPRITE_FIELDS, string_field};
-use super::super::resources::resource_ref;
-use super::table_definitions::hull_resource_ref;
+use super::super::resources::{HullReferenceResolver, resource_ref};
 use crate::models::{ResourceOwnerKind, ResourceRef, ResourceSource};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -149,7 +148,7 @@ pub(in crate::services::project) fn variant_resource_refs(
 ) -> BTreeMap<String, ResourceRef> {
     let mut refs = BTreeMap::new();
     if let Some(hull_id) = string_field(data, "hullId")
-        && let Ok(Some(resource)) = hull_resource_ref(session, origin, &hull_id)
+        && let Ok(Some(resource)) = HullReferenceResolver::new(session).resource(origin, &hull_id)
     {
         refs.insert("sprite".to_string(), resource);
     }
@@ -174,7 +173,8 @@ pub(in crate::services::project) fn skin_entity_resource_refs(
             ),
         );
     } else if let Some(base_hull_id) = string_field(data, "baseHullId")
-        && let Ok(Some(resource)) = hull_resource_ref(session, ResourceSource::Mod, &base_hull_id)
+        && let Ok(Some(resource)) =
+            HullReferenceResolver::new(session).resource(ResourceSource::Mod, &base_hull_id)
     {
         refs.insert("sprite".to_string(), resource);
     }

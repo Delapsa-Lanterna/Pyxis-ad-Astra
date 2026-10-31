@@ -35,5 +35,5 @@ export interface CsvSave {
   table: import('@/shared/types/project-identity.types').CsvTableKey;
   patches: CsvRowPatch[];
   associatedSpecs: AssociatedSpecWrite[];
-  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
 }

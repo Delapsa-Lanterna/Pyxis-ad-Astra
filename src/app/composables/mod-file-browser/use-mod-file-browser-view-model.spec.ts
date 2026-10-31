@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   error: vi.fn(),
   listen: vi.fn(),
-  handler: null as null | ((event: CommittedWriteEvent) => import('@/stores/project-sync.store').SaveTask[] | undefined),
+  handler: null as null | ((event: CommittedWriteEvent) => import('@/shared/types').SaveAcceptanceTask[] | undefined),
 }));
 vi.mock('@/services/mod-file-browser.service', () => ({
   queryModDirectory: mocks.directory,

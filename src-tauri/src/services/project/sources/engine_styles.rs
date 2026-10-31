@@ -4,8 +4,6 @@ use std::{collections::BTreeMap, path::Path};
 
 pub(in crate::services::project) const ENGINE_STYLES_PATH: &str = "data/config/engine_styles.json";
 
-pub(in crate::services::project) use crate::domain::schema::merge_config_values as merge_engine_styles;
-
 pub(in crate::services::project) fn read_engine_styles(
     root: &Path,
 ) -> AppResult<(BTreeMap<String, Value>, FileVersion)> {

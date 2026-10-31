@@ -1124,8 +1124,8 @@ mod tests {
         };
         let original = identity(&root, &path);
         let alias = identity(
-            &crate::testutil::short_path(&root),
-            &crate::testutil::short_path(&path),
+            &crate::test_support::short_path(&root),
+            &crate::test_support::short_path(&path),
         );
         assert_eq!(original, alias);
         let WindowIdentity::File {

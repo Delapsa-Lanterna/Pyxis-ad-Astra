@@ -101,6 +101,13 @@ export const projectCapabilities = [
   ...capabilities({ path: 'src/shared/runtime/command.runtime.ts', layer: 'shared', role: 'shared', domain: 'runtime' }, [
     { capability: 'command-transport', names: ['invokeCommand', 'invokeSaveCommand', 'commandChannel'], owners: [{ layer: 'services' }] },
   ]),
+  ...capabilities({ role: 'orchestrator', domain: 'workspace-core-source' }, [
+    {
+      capability: 'workspace-core-source',
+      names: ['switchWorkspaceCoreSource'],
+      owners: [{ path: 'src/app/composables/settings/use-settings-view-model.ts', layer: 'app' }],
+    },
+  ]),
   ...capabilities({ role: 'service', domain: 'workspace-state' }, [
     {
       capability: 'workspace-persistence',
@@ -195,12 +202,19 @@ export const projectCapabilities = [
   ]),
   ...capabilities({ role: 'service', domain: 'directory' }, [
     {
+      capability: 'directory-detect',
+      names: ['detectDirectoryTarget'],
+      owners: [
+        { layer: 'orchestrators', domain: 'directory-opening' },
+        { layer: 'orchestrators', domain: 'workspace-core-source' },
+      ],
+    },
+    {
       capability: 'directory-read',
-      names: ['pickDirectory', 'detectDirectoryTarget', 'scanDirectoryGameOverview'],
+      names: ['pickDirectory', 'scanDirectoryGameOverview'],
       owners: [
         { layer: 'orchestrators', domain: 'directory-opening' },
         { layer: 'orchestrators', domain: 'workspace-persistence' },
-        { layer: 'orchestrators', domain: 'settings-persistence' },
         { layer: 'app', domain: 'workspace-shell-actions' },
       ],
     },

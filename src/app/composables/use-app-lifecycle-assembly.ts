@@ -1,5 +1,7 @@
 import { requestClose, readyNativeClose, replyNativeClose } from '@/services/app-lifecycle.service';
-import { onUnmounted, onScopeDispose } from 'vue';
+import { onUnmounted, onScopeDispose, watch } from 'vue';
+import { useSettingsStore } from '@/stores/settings.store';
+import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { refreshLoadedFileHistory } from '@/orchestrators/file-history-replay.orchestrator';
 import { pauseProjectDisplay, startProjectSync } from '@/orchestrators/project-sync.orchestrator';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
@@ -45,5 +47,8 @@ export function useAppLifecycleAssembly(feedback: AppFeedback) {
 }
 
 export function useAppSettings(mode: 'main' | 'child') {
+  const settings = useSettingsStore();
+  const csv = useCsvEditorStore();
+  watch(() => settings.editHistoryLimit, csv.setHistoryLimit, { immediate: true, flush: 'sync' });
   onUnmounted(mode === 'main' ? startSettingsPersistence(refreshLoadedFileHistory) : startSettingsMirror());
 }

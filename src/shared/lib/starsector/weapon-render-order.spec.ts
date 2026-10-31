@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RowData } from '@/shared/types';
-import { rendersLoadedMissiles, sortMountedWeapons, weaponRenderOrder } from './weapon-render-order';
+import { rendersLoadedMissiles, sortMountedWeapons, weaponRenderOrder } from '@/shared/lib/starsector/weapon-render-order';
 
 const spec: RowData = { specClass: 'projectile', size: 'MEDIUM', type: 'BALLISTIC' };
 const slot: RowData = { id: 'WS1', size: 'LARGE', mount: 'TURRET', locations: [0, 0] };

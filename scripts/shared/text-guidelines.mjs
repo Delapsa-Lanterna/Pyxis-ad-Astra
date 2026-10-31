@@ -3,7 +3,7 @@ const LATIN = '[A-Za-z]';
 const MASK_CHAR = '\uE000';
 const BANNED_PUNCTUATION = /[“”‘’（）]/gu;
 const TEXT_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.md', '.mjs', '.rs', '.toml', '.ts', '.vue']);
-const TEST_PATH = /(?:^|\/)(?:test|tests|testdata|__tests__)(?:\/|$)|(?:^|\/)testutil\.[^.]+$|(?:\.spec|\.test)\.[^.]+$/;
+const TEST_PATH = /(?:^|\/)(?:test|tests|testdata|__tests__)(?:\/|$)|(?:^|\/)test_support\.[^.]+$|(?:\.spec|\.test)\.[^.]+$/;
 
 /** @typedef {{ rel: string, text: string }} TextFile */
 /** @typedef {{ start: number, text: string, strictOuter?: boolean }} TextCandidate */

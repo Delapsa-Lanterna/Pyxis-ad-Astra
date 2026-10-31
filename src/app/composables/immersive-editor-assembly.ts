@@ -1,13 +1,75 @@
+import type { ImmersiveEditorDefinition } from '@/domain/immersive/fields';
+import { immersiveEditableRecords, variantEditableRecords } from '@/domain/immersive/source-records';
+import { projectShipPanel, shipProjectionInputs, type ShipImmersivePanel } from '@/domain/immersive/ship/ship-panel';
+import {
+  projectWeaponPanel,
+  updateImmersiveWeaponField,
+  weaponProjectionInputs,
+  type WeaponPanel,
+} from '@/domain/immersive/weapon/weapon-panel';
+import { projectWingPanel, type WingPanel } from '@/domain/immersive/wing/wing-panel';
+import { projectVariantPanel, variantProjectionInputs, type VariantPanel } from '@/domain/immersive/variant/variant-panel';
 import { computed } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
-import { immersiveDefinition, type ImmersiveEditorKind } from '@/domain/immersive/editor-definition';
 import { useImmersiveEditorRuntime } from './immersive-editor/use-immersive-editor-runtime';
 import { useImmersiveVariantEditor } from './immersive-editor/variant/use-immersive-variant-editor';
 import { useImmersiveWingEditor } from './immersive-editor/wing/use-immersive-wing-editor';
 import { useImmersiveWeaponEditor } from './immersive-editor/weapon/use-immersive-weapon-editor';
 
-export function useImmersiveEditorViewModel(root: JointEditRoot & { kind: ImmersiveEditorKind; rowKey?: string }) {
-  const runtime = useImmersiveEditorRuntime(root, immersiveDefinition(root.kind), {
+type ImmersivePanel = ShipImmersivePanel | WeaponPanel | WingPanel | VariantPanel;
+const immersiveEditorDefinitions: Record<JointEditRoot['kind'], ImmersiveEditorDefinition<ImmersivePanel>> = {
+  variant: {
+    retainProjectedContent: true,
+    label: '装配',
+    editableRecords: variantEditableRecords,
+    project: projectVariantPanel,
+    projectionInputs: variantProjectionInputs,
+    displayResources: () => [],
+  },
+  wing: {
+    retainProjectedContent: false,
+    label: '战机联队',
+    editableRecords: immersiveEditableRecords,
+    project: projectWingPanel,
+    projectionInputs: (_snapshot, values) => ({ records: Object.entries(values) }),
+    displayResources: (panel) => (panel.kind === 'wing' && panel.sprite ? [panel.sprite] : []),
+  },
+  skin: {
+    retainProjectedContent: false,
+    label: '舰船皮肤',
+    editableRecords: immersiveEditableRecords,
+    project: projectShipPanel,
+    projectionInputs: (_snapshot, values) => ({ records: Object.entries(values) }),
+    displayResources: (panel) => (panel.kind === 'ship' && panel.sprite ? [panel.sprite] : []),
+  },
+  ship: {
+    retainProjectedContent: false,
+    label: '舰船',
+    editableRecords: immersiveEditableRecords,
+    project: projectShipPanel,
+    projectionInputs: shipProjectionInputs,
+    displayResources: (panel) => (panel.kind === 'ship' && panel.sprite ? [panel.sprite] : []),
+  },
+  weapon: {
+    retainProjectedContent: false,
+    updateField: updateImmersiveWeaponField,
+    label: '武器',
+    editableRecords: immersiveEditableRecords,
+    project: projectWeaponPanel,
+    projectionInputs: weaponProjectionInputs,
+    displayResources: (panel) =>
+      panel.kind === 'weapon'
+        ? [
+            ...panel.iconLayers.map((layer) => layer.resource),
+            ...(panel.damageIcon ? [panel.damageIcon] : []),
+            ...(panel.loadedMissile ? [panel.loadedMissile.resource] : []),
+          ]
+        : [],
+  },
+};
+
+export function useImmersiveEditorViewModel(root: JointEditRoot & { rowKey?: string }) {
+  const runtime = useImmersiveEditorRuntime(root, immersiveEditorDefinitions[root.kind], {
     readSnapshot: root.kind === 'wing' ? (target, signal) => wing!.readSnapshot(target, signal) : undefined,
     onProjection: root.kind === 'wing' ? (target) => wing!.refreshWingBaseline(target) : undefined,
   });

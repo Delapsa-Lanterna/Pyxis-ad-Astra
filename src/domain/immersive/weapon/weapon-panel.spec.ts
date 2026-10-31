@@ -2,11 +2,27 @@ import { describe, it, expect } from 'vitest';
 import { weaponJointFixture } from '@/test/fixtures/joint-edit/weapon-joint-edit';
 import { jointFixtureValues } from '@/test/fixtures/joint-edit/joint-record';
 import { jointObject } from '@/domain/joint-edit';
-import { projectWeaponPanel } from './weapon-panel';
+import { projectWeaponPanel, weaponProjectionInputs } from './weapon-panel';
 import { updateImmersiveField } from '../fields';
 import { highlightedTextParts } from '../highlighted-text';
 
 describe('weapon immersive field and display projection', () => {
+  it('tracks projectile, branch, sprite and damage references independently of range', () => {
+    const snapshot = weaponJointFixture(),
+      values = jointFixtureValues(snapshot);
+    const baseline = weaponProjectionInputs(snapshot, values);
+    const changed = structuredClone(values);
+    changed.csv = { state: 'present', value: { ...jointObject(values.csv), range: '1200' } };
+    expect(weaponProjectionInputs(snapshot, changed)).toEqual(baseline);
+    for (const key of ['projectileSpecId', 'specClass', 'turretSprite']) {
+      changed.spec = { state: 'present', value: { ...jointObject(values.spec), [key]: 'changed-reference' } };
+      expect(weaponProjectionInputs(snapshot, changed)).not.toEqual(baseline);
+    }
+    changed.spec = values.spec!;
+    changed.csv = { state: 'present', value: { ...jointObject(values.csv), type: 'changed-type' } };
+    expect(weaponProjectionInputs(snapshot, changed)).not.toEqual(baseline);
+    expect(weaponProjectionInputs(snapshot, values)).toEqual(baseline);
+  });
   it.each(['customPrimary', 'customAncillary'] as const)('formats and highlights %s while retaining editable CSV text', (key) => {
     const snapshot = weaponJointFixture(),
       values = jointFixtureValues(snapshot);

@@ -53,6 +53,7 @@ describe('hull option resource ownership', () => {
     });
     const option = result[0]!;
     expect(option.resourceRef).toBe(resource);
+    expectTypeOf<typeof result>().toMatchTypeOf<SelectOption[]>();
     expectTypeOf<NonNullable<SelectOption['resourceRef']>>().toEqualTypeOf<Readonly<ResourceRef>>();
     expectTypeOf<NonNullable<FlatSelectOption['resourceRef']>>().toEqualTypeOf<Readonly<ResourceRef>>();
   });

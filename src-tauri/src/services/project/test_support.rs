@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::testutil::TestWorkspace;
+use crate::test_support::TestWorkspace;
 use std::path::Path;
 
 pub(crate) fn project_workspace(label: &str) -> TestWorkspace {
@@ -19,7 +19,7 @@ pub(crate) fn release_workspace(root: &Path) -> Vec<String> {
     };
     let root_key = crate::models::windows_path_key(&root.to_string_lossy());
     let mut errors = Vec::new();
-    let sessions = match super::cache::lock_registry() {
+    let sessions = match super::session::lock_registry() {
         Ok(registry) => registry
             .iter()
             .filter(|(_, session)| {
@@ -36,4 +36,36 @@ pub(crate) fn release_workspace(root: &Path) -> Vec<String> {
     }
     errors.extend(super::sources::core::release_test_roots(&root));
     errors
+}
+
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn project_workspace_releases_its_registered_sessions_on_unwind() {
+        let mut owned = PathBuf::new();
+        let mut session = String::new();
+        let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let root = project_workspace("session_unwind");
+            owned = root.outer().to_path_buf();
+            let manifest = crate::services::project::open_project_session_traced(
+                &root,
+                None,
+                &mut crate::services::project::PerformanceTrace::new("test.cleanup"),
+            )
+            .unwrap();
+            session = manifest.session_id;
+            panic!("controlled assertion failure");
+        }));
+        assert!(failure.is_err());
+        assert!(
+            !crate::services::project::registered_session_ids()
+                .unwrap()
+                .contains(&session)
+        );
+        if std::env::var_os("PYXIS_KEEP_FAILED").is_none() {
+            assert!(!owned.exists());
+        }
+    }
 }

@@ -15,14 +15,13 @@
 - `src/app/components/GameOverviewPanel.vue`：游戏目录扫描结果、警告及打开动作展示。
 - `src/app/components/ModOpeningFailureList.vue`：Mod 打开失败诊断与文件定位展示。
 - `src/domain/project/load-diagnostics.ts`：加载警告与打开失败的诊断投影。
-- `src/orchestrators/directory-opening-lifecycle.spec.ts`：目录读取、会话建立及迟到释放验证。
-- `src/orchestrators/directory-opening-navigation.spec.ts`：Mod 打开结果、导航与失败恢复验证。
 - `src/orchestrators/directory-opening.orchestrator.ts`：打开编排，拥有识别分流、打开结果形状与失败回滚。
 - `src/services/directory.service.ts`：目录选择、识别及概览协议。
 
 ### 消费
 
 - `src-tauri/src/models/directory_opening.rs`：目录识别、游戏概览及打开诊断 wire 契约。
+- `src-tauri/src/services/project/sources/roots.rs`：目录识别消费的游戏与 Mod 根判定和位置推断。
 - `src-tauri/src/services/project_session.rs`：打开动作的 ProjectSession 建立交接能力。
 - `src/app/components/FeedbackFileActions.vue`：必须消费统一文件动作并展示扫描警告与打开失败的恢复按钮。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
@@ -38,6 +37,7 @@
 
 - dirty 确认与运行态释放归工作区生命周期，失败记录按 Mod 根保留。
 - 后端识别游戏根与 Mod 目录并授权 canonical 路径，前端消费识别结果和打开 outcome。
+- 根布局与推断必须通过项目来源正式出口消费，概览和识别结果必须由目录打开维护。
 - 打开编排拥有分流、打开代次、session 建立交接与失败清理。
 - 扫描警告与恢复目标由后端提供结构化诊断，反馈层投影用户文案和授权动作。
 - 游戏概览和 ProjectSession 分别表达，业务 query 消费成功建立的 session。

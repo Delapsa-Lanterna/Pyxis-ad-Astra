@@ -33,7 +33,7 @@ export interface ModInfoSave {
   sessionId: string;
   modRoot: string;
   data: RowData;
-  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
   orderedJson?: string | null;
 }
 
@@ -46,7 +46,7 @@ export interface IndexedConfigSave {
   nextId: string;
   indexRow: RowData;
   entityData: RowData;
-  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
   orderedJson?: string | null;
 }
 

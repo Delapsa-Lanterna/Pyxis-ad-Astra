@@ -17,7 +17,6 @@
 - `src/app/components/immersive/ImmersiveHullThumbnail.vue`：必须通过正式船体绘制交付静态成品。
 - `src/app/components/immersive/ImmersivePanelRow.vue`：共同字段行及标签排布。
 - `src/app/components/immersive/ImmersivePanelSources.vue`：面板来源记录展示。
-- `src/app/components/immersive/ImmersiveRenderers.spec.ts`：多类内容布局、只读展示与正式字段协议验证。
 - `src/app/components/immersive/ImmersiveSection.vue`：共同内容分组及标题展示。
 - `src/app/components/immersive/ImmersiveSourceNotice.vue`：来源定位与业务补全事件交接。
 - `src/app/components/immersive/ImmersiveStatRow.vue`：统计标签、字段能力与原版字体展示。
@@ -26,19 +25,15 @@
 - `src/app/components/immersive/immersive-render-context.ts`：只读与编辑展示契约。
 - `src/app/composables/immersive-editor/use-immersive-editor-runtime.ts`：联合会话、历史、字段与关联读取运行态。
 - `src/app/composables/immersive-editor/use-immersive-thumbnails.ts`：必须交付武器与船体缩略图的实际绘制参数、依赖和成品需求。
-- `src/app/composables/use-layout-frame.spec.ts`：必须验证布局帧合并、后续更新与销毁释放。
-- `src/app/composables/use-layout-frame.ts`：必须交付所属展示的单帧布局调度。
 - `src/app/renderers/immersive/`：共同挂载形状与船体层序绘制。
 - `src/app/renderers/immersive/weapon-mount.ts`：挂载形状的无状态 Canvas 绘制。
 - `src/assets/immersive/damage/`：伤害类型的本地回退资产。
 - `src/assets/immersive/icons/`：插件与甲板的本地回退资产。
 - `src/domain/immersive/appearance.ts`：沉浸式缩放、主题与颜色投影。
 - `src/domain/immersive/design-type.ts`：设计类型名称及颜色规则。
-- `src/domain/immersive/editor-definition.ts`：五类联合根的名称、字段定义与写入规则。
-- `src/domain/immersive/fields.ts`：字段规则、数值投影及共同定义契约。
+- `src/domain/immersive/fields.ts`：字段规则、数值投影与具名关联查询输入契约。
 - `src/domain/immersive/font-roles.ts`：沉浸式文本角色到字体样式的投影。
 - `src/domain/immersive/highlighted-text.ts`：说明文本的高亮片段纯投影。
-- `src/domain/immersive/hull-fields.spec.ts`：船体有序来源、继承计算及分层输入验证。
 - `src/domain/immersive/hull-fields.ts`：船体基础与皮肤字段的统一读取、计算与输入投影。
 - `src/domain/immersive/hull-scene.ts`：有效船体、装备层序、坐标与编队投影。
 - `src/domain/immersive/source-records.ts`：可编辑来源与装配记录选择。
@@ -53,6 +48,7 @@
 - `src/domain/json-editor/json-file-defaults.ts`：装配与皮肤的初始 JSON 内容。
 - `src/domain/json-editor/json-variant-modules.ts`：装配模块字段的对象/数组读取与写回。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
+- `src/shared/runtime/use-layout-frame.ts`：展示尺寸与位置更新的帧合并和作用域释放。
 
 ### 装配
 
@@ -96,6 +92,7 @@
 - 共享场景必须消费显式几何与资源，Canvas 调用必须归应用渲染层。
 - 共享字段组件只允许提交所属来源记录；多字段浮层必须在全部原文有效后一次交付字段集合，并登记一条联合历史。
 - 共同运行态必须唯一拥有联合会话与历史，业务实现必须消费原引用。
+- 实现选择必须归应用装配，关联查询输入必须归所属业务领域，基础运行态必须消费注入的定义。
 - 内容渲染器必须显式消费只读或编辑模式；编辑模式必须由所属会话提供字段能力，只读模式只允许消费投影、来源与媒体结果。
 - 只读信息必须消费所属领域内容投影，草稿、原始输入、历史、保存及目标登记必须归所属编辑会话。
 - 场景只允许消费只读展示输入，装备修改必须由所属业务动作提交。

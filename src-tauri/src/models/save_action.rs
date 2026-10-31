@@ -1,9 +1,17 @@
 use super::{
     CsvSave, FileReplay, FileVersion, IndexedConfigDelete, IndexedConfigSave, JointEditSubmission,
     JsonFileDelete, JsonFileSave, JsonSourceRestore, MiscConfigDelete, MiscConfigWrite,
-    ModInfoSave, SessionModScope, SourceRefresh, SpecSave, TextSave, TextTranscode,
+    ModInfoSave, SaveEdit, SessionModScope, SourceRefresh, SpecSave, TextSave, TextTranscode,
 };
 use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveRequest {
+    pub id: String,
+    pub edits: Vec<SaveEdit>,
+    pub action: SaveAction,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind", content = "input", rename_all = "snake_case")]
@@ -78,5 +86,25 @@ impl SaveAction {
             Self::DeleteMiscConfig(input) => &mut input.base_versions,
             Self::ApplyFileChangeSet(_) | Self::RefreshProjectSources(_) => &mut [],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn save_requests_keep_the_original_request_identity() {
+        let payload: SaveRequest = serde_json::from_value(json!({
+            "id":"request-7", "edits":[],
+            "action":{"kind":"refresh_project_sources","input":{"sessionId":"session","sources":[]}}
+        }))
+        .unwrap();
+        assert_eq!(payload.id, "request-7");
+        assert!(payload.edits.is_empty());
+        assert!(
+            matches!(payload.action, SaveAction::RefreshProjectSources(input) if input.session_id == "session" && input.sources.is_empty())
+        );
     }
 }

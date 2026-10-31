@@ -4,6 +4,32 @@ import { messages, architectureFixtures } from '../../../testing/fixtures.mjs';
 
 import { draftSessionBoundaryRule } from './draft-session-boundary.mjs';
 
+test('draft acceptance consumers receive their named rule through the formal primitive', () => {
+  const provider = { 'src/domain/edit-session.ts': 'export function retainLaterDraft() {} export function createEditSessionValue() {}' };
+  for (const source of [
+    'src/app/composables/use-edit-target-draft-session.ts',
+    'src/domain/csv-editor/csv-table-draft.ts',
+    'src/orchestrators/csv-save.orchestrator.ts',
+  ]) {
+    const legal = architectureFixtures({ ...provider, [source]: "import {retainLaterDraft as retain} from '@/domain/edit-session';" });
+    assert.deepEqual(draftSessionBoundaryRule.check(legal), []);
+    for (const statement of [
+      "import {retainLaterDraft,createEditSessionValue} from '@/domain/edit-session';",
+      "import * as rules from '@/domain/edit-session';",
+      "const rules=import('@/domain/edit-session');",
+    ]) {
+      const context = architectureFixtures({ ...provider, [source]: '\n' + statement });
+      const diagnostics = draftSessionBoundaryRule.check(context);
+      assert.equal(diagnostics.length, 1);
+      const diagnostic = diagnostics[0];
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.file, source);
+      assert.equal(diagnostic.line, 2);
+      assert.equal(diagnostic.target, 'src/domain/edit-session.ts');
+    }
+  }
+});
+
 test('flat edit-session primitives retain their declared adapter ownership', () => {
   const files = architectureFixtures({
     'src/domain/edit-session.ts': 'export function createEditSessionValue() {}',

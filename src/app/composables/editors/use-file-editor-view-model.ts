@@ -13,7 +13,6 @@ import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { loadEditableFileData, writeEditableFileText, queryFileTextIdentityIntent, followFileTextIdentity } from '@/services/files.service';
 import { committedFileText } from '@/orchestrators/file-editor-window.orchestrator';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath, pathBelongsToRoot } from '@/shared/lib/paths';
-import type { UnlistenFn } from '@/windows/tauri.events';
 import { useEditTargetDraftSession, type EditTargetDraftSession } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -22,7 +21,7 @@ import { useSaveCommandStore } from '@/stores/save-command.store';
 import { reserveFileIdentityIntent, retargetFileWindow } from '@/orchestrators/entity-identity.orchestrator';
 import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
 
-import type { CommittedWriteEvent } from '@/windows/window.events';
+import type { CommittedWriteEvent } from '@/shared/types';
 import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
 import { formatError, errorDiagnosticOf, AppError } from '@/shared/lib/errors';
 
@@ -151,8 +150,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     },
   });
   const { confirmDiscard } = useFieldInputActions(draftSession.inputs);
-  let unlistenChanges: UnlistenFn | null = null;
-  let unlistenIdentity: UnlistenFn | null = null;
+  let unlistenChanges: Awaited<ReturnType<typeof listenSavedContent>> | null = null;
+  let unlistenIdentity: Awaited<ReturnType<typeof listenSavedIdentity>> | null = null;
   let disposed = false;
 
   const text = draftSession.draftValue;

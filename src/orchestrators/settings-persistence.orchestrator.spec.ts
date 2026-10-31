@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
+import { flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
@@ -24,8 +25,12 @@ vi.mock('@/services/directory.service', () => ({ detectDirectoryTarget: api.dete
 vi.mock('@/services/project-session.service', () => ({ openProject: api.open, closeProject: vi.fn() }));
 vi.mock('@/services/workspace-state.service', () => ({ savePersistedWorkspace: api.workspaceSave, loadPersistedWorkspace: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ invalidateCoreCacheForRoot: vi.fn(async () => {}) }));
-vi.mock('@/services/app-settings.service', () => ({ readDefaultSettings: api.defaults, saveSettings: api.save, readSettings: api.read }));
-vi.mock('@/windows/tauri.events', () => ({ listenWindowEvent: api.listen }));
+vi.mock('@/services/app-settings.service', () => ({
+  readDefaultSettings: api.defaults,
+  saveSettings: api.save,
+  readSettings: api.read,
+  listenSettingsChanged: api.listen,
+}));
 vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: vi.fn() }));
 beforeEach(() => {
   vi.resetModules();
@@ -37,22 +42,30 @@ beforeEach(() => {
   api.defaults.mockResolvedValue(createSettingsFixture());
   api.listen.mockResolvedValue(api.stop);
   api.history.mockResolvedValue(undefined);
+  api.workspaceSave.mockResolvedValue(undefined);
   let revision = 1;
   api.save.mockImplementation(async (value: AppSettings) => ({ revision: ++revision, value }));
 });
 afterEach(() => window.dispatchEvent(new Event('pagehide')));
 async function setup() {
   const runtime = await import('./settings-persistence.orchestrator');
+  const { switchWorkspaceCoreSource } = await import('./workspace-core-source.orchestrator');
   await runtime.initializeSettings();
-  return { runtime, stop: runtime.startSettingsPersistence(api.history), settings: useSettingsStore() };
+  return {
+    runtime,
+    stop: runtime.startSettingsPersistence(api.history),
+    settings: useSettingsStore(),
+    switchSource: switchWorkspaceCoreSource,
+  };
 }
 describe('formal settings commits', () => {
-  it.each(['success', 'clear', 'cancel', 'validate', 'save', 'open'] as const)('switches the whole source lifecycle: %s', async (stage) => {
+  const stages = ['success', 'clear', 'reset', 'cancel', 'validate', 'close', 'save', 'open', 'overview', 'workspace'] as const;
+  it.each(stages)('switches the whole source lifecycle: %s', async (stage) => {
     const previous = createSettingsFixture({ starsectorRoot: 'G:/previous' });
     useSettingsStore().replaceSettings(previous);
     useSettingsStore().confirmSavedSettings(previous);
     api.read.mockResolvedValue({ revision: 1, value: previous });
-    const { runtime, stop, settings } = await setup();
+    const { runtime, stop, settings, switchSource } = await setup();
     const workspace = useWorkspaceStore();
     const overview = { starsectorRoot: 'G:/workspace', modsDir: 'G:/workspace/mods', coreAvailable: true, mods: [], warnings: [] };
     workspace.setGameOverview(overview);
@@ -66,9 +79,12 @@ describe('formal settings commits', () => {
     }));
     if (stage === 'save') api.save.mockRejectedValueOnce(new Error('settings unavailable'));
     if (stage === 'open') api.open.mockRejectedValueOnce(new Error('mod unavailable'));
+    if (stage === 'overview') api.scan.mockRejectedValueOnce(new Error('overview unavailable'));
+    if (stage === 'workspace') api.workspaceSave.mockRejectedValueOnce(new Error('workspace unavailable'));
     const close = vi.fn(async () => {
       await useSaveCommandStore().settleCloseActions();
       await runtime.flushSettings();
+      if (stage === 'close') throw new Error('close unavailable');
       return {
         status: stage === 'cancel' ? ('cancelled' as const) : ('closed' as const),
         destroyedWindows: [],
@@ -76,14 +92,16 @@ describe('formal settings commits', () => {
         diagnostic: null,
       };
     });
-    const root = stage === 'clear' ? null : 'G:/selected';
-    const switching = runtime.saveStarsectorRoot(root, close);
-    if (stage === 'validate' || stage === 'save') await expect(switching).rejects.toThrow();
+    const root = stage === 'clear' || stage === 'reset' ? null : 'G:/selected';
+    const changeSource = (root: string | null, commit: () => Promise<void>) => switchSource(root, close, commit);
+    const switching = stage === 'reset' ? runtime.resetSettings(changeSource) : runtime.saveStarsectorRoot(root, changeSource);
+    if (['validate', 'close', 'save', 'overview', 'workspace'].includes(stage)) await expect(switching).rejects.toThrow();
     else expect(await switching).toBe(stage !== 'cancel');
-    expect(settings.starsectorRoot).toBe(['cancel', 'validate', 'save'].includes(stage) ? 'G:/previous' : root);
+    expect(settings.starsectorRoot).toBe(['cancel', 'validate', 'close', 'save'].includes(stage) ? 'G:/previous' : root);
     expect(workspace.gameOverview?.starsectorRoot).toBe('G:/workspace');
     expect(close).toHaveBeenCalledTimes(stage === 'validate' ? 0 : 1);
-    if (stage === 'cancel' || stage === 'validate') expect(useProjectStore().getSessionId('M:/sample')).toBe('before');
+    if (stage === 'cancel' || stage === 'validate' || stage === 'close') expect(useProjectStore().getSessionId('M:/sample')).toBe('before');
+    else if (stage === 'overview') expect(useProjectStore().getSessionId('M:/sample')).toBeNull();
     else if (stage === 'open') expect(workspace.modOpeningFailureList.map((item) => item.modRoot)).toEqual(['M:/sample']);
     else
       expect(workspace.activeManifest ?? useProjectStore().getManifest('M:/sample')).toMatchObject({
@@ -91,6 +109,114 @@ describe('formal settings commits', () => {
         starsectorRoot: stage === 'save' ? 'G:/previous' : (root ?? 'G:/workspace'),
       });
     expect(api.workspaceSave.mock.calls.every(([state]) => state.mods.length === (stage === 'open' ? 0 : 1))).toBe(true);
+    expect(api.defaults).toHaveBeenCalledTimes(stage === 'reset' ? 1 : 0);
+    expect(api.workspaceSave).toHaveBeenCalledTimes(stage === 'validate' ? 0 : 1);
+    stop();
+  });
+
+  it.each(['save', 'reset'] as const)('commits a %s with the same formal root directly', async (action) => {
+    const { runtime, stop, settings } = await setup();
+    settings.setGeneralFont('Direct Font');
+    await runtime.flushSettings();
+    const changeSource = vi.fn();
+    if (action === 'save') await runtime.saveStarsectorRoot(null, changeSource);
+    else await runtime.resetSettings(changeSource);
+    expect(changeSource).not.toHaveBeenCalled();
+    expect(settings.generalFont).toBe(action === 'save' ? 'Direct Font' : createSettingsFixture().generalFont);
+    expect(api.workspaceSave).not.toHaveBeenCalled();
+    stop();
+  });
+  it('waits for existing actions and actual directory openings before changing the source', async () => {
+    const { runtime, stop, settings, switchSource } = await setup();
+    const commands = useSaveCommandStore();
+    let finishAction!: () => void, finishOpen!: (value: ReturnType<typeof sessionUpdateFixture>['projection']['manifest']) => void;
+    const action = commands.trackCloseAction(
+      new Promise<void>((resolve) => {
+        finishAction = resolve;
+      }),
+    );
+    api.open.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOpen = resolve;
+      }),
+    );
+    api.open.mockImplementation(async () => sessionUpdateFixture('after', 'M:/waiting').projection.manifest);
+    api.detect.mockResolvedValue({ kind: 'game-root' });
+    const { openModFromOverview } = await import('./directory-opening.orchestrator');
+    const opening = openModFromOverview('M:/waiting', null);
+    const close = vi.fn(async () => {
+      await commands.settleCloseActions();
+      return { status: 'closed' as const, destroyedWindows: [], releasedSessions: ['before'], diagnostic: null };
+    });
+    const switching = runtime.saveStarsectorRoot('G:/selected', (root, commit) => switchSource(root, close, commit));
+    await flushPromises();
+    expect(api.detect).not.toHaveBeenCalled();
+    finishAction();
+    await action;
+    await flushPromises();
+    expect(api.detect).not.toHaveBeenCalled();
+    finishOpen(sessionUpdateFixture('before', 'M:/waiting').projection.manifest);
+    await opening;
+    await switching;
+    expect(close).toHaveBeenCalledOnce();
+    expect(useProjectStore().getSessionId('M:/waiting')).toBe('after');
+    expect(settings.savedStarsectorRoot).toBe('G:/selected');
+    stop();
+  });
+  it.each([
+    ['closed', false],
+    ['closed', true],
+    ['cancelled', false],
+    ['cancelled', true],
+    ['error', false],
+    ['error', true],
+  ] as const)('holds closing through the final snapshot: %s, rejected=%s', async (status, rejected) => {
+    const { runtime, stop, settings, switchSource } = await setup();
+    const commands = useSaveCommandStore();
+    let finish!: () => void, fail!: (error: Error) => void;
+    const finalError = new Error('final snapshot unavailable'),
+      closeError = new Error('close unavailable');
+    api.workspaceSave.mockReturnValueOnce(
+      new Promise<void>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      }),
+    );
+    api.detect.mockResolvedValue({ kind: 'game-root' });
+    const close = async () => {
+      await commands.settleCloseActions();
+      if (status === 'error') throw closeError;
+      return { status, destroyedWindows: [], releasedSessions: [], diagnostic: null };
+    };
+    const switching = runtime
+      .saveStarsectorRoot('G:/selected', (root, commit) => switchSource(root, close, commit))
+      .then(
+        (value) => ({ value, error: null }),
+        (error) => ({ value: null, error }),
+      );
+    await vi.waitFor(() => expect(api.workspaceSave).toHaveBeenCalledOnce());
+    let settled = false;
+    const closing = commands.settleCloseActions().then(
+      () => {
+        settled = true;
+        return null;
+      },
+      (error) => {
+        settled = true;
+        return error;
+      },
+    );
+    await flushPromises();
+    expect(settled).toBe(false);
+    expect(api.workspaceSave).toHaveBeenCalledOnce();
+    if (rejected) fail(finalError);
+    else finish();
+    const result = await switching;
+    expect(result.error).toBe(rejected ? finalError : status === 'error' ? closeError : null);
+    if (!result.error) expect(result.value).toBe(status === 'closed');
+    expect(await closing).toBe(rejected ? finalError : null);
+    expect(settings.savedStarsectorRoot).toBe(status === 'closed' ? 'G:/selected' : null);
+    await commands.settleCloseActions();
     stop();
   });
   it('saves the complete official defaults and applies committed budgets', async () => {
@@ -202,7 +328,7 @@ describe('formal settings commits', () => {
     const runtime = await import('./settings-persistence.orchestrator');
     await runtime.initializeSettings();
     const stop = runtime.startSettingsMirror();
-    const receive = api.listen.mock.calls[0]![1];
+    const receive = api.listen.mock.calls[0]![0];
     const next = createSettingsFixture({ generalFont: 'Latest Font', expandFieldDescriptions: true, immersiveFontDirectory: 'F:/fonts' });
     next.cacheLimits.decodedImages.entries = 7;
     receive({ revision: 4, value: next });
@@ -224,5 +350,64 @@ describe('formal settings commits', () => {
     await runtime.flushSettings();
     expect(api.save).toHaveBeenCalledOnce();
     stop();
+  });
+  it.each(['registration', 'read', 'focus'] as const)('ends %s results with the owning page', async (stage) => {
+    const runtime = await import('./settings-persistence.orchestrator');
+    if (stage === 'focus') await runtime.initializeSettings();
+    const { windowCacheLimits } = await import('@/shared/runtime/cache-limits');
+    const before = windowCacheLimits();
+    let finish!: (value: unknown) => void;
+    api[stage === 'registration' ? 'listen' : 'read'].mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const pending = stage === 'focus' ? Promise.resolve() : runtime.initializeSettings();
+    const ended = stage === 'focus' ? pending : expect(pending).rejects.toMatchObject({ code: 'query.invalidated' });
+    if (stage === 'focus') window.dispatchEvent(new Event('focus'));
+    await flushPromises();
+    window.dispatchEvent(new Event('pagehide'));
+    const later = createSettingsFixture();
+    later.cacheLimits.mediaData.entries = 9;
+    finish(stage === 'registration' ? api.stop : { revision: 9, value: later });
+    await ended;
+    await flushPromises();
+    const reads = api.read.mock.calls.length;
+    window.dispatchEvent(new Event('focus'));
+    api.listen.mock.calls[0]![0]({ revision: 10, value: later });
+    expect(api.read).toHaveBeenCalledTimes(reads);
+    expect(api.stop).toHaveBeenCalledOnce();
+    expect(windowCacheLimits()).toBe(before);
+  });
+  it.each(['registration', 'read'] as const)('cleans up a failed initial %s', async (stage) => {
+    const runtime = await import('./settings-persistence.orchestrator');
+    const error = new Error('initial fixture');
+    api[stage === 'registration' ? 'listen' : 'read'].mockRejectedValueOnce(error);
+    await expect(runtime.initializeSettings()).rejects.toBe(error);
+    const reads = api.read.mock.calls.length;
+    window.dispatchEvent(new Event('focus'));
+    expect(api.read).toHaveBeenCalledTimes(reads);
+    expect(api.stop).toHaveBeenCalledTimes(stage === 'read' ? 1 : 0);
+  });
+  it.each(['read', 'focus'] as const)('does not report late %s failures from a released page', async (stage) => {
+    const runtime = await import('./settings-persistence.orchestrator');
+    if (stage === 'focus') await runtime.initializeSettings();
+    const { recordLogBestEffort } = await import('@/services/app-log.service');
+    let fail!: (error: Error) => void;
+    api.read.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+    );
+    const pending = stage === 'focus' ? Promise.resolve() : runtime.initializeSettings();
+    const ended = pending.catch(() => {});
+    if (stage === 'focus') window.dispatchEvent(new Event('focus'));
+    await flushPromises();
+    window.dispatchEvent(new Event('pagehide'));
+    fail(new Error('late fixture'));
+    await ended;
+    await flushPromises();
+    expect(recordLogBestEffort).not.toHaveBeenCalled();
+    expect(api.stop).toHaveBeenCalledOnce();
   });
 });

@@ -19,7 +19,7 @@ import { recordLogBestEffort } from '@/services/app-log.service';
 import { runConfirmedJsonWrite } from '@/orchestrators/json-write-confirmation.orchestrator';
 import { commitCsvTableSaveDraft, hasCsvTableDraftChanges, hasCsvRowOrderChanges } from '@/domain/csv-editor/csv-table-draft';
 import { deepClone } from '@/shared/lib/starsector';
-import { retainLaterDraft } from '@/domain/project/save-edits';
+import { retainLaterDraft } from '@/domain/edit-session';
 import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/shared/lib/paths';
 
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';

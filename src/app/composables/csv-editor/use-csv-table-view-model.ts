@@ -229,7 +229,7 @@ export function useCsvTableViewModel(saveBeforeSearch: () => Promise<boolean>) {
     (event) => {
       const projection = saveProjection(event, workspace.activeSessionId);
       if (!projection) return;
-      const tasks: import('@/stores/project-sync.store').SaveTask[] = [];
+      const tasks: import('@/shared/types').SaveAcceptanceTask[] = [];
       if (hasTableInvalidation(projection.invalidation, 'csv-table-window', tables.currentTab)) {
         tasks.push(async () => {
           const captured = target.value!;

@@ -92,7 +92,7 @@ mod tests {
     use super::*;
     use crate::io::{read_utf8_no_bom, write_utf8_no_bom};
     use crate::services::project::test_support::project_workspace;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::{fs, path::PathBuf};
 
     #[test]

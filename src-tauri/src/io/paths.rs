@@ -235,7 +235,7 @@ fn is_reparse_point(_metadata: &fs::Metadata) -> bool {
 mod tests {
     use super::FsRootBoundary;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::fs;
 
     #[test]
@@ -282,10 +282,10 @@ mod tests {
         fs::create_dir_all(root.join("Long directory name")).unwrap();
         let path = root.join("Long directory name/Long weapon filename.wpn");
         write_utf8_no_bom(&path, "{}").unwrap();
-        let short = crate::testutil::short_path(&path);
+        let short = crate::test_support::short_path(&path);
         assert_ne!(short, path);
         let boundary =
-            FsRootBoundary::new(&crate::testutil::short_path(&root), "test root").unwrap();
+            FsRootBoundary::new(&crate::test_support::short_path(&root), "test root").unwrap();
         let expanded = path.canonicalize().unwrap();
         assert_eq!(boundary.resolve_absolute(&short, "file").unwrap(), expanded);
         assert_eq!(
@@ -299,7 +299,8 @@ mod tests {
             crate::io::file_version(&short).unwrap().path,
             expanded.to_string_lossy()
         );
-        let missing = crate::testutil::short_path(path.parent().unwrap()).join("new/deep/new.wpn");
+        let missing =
+            crate::test_support::short_path(path.parent().unwrap()).join("new/deep/new.wpn");
         assert_eq!(
             boundary.resolve_absolute(&missing, "missing").unwrap(),
             path.parent()

@@ -7,6 +7,7 @@ import { applicationLogError } from '@/shared/runtime/app-log-queue';
 import { useAppConfigActions } from '@/app/composables/settings/use-app-config-actions';
 import { useSettingsStore } from '@/stores/settings.store';
 import { saveLogDirectory, saveStarsectorRoot, resetSettings } from '@/orchestrators/settings-persistence.orchestrator';
+import { switchWorkspaceCoreSource } from '@/orchestrators/workspace-core-source.orchestrator';
 import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
 import { querySystemFonts } from '@/services/app-settings.service';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -16,6 +17,8 @@ import type { AppLogStatus, PerformanceMonitorStatus } from '@/shared/types';
 export function useSettingsViewModel(onReset?: () => void) {
   const settings = useSettingsStore();
   const { requestClose } = useWindowLifecycleActions();
+  const changeSource = (root: string | null, commitSettings: () => Promise<void>) =>
+    switchWorkspaceCoreSource(root, requestClose, commitSettings);
   const feedback = useAppFeedback();
   const logSizeBytes = ref(0);
   const logPath = ref('');
@@ -79,7 +82,7 @@ export function useSettingsViewModel(onReset?: () => void) {
 
   async function changeStarsectorRoot(root: string | null) {
     try {
-      await saveStarsectorRoot(root, requestClose);
+      await saveStarsectorRoot(root, changeSource);
     } catch (error) {
       feedback.error(error, '切换原版来源失败');
     }
@@ -131,7 +134,7 @@ export function useSettingsViewModel(onReset?: () => void) {
       actionText: '重置',
       onConfirm: async () => {
         try {
-          if (!(await resetSettings(requestClose))) return;
+          if (!(await resetSettings(changeSource))) return;
           if (active) onReset?.();
           feedback.success('已重置为默认配置');
           if (active) await refreshLogStatus();

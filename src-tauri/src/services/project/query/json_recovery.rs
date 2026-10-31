@@ -1,4 +1,5 @@
-use super::super::cache::{lock_session, session_handle};
+use super::super::session::{lock_session, session_handle};
+
 use crate::{
     errors::{AppError, AppResult},
     io::{

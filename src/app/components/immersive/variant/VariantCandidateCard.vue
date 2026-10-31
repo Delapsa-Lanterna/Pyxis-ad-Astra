@@ -76,7 +76,7 @@ import { pathBasename } from '@/shared/lib/paths';
 import type { ReadonlyVariantEntry, JointEditRoot, ResourceRef } from '@/shared/types';
 import { formatVariantNumber } from '@/domain/immersive/variant/variant-panel';
 import { immersiveCatalogScene } from '@/domain/immersive/hull-scene';
-import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';
+import { weaponImageLayers, weaponLoadedMissile } from '@/shared/lib/starsector/weapon-images';
 import { immersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';

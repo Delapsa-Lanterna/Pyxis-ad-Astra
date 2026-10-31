@@ -1,5 +1,6 @@
 use super::ProjectSessionId;
-use crate::models::{FileVersion, required_nullable};
+use super::serde_fields::deserialize_nullable;
+use crate::models::FileVersion;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
@@ -15,7 +16,7 @@ pub struct EditableFileData {
 #[serde(rename_all = "camelCase")]
 pub struct TextSave {
     pub base_versions: Vec<crate::models::FileVersion>,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
     pub path: String,
@@ -26,7 +27,7 @@ pub struct TextSave {
 #[serde(rename_all = "camelCase")]
 pub struct TextTranscode {
     pub base_versions: Vec<crate::models::FileVersion>,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
     pub path: String,
@@ -36,7 +37,7 @@ pub struct TextTranscode {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadEditableFilePayload {
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub session_id: Option<ProjectSessionId>,
     pub mod_root: String,
     pub path: String,

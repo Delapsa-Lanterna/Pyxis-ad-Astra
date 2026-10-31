@@ -1,4 +1,5 @@
-use super::overview::{infer_starsector_root, is_game_root, is_mod_root, scan_game_overview};
+use super::overview::scan_game_overview;
+use crate::services::project::{infer_starsector_root, is_game_root, is_mod_root};
 use crate::{
     errors::AppResult,
     io::FsRootBoundary,
@@ -89,7 +90,7 @@ fn resolve_known_root(
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::fs;
 
     #[test]

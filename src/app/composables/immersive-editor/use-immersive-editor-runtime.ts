@@ -81,9 +81,12 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   const snapshot = computed(() => joint.baselineSnapshot.value?.meta.snapshot ?? null);
   const displaySnapshot = computed(() => (projection.value?.baseline === snapshot.value ? projection.value.graph : snapshot.value));
   const displayValues = computed(() => {
-    if (!definition.retainDisplayReferences || !snapshot.value) return joint.draftValue.value;
+    if (!definition.retainProjectedContent || !snapshot.value) return joint.draftValue.value;
     const accepted = projection.value?.baseline === snapshot.value ? projection.value.values : joint.baselineSnapshot.value!.value;
-    return stableDeepEqual(definition.references(snapshot.value, accepted), definition.references(snapshot.value, joint.draftValue.value))
+    return stableDeepEqual(
+      definition.projectionInputs(snapshot.value, accepted),
+      definition.projectionInputs(snapshot.value, joint.draftValue.value),
+    )
       ? joint.draftValue.value
       : accepted;
   });
@@ -144,17 +147,17 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
   });
   const mediaUrl = (resource: import('@/shared/types').ResourceRef | null | undefined) => media.dataUrl(root.sessionId, resource) ?? '';
   watch(
-    () => (panel.value ? definition.media(panel.value) : []),
+    () => (panel.value ? definition.displayResources(panel.value) : []),
     (resources) => {
       void media.replaceCollection(root.sessionId, 'immersive-preview', resources);
     },
   );
-  function referenceKey() {
+  function projectionInputKey() {
     if (!snapshot.value) return '';
-    return JSON.stringify([joint.currentTargetKey.value, ...definition.references(snapshot.value, joint.draftValue.value)]);
+    return JSON.stringify([joint.currentTargetKey.value, definition.projectionInputs(snapshot.value, joint.draftValue.value)]);
   }
-  const referenceSelection = computed(referenceKey);
-  watch([referenceSelection, snapshot], ([, baseline], [, previousBaseline]) => {
+  const projectionInputSelection = computed(projectionInputKey);
+  watch([projectionInputSelection, snapshot], ([, baseline], [, previousBaseline]) => {
     if (baseline !== previousBaseline && joint.context.value?.handoff === 'save') return;
     reads.revoke('consumer', 'projection');
     reads.schedule('projection', () => {
@@ -171,12 +174,12 @@ export function useImmersiveEditorRuntime<TPanel extends ImmersivePanelState>(
     if (
       previous &&
       (saved || previous.baseline === baseline) &&
-      stableDeepEqual(definition.references(previous.baseline, previous.values), definition.references(baseline, values))
+      stableDeepEqual(definition.projectionInputs(previous.baseline, previous.values), definition.projectionInputs(baseline, values))
     ) {
       projection.value = { baseline, graph: previous.graph, values };
       return;
     }
-    if (!saved && stableDeepEqual(definition.references(baseline, values), definition.references(baseline, original))) {
+    if (!saved && stableDeepEqual(definition.projectionInputs(baseline, values), definition.projectionInputs(baseline, original))) {
       projection.value = { baseline, graph: baseline, values };
       return;
     }

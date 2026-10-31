@@ -1,7 +1,7 @@
 #[cfg(test)]
 use super::super::query::joint_edit::query_joint_edit;
+use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache,
     model::{SessionCsvRow, csv_table_spec},
     write::stage_entity_content,
 };
@@ -97,8 +97,8 @@ pub fn save_joint_edit(payload: &JointEditSubmission) -> AppResult<WriteResult<J
             ));
         }
     }
-    let handle = cache::session_handle(&current.root.session_id)?;
-    let mut session = cache::lock_ready_session(&handle)?;
+    let handle = session_handle(&current.root.session_id)?;
+    let mut session = lock_ready_session(&handle)?;
     let mut builder = FileChangeSetBuilder::new(Path::new(&current.root.mod_root))?;
     let mut json = JsonWriteBatch::new(payload.json_write.clone());
     let mut tables: BTreeMap<CsvTableKey, CsvTableDraft> = BTreeMap::new();

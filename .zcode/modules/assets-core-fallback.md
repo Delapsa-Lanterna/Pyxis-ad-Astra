@@ -29,23 +29,22 @@
 - `src/domain/resources/hull-references.ts`：选项及内置槽位的纯投影。
 - `src/services/engine-assets.service.ts`：通过正式资源查询交付合并引擎样式、来源版本及授权图片引用。
 - `src/services/hull-reference.service.ts`：Hull 查询及引用投影。
-- `src/services/resource-media-query.spec.ts`：验证完整批次、物理共享、失效和一次性查询。
 - `src/services/resource-media.service.ts`：唯一持有媒体读取、合批、租约、响应式结果、闲置预算和失效。
-- `src/services/resource-media.spec.ts`：媒体引用、展示集合与释放行为验证。
 - `src/services/resource-reference.service.ts`：草稿资源查询与授权相对引用解析能力。
 
 ### 消费
 
+- `src-tauri/src/json_overlay.rs`：引擎有效样式消费的 JSON 值覆盖纯运算。
 - `src-tauri/src/models/project_identity.rs`：资源来源与所属身份。
 - `src-tauri/src/models/resources.rs`：草稿资源、批量图片、路径及船体引用请求与结果。
 - `src-tauri/src/services/project/model.rs`：资源读取消费的已加载来源记录。
 - `src-tauri/src/services/project/resources/fonts.rs`：session 来源补充、安装根授权及 FNT 图集读取。
 - `src-tauri/src/services/project/sources/core.rs`：实际来源根所属的共享 Core 文档目录。
-- `src/domain/schema/schema-options.ts`：资源展示消费的只读选项交接，类型与纯投影归字段模式领域。
 - `src/shared/lib/resource-ref.ts`：资源身份键、相等与集合纯规则。
 - `src/shared/runtime/app-log-queue.ts`：媒体请求、解码、成品接纳和释放的详细记录。
 - `src/shared/runtime/cache.ts`：资源缓存消费的 LRU 及 `pending` 原语。
 - `src/shared/runtime/resident-cache.ts`：活跃与闲置分离的预算缓存原语。
+- `src/shared/runtime/use-layout-frame.ts`：媒体视口尺寸更新的帧合并及作用域释放。
 - `src/shared/types/resources.types.ts`：草稿资源、批量图片、路径及船体引用请求与结果。
 
 ### 装配
@@ -61,6 +60,7 @@
 - 媒体服务拥有合批、single-flight、就绪数据与失效；registry 持有集合差量和所属租约。
 - 舰船内置展示消费共享媒体集合，几何调整复用当前解码结果，资源失败按所属槽位、武器引用和路径交付诊断。
 - 船体引用能力分别提供创建目录和指定 ID 元数据，名称按 Mod CSV 优先、Core 补集解析。
+- 船体选项投影必须消费资源协议的只读字段，实体和表格资源必须直接消费资源所属船体解析器。
 - 贴图选择归引用能力，返回后端校验的 Mod 根内正斜杠相对路径。
 
 ## 链路

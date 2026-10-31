@@ -13,23 +13,25 @@
 - `src-tauri/src/services/app_settings/`：系统字体枚举及设置所属依赖。
 - `src-tauri/src/services/app_settings/system_fonts.rs`：Windows 已安装字体族枚举、去重与排序。
 - `src/app/components/SettingsPage.vue`：设置页组件，消费全局历史限制、日志留存与 accent 预设。
-- `src/app/composables/settings/use-settings-view-model.ts`：字体与日志状态读取票据、页面投影、重置确认及日志维护动作。
+- `src/app/composables/settings/use-settings-view-model.ts`：字体与日志读取、页面投影、重置确认，以及当前窗口关闭与工作区来源切换装配。
 - `src/app/composables/settings/use-theme-dom-effect.ts`：主题与通用字体 DOM 副作用，写 root dataset、颜色变量与字体变量。
 - `src/domain/settings/`：设置校验、字体、配色与主题令牌纯规则。
 - `src/domain/settings/fonts.ts`：通用字体组合与字体族投影。
 - `src/domain/settings/rules.ts`：设置校验，拥有主题/accent/自定义色/历史上限/editMode/原样保存/日志级别/日志目录的读取校验与归一化。
 - `src/domain/settings/theme.ts`：主题令牌与色彩数学，拥有 accent 预设、light/dark 中性色、`createThemeColors` 纯函数及 `THEME_TOKEN_MAP` 的 ThemeColorTokens 与主题属性映射。
-- `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像，负责保存、广播、接收镜像、编辑历史容量同步及已提交设置的装配回调。
-- `src/services/app-settings.service.ts`：settings 读写签名与 command 参数装配。
-- `src/stores/settings-store.spec.ts`：容量输入、初始化与镜像边界验证。
+- `src/orchestrators/settings-persistence.orchestrator.ts`：设置持久化与镜像，负责保存、接收快照及已提交设置的装配回调。
+- `src/services/app-settings.service.ts`：settings 读写、类型化快照通知与 command 参数装配。
 - `src/stores/settings.store.ts`：settings 运行态，只持状态、setter 与派生值；初始快照经统一初始化入口注入。
 
 ### 消费
 
+- `src-tauri/src/app_data_dir.rs`：正式设置快照持久化的工具私有目录解析。
 - `src-tauri/src/models/app_settings.rs`：设置 wire 模型与四项容量的默认值。
 - `src-tauri/src/models/cache_limits.rs`：设置持久化消费的缓存预算模型与默认值。
 - `src/domain/cache-limits.ts`：缓存预算完整性与数值范围校验。
+- `src/orchestrators/workspace-core-source.orchestrator.ts`：设置页消费的完整工作区来源切换及最终快照等待。
 - `src/shared/runtime/cache-limits.ts`：正式预算快照、变更通知与缓存订阅释放。
+- `src/shared/runtime/event.runtime.ts`：设置通知消费的通用事件传输。
 - `src/shared/types/app-settings.types.ts`：完整设置快照、主题及保存请求。
 - `src/shared/types/cache-limits.types.ts`：完整设置快照消费的缓存预算协议。
 - `src/shared/ui/FieldHints.vue`：设置说明、注意与风险的共同展示。
@@ -41,10 +43,6 @@
 
 - `src/app/WindowShell.vue`：唯一窗口壳，main 模式启动设置持久化、child 模式启动设置镜像并挂载主题 effect。
 
-### 关联
-
-- `src/app/components/SettingsPage.spec.ts`：四项设置的位置、范围、单位及更新行为验证。
-
 ## 边界
 
 - Rust 设置服务拥有正式 revision 与 snapshot，主窗口拥有编辑值和唯一保存队列。
@@ -52,6 +50,7 @@
 - settings 持久化目标是工具 app-data，私有根由 Tauri 标识 `com.delapsa-lanterna.pyxis-ad-astra` 解析。
 - 唯一主题 effect 拥有 DOM 写入，窗口壳与 Naive provider 消费同一具体颜色。
 - 日志目录动作经设置 ViewModel 与持久化编排接纳后端规范化快照。
+- 设置持久化拥有正式根判断、完整默认值和提交失败回退，设置页交付工作区来源切换及当前窗口关闭动作。
 - 设置和镜像提供请求 editMode，各编辑面拥有实际模式及所属输入交接。
 - 设置服务必须在写盘后调用应用装配交付的运行参数动作；主窗口装配必须向保存队列交付正式提交后的历史摘要刷新动作。
 - 领域拥有输入校验与主题算法，store 持有设置运行态、setter 和派生结果。
@@ -62,8 +61,8 @@
 ### 主窗口设置保存
 
 1. 用户修改任一设置项，store 状态变化。
-2. 持久化编排侦听快照变化，同步 CSV `editHistoryLimit` 并串行提交设置。
-3. 设置服务写入 `settings.json`，再消费应用装配的历史容量与媒体预算动作。
+2. 窗口装配同步当前编辑历史容量，持久化编排侦听快照变化并串行提交设置。
+3. 设置服务写入 `settings.json`，再消费原生应用装配交付的正式运行参数动作。
 4. Rust 提交运行参数、revision 与完整 snapshot，通知各窗口并返回同一快照；窗口接纳正式预算并立即清理超额缓存。
 5. 保存队列必须调用装配传入的历史刷新动作，并按会话身份和 revision 接纳摘要。
 6. 保存或刷新失败进入所属日志，当前内存设置保持其编辑值。
@@ -73,7 +72,7 @@
 1. 全部窗口先注册通知，再从设置服务读取正式 snapshot 初始化 store。
 2. 子窗口唯一窗口壳先注册设置镜像通知，再读取最新正式快照。
 3. 快照按递增 revision 接纳，经校验规则整体替换 store 状态。
-4. 同步 `editHistoryLimit` 到子窗口的 CSV 历史，快照历史消费各自响应式容量。
+4. 窗口装配按镜像中的当前 `editHistoryLimit` 同步 CSV 历史，快照历史消费各自响应式容量。
 5. 各输入面按所属输入集合接纳 editMode；确认放弃后替换控件，取消保持当前模式。
 
 ### 日志目录保存
@@ -101,7 +100,7 @@
 ### 重置设置
 
 1. 设置页请求危险确认，说明全部设置恢复默认及性能监视重启生效。
-2. 持久化编排经 `read_default_settings` 取得 `AppSettings::default()`，替换主窗口编辑快照并等待正式保存队列。
+2. 持久化编排经 `read_default_settings` 取得完整默认值，比较正式根；根变化时等待设置页交付的工作区切换，再执行设置提交闭包。
 3. 设置提交按原有写盘、运行参数及快照广播流程接纳；所属窗口呈现完成结果并刷新日志状态。
 
 ## 规范
@@ -139,7 +138,9 @@
 - 设置页释放必须撤销字体与日志展示读取的接纳；已执行日志动作必须由所属窗口反馈结果，页面投影必须由当前读取票据接纳。
 - 安装路径必须表达用户指定的原版覆盖目录；目录打开、扫描与刷新只允许更新所属工作区目录。
 - 选择、清除与重置安装路径必须经显式设置动作等待保存、确认草稿、释放旧会话、提交设置并按捕获列表重开 Mod；取消必须保留原设置与会话，写盘失败必须按正式设置重开。
+- 设置持久化必须独占正式根比较、完整默认值读取、归一化及提交失败回退；来源切换必须消费设置页交付的工作区动作与提交闭包。
+- 相同正式根必须直接提交设置；来源切换必须等待重开及最终工作区快照处理完成后交付动作结果。
 - 窗口原版加载必须消费正式提交后的安装路径变化；设置编辑值严禁提前改变正式来源。
 - 重置设置必须取得用户确认并消费后端完整默认值，必须通过正式保存队列提交；工作区记录、Mod 内容和已有日志必须保留。
-- 镜像监听与持久化监听释放后必须允许重新装配；迟到的监听注册必须立即解除，严禁接纳已释放窗口的设置。
+- 设置初始化必须在等待监听注册前安装页面释放处理，释放后的通知、初读和焦点补读严禁接纳成功或错误；初始化失败必须清理已注册监听和焦点处理，终止的初读必须交付读取失效。
 - 首次加载及保存必须由 Rust 串行执行；保存必须依次确认权限、校验和规范化、写盘、更新运行参数、提交快照、通知并返回同一快照。

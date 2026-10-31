@@ -18,7 +18,7 @@ import {
   deleteWeaponBarrel,
 } from '@/domain/spec-editor/weapon/spec-weapon-editing';
 import { findMirrorBarrelIndex } from '@/domain/editors/lib/mirror';
-import type { WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import type { WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 import { useEditorDocument } from '../../editors/use-editor-document';
 import { createCanvasState } from '@/app/composables/canvas/use-canvas-state';
 import { useCanvasEditor } from '@/app/composables/canvas/use-canvas-editor';

@@ -1,11 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
-import { projectVariantPanel, variantOpSegments } from './variant-panel';
+import { projectVariantPanel, variantOpSegments, variantProjectionInputs } from './variant-panel';
 import { immersiveSnapshotScene } from '../hull-scene';
 import { variantEditableRecords } from '../source-records';
 import { jointObject } from '@/domain/joint-edit';
 import { equipVariantWing, setVariantHullmod } from './variant-actions';
 describe('variant base configuration projection', () => {
+  it('normalizes equipment ordering while retaining referenced content changes', () => {
+    const snapshot = variantJointFixture();
+    const data = {
+      hullId: 'hull',
+      modules: { A: 'module' },
+      weaponGroups: [{ weapons: { B: 'two', A: 'one' } }],
+      wings: ['wing'],
+      hullMods: ['z', 'a'],
+      permaMods: ['a'],
+    };
+    const values = { variant: { state: 'present' as const, value: data } };
+    const baseline = variantProjectionInputs(snapshot, values);
+    const reordered = { ...data, weaponGroups: [{ weapons: { A: 'one', B: 'two' } }], hullMods: ['a', 'z'] };
+    expect(variantProjectionInputs(snapshot, { variant: { state: 'present', value: reordered } })).toEqual(baseline);
+    expect(variantProjectionInputs(snapshot, { variant: { state: 'present', value: { ...data, fluxVents: 10 } } })).toEqual(baseline);
+    const updates: import('@/shared/types').RowData[] = [
+      { hullId: 'other' },
+      { modules: { A: 'other' } },
+      { weaponGroups: [{ weapons: { A: 'other' } }] },
+      { wings: ['other'] },
+      { sMods: ['other'] },
+    ];
+    for (const update of updates) {
+      expect(variantProjectionInputs(snapshot, { variant: { state: 'present', value: { ...data, ...update } } })).not.toEqual(baseline);
+    }
+    expect(variantProjectionInputs(snapshot, values)).toEqual(baseline);
+  });
   it('shares effective hull and mounted weapon data with the lightweight scene projection', () => {
     const snapshot = variantJointFixture();
     const values = Object.fromEntries(snapshot.records.map((record) => [record.key, record.value]));

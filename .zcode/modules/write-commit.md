@@ -10,19 +10,26 @@
 
 - `src-tauri/src/domain/save_edits.rs`：当前正式内容的字段修改应用。
 - `src-tauri/src/services/project/write/save_requests.rs`：联合来源与实体当前内容准备。
-- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记与回放。
+- `src-tauri/src/services/write_transactions.rs`：根租约、实际写入结果、历史登记、回放及测试提交结果交付。
 - `src-tauri/src/services/write_transactions/committed.rs`：未完成投影及恢复期间的内容持有。
 - `src-tauri/src/services/write_transactions/submission.rs`：保存请求接入、业务动作分派及所属事务提交。
-- `src/domain/project/save-edits.ts`：实际修改提取及保存后的独立草稿保留。
+- `src/domain/project/save-edits.ts`：本次保存的实际字段赋值、移除及数组整体修改提取。
 
 ### 消费
 
 - `src-tauri/src/io/file_changes.rs`：根写入租约和文件变更集应用。
-- `src-tauri/src/models/save_action.rs`：保存动作的明确业务输入。
-- `src-tauri/src/models/write_commit.rs`：保存输入、实际结果及所属内容。
+- `src-tauri/src/models/document_identity.rs`：JSON 内容所属文档与配置类别。
+- `src-tauri/src/models/joint_target.rs`：联合保存的业务根与目标类别。
+- `src-tauri/src/models/json_write.rs`：JSON 原文保留及逐源确认选项。
+- `src-tauri/src/models/project_identity.rs`：保存消费的会话、实体和版本身份。
+- `src-tauri/src/models/save_action.rs`：保存请求与明确业务动作聚合。
+- `src-tauri/src/models/write_commit.rs`：字段修改、实际结果及内容交付。
 - `src-tauri/src/services/file_history.rs`：文件撤销重做。
 - `src-tauri/src/services/project/mod.rs`：会话授权和正式结果。
 - `src-tauri/src/services/project_sync.rs`：项目队列、来源确认和恢复控制。
+- `src/shared/types/document-identity.types.ts`：JSON 文档来源与内容身份。
+- `src/shared/types/joint-target.types.ts`：联合保存的根身份。
+- `src/shared/types/json-write.types.ts`：JSON 原文保留与逐源确认输入。
 - `src/shared/types/save-action.types.ts`：保存请求与业务动作输入。
 - `src/shared/types/write-commit.types.ts`：前端实际保存结果和窗口交接类型。
 
@@ -36,6 +43,7 @@
 
 - 业务写入必须在所属事务内生成各文件的实际最终内容。
 - 保存输入必须归发起编辑会话，捕获后的草稿操作必须保持独立。
+- 事务修改提取必须归保存提交，正式结果与后续草稿合并必须消费编辑会话领域规则。
 - 多文件修改必须共同交给一次历史登记和一个保存事件。
 - 投影恢复必须持有实际写入范围及未完成状态。
 - 文件历史必须独立持有配置范围内的撤销重做内容。
@@ -62,6 +70,7 @@
 ## 规范
 
 - JSON 写入必须消费实际设置和来源格式确认。
+- 保存请求必须归动作聚合，业务输入与提交结果必须共同消费公共目标身份，JSON 写入选项必须保持公共协议归属。
 - 同根写盘必须消费正式租约，文件授权和磁盘核对必须在实际写入前完成。
 - 同次修改的各文件必须在最终内容汇合后写入。
 - 实际结果必须共同交付文件变化、行键、身份、历史及受影响会话。

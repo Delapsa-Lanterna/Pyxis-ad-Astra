@@ -1,6 +1,6 @@
 use crate::{
-    errors::AppResult, io::write_utf8_no_bom, models::performance_monitor::*,
-    parsers::parse_starsector_json, services::app_paths,
+    app_data_dir, errors::AppResult, io::write_utf8_no_bom, models::performance_monitor::*,
+    parsers::parse_starsector_json,
 };
 use serde_json::{Value, json};
 #[cfg(windows)]
@@ -139,7 +139,7 @@ pub fn report(
             }
             let trace_path = (!trace.path.as_os_str().is_empty()).then(|| trace.path.clone());
             drop(trace);
-            let directory = app_paths::app_data_dir(app)?.join("performance-monitor");
+            let directory = app_data_dir::data_directory(app)?.join("performance-monitor");
             std::fs::create_dir_all(&directory)?;
             let timestamp = now() as u64;
             let path = directory.join(format!("{timestamp}.json"));
@@ -230,7 +230,7 @@ fn trace_start(app: tauri::AppHandle, window: tauri::WebviewWindow, seconds: u8)
             "trace requires the main window and a duration from 1 to 60 seconds",
         ));
     }
-    let directory = app_paths::app_data_dir(app.clone())?.join("performance-monitor");
+    let directory = app_data_dir::data_directory(app.clone())?.join("performance-monitor");
     std::fs::create_dir_all(&directory)?;
     let generation = {
         let mut trace = TRACE.lock().expect("trace state lock");

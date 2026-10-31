@@ -2,22 +2,6 @@ export type ProjectSessionId = string;
 
 export type EntityKind = 'ship' | 'weapon' | 'projectile' | 'system' | 'skill' | 'faction' | 'mission' | 'variant' | 'skin';
 
-export type JointEditKind = 'ship' | 'skin' | 'weapon' | 'wing' | 'variant';
-export interface JointEditRoot {
-  sessionId: string;
-  modRoot: string;
-  kind: JointEditKind;
-  id: string;
-}
-export type MiscConfigKind = 'strings' | 'engineStyles' | 'hullStyles' | 'sounds' | 'settings';
-export type JsonDocumentOrigin =
-  | { kind: 'modInfo' }
-  | { kind: 'miscConfig'; file: MiscConfigKind }
-  | {
-      kind: 'entity';
-      target: { kind: Extract<EntityKind, 'faction' | 'mission' | 'variant' | 'skin'>; id: string; relPath: string | null };
-    };
-
 export const RESOURCE_SOURCES = ['mod', 'reference', 'core'] as const;
 
 export type ResourceSource = (typeof RESOURCE_SOURCES)[number];

@@ -14,7 +14,6 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/services/project/cache/csv.rs`：所属表格快照、稳定行身份、加载与刷新匹配。
 - `src-tauri/src/services/project/definitions/table_definitions.rs`：表格实体列、摘要、图标及来源选项映射。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
-- `src-tauri/src/services/project/write/csv_first_save_tests.rs`：14 类 CSV 的表头来源与空表首次保存验证。
 - `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
 - `src-tauri/src/services/project/write/csv_staging.rs`：CSV 表草稿、最终文本暂存及成功写盘后的会话接纳。
 - `src/app/components/AssociatedSpecSaveDialog.vue`：关联规格选择与武器创建类型的异步确认内容。
@@ -32,16 +31,18 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - `src-tauri/src/services/project/sources/`：表格消费的带版本读取与已解析内容交接。
 - `src/domain/csv-editor/csv-dirty.ts`：保存快照消费的表格行脏标记。
 - `src/domain/csv-editor/csv-table-draft.ts`：提交后的表格基线、行序、行键映射及 dirty 接纳。
-- `src/domain/edit-session.ts`：历史双栈原语。
+- `src/domain/edit-session.ts`：历史双栈原语与正式保存后保留后续草稿的接纳规则。
+- `src/domain/editors/weapon-spec.ts`：武器关联创建消费的统一分支推断。
 - `src/domain/schema/csv-schema-registry.ts`：表格消费的列 schema 加载入口。
 - `src/orchestrators/project-sync.orchestrator.ts`：表格保存消费的 receipt 同步与反馈入口。
 - `src/shared/lib/starsector/rows.ts`：表格行显示标识与关联规格标识。
 - `src/shared/lib/starsector/tables.ts`：游戏表格标准列、模块名称及列排序。
 - `src/shared/runtime/app-log-queue.ts`：行实际挂载、输入提交及驻留生命周期的详细记录。
+- `src/shared/runtime/use-layout-frame.ts`：网格视口与输入锚点更新的帧合并及作用域释放。
 - `src/shared/types/csv-table-history.types.ts`：CSV 草稿操作及历史条目协议。
 - `src/shared/types/table-save.types.ts`：CSV 保存请求、行修改、关联规格动作及正式写入目标契约。
 - `src/shared/types/tables.types.ts`：CSV 行、单元格目标、窗口与预览契约。
-- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/stores/workspace.store.ts`：当前 Mod、清单与 session 投影，以及按 Mod、表与列持有的持久化列宽。
 - `src/test/fixtures/csv-row.ts`：CSV 草稿行的测试构造。
@@ -50,17 +51,14 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ### 装配
 
 - `src-tauri/src/services/mod.rs`：直接从所属实现交付正式业务函数入口。
+- `src/app/composables/use-app-lifecycle-assembly.ts`：所属窗口的响应式编辑历史容量绑定。
 - `src/orchestrators/main-history-command.orchestrator.ts`：当前表格输入提交与表格历史分派。
-- `src/orchestrators/settings-persistence.orchestrator.ts`：历史容量同步。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：所属 Mod 的草稿历史释放。
 
 ### 关联
 
 - `src-tauri/src/services/project/write/entity_description.rs`：舰船与武器描述行的身份改名和同根暂存。
-- `src-tauri/src/services/project/write/ship_description_tests.rs`：舰船身份与描述行联合更新的集成验证。
-- `src-tauri/src/services/project/write/weapon_description_tests.rs`：武器身份与描述行联合更新的集成验证。
 - `src-tauri/src/services/write_transactions.rs`：根写入租约、版本复核、历史登记、回放及投影提交。
-- `src/orchestrators/csv-save.orchestrator.spec.ts`：保存编排行为测试。
 - `src/shared/lib/starsector/index.ts`：游戏值、颜色与表格规则的转导出入口。
 - `src/shared/lib/starsector/value.ts`：JSON 复制、标量转换与 Mod 版本展示。
 - `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
@@ -71,6 +69,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - 保存归表格编排，草稿撤销重做归所属表运行态，身份交接锁由所属运行态提供。
 - 列语义来自 schema 加载器，持久化列宽归 workspace 的 Mod、表、列上下文。
 - 双栈结构消费编辑会话原语，CSV 操作反演、行数和行序维护归表格领域。
+- 表格保存及正式行接纳必须消费编辑会话的后续草稿保留规则，接纳步骤必须使用公共任务契约。
 - 后端返回窗口行、来源位置与 `rowKey`，CSV store 持有行草稿、选择、dirty 和保存状态。
 - 图片列必须在增强模式消费列声明的目录候选及现有选择浮层，纯文本模式必须消费原文输入；选中图片必须经单元格提交与历史边界交付。
 - 控件拥有原文，表输入集合拥有登记与提交，单元格动作以完整 `CsvCellTarget` 交付草稿历史。
@@ -173,7 +172,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - CSV 窗口版本范围只允许包含表文件，关联规格版本必须由本次选择的保存目标独立交付。
 - CsvGridCell 必须直接持有所属内容容器及浮层锚点引用，活动编辑与静态展示必须消费同一单元格边界。
 - Esc 必须取消本次输入；文本浮层、native 输入与选择器必须共用所属集合的保存提交入口。
-- limit 必须由设置的 `editHistoryLimit` 统一输入；初始化、设置变化与窗口镜像必须立即同步现有栈容量。
+- limit 必须由窗口装配按当前 `editHistoryLimit` 同步输入；初始化、设置变化及镜像必须立即裁剪全部现有表的最早 undo 并保留 redo，新建与重建文档必须消费当前容量，卸载必须结束观察。
 - native 文本、多行浮层与多选必须在一次编辑动作结束时产生一条前后值操作；原始输入期间只允许登记待提交状态。
 - upsert patch 必须构造提交时的独立行快照，业务内容只允许从行记录 data 独立克隆，恢复位置必须从 `insertAt` 装配。
 - upsert 的注释标记必须与业务快照共同固定并更新实际基线；关联规格候选必须消费原始行及当前行的正式注释身份。
@@ -228,7 +227,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 - 查询窗口必须提供实际 `sourceRowIndex`；网格 rowIndex 只允许表达当前显示位置。
 - 横向可视列必须保留原始列位置并提前准备左右各一列，活动编辑列及其输入锚点必须持续驻留。
 - 武器 CSV 关联改名必须共同提交实际规格与所属 `WEAPON` 描述 ID；描述目标占用必须拒绝全部关联 changeset。
-- 武器初始分支必须按 10 项 projectile 字段与 3 项 beam 字段的非空原文计分；零值必须计分，平分必须选择 projectile。
+- 武器关联创建必须消费武器领域的正式分支推断。
 - 滚动、单元格切换与窗口化替换必须先提交所属输入；同目标模型更新必须保持控件，`rowKey` 映射必须保留活动输入的归属。
 - 界面刷新必须由所属根登记实际来源与动作，并沿现有保存等待、草稿和外部更新接纳流程执行。
 - 窗口读取必须捕获 session、Mod、表、搜索文本、搜索项、状态实例与读取代次；本地动作、保存、重载和卸载必须撤销较早响应与错误的接纳权。

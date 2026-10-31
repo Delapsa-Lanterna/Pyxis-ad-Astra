@@ -30,7 +30,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
-  identityHandler: null as null | ((event: import('@/windows/window.events').CommittedWriteEvent) => Promise<void>),
+  identityHandler: null as null | ((event: import('@/shared/types').CommittedWriteEvent) => Promise<void>),
   followIdentity: vi.fn(),
   loadEditableFileData: vi.fn(),
   writeEditableFileText: vi.fn(),

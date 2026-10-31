@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   log: vi.fn(),
   open: vi.fn(async () => {}),
   transcode: vi.fn(),
-  emit: vi.fn(async () => {}),
   sync: vi.fn(),
   context: { value: null as ManagedWindowContext | null },
 }));
@@ -28,7 +27,6 @@ vi.mock('@/services/app-log.service', () => ({ recordLogBestEffort: mocks.log })
 vi.mock('@/windows/file-editor.window', () => ({ openFileEditorWindow: mocks.open }));
 vi.mock('@/windows/window-context.window', () => ({ managedWindowContext: mocks.context }));
 vi.mock('@/windows/current.window', () => ({ currentWindowLabel: () => 'feedback-test' }));
-vi.mock('@/windows/tauri.events', () => ({ emitWindowEvent: mocks.emit, listenWindowEvent: vi.fn(async () => () => {}) }));
 vi.mock('@/services/files.service', () => ({ transcodeFileToUtf8: mocks.transcode }));
 let wrapper: VueWrapper | null = null;
 beforeEach(() => {
@@ -326,7 +324,6 @@ describe('window recovery completion', () => {
     await startTranscode(dialogs);
     expect(messages.error).toHaveBeenCalledTimes(2);
     expect(messages.success).not.toHaveBeenCalled();
-    expect(mocks.emit).not.toHaveBeenCalled();
     wrapper!.unmount();
     wrapper = mount({ render: messages.error.mock.lastCall![0] });
     expect(wrapper.text()).toContain('转码为 UTF-8 失败');

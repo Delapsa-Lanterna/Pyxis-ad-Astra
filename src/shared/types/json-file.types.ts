@@ -8,7 +8,7 @@ export interface JsonFileSave {
   nextId: string;
   data: RowData;
   relPath: string | null;
-  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
   orderedJson?: string | null;
 }
 

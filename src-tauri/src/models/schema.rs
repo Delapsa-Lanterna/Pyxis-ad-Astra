@@ -36,7 +36,7 @@ pub struct CsvSourceOptionsPayload {
 pub struct ImageSourceOptionsPayload {
     pub session_id: ProjectSessionId,
     pub directories: Vec<String>,
-    #[serde(deserialize_with = "super::required_nullable_non_empty_string")]
+    #[serde(deserialize_with = "super::serde_fields::deserialize_non_empty_string")]
     pub mission_id: Option<String>,
 }
 

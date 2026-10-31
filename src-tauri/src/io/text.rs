@@ -77,7 +77,7 @@ pub fn write_utf8_no_bom(path: &Path, text: &str) -> AppResult<()> {
 mod tests {
     use super::*;
 
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
 
     #[test]
     fn strips_utf8_bom() {

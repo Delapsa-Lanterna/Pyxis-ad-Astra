@@ -58,33 +58,6 @@ fn renamed_and_missing_business_roots_are_owned_by_the_outer_directory() {
 }
 
 #[test]
-fn project_workspace_releases_its_registered_sessions_on_unwind() {
-    let mut owned = PathBuf::new();
-    let mut session = String::new();
-    let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let root = crate::services::project::test_support::project_workspace("session_unwind");
-        owned = root.outer().to_path_buf();
-        let manifest = crate::services::project::open_project_session_traced(
-            &root,
-            None,
-            &mut crate::services::project::PerformanceTrace::new("test.cleanup"),
-        )
-        .unwrap();
-        session = manifest.session_id;
-        panic!("controlled assertion failure");
-    }));
-    assert!(failure.is_err());
-    assert!(
-        !crate::services::project::registered_session_ids()
-            .unwrap()
-            .contains(&session)
-    );
-    if std::env::var_os("PYXIS_KEEP_FAILED").is_none() {
-        assert!(!owned.exists());
-    }
-}
-
-#[test]
 #[cfg(windows)]
 fn cleanup_reports_locked_file_and_continues_other_files() {
     use std::os::windows::fs::OpenOptionsExt;
@@ -106,7 +79,7 @@ fn cleanup_reports_locked_file_and_continues_other_files() {
 
 #[test]
 fn separate_processes_get_independent_workspaces() {
-    let name = "testutil::tests::workspace_child";
+    let name = "test_support::tests::workspace_child";
     let mut children = (0..2)
         .map(|_| {
             std::process::Command::new(std::env::current_exe().unwrap())
@@ -140,7 +113,7 @@ fn failure_cleanup_and_retention_preserve_the_original_error() {
         command
             .args([
                 "--exact",
-                "testutil::tests::workspace_failure_child",
+                "test_support::tests::workspace_failure_child",
                 "--ignored",
                 "--nocapture",
             ])

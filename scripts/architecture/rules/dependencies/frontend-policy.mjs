@@ -8,6 +8,25 @@ export function frontendDependencyFailure(current, target, edge) {
       message: `${current.layer} must not import ${target.layer}`,
       expected: /** @type {string[]} */ (layers[current.layer]).join(', '),
     };
+  if (
+    current.path === 'src/orchestrators/settings-persistence.orchestrator.ts' &&
+    ((target.layer === 'orchestrators' && (target.domain?.startsWith('workspace-') || target.domain === 'directory-opening')) ||
+      (target.layer === 'stores' && ['workspace', 'save-command'].includes(target.domain ?? '')) ||
+      target.path === 'src/services/directory.service.ts' ||
+      target.path === 'src/domain/project/load-diagnostics.ts')
+  )
+    return { message: 'workspace source transitions belong to the workspace action', expected: 'settings persistence dependencies' };
+  const ownedProjection = [
+    ['src/domain/edit-session.ts', 'src/domain/project/save-edits.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/project/save-edits.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/stores/project-sync.store.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/domain/schema/schema-options.ts'],
+  ];
+  if (ownedProjection.some(([source, provider]) => current.path === source && target.path === provider))
+    return {
+      message: 'consumer projections must use their own rules and shared contracts',
+      expected: 'owned projection or shared contract',
+    };
   const queryKernel = current.path === 'src/services/query-cache.service.ts' || current.path === 'src/shared/types/query-cache.types.ts';
   const businessQuery = [
     'src/services/entity-query.service.ts',

@@ -1,5 +1,5 @@
 import type { ResourceRef } from '@/shared/types';
-import type { LoadedWeaponMissile, WeaponImageLayer } from '@/domain/editors/weapon-images';
+import type { LoadedWeaponMissile, WeaponImageLayer } from '@/shared/lib/starsector/weapon-images';
 import type { ImmersiveHullProjection, ImmersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { windowImageRuntime, type ThumbnailRequest } from '../use-window-image-runtime';
 import { drawWeaponMount } from '@/app/renderers/immersive/weapon-mount';

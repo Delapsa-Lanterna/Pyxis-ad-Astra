@@ -1,14 +1,16 @@
+mod app_data_dir;
 mod commands;
 mod diagnostics;
 mod domain;
 mod errors;
 mod io;
+mod json_overlay;
 mod models;
 mod parsers;
 mod services;
 
 #[cfg(test)]
-pub(crate) mod testutil;
+pub(crate) mod test_support;
 
 use models::AppLogEntry;
 use tauri::{Emitter, Manager};

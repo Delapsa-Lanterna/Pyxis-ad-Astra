@@ -1,8 +1,8 @@
 import type { RowData, ResourceRef } from '@/shared/types';
 import { arr, str } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';
-import { mountedWeaponImages, type MountedWeaponImages } from '@/domain/editors/weapon-images';
-import { rendersLoadedMissiles } from '@/domain/editors/weapon-render-order';
+import { mountedWeaponImages, type MountedWeaponImages } from '@/shared/lib/starsector/weapon-images';
+import { rendersLoadedMissiles } from '@/shared/lib/starsector/weapon-render-order';
 
 export interface ShipWeaponSource {
   spec: RowData | null;

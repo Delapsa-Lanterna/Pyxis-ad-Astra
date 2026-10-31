@@ -9,23 +9,21 @@
 ### 拥有
 
 - `src-tauri/src/commands/mod.rs`：command 模块注册和正式命令导出。
-- `src/services/application-commands.spec.ts`：应用、窗口、设置及会话的 command 参数交接验证。
-- `src/services/persistence-commands.spec.ts`：跨业务写入与回放的 wire 参数交接验证。
-- `src/services/reading-commands.spec.ts`：正式只读能力的传输、身份与查询结果验证。
-- `src/services/session-query-invalidation.spec.ts`：全部业务查询与标准失效范围的跨入口验证。
 
 ### 消费
 
 - `src-tauri/command-macros/`：统一命令声明、登记与执行计时接入。
-- `src-tauri/src/models/mod.rs`：正式模型导出、serde 输入原语与共享去重追加函数。
+- `src-tauri/src/models/mod.rs`：正式模型登记与聚合导出。
 - `src-tauri/src/models/project_identity.rs`：command 消费的所属 session 与 Mod 根范围契约。
-- `src/shared/runtime/command-runtime.spec.ts`：传输与来源诊断验收。
+- `src-tauri/src/models/serde_fields.rs`：command 模型字段的空值转换与字符串归一化。
 - `src/shared/runtime/command.runtime.ts`：唯一原始 invoke。
+- `src/shared/runtime/event.runtime.ts`：公共事件监听、载荷、错误及解除交接。
 
 ### 关联
 
 - `scripts/architecture/rules/capabilities/command-boundary.mjs`：command 调用的来源与唯一归属检查。
 - `scripts/architecture/rules/capabilities/command-policy.mjs`：原生命令与保存动作的所属能力清单。
+- `scripts/architecture/rules/capabilities/event-policy.mjs`：公共监听与原始事件 API 的能力范围。
 - `scripts/architecture/rules/capabilities/rust-command-functions.mjs`：commands 生产函数的命令声明检查。
 - `scripts/shared/frontend-source.mjs`：词法调用、绑定与源码位置事实。
 
@@ -56,6 +54,7 @@
 
 ## 规范
 
+- 原始事件 listen 必须归公共事件运行时，业务通知必须由所属 service 绑定事件名与载荷，监听接纳和解除必须归实际运行态。
 - `AppError.command` 必须表达底层 command；`formatError` 必须透过该包装消费原始用户文案投影。
 - command 声明与登记必须消费共同命令生成规则；业务函数参数与返回值必须保留所属能力契约。
 - command 宏必须只处理命令声明、参数转交和执行计时；保存顺序与业务准备必须由所属服务维护。

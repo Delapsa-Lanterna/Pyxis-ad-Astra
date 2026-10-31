@@ -11,16 +11,14 @@
 - `scripts/performance/profile.mjs`：连接已运行应用的 DevTools endpoint，采集并导出 CPU profile。
 - `src-tauri/command-macros/`：命令声明与登记的计时调用生成。
 - `src-tauri/src/commands/performance_monitor.rs`：批量交付及状态、重置、导出命令。
-- `src-tauri/src/services/command_timing_tests.rs`：命令生成、实际完成、身份与停用验证。
 - `src-tauri/src/services/performance_monitor.rs`：命令计时、环形缓冲与报告导出。
-- `src-tauri/src/services/performance_monitor_tests.rs`：容量、统计、正文过滤、文件与异步区间验证。
 - `src-tauri/src/services/project/performance.rs`：ProjectSession 阶段计时。
-- `src/app/performance-monitor.spec.ts`：采集启停、自动动作、批次与失败保留验证。
 - `src/app/performance-monitor.ts`：窗口采集装配、批量交付与采集错误状态。
 - `src/services/performance-monitor.service.ts`：性能监视命令参数装配。
 
 ### 消费
 
+- `src-tauri/src/app_data_dir.rs`：性能报告持久化的工具私有目录解析。
 - `src-tauri/src/models/performance_monitor.rs`：性能采样与报告状态协议。
 - `src/shared/runtime/performance.ts`：运行开关、区间计时与采样接收入口。
 - `src/shared/types/performance-monitor.types.ts`：批量交付与状态协议。

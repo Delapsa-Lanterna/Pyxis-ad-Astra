@@ -1,14 +1,10 @@
 use crate::{
-    errors::{AppError, AppResult},
+    errors::AppResult,
     io::{FsRootBoundary, read_json_file, validate_walk_entry},
     models::{GameModSummary, GameOverviewData, GameScanWarning, GameWarningEditTarget},
 };
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs, path::Path};
 
 /// A malformed root is an error; per-Mod problems stay in the overview's
 /// warnings so one broken Mod never hides the rest of the game.
@@ -133,37 +129,6 @@ fn scan_game_overview_root(starsector_root: &Path) -> GameOverviewData {
     }
 }
 
-pub fn is_game_root(path: &Path) -> bool {
-    path.join("starsector-core").is_dir() && path.join("mods").is_dir()
-}
-
-pub fn resolve_game_mods_directory(starsector_root: &Path) -> AppResult<(PathBuf, PathBuf)> {
-    let boundary = FsRootBoundary::new(starsector_root, "starsector root")?;
-    let canonical_root = boundary.root().to_path_buf();
-    if !is_game_root(&canonical_root) {
-        return Err(AppError::message(
-            "detect.not_game_root",
-            format!(
-                "不是有效的 Starsector 游戏目录: {}",
-                canonical_root.display()
-            ),
-        ));
-    }
-    let mods_dir = FsRootBoundary::new(&canonical_root.join("mods"), "Starsector mods 目录")?
-        .root()
-        .to_path_buf();
-    Ok((canonical_root, mods_dir))
-}
-
-pub fn is_mod_root(path: &Path) -> bool {
-    path.join("mod_info.json").is_file()
-}
-
-pub fn infer_starsector_root(mod_root: &Path) -> Option<PathBuf> {
-    let candidate = mod_root.parent()?.parent()?;
-    is_game_root(candidate).then(|| candidate.to_path_buf())
-}
-
 fn summary_from_mod_info(mod_root: &Path, info: &Value) -> GameModSummary {
     let folder_name = mod_root
         .file_name()
@@ -245,7 +210,7 @@ fn append_duplicate_id_warnings(mods: &[GameModSummary], warnings: &mut Vec<Game
 mod tests {
     use super::*;
     use crate::io::write_utf8_no_bom;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::{fs, path::Path};
 
     #[test]

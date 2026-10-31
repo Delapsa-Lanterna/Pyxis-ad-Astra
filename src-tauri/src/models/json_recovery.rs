@@ -1,38 +1,6 @@
-use crate::models::{EntityKind, FileVersion, ProjectSessionId};
+use crate::models::{FileVersion, JsonDocumentOrigin, ProjectSessionId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum JsonDocumentOrigin {
-    ModInfo,
-    MiscConfig { file: crate::models::MiscConfigKind },
-    Entity { target: JsonSourceIdentity },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct JsonSourceIdentity {
-    pub kind: EntityKind,
-    pub id: String,
-    pub rel_path: Option<String>,
-}
-
-impl From<&super::EntityEditTarget> for JsonDocumentOrigin {
-    fn from(target: &super::EntityEditTarget) -> Self {
-        Self::Entity {
-            target: JsonSourceIdentity {
-                kind: target.kind,
-                id: target.id.clone(),
-                rel_path: Some(target.write.rel_path.clone()),
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -10,7 +10,7 @@ use crate::{
         MiscConfigWrite,
     },
     services::{project, write_transactions},
-    testutil::TestWorkspace,
+    test_support::TestWorkspace,
 };
 use serde_json::{Value, json};
 use std::path::PathBuf;
@@ -242,15 +242,16 @@ fn recreate_missing_source() {
     };
     let plan = prepare_json_source_recovery(request).unwrap();
     assert_eq!(plan.missing_paths, ["data/strings/strings.json"]);
-    let restored = crate::testutil::commit_saved::<crate::models::JsonRecoveryPlan>(
-        crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
-            session_id: f.scope.session_id.clone(),
-            mod_root: f.scope.mod_root.clone(),
-            plan,
-            baseline: json!({"file":{"dialogue":{"line":"001"}}}),
-        }),
-    )
-    .unwrap();
+    let restored =
+        crate::services::write_transactions::commit_saved::<crate::models::JsonRecoveryPlan>(
+            crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
+                session_id: f.scope.session_id.clone(),
+                mod_root: f.scope.mod_root.clone(),
+                plan,
+                baseline: json!({"file":{"dialogue":{"line":"001"}}}),
+            }),
+        )
+        .unwrap();
     assert!(restored.content.unwrap().value.missing_paths.is_empty());
     assert_eq!(
         f.read().unwrap().unwrap().data,
@@ -379,7 +380,7 @@ fn config_formats_replay() {
             plan.missing_paths,
             [crate::domain::misc_config::misc_config_path(kind)]
         );
-        crate::testutil::commit_saved::<crate::models::JsonRecoveryPlan>(
+        crate::services::write_transactions::commit_saved::<crate::models::JsonRecoveryPlan>(
             crate::models::SaveAction::RecreateJsonSources(JsonSourceRestore {
                 session_id: f.scope.session_id.clone(),
                 mod_root: f.scope.mod_root.clone(),

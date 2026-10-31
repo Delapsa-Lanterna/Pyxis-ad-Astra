@@ -22,7 +22,7 @@
 - `src/orchestrators/main-history-command.orchestrator.ts`：主窗口历史分派。
 - `src/orchestrators/project-sync.orchestrator.ts`：回放消费的提交同步入口，交付历史摘要与会话投影。
 - `src/shared/types/file-history.types.ts`：历史查询、清空与回放请求、条目摘要及双栈快照契约。
-- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/stores/workspace.store.ts`：当前 Mod 选择、清单与 session 的派生投影。
 
@@ -33,7 +33,7 @@
 
 ## 边界
 
-- dirty 文本窗口消费外部暂存，回放通知由统一窗口事件交付。
+- dirty 文本窗口消费外部暂存，回放结果由项目同步的有序保存通道交付。
 - 主窗口历史命令按当前编辑面的草稿优先分派，settings 的 `fileHistoryLimit` 提供文件保存历史容量。
 - 保存及回放共用实际 changeset 和提交同步，目录事件逐文件展开失效范围。
 - 前端 store 持有带版本的摘要，回放编排拥有计划、影响确认和执行。
@@ -72,6 +72,7 @@
 
 ## 规范
 
+- applySnapshot 必须由项目同步、历史回放或文件历史 ViewModel 接纳正式后端快照，并核对所属读取寿命、项目身份及版本。
 - 文件历史撤销与重做的展示动作必须返回所属回放任务，调用者必须按实际用途等待或交接完成状态。
 - commit 与 replay 必须共用正式结果登记；磁盘与历史已完成时，投影失败必须由当前项目工作继续处理。
 - dirty 文件编辑器只允许暂存回放文本并提示，严禁覆盖当前输入。

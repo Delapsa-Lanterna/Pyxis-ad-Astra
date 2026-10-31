@@ -7,10 +7,15 @@ import { hullDataIndex, hullFieldValue } from '../hull-fields';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics } from '../weapon/weapon-statistics';
-import { weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
+import { variantWeaponGroups, weaponSlotCompatibility, type HullmodCategory } from './variant-actions';
 import { variantModuleEntries } from '@/domain/json-editor/json-variant-modules';
 import type { ImmersiveField, ImmersiveStat } from '../fields';
-import { mountedWeaponImages, weaponImageLayers, weaponLoadedMissile, type MountedWeaponImages } from '@/domain/editors/weapon-images';
+import {
+  mountedWeaponImages,
+  weaponImageLayers,
+  weaponLoadedMissile,
+  type MountedWeaponImages,
+} from '@/shared/lib/starsector/weapon-images';
 import { VARIANT_COLORS } from '../appearance';
 
 export interface VariantWeapon extends MountedWeaponImages {
@@ -380,4 +385,21 @@ export function projectVariantPanel(
       ...variant.mods.flatMap((mod) => (mod.icon ? [mod.icon] : [])),
     ]),
   };
+}
+
+export function variantProjectionInputs(_snapshot: JointEditSnapshot, values: Record<string, JointValue>): RowData[] {
+  return Object.entries(values).map(([key, value]) => {
+    const data = jointObject(value);
+    const weapons = variantWeaponGroups(data)
+      .flatMap((group) => Object.entries(isRowData(group.weapons) ? group.weapons : {}))
+      .sort(([left], [right]) => left.localeCompare(right));
+    const mods = [
+      ...new Set(
+        ['hullMods', 'permaMods', 'sMods']
+          .flatMap((field) => (Array.isArray(data[field]) ? data[field] : []))
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ].sort();
+    return { record: key, hullId: data.hullId ?? null, modules: data.modules ?? null, weapons, wings: data.wings ?? null, hullmods: mods };
+  });
 }

@@ -4,6 +4,42 @@ import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 import { frontendLayerBoundaryRule } from './frontend-layer-boundary.mjs';
 import { capabilityBoundaryRule } from '../capabilities/capability-boundary.mjs';
 
+test('editing and resource projections consume their own rules and public contracts', () => {
+  for (const [source, target] of [
+    ['src/domain/edit-session.ts', 'src/domain/project/save-edits.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/project/save-edits.ts'],
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/stores/project-sync.store.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/domain/schema/schema-options.ts'],
+  ])
+    for (const typeOnly of [false, true]) {
+      assert.ok(source && target);
+      const context = architectureFixtures({
+        [source]: `\nimport ${typeOnly ? 'type ' : ''}{Value as Selected} from '@/${target.slice(4, -3)}';`,
+        [target]: 'export interface Value {}',
+      });
+      const diagnostics = frontendLayerBoundaryRule.check(context);
+      assert.equal(diagnostics.length, 1);
+      const diagnostic = diagnostics[0];
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.file, source);
+      assert.equal(diagnostic.line, 2);
+      assert.equal(diagnostic.target, target);
+      assert.equal(diagnostic.expected, 'owned projection or shared contract');
+    }
+  for (const [source, target] of [
+    ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/edit-session.ts'],
+    ['src/domain/resources/hull-references.ts', 'src/shared/types/resources.types.ts'],
+    ['src/stores/project-sync.store.ts', 'src/shared/types/write-commit.types.ts'],
+  ]) {
+    assert.ok(source && target);
+    const context = architectureFixtures({
+      [source]: `import type {Value} from '@/${target.slice(4, -3)}';`,
+      [target]: 'export interface Value {}',
+    });
+    assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+  }
+});
+
 for (const [source, target] of /** @type {const} */ ([
   ['src/shared/types/query-cache.types.ts', 'src/shared/types/resources.types.ts'],
   ['src/shared/types/query-cache.types.ts', 'src/shared/types/joint-edit.types.ts'],

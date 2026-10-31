@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::testutil::TestWorkspace;
+use crate::test_support::TestWorkspace;
 use crate::{
     errors::{AppError, AppResult, ErrorDiagnostic},
     models::{EntityIdentityChange, FileVersion, SaveDelivery, WriteResult},
@@ -998,9 +998,11 @@ mod tests {
                 Some(&scope.session_id),
                 "save",
                 |_, _| {
-                    crate::testutil::commit_saved::<crate::models::JointEditSnapshot>(
-                        crate::models::SaveAction::SaveJointEdit(Box::new(payload.clone())),
-                    )
+                    crate::services::write_transactions::commit_saved::<
+                        crate::models::JointEditSnapshot,
+                    >(crate::models::SaveAction::SaveJointEdit(Box::new(
+                        payload.clone(),
+                    )))
                 },
             )
             .unwrap()

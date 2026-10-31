@@ -1,6 +1,6 @@
 import { computed, onScopeDispose } from 'vue';
 import { querySpecWeaponEditorImages } from '@/services/spec-weapon-editor.service';
-import { WEAPON_SPRITE_FIELDS } from '@/domain/editors/lib/weapon-sprite-fields';
+import { WEAPON_SPRITE_FIELDS } from '@/shared/lib/starsector/weapon-sprite-fields';
 import { useSpecEditorDraftImages } from '../use-spec-editor-draft-images';
 import type { SpecEditorInput } from '../spec-editor.types';
 

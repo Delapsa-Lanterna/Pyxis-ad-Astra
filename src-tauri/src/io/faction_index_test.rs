@@ -1,7 +1,7 @@
 #![cfg(test)]
 use crate::{
     io::{read_faction_index, write_utf8_no_bom},
-    testutil::TestWorkspace,
+    test_support::TestWorkspace,
 };
 
 #[test]

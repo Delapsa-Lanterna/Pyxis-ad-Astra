@@ -10,6 +10,7 @@
 
 - `src-tauri/src/services/project/sources/`：来源记录、发现、读取、Core 文档运行态、持久化与行为验证。
 - `src-tauri/src/services/project/sources/engine_styles.rs`：必须经正式来源读取交付引擎样式与匹配版本。
+- `src-tauri/src/services/project/sources/roots.rs`：游戏及 Mod 根识别、游戏 mods 授权、位置推断及正式来源根选择。
 
 ### 消费
 
@@ -29,6 +30,7 @@
 - Core fields、graphics、文档目录和 Core CSV 按根与产品代次共享读取结果。
 - Core 文档运行态按实际游戏根持有只读目录、共享引用及待持久化成果。
 - IO 拥有字节与路径授权，parser 拥有格式语义，来源读取持有匹配的内容与版本。
+- 来源根维护游戏与 Mod 布局判定、规范根授权及覆盖优先级，目录识别和创建消费正式根入口。
 - 写后失效从已接纳会话重用未变化实体记录与 CSV 摘要。
 - 同一根和产品的并发读取只保留一个实际任务，后续请求等待其结果。
 - 持久快照保存来源版本及可重建成果，业务索引与诊断归实际消费者构造。

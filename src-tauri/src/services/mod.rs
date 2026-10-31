@@ -1,7 +1,6 @@
 pub mod app_config;
 pub mod app_lifecycle;
 pub mod app_log;
-pub mod app_paths;
 pub mod app_settings;
 pub mod config_entity;
 pub mod directory_opening;

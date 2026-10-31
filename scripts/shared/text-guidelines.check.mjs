@@ -49,4 +49,5 @@ test('preserves visible spacing around masked source syntax', () => {
 test('does not scan test or script sources', () => {
   assert.equal(isTextGuidelineFile('src/app/example.spec.ts', '.ts'), false);
   assert.equal(isTextGuidelineFile('scripts/check-text-guidelines.mjs', '.mjs'), false);
+  assert.equal(isTextGuidelineFile('src-tauri/src/test_support.rs', '.rs'), false);
 });

@@ -6,7 +6,6 @@ import type { AppFeedback, FileChangeRecord, FileHistoryEntrySummary, WriteResul
 const mocks = vi.hoisted(() => ({
   replayFileChangeSet: vi.fn(),
   acceptContent: vi.fn<(root: string, result: WriteResult, session: string, reason: string) => Promise<unknown[]>>().mockResolvedValue([]),
-  emitWindowEvent: vi.fn(async () => {}),
   loadFileHistory: vi.fn(),
 }));
 vi.mock('@/services/file-history.service', async () => ({
@@ -19,7 +18,6 @@ vi.mock('@/services/file-history.service', async () => ({
   },
   loadFileHistory: mocks.loadFileHistory,
 }));
-vi.mock('@/windows/tauri.events', () => ({ emitWindowEvent: mocks.emitWindowEvent }));
 import {
   createFileReplayPlan,
   executeFileReplayPlan,
@@ -86,7 +84,6 @@ describe('authoritative file history replay', () => {
     useFileHistoryStore().applySnapshot(root, { revision: 1, undoStack: [entry()], redoStack: [] });
     mocks.loadFileHistory.mockImplementation(async () => useFileHistoryStore().getHistoryStacks(root));
     mocks.acceptContent.mockResolvedValue([]);
-    mocks.emitWindowEvent.mockResolvedValue(undefined);
     mocks.replayFileChangeSet.mockResolvedValue(savedResult());
   });
 

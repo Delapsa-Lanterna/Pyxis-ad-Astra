@@ -11,9 +11,7 @@
 - `src-tauri/src/commands/project_session.rs`：session 生命周期 command。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
-- `src-tauri/src/services/project/cache/mod.rs`：session 注册表、句柄与锁入口，以及缓存模块登记和能力导出。
-- `src-tauri/src/services/project/cache/references.rs`：有序引用范围、版本、共享正式内容及按需表格视图。
-- `src-tauri/src/services/project/cache/references_tests.rs`：跨 Mod 优先级、互相引用、资源身份和来源释放验证。
+- `src-tauri/src/services/project/cache/mod.rs`：CSV 与媒体缓存的模块登记和能力导出。
 - `src-tauri/src/services/project/definitions/config_sources.rs`：配置引用目录的来源名称、固定路径与对象分组登记。
 - `src-tauri/src/services/project/definitions/entity_definitions.rs`：实体来源、读取准备、刷新与摘要的登记规则。
 - `src-tauri/src/services/project/definitions/factions.rs`：势力来源装载、诊断与蓝图标签。
@@ -22,11 +20,13 @@
 - `src-tauri/src/services/project/invalidation.rs`：提交路径到会话投影、实体与资源失效的更新。
 - `src-tauri/src/services/project/mod.rs`：会话生命周期、授权、投影、缓存配置与性能入口。
 - `src-tauri/src/services/project/model.rs`：会话、已加载来源记录、CSV 行及 Core 缓存内部运行模型。
-- `src-tauri/src/services/project/performance_retained_tests.rs`：后端 CSV 会话打开、窗口查询、搜索及写入的固定性能样本。
 - `src-tauri/src/services/project/query/mod.rs`：只读业务实现的服务层可见模块登记。
 - `src-tauri/src/services/project/root.rs`：任务索引统计行为验证。
-- `src-tauri/src/services/project/session.rs`：会话打开、关闭与投影生命周期，注册表句柄经缓存运行时交接。
-- `src-tauri/src/services/project/test_support.rs`：测试工作区结束时释放所属会话、历史及 Core 缓存。
+- `src-tauri/src/services/project/session.rs`：会话打开、关闭、投影与内部登记及就绪访问能力交付。
+- `src-tauri/src/services/project/session/access.rs`：捕获引用快照后锁定并交付所属就绪会话。
+- `src-tauri/src/services/project/session/references.rs`：有序引用来源、代次、共享快照与按需表格视图。
+- `src-tauri/src/services/project/session/registry.rs`：会话存活登记、句柄与投影就绪门控。
+- `src-tauri/src/services/project/test_support.rs`：项目测试工作区的会话、历史及 Core 缓存释放与异常退出验证。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
 - `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、提交与窗口登记释放及性能记录。
@@ -38,9 +38,12 @@
 
 ### 消费
 
-- `src-tauri/src/models/mod.rs`：正式模型聚合、serde 输入原语及去重追加函数。
+- `src-tauri/src/app_data_dir.rs`：持久化来源索引所属的工具私有目录解析。
+- `src-tauri/src/models/collections.rs`：投影和失效范围的稳定去重追加。
+- `src-tauri/src/models/mod.rs`：正式模型登记及聚合导出。
 - `src-tauri/src/models/project_identity.rs`：会话、实体、表、资源、目标及版本身份与 session 范围实现宏。
 - `src-tauri/src/models/project_session.rs`：会话请求、清单、摘要与正式失效结果。
+- `src-tauri/src/models/serde_fields.rs`：会话输入字段的空值转换与非空字符串归一化。
 - `src-tauri/src/services/project/cache/csv.rs`：表格 owner 的快照、稳定行身份与加载交接。
 - `src-tauri/src/services/project/query/entities.rs`：实际实体详情与列表查询。
 - `src-tauri/src/services/project/query/entity_targets.rs`：实体查询交付实际编辑目标、身份意图与版本范围。
@@ -50,7 +53,7 @@
 - `src/services/entity-query.service.ts`：实体查询能力交接。
 - `src/shared/types/project-identity.types.ts`：会话、实体、表、资源与文件版本身份的基础协议。
 - `src/shared/types/project-session.types.ts`：会话请求、清单、摘要与正式失效结果。
-- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 
 ### 装配
 
@@ -116,6 +119,7 @@
 ## 规范
 
 - 引用来源必须来自已打开会话，来源快照必须在锁定接收方前取得，只读视图必须按引用范围版本共享，严禁交叉持有多个会话的可变锁。
+- 会话存活与投影就绪必须归会话登记维护，引用来源必须交付独立快照，会话读取必须先捕获引用快照再锁定接收方并交付就绪内容。
 - 会话建立必须消费统一原版根解析结果；`manifest.starsectorRoot` 与 `coreAvailable` 必须表达该会话实际采用的原版来源及可用性。
 - CSV 写后 refresh 必须保留当前缓存与 changeset after 文本一致的行身份和键分配序列；重新读取的外部版本必须按正式加载入口建立行身份。
 - CSV 查询必须显式投影 `isComment` 与 `sourceRowIndex`；搜索必须消费 CsvSearchField，ID 必须归表注册的 entity_id_field，名称与标签必须分别归 name 与 tags。

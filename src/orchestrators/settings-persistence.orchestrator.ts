@@ -2,29 +2,13 @@ import { nextTick, watch } from 'vue';
 import { stableStringify } from '@/shared/lib/stable-compare';
 import { recordLogBestEffort } from '@/services/app-log.service';
 import { appLogQueue, debugLog } from '@/shared/runtime/app-log-queue';
-import { readSettings, readDefaultSettings, saveSettings } from '@/services/app-settings.service';
+import { listenSettingsChanged, readSettings, readDefaultSettings, saveSettings } from '@/services/app-settings.service';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useCsvEditorStore } from '@/stores/csv-editor.store';
-import { listenWindowEvent } from '@/windows/tauri.events';
-import { WINDOW_EVENTS } from '@/windows/window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
-import type { AppSettings, SettingsSnapshot, CloseScope, CloseResult } from '@/shared/types';
-import {
-  captureWorkspaceCloseTarget,
-  closeWorkspaceRuntime,
-  removeLoadedModRuntime,
-} from '@/orchestrators/workspace-lifecycle.orchestrator';
-import { settleDirectoryOpenings } from '@/orchestrators/directory-opening.orchestrator';
-import {
-  beginWorkspaceRestore,
-  finishWorkspaceRestore,
-  restorePersistedWorkspace,
-} from '@/orchestrators/workspace-persistence.orchestrator';
-import { detectDirectoryTarget } from '@/services/directory.service';
-import { useSaveCommandStore } from '@/stores/save-command.store';
-import { useWorkspaceStore } from '@/stores/workspace.store';
-import { buildModOpeningFailure } from '@/domain/project/load-diagnostics';
+import { invalidatedRead } from '@/shared/runtime/read-request';
+import type { AppSettings, SettingsSnapshot } from '@/shared/types';
 import { updateCacheLimits } from '@/shared/runtime/cache-limits';
+type ChangeSource = (root: string | null, commitSettings: () => Promise<void>) => Promise<boolean>;
 let official: SettingsSnapshot | null = null;
 let receive: ((snapshot: SettingsSnapshot) => void) | null = null;
 let queue = Promise.resolve();
@@ -54,22 +38,41 @@ function accept(snapshot: SettingsSnapshot) {
   updateCacheLimits(snapshot.value.cacheLimits);
 }
 export async function initializeSettings(): Promise<SettingsSnapshot> {
-  const stop = await listenWindowEvent<SettingsSnapshot>(WINDOW_EVENTS.appSettingsChanged, accept, report);
-  const refresh = () => {
-    void readSettings().then(accept).catch(report);
+  let active = true;
+  let stop: (() => void) | null = null;
+  const acceptCurrent = (snapshot: SettingsSnapshot) => {
+    if (active) accept(snapshot);
   };
-  window.addEventListener('focus', refresh);
-  window.addEventListener(
-    'pagehide',
-    () => {
-      stop();
-      window.removeEventListener('focus', refresh);
-      receive = null;
-    },
-    { once: true },
-  );
-  accept(await readSettings());
-  return official!;
+  const reportCurrent = (error: unknown) => {
+    if (active) report(error);
+  };
+  const refresh = () => {
+    void readSettings().then(acceptCurrent).catch(reportCurrent);
+  };
+  const release = () => {
+    active = false;
+    stop?.();
+    stop = null;
+    window.removeEventListener('pagehide', release);
+    window.removeEventListener('focus', refresh);
+    receive = null;
+  };
+  window.addEventListener('pagehide', release, { once: true });
+  try {
+    stop = await listenSettingsChanged(acceptCurrent, reportCurrent);
+    if (!active) {
+      release();
+      throw invalidatedRead({ kind: 'settings-startup' }, 'consumer');
+    }
+    window.addEventListener('focus', refresh);
+    const snapshot = await readSettings();
+    if (!active) throw invalidatedRead({ kind: 'settings-startup' }, 'consumer');
+    accept(snapshot);
+    return official!;
+  } catch (error) {
+    release();
+    throw error;
+  }
 }
 function enqueue(operation: () => Promise<void>) {
   const pending = queue.then(operation);
@@ -107,7 +110,6 @@ async function persist(snapshot: AppSettings, life: number, committed: (accepts:
   for (const pending of pendingSnapshots) Object.assign(pending, mergeNormalized(pending, snapshot, result.value));
   settings.replaceSettings(merged);
   settings.confirmSavedSettings(result.value);
-  useCsvEditorStore().setHistoryLimit(result.value.editHistoryLimit);
   accept(result);
   try {
     await committed(() => life === generation);
@@ -124,7 +126,6 @@ export function startSettingsPersistence(onCommitted: (accepts: () => boolean) =
   receive = (snapshot) => {
     settings.confirmSavedSettings(snapshot.value);
   };
-  useCsvEditorStore().setHistoryLimit(settings.editHistoryLimit);
   const stop = watch(
     () => settings.settingsSnapshot(),
     (snapshot) => {
@@ -149,7 +150,6 @@ export function startSettingsMirror(): () => void {
   receive = (snapshot) => {
     settings.replaceSettings(snapshot.value);
     settings.confirmSavedSettings(snapshot.value);
-    useCsvEditorStore().setHistoryLimit(snapshot.value.editHistoryLimit);
   };
   if (official) receive(official);
   return () => {
@@ -182,11 +182,7 @@ export async function flushSettings(): Promise<void> {
     });
   }
 }
-export async function saveStarsectorRoot(
-  root: string | null,
-  requestClose: (scope: CloseScope) => Promise<CloseResult>,
-  defaults?: AppSettings,
-): Promise<boolean> {
+export async function saveStarsectorRoot(root: string | null, changeSource: ChangeSource, defaults?: AppSettings): Promise<boolean> {
   const settings = useSettingsStore();
   await flushSettings();
   const commit = async () => {
@@ -200,48 +196,11 @@ export async function saveStarsectorRoot(
       throw error;
     }
   };
-  if (root !== official!.value.starsectorRoot) return switchCoreSource(root, requestClose, commit);
+  if (root !== official!.value.starsectorRoot) return changeSource(root, commit);
   await commit();
   return true;
 }
-export async function resetSettings(requestClose: (scope: CloseScope) => Promise<CloseResult>): Promise<boolean> {
+export async function resetSettings(changeSource: ChangeSource): Promise<boolean> {
   const defaults = await readDefaultSettings();
-  return saveStarsectorRoot(defaults.starsectorRoot, requestClose, defaults);
-}
-
-async function switchCoreSource(
-  root: string | null,
-  requestClose: (scope: CloseScope) => Promise<CloseResult>,
-  commitSettings: () => Promise<void>,
-) {
-  await useSaveCommandStore().settleCloseActions();
-  await settleDirectoryOpenings();
-  if (root && (await detectDirectoryTarget(root, null)).kind !== 'game-root')
-    throw new AppError(`请选择 Starsector 游戏安装目录: ${root}`, { action: 'core-source' });
-  const workspace = useWorkspaceStore();
-  const snapshot = workspace.toPersistedState();
-  beginWorkspaceRestore();
-  try {
-    if (!(await closeWorkspaceRuntime(captureWorkspaceCloseTarget(), requestClose))) return false;
-    // Track only the post-close work: close preparation waits for tracked actions.
-    await useSaveCommandStore().trackCloseAction(commitAndReopen());
-    return true;
-  } finally {
-    await finishWorkspaceRestore();
-  }
-  async function commitAndReopen() {
-    try {
-      await commitSettings();
-    } finally {
-      await restorePersistedWorkspace(
-        {
-          onModRestoreError: async (modRoot, _name, error) => {
-            await removeLoadedModRuntime(modRoot, requestClose);
-            workspace.setModOpeningFailure(buildModOpeningFailure(modRoot, error));
-          },
-        },
-        snapshot,
-      );
-    }
-  }
+  return saveStarsectorRoot(defaults.starsectorRoot, changeSource, defaults);
 }

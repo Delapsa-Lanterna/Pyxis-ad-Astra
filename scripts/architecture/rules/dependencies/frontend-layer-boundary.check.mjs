@@ -3,6 +3,47 @@ import { test } from 'node:test';
 import { frontendLayerBoundaryRule } from './frontend-layer-boundary.mjs';
 import { messages, architectureFixtures } from '../../testing/fixtures.mjs';
 
+test('settings persistence dependencies follow actual workspace responsibilities', () => {
+  const owner = 'src/orchestrators/settings-persistence.orchestrator.ts';
+  for (const target of [
+    'src/orchestrators/workspace-core-source.orchestrator.ts',
+    'src/orchestrators/workspace-lifecycle.orchestrator.ts',
+    'src/orchestrators/directory-opening.orchestrator.ts',
+    'src/stores/workspace.store.ts',
+    'src/stores/save-command.store.ts',
+    'src/services/directory.service.ts',
+    'src/domain/project/load-diagnostics.ts',
+  ])
+    for (const typeOnly of [false, true]) {
+      const source = `\nimport ${typeOnly ? 'type ' : ''}{Operation as Selected} from '@/${target.slice(4, -3)}';`;
+      const context = architectureFixtures({ [owner]: source, [target]: 'export interface Operation {}' });
+      const diagnostics = frontendLayerBoundaryRule.check(context);
+      assert.equal(diagnostics.length, 1);
+      const diagnostic = diagnostics[0];
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.file, owner);
+      assert.equal(diagnostic.line, 2);
+      assert.equal(diagnostic.target, target);
+      assert.equal(diagnostic.expected, 'settings persistence dependencies');
+    }
+  for (const target of [
+    'src/services/app-settings.service.ts',
+    'src/orchestrators/settings-normalization.orchestrator.ts',
+    'src/domain/workspace/projection.ts',
+  ]) {
+    const context = architectureFixtures({
+      [owner]: `import {operation} from '@/${target.slice(4, -3)}';`,
+      [target]: 'export function operation() {}',
+    });
+    assert.deepEqual(frontendLayerBoundaryRule.check(context), []);
+  }
+  const sameName = architectureFixtures({
+    'src/domain/settings-persistence.ts': "import {operation} from '@/domain/project/load-diagnostics';",
+    'src/domain/project/load-diagnostics.ts': 'export function operation() {}',
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(sameName), []);
+});
+
 test('extensionless relative and alias imports reveal an orchestrator cycle', () => {
   const files = architectureFixtures({
     'src/orchestrators/alpha.orchestrator.ts': "import { beta } from '@/orchestrators/beta.orchestrator'; export function alpha() {}",

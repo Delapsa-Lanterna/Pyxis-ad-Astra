@@ -15,7 +15,7 @@ pub(in crate::services::project) fn media_resource_key(resource: &ResourceRef) -
         resource.source.as_str(),
         normalized_media_rel_path(&resource.rel_path),
         resource.reference,
-        super::super::cache::references::reference_revision(),
+        super::super::session::references::reference_revision(),
     ])
     .to_string()
 }

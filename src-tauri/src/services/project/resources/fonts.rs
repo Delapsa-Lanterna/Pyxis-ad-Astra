@@ -11,8 +11,8 @@ pub fn query_original_font(
     font_id: FontId,
     font_directory: Option<&str>,
 ) -> AppResult<OriginalFontResult> {
-    let handle = super::super::cache::session_handle(session_id)?;
-    let session = super::super::cache::lock_session(&handle)?;
+    let handle = super::super::session::session_handle(session_id)?;
+    let session = super::super::session::lock_session(&handle)?;
     let root = session.manifest.starsector_root.clone();
     drop(session);
     if let Some(directory) = font_directory {
@@ -92,7 +92,7 @@ fn read_font_directory(directory: &Path, font_id: FontId) -> AppResult<OriginalF
 mod tests {
     use super::*;
     use crate::services::project::test_support::project_workspace;
-    use crate::{io::write_utf8_no_bom, testutil::TestWorkspace};
+    use crate::{io::write_utf8_no_bom, test_support::TestWorkspace};
 
     fn install(root: &Path, marker: &str) {
         let directory = root.join("starsector-core/graphics/fonts");

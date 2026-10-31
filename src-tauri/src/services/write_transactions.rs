@@ -15,6 +15,14 @@ mod submission;
 pub use submission::commit_action;
 pub use submission::submit;
 
+#[cfg(test)]
+pub fn commit_saved<T: serde::de::DeserializeOwned>(
+    action: crate::models::SaveAction,
+) -> AppResult<WriteResult<T>> {
+    let result = commit_action(action)?;
+    Ok(serde_json::from_value(serde_json::to_value(result)?)?)
+}
+
 pub struct WriteTransaction {
     root: String,
     session_id: Option<String>,

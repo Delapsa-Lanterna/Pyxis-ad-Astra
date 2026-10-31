@@ -1,4 +1,5 @@
-use super::super::cache::{lock_ready_session, session_handle};
+use super::super::session::{lock_ready_session, session_handle};
+
 use crate::{
     errors::{AppError, AppResult},
     io::{FsRootBoundary, forward_slash_path, read_text_bytes_no_bom},
@@ -196,7 +197,7 @@ fn binary_content(bytes: &[u8]) -> bool {
 mod tests {
     use super::*;
     use crate::services::project::test_support::project_workspace;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     #[test]
     fn lists_direct_children_hidden_files_and_empty_directories() {
         let root = project_workspace("mod_file_browser_list");

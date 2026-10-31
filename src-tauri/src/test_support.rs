@@ -370,12 +370,5 @@ fn create_file_link(_target: &Path, _link: &Path) -> std::io::Result<()> {
     ))
 }
 
-pub fn commit_saved<T: serde::de::DeserializeOwned>(
-    action: crate::models::SaveAction,
-) -> crate::errors::AppResult<crate::models::WriteResult<T>> {
-    let result = crate::services::write_transactions::commit_action(action)?;
-    Ok(serde_json::from_value(serde_json::to_value(result)?)?)
-}
-
-#[path = "testutil_tests.rs"]
+#[path = "test_support_tests.rs"]
 mod tests;

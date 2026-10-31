@@ -219,14 +219,3 @@ pub fn validate_field(field: &Value, data: &Value, path: &str, complete: bool) -
     }
     Ok(())
 }
-
-pub fn merge_config_values(target: &mut Value, incoming: Value) {
-    match (target, incoming) {
-        (Value::Object(target), Value::Object(incoming)) => {
-            for (key, value) in incoming {
-                merge_config_values(target.entry(key).or_insert(Value::Null), value);
-            }
-        }
-        (target, value) => *target = value,
-    }
-}

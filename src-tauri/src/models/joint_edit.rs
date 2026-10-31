@@ -1,29 +1,10 @@
 use super::{
-    CsvTableKey, EntityEditTarget, EntityFileLocation, EntityKind, FileVersion, JsonWriteOptions,
-    ResourceRef, SessionModScope,
+    CsvTableKey, EntityEditTarget, EntityFileLocation, EntityKind, FileVersion, JointEditRoot,
+    JsonWriteOptions, ResourceRef, SessionModScope,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "camelCase")]
-pub enum JointEditKind {
-    Ship,
-    Skin,
-    Weapon,
-    Wing,
-    Variant,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct JointEditRoot {
-    pub session_id: String,
-    pub mod_root: String,
-    pub kind: JointEditKind,
-    pub id: String,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -116,15 +97,6 @@ pub struct JointVariantCatalog {
 pub struct JointSourceCreate {
     pub kind: EntityKind,
     pub id: String,
-}
-
-impl SessionModScope for JointEditRoot {
-    fn session_id(&self) -> Option<&String> {
-        Some(&self.session_id)
-    }
-    fn mod_root(&self) -> &str {
-        &self.mod_root
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

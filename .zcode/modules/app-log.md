@@ -10,17 +10,17 @@
 
 - `src-tauri/src/commands/app_log.rs`：批量追加、停写报告与日志维护命令。
 - `src-tauri/src/services/app_log.rs`：进程状态、原生记录队列、批量文件写入和轮转。
-- `src/app/application-log.spec.ts`：动作自动记录、跨窗口停写及启动故障隔离验证。
 - `src/app/application-log.ts`：窗口停写监听和 Pinia 动作记录装配。
-- `src/services/app-log.service.ts`：日志命令、队列交付与维护动作。
-- `src/services/app-log.spec.ts`：合批、失败停写及维护前交付验证。
+- `src/services/app-log.service.ts`：日志命令、停写通知、状态读取与维护动作。
 
 ### 消费
 
+- `src-tauri/src/app_data_dir.rs`：日志默认目录所属的工具私有目录解析。
 - `src-tauri/src/diagnostics.rs`：按级别交付原生诊断及惰性详细记录。
 - `src-tauri/src/models/app_log.rs`：固定文件名、四档级别、批量请求和状态协议。
 - `src/shared/lib/log-fields.ts`：业务记录的字符串上下文组装。
 - `src/shared/runtime/app-log-queue.ts`：窗口队列、源头过滤、惰性字段及区间记录。
+- `src/shared/runtime/event.runtime.ts`：通用通知注册、载荷和解除交接。
 - `src/shared/types/app-log.types.ts`：日志条目与状态协议。
 
 ### 装配
@@ -56,6 +56,8 @@
 
 ## 规范
 
+- 日志停写通知必须由日志 service 绑定协议，状态读取必须返回数据，队列停写必须归日志装配按所属寿命接纳。
+- 日志装配必须先建立页面释放入口再等待通知注册，迟到句柄必须立即解除，释放后的状态及错误严禁修改窗口队列或继续安装插件。
 - DEBUG 字段必须在级别检查后组装，命令和动作必须自动记录开始及成功或失败结果。
 - Mod session 日志必须携带 modRoot 与 sessionId，应用开始和退出必须携带版本。
 - 列表首次挂载必须消费实际 DOM 或组件挂载完成事件，驻留节点再次可见必须保留原有身份。

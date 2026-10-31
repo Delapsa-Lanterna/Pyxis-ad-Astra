@@ -11,23 +11,21 @@
 - `src-tauri/src/commands/project_sync.rs`：结果订阅、来源确认、项目等待与恢复控制。
 - `src-tauri/src/services/project_sync.rs`：项目保存队列、结果发布和未完成工作寿命。
 - `src/app/components/WriteSyncNotice.vue`：所属未完成交接的显示。
-- `src/app/components/write-sync-notice.spec.ts`：显式重试与错误呈现验证。
 - `src/app/composables/use-write-sync-view-model.ts`：失败交接重试与用户反馈。
-- `src/orchestrators/committed-write-events.spec.ts`：实际文件结果的文本提取验证。
-- `src/orchestrators/project-sync.orchestrator.spec.ts`：正式接纳、顺序消费、失败继续与释放验证。
 - `src/orchestrators/project-sync.orchestrator.ts`：窗口内保存消费过程和内容维护者交接。
 - `src/services/project-sync.service.ts`：所属同步命令与有序通道交付。
 - `src/stores/project-sync.store.ts`：当前待办、错误和项目等待状态。
 
 ### 消费
 
-- `src-tauri/src/models/write_commit.rs`：保存请求、实际结果与恢复输入。
+- `src-tauri/src/models/save_action.rs`：统一保存入口消费的请求与业务动作。
+- `src-tauri/src/models/write_commit.rs`：实际保存结果、窗口交付及公共写入协议。
 - `src-tauri/src/services/windows.rs`：窗口范围、关闭及释放。
 - `src-tauri/src/services/write_transactions.rs`：写盘事务、历史与投影恢复。
 - `src/services/project-projection.service.ts`：正式读取门控。
 - `src/services/query-cache.service.ts`：所属查询和在途读取失效。
 - `src/services/resource-media.service.ts`：资源缓存与租约失效。
-- `src/shared/types/write-commit.types.ts`：保存交付及所属结果。
+- `src/shared/types/write-commit.types.ts`：保存交付、所属结果及 SaveAcceptanceTask 接纳回调契约。
 - `src/stores/file-history.store.ts`：文件历史摘要接纳。
 - `src/stores/project.store.ts`：当前会话清单。
 
@@ -44,6 +42,7 @@
 - 同一项目的文件动作必须按队列顺序完成写入、恢复及正式结果登记。
 - 窗口交付必须消费所属项目与原生窗口身份。
 - 窗口内待办必须只持有尚未完成的处理步骤。
+- 接纳步骤必须消费公共 SaveAcceptanceTask，执行顺序、失败位置和维护者释放必须归项目同步。
 - 项目释放必须清理所属通道等待和业务运行态。
 
 ## 链路

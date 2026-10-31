@@ -7,7 +7,7 @@ import { jointObject } from '@/domain/joint-edit';
 import { getCsvColumnSchemas } from '@/domain/schema/csv-schema-registry';
 import { schemaStringValue } from '@/domain/schema/schema-values';
 import { weaponStatistics, weaponAccuracy, weaponTurnRate, weaponMissileSpeed, weaponMissileTracking } from './weapon-statistics';
-import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';
+import { weaponImageLayers, weaponLoadedMissile } from '@/shared/lib/starsector/weapon-images';
 import { designTypeColor } from '../design-type';
 
 export const WEAPON_TYPE_LABELS: Record<string, string> = {
@@ -387,4 +387,16 @@ export function updateImmersiveWeaponField(...args: Parameters<typeof updateImme
   )
     return { ...after, [record.key]: { state: 'present', value: changeWeaponSpecClass(jointObject(after[record.key]), update.value) } };
   return after;
+}
+
+export function weaponProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): import('@/shared/types').RowData {
+  const records = immersiveSourceRecords(snapshot),
+    spec = jointObject(values[records.spec.key]),
+    csv = jointObject(values[records.csv.key]);
+  return {
+    projectileId: spec.projectileSpecId ?? null,
+    specClass: spec.specClass ?? null,
+    sprites: Object.fromEntries(Object.entries(spec).filter(([key]) => key.endsWith('Sprite'))),
+    damageType: csv.type ?? null,
+  };
 }

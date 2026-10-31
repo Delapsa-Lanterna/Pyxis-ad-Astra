@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     io::write_utf8_no_bom,
     services::project::{query, session},
-    testutil::TestWorkspace,
+    test_support::TestWorkspace,
 };
 use serde_json::json;
 use std::{fs, path::Path};
@@ -121,7 +121,7 @@ fn refresh(manifest: &ProjectManifest, relative: &str) {
 
 #[test]
 fn reference_priority_content_and_lifecycle() {
-    if crate::testutil::isolated_test() {
+    if crate::test_support::isolated_test() {
         return;
     }
     let root = crate::services::project::test_support::project_workspace("reference_priority");
@@ -378,15 +378,21 @@ fn reference_priority_content_and_lifecycle() {
         &views[0],
         &prepare(&a.session_id).unwrap().1[0]
     ));
-    let handle = cache::session_handle(&b.session_id).unwrap();
+    let handle = session::session_handle(&b.session_id).unwrap();
     assert!(Arc::ptr_eq(
         &views[0].session.weapon_specs,
-        &cache::lock_session(&handle).unwrap().weapon_specs
+        &session::lock_session(&handle).unwrap().weapon_specs
     ));
-    let captured = cache::session_handle(&a.session_id).unwrap();
+    let captured = session::session_handle(&a.session_id).unwrap();
+    session::mark_projection_pending(&a.session_id).unwrap();
+    assert_eq!(
+        session::lock_ready_session(&captured).err().unwrap().code(),
+        "session.projection_pending"
+    );
+    session::invalidate_project_session(&a.session_id, Vec::new()).unwrap();
     set_reference_sources(vec![c.session_id.clone(), b.session_id.clone()]).unwrap();
     assert_eq!(
-        cache::lock_ready_session(&captured).unwrap().references[0]
+        session::lock_ready_session(&captured).unwrap().references[0]
             .identity
             .session_id,
         c.session_id
@@ -422,14 +428,25 @@ fn reference_priority_content_and_lifecycle() {
         owner(&options(&a, "csv:weapons.id"), "shared"),
         ResourceSource::Core
     );
-    session::close_project_session(a.session_id).unwrap();
+    session::close_project_session(a.session_id.clone()).unwrap();
+    assert_eq!(
+        session::session_handle(&a.session_id).err().unwrap().code(),
+        "session.unknown"
+    );
+    assert_eq!(
+        session::lock_ready_session(&captured)
+            .unwrap()
+            .manifest
+            .session_id,
+        a.session_id
+    );
     session::close_project_session(b.session_id).unwrap();
     root.close().unwrap();
 }
 
 #[test]
 fn mutual_references_share_views_and_refresh_official_content() {
-    if crate::testutil::isolated_test() {
+    if crate::test_support::isolated_test() {
         return;
     }
     let root: TestWorkspace =

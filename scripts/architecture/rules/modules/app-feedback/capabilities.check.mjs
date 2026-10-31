@@ -1,6 +1,13 @@
 import { testCapabilities } from '../../../testing/capabilities.mjs';
 /** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
+  ['log-stopped-listen', 'src/app/application-log.ts', 'src/services/app-log.service.ts', 'listenLogStopped'],
+  [
+    'settings-changed-listen',
+    'src/orchestrators/settings-persistence.orchestrator.ts',
+    'src/services/app-settings.service.ts',
+    'listenSettingsChanged',
+  ],
   [
     'settings-core-source',
     'src/app/composables/settings/use-settings-view-model.ts',

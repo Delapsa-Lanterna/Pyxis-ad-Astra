@@ -1,13 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { shipJointFixture } from '@/test/fixtures/joint-edit/ship-joint-edit';
 import { jointFixtureValues, fixtureSpecRecord, fixtureCsvRecord } from '@/test/fixtures/joint-edit/joint-record';
-import { projectShipPanel } from './ship-panel';
+import { projectShipPanel, shipProjectionInputs } from './ship-panel';
 import { updateImmersiveField } from '../fields';
 import { variantJointFixture } from '@/test/fixtures/joint-edit/variant-joint-edit';
 import { jointObject } from '@/domain/joint-edit';
 import { projectVariantPanel } from '../variant/variant-panel';
 
 describe('ship original configuration projection', () => {
+  it('tracks system and defense references independently of ship statistics', () => {
+    const snapshot = shipJointFixture(),
+      values = jointFixtureValues(snapshot);
+    const baseline = shipProjectionInputs(snapshot, values);
+    const changed = structuredClone(values);
+    changed.csv = { state: 'present', value: { ...jointObject(values.csv), hitpoints: '1200' } };
+    expect(shipProjectionInputs(snapshot, changed)).toEqual(baseline);
+    for (const key of ['system id', 'shield type', 'defense id']) {
+      changed.csv = { state: 'present', value: { ...jointObject(values.csv), [key]: 'changed-reference' } };
+      expect(shipProjectionInputs(snapshot, changed)).not.toEqual(baseline);
+    }
+    expect(shipProjectionInputs(snapshot, values)).toEqual(baseline);
+  });
   it('projects current Variant equipment, OP and flux allocation from the same draft', () => {
     const snapshot = variantJointFixture();
     const values = Object.fromEntries(snapshot.records.map((record) => [record.key, structuredClone(record.value)]));

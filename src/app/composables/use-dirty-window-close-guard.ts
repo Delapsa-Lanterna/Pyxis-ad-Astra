@@ -3,7 +3,7 @@ import { nextTick, watch, type Ref } from 'vue';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { currentWindowLabel, listenCurrentWindowCloseRequest } from '@/windows/current.window';
-import { listenWindowEvent, type UnlistenFn } from '@/windows/tauri.events';
+import { listenAppEvent, type UnlistenFn } from '@/shared/runtime/event.runtime';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import { updateNativeWindowStatus } from '@/services/window.service';
 import { settleWindowRequests } from '@/windows/window-context.window';
@@ -124,7 +124,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
       return;
     }
     stops.push(stop);
-    const unlisten = await listenWindowEvent<WindowCloseIntent>(
+    const unlisten = await listenAppEvent<WindowCloseIntent>(
       WINDOW_EVENTS.windowCloseIntent,
       (intent) => {
         stages = stages.then(() => handle(intent)).catch((error) => recordWindowEventHandlerError(error, WINDOW_EVENTS.windowCloseIntent));

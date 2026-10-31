@@ -1,9 +1,9 @@
 use super::super::cache::{
-    ensure_registered_table_rows, loaded_registered_csv_rows, lock_session,
-    registered_session_table, session_handle,
+    ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table,
 };
 use super::super::definitions::entity_definitions::associated_spec_definition;
 use super::super::model::SessionCsvRow;
+use super::super::session::{lock_session, session_handle};
 use super::csv_staging::CsvTableDraft;
 use crate::domain::spec_construction::{create_associated_spec, validate_weapon_spec_class};
 use crate::models::CsvSave;

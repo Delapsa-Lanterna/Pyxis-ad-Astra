@@ -1,7 +1,6 @@
+use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache::{
-        ensure_registered_table_rows, ensure_session_table_rows, lock_ready_session, session_handle,
-    },
+    cache::{ensure_registered_table_rows, ensure_session_table_rows},
     definitions::entity_definitions::entity_definition,
     model::{MISSION_LIST_TABLE_KEY, ProjectSession, string_from_row},
     versions::version_for_path,

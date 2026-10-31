@@ -6,8 +6,8 @@ pub(crate) fn query_core_root(
     game_root: Option<&str>,
 ) -> AppResult<Option<String>> {
     if let Some(id) = session_id {
-        let handle = super::super::cache::session_handle(id)?;
-        return Ok(super::super::cache::lock_ready_session(&handle)?
+        let handle = super::super::session::session_handle(id)?;
+        return Ok(super::super::session::lock_ready_session(&handle)?
             .manifest
             .starsector_root
             .clone());

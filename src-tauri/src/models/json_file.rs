@@ -1,4 +1,5 @@
-use super::{JsonWriteOptions, ProjectSessionId, required_nullable};
+use super::serde_fields::deserialize_nullable;
+use super::{JsonWriteOptions, ProjectSessionId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -8,11 +9,11 @@ pub struct JsonFileSave {
     pub base_versions: Vec<crate::models::FileVersion>,
     pub session_id: ProjectSessionId,
     pub mod_root: String,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub previous_id: Option<String>,
     pub next_id: String,
     pub data: Value,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub rel_path: Option<String>,
     #[serde(default)]
     pub json_write: JsonWriteOptions,

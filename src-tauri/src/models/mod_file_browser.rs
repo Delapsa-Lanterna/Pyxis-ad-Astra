@@ -32,7 +32,7 @@ pub struct ModTextFileTarget {
 #[serde(rename_all = "camelCase")]
 pub struct ModDirectoryPayload {
     pub session_id: String,
-    #[serde(deserialize_with = "super::required_nullable")]
+    #[serde(deserialize_with = "super::serde_fields::deserialize_nullable")]
     pub directory: Option<String>,
 }
 #[derive(Debug, Deserialize)]

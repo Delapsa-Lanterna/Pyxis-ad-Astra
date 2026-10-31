@@ -7,7 +7,7 @@ import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { errorCodeOf } from '@/shared/lib/errors';
 import { createReadTicketOwner, isReadInvalidated } from '@/shared/runtime/read-request';
 import type { EditContext, FileVersion } from '@/shared/types';
-import { retainLaterDraft } from '@/domain/project/save-edits';
+import { retainLaterDraft } from '@/domain/edit-session';
 
 type MaybePromise<T> = T | Promise<T>;
 export type SnapshotAcceptance = 'baseline' | 'pending' | 'obsolete';
@@ -41,7 +41,7 @@ export interface EditTargetDraftSessionOptions<TValue, TTarget, TMeta = unknown>
   acceptSaved?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => MaybePromise<void>;
   beginSave?: (
     write: (request?: SaveCommandRequest) => Promise<EditTargetSnapshot<TValue, TTarget, TMeta> | void>,
-    accept: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => import('@/stores/project-sync.store').SaveTask[],
+    accept: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => import('@/shared/types').SaveAcceptanceTask[],
   ) => SaveOperation<EditTargetSnapshot<TValue, TTarget, TMeta> | void>;
   savedContent?: (snapshot: EditTargetSnapshot<TValue, TTarget, TMeta>) => EditTargetSnapshot<TValue, TTarget, TMeta>;
   confirmSave?: (target: TTarget, value: TValue) => MaybePromise<boolean>;

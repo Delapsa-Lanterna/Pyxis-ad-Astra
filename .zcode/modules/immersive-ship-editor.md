@@ -10,8 +10,7 @@
 
 - `src/app/components/immersive/ship/`：舰船内容与静态贴图展示组件。
 - `src/domain/immersive/ship/`：舰船信息、来源、统计及行为测试。
-- `src/domain/immersive/ship/ship-panel.spec.ts`：舰船来源与基础计算的行为验证。
-- `src/domain/immersive/ship/ship-panel.ts`：舰船来源、后勤、战斗及装备信息投影。
+- `src/domain/immersive/ship/ship-panel.ts`：舰船来源、后勤、战斗、装备投影及系统与防御关联查询输入投影。
 
 ## 边界
 

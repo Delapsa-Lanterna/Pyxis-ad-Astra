@@ -14,7 +14,7 @@ import type { JointEditSnapshot } from '@/shared/types';
 import { initializeSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
-import type { CommittedWriteEvent } from '@/windows/window.events';
+import type { CommittedWriteEvent } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),

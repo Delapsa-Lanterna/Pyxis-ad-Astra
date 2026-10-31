@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ResourceRef } from '@/shared/types';
-import type { MountedWeaponImages } from '@/domain/editors/weapon-images';
+import type { MountedWeaponImages } from '@/shared/lib/starsector/weapon-images';
 import { createCanvasRecorder } from '@/test/unit/canvas-recorder';
 import { renderMountedWeapons, type MountedWeaponScene } from './weapon-images';
 

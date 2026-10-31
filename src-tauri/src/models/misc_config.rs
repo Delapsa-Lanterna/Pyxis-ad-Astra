@@ -1,16 +1,6 @@
-use crate::models::{FileVersion, JsonWriteOptions, ProjectSessionId};
+use crate::models::{FileVersion, JsonWriteOptions, MiscConfigKind, ProjectSessionId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum MiscConfigKind {
-    Strings,
-    EngineStyles,
-    HullStyles,
-    Sounds,
-    Settings,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

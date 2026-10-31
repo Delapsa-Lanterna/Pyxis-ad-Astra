@@ -14,7 +14,7 @@
 - `src/app/composables/immersive-editor/weapon/`：武器分支、弹体及开火预览动作。
 - `src/app/composables/immersive-editor/weapon/use-immersive-weapon-editor.ts`：分支覆盖、弹体及开火预览动作。
 - `src/domain/immersive/weapon/`：武器字段、统计与信息投影。
-- `src/domain/immersive/weapon/weapon-panel.ts`：武器字段、说明、图标来源和分支投影。
+- `src/domain/immersive/weapon/weapon-panel.ts`：武器字段、说明、图标来源、分支投影及弹体与贴图关联查询输入投影。
 - `src/domain/immersive/weapon/weapon-statistics.ts`：武器周期、弹药与伤害统计纯规则。
 
 ### 消费

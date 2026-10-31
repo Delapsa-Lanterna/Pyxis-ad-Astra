@@ -10,6 +10,7 @@ import { windowsCapabilities } from '../modules/windowing/capabilities.mjs';
 import { projectCapabilities } from '../modules/project-session/capabilities.mjs';
 import { editorsCapabilities } from '../modules/editors/capabilities.mjs';
 import { resourcesCapabilities } from '../modules/resources/capabilities.mjs';
+import { eventCapabilities } from './event-policy.mjs';
 
 export const frontendCapabilities = [
   ...applicationCapabilities,
@@ -17,6 +18,7 @@ export const frontendCapabilities = [
   ...projectCapabilities,
   ...editorsCapabilities,
   ...resourcesCapabilities,
+  ...eventCapabilities,
 ];
 
 /** @type {Map<string, CapabilityRule[]>} */

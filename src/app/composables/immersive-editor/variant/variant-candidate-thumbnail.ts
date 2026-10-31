@@ -1,7 +1,7 @@
 import type { ReadonlyVariantEntry } from '@/shared/types';
 import { isRowData } from '@/shared/lib/row-data';
 import { schemaStringValue } from '@/domain/schema/schema-values';
-import { weaponImageLayers, weaponLoadedMissile } from '@/domain/editors/weapon-images';
+import { weaponImageLayers, weaponLoadedMissile } from '@/shared/lib/starsector/weapon-images';
 import { immersiveCatalogScene, immersiveWingLayout } from '@/domain/immersive/hull-scene';
 import { immersiveNumber } from '@/domain/immersive/fields';
 import { hullThumbnailRequest, weaponThumbnailRequest } from '../use-immersive-thumbnails';

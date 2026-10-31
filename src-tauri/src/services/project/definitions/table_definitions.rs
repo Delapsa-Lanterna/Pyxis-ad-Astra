@@ -316,7 +316,7 @@ fn ship_row_resource(
     let Some(id) = string_from_row(row, "id") else {
         return Ok(None);
     };
-    hull_resource_ref(session, source, &id)
+    HullReferenceResolver::new(session).resource(source, &id)
 }
 
 fn weapon_row_resource(
@@ -351,7 +351,7 @@ fn wing_row_resource(
     else {
         return Ok(None);
     };
-    hull_resource_ref(session, source, &variant.hull_id)
+    HullReferenceResolver::new(session).resource(source, &variant.hull_id)
 }
 
 fn sim_opponent_row_resource(
@@ -381,7 +381,7 @@ fn sim_opponent_row_resource(
     let Some(hull_id) = hull_id else {
         return Ok(None);
     };
-    hull_resource_ref(session, source, &hull_id)
+    HullReferenceResolver::new(session).resource(source, &hull_id)
 }
 
 fn icon_row_resource(
@@ -410,7 +410,7 @@ fn ship_source_resource(
     core_data: Option<&CoreSourceData>,
     session: &ProjectSession,
 ) -> AppResult<Option<ResourceRef>> {
-    if let Some(resource) = hull_resource_ref(session, source, value)? {
+    if let Some(resource) = HullReferenceResolver::new(session).resource(source, value)? {
         return Ok(Some(resource));
     }
     Ok(core_data
@@ -494,7 +494,7 @@ fn wing_source_resource(
         return Ok(None);
     };
     match source_variant(source, &variant_id, core_data, session) {
-        Some(variant) => hull_resource_ref(session, source, &variant.hull_id),
+        Some(variant) => HullReferenceResolver::new(session).resource(source, &variant.hull_id),
         None => Ok(None),
     }
 }
@@ -580,14 +580,6 @@ fn no_source_display_name(
     _session: &ProjectSession,
 ) -> AppResult<Option<String>> {
     Ok(None)
-}
-
-pub(in crate::services::project) fn hull_resource_ref(
-    session: &ProjectSession,
-    source: ResourceSource,
-    hull_id: &str,
-) -> AppResult<Option<ResourceRef>> {
-    HullReferenceResolver::new(session).resource(source, hull_id)
 }
 
 #[cfg(test)]

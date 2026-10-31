@@ -4,7 +4,7 @@ use crate::{
     io::{read_csv_data, read_json_file, write_utf8_no_bom},
     models::*,
     services::{project, write_transactions},
-    testutil::TestWorkspace,
+    test_support::TestWorkspace,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -128,7 +128,7 @@ fn rename(
                 baseline,
                 values: BTreeMap::from([(key, JointValue::Present(data))]),
             })?;
-            crate::testutil::commit_saved::<crate::models::JointEditSnapshot>(
+            crate::services::write_transactions::commit_saved::<crate::models::JointEditSnapshot>(
                 crate::models::SaveAction::SaveJointEdit(Box::new(JointEditSubmission {
                     base_versions: prepared.snapshot.base_versions.clone(),
                     snapshot: prepared.snapshot,

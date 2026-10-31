@@ -3,19 +3,19 @@ import type { CommittedWriteEvent, ProjectInvalidation, ProjectSessionInvalidati
 import { savedWriteFixture, sessionUpdateFixture } from '@/test/fixtures/write-result';
 import { getActivePinia } from 'pinia';
 import { useProjectStore } from '@/stores/project.store';
-import type { SaveTask } from '@/stores/project-sync.store';
+import type { SaveAcceptanceTask } from '@/shared/types';
 
-export const projectChangeListeners = new Set<(event: CommittedWriteEvent) => ReturnType<SaveTask>>();
-const releases = new Map<(event: CommittedWriteEvent) => ReturnType<SaveTask>, (sessionId: string) => void>();
+export const projectChangeListeners = new Set<(event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>>();
+const releases = new Map<(event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>, (sessionId: string) => void>();
 export const savedContentWorks: Array<{ content: Promise<unknown>; retryContent: () => Promise<unknown> }> = [];
 export function beginSavedWrite<T>(
   write: (request?: import('@/shared/runtime/command.runtime').SaveCommandRequest) => Promise<T>,
-  accept: (value: Exclude<T, void | null>) => SaveTask[],
+  accept: (value: Exclude<T, void | null>) => SaveAcceptanceTask[],
   complete?: (value: T) => unknown,
 ) {
   const written = write();
   let id = 'fixture-save';
-  let tasks: SaveTask[] | undefined;
+  let tasks: SaveAcceptanceTask[] | undefined;
   const finish = async () => {
     const value = await written;
     if (value && typeof value === 'object' && 'requestId' in value && typeof value.requestId === 'string') id = value.requestId;
@@ -50,7 +50,7 @@ export function withSavedCompletion(complete: (value: unknown) => unknown) {
     beginSavedWrite(write, accept, complete);
 }
 export function observeSavedContentFixture(
-  handler: (event: CommittedWriteEvent) => ReturnType<SaveTask>,
+  handler: (event: CommittedWriteEvent) => ReturnType<SaveAcceptanceTask>,
   release?: (sessionId: string) => void,
 ) {
   const receive: typeof handler = (event) => run(() => handler(event));
@@ -61,7 +61,7 @@ export function observeSavedContentFixture(
     releases.delete(receive);
   };
 }
-async function run(task: SaveTask): Promise<void> {
+async function run(task: SaveAcceptanceTask): Promise<void> {
   const result = await task();
   if (Array.isArray(result)) for (const child of result) await run(child);
 }

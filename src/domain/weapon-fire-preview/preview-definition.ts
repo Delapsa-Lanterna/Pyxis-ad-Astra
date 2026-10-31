@@ -2,7 +2,7 @@ import type { DeepReadonly, RowData, ResourceRef } from '@/shared/types';
 import { num, str } from '@/shared/lib/starsector';
 import { isRowData } from '@/shared/lib/row-data';
 import { projectileAppearance } from '@/domain/editors/projectile-appearance';
-import { weaponAnglesKey, weaponBarrelOffsetsFor, type WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import { weaponAnglesKey, weaponBarrelOffsetsFor, type WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 
 export type PreviewResources = Readonly<Record<string, ResourceRef>>;
 export function createWeaponFirePreviewDefinition(

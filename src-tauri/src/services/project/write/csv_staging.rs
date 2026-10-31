@@ -84,7 +84,7 @@ mod tests {
         services::project::{
             PerformanceTrace, cache::ensure_registered_table_rows, session::build_project_session,
         },
-        testutil::TestWorkspace,
+        test_support::TestWorkspace,
     };
     use serde_json::json;
     use std::fs;

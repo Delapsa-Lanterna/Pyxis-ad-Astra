@@ -9,7 +9,6 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 ### 拥有
 
 - `src-tauri/src/commands/json_file.rs`：装配与皮肤的保存、创建、删除及会话来源核对。
-- `src-tauri/src/commands/json_file_validation_tests.rs`：皮肤继承、引擎槽索引及写盘拒绝验证。
 - `src-tauri/src/commands/json_recovery.rs`：来源重建准备、事务版本复核与 changeset 提交。
 - `src-tauri/src/domain/json_documents.rs`：Variant 与 Skin 的正式内容构造及计数投影。
 - `src-tauri/src/services/config_entity.rs`：Mod 信息保存、战役索引及任务目录的保存、创建和删除。
@@ -17,7 +16,6 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src-tauri/src/services/project/query/json_recovery.rs`：按已读取原目标重新授权来源、索引及版本。
 - `src-tauri/src/services/project/write/faction_identity.rs`：势力索引、实际规格目标及保存删除。
 - `src-tauri/src/services/project/write/json_recovery.rs`：缺失基线渲染、必要索引修复和实际 changeset。
-- `src-tauri/src/services/project/write/json_recovery_tests.rs`：五类文档的缺失组合、版本冲突及历史回放。
 - `src/app/components/json-editor/`：六类 JSON 编辑页面、列表、表单与主窗口生命周期验证。
 - `src/app/composables/json-editor/`：页面身份、目标会话、列表选择、输入、资源和保存装配。
 - `src/domain/json-editor/`：独立文件与索引配置的内容规则、默认值、记录投影和装配模块转换。
@@ -57,7 +55,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/shared/types/json-file.types.ts`：JSON 文件命令协议和编辑文件投影。
 - `src/shared/types/json-recovery.types.ts`：前后端对应的来源重建协议。
 - `src/shared/types/project-identity.types.ts`：实体目标与版本凭据协议。
-- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/draft-sessions.store.ts`：按 Mod 根登记未保存草稿。
 - `src/stores/project.store.ts`：指定 Mod 的正式清单与 session 查询，异步动作消费捕获目标。
 - `src/stores/save-command.store.ts`：保存等待、活动保存动作和目标交接状态。

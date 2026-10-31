@@ -111,7 +111,7 @@ fn fingerprint(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use crate::models::JsonSourceConfirmation;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::fs;
 
     #[test]

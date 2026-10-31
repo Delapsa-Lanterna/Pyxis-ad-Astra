@@ -453,3 +453,8 @@ export function projectShipPanel(
   }
   return panel;
 }
+
+export function shipProjectionInputs(snapshot: JointEditSnapshot, values: Record<string, JointValue>): import('@/shared/types').RowData {
+  const csv = jointObject(values[immersiveSourceRecords(snapshot).csv.key]);
+  return { systemId: csv['system id'] ?? null, shieldType: csv['shield type'] ?? null, defenseId: csv['defense id'] ?? null };
+}

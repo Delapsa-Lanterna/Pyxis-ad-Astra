@@ -1,14 +1,12 @@
 import { defineStore } from 'pinia';
 import { computed, shallowReactive } from 'vue';
-import type { CommittedWriteEvent, ErrorDiagnostic, SaveDelivery } from '@/shared/types';
+import type { CommittedWriteEvent, ErrorDiagnostic, SaveDelivery, SaveAcceptanceTask } from '@/shared/types';
 import { normalizeFsPath } from '@/shared/lib/paths';
-
-export type SaveTask = () => void | boolean | SaveTask[] | Promise<void | boolean | SaveTask[]>;
 
 export interface PendingWriteSync {
   id: string;
   event: CommittedWriteEvent;
-  tasks: SaveTask[];
+  tasks: SaveAcceptanceTask[];
   running: Promise<void> | null;
   error: ErrorDiagnostic | null;
 }

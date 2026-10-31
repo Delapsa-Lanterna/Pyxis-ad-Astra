@@ -1,3 +1,4 @@
+use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
     cache,
     model::{LoadedSpecRecord, ProjectSession, csv_table_spec, string_field},
@@ -47,8 +48,8 @@ pub fn query_joint_edit_request(query: &JointEditQuery) -> AppResult<JointEditSn
                 ));
             }
         };
-        let handle = cache::session_handle(&root.session_id)?;
-        let mut session = cache::lock_ready_session(&handle)?;
+        let handle = session_handle(&root.session_id)?;
+        let mut session = lock_ready_session(&handle)?;
         cache::ensure_registered_table_rows(&mut session, table)?;
         let (_, rows, _) = cache::csv::read_table_snapshot(&session, table)?;
         let row = rows
@@ -89,8 +90,8 @@ pub fn query_variant_catalog(
 ) -> AppResult<JointVariantCatalogRead> {
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root.mod_root))?;
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
-    let handle = cache::session_handle(&root.session_id)?;
-    let mut session = cache::lock_ready_session(&handle)?;
+    let handle = session_handle(&root.session_id)?;
+    let mut session = lock_ready_session(&handle)?;
     let (reference_settings, damage_icons) = reference_settings(&session)?;
     let catalog = if matches!(kind, JointVariantCatalogKind::Variants) {
         module_variant_catalog(&mut session, source.expect("module catalog source"))?
@@ -122,8 +123,8 @@ pub(in crate::services::project) fn query_joint_edit_values(
     }
     let _lease = crate::io::acquire_root_write_lock(Path::new(&root.mod_root))?;
     super::super::ensure_project_session_mod_root(&root.session_id, &root.mod_root)?;
-    let handle = cache::session_handle(&root.session_id)?;
-    let mut session = cache::lock_ready_session(&handle)?;
+    let handle = session_handle(&root.session_id)?;
+    let mut session = lock_ready_session(&handle)?;
     let mut root = root.clone();
     root.mod_root = session.manifest.mod_root.clone();
     #[cfg(test)]

@@ -202,11 +202,11 @@ pub enum EntityTargetState {
 pub struct EntityEditTarget {
     pub kind: EntityKind,
     pub id: String,
-    #[serde(deserialize_with = "super::required_nullable")]
+    #[serde(deserialize_with = "super::serde_fields::deserialize_nullable")]
     pub source: Option<EntityFileLocation>,
     pub write: EntityFileLocation,
     pub state: EntityTargetState,
-    #[serde(deserialize_with = "super::required_nullable")]
+    #[serde(deserialize_with = "super::serde_fields::deserialize_nullable")]
     pub linked_record: Option<EntityLinkedRecord>,
 }
 

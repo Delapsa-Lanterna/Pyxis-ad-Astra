@@ -9,7 +9,7 @@ use crate::services::prepare_joint_edit;
 use crate::{
     io::{read_csv_data, write_utf8_no_bom},
     services::{project, write_transactions},
-    testutil::TestWorkspace,
+    test_support::TestWorkspace,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf};

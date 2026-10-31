@@ -14,7 +14,7 @@ import { createCsvDeletedRow, createCsvDirtyCells, csvDirtyCells, hasCsvDirtyCel
 import { createTableRowKey } from '@/domain/csv-editor/table-row-key';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
-import { retainLaterDraft } from '@/domain/project/save-edits';
+import { retainLaterDraft } from '@/domain/edit-session';
 
 export interface CsvDraftResult {
   changed: boolean;

@@ -14,8 +14,6 @@
 - `src-tauri/src/domain/joint_hull.rs`：有效船体字段来源、Skin 继承与有效武器槽的纯投影。
 - `src-tauri/src/services/project/query/joint_edit.rs`：四类根、来源图、CSV 目录及版本装配。
 - `src-tauri/src/services/project/write/joint_edit.rs`：联合 changeset、实际快照、行键和身份交接。
-- `src-tauri/src/services/project/write/joint_edit_tests.rs`：联合保存、来源补全及身份写入验证。
-- `src-tauri/src/services/project/write/joint_skin_tests.rs`：皮肤根、有序来源、继承计算与保存改名验证。
 - `src-tauri/src/services/project/write/variant_identity.rs`：装配身份改名消费当前 Mod 父引用并装配同根 changeset 的写入。
 - `src/app/components/JointEditConflictChoices.vue`：三个来源与字段选择展示。
 - `src/app/composables/use-edit-target-handoff.ts`：窗口接收与目标登记生命周期。
@@ -27,7 +25,8 @@
 
 ### 消费
 
-- `src-tauri/src/models/joint_edit.rs`：联合根、来源记录、缺失值、冲突与提交模型。
+- `src-tauri/src/models/joint_edit.rs`：联合来源记录、缺失值、冲突与提交模型。
+- `src-tauri/src/models/joint_target.rs`：联合业务根、类别与所属项目范围。
 - `src-tauri/src/models/project_identity.rs`：联合来源消费的实体、CSV 表与版本身份。
 - `src-tauri/src/models/write_commit.rs`：联合提交消费的公共回执与行键映射。
 - `src-tauri/src/services/project/model.rs`：来源装配消费的已加载记录。
@@ -38,7 +37,7 @@
 - `src/domain/json-editor/json-variant-modules.ts`：装配模块对象与有序数组的身份改名映射。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID 字段及字符串 ID 提取。
 - `src/shared/types/joint-edit.types.ts`：前端联合记录、冲突及交接协议。
-- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与 JSON 写入契约。
+- `src/shared/types/write-commit.types.ts`：公共保存回执、提交同步、行键映射与正式内容交付。
 - `src/stores/save-command.store.ts`：所属保存句柄、独立草稿和关闭等待登记。
 - `src/test/fixtures/entity-target.ts`：正式实体目标及版本的测试构造。
 - `src/test/fixtures/joint-edit/joint-record.ts`：四类联合样本共用的记录、来源、版本与草稿构造。

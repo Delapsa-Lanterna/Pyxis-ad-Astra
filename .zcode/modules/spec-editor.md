@@ -21,9 +21,7 @@ Spec 编辑器基础模块提供规格窗口宿主、共同输入契约和业务
 - `src/domain/editors/lib/game-spec-enums.ts`：弹体、导弹与战术系统分支的游戏枚举。
 - `src/domain/editors/spec-construction.ts`：规格模板、字段定义和所属路径更新。
 - `src/domain/spec-editor/spec-editor-definitions.ts`：窗口名称和尺寸的纯定义。
-- `src/domain/spec-editor/spec-normalization.spec.ts`：四类规格的集合默认值与归一化验证。
 - `src/domain/spec-editor/spec-schemas.ts`：Spec 资产引用解析及当前分支装配。
-- `src/domain/spec-editor/spec-validation.spec.ts`：四类规格字段、内部对象与共同保存约束验证。
 - `src/domain/spec-editor/spec-validation.ts`：字段类型、必填与声明约束的共同问题投影。
 - `src/services/spec-editor.service.ts`：规格保存、导入及身份意图交接。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。

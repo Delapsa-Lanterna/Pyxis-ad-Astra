@@ -7,7 +7,7 @@ import {
   failNativeWindowRequest,
   failNativeWindowStartup,
 } from '@/services/window.service';
-import { listenWindowEvent, type WindowEventErrorHandler } from './tauri.events';
+import { listenAppEvent, type AppEventErrorHandler } from '@/shared/runtime/event.runtime';
 import { WINDOW_EVENTS } from './window.events';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
 import type { DeepReadonly, ManagedWindowContext, WindowContextFor } from '@/shared/types';
@@ -45,7 +45,7 @@ export function useWindowContext<K extends ManagedWindowContext['kind']>(kind: K
 export function failWindowStartup(error: unknown) {
   return failNativeWindowStartup(errorDiagnosticOf(error));
 }
-export function subscribeWindowRequests(handler: (next: ManagedWindowContext) => void | Promise<void>, onError: WindowEventErrorHandler) {
+export function subscribeWindowRequests(handler: (next: ManagedWindowContext) => void | Promise<void>, onError: AppEventErrorHandler) {
   let disposed = false,
     running = false,
     queued = false;
@@ -95,7 +95,7 @@ export function subscribeWindowRequests(handler: (next: ManagedWindowContext) =>
       running = false;
     }
   }
-  void listenWindowEvent<number>(WINDOW_EVENTS.managedWindowRequestAvailable, drain, onError)
+  void listenAppEvent<number>(WINDOW_EVENTS.managedWindowRequestAvailable, drain, onError)
     .then((unlisten) => {
       if (disposed) {
         unlisten();

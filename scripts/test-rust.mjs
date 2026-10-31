@@ -87,7 +87,7 @@ async function rustSources(directory) {
 /** @param {string[]} names @param {Record<string,string|null>} capabilities */
 async function unsupportedTests(names, capabilities) {
   for (const { file, text } of await rustSources('src-tauri/src')) {
-    if (file.endsWith('testutil.rs') || file.endsWith('testutil_tests.rs')) continue;
+    if (file.endsWith('test_support.rs') || file.endsWith('test_support_tests.rs')) continue;
     const code = stripRustCommentsAndStrings(text);
     for (const fn of code.matchAll(/\bfn\s+(\w+)\s*\(/g)) {
       const start = code.indexOf('{', fn.index);
@@ -134,7 +134,7 @@ try {
     .map((item) => item.executable);
   if (!binaries.length) throw new Error('Cargo did not return any test executables');
   const library = binaries.find((binary) => binary.includes('pyxis_ad_astra_lib'));
-  const probe = await run(library, ['--exact', 'testutil::tests::workspace_capabilities', '--ignored', '--nocapture'], false);
+  const probe = await run(library, ['--exact', 'test_support::tests::workspace_capabilities', '--ignored', '--nocapture'], false);
   if (probe.exitCode) throw new Error(probe.stdout + probe.stderr);
   const result = probe.stdout.split('\n').find((line) => line.startsWith('TEST_CAPABILITIES '));
   if (!result) throw new Error('The filesystem capability probe did not return results');

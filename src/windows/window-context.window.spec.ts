@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({
   startup: vi.fn(),
   bootstrap: vi.fn(),
 }));
-vi.mock('./tauri.events', () => ({ listenWindowEvent: api.listen }));
+vi.mock('@/shared/runtime/event.runtime', () => ({ listenAppEvent: api.listen }));
 vi.mock('@/services/window.service', () => ({
   getNativeWindowBootstrap: api.bootstrap,
   getNativeWindowContext: api.context,

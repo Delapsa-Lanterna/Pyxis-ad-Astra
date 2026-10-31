@@ -11,16 +11,16 @@
 - `src/app/components/spec-editor/weapon/`：武器画布、检查器与行为测试。
 - `src/app/composables/spec-editor/weapon/`：武器字段、发射点动作、光效与资源依赖生命周期。
 - `src/app/renderers/spec-editor/weapon/`：武器贴图与发射点场景。
-- `src/domain/editors/lib/weapon-sprite-fields.ts`：武器贴图字段、键映射及 origin 比例。
-- `src/domain/editors/weapon-images.ts`：静态装备贴图、绘制阶段及已装载导弹纯投影。
-- `src/domain/editors/weapon-render-order.ts`：装备绘制顺序、位置修正与槽位 ID 比较。
-- `src/domain/editors/weapon-spec.ts`：武器创建、归一化、分支转换与正式类型入口。
+- `src/domain/editors/weapon-spec.ts`：武器创建、CSV 字段分支推断、归一化与分支转换。
 - `src/domain/spec-editor/weapon/`：发射点动作、镜像及操作预览规则。
 - `src/services/spec-weapon-editor.service.ts`：武器编辑数据、贴图和弹体选项目录的查询入口。
 - `src/services/weapon-data.service.ts`：武器规格、CSV 与授权武器资源的共享查询。
 
 ### 消费
 
+- `src/shared/lib/starsector/weapon-images.ts`：武器静态贴图、挂载阶段及已装载导弹的共同投影。
+- `src/shared/lib/starsector/weapon-render-order.ts`：挂载武器的游戏层序与槽位比较。
+- `src/shared/lib/starsector/weapon-sprite-fields.ts`：武器贴图字段、原点及发射位置键。
 - `src/shared/ui/FieldHints.vue`：检查器说明的共同展示。
 - `src/windows/spec-editor.window.ts`：四类规格的身份、尺寸与结构化窗口请求。
 
@@ -73,6 +73,7 @@
 - 弹体打开必须在输入提交后捕获当前引用；帧动画与弹体／光束分组必须共同提供开火预览入口，并消费同一动作交付与后续编辑独立的草稿快照。
 - 普通武器编辑器必须以正式弹体引用字段消费所属目录；完整弹体内容必须由所属编辑或预览入口读取。
 - 武器创建与结构化保存只允许 projectile 和 beam；pulse 原文必须保持可读，违规保存必须返回 spec.weapon_class_unsupported。
+- 武器初始分支必须按 10 项 projectile 字段与 3 项 beam 字段的非空原文计分；零值必须计分，平分必须选择 projectile。
 - 武器改名必须消费正式身份事务，共同更新规格、关联 CSV 与 WEAPON 描述。
 - 武器规格转换必须先提交活动输入，保留业务字段并补齐目标分支缺失必读字段。
 - 武器资源必须按当前草稿经授权 query 读取，结果接纳必须核对目标与读取票据。

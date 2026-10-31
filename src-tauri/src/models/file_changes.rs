@@ -1,4 +1,4 @@
-use crate::models::required_nullable;
+use super::serde_fields::deserialize_nullable;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,15 +8,15 @@ pub struct FileChangeRecord {
     pub before_path: String,
     pub after_path: String,
     pub before_exists: bool,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub before_text: Option<String>,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub before_data_base64: Option<String>,
     pub before_files: Vec<FileSnapshot>,
     pub after_exists: bool,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub after_text: Option<String>,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub after_data_base64: Option<String>,
     pub after_files: Vec<FileSnapshot>,
 }
@@ -50,9 +50,9 @@ pub enum FileChangeKind {
 #[serde(rename_all = "camelCase")]
 pub struct FileSnapshot {
     pub rel_path: String,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub text: Option<String>,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub data_base64: Option<String>,
 }
 

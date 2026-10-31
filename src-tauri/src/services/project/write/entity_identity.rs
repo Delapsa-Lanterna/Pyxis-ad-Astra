@@ -1,5 +1,5 @@
+use super::super::session::{lock_session, session_handle};
 use super::super::{
-    cache::{lock_session, session_handle},
     definitions::entity_definitions::entity_definition,
     query::entity_targets::describe_entity_target,
 };

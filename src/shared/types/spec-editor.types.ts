@@ -25,6 +25,6 @@ export interface SpecSave {
   modRoot: string;
   target: import('@/shared/types/project-identity.types').EntityEditTarget;
   data: RowData;
-  jsonWrite?: import('@/shared/types/write-commit.types').JsonWriteOptions;
+  jsonWrite?: import('@/shared/types/json-write.types').JsonWriteOptions;
   orderedJson?: string | null;
 }

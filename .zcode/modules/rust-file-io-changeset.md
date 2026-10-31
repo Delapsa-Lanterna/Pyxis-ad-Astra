@@ -10,7 +10,6 @@
 
 - `src-tauri/src/io/csv_files.rs`：CSV 文件读写与路径上下文。
 - `src-tauri/src/io/faction_index.rs`：索引引用的实际根与父链授权。
-- `src-tauri/src/io/faction_index_test.rs`：势力索引路径授权和读入行为验证。
 - `src-tauri/src/io/file_changes.rs`：changeset 构建、应用与回放。
 - `src-tauri/src/io/file_versions.rs`：规范路径版本采集与指纹核对。
 - `src-tauri/src/io/json_files.rs`：JSON 文件读取及匹配版本交付。

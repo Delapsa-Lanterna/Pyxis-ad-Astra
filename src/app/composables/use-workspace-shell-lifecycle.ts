@@ -80,17 +80,20 @@ export function useWorkspaceShellLifecycle(
               feedback.warning({ ...warning, userMessage: `${displayName}：${warning.userMessage}` });
             }
           },
-        }),
+        })
+          .then(() => {
+            shouldPersistRestoredWorkspace = !disposed;
+          })
+          .finally(async () => {
+            try {
+              await persistence.finishRestore(shouldPersistRestoredWorkspace);
+            } catch (error) {
+              if (!disposed) feedback.error(error, '保存工作区状态失败');
+            }
+          }),
       );
-      shouldPersistRestoredWorkspace = !disposed;
     } catch (error) {
       if (!disposed) feedback.error(error, '恢复工作区状态失败');
-    } finally {
-      try {
-        await persistence.finishRestore(shouldPersistRestoredWorkspace);
-      } catch (error) {
-        if (!disposed) feedback.error(error, '保存工作区状态失败');
-      }
     }
   });
 

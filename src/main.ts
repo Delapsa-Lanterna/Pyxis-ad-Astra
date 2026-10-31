@@ -14,14 +14,25 @@ import StartupFailure from '@/app/StartupFailure.vue';
 import './styles/style.css';
 
 let app: App | null = null;
+let pageActive = true;
+window.addEventListener(
+  'pagehide',
+  () => {
+    pageActive = false;
+  },
+  { once: true },
+);
 installRuntimeErrorMonitor();
 async function bootstrap() {
   const bootstrap = await initializeWindowContext();
+  if (!pageActive) return;
   const windowKind = bootstrap.kind === 'main' ? 'main' : bootstrap.context.kind;
   const [Root, settings] = await Promise.all([loadWindowRoot(windowKind), initializeSettings()]);
+  if (!pageActive) return;
   initializeSettingsStore(settings.value);
   const pinia = createPinia();
   await startApplicationLog(pinia);
+  if (!pageActive) return;
   startPerformanceMonitor(pinia, settings.performanceMonitorActive);
   app = createApp(Root).use(pinia);
   installVueErrorHandlers(app);
@@ -46,6 +57,7 @@ async function loadWindowRoot(kind: string | null): Promise<Component> {
 }
 
 void bootstrap().catch((error) => {
+  if (!pageActive) return;
   app?.unmount();
   const reported = failWindowStartup(error).catch(reportStartupError);
   const target = document.querySelector('#app');
@@ -58,6 +70,7 @@ void bootstrap().catch((error) => {
 });
 
 function reportStartupError(error: unknown) {
+  if (!pageActive) return;
   const diagnostic = errorDiagnosticOf(error);
   recordLogBestEffort({
     level: 'error',

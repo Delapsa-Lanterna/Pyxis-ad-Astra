@@ -1,4 +1,5 @@
-use super::{ProjectSessionId, required_nullable_non_empty_string};
+use super::ProjectSessionId;
+use super::serde_fields::deserialize_non_empty_string;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
@@ -59,7 +60,7 @@ pub enum OriginalFontResult {
 #[serde(rename_all = "camelCase")]
 pub struct QueryOriginalFontPayload {
     pub session_id: ProjectSessionId,
-    #[serde(deserialize_with = "required_nullable_non_empty_string")]
+    #[serde(deserialize_with = "deserialize_non_empty_string")]
     pub font_directory: Option<String>,
     pub font_id: crate::models::font::FontId,
 }

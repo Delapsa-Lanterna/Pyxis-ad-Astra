@@ -130,7 +130,7 @@ pub fn save_misc_config(
             effective = crate::io::read_json_file(&source)?;
         }
     }
-    crate::domain::schema::merge_config_values(&mut effective, payload.data.clone());
+    crate::json_overlay::overlay_json_value(&mut effective, payload.data.clone());
     crate::domain::schema::validate_field(
         config_schema(payload.kind),
         &effective,

@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { ResourceRef } from '@/shared/types';
-import type { LoadedWeaponMissile } from '@/domain/editors/weapon-images';
+import type { LoadedWeaponMissile } from '@/shared/lib/starsector/weapon-images';
 import { useResourceThumbnail } from '@/app/composables/use-resource-thumbnail';
 import { weaponThumbnailRequest } from '@/app/composables/immersive-editor/use-immersive-thumbnails';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';

@@ -35,13 +35,14 @@
 
 ### Rust
 
+- `src-tauri/src/app_data_dir.rs`：工具私有数据目录解析；服务消费解析结果，IO 消费实际路径。
 - `src-tauri/src/commands/`：处理 wire 参数、状态访问、错误转换和 service 调用。
 - `src-tauri/src/domain/`：保存实体定义、编辑目标、资源引用、Mod 创建规则和纯业务投影。
 - `src-tauri/src/io/`：保存 canonical 路径边界、文件读写、目录快照、改名和 changeset 应用。
 - `src-tauri/src/models/`：保存 wire 模型、内部模型、归一化映射和结构化错误数据。
 - `src-tauri/src/parsers/`：保存 CSV-like、JSON-like、spec 和文本解析、渲染及诊断位置。
 - `src-tauri/src/services/project/sources/`：按实际来源根交付匹配内容与版本，维护解析成果复用、Core 文档目录及来源持久化。
-- `src-tauri/src/services/project/`：按 root、session、query、write、resources、cache 和 model 分工；query 只读，write 返回实际 changeset、版本和 invalidation。
+- `src-tauri/src/services/project/`：按 root、session、query、write、resources、cache 和 model 分工；session 拥有存活登记、引用来源和就绪读取；query 只读，write 返回实际 changeset、版本和 invalidation。
 - `src-tauri/src/services/write_transactions/`：保存提交模块维护项目文件事务、失败恢复与正式结果登记；项目同步持有所属项目队列并独立发布结果。
 - `src-tauri/src/services/`：提供目录打开、workspace、ProjectSession、配置、文件、设置、日志、Core、资源和窗口能力；业务函数由服务装配直接从所属实现导出。
 

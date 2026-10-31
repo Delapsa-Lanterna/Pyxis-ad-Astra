@@ -1,4 +1,5 @@
-use super::super::cache::{lock_ready_session, lock_registry, media, session_handle};
+use super::super::cache::media;
+use super::super::session::{lock_ready_session, lock_registry, session_handle};
 use super::refs::media_resource_key;
 use crate::models::{ResourceRef, ResourceSource};
 use crate::{
@@ -90,7 +91,7 @@ impl SpriteReadBatch {
         resource: &ResourceRef,
     ) -> AppResult<Option<String>> {
         let resource_key = media_resource_key(resource);
-        if self.revision != super::super::cache::references::reference_revision() {
+        if self.revision != super::super::session::references::reference_revision() {
             return Err(AppError::message(
                 "reference.changed",
                 "引用来源已变化，请重新读取",
@@ -311,13 +312,13 @@ fn path_escapes_resource_root(path: &Path) -> bool {
 mod tests {
     use super::*;
     use crate::services::project::test_support::project_workspace;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::fs;
 
     pub(super) fn batch_at(mod_root: &Path, core: Option<&Path>) -> SpriteReadBatch {
         SpriteReadBatch {
             session_id: "sprite-test".into(),
-            revision: super::super::super::cache::references::reference_revision(),
+            revision: super::super::super::session::references::reference_revision(),
             references: Vec::new(),
             mod_root: SpriteRoot::new(mod_root.to_path_buf()),
             core_root: core.map(|path| SpriteRoot::new(path.to_path_buf())),
@@ -450,7 +451,7 @@ mod tests {
         assert!(cached.mod_root.boundary.is_none());
         assert!(cached.core_root.is_none());
         let handle = session_handle(&manifest.session_id).unwrap();
-        super::super::super::cache::lock_session(&handle)
+        super::super::super::session::lock_session(&handle)
             .unwrap()
             .projection_pending = true;
         assert!(SpriteReadBatch::new(&manifest.session_id).is_err());

@@ -2,6 +2,9 @@ import type { AppLogEntry, AppLogStatus, AppendAppLogsPayload } from '@/shared/t
 import { invokeCommand } from '@/shared/runtime/command.runtime';
 import { appLogQueue, applicationLogError } from '@/shared/runtime/app-log-queue';
 import { errorMessageOf } from '@/shared/lib/errors';
+import { listenAppEvent, type AppEventHandler, type AppEventErrorHandler } from '@/shared/runtime/event.runtime';
+
+const LOG_STOPPED_EVENT = 'app-log-stopped';
 
 appLogQueue.install(
   async (entries) => {
@@ -22,11 +25,14 @@ export const flushApplicationLogs = appLogQueue.flush;
 
 export async function loadLogStatus(): Promise<AppLogStatus> {
   const status = await invokeCommand<AppLogStatus>('get_app_log_status');
-  if (status.lastError) appLogQueue.stop(status.lastError);
   return { ...status, pending: status.pending + appLogQueue.status().pending };
 }
 
 export async function clearLog(): Promise<AppLogStatus> {
   await flushApplicationLogs();
   return invokeCommand('clear_app_log_file');
+}
+
+export function listenLogStopped(handler: AppEventHandler<string>, onError: AppEventErrorHandler) {
+  return listenAppEvent(LOG_STOPPED_EVENT, handler, onError);
 }

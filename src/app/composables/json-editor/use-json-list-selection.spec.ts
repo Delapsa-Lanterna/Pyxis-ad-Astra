@@ -22,7 +22,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
   ...(await import('@/test/unit/project-changes')),
   beginSavedWrite: <T>(
     write: () => Promise<T>,
-    accept: (value: Exclude<T, void | null>) => import('@/stores/project-sync.store').SaveTask[],
+    accept: (value: Exclude<T, void | null>) => import('@/shared/types').SaveAcceptanceTask[],
   ) => {
     const fixture = import('@/test/unit/project-changes');
     const written = write();

@@ -1,4 +1,5 @@
-use super::{CsvTableKey, ProjectSessionId, ResourceRef, required_nullable};
+use super::serde_fields::deserialize_nullable;
+use super::{CsvTableKey, ProjectSessionId, ResourceRef};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -58,7 +59,7 @@ pub struct CsvTableIndexPayload {
     pub session_id: ProjectSessionId,
     pub table: CsvTableKey,
     pub initial_count: usize,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "deserialize_nullable")]
     pub search: Option<String>,
     pub search_field: CsvSearchField,
 }

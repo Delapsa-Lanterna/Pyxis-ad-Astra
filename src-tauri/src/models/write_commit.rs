@@ -1,9 +1,8 @@
+use super::collections::push_unique_all;
 use crate::errors::ErrorDiagnostic;
-use crate::models::{
-    FileChangeRecord, FileHistorySnapshot, FileVersion, ProjectInvalidation, push_unique_all,
-};
+use crate::models::{FileChangeRecord, FileHistorySnapshot, FileVersion, ProjectInvalidation};
 #[cfg(test)]
-use crate::testutil::TestWorkspace;
+use crate::test_support::TestWorkspace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
@@ -41,14 +40,6 @@ pub enum SaveDelivery {
     },
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveRequest {
-    pub id: String,
-    pub edits: Vec<SaveEdit>,
-    pub action: super::SaveAction,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SaveEdit {
@@ -67,22 +58,6 @@ pub struct CsvRowKeyMapping {
     pub previous_key: String,
     pub next_key: String,
     pub row_index: usize,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct JsonWriteOptions {
-    #[serde(default)]
-    pub preserve_original_json: bool,
-    #[serde(default)]
-    pub confirmed_sources: Vec<JsonSourceConfirmation>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct JsonSourceConfirmation {
-    pub path: String,
-    pub source_fingerprint: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,23 +206,6 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn json_write_options_keep_missing_field_defaults() {
-        for value in [
-            json!({}),
-            json!({"preserveOriginalJson":false}),
-            json!({"confirmedSources":[]}),
-        ] {
-            let options: JsonWriteOptions = serde_json::from_value(value).unwrap();
-            assert!(!options.preserve_original_json);
-            assert!(options.confirmed_sources.is_empty());
-        }
-        let options: JsonWriteOptions =
-            serde_json::from_value(json!({"preserveOriginalJson":true})).unwrap();
-        assert!(options.preserve_original_json);
-        assert!(options.confirmed_sources.is_empty());
-    }
-
-    #[test]
     fn committed_projection_states_keep_the_flat_wire_shape() {
         let manifest = json!({
             "baseVersions":[], "sessionId":"s", "modRoot":"M:/mod", "starsectorRoot":null,
@@ -333,20 +291,6 @@ mod tests {
             .unwrap_or_else(|_| path.as_ref().to_path_buf())
             .to_string_lossy()
             .to_string()
-    }
-
-    #[test]
-    fn save_requests_keep_the_original_request_identity() {
-        let payload: SaveRequest = serde_json::from_value(json!({
-            "id":"request-7", "edits":[],
-            "action":{"kind":"refresh_project_sources","input":{"sessionId":"session","sources":[]}}
-        }))
-        .unwrap();
-        assert_eq!(payload.id, "request-7");
-        assert!(payload.edits.is_empty());
-        assert!(
-            matches!(payload.action, super::super::SaveAction::RefreshProjectSources(input) if input.session_id == "session" && input.sources.is_empty())
-        );
     }
 
     #[test]

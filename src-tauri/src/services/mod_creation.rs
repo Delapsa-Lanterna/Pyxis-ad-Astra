@@ -3,7 +3,7 @@ use crate::{
     errors::AppResult,
     io::{FsRootBoundary, mod_creation::create_new_mod},
     models::{CreatedMod, NewModDestination, NewModTemplate},
-    services::directory_opening::{infer_starsector_root, resolve_game_mods_directory},
+    services::project::{infer_starsector_root, resolve_game_mods_directory},
 };
 use std::path::Path;
 
@@ -37,7 +37,7 @@ pub fn create_mod(
 mod tests {
     use super::*;
     use crate::models::NewModTemplate;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::fs;
 
     #[test]

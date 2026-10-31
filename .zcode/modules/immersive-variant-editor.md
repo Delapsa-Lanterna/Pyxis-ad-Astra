@@ -22,11 +22,13 @@
 - `src/app/composables/use-immersive-hover.ts`：装配候选悬浮目标、延时与释放。
 - `src/assets/immersive/controls/`：装配控件的本地回退资产。
 - `src/domain/immersive/variant/`：预算、装备、插件、筛选和分组纯规则。
+- `src/domain/immersive/variant/variant-panel.ts`：装备与船体投影及武器组、模块、联队和插件的关联查询输入投影。
 
 ### 消费
 
 - `src/domain/json-editor/json-variant-modules.ts`：Variant 模块字段的对象/数组读取与写回。
 - `src/shared/runtime/app-log-queue.ts`：候选实际挂载、隐藏、恢复及释放的详细记录。
+- `src/shared/runtime/use-layout-frame.ts`：候选尺寸与位置测量的帧合并及作用域释放。
 - `src/test/fixtures/joint-edit/variant-joint-edit.ts`：装配、模块与装备来源的测试构造。
 
 ## 边界

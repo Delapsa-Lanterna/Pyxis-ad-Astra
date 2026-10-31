@@ -1,9 +1,9 @@
 import type { Point } from '@/domain/editors/editor-types';
 import type { DeepReadonly, RowData } from '@/shared/types';
-import { weaponSpriteDrawOrder, WEAPON_SPRITE_ORIGIN_RATIO, type WeaponViewMode } from '@/domain/editors/lib/weapon-sprite-fields';
+import { weaponSpriteDrawOrder, WEAPON_SPRITE_ORIGIN_RATIO, type WeaponViewMode } from '@/shared/lib/starsector/weapon-sprite-fields';
 import { drawWeaponGlow } from './canvas-visuals';
-import { weaponAdditiveBlend, type MountedWeaponImages, type WeaponImageLayer } from '@/domain/editors/weapon-images';
-import { sortMountedWeapons } from '@/domain/editors/weapon-render-order';
+import { weaponAdditiveBlend, type MountedWeaponImages, type WeaponImageLayer } from '@/shared/lib/starsector/weapon-images';
+import { sortMountedWeapons } from '@/shared/lib/starsector/weapon-render-order';
 import { drawPixelImage } from './canvas-drawing';
 export interface WeaponImageScene {
   images: ReadonlyMap<string, HTMLImageElement>;

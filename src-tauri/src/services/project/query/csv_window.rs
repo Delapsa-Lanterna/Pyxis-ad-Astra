@@ -1,8 +1,6 @@
+use super::super::session::{lock_ready_session, session_handle};
 use super::super::{
-    cache::{
-        ensure_registered_table_rows, loaded_registered_csv_rows, lock_ready_session,
-        registered_session_table, session_handle,
-    },
+    cache::{ensure_registered_table_rows, loaded_registered_csv_rows, registered_session_table},
     definitions::table_definitions::csv_table_row_resource_ref,
     model::SessionCsvRow,
 };

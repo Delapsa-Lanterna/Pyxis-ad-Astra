@@ -33,6 +33,11 @@ export const applicationCapabilities = [
   ]),
   ...capabilities({ role: 'service', domain: 'app-settings' }, [
     {
+      capability: 'settings-changed-listen',
+      names: ['listenSettingsChanged'],
+      owners: [{ path: 'src/orchestrators/settings-persistence.orchestrator.ts', layer: 'orchestrators' }],
+    },
+    {
       capability: 'settings-read',
       names: ['readSettings', 'readDefaultSettings'],
       owners: [{ layer: 'orchestrators', domain: 'settings-persistence' }],
@@ -45,6 +50,11 @@ export const applicationCapabilities = [
     { capability: 'settings-write', names: ['saveSettings'], owners: [{ layer: 'orchestrators', domain: 'settings-persistence' }] },
   ]),
   ...capabilities({ role: 'service', domain: 'app-log' }, [
+    {
+      capability: 'log-stopped-listen',
+      names: ['listenLogStopped'],
+      owners: [{ path: 'src/app/application-log.ts', layer: 'app' }],
+    },
     {
       capability: 'log-flush',
       names: ['flushApplicationLogs'],

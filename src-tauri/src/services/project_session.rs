@@ -1,12 +1,10 @@
 use crate::{
+    app_data_dir,
     errors::AppResult,
     io::FsRootBoundary,
     models::ProjectManifest,
-    services::{
-        app_paths,
-        project::{
-            PerformanceTrace, configure_persistent_index_cache, open_project_session_traced,
-        },
+    services::project::{
+        PerformanceTrace, configure_persistent_index_cache, open_project_session_traced,
     },
 };
 use std::path::Path;
@@ -15,7 +13,7 @@ pub fn open_project_session_with_root(
     mod_root: String,
     starsector_root: Option<String>,
 ) -> AppResult<ProjectManifest> {
-    if let Ok(app_data_dir) = app_paths::app_data_dir(app_handle.clone())
+    if let Ok(app_data_dir) = app_data_dir::data_directory(app_handle.clone())
         && let Err(error) = configure_persistent_index_cache(&app_data_dir)
     {
         crate::diagnostics::record(format!("persistent index cache configure failed: {error}"));

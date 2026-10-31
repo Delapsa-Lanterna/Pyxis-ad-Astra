@@ -14,7 +14,7 @@
 - `src/app/composables/use-edit-target-draft-session.ts`：完整目标快照、读取票据、保存 Promise 与接纳上下文。
 - `src/app/composables/use-field-input-actions.ts`：所属输入集合登记、活动输入提交与释放。
 - `src/app/composables/use-snapshot-history.ts`：目标与基线代次绑定的文本和画布快照历史。
-- `src/domain/edit-session.ts`：目标物理范围比较、编辑会话状态机与撤销双栈原语。
+- `src/domain/edit-session.ts`：目标范围比较、基线与后续草稿接纳、编辑会话状态机及撤销双栈原语。
 - `src/stores/draft-sessions.store.ts`：未保存工作注册表，按 `modRoot` 聚合会话登记与判定源。
 - `src/stores/save-command.store.ts`：文档保存句柄、进行中动作、等待与关闭交接登记。
 
@@ -26,6 +26,7 @@
 - `src/shared/runtime/raw-field-input.ts`：原始文本输入，拥有原文、输入基线、转换与非法状态。
 - `src/shared/types/edit-context.types.ts`：目标键、基线代次与交接类型。
 - `src/shared/types/joint-edit.types.ts`：目标比较消费的 session、Mod 根与写入路径协议。
+- `src/shared/types/write-commit.types.ts`：保存结果消费方交付的公共接纳任务契约。
 
 ### 装配
 
@@ -34,7 +35,6 @@
 
 ### 关联
 
-- `src/orchestrators/csv-save.orchestrator.spec.ts`：表保存编排行为测试。
 - `src/shared/lib/stable-compare.ts`：结构化值的稳定序列化及相等判断。
 - `src/shared/lib/starsector/value.ts`：JSON 复制、标量转换与 Mod 版本展示。
 - `src/shared/types/json.types.ts`：JSON 业务值与输入形状契约。
@@ -43,6 +43,7 @@
 
 - JSON 原文解析、形状校验与格式化归共享纯模块，会话消费提交结果。
 - 保存 owner 返回实际内容和版本，会话在同一快照动作中映射目标、基线和后续草稿。
+- 后续草稿保留由编辑会话领域交付，接纳步骤通过公共任务契约交给所属执行者。
 - 外部快照由会话直接接纳或暂存，确认与取消由所属交接动作完成。
 - 快照历史绑定 `EditContext`，消费方负责业务身份映射与响应式容量输入。
 - 控件必须提供无写入的校验结果，FieldInputs 必须交付原文错误及所属文档问题；文档完整性检查必须独立于控件挂载，目标释放必须清理所属登记。

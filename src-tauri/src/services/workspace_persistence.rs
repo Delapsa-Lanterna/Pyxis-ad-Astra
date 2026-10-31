@@ -1,8 +1,8 @@
 use crate::{
+    app_data_dir,
     errors::{AppError, AppResult},
     io::{FsRootBoundary, path_belongs_to_root, read_utf8_no_bom, write_utf8_no_bom},
     models::PersistedWorkspace,
-    services::app_paths,
 };
 use std::{fs, path::Path};
 
@@ -51,7 +51,7 @@ pub fn reject_mod_or_workspace_directory(app_data_dir: &Path, directory: &Path) 
 }
 
 pub fn load_app_workspace(app_handle: tauri::AppHandle) -> AppResult<PersistedWorkspace> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
+    let app_data = app_data_dir::data_directory(app_handle)?;
     load_workspace(&app_data)
 }
 
@@ -59,7 +59,7 @@ pub fn save_app_workspace(
     app_handle: tauri::AppHandle,
     state: PersistedWorkspace,
 ) -> AppResult<()> {
-    let app_data = app_paths::app_data_dir(app_handle)?;
+    let app_data = app_data_dir::data_directory(app_handle)?;
     save_workspace(&app_data, &state)
 }
 
@@ -97,7 +97,7 @@ mod tests {
     use crate::{io::write_utf8_no_bom, models::PersistedMod};
     use std::collections::BTreeMap;
 
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
 
     #[test]
     fn load_returns_default_when_file_missing() {

@@ -1,7 +1,5 @@
-use super::super::{
-    cache::{lock_ready_session, session_handle},
-    definitions::entity_definitions::entity_definition,
-};
+use super::super::definitions::entity_definitions::entity_definition;
+use super::super::session::{lock_ready_session, session_handle};
 use crate::{
     errors::AppResult,
     models::{EntityData, EntityKind},

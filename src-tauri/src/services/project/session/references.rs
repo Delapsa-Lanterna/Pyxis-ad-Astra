@@ -1,7 +1,6 @@
-use super::super::{
-    cache,
-    model::{LoadedSpecRecord, ProjectSession, ReferenceView, SessionCsvRow},
-};
+use super::super::cache::csv;
+use super::super::model::{LoadedSpecRecord, ProjectSession, ReferenceView, SessionCsvRow};
+use super::registry;
 #[cfg(test)]
 #[path = "references_tests.rs"]
 mod tests;
@@ -30,14 +29,14 @@ pub(crate) fn reference_sources() -> AppResult<ReferenceSources> {
 }
 
 pub(crate) fn reference_updates() -> AppResult<Vec<CommittedSessionUpdate>> {
-    let registered = cache::lock_registry()?
+    let registered = registry::lock_registry()?
         .values()
         .cloned()
         .collect::<Vec<_>>();
     registered
         .into_iter()
         .map(|registered| {
-            let mut session = cache::lock_session(&registered)?;
+            let mut session = registry::lock_session(&registered)?;
             session.references.clear();
             Ok(CommittedSessionUpdate {
                 session_id: session.manifest.session_id.clone(),
@@ -58,9 +57,9 @@ pub(crate) fn reference_updates() -> AppResult<Vec<CommittedSessionUpdate>> {
 pub(crate) fn set_reference_sources(ids: Vec<String>) -> AppResult<ReferenceSources> {
     let mut sources = Vec::new();
     for id in &ids {
-        let handle = cache::session_handle(id)?;
-        let session = cache::lock_ready_session(&handle)?;
-        let mut registered = cache::lock_registry()?;
+        let handle = registry::session_handle(id)?;
+        let session = registry::lock_projected_session(&handle)?;
+        let mut registered = registry::lock_registry()?;
         let source = registered
             .get_mut(id)
             .ok_or_else(|| AppError::message("session.unknown", format!("引用来源已关闭：{id}")))?;
@@ -68,7 +67,7 @@ pub(crate) fn set_reference_sources(ids: Vec<String>) -> AppResult<ReferenceSour
         sources.push(view.identity.clone());
         source.reference = Some(view);
     }
-    for (id, source) in cache::lock_registry()?.iter_mut() {
+    for (id, source) in registry::lock_registry()?.iter_mut() {
         if !ids.contains(id) {
             source.reference = None;
         }
@@ -95,14 +94,15 @@ pub(crate) fn reference_sources_changed(
     {
         return Ok(None);
     }
-    let handle = cache::lock_registry()?.get(id).cloned();
+    let handle = registry::lock_registry()?.get(id).cloned();
     let view = handle
         .as_ref()
         .map(|handle| {
-            cache::lock_ready_session(handle).map(|session| Arc::new(ReferenceView::new(&session)))
+            registry::lock_projected_session(handle)
+                .map(|session| Arc::new(ReferenceView::new(&session)))
         })
         .transpose()?;
-    let mut registered = cache::lock_registry()?;
+    let mut registered = registry::lock_registry()?;
     if let Some(source) = registered.get_mut(id) {
         source.reference = view;
     }
@@ -160,7 +160,7 @@ impl ReferenceView {
     }
     pub fn table(&self, table: CsvTableKey) -> AppResult<Arc<Vec<SessionCsvRow>>> {
         self.read(|session| {
-            cache::ensure_registered_table_rows(session, table)?;
+            csv::ensure_registered_table_rows(session, table)?;
             Ok(session.csv_tables[table.as_str()]
                 .rows
                 .clone()
@@ -298,7 +298,7 @@ impl ProjectSession {
 }
 
 pub(super) fn prepare(session_id: &str) -> AppResult<(u64, Vec<Arc<ReferenceView>>)> {
-    let registered = cache::lock_registry()?;
+    let registered = registry::lock_registry()?;
     let state = state()?;
     Ok((
         state.revision,

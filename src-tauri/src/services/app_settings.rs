@@ -1,11 +1,12 @@
 use crate::{
+    app_data_dir,
     errors::{AppError, AppResult},
     io::{
         FsRootBoundary, ensure_file_appendable, path_belongs_to_root, read_utf8_no_bom,
         validate_safe_absolute_path, write_utf8_no_bom,
     },
     models::{AppSettings, LOG_FILE},
-    services::{app_paths, workspace_persistence},
+    services::workspace_persistence,
 };
 use std::{
     fs,
@@ -52,7 +53,7 @@ pub fn read_settings(
     if let Some(snapshot) = snapshot_state()?.clone() {
         return Ok(snapshot);
     }
-    let (value, diagnostics) = load_settings_report(&app_paths::app_data_dir(app.clone())?);
+    let (value, diagnostics) = load_settings_report(&app_data_dir::data_directory(app.clone())?);
     let snapshot = commit_settings(app, value, apply_runtime)?;
     drop(_guard);
     diagnostics.into_iter().for_each(crate::diagnostics::record);
@@ -91,7 +92,7 @@ pub fn save_settings_snapshot(
     let _guard = SETTINGS_WRITE_LOCK
         .lock()
         .map_err(|_| AppError::message("settings.lock_poisoned", "settings write lock poisoned"))?;
-    let app_data = app_paths::app_data_dir(app.clone())?;
+    let app_data = app_data_dir::data_directory(app.clone())?;
     prepare_log_directory(&app_data, &mut settings)?;
     save_settings(&app_data, &settings)?;
     commit_settings(app, settings, apply_runtime)
@@ -414,7 +415,7 @@ mod tests {
     }
     use super::*;
 
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
 
     #[test]
     fn settings_limits_validate_read_and_write_boundaries() {

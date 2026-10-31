@@ -5,8 +5,8 @@ import {
   weaponOffsetsKey,
   weaponAnglesKey,
   type WeaponViewMode,
-} from '@/domain/editors/lib/weapon-sprite-fields';
-import { weaponRenderOrder, rendersLoadedMissiles } from './weapon-render-order';
+} from '@/shared/lib/starsector/weapon-sprite-fields';
+import { weaponRenderOrder, rendersLoadedMissiles } from '@/shared/lib/starsector/weapon-render-order';
 export interface WeaponImageLayer {
   resource: ResourceRef;
   origin: { x: number; y: number };

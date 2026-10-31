@@ -25,10 +25,9 @@
 - `schemas/variant.schema.json`：装配字段模式资产。
 - `schemas/well-known-labels.json`：按原版表列登记的 tags、hints 与数字规则。
 - `src-tauri/src/commands/source_options.rs`：字段来源与声明目录图片候选 command。
-- `src-tauri/src/domain/schema.rs`：对象完整性、分支、值类型校验与配置覆盖合并。
+- `src-tauri/src/domain/schema.rs`：对象完整性、分支与字段值类型校验。
 - `src-tauri/src/domain/well_known_labels.rs`：well-known 标签资产唯一加载入口，编译期内嵌并校验版本头。
 - `src-tauri/src/services/project/query/source_options.rs`：来源选项、分组、授权资源与回退目录查询。
-- `src-tauri/src/services/schema_tests.rs`：字段资产发现、类型保留与保存约束验证。
 - `src/app/components/schema/`：字段分派、表单、标量原文及行为测试。
 - `src/app/components/schema/SchemaCollectionInput.vue`：对象固定属性、可命名条目、列表、结构动作与折叠。
 - `src/app/components/schema/SchemaFieldRenderer.vue`：字段渲染。

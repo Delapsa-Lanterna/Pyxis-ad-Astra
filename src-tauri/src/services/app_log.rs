@@ -1,8 +1,8 @@
 use crate::{
+    app_data_dir,
     errors::{AppError, AppResult},
     io::write_utf8_no_bom,
     models::{AppLogEntry, AppLogLevel, AppLogStatus, AppSettings, LOG_FILE},
-    services::app_paths,
 };
 use std::{
     collections::BTreeMap,
@@ -170,7 +170,7 @@ fn append_with_runtime(
 ) -> AppResult<()> {
     let settings = state.settings.clone().unwrap_or_default();
     let result = state.write(owner, entries.len(), || {
-        let app_data = app_paths::app_data_dir(app.clone())?;
+        let app_data = app_data_dir::data_directory(app.clone())?;
         let directory = configured_log_directory(&app_data, &settings);
         if settings.log_directory.is_none() {
             fs::create_dir_all(&directory).map_err(|cause| {
@@ -205,7 +205,7 @@ fn configured_log_directory(app_data: &Path, settings: &AppSettings) -> PathBuf 
 pub fn app_log_status(app: tauri::AppHandle) -> AppResult<AppLogStatus> {
     let state = runtime()?;
     let settings = state.settings.clone().unwrap_or_default();
-    let directory = configured_log_directory(&app_paths::app_data_dir(app)?, &settings);
+    let directory = configured_log_directory(&app_data_dir::data_directory(app)?, &settings);
     let mut status = log_status(&directory)?;
     status.recording = if state.last_error.is_some() {
         "stopped"
@@ -424,7 +424,7 @@ fn rotate_log_file(log_directory: &Path, settings: &AppSettings) -> AppResult<()
 mod tests {
     use super::*;
     use crate::io::read_utf8_no_bom;
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
     use std::collections::BTreeMap;
 
     fn entry(message: &str) -> AppLogEntry {

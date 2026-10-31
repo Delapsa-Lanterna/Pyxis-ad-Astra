@@ -1,9 +1,11 @@
 import { modulePartsFromRel } from './rust-crate-paths.mjs';
 
-/** @typedef {'commands' | 'service-assembly' | 'session-entry' | 'project-query' | 'project-write' | 'project-resources' | 'project-cache' | 'project-sources' | 'project-session' | 'project-model' | 'project-root' | 'file-history' | 'services' | 'domain' | 'io' | 'parsers' | 'models' | 'other'} RustLayer */
+/** @typedef {'commands' | 'service-assembly' | 'session-entry' | 'project-query' | 'project-write' | 'project-resources' | 'project-cache' | 'project-sources' | 'project-session' | 'project-model' | 'project-root' | 'file-history' | 'services' | 'domain' | 'io' | 'parsers' | 'models' | 'app-data-dir' | 'shared' | 'other'} RustLayer */
 
 /** @param {string} path @returns {RustLayer} */
 export function rustLayer(path) {
+  if (path === 'src-tauri/src/json_overlay.rs') return 'shared';
+  if (path === 'src-tauri/src/app_data_dir.rs') return 'app-data-dir';
   if (modulePartsFromRel(path).join('::') === 'services') return 'service-assembly';
   if (projectServiceModule(path, 'mod')) return 'session-entry';
   if (/^src-tauri\/src\/services\/file_history(?:\.rs|\/)/.test(path)) return 'file-history';
@@ -27,6 +29,8 @@ export function rustLayer(path) {
 
 /** @param {string} path @returns {RustLayer | null} */
 export function rustLayerFromCratePath(path) {
+  if (path === 'crate::json_overlay' || path.startsWith('crate::json_overlay::')) return 'shared';
+  if (path === 'crate::app_data_dir' || path.startsWith('crate::app_data_dir::')) return 'app-data-dir';
   if (path.startsWith('crate::services::file_history')) return 'file-history';
   if (path.startsWith('crate::commands')) return 'commands';
   if (path === 'crate::services::project::query' || path.startsWith('crate::services::project::query::')) return 'project-query';

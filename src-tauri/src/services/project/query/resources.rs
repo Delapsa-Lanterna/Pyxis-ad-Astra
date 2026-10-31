@@ -1,11 +1,9 @@
-use super::super::resources::SpriteReadBatch;
-use super::super::{
-    cache::{lock_ready_session, session_handle},
-    definitions::entity_resources::{
-        faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
-        weapon_resource_refs,
-    },
+use super::super::definitions::entity_resources::{
+    faction_resource_refs, mission_resource_refs, projectile_resource_refs, ship_resource_refs,
+    weapon_resource_refs,
 };
+use super::super::resources::SpriteReadBatch;
+use super::super::session::{lock_ready_session, session_handle};
 use crate::{
     errors::AppResult,
     models::{
@@ -48,7 +46,7 @@ pub fn query_engine_render_assets(
     for root in roots {
         let (styles, version) = sources::engine_styles::read_engine_styles(&root)?;
         for (key, value) in styles {
-            sources::engine_styles::merge_engine_styles(
+            crate::json_overlay::overlay_json_value(
                 result.styles.entry(key).or_insert(serde_json::Value::Null),
                 value,
             );
@@ -147,7 +145,7 @@ mod tests {
     use crate::services::project::cache::media::cached_sprite_media_contains;
     use crate::services::project::test_support::project_workspace;
 
-    use crate::testutil::TestWorkspace;
+    use crate::test_support::TestWorkspace;
 
     #[test]
     fn media_batch_preserves_successes_and_reports_each_failed_identity() {

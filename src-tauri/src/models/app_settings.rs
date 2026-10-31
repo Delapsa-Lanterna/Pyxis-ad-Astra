@@ -1,5 +1,6 @@
 use super::CacheLimits;
-use crate::models::{AppLogLevel, optional_non_empty_string};
+use super::serde_fields::deserialize_non_empty_string;
+use crate::models::AppLogLevel;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -61,15 +62,15 @@ pub struct AppSettings {
     pub expand_field_descriptions: bool,
     #[serde(default = "default_immersive_game_font")]
     pub immersive_game_font: bool,
-    #[serde(default, deserialize_with = "optional_non_empty_string")]
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub immersive_font_directory: Option<String>,
     #[serde(default = "default_preserve_original_json")]
     pub preserve_original_json: bool,
     #[serde(default)]
     pub allow_core_editing: bool,
-    #[serde(default, deserialize_with = "optional_non_empty_string")]
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub starsector_root: Option<String>,
-    #[serde(default, deserialize_with = "optional_non_empty_string")]
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub log_directory: Option<String>,
     #[serde(default = "default_log_level")]
     pub log_level: AppLogLevel,

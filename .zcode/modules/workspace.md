@@ -18,20 +18,19 @@
 - `src/app/composables/use-workspace-navigation-actions.ts`：导航输入提交、保存等待和存活草稿交接。
 - `src/app/composables/use-workspace-shell-actions.ts`：打开动作消费入口，处理 outcome 与失败反馈。
 - `src/app/composables/use-workspace-shell-lifecycle.ts`：主窗口恢复、工作区持久化及保存事件生命周期。
-- `src/app/composables/workspace-shell-lifecycle.spec.ts`：工作区恢复、监听及卸载行为验证。
-- `src/domain/workspace/mod-navigation.spec.ts`：导航条目与顺序验证。
 - `src/domain/workspace/mod-navigation.ts`：每个 Mod 的页面状态与导航投影。
 - `src/domain/workspace/mod-overview.ts`：正式 manifest 的 Mod 概览统计投影。
 - `src/domain/workspace/mod-status.ts`：Mod 展示状态的纯投影。
+- `src/orchestrators/workspace-core-source.orchestrator.ts`：原版来源切换，拥有关闭、设置提交交接、Mod 重开及最终快照的完整等待。
 - `src/orchestrators/workspace-lifecycle.orchestrator.ts`：生命周期，拥有关闭目标捕获、所属模块清理用例与工作区关闭。
 - `src/orchestrators/workspace-navigation.orchestrator.ts`：页签与页面导航，同步跨 store 运行态。
 - `src/orchestrators/workspace-persistence.orchestrator.ts`：workspace 快照保存与启动恢复。
 - `src/services/workspace-state.service.ts`：workspace 持久化签名与协议装配。
-- `src/stores/workspace-store.spec.ts`：工作区导航与持久化状态行为验证。
 - `src/stores/workspace.store.ts`：运行态，拥有当前 Mod、当前清单与 session 投影、全局页、Mod 页面上下文、概览、打开失败状态、列宽与持久化投影。
 
 ### 消费
 
+- `src-tauri/src/app_data_dir.rs`：工作区快照持久化的工具私有目录解析。
 - `src-tauri/src/models/workspace_persistence.rs`：工作区持久化 wire 契约。
 - `src/app/components/file-history/WorkspaceFileHistory.vue`：文件历史页面与回放交互。
 - `src/app/components/json-editor/JsonEditorWorkspace.vue`：展示当前 JSON 页面并消费所属文档运行态。
@@ -56,6 +55,7 @@
 - 文件浏览模块拥有按 session 隔离的目录树与浏览状态，工作区拥有 mod-files 页面及 Mod 页面记忆。
 - 生命周期编排消费 Rust 实际释放结果，拥有所属 Mod 清理和前端缓存释放。
 - 目录打开提供 outcome 和迟到 session 清理，工作区接纳成功建立的运行态。
+- 来源切换拥有捕获的恢复快照及完整关闭等待，设置模块交付正式设置提交闭包。
 
 ## 链路
 
@@ -84,7 +84,15 @@
 
 1. 启动时读取工具私有快照。
 2. 恢复接纳游戏概览和 Core 根，重新打开仍属于该代次的 session 并水合运行态。
-3. 恢复期间自动保存暂停；完成后显示工作区总览。
+3. 恢复期间自动保存暂停；恢复结束后按所属窗口存活状态决定最终持久化，关闭等待覆盖最终保存及所属反馈。
+
+### 原版来源切换
+
+1. 设置页交付目标覆盖根、当前窗口关闭动作和设置提交闭包。
+2. 来源切换等待已登记动作及目录打开，验证目标根并捕获工作区快照，暂停自动保存。
+3. 正式关闭流程接纳实际释放结果；取消或错误登记并等待最终快照收尾。
+4. 关闭成功后登记完整任务，执行设置提交，并在结束时按捕获列表恢复工作区。
+5. 单 Mod 重开错误等待所属移除动作后登记，完整任务在最终快照处理后结束。
 
 ### 持久化保存
 
@@ -111,6 +119,9 @@
 - 关闭提示必须只移除当前目标失败记录或警告；再次打开、扫描或恢复检测到的问题必须按正式结果重新显示。
 - 列宽必须使用结构化 `modRoot/table/column`，严禁拼接 key。
 - 启动恢复期间必须暂停自动保存，恢复结束后必须恢复所属持久化。
+- 来源切换与启动恢复必须将最终快照处理纳入实际关闭任务；切换任务必须在关闭准备完成后登记。
+- 来源切换的成功、取消及关闭错误必须各完成一次最终快照；写盘错误必须交付正在等待该任务的关闭。
+- 启动恢复必须保留成功及窗口释放的持久化判断，最终保存错误必须由所属窗口反馈接纳后结束关闭等待。
 - 子窗口关闭取消或保存失败必须保留所属 Mod 运行态；主窗口关闭必须等待全部会话的窗口生命周期交接。
 - 实体定位请求必须由工作区持有并消费完整 session、Mod、种类、实体 ID 和所属行键，目标页面必须在读取、精确选择和滚动时消费请求；导航离开或 session 变化必须释放请求。
 - 导航、窗口关闭、Mod 移除及工作区关闭必须先重试所属待同步结果；失败必须保持当前编辑面，成功后必须重新判定 dirty。

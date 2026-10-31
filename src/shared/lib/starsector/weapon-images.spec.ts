@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ResourceRef, RowData } from '@/shared/types';
-import { mountedWeaponImages, weaponImageLayers, weaponLoadedMissile } from './weapon-images';
+import { mountedWeaponImages, weaponImageLayers, weaponLoadedMissile } from '@/shared/lib/starsector/weapon-images';
 
 const resource = (key: string): ResourceRef => ({
   key,
