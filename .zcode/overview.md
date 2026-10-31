@@ -21,33 +21,31 @@
 
 ## 宏观层级
 
+本节按前后端源码根下的一级目录说明分层职责与调用边界。业务模块及文件归属见模块索引与所属模块文档，项目执行流程见项目内关键链路。
+
 ### 前端
 
-- `schemas/`：配置字段、CSV 列和规格默认模板资产，经正式加载 owner 消费。
-- `src/app/`：窗口根、页面、组件、检查器与 ViewModel/composable；应用装配在这里收口，不承载领域规则与后端能力。
-- `src/domain/`：编辑会话、表格、schema、配置、设置、workspace 和编辑器的纯规则与转换；严禁依赖 app、services、stores 或 windows。
-- `src/orchestrators/`：保存、打开、导航、历史、刷新、生命周期和身份交接；项目同步模块拥有来源刷新、提交接纳、缓存失效、恢复及通知，项目会话拥有清单与读取门控。
-- `src/services/`：单一后端能力包装、参数装配和结果交接；业务查询拥有参数、结果与失效定义，会话缓存消费类型化定义及正式门控；跨进程能力不得由组件、store 或 domain 直接调用。
-- `src/shared/`：`command.runtime`、wire 类型、错误、读取票据、缓存、事件和纯工具；原始 `invoke` 只允许由 `command.runtime` 消费。
-- `src/stores/`：内存运行态、manifest、表格、历史、设置、Core 和 workspace 状态；严禁拥有 IO、确认框或跨模块编排。
+- `src/app/`：窗口根、页面、组件、检查器与 ViewModel/composable 的展示、交互和应用装配；领域规则与后端能力必须由所属层交付。
+- `src/domain/`：编辑会话、表格、字段模式、配置、设置、工作区和编辑器的纯规则与转换；严禁依赖 app、services、stores 或 windows。
+- `src/orchestrators/`：保存、打开、导航、历史、刷新、生命周期和身份交接的业务编排，协调所属状态与能力的执行顺序。
+- `src/services/`：单一后端能力包装、参数装配和结果交接；组件、store 和 domain 严禁直接调用跨进程能力。
+- `src/shared/`：公共协议、原语、工具与控件；原始 `invoke` 只允许由 `command.runtime` 消费。
+- `src/stores/`：会话、清单、表格、历史、设置、Core 和工作区的内存运行态；严禁拥有 IO、确认框或跨模块编排。
 - `src/styles/`：全局主题、应用框架和业务样式。
 - `src/windows/`：窗口 identity、结构化上下文、请求回执、原生实例、事件过滤、关闭请求和销毁生命周期。
 
 ### Rust
 
-- `src-tauri/src/app_data_dir.rs`：工具私有数据目录解析；服务消费解析结果，IO 消费实际路径。
-- `src-tauri/src/commands/`：处理 wire 参数、状态访问、错误转换和 service 调用。
-- `src-tauri/src/domain/`：保存实体定义、编辑目标、资源引用、Mod 创建规则和纯业务投影。
-- `src-tauri/src/io/`：保存 canonical 路径边界、文件读写、目录快照、改名和 changeset 应用。
-- `src-tauri/src/models/`：保存 wire 模型、内部模型、归一化映射和结构化错误数据。
-- `src-tauri/src/parsers/`：保存 CSV-like、JSON-like、spec 和文本解析、渲染及诊断位置。
-- `src-tauri/src/services/project/sources/`：按实际来源根交付匹配内容与版本，维护解析成果复用、Core 文档目录及来源持久化。
-- `src-tauri/src/services/project/`：按 root、session、query、write、resources、cache 和 model 分工；session 拥有存活登记、引用来源和就绪读取；query 只读，write 返回实际 changeset、版本和 invalidation。
-- `src-tauri/src/services/project/write/entity_write/`：实体文件、关联规格、描述、父引用与势力索引的实际写入。
-- `src-tauri/src/services/project/session/`：正式表格内容、行身份、来源版本、暂存及写入成功后的接纳。
-- `src-tauri/src/services/project_save.rs`：完整保存请求捕获、所属业务准备与执行分派，消费项目队列及文件事务。
-- `src-tauri/src/services/write_transactions/`：保存提交模块维护项目文件事务、失败恢复与正式结果登记；项目同步持有所属项目队列并独立发布结果。
-- `src-tauri/src/services/`：提供目录打开、workspace、ProjectSession、配置、文件、设置、日志、Core、资源和窗口能力；业务函数由服务装配直接从所属实现导出。
+- `src-tauri/src/commands/`：接收 wire 参数、访问应用状态、转换错误并调用所属服务。
+- `src-tauri/src/services/`：维护业务状态、会话生命周期、查询、保存协调、资源与平台能力，消费领域规则、解析及 IO；业务函数必须由服务装配直接从所属实现导出，query 只允许读取。
+- `src-tauri/src/domain/`：实体定义、编辑目标、资源引用、内容构造及业务投影的纯规则与转换。
+- `src-tauri/src/io/`：canonical 路径边界、文件读写、目录快照、改名和 changeset 应用。
+- `src-tauri/src/parsers/`：CSV-like、JSON-like、spec 和文本的解析、渲染及诊断位置。
+- `src-tauri/src/models/`：wire 模型、内部模型、归一化映射和结构化错误数据。
+
+### 共同资产
+
+- `schemas/`：配置字段、CSV 列和实体默认模板资产，由字段模式与实体构造能力分别维护，前后端经所属正式入口加载。
 
 ### 公共文件
 
@@ -55,36 +53,48 @@
 - 公共协议、错误、读取、缓存与测试基础严禁作为正式模块内容；前后端对应数据定义必须采用相同归属。
 - 公共文件范围必须在模块索引的公共文件清单登记，shared 目录及共址测试必须保留公共属性。
 
-## 跨层链路
-
-- Core 生命周期：`WindowShell` 所属上下文 → 后端有效原版根查询 → Core orchestrator → fields/graphics command → Rust Core index → root generation → Core store
-- workspace 生命周期：workspace action → Rust 关闭范围登记 → 内容准备与逐窗确认 → Destroyed → session 释放 → 实际释放结果 → 前端运行态清理
-- 保存事务：`EditSession` → save orchestrator → 目标与版本准备 → write service → `command.runtime` → Rust FIFO transaction → changeset、`File History` 与 `ProjectSession projection` → `WriteResult`
-- 写后接纳：项目保存队列 → 文件、历史及正式内容登记 → 实际 `WriteResult` 发布与保存工作释放 → 消费者有序接纳历史、清单、缓存、身份及内容
-- 历史回放：workspace history dispatch → 当前编辑面的 JSON 或 CSV draft history → `File History` replay plan → 当前路径和版本复核 → changeset replay → `ProjectSession refresh`
-- 查询与编辑目标：组件 → `ViewModel/composable` → query service → `command.runtime` → Rust `ProjectSession` query → parser/IO/cache → `EntityData`、`EntityEditTarget` 与 `ResourceRef` → 前端 query cache
-- 目录与会话：目录选择 → `workspace-opening orchestrator` → 目录识别与 canonical root → `open_project_session` → 捕获代次的清单接纳 → workspace runtime
-- 窗口生命周期：业务 identity → window service → Rust native registry → 原生窗口上下文与请求 → 接纳回执 → 标题、目标和 dirty 接纳 → close guard 与释放
-- 资源读取：`ResourceRef` → resource-reference service → Rust root authorization → Mod/Core resource query → resource/media cache → 组件展示
-
 ## 项目内关键链路
 
-- Windows 路径身份必须消费当前系统的 UTF-16 大小写映射；全部窗口必须在接纳上下文前初始化同一映射，路径展开必须归 IO。
-- 同路径 JSON 必须分别维护本地内容与有序来源，原版必须始终可引用，组合预览必须按前序可引用 Mod 与当前草稿计算，事务必须只写所属本地内容。
-- Core fields 与 graphics 必须由同一 WindowShell 生命周期分别加载；root、generation、A-B-A、根清空和窗口销毁是唯一接纳条件。
-- JSON draft history、CSV draft history 与 File History 分别归所属 owner；当前文档快照与表格 operation 必须先于文件回放处理。
-- `ReadTicket` 必须同时拥有读取身份、取消信号、Promise 和接纳状态；失效或关闭只结束所属等待，迟到结果不得写入新生命周期。
-- `ResourceRef` 必须由后端授权并绑定 session、source 和规范化相对路径；Core fallback 只读，不能把 Core 内容写入 Mod。
-- Rust 设置服务必须串行持有设置写盘、运行参数及正式 snapshot；全部窗口必须先监听再读取并按 revision 接纳，主窗口必须独占编辑值和保存队列。
-- `WriteResult` 必须按 File History、正式清单、resource/query cache、所属身份和内容交接的顺序消费；保存成功必须由项目文件、历史和正式内容登记结果决定。
-- dirty 或 saving 窗口必须先拦截关闭；保存、pending 恢复和最新 dirty 判定完成前不得销毁窗口、移除 Mod 或关闭 session。
-- replay 必须重新校验当前路径、父链、版本、session 和目标；历史记录只能提供候选 changeset，不提供当前授权。
-- `sessionId + modRoot` 必须贯穿 ProjectSession、query、write、cache、history、window 和事件；任何调用不得使用活动 Mod、裸路径或字符串拼接补齐身份。
-- workspace、settings、日志和派生索引只允许写工具私有目录；Mod、Core 和用户外部目录必须由所属 path owner 授权。
-- 媒体 owner、集合租约、图像解码和缩略图成品必须共同服从引用生命周期；可见媒体必须增量释放，菜单与已选值资源不得互相覆盖。
-- 实际编辑目标只能由 `query_entity_edit_target`、`query_text_identity_intent` 或后端恢复目标提供；前端不得扫描磁盘或构造正式目标。
-- 已执行动作必须消费捕获的业务目标，终结反馈必须归所属窗口；页面读取必须按所属展示生命周期接纳。
-- 当前 Mod 选择、当前清单与 session 派生必须归工作区；项目会话必须按明确 Mod 根交付正式清单与 session。
-- 所有写入必须经过 `write_transactions::begin`、版本复核和统一 `WriteResult`；组件、store、query 和资源能力不得直接写文件。
-- 窗口 identity 必须包含完整 session、`modRoot`、kind 和业务目标；原生 label、目标占用、可重载上下文、标题、事件过滤和 ViewModel 目标必须共同交接。
-- 结构化错误必须保留稳定码、原始诊断、路径、行列、action、command 和 payload；用户文案、日志诊断和恢复授权不得互相推导。
+- 应用启动：`main.ts` → `initializeWindowContext` 接纳原生 bootstrap 与路径映射 → 根组件与正式 settings 并行加载 → Pinia、日志与性能装配 → 唯一 `WindowShell` → `showCurrentWindow`
+- 启动失败：`bootstrap()` 失败 → `failWindowStartup` 结束请求交付 → 卸载已挂载应用 → `StartupFailure` 展示原始诊断 → 当前窗口显示与重试、复制或退出
+- 工作区恢复：`beginWorkspaceRestore` 暂停自动保存 → 工具私有 `PersistedWorkspace` → `restorePersistedWorkspace` 捕获代次并重建游戏概览及 Mod session → 正式清单与运行态水合 → `finishWorkspaceRestore` 处理所属最终快照
+- 工作区持久化：Mod、目录、引用设置或列宽变化 → `watchWorkspacePersistence` 提取可恢复投影 → workspace service → Rust 写入工具私有快照 → 所属保存与关闭等待完成
+- 目录与会话：目录选择或游戏概览中的 Mod 打开动作 → `openWorkspaceDirectory` 或所属打开编排 → 目录识别与正式 Mod 根 → `open_project_session` 授权根并装载来源 → `ProjectManifest` → 按捕获代次登记工作区
+- 新建 Mod：工作区捕获游戏根或明确父目录与创建参数 → Mod 创建编排 → Rust 授权父目录并写入目录骨架及 `mod_info.json` → 实际 `modRoot` → 工作区打开与结果反馈
+- 导航与定位：菜单、快捷键或业务引用捕获目标 → 等待保存及同步并提交活动输入 → 工作区导航与所属页面挂载 → 按需读取、实体选择与滚动，或关于页内联 `CHANGELOG.md` 的 marked 渲染
+- 窗口创建与复用：`WindowIdentity` 与结构化输入 → managed window → Rust 登记、目标占用与实例创建或复用 → 接收方领取请求并加载业务基线 → `requestId + receiverGeneration` 回执 → 发起动作完成
+- 引用来源与内容组合：工作区标签顺序及引用开关 → `publishReferenceSources` → 后端有序引用快照 → 原版、前序可引用 Mod 与本地 JSON 组合 → 引用版本接纳与缓存失效 → 展示更新并保留本地草稿
+- 会话查询与编辑目标：`ViewModel/composable` 捕获 session 与参数 → 类型化 query、投影门控与 `ReadTicket` → `command.runtime` → 所属 Rust query → `EntityData`、正式目标与版本 → 票据接纳只读结果或独立草稿
+- 来源读取与解析：授权来源根 → 同次字节读取及 `FileVersion` → 匹配来源记录复用或 CSV-like、JSON-like、spec parser → 业务索引与诊断 → 所属打开或刷新完成时集中持久化来源成果
+- CSV 编辑：表格窗口查询 → `CsvRow`、源索引与 `rowKey` → CSV store 与可视区网格 → 列 schema、原始输入及单元格动作 → 行草稿、operation 历史与 dirty → patches 和关联规格动作
+- JSON 与杂项配置编辑：session 与文档类型 → 正式记录、缺失版本及 schema → JSON 文档会话 → `FieldInputs` 提交字段动作 → 本地 draft 与快照历史 → 所属创建、保存或删除动作
+- Spec 字段与画布编辑：规格窗口定义 → 正式目标、规格与依赖 → 舰船、武器、弹体或战术系统 ViewModel → schema 字段或画布手势 → 领域投影与工作值 → Draft Session、历史及保存动作
+- 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
+- 文件浏览与文本打开：Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
+- 文本编辑：`EditableFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
+- 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式投影登记 → 发布 `WriteResult` 并释放项目工作
+- 联合冲突与提交：联合基线、磁盘与提交草稿 → `submitJointEdit` 请求后端三方比较 → 独立修改合并与冲突选择 → 共享影响、Mod 覆盖和目标协调 → 确认版本复核 → 同根 changeset 与一次历史登记 → 实际联合快照
+- 实体身份联动：正式实体目标、内容与文件名选择 → 实体写入能力 → 主文件、关联规格、描述、势力索引与父装配引用暂存 → 同根 changeset 应用 → 会话表格接纳 → 实际内容、行键与身份变化
+- JSON 写入确认：捕获 `preserveOriginalJson` → `runConfirmedJsonWrite` → 原文结构更新或逐源重排要求 → 所属窗口确认具体文件 → 绑定来源指纹与版本重试 → changeset 写入
+- 缺失来源重建：已捕获的完整内容与修改 → 项目队列发现缺失来源 → 所属请求确认路径 → 重新核对现存内容及版本 → 所属保存能力重建文件与必要索引 → 实际结果接纳
+- 写后接纳：`CommittedWriteEvent` 有序交付 → File History 摘要 → `sessionUpdates` 正式清单及资源、query 缓存失效 → 发起会话 `SaveAcceptanceTask` → 窗口身份交接 → 所属内容与后续草稿接纳
+- 文件修改失败恢复：根租约内写入失败 → 实际 before 字节、路径与存在状态 → 逆序恢复已执行及部分执行步骤 → 受阻位置保留项目工作 → 恢复或明确放弃 → 所属请求结束与后续队列推进
+- 正式登记恢复：文件及历史已登记后的投影构建失败 → session 投影标记 `pending` 并保留所属项目工作 → `project_sync::retry` 继续未完成投影登记 → 完整正式结果发布 → 释放项目工作
+- 内容接纳重试：窗口内容处理失败 → `PendingWriteSync` 保留未完成步骤 → 所属重试入口 → 当前有效身份、基线或必要读取接纳 → 释放已完成步骤并结束所属待办
+- 草稿历史与文件回放：workspace history dispatch → 当前 JSON 或 CSV 草稿历史 → 草稿耗尽时构造 File History replay plan → 影响文件确认 → 项目队列复核当前路径、版本与授权 → changeset replay → 历史及窗口内容交付
+- 来源刷新：所属业务根刷新动作 → 保存等待与活动输入交接 → `refreshProjectSourcePaths` → 项目队列按实际来源重读 → 正式投影及失效交付 → 所属内容接纳或 dirty 外部版本暂存
+- Core 生命周期：`WindowShell` 有效原版根 → `startCoreAssetsLoading` → fields 与 graphics 独立读取并复用所属在途任务 → 后端 Core 产品 → 根与产品代次接纳 → Core store；根清空或窗口释放撤销所属读取
+- 资源读取与展示：后端授权 `ResourceRef` → 媒体集合与租约 → media 合批、共享读取及 Mod/引用/Core 根授权 → data URL → 窗口图像解码及缩略图成品 → 展示；引用替换、失效或释放交还所属租约
+- 字体加载与绘制：沉浸式窗口登记字体身份 → `ReadTicket` → 指定目录或所属游戏根的 FNT 与图集 → 字体解析、解码及来源回退 → `FontText` 排版与 canvas 绘制 → 来源切换或窗口释放清理所属字体
+- 武器开火预览：已保存武器或独立 draft 快照 → weapon-fire-preview 窗口请求 → 武器、CSV 与弹体读取接纳 → 播放状态与帧循环 → 领域发射模拟及共享场景绘制 → 提交失效重读或窗口释放
+- 设置保存与镜像：主窗口 settings 编辑值 → 唯一保存队列 → Rust 权限、校验、规范化与写盘 → 运行参数、revision 及正式 snapshot → 全部窗口按版本接纳 → 缓存预算与历史容量生效
+- 主题与输入模式：正式设置及系统主题 → settings store 派生主题令牌与字体 → 唯一主题 DOM effect 及 Naive Provider；`editMode` 变化 → 所属输入集合确认交接 → 字段控件接纳实际模式
+- 原版来源切换：设置页捕获目标根与工作区 → `switchWorkspaceCoreSource` 等待已登记动作 → 根授权与关闭确认 → 实际 session 释放 → 设置提交 → 按捕获 Mod 列表重开 → 最终工作区快照与结果反馈
+- 关闭与释放：window、sessions 或 application 的 `CloseScope` → 保存及待同步工作结束 → 当前 dirty 与活动输入复核 → 所属确认及设置、日志、性能交付 → Rust 销毁并等待 `Destroyed` → `releasedSessions` → 工作区、内容与缓存释放
+- 错误呈现与恢复：原始 `AppError`、稳定码、location 与 payload → 所属窗口反馈 → 用户文案、原始诊断日志及授权文件动作 → recovery 窗口或明确业务重试 → 实际动作结果与一次最终反馈
+- 文本编码转换：`text.invalid_utf8` 与授权目标 → 用户选择源编码 → 后端重读并检查当前字节 → 仍需转码时完整解码并写入 changeset → 正式回执 → 受影响会话及文本窗口接纳
+- 工具目录维护：设置页目录打开动作 → 配置 service → `app_data_dir::data_directory` → 工具目录创建 → 系统打开能力 → 所属窗口接纳实际结果
+- 日志交付与维护：业务事件或原生诊断 → 所属窗口、进程记录队列 → `append_app_logs` → 正式日志目录与串行轮转追加 → 状态反馈；清空及正常关闭先交付所属尾批
+- 性能采集与报告：正式运行开关 → 窗口采集与批量交付 → 后端时间线及统计 → 设置动作导出 JSON 报告；外部 CPU 采样连接实际 DevTools 页面 → cpuprofile 与采样连接释放
+- 静态检查与构建：项目文件与语言解析 → 依赖、调用及归属事实 → 架构、文本与模块文档规则 → 定位诊断及退出码；类型检查、行为测试与前端/Tauri 构建交付所属验证结果
+- 浏览器验收与性能评估：browser/testbed 场景与完整窗口替身 → 正式应用组件及浏览器构建 → 功能动作或性能负载 → 断言、控制台诊断、截图与统计 → 实际报告及退出码

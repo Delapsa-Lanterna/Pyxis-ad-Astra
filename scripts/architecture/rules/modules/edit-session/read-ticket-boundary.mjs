@@ -8,7 +8,7 @@ const primitives = new Set(['createReadTicket', 'createReadTicketOwner']);
 
 export const readTicketBoundaryRule = defineRule(
   'read-ticket-boundary',
-  '.zcode/overview.md#项目内关键链路',
+  '.zcode/frontend-guidelines.md#共享读取与缓存',
   import.meta.url,
   (context, report) => {
     for (const file of context.frontend) {

@@ -17,6 +17,7 @@ for (const source of [
     const [diagnostic] = readTicketBoundaryRule.check(context);
     assert.ok(diagnostic);
     assert.equal(diagnostic.ruleId, 'read-ticket-boundary');
+    assert.equal(diagnostic.reference, '.zcode/frontend-guidelines.md#共享读取与缓存');
     assert.equal(diagnostic.line, 2);
     assert.equal(diagnostic.target, ticket);
     assert.equal(diagnostic.expected, 'read runtime or composable');
