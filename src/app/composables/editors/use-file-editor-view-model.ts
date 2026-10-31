@@ -23,7 +23,8 @@ import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus
 
 import type { CommittedWriteEvent } from '@/shared/types';
 import type { EntityIdentityChange, WriteResult, EntityEditInfo } from '@/shared/types';
-import { formatError, errorDiagnosticOf, AppError } from '@/shared/lib/errors';
+import { formatError, errorDiagnosticOf, errorCodeOf, AppError } from '@/shared/lib/errors';
+import { waitForRead } from '@/shared/runtime/read-request';
 
 import { captureIdentityVersions } from '@/domain/project/entity-versions';
 
@@ -33,9 +34,6 @@ export interface FileEditorViewModelParams {
   modRoot: string | null;
   sessionId: string | null;
   title: string;
-  contextLabel: string;
-  contextSeverity: string;
-  contextMessage: string;
   line: number | null;
   column: number | null;
 }
@@ -62,9 +60,9 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   type TextMeta = { entity: EntityEditInfo | null; receipt: WriteResult<unknown> | null };
 
   const title = ref(params.title);
-  const contextLabel = ref(params.contextLabel);
-  const contextSeverity = ref(params.contextSeverity);
-  const contextMessage = ref(params.contextMessage);
+  const contextLabel = ref('错误');
+  const contextSeverity = ref('error');
+  const contextMessage = ref('');
   const targetLine = ref(normalizeEventLine(params.line));
   const targetColumn = ref(normalizeEventLine(params.column));
   const draftSession: EditTargetDraftSession<string, FileEditorTarget, TextMeta> = useEditTargetDraftSession<
@@ -75,9 +73,22 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     emptyValue: '',
     beginSave: beginSavedWrite,
     savedContent: (snapshot) => ({ ...snapshot, meta: { ...snapshot.meta, receipt: null } }),
-    load: async (target) => {
-      const loaded = await loadEditableFileData(target.sessionId, target.modRoot, target.filePath);
-      return { target, value: loaded.text, baseVersions: loaded.baseVersions, meta: { entity: loaded.entity, receipt: null } };
+    load: async (target, signal) => {
+      try {
+        const loaded = await waitForRead(loadEditableFileData(target.sessionId, target.modRoot, target.filePath), target, signal);
+        signal!.throwIfAborted();
+        contextMessage.value = '';
+        return { target, value: loaded.text, baseVersions: loaded.baseVersions, meta: { entity: loaded.entity, receipt: null } };
+      } catch (error) {
+        if (!signal!.aborted) {
+          contextMessage.value =
+            errorCodeOf(error) === 'text.invalid_utf8'
+              ? '无法读取文件：请选择文件当前使用的编码，将其转换为 UTF-8 后重试。'
+              : formatError(error);
+          feedback.error(error, '读取文件失败');
+        }
+        throw error;
+      }
     },
     save: async (target, draft, baseVersions, _original, request) => {
       const entity = draftSession.baselineSnapshot.value!.meta.entity;
@@ -114,7 +125,10 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   watch(
     draftSession.baselineSnapshot,
     (snapshot) => {
-      if (snapshot) currentPath.value = snapshot.target.filePath;
+      if (snapshot) {
+        currentPath.value = snapshot.target.filePath;
+        contextMessage.value = '';
+      }
     },
     { flush: 'sync' },
   );
@@ -159,7 +173,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   const lineCount = computed(() => Math.max(1, text.value.split(/\r\n|\r|\n/).length));
   const canUndo = textHistory.canUndo;
   const canRedo = textHistory.canRedo;
-  const isErrorContext = computed(() => contextSeverity.value === 'error');
+  const isErrorContext = computed(() => contextSeverity.value === 'error' && contextMessage.value !== '');
   const isWarningContext = computed(() => contextSeverity.value === 'warning');
   const hasPendingExternalText = computed(() => draftSession.hasPendingExternalValue.value || identityNotice.value !== '');
   const externalTextNotice = computed(
@@ -169,7 +183,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   let setup: Promise<void> | null = null;
   async function initialize() {
     await (setup ??= setupFile());
-    if (!draftSession.ready.value) await loadFile();
+    if (draftSession.saving.value) await draftSession.waitForSave();
+    if (!disposed) await loadFile();
   }
   async function setupFile() {
     disposed = false;
@@ -202,13 +217,8 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   async function loadFile() {
     const target = fileEditorTarget();
     if (!target) throw new AppError('文件目标不可用', { action: 'accept-window' });
-    try {
-      if (!(await draftSession.loadTarget(target))) throw new AppError('文件读取已结束', { action: 'accept-window' });
-    } catch (error) {
-      contextMessage.value = formatError(error);
-      contextSeverity.value = 'error';
-      throw error;
-    }
+    if (draftSession.ready.value) await draftSession.refreshTarget(target);
+    else await draftSession.loadTarget(target);
   }
 
   async function saveFile() {
@@ -408,9 +418,6 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
   }
 
   function applyLocation(location: import('@/shared/types').FileWindowLocation) {
-    contextMessage.value = location.message ?? '';
-    contextLabel.value = location.contextLabel ?? '信息';
-    contextSeverity.value = location.contextSeverity ?? 'info';
     targetLine.value = normalizeEventLine(location.line);
     targetColumn.value = normalizeEventLine(location.column);
   }
@@ -425,7 +432,7 @@ export function useFileEditorViewModel(params: FileEditorViewModelParams) {
     targetLine,
     targetColumn,
     text,
-    loading: computed(() => draftSession.loading.value && draftSession.baselineSnapshot.value === null),
+    loading: draftSession.loading,
     saving: draftSession.saving,
     waitForSave: draftSession.waitForSave,
     dirty,

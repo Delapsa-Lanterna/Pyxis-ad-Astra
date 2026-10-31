@@ -18,7 +18,7 @@ import { nButton } from '@/test/unit/ui-stubs';
 
 const mocks = vi.hoisted(() => ({
   log: vi.fn(),
-  open: vi.fn(async () => {}),
+  open: vi.fn<(request: import('@/windows/file-editor.window').FileEditorRequest) => Promise<void>>(async () => {}),
   transcode: vi.fn(),
   sync: vi.fn(),
   context: { value: null as ManagedWindowContext | null },
@@ -84,10 +84,11 @@ describe('feedback diagnostics, file authorization and actions', () => {
         path: diagnostic.location.path,
         line: 4,
         column: 2,
-        contextSeverity: 'warning',
       }),
     );
     const listRequest = mocks.open.mock.lastCall;
+    expect(listRequest![0]).not.toHaveProperty('message');
+    expect(listRequest![0]).not.toHaveProperty('contextSeverity');
     wrapper.unmount();
     feedback.warning(notice);
     wrapper = mount({ render: messages.warning.mock.lastCall![0] });
@@ -248,6 +249,8 @@ describe('window recovery completion', () => {
     expect(mocks.transcode).toHaveBeenLastCalledWith(sessionId, 'M:/mod', path, 'gb18030');
     await wrapper.get('button').trigger('click');
     expect(mocks.open).toHaveBeenLastCalledWith(expect.objectContaining({ mode, path, sessionId }));
+    expect(mocks.open.mock.lastCall![0]).not.toHaveProperty('message');
+    expect(mocks.open.mock.lastCall![0]).not.toHaveProperty('contextSeverity');
     expect(messages.success).toHaveBeenCalledTimes(1);
   });
   it('treats a stale transcode action as information after external conversion', async () => {

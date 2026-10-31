@@ -1,5 +1,5 @@
 import { projectChangeFixture, committedChangeFixture, dispatchProjectChangeFixture } from '@/test/unit/project-changes';
-import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
@@ -7,6 +7,9 @@ import { entityTargetFixture } from '@/test/fixtures/entity-target';
 import { initializeSettingsStore, useSettingsStore } from '@/stores/settings.store';
 import { createSettingsFixture } from '@/test/fixtures/settings';
 import { mountSetup } from '@/test/unit/mount-setup';
+import FileEditorContent from '@/app/FileEditorContent.vue';
+import { nButton } from '@/test/unit/ui-stubs';
+import type { ManagedWindowContext, WindowContextFor } from '@/shared/types';
 
 enableAutoUnmount(afterEach);
 
@@ -30,6 +33,7 @@ vi.mock('@/orchestrators/project-sync.orchestrator', async () => ({
 
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
+  request: null as null | ((request: ManagedWindowContext) => Promise<void>),
   identityHandler: null as null | ((event: import('@/shared/types').CommittedWriteEvent) => Promise<void>),
   followIdentity: vi.fn(),
   loadEditableFileData: vi.fn(),
@@ -66,6 +70,44 @@ vi.mock('@/orchestrators/entity-identity.orchestrator', () => ({
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
+vi.mock('@/app/composables/use-shortcut-dispatch', () => ({ useShortcutDispatch: vi.fn() }));
+vi.mock('@/app/composables/use-dirty-window-close-guard', () => ({
+  useDirtyWindowCloseGuard: () => ({ install: async () => {}, dispose: vi.fn() }),
+}));
+vi.mock('@/windows/window-context.window', () => ({
+  useWindowContext: () => ({ value: windowFixture() }),
+}));
+vi.mock('@/app/composables/use-managed-window-requests', () => ({
+  useManagedWindowRequests: (handler: typeof mocks.request) => {
+    mocks.request = handler;
+  },
+}));
+
+function windowFixture(): WindowContextFor<'file-editor'> {
+  return {
+    kind: 'file-editor',
+    label: 'file',
+    revision: 1,
+    requestId: 1,
+    receiverGeneration: 1,
+    title: '文件编辑器',
+    identity: { type: 'file', sessionId: 's1', modRoot: 'C:/mods/alpha', path: 'C:/mods/alpha/notes.txt' },
+    input: {
+      kind: 'file-editor',
+      location: { message: 'old diagnostic', contextLabel: '错误', contextSeverity: 'error', line: 2, column: 1 },
+    },
+  };
+}
+
+function pendingRead() {
+  let resolve!: (value: { text: string; baseVersions: [] }) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<{ text: string; baseVersions: [] }>((ready, fail) => {
+    resolve = ready;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
 
 import { useFileEditorViewModel, type FileEditorViewModelParams } from './use-file-editor-view-model';
 
@@ -76,9 +118,6 @@ function paramsFixture(overrides: Partial<FileEditorViewModelParams> = {}): File
     modRoot: 'C:/mods/alpha',
     sessionId: 's1',
     title: '文件编辑器',
-    contextLabel: '信息',
-    contextSeverity: 'info',
-    contextMessage: '',
     line: null,
     column: null,
     ...overrides,
@@ -98,6 +137,57 @@ function textApplied(event: { sessionId: string; modRoot: string; path: string; 
   void dispatchProjectChangeFixture(committedChangeFixture(result, event.sessionId, event.modRoot));
 }
 describe('useFileEditorViewModel loading', () => {
+  it.each([false, true])('refreshes disk once and preserves a dirty draft=%s', async (dirty) => {
+    mocks.loadEditableFileData.mockResolvedValue({ text: 'base', baseVersions: [] });
+    const vm = await initializeViewModel(paramsFixture());
+    if (dirty) vm.updateText('draft');
+    mocks.loadEditableFileData.mockClear();
+    mocks.loadEditableFileData.mockResolvedValueOnce({ text: 'disk', baseVersions: [] });
+    await vm.initialize();
+    expect(mocks.loadEditableFileData).toHaveBeenCalledTimes(1);
+    expect(vm.text.value).toBe(dirty ? 'draft' : 'disk');
+    expect(vm.hasPendingExternalText.value).toBe(dirty);
+    if (dirty) {
+      vm.undoEdit();
+      expect(vm.text.value).toBe('base');
+      vm.redoEdit();
+      expect(vm.text.value).toBe('draft');
+      vm.loadPendingExternalText();
+      mocks.feedback.confirmWarning.mock.calls.at(-1)![0].onConfirm();
+      expect(vm.text.value).toBe('disk');
+    }
+    vm.dispose();
+  });
+  it('keeps a draft on read failure and clears the error after retry', async () => {
+    mocks.loadEditableFileData.mockResolvedValue({ text: 'base', baseVersions: [] });
+    const vm = await initializeViewModel(paramsFixture());
+    vm.updateText('draft');
+    mocks.loadEditableFileData.mockRejectedValueOnce(new Error('access denied'));
+    await expect(vm.initialize()).rejects.toThrow('access denied');
+    expect(vm.contextMessage.value).toContain('access denied');
+    expect(vm.text.value).toBe('draft');
+    vm.applyLocation(windowFixture().input.location);
+    expect(vm.contextMessage.value).toContain('access denied');
+    await vm.initialize();
+    expect(vm.contextMessage.value).toBe('');
+    expect(vm.text.value).toBe('draft');
+    vm.dispose();
+  });
+  it.each(['resolve', 'reject'] as const)('discards a late read %s after a newer open', async (completion) => {
+    mocks.loadEditableFileData.mockResolvedValue({ text: 'base', baseVersions: [] });
+    const vm = await initializeViewModel(paramsFixture());
+    const pending = pendingRead();
+    mocks.loadEditableFileData.mockReturnValueOnce(pending.promise);
+    const older = vm.initialize();
+    await flushPromises();
+    await vm.initialize();
+    if (completion === 'resolve') pending.resolve({ text: 'old', baseVersions: [] });
+    else pending.reject(new Error('old failure'));
+    await older;
+    expect(vm.text.value).toBe('base');
+    expect(vm.contextMessage.value).toBe('');
+    vm.dispose();
+  });
   it('loads the file text into the draft and tracks the line count', async () => {
     mocks.loadEditableFileData.mockResolvedValue({ path: 'x', text: 'line1\nline2', baseVersions: [] });
     const viewModel = await initializeViewModel(paramsFixture());
@@ -254,8 +344,15 @@ describe('useFileEditorViewModel editing', () => {
     vm.updateText('submitted');
     const writing = vm.saveFile();
     vm.updateText('later');
+    mocks.loadEditableFileData.mockClear();
+    mocks.loadEditableFileData.mockResolvedValue({ text: 'submitted', baseVersions: [{ path: 'file', fingerprint: 'v2' }] });
+    const reopening = vm.initialize();
+    await flushPromises();
+    expect(mocks.loadEditableFileData).toHaveBeenCalledTimes(0);
     release({ ...savedWriteFixture(), baseVersions: [{ path: 'file', fingerprint: 'v2' }] });
     await writing;
+    await reopening;
+    expect(mocks.loadEditableFileData).toHaveBeenCalledTimes(1);
     expect(vm.text.value).toBe('later');
     expect(vm.dirty.value).toBe(true);
     vm.undoEdit();
@@ -398,14 +495,41 @@ describe('useFileEditorViewModel external text', () => {
     viewModel.dispose();
   });
 
-  it('updates location and diagnostic context without changing the text draft', async () => {
+  it('updates location independently of the current text and errors', async () => {
     mocks.loadEditableFileData.mockResolvedValue({ path: 'x', text: 'base', baseVersions: [] });
     const viewModel = await initializeViewModel(paramsFixture());
     viewModel.applyLocation({ message: 'parse error', contextLabel: '错误', contextSeverity: 'error', line: 3, column: 2 });
     expect(viewModel.contextSeverity.value).toBe('error');
-    expect(viewModel.isErrorContext.value).toBe(true);
+    expect(viewModel.contextMessage.value).toBe('');
     expect(viewModel.targetLine.value).toBe(3);
     expect(viewModel.targetColumn.value).toBe(2);
     viewModel.dispose();
   });
+});
+
+it('renders reading, encoding failure, and a successful retry with line navigation', async () => {
+  const pending = pendingRead();
+  mocks.loadEditableFileData.mockReturnValueOnce(pending.promise);
+  const wrapper = mount(FileEditorContent, { global: { stubs: { 'n-button': nButton } } });
+  const request = windowFixture();
+  const opening = mocks.request!(request);
+  await flushPromises();
+  expect(wrapper.get('.file-editor-status').text()).toBe('正在读取文件…');
+  const error = {
+    code: 'text.invalid_utf8',
+    message: 'invalid bytes',
+    location: { path: request.identity.path, line: null, column: null },
+  };
+  pending.reject(error);
+  await expect(opening).rejects.toEqual(error);
+  await flushPromises();
+  expect(wrapper.get('.file-editor-message.danger').text()).toContain('请选择文件当前使用的编码');
+  expect(wrapper.findAll('button').map((button) => button.text())).toContain('重试');
+  expect(mocks.feedback.error).toHaveBeenLastCalledWith(error, '读取文件失败');
+  mocks.loadEditableFileData.mockResolvedValueOnce({ text: 'first\nsecond', baseVersions: [] });
+  await mocks.request!(request);
+  expect(wrapper.find('.file-editor-message').exists()).toBe(false);
+  expect(wrapper.get('textarea').element.value).toBe('first\nsecond');
+  expect(wrapper.get('textarea').element.selectionStart).toBe(6);
+  expect(wrapper.get('.file-editor-line-number.active').text()).toBe('2');
 });

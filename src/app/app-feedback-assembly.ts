@@ -1,8 +1,8 @@
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import type { DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider';
 import type { MessageApiInjection } from 'naive-ui/es/message/src/MessageProvider';
-import { createAppFeedback, type FeedbackFileAction, type FeedbackLevel } from '@/app/app-feedback';
-import type { AppFeedback, FileWindowLocation } from '@/shared/types';
+import { createAppFeedback, type FeedbackFileAction } from '@/app/app-feedback';
+import type { AppFeedback } from '@/shared/types';
 import { errorCodeOf, type FileReference } from '@/shared/lib/errors';
 import type { FeedbackFileTarget, WindowFeedback } from '@/shared/types';
 import { closestRootForPath, pathBelongsToRoot } from '@/shared/lib/paths';
@@ -11,27 +11,14 @@ import { managedWindowContext } from '@/windows/window-context.window';
 import { openFileEditorWindow } from '@/windows/file-editor.window';
 import { transcodeFileToUtf8 } from '@/services/files.service';
 
-interface FileActionContext {
-  contextLabel: string;
-  contextSeverity: NonNullable<FileWindowLocation['contextSeverity']>;
-  buttonType: FeedbackFileAction['type'];
-}
-const FILE_ACTION_CONTEXT: Record<FeedbackLevel, FileActionContext> = {
-  success: { contextLabel: '信息', contextSeverity: 'info', buttonType: 'success' },
-  info: { contextLabel: '信息', contextSeverity: 'info', buttonType: 'default' },
-  warning: { contextLabel: '警告', contextSeverity: 'warning', buttonType: 'warning' },
-  error: { contextLabel: '错误', contextSeverity: 'error', buttonType: 'error' },
-};
-
 export function createWindowFeedback(message: MessageApiInjection, dialog: DialogApiInjection, accepting = () => true): WindowFeedback {
   const feedback = createAppFeedback(message, dialog, (reference, level, code) => {
     const session = reference.target ?? resolveSessionForPath(reference.path);
     if (session === null) return [];
-    const context = FILE_ACTION_CONTEXT[level];
     const actions: FeedbackFileAction[] = [
       {
         label: '打开文件',
-        type: context.buttonType,
+        type: level === 'info' ? 'default' : level,
         run: async () => {
           if (!accepting()) return;
           try {
@@ -41,9 +28,6 @@ export function createWindowFeedback(message: MessageApiInjection, dialog: Dialo
               line: reference.line,
               column: reference.column,
               title: '文件编辑器',
-              contextLabel: context.contextLabel,
-              contextSeverity: context.contextSeverity,
-              message: reference.message,
             });
           } catch (error) {
             feedback.error(error, '打开文件失败');

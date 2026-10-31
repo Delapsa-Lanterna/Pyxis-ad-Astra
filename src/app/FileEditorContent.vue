@@ -156,16 +156,13 @@ const {
   modRoot,
   sessionId,
   title: context.title,
-  contextLabel: context.input.location.contextLabel ?? '信息',
-  contextSeverity: context.input.location.contextSeverity ?? 'info',
-  contextMessage: context.input.location.message ?? '',
   line: context.input.location.line,
   column: context.input.location.column,
 });
 provideFieldInputs(inputs);
 useManagedWindowRequests(async (request) => {
-  await initialize();
   if (request.kind === 'file-editor') applyLocation(request.input.location);
+  await initialize();
   await nextTick();
   scrollToTargetLine();
 });
@@ -176,8 +173,9 @@ const closeGuard = useDirtyWindowCloseGuard({
   title: '放弃未保存文件修改？',
 });
 const fileStatusText = computed(() => {
-  if (loading.value) return '读取中';
+  if (loading.value) return '正在读取文件…';
   if (saving.value) return '保存中';
+  if (isErrorContext.value && !contentReady.value) return '读取失败';
   if (hasPendingExternalText.value) return '外部文本已更新';
   return dirty.value ? '未保存' : '已保存';
 });
