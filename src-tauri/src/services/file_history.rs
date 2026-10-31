@@ -4,6 +4,7 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         FileChangeRecord, FileChangeReplayDirection, FileHistoryEntrySummary, FileHistorySnapshot,
+        windows_path_key,
     },
 };
 use std::{
@@ -32,7 +33,7 @@ static HISTORY_LIMIT: LazyLock<Mutex<usize>> =
     LazyLock::new(|| Mutex::new(crate::models::AppSettings::default().file_history_limit as usize));
 
 pub fn release_history(root: &str) -> AppResult<()> {
-    let root = root.to_lowercase();
+    let root = windows_path_key(root);
     lock_histories()?.remove(&root);
     Ok(())
 }
@@ -89,7 +90,7 @@ pub(crate) fn record(
     label: &str,
 ) -> AppResult<FileHistorySnapshot> {
     let mut histories = lock_histories()?;
-    let history = histories.entry(root.to_string()).or_default();
+    let history = histories.entry(windows_path_key(root)).or_default();
     if !changes.is_empty() {
         history.revision += 1;
         history.undo.push(HistoryEntry {
@@ -115,14 +116,14 @@ pub(crate) fn record(
 
 pub(crate) fn query(root: &str) -> AppResult<FileHistorySnapshot> {
     Ok(lock_histories()?
-        .get(root)
+        .get(&windows_path_key(root))
         .map(snapshot)
         .unwrap_or_default())
 }
 
 pub(crate) fn clear(root: &str) -> AppResult<FileHistorySnapshot> {
     let mut histories = lock_histories()?;
-    let history = histories.entry(root.to_string()).or_default();
+    let history = histories.entry(windows_path_key(root)).or_default();
     history.revision += 1;
     history.undo.clear();
     history.redo.clear();
@@ -136,7 +137,9 @@ pub(crate) fn prepare_replay(
     revision: u64,
 ) -> AppResult<HistoryEntry> {
     let histories = lock_histories()?;
-    let history = histories.get(root).ok_or_else(history_conflict)?;
+    let history = histories
+        .get(&windows_path_key(root))
+        .ok_or_else(history_conflict)?;
     let stack = match direction {
         FileChangeReplayDirection::Undo => &history.undo,
         FileChangeReplayDirection::Redo => &history.redo,
@@ -155,7 +158,7 @@ pub(crate) fn accept_replay(
 ) -> AppResult<FileHistorySnapshot> {
     let mut histories = lock_histories()?;
     let history = histories
-        .get_mut(root)
+        .get_mut(&windows_path_key(root))
         .expect("queued history remains registered");
     match direction {
         FileChangeReplayDirection::Undo => {
@@ -220,6 +223,57 @@ fn history_conflict() -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_identity_is_shared_by_every_entry_point() {
+        let directory = TestWorkspace::new("history_path_identity");
+        let root = directory
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let aliases = [
+            root.clone(),
+            root.replace('\\', "/"),
+            crate::models::windows_path_key(&root),
+            root.to_uppercase(),
+        ];
+        let change =
+            crate::io::build_text_change(&directory.join("entry.txt"), Some("saved".into()))
+                .unwrap();
+        for alias in aliases {
+            let saved = record(&root, std::slice::from_ref(&change), &[], "entry").unwrap();
+            let queried = query(&alias).unwrap();
+            assert_eq!(queried.undo_stack.len(), 1);
+            assert_eq!(queried.revision, saved.revision);
+            let prepared = prepare_replay(
+                &alias,
+                FileChangeReplayDirection::Undo,
+                saved.undo_stack[0].id,
+                saved.revision,
+            )
+            .unwrap();
+            let undone = accept_replay(&alias, FileChangeReplayDirection::Undo, prepared).unwrap();
+            assert_eq!(query(&root).unwrap().redo_stack.len(), 1);
+            let prepared = prepare_replay(
+                &root,
+                FileChangeReplayDirection::Redo,
+                undone.redo_stack[0].id,
+                undone.revision,
+            )
+            .unwrap();
+            accept_replay(&alias, FileChangeReplayDirection::Redo, prepared).unwrap();
+            assert_eq!(query(&root).unwrap().undo_stack.len(), 1);
+            clear(&alias).unwrap();
+            assert!(query(&root).unwrap().undo_stack.is_empty());
+            record(&alias, std::slice::from_ref(&change), &[], "entry").unwrap();
+            release_history(&root).unwrap();
+            let released = query(&alias).unwrap();
+            assert_eq!(released.revision, 0);
+            assert!(released.undo_stack.is_empty());
+        }
+        directory.close().unwrap();
+    }
 
     #[test]
     fn recorded_writes_replay_and_clear_through_the_history_owner() {

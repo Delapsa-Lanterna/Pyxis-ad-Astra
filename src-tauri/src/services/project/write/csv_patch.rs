@@ -13,6 +13,7 @@ use crate::{
     models::{
         AssociatedSpecChange, AssociatedSpecCreateParams, AssociatedSpecWrite, CsvRowKeyMapping,
         CsvRowOrderEntry, CsvRowPatch, CsvRowPatchAction, CsvTableKey, WriteResult,
+        windows_path_key,
     },
 };
 use serde_json::Value;
@@ -488,7 +489,7 @@ pub fn prepare_csv_save(
         }
     }
     for version in current.base_versions {
-        base_versions.retain(|old| !old.path.eq_ignore_ascii_case(&version.path));
+        base_versions.retain(|old| windows_path_key(&old.path) != windows_path_key(&version.path));
         base_versions.push(version);
     }
     Ok(())

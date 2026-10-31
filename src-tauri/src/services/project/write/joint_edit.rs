@@ -817,7 +817,7 @@ pub fn prepare_joint_save(
     for version in &payload.base_versions {
         if !versions
             .iter()
-            .any(|current| current.path.eq_ignore_ascii_case(&version.path))
+            .any(|current| windows_path_key(&current.path) == windows_path_key(&version.path))
         {
             versions.push(version.clone());
         }

@@ -2,7 +2,7 @@
 use crate::test_support::TestWorkspace;
 use crate::{
     errors::{AppError, AppResult, ErrorDiagnostic},
-    models::{EntityIdentityChange, FileVersion, SaveDelivery, WriteResult},
+    models::{EntityIdentityChange, FileVersion, SaveDelivery, WriteResult, windows_path_key},
 };
 use serde::Serialize;
 use std::{
@@ -306,7 +306,7 @@ pub fn execute_queued<T: Serialize>(
             entry
                 .progress
                 .versions
-                .retain(|old| !old.path.eq_ignore_ascii_case(&version.path));
+                .retain(|old| windows_path_key(&old.path) != windows_path_key(&version.path));
             entry.progress.versions.push(version.clone());
         }
     }
@@ -395,7 +395,7 @@ pub fn prepare_versions(
     for captured in captured.iter_mut() {
         if let Some(current) = versions
             .iter()
-            .find(|version| version.path.eq_ignore_ascii_case(&captured.path))
+            .find(|version| windows_path_key(&version.path) == windows_path_key(&captured.path))
         {
             *captured = current.clone();
         }

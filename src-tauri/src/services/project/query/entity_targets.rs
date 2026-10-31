@@ -9,7 +9,7 @@ use crate::{
     errors::AppResult,
     models::{
         EntityEditInfo, EntityEditTarget, EntityFileLocation, EntityKind, EntityLinkedRecord,
-        EntityTargetState, ResourceSource,
+        EntityTargetState, ResourceSource, windows_path_key,
     },
 };
 use std::path::Path;
@@ -423,7 +423,8 @@ impl EntityTargetProjection {
             versions.extend(parents.iter().cloned());
         }
         versions.sort_by(|left, right| left.path.cmp(&right.path));
-        versions.dedup_by(|left, right| left.path.eq_ignore_ascii_case(&right.path));
+        versions
+            .dedup_by(|left, right| windows_path_key(&left.path) == windows_path_key(&right.path));
         EntityEditInfo {
             target: EntityEditTarget {
                 kind: self.kind,

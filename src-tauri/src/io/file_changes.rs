@@ -150,7 +150,7 @@ fn acquire_root_write_lock_with_retry(
         .to_string_lossy()
         .to_string();
     #[cfg(windows)]
-    let canonical_root = canonical_root.to_lowercase();
+    let canonical_root = crate::models::windows_path_key(&canonical_root);
     // Nested synchronous services share the transaction's lease.
     if let Some(lease) = ACTIVE_WRITES.with(|active| {
         active

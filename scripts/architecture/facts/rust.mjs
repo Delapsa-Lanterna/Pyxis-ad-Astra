@@ -1,9 +1,11 @@
 import { productionRustSource } from '../../shared/rust-source.mjs';
 import { sourcePositions } from '../../shared/source-position.mjs';
 import { rustServicePaths } from './rust-crate-paths.mjs';
+import { splitTopLevel } from '../../shared/rust-source.mjs';
 
 /** @typedef {{name: string, attributes: string[], start: number, end: number, body: string, signature: string, line: number, column: number}} RustFunction */
-/** @typedef {{code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[]}} RustFacts */
+/** @typedef {{name: string, target: string, arguments: string[], offset: number, line: number, column: number}} RustCall */
+/** @typedef {{code: string, references: import('./rust-crate-paths.mjs').RustReference[], functions: RustFunction[], calls: RustCall[]}} RustFacts */
 
 /** @param {import('../../shared/files.mjs').SourceFile} file @param {string} code @param {Map<string, string[]>} exports @returns {RustFacts} */
 export function rustFacts(file, code, exports) {
@@ -67,7 +69,27 @@ export function rustFacts(file, code, exports) {
       ...at(match.index),
     });
   }
-  return { code, references: rustServicePaths(code, file.rel, exports, at), functions };
+  const references = rustServicePaths(code, file.rel, exports, at);
+  const targets = new Map(references.map((edge) => [edge.offset, edge.target.join('::')]));
+  const calls = [];
+  for (const match of code.matchAll(/\b((?:[A-Za-z_]\w*::)*([A-Za-z_]\w*))\s*\(/g)) {
+    const opening = match.index + match[0].length;
+    let end = opening,
+      depth = 1;
+    while (end < code.length && depth) {
+      if (code[end] === '(') depth++;
+      if (code[end] === ')') depth--;
+      end++;
+    }
+    calls.push({
+      name: /** @type {string} */ (match[2]),
+      target: targets.get(match.index) ?? /** @type {string} */ (match[1]),
+      arguments: splitTopLevel(code.slice(opening, end - 1)),
+      offset: match.index,
+      ...at(match.index),
+    });
+  }
+  return { code, references, functions, calls };
 }
 
 export { productionRustSource };

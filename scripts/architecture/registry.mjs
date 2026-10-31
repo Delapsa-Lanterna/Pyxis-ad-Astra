@@ -7,6 +7,7 @@ import { commandBoundaryRule } from './rules/capabilities/command-boundary.mjs';
 import { rustCommandFunctionsRule } from './rules/capabilities/rust-command-functions.mjs';
 import { saveBackendBoundaryRule } from './rules/capabilities/save-backend-boundary.mjs';
 import { namingBoundaryRule } from './rules/conventions/naming-boundary.mjs';
+import { pathBoundaryRule } from './rules/conventions/path-boundary.mjs';
 import { writableStateCopyCycleRule } from './rules/conventions/writable-state-copy-cycle.mjs';
 import { errorBoundaryRule } from './rules/modules/app-feedback/error-boundary.mjs';
 import { feedbackBoundaryRule } from './rules/modules/app-feedback/feedback-boundary.mjs';
@@ -37,6 +38,7 @@ export const rules = [
   rustServiceEdgeBoundaryRule,
   sharedTypesBoundaryRule,
   namingBoundaryRule,
+  pathBoundaryRule,
   writableStateCopyCycleRule,
   errorBoundaryRule,
   feedbackBoundaryRule,

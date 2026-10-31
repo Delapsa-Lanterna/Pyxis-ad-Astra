@@ -6,6 +6,7 @@ use crate::{
     models::SessionModScope,
     models::{
         FileChangeRecord, FileChangeReplayDirection, FileHistorySnapshot, FileVersion, WriteResult,
+        windows_path_key,
     },
 };
 use std::path::Path;
@@ -37,7 +38,7 @@ fn acquire(root: &str, session_id: Option<&str>) -> AppResult<WriteTransaction> 
     let root = FsRootBoundary::new(Path::new(root), "write root")?
         .root()
         .to_string_lossy()
-        .to_lowercase();
+        .into_owned();
     Ok(WriteTransaction {
         root,
         session_id: session_id.map(str::to_string),
@@ -70,7 +71,9 @@ impl WriteTransaction {
             }
         }
         for version in versions_for_changes(&result.changes)? {
-            versions.retain(|previous| !previous.path.eq_ignore_ascii_case(&version.path));
+            versions.retain(|previous| {
+                windows_path_key(&previous.path) != windows_path_key(&version.path)
+            });
             versions.push(version);
         }
         for version in &mut versions {
@@ -126,7 +129,7 @@ pub fn query_history(session_id: &str, root: &str) -> AppResult<FileHistorySnaps
     let root = FsRootBoundary::new(Path::new(root), "history root")?
         .root()
         .to_string_lossy()
-        .to_lowercase();
+        .into_owned();
     file_history::query(&root)
 }
 

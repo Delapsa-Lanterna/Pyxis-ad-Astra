@@ -174,6 +174,11 @@ export function rustServicePaths(code, rel, exports, positionAt = () => ({ line:
     const alias = aliasAt(/** @type {string} */ (match[1]), match.index);
     if (alias) add(alias, match.index);
   }
+  for (const match of code.matchAll(/\b[A-Za-z_]\w*\b/g)) {
+    if (withinUse(match.index)) continue;
+    const alias = aliasAt(match[0], match.index);
+    if (alias?.slice(0, 2).join('::') === 'std::path' && ['Path', 'PathBuf'].includes(alias.at(-1) ?? '')) add(alias, match.index);
+  }
   return [...references.values()];
 }
 

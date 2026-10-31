@@ -63,7 +63,7 @@ pub(super) struct SourceReader {
 impl SourceReader {
     pub fn new(root: &Path) -> AppResult<Self> {
         let boundary = FsRootBoundary::new(root, "source root")?;
-        let records = cache_path(boundary.root())?
+        let records = cache_path(&boundary)?
             .and_then(|path| crate::io::read_utf8_no_bom(&path).ok())
             .and_then(|text| parse_persisted_json::<Snapshot>(&text).ok())
             .filter(|snapshot| {
@@ -355,7 +355,7 @@ impl SourceReader {
             return;
         }
         let result = (|| -> AppResult<()> {
-            let Some(path) = cache_path(self.root())? else {
+            let Some(path) = cache_path(&self.boundary)? else {
                 return Ok(());
             };
             std::fs::create_dir_all(path.parent().expect("source cache directory"))?;
@@ -459,15 +459,18 @@ impl SourceReader {
         Ok(())
     }
 }
-fn cache_path(root: &Path) -> AppResult<Option<PathBuf>> {
+fn cache_path(boundary: &FsRootBoundary) -> AppResult<Option<PathBuf>> {
+    let root = boundary.root();
     let cache = CACHE_ROOT
         .lock()
         .map_err(|_| AppError::message("cache.lock_poisoned", "source cache lock poisoned"))?;
     Ok(cache.as_ref().map(|cache| {
         cache.join(format!(
             "{}.json",
-            crate::io::fingerprint(root.to_string_lossy().to_lowercase().as_bytes())
-                .replace(':', "-")
+            crate::io::fingerprint(
+                crate::models::windows_path_key(&root.to_string_lossy()).as_bytes()
+            )
+            .replace(':', "-")
         ))
     }))
 }
