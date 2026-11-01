@@ -13,18 +13,10 @@
       :data-csv-raw="editingRaw ? '' : undefined"
       :data-csv-candidate="activeOption ? '' : undefined"
       class="csv-cell-picker-search ui-input ui-text-normal ui-text-small ui-layout-stretch ui-content-surface-muted"
-      placeholder="搜索或输入新值，回车确认"
+      placeholder="搜索或输入值，回车确认"
       @keydown.enter="submitQuery"
       @compositionstart="activeValue = null"
     />
-    <button
-      v-if="!multiple && selectedValues.size > 0"
-      class="csv-cell-picker-clear ui-button ui-text-small ui-layout-stretch"
-      type="button"
-      @click="clearValue"
-    >
-      清除当前值
-    </button>
     <div :ref="visible.setMediaRoot" class="csv-cell-picker-list">
       <NCollapse
         arrow-placement="right"
@@ -182,10 +174,6 @@ function focusSearch() {
   if (!input) return;
   if (props.edit?.kind === 'raw') focusCsvCellText(input, props.edit.offsetX);
   else input.focus({ preventScroll: true });
-}
-
-function clearValue() {
-  emit('commit', ['']);
 }
 
 function cancelSelection(event: KeyboardEvent) {

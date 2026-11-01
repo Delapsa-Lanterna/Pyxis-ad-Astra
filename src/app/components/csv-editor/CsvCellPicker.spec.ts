@@ -167,15 +167,6 @@ describe('CsvCellPicker placement', () => {
     wrapper.unmount();
   });
 
-  it('offers a clear action for single-select with a current value', async () => {
-    const wrapper = mountPicker({ height: 30, left: 40, top: 100, width: 200 }, { values: ['phase'] });
-
-    await wrapper.find('.csv-cell-picker-clear').trigger('click');
-
-    expect(wrapper.emitted('commit')).toEqual([[['']]]);
-    wrapper.unmount();
-  });
-
   it.each([undefined, 14])('focuses raw text at the requested position %s and confirms once', async (offsetX) => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       measureText: (text: string) => ({ width: text.length * 7 }),
@@ -238,20 +229,6 @@ describe('CsvCellPicker placement', () => {
     expect(input.value).toBe('alpha, alpha0');
     expect(input.value.slice(input.selectionStart!, input.selectionEnd!)).toBe('alpha0');
     expect(wrapper.emitted('commit-raw')).toBeUndefined();
-    wrapper.unmount();
-  });
-
-  it('hides the clear action when no value is selected', () => {
-    const wrapper = mountPicker({ height: 30, left: 40, top: 100, width: 200 });
-
-    expect(wrapper.find('.csv-cell-picker-clear').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
-  it('hides the clear action for multiple select', () => {
-    const wrapper = mountPicker({ height: 30, left: 40, top: 100, width: 200 }, { multiple: true, values: ['a', 'b'] });
-
-    expect(wrapper.find('.csv-cell-picker-clear').exists()).toBe(false);
     wrapper.unmount();
   });
 

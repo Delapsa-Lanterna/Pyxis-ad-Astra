@@ -42,6 +42,28 @@ afterEach(() => {
 });
 
 describe('OverviewPage external Mod opening failures', () => {
+  it.each([0, 1])('shows %s actual Mod cards and the exact count while Core is loaded', (count) => {
+    const workspace = useWorkspaceStore();
+    workspace.registerMod({ modRoot: 'D:/game/starsector-core', displayName: 'Core', version: '', status: 'ready' });
+    workspace.setGameOverview({
+      starsectorRoot: 'D:/game',
+      modsDir: 'D:/game/mods',
+      coreAvailable: true,
+      warnings: [],
+      mods: count
+        ? [{ modRoot: 'D:/game/mods/example', id: 'example', name: 'Example', version: '1', description: '', hasModInfo: true }]
+        : [],
+    });
+    wrapper = mount(OverviewPage, {
+      global: { stubs: { 'n-button': nButton, 'n-input': true, 'n-modal': true } },
+    });
+    expect(wrapper.get('.overview-header').text()).toContain(`${count} 个 Mod 可用`);
+    expect(wrapper.get('.game-overview-summary').text()).toContain('原版数据可用');
+    expect(wrapper.findAll('.overview-mod-card')).toHaveLength(count);
+    if (count) expect(wrapper.get('.mod-card-header-value').text()).toBe('Example');
+    else expect(wrapper.get('.game-overview-empty').text()).toContain('没有发现可识别 Mod');
+    expect(workspace.mods.get('D:/game/starsector-core')?.status).toBe('ready');
+  });
   it.each([false, true])('dismisses notices until the next detection with game overview %s', async (game) => {
     const workspace = useWorkspaceStore();
     const failure: ModOpeningFailure = {

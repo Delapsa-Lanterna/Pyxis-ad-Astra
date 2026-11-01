@@ -24,8 +24,7 @@
 .color-picker-preview,
 .csv-cell-editor,
 .csv-cell-picker-option,
-.csv-cell-picker-action,
-.csv-cell-picker-clear {
+.csv-cell-picker-action {
   transition:
     background-color var(--ui-feedback-duration) var(--ui-feedback-easing),
     color var(--ui-feedback-duration) var(--ui-feedback-easing),
