@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
-vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: mocks.requestClose }) }));
+vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowCloseRequest: () => mocks.requestClose }));
 
 vi.mock('@/shared/runtime/dialog.runtime', () => ({
   pickDirectoryDialog: mocks.pickDirectoryDialog,

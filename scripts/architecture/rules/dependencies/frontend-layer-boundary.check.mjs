@@ -128,3 +128,29 @@ test('window persistence access is treated as a global browser store', () => {
   assert.equal(diagnostic.symbol, 'localStorage');
   assert.equal(diagnostic.expected, 'app config services');
 });
+
+test('file browser targets and configuration registries have their own inputs', () => {
+  for (const [source, target, expected] of /** @type {[string, string, string][]} */ ([
+    [
+      'src/app/composables/mod-file-browser/use-mod-file-browser-view-model.ts',
+      'src/stores/workspace.store.ts',
+      'explicit file browser target',
+    ],
+    ['src/services/misc-config.service.ts', 'src/domain/json-editor/json-document-definitions.ts', 'misc config definitions'],
+  ])) {
+    const context = architectureFixtures({
+      [source]: '\nimport {value} from "@/' + target.slice(4, -3) + '";',
+      [target]: 'export const value = 1;',
+    });
+    const [diagnostic] = frontendLayerBoundaryRule.check(context);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.line, 2);
+    assert.equal(diagnostic.expected, expected);
+    assert.equal(diagnostic.target, target);
+  }
+  const allowed = architectureFixtures({
+    'src/services/misc-config.service.ts': 'import {value} from "@/domain/misc-config";',
+    'src/domain/misc-config.ts': 'export const value = 1;',
+  });
+  assert.deepEqual(frontendLayerBoundaryRule.check(allowed), []);
+});

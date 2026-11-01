@@ -1,6 +1,6 @@
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { onMounted, onUnmounted, watch } from 'vue';
-import { useWindowLifecycleActions } from './use-window-close-state';
+import { useWindowCloseRequest } from './use-window-close-state';
 import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
@@ -25,7 +25,7 @@ export function useWorkspaceShellLifecycle(
   selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>,
 ) {
   useCsvSaveParticipants(feedback, selectAssociatedSpecs);
-  const { requestClose } = useWindowLifecycleActions();
+  const requestClose = useWindowCloseRequest();
   const workspace = useWorkspaceStore();
   let workspacePersistence: WorkspacePersistenceWatcher | null = null;
   let disposed = false;

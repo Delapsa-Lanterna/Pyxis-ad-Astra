@@ -5,7 +5,7 @@ import { computed, h, ref, nextTick, toRaw } from 'vue';
 import SchemaFormRenderer from './SchemaFormRenderer.vue';
 import EditorCollapse from '@/app/components/editors/common/EditorCollapse.vue';
 import { getSchema } from '@/domain/schema/config-schema-registry';
-import { miscConfigFile, MISC_CONFIG_FILES } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition, MISC_CONFIG_DEFINITIONS } from '@/domain/misc-config';
 import { convertSchemaScalarInput, schemaFieldVariant } from '@/domain/schema/schema-values';
 import { parseFileSchema } from '@/domain/schema/schema-asset-parser';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
@@ -31,7 +31,7 @@ afterEach(() => {
   wrapper = undefined;
 });
 function mountConfig(kind: MiscConfigKind, realCollapse = false) {
-  const field = getSchema(miscConfigFile(kind).schema)!.root!;
+  const field = getSchema(miscConfigDefinition(kind).schema)!.root!;
   const snapshot = { target: kind, baseVersions: [], meta: null, value: { file: miscConfigFixture(kind) } };
   let draft!: ReturnType<typeof useEditTargetDraftSession<RowData, MiscConfigKind, null>>;
   const value = computed({ get: () => draft.draftValue.value.file as RowData, set: (file) => draft.setDraft({ file }) });
@@ -43,7 +43,7 @@ function mountConfig(kind: MiscConfigKind, realCollapse = false) {
         provideFieldInputs(draft.inputs);
         return () =>
           h(SchemaFormRenderer, {
-            schema: getSchema(miscConfigFile(kind).schema)!,
+            schema: getSchema(miscConfigDefinition(kind).schema)!,
             modelValue: { file: value.value },
             'onUpdate:modelValue': (update: RowData) => {
               value.value = update.file as RowData;
@@ -94,8 +94,8 @@ describe('misc config fields', () => {
     expect(value.value.graphics).toEqual({ sample: { icons: ['graphics/sample_a.png', 'graphics/changed.png'] } });
   });
   it('registers five independently typed files and round-trips their field definitions', () => {
-    expect(MISC_CONFIG_FILES.map((file) => file.kind)).toEqual(['strings', 'engineStyles', 'hullStyles', 'sounds', 'settings']);
-    for (const file of MISC_CONFIG_FILES) {
+    expect(MISC_CONFIG_DEFINITIONS.map((file) => file.kind)).toEqual(['strings', 'engineStyles', 'hullStyles', 'sounds', 'settings']);
+    for (const file of MISC_CONFIG_DEFINITIONS) {
       const schema = getSchema(file.schema)!;
       expect(parseFileSchema(schema.id, schema)).toEqual(schema);
       expect(schema.sources![0]!.path).toBe(file.path);

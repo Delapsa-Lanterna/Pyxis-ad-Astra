@@ -5,7 +5,8 @@ import { useFileHistoryStore } from '@/stores/file-history.store';
 import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { closeProject, openProject } from '@/services/project-session.service';
+import { openProject } from '@/services/project-session.service';
+import { closeProjectSession } from '@/services/project-sync.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from '@/services/directory.service';
 import { buildModOpeningFailure, modOpeningFailureNotice, formatLoadWarnings, scanWarningNotice } from '@/domain/project/load-diagnostics';
 import { AppError, formatError, errorCodeOf } from '@/shared/lib/errors';
@@ -150,7 +151,7 @@ async function openModProject(modRoot: string, starsectorRoot: string | null, af
       workspace.setModOpeningFailure(failure);
       workspace.showOverview();
       const sessionId = useProjectStore().getSessionId(modRoot);
-      if (sessionId) await closeProject(sessionId);
+      if (sessionId) await closeProjectSession(sessionId);
       removeModRuntimeState(modRoot);
     }
     throw new AppError(formatError(error), {
@@ -201,7 +202,7 @@ async function openManifest(
     throw error;
   }
   if (!accepts() || workspace.getModGeneration(modRoot) !== modGeneration) {
-    await closeProject(loaded.sessionId);
+    await closeProjectSession(loaded.sessionId);
     return null;
   }
   project.registerProjectManifest(loaded);

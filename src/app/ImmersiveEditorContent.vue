@@ -60,12 +60,12 @@
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import type { JointEditRoot } from '@/shared/types';
 import { useWindowContext } from '@/windows/window-context.window';
 import { useManagedWindowRequests } from '@/app/composables/use-managed-window-requests';
 import { useImmersiveEditorViewModel, editableRenderContext } from '@/app/composables/immersive-editor-assembly';
-import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
+import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useInputEditMode } from '@/app/composables/use-input-edit-mode';
@@ -102,7 +102,7 @@ const { saving, loading, ready, handoffLocked, externalUpdateNotice } = joint;
 const fileWaiting = computed(() => useProjectSyncStore().isWaiting(modRoot));
 const dirty = computed(() => joint.dirty.value || vm.variantActionPending.value);
 useInputEditMode(joint.inputs);
-const closeGuard = useDirtyWindowCloseGuard({
+const closeParticipant = useWindowCloseParticipant({
   dirty,
   title: '关闭沉浸式编辑器？',
   content: `当前${label}有未保存草稿或活动输入，关闭前确认所属保存。`,
@@ -125,7 +125,6 @@ useWindowShortcuts({
   keys: { escape: closeWindow },
 });
 onMounted(async () => {
-  await closeGuard.install();
+  await closeParticipant.install();
 });
-onUnmounted(closeGuard.dispose);
 </script>

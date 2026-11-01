@@ -89,7 +89,7 @@
 <script setup lang="ts">
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
-import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
+import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useFileEditorViewModel } from '@/app/composables/editors/use-file-editor-view-model';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
@@ -167,7 +167,7 @@ useManagedWindowRequests(async (request) => {
   scrollToTargetLine();
 });
 const showContextMessage = computed(() => Boolean(contextMessage.value && (isErrorContext.value || targetLine.value)));
-const closeGuard = useDirtyWindowCloseGuard({
+const closeParticipant = useWindowCloseParticipant({
   content: '当前文件有未保存修改，关闭后这些修改将丢失。',
   dirty,
   title: '放弃未保存文件修改？',
@@ -243,13 +243,12 @@ useWindowShortcuts({
 });
 
 onMounted(() => {
-  void closeGuard.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
+  void closeParticipant.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
 });
 
 watch([targetLine, targetColumn], () => void nextTick(scrollToTargetLine));
 
 onUnmounted(() => {
-  closeGuard.dispose();
   dispose();
 });
 

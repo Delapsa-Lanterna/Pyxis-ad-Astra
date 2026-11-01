@@ -8,9 +8,9 @@ import { loadPersistedWorkspace, savePersistedWorkspace } from './workspace-stat
 import { createNewModProject } from './mod-creation.service';
 import { queryCoreRoot, queryCoreFields, queryCoreGraphics, invalidateCoreCacheForRoot } from './core-assets.service';
 import { detectDirectoryTarget, scanDirectoryGameOverview } from './directory.service';
-import { requestProjectSessionRefresh, refreshProjectSources, setReferenceSources } from './project-sync.service';
+import { requestProjectSessionRefresh, refreshProjectSources, setReferenceSources, closeProjectSession } from './project-sync.service';
 import { queryOriginalFont } from './font.service';
-import { openProject, closeProject } from './project-session.service';
+import { openProject } from './project-session.service';
 import {
   getNativeWindowBootstrap,
   getNativeWindowContext,
@@ -78,7 +78,7 @@ const cases: Array<[string, () => unknown, Record<string, unknown> | undefined]>
   ['detect_directory', () => detectDirectoryTarget('M:/mod', null), { payload: { path: 'M:/mod', knownStarsectorRoot: null } }],
   ['scan_game_overview', () => scanDirectoryGameOverview('G:/core'), { payload: { starsectorRoot: 'G:/core' } }],
   ['open_project_session', () => openProject('M:/mod', null), { payload: { modRoot: 'M:/mod', starsectorRoot: null } }],
-  ['close_project_session', () => closeProject('s1'), { payload: { sessionId: 's1' } }],
+  ['close_project_session', () => closeProjectSession('s1'), { payload: { sessionId: 's1' } }],
   ['invalidate_project_session', () => requestProjectSessionRefresh('s1', []), { payload: { sessionId: 's1', changes: [] } }],
   [
     'refresh_project_sources',

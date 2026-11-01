@@ -12,8 +12,9 @@ export const commandOwners = {
   'src/services/mod-file-browser.service.ts': ['query_mod_directory', 'query_mod_file_search', 'query_mod_text_file_target'],
   'src/services/font.service.ts': ['query_original_font'],
   'src/services/directory.service.ts': ['detect_directory', 'scan_game_overview'],
-  'src/services/project-session.service.ts': ['open_project_session', 'close_project_session'],
+  'src/services/project-session.service.ts': ['open_project_session'],
   'src/services/project-sync.service.ts': [
+    'close_project_session',
     'invalidate_project_session',
     'register_save_window',
     'set_reference_sources',

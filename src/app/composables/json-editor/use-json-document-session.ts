@@ -3,11 +3,11 @@ import { beginSavedWrite } from '@/orchestrators/project-sync.orchestrator';
 import { releaseNativeWindowTargets } from '@/services/window.service';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { requireRowData } from '@/shared/lib/row-data';
-import { miscConfigValue } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
 import { observeSavedContent, saveProjection } from '@/orchestrators/project-sync.orchestrator';
 import { computed, effectScope, onScopeDispose, ref, watch } from 'vue';
 import { hasMiscConfigInvalidation } from '@/services/misc-config.service';
-import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
 import { transferVariantWeaponSlots } from '@/domain/json-editor/json-variant-weapons';
 import { useEditTargetDraftSession, type EditTargetDraftSessionOptions } from '@/app/composables/use-edit-target-draft-session';
 import { useSnapshotHistory } from '@/app/composables/use-snapshot-history';
@@ -64,7 +64,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
   const settings = useSettingsStore();
   const { getMergedSchema } = useCoreSchema();
   const schema = computed(() =>
-    getMergedSchema(definition.kind === 'misc-config' ? miscConfigFile(record.target.id).schema : definition.kind)!,
+    getMergedSchema(definition.kind === 'misc-config' ? miscConfigDefinition(record.target.id).schema : definition.kind)!,
   );
   const active = ref(false);
   const composition = ref(record.composition);
@@ -251,7 +251,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
           if (target.kind === 'mod-info' || target.kind === 'misc-config') {
             const value =
               target.kind === 'misc-config'
-                ? miscConfigValue(target.id, content.value as import('@/shared/types').JsonValue)
+                ? miscConfigDocumentValue(content.value as import('@/shared/types').JsonValue)
                 : jsonDocumentValue(target.kind, requireRowData(content.value, 'JSON 文档内容无效'));
             session.applyExternalForTarget(
               {
@@ -269,7 +269,7 @@ function createJsonDocumentSession(definition: JsonDocumentDefinition, record: J
         if (
           definition.kind !== 'mod-info' &&
           !(definition.kind === 'misc-config'
-            ? hasMiscConfigInvalidation(projection.invalidation, record.target.modRoot, miscConfigFile(record.target.id).kind)
+            ? hasMiscConfigInvalidation(projection.invalidation, record.target.modRoot, miscConfigDefinition(record.target.id).kind)
             : hasEntityInvalidation(projection.invalidation, 'entity-detail', definition.kind, session.currentTarget.value!.id))
         )
           return undefined;

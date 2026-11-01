@@ -21,7 +21,7 @@
 - `src-tauri/src/models/file_editor.rs`：文本读取、保存、转码与身份请求协议。
 - `src-tauri/src/parsers/preserve_json.rs`：文本 ID 字段范围定位与替换。
 - `src-tauri/src/services/project/write/entity_write.rs`：已识别实体文本的身份及关联写入。
-- `src/app/composables/use-dirty-window-close-guard.ts`：dirty 关闭守卫。
+- `src/app/composables/use-window-close-state.ts`：窗口内容关闭登记及操作锁。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/orchestrators/entity-write.orchestrator.ts`：实体文本保存的文件名选择。
 - `src/orchestrators/window-identity.orchestrator.ts`：正式文件身份预约及窗口交接。

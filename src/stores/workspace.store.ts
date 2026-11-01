@@ -229,7 +229,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       registerMod({ ...mod, status: 'loading' });
     }
     activeModRoot.value = null;
-    currentView.value = 'overview';
+    if (isModView.value) showOverview();
     jsonPage.value = 'mod-info';
     columnWidths.value = persisted.columnWidths;
     if (persisted.starsectorRoot) {

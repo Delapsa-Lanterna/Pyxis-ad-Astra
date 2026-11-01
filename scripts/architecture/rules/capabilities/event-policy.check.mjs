@@ -9,7 +9,7 @@ test('event transport stays at the actual notification consumers', () => {
     'src/services/app-log.service.ts',
     'src/services/app-settings.service.ts',
     'src/windows/window-context.window.ts',
-    'src/app/composables/use-dirty-window-close-guard.ts',
+    'src/app/composables/use-app-close-participant.ts',
   ]) {
     const context = architectureFixtures({ ...provider, [path]: "import {listenAppEvent} from '@/shared/runtime/event.runtime';" });
     assert.deepEqual(capabilityBoundaryRule.check(context), []);

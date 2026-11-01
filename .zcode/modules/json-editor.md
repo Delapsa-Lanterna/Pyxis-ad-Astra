@@ -42,6 +42,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - `src/app/composables/use-query-read-owner.ts`：所属读取票据与读取生命周期。
 - `src/app/composables/use-snapshot-history.ts`：按 EditContext 绑定的前后值撤销历史。
 - `src/domain/entity-write/spec-construction.ts`：装配与皮肤的正式初始内容。
+- `src/domain/misc-config.ts`：配置文件登记、顺序、路径、schema 与初始值。
 - `src/domain/project/entity-definitions.ts`：实体内容 ID、通用 ID 规则与重命名身份投影。
 - `src/domain/project/entity-versions.ts`：目标版本凭据与改名目标凭据交接。
 - `src/domain/schema/config-schema-registry.ts`：装配与皮肤 schema。
@@ -150,6 +151,7 @@ JSON 文档编辑模块提供 Mod 信息、势力、战役、装配、舰船皮�
 - 势力 logo/crest 与战役 icon 必须按当前草稿引用独立查询资源；列表必须消费对应 crest 与 icon 缩略图；接纳必须核对目标、资源字段、请求顺序与生命周期。
 - 势力创建必须由正式构造器提供 logo、displayNameWithArticle、names、portraits 和 RGBA color，并使用游戏 UI 颜色字段。
 - 势力加载身份必须优先消费规格字符串 id，缺省时必须消费实际文件名；目录文件与索引引用必须共同参与发现，读写及删除必须消费同一授权路径。
+- 杂项配置文档包装必须由 JSON 文档定义持有，固定 file 源必须保留实际 JsonValue 形态。
 - 局部 JSON 草稿必须只持有实际本地内容，引用来源变化必须更新组合展示并保留本地草稿及活动输入。
 - 势力索引修改必须保留表头、行位置与业务列，只允许更新所属 ID 和引用字段。
 - 原版编辑权限必须消费持久化 `AppSettings.allowCoreEditing` 和完整设置镜像，缺省必须为关闭。

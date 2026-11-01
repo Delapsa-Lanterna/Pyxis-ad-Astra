@@ -23,13 +23,13 @@ import { logFields } from '@/shared/lib/log-fields';
 
 import { refreshProjectSourcePaths } from '@/orchestrators/project-sync.orchestrator';
 
-import { useWindowLifecycleActions } from '@/app/composables/use-window-close-state';
+import { useWindowCloseRequest } from '@/app/composables/use-window-close-state';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { pathBasename, normalizeFsPath, gameCoreDirectoryPath } from '@/shared/lib/paths';
 import { refreshCoreAssets } from '@/orchestrators/core-assets.orchestrator';
 
 export function useWorkspaceShellActions(feedback: AppFeedback) {
-  const { requestClose } = useWindowLifecycleActions();
+  const requestClose = useWindowCloseRequest();
   const project = useProjectStore();
   const workspace = useWorkspaceStore();
   const saveCommands = useSaveCommandStore();

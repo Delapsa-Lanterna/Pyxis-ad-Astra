@@ -16,6 +16,14 @@ export function frontendDependencyFailure(current, target, edge) {
       target.path === 'src/domain/project/load-diagnostics.ts')
   )
     return { message: 'workspace source transitions belong to the workspace action', expected: 'settings persistence dependencies' };
+  const browser =
+    current.path.includes('/mod-file-browser/') ||
+    current.path === 'src/stores/mod-file-browser.store.ts' ||
+    current.path === 'src/services/mod-file-browser.service.ts';
+  if (browser && target.path === 'src/stores/workspace.store.ts')
+    return { message: 'file browser targets belong to the calling workspace host', expected: 'explicit file browser target' };
+  if (current.domain === 'misc-config' && target.path.startsWith('src/domain/json-editor/'))
+    return { message: 'configuration files own their registry independently of editor projections', expected: 'misc config definitions' };
   const ownedProjection = [
     ['src/domain/edit-session.ts', 'src/domain/project/save-edits.ts'],
     ['src/app/composables/use-edit-target-draft-session.ts', 'src/domain/project/save-edits.ts'],

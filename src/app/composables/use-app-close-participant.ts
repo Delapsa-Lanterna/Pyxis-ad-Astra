@@ -1,5 +1,5 @@
 import { pauseQueryReads } from '@/app/composables/use-query-read-owner';
-import { nextTick, watch, type Ref } from 'vue';
+import { inject, provide, nextTick, watch, type InjectionKey } from 'vue';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { currentWindowLabel, listenCurrentWindowCloseRequest } from '@/windows/current.window';
@@ -9,38 +9,46 @@ import { updateNativeWindowStatus } from '@/services/window.service';
 import { settleWindowRequests } from '@/windows/window-context.window';
 import { recordWindowEventHandlerError } from '@/orchestrators/window-event-errors.orchestrator';
 import { AppError, errorDiagnosticOf } from '@/shared/lib/errors';
-import { useWindowCloseState, useWindowLifecycleActions } from './use-window-close-state';
-import type { CloseScope, WindowCloseIntent } from '@/shared/types';
+import { useWindowCloseState, useWindowCloseRequest, type WindowCloseParticipantOptions } from './use-window-close-state';
+import type { ClosePhase, ErrorDiagnostic, WindowCloseIntent } from '@/shared/types';
 import { settleProjectSaves } from '@/orchestrators/project-sync.orchestrator';
-interface DirtyWindowCloseGuardOptions {
-  settle?: () => Promise<void>;
-  dirty: Readonly<Ref<boolean>>;
-  dirtyForScope?: (scope: CloseScope) => boolean;
-  title: string;
-  content: string;
+interface AppCloseActions {
+  replyClose: (operationId: number, phase: ClosePhase, accepted: boolean, diagnostic: ErrorDiagnostic | null) => Promise<void>;
+  readyClose: () => Promise<void>;
+  prepareDisplay: () => () => Promise<void>;
+  acceptReleasedSessions: (sessionIds: string[]) => void;
+  flushPerformance: () => Promise<void>;
+  flushSettings: () => Promise<void>;
 }
-export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) {
+const appCloseActionsKey: InjectionKey<AppCloseActions> = Symbol('app-close-actions');
+
+export function provideAppCloseActions(actions: AppCloseActions) {
+  provide(appCloseActionsKey, actions);
+}
+
+export function useAppCloseParticipant(options: WindowCloseParticipantOptions) {
   const feedback = useAppFeedback(),
     commands = useSaveCommandStore(),
     closing = useWindowCloseState()!;
-  const actions = useWindowLifecycleActions();
-  const stops: UnlistenFn[] = [];
+  const actions = inject(appCloseActionsKey)!;
+  const requestClose = useWindowCloseRequest();
+  const unlisteners: UnlistenFn[] = [];
   let disposed = false,
-    operation = 0;
-  let focused: Element | null = null;
-  const parents: number[] = [];
-  let stages = Promise.resolve();
+    operationId = 0;
+  let focusedElement: Element | null = null;
+  const parentOperationIds: number[] = [];
+  let pendingStages = Promise.resolve();
   let pending: Promise<boolean> | null = null;
-  let accepts = () => true;
-  const resume: Array<() => Promise<void>> = [];
+  let acceptsPreparedContent = () => true;
+  const resumeCallbacks: Array<() => Promise<void>> = [];
   async function handle(intent: WindowCloseIntent) {
     if (intent.phase === 'hold') {
-      if (operation) parents.push(operation);
-      operation = intent.operationId;
-      focused = document.activeElement;
+      if (operationId) parentOperationIds.push(operationId);
+      operationId = intent.operationId;
+      focusedElement = document.activeElement;
       closing.value = true;
     }
-    if (intent.operationId !== operation) {
+    if (intent.operationId !== operationId) {
       await actions.replyClose(intent.operationId, intent.phase, true, null);
       return;
     }
@@ -63,13 +71,13 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
           }
           break;
         case 'prepare':
-          resume.push(pauseQueryReads(), actions.prepareDisplay(), ...commands.closePreparations.map((prepare) => prepare()));
+          resumeCallbacks.push(pauseQueryReads(), actions.prepareDisplay(), ...commands.closePreparations.map((prepare) => prepare()));
           commands.closePrepared = true;
           await nextTick();
-          accepts = commands.captureCloseState();
+          acceptsPreparedContent = commands.captureCloseState();
           break;
         case 'confirm':
-          if (!accepts()) throw new AppError('关闭准备内容已变化', { action: 'close-confirm' });
+          if (!acceptsPreparedContent()) throw new AppError('关闭准备内容已变化', { action: 'close-confirm' });
           if (options.dirtyForScope?.(intent.scope) ?? options.dirty.value) {
             if (intent.onlyIfClean) {
               accepted = false;
@@ -82,7 +90,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
                 title: options.title,
               })) === 'discard';
           }
-          accepted = accepted && accepts();
+          accepted = accepted && acceptsPreparedContent();
           break;
         case 'flush':
           if (currentWindowLabel() === 'main') await actions.flushSettings();
@@ -92,10 +100,10 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
           actions.acceptReleasedSessions(intent.releasedSessions);
           await nextTick();
           commands.closePrepared = false;
-          operation = parents.pop() ?? 0;
-          closing.value = operation !== 0;
+          operationId = parentOperationIds.pop() ?? 0;
+          closing.value = operationId !== 0;
           let releaseError: unknown;
-          for (const release of resume.splice(0)) {
+          for (const release of resumeCallbacks.splice(0)) {
             try {
               await release();
             } catch (error) {
@@ -103,7 +111,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
             }
           }
           await nextTick();
-          if (focused instanceof HTMLElement && focused.isConnected) focused.focus();
+          if (focusedElement instanceof HTMLElement && focusedElement.isConnected) focusedElement.focus();
           if (releaseError) throw releaseError;
           break;
         }
@@ -123,12 +131,14 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
       stop();
       return;
     }
-    stops.push(stop);
+    unlisteners.push(stop);
     const unlisten = await listenAppEvent<WindowCloseIntent>(
       WINDOW_EVENTS.windowCloseIntent,
       (intent) => {
-        stages = stages.then(() => handle(intent)).catch((error) => recordWindowEventHandlerError(error, WINDOW_EVENTS.windowCloseIntent));
-        return stages;
+        pendingStages = pendingStages
+          .then(() => handle(intent))
+          .catch((error) => recordWindowEventHandlerError(error, WINDOW_EVENTS.windowCloseIntent));
+        return pendingStages;
       },
       recordWindowEventHandlerError,
       currentWindowLabel(),
@@ -137,7 +147,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
       unlisten();
       return;
     }
-    stops.push(
+    unlisteners.push(
       unlisten,
       watch(
         () => [options.dirty.value, commands.hasPendingSave()] as const,
@@ -151,8 +161,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
   }
   function requestWindowClose(): Promise<boolean> {
     if (pending) return pending;
-    pending = actions
-      .requestClose({ kind: 'window' })
+    pending = requestClose({ kind: 'window' })
       .then((result) => {
         if (result.diagnostic) feedback.error(result.diagnostic, '关闭失败');
         return result.status === 'closed';
@@ -168,7 +177,7 @@ export function useDirtyWindowCloseGuard(options: DirtyWindowCloseGuardOptions) 
   }
   function dispose() {
     disposed = true;
-    stops.splice(0).forEach((stop) => stop());
+    unlisteners.splice(0).forEach((stop) => stop());
   }
   return { install, requestClose: requestWindowClose, dispose };
 }

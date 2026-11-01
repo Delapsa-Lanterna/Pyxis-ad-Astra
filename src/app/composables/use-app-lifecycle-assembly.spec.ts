@@ -129,3 +129,44 @@ it('accepts only newer child snapshots and stops mirror reception on unmount', (
   mountSettings('child');
   expect(history(target).limit).toBe(9);
 });
+
+it('provides application phase actions and the real participant factory to window content', async () => {
+  const { h, onMounted } = await import('vue');
+  const { useAppLifecycleAssembly } = await import('./use-app-lifecycle-assembly');
+  const { provideAppFeedback } = await import('./use-app-feedback');
+  const { useWindowCloseParticipant, useWindowCloseState } = await import('./use-window-close-state');
+  const { mockIPC, mockWindows, clearMocks } = await import('@tauri-apps/api/mocks');
+  const delivered: string[] = [];
+  mockWindows('assembly-fixture');
+  mockIPC((command, args) => {
+    if (command === 'register_save_window') {
+      const channel = (args as { channel: string }).channel;
+      const runtime = Reflect.get(window, '__TAURI_INTERNALS__') as { runCallback: (id: number, data: unknown) => void };
+      runtime.runCallback(Number(channel.split(':').at(-1)), { kind: 'references', snapshot: { revision: 1, sources: [], order: [] } });
+    }
+    if (command === 'ready_close') delivered.push(command);
+    if (command === 'plugin:event|listen') return 7;
+    return undefined;
+  });
+  const feedback = { error: vi.fn() } as unknown as import('@/shared/types').AppFeedback;
+  const Content = {
+    setup() {
+      expect(useWindowCloseState()!.value).toBe(false);
+      const participant = useWindowCloseParticipant({ dirty: ref(false), title: 'Assembly fixture', content: 'Fixture' });
+      onMounted(participant.install);
+      return () => null;
+    },
+  };
+  wrapper = mount({
+    setup() {
+      provideAppFeedback(feedback as import('@/shared/types').WindowFeedback);
+      useAppLifecycleAssembly(feedback);
+      return () => h(Content);
+    },
+  });
+  await flushPromises();
+  expect(delivered).toEqual(['ready_close']);
+  wrapper.unmount();
+  await flushPromises();
+  clearMocks();
+});

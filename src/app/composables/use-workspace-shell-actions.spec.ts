@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   refreshCoreAssets: vi.fn(),
 }));
 
-vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowLifecycleActions: () => ({ requestClose: mocks.requestClose }) }));
+vi.mock('@/app/composables/use-window-close-state', () => ({ useWindowCloseRequest: () => mocks.requestClose }));
 
 vi.mock('@/services/directory.service', () => ({
   pickDirectory: mocks.pickDirectory,

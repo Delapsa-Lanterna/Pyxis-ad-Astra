@@ -3,7 +3,7 @@ import { captureSaveEdits } from '@/domain/project/save-edits';
 import type { JsonValue } from '@/shared/types';
 import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import { pathBelongsToRoot } from '@/shared/lib/paths';
-import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
 import { readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 import type {
   MiscConfigEntry,
@@ -18,7 +18,7 @@ import type {
 } from '@/shared/types';
 
 function affectsMiscConfig(invalidation: ProjectInvalidation, modRoot: string, kind?: MiscConfigKind) {
-  const files = kind ? [miscConfigFile(kind)] : MISC_CONFIG_FILES;
+  const files = kind ? [miscConfigDefinition(kind)] : MISC_CONFIG_DEFINITIONS;
   return invalidation.paths.some((path) => files.some((file) => pathBelongsToRoot(modRoot + '/' + file.path, path)));
 }
 const directory = {

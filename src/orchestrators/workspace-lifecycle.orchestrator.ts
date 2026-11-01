@@ -13,7 +13,7 @@ import { useProjectSyncStore } from '@/stores/project-sync.store';
 import type { CloseScope, CloseResult, ProjectManifest } from '@/shared/types';
 type RequestClose = (scope: CloseScope) => Promise<CloseResult>;
 import { markProjectionReady } from '@/services/project-projection.service';
-import { releaseProjectSession } from '@/orchestrators/project-sync.orchestrator';
+import { releaseProjectContentConsumers } from '@/orchestrators/project-sync.orchestrator';
 import { pathBasename } from '@/shared/lib/paths';
 
 export interface WorkspaceCloseTarget {
@@ -97,7 +97,7 @@ function removeClosedMod(modRoot: string) {
     invalidateQueryCacheForSession(sessionId);
     invalidateResourceMediaForSession(sessionId);
     try {
-      releaseProjectSession(sessionId);
+      releaseProjectContentConsumers(sessionId);
     } finally {
       removeModRuntimeState(modRoot);
     }

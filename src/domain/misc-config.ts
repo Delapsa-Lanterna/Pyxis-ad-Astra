@@ -1,4 +1,4 @@
-import type { JsonValue, MiscConfigKind, RowData } from '@/shared/types';
+import type { JsonValue, MiscConfigKind } from '@/shared/types';
 
 export interface MiscConfigDefinition {
   kind: MiscConfigKind;
@@ -7,10 +7,9 @@ export interface MiscConfigDefinition {
   path: string;
   schema: string;
   description: string;
-  source: string;
   initial: JsonValue;
 }
-export const MISC_CONFIG_FILES: readonly MiscConfigDefinition[] = [
+export const MISC_CONFIG_DEFINITIONS: readonly MiscConfigDefinition[] = [
   {
     kind: 'strings',
     label: '文本字符串',
@@ -18,7 +17,6 @@ export const MISC_CONFIG_FILES: readonly MiscConfigDefinition[] = [
     path: 'data/strings/strings.json',
     schema: 'strings',
     description: '按分组保存游戏文本，通过分组名和文本键引用。',
-    source: 'file',
     initial: {},
   },
   ...(
@@ -35,17 +33,10 @@ export const MISC_CONFIG_FILES: readonly MiscConfigDefinition[] = [
     schema,
     description,
     path: 'data/config/' + filename,
-    source: 'file',
     initial: {},
   })),
 ];
 
-export function miscConfigFile(id: string) {
-  return MISC_CONFIG_FILES.find((file) => file.kind === id)!;
-}
-export function miscConfigValue(id: string, data: JsonValue): RowData {
-  return { [miscConfigFile(id).source]: data };
-}
-export function miscConfigContent(id: string, value: RowData): JsonValue {
-  return value[miscConfigFile(id).source]!;
+export function miscConfigDefinition(kind: string) {
+  return MISC_CONFIG_DEFINITIONS.find((file) => file.kind === kind)!;
 }

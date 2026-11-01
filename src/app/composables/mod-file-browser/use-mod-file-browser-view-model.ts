@@ -1,6 +1,5 @@
 import { useContextMenuScope } from '@/app/composables/use-context-menu';
 import { computed, nextTick, onScopeDispose, reactive, ref, watch } from 'vue';
-import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useModFileBrowserStore } from '@/stores/mod-file-browser.store';
 import { queryModDirectory, queryModFileSearch, queryModTextFileTarget } from '@/services/mod-file-browser.service';
 import { createReadTicketOwner } from '@/shared/runtime/read-request';
@@ -17,14 +16,15 @@ import { formatError } from '@/shared/lib/errors';
 import { relativePathFromRoot, normalizeFsPath, isAbsoluteFsPath } from '@/shared/lib/paths';
 import { createModDirectoryReads } from './use-mod-directory-reads';
 import { recordPerformance, startPerformance, performanceMonitorEnabled } from '@/shared/runtime/performance';
-import type { ModFileSortKey } from '@/shared/types';
-export function useModFileBrowserViewModel() {
-  const workspace = useWorkspaceStore(),
-    store = useModFileBrowserStore(),
+import type { ModFileSortKey, ProjectManifest } from '@/shared/types';
+
+export type ModFileBrowserTarget = Readonly<Pick<ProjectManifest, 'sessionId' | 'modRoot'>>;
+export function useModFileBrowserViewModel(getTarget: () => ModFileBrowserTarget | null) {
+  const store = useModFileBrowserStore(),
     feedback = useAppFeedback(),
     reads = createReadTicketOwner(),
     tree = createModFileTreeProjection();
-  const target = computed(() => workspace.activeManifest);
+  const target = computed(getTarget);
   const state = computed(() => (target.value ? store.sessions.get(target.value.sessionId)! : null));
   const searching = computed(() => Boolean(state.value?.search.text.trim()));
   const branch = computed(() => (searching.value ? state.value!.search : state.value));

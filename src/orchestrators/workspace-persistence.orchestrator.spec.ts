@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectManifest } from '@/shared/types';
+import type { PersistedWorkspace, ProjectManifest, WorkspaceView } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   loadPersistedWorkspace: vi.fn(),
@@ -132,6 +132,69 @@ describe('restorePersistedWorkspace', () => {
     expect(mod?.displayName).toBe('Alpha');
     expect(mod?.status).toBe('ready');
     expect(workspace.currentView).toBe('overview');
+  });
+
+  it.each(
+    (
+      ['overview', 'settings', 'about', 'mod-overview', 'table', 'file-history', 'json-editor', 'mod-files'] satisfies WorkspaceView[]
+    ).flatMap((view) => (['scan', 'mod'] as const).map((phase) => ({ view, phase }))),
+  )('preserves $view selected during $phase restoration', async ({ view, phase }) => {
+    const workspace = useWorkspaceStore();
+    const modRoot = 'C:/fixtures/navigation';
+    const snapshot: PersistedWorkspace = {
+      mods: [{ modRoot, displayName: 'Navigation', version: '' }],
+      starsectorRoot: 'D:/fixtures/game',
+      gameMods: [],
+      gameWarnings: [],
+      columnWidths: {},
+    };
+    const overview = { starsectorRoot: snapshot.starsectorRoot, mods: [], warnings: [] };
+    let finishScan!: (value: typeof overview) => void;
+    let finishMod!: (value: ProjectManifest) => void;
+    mocks.scanDirectoryGameOverview.mockReturnValueOnce(new Promise((resolve) => (finishScan = resolve)));
+    mocks.loadWorkspaceModManifest.mockReturnValueOnce(new Promise((resolve) => (finishMod = resolve)));
+    const restoring = restorePersistedWorkspace({ onModRestoreError: vi.fn() }, snapshot);
+    if (phase === 'mod') {
+      finishScan(overview);
+      await vi.waitFor(() => expect(mocks.loadWorkspaceModManifest).toHaveBeenCalledTimes(1));
+    }
+    if (view !== 'overview' && view !== 'settings' && view !== 'about') workspace.activateModTab(modRoot);
+    workspace.currentView = view;
+    if (phase === 'scan') {
+      finishScan(overview);
+      await vi.waitFor(() => expect(mocks.loadWorkspaceModManifest).toHaveBeenCalledTimes(1));
+      expect(workspace.currentView).toBe(view);
+    }
+    const activeModRoot = workspace.activeModRoot;
+    finishMod(manifestFixture(modRoot));
+    await restoring;
+    expect(workspace.currentView).toBe(view);
+    expect(workspace.activeModRoot).toBe(activeModRoot);
+    expect(workspace.mods.get(modRoot)?.status).toBe('ready');
+    expect(workspace.gameOverview).toEqual(overview);
+    expect(mocks.scanDirectoryGameOverview).toHaveBeenCalledTimes(1);
+    expect(mocks.loadWorkspaceModManifest).toHaveBeenCalledTimes(1);
+    expect(mocks.initializeWorkspaceModRuntime).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['overview', 'settings', 'about'] as const)('preserves $0 while accepting the persisted snapshot', async (view) => {
+    const workspace = useWorkspaceStore();
+    let finishSnapshot!: (value: PersistedWorkspace) => void;
+    mocks.loadPersistedWorkspace.mockReturnValueOnce(new Promise((resolve) => (finishSnapshot = resolve)));
+    mocks.loadWorkspaceModManifest.mockResolvedValueOnce(manifestFixture('C:/fixtures/navigation'));
+    const restoring = restorePersistedWorkspace({ onModRestoreError: vi.fn() });
+    workspace.currentView = view;
+    finishSnapshot({
+      mods: [{ modRoot: 'C:/fixtures/navigation', displayName: 'Navigation', version: '' }],
+      starsectorRoot: null,
+      gameMods: [],
+      gameWarnings: [],
+      columnWidths: {},
+    });
+    await restoring;
+    expect(workspace.currentView).toBe(view);
+    expect(workspace.hasWorkspaceContext).toBe(true);
+    expect(workspace.loadedModCount).toBe(1);
   });
 
   it('routes restore failures into the error callback', async () => {

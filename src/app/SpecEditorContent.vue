@@ -114,7 +114,7 @@ import SpecShipEditor from '@/app/components/spec-editor/ship/SpecShipEditor.vue
 import SpecWeaponEditor from '@/app/components/spec-editor/weapon/SpecWeaponEditor.vue';
 import SpecProjectileEditor from '@/app/components/spec-editor/projectile/SpecProjectileEditor.vue';
 import SpecSystemEditor from '@/app/components/spec-editor/system/SpecSystemEditor.vue';
-import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
+import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { openSpecProjectileEditorWindow } from '@/windows/spec-editor.window';
@@ -196,7 +196,7 @@ useManagedWindowRequests(async () => {
   await windowModel.initializeEditorWindow();
   if (!(await windowModel.waitForSave())) throw new Error('所属保存尚未完成');
 });
-const closeGuard = useDirtyWindowCloseGuard({
+const closeParticipant = useWindowCloseParticipant({
   content: '当前 spec 有未保存修改，关闭后这些修改将丢失。',
   dirty: draftDirty,
   title: '放弃未保存编辑？',
@@ -233,11 +233,10 @@ useWindowShortcuts({
 });
 
 onMounted(() => {
-  void closeGuard.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
+  void closeParticipant.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
 });
 
 onUnmounted(() => {
-  closeGuard.dispose();
   disposeEditorWindow();
 });
 </script>

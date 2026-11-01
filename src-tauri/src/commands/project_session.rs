@@ -1,6 +1,6 @@
 use crate::{
     errors::AppError,
-    models::{CloseProjectSessionPayload, OpenProjectSessionPayload, ProjectManifest},
+    models::{OpenProjectSessionPayload, ProjectManifest},
     services,
 };
 
@@ -14,9 +14,4 @@ pub fn open_project_session(
         payload.mod_root,
         payload.starsector_root,
     )
-}
-
-#[command_macros::command(async)]
-pub fn close_project_session(payload: CloseProjectSessionPayload) -> Result<(), AppError> {
-    services::project_session::release_project_session(payload.session_id)
 }

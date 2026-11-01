@@ -96,15 +96,7 @@ describe('useWindowShortcuts commands', () => {
     wrappers.push(
       mount({
         setup() {
-          closeState = provideWindowCloseState({
-            requestClose: vi.fn(),
-            replyClose: vi.fn(),
-            readyClose: vi.fn(),
-            prepareDisplay: vi.fn(),
-            acceptReleasedSessions: vi.fn(),
-            flushPerformance: vi.fn(),
-            flushSettings: vi.fn(),
-          });
+          closeState = provideWindowCloseState({ requestClose: vi.fn(), createParticipant: vi.fn() });
           return () => h(Child);
         },
       }),

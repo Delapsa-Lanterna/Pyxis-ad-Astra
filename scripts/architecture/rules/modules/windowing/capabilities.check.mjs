@@ -2,6 +2,24 @@ import { testCapabilities } from '../../../testing/capabilities.mjs';
 /** @type {Parameters<typeof testCapabilities>[0]} */
 const cases = [
   [
+    'app-close-assembly',
+    'src/app/composables/use-app-lifecycle-assembly.ts',
+    'src/app/composables/use-app-close-participant.ts',
+    'useAppCloseParticipant',
+  ],
+  [
+    'app-close-actions',
+    'src/app/composables/use-app-lifecycle-assembly.ts',
+    'src/app/composables/use-app-close-participant.ts',
+    'provideAppCloseActions',
+  ],
+  [
+    'content-close-registration',
+    'src/app/FileEditorContent.vue',
+    'src/app/composables/use-window-close-state.ts',
+    'useWindowCloseParticipant',
+  ],
+  [
     'window-close-provider',
     'src/app/composables/use-app-lifecycle-assembly.ts',
     'src/app/composables/use-window-close-state.ts',
@@ -16,7 +34,7 @@ const cases = [
   ],
   ['window-open', 'src/windows/managed.window.ts', 'src/services/window.service.ts', 'requestNativeWindow'],
   ['window-focus', 'src/orchestrators/window-target-focus.orchestrator.ts', 'src/services/window.service.ts', 'focusNativeManagedWindow'],
-  ['window-status', 'src/app/composables/use-dirty-window-close-guard.ts', 'src/services/window.service.ts', 'updateNativeWindowStatus'],
+  ['window-status', 'src/app/composables/use-app-close-participant.ts', 'src/services/window.service.ts', 'updateNativeWindowStatus'],
   ['window-close-cancel', 'src/app/composables/use-app-lifecycle-assembly.ts', 'src/services/app-lifecycle.service.ts', 'readyNativeClose'],
   ['window-session-close', 'src/app/composables/use-app-lifecycle-assembly.ts', 'src/services/app-lifecycle.service.ts', 'requestClose'],
   [

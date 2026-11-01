@@ -70,7 +70,11 @@ function open() {
     setSort: vi.fn(),
   };
   mocks.vm.mockReturnValue({ view, actions });
-  wrapper = mount(ModFileBrowser, { global: { components: { NTree: TestTree, NButton, NInput } }, attachTo: document.body });
+  wrapper = mount(ModFileBrowser, {
+    props: { target: { sessionId: 's1', modRoot: 'M:/mod' } },
+    global: { components: { NTree: TestTree, NButton, NInput } },
+    attachTo: document.body,
+  });
   return { view, actions, wrapper };
 }
 beforeEach(() => {
@@ -193,4 +197,14 @@ describe('file information toolbar', () => {
     expect(wrapper.find('.mod-files-metadata').text()).toContain('文件夹');
     expect(wrapper.text()).toContain('1 KiB');
   });
+});
+
+it('delivers prop updates through the existing target getter', async () => {
+  open();
+  const getTarget = mocks.vm.mock.lastCall![0] as () => { sessionId: string; modRoot: string } | null;
+  expect(getTarget()).toEqual({ sessionId: 's1', modRoot: 'M:/mod' });
+  await wrapper!.setProps({ target: { sessionId: 's2', modRoot: 'M:/next' } });
+  expect(getTarget()).toEqual({ sessionId: 's2', modRoot: 'M:/next' });
+  await wrapper!.setProps({ target: null });
+  expect(getTarget()).toBeNull();
 });

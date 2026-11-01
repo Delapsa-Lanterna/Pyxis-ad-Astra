@@ -7,7 +7,7 @@ import { clearMocks, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import type { WindowCloseIntent } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { provideWindowCloseState } from './use-window-close-state';
-import { useDirtyWindowCloseGuard } from './use-dirty-window-close-guard';
+import { useAppCloseParticipant, provideAppCloseActions } from './use-app-close-participant';
 import { WINDOW_EVENTS } from '@/windows/window.events';
 import { listenAppEvent } from '@/shared/runtime/event.runtime';
 
@@ -63,11 +63,11 @@ async function openWindow(label: string) {
   const pinia = createPinia();
   const commands = useSaveCommandStore(pinia);
   let closing!: Ref<boolean>;
-  let guard!: ReturnType<typeof useDirtyWindowCloseGuard>;
+  let guard!: ReturnType<typeof useAppCloseParticipant>;
   const reply = vi.fn(async () => {});
   const Contents = {
     setup() {
-      guard = useDirtyWindowCloseGuard({ dirty: ref(false), title: 'Close fixture', content: 'Close fixture' });
+      guard = useAppCloseParticipant({ dirty: ref(false), title: 'Close fixture', content: 'Close fixture' });
       onUnmounted(guard.dispose);
       return () => h('button', 'Edit');
     },
@@ -75,14 +75,17 @@ async function openWindow(label: string) {
   const wrapper = mount(
     {
       setup() {
-        closing = provideWindowCloseState({
+        provideAppCloseActions({
           replyClose: reply,
           readyClose: async () => {},
           acceptReleasedSessions: () => {},
-          requestClose: async () => ({ status: 'closed', destroyedWindows: [], releasedSessions: [], diagnostic: null }),
           prepareDisplay: () => async () => {},
           flushSettings: async () => {},
           flushPerformance: async () => {},
+        });
+        closing = provideWindowCloseState({
+          requestClose: async () => ({ status: 'closed', destroyedWindows: [], releasedSessions: [], diagnostic: null }),
+          createParticipant: useAppCloseParticipant,
         });
         return () => h('main', { inert: closing.value || undefined }, h(Contents));
       },

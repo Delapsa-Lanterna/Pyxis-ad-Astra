@@ -558,6 +558,20 @@ fn execute<T: Serialize>(
     )
 }
 
+pub fn release_project_session(session_id: String) -> AppResult<()> {
+    let revision = super::project::reference_revision();
+    super::project::close_project_session(session_id.clone())?;
+    if revision != super::project::reference_revision() {
+        let delivery = super::project::reference_sources().and_then(|snapshot| {
+            publish_references(snapshot, super::project::reference_updates()?)
+        });
+        if let Err(error) = delivery {
+            crate::diagnostics::record(format!("reference close delivery: {error}"));
+        }
+    }
+    super::windows::release_session(&session_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -567,6 +581,80 @@ mod tests {
     use tauri::ipc::InvokeResponseBody;
 
     static TEST_QUEUE: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn release_existing_and_removed_roots_cleans_session_and_history() {
+        let _serial = TEST_QUEUE.lock().unwrap();
+        for remove_root in [false, true] {
+            let root = project_workspace("release_removed_project");
+            std::fs::write(root.join("notes.txt"), "before").unwrap();
+            let manifest = crate::services::project::open_project_session_traced(
+                &root,
+                None,
+                &mut crate::services::project::PerformanceTrace::new("release.removed"),
+            )
+            .unwrap();
+            let sibling = crate::services::project::open_project_session_traced(
+                &root,
+                None,
+                &mut crate::services::project::PerformanceTrace::new("release.same-root"),
+            )
+            .unwrap();
+            let transaction = crate::services::write_transactions::begin(
+                &crate::models::TextSave {
+                    json_write: Default::default(),
+                    session_id: Some(manifest.session_id.clone()),
+                    mod_root: manifest.mod_root.clone(),
+                    path: root.join("notes.txt").to_string_lossy().into(),
+                    text: "after".into(),
+                    base_versions: vec![],
+                },
+                &[],
+            )
+            .unwrap();
+            let result = crate::services::file_editor::save_text_file(
+                &manifest.mod_root,
+                &root.join("notes.txt").to_string_lossy(),
+                "after".into(),
+            )
+            .unwrap();
+            let saved = transaction.commit(result, "saved").unwrap();
+            assert_eq!(saved.history.undo_stack.len(), 1);
+            if remove_root {
+                std::fs::remove_dir_all(root.as_ref()).unwrap();
+            }
+            release_project_session(manifest.session_id.clone()).unwrap();
+            assert_eq!(
+                crate::services::file_history::query(&manifest.mod_root)
+                    .unwrap()
+                    .undo_stack
+                    .len(),
+                1
+            );
+            release_project_session(sibling.session_id).unwrap();
+            assert!(
+                !crate::services::project::registered_session_ids()
+                    .unwrap()
+                    .contains(&manifest.session_id)
+            );
+            assert!(
+                crate::services::file_history::query(&manifest.mod_root)
+                    .unwrap()
+                    .undo_stack
+                    .is_empty()
+            );
+            assert_eq!(
+                crate::services::query_entity_list(
+                    &manifest.session_id,
+                    crate::models::EntityKind::Ship
+                )
+                .unwrap_err()
+                .code(),
+                "session.unknown"
+            );
+            root.close().unwrap();
+        }
+    }
 
     fn window(label: &str) -> mpsc::Receiver<Value> {
         let (send, receive) = mpsc::channel();

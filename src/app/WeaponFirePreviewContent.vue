@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
+import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { closeCurrentWindow, reloadCurrentWindow } from '@/windows/current.window';
@@ -38,16 +38,15 @@ import { useWeaponFirePreviewWindowViewModel } from '@/app/composables/weapon-fi
 const settings = useSettingsStore();
 const feedback = useAppFeedback();
 const { target, data, loading, errorText, contentReady, dispose } = useWeaponFirePreviewWindowViewModel();
-const closeGuard = useDirtyWindowCloseGuard({ dirty: ref(false), title: '关闭开火预览？', content: '关闭开火预览窗口。' });
+const closeParticipant = useWindowCloseParticipant({ dirty: ref(false), title: '关闭开火预览？', content: '关闭开火预览窗口。' });
 function closeWindow() {
   void closeCurrentWindow().catch((error) => feedback.error(error, '关闭窗口失败'));
 }
 useWindowShortcuts({ commands: { close: closeWindow } });
 onMounted(async () => {
-  await closeGuard.install();
+  await closeParticipant.install();
 });
 onUnmounted(() => {
-  closeGuard.dispose();
   dispose();
 });
 </script>

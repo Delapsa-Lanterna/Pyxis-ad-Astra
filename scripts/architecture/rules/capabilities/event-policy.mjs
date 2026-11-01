@@ -9,7 +9,7 @@ export const eventCapabilities = [
         { path: 'src/services/app-log.service.ts', layer: 'services' },
         { path: 'src/services/app-settings.service.ts', layer: 'services' },
         { path: 'src/windows/window-context.window.ts', layer: 'windows' },
-        { path: 'src/app/composables/use-dirty-window-close-guard.ts', layer: 'app' },
+        { path: 'src/app/composables/use-app-close-participant.ts', layer: 'app' },
       ],
     },
   ]),

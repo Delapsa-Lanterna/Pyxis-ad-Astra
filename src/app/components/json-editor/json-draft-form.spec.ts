@@ -1,3 +1,4 @@
+import { miscConfigDocumentValue, miscConfigDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { dispatchProjectChangeFixture, committedChangeFixture } from '@/test/unit/project-changes';
 import { projectChangeFixture } from '@/test/unit/project-changes';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
@@ -24,7 +25,7 @@ import { editorUiStubs, nInput } from '@/test/unit/ui-stubs';
 import { getSchema } from '@/domain/schema/config-schema-registry';
 
 import { JSON_DOCUMENT_DEFINITIONS } from '@/domain/json-editor/json-document-definitions';
-import * as miscConfig from '@/domain/json-editor/misc-config-files';
+import * as miscConfig from '@/domain/misc-config';
 import type { AppFeedback, EntityData, JsonEditorPageId, RowData, JsonRecoveryRequest, IndexedConfigSave } from '@/shared/types';
 vi.mock('@/services/window.service', () => ({ releaseNativeWindowTargets: vi.fn(async () => {}) }));
 const mocks = vi.hoisted(() => ({
@@ -517,11 +518,11 @@ describe('JSON common workspace and form', () => {
   it.each(['smart', 'plain'] as const)('consumes a file definition schema and initial content in %s mode', async (editMode) => {
     initializeSettingsStore(createSettingsFixture({ editMode }));
     const definition = {
-      ...miscConfig.miscConfigFile('strings'),
+      ...miscConfig.miscConfigDefinition('strings'),
       schema: 'faction',
       initial: { id: 'fixture', displayName: 'Defined', unknown: '001' },
     };
-    vi.spyOn(miscConfig, 'miscConfigFile').mockReturnValue(definition);
+    vi.spyOn(miscConfig, 'miscConfigDefinition').mockReturnValue(definition);
     let saved = false;
     const path = 'M:/one/data/strings/strings.json';
     mocks.miscList.mockImplementation(async () => [{ kind: 'strings', state: saved ? 'present' : 'missing', error: null }]);
@@ -551,8 +552,8 @@ describe('JSON common workspace and form', () => {
     await wrapper!.get('[data-field-path="file.displayName"] input, [data-field-path="file.displayName"] textarea').setValue('Edited');
     await doc.inputs.commit();
     expect(doc.draftValue.value.file).toMatchObject({ displayName: 'Edited', unknown: '001' });
-    const projected = miscConfig.miscConfigValue('strings', ['001', { value: '123' }]);
-    expect(miscConfig.miscConfigContent('strings', projected)).toEqual(['001', { value: '123' }]);
+    const projected = miscConfigDocumentValue(['001', { value: '123' }]);
+    expect(miscConfigDocumentContent(projected)).toEqual(['001', { value: '123' }]);
   });
   it('preserves parse diagnostics and separates failure from a missing registered file', async () => {
     const error = {

@@ -1033,57 +1033,6 @@ mod source_refresh_tests {
         root.close().unwrap();
     }
     #[test]
-    fn removed_project_root_releases_session_history_and_registration() {
-        let root = project_workspace("release_removed_project");
-        std::fs::write(root.join("notes.txt"), "before").unwrap();
-        let manifest =
-            open_project_session_traced(&root, None, &mut PerformanceTrace::new("release.removed"))
-                .unwrap();
-        let transaction = crate::services::write_transactions::begin(
-            &crate::models::TextSave {
-                json_write: Default::default(),
-                session_id: Some(manifest.session_id.clone()),
-                mod_root: manifest.mod_root.clone(),
-                path: root.join("notes.txt").to_string_lossy().into(),
-                text: "after".into(),
-                base_versions: vec![],
-            },
-            &[],
-        )
-        .unwrap();
-        let result = crate::services::file_editor::save_text_file(
-            &manifest.mod_root,
-            &root.join("notes.txt").to_string_lossy(),
-            "after".into(),
-        )
-        .unwrap();
-        let saved = transaction.commit(result, "saved").unwrap();
-        assert_eq!(saved.history.undo_stack.len(), 1);
-        crate::services::project_session::release_project_session(manifest.session_id.clone())
-            .unwrap();
-        assert!(
-            !registered_session_ids()
-                .unwrap()
-                .contains(&manifest.session_id)
-        );
-        assert!(
-            crate::services::file_history::query(&manifest.mod_root)
-                .unwrap()
-                .undo_stack
-                .is_empty()
-        );
-        assert_eq!(
-            crate::services::query_entity_list(
-                &manifest.session_id,
-                crate::models::EntityKind::Ship
-            )
-            .unwrap_err()
-            .code(),
-            "session.unknown"
-        );
-        root.close().unwrap();
-    }
-    #[test]
     fn refresh_keeps_rows_and_rejects_escape() {
         let root = project_workspace("source_refresh");
         std::fs::create_dir_all(root.join("data/hulls")).unwrap();

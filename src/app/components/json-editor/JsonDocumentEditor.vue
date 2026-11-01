@@ -60,7 +60,7 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue';
 import { composeJson } from '@/domain/schema/json-composition';
-import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
 import { provideFieldInputs } from '@/shared/runtime/field-inputs';
 import { useProjectSyncStore } from '@/stores/project-sync.store';
 import { useSaveCommandStore } from '@/stores/save-command.store';
@@ -95,7 +95,7 @@ const compositionNotice = computed(() => {
   return `${props.document.target.value?.entity?.write.relPath.split('/').at(-1) ?? props.document.target.value?.id} · ${id ? '目标：' + id : '当前仅预览本模组内容，基础定义尚未提供'}`;
 });
 const title = computed(() => {
-  if (props.definition.kind === 'misc-config') return miscConfigFile(props.document.target.value!.id).label;
+  if (props.definition.kind === 'misc-config') return miscConfigDefinition(props.document.target.value!.id).label;
   const data = jsonDocumentContent(props.definition.kind, draft.value);
   return String(data.displayName || data.hullName || data.title || data.name || props.document.target.value!.id);
 });

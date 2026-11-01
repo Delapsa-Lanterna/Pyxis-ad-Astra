@@ -70,7 +70,7 @@
 - JSON 与杂项配置编辑：session 与文档类型 → 正式记录、缺失版本及 schema → JSON 文档会话 → `FieldInputs` 提交字段动作 → 本地 draft 与快照历史 → 所属创建、保存或删除动作
 - Spec 字段与画布编辑：规格窗口定义 → 正式目标、规格与依赖 → 舰船、武器、弹体或战术系统 ViewModel → schema 字段或画布手势 → 领域投影与工作值 → Draft Session、历史及保存动作
 - 联合与沉浸式编辑：ship、weapon、wing 或 variant 的 `JointEditRoot` → `query_joint_edit` → 规格、CSV、描述、Skin 与模块来源图 → `JointEditSnapshot` → 所属字段、装备、场景与关联编辑器动作 → 联合草稿
-- 文件浏览与文本打开：Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
+- 文件浏览与文本打开：宿主交付 session 与正式 Mod 根 → Mod 文件页 → 目录查询或全目录搜索 → 按 session 接纳条目 → `query_mod_text_file_target` 核对路径与内容 → 完整文件窗口请求 → 文本加载与行列定位
 - 文本编辑：`EditableFileData` 与版本 → 文本 Draft Session → 原文、dirty 及文本撤销栈 → 保存时捕获文本与目标 → 实际写盘文本接纳基线 → 保留后续输入；外部差异进入待载入版本
 - 项目保存：编辑面提交输入并捕获 `SaveRequest` → `save_project` → 项目同步 FIFO → 所属业务准备 → `write_transactions::begin` 与版本复核 → 业务 changeset → 历史及正式投影登记 → 发布 `WriteResult` 并释放项目工作
 - 联合冲突与提交：联合基线、磁盘与提交草稿 → `submitJointEdit` 请求后端三方比较 → 独立修改合并与冲突选择 → 共享影响、Mod 覆盖和目标协调 → 确认版本复核 → 同根 changeset 与一次历史登记 → 实际联合快照
@@ -90,7 +90,7 @@
 - 设置保存与镜像：主窗口 settings 编辑值 → 唯一保存队列 → Rust 权限、校验、规范化与写盘 → 运行参数、revision 及正式 snapshot → 全部窗口按版本接纳 → 缓存预算与历史容量生效
 - 主题与输入模式：正式设置及系统主题 → settings store 派生主题令牌与字体 → 唯一主题 DOM effect 及 Naive Provider；`editMode` 变化 → 所属输入集合确认交接 → 字段控件接纳实际模式
 - 原版来源切换：设置页捕获目标根与工作区 → `switchWorkspaceCoreSource` 等待已登记动作 → 根授权与关闭确认 → 实际 session 释放 → 设置提交 → 按捕获 Mod 列表重开 → 最终工作区快照与结果反馈
-- 关闭与释放：window、sessions 或 application 的 `CloseScope` → 保存及待同步工作结束 → 当前 dirty 与活动输入复核 → 所属确认及设置、日志、性能交付 → Rust 销毁并等待 `Destroyed` → `releasedSessions` → 工作区、内容与缓存释放
+- 关闭与释放：window、sessions 或 application 的 `CloseScope` → 保存及待同步工作结束 → 当前 dirty 与活动输入复核 → 所属确认及设置、日志、性能交付 → Rust 销毁并等待 `Destroyed` → 项目同步完整释放 → `releasedSessions` → 工作区、内容与缓存释放
 - 错误呈现与恢复：原始 `AppError`、稳定码、location 与 payload → 所属窗口反馈 → 用户文案、原始诊断日志及授权文件动作 → recovery 窗口或明确业务重试 → 实际动作结果与一次最终反馈
 - 文本编码转换：`text.invalid_utf8` 与授权目标 → 用户选择源编码 → 后端重读并检查当前字节 → 仍需转码时完整解码并写入 changeset → 正式回执 → 受影响会话及文本窗口接纳
 - 工具目录维护：设置页目录打开动作 → 配置 service → `app_data_dir::data_directory` → 工具目录创建 → 系统打开能力 → 所属窗口接纳实际结果

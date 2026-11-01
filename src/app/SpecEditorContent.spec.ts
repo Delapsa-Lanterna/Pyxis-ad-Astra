@@ -20,8 +20,9 @@ const mocks = vi.hoisted(() => ({ createWindow: vi.fn() }));
 vi.mock('@/app/composables/spec-editor/use-spec-editor-window-view-model', () => ({
   useSpecEditorWindowViewModel: () => mocks.createWindow(),
 }));
-vi.mock('@/app/composables/use-dirty-window-close-guard', () => ({
-  useDirtyWindowCloseGuard: () => ({ install: vi.fn(async () => {}), dispose: vi.fn() }),
+vi.mock('@/app/composables/use-window-close-state', () => ({
+  useWindowCloseState: () => null,
+  useWindowCloseParticipant: () => ({ install: vi.fn(async () => {}), dispose: vi.fn() }),
 }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ error: vi.fn(), warning: vi.fn() }) }));
 vi.mock('@/app/composables/spec-editor/use-spec-editor-draft-images', () => ({

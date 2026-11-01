@@ -8,6 +8,7 @@ import { recordWindowEventHandlerError } from '@/orchestrators/window-event-erro
 import { acceptReleasedSessions } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import { flushSettings, startSettingsPersistence, startSettingsMirror } from '@/orchestrators/settings-persistence.orchestrator';
 import { provideWindowCloseState } from './use-window-close-state';
+import { provideAppCloseActions, useAppCloseParticipant } from './use-app-close-participant';
 import { flushPerformanceMonitor, retainPerformanceMonitorError } from '@/app/performance-monitor';
 import { flushApplicationLogs } from '@/services/app-log.service';
 import { debugLog } from '@/shared/runtime/app-log-queue';
@@ -30,8 +31,7 @@ export function useAppLifecycleAssembly(feedback: AppFeedback) {
     disposed = true;
     stopSync?.();
   });
-  return provideWindowCloseState({
-    requestClose,
+  provideAppCloseActions({
     readyClose: readyNativeClose,
     replyClose: replyNativeClose,
     prepareDisplay: pauseProjectDisplay,
@@ -44,6 +44,7 @@ export function useAppLifecycleAssembly(feedback: AppFeedback) {
       await flushPerformance();
     },
   });
+  return provideWindowCloseState({ requestClose, createParticipant: useAppCloseParticipant });
 }
 
 export function useAppSettings(mode: 'main' | 'child') {

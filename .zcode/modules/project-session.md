@@ -8,7 +8,7 @@
 
 ### 拥有
 
-- `src-tauri/src/commands/project_session.rs`：session 生命周期 command。
+- `src-tauri/src/commands/project_session.rs`：session 打开 command。
 - `src-tauri/src/domain/entity_definitions.rs`：八种实体的目录、后缀、ID 字段及规格、表格关联登记。
 - `src-tauri/src/domain/entity_identity.rs`：跨编辑器实体 ID、路径与来源范围纯规则。
 - `src-tauri/src/services/project/cache/mod.rs`：媒体缓存的模块登记和会话释放能力导出。
@@ -32,11 +32,11 @@
 - `src-tauri/src/services/project/test_support.rs`：项目测试工作区的会话、历史及 Core 缓存释放与异常退出验证。
 - `src-tauri/src/services/project/versions.rs`：会话已接纳来源的路径凭据投影。
 - `src-tauri/src/services/project/write/mod.rs`：写入业务实现登记及内部暂存入口。
-- `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、提交与窗口登记释放及性能记录。
+- `src-tauri/src/services/project_session.rs`：游戏根与 Mod 根授权、会话建立、范围核对与性能记录。
 - `src/domain/project/entity-versions.ts`：保存目标版本捕获与关联表凭据交接。
 - `src/domain/project/query-scopes.ts`：标准实体失效 scope 的种类、ID 与通配匹配。
 - `src/services/project-projection.service.ts`：窗口内按 session 维护正式内容读取门控。
-- `src/services/project-session.service.ts`：session 打开、关闭与来源刷新协议。
+- `src/services/project-session.service.ts`：session 打开协议。
 - `src/stores/project.store.ts`：按 Mod 根管理全部 manifest、session 查询、表格写入目标与正式清单。
 
 ### 消费
@@ -115,8 +115,8 @@
 
 ### 关闭 session
 
-1. Mod 移除或工作区关闭触发关闭请求。
-2. 后端从注册表移除条目并释放资源。
+1. 项目同步的完整释放能力调用底层会话关闭。
+2. 后端从注册表移除条目，释放所属媒体、最后同根历史并更新引用状态。
 3. 在途操作自然完成；后续进入的未知 session 请求被拒绝。
 4. 前端按生命周期清理用例移除对应缓存与状态。
 

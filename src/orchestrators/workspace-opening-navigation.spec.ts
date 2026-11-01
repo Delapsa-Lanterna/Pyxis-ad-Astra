@@ -64,7 +64,7 @@ const mocks = vi.hoisted(() => {
     writeSync: { pending: [], removeModState: vi.fn() },
     fileBrowser: { removeModState: vi.fn() },
     openProject: vi.fn(),
-    closeProject: vi.fn(async () => {}),
+    closeProjectSession: vi.fn(async () => {}),
   };
 });
 
@@ -75,9 +75,9 @@ vi.mock('@/stores/file-history.store', () => ({ useFileHistoryStore: () => mocks
 vi.mock('@/stores/csv-table-history.store', () => ({ useCsvEditorStore: () => mocks.csvHistory }));
 vi.mock('@/stores/project-sync.store', () => ({ useProjectSyncStore: () => mocks.writeSync }));
 vi.mock('@/stores/mod-file-browser.store', () => ({ useModFileBrowserStore: () => mocks.fileBrowser }));
+vi.mock('@/services/project-sync.service', () => ({ closeProjectSession: mocks.closeProjectSession }));
 vi.mock('@/services/project-session.service', () => ({
   openProject: mocks.openProject,
-  closeProject: mocks.closeProject,
 }));
 vi.mock('@/services/directory.service', () => ({
   detectDirectoryTarget: vi.fn(),

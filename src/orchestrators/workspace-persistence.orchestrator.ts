@@ -76,7 +76,7 @@ export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions
   if (persisted.starsectorRoot) {
     const overview = await scanDirectoryGameOverview(persisted.starsectorRoot);
     if (!current()) return;
-    if (workspace.gameOverview?.starsectorRoot === persisted.starsectorRoot) workspace.setGameOverview(overview);
+    if (workspace.gameOverview?.starsectorRoot === persisted.starsectorRoot) workspace.setGameOverview(overview, false);
   }
 
   for (const { mod, generation } of restoreTargets) {
@@ -97,9 +97,6 @@ export async function restorePersistedWorkspace(options: RestoreWorkspaceOptions
       if (current()) await options.onModRestoreError(mod.modRoot, mod.displayName || mod.modRoot, error);
     }
   }
-
-  if (!current()) return;
-  workspace.showOverview();
 }
 
 export type WorkspacePersistenceWatcher = ReturnType<typeof watchWorkspacePersistence>;

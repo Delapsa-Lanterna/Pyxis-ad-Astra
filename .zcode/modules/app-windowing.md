@@ -11,9 +11,8 @@
 - `src-tauri/capabilities/`：原生窗口可用能力授权。
 - `src-tauri/src/commands/windows.rs`：以 Tauri 注入调用窗口绑定上下文、请求接纳与回执身份。
 - `src-tauri/src/services/windows.rs`：原生窗口能力，拥有身份登记、创建复用、目标占用、实例交接与关闭等待。
-- `src/app/composables/use-dirty-window-close-guard.ts`：窗口内容准备、稳定摘要、所属确认及阶段回复。
 - `src/app/composables/use-managed-window-requests.ts`：组件作用域内请求接纳及释放适配。
-- `src/app/composables/use-window-close-state.ts`：窗口关闭操作锁与装配动作的提供和消费。
+- `src/app/composables/use-window-close-state.ts`：窗口操作锁、具名关闭请求、内容参与登记和卸载释放。
 - `src/app/composables/use-window-shortcuts.ts`：统一窗口按键监听、菜单优先、关闭屏蔽及卸载释放。
 - `src/orchestrators/window-event-errors.orchestrator.ts`：窗口事件失败的统一反馈交接。
 - `src/orchestrators/window-identity.orchestrator.ts`：已准备文件身份的预约和原生窗口身份交接。
@@ -41,9 +40,9 @@
 ## 边界
 
 - Rust 登记拥有原生 label 范围的身份、标题、最近接纳输入、最新待交付请求、递增版本与终结结果。
-- 窗口事件名归窗口协议，公共运行时交付监听，窗口上下文和关闭守卫持有接纳、顺序及解除。
+- 窗口事件名归窗口协议，公共运行时交付监听，窗口上下文及应用关闭参与者持有所属接纳、顺序和解除。
 - 保存及身份编排消费原生登记、预约、聚焦和释放能力。
-- 关闭守卫消费会话与活动输入的聚合 dirty，并拥有同一关闭意图的等待与确认。
+- 内容登记消费 dirty、等待及提示输入，持有参与句柄；应用运行执行关闭阶段和确认，窗口提供请求及操作锁。
 - 前端上下文运行态拥有只读投影、通知监听及回执编排，业务 ViewModel 拥有输入转换和业务状态。
 - 当前窗口 owner 提供关闭请求、重载和显示，原生销毁由应用生命周期协调。
 - 窗口请求层装配身份、尺寸、标题与结构化输入，managed window 等待接收方回执。
@@ -106,6 +105,7 @@
 - 原生 label 必须由应用内登记序号产生，并且必须在业务身份交接时保持稳定。
 - 原生实例必须按 label 登记完整 `EditWriteTarget` 集合；目标查询必须核对 session、Mod 和物理路径范围，销毁及会话释放必须移除所属登记。
 - 原生身份交接必须共同更新标题、当前身份及最近接纳输入，重载必须读取完整可用上下文。
+- 窗口内容登记必须消费装配交付的参与者工厂并持有安装和卸载寿命；业务阶段实现必须归应用运行。
 - 发起方关闭必须结束所属等待，子窗口必须继续拥有已登记输入；接收窗口销毁必须取消待交付请求并释放所属载荷。
 - 发起窗口和接收窗口必须消费所属保存结果，保存完成必须归项目执行决定，窗口释放必须保留已接收请求的执行。
 - 同一窗口必须拥有一个有序内容消费过程，必要读取失败必须由所属维护者独立重试。

@@ -11,6 +11,7 @@
 - `src-tauri/src/commands/misc_config.rs`：会话范围校验、根事务及正式提交。
 - `src-tauri/src/domain/misc_config.rs`：文件种类、固定路径与所属内容校验。
 - `src-tauri/src/services/misc_config.rs`：完整目录、逐文件读取、JSON 渲染与文件变更集。
+- `src/domain/misc-config.ts`：文件种类、顺序、用途、路径、schema 与初始内容。
 - `src/services/misc-config.service.ts`：读取票据、路径失效和写入协议包装。
 
 ### 消费
@@ -26,7 +27,6 @@
 - `src-tauri/src/models/misc_config.rs`：配置查询记录、保存与删除协议。
 - `src-tauri/src/parsers/field_schema.rs`：内嵌字段资产读取。
 - `src-tauri/src/services/write_transactions.rs`：根事务、版本校验、历史及提交同步。
-- `src/domain/json-editor/misc-config-files.ts`：文件种类、用途、文件名、路径、表单、初始内容与文档投影。
 - `src/services/query-cache.service.ts`：所属会话的实时读取与失效。
 - `src/shared/types/misc-config.types.ts`：前后端对应的类型化文件协议。
 
@@ -40,7 +40,7 @@
 - JSON 文档会话拥有文件草稿、活动输入、撤销重做与保存登记。
 - 后端提供全部登记文件的存在状态、所属错误与所选文件的内容和版本。
 - 字段模式拥有各文件的独立内容定义、展示排列和集合编辑。
-- 文件登记拥有可编辑种类、路径及所属校验规则。
+- 文件登记拥有可编辑种类、路径、schema、初始内容及所属校验规则；JSON 文档模块维护固定 file 源的包装。
 - 杂项配置服务拥有目录、逐文件读取与变更集。
 - 根事务拥有写入授权、文件历史、投影和回执。
 

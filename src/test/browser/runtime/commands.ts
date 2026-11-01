@@ -24,7 +24,7 @@ import { windowsPathCaseFixture } from '../../fixtures/windows-path-case';
 import { sessionUpdateFixture, savedWriteFixture } from '../../fixtures/write-result';
 import { createBrowserModel, type BrowserModel } from '../scenarios/model';
 import { emit } from './events';
-import { MISC_CONFIG_FILES, miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
 import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
 import type { RowData } from '@/shared/types';
 
@@ -192,7 +192,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'save_csv_patch':
       return model.saveCsv(args.payload as CsvSave);
     case 'query_misc_config_files':
-      return MISC_CONFIG_FILES.map(({ kind, path }) => ({
+      return MISC_CONFIG_DEFINITIONS.map(({ kind, path }) => ({
         kind,
         path: model.manifest.modRoot + '/' + path,
         relPath: path,
@@ -204,7 +204,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
     case 'prepare_json_source_recovery': {
       const request = args.payload as JsonRecoveryRequest;
       if (request.origin.kind !== 'miscConfig') throw new Error('Browser fixture expects misc config recovery');
-      const definition = miscConfigFile(request.origin.file);
+      const definition = miscConfigDefinition(request.origin.file);
       const file = model.miscFiles.find((file) => file.kind === definition.kind);
       return {
         request,
@@ -221,7 +221,7 @@ export async function dispatch(command: string, args: Record<string, unknown>, m
         kind: 'json',
         origin: { kind: 'miscConfig', file: payload.kind },
       });
-      const definition = miscConfigFile(payload.kind);
+      const definition = miscConfigDefinition(payload.kind);
       const path = model.manifest.modRoot + '/' + definition.path;
       result.baseVersions = [{ path, fingerprint: command === 'save_misc_config' ? String(model.saveCount) : null }];
       result.invalidation.paths = [path];

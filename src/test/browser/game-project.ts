@@ -2,7 +2,7 @@ import type * as T from '@/shared/types';
 import { TABLE_KEYS } from '@/shared/types';
 import { createBrowserModel } from './scenarios/model';
 import { entityTargetFixture } from '../fixtures/entity-target';
-import { MISC_CONFIG_FILES } from '@/domain/json-editor/misc-config-files';
+import { MISC_CONFIG_DEFINITIONS } from '@/domain/misc-config';
 import { entityContentId } from '@/domain/project/entity-definitions';
 import { gameFiles, gameImages, gameRoot, coreRoot, gameTablePaths, readGameCsv } from './game-files';
 import { renderGameCsv } from './game-format';
@@ -145,7 +145,7 @@ export function createWorkspaceProject(root: string, index: number) {
     model.miscFiles.splice(
       0,
       model.miscFiles.length,
-      ...MISC_CONFIG_FILES.filter(({ path }) => textFiles.has(root + '/' + path)).map(({ kind, path }) => ({
+      ...MISC_CONFIG_DEFINITIONS.filter(({ path }) => textFiles.has(root + '/' + path)).map(({ kind, path }) => ({
         kind,
         path: root + '/' + path,
         relPath: path,

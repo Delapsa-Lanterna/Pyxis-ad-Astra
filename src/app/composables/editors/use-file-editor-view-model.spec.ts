@@ -74,8 +74,9 @@ vi.mock('@/app/composables/use-app-feedback', () => ({
   useAppFeedback: () => mocks.feedback,
 }));
 vi.mock('@/app/composables/use-shortcut-dispatch', () => ({ useShortcutDispatch: vi.fn() }));
-vi.mock('@/app/composables/use-dirty-window-close-guard', () => ({
-  useDirtyWindowCloseGuard: () => ({ install: async () => {}, dispose: vi.fn() }),
+vi.mock('@/app/composables/use-window-close-state', () => ({
+  useWindowCloseState: () => null,
+  useWindowCloseParticipant: () => ({ install: async () => {}, dispose: vi.fn() }),
 }));
 vi.mock('@/windows/window-context.window', () => ({
   useWindowContext: () => ({ value: windowFixture() }),

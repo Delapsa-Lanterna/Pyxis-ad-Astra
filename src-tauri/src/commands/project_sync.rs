@@ -1,6 +1,9 @@
 use crate::{
     errors::AppError,
-    models::{InvalidateProjectSessionPayload, ProjectSessionInvalidationResult},
+    models::{
+        CloseProjectSessionPayload, InvalidateProjectSessionPayload,
+        ProjectSessionInvalidationResult,
+    },
     services,
 };
 
@@ -78,4 +81,9 @@ pub fn invalidate_project_session(
     payload: InvalidateProjectSessionPayload,
 ) -> Result<ProjectSessionInvalidationResult, AppError> {
     services::project::invalidate_project_session(&payload.session_id, payload.changes)
+}
+
+#[command_macros::command(async)]
+pub fn close_project_session(payload: CloseProjectSessionPayload) -> Result<(), AppError> {
+    services::project_sync::release_project_session(payload.session_id)
 }

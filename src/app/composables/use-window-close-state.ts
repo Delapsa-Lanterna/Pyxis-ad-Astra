@@ -1,29 +1,39 @@
-import { inject, provide, ref, type InjectionKey, type Ref } from 'vue';
+import { inject, provide, ref, onUnmounted, type InjectionKey, type Ref } from 'vue';
+import type { CloseScope, CloseResult } from '@/shared/types';
 
-import type { CloseScope, CloseResult, ClosePhase, ErrorDiagnostic } from '@/shared/types';
-
-interface WindowLifecycleActions {
-  replyClose: (operationId: number, phase: ClosePhase, accepted: boolean, diagnostic: ErrorDiagnostic | null) => Promise<void>;
-  readyClose: () => Promise<void>;
-  requestClose: (scope: CloseScope) => Promise<CloseResult>;
-  prepareDisplay: () => () => Promise<void>;
-  acceptReleasedSessions: (sessionIds: string[]) => void;
-  flushPerformance: () => Promise<void>;
-  flushSettings: () => Promise<void>;
+export interface WindowCloseParticipantOptions {
+  settle?: () => Promise<void>;
+  dirty: Readonly<Ref<boolean>>;
+  dirtyForScope?: (scope: CloseScope) => boolean;
+  title: string;
+  content: string;
 }
-const lifecycleKey: InjectionKey<WindowLifecycleActions> = Symbol('window-lifecycle-actions');
-
-export const useWindowLifecycleActions = () => inject(lifecycleKey)!;
-
+interface WindowCloseParticipant {
+  install: () => Promise<void>;
+  requestClose: () => Promise<boolean>;
+  dispose: () => void;
+}
+interface WindowCloseActions {
+  requestClose: (scope: CloseScope) => Promise<CloseResult>;
+  createParticipant: (options: WindowCloseParticipantOptions) => WindowCloseParticipant;
+}
+const closeActionsKey: InjectionKey<WindowCloseActions> = Symbol('window-close-actions');
 const closeStateKey: InjectionKey<Ref<boolean>> = Symbol('window-close-state');
 
-export function provideWindowCloseState(actions: WindowLifecycleActions) {
-  provide(lifecycleKey, actions);
+export function provideWindowCloseState(actions: WindowCloseActions) {
+  provide(closeActionsKey, actions);
   const closing = ref(false);
   provide(closeStateKey, closing);
   return closing;
 }
-
 export function useWindowCloseState() {
   return inject(closeStateKey, null);
+}
+export function useWindowCloseRequest() {
+  return inject(closeActionsKey)!.requestClose;
+}
+export function useWindowCloseParticipant(options: WindowCloseParticipantOptions) {
+  const participant = inject(closeActionsKey)!.createParticipant(options);
+  onUnmounted(participant.dispose);
+  return { install: participant.install, requestClose: participant.requestClose };
 }

@@ -6,7 +6,7 @@ import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-so
 import { parseCsvSource } from '@/domain/schema/csv-source-options';
 import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
-import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
 const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   hullmods: 'sprite',
   shipSystems: 'icon',
@@ -125,7 +125,7 @@ export function gameCatalog(project: WorkspaceProject, kind: T.JointVariantCatal
 export function gameQuery(project: WorkspaceProject, command: string, payload: Record<string, unknown>): unknown {
   if (command === 'save_misc_config' || command === 'delete_misc_config') {
     const file = project.model.miscFiles.find((file) => file.kind === payload.kind);
-    const path = file?.path ?? project.manifest.modRoot + '/' + miscConfigFile(String(payload.kind)).path;
+    const path = file?.path ?? project.manifest.modRoot + '/' + miscConfigDefinition(String(payload.kind)).path;
     if (command === 'delete_misc_config') project.textFiles.delete(path);
     else project.textFiles.set(path, JSON.stringify(payload.data, null, 2) + '\n');
     return project.write(

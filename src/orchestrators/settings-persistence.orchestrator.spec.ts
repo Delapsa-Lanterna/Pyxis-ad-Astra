@@ -22,7 +22,8 @@ const api = vi.hoisted(() => ({
   workspaceSave: vi.fn(),
 }));
 vi.mock('@/services/directory.service', () => ({ detectDirectoryTarget: api.detect, scanDirectoryGameOverview: api.scan }));
-vi.mock('@/services/project-session.service', () => ({ openProject: api.open, closeProject: vi.fn() }));
+vi.mock('@/services/project-session.service', () => ({ openProject: api.open }));
+vi.mock('@/services/project-sync.service', () => ({ closeProjectSession: vi.fn() }));
 vi.mock('@/services/workspace-state.service', () => ({ savePersistedWorkspace: api.workspaceSave, loadPersistedWorkspace: vi.fn() }));
 vi.mock('@/services/core-assets.service', () => ({ invalidateCoreCacheForRoot: vi.fn(async () => {}) }));
 vi.mock('@/services/app-settings.service', () => ({

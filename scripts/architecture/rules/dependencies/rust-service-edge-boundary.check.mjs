@@ -25,9 +25,9 @@ test('session opening consumes the official settings root', () => {
   assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(context)), []);
 });
 
-test('session release publishes reference changes through project sync', () => {
+test('project synchronization owns the complete session release', () => {
   const context = architectureFixtures({
-    'src-tauri/src/services/project_session.rs': 'fn release() { crate::services::project_sync::publish_references(snapshot, updates); }',
+    'src-tauri/src/services/app_lifecycle.rs': 'fn release() { crate::services::project_sync::release_project_session(session); }',
   });
   assert.deepEqual(messages(rustServiceEdgeBoundaryRule.check(context)), []);
 });
@@ -69,5 +69,17 @@ test('project save dispatch consumes transactions and editing services from its 
     const [diagnostic] = rustServiceEdgeBoundaryRule.check(denied);
     assert.ok(diagnostic);
     assert.equal(diagnostic.line, 2);
+  }
+});
+
+test('session foundations consume their own release primitives', () => {
+  for (const target of ['project_sync', 'windows']) {
+    const context = architectureFixtures({
+      'src-tauri/src/services/project_session.rs': '\nfn release() { crate::services::' + target + '::release_session(session); }',
+    });
+    const [diagnostic] = rustServiceEdgeBoundaryRule.check(context);
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.line, 2);
+    assert.equal(diagnostic.target, 'crate::services::' + target + '::release_session');
   }
 });

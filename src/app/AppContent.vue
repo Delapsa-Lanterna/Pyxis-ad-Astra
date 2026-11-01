@@ -14,6 +14,7 @@
       @close-workspace="actions.confirmCloseWorkspace"
       @load-mod="actions.loadOverviewMod" /><SettingsPage v-else-if="workspace.currentView === 'settings'" /><AboutPage
       v-else-if="workspace.currentView === 'about'" /><ModFileBrowser
+      :target="workspace.activeManifest"
       v-else-if="workspace.currentView === 'mod-files' && workspace.activeManifest" /><CsvEditorWorkspace
       v-else-if="workspace.currentView === 'table' && workspace.activeManifest"
       v-model:detail-pane-expanded="detailPaneExpanded"
@@ -50,7 +51,7 @@ import { useWorkspaceShellActions } from '@/app/composables/use-workspace-shell-
 import { useWorkspaceShellLifecycle } from '@/app/composables/use-workspace-shell-lifecycle';
 import { useMainWindowShortcuts } from '@/app/composables/use-main-window-shortcuts';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
-import { useDirtyWindowCloseGuard } from '@/app/composables/use-dirty-window-close-guard';
+import { useWindowCloseParticipant } from '@/app/composables/use-window-close-state';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { useDraftSessionsStore } from '@/stores/draft-sessions.store';
 import { useProjectStore } from '@/stores/project.store';
@@ -94,7 +95,7 @@ useContextMenuScope({
   canRefresh: () => actions.canRefreshOverview.value,
   refresh: () => (workspace.currentView === 'overview' ? actions.refreshWorkspace() : actions.refreshModOverview(workspace.activeModRoot!)),
 });
-const closeGuard = useDirtyWindowCloseGuard({
+const closeParticipant = useWindowCloseParticipant({
   settle: actions.settleWorkspaceOpenings,
   dirtyForScope: (scope) =>
     scope.kind === 'sessions'
@@ -150,12 +151,11 @@ watch(
 );
 
 onUnmounted(() => {
-  closeGuard.dispose();
   releaseRuntimeErrorContext();
   saveCommand.unregisterActiveSaveHandler(saveActiveDocument);
 });
 
 onMounted(() => {
-  void closeGuard.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
+  void closeParticipant.install().catch((error) => feedback.error(error, '登记关闭保护失败'));
 });
 </script>

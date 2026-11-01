@@ -13,7 +13,7 @@ import { initializeWindowsPathCase } from '@/shared/lib/paths';
 import { windowsPathCaseFixture } from '../fixtures/windows-path-case';
 import { cell, formatModVersion } from '@/shared/lib/starsector';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
-import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
 
 type Handler = (event: { event: string; id: number; payload: unknown }) => void | Promise<void>;
 type DeliveryChannel = { onmessage: (delivery: T.SaveDelivery) => void };
@@ -386,7 +386,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
       case 'prepare_json_source_recovery': {
         const input = args.payload as T.JsonRecoveryRequest;
         if (input.origin.kind === 'miscConfig') {
-          const path = receiver.manifest.modRoot + '/' + miscConfigFile(input.origin.file).path;
+          const path = receiver.manifest.modRoot + '/' + miscConfigDefinition(input.origin.file).path;
           return {
             request: input,
             baseVersions: [receiver.version(path)],

@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { ref } from 'vue';
+import { h, ref } from 'vue';
 import type { WindowCloseIntent, CloseResult } from '@/shared/types';
 import { useSaveCommandStore } from '@/stores/save-command.store';
 const api = vi.hoisted(() => ({
@@ -49,22 +49,8 @@ vi.mock('@/services/window.service', () => ({
 }));
 vi.mock('@/windows/window-context.window', () => ({ settleWindowRequests: async () => {} }));
 vi.mock('@/app/composables/use-app-feedback', () => ({ useAppFeedback: () => ({ choose: api.choose, error: api.error }) }));
-vi.mock('./use-window-close-state', () => ({
-  useWindowCloseState: () => ref(false),
-  useWindowLifecycleActions: () => ({
-    requestClose: api.native,
-    replyClose: api.reply,
-    readyClose: api.ready,
-    acceptReleasedSessions: api.acceptReleased,
-    flushPerformance: api.flushPerformance,
-    flushSettings: api.flush,
-    prepareDisplay: () => {
-      api.prepare();
-      return api.resume;
-    },
-  }),
-}));
-import { useDirtyWindowCloseGuard } from './use-dirty-window-close-guard';
+vi.mock('./use-window-close-state', () => ({ useWindowCloseState: () => ref(false), useWindowCloseRequest: () => api.native }));
+import { useAppCloseParticipant, provideAppCloseActions } from './use-app-close-participant';
 import { useQueryReadOwner } from './use-query-read-owner';
 const intent = (phase: WindowCloseIntent['phase']): WindowCloseIntent => ({
   operationId: 7,
@@ -74,12 +60,28 @@ const intent = (phase: WindowCloseIntent['phase']): WindowCloseIntent => ({
   releasedSessions: [],
 });
 async function setup(dirty = ref(false), flushSettings = async () => {}) {
-  let guard!: ReturnType<typeof useDirtyWindowCloseGuard>;
+  let guard!: ReturnType<typeof useAppCloseParticipant>;
+  const Content = {
+    setup() {
+      guard = useAppCloseParticipant({ dirty, title: 'fixture', content: 'fixture' });
+      return () => null;
+    },
+  };
   const wrapper = mount({
     setup() {
       api.flush.mockImplementation(flushSettings);
-      guard = useDirtyWindowCloseGuard({ dirty, title: 'fixture', content: 'fixture' });
-      return () => null;
+      provideAppCloseActions({
+        replyClose: api.reply,
+        readyClose: api.ready,
+        acceptReleasedSessions: api.acceptReleased,
+        flushPerformance: api.flushPerformance,
+        flushSettings: api.flush,
+        prepareDisplay: () => {
+          api.prepare();
+          return api.resume;
+        },
+      });
+      return () => h(Content);
     },
   });
   await guard.install();

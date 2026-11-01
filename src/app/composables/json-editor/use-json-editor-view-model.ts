@@ -2,7 +2,8 @@ import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { stableDeepEqual } from '@/shared/lib/stable-compare';
 import { queryMiscConfigFiles, queryMiscConfigFile, hasMiscConfigInvalidation } from '@/services/misc-config.service';
-import { MISC_CONFIG_FILES, miscConfigFile, miscConfigValue } from '@/domain/json-editor/misc-config-files';
+import { MISC_CONFIG_DEFINITIONS, miscConfigDefinition } from '@/domain/misc-config';
+import { miscConfigDocumentValue } from '@/domain/json-editor/json-document-definitions';
 import type { JsonEditorContext } from './json-editor-context';
 import { useAppFeedback } from '@/app/composables/use-app-feedback';
 import { useQueryReadOwner } from '@/app/composables/use-query-read-owner';
@@ -124,7 +125,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       });
     });
     if (kind === 'misc-config')
-      return MISC_CONFIG_FILES.map((file) => {
+      return MISC_CONFIG_DEFINITIONS.map((file) => {
         const row = rows.find((row) => row.key === file.kind);
         const entry = directory.value.find((entry) => entry.kind === file.kind);
         return retain({
@@ -239,14 +240,14 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
       fileError.value = entry.error;
       return;
     }
-    const scope = { sessionId: sessionId.value!, modRoot: modRoot.value!, kind: miscConfigFile(id).kind };
+    const scope = { sessionId: sessionId.value!, modRoot: modRoot.value!, kind: miscConfigDefinition(id).kind };
     fileLoading.value = true;
     await reads.consume('file', scope, (signal) => queryMiscConfigFile(scope.sessionId, scope.modRoot, scope.kind, signal), {
       ready: (file) => {
         if (file) {
           const record: JsonDocumentRecord = {
             target: { ...scope, kind: 'misc-config', id, entity: null },
-            value: miscConfigValue(id, cloneQuerySnapshot<JsonValue>(file.data)),
+            value: miscConfigDocumentValue(cloneQuerySnapshot<JsonValue>(file.data)),
             baseVersions: [...file.baseVersions],
             resources: {},
           };
@@ -415,7 +416,7 @@ export function useJsonEditorViewModel(definition: JsonDocumentDefinition, conte
     search,
     setSearch,
     current,
-    selectedFile: computed(() => (kind === 'misc-config' && selectedId.value ? miscConfigFile(selectedId.value) : null)),
+    selectedFile: computed(() => (kind === 'misc-config' && selectedId.value ? miscConfigDefinition(selectedId.value) : null)),
     fileError,
     fileLoading: computed(() => fileLoading.value || (!directory.value.length && !listFailed.value)),
     retryFile: load,

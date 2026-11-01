@@ -84,7 +84,7 @@
 
 - [实体文件写入与身份联动](modules/entity-write.md)：说明实体内容构造、实际文件写入、关联表、描述、父引用与身份结果。
 - [统一右键菜单](modules/context-menu.md)：说明业务根登记、选区操作、刷新回调与标题栏动作。
-- [应用启动与窗口挂载](modules/app-runtime.md)：说明原生窗口上下文、settings 初始化、唯一窗口壳、窗口根装配和应用启动失败呈现。
+- [应用运行与窗口生命周期](modules/app-runtime.md)：说明启动装配、窗口壳、关闭参与者、阶段交接和实际释放。
 - [多窗口机制](modules/app-windowing.md)：说明类型化 identity、Rust 原生实例登记、目标占用、跨窗口事件与会话关闭守卫。
 - [应用设置与主题](modules/app-settings.md)：说明 settings store、主题令牌、editMode、日志目录、persistence/mirror 与子窗口 snapshot。
 - [后端能力与 IPC 传输](modules/backend-capabilities.md)：说明最小传输、透明错误、command 归属与公开能力授权。

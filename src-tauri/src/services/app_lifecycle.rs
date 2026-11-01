@@ -1,7 +1,7 @@
 use crate::{
     errors::{AppError, AppResult, ErrorDiagnostic},
     models::{CloseIntent, ClosePhase, CloseResult, CloseScope, CloseStatus},
-    services::{project, project_session, windows},
+    services::{project, project_sync, windows},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -374,7 +374,7 @@ fn execute_close(
                 if windows::session_has_windows(&session)? {
                     continue;
                 }
-                project_session::release_project_session(session.clone())?;
+                project_sync::release_project_session(session.clone())?;
                 operation.state()?.released_sessions.push(session.clone());
                 result.released_sessions.push(session);
             }

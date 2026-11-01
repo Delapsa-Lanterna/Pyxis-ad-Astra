@@ -106,8 +106,13 @@ const cases = [
     'invalidateQueryCacheForSession',
   ],
   ['session-open', 'src/orchestrators/workspace-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'openProject'],
-  ['session-close', 'src/orchestrators/workspace-lifecycle.orchestrator.ts', 'src/services/project-session.service.ts', 'closeProject'],
-  ['late-session-close', 'src/orchestrators/workspace-opening.orchestrator.ts', 'src/services/project-session.service.ts', 'closeProject'],
+  ['session-close', 'src/orchestrators/workspace-lifecycle.orchestrator.ts', 'src/services/project-sync.service.ts', 'closeProjectSession'],
+  [
+    'late-session-close',
+    'src/orchestrators/workspace-opening.orchestrator.ts',
+    'src/services/project-sync.service.ts',
+    'closeProjectSession',
+  ],
   [
     'session-refresh',
     'src/orchestrators/project-sync.orchestrator.ts',

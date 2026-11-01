@@ -8,6 +8,7 @@ import type {
   FileVersion,
   JsonEditorPageId,
   JsonRecoveryPlan,
+  JsonValue,
   ResourceRef,
   RowData,
 } from '@/shared/types';
@@ -15,7 +16,7 @@ import { aggregateSchemaSources } from '@/domain/schema/schema-sources';
 import { configFactionListItems } from './json-config-entities';
 import { variantFileDefinition, skinFileDefinition, jsonFileTitle, type JsonFileDefinition } from './json-file-definitions';
 import { requireRowData } from '@/shared/lib/row-data';
-import { miscConfigFile, miscConfigValue } from './misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
 
 export type JsonDocumentKind = 'mod-info' | 'faction' | 'mission' | 'variant' | 'skin' | 'misc-config';
 export interface ConfigDocumentTarget {
@@ -29,7 +30,7 @@ export function jsonDocumentOrigin(target: ConfigDocumentTarget): import('@/shar
   return target.kind === 'mod-info'
     ? { kind: 'modInfo' }
     : target.kind === 'misc-config'
-      ? { kind: 'miscConfig', file: miscConfigFile(target.id).kind }
+      ? { kind: 'miscConfig', file: miscConfigDefinition(target.id).kind }
       : { kind: 'entity', target: { kind: target.kind, id: target.id, relPath: target.entity!.write.relPath } };
 }
 export interface JsonDocumentRecord {
@@ -101,7 +102,7 @@ export function jsonDocumentValue(kind: JsonDocumentKind, data: RowData): RowDat
 }
 export function jsonRecoveryValue(target: ConfigDocumentTarget, plan: JsonRecoveryPlan, current: RowData): RowData {
   const sources = plan.currentSources;
-  if (target.kind === 'misc-config') return miscConfigValue(target.id, sources.file!);
+  if (target.kind === 'misc-config') return miscConfigDocumentValue(sources.file!);
   if (target.kind === 'mission') {
     const index = sources.index as unknown as { rows: CsvRow[] };
     const list = index.rows.find((row) => !row.isComment && row.data.mission === target.id)!.data;
@@ -138,7 +139,7 @@ export function jsonDocumentSummary(
   const file = definition.file;
   const title =
     kind === 'misc-config'
-      ? miscConfigFile(id).label
+      ? miscConfigDefinition(id).label
       : file
         ? jsonFileTitle(file, { id, data }, hullNames)
         : String(data[kind === 'mission' ? 'title' : kind === 'mod-info' ? 'name' : 'displayName'] || id || definition.label);
@@ -154,4 +155,11 @@ export function jsonDocumentMedia(record: JsonDocumentRecord) {
   return record.target.kind === 'mission'
     ? (record.resources.icon ?? null)
     : (record.resources.sprite ?? record.resources.crest ?? record.resources.logo ?? null);
+}
+
+export function miscConfigDocumentValue(data: JsonValue): RowData {
+  return { file: data };
+}
+export function miscConfigDocumentContent(value: RowData): JsonValue {
+  return value.file!;
 }

@@ -1,11 +1,11 @@
 import { getSchema } from '@/domain/schema/config-schema-registry';
-import { miscConfigFile } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
 import type { MiscConfigKind, RowData } from '@/shared/types';
 
 export function miscConfigFixture(kind: MiscConfigKind): RowData {
   if (kind === 'strings') return { dialogue: { line: '001\n$sample "text"' } };
   if (kind === 'engineStyles' || kind === 'hullStyles') {
-    const defaults = getSchema(miscConfigFile(kind).schema)!.root!.valueSchema!.default;
+    const defaults = getSchema(miscConfigDefinition(kind).schema)!.root!.valueSchema!.default;
     return {
       SAMPLE_STYLE: {
         ...structuredClone(defaults as RowData),

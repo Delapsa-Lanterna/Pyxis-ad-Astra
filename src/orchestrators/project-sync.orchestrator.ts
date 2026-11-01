@@ -323,7 +323,7 @@ export async function listenSavedIdentity(handler: SaveHandler) {
   };
 }
 
-export function releaseProjectSession(sessionId: string) {
+export function releaseProjectContentConsumers(sessionId: string) {
   const window = windows.get(useProjectSyncStore());
   const errors: unknown[] = [];
   for (const owner of window?.content ?? []) {

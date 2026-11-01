@@ -57,7 +57,7 @@ function register(id = 's1', root = 'M:/A') {
   workspace.activateModFiles(root);
 }
 async function open() {
-  const { value: vm, wrapper } = mountSetup(useModFileBrowserViewModel);
+  const { value: vm, wrapper } = mountSetup(() => useModFileBrowserViewModel(() => useWorkspaceStore().activeManifest));
   await flushPromises();
   return { vm, wrapper };
 }
@@ -575,4 +575,13 @@ describe('full Mod search state and input boundary', () => {
     await vi.advanceTimersByTimeAsync(300);
     expect(mocks.search).not.toHaveBeenCalled();
   });
+});
+
+it('reads the explicitly delivered target independently of workspace selection', async () => {
+  register('other', 'M:/B');
+  const { value: vm } = mountSetup(() => useModFileBrowserViewModel(() => ({ sessionId: 's1', modRoot: 'M:/A' })));
+  await flushPromises();
+  expect(useWorkspaceStore().activeManifest!.sessionId).toBe('other');
+  expect(mocks.directory).toHaveBeenCalledWith('s1', null);
+  expect(vm.view.title).toBe('M:/A');
 });

@@ -41,7 +41,7 @@ import {
   beginSavedWrite,
   retryPendingWrites,
   pauseProjectDisplay,
-  releaseProjectSession,
+  releaseProjectContentConsumers,
   retryPendingSessionSyncs,
   startProjectSync,
   settleProjectSaves,
@@ -446,7 +446,7 @@ describe('ordered save consumption', () => {
       throw new Error('release');
     });
     await listenSavedContent(vi.fn(), released);
-    expect(() => releaseProjectSession('s1')).toThrow(AggregateError);
+    expect(() => releaseProjectContentConsumers('s1')).toThrow(AggregateError);
     expect(released).toHaveBeenCalledExactlyOnceWith('s1');
   });
   it('projects native waiting status per project', async () => {

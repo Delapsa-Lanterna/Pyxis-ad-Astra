@@ -88,9 +88,10 @@
 import { h, nextTick, onMounted, onScopeDispose, useTemplateRef, watch } from 'vue';
 import type { TreeInst, TreeProps } from 'naive-ui/es/tree';
 import type { ModFileSortKey } from '@/shared/types';
-import { useModFileBrowserViewModel } from '@/app/composables/mod-file-browser/use-mod-file-browser-view-model';
+import { useModFileBrowserViewModel, type ModFileBrowserTarget } from '@/app/composables/mod-file-browser/use-mod-file-browser-view-model';
 import { useWindowShortcuts } from '@/app/composables/use-window-shortcuts';
-const { view, actions } = useModFileBrowserViewModel();
+const props = defineProps<{ target: ModFileBrowserTarget | null }>();
+const { view, actions } = useModFileBrowserViewModel(() => props.target);
 const columns: Array<{ key: ModFileSortKey; label: string }> = [
   { key: 'name', label: '文件名' },
   { key: 'type', label: '类型' },

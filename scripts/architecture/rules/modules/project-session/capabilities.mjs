@@ -39,11 +39,11 @@ export const projectCapabilities = [
     {
       capability: 'save-close-wait',
       names: ['settleProjectSaves'],
-      owners: [{ layer: 'app', role: 'composable', domain: 'dirty-window-close-guard' }],
+      owners: [{ layer: 'app', role: 'composable', domain: 'app-close-participant' }],
     },
     {
       capability: 'session-release',
-      names: ['releaseProjectSession'],
+      names: ['releaseProjectContentConsumers'],
       owners: [{ layer: 'orchestrators', domain: 'workspace-lifecycle' }],
     },
   ]),
@@ -171,16 +171,16 @@ export const projectCapabilities = [
   ]),
   ...capabilities({ role: 'service', domain: 'project-session' }, [
     { capability: 'session-open', names: ['openProject'], owners: [{ layer: 'orchestrators', domain: 'workspace-opening' }] },
+  ]),
+  ...capabilities({ role: 'service', domain: 'project-sync' }, [
     {
       capability: 'session-close',
-      names: ['closeProject'],
+      names: ['closeProjectSession'],
       owners: [
         { layer: 'orchestrators', domain: 'workspace-opening' },
         { layer: 'orchestrators', domain: 'workspace-lifecycle' },
       ],
     },
-  ]),
-  ...capabilities({ role: 'service', domain: 'project-sync' }, [
     {
       capability: 'save-window-delivery',
       names: [

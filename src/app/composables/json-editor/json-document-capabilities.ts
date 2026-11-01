@@ -1,5 +1,6 @@
 import type { SaveCommandRequest } from '@/shared/runtime/command.runtime';
-import { miscConfigFile, miscConfigValue, miscConfigContent } from '@/domain/json-editor/misc-config-files';
+import { miscConfigDefinition } from '@/domain/misc-config';
+import { miscConfigDocumentValue, miscConfigDocumentContent } from '@/domain/json-editor/json-document-definitions';
 import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { queryMiscConfigFile, saveMiscConfig, deleteMiscConfig } from '@/services/misc-config.service';
 import { prepareJsonSourceRecovery } from '@/services/json-recovery.service';
@@ -47,11 +48,11 @@ export type JsonDocumentSnapshot = EditTargetSnapshot<RowData, ConfigDocumentTar
 export async function loadJsonDocument(target: ConfigDocumentTarget, signal?: AbortSignal): Promise<JsonDocumentSnapshot> {
   const kind = target.kind;
   if (kind === 'misc-config') {
-    const file = await queryMiscConfigFile(target.sessionId, target.modRoot, miscConfigFile(target.id).kind, signal);
+    const file = await queryMiscConfigFile(target.sessionId, target.modRoot, miscConfigDefinition(target.id).kind, signal);
     if (!file) throw new AppError('杂项配置来源已删除', { code: 'json.source_missing' });
     return {
       target,
-      value: miscConfigValue(target.id, cloneQuerySnapshot<JsonValue>(file.data)),
+      value: miscConfigDocumentValue(cloneQuerySnapshot<JsonValue>(file.data)),
       baseVersions: [...file.baseVersions],
       meta: {
         receipt: null,
@@ -87,26 +88,26 @@ export async function saveJsonDocument(
   const { kind, file } = definition;
   const { sessionId, modRoot, id } = target;
   if (kind === 'misc-config') {
-    const content = miscConfigContent(id, data);
+    const content = miscConfigDocumentContent(data);
     const receipt = await runConfirmedJsonWrite(feedback, (jsonWrite) =>
       saveMiscConfig(
         {
           sessionId,
           modRoot,
-          kind: miscConfigFile(id).kind,
+          kind: miscConfigDefinition(id).kind,
           baseVersions,
           data: content,
           jsonWrite,
           orderedJson: JSON.stringify(content),
         },
-        miscConfigContent(id, original),
+        miscConfigDocumentContent(original),
         request,
       ),
     );
     if (!receipt) return;
     return {
       target,
-      value: miscConfigValue(id, receipt.content!.value),
+      value: miscConfigDocumentValue(receipt.content!.value),
       baseVersions: receipt.baseVersions,
       meta: { receipt },
       requestId: receipt.requestId,
@@ -204,7 +205,7 @@ export async function createJsonDocument(
   const { kind, file } = definition;
   if (kind === 'misc-config') {
     const { sessionId, modRoot } = target;
-    const { kind, initial } = miscConfigFile(id);
+    const { kind, initial } = miscConfigDefinition(id);
     const plan = await prepareJsonSourceRecovery({ sessionId, modRoot, origin: { kind: 'miscConfig', file: kind } });
     if (!plan.missingPaths.length) throw new AppError('文件已存在', { code: 'spec.target_exists' });
     return saveMiscConfig(
@@ -253,7 +254,7 @@ export function deleteJsonDocument(
   request?: SaveCommandRequest,
 ) {
   const { sessionId, modRoot, id, entity, kind } = target;
-  if (kind === 'misc-config') return deleteMiscConfig({ sessionId, modRoot, kind: miscConfigFile(id).kind, baseVersions }, request);
+  if (kind === 'misc-config') return deleteMiscConfig({ sessionId, modRoot, kind: miscConfigDefinition(id).kind, baseVersions }, request);
   if (kind === 'variant' || kind === 'skin') {
     const remove = kind === 'variant' ? deleteVariantEntity : deleteSkinEntity;
     return remove({ sessionId, modRoot, entityId: id, relPath: entity!.write.relPath, baseVersions }, request);

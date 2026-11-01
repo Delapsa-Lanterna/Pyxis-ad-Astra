@@ -19,16 +19,16 @@ import type { ProjectManifest } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({
   openProject: vi.fn(),
-  closeProject: vi.fn(async () => {}),
+  closeProjectSession: vi.fn(async () => {}),
   initializeModTables: vi.fn(),
   loadPersistedWorkspace: vi.fn(),
   scanDirectoryGameOverview: vi.fn(),
   detectDirectoryTarget: vi.fn(),
 }));
 
+vi.mock('@/services/project-sync.service', () => ({ closeProjectSession: mocks.closeProjectSession }));
 vi.mock('@/services/project-session.service', () => ({
   openProject: mocks.openProject,
-  closeProject: mocks.closeProject,
 }));
 vi.mock('@/services/directory.service', () => ({
   detectDirectoryTarget: mocks.detectDirectoryTarget,
@@ -94,7 +94,7 @@ describe('workspace opening lifecycle', () => {
     expect(workspace.hasWorkspaceContext).toBe(false);
     pending.resolve({ ...manifest('late-core'), modRoot: core, starsectorRoot: 'B:/game' });
     await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot: core });
-    expect(mocks.closeProject).toHaveBeenCalledExactlyOnceWith('late-core');
+    expect(mocks.closeProjectSession).toHaveBeenCalledExactlyOnceWith('late-core');
     expect(useProjectStore().manifests.size).toBe(0);
   });
   it('closes a late session after its loading Mod is removed', async () => {
@@ -103,7 +103,7 @@ describe('workspace opening lifecycle', () => {
     await removeLoadedModRuntime(modRoot, requestClose);
     pending.resolve(manifest('stale'));
     await expect(opening).resolves.toEqual({ type: 'cancelled', modRoot });
-    expect(mocks.closeProject).toHaveBeenCalledWith('stale');
+    expect(mocks.closeProjectSession).toHaveBeenCalledWith('stale');
     expect(useProjectStore().getManifest(modRoot)).toBeNull();
     expect(useWorkspaceStore().isModImported(modRoot)).toBe(false);
     expect(mocks.initializeModTables).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe('workspace opening lifecycle', () => {
     await oldOpening;
     expect(useProjectStore().getSessionId(modRoot)).toBe('current');
     expect(useWorkspaceStore().mods.get(modRoot)?.status).toBe('ready');
-    expect(mocks.closeProject).toHaveBeenCalledExactlyOnceWith('stale');
+    expect(mocks.closeProjectSession).toHaveBeenCalledExactlyOnceWith('stale');
     expect(mocks.initializeModTables).toHaveBeenCalledTimes(1);
   });
 
@@ -156,7 +156,7 @@ describe('workspace opening lifecycle', () => {
     await opening;
     expect(useWorkspaceStore().hasLoadedMods).toBe(false);
     expect(useProjectStore().manifests.size).toBe(0);
-    expect(mocks.closeProject).toHaveBeenCalledWith('stale');
+    expect(mocks.closeProjectSession).toHaveBeenCalledWith('stale');
   });
 
   it('cancels restored targets removed before their session responses arrive', async () => {
@@ -176,7 +176,7 @@ describe('workspace opening lifecycle', () => {
     await restoring;
     expect(useProjectStore().manifests.size).toBe(0);
     expect(mocks.initializeModTables).not.toHaveBeenCalled();
-    expect(mocks.closeProject).toHaveBeenCalledWith('restored-stale');
+    expect(mocks.closeProjectSession).toHaveBeenCalledWith('restored-stale');
     expect(mocks.openProject).toHaveBeenCalledTimes(1);
     expect(useWorkspaceStore().loadedModCount).toBe(0);
   });
@@ -219,7 +219,7 @@ describe('created Mod workspace acceptance', () => {
     await removeLoadedModRuntime(modRoot, requestClose);
     pending.resolve(manifest('late-created'));
     await expect(opening).resolves.toBeNull();
-    expect(mocks.closeProject).toHaveBeenCalledExactlyOnceWith('late-created');
+    expect(mocks.closeProjectSession).toHaveBeenCalledExactlyOnceWith('late-created');
     expect(mocks.initializeModTables).not.toHaveBeenCalled();
   });
   it('keeps the workspace closed after a created Mod overview scan arrives late', async () => {

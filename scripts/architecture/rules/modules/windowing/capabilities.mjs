@@ -36,7 +36,7 @@ export const windowsCapabilities = [
     {
       capability: 'window-lifecycle-guard',
       names: ['updateNativeWindowStatus'],
-      owners: [{ layer: 'app', role: 'composable', domain: 'dirty-window-close-guard' }],
+      owners: [{ layer: 'app', role: 'composable', domain: 'app-close-participant' }],
     },
     {
       capability: 'entity-window-identity',
@@ -97,11 +97,21 @@ export const windowsCapabilities = [
       },
       {
         capability: 'window-close-consume',
-        names: ['useWindowCloseState', 'useWindowLifecycleActions'],
+        names: ['useWindowCloseState', 'useWindowCloseRequest', 'useWindowCloseParticipant'],
         owners: [
           { layer: 'app', role: 'composable' },
           { layer: 'app', role: 'component' },
         ],
+      },
+    ],
+  ),
+  ...capabilities(
+    { path: 'src/app/composables/use-app-close-participant.ts', layer: 'app', role: 'composable', domain: 'app-close-participant' },
+    [
+      {
+        capability: 'app-close-assembly',
+        names: ['provideAppCloseActions', 'useAppCloseParticipant'],
+        owners: [{ layer: 'app', role: 'composable', domain: 'app-lifecycle-assembly' }],
       },
     ],
   ),
