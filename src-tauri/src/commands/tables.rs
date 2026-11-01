@@ -8,6 +8,13 @@ use crate::{
 };
 
 #[command_macros::command(async)]
+pub fn prepare_csv_associated_specs(
+    payload: crate::models::CsvAssociatedSpecsPayload,
+) -> Result<Vec<crate::models::AssociatedSpecPreparation>, AppError> {
+    services::prepare_csv_associated_specs(&payload.session_id, payload.table, &payload.changes)
+}
+
+#[command_macros::command(async)]
 pub fn query_csv_table_index(payload: CsvTableIndexPayload) -> Result<CsvTableIndex, AppError> {
     services::query_csv_table_index(
         &payload.session_id,

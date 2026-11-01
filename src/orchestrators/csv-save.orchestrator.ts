@@ -1,15 +1,7 @@
-import type {
-  AppFeedback,
-  AssociatedSpecChange,
-  CsvRowPatch,
-  CsvModState,
-  ProjectManifest,
-  CsvTableKey,
-  WindowIdentity,
-} from '@/shared/types';
+import type { AppFeedback, CsvRowPatch, CsvModState, ProjectManifest, CsvTableKey, WindowIdentity } from '@/shared/types';
 import { getAssociatedSpecCandidates } from '@/domain/csv-editor/associated-spec-candidates';
 import { isCsvDeletedRow } from '@/domain/csv-editor/csv-dirty';
-import { saveCsvPatch, captureAssociatedSpecTarget } from '@/services/csv-table.service';
+import { saveCsvPatch, prepareCsvAssociatedSpecs } from '@/services/csv-table.service';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useProjectStore } from '@/stores/project.store';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
@@ -24,8 +16,6 @@ import { isAbsoluteFsPath, joinRootRelativePath, normalizeFsPath } from '@/share
 
 import { reserveNativeWindowTargets, releaseNativeWindowTargets } from '@/services/window.service';
 
-import { focusEntityIdentityConflict } from '@/orchestrators/window-target-focus.orchestrator';
-
 export type CsvSaveResult = import('@/shared/runtime/document-editor').DocumentSaveResult;
 
 interface CapturedTableSaveTarget {
@@ -38,7 +28,7 @@ interface CapturedTableSaveTarget {
 interface TableSaveOptions {
   table: CsvTableKey;
   manifest: ProjectManifest | null;
-  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>;
+  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<import('@/shared/types').AssociatedSpecWrite[] | null>;
   feedback?: AppFeedback;
 }
 
@@ -87,46 +77,45 @@ async function saveTarget(target: CapturedTableSaveTarget, options: TableSaveOpt
   if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
   if (!captured.changed) return { status: 'noop' };
   const { submittedHistory, patches, originalRows, rowOrder, baseVersions, candidates } = captured;
-  const sourceTargets = new Map(
-    candidates.length > 0
-      ? await Promise.all(
-          candidates.map(
-            async (candidate) =>
-              [
-                candidate.key,
-                await captureAssociatedSpecTarget(manifest.sessionId, table, candidate.change).catch(async (error) => {
-                  await focusEntityIdentityConflict(manifest.sessionId, modRoot, error);
-                  throw error;
-                }),
-              ] as const,
-          ),
-        )
-      : [],
-  );
+  if (candidates.length) {
+    const prepared = await prepareCsvAssociatedSpecs(
+      manifest.sessionId,
+      table,
+      candidates.map((candidate) => candidate.change),
+    );
+    if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
+    candidates.forEach((candidate, index) => {
+      candidate.preparation = prepared[index]!;
+      candidate.mode = prepared[index]!.destination.version.fingerprint && !prepared[index]!.destination.problem ? 'read' : 'overwrite';
+    });
+  }
   const associatedSpecs = candidates.length > 0 ? await options.selectAssociatedSpecs(candidates) : [];
   if (associatedSpecs === null) return { status: 'cancelled' };
   if (!isTableSaveTargetCurrent(target)) return { status: 'noop' };
-  const writes = associatedSpecs.map((change) => {
+  const writes = associatedSpecs;
+  for (const write of writes) {
     const candidate = candidates.find(
-      (candidate) =>
-        candidate.change.action === change.action &&
-        (change.action === 'delete'
-          ? candidate.change.action === 'delete' && candidate.change.id === change.id
-          : candidate.change.action !== 'delete' && candidate.change.create.id === change.create.id),
+      (candidate) => candidate.change.action === write.change.action && candidate.preparation!.target.id === write.target.id,
     )!;
-    const source = sourceTargets.get(candidate.key)!;
-    for (const version of source.versions) if (!baseVersions.some((existing) => existing.path === version.path)) baseVersions.push(version);
-    return { change, target: source.target };
-  });
+    for (const version of candidate.preparation!.baseVersions)
+      if (!baseVersions.some((existing) => existing.path === version.path)) baseVersions.push(version);
+  }
   const reservations = writes.flatMap<WindowIdentity>((write) => {
     if (write.change.action === 'delete') return [];
-    const nextId = write.change.create.id;
-    const candidate = candidates.find((candidate) => candidate.change.action !== 'delete' && candidate.change.create.id === nextId)!;
-    const next = sourceTargets.get(candidate.key)!.nextWrite;
+    const next = write.resolution!.destination.location;
+    const identitiesToRemove =
+      write.change.action === 'rename' && write.resolution!.original?.location.source === 'mod'
+        ? [{ type: 'file' as const, sessionId: manifest.sessionId, modRoot, path: write.resolution!.original.location.path }]
+        : [];
     const identities: WindowIdentity[] = [{ type: 'file', sessionId: manifest.sessionId, modRoot, path: next.path }];
     if (write.target.kind === 'ship' || write.target.kind === 'weapon' || write.target.kind === 'system')
       identities.push({ type: 'spec', sessionId: manifest.sessionId, modRoot, kind: write.target.kind, id: write.change.create.id });
-    return identities;
+    if (
+      write.change.action === 'rename' &&
+      (write.target.kind === 'ship' || write.target.kind === 'weapon' || write.target.kind === 'system')
+    )
+      identities.push({ type: 'spec', sessionId: manifest.sessionId, modRoot, kind: write.target.kind, id: write.change.previousId });
+    return [...identities, ...identitiesToRemove];
   });
   if (reservations.length > 0) await reserveNativeWindowTargets(reservations);
   const operation = beginSavedWrite(

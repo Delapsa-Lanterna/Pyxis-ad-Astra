@@ -1,7 +1,7 @@
 import { useSaveCommandStore } from '@/stores/save-command.store';
 import { onMounted, onUnmounted, watch } from 'vue';
 import { useWindowCloseRequest } from './use-window-close-state';
-import type { AppFeedback, AssociatedSpecChange } from '@/shared/types';
+import type { AppFeedback, AssociatedSpecWrite } from '@/shared/types';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 import { removeLoadedModRuntime } from '@/orchestrators/workspace-lifecycle.orchestrator';
 import {
@@ -22,7 +22,7 @@ import { useProjectStore } from '@/stores/project.store';
 // window save events run once per application shell, never per page component.
 export function useWorkspaceShellLifecycle(
   feedback: AppFeedback,
-  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecChange[] | null>,
+  selectAssociatedSpecs: (candidates: AssociatedSpecCandidate[]) => Promise<AssociatedSpecWrite[] | null>,
 ) {
   useCsvSaveParticipants(feedback, selectAssociatedSpecs);
   const requestClose = useWindowCloseRequest();

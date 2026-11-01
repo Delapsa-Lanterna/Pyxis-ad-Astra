@@ -73,7 +73,7 @@ export const editorsCapabilities = [
     },
     {
       capability: 'table-identity-prepare',
-      names: ['captureAssociatedSpecTarget'],
+      names: ['prepareCsvAssociatedSpecs'],
       owners: [{ layer: 'orchestrators', domain: 'csv-save' }],
     },
     { capability: 'table-write', names: ['saveCsvPatch'], owners: [{ layer: 'orchestrators', domain: 'csv-save' }] },

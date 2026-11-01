@@ -88,16 +88,19 @@ fn rename(
                         is_comment: false,
                         insert_at: None,
                     }],
-                    associated_specs: vec![AssociatedSpecWrite {
-                        target: info.target,
-                        change: AssociatedSpecChange::Rename {
-                            previous_id: "old".into(),
-                            create: AssociatedSpecCreateParams::Ship {
-                                id: "new".into(),
-                                hull_name: "Old".into(),
+                    associated_specs: vec![
+                        crate::services::project::write::csv_patch::prepared_spec_write(
+                            &manifest.session_id,
+                            CsvTableKey::Ships,
+                            AssociatedSpecChange::Rename {
+                                previous_id: "old".into(),
+                                create: AssociatedSpecCreateParams::Ship {
+                                    id: "new".into(),
+                                    hull_name: "Old".into(),
+                                },
                             },
-                        },
-                    }],
+                        )?,
+                    ],
                     json_write: Default::default(),
                 }),
             )

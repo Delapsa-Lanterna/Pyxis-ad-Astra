@@ -2,7 +2,10 @@ use crate::{
     domain::entity_construction::{create_associated_spec, validate_weapon_spec_class},
     errors::{AppError, AppResult},
     io::{FileChangeSetBuilder, JsonWriteBatch, read_json_file},
-    models::{AssociatedSpecChange, AssociatedSpecCreateParams, CsvTableKey},
+    models::{
+        AssociatedSpecChange, AssociatedSpecCreateParams, AssociatedSpecMode,
+        AssociatedSpecResolution, CsvTableKey,
+    },
     services::project::definitions::entity_definitions::associated_spec_definition,
 };
 use serde_json::Value;
@@ -10,12 +13,15 @@ use std::path::Path;
 pub(in crate::services::project) struct StagedAssociatedSpec {
     pub identity: crate::models::EntityIdentityChange,
     pub description_rename: Option<super::descriptions::DescriptionRename>,
+    pub read_record: Option<super::super::super::sources::documents::LoadedSpecRecord>,
 }
 pub(in crate::services::project) fn stage_associated_spec(
+    session: &super::super::super::model::ProjectSession,
     builder: &mut FileChangeSetBuilder,
     table: CsvTableKey,
     change: &AssociatedSpecChange,
     target: &crate::models::EntityEditTarget,
+    resolution: Option<&AssociatedSpecResolution>,
     json: &mut JsonWriteBatch,
 ) -> AppResult<StagedAssociatedSpec> {
     let definition = associated_spec_definition(table).ok_or_else(|| {
@@ -32,104 +38,155 @@ pub(in crate::services::project) fn stage_associated_spec(
             "关联规格目标种类不属于本表",
         ));
     }
-    let rel_path = if matches!(change, AssociatedSpecChange::Rename { .. }) {
-        if target.state == crate::models::EntityTargetState::Existing {
-            crate::io::forward_slash_path(
-                &Path::new(&target.write.rel_path)
-                    .with_file_name(format!("{id}{}", definition.extension)),
-            )
-        } else {
-            definition.default_rel_path(id)
-        }
-    } else {
-        target.write.rel_path.clone()
-    };
+    let rel_path = resolution
+        .map(|resolution| resolution.destination.location.rel_path.clone())
+        .unwrap_or_else(|| target.write.rel_path.clone());
     let mut description_rename = None;
+    let mut read_record = None;
     match change {
-        AssociatedSpecChange::Create { create } => {
-            if target.id != id || target.state != crate::models::EntityTargetState::Create {
-                return Err(AppError::message("spec.target_exists", "关联规格已存在"));
-            }
-            if builder.root().join(&rel_path).exists() {
-                return Err(AppError::message(
-                    "spec.target_exists",
-                    format!("关联文件已存在: {rel_path}"),
-                ));
-            }
-            builder.text_file(rel_path, Some(default_associated_spec_text(table, create)?))?;
-        }
         AssociatedSpecChange::Delete { .. } => {
             builder.text_file(&target.write.rel_path, None)?;
         }
-        AssociatedSpecChange::Rename {
-            previous_id,
-            create,
-        } => {
-            if builder.root().join(&rel_path).exists()
+        AssociatedSpecChange::Create { create } | AssociatedSpecChange::Rename { create, .. } => {
+            let resolution = resolution.ok_or_else(|| {
+                AppError::message("spec.preparation_required", "请重新准备关联文件后保存")
+            })?;
+            definition.validate_rel_path(&rel_path, "关联规格目标路径无效")?;
+            if !crate::io::same_physical_path(
+                Path::new(&resolution.destination.location.root),
+                builder.root(),
+            ) {
+                return Err(AppError::message(
+                    "path.outside_root",
+                    "关联目标不属于当前 Mod",
+                ));
+            }
+            super::super::super::query::csv_associated_specs::verify_file(&resolution.destination)?;
+            let original = resolution.original.as_ref();
+            if let Some(original) = original {
+                let core_source = original.location.source == crate::models::ResourceSource::Core
+                    && session
+                        .manifest
+                        .starsector_root
+                        .as_ref()
+                        .map(|game| super::super::super::sources::core::core_dir(game))
+                        .transpose()?
+                        .is_some_and(|root| {
+                            crate::io::same_physical_path(&root, Path::new(&original.location.root))
+                        });
+                if original.location.source != crate::models::ResourceSource::Mod
+                    && !core_source
+                    && target.source.as_ref() != Some(&original.location)
+                {
+                    return Err(AppError::message(
+                        "spec.target_changed",
+                        "关联原文件来源已变化",
+                    ));
+                }
+                if original.location.source == crate::models::ResourceSource::Mod {
+                    definition
+                        .validate_rel_path(&original.location.rel_path, "关联原文件路径无效")?;
+                    if !crate::io::same_physical_path(
+                        Path::new(&original.location.root),
+                        builder.root(),
+                    ) {
+                        return Err(AppError::message(
+                            "path.outside_root",
+                            "原文件不属于当前 Mod",
+                        ));
+                    }
+                }
+                super::super::super::query::csv_associated_specs::verify_file(original)?;
+            }
+            let usable = original
+                .filter(|file| file.version.fingerprint.is_some() && file.problem.is_none());
+            if let Some(original) = usable.filter(|_| resolution.mode == AssociatedSpecMode::Read) {
+                let value = read_json_file(Path::new(&original.location.path))?;
+                if crate::models::file_content_id(
+                    &value,
+                    definition.id_field,
+                    Path::new(&original.location.path),
+                ) != target.id
+                {
+                    return Err(AppError::message(
+                        "spec.target_changed",
+                        "关联原文件 ID 已变化",
+                    ));
+                }
+            }
+            let mut moved = false;
+            if resolution.mode == AssociatedSpecMode::Read {
+                let value = read_json_file(&builder.root().join(&rel_path))?;
+                if !value.is_object()
+                    || crate::models::file_content_id(
+                        &value,
+                        definition.id_field,
+                        &builder.root().join(&rel_path),
+                    ) != id
+                {
+                    return Err(AppError::message(
+                        "spec.path_id_mismatch",
+                        "关联目标 ID 不匹配",
+                    ));
+                }
+                read_record = Some(super::super::super::sources::documents::LoadedSpecRecord {
+                    id: id.to_string(),
+                    location: resolution.destination.location.clone(),
+                    data: value,
+                });
+            } else {
+                let content = if let Some(original) = usable {
+                    let (text, rename) = rewrite_associated_spec_id(
+                        table,
+                        definition.id_field,
+                        Path::new(&original.location.path),
+                        &target.id,
+                        id,
+                        json,
+                    )?;
+                    description_rename = rename;
+                    text
+                } else {
+                    description_rename = super::descriptions::description_rename(
+                        target.kind,
+                        &target.id,
+                        id,
+                        &create_associated_spec(create),
+                    );
+                    default_associated_spec_text(table, create)?
+                };
+                // Separate destination replacement and source removal retain both snapshots for replay.
+                if let Some(original) = usable.filter(|file| {
+                    file.location.source == crate::models::ResourceSource::Mod
+                        && file.location.rel_path != rel_path
+                        && (resolution.destination.version.fingerprint.is_none()
+                            || crate::io::same_physical_path(
+                                Path::new(&file.location.path),
+                                &builder.root().join(&rel_path),
+                            ))
+                }) {
+                    builder.rename_text_file(&original.location.rel_path, &rel_path, content)?;
+                    moved = true;
+                } else {
+                    builder.text_file(&rel_path, Some(content))?;
+                }
+            }
+            if let Some(original) = original.filter(|file| {
+                file.location.source == crate::models::ResourceSource::Mod
+                    && file.version.fingerprint.is_some()
+            }) && !moved
                 && !crate::io::same_physical_path(
-                    &builder.root().join(&target.write.rel_path),
+                    Path::new(&original.location.path),
                     &builder.root().join(&rel_path),
                 )
             {
-                return Err(AppError::message(
-                    "spec.target_exists",
-                    format!("关联目标已存在: {rel_path}"),
-                ));
-            }
-            let previous_id = crate::domain::entity_identity::validate_entity_id(
-                previous_id,
-                definition.invalid_id_message,
-            )?;
-            if target.id != previous_id {
-                return Err(AppError::message(
-                    "spec.path_id_mismatch",
-                    "关联规格源身份不一致",
-                ));
-            }
-            let previous_rel_path = target.write.rel_path.clone();
-            let previous_full = builder.root().join(&previous_rel_path);
-            let content = if previous_full.exists() {
-                let (text, rename) = rewrite_associated_spec_id(
-                    table,
-                    definition.id_field,
-                    &previous_full,
-                    previous_id,
-                    id,
-                    json,
-                )?;
-                description_rename = rename;
-                text
-            } else {
-                description_rename = super::descriptions::description_rename(
-                    target.kind,
-                    previous_id,
-                    id,
-                    &create_associated_spec(create),
-                );
-                default_associated_spec_text(table, create)?
-            };
-            if previous_full.exists() {
-                builder.rename_text_file(&previous_rel_path, &rel_path, content)?;
-            } else {
-                builder.text_file(definition.default_rel_path(id), Some(content))?;
+                builder.text_file(&original.location.rel_path, None)?;
             }
         }
     }
-    let definition = associated_spec_definition(table).expect("associated format exists");
     let mut next = target.clone();
     next.id = change.id().to_string();
-    next.write.rel_path = if target.state == crate::models::EntityTargetState::Existing
-        && matches!(change, AssociatedSpecChange::Rename { .. })
-    {
-        crate::io::forward_slash_path(
-            &Path::new(&target.write.rel_path)
-                .with_file_name(format!("{}{}", next.id, definition.extension)),
-        )
-    } else if matches!(change, AssociatedSpecChange::Delete { .. }) {
-        target.write.rel_path.clone()
-    } else {
-        definition.default_rel_path(&next.id)
-    };
+    next.write.rel_path = rel_path;
     next.write.path = builder
         .root()
         .join(&next.write.rel_path)
@@ -149,7 +206,38 @@ pub(in crate::services::project) fn stage_associated_spec(
             after: next,
         },
         description_rename,
+        read_record,
     })
+}
+
+pub(in crate::services::project) fn accept_read_record(
+    session: &mut super::super::super::model::ProjectSession,
+    kind: crate::models::EntityKind,
+    record: super::super::super::sources::documents::LoadedSpecRecord,
+) {
+    let records = match kind {
+        crate::models::EntityKind::Ship => &mut session.ship_files,
+        crate::models::EntityKind::Weapon => &mut session.weapon_specs,
+        crate::models::EntityKind::System => &mut session.system_files,
+        crate::models::EntityKind::Skill => &mut session.skill_files,
+        _ => unreachable!("associated spec kind"),
+    };
+    std::sync::Arc::make_mut(records).insert(record.id.clone(), record);
+    match kind {
+        crate::models::EntityKind::Ship => {
+            session.manifest.entity_summaries.ships = session.ship_files.len()
+        }
+        crate::models::EntityKind::Weapon => {
+            session.manifest.entity_summaries.weapons = session.weapon_specs.len()
+        }
+        crate::models::EntityKind::System => {
+            session.manifest.entity_summaries.systems = session.system_files.len()
+        }
+        crate::models::EntityKind::Skill => {
+            session.manifest.entity_summaries.skills = session.skill_files.len()
+        }
+        _ => unreachable!("associated spec kind"),
+    }
 }
 
 fn default_associated_spec_text(
@@ -182,7 +270,7 @@ fn rewrite_associated_spec_id(
         new_id,
         &value,
     );
-    if value.get(id_field).and_then(Value::as_str) != Some(previous_id) {
+    if crate::models::file_content_id(&value, id_field, path) != previous_id {
         return Err(AppError::message(
             "spec.path_id_mismatch",
             format!("关联规格源 ID 已变化: {}", path.display()),

@@ -107,6 +107,9 @@ export type { FileHistoryEntrySummary, FileHistorySnapshot, FileReplay, FileHist
 export type {
   AssociatedSpecChange,
   AssociatedSpecWrite,
+  AssociatedSpecFile,
+  AssociatedSpecPreparation,
+  AssociatedSpecResolution,
   AssociatedSpecCreateParams,
   CsvRowPatch,
   CsvRowPatchAction,

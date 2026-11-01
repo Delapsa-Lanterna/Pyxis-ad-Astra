@@ -1,5 +1,5 @@
 import type * as T from '@/shared/types';
-import type { WorkspaceProject } from './game-project';
+import type { WorkspaceProject, GameSource } from './game-project';
 import { coreRoot, gameImages, gameTablePaths } from './game-files';
 import { renderGameCsv } from './game-format';
 import { CONFIG_OPTION_SOURCES, isConfigSource } from '@/domain/schema/schema-sources';
@@ -7,6 +7,7 @@ import { parseCsvSource } from '@/domain/schema/csv-source-options';
 import { createShipSpec, createSystemSpec, createSkillSpec } from '@/domain/entity-write/spec-construction';
 import { createWeaponSpec } from '@/domain/entity-write/spec-construction';
 import { miscConfigDefinition } from '@/domain/misc-config';
+import { entityTargetFixture } from '../fixtures/entity-target';
 const iconFields: Partial<Record<T.CsvTableKey, string>> = {
   hullmods: 'sprite',
   shipSystems: 'icon',
@@ -22,6 +23,7 @@ export const gameCommands = new Set([
   'query_csv_table_index',
   'query_csv_table_rows',
   'save_csv_patch',
+  'prepare_csv_associated_specs',
   'query_hull_references',
   'query_resource_data_urls',
   'query_csv_row_preview',
@@ -171,9 +173,124 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       baseVersions: [project.version(path)],
     };
   }
+  if (command === 'prepare_csv_associated_specs') {
+    const table = payload.table as T.CsvTableKey;
+    return (payload.changes as T.AssociatedSpecChange[]).map((change): T.AssociatedSpecPreparation => {
+      const kind = table === 'ships' ? 'ship' : table === 'weapons' ? 'weapon' : table === 'skills' ? 'skill' : 'system';
+      const locate = (owner: GameSource, expected: string) => {
+        const location = structuredClone(
+          owner.entities.get(owner.entityKey(kind, expected))?.target.source ??
+            entityTargetFixture(kind, expected, 'create', owner.manifest.modRoot).write,
+        );
+        for (const [path, text] of owner.textFiles)
+          if (path.endsWith('.' + location.relPath.split('.').at(-1))) {
+            try {
+              if (JSON.parse(text)[kind === 'ship' ? 'hullId' : 'id'] === expected) {
+                location.path = path;
+                location.relPath = path.slice(location.root.length + 1);
+                break;
+              }
+            } catch {
+              continue;
+            }
+          }
+        if (owner !== project) {
+          location.source = owner.manifest.modRoot === coreRoot ? 'core' : 'reference';
+          if (location.source === 'reference')
+            location.reference = { sessionId: owner.manifest.sessionId, modRoot: owner.manifest.modRoot };
+        }
+        return location;
+      };
+      const id = change.action === 'rename' ? change.previousId : change.action === 'delete' ? change.id : change.create.id;
+      const source = project
+        .sources()
+        .map((source) => source.entities.get(source.entityKey(kind, id)))
+        .find(Boolean);
+      const target = structuredClone(source?.target ?? entityTargetFixture(kind, id, 'create', project.manifest.modRoot));
+      if (target.write.root !== project.manifest.modRoot) {
+        target.state = 'create';
+        target.write = entityTargetFixture(kind, id, 'create', project.manifest.modRoot).write;
+      }
+      const inspect = (location: T.EntityFileLocation, expected: string): T.AssociatedSpecFile => {
+        const owner = project.sources().find((source) => source.manifest.modRoot === location.root)!;
+        const text = owner.textFiles.get(location.path);
+        let problem: string | null = null;
+        try {
+          const data = JSON.parse(text!);
+          if ((data[kind === 'ship' ? 'hullId' : 'id'] ?? location.path.split('/').at(-1)!.split('.')[0]) !== expected)
+            problem = '文件 ID 不匹配';
+        } catch (error) {
+          problem = text === undefined ? '文件不存在' : String(error);
+        }
+        return { location, version: { path: location.path, fingerprint: text ?? null }, problem };
+      };
+      const sourceOwner = project.sources().find((owner) => owner.textFiles.has(locate(owner, id).path)) ?? project;
+      const original = change.action === 'rename' ? inspect(locate(sourceOwner, id), id) : null;
+      const next = change.action === 'delete' ? change.id : change.create.id;
+      const existing = project.entities.get(project.entityKey(kind, next));
+      const destination = locate(project, next);
+      if (!existing && !project.textFiles.has(destination.path) && original?.location.source === 'mod') {
+        destination.relPath = original.location.relPath.replace(/[^/]+$/, next + '.' + original.location.relPath.split('.').at(-1));
+        destination.path = destination.root + '/' + destination.relPath;
+      }
+      const file = inspect(destination, next);
+      return {
+        target,
+        original,
+        destination: file,
+        baseVersions: [
+          project.version(project.manifest.modRoot + '/' + gameTablePaths[table]),
+          ...(original?.location.source === 'mod' ? [original.version] : []),
+          file.version,
+        ],
+      };
+    });
+  }
   if (command === 'save_csv_patch') {
     const input = payload as unknown as T.CsvSave,
       table = project.tables.get(input.table)!;
+    for (const { resolution } of input.associatedSpecs ?? [])
+      for (const file of resolution
+        ? [resolution.original, resolution.destination].filter((file): file is T.AssociatedSpecFile => Boolean(file))
+        : []) {
+        const owner = project.sources().find((source) => source.manifest.modRoot === file.location.root)!;
+        if ((owner.textFiles.get(file.location.path) ?? null) !== file.version.fingerprint) throw new Error('关联文件已变化，请重新保存');
+      }
+    const descriptions = structuredClone(project.tables.get('descriptions')!);
+    let renamedDescription = false;
+    for (const { change, resolution } of input.associatedSpecs)
+      if (change.action === 'rename' && resolution?.mode === 'overwrite' && ['ships', 'weapons'].includes(input.table)) {
+        const original = resolution.original;
+        const source =
+          original?.version.fingerprint && !original.problem
+            ? JSON.parse(
+                project
+                  .sources()
+                  .find((owner) => owner.manifest.modRoot === original.location.root)!
+                  .textFiles.get(original.location.path)!,
+              )
+            : {};
+        if (input.table === 'ships' && 'descriptionId' in source) continue;
+        const type = input.table === 'ships' ? 'SHIP' : 'WEAPON';
+        const coreRows =
+          project
+            .sources()
+            .find((owner) => owner.manifest.modRoot === coreRoot)
+            ?.tables.get('descriptions')?.rows ?? [];
+        let row = descriptions.rows.find((row) => row.data.id === change.previousId && row.data.type === type);
+        if (!row) {
+          const inherited = coreRows.find((row) => row.data.id === change.previousId && row.data.type === type);
+          if (inherited) {
+            row = structuredClone(inherited);
+            descriptions.rows.push(row);
+          }
+        }
+        if (!row) continue;
+        if ([...descriptions.rows, ...coreRows].some((row) => row.data.id === change.create.id && row.data.type === type))
+          throw new Error('描述 ID 已存在');
+        row.data.id = change.create.id;
+        renamedDescription = true;
+      }
     for (const patch of input.patches) {
       const index = table.rows.findIndex((row) => row.rowKey === patch.rowKey);
       if (patch.action === 'delete') table.rows.splice(index, 1);
@@ -190,19 +307,30 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       }
     });
     const path = project.manifest.modRoot + '/' + gameTablePaths[input.table];
-    for (const { change, target } of input.associatedSpecs ?? []) {
-      if (change.action === 'delete' || change.action === 'rename') project.textFiles.delete(target.source?.path ?? target.write.path);
+    for (const { change, target, resolution } of input.associatedSpecs ?? []) {
+      if (change.action === 'delete') project.textFiles.delete(target.write.path);
       if (change.action !== 'delete') {
+        const plan = resolution!;
         const params = change.create;
-        const data =
-          params.kind === 'ship'
+        const original = plan.original?.version.fingerprint && !plan.original.problem ? plan.original : null;
+        const data = original
+          ? JSON.parse(
+              project
+                .sources()
+                .find((source) => source.manifest.modRoot === original.location.root)!
+                .textFiles.get(original.location.path)!,
+            )
+          : params.kind === 'ship'
             ? createShipSpec(params.id, params.hullName)
             : params.kind === 'weapon'
               ? createWeaponSpec(params.id, params.specClass)
               : params.kind === 'skill'
                 ? createSkillSpec(params.id)
                 : createSystemSpec(params.id);
-        project.textFiles.set(target.write.path, JSON.stringify(data, null, 2) + '\n');
+        data[params.kind === 'ship' ? 'hullId' : 'id'] = params.id;
+        if (plan.mode === 'overwrite') project.textFiles.set(plan.destination.location.path, JSON.stringify(data, null, 2) + '\n');
+        if (plan.original?.location.source === 'mod' && plan.original.location.path !== plan.destination.location.path)
+          project.textFiles.delete(plan.original.location.path);
       }
     }
     project.textFiles.set(
@@ -213,9 +341,24 @@ export function gameQuery(project: WorkspaceProject, command: string, payload: R
       ),
     );
     table.rows = rows;
+    if (renamedDescription)
+      project.textFiles.set(
+        project.manifest.modRoot + '/' + gameTablePaths.descriptions,
+        renderGameCsv(
+          descriptions.header,
+          descriptions.rows.map((row) => Object.fromEntries(Object.entries(row.data).map(([key, value]) => [key, String(value ?? '')]))),
+        ),
+      );
     const result = project.write(null, { kind: 'csv', table: input.table }, [
       path,
-      ...(input.associatedSpecs ?? []).map(({ target }) => target.write.path),
+      ...(input.associatedSpecs ?? []).flatMap(({ target, resolution }) =>
+        resolution
+          ? [
+              resolution.destination.location.path,
+              ...(resolution.original?.location.source === 'mod' ? [resolution.original.location.path] : []),
+            ]
+          : [target.write.path],
+      ),
     ]);
     result.keyMap = keyMap;
     return result;

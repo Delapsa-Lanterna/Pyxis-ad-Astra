@@ -11,6 +11,7 @@ import { createSettingsFixture } from '@/test/fixtures/settings';
 import { savedWriteFixture } from '@/test/fixtures/write-result';
 import { useCsvEditorActions } from './use-csv-editor-actions';
 import { mountSetup } from '@/test/unit/mount-setup';
+import { entityTargetFixture } from '@/test/fixtures/entity-target';
 
 enableAutoUnmount(afterEach);
 
@@ -32,6 +33,44 @@ function feedbackStub(): AppFeedback {
 }
 
 describe('CSV editor actions', () => {
+  it('switches prepared choices without reading again and returns one batch or cancels', async () => {
+    const feedback = feedbackStub();
+    const { value: actions } = mountSetup(() => useCsvEditorActions(feedback));
+    const target = entityTargetFixture('weapon', 'prepared');
+    const file = { location: target.write, version: { path: target.write.path, fingerprint: 'base' }, problem: null };
+    vi.mocked(feedback.choose).mockImplementationOnce(async (options) => {
+      const content = options.content as () => import('vue').VNode;
+      const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
+      try {
+        await flushPromises();
+        expect(wrapper.text()).toContain(target.write.path);
+        const selections = () => wrapper.findAllComponents(AppSelect).map((select) => select.findComponent(NSelect));
+        expect(selections()[0]!.props('value')).toBe('read');
+        expect(selections()).toHaveLength(2);
+        selections()[0]!.vm.$emit('update:value', 'overwrite');
+        await flushPromises();
+        expect(selections()[0]!.props('value')).toBe('overwrite');
+        expect(selections()).toHaveLength(3);
+        wrapper.findAllComponents(NCheckbox)[1]!.vm.$emit('update:checked', false);
+      } finally {
+        wrapper.unmount();
+      }
+      return 'save';
+    });
+    const choices = ['prepared', 'other'].map((key) => ({
+      key,
+      table: 'weapons' as const,
+      label: key,
+      mode: 'read' as const,
+      preparation: { target, baseVersions: [file.version], original: null, destination: file },
+      change: { action: 'create' as const, create: { kind: 'weapon' as const, id: key, specClass: 'beam' as const } },
+    }));
+    expect(await actions.selectAssociatedSpecs(choices)).toMatchObject([
+      { change: { create: { id: 'prepared' } }, resolution: { mode: 'overwrite' } },
+    ]);
+    expect(feedback.choose).toHaveBeenCalledTimes(1);
+    expect(await actions.selectAssociatedSpecs(choices)).toBeNull();
+  });
   beforeEach(() => {
     setActivePinia(createPinia());
     initializeSettingsStore(createSettingsFixture());
@@ -57,7 +96,7 @@ describe('CSV editor actions', () => {
       const wrapper = mount({ render: content }, { global: { plugins: [installNaiveUi] } });
       try {
         await flushPromises();
-        const select = wrapper.findComponent(AppSelect).findComponent(NSelect);
+        const select = wrapper.findAllComponents(AppSelect).at(-1)!.findComponent(NSelect);
         select.vm.$emit('update:value', 'beam');
         wrapper.findAllComponents(NCheckbox)[1]!.vm.$emit('update:checked', false);
         await flushPromises();
@@ -73,10 +112,23 @@ describe('CSV editor actions', () => {
         table: 'weapons',
         label: '创建武器',
         change: { action: 'create', create: { kind: 'weapon', id: 'weapon', specClass: 'projectile' } },
+        mode: 'overwrite',
+        preparation: {
+          target: entityTargetFixture('weapon', 'weapon', 'create'),
+          baseVersions: [],
+          original: null,
+          destination: {
+            location: entityTargetFixture('weapon', 'weapon', 'create').write,
+            version: { path: 'M:/mod/data/weapons/weapon.wpn', fingerprint: null },
+            problem: 'missing',
+          },
+        },
       },
       { key: 'delete', table: 'weapons', label: '删除武器', change: { action: 'delete', id: 'old' } },
     ]);
-    expect(chosen).toEqual([{ action: 'create', create: { kind: 'weapon', id: 'weapon', specClass: 'beam' } }]);
+    expect(chosen).toMatchObject([
+      { change: { action: 'create', create: { kind: 'weapon', id: 'weapon', specClass: 'beam' } }, resolution: { mode: 'overwrite' } },
+    ]);
   });
 
   it('cancels the associated actions when the confirmation is dismissed', async () => {

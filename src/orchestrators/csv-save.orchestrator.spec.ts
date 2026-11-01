@@ -14,11 +14,18 @@ const completeSavedWrite = vi.hoisted(() => vi.fn<(completion: unknown) => Promi
 vi.mock('@/services/csv-table.service', async () => ({
   ...(await vi.importActual('@/services/csv-table.service')),
   saveCsvPatch: writeCsvPatch,
-  captureAssociatedSpecTarget: vi.fn(async (_session: string, _table: string, change: AssociatedSpecChange) => {
-    const id = change.action === 'rename' ? change.previousId : change.action === 'delete' ? change.id : change.create.id;
-    const target = entityTargetFixture('ship', id);
-    return { target, nextWrite: target.write, versions: [] };
-  }),
+  prepareCsvAssociatedSpecs: vi.fn(async (_session: string, _table: string, changes: AssociatedSpecChange[]) =>
+    changes.map((change) => {
+      const id = change.action === 'rename' ? change.previousId : change.action === 'delete' ? change.id : change.create.id;
+      const target = entityTargetFixture('ship', id);
+      return {
+        target,
+        baseVersions: [],
+        original: null,
+        destination: { location: target.write, version: { path: target.write.path, fingerprint: null }, problem: 'missing' },
+      };
+    }),
+  ),
 }));
 vi.mock('@/services/window.service', () => ({
   reserveNativeWindowTargets: vi.fn(async () => {}),
@@ -38,6 +45,7 @@ import { useProjectStore } from '@/stores/project.store';
 import { useCsvEditorStore } from '@/stores/csv-editor.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { saveCsvChanges } from '@/orchestrators/csv-save.orchestrator';
+import { prepareCsvAssociatedSpecs } from '@/services/csv-table.service';
 import { ref } from 'vue';
 import type { AssociatedSpecCandidate } from '@/domain/csv-editor/associated-spec-candidates';
 
@@ -113,6 +121,61 @@ function hydrateActiveTable() {
 }
 
 describe('table-save orchestrator', () => {
+  it('ends a late preparation when its captured session is removed', async () => {
+    const manifest = buildManifest({ associatedSpecTables: ['ships'] });
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    markCsvTableSavedDraft(state.documents.ships);
+    useCsvEditorStore().updateCellValue(
+      { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships', rowKey: 'ships:r1', column: 'id' },
+      'changed',
+    );
+    let finish!: (value: import('@/shared/types').AssociatedSpecPreparation[]) => void;
+    vi.mocked(prepareCsvAssociatedSpecs).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const select = vi.fn(async () => []);
+    const writes = writeCsvPatch.mock.calls.length;
+    const pending = saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: select });
+    useProjectStore().manifests.delete(MOD_ROOT);
+    finish([]);
+    expect(await pending).toMatchObject({ status: 'noop' });
+    expect(select).toHaveBeenCalledTimes(0);
+    expect(writeCsvPatch).toHaveBeenCalledTimes(writes);
+  });
+  it.each(['cancel', 'csv', 'read', 'overwrite'] as const)('prepares one batch and applies %s only once', async (choice) => {
+    vi.mocked(prepareCsvAssociatedSpecs).mockClear();
+    writeCsvPatch.mockClear();
+    const manifest = buildManifest({ associatedSpecTables: ['ships'] });
+    useProjectStore().manifests.set(MOD_ROOT, manifest);
+    const state = hydrateActiveTable();
+    markCsvTableSavedDraft(state.documents.ships);
+    useCsvEditorStore().updateCellValue(
+      { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships', rowKey: 'ships:r1', column: 'id' },
+      'submitted',
+    );
+    if (choice !== 'cancel') writeCsvPatch.mockResolvedValueOnce(writeResult());
+    const select = vi.fn(async (candidates: AssociatedSpecCandidate[]) =>
+      choice === 'cancel'
+        ? null
+        : choice === 'csv'
+          ? []
+          : candidates.map((candidate) => ({
+              change: candidate.change,
+              target: candidate.preparation!.target,
+              resolution: { mode: choice, original: null, destination: candidate.preparation!.destination },
+            })),
+    );
+    await saveCsvChanges({ table: 'ships', manifest, selectAssociatedSpecs: select });
+    expect(prepareCsvAssociatedSpecs).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(writeCsvPatch).toHaveBeenCalledTimes(choice === 'cancel' ? 0 : 1);
+    if (choice === 'csv') expect(writeCsvPatch.mock.lastCall![4]).toEqual([]);
+    if (choice === 'cancel') expect(useCsvEditorStore().hasCurrentTableChanges).toBe(true);
+  });
   beforeEach(() => setActivePinia(createPinia()));
 
   it.each(['none', 'undo', 'edit', 'create', 'delete'] as const)(
@@ -485,7 +548,7 @@ describe('table-save orchestrator', () => {
     const tables = useCsvEditorStore();
     const cellTarget = { sessionId: SESSION_ID, modRoot: MOD_ROOT, table: 'ships' as const, rowKey: 'ships:r1', column: 'id' };
     tables.updateCellValue(cellTarget, 'submitted');
-    let release!: (selection: AssociatedSpecChange[]) => void;
+    let release!: (selection: import('@/shared/types').AssociatedSpecWrite[]) => void;
     let candidates!: AssociatedSpecCandidate[];
     const saving = saveCsvChanges({
       table: 'ships',
@@ -503,7 +566,13 @@ describe('table-save orchestrator', () => {
     await flushPromises();
     expect(candidates[0]?.change).toMatchObject({ create: { id: 'submitted' } });
     writeCsvPatch.mockResolvedValueOnce(writeResult());
-    release(candidates.map((candidate) => candidate.change));
+    release(
+      candidates.map((candidate) => ({
+        change: candidate.change,
+        target: candidate.preparation!.target,
+        resolution: { mode: 'overwrite', original: null, destination: candidate.preparation!.destination },
+      })),
+    );
     await saving;
     const call = writeCsvPatch.mock.calls.at(-1)!;
     expect(call[3][0].row.id).toBe('submitted');

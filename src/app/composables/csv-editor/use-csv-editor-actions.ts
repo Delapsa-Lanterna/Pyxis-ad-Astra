@@ -46,7 +46,18 @@ export function useCsvEditorActions(feedback: AppFeedback) {
   async function selectAssociatedSpecs(candidates: AssociatedSpecCandidate[]) {
     const { default: AssociatedSpecSaveDialog } = await import('@/app/components/AssociatedSpecSaveDialog.vue');
     const choices = ref(candidates);
-    const selectedKeys = ref(new Set(candidates.map((candidate) => candidate.key)));
+    const selectedKeys = ref(
+      new Set(
+        candidates
+          .filter(
+            (candidate) =>
+              !candidate.preparation?.destination.version.fingerprint ||
+              !candidate.preparation.destination.problem ||
+              (candidate.preparation.original?.version.fingerprint && !candidate.preparation.original.problem),
+          )
+          .map((candidate) => candidate.key),
+      ),
+    );
     const choice = await feedback.choose({
       title: '保存 CSV',
       content: () =>
@@ -64,7 +75,20 @@ export function useCsvEditorActions(feedback: AppFeedback) {
       choices: [{ label: '保存', value: 'save', type: 'primary' }],
     });
     if (choice !== 'save') return null;
-    return choices.value.filter((candidate) => selectedKeys.value.has(candidate.key)).map((candidate) => candidate.change);
+    return choices.value
+      .filter((candidate) => selectedKeys.value.has(candidate.key))
+      .map((candidate) => ({
+        change: candidate.change,
+        target: candidate.preparation!.target,
+        resolution:
+          candidate.change.action === 'delete'
+            ? null
+            : {
+                mode: candidate.mode!,
+                original: candidate.preparation!.original,
+                destination: candidate.preparation!.destination,
+              },
+      }));
   }
 
   const undoCurrentTableEdit = () => replay('undo');

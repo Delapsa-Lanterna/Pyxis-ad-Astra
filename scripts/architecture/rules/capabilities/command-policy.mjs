@@ -50,7 +50,12 @@ export const commandOwners = {
   'src/services/resource-reference.service.ts': ['resolve_mod_relative_path', 'query_draft_resources'],
   'src/services/engine-assets.service.ts': ['query_engine_render_assets'],
   'src/services/entity-query.service.ts': ['query_entity', 'query_entity_edit_target', 'query_entity_identity_intent', 'query_entity_list'],
-  'src/services/csv-table.service.ts': ['query_csv_table_index', 'query_csv_table_rows', 'query_csv_row_preview'],
+  'src/services/csv-table.service.ts': [
+    'query_csv_table_index',
+    'query_csv_table_rows',
+    'query_csv_row_preview',
+    'prepare_csv_associated_specs',
+  ],
   'src/services/files.service.ts': ['load_editable_file', 'query_text_identity_intent', 'follow_text_identity'],
   'src/services/spec-editor.service.ts': ['load_imported_editor_spec_file'],
   'src/services/json-recovery.service.ts': ['prepare_json_source_recovery'],

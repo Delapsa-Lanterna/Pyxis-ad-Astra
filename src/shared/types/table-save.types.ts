@@ -14,6 +14,26 @@ export type AssociatedSpecChange =
 export interface AssociatedSpecWrite {
   change: AssociatedSpecChange;
   target: import('@/shared/types/project-identity.types').EntityEditTarget;
+  resolution: AssociatedSpecResolution | null;
+}
+
+export interface AssociatedSpecFile {
+  location: import('@/shared/types/project-identity.types').EntityFileLocation;
+  version: import('@/shared/types/project-identity.types').FileVersion;
+  problem: string | null;
+}
+
+export interface AssociatedSpecPreparation {
+  target: import('@/shared/types/project-identity.types').EntityEditTarget;
+  baseVersions: import('@/shared/types/project-identity.types').FileVersion[];
+  original: AssociatedSpecFile | null;
+  destination: AssociatedSpecFile;
+}
+
+export interface AssociatedSpecResolution {
+  mode: 'read' | 'overwrite';
+  original: AssociatedSpecFile | null;
+  destination: AssociatedSpecFile;
 }
 
 export type CsvRowPatchAction = 'upsert' | 'delete';

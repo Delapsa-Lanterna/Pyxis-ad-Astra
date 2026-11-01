@@ -1,3 +1,4 @@
+pub(in crate::services) mod csv_associated_specs;
 pub(in crate::services) mod csv_window;
 pub(in crate::services) mod entities;
 pub(in crate::services) mod entity_targets;

@@ -380,6 +380,7 @@ export function createBrowserWorkspace(systemTheme: T.AppTheme = 'light') {
         return;
       case 'query_csv_table_index':
       case 'query_csv_table_rows':
+      case 'prepare_csv_associated_specs':
       case 'save_csv_patch':
         result = gameQuery(receiver, command, payload);
         break;

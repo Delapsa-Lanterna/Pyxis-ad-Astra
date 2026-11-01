@@ -10,6 +10,7 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 
 - `src-tauri/src/commands/tables.rs`：CSV 读取与 patch command。
 - `src-tauri/src/services/project/definitions/table_definitions.rs`：表格实体列、摘要、图标及来源选项映射。
+- `src-tauri/src/services/project/query/csv_associated_specs.rs`：关联文件批量准备、实际来源与匹配版本。
 - `src-tauri/src/services/project/query/csv_window.rs`：CSV 窗口行、搜索与单行预览查询。
 - `src-tauri/src/services/project/write/csv_patch.rs`：CSV patch、关联规格、行键及同根 changeset 装配。
 - `src/app/components/AssociatedSpecSaveDialog.vue`：关联规格选择与武器创建类型的异步确认内容。
@@ -161,10 +162,10 @@ CSV 文档编辑模块管理整表文件的领域规则、运行态、展示、�
 ### 提交保存
 
 1. 目标为空或已有表无 dirty 时返回 noop；缺表首次保存消费已有准备表头；同文档的排队及进行中保存由同一请求表达。
-2. app 层选择回调按需加载确认内容，经所属反馈入口展示可滚动的关联候选，武器创建类型提供 projectile 与 beam 调整，确认与取消返回本次选择结果。
+2. 关联文件批量准备读取原文件、目标、问题与匹配版本，app 层在同一确认窗口逐项选择读取、覆盖或仅保存 CSV，有效已有目标默认读取；模板创建的武器提供 projectile 与 beam 调整。
 3. 编排复核目标并消费同一快照中的 patches、关联动作与版本。
 4. 调用排他写提交 patches 与关联动作。
-5. 后端校验 session/root 与关联种类，按创建参数构造规格或解析已有来源更新 ID，构建并应用原子 changeset。
+5. 后端复核确认目标与文件版本，读取保留目标原文，覆盖优先采用有效原文件并更新 ID、缺少时消费默认模板；改名移除本地旧文件，CSV 与文件共同进入原子 changeset。
 6. 返回写结果、`rowKey` map 与结构化失效。
 
 ### 保存后接纳

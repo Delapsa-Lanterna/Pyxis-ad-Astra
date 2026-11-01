@@ -16,14 +16,11 @@ import type {
   DeepReadonly,
 } from '@/shared/types';
 
-import { querySessionEntityEditTarget, querySessionEntityIdentityIntent } from '@/services/entity-query.service';
 import { invokeCommand, invokeSaveCommand } from '@/shared/runtime/command.runtime';
 import { CachedSessionQuery, readLiveSessionQuery, type SessionQueryDefinition } from '@/services/query-cache.service';
 import type { ProjectInvalidation } from '@/shared/types';
 import { queryResourceDataUrls } from '@/services/resource-media.service';
 
-import { associatedSpecKind } from '@/domain/csv-editor/associated-specs';
-import { cloneQuerySnapshot } from '@/shared/lib/query-snapshot';
 import { captureSaveEdits } from '@/domain/project/save-edits';
 
 const readTableIndex = new CachedSessionQuery<Omit<CsvTableIndexPayload, 'sessionId'>, CsvTableIndex>({
@@ -94,22 +91,10 @@ export function saveCsvPatch(
   );
 }
 
-export async function captureAssociatedSpecTarget(sessionId: string, table: CsvTableKey, change: AssociatedSpecChange) {
-  const kind = associatedSpecKind(table)!;
-  const sourceId = change.action === 'rename' ? change.previousId : change.action === 'delete' ? change.id : change.create.id;
-  const nextId = change.action === 'delete' ? change.id : change.create.id;
-  const info = cloneQuerySnapshot<import('@/shared/types').EntityEditInfo>(await querySessionEntityEditTarget(sessionId, kind, sourceId));
-  const intent =
-    change.action === 'delete'
-      ? null
-      : cloneQuerySnapshot<import('@/shared/types').EntityIdentityIntent>(
-          await querySessionEntityIdentityIntent(sessionId, info.target, nextId),
-        );
-  return {
-    target: info.target,
-    nextWrite: intent?.nextWrite ?? info.target.write,
-    versions: [...info.baseVersions, ...(intent ? [intent.destinationVersion] : [])],
-  };
+export function prepareCsvAssociatedSpecs(sessionId: string, table: CsvTableKey, changes: AssociatedSpecChange[]) {
+  return invokeCommand<import('@/shared/types').AssociatedSpecPreparation[]>('prepare_csv_associated_specs', {
+    payload: { sessionId, table, changes },
+  });
 }
 
 export function queryTableIndex(

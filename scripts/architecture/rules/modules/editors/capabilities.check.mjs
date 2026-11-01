@@ -4,6 +4,12 @@ const cases = [
   ['config-write', 'src/orchestrators/json-save.orchestrator.ts', 'src/services/json-entity.service.ts', 'saveModInfo'],
   ['definition-write', 'src/orchestrators/json-save.orchestrator.ts', 'src/services/json-file.service.ts', 'saveVariantEntity'],
   ['table-write', 'src/orchestrators/csv-save.orchestrator.ts', 'src/services/csv-table.service.ts', 'saveCsvPatch'],
+  [
+    'table-identity-prepare',
+    'src/orchestrators/csv-save.orchestrator.ts',
+    'src/services/csv-table.service.ts',
+    'prepareCsvAssociatedSpecs',
+  ],
   ['spec-write', 'src/services/spec-editor.service.ts', 'src/services/spec-editor.service.ts', 'saveSpecEditorSpec'],
   ['text-write', 'src/app/composables/use-file-editor-view-model.ts', 'src/services/files.service.ts', 'writeEditableFileText'],
   ['text-transcode', 'src/app/app-feedback-assembly.ts', 'src/services/files.service.ts', 'transcodeFileToUtf8'],

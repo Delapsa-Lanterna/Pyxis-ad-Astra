@@ -23,6 +23,7 @@ pub mod windows;
 pub mod workspace_persistence;
 pub mod write_transactions;
 
+pub(crate) use project::query::csv_associated_specs::prepare_csv_associated_specs;
 #[cfg(test)]
 pub(crate) use project::query::csv_window::query_csv_table_window;
 pub(crate) use project::query::csv_window::read_project_csv;

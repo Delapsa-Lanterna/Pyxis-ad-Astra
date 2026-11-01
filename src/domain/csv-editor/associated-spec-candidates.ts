@@ -8,6 +8,8 @@ export interface AssociatedSpecCandidate {
   table: CsvTableKey;
   label: string;
   change: AssociatedSpecChange;
+  preparation?: import('@/shared/types').AssociatedSpecPreparation;
+  mode?: 'read' | 'overwrite';
 }
 
 export function getAssociatedSpecCandidates(state: CsvTableState, associatedSpecTables: readonly CsvTableKey[]): AssociatedSpecCandidate[] {

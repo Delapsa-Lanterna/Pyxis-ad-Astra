@@ -3,7 +3,7 @@ import { TABLE_KEYS } from '@/shared/types';
 import { createBrowserModel } from './scenarios/model';
 import { entityTargetFixture } from '../fixtures/entity-target';
 import { MISC_CONFIG_DEFINITIONS } from '@/domain/misc-config';
-import { entityContentId } from '@/domain/project/entity-definitions';
+import { entityContentId, entityContentIdField } from '@/domain/project/entity-definitions';
 import { gameFiles, gameImages, gameRoot, coreRoot, gameTablePaths, readGameCsv } from './game-files';
 import { renderGameCsv } from './game-format';
 import { buildGameJoint } from './game-joint';
@@ -97,8 +97,20 @@ export function createWorkspaceProject(root: string, index: number) {
     for (const [path, text] of textFiles) {
       const kind = kinds[path.split('.').at(-1)!];
       if (!kind) continue;
-      const spec = JSON.parse(text) as T.RowData;
-      const id = entityContentId(kind, spec);
+      let spec: T.RowData;
+      try {
+        spec = JSON.parse(text) as T.RowData;
+      } catch {
+        continue;
+      }
+      if (!spec || typeof spec !== 'object' || Array.isArray(spec)) continue;
+      const id =
+        typeof spec[entityContentIdField(kind)] === 'string'
+          ? entityContentId(kind, spec)
+          : path
+              .split('/')
+              .at(-1)!
+              .replace(/\.[^.]+$/, '');
       const target = entityTargetFixture(kind, id, 'existing', root);
       target.write.relPath = path.slice(root.length + 1);
       target.write.path = path;

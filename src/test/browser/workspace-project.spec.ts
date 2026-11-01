@@ -7,6 +7,114 @@ import { createBrowserWorkspace } from './workspace-runtime';
 import { createWorkspaceProject, coreRoot, gameRoot, workspaceRoots } from './workspace-project';
 
 describe('complete browser workspace fixtures', () => {
+  it.each(['read', 'overwrite', 'csv'] as const)(
+    'handles invalid original content and rejects stale files in browser mode %s',
+    async (mode) => {
+      const workspace = createBrowserWorkspace(),
+        project = workspace.projects[1]!;
+      const root = project.manifest.modRoot,
+        source = root + '/data/hulls/previous.ship',
+        target = root + '/data/hulls/next.ship';
+      project.textFiles.set(source, '{broken');
+      const text = '{"hullId":"next","custom":true}';
+      project.textFiles.set(target, text);
+      project.write(null, { kind: 'csv', table: 'ships' }, [source, target]);
+      const change: T.AssociatedSpecChange = {
+        action: 'rename',
+        previousId: 'previous',
+        create: { kind: 'ship', id: 'next', hullName: 'CSV name' },
+      };
+      const plan = (
+        (await workspace.invoke('main', 'prepare_csv_associated_specs', {
+          payload: { sessionId: project.manifest.sessionId, table: 'ships', changes: [change] },
+        })) as T.AssociatedSpecPreparation[]
+      )[0]!;
+      expect(plan.original!.problem).toBeTruthy();
+      const resolution = {
+        mode: mode === 'read' ? ('read' as const) : ('overwrite' as const),
+        original: plan.original,
+        destination: plan.destination,
+      };
+      const input = {
+        sessionId: project.manifest.sessionId,
+        table: 'ships',
+        patches: [{ rowKey: 'ships:new:0', action: 'upsert', row: { id: 'next', name: 'CSV name' }, isComment: false }],
+        associatedSpecs: mode === 'csv' ? [] : [{ change, target: plan.target, resolution }],
+      };
+      const before = project.history.undoStack.length;
+      await workspace.invoke('main', 'save_csv_patch', { payload: input });
+      expect(project.history.undoStack).toHaveLength(before + 1);
+      expect(project.textFiles.has(source)).toBe(mode === 'csv');
+      if (mode !== 'overwrite') expect(project.textFiles.get(target)).toBe(text);
+      else expect(JSON.parse(project.textFiles.get(target)!).custom).toBeUndefined();
+      project.undo();
+      project.textFiles.set(target, '{"hullId":"next","changed":true}');
+      const rows = structuredClone(project.tables.get('ships')!.rows);
+      await expect(
+        workspace.invoke('main', 'save_csv_patch', {
+          payload: { ...input, associatedSpecs: [{ change, target: plan.target, resolution }] },
+        }),
+      ).rejects.toThrow('关联文件已变化');
+      expect(project.tables.get('ships')!.rows).toEqual(rows);
+    },
+  );
+  it.each(['ships', 'weapons', 'shipSystems', 'skills'] as const)(
+    'prepares and replays existing %s files through one save',
+    async (table) => {
+      for (const rename of [false, true])
+        for (const mode of ['read', 'overwrite'] as const) {
+          const workspace = createBrowserWorkspace(),
+            project = workspace.projects[1]!;
+          const kind = table === 'ships' ? 'ship' : table === 'weapons' ? 'weapon' : table === 'skills' ? 'skill' : 'system';
+          const extension = { ship: 'ship', weapon: 'wpn', skill: 'skill', system: 'system' }[kind];
+          const directory = { ship: 'data/hulls', weapon: 'data/weapons', skill: 'data/characters/skills', system: 'data/shipsystems' }[
+            kind
+          ];
+          const field = kind === 'ship' ? 'hullId' : 'id';
+          const destination = project.manifest.modRoot + '/' + directory + '/nested/prepared.' + extension;
+          const targetText = JSON.stringify({ [field]: 'prepared', custom: 'preserve destination' }, null, 4) + '\n';
+          const old = project.manifest.modRoot + '/' + directory + '/original.' + extension;
+          project.textFiles.set(destination, targetText);
+          if (rename) project.textFiles.set(old, JSON.stringify({ [field]: 'original', custom: 'preserve source', specClass: 'beam' }));
+          project.write(null, { kind: 'csv', table }, [destination, ...(rename ? [old] : [])]);
+          const create: T.AssociatedSpecCreateParams =
+            kind === 'ship'
+              ? { kind, id: 'prepared', hullName: 'CSV name' }
+              : kind === 'weapon'
+                ? { kind, id: 'prepared', specClass: 'beam' as const }
+                : { kind, id: 'prepared' };
+          const change: T.AssociatedSpecChange = rename
+            ? { action: 'rename', previousId: 'original', create }
+            : { action: 'create', create };
+          const input = { sessionId: project.manifest.sessionId, table, changes: [change] };
+          const plans = (await workspace.invoke('main', 'prepare_csv_associated_specs', {
+            payload: input,
+          })) as T.AssociatedSpecPreparation[];
+          const plan = plans[0]!;
+          const beforeHistory = project.history.undoStack.length;
+          const saved = (await workspace.invoke('main', 'save_csv_patch', {
+            payload: {
+              sessionId: project.manifest.sessionId,
+              table,
+              patches: [{ rowKey: table + ':new:0', action: 'upsert', row: { id: 'prepared', name: 'CSV name' }, isComment: false }],
+              associatedSpecs: [
+                { change, target: plan.target, resolution: { mode, original: plan.original, destination: plan.destination } },
+              ],
+            },
+          })) as T.WriteResult;
+          expect(saved.history.undoStack).toHaveLength(beforeHistory + 1);
+          if (mode === 'read') expect(project.textFiles.get(destination)).toBe(targetText);
+          else expect(JSON.parse(project.textFiles.get(destination)!)[field]).toBe('prepared');
+          if (rename) expect(project.textFiles.has(old)).toBe(false);
+          expect(workspace.calls.filter((call) => call.command === 'prepare_csv_associated_specs')).toHaveLength(1);
+          project.undo();
+          expect(project.textFiles.get(destination)).toBe(targetText);
+          if (rename) expect(project.textFiles.has(old)).toBe(true);
+          project.undo('redo');
+          if (rename) expect(project.textFiles.has(old)).toBe(false);
+        }
+    },
+  );
   it('returns an empty preview for draft and comment rows', async () => {
     const workspace = createBrowserWorkspace(),
       project = workspace.projects[1]!;

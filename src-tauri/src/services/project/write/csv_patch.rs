@@ -48,27 +48,37 @@ pub fn save_csv_patch_with_json_options(
     associated_specs: Vec<AssociatedSpecChange>,
     options: crate::models::JsonWriteOptions,
 ) -> AppResult<WriteResult> {
-    let definition = associated_spec_definition(table);
     let associated = associated_specs
         .into_iter()
-        .map(|change| {
-            let definition = definition.expect("associated table has format");
-            let id = match &change {
-                AssociatedSpecChange::Rename { previous_id, .. } => previous_id.as_str(),
-                _ => change.id(),
-            };
-            let info = super::super::query::entity_targets::query_entity_edit_target(
-                session_id,
-                definition.entity_kind,
-                id,
-            )?;
-            Ok(AssociatedSpecWrite {
-                change,
-                target: info.target,
-            })
-        })
+        .map(|change| prepared_spec_write(session_id, table, change))
         .collect::<AppResult<Vec<_>>>()?;
     save_csv_patch_snapshot(session_id, table, patches, associated, options, None)
+}
+
+#[cfg(test)]
+pub(in crate::services::project) fn prepared_spec_write(
+    session_id: &str,
+    table: CsvTableKey,
+    change: AssociatedSpecChange,
+) -> AppResult<AssociatedSpecWrite> {
+    let prepared = super::super::query::csv_associated_specs::prepare_csv_associated_specs(
+        session_id,
+        table,
+        std::slice::from_ref(&change),
+    )?
+    .remove(0);
+    let resolution = (!matches!(change, AssociatedSpecChange::Delete { .. })).then_some(
+        crate::models::AssociatedSpecResolution {
+            mode: crate::models::AssociatedSpecMode::Overwrite,
+            original: prepared.original,
+            destination: prepared.destination,
+        },
+    );
+    Ok(AssociatedSpecWrite {
+        change,
+        target: prepared.target,
+        resolution,
+    })
 }
 
 pub fn save_csv_patch_snapshot(
@@ -119,6 +129,7 @@ pub fn save_csv_patch_snapshot(
     .stage(&session, &mut builder)?;
     let mut description_renames = Vec::new();
     let mut staged_identities = Vec::new();
+    let mut read_records = Vec::new();
     for spec in &associated_specs {
         let current = super::super::query::entity_targets::describe_entity_target(
             &mut session,
@@ -132,14 +143,28 @@ pub fn save_csv_patch_snapshot(
             ));
         }
         let staged = super::entity_write::associated_specs::stage_associated_spec(
+            &session,
             &mut builder,
             table,
             &spec.change,
             &spec.target,
+            spec.resolution.as_ref(),
             &mut json,
         )?;
         if let Some(rename) = staged.description_rename {
             description_renames.push(rename);
+        }
+        if let Some(record) = staged.read_record {
+            read_records.push((
+                spec.target.kind,
+                record,
+                spec.resolution
+                    .as_ref()
+                    .expect("read owns resolution")
+                    .destination
+                    .version
+                    .clone(),
+            ));
         }
         staged_identities.push(staged.identity);
     }
@@ -151,6 +176,11 @@ pub fn save_csv_patch_snapshot(
     .transpose()?;
     json.finish()?;
     let changes = builder.apply()?;
+    for (kind, record, version) in read_records {
+        std::sync::Arc::make_mut(&mut session.source_versions)
+            .insert(record.location.rel_path.clone(), version);
+        super::entity_write::associated_specs::accept_read_record(&mut session, kind, record);
+    }
     if let Some(description) = description {
         description.accept(&mut session);
     }
@@ -521,16 +551,20 @@ mod tests {
                         action: CsvRowPatchAction::Upsert,
                         row,
                     }],
-                    associated_specs: vec![AssociatedSpecWrite {
-                        target: info.target,
-                        change: AssociatedSpecChange::Rename {
-                            previous_id: "Demo".into(),
-                            create: AssociatedSpecCreateParams::Weapon {
-                                id: next_id.into(),
-                                spec_class: WeaponSpecClass::Projectile,
+                    associated_specs: vec![
+                        prepared_spec_write(
+                            &manifest.session_id,
+                            CsvTableKey::Weapons,
+                            AssociatedSpecChange::Rename {
+                                previous_id: "Demo".into(),
+                                create: AssociatedSpecCreateParams::Weapon {
+                                    id: next_id.into(),
+                                    spec_class: WeaponSpecClass::Projectile,
+                                },
                             },
-                        },
-                    }],
+                        )
+                        .unwrap(),
+                    ],
                     json_write: Default::default(),
                 }),
             )

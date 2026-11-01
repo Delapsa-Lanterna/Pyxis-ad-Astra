@@ -124,6 +124,7 @@ pub fn run() {
                     commands::query_csv_source_options,
                     commands::query_image_source_options,
                     commands::query_csv_row_preview,
+                    commands::prepare_csv_associated_specs,
                     commands::query_hull_references,
                     commands::query_entity,
                     commands::query_misc_config_files,

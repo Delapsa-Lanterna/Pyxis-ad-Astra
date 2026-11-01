@@ -89,6 +89,47 @@ pub enum AssociatedSpecChange {
 pub struct AssociatedSpecWrite {
     pub change: AssociatedSpecChange,
     pub target: crate::models::EntityEditTarget,
+    pub resolution: Option<AssociatedSpecResolution>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AssociatedSpecFile {
+    pub location: crate::models::EntityFileLocation,
+    pub version: crate::models::FileVersion,
+    pub problem: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssociatedSpecPreparation {
+    pub target: crate::models::EntityEditTarget,
+    pub base_versions: Vec<crate::models::FileVersion>,
+    pub original: Option<AssociatedSpecFile>,
+    pub destination: AssociatedSpecFile,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssociatedSpecResolution {
+    pub mode: AssociatedSpecMode,
+    pub original: Option<AssociatedSpecFile>,
+    pub destination: AssociatedSpecFile,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum AssociatedSpecMode {
+    Read,
+    Overwrite,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvAssociatedSpecsPayload {
+    pub session_id: ProjectSessionId,
+    pub table: CsvTableKey,
+    pub changes: Vec<AssociatedSpecChange>,
 }
 
 impl AssociatedSpecChange {
